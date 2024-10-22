@@ -288,7 +288,8 @@ void load(file::PathArray source,
             DebugHeader("// LOADING FROM ", s);
         }
         ~G() {
-            DebugHeader("// LOADED ", s);
+            //DebugHeader("// LOADED ", s);
+            Print("");
         }
     };
     
@@ -335,10 +336,16 @@ void load(file::PathArray source,
     /// -----------------------------------------
     /// 3. load default.settings from app folder:
     /// -----------------------------------------
-    auto default_path = file::DataLocation::parse("default.settings", {}, &combined.map);
-    if (default_path.exists()) {
+    if (auto default_path = file::DataLocation::parse("default.settings", {}, &combined.map);
+        default_path.exists())
+    {
         try {
-            warn_deprecated(default_path, GlobalSettings::load_from_file(deprecations(), default_path.str(), AccessLevelType::STARTUP, exclude, &combined.map));
+            auto str = utils::read_file(default_path.str());
+            if(not str.empty()) {
+                G g(default_path.str());
+                auto rejected = GlobalSettings::load_from_string(sprite::MapSource{default_path.str()}, deprecations(), combined.map, str, AccessLevelType::STARTUP, false, exclude, nullptr);
+                warn_deprecated(default_path, rejected);
+            }
             
         } catch(const std::exception& ex) {
             FormatError("Failed to execute settings file ",default_path,": ", ex.what() );
@@ -449,55 +456,71 @@ void load(file::PathArray source,
     /// --------------------------------------------------------
     /// 6. set the source / filename properties from parameters:
     /// --------------------------------------------------------
-    if(filename.has_extension("pv")) {
+    auto stage_guard = std::make_unique<G>("Initial settings");
+    /// ----------------------------
+    if(filename.has_extension("pv"))
         filename = filename.remove_extension();
-    }
     
-    if(not filename.empty())
-    {
-        if (filename.remove_filename().exists() && filename.is_absolute())
+    if(not filename.empty()) {
+        /// we have gotten a filename... so set
+        /// it in the target map
+        if (filename.remove_filename().exists()
+            && filename.is_absolute())
         {
             auto output_dir = filename.remove_filename();
-            auto output_prefix = SETTING(output_prefix).value<std::string>();
-            if(not output_prefix.empty() && output_dir.filename() == output_prefix)
+            
+            /// check whether the directory contains the *output_prefix*
+            /// if so then we need to remove it:
+            if(auto output_prefix = SETTING(output_prefix).value<std::string>();
+               not output_prefix.empty()
+               && output_dir.filename() == output_prefix)
+            {
                 output_dir = output_dir.remove_filename();
+            }
+            
 			combined.map["output_dir"] = output_dir;
 			set_config_if_different("output_dir", combined.map);
-            //filename = filename.filename();
         }
+        
         combined.map["filename"] = filename;
         set_config_if_different("filename", combined.map);
     }
     
-    if(not source.empty())
-    {
+    if(not source.empty()) {
+        /// we did get a source as function parameter,
+        /// which means this is to be prioritized. set
+        /// it in the target map
         if(source.get_paths().size() == 1) {
-            //if(not source.get_paths().front().has_extension())
+            /// we only have one path given - could be
+            /// webcam or a .pv file?
             if(source.get_paths().front() != "webcam"
                && not source.get_paths().front().exists())
             {
                 auto path = source.get_paths().front().add_extension("pv");
-                if(path.exists())
+                if(path.exists()) {
                     source = file::PathArray(path);
-                else if(path = file::DataLocation::parse("output", path, &combined.map);
+                    
+                } else if(path = file::DataLocation::parse("output", path, &combined.map);
                         path.exists())
                 {
                     source = file::PathArray(path);
                 }
             }
         }
+        
         combined.map["source"] = source;
         set_config_if_different("source", combined.map);
         
-        //if(combined.map.has("meta_source_path")
-        //   && combined.map.at("meta_source_path").value<std::string>().empty())
-        //{
         if(not contains(exclude.toVector(), "meta_source_path")) {
             combined.map["meta_source_path"] = source.source();
             set_config_if_different("meta_source_path", combined.map);
         }
-        //}
     }
+    
+    /// ------------------
+    /// initial settings
+    stage_guard = nullptr;
+    /// ------------------
 
     /// ---------------------------------------------------------------------
     /// 7. set the `output_dir` / `output_prefix` properties from parameters:
@@ -515,6 +538,9 @@ void load(file::PathArray source,
     if(source.empty()
        && task == TRexTask_t::convert)
     {
+        /// ------------------
+        G g{"Source is empty"};
+        /// ------------------
         const auto source = combined.map.at("source").value<file::PathArray>();
         
         file::Path path = file::find_basename(source);
@@ -550,27 +576,34 @@ void load(file::PathArray source,
             combined.map["filename"] = filename;
             set_config_if_different("filename", combined.map);
         }
-        
     }
         
-    if(filename.empty()
-              //&& task == TRexTask_t::track
-       )
-    {
-        const auto _source = source.empty()
-            ? combined.map.at("source").value<file::PathArray>()
-            : source;
+    if(filename.empty()) {
+        /// -------------------------
+        G g{"Fixing empty filename"};
+        /// -------------------------
+        {
+            auto name = combined.map.at("filename").value<file::Path>();
+            filename = name.empty()
+                            ? file::Path()
+                            : file::DataLocation::parse("output", name, &combined.map);
+        }
         
-        auto name = combined.map.at("filename").value<file::Path>();
-        filename = name.empty() ? file::Path() : file::DataLocation::parse("output", name, &combined.map);
         if(filename.has_extension("pv"))
             filename = filename.remove_extension();
         
-        if(not filename.empty() && (filename.is_regular() || filename.add_extension("pv").is_regular()))
+        if(not filename.empty()
+           && filename.add_extension("pv").is_regular())
         {
+            /// A PV file of that name exists (with .pv added)
             combined.map["filename"] = filename;
             set_config_if_different("filename", combined.map);
+            
         } else {
+            const auto _source = source.empty()
+                ? combined.map.at("source").value<file::PathArray>()
+                : source;
+            
             file::Path path = file::find_basename(_source);
             Print("found basename = ", path);
             if(task == TRexTask_t::track) {
@@ -600,12 +633,16 @@ void load(file::PathArray source,
     }
     
     if(not combined.map["filename"].value<file::Path>().empty()) {
+        /// -----------------------
+        /// In case the filename has been set, we could be in
+        /// a situation where it needs to be reset, since its
+        /// just the default for a given video anyway.
+        G g{source.source()};
+        /// -----------------------
         const auto _source = source.empty()
             ? combined.map.at("source").value<file::PathArray>()
             : source;
         auto default_path = find_output_name(combined.map, {}, {}, false);
-        //file::Path default_path = file::find_basename(_source);
-        //if(default_path.has_extension())
         
         auto path = combined.map["filename"].value<file::Path>();
         if(path == default_path) {
@@ -678,11 +715,14 @@ void load(file::PathArray source,
         //auto path = combined.map.at("filename").value<file::Path>();
         if(not path.has_extension() || path.extension() != "pv")
             path = path.add_extension("pv");
+        
         if(path.is_regular()) {
             auto settings_file = file::DataLocation::parse("settings", {},  &combined.map);
-            if(not settings_file.exists() && source_map.empty()) {
+            if(not settings_file.exists()
+               && source_map.empty())
+            {
+                G g(path.str());
                 try {
-                    G g(path.str());
                     sprite::Map tmp;
                     auto f = pv::File::Read(path);
                     if(f.header().version < pv::Version::V_10) {
@@ -741,9 +781,10 @@ void load(file::PathArray source,
                 } catch(const std::exception& ex) {
                     FormatWarning("Failed to execute settings stored inside ", path,": ",ex.what());
                 }
+                
             } else {
+                G g(path.str());
                 try {
-                    G g(path.str());
                     sprite::Map tmp;
                     auto f = pv::File::Read(path);
                     if(f.header().version < pv::Version::V_10) {
@@ -758,10 +799,11 @@ void load(file::PathArray source,
                     
                     if(f.header().metadata.has_value()) {
                         const auto& meta = f.header().metadata.value();
-                        sprite::parse_values(sprite::MapSource{ path }, tmp, meta, & combined.map,
+                        sprite::parse_values(sprite::MapSource{ path },
+                                             tmp, meta, &combined.map,
                                              changed_model_manually
-                                             ? (exclude + exclude_from_external).toVector()
-                                             : exclude.toVector(),
+                                                 ? (exclude + exclude_from_external).toVector()
+                                                 : exclude.toVector(),
                                              default_config::deprecations());
                     }
                     
@@ -775,6 +817,8 @@ void load(file::PathArray source,
                         "cm_per_pixel",
                         "detect_type"
                     };
+                    
+                    Print("// Not loading all settings from ", path, " because the settings file ", settings_file, " exists. Checking only ", fields_to_check);
 
                     // Functions to compute default values when not available in tmp
                     const std::unordered_map<std::string, std::function<const sprite::PropertyType*(sprite::Map&)>> compute_defaults = {
@@ -814,22 +858,7 @@ void load(file::PathArray source,
                         const bool needs_update = not default_value
                             || (default_value && (!combined.map.has(key) ||
                                     combined.map.at(key).get() == *default_value));
-                        /*if(default_value) {
-                            // we have a default value
-                            Print(key, " needs_update=",needs_update, " with value ", *default_value, " combined=", combined.map.at(key), " equals:",combined.map.at(key).get() == *default_value, " vs. ", *default_value == combined.map.at(key).get());
-                        } else {
-                            // can we generate a default value?
-                            if(compute_defaults.contains(key)) {
-                                auto p = compute_defaults.at(key)(current_defaults);
-                                if(p) {
-                                    Print(key," needs_update=",needs_update, " combined=", combined.map.at(key), " default=",*p);
-                                } else {
-                                    Print(key," needs_update=",needs_update, " combined=", combined.map.at(key)," no default");
-                                }
-                            } else
-                                Print(key," needs_update=",needs_update, " combined=", combined.map.at(key));
-                        }*/
-
+                        
                         if (needs_update) {
                             if (tmp.has(key)) {
                                 // Copy value from tmp if available
@@ -853,8 +882,6 @@ void load(file::PathArray source,
                 } catch(const std::exception& ex) {
                     FormatWarning("Failed to execute settings stored inside ", path,": ",ex.what());
                 }
-                
-                Print("// Not loading settings from ", path, " because the settings file ", settings_file, " exists.");
             }
         }
         
@@ -865,8 +892,7 @@ void load(file::PathArray source,
     /// ---------------------------
     /// 11. defaults based on task
     /// ---------------------------
-    if(combined.map.has("detect_type"))
-    {
+    if(combined.map.has("detect_type")) {
         type = combined.map.at("detect_type").value<detect::ObjectDetectionType_t>();
     }
     
@@ -913,7 +939,7 @@ void load(file::PathArray source,
             auto manual_exclude = changed_model_manually
                     ? (exclude + exclude_from_external).toVector()
                     : exclude.toVector();
-            //Print("// Excluding ", manual_exclude, " from settings file.");
+            Print("// Excluding ", manual_exclude, " from settings file.");
 
             auto rejected = GlobalSettings::load_from_file(deprecations(), settings_file.str(), AccessLevelType::STARTUP, manual_exclude, &map, &combined.map);
             
@@ -987,6 +1013,7 @@ void load(file::PathArray source,
     if(not combined.map.has("meta_video_size")
        || combined.map.at("meta_video_size").value<Size2>().empty())
     {
+        G g{source.source()};
         try {
             if(auto source = combined.map.at("source").value<file::PathArray>();
                source == file::PathArray("webcam"))
