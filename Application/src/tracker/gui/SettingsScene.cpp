@@ -196,11 +196,11 @@ struct SettingsScene::Data {
                                     /// config array:
                                     sprite::Map cleared;
                                     
-                                    SETTING(filename).get().copy_to(&cleared);
-                                    SETTING(source).get().copy_to(&cleared);
-                                    SETTING(output_prefix).get().copy_to(&cleared);
-                                    SETTING(output_dir).get().copy_to(&cleared);
-                                    SETTING(detect_type).get().copy_to(&cleared);
+                                    SETTING(filename).get().copy_to(cleared);
+                                    SETTING(source).get().copy_to(cleared);
+                                    SETTING(output_prefix).get().copy_to(cleared);
+                                    SETTING(output_dir).get().copy_to(cleared);
+                                    SETTING(detect_type).get().copy_to(cleared);
                                     
                                     settings::reset(cleared);
                                     
@@ -696,7 +696,9 @@ void SettingsScene::Data::check_video_source(file::PathArray source) {
         
         SceneManager::getInstance().enqueue([this, source](){
             try {
-                if(_initial_source.empty()) {
+                if(_initial_source.empty()
+                   && not source.empty())
+                {
                     load_video_settings(source);
                     
                     // set initial source for the first time
@@ -732,11 +734,13 @@ void SettingsScene::Data::load_video_settings(const file::PathArray& source) {
     if(callback)
         GlobalSettings::map().unregister_callbacks(std::move(callback));
     
-    if (auto source_path = source.empty() ? file::Path{} : file::DataLocation::parse("input", source.get_paths().front());
-        not source.empty()
+    auto source_path = source.empty()
+                        ? file::Path{}
+                        : file::DataLocation::parse("input", source.get_paths().front());
+    
+    if (not source.empty()
         && source_path.is_regular()
-        && (not source_path.has_extension()
-            || utils::lowercase(source_path.extension()) != "pv"))
+        && not source_path.has_extension("pv"))
     {
         file::Path filename = GlobalSettings::map().at("filename");
         try {
@@ -745,14 +749,8 @@ void SettingsScene::Data::load_video_settings(const file::PathArray& source) {
         catch (const std::exception& ex) {
             FormatWarning("Ex = ", ex.what());
         }
-    }
-    else if (not source_path.empty()
-             && source_path.is_regular()
-             //auto output_path = settings::find_output_name(GlobalSettings::map()).add_extension("pv");
-             //not source.empty()
-             //&& output_path.is_regular())
-             )
-    {
+        
+    } else if (source_path.is_regular()) {
         try {
             pv::File file(source_path.remove_extension());
             auto& str = file.header().metadata;
@@ -760,7 +758,7 @@ void SettingsScene::Data::load_video_settings(const file::PathArray& source) {
             sprite::Map map;
             try {
                 if(str.has_value())
-                    sprite::parse_values(sprite::MapSource{ source_path }, map, str.value(), &GlobalSettings::defaults(), exclude + std::vector<std::string_view>{"output_dir","output_prefix"}, default_config::deprecations());
+                    sprite::parse_values(sprite::MapSource{ source_path }, map, str.value(), &GlobalSettings::defaults(), {}, default_config::deprecations());
             }
             catch (...) {
                 /// do nothing
@@ -768,11 +766,23 @@ void SettingsScene::Data::load_video_settings(const file::PathArray& source) {
             
             auto filename = SETTING(filename).value<file::Path>();
             auto csource = SETTING(source).value<file::PathArray>();
-            settings::load(source, {}, default_config::TRexTask_t::none, track::detect::ObjectDetectionType::none, exclude, map);
-            SETTING(source) = csource;
-            SETTING(filename) = filename;
             
-            //settings::load(source, filename, default_config::TRexTask_t::track, track::detect::ObjectDetectionType::none, exclude, GlobalSettings::current_defaults_with_config());
+            sprite::Map promote;
+            if(map.has("source")) {
+                map.at("source").get().copy_to(promote);
+            } else {
+                /// no source :(
+            }
+            
+            promote["filename"] = source_path;
+            /*auto name = settings::find_output_name(promote, map.at("source").value<file::PathArray>(), {}, false);
+            if(name != source_path)
+                promote["filename"] = name;*/
+            
+            settings::load(source, {}, default_config::TRexTask_t::none, track::detect::ObjectDetectionType::none, exclude, promote);
+            
+            //SETTING(source) = csource;
+            //SETTING(filename) = filename;
         }
         catch (const std::exception& ex) {
             FormatWarning("Ex = ", ex.what());

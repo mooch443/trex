@@ -43,7 +43,7 @@ void TrackingSettingsScene::activate() {
      RecentItems::set_select_callback([](RecentItems::Item item){
      item._options.set_do_print(true);
      for (auto& key : item._options.keys())
-     item._options[key].get().copy_to(&GlobalSettings::map());
+     item._options[key].get().copy_to(GlobalSettings::map());
      
      //RecentItems::open(item.operator DetailItem().detail(), GlobalSettings::map());
      //SceneManager::getInstance().set_active("convert-scene");

@@ -70,7 +70,7 @@ Segmenter::Segmenter(std::function<void()> eof_callback, std::function<void(std:
                 /// preserve all parameters
                 /*sprite::Map parm;
                 for(auto &key : GlobalSettings::map().keys())
-                    GlobalSettings::map().at(key).get().copy_to(&parm);
+                    GlobalSettings::map().at(key).get().copy_to(parm);
                     
                 ::settings::load(SETTING(source).value<file::PathArray>(),
                                  file::Path(output_file_name()),
@@ -387,7 +387,7 @@ void Segmenter::set_metadata() {
     auto config = default_config::generate_delta_config(AccessLevelType::LOAD);
     sprite::Map diff;
     for(auto &[key, value] : config.map)
-        value->copy_to(&diff);
+        value->copy_to(diff);
     _output_file->set_metadata(std::move(diff));
 }
 

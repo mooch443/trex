@@ -804,7 +804,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
     }
     void Config::write_to(sprite::Map& other) {
         for (auto& [key, value] : this->map) {
-            value->copy_to(&other);
+            value->copy_to(other);
         }
     }
 

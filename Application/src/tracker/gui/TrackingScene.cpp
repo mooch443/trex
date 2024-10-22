@@ -617,7 +617,7 @@ void TrackingScene::deactivate() {
            is_in(key, "filename", "source", "output_dir", "output_prefix"))
         {
             Print(" . ", value.get());
-            value.get().copy_to(&GlobalSettings::current_defaults_with_config());
+            value.get().copy_to(GlobalSettings::current_defaults_with_config());
             continue;
         }
         //Print(" - ", value.get());
@@ -653,10 +653,10 @@ void TrackingScene::deactivate() {
         if(GlobalSettings::map().has(key)) {
             auto p = GlobalSettings::map().at(key).get().do_print();
             GlobalSettings::map().do_print(key, false);
-            combined.map.at(key).get().copy_to(&GlobalSettings::map());
+            combined.map.at(key).get().copy_to(GlobalSettings::map());
             GlobalSettings::map().do_print(key, p);
         } else {
-            combined.map.at(key).get().copy_to(&GlobalSettings::map());
+            combined.map.at(key).get().copy_to(GlobalSettings::map());
         }
     }
     

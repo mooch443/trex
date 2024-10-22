@@ -158,9 +158,9 @@ RecentItems RecentItems::read() {
                     try {
                         if (not entry._options.has(key)) {
                             if (GlobalSettings::defaults().has(key)) {
-                                GlobalSettings::defaults().at(key).get().copy_to(&entry._options);
+                                GlobalSettings::defaults().at(key).get().copy_to(entry._options);
                             } else if(GlobalSettings::map().has(key)) {
-                                GlobalSettings::map().at(key).get().copy_to(&entry._options);
+                                GlobalSettings::map().at(key).get().copy_to(entry._options);
                             } else
                                 throw std::invalid_argument("Cannot add "+std::string(key)+" since we dont know the type of it.");
                         }
@@ -214,7 +214,7 @@ void RecentItems::add(std::string name, const sprite::Map& options) {
                 for(auto& key : options.keys()) {
                     if(not is_writable_key(key))
                         continue;
-                    options.at(key).get().copy_to(&item._options);
+                    options.at(key).get().copy_to(item._options);
                 }
                 
                 //item._options = options;
@@ -225,7 +225,7 @@ void RecentItems::add(std::string name, const sprite::Map& options) {
                 item.settings = {};
                 for(auto &key : item._options.keys())
                     item.settings[key] = item._options.at(key).get().to_json();
-                    //config.at(key).get().copy_to(&item._options);
+                    //config.at(key).get().copy_to(item._options);
                 //config.write_to(item._options);
                 return;
             }
@@ -242,7 +242,7 @@ void RecentItems::add(std::string name, const sprite::Map& options) {
     for(auto &key : config.keys()) {
         if(not is_writable_key(key))
             continue;
-        config.at(key).get().copy_to(&item._options);
+        config.at(key).get().copy_to(item._options);
     }
     for(auto &key : item._options.keys())
         item.settings[key] = item._options.at(key).get().to_json();

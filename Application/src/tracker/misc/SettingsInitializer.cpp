@@ -76,7 +76,7 @@ set_defaults_for(detect::ObjectDetectionType_t detect_type,
                    || values.at(key).get() != output.at(key).get())
                 {
                     changed_keys.insert(key);
-                    values.at(key).get().copy_to(&output);
+                    values.at(key).get().copy_to(output);
                 }
             }
         }
@@ -172,7 +172,7 @@ SettingsMaps reset(const cmn::sprite::Map& extra_map, cmn::sprite::Map* output) 
                 continue;
             }
             
-            extra_map.at(key).get().copy_to(&combined.map);
+            extra_map.at(key).get().copy_to(combined.map);
             
         } catch(const std::exception& ex) {
             FormatExcept("Exception while copying ", key, " to combined map: ", ex.what());
@@ -208,7 +208,7 @@ SettingsMaps reset(const cmn::sprite::Map& extra_map, cmn::sprite::Map* output) 
                     
                     /// copy to destination map
                     if(not is_in(key, "gui_interface_scale"))
-                        combined.map.at(key).get().copy_to(output);
+                        combined.map.at(key).get().copy_to(*output);
                 }
             } catch(const std::exception& ex) {
                 FormatExcept("Cannot parse setting ", key, " and copy it to output map: ", ex.what());
@@ -377,7 +377,7 @@ void load(file::PathArray source,
                 }*/
                 if(not combined.map.has(key) || combined.map.at(key) != from.at(key)) {
                     //Print("setting combined.map ", key, " to ", from.at(key).get().valueString());
-                    from.at(key).get().copy_to(&combined.map);
+                    from.at(key).get().copy_to(combined.map);
                     was_different = true;
                 }
                 
@@ -397,7 +397,7 @@ void load(file::PathArray source,
             if (not GlobalSettings::defaults().has(key)
                 || GlobalSettings::defaults().at(key) != from.at(key)) 
             {
-                from.at(key).get().copy_to(&current_defaults);
+                from.at(key).get().copy_to(current_defaults);
                 //Print("/// [current_defaults] ", current_defaults.at(key).get());
             }
             else if (current_defaults.has(key)) 
@@ -768,7 +768,7 @@ void load(file::PathArray source,
                         {
                             type = detect::ObjectDetectionType::yolo;
                         }
-                        //tmp.at("detect_type").get().copy_to(&combined.map);
+                        //tmp.at("detect_type").get().copy_to(combined.map);
                     }
                     
                     if (not combined.map.has("meta_real_width")
@@ -836,7 +836,7 @@ void load(file::PathArray source,
                         }},
                         {"detect_type", [&](auto& map) -> const sprite::PropertyType* {
                             if (tmp.has("detect_type")) {
-                                tmp.at("detect_type").get().copy_to(&map);
+                                tmp.at("detect_type").get().copy_to(map);
                                 return &map.at("detect_type").get();
                             }
                             return nullptr;
@@ -862,7 +862,7 @@ void load(file::PathArray source,
                         if (needs_update) {
                             if (tmp.has(key)) {
                                 // Copy value from tmp if available
-                                tmp.at(key).get().copy_to(&combined.map);
+                                tmp.at(key).get().copy_to(combined.map);
                                 set_config_if_different(key, combined.map);
                                 //Print("* Checking ", key, ": ", tmp.at(key).get(), " combined=", combined.map.at(key));
                             } else if (compute_defaults.count(key)) {
@@ -912,7 +912,7 @@ void load(file::PathArray source,
                 continue;
             
             if(not contains(exclude.toVector(), key))
-                values.at(key).get().copy_to(&GlobalSettings::current_defaults());
+                values.at(key).get().copy_to(GlobalSettings::current_defaults());
             
             if(contains(exclude_from_default.toVector(), key)) {
                 Print("// Not setting default value ", key);
@@ -951,7 +951,7 @@ void load(file::PathArray source,
                 if(not set_config_if_different("meta_source_path", tmp)) {
                     print("// meta_source_path = ",tmp.at("meta_source_path").get().valueString()," not set");
                 }
-                //tmp.at("meta_source_path").get().copy_to(&GlobalSettings::current_defaults_with_config());
+                //tmp.at("meta_source_path").get().copy_to(GlobalSettings::current_defaults_with_config());
             }*/
             
             //auto before = combined.map.print_by_default();
@@ -962,7 +962,7 @@ void load(file::PathArray source,
                     //Print("// ", key, " was already set to ", no_quotes(map.at(key).get().valueString()));
                 }
                 
-                map.at(key).get().copy_to(&GlobalSettings::current_defaults_with_config());
+                map.at(key).get().copy_to(GlobalSettings::current_defaults_with_config());
             }
             //combined.map.set_print_by_default(before);
             //exclude_from_pv = exclude_from_pv + map.keys();
@@ -1005,8 +1005,8 @@ void load(file::PathArray source,
             }
             
             set_config_if_different(key, source_map);
-            //source_map.at(key).get().copy_to(&combined.map);
-            //source_map.at(key).get().copy_to(&current_defaults);
+            //source_map.at(key).get().copy_to(combined.map);
+            //source_map.at(key).get().copy_to(current_defaults);
         }
     }
     
@@ -1118,7 +1118,7 @@ void load(file::PathArray source,
                     }
                     
                     if(not is_in(key, "gui_interface_scale"))
-                        combined.map.at(key).get().copy_to(&GlobalSettings::map());
+                        combined.map.at(key).get().copy_to(GlobalSettings::map());
                 }
                 /*else {
                  Print("Would be updating ",combined.map.at(key), " but is forbidden.");

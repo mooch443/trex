@@ -110,7 +110,7 @@ void StartingScene::activate() {
         SETTING(filename) = file::Path(item.filename);
         
         for (auto& key : item._options.keys())
-            item._options[key].get().copy_to(&GlobalSettings::map());
+            item._options[key].get().copy_to(GlobalSettings::map());
         
         //CommandLine::instance().load_settings();
         
