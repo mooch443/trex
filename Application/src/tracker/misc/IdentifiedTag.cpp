@@ -2,9 +2,10 @@
 #include <misc/ProximityGrid.h>
 #include <misc/ranges.h>
 
-
 namespace track {
 namespace tags {
+
+using namespace cmn;
 
 inline static std::shared_mutex grid_mutex;
 inline static std::atomic<uint64_t> added_entries{ 0 };
@@ -233,7 +234,7 @@ namespace tags {
 
     void write(Data& data) {
         std::shared_lock guard(grid_mutex);
-        print("Writing ", assignments.size(), " tags to file...");
+        Print("Writing ", assignments.size(), " tags to file...");
 
         uint64_t counter = sizeof(uint32_t);
         for(const auto &[id, tag] : assignments) {
@@ -241,14 +242,14 @@ namespace tags {
                 + tag.detections.size() * (sizeof(uint32_t) * 2 + sizeof(float));
         }
         
-        print("tags take up ", FileSize{counter});
+        Print("tags take up ", FileSize{counter});
         
         DataPackage package(counter);
-        package.write<uint32_t>(assignments.size());
+        package.write<uint32_t>(narrow_cast<uint32_t>(assignments.size()));
         
         for(const auto &[id, tag] : assignments) {
             package.write<uint32_t>(id._identity);
-            package.write<uint32_t>(tag.detections.size());
+            package.write<uint32_t>(narrow_cast<uint32_t>(tag.detections.size()));
             for(auto &[frame, pair] : tag.detections) {
                 package.write<uint32_t>(frame.get());
                 package.write<uint32_t>(pair.bdx._id);
@@ -270,8 +271,6 @@ namespace tags {
         assignments.clear();
         added_entries = 0;
         
-        print("Reading ", N, " assignments.");
-        
         for (uint32_t i=0; i<N; ++i) {
             data.read<uint32_t>(identity);
             
@@ -288,7 +287,8 @@ namespace tags {
             }
         }
         
-        print("Read ", N, " tags.");
+        if(N>0)
+            Print("Read ", N, " tags.");
     }
 
     Assignment find(Frame_t frame, pv::bid bdx) {

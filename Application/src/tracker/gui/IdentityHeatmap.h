@@ -2,16 +2,19 @@
 
 #include <gui/types/Entangled.h>
 #include <gui/types/Layout.h>
-#include <misc/ProximityGrid.h>
 #include <misc/Timer.h>
-#include <misc/OutputLibrary.h>
+#include <tracking/OutputLibrary.h>
 #include <misc/ThreadPool.h>
+#include <misc/idx_t.h>
+#include <misc/default_config.h>
+#include <misc/Grid.h>
 
 namespace track {
 class Individual;
+struct SegmentInformation;
 }
 
-namespace gui {
+namespace cmn::gui {
 namespace heatmap {
 
 using grid_t = grid::Grid2D<std::tuple<double, long_t>, std::vector<grid::pixel<std::tuple<double, long_t>>>>;
@@ -46,18 +49,18 @@ public:
     using Ptr = Node*;//std::shared_ptr<Node>;
     
 protected:
-    GETTER(Range<uint32_t>, x)
-    GETTER(Range<uint32_t>, y)
+    GETTER(Range<uint32_t>, x);
+    GETTER(Range<uint32_t>, y);
     Range<Frame_t> _frame_range;
-    GETTER(Ptr, parent)
+    GETTER(Ptr, parent);
     const Grid* _grid;
-    GETTER(double, value_sum)
-    GETTER(double, value_sqsum)
-    GETTER(Range<double>, value_range)
+    GETTER(double, value_sum);
+    GETTER(double, value_sqsum);
+    GETTER(Range<double>, value_range);
     
-    GETTER(std::vector<uint32_t>, IDs)
-    GETTER(std::vector<double>, values_per_id)
-    GETTER(std::vector<Range<double>>, value_range_per_id)
+    GETTER(std::vector<uint32_t>, IDs);
+    GETTER(std::vector<double>, values_per_id);
+    GETTER(std::vector<Range<double>>, value_range_per_id);
     
 public:
     Node();
@@ -80,8 +83,8 @@ public:
     using regions_t = std::array<Node::Ptr, 4>;
     
 protected:
-    GETTER(regions_t, regions)
-    GETTER(uint32_t, pixel_size)
+    GETTER(regions_t, regions);
+    GETTER(uint32_t, pixel_size);
     size_t _size;
     
 public:
@@ -114,7 +117,7 @@ private:
 };
 
 class Leaf : public Node {
-    GETTER(std::vector<DataPoint>, data)
+    GETTER(std::vector<DataPoint>, data);
     
 public:
     Leaf();
@@ -144,11 +147,11 @@ public:
     using alias_map_t = std::map<uint32_t, uint32_t>;
     
 protected:
-    //GETTER(std::shared_ptr<Region>, root)
-    GETTER_PTR(Region*, root)
+    //GETTER(std::shared_ptr<Region>, root);
+    GETTER_PTR(Region*, root);
     size_t _elements;
-    GETTER(std::vector<uint32_t>, identities)
-    GETTER(alias_map_t, identity_aliases)
+    GETTER(std::vector<uint32_t>, identities);
+    GETTER(alias_map_t, identity_aliases);
     
 public:
     Grid() : _root(nullptr), _elements(0) {}
@@ -312,10 +315,10 @@ protected:
     uint32_t stride, N;
     Range<double> custom_heatmap_value_range;
     Frame_t _frame_context;
-    std::vector<uint32_t> _ids;
+    std::vector<track::Idx_t> _ids;
     double smooth_heatmap_factor;
     
-    Image::UPtr grid_image;
+    Image::Ptr grid_image;
     std::string _original_source, _source;
     Output::Options_t _mods;
     std::shared_ptr<ExternalImage> _image;
@@ -323,7 +326,7 @@ protected:
     std::vector<double> _array_grid, _array_sqsum, _array_samples;
     
     gpuMat _viridis, _gpuGrid;
-    std::map<track::Individual*, track::Individual::segment_map::const_iterator> _iterators;
+    std::map<track::Individual*, std::vector<std::shared_ptr<track::SegmentInformation>>::const_iterator> _iterators;
     std::map<track::Individual*, size_t> _capacities;
     
 public:

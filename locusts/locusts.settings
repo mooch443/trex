@@ -1,9 +1,0 @@
-blob_size_ranges = [[0.05,0.5]]
-calculate_posture = false
-frame_rate = 25
-gui_interface_scale = 1
-recognition_enable = false
-track_max_reassign_time = 1
-track_speed_decay = 1
-track_threshold = 0
-track_max_speed = 5

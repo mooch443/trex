@@ -1,64 +1,51 @@
 #ifndef _POSTURE_H
 #define _POSTURE_H
 
-#include <types.h>
+#include <commons.pc.h>
 
 #include "Outline.h"
-#include <misc/PVBlob.h>
+#include <misc/bid.h>
+#include <misc/idx_t.h>
 
 //#define POSTURE_DEBUG
+namespace cmn::blob {
+struct Pose;
+}
+
 namespace track {
-    class Posture {
-    private:
-    public:
-        struct EntryPoint {
-            int y;
-            int x0, x1;
-            //int x;
-            std::vector<Vec2> interp;
-            
-            EntryPoint() : y(-1),x0(-1),x1(-1) { }
-            void clear() {
-                y = -1; x0 = -1; x1 = -1;
-                interp.clear();
-            }
-        };
-        
-    private:
-        friend class DebugDrawing;
-        
-        std::shared_ptr<std::vector<Vec2>> _outline_points;
-        
-        Frame_t frameIndex;
-        uint32_t fishID;
-        GETTER(Outline, outline)
-        GETTER_PTR(Midline::Ptr, normalized_midline)
-        
-    public:
-        Posture(Frame_t frameIndex, uint32_t fishID);
-        ~Posture() {
-        }
-        
-        void calculate_posture(Frame_t frameIndex, pv::BlobPtr blob);//const cv::Mat& greyscale, Vec2 previous_direction);
-        
-        bool outline_empty() const { return _outline.empty(); }
-        static std::vector<EntryPoint> subpixel_threshold(const cv::Mat& greyscale, int threshold) 
-#ifndef WIN32
-            __attribute__((deprecated("use new method please")))
-#endif
-            ;
-        
-        float calculate_outline(std::vector<EntryPoint>&) 
-#ifndef WIN32
-            __attribute__((deprecated("use new method please")))
-#endif
-            ;
-        float calculate_outline(const std::vector<Vec2>&);
-    private:
-        float calculate_midline(bool debug);
-        
-        
-    };
+struct PoseMidlineIndexes;
+struct BasicStuff;
+
+namespace posture {
+struct EntryPoint {
+    int y;
+    int x0, x1;
+    //int x;
+    std::vector<Vec2> interp;
+    
+    EntryPoint() : y(-1),x0(-1),x1(-1) { }
+    void clear() {
+        y = -1; x0 = -1; x1 = -1;
+        interp.clear();
+    }
+};
+
+struct Result {
+    Outline outline;
+    Midline::Ptr midline;
+    Midline::Ptr normalized_midline;
+};
+
+tl::expected<Result, const char*> calculate_posture(Frame_t, pv::BlobWeakPtr);
+tl::expected<Result, const char*> calculate_posture(Frame_t, const BasicStuff&, const blob::Pose &, const PoseMidlineIndexes &);
+tl::expected<Result, const char*> calculate_posture(Frame_t, const BasicStuff &, const blob::SegmentedOutlines&);
+
+}
+
+std::vector<Vec2> generateOutline(const blob::Pose& pose,
+                                  const PoseMidlineIndexes& midline,
+                                  const std::function<float(float)>& radius = nullptr);
+
 }
 
 #endif

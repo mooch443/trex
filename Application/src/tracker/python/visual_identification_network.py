@@ -1,7 +1,8 @@
 import tensorflow as tf
 from tensorflow import keras
+from tensorflow.keras import layers
 from tensorflow.keras.layers import Dense, Dropout, Activation, Cropping2D, Flatten, Convolution1D, Convolution2D, MaxPooling1D, MaxPooling2D
-from tensorflow.keras.layers import SpatialDropout2D, Lambda, Input, BatchNormalization
+from tensorflow.keras.layers import SpatialDropout2D, Lambda, Input, BatchNormalization, GlobalAveragePooling2D
 from tensorflow.keras.models import Sequential
 from tensorflow.keras import backend as K
 from tensorflow.keras.utils import to_categorical
@@ -108,13 +109,347 @@ def categorical_focal_loss(alpha, gamma=2.):
 
     return categorical_focal_loss_fixed
 
+def mlp(x, hidden_units, dropout_rate):
+    for units in hidden_units:
+        x = layers.Dense(units, activation=tf.nn.gelu)(x)
+        x = layers.Dropout(dropout_rate)(x)
+    return x
+
+class Patches(layers.Layer):
+    def __init__(self, patch_size):
+        super().__init__()
+        self.patch_size = patch_size
+
+    def call(self, images):
+        batch_size = tf.shape(images)[0]
+        patches = tf.image.extract_patches(
+            images=images,
+            sizes=[1, self.patch_size, self.patch_size, 1],
+            strides=[1, self.patch_size, self.patch_size, 1],
+            rates=[1, 1, 1, 1],
+            padding="VALID",
+        )
+        patch_dims = patches.shape[-1]
+        patches = tf.reshape(patches, [batch_size, -1, patch_dims])
+        return patches
+
+class PatchEncoder(layers.Layer):
+    def __init__(self, num_patches, projection_dim):
+        super().__init__()
+        self.num_patches = num_patches
+        self.projection = layers.Dense(units=projection_dim)
+        self.position_embedding = layers.Embedding(
+            input_dim=num_patches, output_dim=projection_dim
+        )
+
+    def call(self, patch):
+        positions = tf.range(start=0, limit=self.num_patches, delta=1)
+        encoded = self.projection(patch) + self.position_embedding(positions)
+        return encoded
+
+def create_vit_classifier(num_classes,input_shape = (32, 32, 3)):
+    learning_rate = 0.001
+    weight_decay = 0.0001
+    batch_size = 256
+    num_epochs = 100
+    image_size = input_shape[0]  # We'll resize input images to this size
+    patch_size = 6  # Size of the patches to be extract from the input images
+    num_patches = (image_size // patch_size) ** 2
+    projection_dim = 64
+    num_heads = 4
+    transformer_units = [
+        projection_dim * 2,
+        projection_dim,
+    ]  # Size of the transformer layers
+    transformer_layers = 4
+    mlp_head_units = [2048, 1024]  # Size of the dense layers of the final classifier
+
+    inputs = layers.Input(shape=input_shape)
+    # Augment data.
+    #augmented = data_augmentation(inputs)
+    # Create patches.
+    patches = Patches(patch_size)(inputs)
+    # Encode patches.
+    encoded_patches = PatchEncoder(num_patches, projection_dim)(patches)
+
+    # Create multiple layers of the Transformer block.
+    for _ in range(transformer_layers):
+        # Layer normalization 1.
+        x1 = layers.LayerNormalization(epsilon=1e-6)(encoded_patches)
+        # Create a multi-head attention layer.
+        attention_output = layers.MultiHeadAttention(
+            num_heads=num_heads, key_dim=projection_dim, dropout=0.1
+        )(x1, x1)
+        # Skip connection 1.
+        x2 = layers.Add()([attention_output, encoded_patches])
+        # Layer normalization 2.
+        x3 = layers.LayerNormalization(epsilon=1e-6)(x2)
+        # MLP.
+        x3 = mlp(x3, hidden_units=transformer_units, dropout_rate=0.1)
+        # Skip connection 2.
+        encoded_patches = layers.Add()([x3, x2])
+
+    # Create a [batch_size, projection_dim] tensor.
+    representation = layers.LayerNormalization(epsilon=1e-6)(encoded_patches)
+    representation = layers.Flatten()(representation)
+    representation = layers.Dropout(0.5)(representation)
+    # Add MLP.
+    features = mlp(representation, hidden_units=mlp_head_units, dropout_rate=0.5)
+    # Classify outputs.
+    #flat = layers.Flatten()(features)
+    logits = layers.Dense(num_classes, activation="softmax")(features)
+    # Create the Keras model.
+    model = keras.Model(inputs=inputs, outputs=logits)
+    return model
+
 class Network:
+    def add_official_models(self):
+        def input_for(image_width, image_height, channels):
+            inputs = layers.Input(shape=(int(image_height), int(image_width), int(channels)))
+            if int(channels) == 1:
+                adjust_channels = Lambda(lambda x: tf.repeat(x, 3, axis=-1))(inputs)
+            else:
+                adjust_channels = inputs
+            return inputs, adjust_channels
+
+        def top_for(inputs, model, classes):
+            # Freeze the pretrained weights
+            model.trainable = True
+
+            x = layers.GlobalAveragePooling2D(name="avg_pool")(model.output)
+            x = layers.BatchNormalization()(x)
+
+            top_dropout_rate = 0.2
+            x = layers.Dropout(top_dropout_rate, name="top_dropout")(x)
+            outputs = layers.Dense(len(classes), activation="softmax", name="pred")(x)
+
+            return keras.Model(inputs, outputs)
+        
+        def convnextbase(model, image_width, image_height, classes, channels):
+            from tensorflow.keras.applications import ConvNeXtBase
+            inputs, adjust_channels = input_for(image_width, image_height, channels)
+            adjust_channels = keras.applications.convnext.preprocess_input(adjust_channels)
+            model = ConvNeXtBase(
+                include_top=False,
+                weights="imagenet",
+                input_tensor=adjust_channels,
+                input_shape=None,
+                pooling=None,
+                classes=len(classes),
+                classifier_activation="softmax",
+            )
+            return top_for(inputs, model, classes)
+        
+        self.versions["convnextbase"] = convnextbase
+
+        def inceptionv3(model, image_width, image_height, classes, channels):
+            from tensorflow.keras.applications import InceptionV3
+            inputs, adjust_channels = input_for(image_width, image_height, channels)
+            adjust_channels = keras.applications.inception_v3.preprocess_input(adjust_channels)
+            model = InceptionV3(
+                include_top=False,
+                weights="imagenet",
+                input_tensor=adjust_channels,
+                input_shape=None,
+                pooling=None,
+                classes=len(classes),
+                classifier_activation="softmax",
+            )
+            return top_for(inputs, model, classes)
+        
+        self.versions["inceptionv3"] = inceptionv3
+
+        def nasnetmobile(model, image_width, image_height, classes, channels):
+            from tensorflow.keras.applications import NASNetMobile
+            inputs, adjust_channels = input_for(image_width, image_height, channels)
+            adjust_channels = keras.applications.nasnet.preprocess_input(adjust_channels)
+            
+            model = NASNetMobile(
+                include_top=False,
+                weights="imagenet",
+                input_tensor=adjust_channels,
+                input_shape=None,
+                pooling=None,
+                classes=len(classes),
+                classifier_activation="softmax",
+            )
+
+            return top_for(inputs, model, classes)
+        
+        self.versions["nasnetmobile"] = nasnetmobile
+        
+        def vgg16(model, image_width, image_height, classes, channels):
+            from tensorflow.keras.applications import VGG16
+            inputs, adjust_channels = input_for(image_width, image_height, channels)
+            adjust_channels = keras.applications.vgg16.preprocess_input(adjust_channels)
+            model = VGG16(
+                include_top=False,
+                weights="imagenet",
+                input_tensor=adjust_channels,
+                pooling=None,
+                classes=len(classes),
+                classifier_activation="softmax",
+            )
+            return top_for(inputs, model, classes)
+        
+        self.versions["vgg16"] = vgg16
+
+        def vgg19(model, image_width, image_height, classes, channels):
+            from tensorflow.keras.applications import VGG19
+            inputs, adjust_channels = input_for(image_width, image_height, channels)
+            adjust_channels = keras.applications.vgg19.preprocess_input(adjust_channels)
+            model = VGG19(
+                include_top=False,
+                weights="imagenet",
+                input_tensor=adjust_channels,
+                pooling=None,
+                classes=len(classes),
+                classifier_activation="softmax",
+            )
+            return top_for(inputs, model, classes)
+        
+        self.versions["vgg19"] = vgg19
+
+        def mobilenetv3small(model, image_width, image_height, classes, channels):
+            from tensorflow.keras.applications import MobileNetV3Small
+            inputs, adjust_channels = input_for(image_width, image_height, channels)
+            adjust_channels = keras.applications.mobilenet_v3.preprocess_input(adjust_channels)
+            model = MobileNetV3Small(
+                input_shape=None,
+                alpha=1.0,
+                minimalistic=True,
+                include_top=False,
+                weights="imagenet",
+                input_tensor=adjust_channels,
+                classes=len(classes),
+                pooling=None,
+                dropout_rate=0.2,
+                classifier_activation="softmax",
+                include_preprocessing=False
+            )
+            return top_for(inputs, model, classes)
+        
+        self.versions["mobilenetv3small"] = mobilenetv3small
+
+        def mobilenetv3large(model, image_width, image_height, classes, channels):
+            from tensorflow.keras.applications import MobileNetV3Large
+            inputs, adjust_channels = input_for(image_width, image_height, channels)
+            adjust_channels = keras.applications.mobilenet_v3.preprocess_input(adjust_channels)
+            model = MobileNetV3Large(
+                input_shape=None,
+                alpha=1.0,
+                minimalistic=False,
+                include_top=False,
+                weights="imagenet",
+                input_tensor=adjust_channels,
+                classes=len(classes),
+                pooling=None,
+                dropout_rate=0.2,
+                classifier_activation="softmax",
+                include_preprocessing=False
+            )
+            return top_for(inputs, model, classes)
+        
+        self.versions["mobilenetv3large"] = mobilenetv3large
+
+        def xception(model, image_width, image_height, classes, channels):
+            from tensorflow.keras.applications import Xception
+            inputs, adjust_channels = input_for(image_width, image_height, channels)
+            adjust_channels = keras.applications.xception.preprocess_input(adjust_channels)
+            model = Xception(
+                include_top=False,
+                weights="imagenet",
+                input_tensor=adjust_channels,
+                input_shape=None,
+                pooling=None,
+                classes=len(classes),
+                classifier_activation="softmax",
+            )
+            return top_for(inputs, model, classes)
+        
+        self.versions["xception"] = xception
+
+        def resnet50v2(model, image_width, image_height, classes, channels):
+            from tensorflow.keras.applications import ResNet50V2
+            inputs, adjust_channels = input_for(image_width, image_height, channels)
+            adjust_channels = keras.applications.resnet.preprocess_input(adjust_channels)
+            model = ResNet50V2(
+                include_top=False,
+                weights="imagenet",
+                input_tensor=adjust_channels,
+                input_shape=None,
+                pooling=None,
+                classes=len(classes),
+                classifier_activation="softmax",
+            )
+            return top_for(inputs, model, classes)
+        
+        self.versions["resnet50v2"] = resnet50v2
+
+        def efficientnetb0(model, image_width, image_height, classes, channels):
+            from tensorflow.keras.applications import EfficientNetB0
+            inputs, adjust_channels = input_for(image_width, image_height, channels)
+            adjust_channels = keras.applications.efficientnet.preprocess_input(adjust_channels)
+            model = EfficientNetB0(
+                include_top=False,
+                weights="imagenet",
+                input_tensor=adjust_channels,
+                input_shape=None,
+                pooling=None,
+                classes=len(classes),
+                classifier_activation="softmax",
+            )
+            return top_for(inputs, model, classes)
+        
+        self.versions["efficientnetb0"] = efficientnetb0
+
+        self.array_of_all_official_models = ["convnextbase", "vgg16", "vgg19", "mobilenetv3small", "mobilenetv3large", "xception", "resnet50v2", "efficientnetb0", "inceptionv3", "nasnetmobile"]
 
     def initialize_versions(self):
         self.versions = {}
 
-        def v118_3(model, image_width, image_height, classes):
-            model.add(Lambda(lambda x: (x / 127.5 - 1.0), input_shape=(int(image_width),int(image_height),1)))
+        self.add_official_models()
+
+        def v119(model, image_width, image_height, classes, channels):
+            model.add(Lambda(lambda x: (x / 127.5 - 1.0), input_shape=(int(image_width),int(image_height),int(channels))))
+
+            model.add(Convolution2D(256, 5, padding='same'))
+            model.add(BatchNormalization())
+            model.add(Activation('relu'))
+            model.add(MaxPooling2D(pool_size=(2,2)))
+            model.add(SpatialDropout2D(0.05))
+
+            model.add(Convolution2D(128, 5, padding='same'))
+            model.add(BatchNormalization())
+            model.add(Activation('relu'))
+            model.add(MaxPooling2D(pool_size=(2,2)))
+            model.add(SpatialDropout2D(0.05))
+
+            model.add(Convolution2D(32, 5, padding='same'))
+            model.add(BatchNormalization())
+            model.add(Activation('relu'))
+            model.add(MaxPooling2D(pool_size=(2,2)))
+            model.add(SpatialDropout2D(0.05))
+
+            model.add(Convolution2D(128, 5, padding='same'))
+            model.add(BatchNormalization())
+            model.add(Activation('relu'))
+            model.add(MaxPooling2D(pool_size=(2,2)))
+            model.add(SpatialDropout2D(0.05))
+
+            model.add(Dense(1024))
+            model.add(BatchNormalization())
+            model.add(Activation('relu'))
+            
+            model.add(Flatten())
+            model.add(Dense(len(classes), activation='softmax'))
+
+            return model
+
+        self.versions["v119"] = v119
+
+        def v118_3(model, image_width, image_height, classes, channels):
+            model.add(Lambda(lambda x: (x / 127.5 - 1.0), input_shape=(int(image_width),int(image_height),int(channels))))
 
             model.add(Convolution2D(16, 5))
             model.add(BatchNormalization())
@@ -142,11 +477,13 @@ class Network:
             model.add(Flatten())
             model.add(Dense(len(classes), activation='softmax'))
 
+            return model
+
         self.versions["v118_3"] = v118_3
 
 
-        def v110(model, image_width, image_height, classes):
-            model.add(Input(shape=(int(image_height),int(image_width),1), dtype=float))
+        def v110(model, image_width, image_height, classes, channels):
+            model.add(Input(shape=(int(image_height),int(image_width),int(channels)), dtype=float))
             model.add(Lambda(lambda x: (x / 127.5 - 1.0)))
             
             model.add(Convolution2D(16, kernel_size=(5,5), activation='relu'))
@@ -181,8 +518,8 @@ class Network:
 
         self.versions["v110"] = v110
 
-        def v100(model, image_width, image_height, classes):
-            model.add(Lambda(lambda x: (x / 127.5 - 1.0), input_shape=(int(image_width),int(image_height),1)))
+        def v100(model, image_width, image_height, classes, channels):
+            model.add(Lambda(lambda x: (x / 127.5 - 1.0), input_shape=(int(image_width),int(image_height),int(channels))))
             model.add(Convolution2D(16, 5, activation='relu'))
             model.add(MaxPooling2D(pool_size=(2,2)))
             model.add(SpatialDropout2D(0.25))
@@ -204,15 +541,15 @@ class Network:
 
         self.versions["v100"] = v100
 
-    def __init__(self, image_width, image_height, classes, learning_rate, version="current"):
+    def __init__(self, image_width, image_height, classes, learning_rate, version="current", channels=1):
         TRex.log("initializing network:"+str(image_width)+","+str(image_height)+" "+str(len(classes))+" classes with version "+ version)
 
         self.initialize_versions()
         if version == "current":
-            version = "v118_3"
+            version = "v119"
 
         model = Sequential()
-        self.versions[version](model, image_width, image_height, classes)
+        model = self.versions[version](model, image_width, image_height, classes, channels)
 
         import platform
         import importlib
@@ -227,11 +564,11 @@ class Network:
             model.compile(loss= #'categorical_crossentropy',
                 #SigmoidFocalCrossEntropy(),
                 categorical_focal_loss(gamma=2., alpha=.25),
-                optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate),
+                optimizer=tf.keras.optimizers.legacy.Adam(learning_rate=learning_rate),
                 metrics=['accuracy'])
         else:
             model.compile(loss='categorical_crossentropy',
-                optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate),
+                optimizer=tf.keras.optimizers.legacy.Adam(learning_rate=learning_rate),
                 metrics=['accuracy'])
 
 
