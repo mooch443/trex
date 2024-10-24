@@ -1785,6 +1785,14 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
                     
                     for (auto& blob : unassigned_blobs) {
                         auto ptr = s.frame.bdx_to_ptr(blob);
+                        if(ptr == nullptr) {
+                            std::set<pv::bid> ids;
+                            s.frame.transform_blob_ids([&](pv::bid bdx){
+                                ids.insert(bdx);
+                            });
+                            FormatWarning("Cannot assign blob ", blob, " since it cannot be found in the frame map: ", ids);
+                            continue;
+                        }
                         assert(ptr != nullptr);
                         auto pos_blob = ptr->center();
                         Match::prob_t dist = sqdistance(pos_fish.value().last_seen_px, pos_blob);

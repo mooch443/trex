@@ -532,6 +532,11 @@ void load(file::PathArray source,
         set_config_if_different("output_prefix", source_map);
     }
     
+    if(type != track::detect::ObjectDetectionType::none) {
+        combined.map["detect_type"] = type;
+        set_config_if_different("detect_type", combined.map);
+    }
+    
     /// -----------------------------------------------------
     /// 8. if `source` or `filename` are empty, generate them
     /// -----------------------------------------------------
@@ -691,20 +696,19 @@ void load(file::PathArray source,
     /// 10. load settings from the .pv if tracking mode
     /// -----------------------------------------------
     auto exclude_from_default = exclude;
+    //bool is_source_a_pv_file = false;
     //if(task == TRexTask_t::track)
     {
         file::Path path;
         if(source.size() == 1) {
             path = source.get_paths().front();
-            if(not path.has_extension()
-               || (path.has_extension() && path.extension() != "pv"))
-            {
+            if(not path.has_extension("pv")) {
                 path = path.add_extension("pv");
             }
             
-            if(path.extension() != "pv"
-               || not path.exists())
-            {
+            if(path.is_regular()) {
+                //is_source_a_pv_file = true;
+            } else {
                 path = "";
             }
         }
@@ -732,7 +736,7 @@ void load(file::PathArray source,
                         /// since there was no other `detect_type` before
                         /// **V_10** and there also was no type parameter to
                         /// query, we set bg subtraction:
-                        tmp["detect_type"] = type = detect::ObjectDetectionType::background_subtraction;
+                        tmp["detect_type"] = detect::ObjectDetectionType::background_subtraction;
                         tmp["meta_encoding"] = f.header().encoding;
                     }
                     
@@ -751,25 +755,14 @@ void load(file::PathArray source,
                     for(auto &key : tmp.keys())
                         set_config_if_different(key, tmp, true);
                     
-                    if((not tmp.has("detect_type") || detect::ObjectDetectionType::none == tmp.at("detect_type").value<detect::ObjectDetectionType_t>())
-                       && (not tmp.has("detect_model") || tmp.at("detect_model").value<file::Path>().empty())
-                       && not contains(exclude.toVector(), "detect_type"))
+                    /// if we are running a tracking task, we need to use the stuff from the pv file
+                    /// if we are in fact running one. otherwise, just set it if we dont have a detect_type
+                    /// set anywhere yet.
+                    if(type == track::detect::ObjectDetectionType::none
+                        || task == TRexTask_t::track) 
                     {
-                        /// if we dont know, but there is no setting
-                        /// its probably older versions and we use
-                        /// background subtraction defaults:
-                        combined.map["detect_type"] = type = detect::ObjectDetectionType::background_subtraction;
+                        combined.map["detect_type"] = type = tmp.at("detect_type").value<detect::ObjectDetectionType_t>();
                         set_config_if_different("detect_type", combined.map);
-                    }
-                    else {
-                        if(tmp.has("detect_type"))
-                            type = tmp.at("detect_type").value<detect::ObjectDetectionType_t>();
-                        if (tmp.has("detect_model") && not tmp.at("detect_model").value<file::Path>().empty()
-                            && detect::ObjectDetectionType::none == type)
-                        {
-                            type = detect::ObjectDetectionType::yolo;
-                        }
-                        //tmp.at("detect_type").get().copy_to(combined.map);
                     }
                     
                     if (not combined.map.has("meta_real_width")
@@ -795,7 +788,7 @@ void load(file::PathArray source,
                         /// since there was no other `detect_type` before
                         /// **V_10** and there also was no type parameter to
                         /// query, we set bg subtraction:
-                        tmp["detect_type"] = type = detect::ObjectDetectionType::background_subtraction;
+                        tmp["detect_type"] = detect::ObjectDetectionType::background_subtraction;
                         tmp["meta_encoding"] = f.header().encoding;
                     }
                     
@@ -837,7 +830,9 @@ void load(file::PathArray source,
                             return nullptr;
                         }},
                         {"detect_type", [&](auto& map) -> const sprite::PropertyType* {
-                            if (tmp.has("detect_type")) {
+                            if (tmp.has("detect_type")
+                                && (task == TRexTask_t::track || type == track::detect::ObjectDetectionType::none))
+                            {
                                 tmp.at("detect_type").get().copy_to(map);
                                 return &map.at("detect_type").get();
                             }
@@ -848,36 +843,51 @@ void load(file::PathArray source,
                     for (const auto& key : fields_to_check) {
                         // Skip if the key is present in source_map
                         if (source_map.has(key)) {
+                            //Print("* Skip checking ", key, " since it is in the source_map with ", source_map.at(key).get());
                             continue;
                         }
 
                         // Get the default value for comparison
-                        const auto default_value = current_defaults.has(key)
-                                            ? &current_defaults.at(key).get()
-                                            : nullptr;
+                        const auto default_value =
+                                    current_defaults.has(key)
+                                                ? &current_defaults.at(key).get()
+                                                : nullptr;
 
                         // Determine if we need to update the value
+                        // we need to update it if the default value has been changed,
+                        // or we dont have one.
                         const bool needs_update = not default_value
-                            || (default_value && (!combined.map.has(key) ||
-                                    combined.map.at(key).get() == *default_value));
+                            || (default_value
+                                && (not combined.map.has(key)
+                                    || combined.map.at(key).get() == *default_value));
                         
-                        if (needs_update) {
+                        // we also need to check if we have a compute function for it
+                        if (compute_defaults.contains(key)) {
+                            sprite::Map t;
+                            auto p = compute_defaults.at(key)(t);
+                            
+                            if(p) {
+                                // Compute and set the default value if a handler exists
+                                //Print("* Checking ", key, " with computed defaults: ", *p);
+                                set_config_if_different(key, t);
+                                
+                            } else {
+                                /// otherwise we dont set anything, since its obviously
+                                /// not wanted.
+                            }
+                            
+                        } else if (needs_update) {
                             if (tmp.has(key)) {
                                 // Copy value from tmp if available
+                                //Print("* Checking ", key, ": ", tmp.at(key).get(), " combined=", combined.map.at(key));
                                 tmp.at(key).get().copy_to(combined.map);
                                 set_config_if_different(key, combined.map);
-                                //Print("* Checking ", key, ": ", tmp.at(key).get(), " combined=", combined.map.at(key));
-                            } else if (compute_defaults.count(key)) {
-                                // Compute and set the default value if a handler exists
-                                //Print("* Checking ", key);
-                                auto p = compute_defaults.at(key)(combined.map);
-                                if(p) {
-                                    set_config_if_different(key, combined.map);
-                                }
                             } else {
                                 //Print("* Key not checked ", key);
                             }
                             // No action needed if neither tmp has the key nor a compute function is defined
+                        } else {
+                            //Print("* Skip checking ", key, " with default value ", default_value ? default_value->valueString() : "<null>", " and combined ", combined.map.has(key) ? combined.map.at(key).get().valueString() : "<null>");
                         }
                     }
                     
@@ -900,7 +910,7 @@ void load(file::PathArray source,
     
     {
         G g(type.toStr() + "-defaults");
-        static const sprite::Map values {
+        const sprite::Map values {
             [type](){
                 sprite::Map values;
                 set_defaults_for(type, values);

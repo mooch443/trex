@@ -1692,7 +1692,8 @@ FrameProperties CompatibilityFrameProperties::convert(Frame_t frame) const {
                 auto it = map_id_ptr.find(Idx_t(ID));
                 if (it == map_id_ptr.end()) {
                    throw U_EXCEPTION("Cannot find individual with ID ", ID," in map.");
-                } else if((*it).second->start_frame() > frame) {
+                } else if(not (*it).second->start_frame().valid()
+                          || (*it).second->start_frame() > frame) {
                     //FormatExcept("Individual ", ID," start frame = ", map_id_ptr.at(Idx_t(ID))->start_frame(),", not ",frameIndex);
                     continue;
                 }

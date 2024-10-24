@@ -86,7 +86,7 @@ public:
                 continue; // do not increase iterator
                 
             } else {
-                error(bdx, result.value(), blob_assigned(bdx) ? "Blob was already assigned." : (fish_assigned(result.value()) ? "Individual was already assigned." : "Frame does not contain bdx."));
+                error(bdx, result.value(), blob_assigned(bdx) ? "Blob was already assigned." : (fish_assigned(result.value()) ? "Individual was already assigned." : "frame does not contain bdx."));
             }
             
             ++it;
@@ -164,7 +164,7 @@ public:
                 //individuals.emplace_back(fdx, result.value());
                 
             } else {
-                error(bdx, fdx, result.value(), blob_assigned(bdx) ? "Blob was already assigned." : (fish_assigned(result.value()) ? "Individual was already assigned." : "Frame does not contain bdx."));
+                error(bdx, fdx, result.value(), blob_assigned(bdx) ? "Blob was already assigned." : (fish_assigned(result.value()) ? "Individual was already assigned." : "frame does not contain bdx."));
             }
         }
         

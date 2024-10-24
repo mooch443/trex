@@ -648,13 +648,13 @@ void PPFrame::_check_owners() {
     
 #ifndef NDEBUG
     /*size_t i=0;
-    for(; i < _owner.size(); ++i) {
-        auto &o = _owner.at(i);
-        assert(o.blob != nullptr);
+    for(; i < _blob_owner.size(); ++i) {
+        auto &o = _blob_owner.at(i);
+        assert(o != nullptr);*/
         //assert(_bdx_to_ptr.at(o.blob->blob_id()) == i);
-        assert((o.regular && std::find(_blobs.begin(), _blobs.end(), o.blob->blob_id()) != _blobs.end())
-               || (!o.regular && std::find(_noise.begin(), _noise.end(), o.blob->blob_id()) != _noise.end()));
-    }*/
+        /*assert((o.regular && std::find(_blobs.begin(), _blobs.end(), o.blob->blob_id()) != _blobs.end())
+               || (!o.regular && std::find(_noise.begin(), _noise.end(), o.blob->blob_id()) != _noise.end()));*/
+    //}
 #endif
 }
 

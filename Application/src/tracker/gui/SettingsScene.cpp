@@ -49,7 +49,7 @@ struct SettingsScene::Data {
     
     std::mutex _task_lock;
     std::vector<std::future<void>> _running_tasks;
-    std::unordered_map<std::string, std::tuple<track::detect::DetectResolution, track::detect::ObjectDetectionFormat_t>> _cached_resolutions;
+    std::unordered_map<std::string, std::tuple<track::detect::DetectResolution, track::detect::ObjectDetectionFormat_t, track::detect::yolo::names::owner_map_t>> _cached_resolutions;
     sprite::Map _defaults;
     std::stack<std::string> _last_layouts;
     
@@ -132,9 +132,12 @@ struct SettingsScene::Data {
                     if(_cached_resolutions.contains(detect_model.str())
                        && (region_model.empty() || (region_model.is_regular() && _cached_resolutions.contains(region_model.str()))))
                     {
-                        auto [resolution, format] = _cached_resolutions.at(detect_model.str());
+                        auto [resolution, format, classes] = _cached_resolutions.at(detect_model.str());
                         SETTING(detect_resolution) = resolution;
                         SETTING(detect_format) = format;
+                        SETTING(detect_classes) = classes;
+                        if(format != track::detect::ObjectDetectionFormat::poses)
+                            SETTING(detect_skeleton) = blob::Pose::Skeleton{};
                         
                         if(region_model.is_regular()) {
                             SETTING(region_resolution) = std::get<0>(_cached_resolutions.at(region_model.str()));
@@ -144,24 +147,42 @@ struct SettingsScene::Data {
                     } else {
                         /// for no cache, reinit:
                         try {
+                            /// have to clear this before running init, so it will be populated
+                            SETTING(detect_classes) = track::detect::yolo::names::owner_map_t{};
+                            
+                            /// populate the settings fields we need
                             track::Yolo8::init();
+                            /// -----
+                            
+                            auto format = SETTING(detect_format).value<track::detect::ObjectDetectionFormat_t>();
+                            
                             _cached_resolutions[detect_model.str()] = {
                                 SETTING(detect_resolution).value<track::detect::DetectResolution>(),
-                                SETTING(detect_format).value<track::detect::ObjectDetectionFormat_t>()
+                                format,
+                                SETTING(detect_classes).value<track::detect::yolo::names::owner_map_t>()
                             };
+                            
+                            if(format != track::detect::ObjectDetectionFormat::poses)
+                                SETTING(detect_skeleton) = blob::Pose::Skeleton{};
+                            
                             if(region_model.is_regular()) {
                                 if(not _cached_resolutions.contains(region_model.str())) {
                                     _cached_resolutions[region_model.str()] = {
                                         SETTING(region_resolution).value<track::detect::DetectResolution>(),
-                                        track::detect::ObjectDetectionFormat::none
+                                        track::detect::ObjectDetectionFormat::none,
+                                        track::detect::yolo::names::owner_map_t{}
                                     };
                                 }
                             }
+                            
+                            /// dont need to keep it
                             track::Yolo8::deinit();
+                            
                         } catch(...) {
                             SETTING(detect_resolution) = track::detect::DetectResolution{};
                             SETTING(region_resolution) = track::detect::DetectResolution{};
                             SETTING(detect_format) = track::detect::ObjectDetectionFormat::none;
+                            SETTING(detect_classes) = track::detect::yolo::names::owner_map_t{};
                         
                             FormatWarning("Failed to initialize ", SETTING(detect_model).value<file::Path>());
                         }
@@ -170,6 +191,7 @@ struct SettingsScene::Data {
                     SETTING(detect_resolution) = track::detect::DetectResolution{};
                     SETTING(region_resolution) = track::detect::DetectResolution{};
                     SETTING(detect_format) = track::detect::ObjectDetectionFormat::none;
+                    SETTING(detect_classes) = track::detect::yolo::names::owner_map_t{};
                 }
             },
             ._can_run_before_init = false
@@ -214,6 +236,11 @@ struct SettingsScene::Data {
                         "detect_model"
                     };
                 }
+                if(not SETTING(region_model).value<file::Path>().empty()){
+                    exclude += std::vector<std::string_view>{
+                        "region_model"
+                    };
+                }
                 
                 settings::set_defaults_for(detect_type, GlobalSettings::map(), exclude);
                 
@@ -255,7 +282,7 @@ struct SettingsScene::Data {
                   )
                 //|| (this->_defaults.has(key) && copy.at(key).get() != this->_defaults.at(key).get()))
                && (GlobalSettings::access_level(key) < AccessLevelType::INIT
-                   || is_in(key, "output_dir", "output_prefix", "settings_file", "video_conversion_range")))
+                   || is_in(key, "output_dir", "output_prefix", "settings_file", "video_conversion_range", "detect_type")))
             {
                 if(_defaults.has(key))
                     Print("Keeping ", key, "::",GlobalSettings::access_level(key),": default<", _defaults.at(key).get(), "> != assigned<", copy.at(key).get(),">");
@@ -444,11 +471,18 @@ struct SettingsScene::Data {
                     ActionFunc("track", [this](auto){
                         DebugHeader("Tracking ", SETTING(source).value<file::PathArray>());
                         
-                        WorkProgress::add_queue("loading...", [this, copy = get_changed_props()]()
+                        WorkProgress::add_queue("loading...", [this, copy = get_changed_props()]() mutable
                         {
                             sprite::Map before = GlobalSettings::map();
                             sprite::Map defaults = GlobalSettings::current_defaults();
                             sprite::Map defaults_with_config = GlobalSettings::current_defaults_with_config();
+                            
+                            if(copy.has("detect_type")) {
+                                /// we do not allow changing the detect type when tracking
+                                /// a file, so the detection type will be loaded from the
+                                /// original file that we are opening.
+                                copy.erase("detect_type");
+                            }
                             
                             Print("changed props = ", copy.keys());
                             auto array = SETTING(source).value<file::PathArray>();
@@ -688,9 +722,6 @@ struct SettingsScene::Data {
                 })
             };
         }
-        
-        auto coords = FindCoord::get();
-        Size2 window_size = coords.screen_size();
         
         auto dt = saturate(animation_timer.elapsed(), 0.001, 1.0);
         blur_percentage += (blur_target - blur_percentage) * dt * 2.0;

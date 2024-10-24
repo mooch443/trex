@@ -37,6 +37,7 @@ Segmenter::Segmenter(std::function<void()> eof_callback, std::function<void(std:
     : error_callback(error_callback), eof_callback(eof_callback)
 {
     start_timer.reset();
+    
     _generating_step = GeneratorStep("Segmenter", "GeneratorT", {
         [this](auto&){ generator_thread(); }
     });
@@ -1092,10 +1093,14 @@ void Segmenter::serialize_thread() {
     // we got something - write it to file!
     auto &data = maybe_data.value();
     
-    if(FAST_SETTING(frame_rate) == 0)
-        throw InvalidArgumentException("frame_rate should not be zero: ", FAST_SETTING(frame_rate), " vs. ", SETTING(frame_rate));
-    assert(FAST_SETTING(frame_rate) > 0);
-    auto fake = double(running_id.get()) / double(FAST_SETTING(frame_rate)) * 1000.0 * 1000.0;
+    double frame_rate = FAST_SETTING(frame_rate);
+    if(frame_rate == 0) {
+        frame_rate = static_cast<double>(SETTING(frame_rate).value<Settings::frame_rate_t>());
+        if(frame_rate == 0)
+            throw InvalidArgumentException("frame_rate should not be zero: ", FAST_SETTING(frame_rate), " vs. ", SETTING(frame_rate));
+    }
+    assert(frame_rate > 0);
+    auto fake = double(running_id.get()) / frame_rate * 1000.0 * 1000.0;
     data.frame.set_timestamp(uint64_t(fake));
     data.frame.set_index(running_id++);
     data.frame.set_source_index(Frame_t(data.image->index()));

@@ -267,7 +267,7 @@ public:
             } else {
 #ifndef NDEBUG
                 if(bdxes.contains(bdx)) {
-                    throw U_EXCEPTION("Already have ", bdx, " in the map!");
+                    FormatError("Already have ", bdx, " in the map!");
                 } else {
                     bdxes.insert(bdx);
                 }
