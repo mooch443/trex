@@ -794,6 +794,8 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
             progress_callback(0, "saving tracklet images...");
             
             std::vector<uchar> all_images, single_images, split_masks;
+            std::vector<uint64_t> frame_segment_indexes;
+            std::vector<uint32_t> frame_segment_Nx2;
             std::vector<long_t> all_ranges, single_frames, single_ids, split_frames, split_ids;
             const bool tracklet_force_normal_color = SETTING(tracklet_force_normal_color).value<bool>();
             
@@ -1097,6 +1099,12 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                             2u
                         }, "a");
                         
+                        cmn::npz_save(path.str(), "frame_segment_indexes", frame_segment_indexes, "a");
+                        cmn::npz_save(path.str(), "frame_segments", frame_segment_Nx2.data(), {
+                            frame_segment_Nx2.size() / 2u,
+                            2u
+                        }, "a");
+                        
                         cmn::npz_save(path.str(), "frames", single_frames, "a");
                         cmn::npz_save(path.str(), "ids", single_ids, "a");
                         
@@ -1154,6 +1162,8 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                 }
             }
             
+            size_t range_index = 0;
+            
             for(auto && [id, ranges] : queues) {
                 cv::Mat tmp;
                 std::vector<std::vector<hist_utils::Hist>> M; // histograms
@@ -1176,6 +1186,8 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                         
                         single_frames.push_back(frame.get());
                         single_ids.push_back(fid.get());
+                        
+                        frame_segment_indexes.push_back(range_index);
                         
                         if(not can_we_expect_fix_dimensions) {
                             single_images.insert(single_images.end(), image->data(), image->data() + image->size());
@@ -1212,6 +1224,11 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                             export_singles(single_path);
                         }
                     }
+                    
+                    frame_segment_Nx2.push_back(range.start.get());
+                    frame_segment_Nx2.push_back(range.end.get());
+                    
+                    ++range_index;
                     
                     if(image_count > 1) {
                         med.copyTo(tmp);
