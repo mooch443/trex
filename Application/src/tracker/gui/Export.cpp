@@ -1116,6 +1116,10 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                     single_frames.clear();
                     single_ids.clear();
                     single_images.clear();
+                    frame_segment_indexes.clear();
+                    frame_segment_Nx2.clear();
+                    image_coords.clear();
+                    image_dimensions.clear();
                     
                     ++part_counter;
                     byte_counter = 0;
@@ -1173,12 +1177,12 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                     size_t image_count = 0;
                     hist_utils::init(M, med, (int)output_size.height, (int)output_size.width);
                     
-                    while(!images.empty()) {
+                    while(not images.empty()) {
                         auto [pos, frame, fid, image] = std::move(images.front());
                         images.pop();
                         
-                        image_coords.push_back(pos.x);
-                        image_coords.push_back(pos.y);
+                        image_coords.push_back(saturate(pos.x, 0_F, (Float2_t)std::numeric_limits<uint32_t>::max()));
+                        image_coords.push_back(saturate(pos.y, 0_F, (Float2_t)std::numeric_limits<uint32_t>::max()));
                         
                         image_dimensions.push_back(image->rows);
                         image_dimensions.push_back(image->cols);
@@ -1187,6 +1191,8 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                         single_frames.push_back(frame.get());
                         single_ids.push_back(fid.get());
                         
+                        if(range_index != frame_segment_Nx2.size() / 2)
+                            FormatWarning("range_index(",range_index,") is not ", frame_segment_Nx2.size() / 2);
                         frame_segment_indexes.push_back(range_index);
                         
                         if(not can_we_expect_fix_dimensions) {

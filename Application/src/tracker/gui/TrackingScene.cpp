@@ -109,6 +109,7 @@ struct TrackingScene::Data {
          pv::File& video);
     
     void redraw_all();
+    void handle_zooming(Event);
 };
 
 TrackingScene::~TrackingScene() {
@@ -150,6 +151,16 @@ TrackingScene::Data::Data(Image::Ptr&& average, pv::File& video)
         }
     });
     
+    /// Deal with zooming
+    _background->add_event_handler(EventType::SCROLL, [this](Event e) {
+        handle_zooming(e);
+    });
+    /*SceneManager::getInstance().enqueue([](DrawStructure& graph) {
+        graph.root().add_event_handler(EventType::SCROLL, [this](Event e) {
+            handle_zooming(e);
+        });
+    });*/
+    
     if(video.has_mask()) {
         cv::Mat mask = video.mask().mul(cv::Scalar(255));
         mask.convertTo(mask, CV_8UC1);
@@ -158,6 +169,112 @@ TrackingScene::Data::Data(Image::Ptr&& average, pv::File& video)
 
     for (auto& [key, code] : _key_map)
         _keymap[key] = false;
+}
+
+void TrackingScene::Data::handle_zooming(Event e) {
+    auto video_size = SETTING(meta_video_size).value<Size2>();
+    auto mp = _cache->previous_mouse_position;
+    mp = FindCoord::get().convert(HUDCoord{mp});
+    
+    if(SETTING(gui_focus_group).value<std::vector<track::Idx_t>>().empty()) {
+        auto gui_zoom_polygon = SETTING(gui_zoom_polygon).value<std::vector<Vec2>>();
+        if(gui_zoom_polygon.empty() || gui_zoom_polygon.size() != 4)
+        {
+            gui_zoom_polygon = {
+                Vec2(0_F, 0_F),
+                Vec2(video_size.width, 0_F),
+                Vec2(video_size.width, video_size.height),
+                Vec2(0_F, video_size.height),
+            };
+            
+            // Calculate the scaling factor
+            auto scale_factor = e.scroll.dy > 0 ? 0.95_F : 1.05_F;
+
+            // Scale the polygon around the mouse position
+            auto new_gui_zoom_polygon = gui_zoom_polygon;
+            for (auto& v : new_gui_zoom_polygon) {
+                v = mp + (v - mp) * scale_factor;
+            }
+            
+            // Calculate new dimensions
+            Size2 dims = new_gui_zoom_polygon.at(2) - new_gui_zoom_polygon.front();
+
+            // Enforce zoom limits
+            if (dims.width < video_size.width * 2
+                && dims.height < video_size.height * 2
+                && dims.width > 10
+                && dims.height > 10)
+            {
+                gui_zoom_polygon = new_gui_zoom_polygon;
+            }
+
+            // Apply existing transformations if necessary
+            // gui_zoom_polygon = apply_existing_transformations(gui_zoom_polygon);
+
+            //SETTING(gui_zoom_polygon) = gui_zoom_polygon;
+            
+        }
+        
+        //else
+        {
+            assert(gui_zoom_polygon.size() == 4);
+
+            // Calculate the scaling factor
+            auto scale_factor = e.scroll.dy > 0 ? 0.95_F : 1.05_F;
+
+            // Scale the polygon around the mouse position
+            auto new_gui_zoom_polygon = gui_zoom_polygon;
+            for (auto& v : new_gui_zoom_polygon) {
+                v = mp + (v - mp) * scale_factor;
+            }
+
+            // Calculate new dimensions
+            Size2 dims = new_gui_zoom_polygon.at(2) - new_gui_zoom_polygon.front();
+
+            // Enforce zoom limits
+            if (dims.width < video_size.width * 2
+                && dims.height < video_size.height * 2
+                && dims.width > 10
+                && dims.height > 10)
+            {
+                gui_zoom_polygon = new_gui_zoom_polygon;
+            }
+        }
+
+        GlobalSettings::map().do_print("gui_zoom_polygon", false);
+        GlobalSettings::map().do_print("gui_zoom_limit", false);
+        SETTING(gui_zoom_polygon) = gui_zoom_polygon;
+        
+        Size2 dims = gui_zoom_polygon.at(2) - gui_zoom_polygon.front();
+        auto zoom_limit = SETTING(gui_zoom_limit).value<Size2>();
+        if(zoom_limit.width > dims.width) {
+            zoom_limit = dims;
+            SETTING(gui_zoom_limit) = zoom_limit;
+        }
+        GlobalSettings::map().do_print("gui_zoom_polygon", true);
+        GlobalSettings::map().do_print("gui_zoom_limit", true);
+        
+    } else {
+        auto zoom_limit = SETTING(gui_zoom_limit).value<Size2>();
+        if(e.scroll.dy > 0) {
+            zoom_limit *= 0.95_F;
+            if(zoom_limit.width > 10) {
+                GlobalSettings::map().do_print("gui_zoom_limit", false);
+                SETTING(gui_zoom_limit) = zoom_limit;
+                GlobalSettings::map().do_print("gui_zoom_limit", true);
+            }
+            
+        } else if(e.scroll.dy < 0) {
+            zoom_limit *= 1.05_F;
+            if(zoom_limit.width < video_size.width * 2
+               && zoom_limit.height < video_size.height * 2)
+            {
+                GlobalSettings::map().do_print("gui_zoom_limit", false);
+                SETTING(gui_zoom_limit) = zoom_limit;
+                GlobalSettings::map().do_print("gui_zoom_limit", true);
+            }
+        }
+    }
 }
 
 TrackingScene::TrackingScene(Base& window)
@@ -425,6 +542,7 @@ void TrackingScene::activate() {
             }
             
         } else if((key == "gui_zoom_polygon"
+                   || key == "gui_zoom_limit"
                    || key == "gui_focus_group")
                   && _data->_bowl)
         {
@@ -475,7 +593,7 @@ void TrackingScene::activate() {
                  "individual_image_normalization",
                  "individual_image_size",
                  "individual_image_scale",
-                 "gui_zoom_polygon","gui_zoom_limit",
+                 "gui_zoom_polygon",//"gui_zoom_limit",
                  "detect_skeleton",
                  "track_include", "track_ignore"))
         {
