@@ -1,127 +1,138 @@
 .. include:: names.rst
 
 .. toctree::
-   :maxdepth: 2
-
+   :maxdepth: 3
+   :numbered:
 
 Tutorials
----------
+=========
 
-This section contains tutorials on how to use |trex|, from setting up the software to analyzing videos and exporting data. You can follow along reading the text or watch the video tutorials on the `YouTube channel <https://www.youtube.com/@TRex-f9g>`_.
+This section provides tutorials on how to use |trex|, from setting up the software to analyzing videos and exporting data. You can follow along by reading the text or watching the video tutorials on the `YouTube channel <https://www.youtube.com/@TRex-f9g>`_.
 
-Understanding problem complexity
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Understanding Problem Complexity
+--------------------------------
 
-Before you start analyzing videos, actually probably before you start recording them, it is important to understand the complexity of the problem you are trying to solve. This will help you to choose the right settings and methods to get the best results and can help you design your experiments keeping certain requirements in mind. The complexity of the problem can be broken down into several categories:
+Before analyzing or recording videos, it's crucial to understand the complexity of the problem you're addressing. This insight will help you choose appropriate settings and methods to achieve optimal results and guide you in designing experiments that meet your specific requirements. The complexity can be categorized into several factors:
 
-- **Number of individuals**: The more individuals you have in your video, the more difficult it will be to track them all [#]_. It may also limit the options you have for tracking algorithms and may require more (computational) resources. Visual identification, for example, is only possible with a limited number and (relatively) fix group of individuals.
+Number of Individuals
+^^^^^^^^^^^^^^^^^^^^^
 
-- **Scene complexity**: The more complex the scene is, the more difficult it can be to track individuals. This includes things like occlusions, shadows, reflections, and other objects that may interfere with tracking. Varying backgrounds or visually complex backgrounds with difficult contrast may for example require more advanced segmentation algorithms [#]_.
+Tracking more individuals in your video increases the challenge and computational resources required, potentially limiting your analysis options later [#f1]_. Visual identification is feasible with a limited and relatively fixed group (e.g., fewer than 50 individuals). If you cannot automatically maintain perfect identities in a large group, you may need to focus on general information about the group's behavior. |trex| offers tools like *trajectory segments*, which are shorter sequences per tracked object where identities are maintained with high confidence.
 
-- **Camera and lighting choice**: The camera you use can also affect the complexity of the problem. For example, a camera with a low resolution or a low frame rate may make it more difficult to identify individuals visually (e.g. if you are planning to use the visual identification algorithm). If the shutter speed is too low, you may get motion blur which can make it difficult to track them, too. Lighting conditions can also affect the quality of the video - e.g. when you have control over this aspect you should prefer DC lights instead of AC lights to avoid flickering.
+Scene Complexity
+^^^^^^^^^^^^^^^^
 
-- **Research question**: Always try to use the easiest approach possible to answer your research question. If you are interested in the general behavior of a group of individuals, you may not need to maintain identities perfectly. |trex| provides you with information on shorter sequences (per tracked object) that you can likely rely on for your analysis. If you do need perfectly maintained identities [#]_, you may need to use the visual identification algorithm - which costs way more time and computational power. The answer to your research question may also affect the type of data output you require. For example, if you are interested in the average speed of a group of individuals, you may only need the trajectory data, while you need pose data if you are interested in the position of specific body parts (see image below).
+Complex scenes make it more difficult to track individuals. Factors such as occlusions, shadows, reflections, and other interfering objects can hinder tracking. Varying or visually complex backgrounds with challenging contrast may require more advanced segmentation algorithms, often based on machine learning [#f2]_.
 
-The following sections will guide you through increasingly difficult problems and how to solve them with |trex|.
+Camera and Lighting Choice
+^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. figure:: data_types.png
-   :width: 100%
-   :align: left
+The camera and recording settings you use affect the problem's complexity. Low-resolution or low frame rate cameras may make it difficult to identify individuals visually—especially if you plan to use the visual identification algorithm. A slow shutter speed can introduce motion blur, complicating tracking efforts. Lighting conditions also play a significant role; when possible, prefer DC lights over AC lights to avoid flickering.
 
-   Different data types that can be extracted from a video (from left to right): just the centroid position, pose/keypoint data, and outline-type data including directionality (front/back).
+Research Question
+^^^^^^^^^^^^^^^^^
 
-.. [#] This is because the number of possible combinations of individuals that could be in a certain location at a certain time increases exponentially with the number of individuals. This is known as the "curse of dimensionality" and is a common problem in computer vision and machine learning. If you have a large number of individuals, you may need to use more advanced tracking algorithms or reduce the number of individuals you are tracking.
+Aim to use the simplest approach that effectively answers your research question. If you're interested in the general behavior of a group, maintaining perfect identities may not be necessary. |trex| provides information on shorter sequences per tracked object, even without identity corrections, which can suffice for analysis. However, if you need perfectly maintained identities [#f3]_, you might need to use the visual identification algorithm, which requires more time and computational power. Your research question also influences the type of data output you need. For instance, if you're interested in the average speed of a group, trajectory data may be sufficient, while pose data is necessary if you're focusing on specific body parts (see image below).
 
-.. [#] Segmentation algorithms are used to separate the individuals from the background in the video. For example, if you are tracking fish in a tank with a white background, you may be able to use a simple thresholding algorithm to segment the fish from the background. However, if you are tracking fish in a natural environment with varying backgrounds and lighting conditions (or a moving camera), you may need to use more advanced algorithms like deep learning or machine learning to segment the fish from the background. To achieve this we generally tend to use YOLO models (at the moment).
+The following sections will guide you through increasingly complex problems and how to solve them with |trex|. Identify which category your research question falls into to find the right tools.
 
-.. [#] For example if you have a parasitised individual in a group of unparasitised individuals, or informed vs. uninformed individuals.
+.. [#f1] The number of possible combinations of individuals at any given time increases exponentially with the number of individuals — a phenomenon known as the "curse of dimensionality" in computer vision and machine learning. With a large number of individuals, you may need to use more advanced tracking algorithms or reduce the number of individuals you're tracking.
+
+.. [#f2] Segmentation algorithms are used to separate individuals from the background in a video. For complex scenes, advanced algorithms like deep learning models (e.g., YOLO) are often employed.
+
+.. [#f3] For example, distinguishing between parasitized and unparasitized individuals or informed vs. uninformed individuals.
+
+.. figure:: images/data_types.png
+   :alt: Different data types that can be extracted from a video: just the centroid position, pose/keypoint data, and outline-type data including directionality (front/back).
+
+   Different data types that can be extracted from a video: just the centroid position, pose/keypoint data, and outline-type data including directionality (front/back).
 
 Basics
-~~~~~~
+------
 
-|trex| is versatile tracking software that **can** help you solve almost all tracking problems with varying manual effort, computational power, and time. It is designed to be user-friendly and easy for general use, but also provides advanced features for more complex situations. This tutorial will guide you through the basic steps of setting up |trex|, analyzing an example video and exporting the data.
+|trex| is a versatile tracking software that can help you solve almost all tracking problems with varying manual effort, computational power, and time. It's designed to be user-friendly for general use but also provides advanced features for more complex situations. This tutorial will guide you through the basic steps of setting up |trex|, analyzing an example video, and exporting the data.
 
-If you want to follow along exactly as described, you can download the example video from `here <https://trex.run/8guppies_20s.mp4>`_ and put it in any folder that you like to use as your root analysis folder.
+If you want to follow along exactly as described, you can download the example video from `here <https://trex.run/8guppies_20s.mp4>`_ and place it in any folder you'd like to use as your root analysis folder.
 
 Installation
 ^^^^^^^^^^^^
 
-You can download the latest version of |trex| using conda with slightly varying commands based on your operating system.
+You can download the latest version of |trex| using `Miniforge` (conda). To install |trex|, you need to have `Miniforge` installed on your system.
 
-.. NOTE::
+If you're not familiar with `conda` or `Miniforge`, you can find more information on how to install them `here <https://conda-forge.org/miniforge/>`_. Miniforge is a minimal installer for `conda`, an open-source package manager that helps you create virtual environments and install software and libraries without installing them globally on your system.
 
-  If you are not familiar with conda, you can find more information on how to install it `here <https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html>`_. We recommend using miniforge on macOS with Apple Silicon hardware and miniconda otherwise. It is a lightweight version of conda that gives you everything you need to install software and virtual enviroments and nothing more.
-
-For Windows or Linux, you can use the following command in your Anaconda prompt:
+Open your `Miniforge` Prompt and run:
 
 .. code-block:: bash
 
-    conda create -n track --override-channels -c trex-beta -c pytorch -c nvidia -c defaults trex
+   conda create -n track -c trex-beta trex
 
-For MacOS (Intel), you can use the following command in your terminal:
-
-.. code-block:: bash
-
-    conda create -n track --override-channels -c trex-beta -c pytorch -c defaults trex
-
-For MacOS (Apple Silicon), you can use the following command in your terminal:
+This will create a new conda environment called ``track`` with |trex| installed. This could take a while, especially in conda´s 'verifying transaction'. Activate the environment using:
 
 .. code-block:: bash
 
-    conda create -n track --override-channels -c trex-beta -c pytorch -c conda-forge trex
+   conda activate track
 
-These commands will create a new conda environment called ``track`` with |trex| installed. You can activate the environment using the following command:
-
-.. code-block:: bash
-
-    conda activate track
-
-You can then start |trex| by simply typing:
+Then start |trex| by typing:
 
 .. code-block:: bash
 
-    trex
+   trex
 
-and pressing enter. First time startup can take slightly longer than normal. If this eventually opens a window showing a friendly T-Rex you have successfully installed the software.
+and pressing **Enter**. 
 
-.. raw:: html
+If a window showing a friendly T-Rex appears, you've successfully installed the software.
 
-   <figure>
-       <video width="100%" loop autoplay>
-           <source src="_images/intro_screen.mov" type="video/mp4">
-           Your browser does not support the video tag.
-       </video>
-       <figcaption>The TRex graphical user interface (GUI) showing the welcome screen.</figcaption>
-   </figure>
+.. figure:: images/welcome_screen-1.mov
+   :width: 100%
+   :alt: The TRex graphical user interface (GUI) showing the welcome screen.
 
-If you have any issues with the installation, please refer to the `installation guide <install>`.
+   The TRex graphical user interface (GUI) showing the welcome screen.
 
-Setting up a new project
+If you have any issues with the installation, please refer to the :doc:`installation guide <install>`.
+
+Setting Up a New Project
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-When you first start |trex|, you will see a window with a welcome message and a button to open a file or start the webcam. Click on the folder icon in the center of the screen to proceed to the initial settings screen (see :numref:`open_file`).
+When you first start |trex|, you'll see a window with a welcome message and a button to open a file or start the webcam. Click on the folder icon in the center of the screen to proceed to the initial settings screen (see :ref:`Figure <initialsettings>`).
 
-.. figure:: open_file.png
+.. figure:: images/configuration_screen-1.mov
    :width: 100%
-   :align: left
-   :name: open_file
+   :name: initialsettings
+   :alt: Initial settings screen where you can choose your input and output files, as well as various detection and tracking parameters.
 
-   Here you can choose your initial settings before the analysis starts, e.g. the input and output files, as well as various detection and tracking parameters that we deemed important enough to put here.
+   Initial settings screen where you can choose your input and output files, as well as various detection and tracking parameters.
 
-Click on the 📂 folder button next to the input file name at the top, or enter the path yourself (e.g. copy paste usually also works). By default, |trex| will put generated outputs in the same folder as the input file, but you may choose a different folder in the output section below.
+Steps to Set Up
+^^^^^^^^^^^^^^^
 
-The `prefix` (or `output_prefix`) can optionally be set too, which creates a subfolder of the given name under the output root, redirecting all new outputs here while the original .pv file stays in the root folder. This can be used to organise different sessions for the same video (e.g. trying out different settings, or separating tracking per species).
+1. **Select the Input File**: Click on the 📂 folder button next to the input file name at the top, or enter the path manually. By default, |trex| will place generated outputs in the same folder as the input file, but you can choose a different folder in the output section below.
 
-The tabs at the top allow you to switch between settings for different aspects of the processing pipeline:
+2. **Set Output Preferences**:
 
-1. **Locations**: Here you can set the input and output files, and related settings.
-2. **Detection**: Anything related to detecting individuals (or objects) in the raw image frames. This is the first *real* step in the pipeline, and the settings here cannot effectively be changed anymore afterward.
-3. **Tracking**: Anything related to tracking the detected individuals. This is the second step in the pipeline, and the settings here can be changed at any time (although it might require a re-analysis sometimes).
+   - **Prefix**: The ``prefix`` (or ``output_prefix``) can be optionally set. This creates a subfolder with the given name under the output root, redirecting all new outputs there while the original ``.pv`` file stays in the root folder. This helps organize different sessions for the same video (e.g., trying out different settings or separating tracking per species).
 
-For now, simply opening the ``8guppies_20s.mp4`` file and clicking the `Convert` button at the bottom right would be fine. To see how settings work, though, let's first go and check out the `Tracking` tab - set the number of individuals to 8 (since we already know this information).
+3. **Adjust Settings Using Tabs**:
 
-.. figure:: settings_pane.png
-   :width: 100%
-   :align: left
+   - **Locations**: Set the input and output files and related settings.
+   - **Detection**: Configure settings related to detecting individuals (or objects) in the raw image frames. This is the first real step in the pipeline, and settings here cannot be effectively changed afterward.
+   - **Tracking**: Adjust settings related to tracking the detected individuals. This is the second step in the pipeline, and settings here can be changed at any time, although it might require re-analysis.
 
-   The tracking settings tab allows you to set the number of individuals to track, as well as other tracking-related settings. You can see I set a few other settings here too - feel free to read their documentation by highlighting them with your mouse.
+
+4. **Set the Number of Individuals**:
+
+   - Navigate to the **Tracking** tab.
+   - Set the number of individuals to 8, since we know this from the example video.
+
+   .. figure:: images/settings_pane.png
+      :width: 100%
+      :alt: The tracking settings tab allows you to set the number of individuals to track, as well as other tracking-related settings.
+
+      The tracking settings tab allows you to set the number of individuals to track, as well as other tracking-related settings.
+
+
+5. **Start the Conversion**:
+
+   - Once you've configured the settings, click the **Convert** button at the bottom right to begin processing.
+
+**Tip:** Feel free to explore other settings. Hover over any setting with your mouse to read its documentation and understand how it affects the analysis.

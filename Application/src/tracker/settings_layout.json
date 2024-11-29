@@ -25,12 +25,12 @@
     {
         "type":"video",
         "clickable":true,
-        "path":"{if:{video_file}:{video_file}:gfx/welcome/ComfyUI_00032_717534771402803_wind_%1.4d.jpg}",
+        "path":"{if:{video_file}:{video_file}:gfx/menu_background.mp4}",
         "pos":"[{*:{window_size.x}:0.5},{*:{window_size.y}:0.5}]",
         "origin":[0.5,0.5],
         "blur":"{if:{hovered}:0.01:0.7}",
         "alpha":"{if:{hovered}:0.75:0.25}",
-        "frame_seconds":0.25,
+        "frame_seconds":0.1,
         "scale":"{bg_scale}"
     },
     {

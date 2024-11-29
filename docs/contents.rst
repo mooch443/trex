@@ -72,7 +72,7 @@ If you use this software in your work, please cite our `open-access paper <https
    }
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 3
    :caption: Contents:
    :hidden:
    

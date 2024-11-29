@@ -1,5 +1,16 @@
 import sphinx_rtd_theme
+
+# Enable automatic figure numbering
 numfig = True
+numfig_secnum_depth = 3  # Adjusts depth for including section numbers
+
+# Customize numbering format (optional)
+numfig_format = {
+    'figure': 'Figure %s',
+    'table': 'Table %s',
+    'code-block': 'Listing %s',
+    'section': 'Section %s'
+}
 
 # Configuration file for the Sphinx documentation builder.
 #
@@ -38,9 +49,9 @@ extensions = [
 
 default_dark_mode = True
 autosectionlabel_prefix_document = True
-autosectionlabel_maxdepth = 4
+autosectionlabel_maxdepth = 3
 
-html_sidebars = { '**': ['globaltoc.html', 'relations.html', 'sourcelink.html', 'searchbox.html'] }
+html_sidebars = { '**': ['localtoc.html', 'relations.html', 'sourcelink.html', 'searchbox.html'] }
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -63,10 +74,15 @@ master_doc = 'contents'
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = [ 
-    #"css/custom.css"
+    "css",
+    "images",
+    "static"
 ]
 html_css_files = [
-    #"css/custom.css"
+    "custom.css"
+]
+html_js_files = [
+    'scroll_to_active.js',  # Include the custom JavaScript file
 ]
 
 html_theme_options = {
@@ -77,9 +93,9 @@ html_theme_options = {
     'style_external_links': True,
 #    'style_nav_header_background': '',
     # Toc options
-    'collapse_navigation': True,
-#    'sticky_navigation': False,
-#    'navigation_depth': 3,
+    'collapse_navigation': False,
+    'sticky_navigation': True,
+    'navigation_depth': 3,
     'includehidden': True,
 #    'titles_only': True
 }

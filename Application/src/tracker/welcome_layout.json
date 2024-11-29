@@ -7,11 +7,11 @@
     "objects":[
     {
         "type":"video",
-        "path":"gfx/welcome/ComfyUI_00032_717534771402803_wind_%1.4d.jpg",
+        "path":"gfx/a_jungle_jurassic_landscape_viewing_a_valley__camera_is_standing_still__is_close_to_the_ground_in_th_edb4fe.mp4",
         "pos":"[{*:{window_size.x}:0.5},{*:{window_size.y}:0.5}]",
         "origin":[0.5,0.5],
         "blur":0.5,
-        "frame_seconds":0.25,
+        "frame_seconds":0.1,
         "scale":"{bg_scale}"
     },
     {
