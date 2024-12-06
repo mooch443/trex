@@ -1,4 +1,4 @@
-#include "Yolo8.h"
+#include "YOLO.h"
 #include <misc/PixelTree.h>
 #include <misc/PythonWrapper.h>
 #include <grabber/misc/default_config.h>
@@ -39,7 +39,7 @@ std::promise<void> running_promise;
 std::mutex init_mutex;
 std::future<void> init_future;
 
-std::atomic<bool> yolo8_initialized{false};
+std::atomic<bool> yolo_initialized{false};
 std::atomic<double> _network_fps{0.0};
 std::atomic<size_t> _network_samples{0u};
 
@@ -49,7 +49,7 @@ std::future<void> transferred_done;
 std::vector<detect::ModelConfig> _loaded_models;
 std::unique_ptr<GenericThreadPool> _pool;
 
-void Yolo8::reinit(ModuleProxy& proxy) {
+void YOLO::reinit(ModuleProxy& proxy) {
     proxy.set_variable("model_type", detect::detection_type().toStr());
     
     if(SETTING(detect_model).value<file::Path>().empty()) {
@@ -115,11 +115,11 @@ void Yolo8::reinit(ModuleProxy& proxy) {
     }
 }
 
-void Yolo8::init() {
+void YOLO::init() {
     bool expected = false;
-    if(yolo8_initialized.compare_exchange_strong(expected, true)) {
+    if(yolo_initialized.compare_exchange_strong(expected, true)) {
         _network_fps = _network_samples = 0;
-        _pool = std::make_unique<GenericThreadPool>(3, "Yolo8");
+        _pool = std::make_unique<GenericThreadPool>(3, "Yolo");
 
         std::unique_lock guard(init_mutex);
         if(init_future.valid())
@@ -128,7 +128,7 @@ void Yolo8::init() {
         init_future = Python::schedule([](){
             ModuleProxy proxy{
                 "bbx_saved_model",
-                Yolo8::reinit
+                YOLO::reinit
             };
         });//.get();
         
@@ -140,9 +140,9 @@ void Yolo8::init() {
     }
 }
 
-void Yolo8::deinit() {
+void YOLO::deinit() {
     bool expected = true;
-    if(yolo8_initialized.compare_exchange_strong(expected, false)) {
+    if(yolo_initialized.compare_exchange_strong(expected, false)) {
         {
             std::unique_lock guard(transfer_done_mutex);
             if(transferred_done.valid())
@@ -159,7 +159,7 @@ void Yolo8::deinit() {
         }
         
         if(not Python::python_initialized())
-            throw U_EXCEPTION("Please Yolo8::deinit before calling Python::deinit().");
+            throw U_EXCEPTION("Please Yolo::deinit before calling Python::deinit().");
         
         Python::schedule([](){
             track::PythonIntegration::unload_module("bbx_saved_model");
@@ -230,7 +230,7 @@ void draw_outlines(const std::vector<Vector>& _points, const std::string& title 
     tf::imshow(title, image);
 }
 
-void Yolo8::receive(SegmentationData& data, track::detect::Result&& result) {
+void YOLO::receive(SegmentationData& data, track::detect::Result&& result) {
     const auto encoding = Background::meta_encoding();
     const auto mode = Background::image_mode();
     data.frame.set_encoding(encoding);
@@ -283,7 +283,7 @@ void Yolo8::receive(SegmentationData& data, track::detect::Result&& result) {
     }
 }
 
-void Yolo8::process_boxes_only(
+void YOLO::process_boxes_only(
        const std::vector<uint8_t>& detect_only_classes,
        coord_t w,
        coord_t h,
@@ -358,7 +358,7 @@ void Yolo8::process_boxes_only(
     }
 }
 
-void Yolo8::process_instance_segmentation(
+void YOLO::process_instance_segmentation(
       const std::vector<uint8_t>& detect_only_classes,
       coord_t w,
       coord_t h,
@@ -411,7 +411,7 @@ void Yolo8::process_instance_segmentation(
     }
 }
 
-std::optional<std::tuple<SegmentationData::Assignment, blob::Pair>> Yolo8::process_instance(
+std::optional<std::tuple<SegmentationData::Assignment, blob::Pair>> YOLO::process_instance(
      cmn::CPULabeling::DLList& list,
      coord_t w,
      coord_t h,
@@ -543,18 +543,18 @@ std::optional<std::tuple<SegmentationData::Assignment, blob::Pair>> Yolo8::proce
     );
 }
 
-bool Yolo8::is_initializing() {
+bool YOLO::is_initializing() {
     std::unique_lock guard(init_mutex);
     return init_future.valid();
 }
 
-double Yolo8::fps() {
+double YOLO::fps() {
     if(_network_samples.load() == 0u)
 		return 0.0;
     return _network_fps.load() / double(_network_samples.load());
 }
 
-struct Yolo8::TransferData {
+struct YOLO::TransferData {
     std::vector<Image::Ptr> images;
     //std::vector<Image::Ptr> oimages;
     std::vector<SegmentationData> datas;
@@ -578,8 +578,8 @@ struct Yolo8::TransferData {
     }
 };
 
-void Yolo8::StartPythonProcess(TransferData&& transfer) {
-    if (not yolo8_initialized) {
+void YOLO::StartPythonProcess(TransferData&& transfer) {
+    if (not yolo_initialized) {
         // probably shutting down at the moment
         throw U_EXCEPTION("Cannot start a python process because we are shutting down.");
         
@@ -602,7 +602,7 @@ void Yolo8::StartPythonProcess(TransferData&& transfer) {
     //thread_print("** transfer of ", (uint64_t)& transfer);
 
     const size_t _N = transfer.datas.size();
-    ModuleProxy bbx("bbx_saved_model", Yolo8::reinit, true);
+    ModuleProxy bbx("bbx_saved_model", YOLO::reinit, true);
     //bbx.set_variable("offsets", std::move(transfer.offsets));
     //bbx.set_variable("image", transfer.images);
     //bbx.set_variable("oimages", transfer.oimages);
@@ -664,7 +664,7 @@ void Yolo8::StartPythonProcess(TransferData&& transfer) {
     }
 }
 
-void Yolo8::ReceivePackage(TransferData&& transfer, std::vector<track::detect::Result>&& results) {
+void YOLO::ReceivePackage(TransferData&& transfer, std::vector<track::detect::Result>&& results) {
     //size_t elements{0};
     //size_t outline_elements{0};
     //thread_print("Received a number of results: ", results.size());
@@ -735,7 +735,7 @@ void Yolo8::ReceivePackage(TransferData&& transfer, std::vector<track::detect::R
     });
 }
 
-void Yolo8::apply(std::vector<TileImage>&& tiles) {
+void YOLO::apply(std::vector<TileImage>&& tiles) {
     while(true) {
         if(std::unique_lock guard(init_mutex);
            init_future.valid())

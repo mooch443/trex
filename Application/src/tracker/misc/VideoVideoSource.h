@@ -15,7 +15,7 @@ public:
     VideoSourceVideoSource(VideoSource&& source);
     ~VideoSourceVideoSource();
     
-    tl::expected<std::tuple<Frame_t, useMatPtr_t>, const char*> fetch_next() override;
+    tl::expected<std::tuple<Frame_t, useMatPtr_t>, UnexpectedError_t> fetch_next() override;
 
     uint8_t channels() const override;
     std::string toStr() const override;

@@ -7,13 +7,14 @@ AbstractBaseVideoSource::AbstractBaseVideoSource(VideoInfo info)
     image_buffers("image_buffers", _info.size),
     _source_frame(10u, 5u,
                 std::string("frame."+_info.base.str()),
-                [this]() -> tl::expected<std::tuple<Frame_t, useMatPtr_t>, const char*>
-                {
+                [this]()
+    {
         return fetch_next();
     }),
     _resize_cvt(10u, 5u,
                 std::string("resize."+_info.base.str()),
-                [this]() -> tl::expected<std::tuple<Frame_t, useMatPtr_t, Image::Ptr>, const char*> {
+                [this]()
+    {
         return this->fetch_next_process();
     })
 {
@@ -55,7 +56,7 @@ void AbstractBaseVideoSource::move_back(Image::Ptr&& ptr) {
     image_buffers.move_back(std::move(ptr));
 }
 
-tl::expected<std::tuple<Frame_t, useMatPtr_t, Image::Ptr>, const char*> AbstractBaseVideoSource::next() {
+tl::expected<std::tuple<Frame_t, useMatPtr_t, Image::Ptr>, UnexpectedError_t> AbstractBaseVideoSource::next() {
     auto result = _resize_cvt.next();
     if (!result)
         return tl::unexpected(result.error());
@@ -63,7 +64,7 @@ tl::expected<std::tuple<Frame_t, useMatPtr_t, Image::Ptr>, const char*> Abstract
     return std::move(result.value());
 }
 
-tl::expected<std::tuple<Frame_t, useMatPtr_t, Image::Ptr>, const char*> AbstractBaseVideoSource::fetch_next_process() {
+tl::expected<std::tuple<Frame_t, useMatPtr_t, Image::Ptr>, UnexpectedError_t> AbstractBaseVideoSource::fetch_next_process() {
     try {
         Timer timer;
         // get image from 1. step (source.frame) => here (resize+cvtColor)

@@ -15,7 +15,7 @@ PVVideoSource::~PVVideoSource() {
     quit();
 }
 
-tl::expected<std::tuple<Frame_t, useMatPtr_t>, const char*> PVVideoSource::fetch_next() {
+tl::expected<std::tuple<Frame_t, useMatPtr_t>, std::string> PVVideoSource::fetch_next() {
     try {
         if(not i.valid())
             i = 0_f;
@@ -45,8 +45,10 @@ tl::expected<std::tuple<Frame_t, useMatPtr_t>, const char*> PVVideoSource::fetch
             //thread_print("Reading index = ", index);
             source.frame(index, *buffer);
         }
-        catch (const std::exception& ex) {
-            return tl::unexpected(ex.what());
+        catch (const std::exception &ex) {
+            static thread_local std::string err_message;
+            err_message = ex.what();
+            return tl::unexpected(err_message.c_str());
         }
 
         //if (detection_type() != ObjectDetectionType::yolo)

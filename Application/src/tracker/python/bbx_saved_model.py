@@ -321,7 +321,7 @@ class Model:
         else:
             return self.ptr.predict(images, device=self.device, stream=True, **kwargs)
 
-class StrippedYolo8Results:
+class StrippedYoloResults:
     def __init__(self, results, scale, offset, box = [0, 0, 0, 0]):
         self.boxes = results.boxes.data.cpu().numpy()
         self.keypoints = None
@@ -434,10 +434,10 @@ def merge_boxes(boxes, iou_threshold):
 
     return merged_boxes
 
-class TRexYOLO8:
+class TRexYOLO:
     def __init__(self, models: List[Model]):
         """
-        Initialize the TRexYOLO8 class with a list of models.
+        Initialize the TRexYOLO class with a list of models.
 
         Args:
             models (List[Model]): A list of models used for region proposal, detection and segmentation.
@@ -445,7 +445,7 @@ class TRexYOLO8:
         Raises:
             AssertionError: If no models are specified.
         """
-        assert len(models) > 0, "No models specified for TRexYOLO8 {}".format(models)
+        assert len(models) > 0, "No models specified for TRexYOLO {}".format(models)
 
         self.models = models
         self.load_models()
@@ -456,16 +456,16 @@ class TRexYOLO8:
         self.results_samples = 0
 
         # log configuration and loaded models
-        TRex.log("TRexYOLO8 configuration: models={}".format(self.models))
+        TRex.log("TRexYOLO configuration: models={}".format(self.models))
 
     def __str__(self) -> str:
         """
-        String representation of the TRexYOLO8 instance.
+        String representation of the TRexYOLO instance.
 
         Returns:
-            str: A string that represents the TRexYOLO8 instance.
+            str: A string that represents the TRexYOLO instance.
         """
-        return "TRexYOLO8<models={}>".format(self.models)
+        return "TRexYOLO<models={}>".format(self.models)
 
     def has_region_model(self) -> bool:
         """
@@ -743,7 +743,7 @@ class TRexYOLO8:
                 #r = result.cpu().plot(img=region, line_width=1)
                 #TRex.imshow("segmentation"+str(i)+","+str(t), r)
 
-                result = StrippedYolo8Results(result, scale=scale, offset=offset)
+                result = StrippedYoloResults(result, scale=scale, offset=offset)
                 
                 coords, masks, keypoints = self.postprocess_result(i, result, offset, scale, box)
                 collected_boxes.append(coords)
@@ -957,11 +957,11 @@ class TRexYOLO8:
         #print("resolution = ",self.detect_resolution())
 
         # get total memory of the gpu:
-        total_memory = TRexYOLO8.get_free_memory(self.detection_model().device) * 0.75
+        total_memory = TRexYOLO.get_free_memory(self.detection_model().device) * 0.75
 
         # if the total memory is not enough, we need to send the images in packages
         normal_res = int(w * h)
-        memory_per_image = TRexYOLO8.calculate_memory(1, h, w, c, torch.float64)
+        memory_per_image = TRexYOLO.calculate_memory(1, h, w, c, torch.float64)
         max_len = int(max(1, total_memory // memory_per_image // 100))
         #print(f"Calculated max_len = {max_len} based on total_memory = {total_memory} and normal_res = {normal_res} and {w}x{h} pixels / image, memory_per_image = {memory_per_image}")
 
@@ -983,7 +983,7 @@ class TRexYOLO8:
                                             verbose = False,
                                             max_det = max_det)
                 for r, scale, offset in zip(rs, scales[i:i+max_len], offsets[i:i+max_len]):
-                    results.append(StrippedYolo8Results(r, scale=scale, offset=offset))
+                    results.append(StrippedYoloResults(r, scale=scale, offset=offset))
                 #results.extend(rs)
                 torch.cuda.empty_cache()
 
@@ -1000,7 +1000,7 @@ class TRexYOLO8:
                                         max_det = max_det)
             results = []
             for r, scale, offset in zip(rs, scales, offsets):
-                    results.append(StrippedYolo8Results(r, scale=scale, offset=offset))
+                    results.append(StrippedYoloResults(r, scale=scale, offset=offset))
             #torch.cuda.empty_cache()
 
         from itertools import groupby
@@ -1045,7 +1045,7 @@ class TRexYOLO8:
         
         return rexsults
 
-def load_yolo8(configs : List[TRex.ModelConfig]):
+def load_yolo(configs : List[TRex.ModelConfig]):
     import torch
     TRex.log("Clearing caches...")
     if torch.cuda.is_available():
@@ -1060,8 +1060,8 @@ def load_yolo8(configs : List[TRex.ModelConfig]):
         models.append(Model(config))
     
     print("Configs: ", models)
-    model = TRexYOLO8(models)
-    TRex.log("Loaded YOLO8 models: "+str([model.config for model in model.models]))
+    model = TRexYOLO(models)
+    TRex.log("Loaded YOLO models: "+str([model.config for model in model.models]))
     return [model.config for model in model.models]
 
 def predict(input : TRex.YoloInput) -> List[TRex.Result]:
@@ -1084,7 +1084,7 @@ def apply():
 
     try:
         global model, image_size, segmentation_resolution, image, oimages, model_type, offsets, device
-        if model_type == "yolo8" or model_type == "yolo8seg":
+        if model_type == "yolo" or model_type == "yolo8" or model_type == "yolo8seg":
             #im = np.array(image, copy=False)[..., :3]
             model.inference(image, offsets=offsets, conf_threshold=conf_threshold, iou_threshold=iou_threshold)
 

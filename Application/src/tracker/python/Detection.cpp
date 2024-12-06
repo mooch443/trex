@@ -1,6 +1,6 @@
 #include "Detection.h"
 //#include <python/Yolo7InstanceSegmentation.h>
-#include <python/Yolo8.h>
+#include <python/YOLO.h>
 //#include <python/Yolo7ObjectDetection.h>
 #include <processing/RawProcessing.h>
 #include <grabber/misc/default_config.h>
@@ -26,7 +26,7 @@ Detection::Detection() {
         break;*/
 
     case ObjectDetectionType::yolo:
-        Yolo8::init();
+        YOLO::init();
         break;
             
     case ObjectDetectionType::background_subtraction:
@@ -40,7 +40,7 @@ Detection::Detection() {
 
 void Detection::deinit() {
     if(detection_type() == ObjectDetectionType::yolo)
-        Yolo8::deinit();
+        YOLO::deinit();
     else if(detection_type() == ObjectDetectionType::background_subtraction)
         BackgroundSubtraction::deinit();
     
@@ -49,13 +49,13 @@ void Detection::deinit() {
 
 bool Detection::is_initializing() {
     if(detection_type() == ObjectDetectionType::yolo)
-        return Yolo8::is_initializing();
+        return YOLO::is_initializing();
     return false;
 }
 
 double Detection::fps() {
     if(detection_type() == ObjectDetectionType::yolo)
-        return Yolo8::fps();
+        return YOLO::fps();
     if(detection_type() == ObjectDetectionType::background_subtraction)
         return BackgroundSubtraction::fps();
     return AbstractBaseVideoSource::_network_fps.load();
@@ -116,7 +116,7 @@ void Detection::apply(std::vector<TileImage>&& tiled) {
 
     }
     else*/ if (detection_type() == ObjectDetectionType::yolo) {
-        Yolo8::apply(std::move(tiled));
+        YOLO::apply(std::move(tiled));
         return;
     } else if(detection_type() == ObjectDetectionType::background_subtraction) {
         BackgroundSubtraction::apply(std::move(tiled));

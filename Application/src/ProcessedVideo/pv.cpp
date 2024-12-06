@@ -544,7 +544,13 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         pixel_count += line.x1 - line.x0 + 1;
     }
 
-    assert(pixel_count * required_storage_channels(encoding()) == pixels.size());
+    if(auto c = required_storage_channels(encoding());
+       c > 0)
+    {
+        assert(pixel_count * c == pixels.size());
+    } else {
+        assert(pixel_count == pixels.size());
+    }
 #endif
     
     Blob::set_flag(flags, Blob::Flags::is_rgb, _encoding == meta_encoding_t::rgb8);
@@ -1355,33 +1361,61 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         frame_optional_background(frameIndex, output, true);
     }
     
-    void File::frame_optional_background(Frame_t frameIndex, cv::Mat& output, bool with_background) {
+    void File::frame_optional_background(Frame_t frameIndex, cv::Mat& output_image, bool with_background) {
         _check_opened();
         
         Frame frame;
         read_frame(frame, frameIndex);
         
-        const int channels = required_storage_channels(header().encoding);
+        const int channels = required_image_channels(header().encoding);
         if(with_background)
-            average().copyTo(output);
+            average().copyTo(output_image);
         else
-            output = cv::Mat::zeros(header().resolution.height, header().resolution.width, CV_8UC(channels));
-        assert(output.channels() == channels);
+            output_image = cv::Mat::zeros(header().resolution.height, header().resolution.width, CV_8UC(channels));
+        assert(output_image.channels() == channels);
         
         for (uint16_t i=0; i<frame.n(); i++) {
             uint64_t index = 0;
             auto &mask = frame.mask().at(i);
-            auto &pixels = frame.pixels().at(i);
+            auto pixels = frame.pixels().empty() ? nullptr : frame.pixels().at(i).get();
             
-            for(const HorizontalLine &line : *mask) {
-                for(int x=line.x0; x<=line.x1; x+=channels) {
-                    if(channels == 1)
-                        output.at<uchar>(line.y, x) = (uchar)pixels->at(index);
-                    else
-                        output.at<cv::Vec3b>(line.y, x) = *(const cv::Vec3b*)((pixels->data()) + index);
-                    ++index;
+            call_image_mode_function(InputInfo{
+                .channels = required_storage_channels(header().encoding),
+                .encoding = header().encoding
+            }, OutputInfo{
+                .channels = static_cast<uint8_t>(channels),
+                .encoding = channels == 1 ? meta_encoding_t::gray : meta_encoding_t::rgb8
+            }, [&]<InputInfo input, OutputInfo output, DifferenceMethod>(){
+                static_assert(is_in(input.channels, 0, 1, 3), "Only 0, 1 or 3 channels input is supported.");
+                static_assert(is_in(output.channels, 1, 3), "Only 1 or 3 channels output is supported.");
+                
+                auto istart = pixels ? (uchar*)pixels->data() : nullptr;
+                
+                for(const HorizontalLine &line : *mask) {
+                    if constexpr(input.channels == 0) {
+                        auto ostart = output_image.data + (line.y * output_image.cols + line.x0) * output.channels;
+                        auto oend = output_image.data + (line.y * output_image.cols + line.x1 + 1) * output.channels;
+                        std::fill(ostart, oend, 255);
+                        
+                    } else {
+                        const auto iend = istart + (ptr_safe_t(line.x1) - ptr_safe_t(line.x0) + 1) * input.channels;
+                        auto optr = output_image.data + (line.y * output_image.cols + line.x0) * output.channels;
+                        
+                        for(auto iptr = istart;
+                            iptr < iend;
+                            iptr += input.channels, optr += output.channels)
+                        {
+                            assert(optr < output_image.data + output_image.cols * output_image.rows * output_image.channels());
+                            auto value = diffable_pixel_value<input, output>(iptr);
+                            write_pixel_value<output>(optr, value);
+                        }
+                        
+                        istart = iend;
+                    }
                 }
-            }
+            });
+            
+            
         }
     }
 

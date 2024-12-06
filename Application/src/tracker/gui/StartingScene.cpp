@@ -6,7 +6,7 @@
 #include <misc/RecentItems.h>
 #include <misc/CommandLine.h>
 #include <file/PathArray.h>
-#include <python/Yolo8.h>
+#include <python/YOLO.h>
 #include <gui/dyn/Action.h>
 #include <misc/SettingsInitializer.h>
 #include <gui/GUIVideoAdapterElement.h>

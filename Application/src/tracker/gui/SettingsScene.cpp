@@ -18,7 +18,7 @@
 #include <gui/GUIVideoAdapter.h>
 #include <gui/WorkProgress.h>
 #include <misc/Coordinates.h>
-#include <python/Yolo8.h>
+#include <python/YOLO.h>
 #include <tracking/Output.h>
 #include <misc/PythonWrapper.h>
 
@@ -151,7 +151,7 @@ struct SettingsScene::Data {
                             SETTING(detect_classes) = track::detect::yolo::names::owner_map_t{};
                             
                             /// populate the settings fields we need
-                            track::Yolo8::init();
+                            track::YOLO::init();
                             /// -----
                             
                             auto format = SETTING(detect_format).value<track::detect::ObjectDetectionFormat_t>();
@@ -176,7 +176,7 @@ struct SettingsScene::Data {
                             }
                             
                             /// dont need to keep it
-                            track::Yolo8::deinit();
+                            track::YOLO::deinit();
                             
                         } catch(...) {
                             SETTING(detect_resolution) = track::detect::DetectResolution{};
@@ -838,6 +838,7 @@ void SettingsScene::Data::check_video_source(file::PathArray source) {
                     _initial_source = source;
                 }
                 
+                (void)source.size(); // load files
                 current_path.set(std::move(source));
                 
             } catch(...) {

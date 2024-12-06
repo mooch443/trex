@@ -1053,22 +1053,22 @@ std::vector<ModelConfig> PythonIntegration::set_models(const std::vector<ModelCo
     
     try {
         if (m.empty()) {
-            return py::cast<std::vector<ModelConfig>>(_main.attr("load_yolo8")(config));
+            return py::cast<std::vector<ModelConfig>>(_main.attr("load_yolo")(config));
         }
         else {
             if (_modules.count(m)) {
                 auto& mod = _modules[m];
                 if (!CHECK_NONE(mod)) {
-                    return py::cast<std::vector<ModelConfig>>(mod.attr("load_yolo8")(config));
+                    return py::cast<std::vector<ModelConfig>>(mod.attr("load_yolo")(config));
                 }
             }
         
-            throw SoftException("Cannot call function ", fmt::clr<FormatColor::DARK_CYAN>(m.c_str()), "::", fmt::clr<FormatColor::CYAN>("load_yolo8"), " because the module ", fmt::clr<FormatColor::DARK_CYAN>(m.c_str()), " does not exist (you should probably have a look at previous error messages).");
+            throw SoftException("Cannot call function ", fmt::clr<FormatColor::DARK_CYAN>(m.c_str()), "::", fmt::clr<FormatColor::CYAN>("load_yolo"), " because the module ", fmt::clr<FormatColor::DARK_CYAN>(m.c_str()), " does not exist (you should probably have a look at previous error messages).");
         }
     } catch(py::error_already_set& e) {
         std::string what = e.what();
         //e.restore();
-        throw SoftException("Cannot call function ", fmt::clr<FormatColor::DARK_CYAN>(m.c_str()), "::", fmt::clr<FormatColor::CYAN>("load_yolo8"), " because ",what.c_str(),".");
+        throw SoftException("Cannot call function ", fmt::clr<FormatColor::DARK_CYAN>(m.c_str()), "::", fmt::clr<FormatColor::CYAN>("load_yolo"), " because ",what.c_str(),".");
     }
 }
 

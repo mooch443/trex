@@ -43,7 +43,7 @@
 #include <tracking/OutputLibrary.h>
 #include <tracking/Output.h>
 
-#include <python/Yolo8.h>
+#include <python/YOLO.h>
 //#include <python/Yolo7InstanceSegmentation.h>
 //#include <python/Yolo7ObjectDetection.h>
 
@@ -62,7 +62,7 @@
 #include <gui/CalibrateScene.h>
 
 using namespace gui;
-static_assert(ObjectDetection<Yolo8>);
+static_assert(ObjectDetection<YOLO>);
 static_assert(ObjectDetection<BackgroundSubtraction>);
 
 namespace ind = indicators;

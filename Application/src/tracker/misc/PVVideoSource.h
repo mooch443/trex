@@ -14,7 +14,7 @@ public:
     PVVideoSource(pv::File&& source);
     ~PVVideoSource();
     
-    tl::expected<std::tuple<Frame_t, useMatPtr_t>, const char*> fetch_next() override;
+    tl::expected<std::tuple<Frame_t, useMatPtr_t>, std::string> fetch_next() override;
 
     uint8_t channels() const override;
     std::string toStr() const override;

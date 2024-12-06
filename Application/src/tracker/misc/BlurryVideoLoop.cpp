@@ -23,6 +23,7 @@ void BlurryVideoLoop::preloader_thread(const ThreadGroupId& gid) {
     {
         // video has changed! need to update
         auto& path = video_changed.value();
+        Print("[blurry] Video changed to ", path);
         
         std::unique_ptr<AbstractBaseVideoSource> tmp;
         try {
@@ -100,6 +101,10 @@ void BlurryVideoLoop::preloader_thread(const ThreadGroupId& gid) {
     if(not _source)
         return;
     
+    /// here we check whether we need to grab a new frame from
+    /// the video source we're using. this could be because
+    /// of a timeout or because we're done fading the other one.
+    /// or i guess forever, if its a webcam.
     if(not intermediate
        || _last_image_timer.elapsed() > video_frame_time.load()
        || not _source->is_finite()) /// for webcams we need to keep grabbing
@@ -135,11 +140,18 @@ void BlurryVideoLoop::preloader_thread(const ThreadGroupId& gid) {
                 ThreadManager::getInstance().notify(gid);
             }
         }
-        else if(_source->is_finite()) {
-            if(_next_frame != 0_f) {
-                _source->set_frame(0_f);
-                _next_frame = 0_f;
+        else {
+            /// oh no, it went wrong!
+            FormatError("[blurry] Failed to load video frame: ", e.error());
+            
+            /// if its a video
+            if(_source->is_finite()) {
+                if(_next_frame != 0_f) {
+                    _source->set_frame(0_f);
+                    _next_frame = 0_f;
+                }
             }
+            
             ThreadManager::getInstance().notify(gid);
         }
     }
@@ -293,6 +305,7 @@ bool BlurryVideoLoop::set_video_frame_time(double value) {
 
 bool BlurryVideoLoop::set_path(const file::PathArray& array) {
     if(_video_path.set(array)) {
+        Print("[blurry] Video changed to ", array);
         ThreadManager::getInstance().notify(group);
         return true;
     }

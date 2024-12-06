@@ -13,7 +13,7 @@ VideoSourceVideoSource::~VideoSourceVideoSource() {
     quit();
 }
 
-tl::expected<std::tuple<Frame_t, useMatPtr_t>, const char*> VideoSourceVideoSource::fetch_next() {
+tl::expected<std::tuple<Frame_t, useMatPtr_t>, UnexpectedError_t> VideoSourceVideoSource::fetch_next() {
     try {
         if(not i.valid())
             i = 0_f;

@@ -15,7 +15,7 @@
 #include <python/GPURecognition.h>
 #include <gui/Label.h>
 #include <gui/ParseLayoutTypes.h>
-#include <python/Yolo8.h>
+#include <python/YOLO.h>
 #include <misc/CommandLine.h>
 #include <gui/dyn/Action.h>
 #include <gui/dyn/ParseText.h>

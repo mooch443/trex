@@ -17,7 +17,7 @@ using namespace track;
 using namespace track::Match;
 using namespace track::detect;
 
-#include <python/Yolo8.h>
+#include <python/YOLO.h>
 
 TEST(YOLOFilenameTest, ValidFilenames) {
     EXPECT_TRUE(yolo::is_default_model("yolo11n.pt"));

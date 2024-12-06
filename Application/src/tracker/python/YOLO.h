@@ -9,8 +9,8 @@ namespace track {
 
 struct AcceptanceSettings;
 
-struct TREX_EXPORT Yolo8 {
-    Yolo8() = delete;
+struct TREX_EXPORT YOLO {
+    YOLO() = delete;
     
     static void reinit(track::ModuleProxy& proxy);
     

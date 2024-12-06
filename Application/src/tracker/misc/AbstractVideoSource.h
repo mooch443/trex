@@ -11,6 +11,8 @@
 
 using namespace cmn;
 
+using UnexpectedError_t = std::string;
+
 class AbstractBaseVideoSource {
 public:
     static inline std::atomic<float> _fps{0}, _samples{ 0 };
@@ -39,8 +41,8 @@ protected:
     ImageBuffers< useMatPtr_t, MatMaker > mat_buffers;
     ImageBuffers< Image::Ptr, ImageMaker > image_buffers;
 
-    using PreprocessFunction = RepeatedDeferral<std::function<tl::expected<std::tuple<Frame_t, useMatPtr_t, Image::Ptr>, const char*>()>>;
-    using VideoFunction = RepeatedDeferral<std::function<tl::expected<std::tuple<Frame_t, useMatPtr_t>, const char*>()>>;
+    using PreprocessFunction = RepeatedDeferral<std::function<tl::expected<std::tuple<Frame_t, useMatPtr_t, Image::Ptr>, UnexpectedError_t>()>>;
+    using VideoFunction = RepeatedDeferral<std::function<tl::expected<std::tuple<Frame_t, useMatPtr_t>, UnexpectedError_t>()>>;
     
     GETTER(VideoFunction, source_frame);
     GETTER(PreprocessFunction, resize_cvt);
@@ -63,11 +65,11 @@ public:
     void move_back(useMatPtr_t&& ptr);
     void move_back(Image::Ptr&& ptr);
 
-    tl::expected<std::tuple<Frame_t, useMatPtr_t, Image::Ptr>, const char*> next();
+    tl::expected<std::tuple<Frame_t, useMatPtr_t, Image::Ptr>, UnexpectedError_t> next();
     
-    virtual tl::expected<std::tuple<Frame_t, useMatPtr_t>, const char*> fetch_next() = 0;
+    virtual tl::expected<std::tuple<Frame_t, useMatPtr_t>, UnexpectedError_t> fetch_next() = 0;
     
-    tl::expected<std::tuple<Frame_t, useMatPtr_t, Image::Ptr>, const char*> fetch_next_process();
+    tl::expected<std::tuple<Frame_t, useMatPtr_t, Image::Ptr>, UnexpectedError_t> fetch_next_process();
     
     bool is_finite() const;
     

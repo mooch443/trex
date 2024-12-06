@@ -5,7 +5,7 @@
 #include <tracking/IndividualManager.h>
 #include <tracking/Output.h>
 #include <misc/CommandLine.h>
-#include <python/Yolo8.h>
+#include <python/YOLO.h>
 #include <misc/SettingsInitializer.h>
 #include <tracking/Tracker.h>
 #include <gui/Export.h>
@@ -595,7 +595,7 @@ void Segmenter::open_camera() {
     
     if(SETTING(source).value<file::PathArray>() == file::PathArray("webcam")) {
         //if(not CommandLine::instance().settings_keys().contains("detect_model"))
-        //    SETTING(detect_model) = file::Path(Yolo8::default_model());
+        //    SETTING(detect_model) = file::Path(Yolo::default_model());
         //if(not CommandLine::instance().settings_keys().contains("save_raw_movie"))
         {
         //    SETTING(save_raw_movie) = true;
