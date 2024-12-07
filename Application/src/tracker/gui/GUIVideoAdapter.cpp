@@ -183,9 +183,9 @@ void GUIVideoAdapter::set(SizeLimit limit) {
     if(_video_loop.set_target_resolution(limit))
         set_content_changed(true);
 }
-void GUIVideoAdapter::set(Str path) {
-    if(_video_loop.set_path(file::PathArray(path))) {
-        _array = file::PathArray(path);
+void GUIVideoAdapter::set(file::PathArray path) {
+    if(_video_loop.set_path(path)) {
+        _array = path;
         set_content_changed(true);
     }
 }

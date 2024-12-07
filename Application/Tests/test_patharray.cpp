@@ -430,6 +430,73 @@ TEST(PathArrayTest, ParsePath) {
     EXPECT_EQ(parsed_paths.size(), 2);
 }
 
+TEST(PathArrayTest, ParsePath_StarWithSubdirectories) {
+    struct StarMockFilesystem : public file::FilesystemInterface {
+        std::set<file::Path> find_files(const file::Path& parent) const override {
+#if defined(_WIN32)
+            if (parent == file::Path("C:\\path\\to")) {
+                return {
+                    file::Path("C:\\path\\to\\file_a.txt"),
+                    file::Path("C:\\path\\to\\file_b.log"),
+                    file::Path("C:\\path\\to\\another_file.txt"),
+                    file::Path("C:\\path\\to\\subdir"),
+                    file::Path("C:\\path\\to\\subdir\\file_c.txt") // Not a direct child
+                };
+            }
+#else
+            if (parent == file::Path("/path/to")) {
+                return {
+                    file::Path("/path/to/file_a.txt"),
+                    file::Path("/path/to/file_b.log"),
+                    file::Path("/path/to/another_file.txt"),
+                    file::Path("/path/to/subdir"),
+                    file::Path("/path/to/subdir/file_c.txt") // Not a direct child
+                };
+            }
+#endif
+            return {};
+        }
+
+        bool is_folder(const file::Path& path) const override {
+            // Mark the following as folders:
+#if defined(_WIN32)
+            return path == file::Path("C:\\path\\to") || path == file::Path("C:\\path\\to\\subdir");
+#else
+            return path == file::Path("/path/to") || path == file::Path("/path/to/subdir");
+#endif
+        }
+
+        bool exists(const file::Path& path) const override {
+            auto parent = path.remove_filename();
+            return find_files(parent).count(path) > 0;
+        }
+    };
+
+#if defined(_WIN32)
+    auto parsed_paths = resolve_paths_artificially<StarMockFilesystem>("C:\\path\\to\\*");
+    // Expecting file_a.txt, file_b.log, another_file.txt, and subdir (assuming subdir counts as a path too)
+    // Note: The behavior for whether directories are returned or not depends on code;
+    //       if directories should not match '*', filter them out in a real test scenario.
+    //       For this test, we assume directories are matched just like files.
+    EXPECT_EQ(parsed_paths.size(), 4);
+    EXPECT_EQ(parsed_paths[0].str(), "C:\\path\\to\\another_file.txt");
+    EXPECT_EQ(parsed_paths[1].str(), "C:\\path\\to\\file_a.txt");
+    EXPECT_EQ(parsed_paths[2].str(), "C:\\path\\to\\file_b.log");
+    EXPECT_EQ(parsed_paths[3].str(), "C:\\path\\to\\subdir");
+#else
+    auto parsed_paths = resolve_paths_artificially<StarMockFilesystem>("/path/to/*");
+    EXPECT_EQ(parsed_paths.size(), 4);
+    EXPECT_EQ(parsed_paths[0].str(), "/path/to/another_file.txt");
+    EXPECT_EQ(parsed_paths[1].str(), "/path/to/file_a.txt");
+    EXPECT_EQ(parsed_paths[2].str(), "/path/to/file_b.log");
+    EXPECT_EQ(parsed_paths[3].str(), "/path/to/subdir");
+    
+    file::_PathArray<StarMockFilesystem> array("/path/to/*");
+    EXPECT_EQ(array.size(), 4u);
+    EXPECT_EQ(array.toStr(), std::string(""));
+#endif
+}
+
 // Test pattern matching with %10.100.6d
 #if defined(_WIN32)
 #include <windows.h>

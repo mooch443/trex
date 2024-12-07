@@ -42,6 +42,9 @@ struct SettingsScene::Data {
     
     std::unordered_map<std::string, std::future<bool>> _scheduled_exist_checks;
     std::unordered_map<std::string, bool> _done_exist_checks;
+    
+    Timer output_name_check;
+    std::optional<file::Path> last_output_name;
 
     GuardedProperty<file::PathArray> current_path;
     
@@ -615,7 +618,7 @@ struct SettingsScene::Data {
                             if(not dir.empty()) {
                                 file::Path path(dir.front());
                                 if(path.has_extension() && utils::lowercase(path.extension()) == "pv") {
-                                    load_video_settings(path);
+                                    load_video_settings(file::PathArray{path});
                                     
                                 } else {
                                     GlobalSettings::load_from_file({}, path.str(), AccessLevelType::LOAD);
@@ -695,8 +698,14 @@ struct SettingsScene::Data {
                         
                         throw std::runtime_error("Still checking status...");
                     }),
-                    VarFunc("resulting_path", [](const VarProps&) -> file::Path {
-                        return settings::find_output_name(GlobalSettings::map());
+                    VarFunc("resulting_path", [this](const VarProps&) -> file::Path {
+                        if(not last_output_name
+                           || output_name_check.elapsed() > 1)
+                        {
+                            last_output_name = settings::find_output_name(GlobalSettings::map());
+                            output_name_check.reset();
+                        }
+                        return last_output_name.value();
                     })
                 }
             };

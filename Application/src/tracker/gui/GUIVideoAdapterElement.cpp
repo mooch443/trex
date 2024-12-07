@@ -89,7 +89,7 @@ bool GUIVideoAdapterElement::_update(Layout::Ptr& o,
     std::string path;
     if (patterns.contains("path")) {
         path = Meta::fromStr<std::string>(parse_text(patterns.at("path").original, context, state));
-        p->set(Str{path});
+        p->set(file::PathArray{path});
     }
     
     double frame_time = 0.1;

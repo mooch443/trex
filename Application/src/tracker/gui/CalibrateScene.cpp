@@ -157,7 +157,7 @@ void CalibrateScene::_draw(DrawStructure &graph) {
                 _data->_next_video_size = info.size;
             }, [this](const file::PathArray& path, IMGUIBase* window, std::function<void(VideoInfo)> callback) -> Layout::Ptr {
                 if(_data->_adapter) {
-                    _data->_adapter.to<GUIVideoAdapter>()->set(Str{path.source()});
+                    _data->_adapter.to<GUIVideoAdapter>()->set(path);
                     return _data->_adapter;
                 } else {
                     Layout::Ptr ptr = Layout::Make<GUIVideoAdapter>(path, window, callback);

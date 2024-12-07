@@ -49,7 +49,7 @@ public:
     
     using Entangled::set;
     void set(SizeLimit limit);
-    void set(Str path);
+    void set(file::PathArray path);
     void set(Blur blur);
     void set(FrameTime time);
     void set(Margins margins);
