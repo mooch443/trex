@@ -236,7 +236,7 @@
 			"origin":[0,0],
 			"font":{"size":0.5},
 			"color":[255,255,255],
-			"max_size":[300,0],
+			"max_size":[400,0],
 			"text":"You may want to fix your video file (e.g. using <c>ffmpeg</c>) and try again. <c>ffmpeg</c> is a widely used command-line tool for video processing, already installed within your current conda environment (<c><cyan>{folder:{folder:{global.python_path}}}</cyan></c>). It can also be downloaded from <c><cyan>https://ffmpeg.org/</cyan></c>.\n\nA simple way to remux your file from the terminal is:\n<c><cyan>{ffmpeg_fix}</cyan></c>\n<sym>⮩</sym> <i>click to copy to clipboard</i>\n\nThis will create a new file with the extension <c><cyan>.mp4</cyan></c> without reencoding."
 		},
 		"else":{"type":"rect", "size":[0,0]}

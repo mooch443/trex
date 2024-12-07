@@ -23,7 +23,9 @@ void BlurryVideoLoop::preloader_thread(const ThreadGroupId& gid) {
     {
         // video has changed! need to update
         auto& path = video_changed.value();
+#ifndef NDEBUG
         Print("[blurry] Video changed to ", path);
+#endif
         
         std::unique_ptr<AbstractBaseVideoSource> tmp;
         try {
@@ -305,7 +307,9 @@ bool BlurryVideoLoop::set_video_frame_time(double value) {
 
 bool BlurryVideoLoop::set_path(const file::PathArray& array) {
     if(_video_path.set(array)) {
+#ifndef NDEBUG
         Print("[blurry] Video changed to ", array);
+#endif
         ThreadManager::getInstance().notify(group);
         return true;
     }

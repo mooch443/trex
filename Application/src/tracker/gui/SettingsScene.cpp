@@ -711,7 +711,7 @@ struct SettingsScene::Data {
                         return _video_adapters[path.source()];
                     } else {
                         Layout::Ptr ptr = Layout::Make<GUIVideoAdapter>(path, window, callback);
-                        Print("Making new video adapter for ", path);
+                        //Print("Making new video adapter for ", path);
                         if(_video_adapters.size() >= 2) {
                             Print("Clearing video adapter history...");
                             _video_adapters.clear();

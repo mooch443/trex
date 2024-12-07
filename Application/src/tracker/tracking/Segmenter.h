@@ -144,7 +144,7 @@ public:
     file::Path output_file_name() const;
     void force_stop();
     void error_stop(std::string_view);
-    std::future<std::optional<std::string_view>> video_recovered_error() const;
+    std::future<std::optional<std::set<std::string_view>>> video_recovered_error() const;
     float average_percent() const { return min(_average_percent.load(), 1.f); }
     double fps() const;
     double write_fps() const;

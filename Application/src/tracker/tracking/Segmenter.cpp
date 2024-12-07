@@ -1326,14 +1326,14 @@ void Segmenter::printDebugInformation() {
     Print("color encoding: ", SETTING(meta_encoding).value<meta_encoding_t::Class>());
 }
 
-std::future<std::optional<std::string_view>> Segmenter::video_recovered_error() const {
-    return std::async(std::launch::async, [this]() -> std::optional<std::string_view> {
+std::future<std::optional<std::set<std::string_view>>> Segmenter::video_recovered_error() const {
+    return std::async(std::launch::async, [this]() -> std::optional<std::set<std::string_view>> {
         std::unique_lock vlock(_mutex_video);
         if(not _overlayed_video)
             return std::nullopt;
         auto e = _overlayed_video->source()->recovered_errors();
         if(not e.empty()) {
-            return *e.begin();
+            return e;
         }
         return std::nullopt;
     });

@@ -162,8 +162,8 @@ struct ConvertScene::Data {
     Frame_t _video_frame;
     
     dyn::DynamicGUI dynGUI;
-    std::future<std::string> _retrieve_video_info;
-    std::string _recovered_error;
+    std::future<std::optional<std::set<std::string_view>>> _retrieve_video_info;
+    std::set<std::string_view> _recovered_error;
     
     Frame_t last_frame;
     Timer timer;
@@ -201,7 +201,8 @@ struct ConvertScene::Data {
             }
         }
     }
-    void check_video_info(bool wait, std::string*);
+    void check_video_info(bool wait, std::set<std::string_view>*);
+    void retry_video_info();
     
     bool fetch_new_data();
     void update_background_image();
@@ -502,17 +503,26 @@ void ConvertScene::deactivate() {
     WorkProgress::stop();
 }
 
-void ConvertScene::Data::check_video_info(bool wait, std::string* result) {
+void ConvertScene::Data::check_video_info(bool wait, std::set<std::string_view>* result) {
     if(_retrieve_video_info.valid()
        && (wait || _retrieve_video_info.wait_for(std::chrono::milliseconds(0)) 
                         == std::future_status::ready))
     {
         try {
             // invalidate existing future and throw away
-            if(result)
-                *result = _retrieve_video_info.get();
-            else
+            if(result) {
+                auto r = _retrieve_video_info.get();
+                if(r)
+                    *result = *r;
+                //else
+                //    result->clear();
+            } else {
                 (void)_retrieve_video_info.get();
+            }
+            
+            if(not wait) {
+                retry_video_info();
+            }
             
         } catch(const std::exception& e) {
             FormatError("There was in error retrieving video info from the future: ", e.what());
@@ -949,19 +959,14 @@ void ConvertScene::Data::drawBlobs(
     }
 }
 
+void ConvertScene::Data::retry_video_info() {
+    _retrieve_video_info = _segmenter->video_recovered_error();
+}
+
 dyn::DynamicGUI ConvertScene::Data::init_gui(Base* window) {
     dyn::Context context;
     check_video_info(true, nullptr);
-    _retrieve_video_info = std::async(std::launch::async, [this]()
-        -> std::string
-    {
-        // we need to throw this away since this may be blocking
-        auto e = _segmenter->video_recovered_error().get();
-        if(not e.has_value()) {
-            return "";
-        }
-        return (std::string)e.value();
-    });
+    retry_video_info();
     
     context.actions = {
         ActionFunc("terminate", [this](auto) {
@@ -1129,7 +1134,11 @@ dyn::DynamicGUI ConvertScene::Data::init_gui(Base* window) {
             return _primary_selection;
         }),
         VarFunc("video_error", [this](const VarProps&) -> std::string {
-            return _recovered_error;
+            if(_recovered_error.empty())
+                return "";
+            else if(_recovered_error.size() == 1)
+                return (std::string)*_recovered_error.begin();
+            return Meta::toStr(_recovered_error);
         }),
         VarFunc("is_initializing", [](const VarProps&) {
             return Detection::is_initializing();
