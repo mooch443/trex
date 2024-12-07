@@ -390,6 +390,16 @@ void Segmenter::set_metadata() {
     for(auto &[key, value] : config.map)
         value->copy_to(diff);
     _output_file->set_metadata(std::move(diff));
+    
+    pv::Header::ConversionRange_t conversion_range;
+    auto video_conversion_range = SETTING(video_conversion_range).value<Range<long_t>>();
+    if(video_conversion_range.start != -1)
+        conversion_range.start = video_conversion_range.start;
+    if(video_conversion_range.end != -1)
+        conversion_range.end = video_conversion_range.end;
+    
+    _output_file->set_source(SETTING(source).value<file::PathArray>().toStr());
+    _output_file->set_conversion_range(conversion_range);
 }
 
 void Segmenter::callback_after_generating(cv::Mat &bg) {

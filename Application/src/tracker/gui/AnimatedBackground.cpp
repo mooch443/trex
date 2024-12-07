@@ -25,31 +25,41 @@ AnimatedBackground::AnimatedBackground(Image::Ptr&& image, const pv::File* video
     std::string meta_source_path = SETTING(meta_source_path).value<std::string>();
 
     if (video) {
-        auto metadata = video->header().metadata;
-        SettingsMaps combined;
-
-        try {
-            grab::default_config::get(combined.map, combined.docs, nullptr);
-            default_config::get(combined.map, combined.docs, nullptr);
-
-            if(metadata.has_value())
-                sprite::parse_values(sprite::MapSource{video->filename()}, combined.map, metadata.value());
-
-        }
-        catch (...) {
-            FormatExcept("Failed to load metadata from: ", metadata.has_value() ? metadata.value() : "");
-        }
-
-        /*if ((meta_source_path.empty() || (not combined.map.has("meta_source_path") || meta_source_path == combined.map.at("meta_source_path").value<std::string>()))
-            && combined.map.has("meta_video_scale"))
-        {
-            _source_scale = combined.map.at("meta_video_scale").value<float>();
-        }*/
-
-        if (meta_source_path.empty()
-            && combined.map.has("meta_source_path"))
-        {
-            meta_source_path = combined.map.at("meta_source_path").value<std::string>();
+        if(video->header().source) {
+            meta_source_path = video->header().source.value();
+            _video_offset = video->header().conversion_range.start
+                                ? video->header().conversion_range.start.value()
+                                : 0;
+            
+        } else {
+            auto metadata = video->header().metadata;
+            SettingsMaps combined;
+            
+            try {
+                grab::default_config::get(combined.map, combined.docs, nullptr);
+                default_config::get(combined.map, combined.docs, nullptr);
+                
+                if(metadata.has_value())
+                    sprite::parse_values(sprite::MapSource{video->filename()}, combined.map, metadata.value());
+                
+            }
+            catch (...) {
+                FormatExcept("Failed to load metadata from: ", metadata.has_value() ? metadata.value() : "");
+            }
+            
+            /*if ((meta_source_path.empty() || (not combined.map.has("meta_source_path") || meta_source_path == combined.map.at("meta_source_path").value<std::string>()))
+             && combined.map.has("meta_video_scale"))
+             {
+             _source_scale = combined.map.at("meta_video_scale").value<float>();
+             }*/
+            
+            if (meta_source_path.empty()
+                && combined.map.has("meta_source_path"))
+            {
+                meta_source_path = combined.map.at("meta_source_path").value<std::string>();
+            }
+            
+            _video_offset = 0;
         }
     }
 
@@ -101,7 +111,7 @@ AnimatedBackground::AnimatedBackground(VideoSource&& source)
     {
         std::unique_lock guard(_source_mutex);
         if(_source->length() > 0_f) {
-            _source->frame(0_f, _buffer);
+            _source->frame(min(_source->length() - 1_f, Frame_t(_video_offset)), _buffer);
             _static_image.set_source(Image::Make(_buffer));
         }
         /*if (GlobalSettings::has("meta_video_scale")) {

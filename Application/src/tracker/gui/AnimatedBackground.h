@@ -37,6 +37,8 @@ class AnimatedBackground : public Entangled {
     Frame_t _current_frame;
     Frame_t _increment{1_f};
     
+    uint32_t _video_offset{0};
+    
     double _fade{1.0};
     double _target_fade{1.0};
     Timer _fade_timer;

@@ -102,8 +102,13 @@ namespace pv {
          */
         V_14,
         
+        /** Adding conversion range and source specifically to the file, so we can
+            offset input videos.
+         */
+        V_15,
+        
         //! current
-        current = V_14
+        current = V_15
     };
     
     class Frame {
@@ -225,6 +230,16 @@ namespace pv {
         
         //! Offsets for cutting on all sides (left, top, right, bottom)
         CropOffsets offsets;
+        
+        //! The originally used conversion range on the video source(s)
+        struct ConversionRange_t {
+            std::optional<uint32_t> start, end;
+        };
+        
+        ConversionRange_t conversion_range;
+        
+        //! The original path(s) to the video source(s)
+        std::optional<std::string> source;
         
     public:
         /**
@@ -436,6 +451,12 @@ namespace pv {
         
     public:
         void set_resolution(const Size2& size) { _header.resolution = Size2((cv::Size)size); }
+        void set_conversion_range(Header::ConversionRange_t c) {
+            _header.conversion_range = c;
+        }
+        void set_source(const std::optional<std::string>& src) {
+            _header.source = src;
+        }
         void set_average(const cv::Mat& average);
         const Header& header() const; //{ return _header; }
         Header& header(); //{ return _header; }

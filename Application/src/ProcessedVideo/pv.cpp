@@ -873,7 +873,36 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
             offsets = GlobalSettings::has("crop_offsets") ? SETTING(crop_offsets) : CropOffsets();
         }
         
+        if (version >= Version::V_15) {
+            int64_t start, end;
+            ref.read(start);
+            ref.read(end);
+            
+            if(start < 0)
+                conversion_range.start.reset();
+            else
+                conversion_range.start = narrow_cast<uint32_t>(start);
+            
+            if(end < 0)
+                conversion_range.end.reset();
+            else
+                conversion_range.end = narrow_cast<uint32_t>(end);
+            
+            std::string src;
+            ref.read(src);
+            source = src;
+            
+        } else {
+            conversion_range.start = std::nullopt;
+            conversion_range.end = std::nullopt;
+            
+            source = {};
+        }
+        
         ref.read(line_size);
+        if(line_size != sizeof(line_type))
+            throw U_EXCEPTION("The used line format in this file (",line_size," bytes) differs from the expected ",sizeof(line_type)," bytes.");
+        
         _num_frames_offset = ref.current_offset();
         ref.read(num_frames);
         _index_offset = ref.current_offset();
@@ -886,9 +915,6 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         // check values for sanity
         //if(channels != 1 && channels != 3)
         //    throw U_EXCEPTION("Only 1 or 3 channel(s) are currently supported (",this->channels," provided)");
-        
-        if(line_size != sizeof(line_type))
-            throw U_EXCEPTION("The used line format in this file (",line_size," bytes) differs from the expected ",sizeof(line_type)," bytes.");
         
         if(average)
             delete average;
@@ -954,45 +980,50 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
 
     void Header::write(DataFormat& ref) {
         /**
+         * Writes the PV file header and associated metadata.
+         *
          * [HEADER SECTION]
-         * (string) "PV" + (version_nr)
-         * (byte)   channels
-         * (uint16) width
-         * (uint16) height
-         * (Rect2i) four ushorts with the mask-offsets left,top,right,bottom
-         * (uchar)  sizeof(HorizontalLine)
-         * (uint32) number of frames
-         * (uint64) pointer to index at the end of file
-         * (uint64) timestamp (time since 1970 in microseconds)
-         * (string) project name
-         * (byte*)  average img ([width x height] x channels)
-         * (uint64_t) mask present / mask size in bytes (if 0 no mask)
-         * [byte*]  mask, but only present if mask_size != NULL
+         *   (string) "PV" + (version_nr)
+         *   (string) encoding                  // e.g. "gray", "rgb8", etc.
+         *   (cv::Size) resolution (width,height)
+         *   (4 x uint16_t) crop offsets        // left, top, right, bottom
+         *   (int64_t) conversion_range_start   // or -1 if not used
+         *   (int64_t) conversion_range_end     // or -1 if not used
+         *   (string) the original source that was used
+         *   (uchar) line_size                  // size of horizontal line struct
+         *   (uint32_t) num_frames (0 initially, updated later)
+         *   (uint64_t) index_offset (updated later)
+         *   (uint64_t) timestamp (microseconds since 1970)
+         *   (string) project name
+         *   (byte*) average image data (width*height*channels)
+         *   (uint64_t) mask_size (if 0, no mask)
+         *   [byte*] mask data if mask_size > 0
          *
-         * [DATA SECTION]
-         * for each frame:
-         *   (uchar) compression flag (if 1, the whole frame is compressed)
-         *   if compressed:
-         *      (uint32) original size
-         *      (uint32) compressed size
-         *      (byte*) lzo1x compressed data (see below for uncompressed)
-         *   else:
-         *      [UNCOMPRESSED DATA PER FRAME] {
-         *          (uint32) timestamp (in microseconds) since start of movie
-         *          (uint16) number of individual cropped images
-         *
-         *          for each individual:
-         *              (uint16) number of HorizontalLine structs
-         *              (byte*)  n * sizeof(HorizontalLine)
-         *              (byte*)  original image pixels ordered exactly as in HorizontalLines (BGR, CV_8UC(n))
-         *      }
+         * [DATA SECTION - per frame]
+         *   (uchar) compression_flag (0 or 1)
+         *   If compression_flag:
+         *       (uint32_t) compressed_size
+         *       (uint32_t) uncompressed_size
+         *       (byte*) compressed frame data (LZO)
+         *   Else:
+         *       (timestamp_t) frame_timestamp (relative to start)
+         *       (uint16_t) number_of_objects
+         *       (int32_t) source_frame_index or -1
+         *       For each object:
+         *           (uint16_t) start_y
+         *           (uint8_t) flags
+         *           (uint16_t) number_of_mask_lines
+         *           (byte*) mask lines (line_size * number_of_mask_lines)
+         *           (byte*) pixel data (if encoding includes pixels)
+         *       (uint16_t) number_of_predictions
+         *       [Prediction data for each object if present]
          *
          * [INDEX TABLE]
-         * for each frame
-         *   (uint64) frame start position in file
+         *   For each frame:
+         *       (uint64_t) offset in file where frame starts
          *
          * [METADATA]
-         * (string) JSONized metadata array
+         *   (string) JSON-formatted metadata
          */
         
         // set offsets from global settings
@@ -1013,6 +1044,19 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
             throw U_EXCEPTION("Resolution of the video has not been set.");
         ref.write(resolution);
         ref.write(offsets);
+        
+        // write conversion range if applicable
+        ref.write(conversion_range.start
+                  ? int64_t{conversion_range.start.value()}
+                  : int64_t{-1});
+        ref.write(conversion_range.end
+                  ? int64_t{conversion_range.end.value()}
+                  : int64_t{-1});
+        
+        std::string src;
+        if(source)
+            src = source.value();
+        ref.write(src);
         
         ref.write(line_size);
         _num_frames_offset = ref.write(decltype(this->num_frames)(0));
@@ -1196,7 +1240,26 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         duration_to_string(ss, ns_e);
         ss << "'" << std::endl;
         
+        ss << "<b>Video conversion offsets:</b> ";
+        if (_header.conversion_range.start.has_value() || _header.conversion_range.end.has_value()) {
+            ss << "start="
+               << (_header.conversion_range.start ? Meta::toStr(_header.conversion_range.start.value()) : "N/A")
+               << ", end="
+               << (_header.conversion_range.end ? Meta::toStr(_header.conversion_range.end.value()) : "N/A")
+               << std::endl;
+        } else {
+            ss << "N/A" << std::endl;
+        }
+
+        ss << "<b>Video source:</b> ";
+        if (_header.source.has_value()) {
+            ss << _header.source.value() << std::endl;
+        } else {
+            ss << "unknown" << std::endl;
+        }
+        
         ss << "<b>Framerate:</b> " << std::setw(0) << framerate() << "fps (" << float(_header.average_tdelta) / 1000.f << "ms)";
+        
         ss << std::endl;
         
         ss << std::endl;
