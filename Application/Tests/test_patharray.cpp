@@ -493,7 +493,7 @@ TEST(PathArrayTest, ParsePath_StarWithSubdirectories) {
     
     file::_PathArray<StarMockFilesystem> array("/path/to/*");
     EXPECT_EQ(array.size(), 4u);
-    EXPECT_EQ(array.toStr(), std::string(""));
+    EXPECT_EQ(array.toStr(), Meta::toStr(array.get_paths()));
 #endif
 }
 
