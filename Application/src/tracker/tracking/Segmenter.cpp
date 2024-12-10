@@ -398,7 +398,7 @@ void Segmenter::set_metadata() {
     if(video_conversion_range.end != -1)
         conversion_range.end = video_conversion_range.end;
     
-    _output_file->set_source(SETTING(source).value<file::PathArray>().toStr());
+    _output_file->set_source(Meta::fromStr<std::string>(SETTING(source).value<file::PathArray>().toStr()));
     _output_file->set_conversion_range(conversion_range);
 }
 
