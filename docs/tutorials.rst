@@ -7,36 +7,36 @@
 Tutorials
 =========
 
-This section provides tutorials on how to use |trex|, from setting up the software to analyzing videos and exporting data. You can follow along by reading the text or watching the video tutorials on the `YouTube channel <https://www.youtube.com/@TRex-f9g>`_.
+|trex| is a versatile tracking software that can help you solve almost all tracking problems with varying manual effort, computational power, and time. It's designed to be user-friendly for general use but also provides advanced features for more complex situations. This section provides tutorials on how to use |trex|, from setting up the software to analyzing videos and exporting data. 
+
+You can follow along by reading the text or watching the video tutorials on the `YouTube channel <https://www.youtube.com/@TRex-f9g>`_.
+
+Before diving in, I’d like to add a brief note — strictly from a computer vision standpoint — to highlight a few key considerations that can simplify your work and help you set realistic expectations.
 
 Understanding Problem Complexity
 --------------------------------
 
-Before analyzing or recording videos, it's crucial to understand the complexity of the problem you're addressing. This insight will help you choose appropriate settings and methods to achieve optimal results and guide you in designing experiments that meet your specific requirements. The complexity can be categorized into several factors:
+Before analyzing or recording videos, it's crucial to understand the complexity of the problem you're addressing. This insight will help you choose the appropriate settings and methods to achieve optimal results and guide you in designing experiments. The complexity can be split into several factors:
 
-Number of Individuals
-^^^^^^^^^^^^^^^^^^^^^
+1. **Number of Individuals**
+   
+   Tracking more individuals in your video increases difficulty in many ways and the computational resources required, potentially also limiting your analysis options later [#f1]_. For example: Automatic visual identification is only feasible with smaller groups (typically fewer than 50 individuals) since it relies on relative visual differences in a *known* group. If you cannot automatically maintain perfect identities in a large group you may need to limit your analysis on more general information about the group's behavior rather than real identities. |trex| offers tools like *trajectory segments*, which are shorter sequences per tracked object where identities are maintained with high confidence.
 
-Tracking more individuals in your video increases the challenge and computational resources required, potentially limiting your analysis options later [#f1]_. Visual identification is feasible with a limited and relatively fixed group (e.g., fewer than 50 individuals). If you cannot automatically maintain perfect identities in a large group, you may need to focus on general information about the group's behavior. |trex| offers tools like *trajectory segments*, which are shorter sequences per tracked object where identities are maintained with high confidence.
+2. **Scene Complexity**
+   
+   Complex scenes make it difficult to see individuals. This does not just apply to human eyes, but also (potentially to a lesser degree) to computer vision. Additional factors such as occlusions, shadows, reflections, and other interfering objects can further hinder tracking performance. Varying or visually complex backgrounds with challenging contrast may require more advanced segmentation algorithms, often based on machine learning [#f2]_. These are more generic and often *better*, but require more manual labor to set up and more computational resources to run. Always avoid visual clutter in your scene, and if possible, use a uniform and constrasting background.
 
-Scene Complexity
-^^^^^^^^^^^^^^^^
+3. **Camera and Lighting Choice**
 
-Complex scenes make it more difficult to track individuals. Factors such as occlusions, shadows, reflections, and other interfering objects can hinder tracking. Varying or visually complex backgrounds with challenging contrast may require more advanced segmentation algorithms, often based on machine learning [#f2]_.
+   The camera and recording settings you use affect the problem's complexity. Low-resolution or low frame rate cameras may make it difficult to identify individuals visually—especially if you plan to use the visual identification algorithm. A slow shutter speed can introduce motion blur, complicating tracking efforts. Lighting conditions also play a significant role; when possible, prefer DC lights over AC lights to avoid flickering.
 
-Camera and Lighting Choice
-^^^^^^^^^^^^^^^^^^^^^^^^^^
+4. **Research Question**
 
-The camera and recording settings you use affect the problem's complexity. Low-resolution or low frame rate cameras may make it difficult to identify individuals visually—especially if you plan to use the visual identification algorithm. A slow shutter speed can introduce motion blur, complicating tracking efforts. Lighting conditions also play a significant role; when possible, prefer DC lights over AC lights to avoid flickering.
-
-Research Question
-^^^^^^^^^^^^^^^^^
-
-Aim to use the simplest approach that effectively answers your research question. If you're interested in the general behavior of a group, maintaining perfect identities may not be necessary. |trex| provides information on shorter sequences per tracked object, even without identity corrections, which can suffice for analysis. However, if you need perfectly maintained identities [#f3]_, you might need to use the visual identification algorithm, which requires more time and computational power. Your research question also influences the type of data output you need. For instance, if you're interested in the average speed of a group, trajectory data may be sufficient, while pose data is necessary if you're focusing on specific body parts (see image below).
+   Aim to use the simplest approach that effectively answers your research question. If you're interested in the general behavior of a group, maintaining perfect identities may not be necessary. |trex| provides information on shorter sequences per tracked object, even without identity corrections, which can suffice for analysis. However, if you need perfectly maintained identities [#f3]_, you might need to use the visual identification algorithm, which requires more time and computational power. Your research question also influences the type of data output you need. For instance, if you're interested in the average speed of a group, trajectory data may be sufficient, while pose data is necessary if you're focusing on specific body parts (see image below).
 
 The following sections will guide you through increasingly complex problems and how to solve them with |trex|. Identify which category your research question falls into to find the right tools.
 
-.. [#f1] The number of possible combinations of individuals at any given time increases exponentially with the number of individuals — a phenomenon known as the "curse of dimensionality" in computer vision and machine learning. With a large number of individuals, you may need to use more advanced tracking algorithms or reduce the number of individuals you're tracking.
+.. [#f1] The number of possible combinations of individuals at any given time increases exponentially with the number of individuals — a phenomenon known as the "curse of dimensionality" in computer vision and machine learning. With a large number of individuals, you may need to wait a bit longer, and potentially have more visual overlaps between individuals.
 
 .. [#f2] Segmentation algorithms are used to separate individuals from the background in a video. For complex scenes, advanced algorithms like deep learning models (e.g., YOLO) are often employed.
 
@@ -50,7 +50,7 @@ The following sections will guide you through increasingly complex problems and 
 Basics
 ------
 
-|trex| is a versatile tracking software that can help you solve almost all tracking problems with varying manual effort, computational power, and time. It's designed to be user-friendly for general use but also provides advanced features for more complex situations. This tutorial will guide you through the basic steps of setting up |trex|, analyzing an example video, and exporting the data.
+This tutorial will guide you through the basic steps of setting up |trex|, analyzing an example video, and exporting the data.
 
 If you want to follow along exactly as described, you can download the example video from `here <https://trex.run/8guppies_20s.mp4>`_ and place it in any folder you'd like to use as your root analysis folder.
 
@@ -66,6 +66,14 @@ Open your `Miniforge` Prompt and run:
 .. code-block:: bash
 
    conda create -n track -c trex-beta trex
+
+.. NOTE::
+
+   This only works if `conda-forge` is the *only* channel you have added to your `conda` configuration. By default, this is the case if you're using `Miniforge`. If you have other channels added, or are using Anaconda, you can run the following command instead:
+
+   .. code-block:: bash
+
+      conda create -n track --override-channels -c trex-beta -c conda-forge trex
 
 This will create a new conda environment called ``track`` with |trex| installed. This could take a while, especially in conda´s 'verifying transaction'. Activate the environment using:
 
