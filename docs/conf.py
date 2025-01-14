@@ -1,4 +1,6 @@
 import sphinx_rtd_theme
+import os
+import sys
 
 # Enable automatic figure numbering
 numfig = True
@@ -44,12 +46,15 @@ author = 'Tristan Walter'
 extensions = [
     "sphinx_rtd_dark_mode",
     'sphinx.ext.autosectionlabel',
-    'sphinx_copybutton'
+    'sphinx_copybutton',
+    'hoverxref.extension'  # Add the hoverxref extension
 ]
 
 default_dark_mode = True
 autosectionlabel_prefix_document = True
 autosectionlabel_maxdepth = 3
+
+hoverxref_auto_ref = True
 
 html_sidebars = { '**': ['localtoc.html', 'relations.html', 'sourcelink.html', 'searchbox.html'] }
 
@@ -100,8 +105,20 @@ html_theme_options = {
 #    'titles_only': True
 }
 
+# Configuration for hoverxref
+hoverxref_roles = [
+    'param'              # Enable hover previews for the param role
+]  
+hoverxref_role_types = {
+    'class': 'tooltip',  # Use tooltip for class role,
+    'func': 'tooltip',  # Use tooltip for func role,
+    'py:func': 'tooltip',  # Use tooltip for py:func role,
+    'param': 'tooltip',  # Use tooltip for param role
+}
+
 from docutils import nodes, utils
 from docutils.parsers.rst.roles import set_classes
+from sphinx.addnodes import pending_xref
 
 def green_role(name, rawtext, text, lineno, inliner, options={}, content=[]):
     set_classes(options)
@@ -109,6 +126,29 @@ def green_role(name, rawtext, text, lineno, inliner, options={}, content=[]):
     node = nodes.inline(rawtext, text, classes=['green-text'])
     return [node], []
 
+def param_role(name, rawtext, text, lineno, inliner, options={}, content=[]):
+    """
+    Create a cross-reference to a function defined in parameters_trex.rst.
+    Example: :param:`adaptive_threshold_scale`
+    """
+    set_classes(options)
+    # Create a pending_xref node that references a Python function
+    node = pending_xref(
+        rawsource=rawtext,
+        refdomain='py',  # Use the Python domain
+        reftype='func',  # Use the function reference type
+        reftarget=text,  # The target is the function name
+        modname=None,
+        classname=None,
+        refexplicit=False,
+        refwarn=True,
+        classes=['param-reference'],
+        **options
+    )
+    node += nodes.literal(text, text)
+    return [node], []
+
 def setup(app):
     app.add_css_file('custom.css')  # may also be an URL
     app.add_role('green', green_role)
+    app.add_role('param', param_role)  # So you can do :param:`my_parameter`
