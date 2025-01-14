@@ -7,19 +7,13 @@ TRex parameters
 
 	**default value:** 2
 
-
 	Threshold value to be used for adaptive thresholding, if enabled.
-
-
 
 .. function:: analysis_range(range<int>)
 
 	**default value:** [-1,-1]
 
-
-	Sets start and end of the analysed frames.
-
-
+	Sets the start and end of the analyzed frames.
 
 .. function:: app_check_for_updates(app_update_check_t)
 
@@ -30,149 +24,155 @@ TRex parameters
 		- `manually`: Manually check for updates, do not automatically check for them online.
 		- `automatically`: Automatically check for updates periodically (once per week).
 
-	If enabled, the application will regularly check for updates online (`https://api.github.com/re[...]43/trex/releases <https://api.github.com/repos/mooch443/trex/releases>`_).
-
-
-
+	If enabled, the application will regularly check for updates online (`https://api.github.com/repos/mooch443/trex/releases <https://api.github.com/repos/mooch443/trex/releases>`_).
 
 .. function:: app_last_update_check(uint64)
 
 	**default value:** 0
 
-
-	Time-point of when the application has last checked for an update.
-
-
+	Time-point of when the application last checked for an update.
 
 .. function:: app_last_update_version(string)
 
 	**default value:** ""
 
-
-	
-
-
-
 .. function:: app_name(string)
 
 	**default value:** "TRex"
 
-
 	Name of the application.
-
-
 
 .. function:: approximate_length_minutes(uint)
 
 	**default value:** 0
 
-
 	If available, please provide the approximate length of the video in minutes here, so that the encoding strategy can be chosen intelligently. If set to 0, infinity is assumed. This setting is overwritten by ``stop_after_minutes``.
 
 	.. seealso:: :func:`stop_after_minutes`
-
 
 .. function:: auto_apply(bool)
 
 	**default value:** false
 
-
-	If set to true, the application will automatically apply the network with existing weights once the analysis is done. It will then automatically correct and reanalyse the video.
-
-
+	If set to true, the application will automatically apply the network with existing weights once the analysis is done. It will then automatically correct and reanalyze the video.
 
 .. function:: auto_categorize(bool)
 
 	**default value:** false
 
-
-	If set to true, the program will try to load <video>_categories.npz from the ``output_dir``. If successful, then categories will be computed according to the current categories_ settings. Combine this with the ``auto_quit`` parameter to automatically save and quit afterwards. If weights cannot be loaded, the app crashes.
+	If set to true, the program will try to load <video>_categories.npz from the ``output_dir``. If successful, then categories will be computed according to the current categories_ settings. Combine this with the ``auto_quit`` parameter to automatically save and quit afterward. If weights cannot be loaded, the app crashes.
 
 	.. seealso:: :func:`output_dir`, :func:`auto_quit`
-
 
 .. function:: auto_minmax_size(bool)
 
 	**default value:** false
 
-
-	Program will try to find minimum / maximum size of the individuals automatically for the current ``cm_per_pixel`` setting. Can only be passed as an argument upon startup. The calculation is based on the median blob size in the video and assumes a relatively low level of noise.
+	Program will try to find the minimum/maximum size of the individuals automatically for the current ``cm_per_pixel`` setting. Can only be passed as an argument upon startup. The calculation is based on the median blob size in the video and assumes a relatively low level of noise.
 
 	.. seealso:: :func:`cm_per_pixel`
-
 
 .. function:: auto_no_memory_stats(bool)
 
 	**default value:** true
 
-
 	If set to true, no memory statistics will be saved on auto_quit.
-
-
 
 .. function:: auto_no_results(bool)
 
 	**default value:** false
 
-
-	If set to true, the auto_quit option will NOT save a .results file along with the NPZ (or CSV) files. This saves time and space, but also means that the tracked portion cannot be loaded via -load afterwards. Useful, if you only want to analyse the resulting data and never look at the tracked video again.
-
-
+	If set to true, the auto_quit option will NOT save a .results file along with the NPZ (or CSV) files. This saves time and space, but also means that the tracked portion cannot be loaded via -load afterward. Useful if you only want to analyze the resulting data and never look at the tracked video again.
 
 .. function:: auto_no_tracking_data(bool)
 
 	**default value:** false
 
-
 	If set to true, the auto_quit option will NOT save any ``output_graphs`` tracking data - just the posture data (if enabled) and the results file (if not disabled). This saves time and space if that is a need.
 
 	.. seealso:: :func:`output_graphs`
-
 
 .. function:: auto_number_individuals(bool)
 
 	**default value:** false
 
-
 	Program will automatically try to find the number of individuals (with sizes given in ``track_size_filter``) and set ``track_max_individuals`` to that value.
 
 	.. seealso:: :func:`track_size_filter`, :func:`track_max_individuals`
-
 
 .. function:: auto_quit(bool)
 
 	**default value:** false
 
-
-	If set to true, the application will automatically save all results and export CSV files and quit, after the analysis is complete.
-
-
+	If set to true, the application will automatically save all results and export CSV files and quit after the analysis is complete.
 
 .. function:: auto_tags(bool)
 
 	**default value:** false
 
-
 	If set to true, the application will automatically apply available tag information once the results file has been loaded. It will then automatically correct potential tracking mistakes based on this information.
-
-
 
 .. function:: auto_tags_on_startup(bool)
 
 	**default value:** false
 
-
 	Used internally by the software.
-
-
 
 .. function:: auto_train(bool)
 
 	**default value:** false
 
-
 	If set to true, the application will automatically train the recognition network with the best track segment and apply it to the video.
 
+.. function:: auto_train_dont_apply(bool)
+
+	**default value:** false
+
+	If set to true, setting ``auto_train`` will only train and not apply the trained network.
+
+	.. seealso:: :func:`auto_train`
+
+.. function:: auto_train_on_startup(bool)
+
+	**default value:** false
+
+	This is a parameter that is used by the system to determine whether ``auto_train`` was set on startup, and thus also whether a failure of ``auto_train`` should result in a crash (return code != 0).
+
+	.. seealso:: :func:`auto_train`, :func:`auto_train`
+
+.. function:: average_samples(uint)
+
+	**default value:** 25
+
+	Number of samples taken to generate an average image. Usually fewer are necessary for ``averaging_method``'s max, and min.
+
+	.. seealso:: :func:`averaging_method`
+
+.. function:: averaging_method(averaging_method_t)
+
+	**default value:** mode
+
+	**possible values:**
+		- `mean`: Sum all samples and divide by N.
+		- `mode`: Calculate a per-pixel median of the samples to avoid noise. More computationally involved than mean, but often better results.
+		- `max`: Use a per-pixel minimum across samples. Usually a good choice for short videos with black backgrounds and individuals that do not move much.
+		- `min`: Use a per-pixel maximum across samples. Usually a good choice for short videos with white backgrounds and individuals that do not move much.
+
+	Determines the way in which the background samples are combined. The background generated in the process will be used to subtract the background from foreground objects during conversion.
+
+.. function:: blob_size_range(range<float>)
+
+	**default value:** [0.01,500000]
+
+	Minimum or maximum size of the individuals on screen after thresholding. Anything smaller or bigger than these values will be disregarded as noise.
+
+.. function:: blob_split_algorithm(blob_split_algorithm_t)
+
+	**default value:** threshold
+
+	**possible values:**
+		- `threshold`: Adaptively increase the threshold of closeby objects, until separation.
+		- `threshold_approximate`: Same as threshold, but use heuristics to produce results faster. These results might not be as deterministic as with threshold, but usually only differ by 1 or 2 in found threshold value. It is guaranteed, however, that a solution is found if one exists.
 
 
 .. function:: auto_train_dont_apply(bool)

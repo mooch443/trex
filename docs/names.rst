@@ -1,1 +1,1 @@
-.. |trex| replace:: TRex
+.. |trex| replace:: 🦖
