@@ -48,7 +48,7 @@ Here are a few key factors we usually think about first:
 
       *Define what kind of data you need, and what it implies for your setup, before you start filming.*
    
-   Aim to use the simplest approach that effectively answers your research question. If you're interested in the general behavior of a group, maintaining perfect identities may not be necessary. |trex| provides information on shorter sequences per tracked object (the aforementioned *tracklets*), which, even without identity corrections, often suffice. For instance, if you're interested in the average speed of a group or average speed of individuals in a certain area, then short *tracklets* are enough. However, if you are distinguishing between specific individuals (invisibly *parasitized*/*unparasitized* or *informed*/*uninformed*), you might need to use the visual identification algorithm. This, if successful, gives you a stronger guarantee for maintained identities, but requires you to invest more time and computational power.
+   Aim to use the simplest approach that effectively answers your research question. If you're interested in the general behavior of a group, maintaining perfect identities may not be necessary. |trex| provides information on *tracklets*, which, as mentioned above, often suffice - even without identity corrections. For instance, if you're interested in the average speed of a group or average speed of individuals in a certain area, then short *tracklets* are enough. However, if you are distinguishing between specific individuals (*sick*/*healthy* or *informed*/*uninformed*), you might need to use the visual identification algorithm. This, if successful, gives you a stronger guarantee for maintained identities, but requires you to invest more time and computational power.
    
    Your research question also influences the *type* of data output you need - most of the time the centroid position is enough (simply called *detection*), but there are other types: *Pose*/*Keypoint* data is only necessary if you're focusing on specific body parts (see :numref:`data_types`) in any way, and *outline* data is necessary if you're interested in the directionality of the individuals (e.g., front/back) or other aspects of their 2D shape. See also [#f2]_ and :numref:`data_types` for more information.
 
@@ -81,7 +81,7 @@ Installation
 
 You can download the latest version of |trex| using `Miniforge` (conda). To install |trex|, you need to have `Miniforge` installed on your system.
 
-If you're not familiar with `conda` or `Miniforge`, you can find more information on how to install them `here <https://conda-forge.org/miniforge/>`_. Miniforge is a minimal installer for `conda`, an open-source package manager that helps you create virtual environments and install software and libraries without installing them globally on your system [#f3]_. We do not support Anaconda's default channels, so please use `Miniforge` instead (in Anaconda you can also restrict your channels to `conda-forge` only [#f4]_).
+If you're not familiar with `conda` or `Miniforge`, you can find more information on how to install them `here <https://conda-forge.org/miniforge/>`_. Miniforge is a minimal installer for `conda`, an open-source package manager that helps you create virtual environments and install software and libraries without installing them globally on your system [#f3]_. We do not support Anaconda's default channels, so please use `Miniforge` instead (in Anaconda, you can also restrict your channels to `conda-forge` only [#f4]_).
 
 Open your `Miniforge` Prompt and run:
 
@@ -153,7 +153,7 @@ There are a few tabs on top of your screen now (see :numref:`initialsettings`). 
 
    Initial settings screen where you can choose your input and output files, as well as various detection and tracking parameters.
 
-Lets set an input file first and then go through a few more steps to get started:
+Let's set an input file first and then go through a few more steps to get started:
 
 1. **Select the Input File**: Click on the 📂 folder button next to the input file name at the top, or enter the path manually. Once you selected the video, the background of the dialog will change to a slowed down and slightly blurry version of it (you can hover it to see it more clearly).
 
@@ -169,7 +169,7 @@ Lets set an input file first and then go through a few more steps to get started
    Tracking can generally be defined as connecting the dots between detections across the temporal dimension. The first step in this process is detecting the individuals in each frame. |trex|, at the moment, offers two different detection types:
 
    - **Background subtraction**: This is the default detection type and works well for most videos. It's based on the difference between the current frame and a background model. This model is built from the first few frames of the video and is updated over time. It's a simple and fast method that works well for most videos.
-   - **YOLO**: This is a more advanced detection type that uses a deep learning model (e.g. YOLO architecture) to detect individuals. It's often more accurate and can handle more complex scenes, but it requires more computational power and can be slower. It's recommended for videos with complex backgrounds, occlusions, or other challenging conditions. It may, however, require you to manually prepare a detection model specifically suited to your video.
+   - **YOLO**: This is a more advanced detection type that uses a deep learning model (e.g., YOLO architecture) to detect individuals. It's often more accurate and can handle more complex scenes, but it requires more computational power and can be slower. It's recommended for videos with complex backgrounds, occlusions, or other challenging conditions. It may, however, require you to manually prepare a detection model specifically suited to your video.
 
    For this tutorial, we'll use the default *background subtraction* method. By default, YOLO will be selected - please navigate to the **Detection** tab to fix that. In the same tab we can also change the :param:`threshold` value, which is the minimum greyscale intensity value (0-255) for a pixel to be considered part of an individual. The default value is `15`, but you can adjust it to better fit your video. Unlike :param:`track_threshold`, this value acts *destructively* and could actually be regarded as a lower bound for :param:`track_threshold`.
    
@@ -181,7 +181,7 @@ Lets set an input file first and then go through a few more steps to get started
    - We counted the number of individuals when we recorded it - so we should specify it here.
    - Set the *maximum* number of individuals to 8. 
      
-   It's called a *maximum* number because in some frames (e.g. during overlap or occlusion) the software might not be able to detect all individuals - or more objects are detected than there are individuals in the scene. This is a common problem in tracking and not specific to |trex|. The software will try to resolve this by merging or splitting objects, but it's not always possible to get it right. If you set the maximum number too low, you might lose individuals in the analysis. If you set it too high, you might get more overdetection. The software will try to resolve this as best as it can, but it's always a good idea to check the results visually.
+   It's called a *maximum* number because in some frames (e.g., during overlap or occlusion) the software might not be able to detect all individuals - or more objects are detected than there are individuals in the scene. This is a common problem in tracking and not specific to |trex|. The software will try to resolve this by merging or splitting objects, but it's not always possible to get it right. If you set the maximum number too low, you might lose individuals in the analysis. If you set it too high, you might get more overdetection. The software will try to resolve this as best as it can, but it's always a good idea to check the results visually.
 
    .. _settings_pane:
 
@@ -228,15 +228,85 @@ Scrub through the video by clicking (or dragging) on the timeline at the top. Tr
 
    Note that sometimes the videos can lag behind slightly while scrubbing around. This does not affect analysis of course. In fact, |trex| does not use the original video anymore at this point and showing it is simply a visual aid.
 
-Visual identification
-^^^^^^^^^^^^^^^^^^^^^
+Tracklets
+---------
 
-While the results look pretty nice already, basic tracking does not give you any guarantees on their correctness. This is because there are many things that can happen in a video that make *perfect* tracking impossible, independently of the algorithm or program used. There are many examples, some of which are:
+Tracking in |trex| heavily relies on consecutively tracked trajectory pieces - the so called *tracklets* - for multiple reasons. Before we continue, let's have a quick look at them so we know what we're aiming for in the next section.
+
+Generally speaking, *tracklets* are short sequences of consecutive detections for a single individual. Within this sequence of frames, based on basic kinematics, we're confident that the same physical individual is present. If we're not confident, we terminate the tracklet and start a new one. It's important to emphasize the word *confident* here: almost every software will be 100% sure that if an individual disappears for a couple of frames, a trajectory piece ends (although some will definitely interpolate by default). We are, however, also looking at cases where speeds are suspiciously high, or where multiple individuals are expected in the vicinity of too few available objects. The advantage of this is that we are *even more conservative* so we can, for example, use the tracklets as a baseline truth for Visual Identification (see below).
+
+You can find them in |trex| by selecting an individual and looking at the info card on the top-left (see :numref:`tracklets`). You can click on any of them to jump to the start of the tracklet, or press the ``C`` / ``V`` keys to jump to the previous / next.
+
+.. _tracklets:
+
+.. figure:: images/tracklets.png
+   :width: 100%
+
+   The tracklets view shows the trajectory pieces for a selected individual. You can see the start and end frames, with the current tracklet marked by a line.
+
+Tracklets should *legitimately* end in these situations:
+
+	- the selected individual cannot be found in a frame (e.g., because it has moved farther than :param:`track_max_speed`)
+	- the selected individual has not moved too far, but close to too far (90% of :param:`track_max_speed`) so we don't trust it
+	- multiple individuals were expected in the vicinity of too few available objects and cannot be separated via thresholding, so it'd rather not track anything to be sure (e.g., when individuals overlap)
+	- it has actually disappeared (e.g., out of frame or in a hiding spot)
+
+Pay attention to this when checking whether the tracking is okay or not. If tracklets terminate for other reasons then there is a good chance that some parameters need to be changed. See :ref:`parameter-order` for more information.
+
+Mistakes
+^^^^^^^^
+
+While the results look pretty nice already, basic tracking does not give you any guarantees on correctness. This is because there are many things that can happen in a video that make *perfect* tracking impossible, independently of the algorithm or program used. There are many examples, some of which are:
 
 - **Overlaps**: Individuals may overlap for prolonged periods of time - this makes it impossible (without additional sources of information, such as "personally knowing the identity of individuals") to tell who is who after they separate again.
 - **Obscured vision**: The camera might not be able to see the individuals for some time, potentially even multiple individuals at the same time. They might also be out of frame for a bit or merge with the background.
-- **Speed bursts**: Sometimes the individuals move faster than the camera framerate, which would make it impossible to know who went where in some situations.
+- **Speed bursts**: Sometimes the individuals move faster than the camera frame rate, which would make it impossible to know who went where in some situations.
 
-Often, basic temporary tracking suffices. For each uninterrupted sequence, |trex| saves the start and end point (in time) so that you can use shorter sequences to measure speed within a certain part of the arena, or similar metrics. If you do need a stronger guarantee on identities (and really only if you do, because this is usually time-intensive), you can consider using the "Visual Identification" algorithm (see also :doc:`identification` for more detail). It basically tries to become an expert on visually differentiating between the individuals of a fixed group and uses only individual images, no time-series.
+Often, basic temporary tracking suffices. For each uninterrupted sequence, |trex| saves the start and end point (in time) so that you can use shorter sequences to measure speed within a certain part of the arena, or similar metrics.
 
-In our example, you'd simply click on **Menu** and then *Train visual identification* to start the process. It will guide you through a few dialogs to define what you want to do and then start learning. In case it is successful it will automatically reanalyse the entire video given the new information - always visually confirm whether the results make sense. Mistakes will happen, but Visual identification gives it an independent source of information that prevents follow-up errors - meaning it can rediscover the correct individual again, even after short erroneous sequences. So that's nice.
+However, if you do need a stronger guarantee on identities (and really only if you do, because this is usually time-intensive), you can consider two options:
+
+  - **Manual correction**: You can manually correct the tracking by selecting an individual and dragging it to the correct position. This is a bit tedious, but it can be done in the tracking view. You can also use the ``C`` and ``V`` keys to jump to the previous and next tracklet, respectively. This is a good way to correct small mistakes, but it can be time-consuming for larger videos or more complex scenes.
+  - **Visual Identification** (see also :doc:`identification` for more detail): This basically tries to automatically become an expert on visually differentiating between the individuals of a fixed group and uses only individual images, no time-series. It does not require much manual input but has a few preconditions (e.g., a fixed group size, visually differentiable individuals).
+
+Correcting Manually
+~~~~~~~~~~~~~~~~~~~
+
+Going through the video manually might sound more tedious at first than it really is. This is because |trex| is designed to make it a bit easier for you. You can use the ``N`` and ``M`` keys to jump to the previous and next end of a tracklet, respectively. This is a good way to find small mistakes quickly, skipping over boring sequences (which is usually 90% of the video), but without accidentally skipping important parts. You can then use the arrow keys to go back and forth in smaller steps, in case you need to check a few frames more closely.
+
+.. _reassign_identity:
+
+.. figure:: images/reassign_identity.png
+   :width: 100%
+
+   After clicking on an objects center point, this menu will pop up offering you the various options for assignment. These are all the known identities at the time, followed (and sorted) by the distance to the current object. Usually the identity you want to assign was also last seen close to the object it should be assigned to - in this case ``fish2`` is the one to the right.
+
+Once you've made your determination and want to reassign a certain identity, press the ``D`` key to switch to the **Raw view**. Here you can click on the center points of each object to assign a certain individual identity to it. |trex| will automatically start retracking from the current frame on, so always go in chronological order. You can then press the ``D`` key again to switch back to the **Tracking view** and review the changes you made. Changes to one individual can always also affect other assignments, due to how the tracking algorithm prioritizes available information:
+
+  1. Manual assignments
+  2. Automatic Visual Identification assignments
+  3. Tracking probability (based on time-since-last-seen, speed, etc.)
+
+After you've made your corrections, you can press the ``S`` key to save the changes and export the data. Do not forget to also save the configuration whenever you changed something important - this can be done in the **Menu** and then **Save config**.
+
+Automatic Visual Identification
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Manual labor is always a bit tedious, and it's not always necessary. If you have a fixed group of individuals that are visually differentiable, and many videos to analyze, you might want to consider using the **Visual Identification** (or **VI**) algorithm. This is a more advanced feature that can help you maintain identities across the entire video, without user intervention. Using it is often rather compute- and time-intensive, but so is manual labor - and with VI you do not have to be present for it. You could even use it to compare to your manual corrections to find human mistakes!
+
+There are a few preconditions, namely:
+
+ - **Known group size**: We need to know how many individuals there are, otherwise we don't know what to search for.
+ - **Baseline truth**: All individuals of the group have to be present at the same time at least once. This is a precondition since we need at least one example per individual to start with training. The VI algorithm tries to find the "longest global tracklet". If all individuals are visible and separate at the same time we know that at least in this frame (and in all the individual tracklets around it) the identities are unique. This is the baseline truth.
+ - **Visual differences**: The individuals have to be visually differentiable. This is a bit of a vague term, but it basically means that the algorithm (best case also you) has to be able to tell them apart. This is not always easy, and it's not always possible. If you have a group of individuals that are visually/genetically identical, you might run into trouble and may have to resort to manual corrections.
+
+You may also need to setup the individual image size and scaling factor, in case the default values don't fit your particular situation. You can do this by selecting an individual, unfolding the **image settings** in the infocard on the top-left, and adjusting the values there (see :numref:`image_settings`).
+
+.. _image_settings:
+
+.. figure:: images/image_settings.png
+   :width: 100%
+
+   The image settings allow you to adjust the size and scaling factor of the individual images used for visual identification (and some other features, such as tracklet images).
+
+Finally, to start the training process in our example, simply click on **Menu** and then *Train visual identification*. It will guide you through a few dialogs to define what you want to do and then start learning. In case it is successful it will automatically reanalyse the entire video given the new information - always visually confirm whether the results make sense. Mistakes will happen, but **Visual identification** gives |trex| an independent source of information that prevents follow-up errors - meaning it can rediscover the correct individual again, even after short erroneous sequences. So that's nice.
