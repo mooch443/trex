@@ -210,8 +210,8 @@ VideoOpener::VideoOpener()
     _screenshot = std::make_shared<gui::ExternalImage>();
     _text_fields.clear();
     
-    _callback = gui::temp_settings.register_callbacks({"threshold", "average_samples", "averaging_method"}, [this](auto key) {
-        if(key == "threshold") {
+    _callback = gui::temp_settings.register_callbacks({"detect_threshold", "average_samples", "averaging_method"}, [this](auto key) {
+        if(key == "detect_threshold") {
             if(_buffer)
                 _buffer->_threshold = SETTING(threshold).value<int>();
             
@@ -228,7 +228,7 @@ VideoOpener::VideoOpener()
     _recording_panel->set_name("RecordingPanel");
 
     _text_fields["output_name"] = std::make_unique<LabeledTextField>("output_name");
-    _text_fields["threshold"] = std::make_unique<LabeledTextField>("threshold");
+    _text_fields["detect_threshold"] = std::make_unique<LabeledText"detect_threshold"eshold");
     _text_fields["average_samples"] = std::make_unique<LabeledTextField>("average_samples");
     _text_fields["averaging_method"] = std::make_unique<LabeledDropDown>("averaging_method");
     _text_fields["meta_real_width"] = std::make_unique<LabeledTextField>("meta_real_width");

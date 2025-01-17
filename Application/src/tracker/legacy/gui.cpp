@@ -113,7 +113,7 @@ struct PrivateData {
     } _tracking;
     
     //! A window that displays export options and allows to change them
-    //! by adding/removing from output_graphs
+    //! by adding/removing from output_fields
     DrawExportOptions _export_options;
 
     //! A pointer to the video file (lazy to avoid asking the tracker first?)
@@ -356,7 +356,7 @@ GUI::GUI(DrawStructure* graph, pv::File& video_source, const Image& average, Tra
             //else if(name == "nowindow")
                 //globals::_settings.nowindow = value.value<bool>();
             
-            if(is_in(name, "output_graphs", "limit", "event_min_peak_offset", "output_normalize_midline_data"))
+            if(is_in(name, "output_fields", "limit", "event_min_peak_offset", "output_normalize_midline_data"))
             {
                 Output::Library::clear_cache();
                 for(auto &graph : PD(fish_graphs))
@@ -558,7 +558,7 @@ GUI::GUI(DrawStructure* graph, pv::File& video_source, const Image& average, Tra
         "limit",
         "manual_matches",
         "manual_splits",
-        "output_graphs",
+        "output_fields",
         "output_normalize_midline_data",
         "output_prefix",
         "recognition_border",

@@ -1118,7 +1118,7 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
             return tag.p;
         });
         
-        SETTING(output_graphs) = SETTING(output_graphs).value<std::vector<std::pair<std::string, std::vector<std::string>>>>();
+        SETTING(output_fields) = SETTING(output_fields).value<std::vector<std::pair<std::string, std::vector<std::string>>>>();
         
         
         GlobalSettings::map().register_shutdown_callback([](auto) {
@@ -1126,7 +1126,7 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
         });
         _callback_id = GlobalSettings::map().register_callbacks({
             "output_invalid_value",
-            "output_graphs",
+            "output_fields",
             "output_default_options",
             "midline_resolution"
             
@@ -1139,9 +1139,9 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
                 
                 clear_cache();
                 
-            } else if (is_in(name, "output_graphs", "output_default_options", "midline_resolution"))
+            } else if (is_in(name, "output_fields", "output_default_options", "midline_resolution"))
             {
-                auto graphs = SETTING(output_graphs).value<std::vector<std::pair<std::string, std::vector<std::string>>>>();
+                auto graphs = SETTING(output_fields).value<std::vector<std::pair<std::string, std::vector<std::string>>>>();
                 _output_defaults = SETTING(output_default_options).value<default_config::default_options_type>();
                 _options_map.clear();
                 
@@ -1502,7 +1502,7 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
     
     void Library::remove_calculation_options() {
         using namespace default_config;
-        auto graphs = SETTING(output_graphs).value<graphs_type>();
+        auto graphs = SETTING(output_fields).value<graphs_type>();
         
         auto previous = _output_defaults;
         auto previous_graphs = graphs;
@@ -1542,7 +1542,7 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
             modified_graphs.push_back({fname, tmp});
         }
         
-        SETTING(output_graphs) = modified_graphs;
+        SETTING(output_fields) = modified_graphs;
     }
     
     float Library::tailbeats(Frame_t frame, Output::Library::LibInfo info) {

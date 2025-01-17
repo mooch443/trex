@@ -330,7 +330,7 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
         
         /*std::vector<std::string> reasons;
         if(last_threshold != threshold)
-            reasons.emplace_back("threshold");
+            reasons.emplace_back("detect_threshold");
         if(raw_blobs_dirty())
             reasons.emplace_back("raw_blobs_dirty");*/
         

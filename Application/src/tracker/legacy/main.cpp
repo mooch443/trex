@@ -793,12 +793,12 @@ int main(int argc, char** argv)
     
     cmd.load_settings();
     
-    if(SETTING(output_graphs).value< std::vector<std::pair<std::string, std::vector<std::string>>>>().empty()) {
+    if(SETTING(output_fields).value< std::vector<std::pair<std::string, std::vector<std::string>>>>().empty()) {
         sprite::Map config;
         GlobalSettings::docs_map_t docs;
         default_config::get(config, docs, NULL);
         
-        SETTING(output_graphs) = config.at("output_graphs").value<std::vector<std::pair<std::string, std::vector<std::string>>>>();
+        SETTING(output_fields) = config.at("output_fields").value<std::vector<std::pair<std::string, std::vector<std::string>>>>();
     }
     
     if(SETTING(cam_undistort)) {

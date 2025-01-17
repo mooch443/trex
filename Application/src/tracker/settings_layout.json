@@ -503,10 +503,10 @@
                             {
                                 "type":"hlayout",
                                 "children":[
-
                                     {
                                         "type":"settings",
-                                        "var":"{if:{machine_learning}:'region_model':'threshold'}",
+                                        "name":"conditional_region_model",
+                                        "var":"{if:{machine_learning}:'region_model':'detect_threshold'}",
                                         "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
                                         "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
                                         "list":{

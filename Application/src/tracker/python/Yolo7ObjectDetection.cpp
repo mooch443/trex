@@ -214,7 +214,7 @@ void Yolo7ObjectDetection::apply(std::vector<TileImage>&& tiles) {
             thread_print("Received segNs:", segNs);
 
             std::unordered_map<size_t, std::unique_ptr<cv::Mat>> converted_images;
-            const auto threshold = saturate(float(SETTING(threshold).value<int>()), 0.f, 255.f) / 255.0;
+            const auto threshold = saturate(float(SETTING(detect_threshold).value<int>()), 0.f, 255.f) / 255.0;
             
             //size_t offset = 0;
             for(size_t offset = 0; offset < indexes.size(); ++offset) {

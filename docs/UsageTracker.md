@@ -28,7 +28,7 @@ I hope this will be of help to people of the future.
 | M         | Jump to next frame where the number of recognized individuals changed (yellow in timeline)     |
 | N         | Jump to previous frame where the number of recognized individuals changed (yellow in timeline) |
 | R         | Playback frame-by-frame and save what you see in the tracker window as `<output_dir>/images`   |
-| S         | Export data in `output_graphs` to CSV files in `<output_dir>/fishdata`                         |
+| S         | Export data in `output_fields` to CSV files in `<output_dir>/fishdata`                         |
 | Z         | Save program state to `<videoname>.results`                                                    |
 | L         | Load program state from `<videoname>.results`                                                  |
 | I         | Save events to CSV files `<output_dir>/fishdata/<videoname>_events<fishid>.csv`                |

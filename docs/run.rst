@@ -36,7 +36,7 @@ Command-line parameters always override settings files.
 
 If you know the number of individuals, specify before you do the tracking (using the parameter ``track_max_individuals``).
 
-When converting videos, :func:`meta_real_width` should always be specified unless you do not know the real-world dimensions of what you see. If not set, then all values will be in fictional units (``meta_real_width`` defaults to 30). This sets the :func:`cm_per_pixel` parameter for the current video to ``meta_real_width / video-width``. However, in newer versions you can set ``cm_per_pixel`` within the |trex| GUI. Simply click into an empty spot of the arena, hold CTRL/⌘ and click somewhere else: a button will pop up to define the selected length as a specific real-world length. See here: `changing the cm to px conversion factor <https://trex.run/docs/gui.html#changing-the-cm-px-conversion-factor>`_.
+When converting videos, :param:`meta_real_width` should always be specified unless you do not know the real-world dimensions of what you see. If not set, then all values will be in fictional units (``meta_real_width`` defaults to 30). This sets the :param:`cm_per_pixel` parameter for the current video to ``meta_real_width / video-width``. However, in newer versions you can set ``cm_per_pixel`` within the |trex| GUI. Simply click into an empty spot of the arena, hold CTRL/⌘ and click somewhere else: a button will pop up to define the selected length as a specific real-world length. See here: `changing the cm to px conversion factor <https://trex.run/docs/gui.html#changing-the-cm-px-conversion-factor>`_.
 
 Consecutive segments
 --------------------
@@ -45,7 +45,7 @@ Tracking in |trex| heavily relies on consecutively tracked trajectory pieces. Th
 
 These segments usually end in these situations:
 
-	- the individual cannot be found in a frame (e.g. because it has moved farther than :func:`track_max_speed`)
+	- the individual cannot be found in a frame (e.g. because it has moved farther than :param:`track_max_speed`)
 	- the individual has not moved too far, but close to too far (90% of ``track_max_speed``)
 	- multiple individuals were expected in the vicinity of too few objects and cannot be separated via thresholding, so it'd rather not track anything to be sure (e.g. when individuals overlap)
 	- is has actually disappeared
@@ -93,7 +93,7 @@ Other useful options are::
 	- 'meta_real_width': The width of what is seen in the video in cms. This is used to convert px -> cm internally, and is saved as meta information inside the .pv file.
 	- 'meta_species': Species (meta-information, entirely optional)
 
-See also: :func:`meta_real_width`.
+See also: :param:`meta_real_width`.
 
 Running TRex
 ------------
@@ -113,17 +113,17 @@ Setting parameters in the correct order
 
 Preferably set parameters in this order (with the goal to only match those objects that are your objects of interest, and exclude the ones that you do not want to track):
 
-	- :func:`cm_per_pixel` (in .settings files, command-line or in |trex|) / :func:`meta_real_width` (during conversion)
-	- :func:`track_threshold`
-	- :func:`track_size_filter`
+	- :param:`cm_per_pixel` (in .settings files, command-line or in |trex|) / :param:`meta_real_width` (during conversion)
+	- :param:`track_threshold`
+	- :param:`track_size_filter`
 
 Now all objects of interest should have a cyan number next to them in RAW view (pressing ``D`` in tracking view switches to RAW and vice-versa). More "optional" parameters like can now be set in order to maximize the length of consecutive segments:
 
-	- :func:`track_max_speed`
-	- :func:`track_max_reassign_time`
-	- :func:`track_posture_threshold`
-	- :func:`outline_resample`
-	- :func:`outline_curvature_range_ratio`
+	- :param:`track_max_speed`
+	- :param:`track_max_reassign_time`
+	- :param:`track_posture_threshold`
+	- :param:`outline_resample`
+	- :param:`outline_curvature_range_ratio`
 
 Other command-line tools
 ------------------------

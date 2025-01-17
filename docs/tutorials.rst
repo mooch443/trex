@@ -7,14 +7,14 @@
 Tutorials
 =========
 
-|trex| is a versatile tracking software that can help you solve almost all tracking problems with minimal manual effort, computational power, and time. It's designed to be user-friendly for general use but also provides advanced features for more complex situations. This section provides tutorials on how to use |trex|, from setting up the software to analyzing videos and exporting data. 
+|trex| is a versatile tracking software that can help you solve a wide range of tracking problems efficiently, minimizing manual effort, computational power, and time. It's designed to be user-friendly for general use but also provides advanced features for more complex situations. This section provides tutorials on how to use |trex|, from setting up the software to analyzing videos and exporting data. 
 
 You can follow along by reading the text or watching the video tutorials on the `YouTube channel <https://www.youtube.com/@TRex-f9g>`_.
 
 Understanding Computational Complexity
 --------------------------------------
 
-If you are just planning to design your experiment or are new to tracking, it's essential to understand the technical implications of the specific data you're looking for. This can help you set realistic expectations and design your experiment accordingly.
+If you are just planning to design your experiment or are new to tracking, it's essential to understand the technical implications of the specific data you're seeking. This can help you set realistic expectations and design your experiment accordingly.
 
 Here are a few key factors we usually think about first:
 
@@ -24,7 +24,7 @@ Here are a few key factors we usually think about first:
 
       *More individuals multiply tracking complexity.*
 
-   Tracking more individuals in your video increases difficulty in many ways and the computational resources required, potentially also limiting your analysis options later [#f1]_. For example: Automatic visual identification is only feasible with smaller groups (typically fewer than 50 individuals) since it relies on relative visual differences in a *known* group. If it is not possible to automatically maintain perfect identities in too large a group, you may need to limit your analysis to more general information about the group's behavior rather than real identities. |trex| also subsections trajectory pieces into *tracklets*, which are shorter sequences per tracked object where identities are maintained with high confidence (see below). These can be used for more short-term analyses, even if the full video is too complex to maintain identities throughout.
+   Tracking more individuals in your video increases difficulty in many ways and the computational resources required, potentially also limiting your analysis options later [#f1]_. For example: Automatic visual identification is only feasible with smaller groups (typically fewer than 50 individuals) since it relies on relative visual differences in a *known* group. If it is not possible to automatically maintain perfect identities in too large a group, you may need to limit your analysis to more general information about the group's behavior rather than real identities. |trex| also subdivides trajectories into *tracklets*, which are shorter sequences per tracked object where identities are maintained with high confidence (see below). These can be used for more short-term analyses, even if the full video is too complex to maintain identities throughout.
 
 2. **Scene Complexity**
    
@@ -117,7 +117,7 @@ If a window showing a friendly T-Rex appears, you've successfully installed the 
 
 .. _welcome_screen:
 
-.. figure:: images/welcome_screen-1.mov
+.. figure:: images/welcome_screen.png
    :width: 100%
 
    The TRex graphical user interface (GUI) showing the welcome screen.
@@ -127,6 +127,40 @@ If you have any issues with the installation, please refer to the (more detailed
 .. [#f3] The advantage of this is that you can have different versions of the same software installed on your system without conflicts, and that they can be easily removed.
 
 .. [#f4] We do not support Anaconda's default channels because forge has easier license agreements and is often more up-to-date. Anaconda's hosted channels can be problematic for you too, if your institution does not have a license agreement with them.
+
+
+Workflow & Quick Start
+^^^^^^^^^^^^^^^^^^^^^^
+
+The general workflow of using |trex| is quite straight-forward. Usually, you'd have your videos already recorded and will simply
+
+1. Open |trex|
+2. Open the video file, change a few settings and click **Convert**
+3. Wait a bit until you're dropped into **Tracking View**
+4. Quickly check for mistakes and, if OK, export the data by pressing ``S``
+
+To improve tracking performance, the software will produce a *cached* version of your video file that contains all the information needed, but not more. This includes all objects of interest (i.e. not background) as well as an averaged background image.
+
+.. admonition:: On Video Files and File Sizes
+
+   Standard encoded video files, such as `.mp4`, can often be surprisingly difficult to scrub through. You may have noticed delays when trying to rewind or fast-forward a movie you're watching. |trex| video files are designed to make scrubbing faster by avoiding *delta encoding* (i.e. storing only the changes between frames). Instead, all objects of interest in every frame are stored in full - omitting all background pixels. This enables seamless jumps (e.g. during `4x` playback) and fast random data access during tracking. On the downside, this approach can sometimes result in slightly larger file sizes compared to the original `.mp4` — though this depends on your specific situation and is not always the case.
+
+   The file size of a |trex| video also depends on your settings. For instance, the :param:`meta_encoding` parameter determines whether all RGB channels are stored, only greyscale, or none at all (resulting in much smaller files). Refer to the documentation for more details on these options.
+
+   If you're running out of storage space, you can delete the .pv file and reconvert the video later using the settings you previously saved.
+
+Parameters
+^^^^^^^^^^
+
+Something you'll have to get used to is *parameters*. These are the settings that you can adjust to optimize the tracking for your specific video (they are also used internally for many things, like showing/hiding elements of the user-interface). There are many parameters in |trex|, as is unfortunately very typical for science software projects, but luckily only *very few* will be important to you. Usually their names and prefixes will be descriptive and easy to understand and search for. Prefixes typically correspond to the "phase" they're being used in, such as ``detect_*`` for detection and ``track_*`` for tracking, or the specific task they belong to (such as ``output_*``). Here are a few examples:
+
+- **detect_type**: The type of detection algorithm used (e.g., background subtraction or YOLO).
+- **detect_threshold**: The minimum greyscale intensity value for a pixel to be considered part of an individual.
+- **track_threshold**: The minimum greyscale intensity value for a pixel to be considered part of an individual during tracking. This can be changed freely at any time, as its non-destructive. :param:`detect_threshold`, which *is* destructive, can be understood as a lower limit for :param:`track_threshold`.
+- **track_max_speed**: The maximum speed an individual can move per second.
+- **track_size_filter**: The minimum and maximum size of an individual in pixels.
+
+There are many more parameters you can adjust to optimize  detection and tracking for your specific video. You can find a full list of parameters and their descriptions in the :doc:`parameters_trex`. Also have a look at :ref:`parameter-order` to understand the order in which parameters are applied.
 
 Tutorial: Basics
 ----------------

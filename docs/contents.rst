@@ -51,7 +51,7 @@ Reference
 
 If you use this software in your work, please cite our `open-access paper <https://elifesciences.org/articles/64000>`_:
 
-.. code:: raw
+.. code:: output
 
    @article {walter2020trex,
       article_type = {journal},

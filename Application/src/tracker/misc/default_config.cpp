@@ -374,7 +374,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("filename", Path(""), "The converted video file (.pv file) or target for video conversion. Typically it would have the same basename as the video source (i.e. an MP4 file), but a different extension: pv.", LOAD);
         CONFIG("source", file::PathArray(), "This is the (video) source for the current session. Typically this would point to the original video source of `filename`.", LOAD);
         CONFIG("output_dir", Path(""), "Default output-/input-directory. Change this in order to omit paths in front of filenames for open and save.", INIT);
-        CONFIG("data_prefix", Path("data"), "Subfolder (below `output_dir`) where the exported NPZ or CSV files will be saved (see `output_graphs`).");
+        CONFIG("data_prefix", Path("data"), "Subfolder (below `output_dir`) where the exported NPZ or CSV files will be saved (see `output_fields`).");
         CONFIG("settings_file", Path(""), "Name of the settings file. By default, this will be set to `filename`.settings in the same folder as `filename`.", LOAD);
         CONFIG("python_path", Path(COMMONS_PYTHON_EXECUTABLE), "Path to the python home folder" PYTHON_TIPPS ". If left empty, the user is required to make sure that all necessary libraries are in-scope the PATH environment variable.", STARTUP);
 
@@ -571,7 +571,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("correct_illegal_lines", false, "In older versions of the software, blobs can be constructed in 'illegal' ways, meaning the lines might be overlapping. If the software is printing warnings about it, this should probably be enabled (makes it slower).");
         CONFIG("evaluate_thresholds", false, "This option, if enabled, previews the effects of all possible thresholds when applied to the given video. These are shown as a graph in a separate window. Can be used to debug parameters instead of try-and-error. Might take a few minutes to finish calculating.", STARTUP);
         
-        auto output_graphs = std::vector<std::pair<std::string, std::vector<std::string>>>
+        auto output_fields = std::vector<std::pair<std::string, std::vector<std::string>>>
         {
             {"X", {"RAW", "WCENTROID"}},
             {"Y", {"RAW", "WCENTROID"}},
@@ -685,14 +685,14 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("auto_tags_on_startup", false, "Used internally by the software.", SYSTEM);
         CONFIG("auto_no_memory_stats", true, "If set to true, no memory statistics will be saved on auto_quit.");
         CONFIG("auto_no_results", false, "If set to true, the auto_quit option will NOT save a .results file along with the NPZ (or CSV) files. This saves time and space, but also means that the tracked portion cannot be loaded via -load afterwards. Useful, if you only want to analyse the resulting data and never look at the tracked video again.");
-        CONFIG("auto_no_tracking_data", false, "If set to true, the auto_quit option will NOT save any `output_graphs` tracking data - just the posture data (if enabled) and the results file (if not disabled). This saves time and space if that is a need.");
+        CONFIG("auto_no_tracking_data", false, "If set to true, the auto_quit option will NOT save any `output_fields` tracking data - just the posture data (if enabled) and the results file (if not disabled). This saves time and space if that is a need.");
         CONFIG("auto_train", false, "If set to true, the application will automatically train the recognition network with the best track segment and apply it to the video.");
         CONFIG("auto_train_on_startup", false, "This is a parameter that is used by the system to determine whether `auto_train` was set on startup, and thus also whether a failure of `auto_train` should result in a crash (return code != 0).", SYSTEM);
         CONFIG("analysis_range", Range<long_t>(-1, -1), "Sets start and end of the analysed frames.");
         CONFIG("output_min_frames", uint16_t(1), "Filters all individual with less than N frames when exporting. Individuals with fewer than N frames will also be hidden in the GUI unless `gui_show_inactive_individuals` is enabled (default).");
         CONFIG("output_interpolate_positions", bool(false), "If turned on this function will linearly interpolate X/Y, and SPEED values, for all frames in which an individual is missing.");
         CONFIG("output_prefix", std::string(), "If this is not empty, all output files will go into `output_dir` / `output_prefix` / ... instead of just into `output_dir`. The output directory is usually the folder where the video is, unless set to a different folder by you.");
-        CONFIG("output_graphs", output_graphs, "The functions that will be exported when saving to CSV, or shown in the graph. `[['X',[option], ...]]`");
+        CONFIG("output_fields", output_fields, "The functions that will be exported when saving to CSV, or shown in the graph. `[['X',[option], ...]]`");
         CONFIG("tracklet_force_normal_color", true, "If set to true (default) then all images are saved as they appear in the original video. Otherwise, all images are exported according to the individual image settings (as seen in the image settings when an individual is selected) - in which case the background may have been subtracted from the original image and a threshold may have been applied (if `track_threshold` > 0 and `track_background_subtraction` is true).");
         CONFIG("tracklet_max_images", uint16_t(0), "This limits the maximum number of images that are being exported per tracklet given that `output_image_per_tracklet` is true. If the number is 0 (default), then every image will be exported. Otherwise, only a uniformly sampled subset of N images will be exported.");
         CONFIG("tracklet_normalize", true, "If enabled, all exported tracklet images are normalized according to the `individual_image_normalization` and padded / shrunk to `individual_image_size` (they appear as they do in the image preview when selecting an individual in the GUI).");
@@ -707,7 +707,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("output_normalize_midline_data", false, "If enabled: save a normalized version of the midline data saved whenever `output_posture_data` is set to true. Normalized means that the position of the midline points is normalized across frames (or the distance between head and point n in the midline array).");
         CONFIG("output_centered", false, "If set to true, the origin of all X and Y coordinates is going to be set to the center of the video. Using this overrides `output_origin`.");
         CONFIG("output_origin", Vec2(0), "When exporting the data, positions will be relative to this point - unless `output_centered` is set, which takes precedence.");
-        CONFIG("output_default_options", output_default_options, "Default scaling and smoothing options for output functions, which are applied to functions in `output_graphs` during export.");
+        CONFIG("output_default_options", output_default_options, "Default scaling and smoothing options for output functions, which are applied to functions in `output_fields` during export.");
         CONFIG("output_annotations", output_annotations, "Units (as a string) of output functions to be annotated in various places like graphs.");
         CONFIG("output_frame_window", uint32_t(100), "If an individual is selected during CSV output, use these number of frames around it (or -1 for all frames).");
         CONFIG("smooth_window", uint32_t(2), "Smoothing window used for exported data with the #smooth tag.");
@@ -836,7 +836,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             "terminate",
             "cam_limit_exposure",
             "gpu_accepted_uniqueness",
-            //"output_graphs",
+            //"output_fields",
             "auto_minmax_size",
             "auto_number_individuals",
             //"output_default_options",

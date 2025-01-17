@@ -43,7 +43,9 @@ namespace default_config {
     static const std::map<std::string, std::string> deprecated = {
         {"fish_minmax_size", "blob_size_range"},
         {"use_dilation", "dilation_size"},
-        {"threshold_constant", "threshold"}
+        {"threshold_constant", "detect_threshold"},
+        {"threshold", "detect_threshold"},
+        {"output_graphs", "output_fields"}
     };
 
     const std::map<std::string, std::string>& deprecations() {
@@ -103,7 +105,7 @@ namespace default_config {
         CONFIG("approximate_length_minutes", uint32_t(0), "If available, please provide the approximate length of the video in minutes here, so that the encoding strategy can be chosen intelligently. If set to 0, infinity is assumed. This setting is overwritten by `stop_after_minutes`.");
         CONFIG("stop_after_minutes", uint32_t(0), "If set to a value above 0, the video will stop recording after X minutes of recording time.");
         
-        CONFIG("threshold", int(15), "Threshold to be applied to the input image to find blobs.");
+        CONFIG("detect_threshold", int(15), "Threshold to be applied to the input image to find blobs.");
         CONFIG("threshold_maximum", int(255), "");
         
         CONFIG("web_quality", int(75), "Quality for images transferred over the web interface (0-100).");
@@ -227,7 +229,7 @@ namespace default_config {
             "detect_conf_threshold",
             "video_conversion_range",
             "detect_batch_size",
-            "threshold",
+            "detect_threshold",
             "output_dir",
             "output_prefix",
             "filename"
@@ -237,7 +239,7 @@ namespace default_config {
         CONFIG("nowindow", false, "Start without a window enabled (for terminal-only use).", STARTUP);
         CONFIG("closed_loop_enable", false, "When enabled, live tracking will be executed for every frame received. Frames will be sent to the 'closed_loop.py' script - see this script for more information. Sets `enable_live_tracking` to true. Allows the tracker to skip frames by default, in order to catch up to the video.");
         CONFIG("closed_loop_path", file::Path("closed_loop_beta.py"), "Set the path to a Python file to be used in closed_loop. Please also enable closed loop processing by setting `closed_loop_enable` to true.");
-        CONFIG("enable_live_tracking", false, "When enabled, the program will save a .results file for the recorded video plus export the data (see `output_graphs` in the tracker documentation).");
+        CONFIG("enable_live_tracking", false, "When enabled, the program will save a .results file for the recorded video plus export the data (see `output_fields` in the tracker documentation).");
         CONFIG("grabber_force_settings", false, "If set to true, live tracking will always overwrite a settings file with `filename`.settings in the output folder.");
         
 #if !CMN_WITH_IMGUI_INSTALLED

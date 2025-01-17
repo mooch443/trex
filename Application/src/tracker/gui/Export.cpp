@@ -151,7 +151,7 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
     LockGuard guard(ro_t{}, "GUI::export_tracks");
     
     // save old values and remove all calculation/scaling options from output
-    auto previous_graphs = SETTING(output_graphs).value<default_config::graphs_type>();
+    auto previous_graphs = SETTING(output_fields).value<default_config::graphs_type>();
     auto previous_options = SETTING(output_default_options).value<default_config::default_options_type>();
     
     Output::Library::remove_calculation_options();
@@ -196,7 +196,7 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
     else
         Print("[exporting] Exporting all frames (", tracker.number_frames(),")");
     auto individual_prefix = FAST_SETTING(individual_prefix);
-    Print("[exporting] Writing data from `output_graphs` to ",fishdata / (filename+"_"+individual_prefix+"*."+output_format.name()));
+    Print("[exporting] Writing data from `output_fields` to ",fishdata / (filename+"_"+individual_prefix+"*."+output_format.name()));
     if(output_posture_data)
         Print("[exporting] Writing posture data to ",posture_path);
     Print("[exporting] Writing recognition data to ",recognition_path);
@@ -1266,7 +1266,7 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
     
     // reset values to previous setting
     SETTING(output_default_options) = previous_options;
-    SETTING(output_graphs) = previous_graphs;
+    SETTING(output_fields) = previous_graphs;
     
     SETTING(output_frame_window) = previous_output_frame_window;
     

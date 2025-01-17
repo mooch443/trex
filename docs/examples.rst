@@ -20,13 +20,13 @@ As you may know, simply starting the program without any arguments will open the
 	trex -i webcam
 
 .. NOTE::
-	For multiple webcams, add the :func:`webcam_index` parameter. For example, to open the second webcam, use ``-i webcam -webcam_index 1``. You can also specify a video file using the ``-i`` option, e.g. ``-i /path/to/VIDEO.mp4``.
+	For multiple webcams, add the :param:`webcam_index` parameter. For example, to open the second webcam, use ``-i webcam -webcam_index 1``. You can also specify a video file using the ``-i`` option, e.g. ``-i /path/to/VIDEO.mp4``.
 
 .. raw:: html
 
    <p>This will open the webcam, if you have one installed and allow the program to use it, and use <code class="docutils literal notranslate"><span class="pre">yolov8n-pose</span></code> (see <a href="https://docs.ultralytics.com/models/yolov8/#supported-tasks-and-modes" target="_blank">YOLOv8 models</a>) to find you in the picture.</p>
    
-Just for fun, we also set a different :func:`detect_iou_threshold` which will change the IOU threshold for YOLO object detection - the higher the percentage, the more overlap between bounding boxes is allowed. The default is 70%, but we set it to 35%::
+Just for fun, we also set a different :param:`detect_iou_threshold` which will change the IOU threshold for YOLO object detection - the higher the percentage, the more overlap between bounding boxes is allowed. The default is 70%, but we set it to 35%::
 
 	trex -i webcam -detect_iou_threshold 0.35
 
@@ -34,7 +34,7 @@ You may have already noticed that, by default, |trex| will see if a PV file alre
 
 	trex -i webcam -task convert -detect_iou_threshold 0.35
 
-The ``detect_iou_threshold`` here is simply the parameter :func:`detect_iou_threshold`, as described in the documentation. You may add any parameter found in there to the command-line, and it will be evaluated when the program starts - if there are any errors, an ``ERROR`` will be displayed somewhere in the command-line output.
+The ``detect_iou_threshold`` here is simply the parameter :param:`detect_iou_threshold`, as described in the documentation. You may add any parameter found in there to the command-line, and it will be evaluated when the program starts - if there are any errors, an ``ERROR`` will be displayed somewhere in the command-line output.
 
 For example, we can also limit the number of individuals to track::
 

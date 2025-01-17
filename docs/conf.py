@@ -87,7 +87,6 @@ html_css_files = [
     "custom.css"
 ]
 html_js_files = [
-    'scroll_to_active.js',  # Include the custom JavaScript file
 ]
 
 html_theme_options = {
@@ -106,14 +105,18 @@ html_theme_options = {
 }
 
 # Configuration for hoverxref
+hoverxref_api_host = 'https://trex.run/docs/docs2'
+
 hoverxref_roles = [
+    'py:func',
+    'ref',
     'param'              # Enable hover previews for the param role
 ]  
 hoverxref_role_types = {
     'class': 'tooltip',  # Use tooltip for class role,
-    'func': 'tooltip',  # Use tooltip for func role,
     'py:func': 'tooltip',  # Use tooltip for py:func role,
     'param': 'tooltip',  # Use tooltip for param role
+    'ref': 'tooltip',  # Use tooltip for ref role
 }
 
 from docutils import nodes, utils

@@ -324,20 +324,20 @@ struct DrawExportOptions::Data {
         //parent.set_background(Black.alpha(200), Black.alpha(240));
 
         /*export_options.on_select([&](auto idx, const std::string&) {
-            auto graphs = SETTING(output_graphs).value<std::vector<std::pair<std::string, std::vector<std::string>>>>();
+            auto graphs = SETTING(output_fields).value<std::vector<std::pair<std::string, std::vector<std::string>>>>();
             auto& item = export_options.items().at(idx);
             Print("Removing ",item.value()._name);
 
             for (auto it = graphs.begin(); it != graphs.end(); ++it) {
                 if (it->first == item.value()._name) {
                     graphs.erase(it);
-                    SETTING(output_graphs) = graphs;
+                    SETTING(output_fields) = graphs;
                     return;
                 }
             }
 
             graphs.push_back({ item.value()._name, {} });
-            SETTING(output_graphs) = graphs;
+            SETTING(output_fields) = graphs;
         });*/
         
         static bool first = true;
@@ -402,18 +402,18 @@ struct DrawExportOptions::Data {
                     context.actions = {
                         ActionFunc("clear_list", [](const Action& action) {
                             REQUIRE_EXACTLY(0, action);
-                            SETTING(output_graphs) = std::vector<std::pair<std::string, std::vector<std::string>>>{};
+                            SETTING(output_fields) = std::vector<std::pair<std::string, std::vector<std::string>>>{};
                         }),
                         ActionFunc("reset_options", [](const Action& action) {
                             REQUIRE_EXACTLY(0, action);
-                            auto defaults = GlobalSettings::current_defaults().at("output_graphs").value<std::vector<std::pair<std::string, std::vector<std::string>>>>();
-                            SETTING(output_graphs) = defaults;
+                            auto defaults = GlobalSettings::current_defaults().at("output_fields").value<std::vector<std::pair<std::string, std::vector<std::string>>>>();
+                            SETTING(output_fields) = defaults;
                         }),
                         ActionFunc("add_option", [this](const Action& action) {
                             REQUIRE_EXACTLY(1, action);
                             Print("Got action: ", action);
                             auto idx = Meta::fromStr<uint32_t>(action.parameters.front());
-                            auto graphs = SETTING(output_graphs).value<std::vector<std::pair<std::string, std::vector<std::string>>>>();
+                            auto graphs = SETTING(output_fields).value<std::vector<std::pair<std::string, std::vector<std::string>>>>();
                             auto &item = this->_filtered_options.at(idx);
                             
                             if(auto subname = item.at("subname").value<std::string>();
@@ -428,7 +428,7 @@ struct DrawExportOptions::Data {
                                     auto real_name = mappings.at(subname);
                                     graphs.emplace_back(item.at("name").value<std::string>(), std::vector<std::string>{"RAW", real_name});
                                 }
-                                SETTING(output_graphs) = graphs;
+                                SETTING(output_fields) = graphs;
                                 
                             } else {
                                 
@@ -439,7 +439,7 @@ struct DrawExportOptions::Data {
                             REQUIRE_EXACTLY(1, action);
                             Print("Got action: ", action);
                             auto idx = Meta::fromStr<uint32_t>(action.parameters.front());
-                            auto graphs = SETTING(output_graphs).value<std::vector<std::pair<std::string, std::vector<std::string>>>>();
+                            auto graphs = SETTING(output_fields).value<std::vector<std::pair<std::string, std::vector<std::string>>>>();
                             auto &item = this->_selected_options.at(idx);
                             
                             auto subname = item.at("subname").value<std::string>();
@@ -455,7 +455,7 @@ struct DrawExportOptions::Data {
                             {
                                 Print("* Removing ", no_quotes(item.at("name").value<std::string>()), "#", no_quotes(subname));
                                 graphs.erase(it);
-                                SETTING(output_graphs) = graphs;
+                                SETTING(output_fields) = graphs;
                                 
                             } else {
                                 Print("* ", no_quotes(item.at("name").value<std::string>()), "#", no_quotes(item.at("subname").value<std::string>()), " was not found.");
@@ -532,7 +532,7 @@ struct DrawExportOptions::Data {
             });
         }
         
-        auto graphs = SETTING(output_graphs).value<std::vector<std::pair<std::string, std::vector<std::string>>>>();
+        auto graphs = SETTING(output_fields).value<std::vector<std::pair<std::string, std::vector<std::string>>>>();
         auto graphs_map = [&graphs]() {
             std::map<std::string, std::set<std::string>> result;
             for(auto &g : graphs) {
