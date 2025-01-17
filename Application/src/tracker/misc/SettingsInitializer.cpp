@@ -1022,7 +1022,14 @@ void load(file::PathArray source,
         }
     }
     
-    if(not combined.map.has("meta_video_size")
+    if(source.empty()
+       && (not combined.map.has("meta_video_size")
+           || combined.map.at("meta_video_size").value<Size2>().empty()))
+    {
+        Print("// Defaulting to meta_video_size of 1920x1080 for empty source.");
+        combined.map["meta_video_size"] = Size2(1920_F, 1080_F);
+        
+    } else if(not combined.map.has("meta_video_size")
        || combined.map.at("meta_video_size").value<Size2>().empty())
     {
         G g{source.source()};
