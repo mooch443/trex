@@ -27,7 +27,7 @@ struct AcceptanceSettings {
         const auto cm_per_pixel = SETTING(cm_per_pixel).value<Settings::cm_per_pixel_t>();
         return AcceptanceSettings{
             .sqcm = SQR(cm_per_pixel),
-            .min_max = SETTING(segment_size_filter).value<SizeFilters>()
+            .min_max = SETTING(detect_size_filter).value<SizeFilters>()
         };
     }
 };

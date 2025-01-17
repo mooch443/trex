@@ -212,7 +212,7 @@ void BackgroundSubtraction::apply(std::vector<TileImage> &&tiled) {
     TagCache tag;
     CPULabeling::ListCache_t cache;
     const auto cm_per_pixel = SETTING(cm_per_pixel).value<Settings::cm_per_pixel_t>();
-    const auto segment_size_filter = SETTING(segment_size_filter).value<SizeFilters>();
+    const auto detect_size_filter = SETTING(detect_size_filter).value<SizeFilters>();
     const Float2_t sqcm = SQR(cm_per_pixel);
     cv::Mat r3;
     
@@ -317,7 +317,7 @@ void BackgroundSubtraction::apply(std::vector<TileImage> &&tiled) {
                             }
                         }
                         
-                        if(segment_size_filter.in_range_of_one(num_pixels * sqcm))
+                        if(detect_size_filter.in_range_of_one(num_pixels * sqcm))
                         {
                             //b->calculate_moments();
                             assert(lines);

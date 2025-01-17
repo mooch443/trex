@@ -2597,7 +2597,7 @@ TRex parameters
 
 
 
-.. function:: segment_size_filter(SizeFilters)
+.. function:: detect_size_filter(SizeFilters)
 
 	**default value:** []
 

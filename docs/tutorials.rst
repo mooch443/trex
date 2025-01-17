@@ -152,15 +152,18 @@ To improve tracking performance, the software will produce a *cached* version of
 Parameters
 ^^^^^^^^^^
 
-Something you'll have to get used to is *parameters*. These are the settings that you can adjust to optimize the tracking for your specific video (they are also used internally for many things, like showing/hiding elements of the user-interface). There are many parameters in |trex|, as is unfortunately very typical for science software projects, but luckily only *very few* will be important to you. Usually their names and prefixes will be descriptive and easy to understand and search for. Prefixes typically correspond to the "phase" they're being used in, such as ``detect_*`` for detection and ``track_*`` for tracking, or the specific task they belong to (such as ``output_*``). Here are a few examples:
+Something you'll have to get used to is *parameters*. These are the settings that you can adjust to optimize results for your specific video [#f5]_. There are many parameters in |trex|, as is unfortunately very typical for science software projects, but luckily only *very few* will typically be of relevance (see below). Usually their names and prefixes will be descriptive and easy to understand and search for. Prefixes typically correspond to the "phase" they're being used in, such as ``detect_*`` for detection and ``track_*`` for tracking, or the specific task they belong to (such as ``output_*``). Here are a few examples:
 
 - **detect_type**: The type of detection algorithm used (e.g., background subtraction or YOLO).
-- **detect_threshold**: The minimum greyscale intensity value for a pixel to be considered part of an individual.
-- **track_threshold**: The minimum greyscale intensity value for a pixel to be considered part of an individual during tracking. This can be changed freely at any time, as its non-destructive. :param:`detect_threshold`, which *is* destructive, can be understood as a lower limit for :param:`track_threshold`.
+- **detect_threshold** (only for background subtraction): The minimum greyscale intensity value for a pixel to be considered part of an individual.
+- **detect_size_filter**: The minimum and maximum size of objects of interest in the detection phase.
+- **track_threshold** (only for background subtraction): The minimum greyscale intensity value for a pixel to be considered part of an individual during tracking. This can be changed freely at any time, as its non-destructive. :param:`detect_threshold`, which *is* destructive, can be understood as a lower limit for :param:`track_threshold`.
 - **track_max_speed**: The maximum speed an individual can move per second.
-- **track_size_filter**: The minimum and maximum size of an individual in pixels.
+- **track_size_filter**: The minimum and maximum size of individuals.
 
 There are many more parameters you can adjust to optimize  detection and tracking for your specific video. You can find a full list of parameters and their descriptions in the :doc:`parameters_trex`. Also have a look at :ref:`parameter-order` to understand the order in which parameters are applied.
+
+.. [#f5] They are also used internally for many things, like showing/hiding elements of the user-interface and storing the currently shown frame or selected individuals. This can also help you customize your user experience by putting them in a settings file or the command-line!
 
 Tutorial: Basics
 ----------------

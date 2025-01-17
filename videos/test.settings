@@ -1,5 +1,5 @@
 track_size_filter = [[100,450]]
-segment_size_filter = [1,10000]
+detect_size_filter = [1,10000]
 gui_focus_group = [0]
 track_max_individuals = 8
 track_max_speed = 800
