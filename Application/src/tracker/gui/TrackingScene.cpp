@@ -602,6 +602,7 @@ void TrackingScene::activate() {
         
         if(key == "gui_focus_group"
            || key == "gui_fish_label"
+           || key == "detect_skeleton"
            || utils::beginsWith(key, "heatmap_"))
         {
             SceneManager::getInstance().enqueue([this, frame = _data && _data->_cache ? _data->_cache->frame_idx : Frame_t{}](){

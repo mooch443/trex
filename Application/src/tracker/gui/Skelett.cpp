@@ -62,11 +62,12 @@ namespace cmn::gui {
             for (auto& bone : _pose.points) {
                 if (bone.valid()) {
                     add<Circle>(Loc{ bone }, LineClr{ _color }, Radius{ 3 }, FillClr{ _color.alpha(75) }, Scale{ coord.bowl_scale().reciprocal() });
-                    if(_show_text)
-                        add<Text>(Str{ Meta::toStr(i) }, Loc{ bone }, Origin{ 0.5,1 }, TextClr{ White }, Scale{ coord.bowl_scale().reciprocal() }, font);
 
                     if (last.x > 0 && last.y > 0)
                         add<Line>(Line::Point_t{ last }, Line::Point_t{ bone }, LineClr{ _color.exposure(0.75) }, Line::Thickness_t{ 3 });
+                    
+                    if(_show_text)
+                        add<Text>(Str{ Meta::toStr(i) }, Loc{ bone }, Origin{ 0.5,1 }, TextClr{ White }, Scale{ coord.bowl_scale().reciprocal() }, font);
                     last = bone;
                 }
                 ++i;
