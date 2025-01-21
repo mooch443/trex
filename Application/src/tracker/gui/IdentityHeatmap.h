@@ -11,7 +11,7 @@
 
 namespace track {
 class Individual;
-struct SegmentInformation;
+struct TrackletInformation;
 }
 
 namespace cmn::gui {
@@ -326,7 +326,7 @@ protected:
     std::vector<double> _array_grid, _array_sqsum, _array_samples;
     
     gpuMat _viridis, _gpuGrid;
-    std::map<track::Individual*, std::vector<std::shared_ptr<track::SegmentInformation>>::const_iterator> _iterators;
+    std::map<track::Individual*, std::vector<std::shared_ptr<track::TrackletInformation>>::const_iterator> _iterators;
     std::map<track::Individual*, size_t> _capacities;
     
 public:

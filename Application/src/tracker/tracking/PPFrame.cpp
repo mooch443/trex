@@ -274,9 +274,9 @@ void PPFrame::init_cache(GenericThreadPool* pool, NeedGrid need)
             long_t last_L = -1;
             
             auto sit = fish->iterator_for(cache.previous_frame);
-            if (sit != fish->frame_segments().end() && (*sit)->contains(cache.previous_frame))
+            if (sit != fish->tracklets().end() && (*sit)->contains(cache.previous_frame))
             {
-                for (; sit != fish->frame_segments().end()
+                for (; sit != fish->tracklets().end()
                         && min((*sit)->end(), cache.previous_frame).get() >= time_limit
                         && counter < frame_limit; // shouldnt this be the same as the previous?
                     ++counter)
@@ -306,7 +306,7 @@ void PPFrame::init_cache(GenericThreadPool* pool, NeedGrid need)
 
                     if ((*sit)->length().get() > frame_rate * track_max_reassign_time * 0.25)
                     {
-                        //! segment is long enough, we can stop. but only actually use it if its not too far away:
+                        //! tracklet is long enough, we can stop. but only actually use it if its not too far away:
                         if (last_positions.empty()
                             || sqdistance(pos, last_positions.back()) < space_limit)
                         {
@@ -317,7 +317,7 @@ void PPFrame::init_cache(GenericThreadPool* pool, NeedGrid need)
                         break;
                     }
 
-                    if (sit != fish->frame_segments().begin())
+                    if (sit != fish->tracklets().begin())
                         --sit;
                     else
                         break;
@@ -325,7 +325,7 @@ void PPFrame::init_cache(GenericThreadPool* pool, NeedGrid need)
             }
             
             if(last_frame.get() < time_limit) {
-                Log("\tNot processing fish ", fish->identity()," because its last measured frame is ", last_frame,", best segment length is ", last_L," and we are in frame ", index(),".");
+                Log("\tNot processing fish ", fish->identity()," because its last measured frame is ", last_frame,", best tracklet length is ", last_L," and we are in frame ", index(),".");
                 
             } else {
                 auto set = blob_grid().query(cache.estimated_px, max_d);

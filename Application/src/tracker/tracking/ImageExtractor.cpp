@@ -68,7 +68,7 @@ void ImageExtractor::collect(selector_t&& selector) {
              auto posture)
            -> bool
          {
-            if(seg->length() < _settings.segment_min_samples)
+            if(seg->length() < _settings.tracklet_min_samples)
                 return true;
             
             if(_settings.item_step > 1u
@@ -82,7 +82,7 @@ void ImageExtractor::collect(selector_t&& selector) {
                 // initialize task lazily
                 task.fdx = fdx;
                 task.bdx = basic->blob.blob_id();
-                task.segment = seg->range;
+                task.tracklet = seg->range;
                 ++_collected_items;
                 
                 _tasks[frame].emplace_back(std::move(task));

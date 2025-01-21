@@ -489,7 +489,7 @@ HeatmapController::UpdatedStats HeatmapController::update_data(Frame_t current_f
         if(!updated.add_range.empty()) {
             data.clear();
             data.reserve(frame_range.get() * 2u * max(1u, FAST_SETTING(track_max_individuals)));
-            Individual::segment_map::const_iterator kit;
+            Individual::tracklet_map::const_iterator kit;
             
             auto &range = updated.add_range;
             IndividualManager::transform_all([&](auto id, auto fish) {
@@ -511,32 +511,32 @@ HeatmapController::UpdatedStats HeatmapController::update_data(Frame_t current_f
                 if(it == _iterators.end()) {
                     kit = fish->iterator_for(frame);
                 } else {
-                    if(_capacities[fish] != fish->frame_segments().capacity()) {
-                        _capacities[fish] = fish->frame_segments().capacity();
+                    if(_capacities[fish] != fish->tracklets().capacity()) {
+                        _capacities[fish] = fish->tracklets().capacity();
                         kit = fish->iterator_for(frame);
                     } else
                         kit = it->second;
                 }
                 
-                if(kit == fish->frame_segments().end() && range.end >= fish->start_frame())
+                if(kit == fish->tracklets().end() && range.end >= fish->start_frame())
                 {
                     kit = fish->iterator_for(fish->start_frame());
                 }
                 
-                if(kit != fish->frame_segments().end() && !(*kit)->contains(frame)) {
+                if(kit != fish->tracklets().end() && !(*kit)->contains(frame)) {
                     if((*kit)->end() < frame) {
                         
                         // everything okay
                         do {
                             ++kit;
-                        } while(kit != fish->frame_segments().end() && (*kit)->end() < frame);
+                        } while(kit != fish->tracklets().end() && (*kit)->end() < frame);
                         
                     } else if(fish->has(frame)) {
                         kit = fish->iterator_for(frame);
                     }
                 }
                 
-//                       if(kit == fish->frame_segments().end())
+//                       if(kit == fish->tracklets().end())
                 Output::Library::LibInfo info(fish, _mods);
                 
                 for(; frame < min(Tracker::end_frame(), range.end); ++frame) {
@@ -544,24 +544,24 @@ HeatmapController::UpdatedStats HeatmapController::update_data(Frame_t current_f
                         continue;
                     //break;
                     //auto basic = fish->basic_stuff(frame);
-                    //if(kit == fish->frame_segments().end())
+                    //if(kit == fish->tracklets().end())
                     //    continue;
                     
-                    while(kit != fish->frame_segments().end() && frame > (*kit)->end()) {
+                    while(kit != fish->tracklets().end() && frame > (*kit)->end()) {
                         ++kit;
-                        //if(kit == fish->frame_segments().end())
+                        //if(kit == fish->tracklets().end())
                         //    break; // no point in trying to find more data
                     }
                     
 #ifndef NDEBUG
                     auto kiterator = fish->iterator_for(frame);
-                    auto is_end = kiterator == fish->frame_segments().end();
-                    auto is_end_kit = kit == fish->frame_segments().end();
+                    auto is_end = kiterator == fish->tracklets().end();
+                    auto is_end_kit = kit == fish->tracklets().end();
                     if(fish->has(frame) && kit != kiterator)
                         FormatWarning("Frame ",frame,": fish",fish->identity().ID(),", Iterator for frame ",frame," != iterator_for (iterator_for: ",is_end ? 1 : 0,", starting at ",!is_end ? kiterator->get()->start() : Frame_t()," / vs. kit: ",is_end_kit,", starting at ",!is_end_kit ? kit->get()->start() : Frame_t(),")");
 #endif
                     
-                    if(kit == fish->frame_segments().end() || !(*kit)->contains(frame))
+                    if(kit == fish->tracklets().end() || !(*kit)->contains(frame))
                         continue; // skipping some frames in between
                     
                     auto bid = (*kit)->basic_stuff(frame);

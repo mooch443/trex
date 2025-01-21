@@ -3,7 +3,7 @@
 #include <commons.pc.h>
 #include <misc/idx_t.h>
 #include <misc/frame_t.h>
-#include <gui/ShadowSegment.h>
+#include <gui/ShadowTracklet.h>
 #include <gui/types/Entangled.h>
 
 namespace track {
@@ -24,7 +24,7 @@ namespace cmn::gui {
         ShadowIndividual *_shadow{nullptr};
         std::shared_ptr<Button> prev, next, detail_button, automatic_button;
         //Button detail_button;
-        std::vector<std::tuple<std::shared_ptr<Text>, std::string>> segment_texts;
+        std::vector<std::tuple<std::shared_ptr<Text>, std::string>> tracklet_texts;
         std::weak_ptr<Text> previous;
         std::function<void(Frame_t)> _reanalyse;
 
@@ -36,9 +36,9 @@ namespace cmn::gui {
     };
 
     class DrawSegments : public Entangled {
-        std::vector<ShadowSegment> _segments;
-        std::vector<ShadowSegment> _displayed_segments;
-        std::vector<std::tuple<std::shared_ptr<Text>, std::string>> segment_texts;
+        std::vector<ShadowTracklet> _tracklets;
+        std::vector<ShadowTracklet> _displayed_tracklets;
+        std::vector<std::tuple<std::shared_ptr<Text>, std::string>> tracklet_texts;
         std::unique_ptr<Tooltip> _tooltip;
         
         GETTER(track::Idx_t, fdx);
@@ -56,7 +56,7 @@ namespace cmn::gui {
         ~DrawSegments();
         
         using Entangled::set;
-        void set(track::Idx_t fdx, Frame_t frame, const std::vector<ShadowSegment>& segments);
+        void set(track::Idx_t fdx, Frame_t frame, const std::vector<ShadowTracklet>& tracklets);
         void set(Font);
         void set(Margins);
         void set(SizeLimit);

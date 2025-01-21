@@ -182,7 +182,7 @@ void VINetwork::set_work_variables(bool force) {
         }, module_name);
         py::set_function("acceptable_uniqueness", (std::function<float(void)>)[](void) -> float {
             if(Accumulation::current())
-                return SETTING(gpu_accepted_uniqueness).value<float>();
+                return SETTING(accumulation_sufficient_uniqueness).value<float>();
             FormatWarning("There is currently no accumulation in progress.");
             return -1;
             
@@ -437,7 +437,7 @@ bool VINetwork::train(std::shared_ptr<TrainingData> data,
                     throw U_EXCEPTION("Validation image array size ",joined_data.validation_images.size()," != ids array size ",joined_data.validation_ids.size(),"");
                 }
                 
-                py::set_variable("global_segment", std::vector<long_t>{
+                py::set_variable("global_tracklet", std::vector<long_t>{
                     global_range.empty() ? -1 : (long_t)global_range.start().get(),
                     global_range.empty() ? -1 : (long_t)global_range.end().get() }, module_name);
                 py::set_variable("accumulation_step", (long_t)accumulation_step, module_name);
@@ -471,7 +471,7 @@ bool VINetwork::train(std::shared_ptr<TrainingData> data,
                 best_accuracy_worst_class = -1;
                 
                 py::set_function("do_save_training_images", (std::function<bool()>)[]() -> bool {
-                    return SETTING(recognition_save_training_images).value<bool>();
+                    return SETTING(visual_identification_save_images).value<bool>();
                 }, module_name);
                 
                 try {

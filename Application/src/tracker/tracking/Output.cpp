@@ -483,7 +483,7 @@ void Output::ResultsFormat::process_frame(
     assert(not fish->_endFrame.valid() || fish->_endFrame < frameIndex);
     fish->_endFrame = frameIndex;
     
-    auto segment = fish->update_add_segment(
+    auto tracklet = fish->update_add_tracklet(
         frameIndex, Tracker::properties(data.stuff->frame), Tracker::properties(data.stuff->frame - 1_f),
         data.stuff->centroid,
         data.prev_frame,
@@ -491,7 +491,7 @@ void Output::ResultsFormat::process_frame(
         p
     );
     
-    segment->add_basic_at(frameIndex, (long_t)data.index);
+    tracklet->add_basic_at(frameIndex, (long_t)data.index);
     fish->_basic_stuff[data.index] = std::move(data.stuff);
 }
 
@@ -801,10 +801,14 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
                 stuff->head = std::move(prop);
                 stuff->outline = std::move(outline);
                 
-                auto segment = fish->segment_for(frame);
-                if(!segment) throw U_EXCEPTION("(",fish->identity().ID(),") Have to add basic stuff before adding posture stuff (frame ",frameIndex,").");
-                segment->add_posture_at(std::move(stuff), fish);
-                
+                if(auto tracklet = fish->tracklet_for(frame);
+                   tracklet)
+                {
+                    tracklet->add_posture_at(std::move(stuff), fish);
+                    
+                } else {
+                    throw U_EXCEPTION("(",fish->identity().ID(),") Have to add basic stuff before adding posture stuff (frame ",frameIndex,").");
+                }
             }
         }
         
@@ -837,8 +841,8 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
                 stuff->frame = frame;
                 stuff->cached_pp_midline = std::move(midline);
                 
-                auto segment = fish->segment_for(frame);
-                if(!segment) throw U_EXCEPTION("(",fish->identity().ID(),") Have to add basic stuff before adding posture stuff (frame ",frameIndex,").");
+                auto tracklet = fish->tracklet_for(frame);
+                if(!tracklet) throw U_EXCEPTION("(",fish->identity().ID(),") Have to add basic stuff before adding posture stuff (frame ",frameIndex,").");
                 
                 sorted[stuff->frame] = std::move(stuff);
             }
@@ -872,13 +876,13 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
             }
         }
         
-        std::shared_ptr<SegmentInformation> segment = nullptr;
+        std::shared_ptr<TrackletInformation> tracklet = nullptr;
         for(auto && [frame, stuff] : sorted) {
-            if(!segment || !segment->contains(frame))
-                segment = fish->segment_for(frame);
-            if(!segment) throw U_EXCEPTION("(",fish->identity().ID(),") Have to add basic stuff before adding posture stuff (frame ",frame,").");
+            if(!tracklet || !tracklet->contains(frame))
+                tracklet = fish->tracklet_for(frame);
+            if(!tracklet) throw U_EXCEPTION("(",fish->identity().ID(),") Have to add basic stuff before adding posture stuff (frame ",frame,").");
             
-            segment->add_posture_at(std::move(stuff), fish);
+            tracklet->add_posture_at(std::move(stuff), fish);
         }
     }
 
@@ -904,7 +908,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
             ref.read<uint32_t>(samples);
 
 #if !COMMONS_NO_PYTHON
-            auto seg = fish->segment_for(Frame_t(frame));
+            auto seg = fish->tracklet_for(Frame_t(frame));
             if(seg) {
                 for(auto i : seg->basic_index) {
                     if(i == -1) continue;
@@ -1203,7 +1207,7 @@ namespace Output {
             seek(tell() + sizeof(data_long_t));
         }
         
-        _header.consecutive_segments.clear();
+        _header.tracklets.clear();
         _header.video_resolution = Size2(-1);
         _header.video_length = 0;
         _header.average.clear();
@@ -1218,7 +1222,7 @@ namespace Output {
                 read<uint32_t>(start);
                 read<uint32_t>(end);
                 
-                _header.consecutive_segments.push_back(Range<Frame_t>{
+                _header.tracklets.push_back(Range<Frame_t>{
                     Frame_t(narrow_cast<Frame_t::number_t>(start)),
                     Frame_t(narrow_cast<Frame_t::number_t>(end))
                 });
@@ -1508,7 +1512,7 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
     const track::FrameProperties* prev_props = nullptr;
     Frame_t prev_frame;
     
-    ska::bytell_hash_map<Idx_t, Individual::segment_map::const_iterator> iterator_map;
+    ska::bytell_hash_map<Idx_t, Individual::tracklet_map::const_iterator> iterator_map;
     
     for(const auto &props : _tracker._added_frames) {
         // number of individuals actually assigned in this frame
@@ -1582,7 +1586,7 @@ FrameProperties CompatibilityFrameProperties::convert(Frame_t frame) const {
         data_long_t biggest_id = -1;
         
         Tracker::instance()->_individual_add_iterator_map.clear();
-        Tracker::instance()->_segment_map_known_capacity.clear();
+        Tracker::instance()->_tracklet_map_known_capacity.clear();
 
         file.start_reading();
 

@@ -264,7 +264,7 @@ void start_applying(std::weak_ptr<pv::File> video_source) {
         .num_threads = max_threads,
         .normalization = normalize,
         .item_step = 1u,
-        .segment_min_samples = Frame_t(FAST_SETTING(categories_min_sample_images)),
+        .tracklet_min_samples = Frame_t(FAST_SETTING(categories_min_sample_images)),
         .query_lock = [](){
             return std::make_unique<std::shared_lock<std::shared_mutex>>(DataStore::cache_mutex());
         }
@@ -391,7 +391,7 @@ void start_applying(std::weak_ptr<pv::File> video_source) {
                 std::fill(sums.begin(), sums.end(), 0.f);
                 
                 IndividualManager::transform_all([&](auto, auto fish) {
-                    for(auto& seg : fish->frame_segments()) {
+                    for(auto& seg : fish->tracklets()) {
                         RangedLabel ranged;
                         ranged._range = *seg;
                         
@@ -608,8 +608,8 @@ void Work::start_learning(std::weak_ptr<pv::File> video_source) {
                             auto idx = prediction_images.size();
                             prediction_images.insert(prediction_images.end(), item.sample->_images.begin(), item.sample->_images.end());
                             prediction_tasks.emplace_back(std::move(item), idx);
-                            if(item.segment)
-                                Print("Emplacing Fish", item.idx,": ", item.segment->start(),"-",item.segment->end());
+                            if(item.tracklet)
+                                Print("Emplacing Fish", item.idx,": ", item.tracklet->start(),"-",item.tracklet->end());
                             last_insert.reset();
                             break;
                         }
@@ -827,7 +827,7 @@ Work::Task Work::_pick_front_thread() {
             int64_t min_distance = std::numeric_limits<int64_t>::max();
             auto& task = Work::task_queue()[i];
             
-            for(auto& r : DataStore::currently_processed_segments()) {
+            for(auto& r : DataStore::currently_processed_tracklets()) {
                 if(r.overlaps(task.real_range)) {
                     min_distance = 0;
                     break;
@@ -898,7 +898,7 @@ void Work::work_thread() {
             auto task = _pick_front_thread();
             
             // note current segment
-            DataStore::add_currently_processed_segment(id, task.real_range);
+            DataStore::add_currently_processed_tracklet(id, task.real_range);
             
             // process sergment
             guard.unlock();
@@ -912,8 +912,8 @@ void Work::work_thread() {
                 throw;
             }
             
-            // remove segment again
-            if(not DataStore::remove_currently_processed_segment(id))
+            // remove tracklet again
+            if(not DataStore::remove_currently_processed_tracklet(id))
                 FormatWarning("Failed to remove task for thread ", get_thread_name());
 
             if (terminate())
@@ -1001,7 +1001,7 @@ void paint_distributions(int64_t frame) {
                     maximum_range = max(t.range.end.get(), maximum_range);
                 }
                 
-                for(auto& range : DataStore::currently_processed_segments()) {
+                for(auto& range : DataStore::currently_processed_tracklets()) {
                     v.insert(v.end(), { int64_t(range.start.get()), int64_t(range.end.get()) });
                     current.insert(current.end(), { int64_t(range.start.get()), int64_t(range.end.get()) });
                     minimum_range = min(range.start.get(), minimum_range);

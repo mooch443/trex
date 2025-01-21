@@ -1,10 +1,10 @@
-#include "SegmentInformation.h"
+#include "TrackletInformation.h"
 #include <tracking/Individual.h>
 
 namespace track {
 
 
-void SegmentInformation::add_basic_at(Frame_t frame, long_t gdx) {
+void TrackletInformation::add_basic_at(Frame_t frame, long_t gdx) {
     UNUSED(frame);
     assert(end() == frame);
     basic_index.push_back(gdx);
@@ -18,7 +18,7 @@ void SegmentInformation::add_basic_at(Frame_t frame, long_t gdx) {
 #define FRAME_SEGMENT_ACCESS(INDEXARRAY, INDEX) INDEXARRAY [ ( INDEX ).get() ]
 #endif
 
-void SegmentInformation::add_posture_at(std::unique_ptr<PostureStuff>&& stuff, Individual* fish) {//long_t gdx) {
+void TrackletInformation::add_posture_at(std::unique_ptr<PostureStuff>&& stuff, Individual* fish) {//long_t gdx) {
     size_t L = sign_cast<size_t>(length().get());
     if(posture_index.size() != size_t(L)) {
         auto prev = posture_index.size();
@@ -46,14 +46,14 @@ void SegmentInformation::add_posture_at(std::unique_ptr<PostureStuff>&& stuff, I
     fish->_posture_stuff.push_back(std::move(stuff));
 }
 
-long_t SegmentInformation::basic_stuff(Frame_t frame) const {
+long_t TrackletInformation::basic_stuff(Frame_t frame) const {
     //assert(frame >= start() && frame <= end() && size_t(frame-start()) < basic_index.size());
     if(frame < start() || frame > end() || (size_t)(frame-start()).get() >= basic_index.size())
         return -1;
     return FRAME_SEGMENT_ACCESS(basic_index, frame - start());
 }
 
-long_t SegmentInformation::posture_stuff(Frame_t frame) const {
+long_t TrackletInformation::posture_stuff(Frame_t frame) const {
     if(posture_index.empty() || !contains(frame)
        || (posture_index.size() < basic_index.size() && (size_t)(frame - start()).get() >= posture_index.size() ))
         return -1;

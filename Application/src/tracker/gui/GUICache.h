@@ -14,7 +14,7 @@
 #include <misc/Border.h>
 #include <tracking/Stuffs.h>
 #include <gui/Event.h>
-#include <gui/ShadowSegment.h>
+#include <gui/ShadowTracklet.h>
 #include <tracking/IndividualCache.h>
 #include <gui/BdxAndPred.h>
 
@@ -22,7 +22,7 @@ class Timer;
 namespace track {
 class Individual;
 class PPFrame;
-struct SegmentInformation;
+struct TrackletInformation;
 namespace constraints {
 struct FilterCache;
 }
@@ -129,8 +129,8 @@ namespace globals {
     class GUICache {
         GETTER_NCONST(GenericThreadPool, pool);
         std::unordered_map<Idx_t, IndividualCache> _next_frame_caches;
-        std::unordered_map<Idx_t, std::tuple<bool, FrameRange>> _processed_segment_caches;
-        std::unordered_map<Idx_t, std::shared_ptr<track::SegmentInformation>> _segment_caches;
+        std::unordered_map<Idx_t, std::tuple<bool, FrameRange>> _processed_tracklet_caches;
+        std::unordered_map<Idx_t, std::shared_ptr<track::TrackletInformation>> _tracklet_caches;
         std::optional<ska::bytell_hash_map<pv::bid, std::vector<float>>> _current_predictions;
 
         struct PPFrameMaker {
@@ -170,7 +170,7 @@ namespace globals {
         std::vector<float> pixel_value_percentiles;
         bool _equalize_histograms = true;
         
-        GETTER(std::vector<Range<Frame_t>>, global_segment_order);
+        GETTER(std::vector<Range<Frame_t>>, global_tracklet_order);
         GETTER_I(bool, blobs_dirty, false);
         GETTER_I(bool, raw_blobs_dirty, false);
         GETTER(Frame_t, do_reload_frame);
@@ -185,7 +185,7 @@ namespace globals {
         
         Timer _last_consecutive_update;
         std::atomic<bool> _updating_consecutive;
-        std::future<std::vector<Range<Frame_t>>> _next_consecutive;
+        std::future<std::vector<Range<Frame_t>>> _next_tracklet;
         
     public:
         bool recognition_updated = false;
@@ -221,7 +221,7 @@ namespace globals {
         std::set<Idx_t> recognized_ids;
         std::map<Idx_t, std::shared_ptr<gui::Circle>> recognition_circles;
         std::map<Idx_t, Timer> recognition_timer;
-        std::unordered_map<Idx_t, std::vector<ShadowSegment>> _individual_ranges;
+        std::unordered_map<Idx_t, std::vector<ShadowTracklet>> _individual_ranges;
         
         std::unordered_map<pv::bid, Idx_t> blob_selected_fish;
         std::map<Idx_t, BdxAndPred> fish_selected_blobs;
@@ -297,8 +297,8 @@ namespace globals {
         bool something_important_changed(Frame_t) const;
         
         std::optional<const IndividualCache*> next_frame_cache(Idx_t) const;
-        std::tuple<bool, FrameRange> processed_segment_cache(Idx_t) const;
-        std::shared_ptr<track::SegmentInformation> segment_cache(Idx_t id) const;
+        std::tuple<bool, FrameRange> processed_tracklet_cache(Idx_t) const;
+        std::shared_ptr<track::TrackletInformation> tracklet_cache(Idx_t id) const;
         
         /// We can preload a pv::Frame here already, but not invalidate
         /// any of the actual data.

@@ -198,7 +198,7 @@ std::unordered_map<std::string, Description> options_doc_strings = {
         "Consecutive frames count",
         "The number of consecutive frames with valid data for the individual."
     }},
-    {"consecutive_segment_id", {
+    {"tracklet_id", {
         "Consecutive segment ID",
         "A unique identifier for segments of consecutive frames with valid data."
     }},

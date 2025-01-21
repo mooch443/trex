@@ -67,10 +67,10 @@ void Tracker::initialize_slows() {
         DEF_CALLBACK(track_background_subtraction);
         
         DEF_CALLBACK(track_trusted_probability);
-        DEF_CALLBACK(huge_timestamp_ends_segment);
+        DEF_CALLBACK(tracklet_punish_timedelta);
         DEF_CALLBACK(huge_timestamp_seconds);
-        DEF_CALLBACK(track_end_segment_for_speed);
-        DEF_CALLBACK(track_segment_max_length);
+        DEF_CALLBACK(tracklet_punish_speeding);
+        DEF_CALLBACK(tracklet_max_length);
         DEF_CALLBACK(posture_direction_smoothing);
         
         static const auto update_range = [](){
@@ -408,7 +408,7 @@ Tracker::~Tracker() {
         std::unique_lock g(_identities_mutex);
         _fixed_identities.clear();
     }
-    _global_segment_order.clear();
+    _global_tracklet_order.clear();
     //_analysis_range = {};
     
     IndividualManager::clear();
@@ -2017,22 +2017,22 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
     _add_frame_callbacks.callAll(frameIndex);
 }
 
-void Tracker::update_iterator_maps(Frame_t frame, const set_of_individuals_t& active_individuals, ska::bytell_hash_map<Idx_t, Individual::segment_map::const_iterator>& individual_iterators)
+void Tracker::update_iterator_maps(Frame_t frame, const set_of_individuals_t& active_individuals, ska::bytell_hash_map<Idx_t, Individual::tracklet_map::const_iterator>& individual_iterators)
 {
     for(auto fish : active_individuals) {
         auto fit = individual_iterators.find(fish->identity().ID());
         
         //! check if iterator is valid (in case vector size changed and it got invalidated)
-        if(_segment_map_known_capacity[fish->identity().ID()] != ((const Individual*)fish)->frame_segments().capacity()) {
+        if(_tracklet_map_known_capacity[fish->identity().ID()] != ((const Individual*)fish)->tracklets().capacity()) {
             // all iterators are invalid
             if(fit != individual_iterators.end()) {
                 individual_iterators.erase(fit);
                 fit = individual_iterators.end();
             }
-            _segment_map_known_capacity[fish->identity().ID()] = ((const Individual*)fish)->frame_segments().capacity();
+            _tracklet_map_known_capacity[fish->identity().ID()] = ((const Individual*)fish)->tracklets().capacity();
         }
         
-        const auto end = ((const Individual*)fish)->frame_segments().end();
+        const auto end = ((const Individual*)fish)->tracklets().end();
         
         if(fit == individual_iterators.end()) {
             fit = individual_iterators.insert({
@@ -2052,7 +2052,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const set_of_individuals_t& ac
     }
 }
             
-    void Tracker::update_warnings(Frame_t frameIndex, double time, long_t /*number_fish*/, long_t n_found, long_t n_prev, const FrameProperties *props, const FrameProperties *prev_props, const set_of_individuals_t& active_individuals, ska::bytell_hash_map<Idx_t, Individual::segment_map::const_iterator>& individual_iterators) {
+    void Tracker::update_warnings(Frame_t frameIndex, double time, long_t /*number_fish*/, long_t n_found, long_t n_prev, const FrameProperties *props, const FrameProperties *prev_props, const set_of_individuals_t& active_individuals, ska::bytell_hash_map<Idx_t, Individual::tracklet_map::const_iterator>& individual_iterators) {
         std::map<std::string, std::set<FOI::fdx_t>> merge;
         
         if(n_found < n_prev-1) {
@@ -2092,7 +2092,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const set_of_individuals_t& ac
             }
             
             auto &it = fit->second;
-            if(it != fish->frame_segments().end() && (*it)->contains(frameIndex - 1_f)) {
+            if(it != fish->tracklets().end() && (*it)->contains(frameIndex - 1_f)) {
                 // prev
                 auto idx = (*it)->basic_stuff(frameIndex - 1_f);
                 property.prev = idx != -1 ? &fish->basic_stuff()[uint32_t(idx)]->centroid : nullptr;
@@ -2119,11 +2119,11 @@ void Tracker::update_iterator_maps(Frame_t frame, const set_of_individuals_t& ac
                 assert((property.prev != nullptr) == fish->has(frameIndex - 1_f));
                 if(property.prev != nullptr) {
                     if(property.current == nullptr) {
-                        assert(fish->segment_for(frameIndex - 1_f) != fish->segment_for(frameIndex));
+                        assert(fish->tracklet_for(frameIndex - 1_f) != fish->tracklet_for(frameIndex));
                     } else
-                        if(fish->segment_for(frameIndex - 1_f) != fish->segment_for(frameIndex)) {
-                            auto A = fish->segment_for(frameIndex-1_f);
-                            auto B = fish->segment_for(frameIndex);
+                        if(fish->tracklet_for(frameIndex - 1_f) != fish->tracklet_for(frameIndex)) {
+                            auto A = fish->tracklet_for(frameIndex-1_f);
+                            auto B = fish->tracklet_for(frameIndex);
                             FormatWarning(frameIndex - 1_f, " != ", frameIndex, ": ", A, " vs. ", B);
                             assert(false);
                         }
@@ -2134,7 +2134,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const set_of_individuals_t& ac
 #endif
         
         if(prev_props && props) {
-            std::set<FOI::fdx_t> weird_distance, weird_angle, segment_end;
+            std::set<FOI::fdx_t> weird_distance, weird_angle, tracklet_end;
             std::set<FOI::fdx_t> fdx;
             
             for(auto fish : active_individuals) {
@@ -2148,7 +2148,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const set_of_individuals_t& ac
                 
                 if(properties && properties->prev && properties->current) {
                     // only if both current and prev are set, do we have
-                    // both frameIndex-1 and frameIndex present in the same segment:
+                    // both frameIndex-1 and frameIndex present in the same tracklet:
                     assert(fish->has(frameIndex - 1_f) && fish->has(frameIndex));
                     if(cmn::abs(angle_difference(properties->prev->angle(), properties->current->angle())) >= M_PI * 0.8)
                     {
@@ -2156,7 +2156,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const set_of_individuals_t& ac
                     }
                     
                 } else if(properties && properties->prev) {
-                    segment_end.insert(FOI::fdx_t{fish->identity().ID()});
+                    tracklet_end.insert(FOI::fdx_t{fish->identity().ID()});
                     
                     if(!fish->has(frameIndex)) {
                         assert(fish->has(frameIndex - 1_f) && !fish->has(frameIndex));
@@ -2168,9 +2168,9 @@ void Tracker::update_iterator_maps(Frame_t frame, const set_of_individuals_t& ac
             }
             
 #ifndef NDEBUG
-            IndividualManager::transform_ids(segment_end, [frameIndex](auto, auto fish)
+            IndividualManager::transform_ids(tracklet_end, [frameIndex](auto, auto fish)
             {
-                assert(fish->segment_for(frameIndex) != fish->segment_for(frameIndex - 1_f));
+                assert(fish->tracklet_for(frameIndex) != fish->tracklet_for(frameIndex - 1_f));
             });
             
             IndividualManager::transform_ids(fdx, [frameIndex](auto, auto fish)
@@ -2199,8 +2199,8 @@ void Tracker::update_iterator_maps(Frame_t frame, const set_of_individuals_t& ac
             }
             if(!weird_angle.empty())
                 FOI::add(FOI(frameIndex, weird_angle, "weird angle"));
-            if(!segment_end.empty())
-                FOI::add(FOI(frameIndex - 1_f, segment_end, "segment end"));
+            if(!tracklet_end.empty())
+                FOI::add(FOI(frameIndex - 1_f, tracklet_end, "tracklet end"));
         }
         
         /*if(n_found < n_prev || frameIndex == start_frame()) {
@@ -2210,7 +2210,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const set_of_individuals_t& ac
             update_iterator_maps(frameIndex, active_individuals, individual_iterators);
             for(auto & fish : active_individuals) {
                 auto fit = individual_iterators.find(fish->identity().ID());
-                if(fit == individual_iterators.end() || fit->second == fish->frame_segments().end() || !(*fit->second)->contains(frameIndex))
+                if(fit == individual_iterators.end() || fit->second == fish->tracklets().end() || !(*fit->second)->contains(frameIndex))
                 {
                     fdx.insert(FOI::fdx_t(fish->identity().ID()));
                 }
@@ -2266,7 +2266,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const set_of_individuals_t& ac
                 }
             } else {
                 if(!_consecutive.empty()) {
-                    FOI::add(FOI(_consecutive.back(), "global segment"));
+                    FOI::add(FOI(_consecutive.back(), "global tracklet"));
                 }
                 
                 _consecutive.push_back(Range<Frame_t>(frameIndex, frameIndex));
@@ -2317,7 +2317,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const set_of_individuals_t& ac
         _thread_pool.wait();
         
         _individual_add_iterator_map.clear();
-        _segment_map_known_capacity.clear();
+        _tracklet_map_known_capacity.clear();
         
         Print("** Removing frames after and including ", frameIndex);
         
@@ -2420,7 +2420,7 @@ void Tracker::update_iterator_maps(Frame_t frame, const set_of_individuals_t& ac
         VisualField::remove_frames_after(frameIndex);
         FOI::remove_frames(frameIndex);
         
-        global_segment_order_changed();
+        global_tracklet_order_changed();
         
         Print("After removing frames: ", gui::CacheObject::memory());
         Print("posture: ", Midline::saved_midlines());
@@ -2441,18 +2441,18 @@ void Tracker::update_iterator_maps(Frame_t frame, const set_of_individuals_t& ac
         return n;
     }
 
-    void Tracker::global_segment_order_changed() {
-        _segment_order_changed = true;
+    void Tracker::global_tracklet_order_changed() {
+        _tracklet_order_changed = true;
     }
 
-    std::vector<Range<Frame_t>> Tracker::unsafe_global_segment_order() const {
+    std::vector<Range<Frame_t>> Tracker::unsafe_global_tracklet_order() const {
         LockGuard guard(ro_t{}, "Tracker::max_range()");
-        return _global_segment_order;
+        return _global_tracklet_order;
     }
     
-    std::vector<Range<Frame_t>> Tracker::global_segment_order() {
+    std::vector<Range<Frame_t>> Tracker::global_tracklet_order() {
         LockGuard guard(ro_t{}, "Tracker::max_range()");
-        if(_segment_order_changed) {
+        if(_tracklet_order_changed) {
             LockGuard guard(w_t{}, "Tracker::max_range()::write");
             std::set<Range<Frame_t>> manuals;
             auto manually_approved = FAST_SETTING(manually_approved);
@@ -2496,11 +2496,11 @@ void Tracker::update_iterator_maps(Frame_t frame, const set_of_individuals_t& ac
                     ordered.insert(range);
             }
             
-            _global_segment_order = std::vector<Range<Frame_t>>(ordered.begin(), ordered.end());
-            _segment_order_changed = false;
+            _global_tracklet_order = std::vector<Range<Frame_t>>(ordered.begin(), ordered.end());
+            _tracklet_order_changed = false;
         }
         
-        return _global_segment_order;
+        return _global_tracklet_order;
     }
     
     struct IndividualImages {
@@ -2547,8 +2547,8 @@ void Tracker::update_iterator_maps(Frame_t frame, const set_of_individuals_t& ac
             fwrite(output.c_str(), sizeof(char), output.length(), f);
     }
     
-    void Tracker::clear_segments_identities() {
-        LockGuard guard(w_t{}, "clear_segments_identities");
+    void Tracker::clear_tracklets_identities() {
+        LockGuard guard(w_t{}, "clear_tracklets_identities");
         auto fid = FOI::to_id("split_up");
         if(fid != -1)
             FOI::remove_frames(Frame_t(0), fid);
@@ -2566,7 +2566,7 @@ using range_t = FrameRange;
 using namespace Match;
 
 struct VirtualFish {
-    std::set<range_t> segments;
+    std::set<range_t> tracklets;
     std::map<range_t, Match::prob_t> probs;
     std::map<range_t, size_t> samples;
     std::map<Range<Frame_t>, Idx_t> track_ids;
@@ -2575,7 +2575,7 @@ struct VirtualFish {
 template<typename F>
 void process_vi
   (Frame_t after_frame,
-   const Individual::small_segment_map& segments,
+   const Individual::small_tracklet_map& tracklets,
    const Idx_t fdx,
    const Individual* fish,
    const std::map<fdx_t, std::map<Range<Frame_t>, fdx_t>>& assigned_ranges,
@@ -2583,29 +2583,29 @@ void process_vi
    F&& apply)
 {
     //! find identities for
-    for (auto& [start, segment] : segments) {
-        auto previous = segments.end(),
-            next = segments.end();
+    for (auto& [start, tracklet] : tracklets) {
+        auto previous = tracklets.end(),
+            next = tracklets.end();
 
-        const auto current = segments.find(start);
-        if (after_frame.valid() && segment.range.end < after_frame)
+        const auto current = tracklets.find(start);
+        if (after_frame.valid() && tracklet.range.end < after_frame)
             continue;
         
-        if (current != segments.end()) {
+        if (current != tracklets.end()) {
             auto it = current;
-            if ((++it) != segments.end())
+            if ((++it) != tracklets.end())
                 next = it;
 
             it = current;
-            if (it != segments.begin())
+            if (it != tracklets.begin())
                 previous = (--it);
         }
 
-        if (assigned_ranges.count(fdx) && assigned_ranges.at(fdx).count(segment.range)) {
-            continue; // already assigned this frame segment to someone...
+        if (assigned_ranges.count(fdx) && assigned_ranges.at(fdx).count(tracklet.range)) {
+            continue; // already assigned this frame tracklet to someone...
         }
 
-        if (next != segments.end() && next->second.start().valid()) {
+        if (next != tracklets.end() && next->second.start().valid()) {
         }
         else
             continue;
@@ -2618,7 +2618,7 @@ void process_vi
             decltype(it->second.begin()) rit;
             const Frame_t max_frames{ SLOW_SETTING(frame_rate) * 15 };
 
-            // skip some frame segments to find the next assigned id
+            // skip some frame tracklets to find the next assigned id
             do {
                 // dont assign anything after one second
                 if (next->second.start() >= current->second.end() + max_frames)
@@ -2639,10 +2639,10 @@ void process_vi
                     break;
                 }
 
-            } while ((++next) != segments.end());
+            } while ((++next) != tracklets.end());
 
-            // skip some frame segments to find the previous assigned id
-            while (previous != segments.end()) {
+            // skip some frame tracklets to find the previous assigned id
+            while (previous != tracklets.end()) {
                 // dont assign anything after one second
                 if (previous->second.end() + max_frames < current->second.start())
                     break;
@@ -2663,7 +2663,7 @@ void process_vi
                     break;
                 }
 
-                if (previous != segments.begin())
+                if (previous != tracklets.begin())
                     --previous;
                 else
                     break;
@@ -2676,7 +2676,7 @@ void process_vi
         else
             continue;
 
-        apply(fdx, fish, segment, prev_id, next_id, prev_pos, next_pos);
+        apply(fdx, fish, tracklet, prev_id, next_id, prev_pos, next_pos);
     }
 }
 
@@ -2689,35 +2689,35 @@ void process_qr(Frame_t after_frame,
                 F&& apply)
 {
     for (auto& [start, ids] : fish->qrcodes()) {
-        const auto current = fish->find_segment_with_start(start);
-        if (current == fish->frame_segments().end()) {
-            FormatWarning("Cannot find frame segment ", start, " with ", ids, " for ", fish->identity());
+        const auto current = fish->find_tracklet_with_start(start);
+        if (current == fish->tracklets().end()) {
+            FormatWarning("Cannot find frame tracklet ", start, " with ", ids, " for ", fish->identity());
             continue;
         }
 
-        auto segment = *(*current);
-        auto previous = fish->frame_segments().end(),
-            next = fish->frame_segments().end();
+        auto tracklet = *(*current);
+        auto previous = fish->tracklets().end(),
+            next = fish->tracklets().end();
 
-        if (after_frame.valid() && segment.range.end < after_frame)
+        if (after_frame.valid() && tracklet.range.end < after_frame)
             continue;
         //if(start == 741 && fish->identity().ID() == 1)
 
-        if (current != fish->frame_segments().end()) {
+        if (current != fish->tracklets().end()) {
             auto it = current;
-            if ((++it) != fish->frame_segments().end())
+            if ((++it) != fish->tracklets().end())
                 next = it;
 
             it = current;
-            if (it != fish->frame_segments().begin())
+            if (it != fish->tracklets().begin())
                 previous = (--it);
         }
 
-        if (assigned_ranges.count(fdx) && assigned_ranges.at(fdx).count(segment.range)) {
-            continue; // already assigned this frame segment to someone...
+        if (assigned_ranges.count(fdx) && assigned_ranges.at(fdx).count(tracklet.range)) {
+            continue; // already assigned this frame tracklet to someone...
         }
 
-        if (next != fish->frame_segments().end() && /*previous.start() != -1 &&*/ (*next)->start().valid()) {
+        if (next != fish->tracklets().end() && /*previous.start() != -1 &&*/ (*next)->start().valid()) {
         }
         else
             continue;
@@ -2730,7 +2730,7 @@ void process_qr(Frame_t after_frame,
             decltype(it->second.begin()) rit;
             const Frame_t max_frames{ SLOW_SETTING(frame_rate) * 15 };
 
-            // skip some frame segments to find the next assigned id
+            // skip some frame tracklets to find the next assigned id
             do {
                 // dont assign anything after one second
                 if ((*next)->start() >= (*current)->end() + max_frames)
@@ -2751,10 +2751,10 @@ void process_qr(Frame_t after_frame,
                     break;
                 }
 
-            } while ((++next) != fish->frame_segments().end());
+            } while ((++next) != fish->tracklets().end());
 
-            // skip some frame segments to find the previous assigned id
-            while (previous != fish->frame_segments().end()) {
+            // skip some frame tracklets to find the previous assigned id
+            while (previous != fish->tracklets().end()) {
                 // dont assign anything after one second
                 if ((*previous)->end() + max_frames < (*current)->start())
                     break;
@@ -2775,7 +2775,7 @@ void process_qr(Frame_t after_frame,
                     break;
                 }
 
-                if (previous != fish->frame_segments().begin())
+                if (previous != fish->tracklets().begin())
                     --previous;
                 else
                     break;
@@ -2788,7 +2788,7 @@ void process_qr(Frame_t after_frame,
         else
             continue;
 
-        apply(fdx, fish, segment, prev_id, next_id, prev_pos, next_pos);
+        apply(fdx, fish, tracklet, prev_id, next_id, prev_pos, next_pos);
     }
 }
 
@@ -2802,15 +2802,15 @@ void apply(
  auto& tmp_assigned_ranges,
  Idx_t fdx,
  const Individual* fish,
- const FrameRange& segment,
+ const FrameRange& tracklet,
  Idx_t prev_id,
  Idx_t next_id,
  const MotionRecord* prev_pos,
  const MotionRecord* next_pos)
 {
     Vec2 pos_start(FLT_MAX), pos_end(FLT_MAX);
-    auto blob_start = fish->centroid_weighted(segment.start());
-    auto blob_end = fish->centroid_weighted(segment.end());
+    auto blob_start = fish->centroid_weighted(tracklet.start());
+    auto blob_end = fish->centroid_weighted(tracklet.end());
     if (blob_start)
         pos_start = blob_start->pos<Units::CM_AND_SECONDS>();
     if (blob_end)
@@ -2832,8 +2832,8 @@ void apply(
 
         if (chosen_id.valid()) {
 #ifdef TREX_DEBUG_IDENTITIES
-            if (segment.start() == 0_f) {
-                log(f, "Fish ", fdx, ": chosen_id ", chosen_id, ", assigning ", segment, " (", dprev, " / ", dnext, ")...");
+            if (tracklet.start() == 0_f) {
+                log(f, "Fish ", fdx, ": chosen_id ", chosen_id, ", assigning ", tracklet, " (", dprev, " / ", dnext, ")...");
             }
 #endif
 
@@ -2843,7 +2843,7 @@ void apply(
 #endif
             std::vector<pv::bid> blob_ids;
             
-            for (Frame_t frame = segment.start(); frame <= segment.end(); ++frame) {
+            for (Frame_t frame = tracklet.start(); frame <= tracklet.end(); ++frame) {
                 auto blob = fish->compressed_blob(frame);
 
                 if (blob) {
@@ -2859,7 +2859,7 @@ void apply(
                 if (it != tmp_assigned_ranges.end()) {
                     for (auto&& [range, blobs] : it->ranges)
                     {
-                        if (range != segment.range && range.contains(frame)) {
+                        if (range != tracklet.range && range.contains(frame)) {
 #ifndef NDEBUG
                             remove_from.insert(range);
 #endif
@@ -2872,27 +2872,27 @@ void apply(
 
             if (remove) {
 #ifndef NDEBUG
-                FormatWarning("[ignore] While assigning ", segment.range.start, "-", segment.range.end, " to ", chosen_id, " -> same fish already assigned in ranges ", remove_from);
+                FormatWarning("[ignore] While assigning ", tracklet.range.start, "-", tracklet.range.end, " to ", chosen_id, " -> same fish already assigned in ranges ", remove_from);
 #else
-                FormatWarning("[ignore] While assigning ", segment.range.start, "-", segment.range.end, " to ", chosen_id, " -> same fish already assigned in another range.");
+                FormatWarning("[ignore] While assigning ", tracklet.range.start, "-", tracklet.range.end, " to ", chosen_id, " -> same fish already assigned in another range.");
 #endif
             }
             else {
-                assert((int64_t)blob_ids.size() == (segment.range.end - segment.range.start + 1_f).get());
-                AutoAssign::add_assigned_range(tmp_assigned_ranges, chosen_id, segment.range, std::move(blob_ids));
+                assert((int64_t)blob_ids.size() == (tracklet.range.end - tracklet.range.start + 1_f).get());
+                AutoAssign::add_assigned_range(tmp_assigned_ranges, chosen_id, tracklet.range, std::move(blob_ids));
 
-                auto blob = fish->blob(segment.start());
+                auto blob = fish->blob(tracklet.start());
                 if (blob && blob->split() && blob->parent_id().valid())
-                    manual_splits[segment.start()].insert(blob->parent_id());
+                    manual_splits[tracklet.start()].insert(blob->parent_id());
 
-                assigned_ranges[fdx][segment.range] = chosen_id;
+                assigned_ranges[fdx][tracklet.range] = chosen_id;
             }
 
             return;
         }
     }
 
-    still_unassigned[fdx].insert(segment.range);
+    still_unassigned[fdx].insert(tracklet.range);
 }
 }
 
@@ -2901,10 +2901,10 @@ void Tracker::set_vi_data(const decltype(_vi_predictions)& predictions) {
     _vi_predictions = std::move(predictions);
 }
     
-    void Tracker::check_segments_identities(bool auto_correct, IdentitySource source, std::function<void(float)> callback, const std::function<void(const std::string&, const std::function<void()>&, const std::string&)>& add_to_queue, Frame_t after_frame) {
+    void Tracker::check_tracklets_identities(bool auto_correct, IdentitySource source, std::function<void(float)> callback, const std::function<void(const std::string&, const std::function<void()>&, const std::string&)>& add_to_queue, Frame_t after_frame) {
         
         Print("Waiting for lock...");
-        LockGuard guard(w_t{}, "check_segments_identities");
+        LockGuard guard(w_t{}, "check_tracklets_identities");
         Print("Updating automatic ranges starting from ", !after_frame.valid() ? Frame_t(0) : after_frame);
         
         if (source == IdentitySource::QRCodes)
@@ -2969,14 +2969,14 @@ void Tracker::set_vi_data(const decltype(_vi_predictions)& predictions) {
                 return false;
 
 #ifdef TREX_DEBUG_IDENTITIES
-            log(f, "fish ", fdx, ": segment ", range, " has ", N, " samples");
+            log(f, "fish ", fdx, ": tracklet ", range, " has ", N, " samples");
 #endif
-            //Print("fish ",fdx,": segment ",segment.start(),"-",segment.end()," has ",n," samples");
+            //Print("fish ",fdx,": tracklet ",tracklet.start(),"-",tracklet.end()," has ",n," samples");
 
             std::set<std::pair<Idx_t, Match::prob_t>, decltype(compare_greatest)> sorted(compare_greatest);
             sorted.insert(average.begin(), average.end());
 
-            // check if the values for this segment are too close, this probably
+            // check if the values for this tracklet are too close, this probably
             // means that we shouldnt correct here.
             if (sorted.size() >= 2) {
                 Match::prob_t ratio = sorted.begin()->second / ((++sorted.begin())->second);
@@ -2994,16 +2994,16 @@ void Tracker::set_vi_data(const decltype(_vi_predictions)& predictions) {
             //auto it = std::max_element(average.begin(), average.end(), compare);
             auto it = sorted.begin();
 
-            // see if there is already something found for given segment that
-            // overlaps with this segment
+            // see if there is already something found for given tracklet that
+            // overlaps with this tracklet
             auto fit = virtual_fish.find(it->first);
             if (fit != virtual_fish.end()) {
                 // fish exists
                 auto& A = range;
 
                 std::set<range_t> matches;
-                auto rit = fit->second.segments.begin();
-                for (; rit != fit->second.segments.end(); ++rit) {
+                auto rit = fit->second.tracklets.begin();
+                for (; rit != fit->second.tracklets.end(); ++rit) {
                     auto& B = *rit;
                     //if(B.overlaps(A))
                     if (A.end() > B.start() && A.start() < B.end())
@@ -3016,14 +3016,14 @@ void Tracker::set_vi_data(const decltype(_vi_predictions)& predictions) {
 
                 if (!matches.empty()) {
                     // if there are multiple matches, we can already assume that this
-                    // is a much longer segment (because it overlaps multiple smaller segments
+                    // is a much longer tracklet (because it overlaps multiple smaller tracklets
                     // because it starts earlier, cause thats the execution order)
                     auto rit = matches.begin();
 #ifdef TREX_DEBUG_IDENTITIES
                     log(f, "\t", fdx, " (as ", it->first, ") Found range(s) ", *rit, " for search range ", range, " p:", fit->second.probs.at(*rit), " n:", fit->second.samples.at(*rit), " (self:", it->second, ",n:", N, ")");
 #endif
 
-                    Match::prob_t n_me = N;//segment.end() - segment.start();
+                    Match::prob_t n_me = N;//tracklet.end() - tracklet.start();
                     Match::prob_t n_he = fit->second.samples.at(*rit);//rit->end() - rit->start();
                     const Match::prob_t N = n_me + n_he;
 
@@ -3045,7 +3045,7 @@ void Tracker::set_vi_data(const decltype(_vi_predictions)& predictions) {
                         for (auto rit = matches.begin(); rit != matches.end(); ++rit) {
                             fit->second.probs.erase(*rit);
                             fit->second.track_ids.erase(rit->range);
-                            fit->second.segments.erase(*rit);
+                            fit->second.tracklets.erase(*rit);
                             fit->second.samples.erase(*rit);
                         }
 
@@ -3058,7 +3058,7 @@ void Tracker::set_vi_data(const decltype(_vi_predictions)& predictions) {
 #ifdef TREX_DEBUG_IDENTITIES
             log(f, "\tassigning ", it->first, " to ", fdx, " with p ", it->second, " for ", range);
 #endif
-            virtual_fish[it->first].segments.insert(range);
+            virtual_fish[it->first].tracklets.insert(range);
             virtual_fish[it->first].probs[range] = it->second;
             virtual_fish[it->first].samples[range] = N;
             virtual_fish[it->first].track_ids[range.range] = fdx;
@@ -3068,15 +3068,15 @@ void Tracker::set_vi_data(const decltype(_vi_predictions)& predictions) {
             return true;
         };
         
-        // iterate through segments, find matches for segments.
-        // try to find the longest segments and assign them to virtual fish
+        // iterate through tracklets, find matches for tracklets.
+        // try to find the longest tracklets and assign them to virtual fish
         if(source == IdentitySource::QRCodes) {
             //! When using QRCodes...
             IndividualManager::transform_all([&](auto fdx, auto fish) {
                 for (auto& [start, assign] : fish->qrcodes()) {
-                    auto segment = fish->segment_for(start);
-                    if (segment && segment->contains(start)) {
-                        collect_virtual_fish(fdx, fish, *segment, assign.samples, {
+                    auto tracklet = fish->tracklet_for(start);
+                    if (tracklet && tracklet->contains(start)) {
+                        collect_virtual_fish(fdx, fish, *tracklet, assign.samples, {
                             { Idx_t(assign.best_id), assign.p }
                         });
                     }
@@ -3088,15 +3088,15 @@ void Tracker::set_vi_data(const decltype(_vi_predictions)& predictions) {
             assert(source == IdentitySource::VisualIdent);
             
             IndividualManager::transform_all([&](auto fdx, auto fish) {
-                //! TODO: MISSING recalculate recognition for all segments
+                //! TODO: MISSING recalculate recognition for all tracklets
                 //fish->clear_recognition();
 
-                for (auto&& [start, segment] : fish->recognition_segments()) {
-                    if (after_frame.valid() && segment.end() < after_frame)
+                for (auto&& [start, tracklet] : fish->recognition_tracklets()) {
+                    if (after_frame.valid() && tracklet.end() < after_frame)
                         continue;
 
                     auto& [n, average] = fish->processed_recognition(start);
-                    collect_virtual_fish(fdx, fish, segment, n, average);
+                    collect_virtual_fish(fdx, fish, tracklet, n, average);
                 }
             });
         }
@@ -3104,36 +3104,36 @@ void Tracker::set_vi_data(const decltype(_vi_predictions)& predictions) {
         Settings::manual_splits_t manual_splits;
         
 #ifdef TREX_DEBUG_IDENTITIES
-        log(f, "Found segments:");
+        log(f, "Found tracklets:");
 #endif
         for(auto && [fdx, fish] : virtual_fish) {
 #ifdef TREX_DEBUG_IDENTITIES
             log(f, "\t", fdx,":");
 #endif
-            // manual_match for first segment
-            if(!fish.segments.empty()) {
-                auto segment = *fish.segments.begin();
+            // manual_match for first tracklet
+            if(!fish.tracklets.empty()) {
+                auto tracklet = *fish.tracklets.begin();
                 
-                if(!fish.probs.count(segment))
-                    throw U_EXCEPTION("Cannot find ",segment.start(),"-",segment.end()," in fish.probs");
-                if(!fish.track_ids.count(segment.range))
-                    throw U_EXCEPTION("Cannot find ",segment.start(),"-",segment.end()," in track_ids");
+                if(!fish.probs.count(tracklet))
+                    throw U_EXCEPTION("Cannot find ",tracklet.start(),"-",tracklet.end()," in fish.probs");
+                if(!fish.track_ids.count(tracklet.range))
+                    throw U_EXCEPTION("Cannot find ",tracklet.start(),"-",tracklet.end()," in track_ids");
                 
-                auto tid = fish.track_ids.at(segment.range);
+                auto tid = fish.track_ids.at(tracklet.range);
                 IndividualManager::transform_if_exists(tid, [&, fdx=fdx](auto track){
-                    if(segment.first_usable.valid() && segment.first_usable != segment.start()) {
-                        auto blob = track->compressed_blob(segment.first_usable);
+                    if(tracklet.first_usable.valid() && tracklet.first_usable != tracklet.start()) {
+                        auto blob = track->compressed_blob(tracklet.first_usable);
                         if(blob)
-                            automatic_matches[segment.first_usable][fdx] = blob->blob_id();
+                            automatic_matches[tracklet.first_usable][fdx] = blob->blob_id();
                         else
-                            FormatWarning("Have first_usable (=", segment.first_usable,"), but blob is null (fish ",fdx,")");
+                            FormatWarning("Have first_usable (=", tracklet.first_usable,"), but blob is null (fish ",fdx,")");
                     }
                     
-                    auto blob = track->compressed_blob(segment.start());
+                    auto blob = track->compressed_blob(tracklet.start());
                     if(blob) {
-                        automatic_matches[segment.start()][fdx] = blob->blob_id();
+                        automatic_matches[tracklet.start()][fdx] = blob->blob_id();
                         if(blob->split() && blob->parent_id.valid())
-                            manual_splits[segment.start()].insert(blob->parent_id);
+                            manual_splits[tracklet.start()].insert(blob->parent_id);
                     }
                     
                 }).or_else([tid](auto message){
@@ -3141,31 +3141,31 @@ void Tracker::set_vi_data(const decltype(_vi_predictions)& predictions) {
                 });
             }
             
-            for(auto segment : fish.segments) {
-                if(after_frame.valid() && segment.range.end < after_frame)
+            for(auto tracklet : fish.tracklets) {
+                if(after_frame.valid() && tracklet.range.end < after_frame)
                     continue;
                 
-                if(!fish.probs.count(segment))
-                    throw U_EXCEPTION("Cannot find ",segment.start(),"-",segment.end()," in fish.probs");
-                if(!fish.track_ids.count(segment.range))
-                    throw U_EXCEPTION("Cannot find ",segment.start(),"-",segment.end()," in track_ids");
+                if(!fish.probs.count(tracklet))
+                    throw U_EXCEPTION("Cannot find ",tracklet.start(),"-",tracklet.end()," in fish.probs");
+                if(!fish.track_ids.count(tracklet.range))
+                    throw U_EXCEPTION("Cannot find ",tracklet.start(),"-",tracklet.end()," in track_ids");
 #ifdef TREX_DEBUG_IDENTITIES
-                log(f, "\t\t",segment,": ",fish.probs.at(segment)," (from ", fish.track_ids.at(segment.range),")");
+                log(f, "\t\t",tracklet,": ",fish.probs.at(tracklet)," (from ", fish.track_ids.at(tracklet.range),")");
 #endif
-                auto tid = fish.track_ids.at(segment.range);
+                auto tid = fish.track_ids.at(tracklet.range);
                 IndividualManager::transform_if_exists(tid, [&, fdx=fdx](auto track) {
-                    assert(track->compressed_blob(segment.start()));
+                    assert(track->compressed_blob(tracklet.start()));
                     
-                    //automatic_matches[segment.start()][fdx] = track->blob(segment.start())->blob_id();
-                    if(!assigned_ranges.count(track->identity().ID()) || !assigned_ranges.at(track->identity().ID()).count(segment.range))
-                        assigned_ranges[track->identity().ID()][segment.range] = fdx;
+                    //automatic_matches[tracklet.start()][fdx] = track->blob(tracklet.start())->blob_id();
+                    if(!assigned_ranges.count(track->identity().ID()) || !assigned_ranges.at(track->identity().ID()).count(tracklet.range))
+                        assigned_ranges[track->identity().ID()][tracklet.range] = fdx;
                     
-                    auto blob = track->compressed_blob(segment.start());
+                    auto blob = track->compressed_blob(tracklet.start());
                     if(blob && blob->split() && blob->parent_id.valid())
-                        manual_splits[segment.start()].insert(blob->parent_id);
+                        manual_splits[tracklet.start()].insert(blob->parent_id);
                     
                     std::vector<pv::bid> blob_ids;
-                    for(Frame_t frame=segment.start(); frame<=segment.end(); ++frame) {
+                    for(Frame_t frame=tracklet.start(); frame<=tracklet.end(); ++frame) {
                         blob = track->compressed_blob(frame);
                         if(blob) {
                             //automatically_assigned_blobs[frame][blob->blob_id()] = fdx;
@@ -3179,7 +3179,7 @@ void Tracker::set_vi_data(const decltype(_vi_predictions)& predictions) {
                         auto it = std::find(tmp_assigned_ranges.begin(), tmp_assigned_ranges.end(), fdx);
                         if(it != tmp_assigned_ranges.end()) {
                             for(auto & assign : it->ranges) {
-                                if(assign.range != segment.range && assign.range.contains(frame)) {
+                                if(assign.range != tracklet.range && assign.range.contains(frame)) {
                                     remove_from.insert(assign.range);
                                 }
                             }
@@ -3204,8 +3204,8 @@ void Tracker::set_vi_data(const decltype(_vi_predictions)& predictions) {
                         }
                     }
                     
-                    assert(Frame_t(blob_ids.size()) == segment.range.end - segment.range.start + 1_f);
-                    AutoAssign::add_assigned_range(tmp_assigned_ranges, fdx, segment.range, std::move(blob_ids));
+                    assert(Frame_t(blob_ids.size()) == tracklet.range.end - tracklet.range.start + 1_f);
+                    AutoAssign::add_assigned_range(tmp_assigned_ranges, fdx, tracklet.range, std::move(blob_ids));
                     
                 }).or_else([tid](auto message) {
                     FormatWarning("Cannot find individual with ID ", tid, ": ", message);
@@ -3220,7 +3220,7 @@ void Tracker::set_vi_data(const decltype(_vi_predictions)& predictions) {
         const auto _apply = [&](
            Idx_t fdx,
            const Individual* fish,
-           const FrameRange& segment,
+           const FrameRange& tracklet,
            Idx_t prev_id,
            Idx_t next_id,
            const MotionRecord* prev_pos,
@@ -3236,7 +3236,7 @@ void Tracker::set_vi_data(const decltype(_vi_predictions)& predictions) {
                  tmp_assigned_ranges,
                  fdx,
                  fish,
-                 segment,
+                 tracklet,
                  prev_id,
                  next_id,
                  prev_pos,
@@ -3252,7 +3252,7 @@ void Tracker::set_vi_data(const decltype(_vi_predictions)& predictions) {
         } else {
             assert(source == IdentitySource::VisualIdent);
             IndividualManager::transform_all([&](auto fdx, auto fish){
-                process_vi(after_frame, fish->recognition_segments(), fdx, fish, assigned_ranges, virtual_fish, _apply);
+                process_vi(after_frame, fish->recognition_tracklets(), fdx, fish, assigned_ranges, virtual_fish, _apply);
             });
         }
         
@@ -3265,7 +3265,7 @@ void Tracker::set_vi_data(const decltype(_vi_predictions)& predictions) {
                 //std::lock_guard<decltype(GUI::instance()->gui().lock())> guard(GUI::instance()->gui().lock());
                 
                 {
-                    LockGuard guard(w_t{}, "check_segments_identities::auto_correct");
+                    LockGuard guard(w_t{}, "check_tracklets_identities::auto_correct");
                     Tracker::instance()->_remove_frames(!after_frame.valid() ? Tracker::analysis_range().start() : after_frame);
                     IndividualManager::transform_all([](auto, auto fish){
                         fish->clear_recognition();

@@ -8,7 +8,7 @@
 #include <tracker/misc/default_config.h>
 #include <pv.h>
 #include <misc/PackLambda.h>
-#include <tracking/SegmentInformation.h>
+#include <tracking/TrackletInformation.h>
 
 
 using namespace track;
@@ -18,7 +18,7 @@ namespace extract {
 struct Task {
     Idx_t fdx;
     pv::bid bdx;
-    Range<Frame_t> segment;
+    Range<Frame_t> tracklet;
     
     std::string toStr() const {
         return "task<"+Meta::toStr(fdx)+","+Meta::toStr(bdx)+">";
@@ -61,7 +61,7 @@ struct Settings {
     uint8_t num_threads{5u};
     default_config::individual_image_normalization_t::Class normalization{default_config::individual_image_normalization_t::none};
     uint64_t item_step{1u};
-    Frame_t segment_min_samples{0u};
+    Frame_t tracklet_min_samples{0u};
     std::function<std::unique_ptr<std::shared_lock<std::shared_mutex>>()> query_lock = nullptr;
     
     std::string toStr() const {
@@ -70,7 +70,7 @@ struct Settings {
             +" res:"+Meta::toStr(image_size)
             +" threads:"+Meta::toStr(num_threads)
             +" step:"+Meta::toStr(item_step)
-            +" min_samples:"+Meta::toStr(segment_min_samples)
+            +" min_samples:"+Meta::toStr(tracklet_min_samples)
             +">";
     }
 };

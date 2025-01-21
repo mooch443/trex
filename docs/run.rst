@@ -41,7 +41,7 @@ When converting videos, :param:`meta_real_width` should always be specified unle
 Consecutive segments
 --------------------
 
-Tracking in |trex| heavily relies on consecutively tracked trajectory pieces. These are often called "segments" or "consecutive segments" here. You can find them in |trex| by selecting an individual and looking at the top-left info card. There it should display frame numbers - with the current frame marked with a line. This moves up when the displayed range of frames (e.g. 1234-1300, or 1234 for a single frame) no longer contains the frame currently viewed in |trex|.
+Tracking in |trex| heavily relies on consecutively tracked trajectory pieces. These are often called "segments" or "tracklets" here. You can find them in |trex| by selecting an individual and looking at the top-left info card. There it should display frame numbers - with the current frame marked with a line. This moves up when the displayed range of frames (e.g. 1234-1300, or 1234 for a single frame) no longer contains the frame currently viewed in |trex|.
 
 These segments usually end in these situations:
 
@@ -117,7 +117,7 @@ Preferably set parameters in this order (with the goal to only match those objec
 	- :param:`track_threshold`
 	- :param:`track_size_filter`
 
-Now all objects of interest should have a cyan number next to them in RAW view (pressing ``D`` in tracking view switches to RAW and vice-versa). More "optional" parameters like can now be set in order to maximize the length of consecutive segments:
+Now all objects of interest should have a cyan number next to them in RAW view (pressing ``D`` in tracking view switches to RAW and vice-versa). More "optional" parameters like can now be set in order to maximize the length of tracklets:
 
 	- :param:`track_max_speed`
 	- :param:`track_max_reassign_time`

@@ -34,7 +34,7 @@ Use-cases
 
 There is lots of functionality in |trex|, but here are some common use-cases that we have in mind when developing the software:
 
-* **Tracking large groups**: |trex| can track many individuals in a group with a changing number of individuals, e.g. when individuals are entering or leaving the video frame / hide in shelters. In the simplest case identities can not be guaranteed, but the software provides additional information about reliable trajectory pieces (consecutive segments) per individual.
+* **Tracking large groups**: |trex| can track many individuals in a group with a changing number of individuals, e.g. when individuals are entering or leaving the video frame / hide in shelters. In the simplest case identities can not be guaranteed, but the software provides additional information about reliable trajectory pieces (tracklets) per individual.
 
 * **Tracking < 100 individuals while maintaining identities**: |trex| can use visual identification to recognize individuals in a fixed group, 'getting to know them personally', and maintaining their identities throughout the video. This process takes longer than just tracking, but may be required for your research (see :doc:`identification` for more information). It is possible to identify individuals in the same group across videos, too.
 

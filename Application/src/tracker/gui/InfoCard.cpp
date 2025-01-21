@@ -24,11 +24,11 @@ struct InfoCard::ShadowIndividual {
     bool is_automatic_match{false};
     float speed;
     
-    FrameRange recognition_segment{};
+    FrameRange recognition_tracklet{};
     std::map<Idx_t, float> raw;
     std::string recognition_str;
     
-    std::vector<ShadowSegment> segments, rec_segments;
+    std::vector<ShadowTracklet> tracklets, rec_tracklets;
     bool has_vi_predictions{false};
 };
 
@@ -41,10 +41,10 @@ DrawSegments::DrawSegments()
     : _tooltip(std::make_unique<Tooltip>(nullptr))
 {
     on_click([this](auto){
-        for(size_t i = 0; i < segment_texts.size(); ++i) {
-            auto &[text, tooltip_text] = segment_texts.at(i);
+        for(size_t i = 0; i < tracklet_texts.size(); ++i) {
+            auto &[text, tooltip_text] = tracklet_texts.at(i);
             if(text->hovered()) {
-                auto &segment = _displayed_segments.at(i);
+                auto &segment = _displayed_tracklets.at(i);
                 SETTING(gui_frame) = segment.frames.start();
                 return;
             }
@@ -54,7 +54,7 @@ DrawSegments::DrawSegments()
         Text * found{nullptr};
         
         if(e.hover.hovered) {
-            for(auto &[text, tooltip_text] : segment_texts) {
+            for(auto &[text, tooltip_text] : tracklet_texts) {
                 if(text->hovered()) {
                     // text->set(TextClr{0,125,200,255});
                     found = text.get();
@@ -96,7 +96,7 @@ DrawSegments::DrawSegments()
     });
 }
 
-void DrawSegments::set(Idx_t fdx, Frame_t frame, const std::vector<ShadowSegment>& segments) {
+void DrawSegments::set(Idx_t fdx, Frame_t frame, const std::vector<ShadowTracklet>& tracklets) {
     if(_fdx != fdx
        || _frame != frame
        //|| _segments != segments
@@ -104,7 +104,7 @@ void DrawSegments::set(Idx_t fdx, Frame_t frame, const std::vector<ShadowSegment
     {
         _fdx = fdx;
         _frame = frame;
-        _segments = segments;
+        _tracklets = tracklets;
         set_content_changed(true);
     }
 }
@@ -121,9 +121,9 @@ Float2_t DrawSegments::add_segments(bool display_hints, float)
 #endif
     
     // draw segment list
-    auto rit = _segments.rbegin();
+    auto rit = _tracklets.rbegin();
     Frame_t current_segment;
-    for(; rit != _segments.rend(); ++rit) {
+    for(; rit != _tracklets.rend(); ++rit) {
         if(rit->frames.end() < _frame)
             break;
         
@@ -133,22 +133,22 @@ Float2_t DrawSegments::add_segments(bool display_hints, float)
     }
     
     std::vector<std::tuple<FrameRange, std::string>> strings;
-    //segment_texts.clear();
-    _displayed_segments.clear();
+    //tracklet_texts.clear();
+    _displayed_tracklets.clear();
     Size2 max_text_size(_limits.width, 0);
     long_t index_of_current{-1};
     
     {
         long_t i=0;
-        while(rit != _segments.rend() && ++rit != _segments.rend() && ++i < 2);
+        while(rit != _tracklets.rend() && ++rit != _tracklets.rend() && ++i < 2);
         i = 0;
         
-        auto it = rit == _segments.rend()
-            ? _segments.begin()
-            : track::find_frame_in_sorted_segments(_segments.begin(), _segments.end(), rit->frames.start());
+        auto it = rit == _tracklets.rend()
+            ? _tracklets.begin()
+            : track::find_frame_in_sorted_tracklets(_tracklets.begin(), _tracklets.end(), rit->frames.start());
         auto it0 = it;
         
-        for (; it != _segments.end() && cmn::abs(std::distance(it0, it)) < 5; ++it, ++i)
+        for (; it != _tracklets.end() && cmn::abs(std::distance(it0, it)) < 5; ++it, ++i)
         {
             std::string str;
             auto range = it->frames;
@@ -166,12 +166,12 @@ Float2_t DrawSegments::add_segments(bool display_hints, float)
             if(range.start() == current_segment) {
                 index_of_current = narrow_cast<long_t>(strings.size());
             }
-            _displayed_segments.emplace_back(*it);
+            _displayed_tracklets.emplace_back(*it);
             strings.emplace_back( range, std::move(str) );
             
             std::string tt;
             if(display_hints) {
-                const ShadowSegment& ptr = *it;
+                const ShadowTracklet& ptr = *it;
                 auto bitset = ptr.error_code;
                 if(ptr.error_code != std::numeric_limits<decltype(ptr.error_code)>::max()) {
                     size_t i=0;
@@ -193,20 +193,20 @@ Float2_t DrawSegments::add_segments(bool display_hints, float)
                 tt = "Segment "+Meta::toStr(ptr.frames)+" ended because:"+tt;
             }
             
-            if(i >= narrow_cast<long_t>(segment_texts.size())) {
+            if(i >= narrow_cast<long_t>(tracklet_texts.size())) {
                 auto text = std::make_shared<Text>();
                 text->set(_font);
                 text->set(Origin(1, 0.5));
                 text->set_clickable(true);
-                segment_texts.push_back({ std::move(text), tt});
+                tracklet_texts.push_back({ std::move(text), tt});
                 
             } else {
-                std::get<1>(segment_texts.at(i)) = tt;
+                std::get<1>(tracklet_texts.at(i)) = tt;
             }
         }
         
-        if(i < narrow_cast<long_t>(segment_texts.size()))
-            segment_texts.resize(i);
+        if(i < narrow_cast<long_t>(tracklet_texts.size()))
+            tracklet_texts.resize(i);
     }
     
     Float2_t y = _margins.y + Base::default_line_spacing(_font) * 0.5_F;
@@ -221,7 +221,7 @@ Float2_t DrawSegments::add_segments(bool display_hints, float)
         //!TODO: Need to collect width() beforehand
         uint8_t alpha = 25 + 230 * (1 - cmn::abs(i-index_of_current) / float(strings.size()));
         
-        auto &text = std::get<0>(segment_texts.at(i));
+        auto &text = std::get<0>(tracklet_texts.at(i));
         assert(text);
         
         advance_wrap(*text);
@@ -261,7 +261,7 @@ Float2_t DrawSegments::add_segments(bool display_hints, float)
         p.y += text->height();
     }
     
-    p.y += add<Text>(Str(Meta::toStr(_segments.size())+" segments"),
+    p.y += add<Text>(Str(Meta::toStr(_tracklets.size())+" segments"),
                      Loc(Vec2(offx, p.y - 12)),
                      TextClr(Gray),
                      _font)
@@ -353,7 +353,7 @@ void InfoCard::update() {
     static Tooltip tooltip(nullptr);
     std::shared_ptr<Text> other = nullptr;
     
-    for(auto &[text, tooltip_text] : segment_texts) {
+    for(auto &[text, tooltip_text] : tracklet_texts) {
         if(text->hovered()) {
             tooltip.set_text(tooltip_text);
             other = text;
@@ -374,7 +374,7 @@ void InfoCard::update() {
     
     auto &cache = GUICache::instance();
     if(!cache.has_selection() || !_shadow->fdx.valid()) {
-        segment_texts.clear();
+        tracklet_texts.clear();
         other = nullptr;
         
         /// we just want an empty context
@@ -401,12 +401,12 @@ void InfoCard::update() {
                 }
                 
                 auto blob_id = _shadow->blob.blob_id();
-                auto && [valid, segment] = fish->has_processed_segment(_shadow->frame);
+                auto && [valid, tracklet] = fish->has_processed_tracklet(_shadow->frame);
                 
                 std::string title = "recognition";
                 
                 if(valid) {
-                    auto && [n, values] = fish->processed_recognition(segment.start());
+                    auto && [n, values] = fish->processed_recognition(tracklet.start());
                     title = "average n:"+Meta::toStr(n);
                     _shadow->raw = values;
                     
@@ -418,46 +418,46 @@ void InfoCard::update() {
                         _shadow->raw.clear();
                 }
                 
-                _shadow->recognition_segment = segment;
+                _shadow->recognition_tracklet = tracklet;
                 _shadow->recognition_str = title;
                 
                 auto range_of = [](const auto& rit) -> const FrameRange& {
                     using value_t = typename cmn::remove_cvref<decltype(rit)>::type;
-                    using SegPtr_t = std::shared_ptr<SegmentInformation>;
+                    using SegPtr_t = std::shared_ptr<TrackletInformation>;
                     
                     if constexpr(std::is_same<value_t, FrameRange>::value)    return rit;
                     else if constexpr(std::is_same<value_t, SegPtr_t>::value) return *rit;
                     else if constexpr(is_pair<value_t>::value) return rit.second;
                     else if constexpr(is_pair<typename cmn::remove_cvref<decltype(*rit)>::type>::value) return (*rit).second;
                     else if constexpr(std::is_same<decltype((*rit)->range), FrameRange>::value) return (*rit)->range;
-                    else if constexpr(std::is_same<typename cmn::remove_cvref<decltype(*rit)>::type, std::shared_ptr<track::SegmentInformation>>::value)
+                    else if constexpr(std::is_same<typename cmn::remove_cvref<decltype(*rit)>::type, std::shared_ptr<track::TrackletInformation>>::value)
                         return *(*rit);
                     else return *rit;
                 };
                 
-                _shadow->segments.clear();
-                _shadow->rec_segments.clear();
+                _shadow->tracklets.clear();
+                _shadow->rec_tracklets.clear();
                 
-                for(auto it = fish->frame_segments().begin(); it != fish->frame_segments().end(); ++it)
+                for(auto it = fish->tracklets().begin(); it != fish->tracklets().end(); ++it)
                 {
                     auto range = ((FrameRange)range_of(it));
-                    _shadow->segments.push_back(ShadowSegment{
+                    _shadow->tracklets.push_back(ShadowTracklet{
                         range,
                         (*it)->error_code
                     });
                 }
                 
-                for(auto it = fish->recognition_segments().begin(); it != fish->recognition_segments().end(); ++it)
+                for(auto it = fish->recognition_tracklets().begin(); it != fish->recognition_tracklets().end(); ++it)
                 {
                     auto range = ((FrameRange)range_of(it));
-                    _shadow->rec_segments.push_back(ShadowSegment{
+                    _shadow->rec_tracklets.push_back(ShadowTracklet{
                         range,
                         0
                     });
                 }
                 
                 FrameRange current_range;
-                for(auto &s : _shadow->segments) {
+                for(auto &s : _shadow->tracklets) {
                     if(s.frames.contains(_shadow->frame)) {
                         current_range = FrameRange{s.frames};
                         break;
@@ -491,14 +491,14 @@ void InfoCard::update() {
         text = add<Text>(Str("inactive"), Loc(width() - 5, text->pos().y + 5), TextClr(Gray.alpha(clr.a * 0.5)), Font(font.size * 0.8, Style::Monospace, Align::Right));
     }
     
-    segment_texts.clear();
+    tracklet_texts.clear();
     
-    auto add_segments = [&font, y, this](bool display_hints, const std::vector<ShadowSegment>& segments, float offx)
+    auto add_segments = [&font, y, this](bool display_hints, const std::vector<ShadowTracklet>& tracklets, float offx)
     {
 #if DEBUG_ORIENTATION
         auto text =
 #endif
-        add<Text>(Str(Meta::toStr(segments.size())+" segments"), Loc(Vec2(10, y) + Vec2(offx, Base::default_line_spacing(font))), TextClr(White), Font(0.8f));
+        add<Text>(Str(Meta::toStr(tracklets.size())+" segments"), Loc(Vec2(10, y) + Vec2(offx, Base::default_line_spacing(font))), TextClr(White), Font(0.8f));
         
 #if DEBUG_ORIENTATION
         auto reason = fish->why_orientation(frameNr);
@@ -510,9 +510,9 @@ void InfoCard::update() {
 #endif
         
         // draw segment list
-        auto rit = segments.rbegin();
+        auto rit = tracklets.rbegin();
         Frame_t current_segment;
-        for(; rit != segments.rend(); ++rit) {
+        for(; rit != tracklets.rend(); ++rit) {
             if(rit->frames.end() < _shadow->frame)
                 break;
             
@@ -522,14 +522,14 @@ void InfoCard::update() {
         }
         
         long_t i=0;
-        while(rit != segments.rend() && ++rit != segments.rend() && ++i < 2);
+        while(rit != tracklets.rend() && ++rit != tracklets.rend() && ++i < 2);
         i = 0;
-        auto it = rit == segments.rend()
-            ? segments.begin()
-            : track::find_frame_in_sorted_segments(segments.begin(), segments.end(), rit->frames.start());
+        auto it = rit == tracklets.rend()
+            ? tracklets.begin()
+            : track::find_frame_in_sorted_tracklets(tracklets.begin(), tracklets.end(), rit->frames.start());
         auto it0 = it;
         
-        for (; it != segments.end() && cmn::abs(std::distance(it0, it)) < 5; ++it, ++i)
+        for (; it != tracklets.end() && cmn::abs(std::distance(it0, it)) < 5; ++it, ++i)
         {
             std::string str;
             auto range = it->frames;
@@ -552,7 +552,7 @@ void InfoCard::update() {
             
             std::string tt;
             if(display_hints) {
-                const ShadowSegment& ptr = *it;
+                const ShadowTracklet& ptr = *it;
                 auto bitset = ptr.error_code;
                 if(ptr.error_code != std::numeric_limits<decltype(ptr.error_code)>::max()) {
                     size_t i=0;
@@ -573,7 +573,7 @@ void InfoCard::update() {
                 
                 tt = "Segment "+Meta::toStr(ptr.frames)+" ended because:"+tt;
             }
-            segment_texts.push_back({text, tt});
+            tracklet_texts.push_back({text, tt});
             
             if(it->frames.start() == current_segment) {
                 bool inside = it->frames.contains(_shadow->frame);
@@ -583,9 +583,9 @@ void InfoCard::update() {
         }
     };
     
-    add_segments(true, _shadow->segments, 0);
+    add_segments(true, _shadow->tracklets, 0);
     if(_shadow->has_vi_predictions)
-        add_segments(false, _shadow->rec_segments, 200);
+        add_segments(false, _shadow->rec_tracklets, 200);
     
     static bool first = true;
     
@@ -595,12 +595,12 @@ void InfoCard::update() {
             auto next_frame = cache.frame_idx;
             if(cache.has_selection()) {
                 LockGuard guard(ro_t{}, "InfoCard::update->prev->on_click");
-                auto segment = cache.primary_selection()->get_segment(next_frame);
+                auto tracklet = cache.primary_selection()->get_tracklet(next_frame);
                 
-                if(next_frame == segment.start())
-                    next_frame = cache.primary_selection()->get_segment(segment.start() - 1_f).start();
+                if(next_frame == tracklet.start())
+                    next_frame = cache.primary_selection()->get_tracklet(tracklet.start() - 1_f).start();
                 else
-                    next_frame = segment.start();
+                    next_frame = tracklet.start();
             }
             
             if(!next_frame.valid())
@@ -615,11 +615,11 @@ void InfoCard::update() {
             auto next_frame = cache.frame_idx;
             if(cache.has_selection()) {
                 LockGuard guard(ro_t{}, "InfoCard::update->next->on_click");
-                auto segment = cache.primary_selection()->get_segment(next_frame);
-                if(segment.start().valid()) {
-                    auto it = cache.primary_selection()->find_segment_with_start(segment.start());
+                auto tracklet = cache.primary_selection()->get_tracklet(next_frame);
+                if(tracklet.start().valid()) {
+                    auto it = cache.primary_selection()->find_tracklet_with_start(tracklet.start());
                     ++it;
-                    if(it == cache.primary_selection()->frame_segments().end()) {
+                    if(it == cache.primary_selection()->tracklets().end()) {
                         next_frame.invalidate();
                     } else {
                         next_frame = (*it)->start();
@@ -786,7 +786,7 @@ void InfoCard::update() {
         y += text->height();
         max_w = max(max_w, 10 + text->width() + text->pos().x);
         
-        text = add<Text>(Str(Meta::toStr(_shadow->recognition_segment)), Loc(10, y), TextClr(220,220,220,255), Font(0.8f, Style::Italic));
+        text = add<Text>(Str(Meta::toStr(_shadow->recognition_tracklet)), Loc(10, y), TextClr(220,220,220,255), Font(0.8f, Style::Italic));
         y += text->height();
         max_w = max(max_w, 10 + text->width() + text->pos().x);
         
@@ -856,7 +856,7 @@ void InfoCard::update() {
         
         if(fdx.valid()) {
             if(_shadow->fdx != fdx) {
-                segment_texts.clear();
+                tracklet_texts.clear();
                 previous = {};
                 
                 /*if(_fish) {

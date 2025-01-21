@@ -96,7 +96,7 @@ protected:
     CacheHints _properties_cache;
     CacheHints& properties_cache() { return _properties_cache; }
     
-    std::vector<Range<Frame_t>> _global_segment_order;
+    std::vector<Range<Frame_t>> _global_tracklet_order;
     
     mutable std::mutex _statistics_mutex;
     
@@ -128,8 +128,8 @@ protected:
 public:
     static Background* background() { return instance()->_background; }
     
-    ska::bytell_hash_map<Idx_t, Individual::segment_map::const_iterator> _individual_add_iterator_map;
-    ska::bytell_hash_map<Idx_t, size_t> _segment_map_known_capacity;
+    ska::bytell_hash_map<Idx_t, Individual::tracklet_map::const_iterator> _individual_add_iterator_map;
+    ska::bytell_hash_map<Idx_t, size_t> _tracklet_map_known_capacity;
     std::vector<IndividualStatus> _warn_individual_status;
     
 public:
@@ -174,7 +174,7 @@ private:
     
     CallbackManagerImpl<void> _delete_frame_callbacks;
     CallbackManagerImpl<Frame_t> _add_frame_callbacks;
-    static inline std::atomic<bool> _segment_order_changed{false};
+    static inline std::atomic<bool> _tracklet_order_changed{false};
     
 public:
     /**
@@ -246,12 +246,12 @@ public:
     
     Frame_t update_with_manual_matches(const Settings::manual_matches_t& manual_matches);
 
-    std::vector<Range<Frame_t>> global_segment_order();
-    void global_segment_order_changed();
-    std::vector<Range<Frame_t>> unsafe_global_segment_order() const;
+    std::vector<Range<Frame_t>> global_tracklet_order();
+    void global_tracklet_order_changed();
+    std::vector<Range<Frame_t>> unsafe_global_tracklet_order() const;
 
-    void check_segments_identities(bool auto_correct, IdentitySource, std::function<void(float)> callback, const std::function<void(const std::string&, const std::function<void()>&, const std::string&)>& add_to_queue = [](auto,auto,auto){}, Frame_t after_frame = {});
-    void clear_segments_identities();
+    void check_tracklets_identities(bool auto_correct, IdentitySource, std::function<void(float)> callback, const std::function<void(const std::string&, const std::function<void()>&, const std::string&)>& add_to_queue = [](auto,auto,auto){}, Frame_t after_frame = {});
+    void clear_tracklets_identities();
 
     void prepare_shutdown();
     
@@ -271,7 +271,7 @@ public:
     
 protected:
     void update_consecutive(const set_of_individuals_t& active, Frame_t frameIndex, bool update_dataset = false);
-    void update_warnings(Frame_t frameIndex, double time, long_t number_fish, long_t n_found, long_t n_prev, const FrameProperties *props, const FrameProperties *prev_props, const set_of_individuals_t& active_individuals, ska::bytell_hash_map<Idx_t, Individual::segment_map::const_iterator>& individual_iterators);
+    void update_warnings(Frame_t frameIndex, double time, long_t number_fish, long_t n_found, long_t n_prev, const FrameProperties *props, const FrameProperties *prev_props, const set_of_individuals_t& active_individuals, ska::bytell_hash_map<Idx_t, Individual::tracklet_map::const_iterator>& individual_iterators);
     
 private:
     static void filter_blobs(PPFrame& frame, GenericThreadPool *pool);
@@ -293,7 +293,7 @@ private:
           std::move_iterator<std::vector<pv::BlobPtr>::iterator> it,
           std::move_iterator<std::vector<pv::BlobPtr>::iterator> end);
     
-    void update_iterator_maps(Frame_t frame, const set_of_individuals_t& active_individuals, ska::bytell_hash_map<Idx_t, Individual::segment_map::const_iterator>& individual_iterators);
+    void update_iterator_maps(Frame_t frame, const set_of_individuals_t& active_individuals, ska::bytell_hash_map<Idx_t, Individual::tracklet_map::const_iterator>& individual_iterators);
     void collect_matching_cliques(TrackingHelper& s, GenericThreadPool& thread_pool);
     static Match::PairedProbabilities calculate_paired_probabilities
      (

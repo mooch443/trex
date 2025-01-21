@@ -67,7 +67,7 @@ namespace cmn::gui {
             });
 
             _status_text2.on_click([](auto) {
-                SETTING(gui_frame) = _frame_info->global_segment_order.empty() ? Frame_t(0u) : _frame_info->global_segment_order.front().start;
+                SETTING(gui_frame) = _frame_info->global_tracklet_order.empty() ? Frame_t(0u) : _frame_info->global_tracklet_order.front().start;
             });
             _status_text2.on_hover([this](auto) {
                 _status_text2.set_dirty();
@@ -110,7 +110,7 @@ namespace cmn::gui {
             }
             
             std::stringstream number;
-            decltype(_frame_info->global_segment_order) segments;
+            decltype(_frame_info->global_tracklet_order) segments;
             decltype(segments)::value_type consec;
             std::vector<Range<Frame_t>> other_consec;
             
@@ -136,12 +136,12 @@ namespace cmn::gui {
                 _status_text.set_txt(number.str());
                 number.str("");
 
-                segments = _frame_info->global_segment_order;
-                consec = segments.empty() ? Range<Frame_t>({}, {}) : segments.front();
+                segments = _frame_info->global_tracklet_order;
+                consec = tracklets.empty() ? Range<Frame_t>({}, {}) :tracklets..front();
                 
-                if (segments.size() > 1) {
-                    for (size_t i = 0; i < 3 && i < segments.size(); ++i) {
-                        other_consec.push_back(segments.at(i));
+                if (tracklets.size() > 1) {
+                    for (size_t i = 0; i < 3 && i < tracklets.size(); ++i) {
+                        other_consec.push_back(tracklets.at(i));
                     }
                 }
                 number << "consec: " << consec.start.toStr() << "-" << consec.end.toStr() << " (" << (consec.start.valid() ? consec.end - consec.start : Frame_t()).toStr() << ")";
@@ -727,7 +727,7 @@ void Timeline::update_consecs(float max_w, const Range<Frame_t>& consec, const s
 
                             //_frame_info->training_ranges = _tracker->recognition() ? _tracker->recognition()->trained_ranges() : std::set<Range<Frame_t>>{};
                             _frame_info->consecutive = _tracker->consecutive();
-                            _frame_info->global_segment_order = track::Tracker::global_segment_order();
+                            _frame_info->global_tracklet_order = track::Tracker::global_tracklet_order();
 
                             if (props
                                 && tracker_startframe.load().valid()

@@ -364,7 +364,7 @@ def predict():
 def start_learning():
     global image_channels
     global best_accuracy_worst_class, max_epochs, image_width, image_height, update_work_percent
-    global output_path, classes, learning_rate, accumulation_step, global_segment, verbosity
+    global output_path, classes, learning_rate, accumulation_step, global_tracklet, verbosity
     global batch_size, X_val, Y_val, X, Y, run_training, save_weights_after, do_save_training_images, min_iterations
 
     #batch_size = int(max(batch_size * 2, 64))
@@ -387,7 +387,7 @@ def start_learning():
         "classes": np.array(classes,dtype=int),
         "learning_rate": learning_rate,
         "accumulation_step": accumulation_step,
-        "global_segment": np.array(global_segment, dtype=int),
+        "global_tracklet": np.array(global_tracklet, dtype=int),
         "per_epoch" : -1,
         "min_iterations": min_iterations,
         "verbosity": verbosity

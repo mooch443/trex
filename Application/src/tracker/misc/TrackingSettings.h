@@ -104,7 +104,7 @@ CREATE_STRUCT(Settings,
   (float, grid_points_scaling),
   (std::vector<std::vector<Vec2>>, track_ignore),
   (std::vector<std::vector<Vec2>>, track_include),
-  (bool, huge_timestamp_ends_segment),
+  (bool, tracklet_punish_timedelta),
   (double, huge_timestamp_seconds),
   (mapproved_t, manually_approved),
   (float, track_speed_decay),
@@ -120,7 +120,7 @@ CREATE_STRUCT(Settings,
   (float, visual_field_eye_offset),
   (float, visual_field_eye_separation),
   (uint8_t, visual_field_history_smoothing),
-  (bool, track_end_segment_for_speed),
+  (bool, tracklet_punish_speeding),
   (default_config::matching_mode_t::Class, match_mode),
   (bool, track_do_history_split),
   (uint8_t, posture_closing_steps),
@@ -128,14 +128,14 @@ CREATE_STRUCT(Settings,
   (float, individual_image_scale),
   (bool, track_pause),
   (Float2_t, track_trusted_probability),
-  (Float2_t, recognition_segment_add_factor),
+  (Float2_t, accumulation_tracklet_add_factor),
   (bool, output_interpolate_positions),
   (bool, track_consistent_categories),
   (std::vector<std::string>, categories_ordered),
   (std::vector<std::string>, track_only_categories),
   (std::vector<std::string>, track_only_classes),
   (Float2_t, track_conf_threshold),
-  (float, track_segment_max_length),
+  (float, tracklet_max_length),
   (Size2, individual_image_size),
   (uint32_t, categories_min_sample_images),
   (cmn::meta_encoding_t::Class, meta_encoding),
@@ -162,10 +162,10 @@ struct slow {
     DEF_SLOW_SETTINGS(track_enforce_frame_rate);
     
     DEF_SLOW_SETTINGS(track_trusted_probability);
-    DEF_SLOW_SETTINGS(huge_timestamp_ends_segment);
+    DEF_SLOW_SETTINGS(tracklet_punish_timedelta);
     DEF_SLOW_SETTINGS(huge_timestamp_seconds);
-    DEF_SLOW_SETTINGS(track_end_segment_for_speed);
-    DEF_SLOW_SETTINGS(track_segment_max_length);
+    DEF_SLOW_SETTINGS(tracklet_punish_speeding);
+    DEF_SLOW_SETTINGS(tracklet_max_length);
     
     DEF_SLOW_SETTINGS(posture_direction_smoothing);
 };

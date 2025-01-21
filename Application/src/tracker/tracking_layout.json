@@ -122,7 +122,7 @@
                                             {
                                                 "type":"button",
                                                 "text":"<sym>🗘</sym> unassign entire segment",
-                                                "action":"remove_automatic_matches:{primary_selection.fdx}:{primary_selection.segment}",
+                                                "action":"remove_automatic_matches:{primary_selection.fdx}:{primary_selection.tracklet}",
                                                 "font":{"size":0.5},
                                                 "size":[210,25],
                                                 "fill":"{if:{||:{selected}:{hovered}}:[20,20,20,200]:[10,10,10,200]}",
@@ -132,7 +132,7 @@
                                             {
                                                 "type":"button",
                                                 "text":"<sym>⇰</sym> unassign from here",
-                                                "action":"remove_automatic_matches:{primary_selection.fdx}:[{global.gui_frame},{at:1:{primary_selection.segment}}]",
+                                                "action":"remove_automatic_matches:{primary_selection.fdx}:[{global.gui_frame},{at:1:{primary_selection.tracklet}}]",
                                                 "font":{"size":0.5},
                                                 "size":[210,25],
                                                 "fill":"{if:{||:{selected}:{hovered}}:[20,20,20,200]:[10,10,10,200]}",
@@ -862,8 +862,8 @@
                             "var":"{&&:{hovered:timeline}:{is_segment:{smart_highlighted}}}",
                             "then":{
                                 "type":"rect",
-                                "pos":"[{+:10:{*:{/:{at:0:{get_segment:{smart_highlighted}}}:{length}}:{width}}},-9]",
-                                "size":"[{*:{/:{-:{at:1:{get_segment:{smart_highlighted}}}:{at:0:{get_segment:{smart_highlighted}}}}:{length}}:{width}},28]",
+                                "pos":"[{+:10:{*:{/:{at:0:{get_tracklet:{smart_highlighted}}}:{length}}:{width}}},-9]",
+                                "size":"[{*:{/:{-:{at:1:{get_tracklet:{smart_highlighted}}}:{at:0:{get_tracklet:{smart_highlighted}}}}:{length}}:{width}},28]",
                                 "fill":[200,200,200,100],
                                 "line":[150,150,150,150]
                             }
@@ -963,7 +963,7 @@
                                     {
                                         "type":"stext",
                                         "pad":[5,5,5,5],
-                                        "text":"{if:{is_segment:{smart_highlighted}}:'<b>{.get_segment:{smart_highlighted}}</b>':'<i>no global segment</i>'}\n{if:{number_individuals}:{number_individuals} {global.individual_prefix}{if:{>:{number_individuals}:1}:s:''}:''}",
+                                        "text":"{if:{is_segment:{smart_highlighted}}:'<b>{.get_tracklet:{smart_highlighted}}</b>':'<i>no global segment</i>'}\n{if:{number_individuals}:{number_individuals} {global.individual_prefix}{if:{>:{number_individuals}:1}:s:''}:''}",
                                         "font":{"size":0.6}
                                     }
                                 ]

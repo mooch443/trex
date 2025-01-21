@@ -155,10 +155,10 @@ void TrainingData::add_frame(std::shared_ptr<TrainingData::DataRange> data, Fram
     auto &obj = data->mappings[id];
     //assert(obj.frame_indexes.empty() || obj.frame_indexes.back() < frame_index);
     
-    if(_included_segments.find(id) == _included_segments.end())
-        _included_segments[id] = {};
-    if(_included_segments.at(id).find(from_range) == _included_segments.at(id).end()) {
-        _included_segments.at(id).insert(from_range);
+    if(_included_tracklets.find(id) == _included_tracklets.end())
+        _included_tracklets[id] = {};
+    if(_included_tracklets.at(id).find(from_range) == _included_tracklets.at(id).end()) {
+        _included_tracklets.at(id).insert(from_range);
     }
     
     obj.images.push_back(image);
@@ -199,7 +199,7 @@ void TrainingData::apply_mapping(const std::map<Idx_t, Idx_t>& mapping) {
             throw U_EXCEPTION("Cannot map salty data.");
         
         if(!data->applied_mapping.empty()) {
-            auto str = Meta::toStr(_included_segments);
+            auto str = Meta::toStr(_included_tracklets);
             throw U_EXCEPTION("Cannot apply two mappings to range ",str,".");
         }
         
@@ -517,8 +517,8 @@ void TrainingData::merge_with(std::shared_ptr<TrainingData> other, bool unmap_ev
         
         for(auto && [id, per] : new_ptr->mappings) {
             for(auto &range : per.ranges) {
-                if(_included_segments[id].find(range) == _included_segments[id].end()) {
-                    _included_segments.at(id).insert(range);
+                if(_included_tracklets[id].find(range) == _included_tracklets[id].end()) {
+                    _included_tracklets.at(id).insert(range);
                 }
             }
         }
@@ -1043,7 +1043,7 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
             auto fit = available_images[id].find(frame);
             if(fit != available_images[id].end()) {
                 auto it = fish->iterator_for(frame);
-                if(it == fish->frame_segments().end())
+                if(it == fish->tracklets().end())
                     return true;
                 
                 auto&& [ID, image] = fit->second;
@@ -1091,7 +1091,7 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
                 : FilterCache();
             
             auto it = fish->iterator_for(frame);
-            if(it == fish->frame_segments().end())
+            if(it == fish->tracklets().end())
                 return;
             
             auto bidx = (*it)->basic_stuff(frame);

@@ -121,11 +121,11 @@ protected:
     Image::Ptr _raw_coverage;
     std::shared_ptr<pv::File> _video{nullptr};
     gui::IMGUIBase* _base{nullptr};
-    std::vector<Range<Frame_t>> _global_segment_order;
+    std::vector<Range<Frame_t>> _global_tracklet_order;
     cmn::gui::GUITaskQueue_t* _gui{nullptr};
     
 public:
-    Accumulation(cmn::gui::GUITaskQueue_t*, std::shared_ptr<pv::File>&& video, std::vector<Range<Frame_t>>&& global_segment_order, gui::IMGUIBase* base, TrainingMode::Class);
+    Accumulation(cmn::gui::GUITaskQueue_t*, std::shared_ptr<pv::File>&& video, std::vector<Range<Frame_t>>&& global_tracklet_order, gui::IMGUIBase* base, TrainingMode::Class);
     ~Accumulation();
     bool start();
 
@@ -164,7 +164,7 @@ public:
     static void on_terminate();
     
     static float good_uniqueness();
-    static std::map<Frame_t, std::set<Idx_t>> generate_individuals_per_frame(const Range<Frame_t>& range, TrainingData* data, std::map<Idx_t, std::set<std::shared_ptr<SegmentInformation>>>*);
+    static std::map<Frame_t, std::set<Idx_t>> generate_individuals_per_frame(const Range<Frame_t>& range, TrainingData* data, std::map<Idx_t, std::set<std::shared_ptr<TrackletInformation>>>*);
     std::tuple<bool, std::map<Idx_t, Idx_t>> check_additional_range(const Range<Frame_t>& range, TrainingData& data, bool check_length, DatasetQuality::Quality);
     void confirm_weights();
     void update_coverage(const TrainingData& data);
@@ -179,7 +179,7 @@ private:
     
     Range<Frame_t> _initial_range;
     std::map<Frame_t, std::set<Idx_t>> individuals_per_frame;
-    //std::map<long_t, std::set<std::shared_ptr<SegmentInformation>>> overall_coverage;
+    //std::map<long_t, std::set<std::shared_ptr<TrackletInformation>>> overall_coverage;
     std::vector<Range<Frame_t>> _added_ranges;
     std::vector<Range<Frame_t>> _next_ranges;
     float current_best;

@@ -203,7 +203,7 @@ bool TrackingState::stage_1(ConnectedTasks::Type && ptr) {
         
         static Timer last_added;
         if(last_added.elapsed() > 10) {
-            tracker->global_segment_order();
+            tracker->global_tracklet_order();
             last_added.reset();
         }
         
@@ -386,7 +386,7 @@ void TrackingState::on_tracking_done() {
     WorkProgress::add_queue("", [this](){
         analysis.set_paused(true).get();
         
-        tracker->global_segment_order();
+        tracker->global_tracklet_order();
         track::DatasetQuality::update();
         
         // tracking has ended
@@ -808,7 +808,7 @@ std::future<void> TrackingState::load_state(GUITaskQueue_t* gui, file::Path from
             }
             
             WorkProgress::add_queue("", [this](){
-                Tracker::instance()->check_segments_identities(false, IdentitySource::VisualIdent, [](float ) { },
+                Tracker::instance()->check_tracklets_identities(false, IdentitySource::VisualIdent, [](float ) { },
                 [](const std::string&t, const std::function<void()>& fn, const std::string&b)
                 {
                     WorkProgress::add_queue(t, fn, b);

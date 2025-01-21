@@ -310,7 +310,7 @@ Accumulation* Accumulation::current() {
 std::map<Frame_t, std::set<Idx_t>> Accumulation::generate_individuals_per_frame(
         const Range<Frame_t>& range,
         TrainingData* data,
-        std::map<Idx_t, std::set<std::shared_ptr<SegmentInformation>>>* coverage)
+        std::map<Idx_t, std::set<std::shared_ptr<TrackletInformation>>>* coverage)
 {
     LockGuard guard(ro_t{}, "Accumulation::generate_individuals_per_frame");
     std::map<Frame_t, std::set<Idx_t>> individuals_per_frame;
@@ -324,46 +324,46 @@ std::map<Frame_t, std::set<Idx_t>> Accumulation::generate_individuals_per_frame(
         
         Range<Frame_t> overall_range(range);
         
-        auto frange = fish->get_segment(range.start);
+        auto frange = fish->get_tracklet(range.start);
         if(frange.contains(range.start)) {
             overall_range.start = min(range.start, frange.range.start);
             overall_range.end = max(range.end, frange.range.end);
         }
         
-        frange = fish->get_segment(range.end);
+        frange = fish->get_tracklet(range.end);
         if(frange.contains(range.end)) {
             overall_range.start = min(overall_range.start, frange.range.start);
             overall_range.end = max(overall_range.end, frange.range.end);
         }
         
-        std::set<std::shared_ptr<SegmentInformation>> used_segments;
-        std::shared_ptr<SegmentInformation> current_segment;
+        std::set<std::shared_ptr<TrackletInformation>> used_tracklets;
+        std::shared_ptr<TrackletInformation> current_tracklet;
         
-        fish->iterate_frames(overall_range, [&individuals_per_frame, id=id, &used_segments, &current_segment, calculate_posture]
+        fish->iterate_frames(overall_range, [&individuals_per_frame, id=id, &used_tracklets, &current_tracklet, calculate_posture]
             (Frame_t frame,
-             const std::shared_ptr<SegmentInformation>& segment,
+             const std::shared_ptr<TrackletInformation>& tracklet,
              auto basic,
              auto posture)
                 -> bool
         {
             if(basic && (posture || !calculate_posture)) {
                 individuals_per_frame[frame].insert(id);
-                if(segment != current_segment) {
-                    used_segments.insert(segment);
-                    current_segment = segment;
+                if(tracklet != current_tracklet) {
+                    used_tracklets.insert(tracklet);
+                    current_tracklet = tracklet;
                 }
             }
             return true;
         });
         
         if(data) {
-            for(auto &segment : used_segments) {
-                data->filters().set(id, *segment, *constraints::local_midline_length(fish, segment->range, false));
+            for(auto &tracklet : used_tracklets) {
+                data->filters().set(id, *tracklet, *constraints::local_midline_length(fish, tracklet->range, false));
             }
         }
         
         if(coverage)
-            (*coverage)[Idx_t(id)].insert(used_segments.begin(), used_segments.end());
+            (*coverage)[Idx_t(id)].insert(used_tracklets.begin(), used_tracklets.end());
     });
     
     /*std::map<long_t, long_t> lengths;
@@ -384,7 +384,7 @@ std::tuple<bool, std::map<Idx_t, Idx_t>> Accumulation::check_additional_range(co
         LockGuard guard(ro_t{}, "Accumulation::generate_training_data");
         gui::WorkInstance generating_images("generating images");
         
-        std::map<Idx_t, std::set<std::shared_ptr<SegmentInformation>>> segments;
+        std::map<Idx_t, std::set<std::shared_ptr<TrackletInformation>>> segments;
         auto coverage = generate_individuals_per_frame(range, &data, &segments);
         
         if(check_length) {
@@ -474,7 +474,7 @@ std::tuple<bool, std::map<Idx_t, Idx_t>> Accumulation::check_additional_range(co
     }
     
     if(unique_ids.size() + 1 == FAST_SETTING(track_max_individuals)
-       && min_prob > pure_chance * FAST_SETTING(recognition_segment_add_factor))
+       && min_prob > pure_chance * FAST_SETTING(accumulation_tracklet_add_factor))
     {
         Print("\tOnly one missing id in predicted ids. Guessing solution...");
         
@@ -528,7 +528,7 @@ std::tuple<bool, std::map<Idx_t, Idx_t>> Accumulation::check_additional_range(co
     }
     
     if(unique_ids.size() == FAST_SETTING(track_max_individuals)
-       && min_prob > pure_chance * FAST_SETTING(recognition_segment_add_factor))
+       && min_prob > pure_chance * FAST_SETTING(accumulation_tracklet_add_factor))
     {
         Print("\t[+] Dataset range (",range.start,"-",range.end,", ",quality,") is acceptable for training with assignments: ",max_indexes);
         
@@ -538,9 +538,9 @@ std::tuple<bool, std::map<Idx_t, Idx_t>> Accumulation::check_additional_range(co
         Print(str.c_str());
         return {true, {}};
         
-    } else if(min_prob <= pure_chance * FAST_SETTING(recognition_segment_add_factor))
+    } else if(min_prob <= pure_chance * FAST_SETTING(accumulation_tracklet_add_factor))
     {
-        auto str = format<FormatterType::NONE>("\t[-] Dataset range (", range,", ", quality,") minimal class-probability ", min_prob," is lower than ", pure_chance * FAST_SETTING(recognition_segment_add_factor),".");
+        auto str = format<FormatterType::NONE>("\t[-] Dataset range (", range,", ", quality,") minimal class-probability ", min_prob," is lower than ", pure_chance * FAST_SETTING(accumulation_tracklet_add_factor),".");
         end_a_step(MakeResult<AccumulationStatus::Cached, AccumulationReason::ProbabilityTooLow>(range, str));
         Print(str.c_str());
         return {true, {}};
@@ -637,7 +637,7 @@ std::tuple<std::shared_ptr<TrainingData>, std::vector<Image::SPtr>, std::map<Fra
                 auto bounds = blob->calculate_bounds();
                 if(Tracker::instance()->border().in_recognition_bounds(bounds.center()))
                 {
-                    auto frange = fish->get_segment(frame);
+                    auto frange = fish->get_tracklet(frame);
                     if(frange.contains(frame)) {
                         if(!data->filters().has(Idx_t(id), frange)) {
                             data->filters().set(Idx_t(id), frange,  *constraints::local_midline_length(fish, frame, false));
@@ -760,7 +760,7 @@ std::tuple<float, hash_map<Frame_t, float>, float> Accumulation::calculate_uniqu
     
     Print("Good: ", good_frames," Bad: ", bad_frames," ratio: ", float(good_frames) / float(good_frames + bad_frames),
         " (", percentages / double(unique_percent.size()), " / ", rpercentages / double(unique_percent_raw.size()), "). "
-        "Hoping for at least ", SETTING(gpu_accepted_uniqueness).value<float>(), ". In ", good_timer.elapsed(),"s");
+        "Hoping for at least ", SETTING(accumulation_sufficient_uniqueness).value<float>(), ". In ", good_timer.elapsed(),"s");
     
     return {float(good_frames) / float(good_frames + bad_frames), unique_percent, percentages / double(unique_percent.size())};
 }
@@ -773,7 +773,7 @@ float Accumulation::good_uniqueness() {
     return max(0.9, (float(FAST_SETTING(track_max_individuals)) - 0.5f) / float(FAST_SETTING(track_max_individuals)));
 }
 
-Accumulation::Accumulation(cmn::gui::GUITaskQueue_t* gui, std::shared_ptr<pv::File>&& video, std::vector<Range<Frame_t>>&& global_segment_order, gui::IMGUIBase* base, TrainingMode::Class mode) : _mode(mode), _accumulation_step(0), _counted_steps(0), _last_step(1337), _video(std::move(video)), _base(base), _global_segment_order(global_segment_order), _gui(gui) {
+Accumulation::Accumulation(cmn::gui::GUITaskQueue_t* gui, std::shared_ptr<pv::File>&& video, std::vector<Range<Frame_t>>&& global_tracklet_order, gui::IMGUIBase* base, TrainingMode::Class mode) : _mode(mode), _accumulation_step(0), _counted_steps(0), _last_step(1337), _video(std::move(video)), _base(base), _global_tracklet_order(global_tracklet_order), _gui(gui) {
     using namespace gui;
     _textarea = std::make_shared<StaticText>(SizeLimit{700,180}, TextClr(150,150,150,255), Font(0.6));
 }
@@ -810,15 +810,15 @@ bool Accumulation::start() {
     /// Used for some utility functions (static callbacks from python).
     AccumulationLock lock(this);
     
-    auto ranges = _global_segment_order;
+    auto ranges = _global_tracklet_order;
     if(ranges.empty()) {
         throw SoftException("No global segments could be found.");
     }
     
     _initial_range = ranges.front();
     
-    if(SETTING(gpu_accepted_uniqueness).value<float>() == 0) {
-        SETTING(gpu_accepted_uniqueness) = good_uniqueness();
+    if(SETTING(accumulation_sufficient_uniqueness).value<float>() == 0) {
+        SETTING(accumulation_sufficient_uniqueness) = good_uniqueness();
     }
     
     Accumulation::setup();
@@ -952,7 +952,7 @@ bool Accumulation::start() {
     if(is_in(_mode, TrainingMode::Restart, TrainingMode::Continue)) {
         // save validation data
         if(_mode == TrainingMode::Restart
-           && SETTING(recognition_save_training_images))
+           && SETTING(visual_identification_save_images))
         {
             try {
                 auto data = _collected_data->join_split_data();
@@ -1016,7 +1016,7 @@ bool Accumulation::start() {
         });
         
         try {
-            _network->train(_collected_data, FrameRange(_initial_range), _mode, SETTING(gpu_max_epochs).value<uchar>(), true, &uniqueness_after, SETTING(gpu_enable_accumulation) ? 0 : -1);
+            _network->train(_collected_data, FrameRange(_initial_range), _mode, SETTING(gpu_max_epochs).value<uchar>(), true, &uniqueness_after, SETTING(accumulation_enable) ? 0 : -1);
         
         } catch(...) {
             auto text = "["+std::string(_mode.name())+"] Initial training failed. Cannot continue to accumulate.";
@@ -1057,12 +1057,12 @@ bool Accumulation::start() {
     if(it != ranges.end())
         ranges.erase(it);
     
-    const float good_uniqueness = SETTING(gpu_accepted_uniqueness).value<float>();//this->good_uniqueness();
+    const float good_uniqueness = SETTING(accumulation_sufficient_uniqueness).value<float>();//this->good_uniqueness();
     auto analysis_range = Tracker::analysis_range();
     
     if(!ranges.empty()
        && is_in(_mode, TrainingMode::Continue, TrainingMode::Restart)
-       && SETTING(gpu_enable_accumulation)
+       && SETTING(accumulation_enable)
        && best_uniqueness() < good_uniqueness)
     {
         DebugHeader("Beginning accumulation from ",ranges.size()," ranges in training mode ", _mode.name(),".");
@@ -1198,16 +1198,16 @@ bool Accumulation::start() {
                 }
             }
             
-            const uint32_t gpu_accumulation_max_segments = SETTING(gpu_accumulation_max_segments);
+            const uint32_t accumulation_max_tracklets = SETTING(accumulation_max_tracklets);
             
             size_t retained = inserted_elements;
             
-            if(inserted_elements > gpu_accumulation_max_segments) {
-                Print("Reducing global segments array by ", inserted_elements - gpu_accumulation_max_segments," elements (to reach gpu_accumulation_max_segments limit = ",gpu_accumulation_max_segments,").");
+            if(inserted_elements > accumulation_max_tracklets) {
+                Print("Reducing global segments array by ", inserted_elements - accumulation_max_tracklets," elements (to reach accumulation_max_tracklets limit = ",accumulation_max_tracklets,").");
                 
                 retained = 0;
                 for(auto && [end, queue] : sorted_by_quality) {
-                    const double maximum_per_quadrant = ceil(gpu_accumulation_max_segments / double(sorted_by_quality.size()));
+                    const double maximum_per_quadrant = ceil(accumulation_max_tracklets / double(sorted_by_quality.size()));
                     if(queue.size() > maximum_per_quadrant) {
                         auto start = queue.begin();
                         auto end = start;
@@ -1520,7 +1520,7 @@ bool Accumulation::start() {
         }
         
         if(sorted.empty() && available_ranges > 0 && successful_ranges == 0) {
-            const char* text = "Did not find enough consecutive segments to train on. This likely means that your tracking parameters are not properly adjusted - try changing parameters such as `track_size_filter` in coordination with `track_threshold` to get cleaner trajectories. Additionally, changing the waiting time until animals are reassigned to arbitrary blobs (`track_max_reassign_time`) can help. None predicted unique IDs. Have to start training from a different segment.";
+            const char* text = "Did not find enough tracklets to train on. This likely means that your tracking parameters are not properly adjusted - try changing parameters such as `track_size_filter` in coordination with `track_threshold` to get cleaner trajectories. Additionally, changing the waiting time until animals are reassigned to arbitrary blobs (`track_max_reassign_time`) can help. None predicted unique IDs. Have to start training from a different segment.";
             if(SETTING(auto_train_on_startup)) {
                 throw U_EXCEPTION(text);
             } else {
@@ -1588,7 +1588,7 @@ bool Accumulation::start() {
     if((//GUI::instance() &&
         !gui::WorkProgress::item_aborted()
         && !gui::WorkProgress::item_custom_triggered())
-       && SETTING(gpu_accumulation_enable_final_step))
+       && SETTING(accumulation_enable_final_step))
     {
         std::map<Idx_t, size_t> images_per_class;
         size_t overall_images = 0;
@@ -1711,7 +1711,7 @@ bool Accumulation::start() {
                             : FilterCache();
                         
                         auto it = fish->iterator_for(frame);
-                        if(it == fish->frame_segments().end())
+                        if(it == fish->tracklets().end())
                             return;
                         
                         auto bidx = (*it)->basic_stuff(frame);
@@ -2068,7 +2068,7 @@ void Accumulation::update_display(gui::Entangled &e, const std::string& text) {
             //float previous = accepted_uniqueness();
             size_t i=0;
             const Font font(0.55f, Style::Monospace, Align::Center);
-            const float terminal_uniqueness = SETTING(gpu_accepted_uniqueness).value<float>();
+            const float terminal_uniqueness = SETTING(accumulation_sufficient_uniqueness).value<float>();
             const float best_uniqueness = this->best_uniqueness();
             const float accepted_uniqueness = this->accepted_uniqueness(best_uniqueness);
             

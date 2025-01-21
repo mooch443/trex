@@ -20,7 +20,7 @@
 #include <tracking/PPFrame.h>
 #include <misc/ranges.h>
 #include <tracking/Stuffs.h>
-#include <tracking/SegmentInformation.h>
+#include <tracking/TrackletInformation.h>
 
 #include <misc/Identity.h>
 
@@ -59,7 +59,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
 
     template<typename Iterator, typename T>
         requires _is_smart_pointer<typename Iterator::value_type>
-    Iterator find_frame_in_sorted_segments(Iterator start, Iterator end, T object, typename std::enable_if< !is_pair<typename Iterator::value_type>::value, void* >::type = nullptr) {
+    Iterator find_frame_in_sorted_tracklets(Iterator start, Iterator end, T object, typename std::enable_if< !is_pair<typename Iterator::value_type>::value, void* >::type = nullptr) {
         if(start != end) {
             auto it = std::upper_bound(start, end, object, [](T o, const auto& ptr) -> bool {
                 return o < ptr->start();
@@ -76,7 +76,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
 
     template<typename Iterator, typename T>
         requires (!_is_smart_pointer<typename Iterator::value_type>)
-    Iterator find_frame_in_sorted_segments(Iterator start, Iterator end, T object, typename std::enable_if< !is_pair<typename Iterator::value_type>::value, void* >::type = nullptr) {
+    Iterator find_frame_in_sorted_tracklets(Iterator start, Iterator end, T object, typename std::enable_if< !is_pair<typename Iterator::value_type>::value, void* >::type = nullptr) {
         if(start != end) {
             auto it = std::upper_bound(start, end, object, [](T o, const auto& ptr) -> bool {
                 return o < ptr.frames.start();
@@ -92,7 +92,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
     }
 
     template<typename Iterator, typename T>
-    Iterator find_frame_in_sorted_segments(Iterator start, Iterator end, T object, typename std::enable_if< is_pair<typename Iterator::value_type>::value, void* >::type = nullptr) {
+    Iterator find_frame_in_sorted_tracklets(Iterator start, Iterator end, T object, typename std::enable_if< is_pair<typename Iterator::value_type>::value, void* >::type = nullptr) {
         if(start != end) {
             auto it = std::upper_bound(start, end, object, [](T o, const auto& ptr) -> bool {
                 return o < ptr.first;
@@ -162,18 +162,18 @@ constexpr std::array<const char*, 8> ReasonsNames {
         
         //! A frame index is pushed here, if the previous frame was not the current frame - 1 (e.g. frames are missing)
     public:
-        using segment_map = std::vector<std::shared_ptr<SegmentInformation>>;
-        segment_map::const_iterator find_segment_with_start(Frame_t frame) const;
-        using small_segment_map = std::map<Frame_t, FrameRange>;
+        using tracklet_map = std::vector<std::shared_ptr<TrackletInformation>>;
+        tracklet_map::const_iterator find_tracklet_with_start(Frame_t frame) const;
+        using small_tracklet_map = std::map<Frame_t, FrameRange>;
         
     protected:
-        GETTER(segment_map, frame_segments);
-        GETTER(small_segment_map, recognition_segments);
+        GETTER(tracklet_map, tracklets);
+        GETTER(small_tracklet_map, recognition_tracklets);
         
         //! Contains a map with individual -> probability for the blob that has been
         //  assigned to this individual.
-        std::map<Frame_t, std::tuple<size_t, std::map<Idx_t, float>>> average_recognition_segment;
-        std::map<Frame_t, std::tuple<size_t, std::map<Idx_t, float>>> average_processed_segment;
+        std::map<Frame_t, std::tuple<size_t, std::map<Idx_t, float>>> average_recognition_tracklet;
+        std::map<Frame_t, std::tuple<size_t, std::map<Idx_t, float>>> average_processed_tracklet;
         
         //! Contains a map from fish id to probability that averages over
         //  all available segments when "check identities" was last clicked
@@ -226,7 +226,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
         mutable std::mutex _qrcode_mutex;
     protected:
         ska::bytell_hash_map<Frame_t, IDaverage> _qrcode_identities;
-        Frame_t _last_requested_qrcode, _last_requested_segment;
+        Frame_t _last_requested_qrcode, _last_requested_tracklet;
 #endif
         
     public:
@@ -271,19 +271,19 @@ constexpr std::array<const char*, 8> ReasonsNames {
         
         FrameRange get_recognition_segment(Frame_t frameIndex) const;
         FrameRange get_recognition_segment_safe(Frame_t frameIndex) const;
-        FrameRange get_segment(Frame_t frameIndex) const;
-        FrameRange get_segment_safe(Frame_t frameIndex) const;
-        std::shared_ptr<SegmentInformation> segment_for(Frame_t frame) const;
+        FrameRange get_tracklet(Frame_t frameIndex) const;
+        FrameRange get_tracklet_safe(Frame_t frameIndex) const;
+        std::shared_ptr<TrackletInformation> tracklet_for(Frame_t frame) const;
         
-        //! Returns iterator for the first segment equal to or before given frame
-        decltype(_frame_segments)::const_iterator iterator_for(Frame_t frame) const;
+        //! Returns iterator for the first tracklet equal to or before given frame
+        decltype(_tracklets)::const_iterator iterator_for(Frame_t frame) const;
         bool has(Frame_t frame) const;
         
         std::tuple<bool, FrameRange> frame_has_segment_recognition(Frame_t frameIndex) const;
-        std::tuple<bool, FrameRange> has_processed_segment(Frame_t frameIndex) const;
-        //const decltype(average_recognition_segment)::mapped_type& average_recognition(long_t segment_start) const;
-        const decltype(average_recognition_segment)::mapped_type average_recognition(Frame_t segment_start);
-        const decltype(average_recognition_segment)::mapped_type processed_recognition(Frame_t segment_start);
+        std::tuple<bool, FrameRange> has_processed_tracklet(Frame_t frameIndex) const;
+        //const decltype(average_recognition_tracklet)::mapped_type& average_recognition(long_t segment_start) const;
+        const decltype(average_recognition_tracklet)::mapped_type average_recognition(Frame_t segment_start);
+        const decltype(average_recognition_tracklet)::mapped_type processed_recognition(Frame_t segment_start);
         std::tuple<size_t, Idx_t, float> average_recognition_identity(Frame_t segment_start) const;
         
         //! Properties based on centroid:
@@ -319,16 +319,16 @@ constexpr std::array<const char*, 8> ReasonsNames {
         const Midline* pp_midline(Frame_t frameIndex) const;
         const MinimalOutline* outline(Frame_t frameIndex) const;
         
-        void _iterate_frames(const Range<Frame_t>& segment, const std::function<bool(Frame_t frame, const std::shared_ptr<SegmentInformation>&, const BasicStuff*, const PostureStuff*)>& fn) const;
+        void _iterate_frames(const Range<Frame_t>& segment, const std::function<bool(Frame_t frame, const std::shared_ptr<TrackletInformation>&, const BasicStuff*, const PostureStuff*)>& fn) const;
         
         template<typename Fn,
-                 typename R = std::remove_cvref_t<std::invoke_result_t<Fn, Frame_t, const std::shared_ptr<SegmentInformation>&, const BasicStuff*, const PostureStuff*>>>
+                 typename R = std::remove_cvref_t<std::invoke_result_t<Fn, Frame_t, const std::shared_ptr<TrackletInformation>&, const BasicStuff*, const PostureStuff*>>>
             requires (std::same_as<R, void> || std::same_as<R, bool>)
         void iterate_frames(const Range<Frame_t>& segment, Fn&& fn) const
         {
             if constexpr(std::same_as<R, void>) {
                 _iterate_frames(segment, [&fn](Frame_t frame,
-                                           const std::shared_ptr<SegmentInformation>& ptr,
+                                           const std::shared_ptr<TrackletInformation>& ptr,
                                            const BasicStuff* basic,
                                            const PostureStuff* posture)
                                -> bool
@@ -398,15 +398,15 @@ constexpr std::array<const char*, 8> ReasonsNames {
         
     private:
         friend class gui::Fish;
-        friend struct SegmentInformation;
+        friend struct TrackletInformation;
         
-        SegmentInformation* update_add_segment(const Frame_t frameIndex, const FrameProperties* props, const FrameProperties* prev_props, const MotionRecord& current, Frame_t prev_frame, const pv::CompressedBlob* blob, Match::prob_t current_prob);
+        TrackletInformation* update_add_tracklet(const Frame_t frameIndex, const FrameProperties* props, const FrameProperties* prev_props, const MotionRecord& current, Frame_t prev_frame, const pv::CompressedBlob* blob, Match::prob_t current_prob);
         Midline::Ptr update_frame_with_posture(BasicStuff& basic, const decltype(Individual::_posture_stuff)::const_iterator& posture_it, const CacheHints* hints);
         //Vec2 add_current_velocity(Frame_t frameIndex, const MotionRecord* p);
     };
 }
 
-inline bool operator<(const std::shared_ptr<track::SegmentInformation>& ptr, cmn::Frame_t frame) {
+inline bool operator<(const std::shared_ptr<track::TrackletInformation>& ptr, cmn::Frame_t frame) {
     assert(ptr != nullptr);
     return ptr->start() < frame;
 }

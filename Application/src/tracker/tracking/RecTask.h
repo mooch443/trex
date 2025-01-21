@@ -11,7 +11,7 @@ using namespace cmn;
 
 #if !COMMONS_NO_PYTHON
 struct Predictions {
-    Frame_t  _segment_start;
+    Frame_t  _tracklet_start;
     Idx_t individual;
     std::vector<Frame_t> _frames;
     std::vector<int64_t> _ids;
@@ -20,7 +20,7 @@ struct Predictions {
 };
 
 struct RecTask {
-    Frame_t _segment_start;
+    Frame_t _tracklet_start;
     Idx_t individual;
     std::vector<Frame_t> _frames;
     std::vector<Image::Ptr> _images;

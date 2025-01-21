@@ -174,7 +174,7 @@ classes = np.unique(Y)
 #classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
 learning_rate = 0.001
 accumulation_step = 1
-global_segment = list(range(5))
+global_tracklet = list(range(5))
 verbosity = 1
 batch_size = 128
 
@@ -204,7 +204,7 @@ output_path = None
 classes = None
 learning_rate = None
 accumulation_step = None
-global_segment = None
+global_tracklet = None
 verbosity = None
 best_accuracy_worst_class = None
 do_save_training_images = None
@@ -926,7 +926,7 @@ def train(model, train_loader, val_loader, criterion, optimizer : torch.optim.Ad
 def start_learning():
     global image_channels, output_prefix, filename
     global best_accuracy_worst_class, max_epochs, image_width, image_height, update_work_percent
-    global output_path, classes, learning_rate, accumulation_step, global_segment, verbosity
+    global output_path, classes, learning_rate, accumulation_step, global_tracklet, verbosity
     global batch_size, X_val, Y_val, X, Y, run_training, save_weights_after, do_save_training_images, min_iterations
     global get_abort_training, model, train, device, network_version
 
@@ -947,7 +947,7 @@ def start_learning():
         "classes": classes,#np.array(classes, dtype=int),
         "learning_rate": learning_rate,
         "accumulation_step": accumulation_step,
-        "global_segment": np.array(global_segment, dtype=int),
+        "global_tracklet": np.array(global_tracklet, dtype=int),
         "per_epoch": -1,
         "min_iterations": min_iterations,
         "verbosity": verbosity,

@@ -41,7 +41,7 @@ void generate_training_data(GUITaskQueue_t* gui, bool force_load, VIController* 
             if(not video)
                 throw SoftException("There was no video open.");
             
-            Accumulation acc(gui, std::move(video), controller->_tracker->global_segment_order(), window, load);
+            Accumulation acc(gui, std::move(video), controller->_tracker->global_tracklet_order(), window, load);
             //if(current.valid())
             //    current.get();
 
@@ -269,7 +269,7 @@ void training_data_dialog(GUITaskQueue_t* gui, bool force_load, std::function<vo
         controller->_analysis->set_paused(true).get();
         
         DatasetQuality::update();
-        controller->_tracker->global_segment_order();
+        controller->_tracker->global_tracklet_order();
         
         try {
             generate_training_data(gui, force_load, controller);
@@ -318,7 +318,7 @@ void VIController::auto_correct(GUITaskQueue_t* gui, bool force_correct) {
 
 void VIController::correct_identities(GUITaskQueue_t* gui, bool force_correct, IdentitySource source) {
     WorkProgress::add_queue("checking identities...", [this, force_correct, source, gui](){
-        _tracker->check_segments_identities(force_correct, source, [](float x) { WorkProgress::set_percent(x); }, [this, source, gui, force_correct](const std::string&, const std::function<void()>& fn, const std::string&) 
+        _tracker->check_tracklets_identities(force_correct, source, [](float x) { WorkProgress::set_percent(x); }, [this, source, gui, force_correct](const std::string&, const std::function<void()>& fn, const std::string&) 
         {
             if(force_correct) {
                 _analysis->set_paused(false).get();

@@ -627,7 +627,7 @@ int main(int argc, char**argv) {
             SETTING(video_size) = Size2(average.cols, average.rows);
             SETTING(video_length) = uint64_t(header.video_length);
             SETTING(analysis_range) = Range<long_t>(header.analysis_range.start, header.analysis_range.end);
-            auto consec = header.consecutive_segments;
+            auto consec = header.tracklets;
             std::vector<Range<Frame_t>> vec(consec.begin(), consec.end());
             SETTING(consecutive) = vec;
         }

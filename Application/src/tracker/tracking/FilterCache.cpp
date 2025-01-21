@@ -298,12 +298,12 @@ void FilterCache::clear() {
     _filter_cache_no_std.clear();
 }
 
-bool cached_filter(Idx_t fdx, const Range<Frame_t>& segment, FilterCache & constraints, const bool with_std) {
+bool cached_filter(Idx_t fdx, const Range<Frame_t>& tracklet, FilterCache & constraints, const bool with_std) {
     auto guard = LOGGED_LOCK(filter_mutex());
     const auto &cache = with_std ? _filter_cache_std : _filter_cache_no_std;
     auto fit = cache.find(fdx);
     if(fit != cache.end()) {
-        auto sit = fit->second.find(segment);
+        auto sit = fit->second.find(tracklet);
         if(sit != fit->second.end()) {
             constraints = *sit->second;
             return true;
@@ -317,20 +317,20 @@ local_midline_length(const Individual *fish,
                      Frame_t frame,
                      const bool calculate_std)
 {
-    auto segment = fish->get_segment(frame);
-    if(segment.contains(frame)) {
-        return local_midline_length(fish, segment.range, calculate_std);
+    auto tracklet = fish->get_tracklet(frame);
+    if(tracklet.contains(frame)) {
+        return local_midline_length(fish, tracklet.range, calculate_std);
     }
     
     return nullptr;
 }
 
 std::shared_ptr<FilterCache> local_midline_length(const Individual *fish,
-                                                  const Range<Frame_t>& segment,
+                                                  const Range<Frame_t>& tracklet,
                                                   const bool calculate_std)
 {
     std::shared_ptr<FilterCache> constraints = std::make_shared<FilterCache>();
-    if(cached_filter(fish->identity().ID(), segment, *constraints, calculate_std))
+    if(cached_filter(fish->identity().ID(), tracklet, *constraints, calculate_std))
         return constraints;
     
     Median<Float2_t> median_midline, median_outline, median_angle_diff;
@@ -338,7 +338,7 @@ std::shared_ptr<FilterCache> local_midline_length(const Individual *fish,
     
     const PostureStuff* previous_midline = nullptr;
     
-    fish->iterate_frames(segment, [&](Frame_t frame, const auto&, auto basic, auto posture) -> bool
+    fish->iterate_frames(tracklet, [&](Frame_t frame, const auto&, auto basic, auto posture) -> bool
     {
         if(!basic || !posture || basic->blob.split())
             return true;
@@ -390,9 +390,9 @@ std::shared_ptr<FilterCache> local_midline_length(const Individual *fish,
     if(!constraints->empty()) {
         auto guard = LOGGED_LOCK(filter_mutex());
         if(calculate_std)
-            _filter_cache_std[fish->identity().ID()][segment] = constraints;
+            _filter_cache_std[fish->identity().ID()][tracklet] = constraints;
         else
-            _filter_cache_no_std[fish->identity().ID()][segment] = constraints;
+            _filter_cache_no_std[fish->identity().ID()][tracklet] = constraints;
     }
     
     return constraints;

@@ -20,7 +20,7 @@ struct BasicStuff {
 
 //! Stuff that is only present if postures are
 //! calculated and present in the given frame.
-//! (There are no frame_segments available for pre-sorting requests)
+//! (There are no tracklets available for pre-sorting requests)
 struct PostureStuff {
     using ml_t = TrivialOptional<Float2_t, TrivialIllegalValueType::Infinity>;
     

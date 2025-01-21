@@ -33,7 +33,7 @@ struct LearningTask {
     Sample::Ptr sample;
     std::function<void(const LearningTask&)> callback;
     std::vector<float> result;
-    std::shared_ptr<SegmentInformation> segment;
+    std::shared_ptr<TrackletInformation> tracklet;
     long_t idx = -1;
     
     bool valid() const {

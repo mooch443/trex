@@ -11,7 +11,7 @@
 #include <tracking/Outline.h>
 #include <gui/Graph.h>
 #include <tracking/IndividualCache.h>
-#include <tracking/SegmentInformation.h>
+#include <tracking/TrackletInformation.h>
 #include <misc/Identity.h>
 #include <misc/idx_t.h>
 #include <misc/Timer.h>
@@ -115,9 +115,9 @@ struct UpdateSettings {
         std::vector<Vec2> _posture_directions;
         Range<Frame_t> _range;
         
-        std::tuple<bool, FrameRange> _has_processed_segment;
-        std::tuple<size_t, std::map<track::Idx_t, float>> processed_segment;
-        std::shared_ptr<track::SegmentInformation> _segment;
+        std::tuple<bool, FrameRange> _has_processed_tracklet;
+        std::tuple<size_t, std::map<track::Idx_t, float>> processed_tracklet;
+        std::shared_ptr<track::TrackletInformation> _tracklet;
         track::IDaverage _qr_code;
         std::vector<float> _pred;
         
@@ -137,7 +137,7 @@ struct UpdateSettings {
         std::string _avg_cat_name;
         
         std::string _recognition_str;
-        FrameRange _recognition_segment;
+        FrameRange _recognition_tracklet;
         
         struct Data;
         std::unique_ptr<Data> _data;

@@ -1246,13 +1246,13 @@ bool ConvertScene::Data::retrieve_and_prepare_data() {
             return;
         
         auto p = fish->iterator_for(_current_data.frame.index());
-        auto segment = p->get();
-        Range<Frame_t> segment_range;
+        auto tracklet = p->get();
+        Range<Frame_t> tracklet_range;
         
-        if(segment) {
-            auto filters = constraints::local_midline_length(fish, segment->range);
+        if(tracklet) {
+            auto filters = constraints::local_midline_length(fish, tracklet->range);
             filter_cache[fish->identity().ID()] = std::move(filters);
-            segment_range = segment->range;
+            tracklet_range = tracklet->range;
         }
 
         auto [basic, posture] = fish->all_stuff(frameIndex);
@@ -1264,7 +1264,7 @@ bool ConvertScene::Data::retrieve_and_prepare_data() {
                 .bdx = basic->blob.blob_id(),
                 .basic_stuff = *basic,
                 .automatic_match = fish->is_automatic_match(frameIndex),
-                .segment = segment_range
+                .tracklet = tracklet_range
             };
             if(posture) {
                 blob.posture_stuff = posture->clone();
@@ -1284,9 +1284,9 @@ bool ConvertScene::Data::retrieve_and_prepare_data() {
         visible_bdx.emplace(basic->blob.blob_id(), fish->identity());
         
         std::vector<Vertex> line;
-        fish->iterate_frames(Range(_current_data.frame.index().try_sub(50_f), _current_data.frame.index()), [&](Frame_t, const std::shared_ptr<SegmentInformation>& ptr, const BasicStuff* basic, const PostureStuff*) -> bool
+        fish->iterate_frames(Range(_current_data.frame.index().try_sub(50_f), _current_data.frame.index()), [&](Frame_t, const std::shared_ptr<TrackletInformation>& ptr, const BasicStuff* basic, const PostureStuff*) -> bool
         {
-            if (ptr.get() != segment) //&& (ptr)->end() != segment->start().try_sub(1_f))
+            if (ptr.get() != tracklet) //&& (ptr)->end() != tracklet->start().try_sub(1_f))
                 return true;
             auto p = basic->centroid.pos<Units::PX_AND_SECONDS>();//.mul(scale);
             line.push_back(Vertex(p.x, p.y, fish->identity().color()));

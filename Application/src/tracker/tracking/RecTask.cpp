@@ -75,11 +75,11 @@ void RecTask::thread() {
                     /*std::unordered_set<std::tuple<Idx_t, Frame_t>> segments;
                     std::map<Idx_t, std::vector<Frame_t>> histo;
                     for(auto &t : _queue) {
-                        histo[t._fdx].push_back(t._segment_start);
-                        if(segments.contains({t._fdx, t._segment_start})) {
-                            //Print("\talready contains ", t._fdx, " and ", t._segment_start, " (", t._frames.size(), ").");
+                        histo[t._fdx].push_back(t._tracklet_start);
+                        if(tracklets.contains({t._fdx, t._tracklet_start})) {
+                            //Print("\talready contains ", t._fdx, " and ", t._tracklet_start, " (", t._frames.size(), ").");
                         } else
-                            segments.insert({t._fdx, t._segment_start});
+                            tracklets.insert({t._fdx, t._tracklet_start});
                     }
                     
                     Print("\t-> ",histo);*/
@@ -87,7 +87,7 @@ void RecTask::thread() {
                 
                 _current_fdx = task._fdx;
                 
-                //Print("[task] individual:", task._fdx, " segment:", task._segment_start, " _queue:", _queue.size());
+                //Print("[task] individual:", task._fdx, " segment:", task._tracklet_start, " _queue:", _queue.size());
 
                 guard.unlock();
                 try {
@@ -139,7 +139,7 @@ bool RecTask::add(RecTask&& task, const std::function<void(RecTask&)>& fill, con
 
     for(auto it = _queue.begin(); it != _queue.end(); ) {
         if(it->_fdx != task._fdx
-           || it->_segment_start != task._segment_start)
+           || it->_tracklet_start != task._tracklet_start)
         {
             ++it;
             continue;
@@ -151,7 +151,7 @@ bool RecTask::add(RecTask&& task, const std::function<void(RecTask&)>& fill, con
         //if(task._images.size() < 5)
         //    return false;
         
-        //Print("[fill] individual:", task._fdx, " segment:", task._segment_start, " size:", task._images.size());
+        //Print("[fill] individual:", task._fdx, " segment:", task._tracklet_start, " size:", task._images.size());
         _queue.emplace_back(std::move(task));
         
         return true;
@@ -162,7 +162,7 @@ bool RecTask::add(RecTask&& task, const std::function<void(RecTask&)>& fill, con
     if(task._images.size() < 5)
         return false;
     
-    //Print("[fill'] individual:", task._fdx, " segment:", task._segment_start, " size:", task._images.size(), " time:", _time_last_added.elapsed() * 1000, "ms");
+    //Print("[fill'] individual:", task._fdx, " segment:", task._tracklet_start, " size:", task._images.size(), " time:", _time_last_added.elapsed() * 1000, "ms");
     
     _queue.emplace_back(std::move(task));
     _variable.notify_one();
@@ -180,7 +180,7 @@ void RecTask::update(RecTask&& task) {
         py::set_variable("tag_images", task._images, tagwork);
 
         Predictions result{
-            ._segment_start = task._segment_start,
+            ._tracklet_start = task._tracklet_start,
             .individual = task.individual,
             ._frames = std::move(task._frames)
         };
@@ -209,7 +209,7 @@ void RecTask::update(RecTask&& task) {
 
             result.best_id = max_key;
             result.p = float(maximum) / float(N);
-            //Print("\t",result._segment_start,": individual ", result.individual, " is ", max_key, " with p:", result.p, " (", task._images.size(), " samples)");
+            //Print("\t",result._tracklet_start,": individual ", result.individual, " is ", max_key, " with p:", result.p, " (", task._images.size(), " samples)");
 
             static const bool tags_save_predictions = SETTING(tags_save_predictions).value<bool>();
             if (tags_save_predictions) {
@@ -222,7 +222,7 @@ void RecTask::update(RecTask&& task) {
                     if (!output.exists())
                         output.create_folder();
 
-                    auto prefix = Meta::toStr(result.individual) + "." + Meta::toStr(result._segment_start);
+                    auto prefix = Meta::toStr(result.individual) + "." + Meta::toStr(result._tracklet_start);
                     if (!(output / prefix).exists())
                         (output / prefix).create_folder();
 
@@ -250,7 +250,7 @@ void RecTask::update(RecTask&& task) {
                 ++saved_index;
             }
 
-            //Print("Calling callback on ", result.individual, " and frame ", result._segment_start);
+            //Print("Calling callback on ", result.individual, " and frame ", result._tracklet_start);
             callback(std::move(result));
         };
 

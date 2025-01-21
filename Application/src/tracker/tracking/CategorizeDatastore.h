@@ -151,14 +151,14 @@ struct DataStore {
     
     static Sample::Ptr sample(
          const std::weak_ptr<pv::File>& source,
-         const std::shared_ptr<SegmentInformation>& segment,
+         const std::shared_ptr<TrackletInformation>& segment,
          Individual* fish,
          const size_t max_samples,
          const size_t min_samples
     );
     static Sample::Ptr temporary(
          pv::File* video_source,
-         const std::shared_ptr<SegmentInformation>& segment,
+         const std::shared_ptr<TrackletInformation>& segment,
          Individual* fish,
          const size_t max_samples,
          const size_t min_samples = 50u);
@@ -219,9 +219,9 @@ struct DataStore {
     static double mean_frame();
     static std::vector<int64_t> cached_frames();
     
-    static void add_currently_processed_segment(std::thread::id, Range<Frame_t>);
-    static bool remove_currently_processed_segment(std::thread::id);
-    static std::vector<Range<Frame_t>> currently_processed_segments();
+    static void add_currently_processed_tracklet(std::thread::id, Range<Frame_t>);
+    static bool remove_currently_processed_tracklet(std::thread::id);
+    static std::vector<Range<Frame_t>> currently_processed_tracklets();
     
     static Frame_t& tracker_start_frame();
 };

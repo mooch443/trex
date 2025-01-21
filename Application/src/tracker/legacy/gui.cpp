@@ -1730,10 +1730,10 @@ void GUI::draw_tracking(DrawStructure& base, Frame_t frameNr, bool draw_graph) {
                                 || fish->start_frame() > frameNr)
                                 continue;
 
-                            auto segment = fish->segment_for(frameNr);
+                            auto segment = fish->tracklet_for(frameNr);
                             if (!GUI_SETTINGS(gui_show_inactive_individuals)
-                                && (!segment || (segment->end() != Tracker::end_frame()
-                                    && segment->length().get() < (long_t)GUI_SETTINGS(output_min_frames))))
+                                && (!segment || (tracklet->end() != Tracker::end_frame()
+                                    && tracklet->length().get() < (long_t)GUI_SETTINGS(output_min_frames))))
                             {
                                 continue;
                             }
@@ -3475,7 +3475,7 @@ void GUI::key_event(const gui::Event &event) {
                     FormatWarning("Aborting training data because an exception was thrown.");
                 }*/
                 
-                Tracker::instance()->check_segments_identities(false, IdentitySource::VisualIdent, [](auto){}, [](const std::string&t, const std::function<void()>& fn, const std::string&b) {
+                Tracker::instance()->check_tracklets_identities(false, IdentitySource::VisualIdent, [](auto){}, [](const std::string&t, const std::function<void()>& fn, const std::string&b) {
                     WorkProgress::add_queue(t, fn, b);
                 }, frame());
                 
@@ -3554,7 +3554,7 @@ void GUI::auto_correct(GUI::GUIType type, bool force_correct) {
                     });
                 }
                 
-                Tracker::instance()->check_segments_identities(r != Dialog::SECOND, tags_available && r == Dialog::THIRD ? IdentitySource::QRCodes : IdentitySource::VisualIdent, [](float x) { WorkProgress::set_percent(x); }, [this](const std::string&t, const std::function<void()>& fn, const std::string&b) {
+                Tracker::instance()->check_tracklets_identities(r != Dialog::SECOND, tags_available && r == Dialog::THIRD ? IdentitySource::QRCodes : IdentitySource::VisualIdent, [](float x) { WorkProgress::set_percent(x); }, [this](const std::string&t, const std::function<void()>& fn, const std::string&b) {
                     WorkProgress::add_queue(t, fn, b);
                 });
                 
@@ -3566,7 +3566,7 @@ void GUI::auto_correct(GUI::GUIType type, bool force_correct) {
         }, tags_available ? message_both : message_only_ml, "Auto-correct", tags_available ? "Apply visual identification" : "Apply and retrack", "Cancel", "Review VI", tags_available ? "Apply tags" : "");
     } else {
         WorkProgress::add_queue("checking identities...", [this, force_correct](){
-            Tracker::instance()->check_segments_identities(force_correct, IdentitySource::VisualIdent, [](float x) { WorkProgress::set_percent(x); }, [this](const std::string&t, const std::function<void()>& fn, const std::string&b) {
+            Tracker::instance()->check_tracklets_identities(force_correct, IdentitySource::VisualIdent, [](float x) { WorkProgress::set_percent(x); }, [this](const std::string&t, const std::function<void()>& fn, const std::string&b) {
                 WorkProgress::add_queue(t, [fn](){
                     {
                         auto lock = GUI_LOCK(instance()->gui().lock());
@@ -3777,7 +3777,7 @@ void GUI::auto_train() {
         
         auto lock = GUI_LOCK(instance()->gui().lock());
         WorkProgress::add_queue("checking identities...", [](){
-            Tracker::instance()->check_segments_identities(
+            Tracker::instance()->check_tracklets_identities(
                 true,
                 IdentitySource::QRCodes,
                 [](float x) { WorkProgress::set_percent(x); },
@@ -4047,7 +4047,7 @@ void GUI::load_state(GUI::GUIType type, file::Path from) {
             }
             
             WorkProgress::add_queue("", [](){
-                Tracker::instance()->check_segments_identities(false, IdentitySource::VisualIdent, [](float ) { },
+                Tracker::instance()->check_tracklets_identities(false, IdentitySource::VisualIdent, [](float ) { },
                 [](const std::string&t, const std::function<void()>& fn, const std::string&b)
                 {
                     WorkProgress::add_queue(t, fn, b);
@@ -4201,7 +4201,7 @@ std::string GUI::info(bool escape) {
     str.append("\n<b>max-curvature:</b> "+std::to_string(Outline::max_curvature()));
     str.append("\n<b>average max-curvature:</b> "+std::to_string(Outline::average_curvature()));
     
-    auto consec = instance()->frameinfo().global_segment_order.empty() ? Range<Frame_t>({},{}) : instance()->frameinfo().global_segment_order.front();
+    auto consec = instance()->frameinfo().global_tracklet_order.empty() ? Range<Frame_t>({},{}) : instance()->frameinfo().global_tracklet_order.front();
     std::stringstream number;
     number << consec.start.toStr() << "-" << consec.end.toStr() << " (" << (consec.start.valid() ? consec.end - consec.start : Frame_t{}).toStr() << ")";
     str.append("\n<b>consecutive frames:</b> "+number.str());
@@ -4489,7 +4489,7 @@ void GUI::generate_training_data_faces(const file::Path& path) {
     LockGuard guard(ro_t{}, "GUI::generate_training_data_faces");
     WorkProgress::set_item("Generating data...");
     
-    auto ranges = frameinfo().global_segment_order;
+    auto ranges = frameinfo().global_tracklet_order;
     auto range = ranges.empty() ? Range<Frame_t>({},{}) : ranges.front();
     
     if(!path.exists()) {

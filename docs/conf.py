@@ -80,8 +80,7 @@ master_doc = 'contents'
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = [ 
     "css",
-    "images",
-    "static"
+    "images"
 ]
 html_css_files = [
     "custom.css"

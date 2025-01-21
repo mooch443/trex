@@ -100,7 +100,7 @@ auto find_stuffs(const Library::LibInfo& info, Frame_t frame) {
     T *start = nullptr, *end = nullptr;
     
     auto it = info.fish->iterator_for(frame);
-    if(it != info.fish->frame_segments().end() && !(*it)->empty()) {
+    if(it != info.fish->tracklets().end() && !(*it)->empty()) {
         assert((*it)->start() < frame);
         
         if constexpr(std::is_same<T, BasicStuff>::value) {
@@ -109,7 +109,7 @@ auto find_stuffs(const Library::LibInfo& info, Frame_t frame) {
             ++it;
             
             // check if there are no segments after the current one, can not interpolate
-            if(it != info.fish->frame_segments().end() && !(*it)->empty())
+            if(it != info.fish->tracklets().end() && !(*it)->empty())
                 end = info.fish->basic_stuff()[ (*it)->basic_index.front() ].get();
             
         } else {
@@ -118,7 +118,7 @@ auto find_stuffs(const Library::LibInfo& info, Frame_t frame) {
                 start = info.fish->posture_stuff()[ index ].get();
             
             ++it;
-            if(it != info.fish->frame_segments().end() && !(*it)->empty()) {
+            if(it != info.fish->tracklets().end() && !(*it)->empty()) {
                 index = (*it)->posture_index.empty() ? -1 : (*it)->posture_index.front();
                 if(index != -1)
                     end = info.fish->posture_stuff()[ index ].get();
@@ -893,20 +893,20 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
         
         FN_IS_CENTROID_ONLY_PROPERTY(consecutive);
         _cache_func["consecutive"] = LIB_NO_CHECK_FNC({
-            auto segment = fish->segment_for(frame);
+            auto tracklet = fish->tracklet_for(frame);
             
-            if (segment) {
-                return segment->length().get();
+            if (tracklet) {
+                return tracklet->length().get();
             }
             
             return GlobalSettings::invalid();
         });
 
-        FN_IS_CENTROID_ONLY_PROPERTY(consecutive_segment_id);
-        _cache_func["consecutive_segment_id"] = LIB_NO_CHECK_FNC({
-            auto segment = fish->segment_for(frame);
-            if (segment) {
-                return (uint64_t)segment.get();
+        FN_IS_CENTROID_ONLY_PROPERTY(tracklet_id);
+        _cache_func["tracklet_id"] = LIB_NO_CHECK_FNC({
+            auto tracklet = fish->tracklet_for(frame);
+            if (tracklet) {
+                return (uint64_t)tracklet.get();
             }
 
             return GlobalSettings::invalid();

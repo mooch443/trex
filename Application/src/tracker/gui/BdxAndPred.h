@@ -14,7 +14,7 @@ struct BdxAndPred {
     std::optional<std::vector<float>> pred;
     track::Midline::Ptr midline;
     bool automatic_match;
-    Range<Frame_t> segment;
+    Range<Frame_t> tracklet;
     
     BdxAndPred clone() const {
         BdxAndPred copy;
@@ -27,7 +27,7 @@ struct BdxAndPred {
         copy.pred = pred;
         copy.midline = midline ? std::make_unique<track::Midline>(*midline) : nullptr;
         copy.automatic_match = automatic_match;
-        copy.segment = segment;
+        copy.tracklet = tracklet;
         return copy;
     }
 };

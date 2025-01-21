@@ -27,11 +27,11 @@ The following sections describe how to improve tracking data with the goal of ap
 General procedure
 -----------------
 
-The most important thing is that consecutive tracking sequences (see :ref:`Timeline` for how they are displayed) exist for each individual and are as long as possible - while avoiding misassignments. So you *can* relax parameters like :param:`track_max_speed` and :param:`track_size_filter` to lengthen consecutive segments, but make sure that this does not lead to **unrecognized** tracking errors. Tracking errors are generally "fine" for the identification algorithm, but evil lurks whenever identity switches occur in the *middle* of a consecutive segment - this would mean that the switch has *not* been recognized, as consecutive segments are ended whenever "risky business" is detected. So a non-detection like this hints at suboptimal tracking parameters.
+The most important thing is that consecutive tracking sequences (see :ref:`Timeline` for how they are displayed) exist for each individual and are as long as possible - while avoiding misassignments. So you *can* relax parameters like :param:`track_max_speed` and :param:`track_size_filter` to lengthen tracklets, but make sure that this does not lead to **unrecognized** tracking errors. Tracking errors are generally "fine" for the identification algorithm, but evil lurks whenever identity switches occur in the *middle* of a consecutive segment - this would mean that the switch has *not* been recognized, as tracklets are ended whenever "risky business" is detected. So a non-detection like this hints at suboptimal tracking parameters.
 
 .. NOTE::
    
-   The current consecutive segments per individual are displayed on the top-left when the individual is selected (and when you're in tracking view, see :ref:`Keyboard shortcuts`).
+   The current tracklets per individual are displayed on the top-left when the individual is selected (and when you're in tracking view, see :ref:`Keyboard shortcuts`).
 
    .. image:: highlight_consecutive_segments.png
 
@@ -42,7 +42,7 @@ Once you are happy with the tracking results, click on menu -> visual identifica
 
 .. image:: training_sample.png
 
-You now have to sit back and wait, or grab a coffee, while the algorithm tries to (starting at the consecutive segment that is highlighted green in the timeline) find samples for each individual until a uniqueness of at least :param:`gpu_accepted_uniqueness` is achieved, or no more suitable segments can be found.
+You now have to sit back and wait, or grab a coffee, while the algorithm tries to (starting at the consecutive segment that is highlighted green in the timeline) find samples for each individual until a uniqueness of at least :param:`accumulation_sufficient_uniqueness` is achieved, or no more suitable segments can be found.
 
 When training is over, the video will be retracked and now most numbers above the individuals should be green. You can also click on the display menu (bottom-left) and select "dataset". This will show the current averaged prediction values per individual and quality measurements of the current consecutive segment. Check for misassignments and adjust parameters as required. Once you're happy with your results, you can export the tracking data by pressing ``S``, or apply the same parameter settings to other videos of the same batch (menu -> save config).
 
@@ -57,4 +57,4 @@ If this is correct, but you are experincing long training times with low uniquen
 
 If you are experincing long training times, but high uniqueness values, instead the cause is likely a high number of samples per individual. You can cap this by setting :param:`gpu_max_sample_gb` to a lower value (e.g. 0.5).
 
-Another possibility is that individuals may not be visible in their entiretythe training samples. This can be adjusted by either downscaling them (:param:`recognition_image_scale`), or increasing the image size (:param:`recognition_image_size`). You can view these samples by setting :param:`recognition_save_training_images` to true before starting the training process, and then opening the generated file in e.g. Python. It is called ``<output_dir>/<videoname>_validation_samples.npz``.
+Another possibility is that individuals may not be visible in their entiretythe training samples. This can be adjusted by either downscaling them (:param:`individual_image_scale`), or increasing the image size (:param:`individual_image_size`). You can view these samples by setting :param:`visual_identification_save_images` to true before starting the training process, and then opening the generated file in e.g. Python. It is called ``<output_dir>/<videoname>_validation_samples.npz``.

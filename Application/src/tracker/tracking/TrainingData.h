@@ -151,7 +151,7 @@ private:
     GETTER_NCONST(MidlineFilters, filters);
     
     using s_type = std::map<Idx_t, std::set<FrameRange>>;
-    GETTER(s_type, included_segments);
+    GETTER(s_type, included_tracklets);
     
     //FrameRanges frames;
     

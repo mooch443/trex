@@ -113,7 +113,7 @@ namespace Output {
             V_26, // parent_id != split()
             
             V_27, // removed MotionRecord::time
-            V_28, // added consecutive segments to results file header
+            V_28, // added tracklets to results file header
             V_29, // removing Vec2 from individuals for centroid position
             V_30, // add analysis_range information to header
             V_31, // add number of individuals per frame
@@ -143,7 +143,7 @@ namespace Output {
             uint64_t gui_frame = 0;
             std::string settings;
             std::string cmd_line;
-            std::vector<Range<Frame_t>> consecutive_segments;
+            std::vector<Range<Frame_t>> tracklets;
             Size2 video_resolution;
             uint64_t video_length = 0;
             Image average;

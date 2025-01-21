@@ -33,7 +33,7 @@ namespace cmn::gui {
         size_t tdelta_gui{0};
         float tdelta{0};
         
-        std::vector<Range<Frame_t>> global_segment_order;
+        std::vector<Range<Frame_t>> global_tracklet_order;
         std::deque<Range<Frame_t>> consecutive;
     };
     

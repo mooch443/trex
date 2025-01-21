@@ -348,11 +348,11 @@ void draw(const Background* average, const PPFrame& pp,Frame_t frame, DrawStruct
             
             auto midline = fish->midline(frame);
             
-            auto segment = fish->segment_for(frame);
-            if(!segment)
-                U_EXCEPTION("Cannot find segment for frame ", frame, " in fish ", idx, " despite finding a blob ", *blob);
+            auto tracklet = fish->tracklet_for(frame);
+            if(not tracklet)
+                U_EXCEPTION("Cannot find tracklet for frame ", frame, " in fish ", idx, " despite finding a blob ", *blob);
             
-            auto filters = constraints::local_midline_length(fish, segment->range);
+            auto filters = constraints::local_midline_length(fish, tracklet->range);
             auto &&[image, pos] = make_image(pixels, midline.get(), filters.get(), average);
             
             if(!image || image->empty())

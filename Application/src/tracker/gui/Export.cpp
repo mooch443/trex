@@ -303,13 +303,15 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                                 std::vector<float> vxy;
                                 vxy.reserve(fish->frame_count() * 2);
                                 
-                                for(auto & segment : fish->frame_segments()) {
-                                    segment_borders.push_back(segment->start().get());
-                                    segment_borders.push_back(segment->end().get());
+                                for(auto & tracklet : fish->tracklets()) {
+                                    segment_borders.push_back(tracklet->start().get());
+                                    segment_borders.push_back(tracklet->end().get());
                                     
-                                    for(auto frame = segment->start() + 1_f; frame <= segment->end(); frame += 1_f)
+                                    for(auto frame = tracklet->start() + 1_f;
+                                        frame <= tracklet->end();
+                                        frame += 1_f)
                                     {
-                                        auto idx = segment->basic_stuff(frame);
+                                        auto idx = tracklet->basic_stuff(frame);
                                         if(idx < 0)
                                             continue;
                                         
@@ -323,7 +325,7 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                                         vxy.push_back(speed);
                                     }
                                 }
-                                cnpy::npz_save(use_path.str(), "frame_segments", segment_borders.data(), std::vector<size_t>{segment_borders.size() / 2, 2}, "a");
+                                cnpy::npz_save(use_path.str(), "tracklets", segment_borders.data(), std::vector<size_t>{segment_borders.size() / 2, 2}, "a");
                                 cnpy::npz_save(use_path.str(), "segment_vxys", vxy.data(), std::vector<size_t>{vxy.size() / 4, 4}, "a");
                             });
                             
@@ -337,7 +339,7 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                 
                 const file::Path tags_path = FAST_SETTING(tags_path);
                 
-                for(auto &seg : fish->frame_segments()) {
+                for(auto &seg : fish->tracklets()) {
                     //for(auto frameIndex = seg->start(); frameIndex <= seg->end(); ++frameIndex) {
                     auto set = fish->has_tag_images_for(seg->end());
                     if(set && !set->empty()) {
@@ -364,7 +366,7 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                         Print();
                         
                         if(arrays.size() > 0) {
-                            auto range = fish->get_segment(seg->end());
+                            auto range = fish->get_tracklet(seg->end());
                             
                             if(!fish->has(range.start()))
                                 throw U_EXCEPTION("Range starts at ",range.start(),", but frame is not set for fish ",fish->identity().ID(),".");
@@ -388,7 +390,7 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                 }
                 
                 /**
-                 * Output representative images for each segment (that is long_t enough).
+                 * Output representative images for each tracklet (that is long_t enough).
                  * These are currently median images and will all be saved into one big NPZ file.
                  * TODO: need to check for size issues (>=4GB?) - shouldnt happen too often though
                  */
@@ -397,8 +399,8 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                     const bool calculate_posture = FAST_SETTING(calculate_posture);
                     const auto individual_image_normalization = default_config::valid_individual_image_normalization();
                     
-                    for(auto &range : fish->frame_segments()) {
-                        // only generate an image if the segment is long_t enough
+                    for(auto &range : fish->tracklets()) {
+                        // only generate an image if the tracklet is long enough
                         if(range->length().get() >= output_min_frames) {
                             auto filters = constraints::local_midline_length(fish, range->range);
                             // Init data strutctures
@@ -450,7 +452,7 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                                             blob->bounds()
                                         }, frame, *range, fish, fish->identity().ID(), trans);
                                         data.filters = std::make_shared<FilterCache>(*filters);
-                                        assert(data.segment.contains(frame));*/
+                                        assert(data.tracklet.contains(frame));*/
                                         
                                         std::lock_guard<std::mutex> guard(sync);
                                         waiting_pixels[frame][id] = ImageData{
@@ -1100,7 +1102,7 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                         }, "a");
                         
                         cmn::npz_save(path.str(), "frame_segment_indexes", frame_segment_indexes, "a");
-                        cmn::npz_save(path.str(), "frame_segments", frame_segment_Nx2.data(), {
+                        cmn::npz_save(path.str(), "tracklets", frame_segment_Nx2.data(), {
                             frame_segment_Nx2.size() / 2u,
                             2u
                         }, "a");

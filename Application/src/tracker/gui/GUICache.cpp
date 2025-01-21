@@ -80,8 +80,8 @@ std::unique_ptr<PPFrame> GUICache::PPFrameMaker::operator()() const {
         raw_blobs.clear();
         available_blobs_list.clear();
         
-        if(_next_consecutive.valid())
-            _next_consecutive.get();
+        if(_next_tracklet.valid())
+            _next_tracklet.get();
 
         std::lock_guard guard(percentile_mutex);
         if(percentile_ptr) {
@@ -303,19 +303,19 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
        _last_consecutive_update.elapsed() > 10
        && _updating_consecutive.compare_exchange_strong(compared, true))
     {
-        _next_consecutive = std::async(std::launch::async, [](){
-            return Tracker::instance()->global_segment_order();
+        _next_tracklet = std::async(std::launch::async, [](){
+            return Tracker::instance()->global_tracklet_order();
         });
     }
     
-    if(_next_consecutive.valid()
-       && _next_consecutive.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready)
+    if(_next_tracklet.valid()
+       && _next_tracklet.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready)
     {
-        _global_segment_order = _next_consecutive.get();
+        _global_tracklet_order = _next_tracklet.get();
         _last_consecutive_update.reset();
         _updating_consecutive = false;
         
-        return _global_segment_order;
+        return _global_tracklet_order;
     }
     
     return std::nullopt;
@@ -597,10 +597,10 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
                 
                 auto &ranges = _individual_ranges[idx];
                 ranges.clear();
-                for(auto& segment : fish->frame_segments()) {
-                    ranges.emplace_back(ShadowSegment{
-                        .frames = *segment,
-                        .error_code=segment->error_code
+                for(auto& tracklet : fish->tracklets()) {
+                    ranges.emplace_back(ShadowTracklet{
+                        .frames = *tracklet,
+                        .error_code=tracklet->error_code
                     });
                 }
                 all_ids.insert(idx);
@@ -622,25 +622,25 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
             double time = properties ? properties->time() : 0;
             
             for(auto fish : active) {
-                Range<Frame_t> segment_range;
+                Range<Frame_t> tracklet_range;
                 
-                auto segment = fish->segment_for(frameIndex);
+                auto tracklet = fish->tracklet_for(frameIndex);
                 BasicStuff* basic{nullptr};
                 PostureStuff* posture{nullptr};
                 
-                if(segment) {
-                    auto basic_index = segment->basic_stuff(frameIndex);
-                    auto posture_index = segment->posture_stuff(frameIndex);
+                if(tracklet) {
+                    auto basic_index = tracklet->basic_stuff(frameIndex);
+                    auto posture_index = tracklet->posture_stuff(frameIndex);
                     basic = basic_index != -1 ? fish->basic_stuff().at(basic_index).get() : nullptr;
                     posture = posture_index != -1 ? fish->posture_stuff().at(posture_index).get() : nullptr;
                 }
                 
                 //if(fish->identity().ID() == primary_selected_id())
                 {
-                    if(segment) {
-                        auto filters = constraints::local_midline_length(fish, segment->range);
+                    if(tracklet) {
+                        auto filters = constraints::local_midline_length(fish, tracklet->range);
                         filter_cache[fish->identity().ID()] = std::move(filters);
-                        segment_range = segment->range;
+                        tracklet_range = tracklet->range;
                     }
                 }
                 
@@ -651,7 +651,7 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
                         .bdx = basic->blob.blob_id(),
                         .basic_stuff = *basic,
                         .automatic_match = fish->is_automatic_match(frameIndex),
-                        .segment = segment_range
+                        .tracklet = tracklet_range
                     };
                     if(posture) {
                         blob.posture_stuff = posture->clone();
@@ -673,8 +673,8 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
                     /// switch selected individuals if necessary, even if not all
                     /// individuals are currently visible)
                     const BasicStuff *pstuff{nullptr};
-                    if(segment && segment->contains(frameIndex - 1_f)) {
-                        auto index = segment->basic_stuff(frameIndex - 1_f);
+                    if(tracklet && tracklet->contains(frameIndex - 1_f)) {
+                        auto index = tracklet->basic_stuff(frameIndex - 1_f);
                         if(index != -1)
                             pstuff = fish->basic_stuff().at(index).get();
                         
@@ -808,7 +808,7 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
             set_tracking_dirty();
         }
         
-        _global_segment_order = _tracker.unsafe_global_segment_order();
+        _global_tracklet_order = _tracker.unsafe_global_tracklet_order();
         previous_active_fish = selected;
         previous_active_blobs = active_blobs;
         previous_mouse_position = _gui.mouse_position();
@@ -1095,10 +1095,10 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
                     continue;
                 }
 
-                auto segment = fish->segment_for(frameIndex);
+                auto tracklet = fish->tracklet_for(frameIndex);
                 if (!GUI_SETTINGS(gui_show_inactive_individuals)
-                    && (!segment || (segment->end() != Tracker::end_frame()
-                        && segment->length().get() < sign_cast<uint32_t>(GUI_SETTINGS(output_min_frames)))))
+                    && (!tracklet || (tracklet->end() != Tracker::end_frame()
+                        && tracklet->length().get() < sign_cast<uint32_t>(GUI_SETTINGS(output_min_frames)))))
                 {
                     continue;
                 }
@@ -1174,14 +1174,14 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
                     /// cache cache_for_frame(frame + 1)
                     std::mutex map_mutex;
                     
-                    for(auto it = _processed_segment_caches.begin(); it != _processed_segment_caches.end();) {
+                    for(auto it = _processed_tracklet_caches.begin(); it != _processed_tracklet_caches.end();) {
                         if(not contains(ids_to_check, it->first)) {
-                            if(auto kit = _segment_caches.find(it->first);
-                               kit != _segment_caches.end())
+                            if(auto kit = _tracklet_caches.find(it->first);
+                               kit != _tracklet_caches.end())
                             {
-                                _segment_caches.erase(kit);
+                                _tracklet_caches.erase(kit);
                             }
-                            it = _processed_segment_caches.erase(it);
+                            it = _processed_tracklet_caches.erase(it);
                         } else
                             ++it;
                     }
@@ -1192,32 +1192,32 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
                         for(auto it = start; it != end; ++it) {
                             Individual* fish = individuals.at(*it);
                             auto cache = fish->cache_for_frame(&_props.value(), frameIndex + 1_f, next_time);
-                            auto ptr = fish->segment_for(frameIndex);
+                            auto ptr = fish->tracklet_for(frameIndex);
                             
                             if(std::unique_lock g(map_mutex);
                                cache)
                             {
                                 _next_frame_caches[*it] = std::move(cache.value());
-                                _processed_segment_caches[*it] = fish->has_processed_segment(frameIndex);
+                                _processed_tracklet_caches[*it] = fish->has_processed_tracklet(frameIndex);
                                 if(ptr)
-                                    _segment_caches[*it] = std::make_shared<SegmentInformation>(*ptr);
-                                else if(auto sit = _segment_caches.find(*it);
-                                        sit != _segment_caches.end())
+                                    _tracklet_caches[*it] = std::make_shared<TrackletInformation>(*ptr);
+                                else if(auto sit = _tracklet_caches.find(*it);
+                                        sit != _tracklet_caches.end())
                                 {
-                                    _segment_caches.erase(sit);
+                                    _tracklet_caches.erase(sit);
                                 }
                                 
                             } else {
                                 auto kit = _next_frame_caches.find(*it);
                                 if(kit != _next_frame_caches.end())
                                     _next_frame_caches.erase(kit);
-                                _processed_segment_caches[*it] = fish->has_processed_segment(frameIndex);
+                                _processed_tracklet_caches[*it] = fish->has_processed_tracklet(frameIndex);
                                 if(ptr)
-                                    _segment_caches[*it] = std::make_shared<SegmentInformation>(*ptr);
-                                else if(auto sit = _segment_caches.find(*it);
-                                        sit != _segment_caches.end())
+                                    _tracklet_caches[*it] = std::make_shared<TrackletInformation>(*ptr);
+                                else if(auto sit = _tracklet_caches.find(*it);
+                                        sit != _tracklet_caches.end())
                                 {
-                                    _segment_caches.erase(sit);
+                                    _tracklet_caches.erase(sit);
                                 }
                                 
                                 FormatWarning("Cannot create cache_for_frame of ", *it, " for frame ", frameIndex + 1_f, " because: ", cache.error());
@@ -1338,19 +1338,19 @@ std::optional<const IndividualCache*> GUICache::next_frame_cache(Idx_t id) const
     return std::nullopt;
 }
 
-std::tuple<bool, FrameRange> GUICache::processed_segment_cache(Idx_t id) const
+std::tuple<bool, FrameRange> GUICache::processed_tracklet_cache(Idx_t id) const
 {
-    auto it = _processed_segment_caches.find(id);
-    if(it != _processed_segment_caches.end()) {
+    auto it = _processed_tracklet_caches.find(id);
+    if(it != _processed_tracklet_caches.end()) {
         return it->second;
     }
     return {false, FrameRange{}};
 }
 
-std::shared_ptr<track::SegmentInformation> GUICache::segment_cache(Idx_t id) const
+std::shared_ptr<track::TrackletInformation> GUICache::tracklet_cache(Idx_t id) const
 {
-    auto it = _segment_caches.find(id);
-    if(it != _segment_caches.end()) {
+    auto it = _tracklet_caches.find(id);
+    if(it != _tracklet_caches.end()) {
         return it->second;
     }
     return nullptr;

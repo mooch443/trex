@@ -168,6 +168,15 @@ ENUM_CLASS_DOCS(gpu_torch_device_t,
         {"gui_auto_quit", "auto_quit"},
         {"gui_stop_after", "analysis_range"},
         {"analysis_stop_after", "analysis_range"},
+        {"track_segment_max_length", "tracklet_max_length"},
+        {"track_end_tracklet_for_speed", "tracklet_punish_speeding"},
+        {"huge_timestamp_ends_segment", "tracklet_punish_timedelta"},
+        {"recognition_segment_add_factor", "accumulation_tracklet_add_factor"},
+        {"recognition_save_training_images", "visual_identification_save_images"},
+        {"gpu_enable_accumulation", "accumulation_enable"},
+        {"gpu_accepted_uniqueness", "accumulation_sufficient_uniqueness"},
+        {"gpu_accumulation_max_segments", "accumulation_max_tracklets"},
+        {"gpu_accumulation_enable_final_step", "accumulation_enable_final_step"},
         {"fixed_count", ""},
         {"fish_minmax_size", "track_size_filter"},
         {"blob_size_range", "detect_size_filter"},
@@ -486,7 +495,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("gui_auto_scale", false, "If set to true, the tracker will always try to zoom in on the whole group. This is useful for some individuals in a huge video (because if they are too tiny, you cant see them and their posture anymore).");
         CONFIG("gui_auto_scale_focus_one", true, "If set to true (and `gui_auto_scale` set to true, too), the tracker will zoom in on the selected individual, if one is selected.");
         CONFIG("gui_pose_smoothing", Frame_t(5), "Blending between the current and previous / future frames for displaying smoother poses in the graphical user-interface. This does not affect data output.");
-        CONFIG("gui_timeline_alpha", uchar(200), "Determines the Alpha value for the timeline / consecutive segments display.");
+        CONFIG("gui_timeline_alpha", uchar(200), "Determines the Alpha value for the timeline / tracklets display.");
         CONFIG("gui_background_color", gui::Color(0,0,0,255), "Values < 255 will make the background (or video background) more transparent in standard view. This might be useful with very bright backgrounds.");
         CONFIG("gui_fish_color", std::string("identity"), "");
         CONFIG("gui_single_identity_color", gui::Transparent, "If set to something else than transparent, all individuals will be displayed with this color.");
@@ -525,7 +534,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("match_mode", matching_mode_t::automatic, "Changes the default algorithm to be used for matching blobs in one frame with blobs in the next frame. The accurate algorithm performs best, but also scales less well for more individuals than the approximate one. However, if it is too slow (temporarily) in a few frames, the program falls back to using the approximate one that doesnt slow down.");
         CONFIG("matching_probability_threshold", float(0.1), "The probability below which a possible connection between blob and identity is considered too low. The probability depends largely upon settings like `track_max_speed`.");
         CONFIG("track_do_history_split", true, "If disabled, blobs will not be split automatically in order to separate overlapping individuals. This usually happens based on their history.");
-        CONFIG("track_end_segment_for_speed", true, "Sometimes individuals might be assigned to blobs that are far away from the previous position. This could indicate wrong assignments, but not necessarily. If this variable is set to true, consecutive frame segments will end whenever high speeds are reached, just to be on the safe side. For scenarios with lots of individuals (and no recognition) this might spam yellow bars in the timeline and may be disabled.");
+        CONFIG("tracklet_punish_speeding", true, "Sometimes individuals might be assigned to blobs that are far away from the previous position. This could indicate wrong assignments, but not necessarily. If this variable is set to true, consecutive frame segments will end whenever high speeds are reached, just to be on the safe side. For scenarios with lots of individuals (and no recognition) this might spam yellow bars in the timeline and may be disabled.");
         CONFIG("track_consistent_categories", false, "Utilise categories (if present) when tracking. This may break trajectories in places with imperfect categorization, but only applies once categories have been applied.");
         CONFIG("track_max_individuals", uint32_t(0), "The maximal number of individual that are assigned at the same time (infinite if set to zero). If the given number is below the actual number of individual, then only a (random) subset of individual are assigned and a warning is shown.");
         CONFIG("detect_size_filter", SizeFilters(), "During conversion (using background subtraction) objects outside this size range will be filtered out. If empty, all objects will be accepted.");
@@ -558,11 +567,11 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         
         CONFIG("gui_highlight_categories", false, "If enabled, categories (if applied in the video) will be highlighted in the tracking view.");
         CONFIG("categories_ordered", std::vector<std::string>{}, "Ordered list of names of categories that are used in categorization (classification of types of individuals).");
-        CONFIG("categories_min_sample_images", uint32_t(0), "Minimum number of images for a sample to be considered relevant. This will default to 50, or ten percent of `track_segment_max_length`, if that parameter is set. If `track_segment_max_length` is set, the value of this parameter will be ignored. If set to zero or one, then all samples are valid.");
-        CONFIG("track_segment_max_length", float(0), "If set to something bigger than zero, this represents the maximum number of seconds that a consecutive segment can be.");
+        CONFIG("categories_min_sample_images", uint32_t(0), "Minimum number of images for a sample to be considered relevant. This will default to 50, or ten percent of `tracklet_max_length`, if that parameter is set. If `tracklet_max_length` is set, the value of this parameter will be ignored. If set to zero or one, then all samples are valid.");
+        CONFIG("tracklet_max_length", float(0), "If set to something bigger than zero, this represents the maximum number of seconds that a tracklet can be.");
         
         CONFIG("track_only_segmentations", false, "If this is enabled, only segmentation results will be tracked - this avoids double tracking of bounding boxes and segmentation masks.");
-        CONFIG("track_only_categories", std::vector<std::string>{}, "If this is a non-empty list, only objects that have previously been assigned one of the correct categories will be tracked. Note that this also excludes noise particles or very short segments with no tracking.");
+        CONFIG("track_only_categories", std::vector<std::string>{}, "If this is a non-empty list, only objects that have previously been assigned one of the correct categories will be tracked. Note that this also affects anything below `categories_min_sample_images` length (e.g. noise particles or short tracklets).");
         CONFIG("track_only_classes", std::vector<std::string>{}, "If this is a non-empty list, only objects that have any of the given labels (assigned by a ML network during video conversion) will be tracked.");
         CONFIG("track_conf_threshold", 0.1_F, "During tracking, detections with confidence levels below the given fraction (0-1) for labels (assigned by an ML network during video conversion) will be discarded. These objects will not be assigned to any individual.");
         
@@ -687,7 +696,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("auto_no_memory_stats", true, "If set to true, no memory statistics will be saved on auto_quit.");
         CONFIG("auto_no_results", false, "If set to true, the auto_quit option will NOT save a .results file along with the NPZ (or CSV) files. This saves time and space, but also means that the tracked portion cannot be loaded via -load afterwards. Useful, if you only want to analyse the resulting data and never look at the tracked video again.");
         CONFIG("auto_no_tracking_data", false, "If set to true, the auto_quit option will NOT save any `output_fields` tracking data - just the posture data (if enabled) and the results file (if not disabled). This saves time and space if that is a need.");
-        CONFIG("auto_train", false, "If set to true, the application will automatically train the recognition network with the best track segment and apply it to the video.");
+        CONFIG("auto_train", false, "If set to true, the application will automatically train the recognition network with the best track tracklet and apply it to the video.");
         CONFIG("auto_train_on_startup", false, "This is a parameter that is used by the system to determine whether `auto_train` was set on startup, and thus also whether a failure of `auto_train` should result in a crash (return code != 0).", SYSTEM);
         CONFIG("analysis_range", Range<long_t>(-1, -1), "Sets start and end of the analysed frames.");
         CONFIG("output_min_frames", uint16_t(1), "Filters all individual with less than N frames when exporting. Individuals with fewer than N frames will also be hidden in the GUI unless `gui_show_inactive_individuals` is enabled (default).");
@@ -720,7 +729,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         
         CONFIG("grid_points", std::vector<Vec2>{}, "Whenever there is an identification network loaded and this array contains more than one point `[[x0,y0],[x1,y1],...]`, then the network will only be applied to blobs within circles around these points. The size of these circles is half of the average distance between the points.");
         CONFIG("grid_points_scaling", float(0.8), "Scaling applied to the average distance between the points in order to shrink or increase the size of the circles for recognition (see `grid_points`).");
-        CONFIG("recognition_segment_add_factor", 1.5_F, "This factor will be multiplied with the probability that would be pure chance, during the decision whether a segment is to be added or not. The default value of 1.5 suggests that the minimum probability for each identity has to be 1.5 times chance (e.g. 0.5 in the case of two individuals).");
+        CONFIG("accumulation_tracklet_add_factor", 1.5_F, "This factor will be multiplied with the probability that would be pure chance, during the decision whether a tracklet is to be added or not. The default value of 1.5 suggests that the minimum probability for each identity has to be 1.5 times chance (e.g. 0.5 in the case of two individuals).");
         CONFIG("recognition_save_progress_images", false, "If set to true, an image will be saved for all training epochs, documenting the uniqueness in each step.");
         CONFIG("recognition_shapes", std::vector<std::vector<Vec2>>(), "If `recognition_border` is set to 'shapes', then the identification network will only be applied to blobs within the convex shapes specified here.");
         CONFIG("recognition_border", track::recognition_border_t::none, "This defines the type of border that is used in all automatic recognition routines. Depending on the type set here, you might need to set other parameters as well (e.g. `recognition_shapes`). In general, this defines whether an image of an individual is usable for automatic recognition. If it is inside the defined border, then it will be passed on to the recognition network - if not, then it wont."
@@ -734,12 +743,12 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("pose_midline_indexes", track::PoseMidlineIndexes{.indexes = {}}, "This is an array of joint indexes (in the order as predicted by a YOLO-pose model), which are used to determine the joints making up the midline of an object. The first index is the head, the last the tail. This is used to generate a posture when using YOLO-pose models with `calculate_posture` enabled.");
         CONFIG("individual_image_size", Size2(80, 80), "Size of each image generated for network training.");
         CONFIG("individual_image_scale", float(1), "Scaling applied to the images before passing them to the network.");
-        CONFIG("recognition_save_training_images", false, "If set to true, the program will save the images used for a successful training of the recognition network to the output path.");
+        CONFIG("visual_identification_save_images", false, "If set to true, the program will save the images used for a successful training of the visual identification to `output_dir`.");
         CONFIG("visual_identification_version", visual_identification_version_t::v118_3, "Newer versions of TRex sometimes change the network layout for (e.g.) visual identification, which will make them incompatible with older trained models. This parameter allows you to change the expected version back, to ensure backwards compatibility. It also features many public network layouts available from the Keras package. In case training results do not match expectations, please first check the quality of your trajectories before trying out different network layouts.");
-        CONFIG("gpu_enable_accumulation", true, "Enables or disables the idtrackerai-esque accumulation protocol cascade. It is usually a good thing to enable this (especially in more complicated videos), but can be disabled as a fallback (e.g. if computation time is a major constraint).");
-        CONFIG("gpu_accepted_uniqueness", float(0), "If changed (from 0), the ratio given here will be the acceptable uniqueness for the video - which will stop accumulation if reached.");
+        CONFIG("accumulation_enable", true, "Enables or disables the idtrackerai-esque accumulation protocol cascade. It is usually a good thing to enable this (especially in more complicated videos), but can be disabled as a fallback (e.g. if computation time is a major constraint).");
+        CONFIG("accumulation_sufficient_uniqueness", float(0), "If changed (from 0), the ratio given here will be the acceptable uniqueness for the video - which will stop accumulation if reached.");
         CONFIG("auto_train_dont_apply", false, "If set to true, setting `auto_train` will only train and not apply the trained network.");
-        CONFIG("gpu_accumulation_enable_final_step", true, "If enabled, the network will be trained on all the validation + training data accumulated, as a last step of the accumulation protocol cascade. This is intentional overfitting.");
+        CONFIG("accumulation_enable_final_step", true, "If enabled, the network will be trained on all the validation + training data accumulated, as a last step of the accumulation protocol cascade. This is intentional overfitting.");
         CONFIG("gpu_learning_rate", float(0.0001f), "Learning rate for training a recognition network.");
         CONFIG("gpu_max_epochs", uchar(150), "Maximum number of epochs for training a recognition network (0 means infinite).");
         CONFIG("gpu_verbosity", gpu_verbosity_t::full, "Determines the nature of the output on the command-line during training. This does not change any behaviour in the graphical interface.");
@@ -764,8 +773,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("gpu_max_cache", float(2), "Size of the image cache (transferring to GPU) in GigaBytes when applying the network.");
         CONFIG("gpu_max_sample_gb", float(2), "Maximum size of per-individual sample images in GigaBytes. If the collected images are too many, they will be sub-sampled in regular intervals.");
         CONFIG("gpu_min_elements", uint32_t(25000), "Minimum number of images being collected, before sending them to the GPU.");
-        CONFIG("gpu_accumulation_max_segments", uint32_t(15), "If there are more than `gpu_accumulation_max_segments` global segments to be trained on, they will be filtered according to their quality until said limit is reached.");
-        CONFIG("gpu_augment_max_rotation", uint16_t(5), "Maximum degrees of image augmentation rotation.");
+        CONFIG("accumulation_max_tracklets", uint32_t(15), "If there are more than `accumulation_max_tracklets` global segments to be trained on, they will be filtered according to their quality until said limit is reached.");
         CONFIG("terminate_training", bool(false), "Setting this to true aborts the training in progress.");
         
         CONFIG("manually_approved", std::map<long_t,long_t>(), "A list of ranges of manually approved frames that may be used for generating training datasets, e.g. `{232:233,5555:5560}` where each of the numbers is a frame number. Meaning that frames 232-233 and 5555-5560 are manually set to be manually checked for any identity switches, and individual identities can be assumed to be consistent throughout these frames.");
@@ -774,8 +782,8 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("track_ignore", std::vector<std::vector<Vec2>>(), "If this is not empty, objects within the given rectangles or polygons (>= 3 points) `[[x0,y0],[x1,y1](, ...)], ...]` will be ignored during tracking.");
         CONFIG("track_include", std::vector<std::vector<Vec2>>(), "If this is not empty, objects within the given rectangles or polygons (>= 3 points) `[[x0,y0],[x1,y1](, ...)], ...]` will be the only objects being tracked. (overwrites `track_ignore`)");
         
-        CONFIG("huge_timestamp_ends_segment", true, "If enabled, a huge timestamp difference will end the current trajectory segment and will be displayed as a reason in the segment overview at the top of the selected individual info card.");
-        CONFIG("track_trusted_probability", 0.25_F, "If the (purely kinematic-based) probability that is used to assign an individual to an object is smaller than this value, the current consecutive segment ends and a new one starts. Even if the individual may still be assigned to the object, TRex will be *unsure* and no longer assume that it is definitely the same individual.");
+        CONFIG("tracklet_punish_timedelta", true, "If enabled, a huge timestamp difference will end the current trajectory tracklet and will be displayed as a reason in the tracklet overview at the top of the selected individual info card.");
+        CONFIG("track_trusted_probability", 0.25_F, "If the (purely kinematic-based) probability that is used to assign an individual to an object is smaller than this value, the current tracklet ends and a new one starts. Even if the individual may still be assigned to the object, TRex will be *unsure* and no longer assume that it is definitely the same individual.");
         CONFIG("huge_timestamp_seconds", 0.2, "Defaults to 0.5s (500ms), can be set to any value that should be recognized as being huge.");
         CONFIG("gui_foi_name", std::string("correcting"), "If not empty, the gui will display the given FOI type in the timeline and allow to navigate between them via M/N.");
         CONFIG("gui_foi_types", std::vector<std::string>(), "A list of all the foi types registered.", SYSTEM);
@@ -836,7 +844,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             "video_length",
             "terminate",
             "cam_limit_exposure",
-            "gpu_accepted_uniqueness",
+            "accumulation_sufficient_uniqueness",
             //"output_fields",
             "auto_minmax_size",
             "auto_number_individuals",

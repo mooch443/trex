@@ -106,8 +106,8 @@ Fish::~Fish() {
                     return map;
                 }),
                 VarFunc("qr", [this](const VarProps&) -> sprite::Map {
-                    if(not _segment) {
-                        return {};//throw InvalidArgumentException("No segment set to retrieve QRCode from.");
+                    if(not _tracklet) {
+                        return {};//throw InvalidArgumentException("No tracklet set to retrieve QRCode from.");
                     }
                     
                     auto [id, p, n] = _qr_code;
@@ -227,7 +227,7 @@ Fish::~Fish() {
             _image.unsafe_get_source().set_index(-1);
         points.clear();
         
-        auto seg = _frame.valid() ? GUICache::instance().segment_cache(_id.ID()) : nullptr;
+        auto seg = _frame.valid() ? GUICache::instance().tracklet_cache(_id.ID()) : nullptr;
         _match_mode = std::nullopt;
         
         if(seg && seg->contains(_frame)) {
@@ -344,15 +344,15 @@ Fish::~Fish() {
         _range = Range<Frame_t>(obj.start_frame(), obj.end_frame());
         _empty = obj.empty();
         
-        _has_processed_segment = GUICache::instance().processed_segment_cache(_id.ID()); //obj.has_processed_segment(_frame);
-        if(std::get<0>(_has_processed_segment)) {
-            processed_segment = obj.processed_recognition(std::get<1>(_has_processed_segment).start());
+        _has_processed_tracklet = GUICache::instance().processed_tracklet_cache(_id.ID()); //obj.has_processed_tracklet(_frame);
+        if(std::get<0>(_has_processed_tracklet)) {
+            processed_tracklet = obj.processed_recognition(std::get<1>(_has_processed_tracklet).start());
         } else
-            processed_segment = {};
+            processed_tracklet = {};
         
-        _segment = GUICache::instance().segment_cache(_id.ID());//obj.segment_for(_frame);
-        if(_segment) {
-            _qr_code = obj.qrcode_at(_segment->start());
+        _tracklet = GUICache::instance().tracklet_cache(_id.ID());//obj.tracklet_for(_frame);
+        if(_tracklet) {
+            _qr_code = obj.qrcode_at(_tracklet->start());
         } else
             _qr_code = {};
         
@@ -378,12 +378,12 @@ Fish::~Fish() {
          * ML Predictions
          */
         if(_basic_stuff) {
-            auto && [valid, segment] = obj.has_processed_segment(frameIndex);
+            auto && [valid, tracklet] = obj.has_processed_tracklet(frameIndex);
             
             std::string title = "recognition";
             
             if(valid) {
-                auto && [n, values] = obj.processed_recognition(segment.start());
+                auto && [n, values] = obj.processed_recognition(tracklet.start());
                 title = "average n:"+Meta::toStr(n);
                 _raw_preds = values;
                 
@@ -395,7 +395,7 @@ Fish::~Fish() {
                     _raw_preds = std::nullopt;
             }
             
-            _recognition_segment = segment;
+            _recognition_tracklet = tracklet;
             _recognition_str = title;
         }
         
@@ -1770,9 +1770,9 @@ void Fish::updatePath(Individual& obj, Frame_t to, Frame_t from) {
     {
         auto i = (first.valid() ? first - 1_f : from);
         auto fit = obj.iterator_for(i);
-        auto end = obj.frame_segments().end();
-        auto begin = obj.frame_segments().begin();
-        //auto seg = _obj.segment_for(i);
+        auto end = obj.tracklets().end();
+        auto begin = obj.tracklets().begin();
+        //auto seg = _obj.tracklet_for(i);
         
         for (; i.valid() && i>=from; --i) {
             if(fit == end || (*fit)->start() > i) {
@@ -1818,11 +1818,11 @@ void Fish::updatePath(Individual& obj, Frame_t to, Frame_t from) {
     {
         auto i = last.valid() ? max(from, last) : from;
         auto fit = obj.iterator_for(i);
-        auto end = obj.frame_segments().end();
+        auto end = obj.tracklets().end();
         
         for (; i<=to; ++i) {
             if(fit == end || (*fit)->end() < i) {
-                //seg = _obj.segment_for(i);
+                //seg = _obj.tracklet_for(i);
                 while(fit != end && (*fit)->end() < i)
                     ++fit;
             }
@@ -1998,9 +1998,9 @@ void Fish::label(const FindCoord& coord, Entangled &e) {
     text << _id.raw_name() << " ";
     
     if (GUI_SETTINGS(gui_show_recognition_bounds)) {
-        auto& [valid, segment] = _has_processed_segment;
+        auto& [valid, tracklet] = _has_processed_tracklet;
         if (valid) {
-            auto& [samples, map] = processed_segment;
+            auto& [samples, map] = processed_tracklet;
             auto it = std::max_element(map.begin(), map.end(), [](const std::pair<Idx_t, float>& a, const std::pair<Idx_t, float>& b) {
                 return a.second < b.second;
             });
@@ -2034,7 +2034,7 @@ void Fish::label(const FindCoord& coord, Entangled &e) {
         secondary_text += "<a>tag:" + Meta::toStr(detection.id) + " (" + dec<2>(detection.p).toStr() + ")</a>";
     }
     
-    if(_segment) {
+    if(_tracklet) {
         auto [id, p, n] = _qr_code;
         if(id >= 0 && p > 0) {
             secondary_text += std::string(" ") + "<a><i>QR:"+Meta::toStr(id)+" ("+dec<2>(p).toStr() + ")</i></a>";

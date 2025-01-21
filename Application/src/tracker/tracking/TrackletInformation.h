@@ -6,12 +6,12 @@
 
 namespace track {
 
-struct SegmentInformation : public cmn::FrameRange {
+struct TrackletInformation : public cmn::FrameRange {
     std::vector<long_t> basic_index;
     std::vector<long_t> posture_index;
     uint32_t error_code = std::numeric_limits<uint32_t>::max();
     
-    SegmentInformation(
+    TrackletInformation(
         const Range<Frame_t>& range = Range<Frame_t>(Frame_t(), Frame_t()),
         Frame_t first_usable = Frame_t())
       : FrameRange(range, first_usable)
@@ -24,13 +24,13 @@ struct SegmentInformation : public cmn::FrameRange {
     long_t basic_stuff(Frame_t frame) const;
     long_t posture_stuff(Frame_t frame) const;
     
-    constexpr bool overlaps(const SegmentInformation& v) const {
+    constexpr bool overlaps(const TrackletInformation& v) const {
         return contains(v.start()) || contains(v.end())
             || v.contains(start()) || v.contains(end())
             || v.start() == end() || start() == v.end();
     }
     
-    constexpr bool operator<(const SegmentInformation& other) const {
+    constexpr bool operator<(const TrackletInformation& other) const {
         return range < other.range;
     }
     

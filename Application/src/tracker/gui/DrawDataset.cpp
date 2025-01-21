@@ -10,7 +10,7 @@ namespace cmn::gui {
     using namespace track;
     
     DrawDataset::DrawDataset()
-        : _last_consecutive_frames({}, {}), _initial_pos_set(false)
+        : _last_tracklet({}, {}), _initial_pos_set(false)
     {
         set_background(Black.alpha(150));
         set_origin(Vec2(1));
@@ -28,7 +28,7 @@ DrawDataset::~DrawDataset() {}
     
     void DrawDataset::clear_cache() {
         _cache.clear();
-        _last_consecutive_frames = Range<Frame_t>({}, {});
+        _last_tracklet = Range<Frame_t>({}, {});
         _last_frame.invalidate();
         _meta.clear();
         _current_quality = DatasetQuality::Quality();
@@ -38,11 +38,11 @@ DrawDataset::~DrawDataset() {}
 
     void DrawDataset::set_data(Frame_t frameIndex, const GUICache &cache) {
         frame = frameIndex;
-        segment_order = cache.global_segment_order();
+        tracklet_order = cache.global_tracklet_order();
         consec = {};
         
         if(frame.valid()) {
-            for(auto & range : segment_order) {
+            for(auto & range : tracklet_order) {
                 if(range.contains(frame)) {
                     current_consec = range;
                     break;
@@ -52,8 +52,12 @@ DrawDataset::~DrawDataset() {}
             current_consec = {};
         }
         
-        if(frame == _last_frame && consec == _last_consecutive_frames && current_consec == _last_current_frames)
+        if( frame == _last_frame 
+            && consec == _last_tracklet 
+            && current_consec == _last_current_frames)
+        {
             return;
+        }
         
         {
             LockGuard guard(ro_t{}, "DrawDataset::update",100);
@@ -71,7 +75,7 @@ DrawDataset::~DrawDataset() {}
                 _names[id] = fish->identity().name();
                 _cache[id] = {};
                 
-                auto && [condition, seg] = fish->has_processed_segment(frame);
+                auto && [condition, seg] = fish->has_processed_tracklet(frame);
                 if(condition) {
                     auto &tup = fish->processed_recognition(seg.start());
                     _cache[id] = tup;
@@ -110,7 +114,7 @@ DrawDataset::~DrawDataset() {}
             };
             
             _meta = per_fish;
-            _last_consecutive_frames = consec;
+            _last_tracklet = consec;
             _quality = quality;
             
             set_content_changed(true);
@@ -205,7 +209,7 @@ DrawDataset::~DrawDataset() {}
             }
             
             /**
-             * Now focus on the dataset selected by _consecutive_frames.
+             * Now focus on the dataset selected by _tracklet.
              * The information displayed is:
              *      - number of trainable frames / individual
              *      - midline length within those frames / individual (+ std)
@@ -251,11 +255,11 @@ DrawDataset::~DrawDataset() {}
             };
             
             if(_last_current_frames.start.valid() && !_meta_current.empty()) {
-                h = add<Text>(Str("Current segment "+Meta::toStr(_last_current_frames)+" ("+Meta::toStr(_current_quality)+")"), Loc(x, 10), TextClr(White), Font(0.6f, Style::Bold))->height();
+                h = add<Text>(Str("Current tracklet "+Meta::toStr(_last_current_frames)+" ("+Meta::toStr(_current_quality)+")"), Loc(x, 10), TextClr(White), Font(0.6f, Style::Bold))->height();
                 display_dataset(_meta_current, 0);
                 
                 if(!_meta.empty()) {
-                    h = add<Text>(Str("Best segment "+Meta::toStr(_last_consecutive_frames)+" ("+Meta::toStr(_quality)+")"), Loc(x, 10 + y + 5), TextClr(White), Font(0.6f, Style::Bold))->height();
+                    h = add<Text>(Str("Best tracklet "+Meta::toStr(_last_tracklet)+" ("+Meta::toStr(_quality)+")"), Loc(x, 10 + y + 5), TextClr(White), Font(0.6f, Style::Bold))->height();
                     
                     float cy = y + 5 + 10 + 10 + h;
                     
@@ -271,7 +275,7 @@ DrawDataset::~DrawDataset() {}
                 }
                 
             } else if(!_meta.empty()) {
-                h = add<Text>(Str("Best segment "+Meta::toStr(_last_consecutive_frames)+" ("+Meta::toStr(_quality)+")"), Loc(x, 10), TextClr(White), Font(0.6f, Style::Bold))->height();
+                h = add<Text>(Str("Best tracklet "+Meta::toStr(_last_tracklet)+" ("+Meta::toStr(_quality)+")"), Loc(x, 10), TextClr(White), Font(0.6f, Style::Bold))->height();
                 display_dataset(_meta, 0);
             }
             

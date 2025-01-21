@@ -3,6 +3,51 @@
 
 TRex parameters
 ###############
+.. function:: accumulation_enable(bool)
+
+	**default value:** true
+
+
+	Enables or disables the idtrackerai-esque accumulation protocol cascade. It is usually a good thing to enable this (especially in more complicated videos), but can be disabled as a fallback (e.g. if computation time is a major constraint).
+
+
+
+.. function:: accumulation_enable_final_step(bool)
+
+	**default value:** true
+
+
+	If enabled, the network will be trained on all the validation + training data accumulated, as a last step of the accumulation protocol cascade. This is intentional overfitting.
+
+
+
+.. function:: accumulation_max_tracklets(uint)
+
+	**default value:** 15
+
+
+	If there are more than  global segments to be trained on, they will be filtered according to their quality until said limit is reached.
+
+
+
+.. function:: accumulation_sufficient_uniqueness(float)
+
+	**default value:** 0
+
+
+	If changed (from 0), the ratio given here will be the acceptable uniqueness for the video - which will stop accumulation if reached.
+
+
+
+.. function:: accumulation_tracklet_add_factor(float)
+
+	**default value:** 1.5
+
+
+	This factor will be multiplied with the probability that would be pure chance, during the decision whether a tracklet is to be added or not. The default value of 1.5 suggests that the minimum probability for each identity has to be 1.5 times chance (e.g. 0.5 in the case of two individuals).
+
+
+
 .. function:: adaptive_threshold_scale(float)
 
 	**default value:** 2
@@ -171,7 +216,7 @@ TRex parameters
 	**default value:** false
 
 
-	If set to true, the application will automatically train the recognition network with the best track segment and apply it to the video.
+	If set to true, the application will automatically train the recognition network with the best track tracklet and apply it to the video.
 
 
 
@@ -413,9 +458,9 @@ TRex parameters
 	**default value:** 0
 
 
-	Minimum number of images for a sample to be considered relevant. This will default to 50, or ten percent of ``track_segment_max_length``, if that parameter is set. If ``track_segment_max_length`` is set, the value of this parameter will be ignored. If set to zero or one, then all samples are valid.
+	Minimum number of images for a sample to be considered relevant. This will default to 50, or ten percent of ``tracklet_max_length``, if that parameter is set. If ``tracklet_max_length`` is set, the value of this parameter will be ignored. If set to zero or one, then all samples are valid.
 
-	.. seealso:: :param:`track_segment_max_length`, :param:`track_segment_max_length`
+	.. seealso:: :param:`tracklet_max_length`, :param:`tracklet_max_length`
 
 
 .. function:: categories_ordered(array<string>)
@@ -614,6 +659,15 @@ TRex parameters
 	.. seealso:: :param:`detect_model`
 
 
+.. function:: detect_size_filter(SizeFilters)
+
+	**default value:** []
+
+
+	During conversion (using background subtraction) objects outside this size range will be filtered out. If empty, all objects will be accepted.
+
+
+
 .. function:: detect_skeleton(Skeleton)
 
 	**default value:** ["",[]]
@@ -776,51 +830,6 @@ TRex parameters
 
 
 	Specifies the frame rate of the video. It is used e.g. for playback speed and certain parts of the matching algorithm. Will be set by the metadata of the video. If you want to set a custom frame rate, different from the video metadata, you should set it during conversion. This guarantees that the timestamps generated will match up with your custom framerate during tracking.
-
-
-
-.. function:: gpu_accepted_uniqueness(float)
-
-	**default value:** 0
-
-
-	If changed (from 0), the ratio given here will be the acceptable uniqueness for the video - which will stop accumulation if reached.
-
-
-
-.. function:: gpu_accumulation_enable_final_step(bool)
-
-	**default value:** true
-
-
-	If enabled, the network will be trained on all the validation + training data accumulated, as a last step of the accumulation protocol cascade. This is intentional overfitting.
-
-
-
-.. function:: gpu_accumulation_max_segments(uint)
-
-	**default value:** 15
-
-
-	If there are more than  global segments to be trained on, they will be filtered according to their quality until said limit is reached.
-
-
-
-.. function:: gpu_augment_max_rotation(uint16)
-
-	**default value:** 5
-
-
-	Maximum degrees of image augmentation rotation.
-
-
-
-.. function:: gpu_enable_accumulation(bool)
-
-	**default value:** true
-
-
-	Enables or disables the idtrackerai-esque accumulation protocol cascade. It is usually a good thing to enable this (especially in more complicated videos), but can be disabled as a fallback (e.g. if computation time is a major constraint).
 
 
 
@@ -1585,7 +1594,7 @@ TRex parameters
 	**default value:** 200
 
 
-	Determines the Alpha value for the timeline / consecutive segments display.
+	Determines the Alpha value for the timeline / tracklets display.
 
 
 
@@ -1693,15 +1702,6 @@ TRex parameters
 
 
 	If this is set to a valid html file path, a detailed matching history log will be written to the given file for each frame.
-
-
-
-.. function:: huge_timestamp_ends_segment(bool)
-
-	**default value:** true
-
-
-	If enabled, a huge timestamp difference will end the current trajectory segment and will be displayed as a reason in the segment overview at the top of the selected individual info card.
 
 
 
@@ -2209,6 +2209,15 @@ TRex parameters
 
 
 
+.. function:: output_fields(array<pair<string,array<string>>>)
+
+	**default value:** [["X",["RAW","WCENTROID"]],["Y",["RAW","WCENTROID"]],["X",["RAW","HEAD"]],["Y",["RAW","HEAD"]],["VX",["RAW","HEAD"]],["VY",["RAW","HEAD"]],["AX",["RAW","HEAD"]],["AY",["RAW","HEAD"]],["ANGLE",["RAW"]],["ANGULAR_V",["RAW"]],["ANGULAR_A",["RAW"]],["MIDLINE_OFFSET",["RAW"]],["normalized_midline",["RAW"]],["midline_length",["RAW"]],["midline_x",["RAW"]],["midline_y",["RAW"]],["midline_segment_length",["RAW"]],["SPEED",["RAW","WCENTROID"]],["SPEED",["RAW","PCENTROID"]],["SPEED",["RAW","HEAD"]],["BORDER_DISTANCE",["PCENTROID"]],["time",[]],["timestamp",[]],["frame",[]],["missing",[]],["num_pixels",[]],["ACCELERATION",["RAW","PCENTROID"]],["ACCELERATION",["RAW","WCENTROID"]],["poseX0",["RAW"]],["poseY0",["RAW"]],["poseX1",["RAW"]],["poseY1",["RAW"]],["poseX2",["RAW"]],["poseY2",["RAW"]],["poseX3",["RAW"]],["poseY3",["RAW"]],["poseX4",["RAW"]],["poseY4",["RAW"]],["poseX5",["RAW"]],["poseY5",["RAW"]],["poseX6",["RAW"]],["poseY6",["RAW"]],["poseX7",["RAW"]],["poseY7",["RAW"]],["poseX8",["RAW"]],["poseY8",["RAW"]],["poseX9",["RAW"]],["poseY9",["RAW"]],["poseX10",["RAW"]],["poseY10",["RAW"]],["poseX11",["RAW"]],["poseY11",["RAW"]],["poseX12",["RAW"]],["poseY12",["RAW"]],["poseX13",["RAW"]],["poseY13",["RAW"]],["poseX14",["RAW"]],["poseY14",["RAW"]],["poseX15",["RAW"]],["poseY15",["RAW"]],["poseX16",["RAW"]],["poseY16",["RAW"]]]
+
+
+	The functions that will be exported when saving to CSV, or shown in the graph. ``[['X',[option], ...]]``
+
+
+
 .. function:: output_format(output_format_t)
 
 	**default value:** npz
@@ -2229,15 +2238,6 @@ TRex parameters
 
 
 	If an individual is selected during CSV output, use these number of frames around it (or -1 for all frames).
-
-
-
-.. function:: output_fields(array<pair<string,array<string>>>)
-
-	**default value:** [["X",["RAW","WCENTROID"]],["Y",["RAW","WCENTROID"]],["X",["RAW","HEAD"]],["Y",["RAW","HEAD"]],["VX",["RAW","HEAD"]],["VY",["RAW","HEAD"]],["AX",["RAW","HEAD"]],["AY",["RAW","HEAD"]],["ANGLE",["RAW"]],["ANGULAR_V",["RAW"]],["ANGULAR_A",["RAW"]],["MIDLINE_OFFSET",["RAW"]],["normalized_midline",["RAW"]],["midline_length",["RAW"]],["midline_x",["RAW"]],["midline_y",["RAW"]],["midline_segment_length",["RAW"]],["SPEED",["RAW","WCENTROID"]],["SPEED",["RAW","PCENTROID"]],["SPEED",["RAW","HEAD"]],["BORDER_DISTANCE",["PCENTROID"]],["time",[]],["timestamp",[]],["frame",[]],["missing",[]],["num_pixels",[]],["ACCELERATION",["RAW","PCENTROID"]],["ACCELERATION",["RAW","WCENTROID"]],["poseX0",["RAW"]],["poseY0",["RAW"]],["poseX1",["RAW"]],["poseY1",["RAW"]],["poseX2",["RAW"]],["poseY2",["RAW"]],["poseX3",["RAW"]],["poseY3",["RAW"]],["poseX4",["RAW"]],["poseY4",["RAW"]],["poseX5",["RAW"]],["poseY5",["RAW"]],["poseX6",["RAW"]],["poseY6",["RAW"]],["poseX7",["RAW"]],["poseY7",["RAW"]],["poseX8",["RAW"]],["poseY8",["RAW"]],["poseX9",["RAW"]],["poseY9",["RAW"]],["poseX10",["RAW"]],["poseY10",["RAW"]],["poseX11",["RAW"]],["poseY11",["RAW"]],["poseX12",["RAW"]],["poseY12",["RAW"]],["poseX13",["RAW"]],["poseY13",["RAW"]],["poseX14",["RAW"]],["poseY14",["RAW"]],["poseX15",["RAW"]],["poseY15",["RAW"]],["poseX16",["RAW"]],["poseY16",["RAW"]]]
-
-
-	The functions that will be exported when saving to CSV, or shown in the graph. ``[['X',[option], ...]]``
 
 
 
@@ -2504,24 +2504,6 @@ TRex parameters
 
 
 
-.. function:: recognition_save_training_images(bool)
-
-	**default value:** false
-
-
-	If set to true, the program will save the images used for a successful training of the recognition network to the output path.
-
-
-
-.. function:: recognition_segment_add_factor(float)
-
-	**default value:** 1.5
-
-
-	This factor will be multiplied with the probability that would be pure chance, during the decision whether a segment is to be added or not. The default value of 1.5 suggests that the minimum probability for each identity has to be 1.5 times chance (e.g. 0.5 in the case of two individuals).
-
-
-
 .. function:: recognition_shapes(array<array<vec>>)
 
 	**default value:** []
@@ -2594,15 +2576,6 @@ TRex parameters
 
 
 	The path to the raw movie file. If empty, the same path as the PV file will be used (but as a .mov).
-
-
-
-.. function:: detect_size_filter(SizeFilters)
-
-	**default value:** []
-
-
-	During conversion (using background subtraction) objects outside this size range will be filtered out. If empty, all objects will be accepted.
 
 
 
@@ -2930,15 +2903,6 @@ TRex parameters
 
 
 
-.. function:: track_end_segment_for_speed(bool)
-
-	**default value:** true
-
-
-	Sometimes individuals might be assigned to blobs that are far away from the previous position. This could indicate wrong assignments, but not necessarily. If this variable is set to true, consecutive frame segments will end whenever high speeds are reached, just to be on the safe side. For scenarios with lots of individuals (and no recognition) this might spam yellow bars in the timeline and may be disabled.
-
-
-
 .. function:: track_enforce_frame_rate(bool)
 
 	**default value:** true
@@ -3010,8 +2974,9 @@ TRex parameters
 	**default value:** []
 
 
-	If this is a non-empty list, only objects that have previously been assigned one of the correct categories will be tracked. Note that this also excludes noise particles or very short segments with no tracking.
+	If this is a non-empty list, only objects that have previously been assigned one of the correct categories will be tracked. Note that this also affects anything below ``categories_min_sample_images`` length (e.g. noise particles or short tracklets).
 
+	.. seealso:: :param:`categories_min_sample_images`
 
 
 .. function:: track_only_classes(array<string>)
@@ -3049,15 +3014,6 @@ TRex parameters
 	Same as ``track_threshold``, but for posture estimation.
 
 	.. seealso:: :param:`track_threshold`
-
-
-.. function:: track_segment_max_length(float)
-
-	**default value:** 0
-
-
-	If set to something bigger than zero, this represents the maximum number of seconds that a consecutive segment can be.
-
 
 
 .. function:: track_size_filter(SizeFilters)
@@ -3112,7 +3068,7 @@ TRex parameters
 	**default value:** 0.25
 
 
-	If the (purely kinematic-based) probability that is used to assign an individual to an object is smaller than this value, the current consecutive segment ends and a new one starts. Even if the individual may still be assigned to the object, TRex will be *unsure* and no longer assume that it is definitely the same individual.
+	If the (purely kinematic-based) probability that is used to assign an individual to an object is smaller than this value, the current tracklet ends and a new one starts. Even if the individual may still be assigned to the object, TRex will be *unsure* and no longer assume that it is definitely the same individual.
 
 
 
@@ -3136,6 +3092,15 @@ TRex parameters
 	.. seealso:: :param:`output_image_per_tracklet`
 
 
+.. function:: tracklet_max_length(float)
+
+	**default value:** 0
+
+
+	If set to something bigger than zero, this represents the maximum number of seconds that a tracklet can be.
+
+
+
 .. function:: tracklet_normalize(bool)
 
 	**default value:** true
@@ -3144,6 +3109,24 @@ TRex parameters
 	If enabled, all exported tracklet images are normalized according to the ``individual_image_normalization`` and padded / shrunk to ``individual_image_size`` (they appear as they do in the image preview when selecting an individual in the GUI).
 
 	.. seealso:: :param:`individual_image_normalization`, :param:`individual_image_size`
+
+
+.. function:: tracklet_punish_speeding(bool)
+
+	**default value:** true
+
+
+	Sometimes individuals might be assigned to blobs that are far away from the previous position. This could indicate wrong assignments, but not necessarily. If this variable is set to true, consecutive frame segments will end whenever high speeds are reached, just to be on the safe side. For scenarios with lots of individuals (and no recognition) this might spam yellow bars in the timeline and may be disabled.
+
+
+
+.. function:: tracklet_punish_timedelta(bool)
+
+	**default value:** true
+
+
+	If enabled, a huge timestamp difference will end the current trajectory tracklet and will be displayed as a reason in the tracklet overview at the top of the selected individual info card.
+
 
 
 .. function:: use_adaptive_threshold(bool)
@@ -3176,7 +3159,7 @@ TRex parameters
 
 .. function:: version(string)
 
-	**default value:** "v1.1.9-1226-g1ac81754_dev"
+	**default value:** "v1.1.9-1233-g7d4ca84c_dev"
 
 
 	Current application version.
@@ -3271,6 +3254,16 @@ TRex parameters
 
 	A list of shapes that should be handled as view-blocking in visual field calculations.
 
+
+
+.. function:: visual_identification_save_images(bool)
+
+	**default value:** false
+
+
+	If set to true, the program will save the images used for a successful training of the visual identification to ``output_dir``.
+
+	.. seealso:: :param:`output_dir`
 
 
 .. function:: visual_identification_version(visual_identification_version_t)

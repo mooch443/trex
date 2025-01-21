@@ -66,8 +66,8 @@ inline std::vector<T> erase_indices(const std::vector<T>& data, std::vector<size
 }
 
 std::vector<RangedLabel> _ranged_labels;
-std::unordered_map<Idx_t, std::unordered_map<const SegmentInformation*, Label::Ptr>> _interpolated_probability_cache;
-std::unordered_map<Idx_t, std::unordered_map<const SegmentInformation*, Label::Ptr>> _averaged_probability_cache;
+std::unordered_map<Idx_t, std::unordered_map<const TrackletInformation*, Label::Ptr>> _interpolated_probability_cache;
+std::unordered_map<Idx_t, std::unordered_map<const TrackletInformation*, Label::Ptr>> _averaged_probability_cache;
 
 //std::unordered_map<Frame_t, std::vector<std::tuple<uint32_t, Label::Ptr>>> _probability_cache;
 std::vector<std::vector<BlobLabel>> _probability_cache; // frame - start_frame => index in this array
@@ -130,30 +130,30 @@ int DataStore::number_labels() {
 
 #if !COMMONS_NO_PYTHON
 
-std::mutex _processed_segments_mutex;
-std::vector<std::tuple<std::thread::id, Range<Frame_t>>> _currently_processed_segments;
+std::mutex _processed_tracklets_mutex;
+std::vector<std::tuple<std::thread::id, Range<Frame_t>>> _currently_processed_tracklets;
 
-void DataStore::add_currently_processed_segment(std::thread::id id, Range<Frame_t> range) {
-    std::unique_lock g{_processed_segments_mutex};
-    _currently_processed_segments.insert(_currently_processed_segments.end(), { id, range });
+void DataStore::add_currently_processed_tracklet(std::thread::id id, Range<Frame_t> range) {
+    std::unique_lock g{_processed_tracklets_mutex};
+    _currently_processed_tracklets.insert(_currently_processed_tracklets.end(), { id, range });
 }
-bool DataStore::remove_currently_processed_segment(std::thread::id id) {
-    std::unique_lock g{_processed_segments_mutex};
-    for(auto it = _currently_processed_segments.begin(); it != _currently_processed_segments.end(); ++it)
+bool DataStore::remove_currently_processed_tracklet(std::thread::id id) {
+    std::unique_lock g{_processed_tracklets_mutex};
+    for(auto it = _currently_processed_tracklets.begin(); it != _currently_processed_tracklets.end(); ++it)
     {
         if(std::get<0>(*it) == id) {
-            _currently_processed_segments.erase(it);
+            _currently_processed_tracklets.erase(it);
             return true;
         }
     }
     
     return false;
 }
-std::vector<Range<Frame_t>> DataStore::currently_processed_segments() {
+std::vector<Range<Frame_t>> DataStore::currently_processed_tracklets() {
     std::vector<Range<Frame_t>> result;
     
-    std::unique_lock g{_processed_segments_mutex};
-    for(auto &[id, s] : _currently_processed_segments) {
+    std::unique_lock g{_processed_tracklets_mutex};
+    for(auto &[id, s] : _currently_processed_tracklets) {
         result.emplace_back(s);
     }
     
@@ -190,7 +190,7 @@ std::mutex _pp_frame_cache_mutex;
 std::unique_ptr<PPFrameCache> _pp_frame_cache;
 
 // indexes in _samples array
-std::unordered_map<const SegmentInformation*, size_t> _used_indexes;
+std::unordered_map<const TrackletInformation*, size_t> _used_indexes;
 
 // holds original samples
 std::vector<Sample::Ptr> _samples;
@@ -278,29 +278,29 @@ Label::Ptr DataStore::label(MaybeLabel ID) {
 Sample::Ptr DataStore::random_sample(std::weak_ptr<pv::File> source, Idx_t fid) {
     static std::mutex rdmtx;
     static std::mt19937 mt{rd()};
-    std::shared_ptr<SegmentInformation> segment;
+    std::shared_ptr<TrackletInformation> tracklet;
     
     return IndividualManager::transform_if_exists(fid, [&](auto fish) {
         auto& basic_stuff = fish->basic_stuff();
         if (basic_stuff.empty())
             return Sample::Invalid();
 
-        std::uniform_int_distribution<typename remove_cvref<decltype(fish->frame_segments())>::type::difference_type> sample_dist(0, fish->frame_segments().size() - 1);
+        std::uniform_int_distribution<typename remove_cvref<decltype(fish->tracklets())>::type::difference_type> sample_dist(0, fish->tracklets().size() - 1);
         
-        auto it = fish->frame_segments().begin();
+        auto it = fish->tracklets().begin();
         {
             std::lock_guard g(rdmtx);
             auto nr = sample_dist(mt);
             std::advance(it, nr);
         }
-        segment = *it;
+        tracklet = *it;
         
-        if(!segment)
+        if(!tracklet)
             return Sample::Invalid();
         
-        const auto max_len = FAST_SETTING(track_segment_max_length);
+        const auto max_len = FAST_SETTING(tracklet_max_length);
         const auto min_len = uint32_t(max_len > 0 ? max(1, max_len * 0.1 * float(FAST_SETTING(frame_rate))) : FAST_SETTING(categories_min_sample_images));
-        return sample(source, segment, fish, 150u, min_len);
+        return sample(source, tracklet, fish, 150u, min_len);
         
     }).or_else([](auto) -> tl::expected<Sample::Ptr, const char*> {
         return Sample::Invalid();
@@ -507,7 +507,7 @@ Label::Ptr DataStore::label_averaged(const Individual* fish, Frame_t frame) {
     }
 
     auto kit = fish->iterator_for(frame);
-    if(kit == fish->frame_segments().end()) {
+    if(kit == fish->tracklets().end()) {
         //FormatWarning("Individual ", fish._identity,", cannot find frame ",frame._frame,".");
         return nullptr;
     }
@@ -588,7 +588,7 @@ Label::Ptr DataStore::_label_averaged_unsafe(const Individual* fish, Frame_t fra
         return nullptr;
     
     auto kit = fish->iterator_for(frame);
-    if(kit == fish->frame_segments().end()) {
+    if(kit == fish->tracklets().end()) {
         //FormatWarning("Individual ", fish._identity,", cannot find frame ",frame._frame,".");
         return nullptr;
     }
@@ -662,7 +662,7 @@ Label::Ptr DataStore::label_interpolated(const Individual* fish, Frame_t frame) 
     assert(fish);
     
     auto kit = fish->iterator_for(frame);
-    if(kit == fish->frame_segments().end()) {
+    if(kit == fish->tracklets().end()) {
         //FormatWarning("Individual ", fish._identity,", cannot find frame ",frame._frame,".");
         return nullptr;
     }
@@ -816,7 +816,7 @@ void DataStore::clear_cache() {
 }
 
 
-std::shared_ptr<PPFrame> cache_pp_frame(pv::File* video_source, const Frame_t& frame, const std::shared_ptr<SegmentInformation>&, std::atomic<size_t>& _delete, std::atomic<size_t>& _create, std::atomic<size_t>& _reuse) {
+std::shared_ptr<PPFrame> cache_pp_frame(pv::File* video_source, const Frame_t& frame, const std::shared_ptr<TrackletInformation>&, std::atomic<size_t>& _delete, std::atomic<size_t>& _create, std::atomic<size_t>& _reuse) {
     //if(Work::terminate())
     //    return nullptr;
     
@@ -910,8 +910,8 @@ std::shared_ptr<PPFrame> cache_pp_frame(pv::File* video_source, const Frame_t& f
     }*/
     
     {
-        std::lock_guard g{_processed_segments_mutex};
-        for(auto& [id, range] : _currently_processed_segments) {
+        std::lock_guard g{_processed_tracklets_mutex};
+        for(auto& [id, range] : _currently_processed_tracklets) {
             v.insert(v.end(), { int64_t(range.start.get()), int64_t(range.end.get()) });
             minimum_range = min(range.start.get(), minimum_range);
             maximum_range = max(range.end.get(), maximum_range);
@@ -1036,16 +1036,16 @@ std::mutex debug_mutex;
 
 Sample::Ptr DataStore::temporary(
      pv::File* video_source,
-     const std::shared_ptr<SegmentInformation>& segment,
+     const std::shared_ptr<TrackletInformation>& tracklet,
      Individual* fish,
      const size_t sample_rate,
      const size_t min_samples)
 {
     {
-        // try to find the sought after segment in the already cached ones
+        // try to find the sought after tracklet in the already cached ones
         // TODO: This disregards changing sample rate and min_samples
         std::lock_guard guard(mutex());
-        auto fit = _used_indexes.find(segment.get());
+        auto fit = _used_indexes.find(tracklet.get());
         if(fit != _used_indexes.end()) {
             return _samples.at(fit->second); // already sampled
         }
@@ -1071,8 +1071,8 @@ Sample::Ptr DataStore::temporary(
     {
         {
             LockGuard guard(ro_t{}, "Categorize::sample");
-            range = segment->range;
-            basic_index = segment->basic_index;
+            range = tracklet->range;
+            basic_index = tracklet->basic_index;
             frames.reserve(basic_index.size());
             for (auto index : basic_index)
                 frames.push_back(fish->basic_stuff()[index]->frame);
@@ -1124,7 +1124,7 @@ Sample::Ptr DataStore::temporary(
         
         if(stuff_indexes.size() < min_samples) {
     #ifndef NDEBUG
-            FormatWarning("#1 Below min_samples (",min_samples,") Fish",fish->identity().ID()," frames ",segment->start(),"-",segment->end());
+            FormatWarning("#1 Below min_samples (",min_samples,") Fish",fish->identity().ID()," frames ",tracklet->start(),"-",tracklet->end());
     #endif
             return Sample::Invalid();
         }
@@ -1134,9 +1134,9 @@ Sample::Ptr DataStore::temporary(
     // relevant frames with the %5 step normalized ones + retrieve ptrs:
     /*size_t replaced = 0;
     auto jit = stuff_indexes.begin();
-    for(size_t i=0; i+start_offset<segment->basic_index.size() && jit != stuff_indexes.end() && found_frames < stuff_indexes.size(); ++i) {
+    for(size_t i=0; i+start_offset<tracklet->basic_index.size() && jit != stuff_indexes.end() && found_frames < stuff_indexes.size(); ++i) {
         if(i % step) {
-            auto index = segment->basic_index.at(i+start_offset);
+            auto index = tracklet->basic_index.at(i+start_offset);
             auto f = Frame_t(fish->basic_stuff().at(index)->frame);
             
             {
@@ -1167,7 +1167,7 @@ Sample::Ptr DataStore::temporary(
 
         //if(!ptr || !Work::initialized())
 //        {
-            ptr = cache_pp_frame(video_source, frame, segment, _delete, _create, _reuse);
+            ptr = cache_pp_frame(video_source, frame, tracklet, _delete, _create, _reuse);
 
 //#ifndef NDEBUG
 //            ++_create;
@@ -1212,7 +1212,7 @@ Sample::Ptr DataStore::temporary(
         
         auto blob = Tracker::find_blob_noisy(*ptr, basic->blob.blob_id(), basic->blob.parent_id, basic->blob.calculate_bounds());
         //auto it = fish->iterator_for(basic->frame);
-        if (blob) { //&& it != fish->frame_segments().end()) {
+        if (blob) { //&& it != fish->tracklets().end()) {
             //LockGuard guard("Categorize::sample");
             
             auto [image, pos] =
@@ -1241,7 +1241,7 @@ Sample::Ptr DataStore::temporary(
     }
     
 #ifndef NDEBUG
-    Print("Segment(",segment->basic_index.size(),"): Of ",stuff_indexes.size()," frames, were found (replaced %lu, min_samples=",min_samples,").");
+    Print("Segment(",tracklet->basic_index.size(),"): Of ",stuff_indexes.size()," frames, were found (replaced %lu, min_samples=",min_samples,").");
 #endif
     if(images.size() >= min_samples
        && not images.empty())
@@ -1250,7 +1250,7 @@ Sample::Ptr DataStore::temporary(
     }
 #ifndef NDEBUG
     else
-        FormatWarning("Below min_samples (",min_samples,") Fish",fish->identity().ID()," frames ",segment->start(),"-",segment->end());
+        FormatWarning("Below min_samples (",min_samples,") Fish",fish->identity().ID()," frames ",tracklet->start(),"-",tracklet->end());
 #endif
     
     return Sample::Invalid();
@@ -1258,7 +1258,7 @@ Sample::Ptr DataStore::temporary(
 
 Sample::Ptr DataStore::sample(
         const std::weak_ptr<pv::File>& source,
-        const std::shared_ptr<SegmentInformation>& segment,
+        const std::shared_ptr<TrackletInformation>& segment,
         Individual* fish,
         const size_t max_samples,
         const size_t min_samples)

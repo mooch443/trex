@@ -224,9 +224,9 @@ uint64_t MemoryStats::get_memory_size(const std::unique_ptr<PostureStuff>& obj, 
 }
 
 template <>
-uint64_t MemoryStats::get_memory_size(const std::shared_ptr<SegmentInformation>& obj, const std::string& name) {
+uint64_t MemoryStats::get_memory_size(const std::shared_ptr<TrackletInformation>& obj, const std::string& name) {
     uint64_t bytes = sizeof(obj)
-        + sizeof(SegmentInformation)
+        + sizeof(TrackletInformation)
         + memory_selector(*this, obj->basic_index, name)
         + memory_selector(*this, obj->posture_index, name);
     return bytes;
@@ -317,7 +317,7 @@ IndividualMemoryStats::IndividualMemoryStats(Individual *fish) {
     //bytes += fish->automatically_matched.size() * sizeof(decltype(fish->automatically_matched)::value_type);
     //IND_BYTE_SIZE(_posture_original_angles);
     //IND_BYTE_SIZE(_blobs);
-    IND_BYTE_SIZE(_frame_segments);
+    IND_BYTE_SIZE(_tracklets);
     
     // posture stuff
     //IND_BYTE_SIZE(_midlines);
@@ -327,9 +327,9 @@ IndividualMemoryStats::IndividualMemoryStats(Individual *fish) {
     
     // recognition stuff
     //IND_BYTE_SIZE(_training_data);
-    IND_BYTE_SIZE(_recognition_segments);
-    //IND_BYTE_SIZE(average_recognition_segment);
-    //IND_BYTE_SIZE(average_processed_segment);
+    IND_BYTE_SIZE(_recognition_tracklets);
+    //IND_BYTE_SIZE(average_recognition_tracklet);
+    //IND_BYTE_SIZE(average_processed_tracklet);
     IND_BYTE_SIZE(_average_recognition);
     
     // other / gui stuff

@@ -110,7 +110,7 @@ bool Results::save(const Path &filename) const {
 					prev = pos;
 				}
 
-				/*for (auto &m : midline.segments) {
+				/*for (auto &m : midline.tracklets) {
 					row.add(m.pos.y);
 				}*/
 
