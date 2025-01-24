@@ -134,8 +134,8 @@ std::vector<Vec2> generateOutline(const Pose& pose, const PoseMidlineIndexes& mi
     /// this will impact the performance of the algorithm / the number
     /// of points created in the end:
     for(size_t i = 0; i<centers.size(); ++i) {
-        float radius = radiusMap
-                ? (radiusMap(i / float(centers.size())) + 1.f)
+        float radius = radiusMap && centers.size() > 0
+                ? (radiusMap(i / float(centers.size() - 1.f)) + 1.f)
                 : 10.0f;
         radii.push_back(radius);
     }

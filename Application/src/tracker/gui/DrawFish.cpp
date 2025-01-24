@@ -843,15 +843,15 @@ std::vector<Vec2> find_rbb(const FindCoord& coords, Vec2 offset, Float2_t angle,
     
     assert(not std::isnan(coords.bowl_scale().x));
     auto scaled_w = abs(coords.bowl_scale().x * (mi.x - ma.x));
-    if(scaled_w < 30) {
-        auto d = 30 - scaled_w;
+    if(scaled_w < 20) {
+        auto d = 20 - scaled_w;
         mi.x -= d * 0.5;
         ma.x += d * 0.5;
     }
     
     auto scaled_h = abs(coords.bowl_scale().y * (mi.y - ma.y));
-    if(scaled_h < 30) {
-        auto d = 30 - scaled_h;
+    if(scaled_h < 20) {
+        auto d = 20 - scaled_h;
         mi.y -= d * 0.5;
         ma.y += d * 0.5;
     }
@@ -1550,7 +1550,7 @@ void Fish::selection_clicked(Event) {
                         difference->data()[i] = (uchar)min(255, float(difference->data()[i]) / maximum * 255);
                 
                     rgba->set_channels(image->data(), {0, 1, 2});
-                    rgba->set_channel(3, difference->data());
+                    rgba->set_channel(3, *difference);
                 
                     _view.add<ExternalImage>(std::move(rgba), image_pos + offset, Vec2(1), clr);
                 

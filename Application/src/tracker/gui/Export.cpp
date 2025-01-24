@@ -11,6 +11,7 @@
 #include <tracking/IndividualManager.h>
 #include <processing/PadImage.h>
 #include <gui/DrawGraph.h>
+#include <misc/DetectionTypes.h>
 
 #if WIN32
 #include <io.h>
@@ -200,6 +201,58 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
     if(output_posture_data)
         Print("[exporting] Writing posture data to ",posture_path);
     Print("[exporting] Writing recognition data to ",recognition_path);
+    
+    struct ResetOutputFields {
+        std::vector<std::pair<std::string, std::vector<std::string>>> original_output_fields;
+        ResetOutputFields() {
+            original_output_fields = SETTING(output_fields).value<decltype(original_output_fields)>();
+        }
+        ~ResetOutputFields() {
+            SETTING(output_fields) = original_output_fields;
+        }
+    } reset_output_fields;
+    
+    if(auto detect_classes = SETTING(detect_classes).value<track::detect::yolo::names::owner_map_t>();
+       not detect_classes.empty()
+       && SETTING(output_auto_pose).value<bool>())
+    {
+        auto indexes = extract_keys(detect_classes);
+        auto adding = reset_output_fields.original_output_fields;
+        
+        /// get the output fields and save the poseX / poseY first that are user-added
+        std::set<uint8_t> user_added_pose_fields;
+        for(auto it = adding.begin(); adding.end() != it; ++it) {
+            auto &[name, _] = *it;
+            if(utils::beginsWith(name, "poseX")
+               || utils::beginsWith(name, "poseY"))
+            {
+                try {
+                    uint8_t index = Meta::fromStr<uint8_t>(name.substr(6));
+                    user_added_pose_fields.insert(index);
+                } catch(...) {
+                    // not a valid pose field
+#ifndef NDEBUG
+                    throw InvalidArgumentException(name, " was not a valid poseX/poseY field.");
+#endif
+                }
+            }
+        }
+        
+        /// now add all the indexes from the `detect_skeleton` array
+        for(auto index : indexes) {
+            if(user_added_pose_fields.contains(index))
+                continue;
+            
+            adding.emplace_back(
+                "poseX"+Meta::toStr(index), std::vector<std::string>{"RAW"}
+            );
+            adding.emplace_back(
+                "poseY"+Meta::toStr(index), std::vector<std::string>{"RAW"}
+            );
+        }
+        
+        SETTING(output_fields) = std::move(adding);
+    }
     
     Print("[exporting] functions: ", Output::Library::functions());
     

@@ -614,41 +614,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             {"num_pixels", {}},
             {"ACCELERATION", {"RAW", "PCENTROID"}},
             //{"ACCELERATION", {"SMOOTH", "PCENTROID"}},
-            {"ACCELERATION", {"RAW", "WCENTROID"}},
-            {"poseX0", {"RAW"}},
-            {"poseY0", {"RAW"}},
-            {"poseX1", {"RAW"}},
-            {"poseY1", {"RAW"}},
-            {"poseX2", {"RAW"}},
-            {"poseY2", {"RAW"}},
-            {"poseX3", {"RAW"}},
-            {"poseY3", {"RAW"}},
-            {"poseX4", {"RAW"}},
-            {"poseY4", {"RAW"}},
-            {"poseX5", {"RAW"}},
-            {"poseY5", {"RAW"}},
-            {"poseX6", {"RAW"}},
-            {"poseY6", {"RAW"}},
-            {"poseX7", {"RAW"}},
-            {"poseY7", {"RAW"}},
-            {"poseX8", {"RAW"}},
-            {"poseY8", {"RAW"}},
-            {"poseX9", {"RAW"}},
-            {"poseY9", {"RAW"}},
-            {"poseX10", {"RAW"}},
-            {"poseY10", {"RAW"}},
-            {"poseX11", {"RAW"}},
-            {"poseY11", {"RAW"}},
-            {"poseX12", {"RAW"}},
-            {"poseY12", {"RAW"}},
-            {"poseX13", {"RAW"}},
-            {"poseY13", {"RAW"}},
-            {"poseX14", {"RAW"}},
-            {"poseY14", {"RAW"}},
-            {"poseX15", {"RAW"}},
-            {"poseY15", {"RAW"}},
-            {"poseX16", {"RAW"}},
-            {"poseY16", {"RAW"}}
+            {"ACCELERATION", {"RAW", "WCENTROID"}}
         };
         
         auto output_annotations = std::map<std::string, std::string>
@@ -702,6 +668,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("output_min_frames", uint16_t(1), "Filters all individual with less than N frames when exporting. Individuals with fewer than N frames will also be hidden in the GUI unless `gui_show_inactive_individuals` is enabled (default).");
         CONFIG("output_interpolate_positions", bool(false), "If turned on this function will linearly interpolate X/Y, and SPEED values, for all frames in which an individual is missing.");
         CONFIG("output_prefix", std::string(), "If this is not empty, all output files will go into `output_dir` / `output_prefix` / ... instead of just into `output_dir`. The output directory is usually the folder where the video is, unless set to a different folder by you.");
+        CONFIG("output_auto_pose", true, "If this is set to false, then no poseX[n] and poseY[n] fields will automatically be added to the `output_fields` based on what the keypoint model reports. You can still manually add them if you like.");
         CONFIG("output_fields", output_fields, "The functions that will be exported when saving to CSV, or shown in the graph. `[['X',[option], ...]]`");
         CONFIG("tracklet_force_normal_color", true, "If set to true (default) then all images are saved as they appear in the original video. Otherwise, all images are exported according to the individual image settings (as seen in the image settings when an individual is selected) - in which case the background may have been subtracted from the original image and a threshold may have been applied (if `track_threshold` > 0 and `track_background_subtraction` is true).");
         CONFIG("tracklet_max_images", uint16_t(0), "This limits the maximum number of images that are being exported per tracklet given that `output_image_per_tracklet` is true. If the number is 0 (default), then every image will be exported. Otherwise, only a uniformly sampled subset of N images will be exported.");
@@ -908,23 +875,39 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             "gpu_torch_no_fixes"
         };
         
-        if(auto format = SETTING(detect_format).value<track::detect::ObjectDetectionFormat_t>();
-           format != track::detect::ObjectDetectionFormat::poses)
-        {
-            exclude_fields.push_back("detect_skeleton");
-        }
+        std::set<std::string_view> explicitly_include{
+            "meta_source_path",
+            "meta_real_width",
+            "detect_type",
+            "meta_encoding",
+            "cm_per_pixel"
+        };
         
         if(auto type = SETTING(detect_type).value<track::detect::ObjectDetectionType_t>();
-           type != track::detect::ObjectDetectionType::yolo)
+           type == track::detect::ObjectDetectionType::yolo)
         {
+            explicitly_include.emplace("detect_classes");
+            explicitly_include.emplace("detect_format");
+            
+            if(auto format = SETTING(detect_format).value<track::detect::ObjectDetectionFormat_t>();
+               format != track::detect::ObjectDetectionFormat::poses)
+            {
+                exclude_fields.push_back("detect_skeleton");
+                
+            } else {
+                explicitly_include.emplace("detect_skeleton");
+            }
+            
+            if(SETTING(region_model).value<file::Path>().empty()) {
+                exclude_fields.push_back("region_model");
+            }
+            
+        } else {
             exclude_fields.push_back("detect_iou_threshold");
             exclude_fields.push_back("detect_skeleton");
             exclude_fields.push_back("detect_conf_threshold");
             exclude_fields.push_back("detect_model");
-        }
-        
-        if(SETTING(region_model).value<file::Path>().empty()) {
-            exclude_fields.push_back("region_model");
+            exclude_fields.push_back("detect_format");
         }
         
         /**
@@ -944,20 +927,6 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
          */
         Config result;
         result.excluded += exclude_fields;
-        
-        std::set<std::string_view> explicitly_include{
-            "meta_source_path",
-            "meta_real_width",
-            "detect_type",
-            "meta_encoding",
-            "cm_per_pixel"
-        };
-        
-        if(auto type = SETTING(detect_type).value<track::detect::ObjectDetectionType_t>();
-           type == track::detect::ObjectDetectionType::yolo)
-        {
-            explicitly_include.emplace("detect_classes");
-        }
         
         if(video) {
             sprite::Map tmp;
