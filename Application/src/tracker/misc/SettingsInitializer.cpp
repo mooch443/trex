@@ -96,7 +96,8 @@ set_defaults_for(detect::ObjectDetectionType_t detect_type,
             "individual_image_normalization", individual_image_normalization_t::posture,
             "blob_split_algorithm", blob_split_algorithm_t::threshold,
             "track_max_reassign_time", 0.5f,
-            "detect_skeleton", blob::Pose::Skeleton()
+            "detect_skeleton", blob::Pose::Skeleton(),
+            "detect_format", track::detect::ObjectDetectionFormat::none
         };
         
         apply_values(values);
@@ -116,6 +117,7 @@ set_defaults_for(detect::ObjectDetectionType_t detect_type,
             "detect_model", file::Path(detect::yolo::default_model()),
             "blob_split_algorithm", blob_split_algorithm_t::none,
             "track_max_reassign_time", 1.f,
+            "detect_format", track::detect::ObjectDetectionFormat::none,
             "detect_skeleton", blob::Pose::Skeleton("human", {
                 {0, 1, "Nose to Left Eye"},
                 {0, 2, "Nose to Right Eye"},

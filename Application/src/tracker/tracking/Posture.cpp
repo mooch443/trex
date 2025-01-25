@@ -57,12 +57,13 @@ void ensureCircleOverlap(std::vector<Vec2>& centers, std::vector<float>& radii) 
 #endif
     
 #ifdef DEBUG_OUTLINES
-    cv::Mat image = cv::Mat(500, 500, CV_8UC3, cv::Scalar(255, 255, 255));
+    cv::Mat image = cv::Mat(200, 200, CV_8UC3, cv::Scalar(255, 255, 255));
     for(size_t k = 0; k < centers.size(); ++k) {
         cv::circle(image, centers[k] - start.pos(), radii[k], gui::Blue, 1);
     }
-    cv::imshow("Circle Merging", image);
-    cv::waitKey(0);
+    cv::resize(image, image, cv::Size(image.cols * 10, image.rows * 10), 0, 0, cv::INTER_NEAREST_EXACT);
+    tf::imshow("Circle Merging", image);
+    //tf::waitKey(0);
 #endif
     
     if(centers.empty())
@@ -93,10 +94,10 @@ void ensureCircleOverlap(std::vector<Vec2>& centers, std::vector<float>& radii) 
                 for(size_t k = 0; k < centers.size(); ++k) {
                     cv::circle(image, centers[k] - start.pos(), radii[k], gui::Blue, 1);
                 }
-                if(anyMerged != -1)
-                    cv::circle(image, centers[anyMerged] - start.pos(), radii[anyMerged], gui::Green, -1);
-                cv::imshow("Circle Merging", image);
-                cv::waitKey(0);
+                if(anyMerged)
+                    cv::circle(image, centers[*anyMerged] - start.pos(), radii[*anyMerged], gui::Green, -1);
+                tf::imshow("Circle Merging", image);
+                //cv::waitKey(0);
         #endif
                 break;
             }
@@ -201,8 +202,9 @@ std::vector<Vec2> generateOutline(const Pose& pose, const PoseMidlineIndexes& mi
             prev = pt;
         }
         
-        cv::imshow("merger", merger);
-        cv::waitKey(0);
+        cv::resize(merger, merger, cv::Size(bounds.width * 10, bounds.height * 10), 0, 0, cv::INTER_NEAREST_EXACT);
+        tf::imshow("merger", merger);
+        //cv::waitKey(0);
 #endif
         
         return std::move(*pts.front());
@@ -244,7 +246,7 @@ tl::expected<Result, const char*> calculate_posture(Frame_t, const BasicStuff& b
     {
         auto bds = basic.blob.calculate_bounds();
         
-        auto pts = generateOutline(pose, indexes, [m = bds.size().mean() * 0.08_F](float percent) -> float {
+        auto pts = generateOutline(pose, indexes, [m = max(5_F, bds.size().mean() * 0.08_F)](float percent) -> float {
             // scale center line by percentage
             return m * (1_F - percent) + 1;
         });

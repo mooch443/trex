@@ -72,7 +72,7 @@ bool wants_to_load{false};
 bool pause_stuff{false};
 
 void save_rst_files() {
-    auto rst = cmn::settings::help_restructured_text("TRex parameters", GlobalSettings::defaults(), GlobalSettings::docs(), GlobalSettings::access_levels());
+    auto rst = cmn::settings::help_restructured_text("TRex parameters", GlobalSettings::defaults(), GlobalSettings::docs(), GlobalSettings::access_levels(), "", "", "", AccessLevelType::STARTUP);
     file::Path path = file::DataLocation::parse("output", "parameters_trex.rst");
     auto f = path.fopen("wb");
     if(!f)

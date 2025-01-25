@@ -285,7 +285,7 @@ struct SettingsScene::Data {
                   )
                 //|| (this->_defaults.has(key) && copy.at(key).get() != this->_defaults.at(key).get()))
                && (GlobalSettings::access_level(key) < AccessLevelType::INIT
-                   || is_in(key, "output_dir", "output_prefix", "settings_file", "video_conversion_range", "detect_type")))
+                   || is_in(key, "output_dir", "output_prefix", "settings_file", "video_conversion_range", "detect_type", "detect_format")))
             {
                 if(_defaults.has(key))
                     Print("Keeping ", key, "::",GlobalSettings::access_level(key),": default<", _defaults.at(key).get(), "> != assigned<", copy.at(key).get(),">");

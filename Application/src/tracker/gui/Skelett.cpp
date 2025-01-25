@@ -48,7 +48,7 @@ namespace cmn::gui {
                         add<Line>(p0, p1, LineClr{ _color.exposure(0.75) }, Line::Thickness_t{ 3 });
                         if(_show_text) {
                             texts.emplace_back([this, c, sca, a, loc = Loc((p1 - p0) * 0.5 + p0 + v.perp().mul(sca) * (Base::default_line_spacing(font) * 0.525))]()
-                           {
+                            {
                                 add<Text>(
                                           Str(c.name),
                                           loc,
@@ -73,8 +73,12 @@ namespace cmn::gui {
                     if (last.x > 0 && last.y > 0)
                         add<Line>(Line::Point_t{ last }, Line::Point_t{ bone }, LineClr{ _color.exposure(0.75) }, Line::Thickness_t{ 3 });
                     
-                    if(_show_text)
-                        add<Text>(Str{ Meta::toStr(i) }, Loc{ bone }, Origin{ 0.5,1 }, TextClr{ White }, Scale{ coord.bowl_scale().reciprocal() }, font);
+                    if(_show_text) {
+                        texts.emplace_back([this, bone, i, &coord]() {
+                            add<Text>(Str{ Meta::toStr(i) }, Loc{ bone }, Origin{ 0.5,1 }, TextClr{ White }, Scale{ coord.bowl_scale().reciprocal() }, font);
+                        });
+                    }
+                    
                     last = bone;
                 }
                 ++i;

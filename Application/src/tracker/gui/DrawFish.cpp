@@ -1530,32 +1530,35 @@ void Fish::selection_clicked(Event) {
             
             } else if(not GlobalSettings::is_invalid(_library_y)) {
                 auto percent = min(1.f, cmn::abs(_library_y));
-                Color clr = /*Color(225, 255, 0, 255)*/ base_color * percent + Color(50, 50, 50, 255) * (1 - percent);
-            
-                GUICache::instance().processed_frame().transform_blobs([&, bdx, pdx](const pv::Blob& b)
-                {
-                    if(!is_in(b.blob_id(), bdx, pdx))
-                        return true;
+                
+                if(percent < 1) {
+                    Color clr = /*Color(225, 255, 0, 255)*/ base_color * percent + Color(50, 50, 50, 255) * (1 - percent);
                     
-                    auto && [image_pos, image] = b.binary_image(*GUICache::instance().background(), FAST_SETTING(track_threshold));
-                    auto && [dpos, difference] = b.difference_image(*GUICache::instance().background(), 0);
-                
-                    auto rgba = Image::Make(image->rows, image->cols, 4);
-                
-                    uchar maximum = 0;
-                    for(size_t i=0; i<difference->size(); ++i) {
-                        maximum = max(maximum, difference->data()[i]);
-                    }
-                    for(size_t i=0; i<difference->size(); ++i)
-                        difference->data()[i] = (uchar)min(255, float(difference->data()[i]) / maximum * 255);
-                
-                    rgba->set_channels(image->data(), {0, 1, 2});
-                    rgba->set_channel(3, *difference);
-                
-                    _view.add<ExternalImage>(std::move(rgba), image_pos + offset, Vec2(1), clr);
-                
-                    return false;
-                });
+                    GUICache::instance().processed_frame().transform_blobs([&, bdx, pdx](const pv::Blob& b)
+                                                                           {
+                        if(!is_in(b.blob_id(), bdx, pdx))
+                            return true;
+                        
+                        auto && [image_pos, image] = b.binary_image(*GUICache::instance().background(), FAST_SETTING(track_threshold));
+                        auto && [dpos, difference] = b.difference_image(*GUICache::instance().background(), 0);
+                        
+                        auto rgba = Image::Make(image->rows, image->cols, 4);
+                        
+                        uchar maximum = 0;
+                        for(size_t i=0; i<difference->size(); ++i) {
+                            maximum = max(maximum, difference->data()[i]);
+                        }
+                        for(size_t i=0; i<difference->size(); ++i)
+                            difference->data()[i] = (uchar)min(255, float(difference->data()[i]) / maximum * 255);
+                        
+                        rgba->set_channels(image->data(), {0, 1, 2});
+                        rgba->set_channel(3, *difference);
+                        
+                        _view.add<ExternalImage>(std::move(rgba), image_pos + offset, Vec2(1), clr);
+                        
+                        return false;
+                    });
+                }
             }
         
             if(is_selected && OPTION(gui_show_probabilities)) {
