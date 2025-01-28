@@ -1232,13 +1232,13 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         
         ss << "<b>crop_offsets:</b> " << Meta::toStr(crop_offsets()) << std::endl;
 #ifndef NO_PUT_TIME
-        ss << "<b>Time of recording:</b> '" << std::put_time(std::localtime(&now_c), "%c") << "'"
+        ss << "<b>Time of recording:</b> " << std::put_time(std::localtime(&now_c), "%c")
         << std::endl;
 #endif
         
-        ss << "<b>Length of recording:</b> '";
+        ss << "<b>Length of recording:</b> ";
         duration_to_string(ss, ns_e);
-        ss << "'" << std::endl;
+        ss << " (" << Meta::toStr(length()) << " frames)" << std::endl;
         
         ss << "<b>Video conversion offsets:</b> ";
         if (_header.conversion_range.start.has_value() || _header.conversion_range.end.has_value()) {
@@ -1253,7 +1253,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
 
         ss << "<b>Video source:</b> ";
         if (_header.source.has_value()) {
-            ss << _header.source.value() << std::endl;
+            ss << utils::ShortenText(_header.source.value(), 1000) << std::endl;
         } else {
             ss << "unknown" << std::endl;
         }
