@@ -73,7 +73,7 @@
                                 },
                                 "template": {
                                     "text":"<b>{i.name}</b>{if:{i.sub}:#<gray>{i.sub}</gray>:''}",
-                                    "detail":"{if:{>:{i.count}:0}:added (click to remove):{i.doc}}",
+                                    "detail":"{if:{>:{i.count}:0}:{if:{not:{i.auto}}:'added (click to remove)':'<b>automatically added</b>'}:{i.doc}}",
                                     "tooltip":"{i.doc_tooltip}",
                                     "action":"add_option"
                                 }
@@ -127,7 +127,7 @@
                                 },
                                 "template": {
                                     "text":"{if:{>:{i.count}:0}:<b><green>{i.name}</green></b>{if:{i.sub}:#<gray>{i.sub}</gray>:''}:{i.name}{if:{i.sub}:#<gray>{i.sub}</gray>:''}}",
-                                    "detail":"{if:{>:{i.count}:0}:added (click to remove):{i.doc}}",
+                                    "detail":"{if:{>:{i.count}:0}:{if:{not:{i.auto}}:'added (click to remove)':'<b>automatically added</b>'}:{i.doc}}",
                                     "action":"remove_option"
                                 }
                             }

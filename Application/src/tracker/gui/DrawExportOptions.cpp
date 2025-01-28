@@ -306,6 +306,7 @@ struct DrawExportOptions::Data {
     
     std::vector<sprite::Map> _filtered_options, _selected_options;
     std::vector<std::shared_ptr<dyn::VarBase_t>> _filtered_variables, _selected_variables;
+    std::vector<bool> _auto_variables;
     
     std::string _search_text;
     
@@ -347,6 +348,27 @@ struct DrawExportOptions::Data {
             first = false;
         }
 
+    }
+    
+    std::optional<doc_strings::Description> get_description(std::string_view param) {
+        auto lc = utils::lowercase(param);
+        if(auto it = doc_strings::options_doc_strings.find(lc);
+           it != doc_strings::options_doc_strings.end())
+        {
+            return it->second;
+        } else if(utils::beginsWith(param, "poseX")) {
+            return doc_strings::Description{
+                .short_description = "YOLO keypoint X coord",
+                .long_description = "This represents the X-component of a keypoint provided by a YOLO (or similar) network. You can manually add these `poseX[n]` points, or let TRex automatically add them based on network output."
+            };
+        } else if(utils::beginsWith(param, "poseY")) {
+            return doc_strings::Description{
+                .short_description = "YOLO keypoint Y coord",
+                .long_description = "This represents the Y-component of a keypoint provided by a YOLO (or similar) network. You can manually add these `poseY[n]` points, or let TRex automatically add them based on network output."
+            };
+        }
+        
+        return std::nullopt;
     }
     
     void draw(DrawStructure& base, TrackingState* state) {
@@ -441,6 +463,7 @@ struct DrawExportOptions::Data {
                             auto idx = Meta::fromStr<uint32_t>(action.parameters.front());
                             auto graphs = SETTING(output_fields).value<std::vector<std::pair<std::string, std::vector<std::string>>>>();
                             auto &item = this->_selected_options.at(idx);
+                            auto automatic = this->_auto_variables.at(idx);
                             
                             auto subname = item.at("subname").value<std::string>();
                             if(mappings.contains(subname)) {
@@ -451,7 +474,8 @@ struct DrawExportOptions::Data {
                             
                             if(auto it = find_sub(item.at("name").value<std::string>(),
                                                   subname, graphs);
-                               it != graphs.end())
+                               it != graphs.end()
+                               && not automatic)
                             {
                                 Print("* Removing ", no_quotes(item.at("name").value<std::string>()), "#", no_quotes(subname));
                                 graphs.erase(it);
@@ -587,6 +611,16 @@ struct DrawExportOptions::Data {
             }
 
             auto functions = Output::Library::functions();
+            auto pose_fields = default_config::add_missing_pose_fields();
+            std::set<std::string> pose_fields_set;
+            if(not pose_fields.empty())
+            {
+                for(auto &[name, mods] : pose_fields) {
+                    functions.emplace_back(name);
+                    pose_fields_set.emplace(utils::lowercase(name));
+                }
+            }
+            
             std::sort(functions.begin(), functions.end());
             
             std::vector<Item> items;
@@ -594,6 +628,7 @@ struct DrawExportOptions::Data {
             //_filtered_variables.clear();
             _filtered_options.clear();
             _selected_options.clear();
+            _auto_variables.clear();
             
             size_t i = 0, j = 0;
             
@@ -614,8 +649,15 @@ struct DrawExportOptions::Data {
                         auto name = utils::lowercase(source.name());
                         auto hash = modifier_translations.at(name);
                         uint32_t count = 0;
+                        bool auto_generated{false};
                         
-                        if (it != graphs_map.end()) {
+                        if(source == Output::Modifiers::HEAD
+                           && pose_fields_set.contains(utils::lowercase(f)))
+                        {
+                            count = 1;
+                            auto_generated = true;
+                            
+                        } else if (it != graphs_map.end()) {
                             //count = narrow_cast<uint32_t>(max(it->second.size(), 1u));
                             std::set<std::string> append;
                             for(auto a : it->second) {
@@ -636,15 +678,23 @@ struct DrawExportOptions::Data {
                             ._font = Font(0.5, count ? Style::Bold : Style::Regular, Align::Left)
                         });
                         
-                        if(count > 0) {
+                        if(auto desc = get_description(f);
+                           count > 0)
+                        {
                             _selected_options.emplace_back();
+                            _auto_variables.emplace_back(auto_generated);
                             auto &map = _selected_options.back();
                             map["name"] = f;
                             map["sub"] = Output::Library::is_global_function(f) || sources.size() <= 1 ? "" : (std::string)hash;
                             map["subname"] = (std::string)name;
                             map["count"] = count;
-                            map["doc_tooltip"] = doc_strings::options_doc_strings.contains(utils::lowercase(f)) ? doc_strings::options_doc_strings.at(utils::lowercase(f)).long_description : "<gray><sym>❮</sym><i>missing docs</i><sym>❯</sym></gray>";
-                            map["doc"] = doc_strings::options_doc_strings.contains(utils::lowercase(f)) ? doc_strings::options_doc_strings.at(utils::lowercase(f)).short_description : "<gray><sym>❮</sym><i>missing docs</i><sym>❯</sym></gray>";
+                            map["auto"] = auto_generated;
+                            map["doc_tooltip"] = desc
+                                ? desc->long_description
+                                : "<gray><sym>❮</sym><i>missing docs</i><sym>❯</sym></gray>";
+                            map["doc"] = desc
+                                ? ((auto_generated ? "<gray>[auto] " : "") + desc->short_description + (auto_generated ? "</gray>" : ""))
+                                : "<gray><sym>❮</sym><i>missing docs</i><sym>❯</sym></gray>";
                             
                             if(_selected_variables.size() <= j) {
                                 _selected_variables.emplace_back(new Variable([j, this](const VarProps&) -> sprite::Map& {
@@ -661,8 +711,13 @@ struct DrawExportOptions::Data {
                             map["sub"] = Output::Library::is_global_function(f) || sources.size() <= 1 ? "" : (std::string)hash;
                             map["subname"] = (std::string)name;
                             map["count"] = count;
-                            map["doc_tooltip"] = doc_strings::options_doc_strings.contains(utils::lowercase(f)) ? doc_strings::options_doc_strings.at(utils::lowercase(f)).long_description : "<gray><sym>❮</sym><i>missing docs</i><sym>❯</sym></gray>";
-                            map["doc"] = doc_strings::options_doc_strings.contains(utils::lowercase(f)) ? doc_strings::options_doc_strings.at(utils::lowercase(f)).short_description : "<gray><sym>❮</sym><i>missing docs</i><sym>❯</sym></gray>";
+                            map["auto"] = auto_generated;
+                            map["doc_tooltip"] = desc
+                                ? desc->long_description
+                                : "<gray><sym>❮</sym><i>missing docs</i><sym>❯</sym></gray>";
+                            map["doc"] = desc
+                                ? ((auto_generated ? "<gray>[auto] " : "") + desc->short_description + (auto_generated ? "</gray>" : ""))
+                                : "<gray><sym>❮</sym><i>missing docs</i><sym>❯</sym></gray>";
                             
                             if(_filtered_variables.size() <= i) {
                                 _filtered_variables.emplace_back(new Variable([i, this](const VarProps&) -> sprite::Map& {

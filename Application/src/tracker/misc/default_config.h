@@ -91,6 +91,33 @@ namespace default_config {
     ENUM_CLASS_HAS_DOCS(gpu_torch_device_t)
 
     using TRexTask = TRexTask_t::Class;
+
+/**
+ * Finds all numeric pose indexes from user-defined "poseX##" / "poseY##" fields in the given output fields.
+ *
+ * @param output_fields The list of existing fields, e.g. from SETTING(output_fields).
+ * @return A set of numeric indexes that the user has added.
+ */
+std::set<uint8_t> find_user_defined_pose_fields(const std::vector<std::pair<std::string, std::vector<std::string>>>& output_fields);
+
+/**
+ * Generates all auto-detected poseX## / poseY## fields (without filtering).
+ * These fields match the keypoints in `detect_classes` or your YOLO model.
+ *
+ * @return A vector of all possible poseX/poseY fields for those indexes.
+ */
+std::vector<std::pair<std::string, std::vector<std::string>>> list_auto_pose_fields();
+
+/**
+ * Given a list of user-defined pose indexes (e.g. from find_user_defined_pose_fields()),
+ * returns only the "missing" fields that the user has NOT defined, from the full
+ * list of automatically generated fields (from list_auto_pose_fields()).
+ *
+ * @return A vector of newly needed poseX/poseY fields.
+ */
+std::vector<std::pair<std::string, std::vector<std::string>>> add_missing_pose_fields();
+
+
 }
 
 namespace cmn::gui {

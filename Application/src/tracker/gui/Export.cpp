@@ -212,52 +212,35 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
         }
     } reset_output_fields;
     
-    if(auto detect_classes = SETTING(detect_classes).value<track::detect::yolo::names::owner_map_t>();
-       not detect_classes.empty()
-       && SETTING(output_auto_pose).value<bool>())
+    if (auto detect_classes = SETTING(detect_classes).value<track::detect::yolo::names::owner_map_t>();
+        !detect_classes.empty() && SETTING(output_auto_pose).value<bool>())
     {
-        auto indexes = extract_keys(detect_classes);
-        auto adding = reset_output_fields.original_output_fields;
-        
-        /// get the output fields and save the poseX / poseY first that are user-added
-        std::set<uint8_t> user_added_pose_fields;
-        for(auto it = adding.begin(); adding.end() != it; ++it) {
-            auto &[name, _] = *it;
-            if(utils::beginsWith(name, "poseX")
-               || utils::beginsWith(name, "poseY"))
-            {
-                try {
-                    uint8_t index = Meta::fromStr<uint8_t>(name.substr(6));
-                    user_added_pose_fields.insert(index);
-                } catch(...) {
-                    // not a valid pose field
-#ifndef NDEBUG
-                    throw InvalidArgumentException(name, " was not a valid poseX/poseY field.");
-#endif
-                }
-            }
+        // Generate only the missing ones
+        auto new_pose_fields = default_config::add_missing_pose_fields();
+
+        // If there’s nothing new to add, we’re done
+        if (!new_pose_fields.empty())
+        {
+            // Grab the existing output fields
+            auto fields = SETTING(output_fields)
+                .value<std::vector<std::pair<std::string, std::vector<std::string>>>>();
+
+            // Insert the new (missing) ones
+            fields.insert(fields.end(), new_pose_fields.begin(), new_pose_fields.end());
+
+            // Update the setting
+            SETTING(output_fields) = std::move(fields);
         }
-        
-        /// now add all the indexes from the `detect_skeleton` array
-        for(auto index : indexes) {
-            if(user_added_pose_fields.contains(index))
-                continue;
-            
-            adding.emplace_back(
-                "poseX"+Meta::toStr(index), std::vector<std::string>{"RAW"}
-            );
-            adding.emplace_back(
-                "poseY"+Meta::toStr(index), std::vector<std::string>{"RAW"}
-            );
-        }
-        
-        SETTING(output_fields) = std::move(adding);
     }
     
-    Print("[exporting] functions: ", Output::Library::functions());
-    
     Output::Library::Init();
-    Print("[exporting] functions: ", Output::Library::functions());
+    {
+        std::set<std::string> keys;
+        for(auto &[key, _] : reset_output_fields.original_output_fields) {
+            keys.insert(key);
+        }
+        Print("[exporting] functions: ", keys);
+    }
     DebugHeader("...");
     
     try {

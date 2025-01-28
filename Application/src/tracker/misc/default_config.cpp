@@ -212,6 +212,120 @@ ENUM_CLASS_DOCS(gpu_torch_device_t,
         {"track_label_confidence_threshold", "track_conf_threshold"}
     };
 
+/**
+ * Finds all numeric pose indexes from user-defined "poseX##" / "poseY##" fields in the given output fields.
+ *
+ * @param output_fields The list of existing fields, e.g. from SETTING(output_fields).
+ * @return A set of numeric indexes that the user has added.
+ */
+std::set<uint8_t> find_user_defined_pose_fields(
+    const std::vector<std::pair<std::string, std::vector<std::string>>>& output_fields)
+{
+    std::set<uint8_t> user_added_pose_fields;
+
+    for (auto const& [field_name, transforms] : output_fields)
+    {
+        if (utils::beginsWith(field_name, "poseX") || utils::beginsWith(field_name, "poseY"))
+        {
+            try
+            {
+                // "poseX12" => "12" => index = 12
+                uint8_t index = Meta::fromStr<uint8_t>(field_name.substr(5));
+                user_added_pose_fields.insert(index);
+            }
+            catch (...)
+            {
+                // If it fails to parse as an integer, ignore or optionally log a warning
+            }
+        }
+    }
+
+    return user_added_pose_fields;
+}
+
+/**
+ * Generates all auto-detected poseX## / poseY## fields (without filtering).
+ * These fields match the keypoints in `detect_classes` or your YOLO model.
+ *
+ * @return A vector of all possible poseX/poseY fields for those indexes.
+ */
+std::vector<std::pair<std::string, std::vector<std::string>>> list_auto_pose_fields()
+{
+    /// return empty array if automatically generting the fields is disabled.
+    if(not SETTING(output_auto_pose)) {
+        return {};
+    }
+    
+    // Retrieve the YOLO classes from a global setting:
+    auto detect_classes = SETTING(detect_classes).value<track::detect::yolo::names::owner_map_t>();
+
+    // Extract the keypoint indexes from detect_classes (assumes your extract_keys() helper).
+    auto indexes = extract_keys(detect_classes);
+
+    // Build the entire set of fields for *all* indexes
+    std::vector<std::pair<std::string, std::vector<std::string>>> auto_pose_fields;
+    auto_pose_fields.reserve(indexes.size() * 2);
+
+    for (auto index : indexes)
+    {
+        auto_pose_fields.emplace_back("poseX" + Meta::toStr(index),
+                                      std::vector<std::string>{"RAW"});
+        auto_pose_fields.emplace_back("poseY" + Meta::toStr(index),
+                                      std::vector<std::string>{"RAW"});
+    }
+
+    return auto_pose_fields;
+}
+
+/**
+ * Given a list of user-defined pose indexes (e.g. from find_user_defined_pose_fields()),
+ * returns only the "missing" fields that the user has NOT defined, from the full
+ * list of automatically generated fields (from list_auto_pose_fields()).
+ *
+ * @return A vector of newly needed poseX/poseY fields.
+ */
+std::vector<std::pair<std::string, std::vector<std::string>>> add_missing_pose_fields()
+{
+    // 1) Gather all automatically proposed pose fields
+    auto auto_fields = list_auto_pose_fields();
+
+    // 2) See which ones the user already has
+    auto current_fields = SETTING(output_fields)
+        .value<std::vector<std::pair<std::string, std::vector<std::string>>>>();
+    auto user_defined_indexes = find_user_defined_pose_fields(current_fields);
+
+    // 3) Collect "missing" pose fields
+    std::vector<std::pair<std::string, std::vector<std::string>>> needed;
+    needed.reserve(auto_fields.size());
+
+    for (auto const& [field_name, transforms] : auto_fields)
+    {
+        // The index is the substring after "poseX" or "poseY"
+        // We have to check which prefix it starts with,
+        // because we must skip the first 5 characters either way
+        if (utils::beginsWith(field_name, "poseX") || utils::beginsWith(field_name, "poseY"))
+        {
+            try
+            {
+                uint8_t index = Meta::fromStr<uint8_t>(field_name.substr(5));
+                if (!user_defined_indexes.count(index))
+                {
+                    needed.push_back({ field_name, transforms });
+                }
+            }
+            catch (...)
+            {
+                // ignoring parse failures
+#ifndef NDEBUG
+                FormatWarning("Failure parsing ", field_name, " for poseX/Y content.");
+#endif
+            }
+        }
+    }
+
+    return needed;
+}
+
 individual_image_normalization_t::Class valid_individual_image_normalization(individual_image_normalization_t::Class base) {
     const auto n = base != individual_image_normalization_t::none ? base : SETTING(individual_image_normalization).value<individual_image_normalization_t::Class>();
     const auto normalize = n == individual_image_normalization_t::posture && not SETTING(calculate_posture).value<bool>() ? individual_image_normalization_t::moments :  n;
@@ -971,10 +1085,10 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
                 {
                     result[key] = &GlobalSettings::get(key).get();
                 } else {
-                    //Print("// ",key," not part of delta");
+                    Print("// ",key," not part of delta");
                 }
             } else {
-                //Print("// ", key, " not part of delta (!=)");
+                Print("// ", key, " not part of delta (!=)");
             }
         }
         

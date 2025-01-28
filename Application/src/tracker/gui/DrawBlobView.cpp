@@ -857,8 +857,14 @@ void clicked_background(DrawStructure& base, GUICache& cache, const Vec2& pos, b
             
         } else {
             if(_current_boundary.size() == 1 && _current_boundary.front().size() == 1) {
-                // set center point
-                SETTING(output_origin) = Vec2(_current_boundary.front().front());
+                auto output_origin = Vec2(_current_boundary.front().front());
+                auto fn = [output_origin](Dialog::Result result) {
+                    if(result == Dialog::OKAY) {
+                        // set center point
+                        SETTING(output_origin) = output_origin;
+                    }
+                };
+                base.dialog(fn, "Do you want to change the `output_origin` variable to "+Meta::toStr(output_origin)+"?", "Yes", "No");
             }
         }
         
