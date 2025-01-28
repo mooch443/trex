@@ -1085,10 +1085,10 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
                 {
                     result[key] = &GlobalSettings::get(key).get();
                 } else {
-                    Print("// ",key," not part of delta");
+                    //Print("// ",key," not part of delta");
                 }
             } else {
-                Print("// ", key, " not part of delta (!=)");
+                //Print("// ", key, " not part of delta (!=)");
             }
         }
         
