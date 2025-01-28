@@ -784,7 +784,7 @@ void TrackingScene::deactivate() {
 }
 
 void TrackingScene::set_frame(Frame_t frameIndex) {
-    if(frameIndex <= _state->video->length()
+    if(frameIndex < _state->video->length()
        && GUI_SETTINGS(gui_frame) != frameIndex)
     {
         SETTING(gui_frame) = frameIndex;
