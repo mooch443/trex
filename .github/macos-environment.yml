@@ -4,3 +4,4 @@ channels:
     - nodefaults
 dependencies:
     - conda-build
+    - git
