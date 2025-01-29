@@ -590,20 +590,24 @@
                         "action": "reset_settings"
                     },
                     {
-                        "type":"button",
-                        "text":"Convert <sym>⮞</sym>",
-                        "fill":[40,40,40,220],
-                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
-                        "size":[100,40],
-                        "font":{
-                            "align":"center",
-                            "size":0.65
-                        },
-                        "action": "convert"
+                        "type":"condition",
+                        "var":"{not:{checks_running}}",
+                        "then":{
+                            "type":"button",
+                            "text":"Convert <sym>⮞</sym>",
+                            "fill":[40,40,40,220],
+                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
+                            "size":[100,40],
+                            "font":{
+                                "align":"center",
+                                "size":0.65
+                            },
+                            "action": "convert"
+                        }
                     },
                     {
                         "type":"condition",
-                        "var":"{valid_pv_file}",
+                        "var":"{&&:{not:{checks_running}}:{valid_pv_file}}",
                         "then":{
                             "type":"button",
                             "text":"Track <sym>⮞</sym>",

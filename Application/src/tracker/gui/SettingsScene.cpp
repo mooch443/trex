@@ -52,6 +52,9 @@ struct SettingsScene::Data {
     
     std::mutex _task_lock;
     std::vector<std::future<void>> _running_tasks;
+    std::atomic<bool> _are_python_tasks_running{false};
+    std::atomic<bool> _are_video_checks_running{false};
+    
     std::unordered_map<std::string, std::tuple<track::detect::DetectResolution, track::detect::ObjectDetectionFormat_t, track::detect::yolo::names::owner_map_t>> _cached_resolutions;
     sprite::Map _defaults;
     std::stack<std::string> _last_layouts;
@@ -113,12 +116,17 @@ struct SettingsScene::Data {
                 ++it;
             }
         }
+        
+        if(_running_tasks.empty())
+            _are_python_tasks_running = false;
     }
     
     void detection_models_updated() {
         update_running_tasks();
         
         std::unique_lock guard(_task_lock);
+        _are_python_tasks_running = true;
+        
         _running_tasks.emplace_back(Python::schedule(Python::PackagedTask{
             ._network = nullptr,
             ._task = [this,
@@ -220,12 +228,21 @@ struct SettingsScene::Data {
                 file::PathArray source = GlobalSettings::map().at("source");
                 
                 std::unique_lock guard{_video_source_mutex};
-                if(check_new_video_source.valid())
+                if(check_new_video_source.valid()) {
                     check_new_video_source.get();
+                }
                 
+                _are_video_checks_running = true;
                 check_new_video_source = std::async(std::launch::async, [source, this](){
-                    update_running_tasks(true);
-                    check_video_source(source);
+                    try {
+                        update_running_tasks(true);
+                        check_video_source(source);
+                        _are_video_checks_running = false;
+                    
+                    } catch(...) {
+                        _are_video_checks_running = false;
+                        throw;
+                    }
                 });
                 
             } else if(name == "detect_type") {
@@ -277,6 +294,8 @@ struct SettingsScene::Data {
         Print("_defaults keys = ", _defaults.keys());
         
         for(auto &key : copy.keys()) {
+            if(key == "detect_format")
+                Print(copy.at(key));
             
             if(  ( (_defaults.has(key)
                      && copy.at(key).get() != _defaults.at(key).get())
@@ -479,6 +498,16 @@ struct SettingsScene::Data {
                             sprite::Map before = GlobalSettings::map();
                             sprite::Map defaults = GlobalSettings::current_defaults();
                             sprite::Map defaults_with_config = GlobalSettings::current_defaults_with_config();
+                            
+                            copy.register_callbacks({
+                                "detect_format",
+                                "detect_skeleton"
+                            }, [](auto key){
+                                if(key == "detect_format")
+                                    Print("Changed detect_format");
+                                else if(key == "detect_skeleton")
+                                    Print("Changed detect_skeleton");
+                            });
                             
                             if(copy.has("detect_type")) {
                                 /// we do not allow changing the detect type when tracking
@@ -706,6 +735,9 @@ struct SettingsScene::Data {
                             output_name_check.reset();
                         }
                         return last_output_name.value();
+                    }),
+                    VarFunc("checks_running", [this](const VarProps&) -> bool {
+                        return _are_python_tasks_running || _are_video_checks_running;
                     })
                 }
             };

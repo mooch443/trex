@@ -20,7 +20,10 @@
         "selected_video_y":"{if:{video_file}:{video_size.y}:576}",
         "ratio":"{max:{/:{window_size.x}:{selected_video_x}}:{/:{window_size.y}:{selected_video_y}}}",
         "bg_scale":"[{ratio},{ratio}]",
-        "valid_pv_file":"{file_exists:{resulting_path}.pv}"
+        "valid_pv_file":"{file_exists:{resulting_path}.pv}",
+
+        "circles":"[○,◔,◑,◕,●]",
+        "animation":"<sym>{at:{mod:{time}:{array_length:{circles}}}:{circles}}</sym>"
     }
   },
   "objects":[
@@ -457,7 +460,7 @@
                                         "fill":[0,0,0,0],
                                         "line":[100,100,200,250],
                                         "max_size":"[{min:750:{-:{*:0.55:{element_w}}:20}},{+:50:{at:1:{dimensions:left_summary}}}]",
-                                        "text":"<h4><lightgray>Changed settings (subset)</lightgray></h4>\n{settings_summary}"
+                                        "text":"<h4><lightgray>Changed settings (subset)</lightgray></h4>\n{if:{not:{checks_running}}:{settings_summary}:'<gray>Loading {animation}...</gray>'}"
                                     }
                                 ]
                             }
@@ -539,20 +542,24 @@
                         "action": "reset_settings"
                     },
                     {
-                        "type":"button",
-                        "text":"Convert <sym>⮞</sym>",
-                        "fill":[40,40,40,220],
-                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
-                        "size":[100,40],
-                        "font":{
-                            "align":"center",
-                            "size":0.65
-                        },
-                        "action": "convert"
+                        "type":"condition",
+                        "var":"{not:{checks_running}}",
+                        "then":{
+                            "type":"button",
+                            "text":"Convert <sym>⮞</sym>",
+                            "fill":[40,40,40,220],
+                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
+                            "size":[100,40],
+                            "font":{
+                                "align":"center",
+                                "size":0.65
+                            },
+                            "action": "convert"
+                        }
                     },
                     {
                         "type":"condition",
-                        "var":"{valid_pv_file}",
+                        "var":"{&&:{not:{checks_running}}:{valid_pv_file}}",
                         "then":{
                             "type":"button",
                             "text":"Track <sym>⮞</sym>",
