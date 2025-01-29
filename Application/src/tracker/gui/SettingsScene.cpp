@@ -52,7 +52,7 @@ struct SettingsScene::Data {
     
     std::mutex _task_lock;
     std::vector<std::future<void>> _running_tasks;
-    std::atomic<bool> _are_python_tasks_running{false};
+    std::atomic<size_t> _are_python_tasks_running{0};
     std::atomic<bool> _are_video_checks_running{false};
     
     std::unordered_map<std::string, std::tuple<track::detect::DetectResolution, track::detect::ObjectDetectionFormat_t, track::detect::yolo::names::owner_map_t>> _cached_resolutions;
@@ -117,15 +117,18 @@ struct SettingsScene::Data {
             }
         }
         
-        if(_running_tasks.empty())
-            _are_python_tasks_running = false;
+        if(_running_tasks.empty()) {
+            _are_python_tasks_running = 0;
+            Print("// Setting python tasks = 0");
+        }
     }
     
     void detection_models_updated() {
         update_running_tasks();
         
         std::unique_lock guard(_task_lock);
-        _are_python_tasks_running = true;
+        ++_are_python_tasks_running;
+        Print("// Python tasks running = ", _are_python_tasks_running.load());
         
         _running_tasks.emplace_back(Python::schedule(Python::PackagedTask{
             ._network = nullptr,
@@ -133,76 +136,86 @@ struct SettingsScene::Data {
                       detect_model = SETTING(detect_model).value<file::Path>(),
                       region_model = SETTING(region_model).value<file::Path>()]()
             {
-                if(not detect_model.empty()
-                   && (track::detect::yolo::is_valid_default_model(detect_model.str())
-                       || detect_model.is_regular()))
-                {
-                    /// check whether we either 1. have no *region_model* active,
-                    /// or both region model and detect model exit and are
-                    /// also in the map:
-                    if(_cached_resolutions.contains(detect_model.str())
-                       && (region_model.empty() || (region_model.is_regular() && _cached_resolutions.contains(region_model.str()))))
+                try {
+                    if(not detect_model.empty()
+                       && (track::detect::yolo::is_valid_default_model(detect_model.str())
+                           || detect_model.is_regular()))
                     {
-                        auto [resolution, format, classes] = _cached_resolutions.at(detect_model.str());
-                        SETTING(detect_resolution) = resolution;
-                        SETTING(detect_format) = format;
-                        SETTING(detect_classes) = classes;
-                        if(format != track::detect::ObjectDetectionFormat::poses)
-                            SETTING(detect_skeleton) = blob::Pose::Skeleton{};
-                        
-                        if(region_model.is_regular()) {
-                            SETTING(region_resolution) = std::get<0>(_cached_resolutions.at(region_model.str()));
-                        } else
-                            SETTING(region_resolution) = track::detect::DetectResolution{};
-                        
-                    } else {
-                        /// for no cache, reinit:
-                        try {
-                            /// have to clear this before running init, so it will be populated
-                            SETTING(detect_classes) = track::detect::yolo::names::owner_map_t{};
-                            
-                            /// populate the settings fields we need
-                            track::YOLO::init();
-                            /// -----
-                            
-                            auto format = SETTING(detect_format).value<track::detect::ObjectDetectionFormat_t>();
-                            
-                            _cached_resolutions[detect_model.str()] = {
-                                SETTING(detect_resolution).value<track::detect::DetectResolution>(),
-                                format,
-                                SETTING(detect_classes).value<track::detect::yolo::names::owner_map_t>()
-                            };
-                            
+                        /// check whether we either 1. have no *region_model* active,
+                        /// or both region model and detect model exit and are
+                        /// also in the map:
+                        if(_cached_resolutions.contains(detect_model.str())
+                           && (region_model.empty() || (region_model.is_regular() && _cached_resolutions.contains(region_model.str()))))
+                        {
+                            auto [resolution, format, classes] = _cached_resolutions.at(detect_model.str());
+                            SETTING(detect_resolution) = resolution;
+                            SETTING(detect_format) = format;
+                            SETTING(detect_classes) = classes;
                             if(format != track::detect::ObjectDetectionFormat::poses)
                                 SETTING(detect_skeleton) = blob::Pose::Skeleton{};
                             
                             if(region_model.is_regular()) {
-                                if(not _cached_resolutions.contains(region_model.str())) {
-                                    _cached_resolutions[region_model.str()] = {
-                                        SETTING(region_resolution).value<track::detect::DetectResolution>(),
-                                        track::detect::ObjectDetectionFormat::none,
-                                        track::detect::yolo::names::owner_map_t{}
-                                    };
+                                SETTING(region_resolution) = std::get<0>(_cached_resolutions.at(region_model.str()));
+                            } else
+                                SETTING(region_resolution) = track::detect::DetectResolution{};
+                            
+                        } else {
+                            /// for no cache, reinit:
+                            try {
+                                /// have to clear this before running init, so it will be populated
+                                SETTING(detect_classes) = track::detect::yolo::names::owner_map_t{};
+                                
+                                /// populate the settings fields we need
+                                track::YOLO::init();
+                                /// -----
+                                
+                                auto format = SETTING(detect_format).value<track::detect::ObjectDetectionFormat_t>();
+                                
+                                _cached_resolutions[detect_model.str()] = {
+                                    SETTING(detect_resolution).value<track::detect::DetectResolution>(),
+                                    format,
+                                    SETTING(detect_classes).value<track::detect::yolo::names::owner_map_t>()
+                                };
+                                
+                                if(format != track::detect::ObjectDetectionFormat::poses)
+                                    SETTING(detect_skeleton) = blob::Pose::Skeleton{};
+                                
+                                if(region_model.is_regular()) {
+                                    if(not _cached_resolutions.contains(region_model.str())) {
+                                        _cached_resolutions[region_model.str()] = {
+                                            SETTING(region_resolution).value<track::detect::DetectResolution>(),
+                                            track::detect::ObjectDetectionFormat::none,
+                                            track::detect::yolo::names::owner_map_t{}
+                                        };
+                                    }
                                 }
+                                
+                                /// dont need to keep it
+                                track::YOLO::deinit();
+                                
+                            } catch(...) {
+                                SETTING(detect_resolution) = track::detect::DetectResolution{};
+                                SETTING(region_resolution) = track::detect::DetectResolution{};
+                                SETTING(detect_format) = track::detect::ObjectDetectionFormat::none;
+                                SETTING(detect_classes) = track::detect::yolo::names::owner_map_t{};
+                                
+                                FormatWarning("Failed to initialize ", SETTING(detect_model).value<file::Path>());
                             }
-                            
-                            /// dont need to keep it
-                            track::YOLO::deinit();
-                            
-                        } catch(...) {
-                            SETTING(detect_resolution) = track::detect::DetectResolution{};
-                            SETTING(region_resolution) = track::detect::DetectResolution{};
-                            SETTING(detect_format) = track::detect::ObjectDetectionFormat::none;
-                            SETTING(detect_classes) = track::detect::yolo::names::owner_map_t{};
-                        
-                            FormatWarning("Failed to initialize ", SETTING(detect_model).value<file::Path>());
                         }
+                    } else {
+                        SETTING(detect_resolution) = track::detect::DetectResolution{};
+                        SETTING(region_resolution) = track::detect::DetectResolution{};
+                        SETTING(detect_format) = track::detect::ObjectDetectionFormat::none;
+                        SETTING(detect_classes) = track::detect::yolo::names::owner_map_t{};
                     }
-                } else {
-                    SETTING(detect_resolution) = track::detect::DetectResolution{};
-                    SETTING(region_resolution) = track::detect::DetectResolution{};
-                    SETTING(detect_format) = track::detect::ObjectDetectionFormat::none;
-                    SETTING(detect_classes) = track::detect::yolo::names::owner_map_t{};
+                    
+                    --_are_python_tasks_running;
+                    Print("// Python tasks running(normal end) = ", _are_python_tasks_running.load());
+                    
+                } catch(...) {
+                    --_are_python_tasks_running;
+                    Print("// Python tasks running (exception) = ", _are_python_tasks_running.load());
+                    throw;
                 }
             },
             ._can_run_before_init = false
@@ -232,15 +245,18 @@ struct SettingsScene::Data {
                     check_new_video_source.get();
                 }
                 
+                Print("// Video check running...");
                 _are_video_checks_running = true;
                 check_new_video_source = std::async(std::launch::async, [source, this](){
                     try {
                         update_running_tasks(true);
                         check_video_source(source);
                         _are_video_checks_running = false;
+                        Print("// Video check stopped.");
                     
                     } catch(...) {
                         _are_video_checks_running = false;
+                        Print("// Video check crashed.");
                         throw;
                     }
                 });
@@ -737,7 +753,7 @@ struct SettingsScene::Data {
                         return last_output_name.value();
                     }),
                     VarFunc("checks_running", [this](const VarProps&) -> bool {
-                        return _are_python_tasks_running || _are_video_checks_running;
+                        return _are_python_tasks_running.load() > 0 || _are_video_checks_running;
                     })
                 }
             };
