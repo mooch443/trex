@@ -14,6 +14,9 @@ struct GUIVideoAdapterElement : public dyn::CustomElement {
     std::function<Layout::Ptr(const file::PathArray&, IMGUIBase*, std::function<void(VideoInfo)>)> _create_object;
     IMGUIBase *_window;
     
+    std::optional<std::string> _last_path_str;
+    std::optional<file::PathArray> _last_path;
+    
     GUIVideoAdapterElement(IMGUIBase* window,
                            std::function<Size2()> size_function,
                            std::function<void(VideoInfo)> open_callback = nullptr,

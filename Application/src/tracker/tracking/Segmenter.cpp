@@ -522,7 +522,7 @@ void Segmenter::open_video() {
     _output_file_name = SETTING(filename).value<file::Path>();*/
     _output_file_name = settings::find_output_name(GlobalSettings::map());
     
-    Print("source = ", SETTING(source).value<file::PathArray>());
+    Print("source = ", utils::ShortenText(SETTING(source).value<file::PathArray>().toStr(), 1000));
     Print("output = ", _output_file_name);
     Print("video_base = ", video_base.base());
     Print("length = ", video_base.length());
@@ -1329,7 +1329,7 @@ void Segmenter::printDebugInformation() {
     using namespace track::detect;
     Print("model: ", SETTING(detect_model).value<file::Path>());
     Print("region model: ", SETTING(region_model).value<file::Path>());
-    Print("video: ", SETTING(source).value<file::PathArray>());
+    Print("video: ", utils::ShortenText(SETTING(source).value<file::PathArray>().toStr(), 1000));
     Print("model resolution: ", SETTING(detect_resolution).value<DetectResolution>());
     Print("output size: ", _output_size);
     Print("output path: ", _output_file_name);
