@@ -230,7 +230,7 @@ void AnnotationScene::activate() {
     Scene::activate();
     // Logic to activate the scene, e.g., initializing framePreloader
     auto source = SETTING(source).value<file::PathArray>();
-    Print("Loading source = ", source);
+    Print("Loading source = ", utils::ShortenText(source.toStr(), 1000));
     
     std::unique_lock guard(_video_mutex);
     _video = std::make_unique<VideoSource>(source);

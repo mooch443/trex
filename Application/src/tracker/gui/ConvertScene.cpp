@@ -583,7 +583,7 @@ void ConvertScene::activate()  {
         SETTING(filename) = file::Path(settings::find_output_name(GlobalSettings::map()));
     }
     
-    Print("Loading source = ", source);
+    Print("Loading source = ", utils::ShortenText(source.toStr(), 1000));
     SETTING(meta_source_path) = source.source();
     try {
 
