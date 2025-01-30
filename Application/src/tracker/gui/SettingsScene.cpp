@@ -507,7 +507,7 @@ struct SettingsScene::Data {
                         });
                     }),
                     ActionFunc("track", [this](auto){
-                        DebugHeader("Tracking ", SETTING(source).value<file::PathArray>());
+                        DebugHeader("Tracking ", no_quotes(utils::ShortenText(SETTING(source).value<file::PathArray>().toStr(), 1000)));
                         
                         WorkProgress::add_queue("loading...", [this, copy = get_changed_props()]() mutable
                         {
@@ -881,7 +881,7 @@ void SettingsScene::Data::check_video_source(file::PathArray source) {
             
         } else if(source != _initial_source) {
             VideoSource v(source);
-            Print("VideoSource for ",source," of size ", v.size(),".");
+            Print("VideoSource for ",no_quotes(utils::ShortenText(source.toStr(), 1000))," of size ", v.size(),".");
         }
         
         SceneManager::getInstance().enqueue([this, source](){
