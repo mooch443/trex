@@ -2072,6 +2072,16 @@ void Fish::label(const FindCoord& coord, Entangled &e) {
        && not _basic_stuff->blob.pred.pose.empty())
     {
         pos = _basic_stuff->blob.pred.pose.points.front();
+        
+        if(auto pose_midline_indexes = SETTING(pose_midline_indexes).value<track::PoseMidlineIndexes>();
+           not pose_midline_indexes.indexes.empty())
+        {
+            if(_basic_stuff->blob.pred.pose.size() > pose_midline_indexes.indexes.front())
+            {
+                auto point = _basic_stuff->blob.pred.pose.point(pose_midline_indexes.indexes.front());
+                pos = point;
+            }
+        }
     }
     
     if (!_label) {
