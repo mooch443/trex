@@ -180,7 +180,7 @@ class V118_3(nn.Module):
 
         self.flatten = nn.Flatten()
         self.fc1 = nn.Linear(100 * (image_width // 8) * (image_height // 8), 100)
-        self.bn4 = nn.BatchNorm1d(100)
+        self.bn4 = nn.LayerNorm(100)
         self.relu4 = nn.ReLU()
         self.dropout4 = nn.Dropout(0.05)
         self.fc2 = nn.Linear(100, num_classes)

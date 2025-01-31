@@ -99,7 +99,7 @@ void YOLO::reinit(ModuleProxy& proxy) {
             SETTING(detect_format) = ObjectDetectionFormat_t(config.output_format);
             SETTING(detect_resolution) = config.trained_resolution;
             if(SETTING(detect_classes).value<detect::yolo::names::owner_map_t>().empty()) {
-                Print("// Loading classes from model.");
+                Print("// Loading classes from model: ", config.classes);
                 SETTING(detect_classes) = config.classes;
             }
         } else if(config.task == ModelTaskType::region) {

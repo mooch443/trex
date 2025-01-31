@@ -725,7 +725,7 @@ void TrackingScene::deactivate() {
     
     auto config = default_config::generate_delta_config(AccessLevelType::LOAD, _state ? _state->video.get() : nullptr);
     for(auto &[key, value] : config.map) {
-        Print(" * ", *value);
+        Print(" * ", no_quotes(utils::ShortenText(Meta::toStr(*value), 1000)));
     }
     Print();
 
@@ -738,7 +738,7 @@ void TrackingScene::deactivate() {
            && GlobalSettings::access_level(key) < AccessLevelType::LOAD*/
            is_in(key, "filename", "source", "output_dir", "output_prefix"))
         {
-            Print(" . ", value.get());
+            Print(" . ", no_quotes(utils::ShortenText(Meta::toStr(value.get()), 1000)));
             value.get().copy_to(GlobalSettings::current_defaults_with_config());
             continue;
         }

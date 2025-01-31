@@ -526,7 +526,9 @@ std::string start_converting(std::future<void>& f) {
             SETTING(terminate) = true;
             last_error = error;
         });
-    Print("Loading source = ", SETTING(source).value<file::PathArray>());
+    
+    Print("Loading source = ",
+          utils::ShortenText(SETTING(source).value<file::PathArray>().toStr(), 1000));
     
     bar.set_progress(0);
     

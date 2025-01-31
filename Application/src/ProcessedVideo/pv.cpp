@@ -1268,7 +1268,27 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
             if(not header().metadata.has_value())
                 ss << ("<b>Metadata empty.</b>");
             else {
-                return ss.str() + "<b>Metadata:</b> " + header().metadata.value();
+                sprite::Map map;
+                map.set_print_by_default(false);
+                try {
+                    sprite::parse_values(sprite::MapSource{ filename() }, map, header().metadata.value(), &GlobalSettings::map());
+                } catch(...) {
+#ifndef NDEBUG
+                    FormatWarning("Cannot parse metadata string: ", no_quotes(header().metadata.value()));
+#endif
+                }
+                
+                ss << "<b>Metadata:</b> {";
+                bool first = true;
+                for(auto key : map.keys()) {
+                    if(not first)
+                        ss << ",";
+                    ss << "'" << key << "':" << utils::ShortenText(map.at(key).get().valueString(), 1000);
+                    first = false;
+                }
+                ss << "}";
+                
+                return ss.str();
             }
         }
         

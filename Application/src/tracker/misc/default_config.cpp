@@ -610,7 +610,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("gui_show_midline_histogram", false, "Displays a histogram for midline lengths.");
         CONFIG("gui_auto_scale", false, "If set to true, the tracker will always try to zoom in on the whole group. This is useful for some individuals in a huge video (because if they are too tiny, you cant see them and their posture anymore).");
         CONFIG("gui_auto_scale_focus_one", true, "If set to true (and `gui_auto_scale` set to true, too), the tracker will zoom in on the selected individual, if one is selected.");
-        CONFIG("gui_pose_smoothing", Frame_t(5), "Blending between the current and previous / future frames for displaying smoother poses in the graphical user-interface. This does not affect data output.");
+        CONFIG("gui_pose_smoothing", Frame_t(0), "Blending between the current and previous / future frames for displaying smoother poses in the graphical user-interface. This does not affect data output.");
         CONFIG("gui_timeline_alpha", uchar(200), "Determines the Alpha value for the timeline / tracklets display.");
         CONFIG("gui_background_color", gui::Color(0,0,0,255), "Values < 255 will make the background (or video background) more transparent in standard view. This might be useful with very bright backgrounds.");
         CONFIG("gui_fish_color", std::string("identity"), "");
