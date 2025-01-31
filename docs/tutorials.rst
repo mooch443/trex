@@ -72,7 +72,7 @@ While |trex| is designed to be lightweight, ensuring a modern CPU, sufficient RA
 - **Operating System**: Windows 10, macOS 10.15, or Ubuntu 20.04 LTS
 - **Processor**: Intel Core i5 or AMD Ryzen 5
 - **Memory**: 8GB RAM
-- **Graphics**: dedicated NVIDIA GPU with 2GB VRAM (optional but recommended), or Apple Silicon's integrated GPU
+- **Graphics** (optional but recommended): dedicated NVIDIA GPU with 2GB VRAM, or Apple Silicon's integrated GPU
 
 This is a general recommendation, and |trex| can run on systems with lower specifications depending on the specific task at hand. However, the performance may be slower, especially for larger videos or more complex scenes. If you encounter any issues with the software that you think should not be happening, feel free to file a bug report on our `GitHub repository <https://github.com/mooch443/trex>`_.
 
@@ -139,7 +139,7 @@ The general workflow of using |trex| is quite straight-forward. Usually, you'd h
 3. Wait a bit until you're dropped into **Tracking View**
 4. Quickly check for mistakes and, if OK, export the data by pressing ``S``
 
-To improve tracking performance, the software will produce a *cached* version of your video file that contains all the information needed, but not more. This includes all objects of interest (i.e. not background) as well as an averaged background image.
+To improve tracking performance, the software will produce a *cached* version of your video file (``.pv``) that contains all the information needed, but not more. This includes all objects of interest (i.e. not the background per frame) as well as a single averaged background image.
 
 .. admonition:: On Video Files and File Sizes
 
@@ -152,7 +152,9 @@ To improve tracking performance, the software will produce a *cached* version of
 Parameters
 ^^^^^^^^^^
 
-Something you'll have to get used to is *parameters*. These are the settings that you can adjust to optimize results for your specific video [#f5]_. There are many parameters in |trex|, as is unfortunately very typical for science software projects, but luckily only *very few* will typically be of relevance (see below). Usually their names and prefixes will be descriptive and easy to understand/search for. Prefixes typically correspond to the "phase" they're being used in, such as ``detect_*`` for detection and ``track_*`` for tracking, or the specific task they belong to (such as ``output_*``). Here are a few examples:
+Something you'll have to get used to is :doc:`parameters <parameters_trex>`. These are the settings that you can adjust to optimize results for your specific video [#f5]_. There are many parameters in |trex|, as is unfortunately very typical for science software projects, but luckily only *very few* will typically be of relevance.
+
+Usually their names and prefixes will be descriptive and easy to understand or search for. Prefixes typically correspond to the "phase" they're being used in, such as ``detect_*`` for detection and ``track_*`` for tracking, or the specific task they belong to (such as ``output_*``). Here are a few examples:
 
 - **detect_type**: The type of detection algorithm used (e.g., background subtraction or YOLO).
 - **detect_threshold** (only for background subtraction): The minimum greyscale intensity value for a pixel to be considered part of an individual.
@@ -175,7 +177,7 @@ If you want to follow along exactly as described, you can download the example v
 Setting Up a New Project
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-When you first start |trex|, you'll see a window with a welcome message and a button to open a file or start the webcam. Click on the folder icon in the center of the screen to proceed to the initial settings screen (see :numref:`welcome_screen`).
+When you first start |trex|, you'll see a window with a welcome message and a button to open a file or start the webcam. Click on the folder icon in the center of the screen to proceed to the `initial settings screen <welcome_screen>`.
 
 There are a few tabs on top of your screen now (see :numref:`initialsettings`). You will be landed on the first one:
 
@@ -205,20 +207,19 @@ Let's set an input file first and then go through a few more steps to get starte
 
    Tracking can generally be defined as connecting the dots between detections across the temporal dimension. The first step in this process is detecting the individuals in each frame. |trex|, at the moment, offers two different detection types:
 
-   - **Background subtraction**: This is the default detection type and works well for most videos. It's based on the difference between the current frame and a background model. This model is built from the first few frames of the video and is updated over time. It's a simple and fast method that works well for most videos.
-   - **YOLO**: This is a more advanced detection type that uses a deep learning model (e.g., YOLO architecture) to detect individuals. It's often more accurate and can handle more complex scenes, but it requires more computational power and can be slower. It's recommended for videos with complex backgrounds, occlusions, or other challenging conditions. It may, however, require you to manually prepare a detection model specifically suited to your video.
+   - **Background subtraction**: This is the fastest detection type and works well for most videos recorded in *controlled conditions*. It's based on the difference between the current frame and a background model. This model is built from the first few frames of the video and is updated over time. It's a simple and fast method that works well for most videos.
+   - **YOLO** (*default*): This is a more advanced detection type that uses a deep learning model (e.g., YOLO architecture) to detect individuals. These models are better at handling complex scenes, but are also slower and need more computational power. They are recommended for videos with complex backgrounds/low foreground to background contrast, complicated occlusions, or other challenging conditions. If the default models (trained on e.g. human-pose or everyday objects) are not sufficient, you can also train your own model (see :doc:`model_training`).
 
-   For the basics tutorials, we'll use the default *background subtraction* method. In the program, however, YOLO will be selected by default - please navigate to the **Detection** tab to fix that. In the same tab we can also change the :param:`detect_threshold` value, which is the minimum greyscale intensity value ``[0-255]`` for a pixel to be considered part of an individual. The default value is ``15``, but you can adjust it to better fit your video. Unlike :param:`track_threshold`, this value acts *destructively* and could actually be regarded as a lower bound for :param:`track_threshold`.
+   For the basics tutorials, we'll use the default *background subtraction* method. However, YOLO is selected by default - please navigate to the **Detection** tab to fix that. In the same tab we can also change the :param:`detect_threshold` value, which is the minimum greyscale intensity value ``[0-255]`` for a pixel to be considered part of an individual. The default value is ``15``, but you can adjust it to better fit your video. Unlike :param:`track_threshold`, this value acts *destructively* and could actually be regarded as a lower bound for :param:`track_threshold`.
    
    We will check back on thresholds later.
 
 4. **Set the Number of Individuals**:
 
    - Navigate to the **Tracking** tab.
-   - We counted the number of individuals when we recorded it - so we should specify it here.
-   - Set the *maximum* number of individuals to ``8``. 
+   - We counted the individuals when we recorded the video, so we should specify that number here: set the *maximum* number of individuals to ``8``. 
      
-   It's called a *maximum* number because in some frames (e.g., during overlap or occlusion) the software might not be able to detect all individuals - or more objects are detected than there are individuals in the scene. This is a common problem in tracking and not specific to |trex|. The software will try to resolve this by merging or splitting objects, but it's not always possible to get it right. If you set the maximum number too low, you might lose individuals in the analysis. If you set it too high, you might get more overdetection. The software will try to resolve this as best as it can, but it's always a good idea to check the results visually.
+   It's called a *maximum* number because in some frames (e.g., during overlap or occlusion) the software might not be able to detect all individuals - or more objects are detected than there are individuals in the scene. This is a common problem in tracking and not specific to |trex|. The software will try to resolve this by, for example, splitting objects, but it's not always possible to get it right. If you set the maximum number too low you might lose individuals in the analysis. If you set it too high, you might get more overdetection. The software will try to resolve this as best as it can, but it's always a good idea to check the results visually.
 
    .. _settings_pane:
 
@@ -229,13 +230,63 @@ Let's set an input file first and then go through a few more steps to get starte
 
 5. **Start the Conversion**:
 
-  Once you're happy with how you've configured the settings, click the **Convert** button at the bottom right to begin processing. On most computers this will be done relatively quickly, but it can take longer for larger videos or more complex scenes. After conversion is done, you'll be dropped into the default tracking view (see :numref:`tracking_view`).
+  Once you're happy with how you've configured the settings, click the **Convert** button at the bottom right to begin processing. On most computers this will be done relatively quickly, but it can take longer for larger videos or more complex scenes. After conversion is done, you'll be dropped into the default :ref:`Tracking View <tracking_view>`.
 
 It is fairly normal to have to adjust the settings a few times to get the best results. Anything related to tracking can be changed at any time, but detection settings are fixed once the conversion starts. So if you're not happy with the initial **Detection**, you can always cancel an ongoing conversion, go back to the opening dialog and try again. **Tracking problems**, on the other hand, can be resolved more easily later on; the only requirement is that the detection is good enough to start with - meaning no individuals are completely undetected or deformed by irreversible settings such as the :param:`detect_threshold` mentioned earlier.
 
 .. epigraph::
 
    **Tip:** Feel free to explore other settings either here (:doc:`parameters_trex`) or inside the app. Simply hover over any setting with your mouse to read its documentation and understand how it affects the analysis.
+
+.. _graphical_interface:
+
+The Graphical Interface
+^^^^^^^^^^^^^^^^^^^^^^^
+
+There are a few elements of the graphical user-interface (**GUI**) that are important to understand:
+
+- **Top Bar**: This is where you can find the main menu, which includes options to open a new file, save the current configuration, and close the file. You can also find the **Reanalyse** button here, which allows you to retrack the video with the current settings.
+
+   .. figure:: images/top_menu.png
+      :width: 100%
+
+      The main menu bar. You can find many important options here - click through it to explore. The buttons on the left switch between **Tracking View** and **Raw View** (key ``D``) for example!
+
+- **Timeline**: This is where you can scrub through the video to see the tracking results. You can click on the timeline to jump to a specific frame, or drag across it to scrub through the video. You can also use the arrow keys to move frame by frame.
+
+   .. figure:: images/timeline.png
+      :width: 100%
+
+      Click and hold here to scrub through the video (or use your arrow keys). It will show you information about each frame and offer to reanalyse from specific frames when you hover them.
+
+- **Parameter Combobox**: Here you can find and change parameters by simply starting to type terms, using the auto-complete feature to find the right one. You can also use the arrow keys to navigate through the list and Enter to select.
+
+   .. figure:: images/parameter_dropdown.png
+      :width: 100%
+
+      The parameter box. You can just type words into it, separated by spaces, to search - hover the filtered parameters to reveal additional documentation.
+
+- **Info Card**: This is displayed on the top-left of the screen if an individual has been selected. It shows you information about its :ref:`tracklets`, kinematics, and image settings. You can click on the tracklet numbers to jump to the start of a tracklet, or press the ``C`` and ``V`` keys to jump to the previous and next tracklet, respectively.
+  
+   .. _tracklets_infocard:
+
+   .. figure:: images/tracklets_infocard.png
+      :width: 100%
+
+      The list of tracklets for the current individual. You can hover each tracklet to reveal the reason that it was terminated.
+
+- **Tracking View** (see :numref:`tracking_view`): This is where you can see the video with the *tracked* individuals highlighted. This is the view you want to be in whenever you want to confirm tracking quality, or to explore the data. Press ``D`` to toggle between **Tracking View** and **Raw View**, or use the buttons in the **Top Bar**. You will likely spend most of your time here!
+- **Raw View** (see :numref:`reassign_identity`): This is where you can see the raw detections in each frame. You can click on the center points of the objects to assign a certain individual identity to them. |trex| will automatically start retracking from the current frame on, so always go in chronological order. You can then press the ``D`` key again to switch back to the **Tracking View** and review the changes you've made.
+
+There are also some dialogs - for example the **Export Dialog**:
+
+.. figure:: images/export_dialog.png
+   :width: 75%
+   :align: center
+
+   The **Export Dialog** is opened when you press ``S`` on your keyboard or click on **☰ Menu** → **Export data**.
+
+Here you can select available options on the left by clicking on them, which moves them to the right - that means if you either press ``S`` again, or click on **Export** (bottom-right), they will be saved to npz/csv files, according to your options.
 
 .. _optimizations:
 
@@ -294,7 +345,7 @@ A bit more important background knowledge: Tracking in |trex| heavily relies on 
    
 Within this sequence of frames, based on basic kinematics, we can be confident that the same physical individual is being tracked continuously. If |trex| is not confident, it terminates the tracklet and starts a new one. It's important to emphasize the word *confident* here: almost every tracking software will be 100% sure that if an individual disappears for a couple of frames, a trajectory piece ends (although some will definitely interpolate by default). We are, however, also looking at cases where speeds are suspiciously high, or where multiple individuals are expected in the vicinity of too few available objects. The advantage of this is that we are *even more conservative* so we can, for example, use the tracklets as a baseline truth for :ref:`visual_identification` (see below).
 
-You can find them, as numbers in the format ``start-end``, in |trex| by selecting an individual and looking at the info card on the top-left (see :numref:`tracklets_image`). You can click on any of them to jump to the start of the tracklet, or press the ``C`` / ``V`` keys to jump to the previous / next. You can also hover the numbers to discover why each tracklet has been terminated.
+You can find them, as numbers in the format ``start-end``, in |trex| by selecting an individual and looking at the **Info Card** on the top-left (see :numref:`tracklets_image`). You can click on any of them to jump to the start of the tracklet, or press the ``C`` / ``V`` keys to jump to the previous / next. You can also hover the numbers to discover why each tracklet has been terminated.
 
 .. _tracklets_image:
 
@@ -306,7 +357,7 @@ You can find them, as numbers in the format ``start-end``, in |trex| by selectin
 Tracklets should *legitimately* end in these situations:
 
 	- the selected individual cannot be found in a frame (e.g., because it has moved farther than :param:`track_max_speed`)
-	- the selected individual has not moved too far, but close to too far (90% of :param:`track_max_speed`) so we don't trust it
+	- the selected individual has not moved too far, but close to too far (90% of :param:`track_max_speed`) so we don't trust it (the individual will still be tracked, but the tracklet ends to be sure)
 	- multiple individuals were expected in the vicinity of too few available objects and cannot be separated via thresholding, so it'd rather not track anything to be sure (e.g., when individuals overlap)
 	- it has actually disappeared (e.g., out of frame or in a hiding spot)
 
@@ -357,7 +408,7 @@ Note that changes to one individual can always also affect other assignments, du
 
 This is fairly obviously the case when you assign an individual to a tracklet that was previously assigned to another individual - now you also changed that other individuals' trajectory for the future. This is why it's always a good idea to go through the video in chronological order, and to always check the results after you've made a change.
 
-Finally, after you've made all of your corrections, you can press the ``S`` key to save the changes and export the data. Do not forget to also save the configuration whenever you changed something important - this can be done in the **☰ Menu →** and then **Save config**.
+Finally, after you've made all of your corrections, you can press the ``S`` key to save the changes and export the data. Do not forget to also save the configuration whenever you changed something important - this can be done in the **☰ Menu** → **Save config**.
 
 .. _visual_identification:
 
@@ -370,9 +421,9 @@ There are a few preconditions, and related settings to pay attention to, namely:
 
  - **Visual differences**: The individuals have to be visually differentiable. This is a bit of a vague term, but it basically means that the algorithm (best case also you) has to be able to tell them apart. This is not always easy, it's not always possible, and it's not magic. If you have a group of individuals that are visually/genetically identical, you might run into trouble and may have to resort to making manual corrections.
  - **Known group size**: We need to know how many individuals there are, otherwise we don't know what to search for. Practically, this means that you'll have to define :param:`track_max_individuals` before tracking (as we did above).
- - **Baseline truth**: All individuals of the group have to be present at the same time at least once. This is also called a *global tracklet*. It is one of the preconditions because we need at least one example of each individual to know what it looks like. The VI algorithm then tries to systematically add more examples of each individual, starting the search within the "longest global tracklet" and then going on to look at shorter ones. If all individuals are visible and separate at the same time, we know that at least in this frame the identities are unique. This is the baseline truth. Actually, we can also utilize each individual tracklet intersecting with this global tracklet, not only the parts that are contained within it. Global tracklets are displayed as colorful bars in the timeline as long as the number of individuals is defined (see :numref:`image_settings`). If there are none, you might either have miscounted, the individuals were not all visible at the same time, or there are other issues with tracking.
+ - **Baseline truth**: All individuals of the group have to be present at the same time at least once. This is also called a *global tracklet*. It is one of the preconditions because we need at least one example of each individual to know what it looks like. The VI algorithm then tries to systematically add more examples of each individual, starting the search within the "longest global tracklet" and then going on to look at shorter ones. If all individuals are visible and separate at the same time, we know that at least in this frame the identities are unique. This is the baseline truth [#f7]_. Actually, we can also utilize each individual tracklet intersecting with this global tracklet, not only the parts that are contained within it. Global tracklets are displayed as colorful bars in the timeline as long as the number of individuals is defined (see :numref:`image_settings`). If there are none, you might either have miscounted, the individuals were not all visible at the same time, or there are other issues with tracking.
 
-You may also need to setup the individual image size and scaling factor, in case the default values don't fit your particular situation - so it's a good idea to check beforehand. You can do this by selecting an individual, unfolding the **image settings** in the infocard on the top-left, and adjusting the values there (see :numref:`image_settings`). You can let the video play to see the individual move and bend, and adjust the settings accordingly in realtime. By default, these images are normalized based on posture, but you can also choose to use the raw images or *moments* if you prefer. Try selecting different ones to observe the changes (see also :numref:`normalization_types`). If posture isn't available (:param:`calculate_posture`) then *moments* will be used by default.
+You may also need to setup the :param:`individual_image_size` and :param:`individual_image_scale`, in case the default values don't fit your particular situation - it's a good idea to check beforehand: Select an individual, unfold the :ref:`image settings <image_settings>` in the **Info Card** on the top-left, and adjusting the values there. You can let the video play to see the individual move and bend, and adjust the settings accordingly in realtime. By default, these images are normalized based on posture, but you can also choose to use the raw images or *moments* if you prefer. Try selecting different ones to observe the changes (see also :numref:`normalization_types`). If posture isn't available (:param:`calculate_posture`) then *moments* will be used by default.
 
 .. _image_settings:
 
@@ -381,19 +432,9 @@ You may also need to setup the individual image size and scaling factor, in case
 
    The image settings allow you to adjust the size and scaling factor of the individual images used for visual identification (and some other features, such as tracklet images).
 
-Finally, to start the training process in our example, simply click on **☰ Menu →** and then *Train visual identification*. It will guide you through a few dialogs to define what you want to do and then start learning. In case it is successful it will automatically reanalyse the entire video given the new information - always visually confirm whether the results make sense. Mistakes will happen, but **Visual identification** gives |trex| an independent source of information that prevents follow-up errors - meaning it can rediscover the correct individual again, even after short erroneous sequences. So that's nice to have.
+Finally, to start the training process in our example, simply click on **☰ Menu** → **Train visual identification**. It will guide you through a few dialogs to define what you want to do and then start learning. In case it is successful it will automatically reanalyse the entire video given the new information - always visually confirm whether the results make sense. Mistakes will happen, but **Visual identification** gives |trex| an independent source of information that prevents follow-up errors - meaning it can rediscover the correct individual again, even after short erroneous sequences. So that's nice to have.
 
-:strike:`Refining Tracking Parameters`
---------------------------------------
-
-In :ref:`optimizations` we described two ways of changing parameters:
-
-1. Adjusting parameters by reconverting the entire video. This is fairly rudimentary and can be quite time-consuming for larger videos. For detection-related parameters there is no way around it, but when it comes to tracking parameters you can ...
-2. ... adjust parameters on-the-fly and see the results immediately from within the graphical user-interface of |trex|.
-
-The general intuition here is that if your parameter of choice applies during the tracking phase (i.e. anything that is not detection-related), you can change its value at any time. You may have to **reanalyse** to see the changes, but this is usually a lot faster than reconverting the entire video. Detection parameters, on the other hand, are fixed once the conversion starts, so you'll have to cancel the conversion and start over if you're not happy with the results. 
-
-We've also talked about :ref:`tracklets` already. These are the basis for almost everything in |trex|, so if you find that they end for no good reason, you might have to adjust your parameters. The reasons for tracklets to end are displayed in the info card on the top-left if you hover them (see :numref:`tracklets_image`), and you can use this information to adjust your parameters accordingly. In case you have :param:`track_max_individuals` set, also pay attention to the timeline (at the top of the screen) to see a colorful selection of the best *global* tracklets. If you're planning to use visual identification, see that these global tracklets become as long as possible - making sure though that tracking quality is not negatively impacted.
+.. [#f7] This principle was first introduced by the `idTracker <https://www.nature.com/articles/nmeth.2994>`_ software, and |trex| works similarly. It is a very powerful concept that allows the software to create a baseline truth without user-intervention (other than setting the correct parameters).
 
 .. _posture_doc:
 
@@ -402,8 +443,8 @@ Posture
 
 If you're interested in the posture of the individuals, or using :ref:`visual_identification`, you can also adjust the posture parameters in |trex|. These parameters control how the posture data is calculated and used in the analysis. If you are detecting individuals using a ``YOLO-pose`` type model, |trex| will try to use the detected keypoints to generate an outline and a center-line through the individuals - you can check out how to change those here: :param:`pose_midline_indexes`. Note that *pose* and *posture* are two different things in |trex|: 
 
-- **Pose** refers to the keypoints detected by a machine-learning model,
-- **Posture** refers to the outline and center-line generated by |trex|.
+- **Pose** refers to the :ref:`keypoints <locust_keypoints>` detected by a machine-learning model,
+- **Posture** refers to the :ref:`outline and center-line <posture_preview>` generated by |trex|.
 
 By default, however, posture is generated based on simple image processing techniques. That means that if you used a ``YOLO-detect`` type model, you'll most likely only find squares here [#f6]_. If you used any other :param:`detect_type`, especially background subtraction, you'll have much better results.
 
@@ -438,16 +479,16 @@ For most of these, in order to see any effect, you'll have to reanalyse at least
 Tutorial: Machine-learning based pose detection
 -----------------------------------------------
 
-In this tutorial, we'll guide you through the process of using a machine-learning based detection model in |trex|. This process is very similar to any other detection mode, we just have some additional parameters to look into. You can also train your own model and use it here, but for now, we'll use a `model <https://trex.run/15locusts_model.pt>` that we trained, and `this <https://trex.run/15locusts.mp4>`_ video.
+In this tutorial, we'll guide you through the process of using a machine-learning based detection model in |trex|. This process is very similar to any other detection mode, we just have some additional parameters to look into. You can also train your own model and use it here but, in case you don't have one, you can use our `model <https://trex.run/15locusts_model.pt>`_, and `this <https://trex.run/15locusts.mp4>`_ video.
 
 .. warning::
 
-   Downloading .pt files from the internet can be dangerous since it's technically possible that they execute arbitrary code when they're being loaded - so you should handle them with the same care with which you'd handle executable files. Always make sure you trust the source before downloading any files, or train them locally/in the cloud based on your own data (see :doc:`model_training`).
+   Downloading .pt files from the internet can be dangerous since it's technically possible that they execute arbitrary code when they're being loaded - so you should handle them with the same care with which you'd handle executable files. Always make sure you trust the source before downloading any files, or train them locally/in the cloud based on your own data (see :doc:`model_training`). Additionally, verify the integrity of the files using checksums or signatures if available.
 
 Setting Up a New Project
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-First, open |trex| and click on the folder icon in the center of the screen to proceed to the initial settings screen. Here, you'll see a few tabs on top of your screen. You'll want to navigate to the **Detection** tab, set :param:`detect_mode` to ``yolo``. Here are a few additional parameters that may be important:
+First, open |trex| and click on the folder icon in the center of the screen to proceed to the initial settings screen. Here, you'll see a few tabs on top of your screen. You'll want to navigate to the **Detection** tab, set :param:`detect_type` to ``yolo``. Here are a few additional parameters that may be important:
 
 - :param:`detect_model`: This is the path to the model file you want to use. You can either click on the 📂 folder button next to the input file name at the top, or enter the path manually. In this case, you'll want to download the `model <https://trex.run/15locusts_model.pt>`_ and place it in the same folder as the video
 - :param:`detect_conf_threshold`: This is the confidence threshold for the detections. If you're getting too many false positives, you can increase this value. If you're missing detections, you can decrease it. The default value is ``0.5``. The confidence is displayed during conversion, or in the raw view later on as a percentage next to detected objects.
@@ -455,7 +496,7 @@ First, open |trex| and click on the folder icon in the center of the screen to p
 - :param:`detect_only_classes`: This is a list of classes that you want to detect. If you're only interested in detecting a specific class, you can specify it here. The default value is an empty list, which means that all classes will be detected.
 - :param:`detect_skeleton`: This is only important for visualization purposes, but may be good to know. In case you're detecing keypoints (poses), you can use this variable define the "skeleton" which connects the detected keypoints per object. It has (currently) no effect on the tracking itself. By default, this maybe set to the default human skeleton used by YOLO. If you only have to keypoints you might set something like: ``["stick",[[0,1]]]`` which connects keypoints ``0`` and ``1`` with a line.
 
-For now, it'll be enough to just set the detection model (:param:`detect_model`) and the detection mode (:param:`detect_mode`). You can also set the :param:`track_max_individuals` (in the "Tracking" tab) to ``15``, since that's the number of locusts in the video. Afterwards, click the **Convert** button at the bottom right to begin processing. After conversion is done, you'll be dropped into the default tracking view (see :numref:`tracking_view`).
+For now, it'll be enough to just set the detection model (:param:`detect_model`) and the detection mode (:param:`detect_type`). You can also set the :param:`track_max_individuals` (in the "Tracking" tab) to ``15``, since that's the number of locusts in the video. Afterwards, click the **Convert** button at the bottom right to begin processing. After conversion is done, you'll be dropped into the default :ref:`tracking view <tracking_view>`.
 
 Improving Visuals
 ^^^^^^^^^^^^^^^^^
@@ -475,12 +516,16 @@ This will connect the keypoints as seen in :numref:`locust_keypoints` - the firs
 
    The keypoints used for the locust model. The numbers correspond to the keypoint indexes detected by the model, defined when the model was trained, and the lines show how they are connected to form the skeleton.
 
-You can also adjust the :param:`detect_conf_threshold` and :param:`detect_iou_threshold` if you're not happy with the results. The confidence threshold is the minimum confidence for a detection to be considered valid, and the intersection over union threshold is the minimum overlap between two detections for them to be considered the same object. You can adjust these values to get more or fewer detections, depending on your needs. Note that if you change any ``detect_*`` parameters you'll have to reconvert the video to see the changes.
+You can also adjust the :param:`detect_conf_threshold` and :param:`detect_iou_threshold` if you're not happy with the results. The confidence threshold is the minimum confidence for a detection to be considered valid, and the intersection over union threshold is the minimum overlap between two detections for them to be considered the same object. You can adjust these values to get more or fewer detections, depending on your needs. 
 
-Adjusting Posture
-^^^^^^^^^^^^^^^^^
+.. NOTE::
 
-There is a difference between "pose" and "posture" in |trex| (see :ref:`posture_doc`). In summary, "pose" are the keypoints detected by YOLO and "posture" is a |trex|-generated combination of outer- and center-line. If you're using a pose model, as is the case here, you might have some keypoints for extremities that you don't want to use for generating the center-line (midline) or outline of an individual.
+   If you change any ``detect_*`` parameters you'll have to reconvert the video to see the changes.
+
+Adjusting Posture Based On Keypoints
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+There is a difference between :ref:`pose <locust_keypoints>` and :ref:`posture <posture_preview>` in |trex| (see :ref:`posture_doc`). In summary, "pose" are the keypoints detected by YOLO and "posture" is a |trex|-generated combination of outer- and center-line. If you're using a pose model, as is the case here, you might have some keypoints for extremities that you don't want to use for generating the center-line (midline) or outline of an individual.
 
 To adjust this, you can set the :param:`pose_midline_indexes` parameter. This is a list of keypoint indexes that represent the center-line of the individual. These will vary based on the dataset used for training the model, but you can find them by looking at it's output. For the locust model, the center-line keypoints are ``[1,3,4]``. Just go to the settings box at the bottom of the screen to set it!
 
@@ -489,4 +534,4 @@ Enable :param:`calculate_posture` if you haven't already, and click on the **Rea
 Finally
 ^^^^^^^
 
-After you're happy with the results, you can press the ``S`` key to save the changes and export the data. Don't forget to also save the configuration whenever you changed something important - this can be done in the **☰ Menu →** and then **Save config**.
+After you're happy with the results, you can press the ``S`` key to save the changes and export the data. Don't forget to also save the configuration whenever you changed something important - this can be done in the **☰ Menu** → **Save config**.

@@ -77,6 +77,7 @@ If you use this software in your work, please cite our `open-access paper <https
    :hidden:
    
    tutorials
+   model_training
    install
    run
    update
