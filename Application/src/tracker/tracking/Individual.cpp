@@ -2064,7 +2064,7 @@ prob_t Individual::time_probability(double tdelta, const Frame_t& previous_frame
     
     float p = 1.0f - min(1.0f, max(0, (tdelta - Tdelta) / SLOW_SETTING(track_max_reassign_time)));
     if(previous_frame >= Tracker::start_frame() + Frame_t(minimum_frames))
-        p *= min(1.f, float(recent_number_samples - 1) / float(minimum_frames) + FAST_SETTING(matching_probability_threshold));
+        p *= min(1.f, float(recent_number_samples - 1) / float(minimum_frames) + FAST_SETTING(match_min_probability));
     
     return p * 0.75 + 0.25;
 }

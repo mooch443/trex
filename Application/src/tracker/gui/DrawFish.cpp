@@ -473,7 +473,7 @@ Fish::~Fish() {
                         auto ptr = mat.ptr(pos.y, pos.x);
                         
                         auto p = obj.probability(MaybeLabel{}, *c, _frame, _probability_center - _probability_radius + pos * res_factor + 0.5, 1); //TODO: add probabilities
-                        if (p < FAST_SETTING(matching_probability_threshold))
+                        if (p < FAST_SETTING(match_min_probability))
                             return;
                         
                         auto clr = Viridis::value(p).alpha(uint8_t(min(255, 255.f * p)));

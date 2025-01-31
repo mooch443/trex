@@ -1840,7 +1840,7 @@ TRex parameters
 
 
 
-.. function:: manual_ignore_bdx(map<frame,set<blob>>)
+.. function:: track_ignore_bdx(map<frame,set<blob>>)
 
 	**default value:** {}
 
@@ -1902,7 +1902,7 @@ TRex parameters
 
 
 
-.. function:: matching_probability_threshold(float)
+.. function:: match_min_probability(float)
 
 	**default value:** 0.1
 

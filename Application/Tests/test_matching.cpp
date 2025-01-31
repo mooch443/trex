@@ -475,7 +475,7 @@ public:
      table_->prop = FrameProperties(Frame_t(0), 0, 0);
      
      default_config::get(GlobalSettings::map(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
-     SETTING(matching_probability_threshold) = float(0.1);
+     SETTING(match_min_probability) = float(0.1);
      SETTING(match_mode) = table_->match_mode;
  }
  void TearDown() override {

@@ -155,6 +155,9 @@ TrackingScene::Data::Data(Image::Ptr&& average, pv::File& video)
     _background->add_event_handler(EventType::SCROLL, [this](Event e) {
         handle_zooming(e);
     });
+    _background->add_event_handler(EventType::DRAG, [this](Event e) {
+        Print("Drag: ", e.drag.rx, ",",e.drag.ry);
+    });
     /*SceneManager::getInstance().enqueue([](DrawStructure& graph) {
         graph.root().add_event_handler(EventType::SCROLL, [this](Event e) {
             handle_zooming(e);
@@ -493,7 +496,7 @@ void TrackingScene::activate() {
         
         "manual_matches",
         "manual_splits",
-        "manual_ignore_bdx",
+        "track_ignore_bdx",
         
         "gui_show_texts",
         "gui_show_probabilities",
@@ -562,7 +565,7 @@ void TrackingScene::activate() {
         } else if(key == "analysis_range") {
             _data->_analysis_range = Tracker::analysis_range();
             
-        } else if(is_in(key, "manual_ignore_bdx", "manual_splits", "manual_matches")
+        } else if(is_in(key, "track_ignore_bdx", "manual_splits", "manual_matches")
                   && _data
                   && _data->_cache)
         {

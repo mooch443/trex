@@ -457,7 +457,7 @@ void Output::ResultsFormat::process_frame(
 {
     const auto& frameIndex = data.stuff->frame;
     
-    const Match::prob_t p_threshold = FAST_SETTING(matching_probability_threshold);
+    const Match::prob_t p_threshold = FAST_SETTING(match_min_probability);
     
 #if !COMMONS_NO_PYTHON
     auto label =

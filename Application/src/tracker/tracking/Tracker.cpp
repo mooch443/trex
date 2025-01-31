@@ -656,7 +656,7 @@ void Tracker::prefilter(
     
     const auto track_include = FAST_SETTING(track_include);
     const auto track_ignore = FAST_SETTING(track_ignore);
-    const auto manual_ignore_bdx = FAST_SETTING(manual_ignore_bdx);
+    const auto track_ignore_bdx = FAST_SETTING(track_ignore_bdx);
     
     std::vector<pv::BlobPtr> ptrs;
     auto track_only_categories = FAST_SETTING(track_only_categories);
@@ -718,14 +718,14 @@ void Tracker::prefilter(
         return true;
     };
     
-    std::optional<const decltype(manual_ignore_bdx)::mapped_type*> manual_ignore_bdx_c;
-    if(auto it = manual_ignore_bdx.find(result.frame_index);
-       it != manual_ignore_bdx.end())
+    std::optional<const decltype(track_ignore_bdx)::mapped_type*> track_ignore_bdx_c;
+    if(auto it = track_ignore_bdx.find(result.frame_index);
+       it != track_ignore_bdx.end())
     {
-        manual_ignore_bdx_c = &it->second;
+        track_ignore_bdx_c = &it->second;
     }
     
-    auto check_blob = [&track_only_segmentations, &tags_dont_track, &check_precise_not_ignored, &track_include, &result, &cm_sqr, &manual_ignore_bdx_c](pv::BlobPtr&& b, bool precise_check_boundaries)
+    auto check_blob = [&track_only_segmentations, &tags_dont_track, &check_precise_not_ignored, &track_include, &result, &cm_sqr, &track_ignore_bdx_c](pv::BlobPtr&& b, bool precise_check_boundaries)
     {
         // TODO: magic numbers
         if(result.fish_size
@@ -736,9 +736,9 @@ void Tracker::prefilter(
             b->recount(result.threshold, *result.background);
         }
         
-        if(manual_ignore_bdx_c.has_value()) {
-            if(manual_ignore_bdx_c.value()->contains(b->blob_id())
-               || (b->parent_id().valid() && manual_ignore_bdx_c.value()->contains(b->parent_id())))
+        if(track_ignore_bdx_c.has_value()) {
+            if(track_ignore_bdx_c.value()->contains(b->blob_id())
+               || (b->parent_id().valid() && track_ignore_bdx_c.value()->contains(b->parent_id())))
             {
                 result.filter_out(std::move(b), FilterReason::Unknown);
                 return false;
@@ -1116,7 +1116,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
         
         const auto N_blobs = unassigned_blobs.size();
         const auto N_fish  = unassigned_individuals.size();
-        const auto matching_probability_threshold = FAST_SETTING(matching_probability_threshold);
+        const auto match_min_probability = FAST_SETTING(match_min_probability);
         
         auto work = [&](auto, auto start, auto end, auto){
             size_t pid = 0;
@@ -1138,7 +1138,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                         auto ptr = ptrs[bix];
                         auto p = Individual::probability(blob_labels[bix], *cache, frameIndex, *ptr);
                         //PPFrame::Log(bdxes[bix], " + ", fish->identity().ID(), " => ", p, " (t = ", cache->time_probability,")");
-                        if (p > matching_probability_threshold)
+                        if (p > match_min_probability)
                             probs[bdxes[bix]] = p;
                     }
                 } else {
@@ -1309,7 +1309,7 @@ void Tracker::collect_matching_cliques(TrackingHelper& s, GenericThreadPool& thr
     UnorderedVectorSet<Match::fish_index_t> all_individuals; // collect all relevant individuals
     std::vector<IndexClique> cliques; // collect all cliques
 
-    const auto p_threshold = FAST_SETTING(matching_probability_threshold);
+    const auto p_threshold = FAST_SETTING(match_min_probability);
     auto N_cliques = cliques.size();
     std::vector<bool> to_merge(N_cliques);
     
@@ -1752,7 +1752,7 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
             std::vector<std::tuple<Match::prob_t, Idx_t, pv::bid>> new_table;
             std::map<Idx_t, std::map<Match::Blob_t, Match::prob_t>> new_pairings;
             std::map<Individual*, Match::prob_t> max_probs;
-            const Match::prob_t p_threshold = FAST_SETTING(matching_probability_threshold);
+            const Match::prob_t p_threshold = FAST_SETTING(match_min_probability);
             
             static PairedProbabilities pairs;
             pairs.clear();
@@ -1950,7 +1950,7 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
         //! to individuals based on position, similarly to how
         //! blobs are assigned to individuals, too.
         Match::PairedProbabilities paired;
-        const Match::prob_t p_threshold = FAST_SETTING(matching_probability_threshold);
+        const Match::prob_t p_threshold = FAST_SETTING(match_min_probability);
         std::unordered_map<pv::bid, pv::BlobPtr> owner;
         for(auto && blob : frame.tags()) {
             owner[blob->blob_id()] = std::move(blob);

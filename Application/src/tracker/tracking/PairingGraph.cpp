@@ -232,7 +232,7 @@ fish_index_t PairedProbabilities::add(
     
     const fish_index_t rdx = fish_index_t(narrow_cast<index_t>(_rows.size()));
     
-    const prob_t matching_probability_threshold = FAST_SETTING(matching_probability_threshold);
+    const prob_t match_min_probability = FAST_SETTING(match_min_probability);
     const size_t offset = _probabilities.size();
     _probabilities.reserve(offset + edges.size());
     
@@ -240,7 +240,7 @@ fish_index_t PairedProbabilities::add(
     prob_t maximum = 0;
     size_t degree = 0;
     for(const auto & [col, p] : edges) {
-        if(p >= matching_probability_threshold) {
+        if(p >= match_min_probability) {
 #ifndef NDEBUG
             if(std::isinf(p))
                 throw U_EXCEPTION("Invalid probability: ", p, " for ", row, " -> ", col);
@@ -1092,7 +1092,7 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
                     for (auto &e : _paired.edges_for_row(i)) {
                         assert(e.cdx.valid());
                         //auto blob_edges = _blob_edges.at(_blobs[b.blob_index]);
-                        if(e.p >= FAST_SETTING(matching_probability_threshold)) {
+                        if(e.p >= FAST_SETTING(match_min_probability)) {
                             assert(j < n);
                             assert(e.cdx < _paired.n_cols());
                             dist_matrix[(index_t)j][(index_t)bdi_to_i.at(e.cdx)] = Hungarian_t(-(scaling * e.p + 0.5)); //! + 0.5 to ensure proper rounding
@@ -1452,7 +1452,7 @@ PairingGraph::~PairingGraph() {
     }
     
     bool PairingGraph::connected_to(Fish_t o, Blob_t b) const {
-        return prob(o, b) >= FAST_SETTING(matching_probability_threshold);
+        return prob(o, b) >= FAST_SETTING(match_min_probability);
     }
     
     /*void PairingGraph::add(Individual *o) {

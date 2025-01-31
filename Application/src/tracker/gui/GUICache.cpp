@@ -1285,7 +1285,7 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
                     //    return;
                     
                     auto p = Individual::probability(processed_frame().label(blob.blob_id()), *c, frame_idx, blob);
-                    if(p/*.p*/ >= FAST_SETTING(matching_probability_threshold))
+                    if(p/*.p*/ >= FAST_SETTING(match_min_probability))
                         probabilities[fdx][blob.blob_id()] = {
                             .p = p,
                             .p_time = c->time_probability

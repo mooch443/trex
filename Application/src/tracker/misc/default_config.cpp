@@ -209,7 +209,9 @@ ENUM_CLASS_DOCS(gpu_torch_device_t,
         {"gui_heatmap_source", "heatmap_source"},
         {"tracklet_normalize_orientation", "tracklet_normalize"},
         {"tracklet_export_difference_images", "tracklet_force_normal_color"},
-        {"track_label_confidence_threshold", "track_conf_threshold"}
+        {"track_label_confidence_threshold", "track_conf_threshold"},
+        {"matching_probability_threshold", "match_min_probability"},
+        {"manual_ignore_bdx", "track_ignore_bdx"}
     };
 
 /**
@@ -644,9 +646,9 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("peak_mode", peak_mode_t::pointy, "This determines whether the tail of an individual should be expected to be pointy or broad.");
         CONFIG("manual_matches", std::map<Frame_t, std::map<track::Idx_t, pv::bid>>{ }, "A map of manually defined matches (also updated by GUI menu for assigning manual identities). `{{frame: {fish0: blob2, fish1: blob0}}, ...}`");
         CONFIG("manual_splits", std::map<Frame_t, std::set<pv::bid>>{}, "This map contains `{frame: [blobid1,blobid2,...]}` where frame and blobid are integers. When this is read during tracking for a frame, the tracker will attempt to force-split the given blob ids.");
-        CONFIG("manual_ignore_bdx", std::map<Frame_t, std::set<pv::bid>>{}, "This is a map of frame -> [bdx0, bdx1, ...] of blob ids that are specifically set to be ignored in the given frame. Can be reached using the GUI by clicking on a blob in raw mode.");
+        CONFIG("track_ignore_bdx", std::map<Frame_t, std::set<pv::bid>>{}, "This is a map of frame -> [bdx0, bdx1, ...] of blob ids that are specifically set to be ignored in the given frame. Can be reached using the GUI by clicking on a blob in raw mode.");
         CONFIG("match_mode", matching_mode_t::automatic, "Changes the default algorithm to be used for matching blobs in one frame with blobs in the next frame. The accurate algorithm performs best, but also scales less well for more individuals than the approximate one. However, if it is too slow (temporarily) in a few frames, the program falls back to using the approximate one that doesnt slow down.");
-        CONFIG("matching_probability_threshold", float(0.1), "The probability below which a possible connection between blob and identity is considered too low. The probability depends largely upon settings like `track_max_speed`.");
+        CONFIG("match_min_probability", float(0.1), "The probability below which a possible connection between blob and identity is considered too low. The probability depends largely upon settings like `track_max_speed`.");
         CONFIG("track_do_history_split", true, "If disabled, blobs will not be split automatically in order to separate overlapping individuals. This usually happens based on their history.");
         CONFIG("tracklet_punish_speeding", true, "Sometimes individuals might be assigned to blobs that are far away from the previous position. This could indicate wrong assignments, but not necessarily. If this variable is set to true, consecutive frame segments will end whenever high speeds are reached, just to be on the safe side. For scenarios with lots of individuals (and no recognition) this might spam yellow bars in the timeline and may be disabled.");
         CONFIG("track_consistent_categories", false, "Utilise categories (if present) when tracking. This may break trajectories in places with imperfect categorization, but only applies once categories have been applied.");

@@ -575,13 +575,13 @@ void draw_blob_view(const DisplayParameters& parm)
                         SETTING(manual_splits) = copy;
                     });
                 } else if(item_id == 1) /* IGNORE */ {
-                    auto copy = FAST_SETTING(manual_ignore_bdx);
+                    auto copy = FAST_SETTING(track_ignore_bdx);
                     auto frame = GUI_SETTINGS(gui_frame);
                     if(!contains(copy[frame], clicked_blob_id)) {
                         copy[frame].insert(clicked_blob_id);
                     }
                     WorkProgress::add_queue("", [copy](){
-                        SETTING(manual_ignore_bdx) = copy;
+                        SETTING(track_ignore_bdx) = copy;
                     });
                     
                 } else {
