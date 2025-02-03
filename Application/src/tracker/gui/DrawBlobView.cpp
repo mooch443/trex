@@ -864,7 +864,7 @@ void clicked_background(DrawStructure& base, GUICache& cache, const Vec2& pos, b
                         SETTING(output_origin) = output_origin;
                     }
                 };
-                base.dialog(fn, "Do you want to change the `output_origin` variable to "+Meta::toStr(output_origin)+"?", "Yes", "No");
+                base.dialog(fn, "Do you want to change the <green><c>output_origin</c></green> variable\nto "+Meta::toStr(output_origin)+"?", "Changing Origin", "Yes", "No");
             }
         }
         
