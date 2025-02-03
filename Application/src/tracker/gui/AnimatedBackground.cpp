@@ -90,6 +90,8 @@ AnimatedBackground::AnimatedBackground(Image::Ptr&& image, const pv::File* video
     //if (_source_scale <= 0)
     //_source_scale = 1;
     
+    _is_greyscale = _source ? _source->is_greyscale() : false;
+    
     update([this](auto&) {
         advance_wrap(_static_image);
         advance_wrap(_grey_image);
@@ -118,6 +120,8 @@ AnimatedBackground::AnimatedBackground(VideoSource&& source)
             _source_scale = SETTING("meta_video_scale").value<float>();
         }*/
     }
+    
+    _is_greyscale = _source ? _source->is_greyscale() : false;
     
     _static_image.set_color(_tint);
     _grey_image.set_color(_tint.alpha(0));
@@ -318,7 +322,15 @@ void AnimatedBackground::before_draw() {
     }
     
     auto dt = saturate(_fade_timer.elapsed(), 0.01, 0.1);
-    _fade = saturate(_fade + (_target_fade - _fade) * 1 * dt, 0.0, 1.0);
+    
+    auto diff = (_target_fade - _fade) * 1 * dt;
+    if(_target_fade == 0) {
+        diff = saturate(diff, -1.0, -0.01);
+    } else if(_target_fade == 1) {
+        diff = saturate(diff, 0.01, 1.0);
+    }
+    
+    _fade = saturate(_fade + diff, 0.0, 1.0);
 
     // fade image to grayscale by _fade percent
     if(not _static_image.empty()
@@ -326,9 +338,10 @@ void AnimatedBackground::before_draw() {
        && abs(_fade - _target_fade) > 0.01)
     {
         _static_image.set_color(_tint.alpha(255 * _fade));
-        _grey_image.set_color(_static_image.color().alpha(255 * (1.0 - _fade)));
-        set_animating(true);
+        _grey_image.set_color(_static_image.color().alpha(255 * (_is_greyscale ? 0.5 : 1) * (1.0 - _fade)));
         //Print("Animating... ", _fade, " with dt=",dt);
+        set_animating(true);
+        
     } else
         set_animating(false);
     

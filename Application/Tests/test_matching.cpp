@@ -28,6 +28,9 @@ static void resetGlobalSettings()
     // Clear out the global SETTING(...) states used by these tests:
     SETTING(output_fields) = std::vector<std::pair<std::string, std::vector<std::string>>>{};
     SETTING(detect_classes) = track::detect::yolo::names::owner_map_t{};
+    // Also reset the keypoint format setting if needed.
+    // Assuming KeypointFormat has a default constructor or can be reset to a default value.
+    SETTING(detect_keypoint_format) = KeypointFormat{};
 }
 
 // ------------------------------------------------------------
@@ -70,47 +73,26 @@ TEST(DefaultConfigTest, ListAutoPoseFields)
 {
     resetGlobalSettings();
 
-    // Suppose our detect_classes indicates we have keypoints with indexes 0 and 2.
-    using map_t = track::detect::yolo::names::owner_map_t;
-    map_t mockDetectClasses;
-    // The map key is usually the index, with some associated data struct.
-    // We can insert dummy values for test purposes:
-    mockDetectClasses[0] = map_t::mapped_type{"zebra"};
-    mockDetectClasses[2] = map_t::mapped_type{"pferd"};
+    // Set the global keypoint format.
+    // For example, 3 keypoints with 2 dimensions each.
+    SETTING(detect_keypoint_format) = KeypointFormat{3, 2};
 
-    // Set the global detect_classes
-    SETTING(detect_classes) = mockDetectClasses;
-
-    // Now, list_auto_pose_fields() should generate poseX0, poseY0, poseX2, poseY2.
+    // Now, list_auto_pose_fields() should generate:
+    // poseX0, poseY0, poseX1, poseY1, poseX2, poseY2.
     auto result = list_auto_pose_fields();
 
-    // We expect 4 items total
-    ASSERT_EQ(result.size(), size_t(4));
+    // We expect 6 items total.
+    ASSERT_EQ(result.size(), size_t(6));
 
-    // Check their names
-    // The order of insertion depends on the set iteration in your extract_keys() helper,
-    // but typically you’ll see index 0 first, then 2. We'll just check that we have them.
-    bool foundX0 = false;
-    bool foundY0 = false;
-    bool foundX2 = false;
-    bool foundY2 = false;
-
+    // Check that the expected fields are present.
+    std::set<std::string> expected_fields = {"poseX0", "poseY0", "poseX1", "poseY1", "poseX2", "poseY2"};
     for (auto const& [field_name, transforms] : result)
     {
-        if (field_name == "poseX0") foundX0 = true;
-        if (field_name == "poseY0") foundY0 = true;
-        if (field_name == "poseX2") foundX2 = true;
-        if (field_name == "poseY2") foundY2 = true;
-
-        // Optionally check that transforms == {"RAW"}, if that’s expected:
+        EXPECT_TRUE(expected_fields.count(field_name)) << "Unexpected field: " << field_name;
+        // Check that each field has the "RAW" transform.
         EXPECT_EQ(transforms.size(), size_t(1));
         EXPECT_EQ(transforms[0], "RAW");
     }
-
-    EXPECT_TRUE(foundX0);
-    EXPECT_TRUE(foundY0);
-    EXPECT_TRUE(foundX2);
-    EXPECT_TRUE(foundY2);
 }
 
 // ------------------------------------------------------------
@@ -120,25 +102,20 @@ TEST(DefaultConfigTest, AddMissingPoseFields)
 {
     resetGlobalSettings();
 
-    // 1) The user has defined poseX1, poseY1
+    // 1) The user has defined pose fields for keypoint 1 only.
     SETTING(output_fields) = std::vector<std::pair<std::string, std::vector<std::string>>>{
         {"X", {"RAW"}},
         {"poseX1", {"RAW"}},
         {"poseY1", {"RAW"}}
     };
 
-    // 2) The global detect_classes indicate keypoints at indexes 0, 1, and 2
-    using map_t = track::detect::yolo::names::owner_map_t;
-    map_t mockDetectClasses;
-    mockDetectClasses[0] = map_t::mapped_type{"zebra"};
-    mockDetectClasses[1] = map_t::mapped_type{"pferd"};
-    mockDetectClasses[2] = map_t::mapped_type{"nilpferd"};
-    SETTING(detect_classes) = mockDetectClasses;
+    // 2) Set the global keypoint format to 3 keypoints (with 2 dimensions each)
+    SETTING(detect_keypoint_format) = KeypointFormat{3, 2};
 
     // 3) Now we call add_missing_pose_fields(), which should:
     //    - gather all from list_auto_pose_fields() => [poseX0, poseY0, poseX1, poseY1, poseX2, poseY2]
     //    - see what user has => {1}
-    //    - return only those which are not in user-defined indexes => indexes 0, 2
+    //    - return only those which are not in user-defined indexes => indexes 0 and 2
     auto new_pose_fields = add_missing_pose_fields();
 
     // We expect to see "poseX0", "poseY0", "poseX2", "poseY2" (4 total).
@@ -156,7 +133,7 @@ TEST(DefaultConfigTest, AddMissingPoseFields)
         if (field_name == "poseX2") foundX2 = true;
         if (field_name == "poseY2") foundY2 = true;
         
-        // Check transforms
+        // Check transforms.
         EXPECT_EQ(transforms.size(), size_t(1));
         EXPECT_EQ(transforms[0], "RAW");
     }

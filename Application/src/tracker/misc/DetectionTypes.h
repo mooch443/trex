@@ -38,6 +38,20 @@ ObjectDetectionFormat_t detection_format();
 
 cmn::Size2 get_model_image_size();
 
+struct KeypointFormat {
+    uint8_t n_points{0};
+    uint8_t n_dims{0};
+    
+    constexpr bool operator==(const KeypointFormat&) const = default;
+    glz::json_t to_json() const;
+    std::string toStr() const;
+    static KeypointFormat fromStr(const std::string&);
+    constexpr bool valid() const {
+        return n_points != 0 && n_dims != 0;
+    }
+    static std::string class_name() { return "KeypointFormat"; }
+};
+
 class Bone {
 public:
     float x;

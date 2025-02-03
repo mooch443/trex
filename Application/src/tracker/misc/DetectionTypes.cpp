@@ -21,6 +21,29 @@ HasCustomParser<track::detect::ObjectDetectionType_t>::fromStr(const std::string
 
 namespace track::detect {
 
+std::string KeypointFormat::toStr() const {
+    if(not valid())
+        return "null";
+    return "[" + cmn::Meta::toStr(n_points) + "," + cmn::Meta::toStr(n_dims) + "]";
+}
+
+KeypointFormat KeypointFormat::fromStr(const std::string& str) {
+    if(str == "null") {
+        return KeypointFormat{};
+    }
+    auto pair = Meta::fromStr<std::pair<uint8_t, uint8_t>>(str);
+    return KeypointFormat{
+        .n_points = pair.first,
+        .n_dims = pair.second
+    };
+}
+
+glz::json_t KeypointFormat::to_json() const {
+    if(not valid())
+        return glz::json_t::null_t{};
+    return { n_points, n_dims };
+}
+
 namespace yolo {
 
 namespace names {

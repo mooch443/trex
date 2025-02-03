@@ -341,19 +341,32 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
         .def("__str__", &DetectResolution::toStr)
         .def_static("class_name", &DetectResolution::class_name);
     
+    py::class_<KeypointFormat>(m, "KeypointFormat")
+        .def(py::init<uint8_t, uint8_t>(),
+            py::arg("n_points"),
+            py::arg("n_dims"))
+        .def_readonly("n_points", &KeypointFormat::n_points)
+        .def_readonly("n_dims", &KeypointFormat::n_dims)
+        .def("__repr__", &KeypointFormat::toStr)
+        .def("__str__", &KeypointFormat::toStr)
+        .def_static("class_name", &KeypointFormat::class_name);
+    
     py::class_<ModelConfig>(m, "ModelConfig")
-        .def(py::init<ModelTaskType, bool, std::string, DetectResolution, ObjectDetectionFormat::data::values>(),
+        .def(py::init<ModelTaskType, bool, std::string, DetectResolution, ObjectDetectionFormat::data::values, std::optional<KeypointFormat>
+             >(),
             py::arg("task"),
             py::arg("use_tracking"),
             py::arg("model_path"),
             py::arg("trained_resolution") = DetectResolution{},
-            py::arg("output") = ObjectDetectionFormat::data::values::none)
+            py::arg("output") = ObjectDetectionFormat::data::values::none,
+            py::arg("keypoints") = std::optional<KeypointFormat>{})
         .def_readwrite("task", &ModelConfig::task)
         .def_readonly("use_tracking", &ModelConfig::use_tracking)
         .def_readonly("model_path", &ModelConfig::model_path)
         .def_readwrite("trained_resolution", &ModelConfig::trained_resolution)
         .def_readwrite("classes", &ModelConfig::classes)
         .def_readwrite("output_format", &ModelConfig::output_format)
+        .def_readwrite("keypoint_format", &ModelConfig::keypoint_format)
         .def("__repr__", &ModelConfig::toStr)
         .def("__str__", &ModelConfig::toStr)
         .def_static("class_name", &ModelConfig::class_name);

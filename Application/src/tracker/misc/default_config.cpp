@@ -224,24 +224,39 @@ std::set<uint8_t> find_user_defined_pose_fields(
     const std::vector<std::pair<std::string, std::vector<std::string>>>& output_fields)
 {
     std::set<uint8_t> user_added_pose_fields;
+#ifndef NDEBUG
+    Print("Debug: Entering find_user_defined_pose_fields, number of fields = ", output_fields.size());
+#endif
 
     for (auto const& [field_name, transforms] : output_fields)
     {
         if (utils::beginsWith(field_name, "poseX") || utils::beginsWith(field_name, "poseY"))
         {
+#ifndef NDEBUG
+            Print("Debug: Processing field: ", field_name);
+#endif
             try
             {
                 // "poseX12" => "12" => index = 12
                 uint8_t index = Meta::fromStr<uint8_t>(field_name.substr(5));
+#ifndef NDEBUG
+                Print("Debug: Parsed index ", static_cast<int>(index), " from field: ", field_name);
+#endif
                 user_added_pose_fields.insert(index);
             }
             catch (...)
             {
+#ifndef NDEBUG
+                Print("Debug: Failed to parse numeric index from field: ", field_name);
+#endif
                 // If it fails to parse as an integer, ignore or optionally log a warning
             }
         }
     }
 
+#ifndef NDEBUG
+    Print("Debug: Exiting find_user_defined_pose_fields, found indexes count: ", user_added_pose_fields.size());
+#endif
     return user_added_pose_fields;
 }
 
@@ -253,29 +268,51 @@ std::set<uint8_t> find_user_defined_pose_fields(
  */
 std::vector<std::pair<std::string, std::vector<std::string>>> list_auto_pose_fields()
 {
-    /// return empty array if automatically generting the fields is disabled.
-    if(not SETTING(output_auto_pose)) {
+#ifndef NDEBUG
+    Print("Debug: Entering list_auto_pose_fields");
+#endif
+    /// return empty array if automatically generating the fields is disabled.
+    if (not SETTING(output_auto_pose)) {
+#ifndef NDEBUG
+        Print("Debug: Auto pose field generation is disabled (output_auto_pose is false).");
+#endif
         return {};
     }
     
     // Retrieve the YOLO classes from a global setting:
-    auto detect_classes = SETTING(detect_classes).value<track::detect::yolo::names::owner_map_t>();
-
-    // Extract the keypoint indexes from detect_classes (assumes your extract_keys() helper).
-    auto indexes = extract_keys(detect_classes);
-
+    auto detect_keypoint_format = SETTING(detect_keypoint_format).value<track::detect::KeypointFormat>();
+#ifndef NDEBUG
+    Print("Debug: Retrieved detect_keypoint_format = ", detect_keypoint_format);
+#endif
+    
+    if(not detect_keypoint_format.valid()) {
+        FormatWarning("No valid detect_keypoint_format set. Cannot automatically determine keypoint indexes.");
+        return {};
+    }
+    
+    std::set<uint8_t> indexes;
+    for(uint8_t i = 0; i < detect_keypoint_format.n_points; ++i) {
+        indexes.insert(i);
+    }
+    
     // Build the entire set of fields for *all* indexes
     std::vector<std::pair<std::string, std::vector<std::string>>> auto_pose_fields;
     auto_pose_fields.reserve(indexes.size() * 2);
 
     for (auto index : indexes)
     {
+#ifndef NDEBUG
+        Print("Debug: Adding auto pose fields for index: ", index);
+#endif
         auto_pose_fields.emplace_back("poseX" + Meta::toStr(index),
                                       std::vector<std::string>{"RAW"});
         auto_pose_fields.emplace_back("poseY" + Meta::toStr(index),
                                       std::vector<std::string>{"RAW"});
     }
 
+#ifndef NDEBUG
+    Print("Debug: Exiting list_auto_pose_fields, total auto pose fields generated: ", auto_pose_fields.size());
+#endif
     return auto_pose_fields;
 }
 
@@ -288,13 +325,25 @@ std::vector<std::pair<std::string, std::vector<std::string>>> list_auto_pose_fie
  */
 std::vector<std::pair<std::string, std::vector<std::string>>> add_missing_pose_fields()
 {
+#ifndef NDEBUG
+    Print("Debug: Entering add_missing_pose_fields");
+#endif
     // 1) Gather all automatically proposed pose fields
     auto auto_fields = list_auto_pose_fields();
+#ifndef NDEBUG
+    Print("Debug: Auto-generated pose fields count: ", auto_fields.size());
+#endif
 
     // 2) See which ones the user already has
     auto current_fields = SETTING(output_fields)
         .value<std::vector<std::pair<std::string, std::vector<std::string>>>>();
+#ifndef NDEBUG
+    Print("Debug: Current output fields count: ", current_fields.size());
+#endif
     auto user_defined_indexes = find_user_defined_pose_fields(current_fields);
+#ifndef NDEBUG
+    Print("Debug: User-defined pose indexes count: ", user_defined_indexes.size());
+#endif
 
     // 3) Collect "missing" pose fields
     std::vector<std::pair<std::string, std::vector<std::string>>> needed;
@@ -303,21 +352,24 @@ std::vector<std::pair<std::string, std::vector<std::string>>> add_missing_pose_f
     for (auto const& [field_name, transforms] : auto_fields)
     {
         // The index is the substring after "poseX" or "poseY"
-        // We have to check which prefix it starts with,
-        // because we must skip the first 5 characters either way
         if (utils::beginsWith(field_name, "poseX") || utils::beginsWith(field_name, "poseY"))
         {
             try
             {
                 uint8_t index = Meta::fromStr<uint8_t>(field_name.substr(5));
+#ifndef NDEBUG
+                Print("Debug: Checking auto field ", field_name, " with index ", static_cast<int>(index));
+#endif
                 if (!user_defined_indexes.count(index))
                 {
+#ifndef NDEBUG
+                    Print("Debug: Field ", field_name, " is missing from user-defined fields, adding to needed list");
+#endif
                     needed.push_back({ field_name, transforms });
                 }
             }
             catch (...)
             {
-                // ignoring parse failures
 #ifndef NDEBUG
                 FormatWarning("Failure parsing ", field_name, " for poseX/Y content.");
 #endif
@@ -325,6 +377,9 @@ std::vector<std::pair<std::string, std::vector<std::string>>> add_missing_pose_f
         }
     }
 
+#ifndef NDEBUG
+    Print("Debug: Exiting add_missing_pose_fields, missing fields count: ", needed.size());
+#endif
     return needed;
 }
 
@@ -841,6 +896,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("detect_type", track::detect::ObjectDetectionType::none, "The method used to separate background from foreground when converting videos.", AccessLevelType::INIT);
         CONFIG("outline_compression", float(0.f), "Applies a *lossy* compression to the outlines generated by segmentation models. Walking around the outline, it removes line segments that do not introduce any noticable change in direction. The factor specified here controls how much proportional difference in radians/angle is allowed. The value isnt in real radians, as the true downsampling depends on the size of the object (smaller objects = smaller differences allowed).");
         CONFIG("detect_format", track::detect::ObjectDetectionFormat::none, "The type of data returned by the `detect_model`, which can be an instance segmentation", AccessLevelType::INIT);
+        CONFIG("detect_keypoint_format", track::detect::KeypointFormat{}, "When a keypoint (pose) type model is loaded, this variable will be set to [n_points,n_dims].", AccessLevelType::SYSTEM);
         CONFIG("detect_batch_size", uchar(1), "The batching size for object detection.");
         CONFIG("detect_tile_image", uchar(0), "If > 1, this will tile the input image for Object detection (SAHI method) before passing it to the network. These tiles will be `detect_resolution` pixels high and wide (with zero padding).");
         CONFIG("yolo_tracking_enabled", false, "If set to true, the program will try to use yolov8s internal tracking routine to improve results. This can be significantly slower and disables batching.");

@@ -300,6 +300,14 @@ class Model:
             self.config.classes = self.ptr.names
             TRex.log(f"set trained_resolution = {self.config.trained_resolution}")
 
+            if(self.config.output_format == ObjectDetectionFormat.poses):
+                TRex.log(f"Task is pose, setting keypoint_format to ")
+                TRex.log(f"keypoint_format = {self.ptr.kpt_shape}")
+                self.config.keypoint_format = TRex.KeypointFormat(self.ptr.kpt_shape[0], self.ptr.kpt_shape[1])
+            else:
+                TRex.log(f"Task is not pose, not setting keypoint_format")
+                self.config.keypoint_format = TRex.KeypointFormat(0, 0)
+
         except Exception as e:
             TRex.warn("Could not determine trained resolution from model, using " + str(self.config.trained_resolution)+ " ("+ str(e) + ")")
             pass

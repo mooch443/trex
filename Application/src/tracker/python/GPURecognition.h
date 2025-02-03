@@ -30,12 +30,14 @@ struct TREX_EXPORT ModelConfig {
                 bool use_tracking,
                 std::string model_path,
                 DetectResolution trained_resolution = {},
-                ObjectDetectionFormat::data::values output = ObjectDetectionFormat::none)
+                ObjectDetectionFormat::data::values output = ObjectDetectionFormat::none,
+                std::optional<KeypointFormat> keypoints = std::nullopt)
     :   task(task),
     use_tracking(use_tracking),
     model_path(model_path),
     trained_resolution(trained_resolution),
-    output_format(output)
+    output_format(output),
+    keypoint_format(keypoints)
     {
         // check if model path exists
         if(not yolo::is_valid_default_model(model_path)) {
@@ -50,7 +52,10 @@ struct TREX_EXPORT ModelConfig {
     std::string toStr() const {
         std::ostringstream os;
         os << "ModelConfig<task=" << static_cast<int>(task)
-        << " model_path='" << model_path << "' trained_resolution=" << Meta::toStr(trained_resolution) << ">";
+        << " model_path='" << model_path << "' trained_resolution=" << Meta::toStr(trained_resolution);
+        if(keypoint_format)
+            os << " keypoints=" << keypoint_format->n_points << "x" << keypoint_format->n_dims;
+        os << ">";
         return os.str();
     }
     static std::string class_name() {
@@ -63,6 +68,7 @@ struct TREX_EXPORT ModelConfig {
     DetectResolution trained_resolution;
     ObjectDetectionFormat::data::values output_format;
     detect::yolo::names::owner_map_t classes;
+    std::optional<KeypointFormat> keypoint_format;
 };
 
 struct TREX_EXPORT Rect {

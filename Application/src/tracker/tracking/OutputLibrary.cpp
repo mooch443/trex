@@ -68,7 +68,8 @@ namespace Output {
     bool Library::is_global_function(std::string_view name) {
         if(utils::beginsWith(name, "bone")
            || utils::beginsWith(name, "poseX")
-           || utils::beginsWith(name, "poseY"))
+           || utils::beginsWith(name, "poseY")
+           || utils::beginsWith(name, "detection_"))
         {
             return true;
         }

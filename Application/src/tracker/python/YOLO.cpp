@@ -102,12 +102,20 @@ void YOLO::reinit(ModuleProxy& proxy) {
                 Print("// Loading classes from model: ", config.classes);
                 SETTING(detect_classes) = config.classes;
             }
+            
+            if(config.output_format == ObjectDetectionFormat::poses)
+            {
+                SETTING(detect_keypoint_format) = config.keypoint_format ? *config.keypoint_format : KeypointFormat{};
+            }
+            
         } else if(config.task == ModelTaskType::region) {
             SETTING(region_resolution) = config.trained_resolution;
         }
     }
     
-    if(SETTING(detect_format).value<ObjectDetectionFormat_t>() == ObjectDetectionFormat::boxes) {
+    if(auto detect_format = SETTING(detect_format).value<ObjectDetectionFormat_t>();
+       detect_format == ObjectDetectionFormat::boxes)
+    {
         if(SETTING(calculate_posture).value<bool>()) {
             FormatWarning("Disabling posture for now, since pure detection models cannot produce useful posture (everything will be rectangles).");
             SETTING(calculate_posture) = false;
