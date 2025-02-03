@@ -555,6 +555,18 @@
                                 "size":0.65
                             },
                             "action": "convert"
+                        },
+                        "else":{
+                            "type":"button",
+                            "text":"{animation}",
+                            "fill":[40,40,40,120],
+                            "line":[100,100,100,150],
+                            "color":[100,100,100],
+                            "size":[50,40],
+                            "font":{
+                                "align":"center",
+                                "size":0.65
+                            }
                         }
                     },
                     {
@@ -571,6 +583,22 @@
                                 "size":0.65
                             },
                             "action": "track"
+                        },
+                        "else":{
+                            "type":"condition",
+                            "var":"{checks_running}",
+                            "then":{
+                                "type":"button",
+                                "text":"{animation}",
+                                "fill":[40,40,40,120],
+                                "line":[100,100,100,150],
+                                "color":[100,100,100],
+                                "size":[50,40],
+                                "font":{
+                                    "align":"center",
+                                    "size":0.65
+                                }
+                            }
                         }
                     }
                 ]
