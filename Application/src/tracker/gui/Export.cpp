@@ -362,7 +362,7 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                                     }
                                 }
                                 cnpy::npz_save(use_path.str(), "tracklets", segment_borders.data(), std::vector<size_t>{segment_borders.size() / 2, 2}, "a");
-                                cnpy::npz_save(use_path.str(), "segment_vxys", vxy.data(), std::vector<size_t>{vxy.size() / 4, 4}, "a");
+                                cnpy::npz_save(use_path.str(), "tracklet_vxys", vxy.data(), std::vector<size_t>{vxy.size() / 4, 4}, "a");
                             });
                             
                         } else
