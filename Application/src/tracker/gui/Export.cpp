@@ -335,13 +335,13 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                             temporary_save(final_path, [&](file::Path use_path) {
                                 fish_graphs.at(thread_index)->graph().save_npz(use_path.str(), &callback, true);
                                 
-                                std::vector<Frame_t::number_t> segment_borders;
+                                std::vector<Frame_t::number_t> tracklets;
                                 std::vector<float> vxy;
-                                vxy.reserve(fish->frame_count() * 2);
+                                vxy.reserve(fish->frame_count() * 4);
                                 
                                 for(auto & tracklet : fish->tracklets()) {
-                                    segment_borders.push_back(tracklet->start().get());
-                                    segment_borders.push_back(tracklet->end().get());
+                                    tracklets.push_back(tracklet->start().get());
+                                    tracklets.push_back(tracklet->end().get());
                                     
                                     for(auto frame = tracklet->start() + 1_f;
                                         frame <= tracklet->end();
@@ -361,7 +361,7 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                                         vxy.push_back(speed);
                                     }
                                 }
-                                cnpy::npz_save(use_path.str(), "tracklets", segment_borders.data(), std::vector<size_t>{segment_borders.size() / 2, 2}, "a");
+                                cnpy::npz_save(use_path.str(), "tracklets", tracklets.data(), std::vector<size_t>{tracklets.size() / 2, 2}, "a");
                                 cnpy::npz_save(use_path.str(), "tracklet_vxys", vxy.data(), std::vector<size_t>{vxy.size() / 4, 4}, "a");
                             });
                             
