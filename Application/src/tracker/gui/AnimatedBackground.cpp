@@ -223,7 +223,12 @@ void AnimatedBackground::before_draw() {
         if(_average) {
             _static_image.set_source(Image::Make(*_average));
             
-            if(_average->channels() == 3) {
+            if(_average->channels() == 4) {
+                auto tmp = Image::Make(_average->rows, _average->cols, 1);
+                cv::cvtColor(_average->get(), tmp->get(), cv::COLOR_BGRA2GRAY);
+                _grey_image.set_source(std::move(tmp));
+                
+            } else if(_average->channels() == 3) {
                 auto tmp = Image::Make(_average->rows, _average->cols, 1);
                 cv::cvtColor(_average->get(), tmp->get(), cv::COLOR_BGR2GRAY);
                 _grey_image.set_source(std::move(tmp));
