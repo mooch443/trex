@@ -35,6 +35,8 @@ struct VIControllerImpl : public vident::VIController {
 };
 
 struct TrackingState {
+    struct CancellationToken{};
+    
     /**
      * @brief Represents the current frame ID being processed.
      */
@@ -98,6 +100,8 @@ struct TrackingState {
     std::vector<std::function<bool(ConnectedTasks::Type&&, const ConnectedTasks::Stage&)>> tasks;
     
 private:
+    // This token is valid as long as TrackingState is alive.
+    std::shared_ptr<CancellationToken> _cancelToken{ std::make_shared<CancellationToken>() };
     std::mutex _tracking_mutex;
     std::queue<std::function<void()>> _tracking_callbacks, _apply_callbacks;
     
@@ -123,6 +127,10 @@ public:
     
     void save_state(GUITaskQueue_t*, bool);
     std::future<void> load_state(GUITaskQueue_t*, file::Path);
+    
+private:
+    template<typename Func>
+    auto addSafeTask(const std::string& title, Func&& f);
 };
 
 }

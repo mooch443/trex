@@ -62,6 +62,22 @@ void TrackingState::on_apply_done() {
     }
 }
 
+template<typename Func>
+auto TrackingState::addSafeTask(const std::string& title, Func&& f) {
+    // Capture the shared pointer by value in the lambda.
+    auto token = _cancelToken;
+    return WorkProgress::add_queue(title, [title, token = std::weak_ptr(_cancelToken), f = std::forward<Func>(f)]() mutable {
+        if (auto lock = token.lock();
+            lock)
+        {
+            f();
+        } else {
+            /// The owner (TrackingState) is gone. Do nothing.
+            FormatWarning("Trying to execute queue on an already deleted token with title ", title);
+        }
+    });
+}
+
 TrackingState::TrackingState(GUITaskQueue_t* gui)
   : video(pv::File::Make(SETTING(filename).value<file::Path>())),
     tracker(std::make_unique<track::Tracker>(*this->video)),
@@ -128,6 +144,19 @@ TrackingState::~TrackingState() {
     
     if(_end_task.valid())
         _end_task.get();
+    
+    std::weak_ptr ptr(_cancelToken);
+    _cancelToken = nullptr; /// destroy it, now check if there are instances around
+    while(true) {
+        if(auto count = ptr.use_count();
+           count > 0)
+        {
+            Print("Still waiting for ", count, " token uses...");
+        } else
+            break;
+    }
+    assert(ptr.lock() == nullptr);
+    Print("Freed.");
 }
 
 bool TrackingState::stage_0(ConnectedTasks::Type && ptr) {
@@ -383,7 +412,7 @@ void TrackingState::init_video() {
 void TrackingState::on_tracking_done() {
     please_stop_analysis = true;
     
-    WorkProgress::add_queue("", [this](){
+    addSafeTask("", [this](){
         analysis.set_paused(true).get();
         
         tracker->global_tracklet_order();
@@ -404,7 +433,7 @@ void TrackingState::on_tracking_done() {
         
         if(_end_task.valid())
             _end_task.get();
-        _end_task = WorkProgress::add_queue("", _end_task_check_auto_quit);
+        _end_task = addSafeTask("", _end_task_check_auto_quit);
         //_end_task = std::async(std::launch::async, _end_task_check_auto_quit);
     });
 }
@@ -536,10 +565,10 @@ void TrackingState::save_state(GUITaskQueue_t* gui, bool force_overwrite) {
     
     if(file.exists() && !force_overwrite) {
         if(gui)
-            gui->enqueue([fn, file = file](auto, DrawStructure& graph) mutable {
-                graph.dialog([=](Dialog::Result result) mutable {
+            gui->enqueue([this, fn, file = file](auto, DrawStructure& graph) mutable {
+                graph.dialog([this, file, fn](Dialog::Result result) mutable {
                     if(result == Dialog::Result::OKAY) {
-                        WorkProgress::add_queue("Saving results...", fn);
+                        addSafeTask("Saving results...", fn);
                     } else if(result == Dialog::Result::SECOND) {
                         do {
                             if(file.remove_filename().empty()) {
@@ -551,7 +580,7 @@ void TrackingState::save_state(GUITaskQueue_t* gui, bool force_overwrite) {
                         auto expected = Output::TrackingResults::expected_filename();
                         if(expected.move_to(file)) {
                             file = expected;
-                            WorkProgress::add_queue("Saving backup...", fn);
+                            addSafeTask("Saving backup...", fn);
                         //if(std::rename(expected.str().c_str(), file->str().c_str()) == 0) {
     //                          *file = expected;
     //                            work().add_queue("Saving backup...", fn);
@@ -568,7 +597,7 @@ void TrackingState::save_state(GUITaskQueue_t* gui, bool force_overwrite) {
             throw U_EXCEPTION("Cannot overwrite tracking results at ", file);
         
     } else
-        WorkProgress::add_queue("Saving results...", fn);
+        addSafeTask("Saving results...", fn);
 }
 
 std::future<void> TrackingState::load_state(GUITaskQueue_t* gui, file::Path from) {
@@ -807,7 +836,7 @@ std::future<void> TrackingState::load_state(GUITaskQueue_t* gui, file::Path from
                 };
             }
             
-            WorkProgress::add_queue("", [this](){
+            addSafeTask("", [this](){
                 Tracker::instance()->check_tracklets_identities(false, IdentitySource::VisualIdent, [](float ) { },
                 [](const std::string&t, const std::function<void()>& fn, const std::string&b)
                 {
@@ -874,10 +903,10 @@ std::future<void> TrackingState::load_state(GUITaskQueue_t* gui, file::Path from
     };
     
     if(gui)
-        return gui->enqueue([fn = std::move(fn)](auto, DrawStructure& graph){
-            graph.dialog([fn](Dialog::Result result) {
+        return gui->enqueue([this, fn = std::move(fn)](auto, DrawStructure& graph){
+            graph.dialog([this, fn](Dialog::Result result) {
                 if(result == Dialog::Result::OKAY) {
-                    WorkProgress::add_queue("Loading results...", fn);
+                    addSafeTask("Loading results...", fn);
                 } else {
                     state_visible = false;
                 }
@@ -885,7 +914,7 @@ std::future<void> TrackingState::load_state(GUITaskQueue_t* gui, file::Path from
             }, "Are you sure you want to load results from <c><cyan>"+Output::TrackingResults::expected_filename().str()+"</cyan></c>?\nThis will discard any unsaved changes.", "Load results", "Yes", "Cancel");
         });
     else
-        return WorkProgress::add_queue("Loading results...", fn);
+        return addSafeTask("Loading results...", fn);
 }
 
 }

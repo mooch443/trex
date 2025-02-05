@@ -1012,8 +1012,10 @@ const std::set<Idx_t> Tracker::identities() {
     //std::mutex mutex;
     
     std::unique_lock guard(_identities_mutex);
-    if(_fixed_identities.empty())
+    if(_fixed_identities.empty()
+       || (FAST_SETTING(track_max_individuals) > 0 && FAST_SETTING(track_max_individuals) != _fixed_identities.size()))
     {
+        _fixed_identities.clear();
         //LockGuard guard("Tracker::identities");
         //for(auto &[id, fish] : Tracker::individuals())
         //    set.insert(id);
