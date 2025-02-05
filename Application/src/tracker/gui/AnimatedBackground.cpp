@@ -220,7 +220,22 @@ void AnimatedBackground::before_draw() {
     bool value = PRELOAD_CACHE(gui_show_video_background);
     if(value != gui_show_video_background) {
         gui_show_video_background = value;
-        _static_image.set_source(Image::Make(*_average));
+        if(_average) {
+            _static_image.set_source(Image::Make(*_average));
+            
+            if(_average->channels() == 3) {
+                auto tmp = Image::Make(_average->rows, _average->cols, 1);
+                cv::cvtColor(_average->get(), tmp->get(), cv::COLOR_BGR2GRAY);
+                _grey_image.set_source(std::move(tmp));
+            } else {
+                _grey_image.set_source(Image::Make(*_average));
+            }
+            
+        } else {
+#ifndef NDEBUG
+            FormatWarning("No average image present.");
+#endif
+        }
         set_content_changed(true);
     }
     
