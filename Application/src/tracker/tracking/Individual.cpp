@@ -810,7 +810,7 @@ void Individual::remove_frame(Frame_t frameIndex) {
     _average_recognition_samples = 0;
     
     if(!average_recognition_tracklet.empty())
-        calculate_average_recognition();
+        calculate_average_tracklet_id();
     
     _local_cache.regenerate(this);
 }
@@ -2592,7 +2592,7 @@ std::map<Frame_t, FrameRange> split_tracklet_by_probability(const Individual* fi
     }
 }
 
-void Individual::calculate_average_recognition() {
+void Individual::calculate_average_tracklet_id() {
     _average_recognition_samples = 0;
     _average_recognition.clear();
     
@@ -2625,11 +2625,11 @@ void Individual::calculate_average_recognition() {
     for(auto & tracklet : _tracklets) {
         if(tracklet->length() < frame_limit) {
             processed_tracklets[tracklet->start()] = *tracklet;
-            log(f, "Segment %d-%d shorter than %f", tracklet->start(), tracklet->end(), frame_limit);
+            log(f, "Tracklet ",tracklet->start(), "-", tracklet->end()," shorter than ", frame_limit);
             continue;
         }
         
-        log(f, "Checking tracklet %d-%d (L=%d)", tracklet->start(), tracklet->end(), tracklet->length());
+        log(f, "Checking tracklet ",tracklet->start(), "-", tracklet->end()," (L=", tracklet->length(), ")");
         auto split_up = split_tracklet_by_probability(this, *tracklet);
         
         if(split_up.empty()) {
@@ -2637,6 +2637,8 @@ void Individual::calculate_average_recognition() {
         } else {
             assert(split_up.begin()->second.start() == tracklet->start());
             assert(split_up.rbegin()->second.end() == tracklet->end());
+            
+            log(f, "Split tracklet ", *tracklet, " into ", split_up);
             
             auto prev_end = tracklet->start() - 1_f;
             for(auto && [start, range] : split_up) {
@@ -2654,7 +2656,7 @@ void Individual::calculate_average_recognition() {
     
     if(!splits.empty()) {
         auto str = Meta::toStr(splits);
-        FormatWarning("Found frame segments for fish ", identity().ID()," that have to be split:\n",str);
+        FormatWarning("Found tracklets for fish ", identity().ID()," that have to be split:\n",str);
     }
     
     _recognition_tracklets = processed_tracklets;

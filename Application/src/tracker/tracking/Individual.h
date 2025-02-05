@@ -360,7 +360,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
         bool evaluate_fitness() const;
         
         //void recognition_segment(Frame_t frame, const std::tuple<size_t, std::map<long_t, float>>&);
-        void calculate_average_recognition();
+        void calculate_average_tracklet_id();
         const decltype(_average_recognition)& average_recognition() const { return _average_recognition; }
         void clear_recognition();
         

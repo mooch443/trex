@@ -22,6 +22,47 @@ concept AccumulateController = requires (T t) {
     { t.auto_correct((GUITaskQueue_t*)nullptr, false) };
 };
 
+template<typename OkayFn, typename ErrorFn>
+void check_global_tracklets_available(GUITaskQueue_t* gui,
+                                      std::vector<Range<Frame_t>> global_tracklet_order,
+                                      OkayFn if_okay,
+                                      ErrorFn if_not_okay)
+{
+    auto display_error = [gui](auto message) {
+        /// we have probably not set the number of individuals
+        if(SETTING(auto_train_on_startup)) {
+            throw U_EXCEPTION(message);
+            
+        } else if(gui) {
+            gui->enqueue([message](IMGUIBase*, DrawStructure& graph){
+                graph.dialog("Initialization of the training process failed.\n\n"+std::string(message), "Error");
+            });
+            
+        } else {
+            FormatExcept(message);
+        }
+    };
+    
+    
+    if(global_tracklet_order.empty()) {
+        if(is_in(SETTING(track_max_individuals).value<uint32_t>(), 1000u, 1024u, 0u)) {
+            static constexpr const char message_concern[] = "You likely have not defined <c>track_max_individuals</c> properly yet. In order to figure out differences within the group, we first need to know how big the group is - please set the parameter, reanalyse the video with those settings and try again.";
+            
+            display_error(message_concern);
+            
+        } else {
+            static constexpr const char message_concern[] = "It seems that no global tracklets have been found in your video. This may be because tracking is still in progress, or because tracking quality is not adequate (please refer to <a>https://trex.run/docs/</a> for more details), or because the number of individuals is not defined properly via the <c>track_max_individuals</c> parameter.";
+            
+            display_error(message_concern);
+        }
+        
+        if_not_okay();
+        return;
+    }
+    
+    if_okay();
+}
+
 void generate_training_data(GUITaskQueue_t* gui, bool force_load, VIController* controller) {
     /*-------------------------/
      SAVE METADATA
@@ -29,8 +70,10 @@ void generate_training_data(GUITaskQueue_t* gui, bool force_load, VIController* 
     //static std::future<void> current;
     //current = std::move(initialized);
     //! TODO: Dont do this.
+    
+    auto global_tracklet_order = controller->_tracker->global_tracklet_order();
 
-    auto fn = [gui, controller](TrainingMode::Class load, IMGUIBase* window, DrawStructure* graph) -> bool {
+    auto fn = [gui, controller](TrainingMode::Class load, IMGUIBase* window, DrawStructure* graph, std::vector<Range<Frame_t>> global_tracklet_order) -> bool {
         std::vector<Rangel> trained;
 
         WorkProgress::set_progress("training network", 0);
@@ -41,7 +84,7 @@ void generate_training_data(GUITaskQueue_t* gui, bool force_load, VIController* 
             if(not video)
                 throw SoftException("There was no video open.");
             
-            Accumulation acc(gui, std::move(video), controller->_tracker->global_tracklet_order(), window, load);
+            Accumulation acc(gui, std::move(video), std::move(global_tracklet_order), window, load);
             //if(current.valid())
             //    current.get();
 
@@ -93,9 +136,9 @@ void generate_training_data(GUITaskQueue_t* gui, bool force_load, VIController* 
         + "\n\n" + std::string(message_concern);
     
     if(gui) {
-        gui->enqueue([fn, avail, message, controller, gui](IMGUIBase* window, DrawStructure& graph) mutable {
-            graph.dialog([fn, avail, window, graph = &graph, controller, gui](Dialog::Result result) {
-                WorkProgress::add_queue("training network", [fn, result, window, graph = graph, avail = avail, controller, gui]() mutable {
+        gui->enqueue([global_tracklet_order, fn, avail, message, controller, gui](IMGUIBase* window, DrawStructure& graph) mutable {
+            graph.dialog([global_tracklet_order, fn, avail, window, graph = &graph, controller, gui](Dialog::Result result) {
+                WorkProgress::add_queue("training network", [global_tracklet_order, fn, result, window, graph = graph, avail = avail, controller, gui]() mutable {
                     try {
                         TrainingMode::Class mode;
                         if(avail) {
@@ -133,22 +176,38 @@ void generate_training_data(GUITaskQueue_t* gui, bool force_load, VIController* 
                                     return;
                             }
                         }
-                            
-                        if(is_in(mode, TrainingMode::Continue, TrainingMode::Restart, TrainingMode::Apply))
+                        
+                        auto run_task = [&]() {
+                            if(is_in(mode, TrainingMode::Continue, TrainingMode::Restart, TrainingMode::Apply))
+                            {
+                                Accumulation::register_apply_callback([controller, gui](){
+                                    Print("Finished. Auto correcting...");
+                                    controller->on_apply_done();
+                                    controller->auto_correct(gui, true);
+                                });
+                                Accumulation::register_apply_callback([controller](double percent){
+                                    controller->on_apply_update(percent);
+                                });
+                            }
+                                
+                            fn(mode, window, graph, global_tracklet_order);
+                        };
+                        
+                        if(is_in(mode, TrainingMode::Restart, TrainingMode::Continue))
                         {
-                            Print("Registering auto correct callback.");
+                            /// this is only possible if we have global tracklets.
+                            /// check this first so that the Accumulation does not have to crash.
+                            check_global_tracklets_available(gui, global_tracklet_order, [run_task](){
+                                run_task();
+                                
+                            }, [](){
+                                /// error already handled
+                            });
                             
-                            Accumulation::register_apply_callback([controller, gui](){
-                                Print("Finished. Auto correcting...");
-                                controller->on_apply_done();
-                                controller->auto_correct(gui, true);
-                            });
-                            Accumulation::register_apply_callback([controller](double percent){
-                                controller->on_apply_update(percent);
-                            });
+                        } else {
+                            run_task();
                         }
-                            
-                        fn(mode, window, graph);
+                        
                             
                     } catch(const SoftExceptionImpl& error) {
                         //if(SETTING(auto_train_on_startup))
@@ -182,7 +241,7 @@ void generate_training_data(GUITaskQueue_t* gui, bool force_load, VIController* 
             });
         }
         
-        if(!fn(mode, nullptr, nullptr)) {
+        if(!fn(mode, nullptr, nullptr, global_tracklet_order)) {
             if(SETTING(auto_train_on_startup))
                 throw U_EXCEPTION("Using the network returned a bad code (false). See previous errors.");
         }
@@ -321,10 +380,10 @@ void VIController::correct_identities(GUITaskQueue_t* gui, bool force_correct, I
         _tracker->check_tracklets_identities(force_correct, source, [](float x) { WorkProgress::set_percent(x); }, [this, source, gui, force_correct](const std::string&, const std::function<void()>& fn, const std::string&) 
         {
             if(force_correct) {
-                _analysis->set_paused(false).get();
                 on_tracking_ended([this, source, gui](){
                     correct_identities(gui, false, source);
                 });
+                _analysis->set_paused(false).get();
             }
             
             fn();

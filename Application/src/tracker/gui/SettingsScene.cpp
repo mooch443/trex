@@ -905,6 +905,9 @@ void SettingsScene::Data::check_video_source(file::PathArray source) {
     }
     catch (...) {
         /// do nothing
+#ifndef NDEBUG
+        FormatExcept("Caught an exception when checking video source.");
+#endif
     }
     
     /// some stuff regarding reloading settings when the source changes:

@@ -714,14 +714,14 @@ TRex parameters
 
 
 
-.. function:: enable_absolute_difference(bool)
+.. function:: detect_threshold_is_absolute(bool)
 
 	**default value:** true
 
 
-	If enabled, uses absolute difference values and disregards any pixel |p| < ``threshold`` during conversion. Otherwise the equation is p < ``threshold``, meaning that e.g. bright spots may not be considered trackable when dark spots would. Same as ``track_absolute_difference``, but during conversion instead of tracking.
+	If enabled, uses absolute difference values and disregards any pixel |p| < ``threshold`` during conversion. Otherwise the equation is p < ``threshold``, meaning that e.g. bright spots may not be considered trackable when dark spots would. Same as ``track_threshold_is_absolute``, but during conversion instead of tracking.
 
-	.. seealso:: :param:`track_absolute_difference`
+	.. seealso:: :param:`track_threshold_is_absolute`
 
 
 .. function:: enable_difference(bool)
@@ -2857,14 +2857,14 @@ TRex parameters
 	.. seealso:: :param:`track_threshold_2`
 
 
-.. function:: track_absolute_difference(bool)
+.. function:: track_threshold_is_absolute(bool)
 
 	**default value:** true
 
 
-	If enabled, uses absolute difference values and disregards any pixel |p| < ``threshold`` during conversion. Otherwise the equation is p < ``threshold``, meaning that e.g. bright spots may not be considered trackable when dark spots would. Same as ``enable_absolute_difference``, but during tracking instead of converting.
+	If enabled, uses absolute difference values and disregards any pixel |p| < ``threshold`` during conversion. Otherwise the equation is p < ``threshold``, meaning that e.g. bright spots may not be considered trackable when dark spots would. Same as ``detect_threshold_is_absolute``, but during tracking instead of converting.
 
-	.. seealso:: :param:`enable_absolute_difference`
+	.. seealso:: :param:`detect_threshold_is_absolute`
 
 
 .. function:: track_background_subtraction(bool)
@@ -2872,7 +2872,7 @@ TRex parameters
 	**default value:** false
 
 
-	If enabled, objects in .pv videos will first be contrasted against the background before thresholding (background_colors - object_colors). ``track_enable_absolute_difference`` then decides whether this term is evaluated in an absolute or signed manner.
+	If enabled, objects in .pv videos will first be contrasted against the background before thresholding (background_colors - object_colors). ``track_threshold_is_absolute`` then decides whether this term is evaluated in an absolute or signed manner.
 
 
 

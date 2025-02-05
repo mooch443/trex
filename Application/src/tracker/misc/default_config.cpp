@@ -211,7 +211,9 @@ ENUM_CLASS_DOCS(gpu_torch_device_t,
         {"tracklet_export_difference_images", "tracklet_force_normal_color"},
         {"track_label_confidence_threshold", "track_conf_threshold"},
         {"matching_probability_threshold", "match_min_probability"},
-        {"manual_ignore_bdx", "track_ignore_bdx"}
+        {"manual_ignore_bdx", "track_ignore_bdx"},
+        {"track_absolute_difference", "track_threshold_is_absolute"},
+        {"enable_absolute_difference", "detect_threshold_is_absolute"}
     };
 
 /**
@@ -583,7 +585,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
          */
         CONFIG("meta_mass_mg", float(200), "Used for exporting event-energy levels.");
         CONFIG("nowindow", false, "If set to true, no GUI will be created on startup (e.g. when starting from SSH).", STARTUP);
-        CONFIG("track_background_subtraction", false, "If enabled, objects in .pv videos will first be contrasted against the background before thresholding (background_colors - object_colors). `track_enable_absolute_difference` then decides whether this term is evaluated in an absolute or signed manner.");
+        CONFIG("track_background_subtraction", false, "If enabled, objects in .pv videos will first be contrasted against the background before thresholding (background_colors - object_colors). `track_threshold_is_absolute` then decides whether this term is evaluated in an absolute or signed manner.");
         CONFIG("use_differences", false, "This should be set to false unless when using really old files.");
         //config["debug_probabilities"] = false;
         CONFIG("track_pause", false, "Halts the analysis.");
@@ -707,7 +709,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("track_do_history_split", true, "If disabled, blobs will not be split automatically in order to separate overlapping individuals. This usually happens based on their history.");
         CONFIG("tracklet_punish_speeding", true, "Sometimes individuals might be assigned to blobs that are far away from the previous position. This could indicate wrong assignments, but not necessarily. If this variable is set to true, consecutive frame segments will end whenever high speeds are reached, just to be on the safe side. For scenarios with lots of individuals (and no recognition) this might spam yellow bars in the timeline and may be disabled.");
         CONFIG("track_consistent_categories", false, "Utilise categories (if present) when tracking. This may break trajectories in places with imperfect categorization, but only applies once categories have been applied.");
-        CONFIG("track_max_individuals", uint32_t(0), "The maximal number of individual that are assigned at the same time (infinite if set to zero). If the given number is below the actual number of individual, then only a (random) subset of individual are assigned and a warning is shown.");
+        CONFIG("track_max_individuals", uint32_t(1024), "The maximal number of individual that are assigned at the same time (infinite if set to zero). If the given number is below the actual number of individual, then only a (random) subset of individual are assigned and a warning is shown.");
         CONFIG("detect_size_filter", SizeFilters(), "During conversion (using background subtraction) objects outside this size range will be filtered out. If empty, all objects will be accepted.");
         CONFIG("track_size_filter", SizeFilters(), "Blobs below the lower bound are recognized as noise instead of individuals. Blobs bigger than the upper bound are considered to potentially contain more than one individual. You can look these values up by pressing `D` in TRex to get to the raw view (see `https://trex.run/docs/gui.html` for details). The unit is #pixels * (cm/px)^2. `cm_per_pixel` is used for this conversion.");
         CONFIG("blob_split_max_shrink", float(0.2), "The minimum percentage of the starting blob size (after thresholding), that a blob is allowed to be reduced to during splitting. If this value is set too low, the program might start recognizing parts of individual as other individual too quickly.");
@@ -732,7 +734,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("threshold_ratio_range", Rangef(0.5, 1.0), "If `track_threshold_2` is not equal to zero, this ratio will be multiplied by the number of pixels present before the second threshold. If the resulting size falls within the given range, the blob is deemed okay.");
         CONFIG("track_threshold_2", int(0), "If not zero, a second threshold will be applied to all objects after they have been deemed do be theoretically large enough. Then they are compared to #before_pixels * `threshold_ratio_range` to see how much they have been shrunk).");
         CONFIG("track_posture_threshold", int(0), "Same as `track_threshold`, but for posture estimation.");
-        CONFIG("track_absolute_difference", true, "If enabled, uses absolute difference values and disregards any pixel |p| < `threshold` during conversion. Otherwise the equation is p < `threshold`, meaning that e.g. bright spots may not be considered trackable when dark spots would. Same as `enable_absolute_difference`, but during tracking instead of converting.");
+        CONFIG("track_threshold_is_absolute", true, "If enabled, uses absolute difference values and disregards any pixel |p| < `threshold` during conversion. Otherwise the equation is p < `threshold`, meaning that e.g. bright spots may not be considered trackable when dark spots would. Same as `detect_threshold_is_absolute`, but during tracking instead of converting.");
         CONFIG("track_time_probability_enabled", bool(true), "");
         CONFIG("track_max_reassign_time", float(0.5), "Distance in time (seconds) where the matcher will stop trying to reassign an individual based on previous position. After this time runs out, depending on the settings, the tracker will try to find it based on other criteria, or generate a new individual.");
         

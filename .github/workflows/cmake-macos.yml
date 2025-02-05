@@ -95,6 +95,7 @@ jobs:
         conda search --override-channels -c conda-forge numpy
         conda create -y -n test --override-channels -c $CONDA_PREFIX/conda-bld/ -c conda-forge trex
         conda activate test
+        conda install -y git
         pvinfo -opencv_ffmpeg_support
         pvinfo -opencv_opencl_support
         echo "::endgroup::"

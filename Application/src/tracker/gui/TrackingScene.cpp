@@ -1553,6 +1553,11 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                     map["end"] = consec.at(i).end + 1_f;
                 }
                 
+                if(_data->tracklets.size() >= consec.size()) {
+                    _data->tracklets.resize(consec.size());
+                    _data->variables.resize(consec.size());
+                }
+                
                 return _data->variables;
             }),
             

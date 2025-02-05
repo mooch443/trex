@@ -111,7 +111,7 @@ CREATE_STRUCT(Settings,
   (bool, midline_invert),
   (bool, track_time_probability_enabled),
   (float, posture_head_percentage),
-  (bool, track_absolute_difference),
+  (bool, track_threshold_is_absolute),
   (bool, track_background_subtraction),
   (float, blobs_per_thread),
   (std::string, individual_prefix),
@@ -157,7 +157,7 @@ struct slow {
     DEF_SLOW_SETTINGS(track_threshold);
     DEF_SLOW_SETTINGS(track_max_reassign_time);
     DEF_SLOW_SETTINGS(calculate_posture);
-    DEF_SLOW_SETTINGS(track_absolute_difference);
+    DEF_SLOW_SETTINGS(track_threshold_is_absolute);
     DEF_SLOW_SETTINGS(track_background_subtraction);
     DEF_SLOW_SETTINGS(track_enforce_frame_rate);
     

@@ -63,7 +63,7 @@ void Tracker::initialize_slows() {
         DEF_CALLBACK(track_threshold);
         DEF_CALLBACK(track_max_reassign_time);
         DEF_CALLBACK(calculate_posture);
-        DEF_CALLBACK(track_absolute_difference);
+        DEF_CALLBACK(track_threshold_is_absolute);
         DEF_CALLBACK(track_background_subtraction);
         
         DEF_CALLBACK(track_trusted_probability);
@@ -2924,7 +2924,7 @@ void Tracker::set_vi_data(const decltype(_vi_predictions)& predictions) {
         float N = float(IndividualManager::num_individuals());
         IndividualManager::transform_parallel(recognition_pool, [&](auto, auto fish) {
             fish->clear_recognition();
-            fish->calculate_average_recognition();
+            fish->calculate_average_tracklet_id();
             
             callback(count / N * 0.5f);
             ++count;
@@ -3141,7 +3141,7 @@ void Tracker::set_vi_data(const decltype(_vi_predictions)& predictions) {
                 });
             }
             
-            for(auto tracklet : fish.tracklets) {
+            for(const auto& tracklet : fish.tracklets) {
                 if(after_frame.valid() && tracklet.range.end < after_frame)
                     continue;
                 
