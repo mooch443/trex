@@ -2638,7 +2638,7 @@ void Individual::calculate_average_tracklet_id() {
             assert(split_up.begin()->second.start() == tracklet->start());
             assert(split_up.rbegin()->second.end() == tracklet->end());
             
-            log(f, "Split tracklet ", *tracklet, " into ", split_up);
+            //log(f, "Split tracklet ", *tracklet, " into ", split_up);
             
             auto prev_end = tracklet->start() - 1_f;
             for(auto && [start, range] : split_up) {
