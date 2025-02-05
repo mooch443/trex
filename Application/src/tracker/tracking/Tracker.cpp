@@ -42,6 +42,9 @@ namespace track {
 
 FrameRange _analysis_range;
 
+Tracker* _instance = NULL;
+std::mutex _identities_mutex;
+std::set<Idx_t> _fixed_identities;
 
 auto& properties_mutex() {
     static std::shared_mutex _properties_mutex;
@@ -202,10 +205,6 @@ const FrameRange& Tracker::analysis_range() {
     return _analysis_range;
 }
 
-Tracker* _instance = NULL;
-std::mutex _identities_mutex;
-std::set<Idx_t> _fixed_identities;
-
 Tracker* Tracker::instance() {
     return _instance;
 }
@@ -355,6 +354,8 @@ Tracker::Tracker(Image::Ptr&& average, meta_encoding_t::Class encoding, Float2_t
         })*/
 {
     _instance = this;
+    tracklet_order_changed();
+    
     Identity::Reset(); // reset Identities if the tracker is created
     initialize_slows();
     
