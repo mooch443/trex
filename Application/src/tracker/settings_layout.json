@@ -15,7 +15,7 @@
         "machine_learning":"{equal:{global.detect_type}:yolo}",
         "label_offset":[15,0],
         "label_origin":[0,0],
-        "label_padding":[0,30,10,5],
+        "label_padding":[0,20,10,5],
         "ratio":"{max:{/:{window_size.x}:{video_size.x}}:{/:{window_size.y}:{video_size.y}}}",
         "bg_scale":"[{ratio},{ratio}]",
         "valid_pv_file":"{file_exists:{resulting_path}.pv}",
@@ -129,7 +129,7 @@
                         "font":{"size":0.75},
                         "origin":"{label_origin}", "pos":"{label_offset}",
                         "max_size":"[{label_w},0]",
-                        "pad":"{label_padding}"
+                        "pad":[0,30,10,5]
                     },
                     [{
                         "type":"vlayout",
@@ -228,11 +228,136 @@
                 [
                     {
                         "type":"stext",
-                        "text":"{if:{machine_learning}:'<h2><sym>🐟</sym></h2> Detection model\n<small><gray>Final step, deciding object vs. background.</gray></small>':'<sym>▦</sym> Background generator mode'}",
+                        "text":"<h2><sym>🐟</sym></h2> Detection settings\n<small><gray>A few settings relevant to the chosen detection type.</gray></small>",
                         "font":{"size":0.75},
                         "origin":"{label_origin}", "pos":"{label_offset}",
                         "max_size":"[{label_w},0]",
-                        "pad":"{label_padding}"
+                        "pad":[0,5,0,5]
+                    },
+
+                    {
+                        "type":"vlayout",
+                        "name":"detect_settings",
+                        "clickable":true,
+                        "pad":[0,-5,0,5],
+                        "children":[
+                            {
+                                "type":"rect",
+                                "fill":[0,0,0,0],
+                                "size":[1,15]
+                            },
+                            {
+                                "type":"condition",
+                                "var":"{machine_learning}",
+                                "then": {
+                                    "type":"gridlayout",
+                                    "pad":[0,0,15,5],
+                                    "cellfillclr":[60,60,60,150],
+                                    "celllineclr":[100,100,100,50],
+                                    "cellfillinterval":2,
+                                    "children":[
+                                        [
+                                            {
+                                                "type":"stext",
+                                                "text":"<b>IOU Threshold</b>\n<gray>Max. object overlap.</gray>",
+                                                "pad":[10,3,10,4]
+                                            },
+                                            {
+                                                "type":"settings",
+                                                "var":"detect_iou_threshold",
+                                                "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
+                                                "list":{
+                                                    "line":[220,220,220,200],
+                                                    "fill":[25,25,25,220],
+                                                    "size":"[{element_w},200]",
+                                                    "font":{"size":0.6}
+                                                },
+                                                "size":"[{max:50:{*:{textfield_w}:0.1}},45]",
+                                                "desc":""
+                                            },
+
+                                            {
+                                                "type":"stext",
+                                                "text":"<b>Confidence threshold</b>\n<gray>Minimum detect confidence.</gray>",
+                                                "pad":[10,3,10,4]
+                                            },
+                                            {
+                                                "type":"settings",
+                                                "var":"detect_conf_threshold",
+                                                "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                                                "list":{
+                                                    "line":[220,220,220,200],
+                                                    "fill":[25,25,25,220],
+                                                    "size":"[{element_w},200]",
+                                                    "font":{"size":0.6}
+                                                },
+                                                "size":"[{max:50:{*:{textfield_w}:0.1}},45]",
+                                                "desc":""
+                                            }
+                                        ],
+
+
+                                        [
+                                            {
+                                                "type":"stext",
+                                                "text":"<b>Acceptable Sizes</b>\n<gray>Min./max. object sizes.</gray>",
+                                                "pad":[10,0,0,0],
+                                                "origin":[0,0.5], "pos":[0,20],
+                                                "max_size":"[{-:{inside_label_w}:20},0]"
+                                            },
+                                            {
+                                                "type":"settings",
+                                                "var":"detect_size_filter",
+                                                "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                                                "size":"[{max:50:{*:{textfield_w}:0.1}},45]",
+                                                "desc":""
+                                            }
+                                        ]
+                                    ]
+                                },
+                                "else":{
+                                    "type":"gridlayout",
+                                    "pad":[0,5,15,10],
+                                    "cellfillclr":[60,60,60,150],
+                                    "celllineclr":[100,100,100,50],
+                                    "cellfillinterval":2,
+                                    "children":[
+
+                                        [
+                                            {
+                                                "type":"stext",
+                                                "text":"<b>Acceptable Sizes</b>\n<gray>Min./max. object sizes.</gray>",
+                                                "pad":[10,0,0,0],
+                                                "origin":[0,0.5], "pos":[0,20],
+                                                "max_size":"[{-:{inside_label_w}:20},0]"
+                                            },
+                                            {
+                                                "type":"settings",
+                                                "var":"detect_size_filter",
+                                                "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                                                "size":"[{max:50:{*:{textfield_w}:0.1}},45]",
+                                                "desc":""
+                                            }
+                                        ]
+                                    ]
+                                }
+                            }
+                        ]
+                    }
+                ],
+
+                [
+                    {
+                        "type":"stext",
+                        "text":"{if:{machine_learning}:'<h2><sym>🐟</sym></h2> Detection model\n<small><gray>Final step, deciding object vs. background.</gray></small>':'<small>\n</small><sym>▦</sym> Background generator mode'}",
+                        "font":{"size":0.75},
+                        "origin":"{label_origin}", "pos":"{label_offset}",
+                        "max_size":"[{label_w},0]",
+                        "pad":[0,10,10,5]
                     },
                     
                     {
@@ -247,7 +372,7 @@
                                 {
                                     "type":"rect",
                                     "fill":[0,0,0,0],
-                                    "size":[1,15]
+                                    "size":[1,5]
                                 },
                                 {
                                     "type":"hlayout",
@@ -283,72 +408,11 @@
                                     ]
                                 },
                                 {
-                                    "type":"hlayout",
-                                    "pad":[0,0,10,0],
-                                    "children":[
-                                        {
-                                            "type":"hlayout",
-                                            "pad":[0,0,-1,0],
-                                            "children":[
-                                                {
-                                                    "type":"stext",
-                                                    "text":"<b>IOU Threshold</b>\n<gray>Max. object overlap.</gray>",
-                                                    "pad":[10,3,10,4],
-                                                    "fill":[50,50,50,100],
-                                                    "line":[100,100,100,250]
-                                                },
-                                                {
-                                                    "type":"settings",
-                                                    "var":"detect_iou_threshold",
-                                                    "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
-                                                    "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
-                                                    "list":{
-                                                        "line":[220,220,220,200],
-                                                        "fill":[25,25,25,220],
-                                                        "size":"[{element_w},200]",
-                                                        "font":{"size":0.6}
-                                                    },
-                                                    "size":[75,45],
-                                                    "desc":""
-                                                }
-                                            ]
-                                        },
-
-                                        {
-                                            "type":"hlayout",
-                                            "pad":[0,0,-1,0],
-                                            "children":[
-                                                {
-                                                    "type":"stext",
-                                                    "text":"<b>Confidence threshold</b>\n<gray>Minimum detect confidence.</gray>",
-                                                    "pad":[10,3,10,4],
-                                                    "fill":[50,50,50,100],
-                                                    "line":[100,100,100,250]
-                                                },
-                                                {
-                                                    "type":"settings",
-                                                    "var":"detect_conf_threshold",
-                                                    "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
-                                                    "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
-                                                    "list":{
-                                                        "line":[220,220,220,200],
-                                                        "fill":[25,25,25,220],
-                                                        "size":"[{element_w},200]",
-                                                        "font":{"size":0.6}
-                                                    },
-                                                    "size":[75,45],
-                                                    "desc":""
-                                                }
-                                            ]
-                                        }
-                                    ]
-                                },
-                                {
                                     "type":"condition",
                                     "var":"{not:{equal:{global.detect_format}:none}}",
                                     "then": {
                                         "type":"hlayout",
-                                        "pad":[0,-15,-1,0],
+                                        "pad":[0,0,-1,0],
                                         "children":[
                                             {
                                                 "type":"stext",
@@ -389,7 +453,7 @@
                                     "then":
                                     { 
                                         "type":"hlayout",
-                                        "pad":[0,5,20,0],
+                                        "pad":[0,0,20,0],
                                         "align":"top",
                                         "children":[
                                             {
@@ -492,7 +556,7 @@
                         "font":{"size":0.75},
                         "origin":"{label_origin}", "pos":"{label_offset}",
                         "max_size":"[{label_w},0]",
-                        "pad":[0,20,0,0]
+                        "pad":[0,10,0,0]
                     },
                     {
                         "type":"vlayout",
@@ -501,7 +565,7 @@
                             {
                                 "type":"rect",
                                 "fill":[0,0,0,0],
-                                "size":[1,20]
+                                "size":[1,10]
                             },
                             {
                                 "type":"hlayout",
@@ -593,7 +657,7 @@
                         "font":{"size":0.75},
                         "origin":"{label_origin}", "pos":"{label_offset}",
                         "max_size":"[{label_w},0]",
-                        "pad":[0,20,0,0]
+                        "pad":[0,10,0,0]
                     },
                     {
                         "type":"condition",
@@ -605,7 +669,7 @@
                                 {
                                     "type":"rect",
                                     "fill":[0,0,0,0],
-                                    "size":[1,20]
+                                    "size":[1,10]
                                 },
                                 {
                                     "type":"hlayout",

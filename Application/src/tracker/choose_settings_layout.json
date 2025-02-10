@@ -15,7 +15,7 @@
         "machine_learning":"{equal:{global.detect_type}:yolo}",
         "label_offset":[15,-5],
         "label_origin":[0,0],
-        "label_padding":[0,30,10,5],
+        "label_padding":[0,20,10,5],
         "selected_video_x":"{if:{video_file}:{video_size.x}:1024}",
         "selected_video_y":"{if:{video_file}:{video_size.y}:576}",
         "ratio":"{max:{/:{window_size.x}:{selected_video_x}}:{/:{window_size.y}:{selected_video_y}}}",
@@ -268,7 +268,7 @@
                             {
                                 "type":"rect",
                                 "fill":[0,0,0,0],
-                                "size":[1,15]
+                                "size":[1,10]
                             }
                         ]
                     }]
@@ -289,7 +289,7 @@
                             {
                                 "type":"rect",
                                 "fill":[0,0,0,0],
-                                "size":[0,30]
+                                "size":[0,15]
                             },
                             {
                                 "type":"gridlayout",

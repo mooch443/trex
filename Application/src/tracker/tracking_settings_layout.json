@@ -143,7 +143,7 @@
                             },
                             {
                                 "type":"gridlayout",
-                                "pad":[0,0,15,10],
+                                "pad":[0,0,15,5],
                                 "cellfillclr":[60,60,60,150],
                                 "celllineclr":[100,100,100,50],
                                 "cellfillinterval":2,
@@ -322,7 +322,7 @@
                                 "var":"{global.calculate_posture}",
                                 "then": {
                                     "type":"gridlayout",
-                                    "pad":[0,0,15,10],
+                                    "pad":[0,0,15,5],
                                     "cellfillclr":[60,60,60,150],
                                     "celllineclr":[100,100,100,50],
                                     "cellfillinterval":2,
