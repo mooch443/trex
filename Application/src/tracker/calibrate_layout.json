@@ -27,8 +27,13 @@
         },
         {
             "type":"line",
+            "points":"{for:{points}:{addVector:[1,1]:{addVector:{screen_center}:{mulVector:{i}:{bg_scale}}}}}",
+            "line":[50,50,50,150]
+        },
+        {
+            "type":"line",
             "points":"{for:{points}:{addVector:{screen_center}:{mulVector:{i}:{bg_scale}}}}",
-            "line":[200,200,200,150]
+            "line":[220,220,220,150]
         },
 
         {
