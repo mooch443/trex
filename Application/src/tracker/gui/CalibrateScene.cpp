@@ -4,6 +4,7 @@
 #include <gui/dyn/Action.h>
 #include <gui/GUIVideoAdapterElement.h>
 #include <gui/GUIVideoAdapter.h>
+#include <misc/SizeFilters.h>
 
 namespace cmn::gui {
 
@@ -98,26 +99,74 @@ void CalibrateScene::_draw(DrawStructure &graph) {
                             SceneManager::getInstance().enqueue([D, e=std::move(e)](auto, DrawStructure& graph) mutable {
                                 graph.dialog([D](Dialog::Result r) {
                                     if(r != Dialog::OKAY)
-                                        return true;
+                                        return;
                                     
-                                    try {
-                                        auto value = Meta::fromStr<float>(text.text());
-                                        Print("Value is: ", value);
-                                        
-                                        if(value > 0) {
-                                            SETTING(cm_per_pixel) = Float2_t(value / D);
+                                    SceneManager::getInstance().enqueue([D](auto, DrawStructure& graph) mutable {
+                                        graph.dialog([D](Dialog::Result auto_change_parameters) {
+                                            try {
+                                                auto value = Meta::fromStr<float>(text.text());
+                                                Print("Value is: ", value);
+                                                
+                                                if(value > 0) {
+                                                    if(auto_change_parameters == Dialog::OKAY) {
+                                                        auto cm_per_pixel = SETTING(cm_per_pixel).value<Float2_t>();
+                                                        auto detect_size_filter = SETTING(detect_size_filter).value<SizeFilters>();
+                                                        auto track_size_filter = SETTING(track_size_filter).value<SizeFilters>();
+                                                        auto track_max_speed = SETTING(track_max_speed).value<Float2_t>();
+                                                        
+                                                        const auto new_cm_per_pixel = Float2_t(value / D);
+                                                        
+                                                        /// track_max_speed
+                                                        SETTING(track_max_speed) = Float2_t(track_max_speed / cm_per_pixel * new_cm_per_pixel);
+                                                        
+                                                        /// detect_size_filter
+                                                        if(not detect_size_filter.empty()) {
+                                                            std::set<Range<double>> ranges;
+                                                            SizeFilters filters;
+                                                            for(auto &[start, end] : detect_size_filter.ranges()) {
+                                                                Range<double> range{
+                                                                    start / SQR(cm_per_pixel) * SQR(new_cm_per_pixel),
+                                                                    end / SQR(cm_per_pixel) * SQR(new_cm_per_pixel)
+                                                                };
+                                                                filters.add(range);
+                                                            }
+                                                            SETTING(detect_size_filter) = filters;
+                                                        }
+                                                        
+                                                        /// track_size_filter
+                                                        if(not track_size_filter.empty()) {
+                                                            std::set<Range<double>> ranges;
+                                                            SizeFilters filters;
+                                                            for(auto &[start, end] : track_size_filter.ranges()) {
+                                                                Range<double> range{
+                                                                    start / SQR(cm_per_pixel) * SQR(new_cm_per_pixel),
+                                                                    end / SQR(cm_per_pixel) * SQR(new_cm_per_pixel)
+                                                                };
+                                                                filters.add(range);
+                                                            }
+                                                            SETTING(track_size_filter) = filters;
+                                                        }
+                                                        
+                                                        SETTING(cm_per_pixel) = new_cm_per_pixel;
+                                                        
+                                                        SceneManager::getInstance().enqueue([detect_size_filter, track_max_speed, track_size_filter](auto, DrawStructure& graph)
+                                                                                            {
+                                                            graph.dialog("Successfully set <ref>cm_per_pixel</ref> to <nr>"+Meta::toStr(SETTING(cm_per_pixel).value<Float2_t>())+"</nr> and recalculated <ref>detect_size_filter</ref> from <nr>"+Meta::toStr(detect_size_filter)+"</nr> to <nr>"+Meta::toStr(SETTING(detect_size_filter).value<SizeFilters>())+"</nr>, and <ref>track_size_filter</ref> from <nr>"+Meta::toStr(track_size_filter)+"</nr> to <nr>"+Meta::toStr(SETTING(track_size_filter).value<SizeFilters>())+"</nr> and <ref>track_max_speed</ref> from <nr>"+Meta::toStr(track_max_speed)+"</nr> to <nr>"+Meta::toStr(SETTING(track_max_speed).value<Float2_t>())+"</nr>.", "Calibration successful", "Okay");
+                                                        });
+                                                        
+                                                    } else {
+                                                        SETTING(cm_per_pixel) = Float2_t(value / D);
+                                                        SceneManager::getInstance().enqueue([](auto, DrawStructure& graph)
+                                                                                            {
+                                                            graph.dialog("Successfully set <ref>cm_per_pixel</ref> to <nr>"+Meta::toStr(SETTING(cm_per_pixel).value<Float2_t>())+"</nr>.", "Calibration successful", "Okay");
+                                                        });
+                                                    }
+                                                }
+                                                
+                                            } catch(const std::exception& e) { }
                                             
-                                            SceneManager::getInstance().enqueue([](auto, DrawStructure& graph)
-                                            {
-                                                graph.dialog("Successfully set <ref>cm_per_pixel</ref> to <nr>"+Meta::toStr(SETTING(cm_per_pixel).value<Float2_t>())+"</nr>.");
-                                            });
-                                            
-                                            return true;
-                                        }
-                                        
-                                    } catch(const std::exception& e) { }
-                                    
-                                    return false;
+                                        }, "Do you want to automatically set <ref>track_max_speed</ref>, <ref>detect_size_filter</ref>, and <ref>track_size_filter</ref> based on the given conversion factor?", "Calibrate with known length", "Yes", "No");
+                                    });
                                     
                                 }, "Please enter the equivalent length in centimeters for the selected distance (<nr>"+Meta::toStr(D)+"</nr>px) below. <ref>cm_per_pixel</ref> will then be recalculated based on the given value, affecting parameters such as <ref>track_max_speed</ref>, and <ref>track_size_filter</ref>, and tracking results.", "Calibrate with known length", "Okay", "Abort")->set_custom_element(std::move(e));
                             });
