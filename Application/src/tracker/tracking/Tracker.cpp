@@ -354,7 +354,7 @@ Tracker::Tracker(Image::Ptr&& average, meta_encoding_t::Class encoding, Float2_t
         })*/
 {
     _instance = this;
-    tracklet_order_changed();
+    global_tracklet_order_changed();
     
     Identity::Reset(); // reset Identities if the tracker is created
     initialize_slows();
