@@ -701,30 +701,35 @@ void Tracker::prefilter(
     const auto tags_dont_track = SETTING(tags_dont_track).value<bool>();
     const auto track_only_segmentations = SETTING(track_only_segmentations).value<bool>();
     
-    auto check_precise_not_ignored = [&track_ignore, &track_include, &result](pv::BlobPtr&& b){
-        if (!track_ignore.empty()) {
-            if (PrefilterBlobs::blob_matches_shapes(*b, track_ignore)) {
-                result.filter_out(std::move(b), FilterReason::InsideIgnore);
-                return false;
-            }
-        }
-
-        if (!track_include.empty()) {
-            if (!PrefilterBlobs::blob_matches_shapes(*b, track_include)) {
-                result.filter_out(std::move(b), FilterReason::OutsideInclude);
-                return false;
-            }
-        }
-        
-        return true;
-    };
-    
     std::optional<const decltype(track_ignore_bdx)::mapped_type*> track_ignore_bdx_c;
     if(auto it = track_ignore_bdx.find(result.frame_index);
        it != track_ignore_bdx.end())
     {
         track_ignore_bdx_c = &it->second;
     }
+    
+    auto check_precise_not_ignored = [&track_ignore, &track_include, &result, &track_ignore_bdx_c](pv::BlobPtr&& b) {
+        if (not track_ignore.empty()) {
+            if (PrefilterBlobs::blob_matches_shapes(*b, track_ignore)) {
+                result.filter_out(std::move(b), FilterReason::InsideIgnore);
+                return false;
+            }
+        }
+
+        if (not track_include.empty()) {
+            if (not PrefilterBlobs::blob_matches_shapes(*b, track_include)) {
+                result.filter_out(std::move(b), FilterReason::OutsideInclude);
+                return false;
+            }
+        }
+        
+        if(PrefilterBlobs::is_blob_ignored(result.frame_index, *b, track_ignore_bdx_c)) {
+            result.filter_out(std::move(b), FilterReason::BdxIgnored);
+            return false;
+        }
+        
+        return true;
+    };
     
     auto check_blob = [&track_only_segmentations, &tags_dont_track, &check_precise_not_ignored, &track_include, &result, &cm_sqr, &track_ignore_bdx_c](pv::BlobPtr&& b, bool precise_check_boundaries)
     {
@@ -735,15 +740,6 @@ void Tracker::prefilter(
             b->force_set_recount(result.threshold);
         } else {
             b->recount(result.threshold, *result.background);
-        }
-        
-        if(track_ignore_bdx_c.has_value()) {
-            if(track_ignore_bdx_c.value()->contains(b->blob_id())
-               || (b->parent_id().valid() && track_ignore_bdx_c.value()->contains(b->parent_id())))
-            {
-                result.filter_out(std::move(b), FilterReason::Unknown);
-                return false;
-            }
         }
         
         if(b->is_tag() && tags_dont_track) {
@@ -764,6 +760,12 @@ void Tracker::prefilter(
                     return false;
                 }
             }
+            
+            if(PrefilterBlobs::is_blob_ignored(result.frame_index, *b, track_ignore_bdx_c)) {
+                result.filter_out(std::move(b), FilterReason::BdxIgnored);
+                return false;
+            }
+            
             return true;
         }
         
@@ -786,6 +788,7 @@ void Tracker::prefilter(
         // it has NOT been moved, continue here...
         float recount = own->recount(-1);
         ptrs.clear();
+        size_t found_blobs = 0;
         
         //! If the size is appropriately big, try to split the blob using the minimum of threshold and
         //  posture_threshold. Using the minimum ensures that the thresholds dont depend on each other
@@ -796,7 +799,12 @@ void Tracker::prefilter(
            && result.threshold > 0
            )
         {
-            auto pblobs = pixel::threshold_blob(result.cache, own.get(), result.threshold, result.background);
+            auto pblobs = pixel::threshold_blob(
+                                result.cache,
+                                own.get(),
+                                result.threshold,
+                                result.background);
+            found_blobs = pblobs.size();
             
             // only use blobs that split at least into 2 new blobs
             for(auto &&add : pblobs) {
@@ -804,13 +812,14 @@ void Tracker::prefilter(
                 if(!check_blob(std::move(add), true))
                     continue;
 
+                //Print(" * Blob ", add->blob_id(), " thresholded");
                 ptrs.push_back(std::move(add));
             }
         }
         
         // if we havent found any blobs, add the unthresholded
         // blob instead:
-        if (ptrs.empty()) {
+        if (found_blobs == 0) {
             if(check_precise_not_ignored(std::move(own)))
                 ptrs.push_back(std::move(own));
             else
@@ -892,6 +901,7 @@ void Tracker::prefilter(
         std::vector<pv::BlobPtr> noises;
 #endif
         PrefilterBlobs::split_big(
+              result.frame_index,
               std::move(result.big_blobs),
               BlobReceiver(result, BlobReceiver::noise, nullptr, FilterReason::SplitFailed),
               BlobReceiver(result, BlobReceiver::regular,

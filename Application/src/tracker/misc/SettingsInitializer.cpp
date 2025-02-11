@@ -354,7 +354,7 @@ void load(file::PathArray source,
         }
     }
     
-    GlobalSettings::current_defaults() = combined.map;
+    GlobalSettings::set_current_defaults(combined.map);
     
     /// ---------------------------------------------------
     /// 4. get cmd arguments and overwrite stuff with them:
@@ -926,7 +926,7 @@ void load(file::PathArray source,
                 continue;
             
             if(not contains(exclude.toVector(), key))
-                values.at(key).get().copy_to(GlobalSettings::current_defaults());
+                GlobalSettings::current_defaults(key, values);
             
             if(contains(exclude_from_default.toVector(), key)) {
                 Print("// Not setting default value ", key);

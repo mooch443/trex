@@ -207,6 +207,7 @@ void TrackingHelper::apply_manual_matches()
             single.emplace_back(frame.extract(bdx));
             
             PrefilterBlobs::split_big(
+                      frameIndex,
                       std::move(single),
                       BlobReceiver(frame,  BlobReceiver::noise, FilterReason::SplitFailed),
                       BlobReceiver(big_filtered),

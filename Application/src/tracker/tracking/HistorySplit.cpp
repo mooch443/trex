@@ -291,6 +291,7 @@ HistorySplit::HistorySplit(PPFrame &frame, PPFrame::NeedGrid need, GenericThread
     frame._split_objects += collection.size();*/
     
     PrefilterBlobs::split_big(
+           frame.index(),
            std::move(collection),
            BlobReceiver(frame, BlobReceiver::noise, FilterReason::SplitFailed),
            BlobReceiver(frame, BlobReceiver::regular),

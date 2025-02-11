@@ -154,7 +154,8 @@ std::string label_for_blob(const DisplayParameters& parm, const pv::Blob& blob, 
             { FilterReason::InsideIgnore, "Inside ignored shape (track_ignore)" },
             { FilterReason::DontTrackTags, "Tags are not tracked" },
             { FilterReason::OnlySegmentations, "Only segmentations are tracked" },
-            { FilterReason::SplitFailed, "Split failed" }
+            { FilterReason::SplitFailed, "Split failed" },
+            { FilterReason::BdxIgnored, "Inside track_ignore_bdx" }
         };
         
         const char * text;

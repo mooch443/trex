@@ -428,8 +428,12 @@ struct DrawExportOptions::Data {
                         }),
                         ActionFunc("reset_options", [](const Action& action) {
                             REQUIRE_EXACTLY(0, action);
-                            auto defaults = GlobalSettings::current_defaults().at("output_fields").value<std::vector<std::pair<std::string, std::vector<std::string>>>>();
-                            SETTING(output_fields) = defaults;
+                            if(auto defaults = GlobalSettings::current_defaults("output_fields");
+                               defaults)
+                            {
+                                SETTING(output_fields) = defaults->at("output_fields").value<std::vector<std::pair<std::string, std::vector<std::string>>>>();
+                            }
+                            
                         }),
                         ActionFunc("add_option", [this](const Action& action) {
                             REQUIRE_EXACTLY(1, action);

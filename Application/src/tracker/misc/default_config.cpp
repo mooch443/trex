@@ -968,7 +968,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         sprite::Map config;
         GlobalSettings::docs_map_t docs;
         
-        config = GlobalSettings::current_defaults();
+        config = GlobalSettings::get_current_defaults();
         //grab::default_config::get(config, docs, nullptr);
         //default_config::get(config, docs, NULL);
         

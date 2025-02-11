@@ -116,7 +116,30 @@ void PrefilterBlobs::to(PrefilterBlobs &other) && {
     other.samples += samples;
 }
 
+bool PrefilterBlobs::is_blob_ignored(
+    Frame_t frame_index,
+    const pv::Blob& b,
+    const std::optional<const msplits_t::mapped_type*>& track_ignore_bdx_c)
+{
+    if(track_ignore_bdx_c.has_value()) {
+        if(track_ignore_bdx_c.value()->contains(b.blob_id())
+           || (b.parent_id().valid() && track_ignore_bdx_c.value()->contains(b.parent_id())))
+        {
+#ifdef TREX_BLOB_DEBUG
+            thread_print("Frame ",frame_index," + ", b.blob_id(), " or ", b.parent_id(), " in ", track_ignore_bdx_c.value());
+#endif
+            return true;
+        } else {
+#ifdef TREX_BLOB_DEBUG
+            thread_print("Frame ",frame_index," x ", b.blob_id(), " and ", b.parent_id(), " not in ", track_ignore_bdx_c.value());
+#endif
+        }
+    }
+    return false;
+}
+
 void PrefilterBlobs::split_big(
+    Frame_t frame_index,
     std::vector<pv::BlobPtr> && big_blobs,
     const BlobReceiver& _noise,
     const BlobReceiver& _regular,
@@ -132,18 +155,30 @@ void PrefilterBlobs::split_big(
     const auto cm_sq = SQR(SLOW_SETTING(cm_per_pixel));
     const auto track_ignore = FAST_SETTING(track_ignore);
     const auto track_include = FAST_SETTING(track_include);
+    const auto track_ignore_bdx = FAST_SETTING(track_ignore_bdx);
+    
+    std::optional<const msplits_t::mapped_type*> track_ignore_bdx_c;
+    if(auto it = track_ignore_bdx.find(frame_index);
+       it != track_ignore_bdx.end())
+    {
+        track_ignore_bdx_c = &it->second;
+    }
     
     std::mutex thread_mutex;
     
-    auto check_blob = [&track_ignore, &track_include](const pv::Blob& b) {
-        if (!track_ignore.empty()) {
+    auto check_blob = [frame_index, &track_ignore, &track_include, &track_ignore_bdx_c](const pv::Blob& b) {
+        if (not track_ignore.empty()) {
             if (blob_matches_shapes(b, track_ignore))
                 return false;
         }
 
-        if (!track_include.empty()) {
-            if (!blob_matches_shapes(b, track_include))
+        if (not track_include.empty()) {
+            if (not blob_matches_shapes(b, track_include))
                 return false;
+        }
+        
+        if(is_blob_ignored(frame_index, b, track_ignore_bdx_c)) {
+            return false;
         }
         
         return true;

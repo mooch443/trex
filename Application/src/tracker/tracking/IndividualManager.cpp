@@ -152,6 +152,8 @@ void IndividualManager::assign_blob_individual(const AssignInfo& info, Individua
     _assign(fish->identity().ID(), bdx);
     become_active(fish);
     
+    //Print(" * Assigning ", blob->blob_id(), " to ", fish->identity());
+    
     if (FAST_SETTING(calculate_posture)) {
         need_postures.push({fish, basic.get(), std::move(blob)});
     } else

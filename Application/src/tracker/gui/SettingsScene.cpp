@@ -399,7 +399,7 @@ struct SettingsScene::Data {
                         auto f = WorkProgress::add_queue("", [this, copy = get_changed_props()]() {
                             Print("changed props = ", copy.keys());
                             sprite::Map before = GlobalSettings::map();
-                            sprite::Map defaults = GlobalSettings::current_defaults();
+                            sprite::Map defaults = GlobalSettings::get_current_defaults();
                             sprite::Map defaults_with_config = GlobalSettings::current_defaults_with_config();
 
                             /// if we determine that we are actually reconverting a pv file
@@ -512,7 +512,7 @@ struct SettingsScene::Data {
                         WorkProgress::add_queue("loading...", [this, copy = get_changed_props()]() mutable
                         {
                             sprite::Map before = GlobalSettings::map();
-                            sprite::Map defaults = GlobalSettings::current_defaults();
+                            sprite::Map defaults = GlobalSettings::get_current_defaults();
                             sprite::Map defaults_with_config = GlobalSettings::current_defaults_with_config();
                             
                             copy.register_callbacks({

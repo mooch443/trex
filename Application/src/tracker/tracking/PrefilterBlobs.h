@@ -81,6 +81,7 @@ public:
     void big_blob(pv::BlobPtr&& b);
     
     static void split_big(
+        Frame_t frame_index,
         std::vector<pv::BlobPtr> && big_blobs,
         const BlobReceiver& noise,
         const BlobReceiver& regular,
@@ -91,6 +92,7 @@ public:
     
     static bool blob_matches_shapes(const pv::Blob&, const std::vector<std::vector<Vec2>>&);
     static bool rect_overlaps_shapes(const Bounds&, const std::vector<std::vector<Vec2>>&);
+    static bool is_blob_ignored(Frame_t frame_index, const pv::Blob&, const std::optional<const std::set<pv::bid>*>& track_ignore_bdx_c);
 };
 
 }
