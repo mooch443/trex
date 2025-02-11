@@ -80,30 +80,12 @@ TRex parameters
 
 
 
-.. function:: app_last_update_check(uint64)
-
-	**default value:** 0
-
-
-	Time-point of when the application has last checked for an update.
-
-
-
 .. function:: app_last_update_version(string)
 
 	**default value:** ""
 
 
 	
-
-
-
-.. function:: app_name(string)
-
-	**default value:** "TRex"
-
-
-	Name of the application.
 
 
 
@@ -202,15 +184,6 @@ TRex parameters
 
 
 
-.. function:: auto_tags_on_startup(bool)
-
-	**default value:** false
-
-
-	Used internally by the software.
-
-
-
 .. function:: auto_train(bool)
 
 	**default value:** false
@@ -228,16 +201,6 @@ TRex parameters
 	If set to true, setting ``auto_train`` will only train and not apply the trained network.
 
 	.. seealso:: :param:`auto_train`
-
-
-.. function:: auto_train_on_startup(bool)
-
-	**default value:** false
-
-
-	This is a parameter that is used by the system to determine whether ``auto_train`` was set on startup, and thus also whether a failure of ``auto_train`` should result in a crash (return code != 0).
-
-	.. seealso:: :param:`auto_train`, :param:`auto_train`
 
 
 .. function:: average_samples(uint)
@@ -323,51 +286,6 @@ TRex parameters
 
 
 	Enables a special mode that will 1. truncate all difference values below threshold, 2. blur the remaining difference, 3. threshold again.
-
-
-
-.. function:: build(string)
-
-	**default value:** ""
-
-
-	Current build version
-
-
-
-.. function:: build_architecture(string)
-
-	**default value:** "arm64"
-
-
-	The architecture this executable was built for.
-
-
-
-.. function:: build_cxx_options(string)
-
-	**default value:** " -fvisibility-inlines-hidden -fvisibility=hidden -fstrict-aliasing -Wno-c++98-compat-pedantic -Wall -Wextra -pedantic -Wmove -Werror=return-stack-address -Wthread-safety -O3 -DNDEBUG -DNDEBUG -mcpu=apple-m1 -O3 -flto -Wno-nullability-extension"
-
-
-	The mode the application was built in.
-
-
-
-.. function:: build_is_debug(string)
-
-	**default value:** "dbgrelease"
-
-
-	If built in debug mode, this will show 'debug'.
-
-
-
-.. function:: build_type(string)
-
-	**default value:** "$<$<CONFIG:Debug>:Release>$<$<CONFIG:Release>:Debug>"
-
-
-	The mode the application was built in.
 
 
 
@@ -512,15 +430,6 @@ TRex parameters
 	.. seealso:: :param:`meta_real_width`
 
 
-.. function:: cmd_line(string)
-
-	**default value:** ""
-
-
-	An approximation of the command-line arguments passed to the program.
-
-
-
 .. function:: color_channel(uchar)
 
 	**default value:** 1
@@ -649,22 +558,12 @@ TRex parameters
 
 
 
-.. function:: detect_resolution(DetectResolution)
-
-	**default value:** [640,640]
-
-
-	The input resolution of the object detection model (``detect_model``).
-
-	.. seealso:: :param:`detect_model`
-
-
 .. function:: detect_size_filter(SizeFilters)
 
 	**default value:** []
 
 
-	During conversion (using background subtraction) objects outside this size range will be filtered out. If empty, all objects will be accepted.
+	During the detection phase, objects outside this size range will be filtered out. If empty, no objects will be filtered out.
 
 
 
@@ -684,6 +583,16 @@ TRex parameters
 
 	Threshold to be applied to the input image to find blobs.
 
+
+
+.. function:: detect_threshold_is_absolute(bool)
+
+	**default value:** true
+
+
+	If enabled, uses absolute difference values and disregards any pixel |p| < ``threshold`` during conversion. Otherwise the equation is p < ``threshold``, meaning that e.g. bright spots may not be considered trackable when dark spots would. Same as ``track_threshold_is_absolute``, but during conversion instead of tracking.
+
+	.. seealso:: :param:`track_threshold_is_absolute`
 
 
 .. function:: detect_tile_image(uchar)
@@ -714,16 +623,6 @@ TRex parameters
 
 
 
-.. function:: detect_threshold_is_absolute(bool)
-
-	**default value:** true
-
-
-	If enabled, uses absolute difference values and disregards any pixel |p| < ``threshold`` during conversion. Otherwise the equation is p < ``threshold``, meaning that e.g. bright spots may not be considered trackable when dark spots would. Same as ``track_threshold_is_absolute``, but during conversion instead of tracking.
-
-	.. seealso:: :param:`track_threshold_is_absolute`
-
-
 .. function:: enable_difference(bool)
 
 	**default value:** true
@@ -749,15 +648,6 @@ TRex parameters
 
 
 	Equalizes the histogram of the image before thresholding and background subtraction.
-
-
-
-.. function:: error_terminate(bool)
-
-	**default value:** false
-
-
-	
 
 
 
@@ -1091,15 +981,6 @@ TRex parameters
 
 
 
-.. function:: gui_foi_types(array<string>)
-
-	**default value:** []
-
-
-	A list of all the foi types registered.
-
-
-
 .. function:: gui_frame(frame)
 
 	**default value:** 0
@@ -1126,24 +1007,6 @@ TRex parameters
 
 
 	If enabled, categories (if applied in the video) will be highlighted in the tracking view.
-
-
-
-.. function:: gui_interface_scale(float)
-
-	**default value:** 1
-
-
-	Scales the whole interface. A value greater than 1 will make it smaller.
-
-
-
-.. function:: gui_is_recording(bool)
-
-	**default value:** false
-
-
-	Is set to true when recording is active.
 
 
 
@@ -1194,7 +1057,7 @@ TRex parameters
 
 .. function:: gui_pose_smoothing(frame)
 
-	**default value:** 5
+	**default value:** 0
 
 
 	Blending between the current and previous / future frames for displaying smoother poses in the graphical user-interface. This does not affect data output.
@@ -1579,16 +1442,6 @@ TRex parameters
 
 
 
-.. function:: gui_source_video_frame(frame)
-
-	**default value:** 0
-
-
-	Best information the system has on which frame index in the original video the given ``gui_frame`` corresponds to (integrated into the pv file starting from V_9).
-
-	.. seealso:: :param:`gui_frame`
-
-
 .. function:: gui_timeline_alpha(uchar)
 
 	**default value:** 200
@@ -1840,15 +1693,6 @@ TRex parameters
 
 
 
-.. function:: track_ignore_bdx(map<frame,set<blob>>)
-
-	**default value:** {}
-
-
-	This is a map of frame -> [bdx0, bdx1, ...] of blob ids that are specifically set to be ignored in the given frame. Can be reached using the GUI by clicking on a blob in raw mode.
-
-
-
 .. function:: manual_matches(map<frame,map<Idx_t,blob>>)
 
 	**default value:** {}
@@ -1885,6 +1729,16 @@ TRex parameters
 
 
 
+.. function:: match_min_probability(float)
+
+	**default value:** 0.1
+
+
+	The probability below which a possible connection between blob and identity is considered too low. The probability depends largely upon settings like ``track_max_speed``.
+
+	.. seealso:: :param:`track_max_speed`
+
+
 .. function:: match_mode(matching_mode_t)
 
 	**default value:** automatic
@@ -1902,40 +1756,12 @@ TRex parameters
 
 
 
-.. function:: match_min_probability(float)
-
-	**default value:** 0.1
-
-
-	The probability below which a possible connection between blob and identity is considered too low. The probability depends largely upon settings like ``track_max_speed``.
-
-	.. seealso:: :param:`track_max_speed`
-
-
 .. function:: meta_age_days(int)
 
 	**default value:** -1
 
 
 	Age of the individuals used in days.
-
-
-
-.. function:: meta_build(string)
-
-	**default value:** ""
-
-
-	The current commit hash. The video is branded with this information for later inspection of errors that might have occured.
-
-
-
-.. function:: meta_cmd(string)
-
-	**default value:** ""
-
-
-	Command-line of the framegrabber when conversion was started.
 
 
 
@@ -2113,7 +1939,7 @@ TRex parameters
 	**default value:** 0
 
 
-	Applies a compression to the outlines generated by segmentation models. Walking around the outline, it removes line segments that do not introduce any noticable change in direction. The factor specified here controls how much proportional difference in radians/angle is allowed. The value isnt in real radians, as the true downsampling depends on the size of the object (smaller objects = smaller differences allowed).
+	Applies a *lossy* compression to the outlines generated by segmentation models. Walking around the outline, it removes line segments that do not introduce any noticable change in direction. The factor specified here controls how much proportional difference in radians/angle is allowed. The value isnt in real radians, as the true downsampling depends on the size of the object (smaller objects = smaller differences allowed).
 
 
 
@@ -2171,6 +1997,16 @@ TRex parameters
 
 
 
+.. function:: output_auto_pose(bool)
+
+	**default value:** true
+
+
+	If this is set to false, then no poseX[n] and poseY[n] fields will automatically be added to the ``output_fields`` based on what the keypoint model reports. You can still manually add them if you like.
+
+	.. seealso:: :param:`output_fields`
+
+
 .. function:: output_centered(bool)
 
 	**default value:** false
@@ -2211,7 +2047,7 @@ TRex parameters
 
 .. function:: output_fields(array<pair<string,array<string>>>)
 
-	**default value:** [["X",["RAW","WCENTROID"]],["Y",["RAW","WCENTROID"]],["X",["RAW","HEAD"]],["Y",["RAW","HEAD"]],["VX",["RAW","HEAD"]],["VY",["RAW","HEAD"]],["AX",["RAW","HEAD"]],["AY",["RAW","HEAD"]],["ANGLE",["RAW"]],["ANGULAR_V",["RAW"]],["ANGULAR_A",["RAW"]],["MIDLINE_OFFSET",["RAW"]],["normalized_midline",["RAW"]],["midline_length",["RAW"]],["midline_x",["RAW"]],["midline_y",["RAW"]],["midline_segment_length",["RAW"]],["SPEED",["RAW","WCENTROID"]],["SPEED",["RAW","PCENTROID"]],["SPEED",["RAW","HEAD"]],["BORDER_DISTANCE",["PCENTROID"]],["time",[]],["timestamp",[]],["frame",[]],["missing",[]],["num_pixels",[]],["ACCELERATION",["RAW","PCENTROID"]],["ACCELERATION",["RAW","WCENTROID"]],["poseX0",["RAW"]],["poseY0",["RAW"]],["poseX1",["RAW"]],["poseY1",["RAW"]],["poseX2",["RAW"]],["poseY2",["RAW"]],["poseX3",["RAW"]],["poseY3",["RAW"]],["poseX4",["RAW"]],["poseY4",["RAW"]],["poseX5",["RAW"]],["poseY5",["RAW"]],["poseX6",["RAW"]],["poseY6",["RAW"]],["poseX7",["RAW"]],["poseY7",["RAW"]],["poseX8",["RAW"]],["poseY8",["RAW"]],["poseX9",["RAW"]],["poseY9",["RAW"]],["poseX10",["RAW"]],["poseY10",["RAW"]],["poseX11",["RAW"]],["poseY11",["RAW"]],["poseX12",["RAW"]],["poseY12",["RAW"]],["poseX13",["RAW"]],["poseY13",["RAW"]],["poseX14",["RAW"]],["poseY14",["RAW"]],["poseX15",["RAW"]],["poseY15",["RAW"]],["poseX16",["RAW"]],["poseY16",["RAW"]]]
+	**default value:** [["X",["RAW","WCENTROID"]],["Y",["RAW","WCENTROID"]],["X",["RAW","HEAD"]],["Y",["RAW","HEAD"]],["VX",["RAW","HEAD"]],["VY",["RAW","HEAD"]],["AX",["RAW","HEAD"]],["AY",["RAW","HEAD"]],["ANGLE",["RAW"]],["ANGULAR_V",["RAW"]],["ANGULAR_A",["RAW"]],["MIDLINE_OFFSET",["RAW"]],["normalized_midline",["RAW"]],["midline_length",["RAW"]],["midline_x",["RAW"]],["midline_y",["RAW"]],["midline_segment_length",["RAW"]],["SPEED",["RAW","WCENTROID"]],["SPEED",["RAW","PCENTROID"]],["SPEED",["RAW","HEAD"]],["BORDER_DISTANCE",["PCENTROID"]],["time",[]],["timestamp",[]],["frame",[]],["missing",[]],["num_pixels",[]],["ACCELERATION",["RAW","PCENTROID"]],["ACCELERATION",["RAW","WCENTROID"]]]
 
 
 	The functions that will be exported when saving to CSV, or shown in the graph. ``[['X',[option], ...]]``
@@ -2542,16 +2378,6 @@ TRex parameters
 
 
 
-.. function:: region_resolution(DetectResolution)
-
-	**default value:** [640,640]
-
-
-	The resolution of the region proposal network (``region_model``).
-
-	.. seealso:: :param:`region_model`
-
-
 .. function:: reset_average(bool)
 
 	**default value:** false
@@ -2801,24 +2627,6 @@ TRex parameters
 
 
 
-.. function:: terminate(bool)
-
-	**default value:** false
-
-
-	If set to true, the application terminates.
-
-
-
-.. function:: terminate_error(bool)
-
-	**default value:** false
-
-
-	Internal variable.
-
-
-
 .. function:: terminate_training(bool)
 
 	**default value:** false
@@ -2857,16 +2665,6 @@ TRex parameters
 	.. seealso:: :param:`track_threshold_2`
 
 
-.. function:: track_threshold_is_absolute(bool)
-
-	**default value:** true
-
-
-	If enabled, uses absolute difference values and disregards any pixel |p| < ``threshold`` during conversion. Otherwise the equation is p < ``threshold``, meaning that e.g. bright spots may not be considered trackable when dark spots would. Same as ``detect_threshold_is_absolute``, but during tracking instead of converting.
-
-	.. seealso:: :param:`detect_threshold_is_absolute`
-
-
 .. function:: track_background_subtraction(bool)
 
 	**default value:** false
@@ -2874,6 +2672,7 @@ TRex parameters
 
 	If enabled, objects in .pv videos will first be contrasted against the background before thresholding (background_colors - object_colors). ``track_threshold_is_absolute`` then decides whether this term is evaluated in an absolute or signed manner.
 
+	.. seealso:: :param:`track_threshold_is_absolute`
 
 
 .. function:: track_conf_threshold(float)
@@ -2922,6 +2721,15 @@ TRex parameters
 
 
 
+.. function:: track_ignore_bdx(map<frame,set<blob>>)
+
+	**default value:** {}
+
+
+	This is a map of frame -> [bdx0, bdx1, ...] of blob ids that are specifically set to be ignored in the given frame. Can be reached using the GUI by clicking on a blob in raw mode.
+
+
+
 .. function:: track_include(array<array<vec>>)
 
 	**default value:** []
@@ -2943,7 +2751,7 @@ TRex parameters
 
 .. function:: track_max_individuals(uint)
 
-	**default value:** 0
+	**default value:** 1024
 
 
 	The maximal number of individual that are assigned at the same time (infinite if set to zero). If the given number is below the actual number of individual, then only a (random) subset of individual are assigned and a warning is shown.
@@ -3054,6 +2862,16 @@ TRex parameters
 	.. seealso:: :param:`threshold_ratio_range`
 
 
+.. function:: track_threshold_is_absolute(bool)
+
+	**default value:** true
+
+
+	If enabled, uses absolute difference values and disregards any pixel |p| < ``threshold`` during conversion. Otherwise the equation is p < ``threshold``, meaning that e.g. bright spots may not be considered trackable when dark spots would. Same as ``detect_threshold_is_absolute``, but during tracking instead of converting.
+
+	.. seealso:: :param:`detect_threshold_is_absolute`
+
+
 .. function:: track_time_probability_enabled(bool)
 
 	**default value:** true
@@ -3157,30 +2975,12 @@ TRex parameters
 
 
 
-.. function:: version(string)
-
-	**default value:** "v1.1.9-1233-g7d4ca84c_dev"
-
-
-	Current application version.
-
-
-
 .. function:: video_conversion_range(range<int>)
 
 	**default value:** [-1,-1]
 
 
 	This determines which part of the video will be converted. By default (``[-1,-1]``) the entire video will be converted. If set to a valid value (not -1), start and end values determine the range converted (each one can be valid independently of the other).
-
-
-
-.. function:: video_info(string)
-
-	**default value:** ""
-
-
-	Information on the current video as provided by PV.
 
 
 
@@ -3289,15 +3089,6 @@ TRex parameters
 
 	Newer versions of TRex sometimes change the network layout for (e.g.) visual identification, which will make them incompatible with older trained models. This parameter allows you to change the expected version back, to ensure backwards compatibility. It also features many public network layouts available from the Keras package. In case training results do not match expectations, please first check the quality of your trajectories before trying out different network layouts.
 
-
-
-
-.. function:: wd(path)
-
-	**default value:** ""
-
-
-	Working directory that the software was started from (defaults to the user directory).
 
 
 
