@@ -81,6 +81,7 @@ namespace globals {
         (bool, gui_show_heatmap),
         (bool, gui_show_number_individuals),
         (bool, gui_show_dataset),
+        (bool, gui_show_uniqueness),
         (bool, gui_show_recognition_summary),
         (bool, gui_show_visualfield),
         (bool, gui_show_visualfield_ts),

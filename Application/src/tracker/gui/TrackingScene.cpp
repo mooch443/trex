@@ -40,6 +40,7 @@
 #include <grabber/misc/default_config.h>
 #include <gui/GuiSettings.h>
 #include <gui/PreviewAdapterElement.h>
+#include <gui/DrawUniqueness.h>
 
 using namespace track;
 
@@ -51,6 +52,7 @@ struct TrackingScene::Data {
     std::unique_ptr<GUICache> _cache;
     std::unique_ptr<DrawDataset> _dataset;
     std::unique_ptr<DrawExportOptions> _export_options;
+    std::unique_ptr<DrawUniqueness> _uniqueness;
     
     /// these will help updating some visual stuff whenever
     /// the tracker has added a new frame:
@@ -1161,6 +1163,14 @@ void TrackingScene::_draw(DrawStructure& graph) {
         }
         
         _data->_export_options->draw(graph, _state.get());
+    }
+    
+    if(GUI_SETTINGS(gui_show_uniqueness)) {
+        if(not _data->_uniqueness) {
+            _data->_uniqueness = std::make_unique<DrawUniqueness>(_data->_cache.get(), _state->video);
+        }
+        
+        graph.wrap_object(*_data->_uniqueness);
     }
     
     //if(not graph.root().is_dirty() && not graph.root().is_animating())
