@@ -2264,9 +2264,6 @@ void Tracker::update_iterator_maps(Frame_t frame, const set_of_individuals_t& ac
         if(all_good) {
             if(!_consecutive.empty() && _consecutive.back().end == frameIndex - 1_f) {
                 _consecutive.back().end = frameIndex;
-                if(frameIndex == analysis_range().end()) {
-                    DatasetQuality::update();
-                }
             } else {
                 if(!_consecutive.empty()) {
                     FOI::add(FOI(_consecutive.back(), "global tracklet"));
@@ -2277,6 +2274,14 @@ void Tracker::update_iterator_maps(Frame_t frame, const set_of_individuals_t& ac
                     DatasetQuality::update();
                 }
             }
+        }
+        
+        if(frameIndex == analysis_range().end()
+           && update_dataset)
+        {
+            global_tracklet_order_changed();
+            global_tracklet_order();
+            DatasetQuality::update();
         }
     }
 

@@ -217,7 +217,7 @@ bool TrackingState::stage_1(ConnectedTasks::Type && ptr) {
                                 : 0_f)
            == idx
         && tracker->properties(idx) == nullptr
-        && idx <= Tracker::analysis_range().end())
+        && idx <= range.end())
     {
         tracker->add(*ptr);
 
@@ -225,13 +225,14 @@ bool TrackingState::stage_1(ConnectedTasks::Type && ptr) {
         TakeTiming after_trackt(after_track);
         
         if(idx + 1_f == video->length()
-           || idx + 1_f > Tracker::analysis_range().end())
+           || idx + 1_f > range.end())
         {
             on_tracking_done();
         }
         
         static Timer last_added;
         if(last_added.elapsed() > 10) {
+            tracker->global_tracklet_order_changed();
             tracker->global_tracklet_order();
             last_added.reset();
         }
@@ -415,6 +416,7 @@ void TrackingState::on_tracking_done() {
     addSafeTask("", [this](){
         analysis.set_paused(true).get();
         
+        tracker->global_tracklet_order_changed();
         tracker->global_tracklet_order();
         track::DatasetQuality::update();
         
