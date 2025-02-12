@@ -129,6 +129,8 @@ namespace globals {
     
     class GUICache {
         GETTER_NCONST(GenericThreadPool, pool);
+        
+        mutable std::shared_mutex _next_frame_cache_mutex, _tracklet_cache_mutex;
         std::unordered_map<Idx_t, IndividualCache> _next_frame_caches;
         std::unordered_map<Idx_t, std::tuple<bool, FrameRange>> _processed_tracklet_caches;
         std::unordered_map<Idx_t, std::shared_ptr<track::TrackletInformation>> _tracklet_caches;
@@ -163,6 +165,7 @@ namespace globals {
         size_t _num_pixels = 0;
 
         Frame_t frame_idx;
+        std::optional<std::size_t> _delete_frame_callback;
         
         bool _frame_contained{false};
         std::optional<FrameProperties> _props;

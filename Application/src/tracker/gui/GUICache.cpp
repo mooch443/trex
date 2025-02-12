@@ -75,6 +75,14 @@ std::unique_ptr<PPFrame> GUICache::PPFrameMaker::operator()() const {
     }
 
     GUICache::~GUICache() {
+        if(_delete_frame_callback) {
+            LockGuard guard(ro_t{}, "Delete Frame Callback Delete");
+            if(Tracker::instance()) {
+                Tracker::instance()->unregister_delete_callback(*_delete_frame_callback);
+            }
+            _delete_frame_callback.reset();
+        }
+        
         _fish_map.clear();
         display_blobs.clear();
         raw_blobs.clear();
@@ -461,6 +469,21 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
         
         auto& _tracker = *Tracker::instance();
         frame_idx = frameIndex;
+        
+        if(not _delete_frame_callback) {
+            _delete_frame_callback = _tracker.register_delete_callback([this](){
+                {
+                    std::unique_lock guard(_tracklet_cache_mutex);
+                    _processed_tracklet_caches.clear();
+                    _tracklet_caches.clear();
+                }
+                
+                {
+                    std::unique_lock guard(_next_frame_cache_mutex);
+                    _next_frame_caches.clear();
+                }
+            });
+        }
         
         {
             auto lock = _video.lock();
@@ -1154,7 +1177,7 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
                 std::vector<Idx_t> ids_to_check;
                 
                 {
-                    std::unique_lock guard(_fish_map_mutex);
+                    std::scoped_lock guard(_fish_map_mutex, _next_frame_cache_mutex);
                     for (auto it = _fish_map.begin(); it != _fish_map.end();) {
                         if (not ids.contains(it->first)) {
                             //Print("erasing from map ", it->first);
@@ -1168,6 +1191,7 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
                 }
                 
                 if(_props && _next_props) {
+                    std::scoped_lock guard(individuals_mutex, _next_frame_cache_mutex, _tracklet_cache_mutex);
                     auto current_time = _props->time();
                     auto next_props = _next_props ? &_next_props.value() : nullptr;
                     auto next_time = next_props ? next_props->time() : (current_time + 1.f/float(GUI_SETTINGS(frame_rate)));
@@ -1186,7 +1210,6 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
                             ++it;
                     }
                     
-                    std::unique_lock guard(individuals_mutex);
                     distribute_indexes([this, &map_mutex, next_time, frameIndex](int64_t, auto start, auto end, int64_t)
                     {
                         for(auto it = start; it != end; ++it) {
@@ -1331,6 +1354,7 @@ std::optional<std::vector<float>> GUICache::find_prediction(pv::bid bdx) const {
 
 std::optional<const IndividualCache*> GUICache::next_frame_cache(Idx_t id) const
 {
+    std::shared_lock guard(_next_frame_cache_mutex);
     auto it = _next_frame_caches.find(id);
     if(it != _next_frame_caches.end()) {
         return &it->second;
@@ -1340,6 +1364,7 @@ std::optional<const IndividualCache*> GUICache::next_frame_cache(Idx_t id) const
 
 std::tuple<bool, FrameRange> GUICache::processed_tracklet_cache(Idx_t id) const
 {
+    std::shared_lock guard(_tracklet_cache_mutex);
     auto it = _processed_tracklet_caches.find(id);
     if(it != _processed_tracklet_caches.end()) {
         return it->second;
@@ -1349,6 +1374,7 @@ std::tuple<bool, FrameRange> GUICache::processed_tracklet_cache(Idx_t id) const
 
 std::shared_ptr<track::TrackletInformation> GUICache::tracklet_cache(Idx_t id) const
 {
+    std::shared_lock guard(_tracklet_cache_mutex);
     auto it = _tracklet_caches.find(id);
     if(it != _tracklet_caches.end()) {
         return it->second;

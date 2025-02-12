@@ -43,7 +43,7 @@ define('ALLOWED_DOMAIN', 'trex.run');
  *
  * In the example given: `https://example.com/docs/docs2/run.html`
  */
-define('DOCS_SUBFOLDER', '/docs/docs2');
+define('DOCS_SUBFOLDER', '/docs/beta');
 
 // --------------------------------------------------------------------------
 

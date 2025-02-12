@@ -2438,6 +2438,8 @@ void Tracker::update_iterator_maps(Frame_t frame, const set_of_individuals_t& ac
         VisualField::remove_frames_after(frameIndex);
         FOI::remove_frames(frameIndex);
         
+        _delete_frame_callbacks.callAll();
+        
         global_tracklet_order_changed();
         
         Print("After removing frames: ", gui::CacheObject::memory());
