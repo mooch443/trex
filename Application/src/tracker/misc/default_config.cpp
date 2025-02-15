@@ -664,6 +664,8 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("gui_show_boundary_crossings", true, "If set to true (and the number of individuals is set to a number > 0), the tracker will show whenever an individual enters the recognition boundary. Indicated by an expanding cyan circle around it.");
         CONFIG("gui_show_detailed_probabilities", false, "Show/hide detailed probability stats when an individual is selected.");
         CONFIG("gui_playback_speed", float(1.f), "Playback speed when pressing SPACE.");
+        CONFIG("gui_wait_for_background", true, "Sacrifice video playback speed to wait for the background video the load in. This only applies if the background is actually displayed (`gui_show_video_background`).");
+        CONFIG("gui_wait_for_pv", true, "Sacrifice video playback speed to wait for the pv file the load in.");
         CONFIG("gui_show_midline_histogram", false, "Displays a histogram for midline lengths.");
         CONFIG("gui_auto_scale", false, "If set to true, the tracker will always try to zoom in on the whole group. This is useful for some individuals in a huge video (because if they are too tiny, you cant see them and their posture anymore).");
         CONFIG("gui_auto_scale_focus_one", true, "If set to true (and `gui_auto_scale` set to true, too), the tracker will zoom in on the selected individual, if one is selected.");

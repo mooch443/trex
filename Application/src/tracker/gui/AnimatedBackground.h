@@ -49,6 +49,9 @@ class AnimatedBackground : public Entangled {
     //Image::Ptr _next_image;
     std::future<Image::Ptr> _next_frame;
     bool gui_show_video_background{true};
+    bool _enable_fade{true};
+    
+    GETTER(Frame_t, displayed_frame);
     
     FramePreloader<Image::Ptr> preloader;
     std::atomic<bool> _strict{false};
@@ -70,6 +73,7 @@ public:
     
     void set_strict(bool v) { _strict = v; }
     void set_video_scale(float);
+    void set_enable_fade(bool v) { _enable_fade = v; }
     
     void set_undistortion(std::optional<std::vector<double>> &&cam_matrix,
                           std::optional<std::vector<double>> &&undistort_vector);

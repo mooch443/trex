@@ -999,7 +999,7 @@ bool Fish::setup_rotated_bbx(const FindCoord& coords, const Vec2& offset, const 
     //Print(_id, ": corners_changed = ", corners_changed);
     
     /// upsample points if we have them
-    if(corners_changed || _frame_change.elapsed() < 0.2_F) {
+    if(corners_changed || _frame_change.elapsed() < 0.4_F) {
         auto corners = _current_corners;
         insertUniformPoints(corners, 50);
         
@@ -1036,7 +1036,7 @@ bool Fish::setup_rotated_bbx(const FindCoord& coords, const Vec2& offset, const 
         
         auto circle_area = M_PI * SQR(_radius);
         
-        if(_frame_change.elapsed() >= 0.05_F && (poly_area < circle_area * 0.75 || not _basic_stuff.has_value() || _basic_stuff->frame != _frame ))
+        if(_frame_change.elapsed() >= 0.15_F && (poly_area < circle_area * 0.75 || not _basic_stuff.has_value() || _basic_stuff->frame != _frame ))
         {
             // ok
         } else {
@@ -1066,7 +1066,7 @@ bool Fish::setup_rotated_bbx(const FindCoord& coords, const Vec2& offset, const 
     auto &poly = std::get<Polygon>(_selection);
     
     auto finished = morphVectorsWithRotation(_current_points, _cached_points, GUICache::instance().dt() * 1.25_F, 1_F);
-    if(finished && _frame_change.elapsed() >= 0.1_F) {
+    if(finished && _frame_change.elapsed() >= 0.5_F) {
         //Print("done with ",_id,".");
         poly.set_animating(false);
     } else {

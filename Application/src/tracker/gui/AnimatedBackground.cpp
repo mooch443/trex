@@ -297,6 +297,8 @@ void AnimatedBackground::before_draw() {
         //! in case we got an image / loading was ready,
         //! we need to potentially convert color and display it.
         if(image) {
+            _displayed_frame = Frame_t((uint32_t)image->index());
+            
             /// pre-cache a greyscale image in case we need it...
             Image::Ptr grey = grey_buffers.get(source_location::current());
             if(not grey
@@ -351,19 +353,24 @@ void AnimatedBackground::before_draw() {
     }
     
     _fade = saturate(_fade + diff, 0.0, 1.0);
+    
+    if(not _enable_fade)
+        _fade = 1.0;
 
     // fade image to grayscale by _fade percent
     if(not _static_image.empty()
        && is_in(_static_image.source()->channels(), 3u, 4u)
        && abs(_fade - _target_fade) > 0.01)
     {
-        _static_image.set_color(_tint.alpha(255 * _fade));
-        _grey_image.set_color(_static_image.color().alpha(255 * (_is_greyscale ? 0.5 : 1) * (1.0 - _fade)));
         //Print("Animating... ", _fade, " with dt=",dt);
         set_animating(true);
         
-    } else
+    } else {
         set_animating(false);
+    }
+
+    _static_image.set_color(_tint.alpha(255 * _fade));
+    _grey_image.set_color(_static_image.color().alpha(255 * (_is_greyscale ? 0.5 : 1) * (1.0 - _fade)));
     
     _fade_timer.reset();
     

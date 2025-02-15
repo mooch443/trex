@@ -448,41 +448,67 @@ void Segmenter::trigger_average_generator(bool do_generate_average, cv::Mat& bg)
         {
             cv::Mat bg = cv::Mat::zeros(size.height, size.width, CV_8UC(channels));
             bg.setTo(255);
-            float last_percent = 0;
-            last_percent = 0;
             
-            VideoSource tmp(SETTING(source).value<file::PathArray>());
-            
-            /// for future purposes everything in rgb, so if the
-            /// user switches to gray later on it still works:
-            tmp.set_colors(ImageMode::RGB);
-            tmp.generate_average(bg, 0, [&last_percent, this](float percent) {
-                if(percent > last_percent + 10
-                   || percent >= 0.99)
-                {
-                    Print("[average] Generating average ", int(percent * 100), "%");
-                    last_percent = percent;
-                }
-                _average_percent = percent;
+            try {
+                float last_percent = 0;
+                last_percent = 0;
                 
-                return not _average_terminate_requested.load();
-            });
-            
-            if(not _average_terminate_requested) {
-                cv::imwrite(average_name().str(), bg);
-                Print("** generated average ", bg.channels());
-            } else {
-                Print("Aborted average image.");
+                VideoSource tmp(SETTING(source).value<file::PathArray>());
+                
+                /// for future purposes everything in rgb, so if the
+                /// user switches to gray later on it still works:
+                tmp.set_colors(ImageMode::RGB);
+                tmp.generate_average(bg, 0, [&last_percent, this](float percent) {
+                    if(percent > last_percent + 10
+                       || percent >= 0.99)
+                    {
+                        Print("[average] Generating average ", int(percent * 100), "%");
+                        last_percent = percent;
+                    }
+                    _average_percent = percent;
+                    
+                    return not _average_terminate_requested.load();
+                });
+                
+                if(not _average_terminate_requested) {
+                    cv::imwrite(average_name().str(), bg);
+                    Print("** generated average ", bg.channels());
+                } else {
+                    Print("Aborted average image.");
+                }
+                
+            } catch(const std::exception& ex) {
+                FormatExcept("Exception when generating the average image: ", ex.what());
+            } catch(...) {
+                FormatExcept("Unknown exception when generating the average image.");
             }
             
-            auto ptr = finalize_bg_image(bg);
-            auto mat = ptr->get();
-            if(detection_type() == ObjectDetectionType::background_subtraction)
-                BackgroundSubtraction::set_background(std::move(ptr));
-            callback_after_generating(mat);
+            Image::Ptr ptr;
+            cv::Mat mat;
+            
+            try {
+                ptr = finalize_bg_image(bg);
+                mat = ptr->get();
+                if(detection_type() == ObjectDetectionType::background_subtraction)
+                    BackgroundSubtraction::set_background(std::move(ptr));
+                
+            } catch(const std::exception& ex) {
+                FormatExcept("Exception when finalizing the average image: ", ex.what());
+            } catch(...) {
+                FormatExcept("Unknown exception when finalizing the average image.");
+            }
+            
+            try {
+                callback_after_generating(mat);
+            } catch(const std::exception& ex) {
+                FormatExcept("Exception in callback: ", ex.what());
+            } catch(...) {
+                FormatExcept("Unknown exception in callback.");
+            }
             
             // in case somebody is waiting on us:
             average_variable.notify_all();
+            Print("Average image terminated.");
         });
         
         /// if background subtraction is disabled for tracking, we don't need to
@@ -500,10 +526,28 @@ void Segmenter::trigger_average_generator(bool do_generate_average, cv::Mat& bg)
         }
         
     } else {
-        auto ptr = finalize_bg_image(bg);
-        auto mat = ptr->get();
-        BackgroundSubtraction::set_background(std::move(ptr));
-        callback_after_generating(mat);
+        Image::Ptr ptr;
+        cv::Mat mat;
+        
+        try {
+            ptr = finalize_bg_image(bg);
+            mat = ptr->get();
+            BackgroundSubtraction::set_background(std::move(ptr));
+            
+        } catch(const std::exception& ex) {
+            FormatExcept("Exception when finalizing the average image: ", ex.what());
+        } catch(...) {
+            FormatExcept("Unknown exception when finalizing the average image.");
+        }
+        
+        try {
+            callback_after_generating(mat);
+            
+        } catch(const std::exception& ex) {
+            FormatExcept("Exception in callback: ", ex.what());
+        } catch(...) {
+            FormatExcept("Unknown exception in callback.");
+        }
     }
 }
 
@@ -1045,7 +1089,11 @@ void Segmenter::stop_average_generator(bool blocking) {
         if(average_generator.valid()
             && average_generator.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready)
         {
-            average_generator.get();
+            try {
+                average_generator.get();
+            } catch(const std::exception& ex) {
+                FormatExcept("Average generator: ", ex.what());
+            }
         }
         
         return;
@@ -1065,8 +1113,13 @@ void Segmenter::stop_average_generator(bool blocking) {
         average_variable.wait_for(guard, std::chrono::milliseconds(10));
     }
     
-    if(average_generator.valid())
-        average_generator.get();
+    if(average_generator.valid()) {
+        try {
+            average_generator.get();
+        } catch(const std::exception& ex) {
+            FormatExcept("Average generator: ", ex.what());
+        }
+    }
 }
 
 std::optional<SegmentationData> UninterruptableStep::transfer_data() {

@@ -532,10 +532,16 @@ void TrackingScene::activate() {
         "heatmap_normalization", "heatmap_frames",
         "heatmap_source",
         
-        "output_prefix"
+        "output_prefix",
+        
+        "gui_wait_for_background"
         
     }, [this](std::string_view key) {
-        if(is_in(key, 
+        if(key == "gui_wait_for_background") {
+            //if(_data && _data->_background)
+               // _data->_background->set_strict(SETTING(gui_wait_for_background).value<bool>());
+        }
+        else if(is_in(key,
                  "cam_matrix",
                  "cam_undistort",
                  "cam_undistort_vector"))
@@ -797,73 +803,129 @@ void TrackingScene::set_frame(Frame_t frameIndex) {
     }
 }
 
+/**
+ * Update the run loop for the tracking scene.
+ *
+ * This function updates the playback frame based on elapsed time and GUI settings,
+ * handling both recording (fixed dt) and non-recording (elapsed dt) modes.
+ */
 void TrackingScene::update_run_loop() {
-    //if(!recording())
-    if(not _data || not _data->_cache)
+    const auto redraw_dt = last_redraw.elapsed();
+    last_redraw.reset();  /// Restart the timer for the next frame.
+    
+    /// Ensure required data is available.
+    if (not _data || not _data->_cache)
         return;
     
+    /// Cache frequently used GUI settings.
     const uint32_t gui_playback_speed = GUI_SETTINGS(gui_playback_speed);
-    const double frame_rate = GUI_SETTINGS(frame_rate);// * gui_playback_speed;
+    const double frame_rate = GUI_SETTINGS(frame_rate); // Frames per second.
     
-    if(_data->_recorder.recording()) {
+    // Set the time delta (dt) for frame updates.
+    if (_data->_recorder.recording()) {
+        /// For recording, use a fixed dt based on frame rate.
         _data->_cache->set_dt(1.0 / double(frame_rate));
     } else {
-        _data->_cache->set_dt(last_redraw.elapsed());
+        /// For playback, use the elapsed time since the last redraw.
+        _data->_cache->set_dt(redraw_dt);
     }
-    last_redraw.reset();
     
-    //else
-    //    _data->_cache->set_dt(0.75f / (float(GUI_SETTINGS(frame_rate))));
-    
-    if(not GUI_SETTINGS(gui_run))
+    /// Exit early if the run loop is disabled.
+    if (!GUI_SETTINGS(gui_run))
         return;
     
+    /// Retrieve current dt and the frame index.
+    /// This is based on either constant intervals or real-time,
+    /// depending on the current recording mode.
+    /// NOTE: cache->dt is used elsewhere, too.
     const auto dt = _data->_cache->dt();
     Frame_t index = GUI_SETTINGS(gui_frame);
     
-    if(_data->_recorder.recording()) {
-        if(_data->_cache)
-            _data->_cache->set_load_frames_blocking(true);
+    if (_data->_recorder.recording()) {
+        /// Recording mode: load frames synchronously.
+        _data->_cache->set_load_frames_blocking(true);
         
-        if(gui_playback_speed > 1) {
-            index += Frame_t(gui_playback_speed);
-        } else {
-            index += 1_f;
-        }
+        /// Advance the frame index by either the playback speed or one frame.
+        /// This has to be a conditional to protect against wrong user-set parameters.
+        index += (gui_playback_speed > 1)
+                    ? Frame_t(gui_playback_speed)
+                    : 1_f;
         
-        if(auto L = _state->video->length();
-           index >= L) 
+        /// If the new frame exceeds video length, clamp it and stop running.
+        if (auto L = _state->video->length();
+            index >= L)
         {
             index = L.try_sub(1_f);
             SETTING(gui_run) = false;
         }
         set_frame(index);
-        if(_data && _data->_background) {
-            if(gui_playback_speed > 1) {
-                _data->_background->set_increment(Frame_t(gui_playback_speed));
-            } else {
-                _data->_background->set_increment(1_f);
-            }
-        }
+        
+        /// Update the background increment to keep visual sync.
+        if (_data->_background)
+            _data->_background->set_increment((gui_playback_speed > 1) ? Frame_t(gui_playback_speed) : 1_f);
         
     } else {
-        if(_data->_cache)
-            _data->_cache->set_load_frames_blocking(false);
+        /// Non-recording mode: accumulate elapsed time.
+        /// Cache settings to avoid redundant calls.
+        const bool gui_wait_for_background = SETTING(gui_wait_for_background).value<bool>();
+        const bool gui_wait_for_pv = SETTING(gui_wait_for_pv).value<bool>();
+        const Frame_t gui_displayed_frame = SETTING(gui_displayed_frame).value<Frame_t>();
         
+        _data->_cache->set_load_frames_blocking(false);
         _data->_time_since_last_frame += dt;
         
-        double advances = _data->_time_since_last_frame * frame_rate;
-        if(advances >= 1) {
-            index += Frame_t(uint(advances));
-            if(auto L = _state->video->length();
-               index >= L)
-            {
-                index = L.try_sub(1_f);
-                SETTING(gui_run) = false;
+        /// Determine how many frames to advance based on the accumulated time.
+        double advances = _data->_time_since_last_frame * frame_rate * gui_playback_speed;
+        if (advances >= 1) {
+            Frame_t rounded_advances{uint32_t(std::round(advances))};
+            
+            Print("* displayed frame = ", gui_displayed_frame, " vs. ",
+                  _data->_background ? _data->_background->displayed_frame() : Frame_t(), " vs. index=", index, " advance=", rounded_advances);
+            
+            if (gui_wait_for_background) {
+                if(_data->_background)
+                    _data->_background->set_enable_fade(false);
+                
+                /// Only advance if both the GUI and background are synchronized.
+                if (not _data->_background
+                    || _data->_background->displayed_frame() != index)
+                {
+                    rounded_advances = {};
+                } else {
+                    rounded_advances = Frame_t(gui_playback_speed);
+                }
+            } else {
+                if(_data->_background)
+                    _data->_background->set_enable_fade(true);
             }
-            set_frame(index);
-            if(_data && _data->_background)
-                _data->_background->set_increment(Frame_t(uint(advances)));
+            
+            if(gui_wait_for_pv
+               && rounded_advances.valid())
+            {
+                if(gui_displayed_frame != index) {
+                    rounded_advances = {};
+                }
+            }
+            
+            if(rounded_advances.valid()) {
+                index += rounded_advances;
+                
+                /// Clamp frame index if needed.
+                if (auto L = _state->video->length();
+                    index >= L)
+                {
+                    index = L.try_sub(1_f);
+                    SETTING(gui_run) = false;
+                }
+                
+                set_frame(index);
+                
+                /// Update the background increment using the calculated advances.
+                if (_data->_background)
+                    _data->_background->set_increment(rounded_advances);
+            }
+            
+            /// Reset the accumulated time.
             _data->_time_since_last_frame = 0;
         }
     }
