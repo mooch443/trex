@@ -46,7 +46,7 @@ glz::json_t KeypointNames::to_json() const {
 std::optional<std::string> KeypointNames::name(size_t index) const {
     if(not names || names->size() <= index)
         return std::nullopt;
-    return names.value()[index] + " ("+Meta::toStr(index)+")";
+    return names.value()[index];
 }
 
 std::string KeypointFormat::toStr() const {
