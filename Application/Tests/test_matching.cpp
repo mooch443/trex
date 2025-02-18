@@ -31,6 +31,9 @@ static void resetGlobalSettings()
     // Also reset the keypoint format setting if needed.
     // Assuming KeypointFormat has a default constructor or can be reset to a default value.
     SETTING(detect_keypoint_format) = KeypointFormat{};
+    SETTING(detect_keypoint_names) = KeypointNames{};
+    
+    SETTING(output_auto_pose) = true;
 }
 
 // ------------------------------------------------------------
@@ -67,9 +70,9 @@ TEST(DefaultConfigTest, FindUserDefinedPoseFields)
 }
 
 // ------------------------------------------------------------
-//  TEST #2: list_auto_pose_fields
+//  TEST: ListAutoPoseFields (Default Naming)
 // ------------------------------------------------------------
-TEST(DefaultConfigTest, ListAutoPoseFields)
+TEST(DefaultConfigTest, ListAutoPoseFields_Default)
 {
     resetGlobalSettings();
 
@@ -78,63 +81,116 @@ TEST(DefaultConfigTest, ListAutoPoseFields)
     SETTING(detect_keypoint_format) = KeypointFormat{3, 2};
 
     // Now, list_auto_pose_fields() should generate:
-    // poseX0, poseY0, poseX1, poseY1, poseX2, poseY2.
-    auto result = list_auto_pose_fields();
+    // poseX0, poseY0, poseX1, poseY1, poseX2, poseY2 and return indexes {0, 1, 2}.
+    auto [indexes, result] = list_auto_pose_fields();
 
-    // We expect 6 items total.
+    // Verify the indexes vector.
+    ASSERT_EQ(indexes.size(), size_t(6));
+    EXPECT_EQ(indexes[0], 0u);
+    EXPECT_EQ(indexes[1], 0u);
+    EXPECT_EQ(indexes[2], 1u);
+    EXPECT_EQ(indexes[3], 1u);
+    EXPECT_EQ(indexes[4], 2u);
+    EXPECT_EQ(indexes[5], 2u);
+
+    // Verify the auto-generated pose fields.
     ASSERT_EQ(result.size(), size_t(6));
-
-    // Check that the expected fields are present.
     std::set<std::string> expected_fields = {"poseX0", "poseY0", "poseX1", "poseY1", "poseX2", "poseY2"};
-    for (auto const& [field_name, transforms] : result)
+    for (const auto& [field_name, transforms] : result)
     {
         EXPECT_TRUE(expected_fields.count(field_name)) << "Unexpected field: " << field_name;
-        // Check that each field has the "RAW" transform.
-        EXPECT_EQ(transforms.size(), size_t(1));
+        ASSERT_EQ(transforms.size(), size_t(1));
         EXPECT_EQ(transforms[0], "RAW");
     }
 }
 
 // ------------------------------------------------------------
-//  TEST #3: add_missing_pose_fields
+//  TEST: ListAutoPoseFields_WithPartialNames
+// ------------------------------------------------------------
+TEST(DefaultConfigTest, ListAutoPoseFields_WithPartialNames)
+{
+    resetGlobalSettings();
+
+    // Set the global keypoint format to 3 keypoints with 2 dimensions each.
+    SETTING(detect_keypoint_format) = KeypointFormat{3, 2};
+    // Provide keypoint names for only the first 2 keypoints.
+    SETTING(detect_keypoint_names) = KeypointNames{ std::vector<std::string>{"nose", "left_eye"}};
+
+    // Expected:
+    // Index 0: "nose_X", "nose_Y"
+    // Index 1: "left_eye_X", "left_eye_Y"
+    // Index 2: default naming "poseX2", "poseY2"
+    auto [indexes, result] = list_auto_pose_fields();
+
+    // Verify the indexes vector.
+    ASSERT_EQ(indexes.size(), size_t(6));
+    EXPECT_EQ(indexes[0], 0u);
+    EXPECT_EQ(indexes[1], 0u);
+    EXPECT_EQ(indexes[2], 1u);
+    EXPECT_EQ(indexes[3], 1u);
+    EXPECT_EQ(indexes[4], 2u);
+    EXPECT_EQ(indexes[5], 2u);
+
+    // Verify the auto-generated pose fields.
+    ASSERT_EQ(result.size(), size_t(6));
+    std::set<std::string> expected_fields = {"nose_X", "nose_Y", "left_eye_X", "left_eye_Y", "poseX2", "poseY2"};
+    for (const auto& [field_name, transforms] : result)
+    {
+        EXPECT_TRUE(expected_fields.count(field_name)) << "Unexpected field: " << field_name;
+        ASSERT_EQ(transforms.size(), size_t(1));
+        EXPECT_EQ(transforms[0], "RAW");
+    }
+}
+
+// ------------------------------------------------------------
+//  TEST: ListAutoPoseFields when auto-generation is disabled
+// ------------------------------------------------------------
+TEST(DefaultConfigTest, ListAutoPoseFields_Disabled)
+{
+    resetGlobalSettings();
+
+    // Disable auto-generation of pose fields.
+    SETTING(output_auto_pose) = false;
+
+    auto [indexes, result] = list_auto_pose_fields();
+    EXPECT_TRUE(indexes.empty());
+    EXPECT_TRUE(result.empty());
+}
+
+// ------------------------------------------------------------
+//  TEST: AddMissingPoseFields (using default naming)
 // ------------------------------------------------------------
 TEST(DefaultConfigTest, AddMissingPoseFields)
 {
     resetGlobalSettings();
 
-    // 1) The user has defined pose fields for keypoint 1 only.
+    // User has defined pose fields for keypoint index 1 only.
     SETTING(output_fields) = std::vector<std::pair<std::string, std::vector<std::string>>>{
         {"X", {"RAW"}},
         {"poseX1", {"RAW"}},
         {"poseY1", {"RAW"}}
     };
 
-    // 2) Set the global keypoint format to 3 keypoints (with 2 dimensions each)
+    // Set the global keypoint format to 3 keypoints (with 2 dimensions each).
     SETTING(detect_keypoint_format) = KeypointFormat{3, 2};
+    // Ensure no keypoint names are provided.
+    SETTING(detect_keypoint_names) = KeypointNames{};
 
-    // 3) Now we call add_missing_pose_fields(), which should:
-    //    - gather all from list_auto_pose_fields() => [poseX0, poseY0, poseX1, poseY1, poseX2, poseY2]
-    //    - see what user has => {1}
-    //    - return only those which are not in user-defined indexes => indexes 0 and 2
+    // Calling add_missing_pose_fields() should generate missing fields for indexes 0 and 2.
     auto new_pose_fields = add_missing_pose_fields();
 
-    // We expect to see "poseX0", "poseY0", "poseX2", "poseY2" (4 total).
+    // Expect "poseX0", "poseY0", "poseX2", "poseY2" (4 fields total).
     ASSERT_EQ(new_pose_fields.size(), size_t(4));
 
-    bool foundX0 = false;
-    bool foundY0 = false;
-    bool foundX2 = false;
-    bool foundY2 = false;
-
-    for (auto const& [field_name, transforms] : new_pose_fields)
+    bool foundX0 = false, foundY0 = false, foundX2 = false, foundY2 = false;
+    for (const auto& [field_name, transforms] : new_pose_fields)
     {
         if (field_name == "poseX0") foundX0 = true;
         if (field_name == "poseY0") foundY0 = true;
         if (field_name == "poseX2") foundX2 = true;
         if (field_name == "poseY2") foundY2 = true;
         
-        // Check transforms.
-        EXPECT_EQ(transforms.size(), size_t(1));
+        ASSERT_EQ(transforms.size(), size_t(1));
         EXPECT_EQ(transforms[0], "RAW");
     }
 

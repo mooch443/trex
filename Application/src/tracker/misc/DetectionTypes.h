@@ -52,6 +52,21 @@ struct KeypointFormat {
     static std::string class_name() { return "KeypointFormat"; }
 };
 
+struct KeypointNames {
+    std::optional<std::vector<std::string>> names;
+    
+    std::optional<std::string> name(size_t index) const;
+    
+    constexpr bool operator==(const KeypointNames&) const = default;
+    glz::json_t to_json() const;
+    std::string toStr() const;
+    static KeypointNames fromStr(const std::string&);
+    bool valid() const {
+        return names.has_value();
+    }
+    static std::string class_name() { return "KeypointNames"; }
+};
+
 class Bone {
 public:
     float x;

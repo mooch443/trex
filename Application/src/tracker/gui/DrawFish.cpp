@@ -421,6 +421,8 @@ Fish::~Fish() {
             _skelett->set_pose(_basic_stuff->blob.pred.pose);
         }
         _skelett->set_skeleton(GUI_SETTINGS(detect_skeleton));
+        if(_skelett->show_text())
+            _skelett->set(GUIOPTION(detect_keypoint_names));
 
         updatePath(obj, _safe_frame, cmn::max(obj.start_frame(), _safe_frame.try_sub(1000_f)));
         

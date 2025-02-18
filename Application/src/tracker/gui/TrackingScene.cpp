@@ -41,6 +41,7 @@
 #include <gui/GuiSettings.h>
 #include <gui/PreviewAdapterElement.h>
 #include <gui/DrawUniqueness.h>
+#include <gui/TimingStatsElement.h>
 
 using namespace track;
 
@@ -1845,6 +1846,10 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
             return false;
         }
     });
+    
+    g.context.custom_elements["timingstats"] = std::unique_ptr<TimingStatsElement>{
+        new TimingStatsElement(TimingStatsCollector::getInstance())
+    };
     
     dynGUI = std::move(g);
 }

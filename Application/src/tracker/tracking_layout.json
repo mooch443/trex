@@ -309,71 +309,70 @@
                                     },
                                     {
                                         "type":"condition",
-                                        "var": "{&&:{global.gui_show_individual_preview}:{||:{hovered:info_box}:{selected:info_box}}}",
+                                        "var": "{global.gui_show_individual_preview}",
                                         "then":{
                                             "type":"vlayout",
                                             "pad":[0,5,0,0],
                                             "children":[
                                                 {
-                                                    "type":"hlayout",
+                                                    "type":"gridlayout",
                                                     "children":[
-                                                        {
-                                                            "type":"settings",
-                                                            "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
-                                                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
-                                                            "size":"[{*:0.5:{infocard_width}}, 30]",
-                                                            "var":"individual_image_size",
-                                                            "font":{"size":0.5},
-                                                            "desc":""
-                                                        },
-                                                        {
-                                                            "type":"settings",
-                                                            "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
-                                                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
-                                                            "size":"[{*:0.5:{infocard_width}}, 30]",
-                                                            "var":"individual_image_scale",
-                                                            "font":{"size":0.5},
-                                                            "desc":""
-                                                        }
-                                                    ]
-                                                },
-                                                {
-                                                    "type":"hlayout",
-                                                    "children":[
-                                                        {
-                                                            "type":"settings",
-                                                            "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
-                                                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
-                                                            "size":"[{*:0.5:{infocard_width}}, 30]",
-                                                            "list":{
-                                                                "font":{"size":0.5}
-                                                            }, 
-                                                            "label":{
+                                                        [
+                                                            {
+                                                                "type":"settings",
                                                                 "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
                                                                 "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
-                                                                "font":{"size":0.5}
+                                                                "size":"[{*:0.5:{infocard_width}}, 30]",
+                                                                "var":"individual_image_size",
+                                                                "font":{"size":0.5},
+                                                                "desc":""
                                                             },
-                                                            "var":"individual_image_normalization",
-                                                            "font":{"size":0.5},
-                                                            "desc":""
-                                                        },
-                                                        {
-                                                            "type":"settings",
-                                                            "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
-                                                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
-                                                            "size":"[{*:0.5:{infocard_width}}, 30]",
-                                                            "list":{
-                                                                "font":{"size":0.5}
-                                                            },
-                                                            "label":{
+                                                            {
+                                                                "type":"settings",
                                                                 "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
                                                                 "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
-                                                                "font":{"size":0.5}
+                                                                "size":"[{*:0.5:{infocard_width}}, 30]",
+                                                                "var":"individual_image_scale",
+                                                                "font":{"size":0.5},
+                                                                "desc":""
+                                                            }
+                                                        ],
+                                                        [
+                                                            {
+                                                                "type":"settings",
+                                                                "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                                                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
+                                                                "size":"[{*:0.5:{infocard_width}}, 30]",
+                                                                "list":{
+                                                                    "font":{"size":0.5}
+                                                                }, 
+                                                                "label":{
+                                                                    "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                                                    "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
+                                                                    "font":{"size":0.5}
+                                                                },
+                                                                "var":"individual_image_normalization",
+                                                                "font":{"size":0.5},
+                                                                "desc":""
                                                             },
-                                                            "var":"meta_encoding",
-                                                            "font":{"size":0.5},
-                                                            "desc":""
-                                                        }
+                                                            {
+                                                                "type":"settings",
+                                                                "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                                                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
+                                                                "size":"[{*:0.5:{infocard_width}}, 30]",
+                                                                "list":{
+                                                                    "font":{"size":0.5}
+                                                                },
+                                                                "label":{
+                                                                    "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                                                    "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
+                                                                    "font":{"size":0.5}
+                                                                },
+                                                                "var":"meta_encoding",
+                                                                "font":{"size":0.5},
+                                                                "desc":""
+                                                            }
+                                                        ]
                                                     ]
                                                 },
                                                 {
@@ -982,6 +981,15 @@
             }
             
             
+        },
+
+        {
+            "type":"timingstats",
+            "fill":"{if:{hovered}:[10,10,10,150]:[40,40,40,50]}",
+            "window":0.25,
+            "size":"[{*:0.75:{window_size.x}},200]",
+            "row_height":30,
+            "line":"{if:{hovered}:[100,175,250,230]:[100,100,100,50]}"
         }
     ]
 }

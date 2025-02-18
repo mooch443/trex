@@ -19,8 +19,12 @@ namespace cmn::gui {
                 if (bone.valid()) {
                     add<Circle>(Loc{ bone }, LineClr{ _color }, Radius{ 3 }, FillClr{ _color.alpha(75) });
                     if(_show_text) {
-                        texts.emplace_back([this, i, bone, &coord](){
-                            add<Text>(Str{ Meta::toStr(i) }, Loc{ bone }, Origin{ 0.5,1 }, TextClr{ White }, Scale{ coord.bowl_scale().reciprocal() }, font);
+                        auto name = _names.name(i);
+                        if(not name)
+                            name = Meta::toStr(i);
+                        
+                        texts.emplace_back([this, name = name.value(), bone, &coord](){
+                            add<Text>(Str{ name }, Loc{ bone }, Origin{ 0.5,1 }, TextClr{ White }, Scale{ coord.bowl_scale().reciprocal() }, font);
                         });
                     }
                 }
@@ -49,8 +53,7 @@ namespace cmn::gui {
                         if(_show_text) {
                             texts.emplace_back([this, c, sca, a, loc = Loc((p1 - p0) * 0.5 + p0 + v.perp().mul(sca) * (Base::default_line_spacing(font) * 0.525))]()
                             {
-                                add<Text>(
-                                          Str(c.name),
+                                add<Text>(Str(c.name),
                                           loc,
                                           TextClr(Cyan.alpha(200)),
                                           font,
@@ -74,8 +77,12 @@ namespace cmn::gui {
                         add<Line>(Line::Point_t{ last }, Line::Point_t{ bone }, LineClr{ _color.exposure(0.75) }, Line::Thickness_t{ 3 });
                     
                     if(_show_text) {
-                        texts.emplace_back([this, bone, i, &coord]() {
-                            add<Text>(Str{ Meta::toStr(i) }, Loc{ bone }, Origin{ 0.5,1 }, TextClr{ White }, Scale{ coord.bowl_scale().reciprocal() }, font);
+                        auto name = _names.name(i);
+                        if(not name)
+                            name = Meta::toStr(i);
+                        
+                        texts.emplace_back([this, bone, name = name.value(), &coord]() {
+                            add<Text>(Str{ name }, Loc{ bone }, Origin{ 0.5,1 }, TextClr{ White }, Scale{ coord.bowl_scale().reciprocal() }, font);
                         });
                     }
                     

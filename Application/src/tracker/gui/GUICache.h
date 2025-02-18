@@ -17,6 +17,8 @@
 #include <gui/ShadowTracklet.h>
 #include <tracking/IndividualCache.h>
 #include <gui/BdxAndPred.h>
+#include <misc/TimingStatsCollector.h>
+#include <misc/DetectionTypes.h>
 
 class Timer;
 namespace track {
@@ -55,7 +57,8 @@ namespace globals {
         (bool, gui_highlight_categories),
         (bool, gui_show_cliques),
         (bool, gui_show_match_modes),
-        (Frame_t, gui_pose_smoothing)
+        (Frame_t, gui_pose_smoothing),
+        (track::detect::KeypointNames, detect_keypoint_names)
     )
 
     #define GUIOPTION(NAME) ::cmn::gui::globals::CachedGUIOptions::copy < ::cmn::gui::globals::CachedGUIOptions :: NAME > ()
@@ -150,9 +153,10 @@ namespace globals {
         Timer _last_success;
         std::unique_ptr<PPFrame> _next_processed_frame;
         GETTER_SETTER(bool, load_frames_blocking){false};
+        size_t _mistakes_count{0};
         
         LOGGED_MUTEX_VAR(vector_mutex, "GUICache::vector_mutex");
-
+        
     public:
         Size2 _video_resolution;
         int last_threshold = -1;

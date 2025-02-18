@@ -20,6 +20,7 @@
 #include <misc/default_settings.h>
 #include <file/DataLocation.h>
 #include <grabber/misc/default_config.h>
+#include <misc/zipper.h>
 
 const auto homedir = []() {
 #ifndef WIN32
@@ -217,58 +218,74 @@ ENUM_CLASS_DOCS(gpu_torch_device_t,
     };
 
 /**
- * Finds all numeric pose indexes from user-defined "poseX##" / "poseY##" fields in the given output fields.
+ * Finds all user-defined pose indexes from output fields.
+ * This function accepts both the numeric style ("poseX##"/"poseY##") and,
+ * if keypoint names are provided, the name style (e.g. "<keypoint_name>_X" / "<keypoint_name>_Y").
+ * The numeric style is always checked for backward compatibility.
  *
- * @param output_fields The list of existing fields, e.g. from SETTING(output_fields).
- * @return A set of numeric indexes that the user has added.
+ * @param output_fields The list of existing fields (from SETTING(output_fields)).
+ * @return A set of keypoint indexes that the user has defined.
  */
 std::set<uint8_t> find_user_defined_pose_fields(
     const std::vector<std::pair<std::string, std::vector<std::string>>>& output_fields)
 {
-    std::set<uint8_t> user_added_pose_fields;
+    std::set<uint8_t> user_defined_indexes;
 #ifndef NDEBUG
     Print("Debug: Entering find_user_defined_pose_fields, number of fields = ", output_fields.size());
 #endif
 
-    for (auto const& [field_name, transforms] : output_fields)
-    {
-        if (utils::beginsWith(field_name, "poseX") || utils::beginsWith(field_name, "poseY"))
-        {
+    auto detect_keypoint_names = SETTING(detect_keypoint_names).value<track::detect::KeypointNames>();
+    
+    // Always check for numeric style fields.
+    for (const auto& [field_name, transforms] : output_fields) {
+        if (utils::beginsWith(field_name, "poseX") || utils::beginsWith(field_name, "poseY")) {
 #ifndef NDEBUG
-            Print("Debug: Processing field: ", field_name);
+            Print("Debug: Processing numeric style field: ", field_name);
 #endif
-            try
-            {
-                // "poseX12" => "12" => index = 12
+            try {
                 uint8_t index = Meta::fromStr<uint8_t>(field_name.substr(5));
 #ifndef NDEBUG
                 Print("Debug: Parsed index ", static_cast<int>(index), " from field: ", field_name);
 #endif
-                user_added_pose_fields.insert(index);
+                user_defined_indexes.insert(index);
             }
-            catch (...)
-            {
+            catch (...) {
 #ifndef NDEBUG
                 Print("Debug: Failed to parse numeric index from field: ", field_name);
 #endif
-                // If it fails to parse as an integer, ignore or optionally log a warning
             }
         }
     }
-
+    
+    // Additionally, if keypoint names are defined, check for name-style fields.
+    if (detect_keypoint_names.valid() && detect_keypoint_names.names.has_value()) {
+        const std::vector<std::string>& names = *detect_keypoint_names.names;
+        for (const auto& [field_name, transforms] : output_fields) {
+            for (size_t i = 0; i < names.size(); ++i) {
+                std::string expectedX = names[i] + "_X";
+                std::string expectedY = names[i] + "_Y";
+                if (field_name == expectedX || field_name == expectedY) {
 #ifndef NDEBUG
-    Print("Debug: Exiting find_user_defined_pose_fields, found indexes count: ", user_added_pose_fields.size());
+                    Print("Debug: Found user-defined field ", field_name, " corresponding to index ", i);
 #endif
-    return user_added_pose_fields;
+                    user_defined_indexes.insert(static_cast<uint8_t>(i));
+                }
+            }
+        }
+    }
+#ifndef NDEBUG
+    Print("Debug: Exiting find_user_defined_pose_fields, found indexes count: ", user_defined_indexes.size());
+#endif
+    return user_defined_indexes;
 }
 
 /**
- * Generates all auto-detected poseX## / poseY## fields (without filtering).
- * These fields match the keypoints in `detect_classes` or your YOLO model.
+ * Generates all auto-detected pose fields using either the provided keypoint names (if any)
+ * for the first N keypoints, and default naming ("poseX#/poseY#") for the remaining keypoints.
  *
- * @return A vector of all possible poseX/poseY fields for those indexes.
+ * @return A vector of all possible pose fields.
  */
-std::vector<std::pair<std::string, std::vector<std::string>>> list_auto_pose_fields()
+std::tuple<std::vector<size_t>, std::vector<std::pair<std::string, std::vector<std::string>>>> list_auto_pose_fields()
 {
 #ifndef NDEBUG
     Print("Debug: Entering list_auto_pose_fields");
@@ -283,8 +300,10 @@ std::vector<std::pair<std::string, std::vector<std::string>>> list_auto_pose_fie
     
     // Retrieve the YOLO classes from a global setting:
     auto detect_keypoint_format = SETTING(detect_keypoint_format).value<track::detect::KeypointFormat>();
+    auto detect_keypoint_names  = SETTING(detect_keypoint_names).value<track::detect::KeypointNames>();
 #ifndef NDEBUG
-    Print("Debug: Retrieved detect_keypoint_format = ", detect_keypoint_format);
+    Print("Debug: Retrieved detect_keypoint_format=", detect_keypoint_format,
+          " detect_keypoint_names=", detect_keypoint_names);
 #endif
     
     if(not detect_keypoint_format.valid()) {
@@ -292,51 +311,57 @@ std::vector<std::pair<std::string, std::vector<std::string>>> list_auto_pose_fie
         return {};
     }
     
-    std::set<uint8_t> indexes;
-    for(uint8_t i = 0; i < detect_keypoint_format.n_points; ++i) {
-        indexes.insert(i);
-    }
-    
-    // Build the entire set of fields for *all* indexes
     std::vector<std::pair<std::string, std::vector<std::string>>> auto_pose_fields;
-    auto_pose_fields.reserve(indexes.size() * 2);
-
-    for (auto index : indexes)
-    {
+    std::vector<size_t> indexes;
+    
+    // For each keypoint index, if a name is provided for that index, use it; otherwise, use default naming.
+    for (size_t i = 0; i < detect_keypoint_format.n_points; ++i) {
+        std::string x_field, y_field;
+        if (auto name = detect_keypoint_names.name(i);
+            name.has_value())
+        {
+            x_field = *name + "_X";
+            y_field = *name + "_Y";
 #ifndef NDEBUG
-        Print("Debug: Adding auto pose fields for index: ", index);
+            Print("Debug: Adding auto pose fields for keypoint: ", *name);
 #endif
-        auto_pose_fields.emplace_back("poseX" + Meta::toStr(index),
-                                      std::vector<std::string>{"RAW"});
-        auto_pose_fields.emplace_back("poseY" + Meta::toStr(index),
-                                      std::vector<std::string>{"RAW"});
+        } else {
+            x_field = "poseX" + Meta::toStr(i);
+            y_field = "poseY" + Meta::toStr(i);
+#ifndef NDEBUG
+            Print("Debug: Adding auto pose fields for index: ", i);
+#endif
+        }
+        auto_pose_fields.emplace_back(x_field, std::vector<std::string>{"RAW"});
+        indexes.push_back(i);
+        auto_pose_fields.emplace_back(y_field, std::vector<std::string>{"RAW"});
+        indexes.push_back(i);
     }
 
 #ifndef NDEBUG
     Print("Debug: Exiting list_auto_pose_fields, total auto pose fields generated: ", auto_pose_fields.size());
 #endif
-    return auto_pose_fields;
+    return {indexes, auto_pose_fields};
 }
 
 /**
- * Given a list of user-defined pose indexes (e.g. from find_user_defined_pose_fields()),
- * returns only the "missing" fields that the user has NOT defined, from the full
- * list of automatically generated fields (from list_auto_pose_fields()).
+ * Given the current output_fields setting, returns only the missing auto-generated pose fields
+ * that the user has not explicitly defined.
  *
- * @return A vector of newly needed poseX/poseY fields.
+ * @return A vector of newly needed pose fields.
  */
 std::vector<std::pair<std::string, std::vector<std::string>>> add_missing_pose_fields()
 {
 #ifndef NDEBUG
     Print("Debug: Entering add_missing_pose_fields");
 #endif
-    // 1) Gather all automatically proposed pose fields
-    auto auto_fields = list_auto_pose_fields();
+    // 1) Gather all automatically generated pose fields.
+    auto [auto_field_indexes, auto_fields] = list_auto_pose_fields();
 #ifndef NDEBUG
     Print("Debug: Auto-generated pose fields count: ", auto_fields.size());
 #endif
 
-    // 2) See which ones the user already has
+    // 2) Get the user-defined fields from settings.
     auto current_fields = SETTING(output_fields)
         .value<std::vector<std::pair<std::string, std::vector<std::string>>>>();
 #ifndef NDEBUG
@@ -346,39 +371,31 @@ std::vector<std::pair<std::string, std::vector<std::string>>> add_missing_pose_f
 #ifndef NDEBUG
     Print("Debug: User-defined pose indexes count: ", user_defined_indexes.size());
 #endif
-
-    // 3) Collect "missing" pose fields
+    
+    // 3) Collect missing pose fields.
     std::vector<std::pair<std::string, std::vector<std::string>>> needed;
     needed.reserve(auto_fields.size());
-
-    for (auto const& [field_name, transforms] : auto_fields)
+    for (const auto& [field_index, field_props] : Zip::Zip( auto_field_indexes, auto_fields ))
     {
-        // The index is the substring after "poseX" or "poseY"
-        if (utils::beginsWith(field_name, "poseX") || utils::beginsWith(field_name, "poseY"))
-        {
-            try
-            {
-                uint8_t index = Meta::fromStr<uint8_t>(field_name.substr(5));
+        const auto& [field_name, transforms] = field_props;
+        
+        try {
 #ifndef NDEBUG
-                Print("Debug: Checking auto field ", field_name, " with index ", static_cast<int>(index));
+            Print("Debug: Checking auto field ", field_name, " with index ", static_cast<int>(field_index));
 #endif
-                if (!user_defined_indexes.count(index))
-                {
+            if (user_defined_indexes.find(field_index) == user_defined_indexes.end()) {
 #ifndef NDEBUG
-                    Print("Debug: Field ", field_name, " is missing from user-defined fields, adding to needed list");
+                Print("Debug: Field ", field_name, " is missing from user-defined fields, adding to needed list");
 #endif
-                    needed.push_back({ field_name, transforms });
-                }
-            }
-            catch (...)
-            {
-#ifndef NDEBUG
-                FormatWarning("Failure parsing ", field_name, " for poseX/Y content.");
-#endif
+                needed.push_back({field_name, transforms});
             }
         }
+        catch (...) {
+#ifndef NDEBUG
+            Print("Debug: Failed to parse numeric index from field: ", field_name);
+#endif
+        }
     }
-
 #ifndef NDEBUG
     Print("Debug: Exiting add_missing_pose_fields, missing fields count: ", needed.size());
 #endif
@@ -901,6 +918,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("outline_compression", float(0.f), "Applies a *lossy* compression to the outlines generated by segmentation models. Walking around the outline, it removes line segments that do not introduce any noticable change in direction. The factor specified here controls how much proportional difference in radians/angle is allowed. The value isnt in real radians, as the true downsampling depends on the size of the object (smaller objects = smaller differences allowed).");
         CONFIG("detect_format", track::detect::ObjectDetectionFormat::none, "The type of data returned by the `detect_model`, which can be an instance segmentation", AccessLevelType::INIT);
         CONFIG("detect_keypoint_format", track::detect::KeypointFormat{}, "When a keypoint (pose) type model is loaded, this variable will be set to [n_points,n_dims].", AccessLevelType::SYSTEM);
+        CONFIG("detect_keypoint_names", track::detect::KeypointNames{}, "An array of names in the correct keypoint index order for the given model.");
         CONFIG("detect_batch_size", uchar(1), "The batching size for object detection.");
         CONFIG("detect_tile_image", uchar(0), "If > 1, this will tile the input image for Object detection (SAHI method) before passing it to the network. These tiles will be `detect_resolution` pixels high and wide (with zero padding).");
         CONFIG("yolo_tracking_enabled", false, "If set to true, the program will try to use yolov8s internal tracking routine to improve results. This can be significantly slower and disables batching.");

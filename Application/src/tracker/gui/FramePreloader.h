@@ -6,6 +6,7 @@
 #include <misc/create_struct.h>
 #include <misc/Timer.h>
 #include <misc/ThreadManager.h>
+#include <misc/TimingStatsCollector.h>
 
 namespace cmn::gui {
 
@@ -19,6 +20,7 @@ CREATE_STRUCT(PreloadCache,
 
 template<typename FrameType>
 class FramePreloader {
+    std::shared_ptr<TimingStatsCollector> stats{TimingStatsCollector::getInstance()};
 public:
     Frame_t last_increment() const {
         return _last_increment.load();
@@ -26,10 +28,14 @@ public:
     
     FramePreloader(
            std::function<FrameType(Frame_t)> retrieve,
-           std::function<void(FrameType&&)> discard = nullptr)
+           std::function<void(FrameType&&)> discard = nullptr,
+           TimingMetric announceMetric = TimingMetric_t::None,
+           TimingMetric loadMetric = TimingMetric_t::None)
         : retrieve_next(retrieve),
           discard(discard),
-          next_index_to_use(0)
+          next_index_to_use(0),
+          _announceMetric(announceMetric),
+          _loadMetric(loadMetric)
     {
         PreloadCache::init();
         
@@ -64,10 +70,19 @@ public:
     
     // Non-blocking announcement of next frame
     void announce(Frame_t target_index) {
+        /*if(_announceMetric != TimingMetric_t::None) {
+            stats->startEvent(_announceMetric, target_index);
+        }*/
+        std::shared_ptr<TimingStatsCollector::HandleGuard> handleGuard
+            = (_announceMetric != TimingMetric_t::None)
+                ? std::make_shared<TimingStatsCollector::HandleGuard>(stats, stats->startEvent(_announceMetric, target_index))
+                : nullptr;
+        
         if(std::unique_lock guard(future_mutex);
               not id_in_future.valid()
               || id_in_future != target_index)
         {
+            
             auto pguard = LOGGED_LOCK(preloaded_frame_mutex);
             //thread_print("Reset next index ", id_in_future, " to announced frame => ", target_index, " (next_index_to_use=",next_index_to_use,")");
             next_index_to_use = target_index;
@@ -134,18 +149,33 @@ private:
     Frame_t current_id, id_in_future;
     std::atomic<Frame_t> _last_increment{1_f};
     FrameType image;
+    
+    std::mutex next_mutex;
+    FrameType next_image;
+    Frame_t stored_next_image;
+    
     std::future<std::tuple<Frame_t, FrameType>> future;
     Timer time_to_frame;
     double last_time_to_frame{0};
     
     std::mutex future_mutex;
     std::optional<std::promise<std::tuple<Frame_t, FrameType>>> promise;
+    
+    TimingMetric _announceMetric, _loadMetric;
 };
 
 template<typename FrameType>
 // Non-blocking call to get a frame
 std::optional<FrameType> FramePreloader<FrameType>::get_frame(Frame_t target_index, Frame_t increment, std::chrono::milliseconds delay)
 {
+    std::shared_ptr<TimingStatsCollector::HandleGuard> guard
+        = (_announceMetric != TimingMetric_t::None)
+            ? std::make_shared<TimingStatsCollector::HandleGuard>(stats, stats->startEvent(_announceMetric, target_index))
+            : nullptr;
+    /*if(_announceMetric != TimingMetric_t::None) {
+        stats->startEvent(_announceMetric, target_index);
+    }*/
+    
     auto update_next_index = [&](Frame_t index){
         auto pguard = LOGGED_LOCK(preloaded_frame_mutex);
         if(target_index == index) {
@@ -242,8 +272,19 @@ std::optional<FrameType> FramePreloader<FrameType>::get_frame(Frame_t target_ind
                 }
                 
                 //return std::optional<FrameType>(std::move(image));
-                if(discard)
-                    discard(std::move(image));
+                
+                std::unique_lock g{next_mutex};
+                if(next_image
+                   && discard)
+                {
+                    discard(std::move(next_image));
+                }
+                
+                stored_next_image = Frame_t(image->index());
+                next_image = std::move(image);
+                
+                //if(discard)
+                //    discard(std::move(image));
                 return std::nullopt;
                // thread_print("* Discarding image for index ", index, " instead of ", target_index);
             }
@@ -269,13 +310,32 @@ void FramePreloader<FrameType>::preload_frames() {
                 if(image) {
                     //thread_print("Discarding image ", image->index(), " (",current_id,") since we need ", next_index_to_use);
                     
-                    // discard current image, since we will replace it
-                    // with a new one:
-                    if(discard) {
-                        discard(std::move(image));
-                    } else
-                        image = nullptr;
+                    /// if the currently stored image is the next one, please
+                    /// save it instead of retrieving it again later...
+                    //if(next_index_to_use + last_increment() == Frame_t(image->index())) {
+                        std::unique_lock g{next_mutex};
+                        if(next_image
+                           && discard)
+                        {
+                            discard(std::move(next_image));
+                        }
+                        
+                        stored_next_image = Frame_t(image->index());
+                        next_image = std::move(image);
+                        
+                    /*} else {
+                        // discard current image, since we will replace it
+                        // with a new one:
+                        if(discard) {
+                            discard(std::move(image));
+                        } else
+                            image = nullptr;
+                    }*/
                 }
+                
+                /*if(next_index_to_use.valid() && _announceMetric != TimingMetric_t::None) {
+                    stats->endEvent(_announceMetric, next_index_to_use);
+                }*/
                 
                 current_id = next_index_to_use;
             }
@@ -288,6 +348,10 @@ void FramePreloader<FrameType>::preload_frames() {
     
     if(not image) {
         //thread_print("*** [jump] loading ", current);
+        std::shared_ptr<TimingStatsCollector::HandleGuard> handleGuard
+            = (_loadMetric != TimingMetric_t::None)
+                ? std::make_shared<TimingStatsCollector::HandleGuard>(stats, stats->startEvent(_loadMetric, current))
+                : nullptr;
         
         promise = typename decltype(promise)::value_type{};
         {
@@ -297,7 +361,26 @@ void FramePreloader<FrameType>::preload_frames() {
             time_to_frame.reset();
         }
         
-        image = retrieve_next(current);
+        if(std::unique_lock g{next_mutex};
+           stored_next_image == current)
+        {
+            image = std::move(next_image);
+            stored_next_image.invalidate();
+            
+        } else if(image) {
+            if(next_image
+               && discard)
+            {
+                discard(std::move(next_image));
+            }
+            
+            stored_next_image = Frame_t(image->index());
+            next_image = std::move(image);
+        }
+        
+        if(not image || Frame_t(image->index()) != current)
+            image = retrieve_next(current);
+        
         if(not image) {
             static std::mutex complain_mutex;
             static Frame_t last_complain;
@@ -320,6 +403,11 @@ void FramePreloader<FrameType>::preload_frames() {
         promise.reset();
         
         updated_frame.notify_all();
+        
+        /// this ends the announcing phase
+        /*if(next_index_to_use.valid() && _announceMetric != TimingMetric_t::None) {
+            stats->endEvent(_announceMetric, next_index_to_use);
+        }*/
         
         if(current == next_index_to_use) {
             //thread_print("Got image for next index ", current, " (next = ", next_index_to_use,"), invalidating.");

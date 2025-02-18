@@ -4,6 +4,7 @@
 #include <misc/default_config.h>
 #include <grabber/misc/default_config.h>
 #include <file/DataLocation.h>
+#include <misc/TimingStatsCollector.h>
 
 namespace cmn::gui {
 
@@ -14,7 +15,7 @@ AnimatedBackground::AnimatedBackground(Image::Ptr&& image, const pv::File* video
     _average(std::move(image)),
     _static_image(Image::Make(*_average)),
     _grey_image(Image::Make(*_average)),
-    preloader([this](Frame_t index) { return preload(index); })
+    preloader([this](Frame_t index) { return preload(index); }, nullptr, TimingMetric_t::BackgroundRequest, TimingMetric_t::BackgroundLoad)
 {
     _static_image.set_clickable(true);
     _static_image.set_color(_tint);
@@ -268,6 +269,7 @@ void AnimatedBackground::before_draw() {
             
         } else {
             auto maybe_image = preloader.get_frame(frame, _increment);
+            
             if(maybe_image.has_value()
                && maybe_image.value())
             {

@@ -494,11 +494,13 @@ void draw_blob_view(const DisplayParameters& parm)
                 
                 if(not blob->prediction().pose.points.empty()) {
                     if(not skelett) {
-                        skelett = std::make_unique<Skelett>(blob->prediction().pose, SETTING(detect_skeleton).value<blob::Pose::Skeleton>());
+                        skelett = std::make_unique<Skelett>(blob->prediction().pose, GUI_SETTINGS(detect_skeleton));
                         skelett->set_show_text(true);
                     } else {
                         skelett->set_pose(blob->prediction().pose);
                     }
+                    skelett->set(GUIOPTION(detect_keypoint_names));
+                    skelett->set_skeleton(GUI_SETTINGS(detect_skeleton));
                     e.advance_wrap(*skelett);
                 }
 

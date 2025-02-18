@@ -10,6 +10,7 @@
 #include <grabber/misc/default_config.h>
 #include <gui/DrawPosture.h>
 #include <tracking/FilterCache.h>
+#include <misc/TimingStatsCollector.h>
 
 namespace cmn::gui {
     
@@ -66,7 +67,7 @@ std::unique_ptr<PPFrame> GUICache::PPFrameMaker::operator()() const {
             },
             [this](FramePtr&& ptr) {
                 buffers.move_back(std::move(ptr));
-            })
+            }, TimingMetric_t::PVRequest, TimingMetric_t::PVLoad)
 
     {
         cache() = this;
@@ -220,7 +221,10 @@ std::unique_ptr<PPFrame> GUICache::PPFrameMaker::operator()() const {
 
     void GUICache::set_reload_frame(Frame_t frameIndex) {
         _do_reload_frame = frameIndex;
-        if(_do_reload_frame.valid() && _next_processed_frame && _do_reload_frame == _next_processed_frame->index())
+        
+        if(_do_reload_frame.valid()
+           && _next_processed_frame
+           && _do_reload_frame == _next_processed_frame->index())
         {
             buffers.move_back(std::move(_next_processed_frame));
             
@@ -466,6 +470,11 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
         LockGuard guard(ro_t{}, "update_cache", 10);
         if(not guard.locked())
             return {};
+        
+        auto stats = TimingStatsCollector::getInstance();
+        auto handle = stats->startEvent(TimingMetric_t::FrameRender, frameIndex);
+        
+        TimingStatsCollector::HandleGuard _handleguard(stats, handle);
         
         auto& _tracker = *Tracker::instance();
         frame_idx = frameIndex;

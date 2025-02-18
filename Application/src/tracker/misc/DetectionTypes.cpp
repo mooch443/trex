@@ -21,6 +21,34 @@ HasCustomParser<track::detect::ObjectDetectionType_t>::fromStr(const std::string
 
 namespace track::detect {
 
+std::string KeypointNames::toStr() const {
+    if(not valid())
+        return "null";
+    return cmn::Meta::toStr(names.value());
+}
+
+KeypointNames KeypointNames::fromStr(const std::string& str) {
+    if(str == "null") {
+        return KeypointNames{};
+    }
+    auto names = Meta::fromStr<std::vector<std::string>>(str);
+    return KeypointNames{
+        .names = names
+    };
+}
+
+glz::json_t KeypointNames::to_json() const {
+    if(not valid())
+        return glz::json_t::null_t{};
+    return cvt2json(names.value());
+}
+
+std::optional<std::string> KeypointNames::name(size_t index) const {
+    if(not names || names->size() <= index)
+        return std::nullopt;
+    return names.value()[index] + " ("+Meta::toStr(index)+")";
+}
+
 std::string KeypointFormat::toStr() const {
     if(not valid())
         return "null";

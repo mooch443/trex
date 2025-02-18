@@ -101,12 +101,12 @@ namespace default_config {
 std::set<uint8_t> find_user_defined_pose_fields(const std::vector<std::pair<std::string, std::vector<std::string>>>& output_fields);
 
 /**
- * Generates all auto-detected poseX## / poseY## fields (without filtering).
- * These fields match the keypoints in `detect_classes` or your YOLO model.
+ * Generates all auto-detected pose fields using either the provided keypoint names (if any)
+ * for the first N keypoints, and default naming ("poseX#/poseY#") for the remaining keypoints.
  *
- * @return A vector of all possible poseX/poseY fields for those indexes.
+ * @return A vector of all possible pose fields.
  */
-std::vector<std::pair<std::string, std::vector<std::string>>> list_auto_pose_fields();
+std::tuple<std::vector<size_t>, std::vector<std::pair<std::string, std::vector<std::string>>>> list_auto_pose_fields();
 
 /**
  * Given a list of user-defined pose indexes (e.g. from find_user_defined_pose_fields()),
