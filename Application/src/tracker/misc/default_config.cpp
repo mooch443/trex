@@ -657,6 +657,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("gui_show_misc_metrics", true, "Showing or hiding some metrics for a selected individual in the info card.");
         CONFIG("gui_show_autoident_controls", true, "Showing or hiding controls for removing forced auto-ident in the info card if an individual is selected.");
         CONFIG("gui_show_infocard", true, "Showing / hiding some facts about the currently selected individual on the top left of the window.");
+        CONFIG("gui_show_timing_stats", false, "Showing / hiding rendering information.");
         CONFIG("gui_show_blobs", true, "Showing or hiding individual raw blobs in tracking view (are always shown in RAW mode).");
         CONFIG("gui_show_paths", true, "Equivalent to the checkbox visible in GUI on the bottom-left.");
         CONFIG("gui_show_pixel_grid", false, "Shows the proximity grid generated for all blobs, which is used for history splitting.");

@@ -880,7 +880,7 @@ void TrackingScene::update_run_loop() {
         if (advances >= 1) {
             Frame_t rounded_advances{uint32_t(std::round(advances))};
             
-            Print("* displayed frame = ", gui_displayed_frame, " vs. ",
+            //Print("* displayed frame = ", gui_displayed_frame, " vs. ",
                   _data->_background ? _data->_background->displayed_frame() : Frame_t(), " vs. index=", index, " advance=", rounded_advances);
             
             if (gui_wait_for_background) {
