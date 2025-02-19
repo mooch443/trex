@@ -896,7 +896,13 @@ def train(model, train_loader, val_loader, criterion, optimizer : torch.optim.Ad
 
             logs = {'val_loss': val_loss, 'val_acc': val_acc, 'val_precision': val_precision, 'val_recall': val_recall}
             callback.on_epoch_end(epoch, logs)
-            TRex.log(f"Epoch {epoch}/{settings['epochs']} - loss: {running_loss} val_loss: {val_loss} - acc: {acc} val_acc: {val_acc} - precision: {val_precision} - recall: {val_recall} - LR: {scheduler.get_last_lr()[0]}")
+
+            try:
+                lr = scheduler.get_last_lr()[0]
+            except AttributeError:
+                lr = optimizer.param_groups[0]['lr']
+
+            TRex.log(f"Epoch {epoch}/{settings['epochs']} - loss: {running_loss} val_loss: {val_loss} - acc: {acc} val_acc: {val_acc} - precision: {val_precision} - recall: {val_recall} - LR: {lr}")
 
             del val_loss
             del val_acc
@@ -904,7 +910,13 @@ def train(model, train_loader, val_loader, criterion, optimizer : torch.optim.Ad
             del val_recall
         else:
             callback.on_epoch_end(epoch, {'loss': running_loss, 'acc': acc})
-            TRex.log(f"Epoch {epoch}/{settings['epochs']} - loss: {running_loss} - acc: {acc} - LR: {scheduler.get_last_lr()[0]}")
+
+            try:
+                lr = scheduler.get_last_lr()[0]
+            except AttributeError:
+                lr = optimizer.param_groups[0]['lr']
+            
+            TRex.log(f"Epoch {epoch}/{settings['epochs']} - loss: {running_loss} - acc: {acc} - LR: {lr}")
 
         #TRex.log(f"Epoch {epoch}/{settings['epochs']}")
 

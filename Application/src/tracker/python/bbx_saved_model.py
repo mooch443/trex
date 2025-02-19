@@ -258,6 +258,7 @@ class Model:
         from ultralytics import YOLO
         self.ptr = YOLO(self.config.model_path).to('cpu')
         #self.device = None
+        print(f"Loading model {self} on device {self.device}")
 
         device_from_settings = TRex.setting("gpu_torch_device")
         if device_from_settings != "":
