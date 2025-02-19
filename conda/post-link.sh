@@ -28,7 +28,7 @@ else
 fi
 
 # test installation (not if osx intel)
-if [ "$(uname -p)" == "arm" ] || [ "$(uname)" == "Linux" ]; then
+#if [ "$(uname -p)" == "arm" ] || [ "$(uname)" == "Linux" ]; then
 	echo "Testing installation..." >> $PREFIX/.messages.txt
 	python -c "from ultralytics import YOLO; import numpy as np; YOLO('yolo11n.pt').to('cpu').predict(np.zeros((640, 480, 3), dtype=np.uint8))" >> $PREFIX/.messages.txt
-fi
+#fi
