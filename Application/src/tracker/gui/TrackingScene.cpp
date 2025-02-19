@@ -869,6 +869,7 @@ void TrackingScene::update_run_loop() {
         /// Non-recording mode: accumulate elapsed time.
         /// Cache settings to avoid redundant calls.
         const bool gui_wait_for_background = SETTING(gui_wait_for_background).value<bool>();
+        const bool gui_show_video_background = SETTING(gui_show_video_background).value<bool>();
         const bool gui_wait_for_pv = SETTING(gui_wait_for_pv).value<bool>();
         const Frame_t gui_displayed_frame = SETTING(gui_displayed_frame).value<Frame_t>();
         
@@ -883,7 +884,9 @@ void TrackingScene::update_run_loop() {
             //Print("* displayed frame = ", gui_displayed_frame, " vs. ",
             //      _data->_background ? _data->_background->displayed_frame() : Frame_t(), " vs. index=", index, " advance=", rounded_advances);
             
-            if (gui_wait_for_background) {
+            if (gui_show_video_background
+                && gui_wait_for_background)
+            {
                 if(_data->_background)
                     _data->_background->set_enable_fade(false);
                 
@@ -900,7 +903,8 @@ void TrackingScene::update_run_loop() {
                     _data->_background->set_enable_fade(true);
             }
             
-            if(gui_wait_for_pv
+            if(gui_show_video_background
+               && gui_wait_for_pv
                && rounded_advances.valid())
             {
                 if(gui_displayed_frame != index) {

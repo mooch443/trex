@@ -34,8 +34,8 @@ using namespace file;
 using namespace constraints;
 
 std::mutex callback_mutex;
-std::vector<std::function<void()>> _apply_callbacks;
-std::vector<std::function<void(double)>> _apply_percent_callbacks;
+std::unordered_map<CallbackType, std::function<void()>> _apply_callbacks;
+std::unordered_map<CallbackType, std::function<void(double)>> _apply_percent_callbacks;
 std::mutex _current_lock;
 std::mutex _current_assignment_lock, _current_uniqueness_lock;
 Python::VINetwork* _network{nullptr};
@@ -113,7 +113,7 @@ void apply_network(const std::shared_ptr<pv::File>& video_source) {
         Accumulation::status().percent = 0.0;
         Accumulation::status().busy = true;
         
-        for(auto & c : _apply_percent_callbacks)
+        for(auto & [_,c] : _apply_percent_callbacks)
             c(1.0);
     }
     
@@ -177,10 +177,10 @@ void apply_network(const std::shared_ptr<pv::File>& video_source) {
                 Accumulation::status().percent = 1.0;
                 Accumulation::status().busy = false;
                 
-                for(auto & c : _apply_percent_callbacks)
+                for(auto & [_,c] : _apply_percent_callbacks)
                     c(1.0);
                 
-                for(auto & c : _apply_callbacks)
+                for(auto & [_,c] : _apply_callbacks)
                     c();
 
                 _apply_callbacks.clear();
@@ -199,7 +199,7 @@ void apply_network(const std::shared_ptr<pv::File>& video_source) {
                 Accumulation::status().percent = percent;
                 Accumulation::status().busy = true;
                 
-                for(auto & c :_apply_percent_callbacks)
+                for(auto & [_,c] :_apply_percent_callbacks)
                     c(percent);
             }
         },
@@ -239,14 +239,20 @@ struct AccumulationLock {
 };
 
 std::mutex _per_class_lock;
-void Accumulation::register_apply_callback(std::function<void ()> && fn) {
+void Accumulation::register_apply_callback(CallbackType type, std::function<void ()> && fn) {
     std::unique_lock guard(callback_mutex);
-    _apply_callbacks.push_back(std::move(fn));
+    if(_apply_callbacks.contains(type)) {
+        FormatWarning("We already have a callback for ", type, ".");
+    }
+    _apply_callbacks.emplace(type, std::move(fn));
 }
 
-void Accumulation::register_apply_callback(std::function<void (double)> && fn) {
+void Accumulation::register_apply_callback(CallbackType type, std::function<void (double)> && fn) {
     std::unique_lock guard(callback_mutex);
-    _apply_percent_callbacks.push_back(std::move(fn));
+    if(_apply_percent_callbacks.contains(type)) {
+        FormatWarning("We already have a callback for ", type, ".");
+    }
+    _apply_percent_callbacks.emplace(type, std::move(fn));
 }
 
 void Accumulation::set_per_class_accuracy(const std::vector<float> &v) {

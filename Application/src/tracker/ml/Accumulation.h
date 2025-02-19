@@ -33,7 +33,16 @@ using hash_map = std::map<K, V>;
 template<typename K>
 using hash_set = std::set<K>;
 
+ENUM_CLASS(CallbackType_t,
+    AutoCorrect,
+    ProgressTracking
+);
+
+using CallbackType = CallbackType_t::Class;
+
 class Accumulation {
+public:
+
 protected:
     struct Result {
         FrameRange range;
@@ -159,8 +168,8 @@ public:
     
     static Status& status();
     
-    static void register_apply_callback(std::function<void()>&&);
-    static void register_apply_callback(std::function<void(double)>&&);
+    static void register_apply_callback(CallbackType, std::function<void()>&&);
+    static void register_apply_callback(CallbackType, std::function<void(double)>&&);
     static void on_terminate();
     
     static float good_uniqueness();

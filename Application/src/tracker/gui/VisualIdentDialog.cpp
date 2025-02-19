@@ -180,12 +180,12 @@ void generate_training_data(GUITaskQueue_t* gui, bool force_load, VIController* 
                         auto run_task = [&]() {
                             if(is_in(mode, TrainingMode::Continue, TrainingMode::Restart, TrainingMode::Apply))
                             {
-                                Accumulation::register_apply_callback([controller, gui](){
+                                Accumulation::register_apply_callback(CallbackType_t::AutoCorrect, [controller, gui](){
                                     Print("Finished. Auto correcting...");
                                     controller->on_apply_done();
                                     controller->auto_correct(gui, true);
                                 });
-                                Accumulation::register_apply_callback([controller](double percent){
+                                Accumulation::register_apply_callback(CallbackType_t::ProgressTracking, [controller](double percent){
                                     controller->on_apply_update(percent);
                                 });
                             }
@@ -231,12 +231,12 @@ void generate_training_data(GUITaskQueue_t* gui, bool force_load, VIController* 
         {
             Print("Registering auto correct callback.");
             
-            Accumulation::register_apply_callback([controller, gui](){
+            Accumulation::register_apply_callback(CallbackType_t::AutoCorrect, [controller, gui](){
                 Print("Finished. Auto correcting...");
                 controller->on_apply_done();
                 controller->auto_correct(gui, true);
             });
-            Accumulation::register_apply_callback([controller](double percent){
+            Accumulation::register_apply_callback(CallbackType_t::ProgressTracking, [controller](double percent){
                 controller->on_apply_update(percent);
             });
         }
