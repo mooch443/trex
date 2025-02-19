@@ -1236,6 +1236,7 @@ void TrackingScene::_draw(DrawStructure& graph) {
             _data->_uniqueness = std::make_unique<DrawUniqueness>(_data->_cache.get(), _state->video);
         }
         
+        _data->_uniqueness->set(_data->_cache->frame_idx);
         graph.wrap_object(*_data->_uniqueness);
     }
     
