@@ -903,8 +903,7 @@ void TrackingScene::update_run_loop() {
                     _data->_background->set_enable_fade(true);
             }
             
-            if(gui_show_video_background
-               && gui_wait_for_pv
+            if(gui_wait_for_pv
                && rounded_advances.valid())
             {
                 if(gui_displayed_frame != index) {
