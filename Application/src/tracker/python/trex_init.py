@@ -21,41 +21,15 @@ import TRex
 try:
     import torch
     TRex.log("PyTorch version:"+str(torch.__version__))
-except ImportError:
-    TRex.log("PyTorch is not installed")
 
-if "tf" in locals():
-    # Your testing code here
-    gpus = tf.config.experimental.list_physical_devices('GPU')
-    if gpus:
-        try:
-            # Currently, memory growth needs to be the same across GPUs
-            for gpu in gpus:
-                tf.config.experimental.set_memory_growth(gpu, True)
-                logical_gpus = tf.config.experimental.list_logical_devices('GPU')
-                TRex.log(str(len(gpus))+ " Physical GPUs, "+str( len(logical_gpus))+" Logical GPUs")
-        except RuntimeError as e:
-            # Memory growth must be set before GPUs have been initialized
-            TRex.log(str(e))
-
-    found = False
-    physical = ''
-
-    if int(sys.version[0]) >= 3:
-        from tensorflow.python.client import device_lib
-        gpus = [x.physical_device_desc for x in device_lib.list_local_devices() if x.device_type == 'GPU']
-        found = len(gpus) > 0
-        if found:
-            for device in gpus:
-                physical = device.split(',')[1].split(': ')[1]
-    else:
-        from tensorflow.python.client import device_lib
-        found = len([x.physical_device_desc for x in device_lib.list_local_devices() if x.device_type == 'GPU']) > 0
-
-    TRex.log('setting version '+str(sys.version)+" "+str(found)+" "+str(physical))
-    set_version(sys.version, found, physical)
-
-elif "torch" in locals():
+    try:
+        import platform;
+        if platform.system() == "Darwin" and platform.processor() == "i386":
+            TRex.log("Disabling multi-threading on Intel Macs to work around an OpenMP crash.")
+            torch.set_num_threads(1)
+    except Exception as e:
+        TRex.log("Error when disabling multi-threading: "+str(e))
+    
     if torch.cuda.is_available():
         num_gpus = torch.cuda.device_count()
         for i in range(num_gpus):
@@ -71,3 +45,6 @@ elif "torch" in locals():
     else:
         TRex.log("Using Apple Metal for PyTorch")
         set_version(sys.version, True, 'METAL')
+
+except ImportError:
+    TRex.log("PyTorch is not installed")
