@@ -399,7 +399,10 @@ Fish::~Fish() {
             _recognition_str = title;
         }
         
-        _color = get_color(&_basic_stuff.value());
+        if(_basic_stuff)
+            _color = get_color(&_basic_stuff.value());
+        else
+            _color = get_color(nullptr);
 
         //if(OPTION(gui_pose_smoothing) > 0_f)
         //auto gui_pose_smoothing = OPTION(gui_pose_smoothing);
@@ -415,7 +418,8 @@ Fish::~Fish() {
             _skelett->set_color(Gray.alpha(100));
         _skelett->set_name(Meta::toStr(_id.color()));
         
-        if(_basic_stuff && _basic_stuff->blob.pred.valid()
+        if(_basic_stuff
+           && _basic_stuff->blob.pred.valid()
            && not _basic_stuff->blob.pred.pose.empty())
         {
             _skelett->set_pose(_basic_stuff->blob.pred.pose);
