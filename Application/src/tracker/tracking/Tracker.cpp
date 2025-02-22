@@ -387,6 +387,8 @@ Tracker::Tracker(Image::Ptr&& average, meta_encoding_t::Class encoding, Float2_t
 Tracker::~Tracker() {
     assert(_instance);
     Settings::clear_callbacks();
+
+    FilterCache::clear();
     
 #if !COMMONS_NO_PYTHON
     Accumulation::on_terminate();

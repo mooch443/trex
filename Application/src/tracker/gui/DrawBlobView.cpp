@@ -459,7 +459,7 @@ void draw_blob_view(const DisplayParameters& parm)
                     //auto & [visited, circ, label] = _blob_labels[blob->blob_id()];
                     auto circ = std::get<1>(it->second).get();
                     circ->set_clickable(true);
-                    circ->set_radius(5.f);
+                    circ->set_radius(8.f);
                     circ->clear_event_handlers();
                     circ->on_click([id = blob->blob_id(), &cache = parm.cache, frame = frame](auto) mutable {
                         _current_boundary.clear();
@@ -473,10 +473,10 @@ void draw_blob_view(const DisplayParameters& parm)
                 //e.set_scale(sca);
                 
                 if(circ->hovered())
-                    circ->set_fill_clr(White.alpha(205 * d));
-                else
                     circ->set_fill_clr(White.alpha(150 * d));
-                circ->set_line_clr(White.alpha(50));
+                else
+                    circ->set_fill_clr(White.alpha(25 * d));
+                circ->set_line_clr(White.alpha(250));
                 circ->set_pos(blob->center());
                 circ->set_scale(s->scale().reciprocal());
                 
@@ -580,12 +580,14 @@ void draw_blob_view(const DisplayParameters& parm)
                 } else if(item_id == 1) /* IGNORE */ {
                     auto copy = FAST_SETTING(track_ignore_bdx);
                     auto frame = GUI_SETTINGS(gui_frame);
-                    if(!contains(copy[frame], clicked_blob_id)) {
-                        copy[frame].insert(clicked_blob_id);
+                    if(auto [_, added] =
+                       copy[frame].insert(clicked_blob_id);
+                       added)
+                    {
+                        WorkProgress::add_queue("", [copy](){
+                            SETTING(track_ignore_bdx) = copy;
+                        });
                     }
-                    WorkProgress::add_queue("", [copy](){
-                        SETTING(track_ignore_bdx) = copy;
-                    });
                     
                 } else {
                     auto it = cache.all_ids.find(Idx_t(item_id - 2));
@@ -884,13 +886,13 @@ void clicked_background(DrawStructure& base, GUICache& cache, const Vec2& pos, b
 #else
         if(!base.is_key_pressed(Codes::LControl)) {
 #endif
-            if(_current_boundary.empty()) {
+            /*if(_current_boundary.empty()) {
                 if(not GUI_SETTINGS(gui_zoom_polygon).empty()) {
                     SETTING(gui_zoom_polygon) = std::vector<Vec2>();
                 } else {
                     _current_boundary = {{pos}};
                 }
-            } else
+            } else*/
                 _current_boundary.clear();
             
         } else {
