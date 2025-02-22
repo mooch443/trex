@@ -868,7 +868,10 @@ void TrackingScene::update_run_loop() {
     } else {
         /// Non-recording mode: accumulate elapsed time.
         /// Cache settings to avoid redundant calls.
-        const bool gui_wait_for_background = SETTING(gui_wait_for_background).value<bool>();
+        const bool gui_wait_for_background =
+            _data->_background
+            && _data->_background->valid()
+            && SETTING(gui_wait_for_background).value<bool>();
         const bool gui_show_video_background = SETTING(gui_show_video_background).value<bool>();
         const bool gui_wait_for_pv = SETTING(gui_wait_for_pv).value<bool>();
         const Frame_t gui_displayed_frame = SETTING(gui_displayed_frame).value<Frame_t>();

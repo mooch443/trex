@@ -137,6 +137,11 @@ void AnimatedBackground::set_video_scale(float scale) {
     _source_scale = scale <= 0 ? 1 : min(1.f, scale);
 }
 
+bool AnimatedBackground::valid() const {
+    std::unique_lock guard(_source_mutex);
+    return _source != nullptr;
+}
+
 Image::Ptr AnimatedBackground::preload(Frame_t index) {
     std::unique_lock guard(_source_mutex);
     if(not _source)

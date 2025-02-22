@@ -28,7 +28,7 @@ class AnimatedBackground : public Entangled {
     ImageBuffers<Image::Ptr, ImageMaker> buffers;
     ImageBuffers<Image::Ptr, ImageMaker> grey_buffers;
     
-    std::mutex _source_mutex;
+    mutable std::mutex _source_mutex;
     std::unique_ptr<VideoSource> _source;
     std::atomic<float> _source_scale{1.f};
     bool _is_greyscale{false};
@@ -79,6 +79,7 @@ public:
                           std::optional<std::vector<double>> &&undistort_vector);
     void set_increment(Frame_t inc);
     Frame_t increment() const { return _increment; }
+    bool valid() const;
     
     Image::Ptr preload(Frame_t);
 };
