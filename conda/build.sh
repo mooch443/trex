@@ -16,6 +16,65 @@ echo "MACOSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET}"
 echo "CC=${CC}"
 echo "CXX=${CXX}"
 
+patch_ctime_header() {
+  set -e
+
+  # Ensure CONDA_PREFIX is set.
+  if [ -z "$CONDA_PREFIX" ]; then
+    echo "Error: CONDA_PREFIX is not set. Please activate your conda environment."
+    return 1
+  fi
+
+  # Ensure CC is set.
+  if [ -z "$CC" ]; then
+    echo "Error: CC is not set. Please set CC to your C compiler (e.g., gcc or clang)."
+    return 1
+  fi
+
+  # Use the compiler's verbose preprocessor output to list include directories.
+  INCLUDE_DIRS=$("$CC" -x c++ -E -v - </dev/null 2>&1 | awk '
+    /#include <\.\.\.> search starts here:/ {flag=1; next}
+    /End of search list/ {flag=0}
+    flag {print $1}
+  ')
+
+  echo "Compiler include directories found:"
+  echo "$INCLUDE_DIRS"
+  echo
+
+  # Search the include directories for the <ctime> header file.
+  CTIME_FILE=""
+  for dir in $INCLUDE_DIRS; do
+    if [ -f "$dir/ctime" ]; then
+      CTIME_FILE="$dir/ctime"
+      break
+    fi
+  done
+
+  if [ -z "$CTIME_FILE" ]; then
+    echo "Error: <ctime> header not found in any of the include directories."
+    return 1
+  fi
+
+  echo "Found <ctime> file at: $CTIME_FILE"
+
+  # Backup the original <ctime> file.
+  BACKUP_FILE="${CTIME_FILE}.bak"
+  cp "$CTIME_FILE" "$BACKUP_FILE"
+  echo "Backup saved as $BACKUP_FILE"
+
+  # Check if the header contains the pattern that enables timespec_get.
+  if grep -q '#if __cplusplus >= 201703L && defined(_GLIBCXX_HAVE_TIMESPEC_GET)' "$CTIME_FILE"; then
+    # Patch the file to disable that block.
+    sed -i 's/#if __cplusplus >= 201703L && defined(_GLIBCXX_HAVE_TIMESPEC_GET)/#if 0  \/\/ patched to disable timespec_get block/' "$CTIME_FILE"
+    echo "Patch applied successfully to <ctime>."
+  else
+    echo "Expected pattern not found in <ctime>."
+    echo "Either the header is already updated or a different version is used."
+    echo "Proceeding with the normal compilation procedure."
+  fi
+}
+
 if [ "$(uname)" == "Linux" ]; then
     # Fix up CMake for using conda's sysroot
     # See https://docs.conda.io/projects/conda-build/en/latest/resources/compiler-tools.html?highlight=cmake#an-aside-on-cmake-and-sysroots
@@ -29,7 +88,7 @@ if [ "$(uname)" == "Linux" ]; then
     #echo "_BUILD_PREFIX: ${_BUILD_PREFIX} BUILD_PREFIX: ${BUILD_PREFIX} PREFIX: ${PREFIX}"
     #CMAKE_PLATFORM_FLAGS+=("-DCMAKE_PREFIX_PATH=${PREFIX}/${_BUILD_PREFIX}/sysroot/usr/lib64;${PREFIX}/${_BUILD_PREFIX}/sysroot/usr/include;${PREFIX}")
 
-    ./patch_ctime.sh
+    patch_ctime_header
 
 else
     SDKS=$(echo /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX*.*.sdk | sort | tail -n1)
