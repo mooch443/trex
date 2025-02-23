@@ -93,8 +93,7 @@ requirements:
     - {{ cdt('libXdamage-devel') }}            # [linux]
     - {{ cdt('libXau-devel') }}                # [linux]
     - {{ cdt('libuuid-devel') }} # [linux]
-    - {{ cdt('libstdcxx-ng', 13.3) }} # [linux]
-    - {{ cdt('libgcc-ng', 13.3) }} # [linux]
+    - gcc_impl_linux-64 =13.3=hfea6d02_1 # [linux]
     - nasm
     - icu
 
