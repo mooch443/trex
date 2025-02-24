@@ -412,8 +412,10 @@ bool TrackingScene::on_global_event(Event event) {
                 break;
             case Keyboard::P: {
                 Idx_t id = _data->_cache->primary_selected_id();
-                if (!_data->_cache->active_ids.empty()) {
-                    Idx_t next_id = find_wrapped_id(_data->_cache->active_ids, id, std::greater<Idx_t>());
+                if (not _data->_cache->active_ids.empty()) {
+                    Idx_t next_id = id.valid()
+                        ? find_wrapped_id(_data->_cache->active_ids, id, std::greater<Idx_t>())
+                        : *_data->_cache->active_ids.begin();
                     if(next_id.valid())
                         SETTING(gui_focus_group) = std::vector<Idx_t>{next_id};
                 }
@@ -422,7 +424,9 @@ bool TrackingScene::on_global_event(Event event) {
             case Keyboard::O: {
                 Idx_t id = _data->_cache->primary_selected_id();
                if (!_data->_cache->active_ids.empty()) {
-                   Idx_t prev_id = find_wrapped_id(_data->_cache->active_ids, id, std::less<Idx_t>());
+                   Idx_t prev_id = id.valid()
+                        ? find_wrapped_id(_data->_cache->active_ids, id, std::less<Idx_t>())
+                        : *_data->_cache->active_ids.rbegin();
                    if(prev_id.valid())
                        SETTING(gui_focus_group) = std::vector<Idx_t>{prev_id};
                }

@@ -100,7 +100,7 @@ requirements:
   host:
     - pthread-stubs  # [linux]
     - python =3.11 # [osx and arm64]
-    - python =3.12 # [osx and not arm64]
+    - python =3.11 # [osx and not arm64]
     - python =3.11 # [win]
     - python =3.11 # [linux]
     - openblas # [arm64]
