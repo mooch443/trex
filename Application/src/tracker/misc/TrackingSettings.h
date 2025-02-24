@@ -139,7 +139,8 @@ CREATE_STRUCT(Settings,
   (Size2, individual_image_size),
   (uint32_t, categories_min_sample_images),
   (cmn::meta_encoding_t::Class, meta_encoding),
-  (float, outline_compression)
+  (float, outline_compression),
+  (bool, image_invert)
 )
 
 //! Shorthand for defining slow settings cache entries:
@@ -160,6 +161,7 @@ struct slow {
     DEF_SLOW_SETTINGS(track_threshold_is_absolute);
     DEF_SLOW_SETTINGS(track_background_subtraction);
     DEF_SLOW_SETTINGS(track_enforce_frame_rate);
+    DEF_SLOW_SETTINGS(track_max_individuals);
     
     DEF_SLOW_SETTINGS(track_trusted_probability);
     DEF_SLOW_SETTINGS(tracklet_punish_timedelta);
@@ -174,8 +176,39 @@ struct slow {
 
 //! Fast updates, but slower access:
 #define FAST_SETTING(NAME) (track::Settings::copy<track::Settings:: NAME>())
-//! Slow updated, but faster access:
-#define SLOW_SETTING(NAME) (track::slow:: NAME)
+
+#ifndef NDEBUG
+
+// Global variable to hold the tracking thread's id.
+inline std::thread::id tracking_thread_id = std::thread::id();
+
+// Call this at the start of your tracking thread.
+inline void set_tracking_thread_id(std::thread::id id) {
+    tracking_thread_id = id;
+}
+
+// Assert that the current thread is the tracking thread.
+inline void assert_tracking_thread() {
+    if(tracking_thread_id == std::thread::id()) {
+        FormatWarning("Tracking thread id not set!");
+        return;
+    }
+    assert(std::this_thread::get_id() == tracking_thread_id && "SLOW_SETTING called from wrong thread");
+}
+
+// The debug version: wrap the thread check and the value access in a lambda.
+// This ensures that the entire macro expands to an expression that can be used safely in all contexts.
+#define SLOW_SETTING(NAME) ([&]() -> decltype(track::slow::NAME)& {                     \
+    track::assert_tracking_thread();                   \
+    return track::slow::NAME;                          \
+}())
+
+#else
+
+// Release version: no thread check.
+#define SLOW_SETTING(NAME) (track::slow::NAME)
+
+#endif
 
 struct Clique {
     UnorderedVectorSet<pv::bid> bids;  // index of blob, not blob id

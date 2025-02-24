@@ -97,7 +97,7 @@ bool Individual::add_qrcode(Frame_t frame, pv::BlobPtr&& tag) {
                 if(tracklet_ended // either the tracklet ended
                     || !_last_requested_qrcode.valid()
                     || (RecTask::can_take_more() // or we have not requested a code yet
-                            && _last_requested_qrcode + Frame_t(Frame_t::number_t(5.f * (float)SLOW_SETTING(frame_rate))) < frame) // or the last time has been at least a second ago
+                            && _last_requested_qrcode + Frame_t(Frame_t::number_t(5.f * (float)FAST_SETTING(frame_rate))) < frame) // or the last time has been at least a second ago
                    )
                 {
                     auto it = _qrcodes.find(tracklet->start());
@@ -225,7 +225,7 @@ void Individual::add_tag_image(tags::Tag&& tag) {
                 last = tag.frame;
         }
         
-        if(cmn::abs((last - tag.frame).get()) >= SLOW_SETTING(frame_rate)) {
+        if(cmn::abs((last - tag.frame).get()) >= FAST_SETTING(frame_rate)) {
             if(set.size() > 6)
                 set.erase(--set.end());
         } else
@@ -572,7 +572,7 @@ bool Individual::is_automatic_match(Frame_t frameIndex) const {
 }
 
 bool Individual::recently_manually_matched(Frame_t frameIndex) const {
-    for(auto frame = frameIndex; frame >= _startFrame && frame >= frameIndex - Frame_t(SLOW_SETTING(frame_rate) / 2u); --frame) {
+    for(auto frame = frameIndex; frame >= _startFrame && frame >= frameIndex - Frame_t(FAST_SETTING(frame_rate) / 2u); --frame) {
         if(is_manual_match(frame))
             return true;
     }
@@ -1030,7 +1030,7 @@ int64_t Individual::add(const AssignInfo& info, const pv::Blob& blob, prob_t cur
     auto cached = info.frame->cached(identity().ID());
     prob_t p{current_prob};
     if(current_prob == -1 && cached) {
-        p = probability(SLOW_SETTING(track_consistent_categories)
+        p = probability(FAST_SETTING(track_consistent_categories)
                         ? info.frame->label(blob.blob_id())
                         : MaybeLabel{},
                         *cached,
@@ -1157,12 +1157,12 @@ TrackletInformation* Individual::update_add_tracklet(const Frame_t frameIndex, c
         ? props->time() - prev_props->time()
         : 0;
     
-    const auto track_trusted_probability = SLOW_SETTING(track_trusted_probability);
-    const auto tracklet_punish_timedelta = SLOW_SETTING(tracklet_punish_timedelta);
-    const auto huge_timestamp_seconds = SLOW_SETTING(huge_timestamp_seconds);
-    const auto tracklet_punish_speeding = SLOW_SETTING(tracklet_punish_speeding);
-    const auto tracklet_max_length = SLOW_SETTING(tracklet_max_length);
-    const auto frame_rate = SLOW_SETTING(frame_rate);
+    const auto track_trusted_probability = FAST_SETTING(track_trusted_probability);
+    const auto tracklet_punish_timedelta = FAST_SETTING(tracklet_punish_timedelta);
+    const auto huge_timestamp_seconds = FAST_SETTING(huge_timestamp_seconds);
+    const auto tracklet_punish_speeding = FAST_SETTING(tracklet_punish_speeding);
+    const auto tracklet_max_length = FAST_SETTING(tracklet_max_length);
+    const auto frame_rate = FAST_SETTING(frame_rate);
     
     uint32_t error_code = 0;
     error_code |= Reasons::FramesSkipped         * uint32_t(prev_frame != frameIndex - 1_f);
@@ -1194,7 +1194,7 @@ TrackletInformation* Individual::update_add_tracklet(const Frame_t frameIndex, c
 }
 
 Float2_t Individual::weird_distance() {
-    const auto track_max_speed = SLOW_SETTING(track_max_speed);
+    const auto track_max_speed = FAST_SETTING(track_max_speed);
     return track_max_speed * 0.99_F;
 }
 
@@ -1310,7 +1310,7 @@ Midline::Ptr Individual::calculate_midline_for(const PostureStuff &posture) cons
         midline = std::make_unique<Midline>(*ptr);
         
         MovementInformation movement;
-        if(SLOW_SETTING(posture_direction_smoothing) > 1) {
+        if(FAST_SETTING(posture_direction_smoothing) > 1) {
             movement = calculate_previous_vector(posture.frame);
         }
         
@@ -1554,13 +1554,13 @@ bool CacheHints::full() const {
 }
 
 void CacheHints::clear(size_t size) {
-    if (size == 0 && (SLOW_SETTING(frame_rate) < 0 || SLOW_SETTING(frame_rate) == uint32_t(-1))) {
+    if (size == 0 && (FAST_SETTING(frame_rate) < 0 || FAST_SETTING(frame_rate) == uint32_t(-1))) {
 #ifndef NDEBUG
-        FormatExcept("Size=", size," frame_rate=", SLOW_SETTING(frame_rate),"");
+        FormatExcept("Size=", size," frame_rate=", FAST_SETTING(frame_rate),"");
 #endif
         _last_second.resize(0);
     } else {
-        _last_second.resize(size > 0 ? size : SLOW_SETTING(frame_rate));
+        _last_second.resize(size > 0 ? size : FAST_SETTING(frame_rate));
     }
     std::fill(_last_second.begin(), _last_second.end(), nullptr);
     current.invalidate();
@@ -1610,11 +1610,11 @@ tl::expected<IndividualCache, const char*> Individual::cache_for_frame(const Fra
     bool last_frame_manual = false;
     cache.last_seen_px = Vec2(-FLT_MAX);
     cache.current_category = std::nullopt;
-    const auto cm_per_pixel = SLOW_SETTING(cm_per_pixel);
-    const auto consistent_categories = SLOW_SETTING(track_consistent_categories);
-    const auto track_max_speed_px = SLOW_SETTING(track_max_speed) / cm_per_pixel;
-    const auto frame_rate = SLOW_SETTING(frame_rate);
-    const auto track_max_reassign_time = SLOW_SETTING(track_max_reassign_time);
+    const auto cm_per_pixel = FAST_SETTING(cm_per_pixel);
+    const auto consistent_categories = FAST_SETTING(track_consistent_categories);
+    const auto track_max_speed_px = FAST_SETTING(track_max_speed) / cm_per_pixel;
+    const auto frame_rate = FAST_SETTING(frame_rate);
+    const auto track_max_reassign_time = FAST_SETTING(track_max_reassign_time);
     
     //auto tracklet = get_tracklet(frameIndex-1);
     if(it != _tracklets.end()) {
@@ -2014,7 +2014,7 @@ tl::expected<IndividualCache, const char*> Individual::cache_for_frame(const Fra
        || last_frame_manual)
     {
         cache.time_probability = 1;
-    } else if(tdelta > SLOW_SETTING(track_max_reassign_time)) {
+    } else if(tdelta > FAST_SETTING(track_max_reassign_time)) {
         cache.time_probability = 0;
     } else {
         cache.time_probability = time_probability(tdelta, cache.previous_frame, recent_number_samples);
@@ -2045,11 +2045,11 @@ prob_t Individual::time_probability(double tdelta, const Frame_t& previous_frame
     //if(cache.last_frame_manual)
     //    return 1;
     
-    const float Tdelta = 1.f / float(SLOW_SETTING(frame_rate));
+    const float Tdelta = 1.f / float(FAST_SETTING(frame_rate));
     
     // make sure that very low frame rates work
     //! F_\mathrm{min} = \min\left\{\frac{1}{T_\Delta}, 5\right\}
-    const uint32_t minimum_frames = min(SLOW_SETTING(frame_rate), 5u);
+    const uint32_t minimum_frames = min(FAST_SETTING(frame_rate), 5u);
     
     //! R_i(t) = \norm{ \givenset[\Big]{ \Tau(k) | F(t) - T_\Delta^{-1} \leq k \leq t \wedge \Tau(k) - \Tau(k-1) \leq T_\mathrm{max}} }
     
@@ -2062,7 +2062,7 @@ prob_t Individual::time_probability(double tdelta, const Frame_t& previous_frame
         \end{equation}
      */
     
-    float p = 1.0f - min(1.0f, max(0, (tdelta - Tdelta) / SLOW_SETTING(track_max_reassign_time)));
+    float p = 1.0f - min(1.0f, max(0, (tdelta - Tdelta) / FAST_SETTING(track_max_reassign_time)));
     if(previous_frame >= Tracker::start_frame() + Frame_t(minimum_frames))
         p *= min(1.f, float(recent_number_samples - 1) / float(minimum_frames) + FAST_SETTING(match_min_probability));
     
@@ -2101,7 +2101,7 @@ prob_t Individual::position_probability(const IndividualCache cache, Frame_t fra
         velocity = (cache.local_tdelta != 0) * (position - cache.estimated_px) / cache.local_tdelta;
     assert(!std::isnan(velocity.x) && !std::isnan(velocity.y));
     
-    auto speed = velocity.length() / SLOW_SETTING(track_max_speed) * SLOW_SETTING(cm_per_pixel);
+    auto speed = velocity.length() / FAST_SETTING(track_max_speed) * FAST_SETTING(cm_per_pixel);
     speed = 1 / SQR(1 + speed);
     
     /*if((frameIndex >= 48181 && identity().ID() == 368) || frameIndex == 48182)
@@ -2517,8 +2517,8 @@ std::map<Frame_t, FrameRange> split_tracklet_by_probability(const Individual* fi
     std::map<Frame_t, long_t> assigned_ids;
     std::vector<std::tuple<Range<Frame_t>, long_t>> debug_ids;
     
-    const size_t N = SLOW_SETTING(frame_rate) * 2u;
-    const Frame_t min_samples { Frame_t(Frame_t::number_t(SLOW_SETTING(frame_rate))) };
+    const size_t N = FAST_SETTING(frame_rate) * 2u;
+    const Frame_t min_samples { Frame_t(Frame_t::number_t(FAST_SETTING(frame_rate))) };
     
     for(auto i = segment.start(); i < segment.end(); ++i) {
         auto && [id, p] = for_frame(i);
@@ -2597,7 +2597,7 @@ void Individual::calculate_average_tracklet_id() {
     _average_recognition.clear();
     
     std::map<Idx_t, size_t> samples;
-    const Frame_t frame_limit(SLOW_SETTING(frame_rate) * 2u);
+    const Frame_t frame_limit(FAST_SETTING(frame_rate) * 2u);
     
     for(auto & tracklet : _tracklets) {
         auto && [n, vector] = average_recognition(tracklet->start());

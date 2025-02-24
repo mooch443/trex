@@ -154,7 +154,7 @@ void IndividualManager::assign_blob_individual(const AssignInfo& info, Individua
     
     //Print(" * Assigning ", blob->blob_id(), " to ", fish->identity());
     
-    if (FAST_SETTING(calculate_posture)) {
+    if (SLOW_SETTING(calculate_posture)) {
         need_postures.push({fish, basic.get(), std::move(blob)});
     } else
         move_to_pixel_cache(std::move(blob));
@@ -339,7 +339,7 @@ IndividualManager::expected_individual_t IndividualManager::retrieve_globally(Id
     }).or_else([this, fdx](const char*)
         -> expected_individual_t
     {
-        if(FAST_SETTING(track_max_individuals) > 0
+        if(SLOW_SETTING(track_max_individuals) > 0
            && Tracker::identities().contains(fdx))
         {
             auto fish = make_individual(fdx);
@@ -363,7 +363,7 @@ IndividualManager::expected_individual_t IndividualManager::retrieve_inactive(Id
         //LockGuard guard(w_t{}, "Creating individual");
         //! check if we are allowed to create new individuals,
         //! otherwise we can only return nullptr:
-        const auto track_max_individuals = FAST_SETTING(track_max_individuals);
+        const auto track_max_individuals = SLOW_SETTING(track_max_individuals);
         if(track_max_individuals != 0
            && num_individuals() >= track_max_individuals)
         {
@@ -483,7 +483,7 @@ IndividualManager::IndividualManager(const PPFrame& frame)
     }
     
     //! check whether we have created all required individuals
-    if(FAST_SETTING(track_max_individuals)) {
+    if(SLOW_SETTING(track_max_individuals)) {
         for(auto id : Tracker::identities()) {
             if(not has_individual(id)) {
                 auto fish = make_individual(id);

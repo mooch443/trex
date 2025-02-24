@@ -52,14 +52,7 @@ private:
     static void apply(std::vector<TileImage>&& tiled);
     friend struct Detection;
     
-    struct Data {
-        Image::Ptr background;
-        gpuMat gpu;
-        gpuMat float_average;
-        double time{0.0}, samples{0.0};
-        
-        void set(Image::Ptr&&);
-    };
+    struct Data;
     
     static Data& data();
 };

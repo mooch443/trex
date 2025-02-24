@@ -284,8 +284,8 @@ public:
         //    return;
         if(data) {
             std::unique_lock p(_pause_mutex);
-            if(_paused)
-                _pause_variable.wait(p, [&](){ return not _paused; });
+            while(_paused)
+                _pause_variable.wait(p);
             
             BasicManager<Data>::enqueue(std::move(data));
         } else {

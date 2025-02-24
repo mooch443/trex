@@ -7,7 +7,7 @@ timestamp_t FrameProperties::timestamp() const {
     if(not _frame.valid())
         return _org_timestamp;
     
-    if(SLOW_SETTING(track_enforce_frame_rate)) {
+    if(FAST_SETTING(track_enforce_frame_rate)) {
         return timestamp_t{uint64_t(time() * 1000 * 1000)};
     } else {
         return _org_timestamp;
@@ -18,8 +18,8 @@ double FrameProperties::time() const {
     if(not _frame.valid())
         return _time;
     
-    const auto frame_rate = SLOW_SETTING(frame_rate);
-    if(SLOW_SETTING(track_enforce_frame_rate)) {
+    const auto frame_rate = FAST_SETTING(frame_rate);
+    if(FAST_SETTING(track_enforce_frame_rate)) {
         assert(frame_rate > 0);
         return double(_frame.get()) / frame_rate;
         
@@ -54,7 +54,7 @@ void MotionRecord::flip(const MotionRecord* previous) {
 }
 
 Float2_t MotionRecord::cm_per_pixel() {
-    return SLOW_SETTING(cm_per_pixel);
+    return FAST_SETTING(cm_per_pixel);
 }
 
 std::string FrameProperties::toStr() const {

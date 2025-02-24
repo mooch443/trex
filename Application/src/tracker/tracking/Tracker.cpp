@@ -386,6 +386,7 @@ Tracker::Tracker(Image::Ptr&& average, meta_encoding_t::Class encoding, Float2_t
 
 Tracker::~Tracker() {
     assert(_instance);
+    set_tracking_thread_id(std::thread::id());
     Settings::clear_callbacks();
 
     FilterCache::clear();
@@ -612,9 +613,9 @@ void Tracker::preprocess_frame(pv::Frame&& frame, PPFrame& pp, GenericThreadPool
     pp.clear();
     
     double time;
-    if(SLOW_SETTING(track_enforce_frame_rate)) {
-        assert(SLOW_SETTING(frame_rate) > 0);
-        time = double(frame.index().get()) / double(SLOW_SETTING(frame_rate));
+    if(FAST_SETTING(track_enforce_frame_rate)) {
+        assert(FAST_SETTING(frame_rate) > 0);
+        time = double(frame.index().get()) / double(FAST_SETTING(frame_rate));
         pp.timestamp = timestamp_t{uint64_t(time * 1000 * 1000)};
     } else {
         time = double(frame.timestamp()) / double(1000*1000);
@@ -627,7 +628,7 @@ void Tracker::preprocess_frame(pv::Frame&& frame, PPFrame& pp, GenericThreadPool
     pp.set_source_index(frame.source_index());
     pp.set_loading_time(frame.loading_time());
     pp.init_from_blobs(std::move(frame).steal_blobs());
-    if(SETTING(image_invert)) {
+    if(FAST_SETTING(image_invert)) {
         pp.transform_all([](pv::Blob& blob){
             auto &pixels = blob.pixels();
             for(auto &p : *pixels)
@@ -655,7 +656,7 @@ void Tracker::prefilter(
     static Timing timing("prefilter", 100);
     TakeTiming take(timing);
     
-    const Float2_t cm_sqr = SQR(SLOW_SETTING(cm_per_pixel));
+    const Float2_t cm_sqr = SQR(FAST_SETTING(cm_per_pixel));
     
     const auto track_include = FAST_SETTING(track_include);
     const auto track_ignore = FAST_SETTING(track_ignore);
@@ -1662,6 +1663,8 @@ void Tracker::collect_matching_cliques(TrackingHelper& s, GenericThreadPool& thr
  * Adding a frame that has been preprocessed previously in a different thread.
  */
 void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
+    set_tracking_thread_id(std::this_thread::get_id());
+    
     static Timer overall_timer;
     overall_timer.reset();
     

@@ -126,13 +126,47 @@ void Detection::apply(std::vector<TileImage>&& tiled) {
     throw U_EXCEPTION("Unknown detection type: ", detection_type());
 }
 
+struct BackgroundSubtraction::Data {
+    Image::Ptr _background;
+    gpuMat _gpu;
+    gpuMat _float_average;
+    
+    double _time{0.0}, _samples{0.0};
+    mutable std::shared_mutex _time_mutex, _background_mutex, _gpu_mutex;
+    
+    void set(Image::Ptr&&);
+    double fps() {
+        std::shared_lock guard(_time_mutex);
+        if(_samples == 0)
+            return 0;
+        return _time / _samples;
+    }
+    void add_time_sample(double sample) {
+        std::unique_lock guard(_time_mutex);
+        _time += sample;
+        _samples++;
+    }
+    
+    bool has_background() const {
+        std::shared_lock guard(_background_mutex);
+        return _background != nullptr;
+    }
+    void set_background(Image::Ptr&& background) {
+        std::unique_lock guard(_background_mutex);
+        _background = std::move(background);
+    }
+};
+
 PipelineManager<TileImage, true>& BackgroundSubtraction::manager() {
     static auto instance = PipelineManager<TileImage, true>(1u, [](std::vector<TileImage>&& images)
     {
         /// in background subtraction case, we have to wait until the background
         /// image has been generated and hang in the meantime.
-        while(not data().background && not manager().is_terminated())
+        while(not data().has_background()
+              && not manager().is_terminated())
+        {
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        }
         
         if(not manager().is_terminated()) {
             if(images.empty())
@@ -167,15 +201,16 @@ BackgroundSubtraction::BackgroundSubtraction(Image::Ptr&& average) {
 
 void BackgroundSubtraction::set_background(Image::Ptr && average) {
     data().set(std::move(average));
-    if(data().background)
+    if(data().has_background())
         manager().set_paused(false);
 }
 
 void BackgroundSubtraction::Data::set(Image::Ptr&& average) {
-    background = std::move(average);
-    if(background) {
-        background->get().copyTo(data().gpu);
-        gpu.convertTo(data().float_average, CV_32FC(gpu.channels()), 1.0 / 255.0);
+    std::scoped_lock guard(_background_mutex, _gpu_mutex);
+    _background = std::move(average);
+    if(_background) {
+        _background->get().copyTo(_gpu);
+        _gpu.convertTo(_float_average, CV_32FC(_gpu.channels()), 1.0 / 255.0);
         manager().set_paused(false);
     }
 }
@@ -198,16 +233,15 @@ std::future<SegmentationData> BackgroundSubtraction::apply(TileImage &&tiled) {
 void BackgroundSubtraction::deinit() {}
 
 double BackgroundSubtraction::fps() {
-    if(data().samples == 0)
-        return 0;
-    return data().time / data().samples;
+    return data().fps();
 }
 
 void BackgroundSubtraction::apply(std::vector<TileImage> &&tiled) {
     Timer timer;
     const auto mode = Background::meta_encoding();
     
-    RawProcessing raw(data().gpu, &data().float_average, nullptr);
+    std::shared_lock guard(data()._gpu_mutex);
+    RawProcessing raw(data()._gpu, &data()._float_average, nullptr);
     gpuMat gpu_buffer;
     TagCache tag;
     CPULabeling::ListCache_t cache;
@@ -266,7 +300,7 @@ void BackgroundSubtraction::apply(std::vector<TileImage> &&tiled) {
                 //apply_filters(*input);
                 //Print("CHannels = ", r3.channels(), " input=", input->channels());
                 //Print("size = ", Size2(r3), " input=", Size2(input->cols, input->rows), " average=",Size2(data().gpu.cols, data().gpu.rows), " channels=", data().gpu.channels());
-                assert(Size2(r3) == Size2(data().gpu.cols, data().gpu.rows));
+                assert(Size2(r3) == Size2(data()._gpu.cols, data()._gpu.rows));
                 raw.generate_binary(r3, *input, r3, &tag);
                 
                 {
@@ -403,8 +437,7 @@ void BackgroundSubtraction::apply(std::vector<TileImage> &&tiled) {
     }
     
     if(not tiled.empty()) {
-        data().time +=  double(tiled.size()) / timer.elapsed();
-        data().samples++;
+        data().add_time_sample(double(tiled.size()) / timer.elapsed());
     }
 }
 
