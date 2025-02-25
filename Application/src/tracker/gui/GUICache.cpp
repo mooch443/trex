@@ -1221,6 +1221,8 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
                     
                     distribute_indexes([this, &map_mutex, next_time, frameIndex](int64_t, auto start, auto end, int64_t)
                     {
+                        track::TrackingThreadG g{};
+                        
                         for(auto it = start; it != end; ++it) {
                             Individual* fish = individuals.at(*it);
                             auto cache = fish->cache_for_frame(&_props.value(), frameIndex + 1_f, next_time);

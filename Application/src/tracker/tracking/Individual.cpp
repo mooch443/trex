@@ -1030,7 +1030,7 @@ int64_t Individual::add(const AssignInfo& info, const pv::Blob& blob, prob_t cur
     auto cached = info.frame->cached(identity().ID());
     prob_t p{current_prob};
     if(current_prob == -1 && cached) {
-        p = probability(FAST_SETTING(track_consistent_categories)
+        p = probability(SLOW_SETTING(track_consistent_categories)
                         ? info.frame->label(blob.blob_id())
                         : MaybeLabel{},
                         *cached,
@@ -1157,12 +1157,12 @@ TrackletInformation* Individual::update_add_tracklet(const Frame_t frameIndex, c
         ? props->time() - prev_props->time()
         : 0;
     
-    const auto track_trusted_probability = FAST_SETTING(track_trusted_probability);
-    const auto tracklet_punish_timedelta = FAST_SETTING(tracklet_punish_timedelta);
-    const auto huge_timestamp_seconds = FAST_SETTING(huge_timestamp_seconds);
-    const auto tracklet_punish_speeding = FAST_SETTING(tracklet_punish_speeding);
-    const auto tracklet_max_length = FAST_SETTING(tracklet_max_length);
-    const auto frame_rate = FAST_SETTING(frame_rate);
+    const auto track_trusted_probability = SLOW_SETTING(track_trusted_probability);
+    const auto tracklet_punish_timedelta = SLOW_SETTING(tracklet_punish_timedelta);
+    const auto huge_timestamp_seconds = SLOW_SETTING(huge_timestamp_seconds);
+    const auto tracklet_punish_speeding = SLOW_SETTING(tracklet_punish_speeding);
+    const auto tracklet_max_length = SLOW_SETTING(tracklet_max_length);
+    const auto frame_rate = SLOW_SETTING(frame_rate);
     
     uint32_t error_code = 0;
     error_code |= Reasons::FramesSkipped         * uint32_t(prev_frame != frameIndex - 1_f);
@@ -1610,11 +1610,11 @@ tl::expected<IndividualCache, const char*> Individual::cache_for_frame(const Fra
     bool last_frame_manual = false;
     cache.last_seen_px = Vec2(-FLT_MAX);
     cache.current_category = std::nullopt;
-    const auto cm_per_pixel = FAST_SETTING(cm_per_pixel);
-    const auto consistent_categories = FAST_SETTING(track_consistent_categories);
-    const auto track_max_speed_px = FAST_SETTING(track_max_speed) / cm_per_pixel;
-    const auto frame_rate = FAST_SETTING(frame_rate);
-    const auto track_max_reassign_time = FAST_SETTING(track_max_reassign_time);
+    const auto cm_per_pixel = SLOW_SETTING(cm_per_pixel);
+    const auto consistent_categories = SLOW_SETTING(track_consistent_categories);
+    const auto track_max_speed_px = SLOW_SETTING(track_max_speed) / cm_per_pixel;
+    const auto frame_rate = SLOW_SETTING(frame_rate);
+    const auto track_max_reassign_time = SLOW_SETTING(track_max_reassign_time);
     
     //auto tracklet = get_tracklet(frameIndex-1);
     if(it != _tracklets.end()) {
@@ -1963,7 +1963,7 @@ tl::expected<IndividualCache, const char*> Individual::cache_for_frame(const Fra
     prob_t speed = max(0.6f, sqrt(used_frames ? static_median(average_speed.begin(), average_speed.end()) : 0));
     
     //! \lambda
-    const float lambda = SQR(SQR(max(0, min(1, FAST_SETTING(track_speed_decay)))));
+    const float lambda = SQR(SQR(max(0, min(1, SLOW_SETTING(track_speed_decay)))));
     
     //! \mean{\mathbf{d}_i}(t)
     Vec2 direction;
@@ -2001,7 +2001,7 @@ tl::expected<IndividualCache, const char*> Individual::cache_for_frame(const Fra
         est += c->pos<Units::PX_AND_SECONDS>();
     
     auto h = c;
-    if(FAST_SETTING(calculate_posture)) {
+    if(SLOW_SETTING(calculate_posture)) {
         if(pp_posture && pp_posture->centroid_posture)
             h = pp_posture->centroid_posture.get();
     }
@@ -2010,11 +2010,11 @@ tl::expected<IndividualCache, const char*> Individual::cache_for_frame(const Fra
     //cache.h = h;
     cache.estimated_px = est;
     
-    if(not FAST_SETTING(track_time_probability_enabled)
+    if(not SLOW_SETTING(track_time_probability_enabled)
        || last_frame_manual)
     {
         cache.time_probability = 1;
-    } else if(tdelta > FAST_SETTING(track_max_reassign_time)) {
+    } else if(tdelta > SLOW_SETTING(track_max_reassign_time)) {
         cache.time_probability = 0;
     } else {
         cache.time_probability = time_probability(tdelta, cache.previous_frame, recent_number_samples);
@@ -2037,7 +2037,7 @@ struct TimeCache {
 prob_t Individual::time_probability(double tdelta, const Frame_t& previous_frame, size_t recent_number_samples) {
     
     /// handled in cache_for_frame:
-    //if(!FAST_SETTING(track_time_probability_enabled))
+    //if(!SLOW_SETTING(track_time_probability_enabled))
     //    return 1;
     //if (cache.tdelta > SLOW_SETTING(track_max_reassign_time))
     //    return 0.0;
@@ -2045,11 +2045,11 @@ prob_t Individual::time_probability(double tdelta, const Frame_t& previous_frame
     //if(cache.last_frame_manual)
     //    return 1;
     
-    const float Tdelta = 1.f / float(FAST_SETTING(frame_rate));
+    const float Tdelta = 1.f / float(SLOW_SETTING(frame_rate));
     
     // make sure that very low frame rates work
     //! F_\mathrm{min} = \min\left\{\frac{1}{T_\Delta}, 5\right\}
-    const uint32_t minimum_frames = min(FAST_SETTING(frame_rate), 5u);
+    const uint32_t minimum_frames = min(SLOW_SETTING(frame_rate), 5u);
     
     //! R_i(t) = \norm{ \givenset[\Big]{ \Tau(k) | F(t) - T_\Delta^{-1} \leq k \leq t \wedge \Tau(k) - \Tau(k-1) \leq T_\mathrm{max}} }
     
@@ -2062,9 +2062,9 @@ prob_t Individual::time_probability(double tdelta, const Frame_t& previous_frame
         \end{equation}
      */
     
-    float p = 1.0f - min(1.0f, max(0, (tdelta - Tdelta) / FAST_SETTING(track_max_reassign_time)));
+    float p = 1.0f - min(1.0f, max(0, (tdelta - Tdelta) / SLOW_SETTING(track_max_reassign_time)));
     if(previous_frame >= Tracker::start_frame() + Frame_t(minimum_frames))
-        p *= min(1.f, float(recent_number_samples - 1) / float(minimum_frames) + FAST_SETTING(match_min_probability));
+        p *= min(1.f, float(recent_number_samples - 1) / float(minimum_frames) + SLOW_SETTING(match_min_probability));
     
     return p * 0.75 + 0.25;
 }

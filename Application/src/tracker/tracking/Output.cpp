@@ -455,6 +455,7 @@ void Output::ResultsFormat::process_frame(
           Individual* fish,
           TemporaryData&& data)
 {
+    track::TrackingThreadG g{};
     const auto& frameIndex = data.stuff->frame;
     
     const Match::prob_t p_threshold = FAST_SETTING(match_min_probability);
@@ -592,6 +593,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
         ended = _load_pool.enqueue([&stop, &stuffs, &variable, cache, fish, &mutex]() mutable {
             auto thread_name = get_thread_name();
             set_thread_name("read_individual_"+fish->identity().name()+"_worker");
+            track::TrackingThreadG g{};
             
             std::unique_lock<std::mutex> guard(mutex);
             while(!stop || !stuffs.empty()) {

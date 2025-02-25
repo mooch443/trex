@@ -162,6 +162,11 @@ struct slow {
     DEF_SLOW_SETTINGS(track_background_subtraction);
     DEF_SLOW_SETTINGS(track_enforce_frame_rate);
     DEF_SLOW_SETTINGS(track_max_individuals);
+    DEF_SLOW_SETTINGS(track_size_filter);
+    DEF_SLOW_SETTINGS(match_mode);
+    DEF_SLOW_SETTINGS(track_time_probability_enabled);
+    DEF_SLOW_SETTINGS(track_speed_decay);
+    DEF_SLOW_SETTINGS(match_min_probability);
     
     DEF_SLOW_SETTINGS(track_trusted_probability);
     DEF_SLOW_SETTINGS(tracklet_punish_timedelta);
@@ -180,21 +185,32 @@ struct slow {
 #ifndef NDEBUG
 
 // Global variable to hold the tracking thread's id.
-inline std::thread::id tracking_thread_id = std::thread::id();
+inline std::shared_mutex tracking_thread_mutex;
+inline std::unordered_set<std::thread::id> tracking_thread_ids;
 
 // Call this at the start of your tracking thread.
-inline void set_tracking_thread_id(std::thread::id id) {
-    tracking_thread_id = id;
+inline void add_tracking_thread_id(std::thread::id id) {
+    std::unique_lock guard(tracking_thread_mutex);
+    tracking_thread_ids.insert(id);
+}
+
+inline void remove_tracking_thread_id(std::thread::id id) {
+    std::unique_lock guard(tracking_thread_mutex);
+    tracking_thread_ids.erase(id);
 }
 
 // Assert that the current thread is the tracking thread.
-inline void assert_tracking_thread() {
-    if(tracking_thread_id == std::thread::id()) {
-        FormatWarning("Tracking thread id not set!");
-        return;
-    }
-    assert(std::this_thread::get_id() == tracking_thread_id && "SLOW_SETTING called from wrong thread");
+void assert_tracking_thread();
+
+inline void clear_tracking_ids() {
+    std::unique_lock guard(tracking_thread_mutex);
+    tracking_thread_ids.clear();
 }
+
+struct TrackingThreadG {
+    TrackingThreadG();
+    ~TrackingThreadG();
+};
 
 // The debug version: wrap the thread check and the value access in a lambda.
 // This ensures that the entire macro expands to an expression that can be used safely in all contexts.
@@ -206,7 +222,13 @@ inline void assert_tracking_thread() {
 #else
 
 // Release version: no thread check.
-#define SLOW_SETTING(NAME) (track::slow::NAME)
+#define SLOW_SETTING(NAME) (track::slow:: NAME)
+
+struct TrackingThreadG {};
+inline void assert_tracking_thread() {}
+inline void add_tracking_thread_id(std::thread::id) {}
+inline void remove_tracking_thread_id(std::thread::id) {}
+inline void clear_tracking_ids() {}
 
 #endif
 

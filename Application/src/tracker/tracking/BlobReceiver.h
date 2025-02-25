@@ -18,7 +18,7 @@ struct BlobReceiver {
     PPFrame* _frame = nullptr;
     PrefilterBlobs *_prefilter = nullptr;
     std::function<bool(pv::BlobPtr&)> _map;
-    FilterReason _reason;
+    FilterReason _reason{FilterReason::Unknown};
     
 public:
     BlobReceiver(PrefilterBlobs& prefilter, PPFrameType type, std::function<bool(pv::BlobPtr&)>&& map = nullptr, FilterReason = FilterReason::Unknown);

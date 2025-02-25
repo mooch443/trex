@@ -37,7 +37,7 @@ TrackingHelper::TrackingHelper(
       frame(f),
       _manager(frame)
 {
-    const SizeFilters track_size_filter = FAST_SETTING(track_size_filter);
+    const SizeFilters track_size_filter = SLOW_SETTING(track_size_filter);
     double time(double(frame.timestamp) / double(1000*1000));
     props = Tracker::add_next_frame(FrameProperties(frame.index(), time, frame.timestamp));
     
@@ -74,7 +74,7 @@ TrackingHelper::TrackingHelper(
     
     match_mode = frame_uses_approximate
                     ? default_config::matching_mode_t::hungarian
-                    : FAST_SETTING(match_mode);
+                    : SLOW_SETTING(match_mode);
     
     // see if there are manually fixed matches for this frame
     apply_manual_matches();

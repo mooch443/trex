@@ -3,11 +3,39 @@
 
 namespace track {
 
+struct LocalSettings {
+    static inline std::atomic<Settings::frame_rate_t> frame_rate{FAST_SETTING(frame_rate)};
+    static inline std::atomic<Settings::track_enforce_frame_rate_t> track_enforce_frame_rate{FAST_SETTING(track_enforce_frame_rate)};
+    static inline std::atomic<Settings::cm_per_pixel_t> cm_per_pixel{FAST_SETTING(cm_per_pixel)};
+};
+
+std::once_flag update_flag;
+void init_settings() {
+    std::call_once(update_flag, [](){
+        GlobalSettings::map().register_callbacks({
+            "frame_rate",
+            "track_enforce_frame_rate"
+        }, [](auto name) {
+            if(name == "frame_rate")
+                LocalSettings::frame_rate = SETTING(frame_rate).value<Settings::frame_rate_t>();
+            else if(name == "cm_per_pixel")
+                LocalSettings::cm_per_pixel = SETTING(cm_per_pixel).value<Settings::cm_per_pixel_t>();
+            else
+                LocalSettings::track_enforce_frame_rate = SETTING(track_enforce_frame_rate).value<Settings::track_enforce_frame_rate_t>();
+        });
+    });
+}
+
+#define LOCAL_SETTING(NAME) []() -> Settings:: NAME ## _t { \
+    init_settings(); \
+    return LocalSettings :: NAME .load(); \
+}()
+
 timestamp_t FrameProperties::timestamp() const {
     if(not _frame.valid())
         return _org_timestamp;
     
-    if(FAST_SETTING(track_enforce_frame_rate)) {
+    if(LOCAL_SETTING(track_enforce_frame_rate)) {
         return timestamp_t{uint64_t(time() * 1000 * 1000)};
     } else {
         return _org_timestamp;
@@ -18,8 +46,8 @@ double FrameProperties::time() const {
     if(not _frame.valid())
         return _time;
     
-    const auto frame_rate = FAST_SETTING(frame_rate);
-    if(FAST_SETTING(track_enforce_frame_rate)) {
+    const auto frame_rate = LOCAL_SETTING(frame_rate);
+    if(LOCAL_SETTING(track_enforce_frame_rate)) {
         assert(frame_rate > 0);
         return double(_frame.get()) / frame_rate;
         
@@ -54,7 +82,7 @@ void MotionRecord::flip(const MotionRecord* previous) {
 }
 
 Float2_t MotionRecord::cm_per_pixel() {
-    return FAST_SETTING(cm_per_pixel);
+    return LOCAL_SETTING(cm_per_pixel);
 }
 
 std::string FrameProperties::toStr() const {

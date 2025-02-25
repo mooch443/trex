@@ -1,6 +1,27 @@
 #include "TrackingSettings.h"
+#include <tracking/LockGuard.h>
 
 namespace track {
+
+#ifndef NDEBUG
+TrackingThreadG::TrackingThreadG() {
+    track::add_tracking_thread_id(std::this_thread::get_id());
+}
+TrackingThreadG::~TrackingThreadG() {
+    track::remove_tracking_thread_id(std::this_thread::get_id());
+}
+
+void assert_tracking_thread() {
+    /*std::unique_lock guard(tracking_thread_mutex);
+    if(tracking_thread_ids.empty()) {
+        FormatWarning("Tracking thread id not set!");
+        return;
+    }
+    assert(tracking_thread_ids.contains(std::this_thread::get_id()) && "SLOW_SETTING called from wrong thread");*/
+    std::shared_lock guard(tracking_thread_mutex);
+    assert(LockGuard::owns_read() || tracking_thread_ids.contains(std::this_thread::get_id()));
+}
+#endif
 
 std::map<Idx_t, float> prediction2map(const std::vector<float>& pred) {
     std::map<Idx_t, float> map;

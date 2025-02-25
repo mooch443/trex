@@ -55,6 +55,8 @@ void Tracker::initialize_slows() {
 #define DEF_CALLBACK(X) Settings::set_callback(Settings:: X , [](auto&, auto& value) { SLOW_SETTING( X ) = value.template value<Settings:: X##_t >(); })
     
     std::call_once(slow_flag, [](){
+        LockGuard guard{w_t{}, "init"};
+        
         Settings::clear_callbacks();
         
         DEF_CALLBACK(frame_rate);
@@ -68,6 +70,13 @@ void Tracker::initialize_slows() {
         DEF_CALLBACK(calculate_posture);
         DEF_CALLBACK(track_threshold_is_absolute);
         DEF_CALLBACK(track_background_subtraction);
+        DEF_CALLBACK(track_max_individuals);
+        DEF_CALLBACK(track_size_filter);
+        DEF_CALLBACK(match_mode);
+        DEF_CALLBACK(track_time_probability_enabled);
+        DEF_CALLBACK(track_speed_decay);
+        DEF_CALLBACK(match_min_probability);
+        
         
         DEF_CALLBACK(track_trusted_probability);
         DEF_CALLBACK(tracklet_punish_timedelta);
@@ -359,6 +368,14 @@ Tracker::Tracker(Image::Ptr&& average, meta_encoding_t::Class encoding, Float2_t
     Identity::Reset(); // reset Identities if the tracker is created
     initialize_slows();
     
+    /// --- register all tracking threads
+#ifndef NDEBUG
+    for(auto id : _thread_pool.thread_ids()) {
+        add_tracking_thread_id(id);
+    }
+#endif
+    /// --- /register all tracking threads
+    
     PPFrame::CloseLogs();
     update_history_log();
     
@@ -386,7 +403,6 @@ Tracker::Tracker(Image::Ptr&& average, meta_encoding_t::Class encoding, Float2_t
 
 Tracker::~Tracker() {
     assert(_instance);
-    set_tracking_thread_id(std::thread::id());
     Settings::clear_callbacks();
 
     FilterCache::clear();
@@ -398,6 +414,7 @@ Tracker::~Tracker() {
     Individual::shutdown();
     
     _thread_pool.force_stop();
+    clear_tracking_ids();
     
     const bool quiet = GlobalSettings::is_runtime_quiet();
     if(!quiet)
@@ -1663,7 +1680,7 @@ void Tracker::collect_matching_cliques(TrackingHelper& s, GenericThreadPool& thr
  * Adding a frame that has been preprocessed previously in a different thread.
  */
 void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
-    set_tracking_thread_id(std::this_thread::get_id());
+    add_tracking_thread_id(std::this_thread::get_id());
     
     static Timer overall_timer;
     overall_timer.reset();

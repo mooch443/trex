@@ -212,13 +212,13 @@ void PPFrame::init_cache(GenericThreadPool* pool, NeedGrid need)
     const auto N = last_active.size();
     _individual_cache.reserve(N);
     
-    const auto max_d = SLOW_SETTING(track_max_speed) * tdelta / SLOW_SETTING(cm_per_pixel) * 0.5_F;
-    const auto frame_limit = SLOW_SETTING(frame_rate) * SLOW_SETTING(track_max_reassign_time);
+    const auto max_d = FAST_SETTING(track_max_speed) * tdelta / FAST_SETTING(cm_per_pixel) * 0.5_F;
+    const auto frame_limit = FAST_SETTING(frame_rate) * FAST_SETTING(track_max_reassign_time);
     
     const size_t num_threads = pool ? min(hardware_concurrency(), N / 200u) : 0;
     const auto space_limit = SQR(Individual::weird_distance() * 0.5);
-    const auto frame_rate = SLOW_SETTING(frame_rate);
-    const auto track_max_reassign_time = SLOW_SETTING(track_max_reassign_time);
+    const auto frame_rate = FAST_SETTING(frame_rate);
+    const auto track_max_reassign_time = FAST_SETTING(track_max_reassign_time);
 
     // mutex protecting count and global paired + fish_mappings/blob_mappings
     std::mutex mutex;
