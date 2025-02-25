@@ -182,7 +182,8 @@ struct slow {
 //! Fast updates, but slower access:
 #define FAST_SETTING(NAME) (track::Settings::copy<track::Settings:: NAME>())
 
-#ifndef NDEBUG
+//#define DEBUG_TRACKING_THREADS
+#if defined(DEBUG_TRACKING_THREADS)
 
 // Global variable to hold the tracking thread's id.
 inline std::shared_mutex tracking_thread_mutex;

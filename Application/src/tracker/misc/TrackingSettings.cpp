@@ -1,9 +1,11 @@
 #include "TrackingSettings.h"
+#if defined(DEBUG_TRACKING_THREADS)
 #include <tracking/LockGuard.h>
+#endif
 
 namespace track {
 
-#ifndef NDEBUG
+#if defined(DEBUG_TRACKING_THREADS)
 TrackingThreadG::TrackingThreadG() {
     track::add_tracking_thread_id(std::this_thread::get_id());
 }

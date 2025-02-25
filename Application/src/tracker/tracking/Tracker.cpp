@@ -369,7 +369,7 @@ Tracker::Tracker(Image::Ptr&& average, meta_encoding_t::Class encoding, Float2_t
     initialize_slows();
     
     /// --- register all tracking threads
-#ifndef NDEBUG
+#if defined(DEBUG_TRACKING_THREADS)
     for(auto id : _thread_pool.thread_ids()) {
         add_tracking_thread_id(id);
     }
@@ -1680,7 +1680,9 @@ void Tracker::collect_matching_cliques(TrackingHelper& s, GenericThreadPool& thr
  * Adding a frame that has been preprocessed previously in a different thread.
  */
 void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
+#if defined(DEBUG_TRACKING_THREADS)
     add_tracking_thread_id(std::this_thread::get_id());
+#endif
     
     static Timer overall_timer;
     overall_timer.reset();

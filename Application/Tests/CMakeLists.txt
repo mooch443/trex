@@ -98,6 +98,7 @@ target_link_libraries(test_strings PUBLIC
         pv)
 
 target_link_libraries(test_pixels PUBLIC
+        tracker_misc
         commons
         pv)
 
