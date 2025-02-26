@@ -6,10 +6,10 @@
 namespace track {
 
 Settings::manual_splits_t::mapped_type HistorySplit::apply_manual_matches(PPFrame& frame) {
-    auto manual_splits = FAST_SETTING(manual_splits);
+    const auto& manual_splits = SLOW_SETTING(manual_splits);
     auto manual_splits_frame =
         (manual_splits.empty() || manual_splits.count(frame.index()) == 0)
-            ? decltype(manual_splits)::mapped_type()
+            ? std::remove_cvref<decltype(manual_splits)>::type::mapped_type()
             : manual_splits.at(frame.index());
     
     PPFrame::Log("manual_splits = ", manual_splits);

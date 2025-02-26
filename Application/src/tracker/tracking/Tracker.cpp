@@ -77,6 +77,11 @@ void Tracker::initialize_slows() {
         DEF_CALLBACK(track_speed_decay);
         DEF_CALLBACK(match_min_probability);
         
+        DEF_CALLBACK(track_include);
+        DEF_CALLBACK(track_ignore);
+        DEF_CALLBACK(track_ignore_bdx);
+        DEF_CALLBACK(manual_matches);
+        DEF_CALLBACK(manual_splits);
         
         DEF_CALLBACK(track_trusted_probability);
         DEF_CALLBACK(tracklet_punish_timedelta);

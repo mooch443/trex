@@ -168,6 +168,12 @@ struct slow {
     DEF_SLOW_SETTINGS(track_speed_decay);
     DEF_SLOW_SETTINGS(match_min_probability);
     
+    DEF_SLOW_SETTINGS(track_include);
+    DEF_SLOW_SETTINGS(track_ignore);
+    DEF_SLOW_SETTINGS(track_ignore_bdx);
+    DEF_SLOW_SETTINGS(manual_matches);
+    DEF_SLOW_SETTINGS(manual_splits);
+    
     DEF_SLOW_SETTINGS(track_trusted_probability);
     DEF_SLOW_SETTINGS(tracklet_punish_timedelta);
     DEF_SLOW_SETTINGS(huge_timestamp_seconds);
@@ -182,7 +188,7 @@ struct slow {
 //! Fast updates, but slower access:
 #define FAST_SETTING(NAME) (track::Settings::copy<track::Settings:: NAME>())
 
-//#define DEBUG_TRACKING_THREADS
+#define DEBUG_TRACKING_THREADS
 #if defined(DEBUG_TRACKING_THREADS)
 
 // Global variable to hold the tracking thread's id.

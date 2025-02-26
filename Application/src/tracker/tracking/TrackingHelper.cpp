@@ -9,9 +9,9 @@
 namespace track {
 
 struct CachedSettings {
-    const bool do_posture{FAST_SETTING(calculate_posture)};
+    const bool do_posture{SLOW_SETTING(calculate_posture)};
     const bool save_tags{!FAST_SETTING(tags_path).empty()};
-    const uint32_t number_fish{(uint32_t)FAST_SETTING(track_max_individuals)};
+    const uint32_t number_fish{(uint32_t)SLOW_SETTING(track_max_individuals)};
     const Frame_t approximation_delay_time{Frame_t(max(1u, SLOW_SETTING(frame_rate) / 4u))};
 };
 
