@@ -21,7 +21,11 @@ void assert_tracking_thread() {
     }
     assert(tracking_thread_ids.contains(std::this_thread::get_id()) && "SLOW_SETTING called from wrong thread");*/
     std::shared_lock guard(tracking_thread_mutex);
-    assert(LockGuard::owns_read() || tracking_thread_ids.contains(std::this_thread::get_id()));
+    if(   not LockGuard::owns_read()
+       || not tracking_thread_ids.contains(std::this_thread::get_id()))
+    {
+        FormatWarning("Wrong thread ", get_thread_name(), " to read from settings.");
+    }
 }
 #endif
 
