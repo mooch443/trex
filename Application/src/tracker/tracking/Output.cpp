@@ -628,8 +628,6 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
         //! read the actual frame data, pushing to worker thread each time
         for (uint64_t i=0; i<N; i++) {
             ref.read<data_long_t>(frameIndex);
-            assert(frameIndex <= analysis_range.end().get()
-                   && frameIndex >= analysis_range.start().get());
             //if(!prev_frame.valid()
             //   && (!check_analysis_range || Frame_t(frameIndex) >= analysis_range.start))
             //    prev_frame = frameIndex;
@@ -677,6 +675,9 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
             if(check_analysis_range && not analysis_range.contains(Frame_t(frameIndex))) {
                 continue;
             }
+            
+            assert(frameIndex <= analysis_range.end().get()
+                   && frameIndex >= analysis_range.start().get());
             
             data.prev_frame = prev_frame;
             prev_frame = Frame_t(frameIndex);

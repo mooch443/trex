@@ -910,6 +910,7 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                                                         data.median_midline_length_px,
                                                         output_size,
                                                         Tracker::background());
+                            reduced.image = std::move(image);
                             reduced.pos = pos;
                             
                         } else {
