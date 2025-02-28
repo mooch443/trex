@@ -442,7 +442,8 @@ bool VINetwork::train(std::shared_ptr<TrainingData> data,
                     global_range.empty() ? -1 : (long_t)global_range.end().get() }, module_name);
                 py::set_variable("accumulation_step", (long_t)accumulation_step, module_name);
                 py::set_variable("classes", classes, module_name);
-                py::set_variable("save_weights_after", load_results != TrainingMode::Accumulate, module_name);
+                py::set_variable("save_weights_after", false, module_name);
+                //load_results != TrainingMode::Accumulate, module_name);
                 
                 Print("Pushing ", (joined_data.validation_images.size() + joined_data.training_images.size())," images (",FileSize((joined_data.validation_images.size() + joined_data.training_images.size()) * PSetting(individual_image_size).width * PSetting(individual_image_size).height * 4),") to python...");
                 

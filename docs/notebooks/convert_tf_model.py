@@ -128,20 +128,26 @@ def convert_keras_to_torch(json_path, weights_path=None, image_width=None, image
         # Define metadata as a dictionary; here we serialize it to JSON.
         num_classes = model_dict["config"]["layers"][-1]["config"]["units"]
         metadata = {
-            "input_shape": f"{image_width},{image_height},{channels}",
+            "input_shape": (image_width,image_height,channels),
             "model_type": "converted from Keras",
             "num_classes": num_classes,
             "epoch": None,
             "uniqueness": None
         }
-        extra_files = {"metadata.json": json.dumps(metadata)}
+
+        extra_files = {}
+        extra_files["metadata"] = json.dumps(metadata)
         torch.jit.save(scripted_model, output_path, _extra_files=extra_files)
         print(f"TorchScript model with metadata saved at: {output_path}")
 
-        extra_files = {}
-        loaded_model = torch.jit.load(output_path, _extra_files=extra_files)
+        files = {"metadata":""}
+        loaded_model = torch.jit.load(output_path, _extra_files=files)
+
+        metadata = json.loads(files["metadata"])
         # The metadata will be available in extra_files["metadata.json"]
-        print("Loaded metadata:", metadata)
+        print(list(loaded_model.graph.inputs()))
+        print("Loaded metadata:", files)
+        print("converted to:", metadata)
     
     return scripted_model, (image_width, image_height, channels)
 

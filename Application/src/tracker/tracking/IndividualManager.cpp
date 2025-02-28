@@ -173,10 +173,10 @@ IndividualManager::expected_individual_t IndividualManager::individual_by_id(Idx
 
 void IndividualManager::clear() noexcept {
     //std::scoped_lock scoped(global_mutex, individual_mutex);
-    all_frames.clear();
+    track::all_frames.clear();
     track::last_active = nullptr;
-    _individuals.clear();
-    inactive_individuals.clear();
+    track::_individuals.clear();
+    track::inactive_individuals.clear();
     Identity::Reset();
     
 #ifndef NDEBUG

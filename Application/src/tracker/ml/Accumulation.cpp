@@ -559,15 +559,24 @@ void Accumulation::confirm_weights() {
     Print("Confirming weights.");
     auto path = py::VINetwork::network_path();
     auto progress_path = file::Path(path.str() + "_progress.pth");
-    path = path.add_extension("pth");
+    auto final_path = path.add_extension("pth");
     
     if(progress_path.exists()) {
-        Print("Moving weights from ",progress_path.str()," to ",path.str(),".");
-        if(!progress_path.move_to(path))
-            FormatExcept("Cannot move ",progress_path," to ",path,". Are your file permissions in order?");
+        Print("Moving weights from ",progress_path.str()," to ",final_path.str(),".");
+        if(!progress_path.move_to(final_path))
+            FormatExcept("Cannot move ",progress_path," to ",final_path,". Are your file permissions in order?");
         
     } else
         FormatExcept("Cannot find weights! No successful training so far? :(");
+    
+    progress_path = file::Path(path.str() + "_progress_model.pth");
+    final_path = path.str() + "_model.pth";
+    
+    if(progress_path.exists()) {
+        Print("Moving model state from ",progress_path.str()," to ",final_path.str(),".");
+        if(!progress_path.move_to(final_path))
+            FormatExcept("Cannot move ",progress_path," to ",final_path,". Are your file permissions in order?");
+    }
 }
 
 void Accumulation::update_coverage(const TrainingData &data) {

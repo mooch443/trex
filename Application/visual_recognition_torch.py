@@ -11,6 +11,7 @@ from collections import OrderedDict
 import numpy as np
 from torch.utils.data import DataLoader, TensorDataset
 from torchvision import datasets, transforms
+import json
 
 import TRex
 from visual_identification_network_torch import ModelFetcher
@@ -349,6 +350,8 @@ def predict_numpy(model, images, batch_size, device):
     with torch.no_grad():
         has_softmax = False
         try:
+            #print(f"Model: {model}")
+            #print(f"Model children: {list(model.named_children())[-1]}")
             has_softmax = list(model.named_children())[-1][-1].original_name == "Softmax"
         except:
             pass
@@ -735,28 +738,43 @@ def load_checkpoint_from_file(file_path: str):
         raise Exception("Checkpoint file not found at " + file_path)
 
     try:
-        metadata = {}
         TRex.log(f"Loading checkpoint as JIT from {file_path}...")
-        cp = torch.jit.load(file_path, map_location=device, _extra_files=metadata)
+        files = {"metadata":""}
+        cp = torch.jit.load(file_path, map_location=device, _extra_files=files)
+        TRex.log(f"Loaded checkpoint as JIT from {file_path}: {cp}, {files}")
+        metadata = json.loads(files["metadata"])
+
         cp = {
             "model": cp,
             "metadata": metadata
         }
         TRex.log(f"Loaded checkpoint from JIT {file_path}.")
     except Exception as e:
-        TRex.warn(f"Failed to load checkpoint as JIT: {str(e)}")
+        #TRex.warn(f"Failed to load checkpoint as JIT: {str(e)}")
+
+        from visual_identification_network_torch import PermuteAxesWrapper, Normalize, V118_3, V110, V119, V200
+
+        # Register safe globals for torch.serialization.
+        torch.serialization.add_safe_globals([PermuteAxesWrapper, Normalize, transforms.transforms.Normalize])
+        torch.serialization.add_safe_globals([set])
+        torch.serialization.add_safe_globals([V118_3, V110, V119, V200])
+        torch.serialization.add_safe_globals([nn.Softmax, nn.Conv2d, nn.BatchNorm2d, nn.ReLU,
+                                                nn.MaxPool2d, nn.Linear, nn.Dropout, nn.Dropout2d,
+                                                nn.LayerNorm, nn.AdaptiveAvgPool2d, nn.AdaptiveMaxPool2d,
+                                                nn.AvgPool2d, nn.MaxPool2d, nn.Flatten, nn.Sequential])
+
 
         cp = torch.load(file_path, map_location=device, weights_only=True)
-        TRex.log(f"Loaded checkpoint from {file_path}.")
+        TRex.log(f"Loaded torch.load checkpoint from {file_path}: {cp.keys()}")
 
     if isinstance(cp, dict):
         if "metadata" in cp:
             metadata = cp["metadata"]
-            expected_shape = (image_width, image_height, image_channels)
+            expected_shape = list((image_width, image_height, image_channels))
             expected_num_classes = len(classes)
-            if "input_shape" in metadata and metadata["input_shape"] != expected_shape:
+            if "input_shape" in metadata and list(metadata["input_shape"]) != expected_shape:
                 raise ConfigurationError(
-                    f"Mismatch in input dimensions: expected {expected_shape} but checkpoint metadata has {metadata['input_shape']}."
+                    f"Mismatch in input dimensions: expected {expected_shape} but checkpoint metadata has {list(metadata['input_shape'])}."
                 )
             if "num_classes" in metadata and metadata["num_classes"] != expected_num_classes:
                 raise ConfigurationError(
@@ -819,10 +837,18 @@ def apply_checkpoint_to_model(target_model: torch.nn.Module, checkpoint):
         state_dict = checkpoint
 
     try:
+        if target_model is None:
+            target_model = get_default_network()
         target_model.load_state_dict(state_dict)
         TRex.log("Checkpoint weights applied successfully to target model.")
+        return target_model
     except Exception as e:
-        raise Exception("Failed to apply checkpoint weights to target model: " + str(e))
+        TRex.warn("Failed to apply checkpoint weights to target model. Trying to load the model directly: " + str(e))
+
+        target_model = checkpoint["model"]
+        TRex.log("Loaded complete model from checkpoint: " + str(target_model))
+        #raise Exception("Failed to apply checkpoint weights to target model: " + str(e))
+        return target_model
 
 def load_model_from_file(file_path: str, new_model : torch.nn.Module = None) -> torch.nn.Module:
     """
@@ -849,15 +875,20 @@ def load_model_from_file(file_path: str, new_model : torch.nn.Module = None) -> 
                     raise ConfigurationError(
                         f"Mismatch in number of classes: expected {expected_num_classes} but checkpoint metadata has {metadata['num_classes']}."
                     )
-            TRex.log("Loaded complete model from checkpoint.")
-            return cp["model"]
+            if cp["model"] is not None:
+                TRex.log("Loaded complete model from checkpoint.")
+                return cp["model"]
+            else:
+                TRex.warn("Failed to load complete model from checkpoint's 'model' field. Falling back to state_dict loading.")
         except Exception as e:
             TRex.warn("Failed to load complete model from checkpoint's 'model' field: " + str(e) +
                       ". Falling back to state_dict loading.")
     try:
         if new_model is None:
+            TRex.log("Instantiating new model...")
             new_model = get_default_network()
-        apply_checkpoint_to_model(new_model, cp)
+        TRex.log(f"Applying checkpoint weights to new model {new_model}...")
+        new_model = apply_checkpoint_to_model(new_model, cp)
         TRex.log("Loaded model from checkpoint state dict.")
         return new_model
     except Exception as e:
@@ -871,12 +902,16 @@ def load_weights():
     This function loads the checkpoint and then applies it using apply_checkpoint_to_current_model().
     """
     global output_path, model
+    model = None
     try:
         cp = load_checkpoint_from_file(output_path+"_model.pth")
-    except:
-        TRex.log(f"Failed to load model from {output_path}_model.pth. Trying {output_path}.pth")
+    except Exception as e:
+        TRex.log(f"Failed to load model from {output_path}_model.pth ({e}). Trying {output_path}.pth")
         cp = load_checkpoint_from_file(output_path+".pth")
-    apply_checkpoint_to_model(model, cp)
+
+    TRex.log("Loaded checkpoint with metadata: " + str(cp["metadata"] if "metadata" in cp else None))
+    model = apply_checkpoint_to_model(model, cp)
+    print("Loaded model weights from checkpoint: ", model)
 
 def predict():
     global receive, images, model, image_channels, device, batch_size, image_width, image_height
@@ -1257,7 +1292,7 @@ def start_learning():
     #    TRex.log(f"# [init] loading model {model_name} with {num_classes} classes and {image_channels} channels ({image_width}x{image_height})")
     #    model = model_fetcher.get_model(model_name, num_classes, image_channels, image_width, image_height, device=device)
 
-    assert model is not None
+    assert model is not None, "Model is not initialized."
 
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
@@ -1324,7 +1359,7 @@ def start_learning():
             # load best results from the current run
             try:
                 TRex.log(f"Loading weights from {output_path+'_progress.pth'} in step {accumulation_step}")
-                load_model_from_file(output_path+'_progress.pth', new_model = model)
+                model = load_model_from_file(output_path+'_progress.pth', new_model = model)
                 #apply_checkpoint_to_model(model, checkpoint)
             except Exception as e:
                 TRex.warn(str(e))
