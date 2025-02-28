@@ -2597,7 +2597,7 @@ void Individual::calculate_average_tracklet_id() {
     _average_recognition.clear();
     
     std::map<Idx_t, size_t> samples;
-    const Frame_t frame_limit(FAST_SETTING(frame_rate) * 2u);
+    const Frame_t frame_limit(max(10u, FAST_SETTING(frame_rate) * 1u));
     
     for(auto & tracklet : _tracklets) {
         auto && [n, vector] = average_recognition(tracklet->start());

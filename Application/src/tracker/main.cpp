@@ -654,7 +654,7 @@ int main(int argc, char**argv) {
     file::cd(file::DataLocation::parse("app").absolute());
     Print("CWD: ", file::cwd());
     
-    /*GlobalSettings::map().register_callbacks({"source", "meta_source_path", "filename", "detect_type", "cm_per_pixel", "track_background_subtraction", "gui_interface_scale"}, [](auto key){
+    /*GlobalSettings::map().register_callbacks({"source", "meta_source_path", "filename", "detect_type", "cm_per_pixel", "track_background_subtraction", "gui_interface_scale", "detect_format", "detect_skeleton"}, [](auto key){
         if(key == "source")
             Print("Changed source to ", SETTING(source).value<file::PathArray>());
         else if(key == "meta_source_path")
@@ -663,6 +663,10 @@ int main(int argc, char**argv) {
             Print("Changed filename to ", SETTING(filename).value<file::Path>());
         else if(key == "detect_type")
             Print("Changed detection type to ", SETTING(detect_type));
+        else if(key == "detect_format")
+            Print("Changed detection format to ", SETTING(detect_format));
+        else if(key == "detect_skeleton")
+            Print("Changed detection skeleton to ", SETTING(detect_skeleton));
         else if(key == "cm_per_pixel")
             Print("Changerd cm_per_pixel to ", SETTING(cm_per_pixel));
         else if(key == "track_background_subtraction")

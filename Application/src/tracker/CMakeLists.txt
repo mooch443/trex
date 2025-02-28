@@ -98,7 +98,7 @@ endif()
 #endif()
 
 # add actual executable
-set(TREXA_SRCS alter.cpp
+set(TREXA_SRCS main.cpp
     "${CMAKE_CURRENT_BINARY_DIR}/../GitSHA1.cpp" ../GitSHA1.h
     gfx/TRex_16.png
     gfx/TRex_32.png
@@ -107,7 +107,7 @@ set(TREXA_SRCS alter.cpp
     gfx/TRex_256.png
     gfx/TRex_512.png
     gfx/TRex_1024.png
-    )
+)
 
 if(APPLE)
     set(TREXA_SRCS ${TREXA_SRCS} ${CMAKE_CURRENT_SOURCE_DIR}/gfx/AlterIcons.icns)
@@ -125,6 +125,10 @@ target_link_libraries(${TREXA_EXEC_NAME} PUBLIC
     framegrabber_misc
     #pv
     #commons
+)
+
+set_target_properties(${TREXA_EXEC_NAME} PROPERTIES
+  XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES"
 )
 
 if(WITH_FFMPEG)
@@ -303,10 +307,14 @@ if(WIN32)# AND NOT COMMONS_NO_PYTHON)
 endif()
 
 if(APPLE)
-add_executable(trex_starter trex.cpp)
-target_link_libraries(trex_starter PRIVATE commons)
-set_target_properties(trex_starter PROPERTIES OUTPUT_NAME trex)
-set(targets ${targets} trex_starter)
+    add_executable(trex_starter trex.cpp)
+    target_link_libraries(trex_starter PRIVATE commons)
+    set_target_properties(trex_starter PROPERTIES OUTPUT_NAME trex)
+    set(targets ${targets} trex_starter)
+
+    set_target_properties(trex_starter PROPERTIES
+        XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES"
+    )
 endif()
 
 if(APPLE)

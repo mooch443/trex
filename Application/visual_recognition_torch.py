@@ -1,5 +1,5 @@
 from fileinput import filename
-import re
+import os
 from tkinter import NO
 from turtle import clear
 from matplotlib.pylab import f
@@ -227,6 +227,34 @@ batch_size = None
 
 network_version = None'''
 
+def save_model_files(model, output_path, accuracy, suffix='', epoch=None):
+    checkpoint = {
+        'model': None,
+        'state_dict': None,
+        'metadata': {
+            'input_shape': (image_width, image_height, image_channels),
+            'num_classes': len(classes),
+            'epoch': epoch,
+            'uniqueness': accuracy,
+        }
+    }
+    TRex.log(f"# [saving] saving model state dict to {output_path+suffix}.pth")
+    try:
+        checkpoint['state_dict'] = model.state_dict()
+        torch.save(checkpoint, output_path+suffix+".pth")
+    except Exception as e:
+        TRex.warn("Error saving model: " + str(e))
+
+    TRex.log(f"# [saving] saving complete model to {output_path+suffix}_model.pth")
+    try:
+        checkpoint['model'] = model
+        checkpoint['state_dict'] = model.state_dict()
+        torch.save(checkpoint, output_path+suffix+"_model.pth")
+    except Exception as e:
+        TRex.warn("Error saving model: " + str(e))
+        
+    TRex.log("# [saving] saved states to "+output_path+suffix+" with accuracy of "+str(accuracy))
+
 # alternative for onehotencoder from sklearn:
 class OneHotEncoder:
     def __init__(self, sparse_output = False):
@@ -324,7 +352,7 @@ def predict_numpy(model, images, batch_size, device):
             has_softmax = list(model.named_children())[-1][-1].original_name == "Softmax"
         except:
             pass
-        print(f"Model has softmax: {has_softmax}")
+        #print(f"Model has softmax: {has_softmax}")
 
         if p_softmax is None:
             p_softmax = nn.Softmax(dim=1).to(device)
@@ -334,10 +362,10 @@ def predict_numpy(model, images, batch_size, device):
             # check if the model ends on a softmax layer
             if has_softmax:
                 output.append(model(x).cpu().numpy())
-                print("Using model's softmax")
+                #print("Using model's softmax")
             else:
                 output.append(p_softmax(model(x)).cpu().numpy())
-                print("Using custom softmax")
+                #print("Using custom softmax")
             
             del x
         #del softmax
@@ -537,8 +565,7 @@ class ValidationCallback:
             global output_path
             self.best_result["weights"] = model.state_dict()
             try:
-                TRex.log(f"\t(saving model as '{output_path}_progress.pth')")
-                torch.save(model.state_dict(), output_path+"_progress.pth")
+                save_model_files(model=model, output_path=output_path, accuracy=unique, suffix=f"_progress", epoch=epoch)
             except Exception as e:
                 TRex.warn(str(e))
         else:
@@ -662,35 +689,194 @@ class ValidationCallback:
         #TRex.log(f"Epoch: {epoch}: {self.batches} / {self.settings['per_epoch']}")
         update_work_percent(epoch / self.epochs)
 
-
-def reinitialize_network():
+def get_default_network():
     global image_channels, device
-    global model, image_width, image_height, classes, learning_rate, sess, network_version
+    global image_width, image_height, classes, learning_rate, sess, network_version
 
     # if no device is specified, use cuda if available, otherwise use mps/cpu
     device = TRex.choose_device()
     assert device is not None
 
-    model = ModelFetcher().get_model(network_version, len(classes), image_channels, image_width, image_height, device=device)
-    TRex.log(f"Reinitialized network with version {network_version}:\n{model}")
-    TRex.log(f"Trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}")
+    loaded_model = ModelFetcher().get_model(network_version, len(classes), image_channels, image_width, image_height, device=device)
+    TRex.log(f"Reinitialized network with version {network_version}:\n{loaded_model}")
+    TRex.log(f"Trainable parameters: {sum(p.numel() for p in loaded_model.parameters() if p.requires_grad)}")
     TRex.log(f"Device: {device}")
 
-def load_weights():
-    global output_path, model, accumulation_step
-    import os
+    return loaded_model
+
+def reinitialize_network():
+    global model
+    model = get_default_network()
+
+# It is assumed that the following globals are defined elsewhere:
+#   image_width, image_height, image_channels, classes, model
+# and that TRex (with log() and warn() methods) and get_default_network() are available.
+# Also, ConfigurationError is defined as follows:
+class ConfigurationError(Exception):
+    """Raised when the model’s configuration (input dimensions or number of classes)
+    does not match the current settings."""
+    pass
+
+def load_checkpoint_from_file(file_path: str):
+    """
+    Loads a checkpoint from the specified file path.
+    
+    The file is expected to be a .pth file that contains a dictionary with:
+      - A "model" field (for a complete model) and/or
+      - A "state_dict" field (with optional "metadata").
+    
+    If metadata is present, it is verified against the current globals:
+      (image_width, image_height, image_channels, and len(classes)).
+    
+    Returns a checkpoint dict (or wraps a plain state dict).
+    """
+    device = TRex.choose_device()
+    if not os.path.exists(file_path):
+        raise Exception("Checkpoint file not found at " + file_path)
+
     try:
-        if os.path.exists(output_path+"_model.pth"):
-            TRex.log(f"Loading entire model from {output_path+'_model.pth'} in step {accumulation_step}")
-            device = TRex.choose_device()
-            model = torch.jit.load(output_path+'_model.pth').to(device)
-        else:
-            TRex.log(f"Loading weights from {output_path+'.pth'} in step {accumulation_step}")
-            model.load_state_dict(torch.load(output_path+'.pth', weights_only=True))
-        
+        metadata = {}
+        TRex.log(f"Loading checkpoint as JIT from {file_path}...")
+        cp = torch.jit.load(file_path, map_location=device, _extra_files=metadata)
+        cp = {
+            "model": cp,
+            "metadata": metadata
+        }
+        TRex.log(f"Loaded checkpoint from JIT {file_path}.")
     except Exception as e:
-        TRex.warn(str(e))
-        raise Exception("Failed to load weights. This is likely because either the individual_image_size is different, or because existing weights might have been generated by a different version of TRex (see visual_identification_version).")
+        TRex.warn(f"Failed to load checkpoint as JIT: {str(e)}")
+
+        cp = torch.load(file_path, map_location=device, weights_only=True)
+        TRex.log(f"Loaded checkpoint from {file_path}.")
+
+    if isinstance(cp, dict):
+        if "metadata" in cp:
+            metadata = cp["metadata"]
+            expected_shape = (image_width, image_height, image_channels)
+            expected_num_classes = len(classes)
+            if "input_shape" in metadata and metadata["input_shape"] != expected_shape:
+                raise ConfigurationError(
+                    f"Mismatch in input dimensions: expected {expected_shape} but checkpoint metadata has {metadata['input_shape']}."
+                )
+            if "num_classes" in metadata and metadata["num_classes"] != expected_num_classes:
+                raise ConfigurationError(
+                    f"Mismatch in number of classes: expected {expected_num_classes} but checkpoint metadata has {metadata['num_classes']}."
+                )
+        return cp
+    else:
+        TRex.log("Loaded checkpoint is a plain state dict without metadata.")
+        return {"state_dict": cp}
+
+def apply_checkpoint_to_model(target_model: torch.nn.Module, checkpoint):
+    """
+    Applies weights from the checkpoint to the given target_model,
+    checking compatibility based on metadata if available.
+    
+    The checkpoint can be:
+      - A dict with a "model" field (a complete model) that is not None,
+      - A dict with a "state_dict" field (with optional "metadata"),
+      - Or a plain state dict.
+      
+    Compatibility is verified by comparing checkpoint metadata against attributes
+    of the target_model (if they exist, e.g. target_model.input_shape and target_model.num_classes).
+    
+    Raises:
+        ConfigurationError: If the checkpoint metadata is incompatible with the target model.
+        Exception: If loading the weights fails.
+    """
+    state_dict = None
+
+    # If checkpoint is a dict, check for metadata and extract the state dict.
+    if isinstance(checkpoint, dict):
+        # Verify metadata compatibility, if available.
+        if "metadata" in checkpoint:
+            metadata = checkpoint["metadata"]
+            if hasattr(target_model, 'input_shape') and metadata.get("input_shape") is not None:
+                if target_model.input_shape != metadata["input_shape"]:
+                    raise ConfigurationError(
+                        f"Mismatch in input dimensions: target model expects {target_model.input_shape} "
+                        f"but checkpoint has {metadata['input_shape']}."
+                    )
+            if hasattr(target_model, 'num_classes') and metadata.get("num_classes") is not None:
+                if target_model.num_classes != metadata["num_classes"]:
+                    raise ConfigurationError(
+                        f"Mismatch in number of classes: target model expects {target_model.num_classes} "
+                        f"but checkpoint has {metadata['num_classes']}."
+                    )
+        # Prefer a complete model if available.
+        if "model" in checkpoint and checkpoint["model"] is not None:
+            try:
+                state_dict = checkpoint["model"].state_dict()
+            except Exception as e:
+                raise Exception("Failed to extract state dict from complete model in checkpoint: " + str(e))
+        elif "state_dict" in checkpoint:
+            state_dict = checkpoint["state_dict"]
+        else:
+            state_dict = checkpoint
+            TRex.warn("Invalid checkpoint format: missing both 'model' and 'state_dict' keys. Assuming this is only a state_dict.")
+    else:
+        # If checkpoint is not a dict, assume it's a plain state dict.
+        state_dict = checkpoint
+
+    try:
+        target_model.load_state_dict(state_dict)
+        TRex.log("Checkpoint weights applied successfully to target model.")
+    except Exception as e:
+        raise Exception("Failed to apply checkpoint weights to target model: " + str(e))
+
+def load_model_from_file(file_path: str, new_model : torch.nn.Module = None) -> torch.nn.Module:
+    """
+    Loads a model from the specified checkpoint file and returns a fully initialized PyTorch model.
+    
+    The function first loads the checkpoint using load_checkpoint_from_file(). If the checkpoint
+    contains a complete model in the "model" field (and it passes metadata checks), that model is returned.
+    Otherwise, it instantiates a new model using get_default_network(), applies the checkpoint weights
+    to it via apply_checkpoint_to_model(), and returns the updated model.
+    """
+    cp = load_checkpoint_from_file(file_path)
+    # If a complete model is available, try using it.
+    if isinstance(cp, dict) and ("model" in cp and cp["model"] is not None):
+        try:
+            if "metadata" in cp:
+                metadata = cp["metadata"]
+                expected_shape = (image_width, image_height, image_channels)
+                expected_num_classes = len(classes)
+                if "input_shape" in metadata and metadata["input_shape"] != expected_shape:
+                    raise ConfigurationError(
+                        f"Mismatch in input dimensions: expected {expected_shape} but checkpoint metadata has {metadata['input_shape']}."
+                    )
+                if "num_classes" in metadata and metadata["num_classes"] != expected_num_classes:
+                    raise ConfigurationError(
+                        f"Mismatch in number of classes: expected {expected_num_classes} but checkpoint metadata has {metadata['num_classes']}."
+                    )
+            TRex.log("Loaded complete model from checkpoint.")
+            return cp["model"]
+        except Exception as e:
+            TRex.warn("Failed to load complete model from checkpoint's 'model' field: " + str(e) +
+                      ". Falling back to state_dict loading.")
+    try:
+        if new_model is None:
+            new_model = get_default_network()
+        apply_checkpoint_to_model(new_model, cp)
+        TRex.log("Loaded model from checkpoint state dict.")
+        return new_model
+    except Exception as e:
+        raise Exception("Failed to load model from checkpoint state dict: " + str(e))
+
+def load_weights():
+    """
+    Loads model weights from the specified checkpoint file and applies them to the current global model.
+    
+    The file is expected to contain either a complete model (in a "model" field) or a "state_dict".
+    This function loads the checkpoint and then applies it using apply_checkpoint_to_current_model().
+    """
+    global output_path, model
+    try:
+        cp = load_checkpoint_from_file(output_path+"_model.pth")
+    except:
+        TRex.log(f"Failed to load model from {output_path}_model.pth. Trying {output_path}.pth")
+        cp = load_checkpoint_from_file(output_path+".pth")
+    apply_checkpoint_to_model(model, cp)
 
 def predict():
     global receive, images, model, image_channels, device, batch_size, image_width, image_height
@@ -1138,7 +1324,8 @@ def start_learning():
             # load best results from the current run
             try:
                 TRex.log(f"Loading weights from {output_path+'_progress.pth'} in step {accumulation_step}")
-                model.load_state_dict(torch.load(output_path+'_progress.pth', weights_only=True))
+                load_model_from_file(output_path+'_progress.pth', new_model = model)
+                #apply_checkpoint_to_model(model, checkpoint)
             except Exception as e:
                 TRex.warn(str(e))
                 raise Exception("Failed to load weights. This is likely because either the individual_image_size is different, or because existing weights might have been generated by a different version of TRex (see visual_identification_version).")
@@ -1148,14 +1335,7 @@ def start_learning():
                 samples_per_class=np.array(per_class, dtype="object"))
 
             if save_weights_after:
-                TRex.log(f"# [saving] saving model to {output_path}.pth")
-                try:
-                    torch.save(model.state_dict(), output_path+".pth")
-                    torch.save(model, output_path+"_model.pth")
-                except Exception as e:
-                    TRex.warn("Error saving model: " + str(e))
-                    
-                TRex.log("saved model to "+output_path+" with accuracy of "+str(callback.best_result["unique"]))
+                save_model_files(model=model, output_path=output_path, accuracy=callback.best_result["unique"])
         
             try:
                 #for i, layer in zip(range(len(model.layers)), model.layers):

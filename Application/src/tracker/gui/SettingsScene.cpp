@@ -685,21 +685,32 @@ struct SettingsScene::Data {
                         return _selected_source_exists.load();
                     }),
                     VarFunc("settings_summary", [](const VarProps&) -> std::string {
-                        auto delta = default_config::generate_delta_config(AccessLevelType::PUBLIC);
-                        std::stringstream ss;
-                        for(auto& [key, prop] : delta.map) {
-                            if(utils::beginsWith(key, "gui_")
-                               || utils::beginsWith(key, "cam_")
-                               || utils::beginsWith(key, "export_")
-                               || utils::beginsWith(key, "gpu_")
-                               //|| utils::beginsWith(key, "manual_")
-                               || utils::beginsWith(key, "heatmap_"))
-                            {
-                                continue;
+                        static Timer last_update;
+                        static std::string last_update_text;
+                        
+                        if(last_update.elapsed() > 1
+                           || last_update_text.empty())
+                        {
+                            auto delta = default_config::generate_delta_config(AccessLevelType::PUBLIC);
+                            std::stringstream ss;
+                            for(auto& [key, prop] : delta.map) {
+                                if(utils::beginsWith(key, "gui_")
+                                   || utils::beginsWith(key, "cam_")
+                                   || utils::beginsWith(key, "export_")
+                                   || utils::beginsWith(key, "gpu_")
+                                   //|| utils::beginsWith(key, "manual_")
+                                   || utils::beginsWith(key, "heatmap_"))
+                                {
+                                    continue;
+                                }
+                                ss << "<key>" << key << "</key>: <c>" << utils::ShortenText(prop->valueString(), 100, 0.5, "<gray>…</gray>") << "</c>\n";
                             }
-                            ss << "<key>" << key << "</key>: <c>" << utils::ShortenText(prop->valueString(), 100, 0.5, "<gray>…</gray>") << "</c>\n";
+                            
+                            last_update.reset();
+                            last_update_text = ss.str();
                         }
-                        return ss.str();
+                        
+                        return last_update_text;
                     }),
                     VarFunc("window_size", [](const VarProps&) -> Vec2 {
                         return FindCoord::get().screen_size();

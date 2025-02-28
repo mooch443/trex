@@ -1,8 +1,6 @@
 import torch
 import torch.nn as nn
-import torch.optim as optim
-from torch.utils.data import DataLoader, TensorDataset
-from torchvision import datasets, transforms
+from torchvision import transforms
 
 # Define Normalize Layer
 class Normalize(nn.Module):

@@ -6,6 +6,7 @@
 #include <gui/GUICache.h>
 #include <gui/WorkProgress.h>
 #include <ml/Accumulation.h>
+#include <misc/Coordinates.h>
 
 namespace py = Python;
 
@@ -98,9 +99,15 @@ void DrawUniqueness::Data::update(Entangled& base) {
         }
     }
     
+    auto coords = FindCoord::get();
+    auto size = Size2(max(500_F, coords.screen_size().width - 300_F), min(coords.screen_size().height - 100_F, 400_F));
+    
     std::lock_guard guard(mutex);
     if(!estimated_uniqueness.empty()) {
-        if(graph.x_range().end == FLT_MAX || graph.x_range().end != _cache->tracked_frames.end.get()) {
+        if(graph.x_range().end == FLT_MAX
+           || graph.x_range().end != _cache->tracked_frames.end.get()
+           || not size.Equals(size))
+        {
             long_t L = (long_t)uniquenesses.size();
             for (long_t i=0; i<L; ++i) {
                 long_t offset = 1;
@@ -134,6 +141,7 @@ void DrawUniqueness::Data::update(Entangled& base) {
                 graph.add_points("", uniquenesses);
             }
             graph.set_draggable();
+            graph.set_size(size);
         }
         
         graph.set_zero(frameNr.get());
