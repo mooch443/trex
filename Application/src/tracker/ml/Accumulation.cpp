@@ -848,6 +848,10 @@ bool Accumulation::start() {
         _network->train(_collected_data, FrameRange(), TrainingMode::Apply, 0, true, nullptr, -1);
         
         elevate_task([video = _video](){
+            auto tracker = Tracker::instance();
+            tracker->clear_tracklets_identities();
+            tracker->clear_vi_predictions();
+            
             apply_network(video);
         });
         

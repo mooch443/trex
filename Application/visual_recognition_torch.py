@@ -319,11 +319,26 @@ def predict_numpy(model, images, batch_size, device):
     # predict in batches
     output = []
     with torch.no_grad():
+        has_softmax = False
+        try:
+            has_softmax = list(model.named_children())[-1][-1].original_name == "Softmax"
+        except:
+            pass
+        print(f"Model has softmax: {has_softmax}")
+
         if p_softmax is None:
             p_softmax = nn.Softmax(dim=1).to(device)
         for i in range(0, len(images), batch_size):
             x = torch.tensor(images[i:i+batch_size], dtype=torch.float32, requires_grad=False).to(device).detach()
-            output.append(p_softmax(model(x)).cpu().numpy())
+
+            # check if the model ends on a softmax layer
+            if has_softmax:
+                output.append(model(x).cpu().numpy())
+                print("Using model's softmax")
+            else:
+                output.append(p_softmax(model(x)).cpu().numpy())
+                print("Using custom softmax")
+            
             del x
         #del softmax
 
@@ -667,7 +682,8 @@ def load_weights():
     try:
         if os.path.exists(output_path+"_model.pth"):
             TRex.log(f"Loading entire model from {output_path+'_model.pth'} in step {accumulation_step}")
-            model = torch.load(output_path+'_model.pth', weights_only=False)
+            device = TRex.choose_device()
+            model = torch.jit.load(output_path+'_model.pth').to(device)
         else:
             TRex.log(f"Loading weights from {output_path+'.pth'} in step {accumulation_step}")
             model.load_state_dict(torch.load(output_path+'.pth', weights_only=True))
