@@ -1,18 +1,19 @@
-from fileinput import filename
+# Standard library imports
+import gc
+import json
 import os
-from tkinter import NO
-from turtle import clear
-from matplotlib.pylab import f
+
+# Third-party imports
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import torchvision.models as models
-from collections import OrderedDict
-import numpy as np
-from torch.utils.data import DataLoader, TensorDataset
-from torchvision import datasets, transforms
-import json
+from torchvision import transforms
+import torchmetrics
+from tqdm import tqdm
+import datetime
 
+# Local imports
 import TRex
 from visual_identification_network_torch import ModelFetcher
 
@@ -334,7 +335,6 @@ def clear_caches():
         torch.mps.empty_cache()
         TRex.log(f"Current memory: {current_mem/1024/1024}MB -> {torch.mps.current_allocated_memory()/1024/1024}MB")
 
-    import gc
     gc.collect()
 
 p_softmax = None
@@ -939,18 +939,12 @@ def predict():
     del indexes
     del images
 
-    import gc
     gc.collect()
 
 def train(model, train_loader, val_loader, criterion, optimizer : torch.optim.Adam, callback : ValidationCallback, scheduler, transform, settings, device = 'mps'):
     global get_abort_training
     global static_inputs, static_targets
     num_classes = len(settings["classes"])
-
-    import matplotlib.pyplot as plt
-    import torchmetrics
-    import gc
-    from tqdm import tqdm
 
     # Initialize metrics
     precision = torchmetrics.Precision(task='multiclass', num_classes=num_classes, average='macro').to(device)
@@ -966,8 +960,6 @@ def train(model, train_loader, val_loader, criterion, optimizer : torch.optim.Ad
     #import tracemalloc;
     #tracemalloc.start(50)
 
-    last_snapshot = None
-    
     for epoch in range(settings["epochs"]):
         model.train()
 
@@ -1179,8 +1171,6 @@ def train(model, train_loader, val_loader, criterion, optimizer : torch.optim.Ad
 
     #tracemalloc.stop()
 
-    clear_caches()
-    clear_caches()
     clear_caches()
     
 
