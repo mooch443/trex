@@ -311,7 +311,8 @@ public:
     static bool has_loaded_module(const std::string&);
     static bool check_module(const std::string&, std::function<void()> unloader = nullptr);
     static bool is_none(const std::string& name, const std::string& attribute);
-    static void run(const std::string& module_name, const std::string& function);
+    static std::optional<glz::json_t> run(const std::string& module_name, const std::string& function);
+    static std::optional<glz::json_t> run(const std::string& module_name, const std::string& function, const std::string& parm);
     static std::string run_retrieve_str(const std::string& module_name, const std::string& function);
 
     template<typename T>

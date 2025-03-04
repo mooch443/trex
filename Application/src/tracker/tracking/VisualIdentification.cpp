@@ -17,6 +17,7 @@ namespace py = Python;
 
 using namespace cmn;
 using namespace track;
+using namespace track::vi;
 
 inline static std::mutex _instance_mutex;
 inline static std::unique_ptr<VINetwork> _instance;
@@ -251,31 +252,53 @@ void VINetwork::reinitialize_internal() {
     py::check_correct_thread_id();
     setup(true);
     py::run(module_name, "reinitialize_network");
-    _status.weights_valid = false;
+    
+    VIWeights weights;
+    weights._status = VIWeights::Status::NONE;
+    weights._loaded = true;
+    weights._path = {};
+    weights._uniqueness.reset();
+    _status.weights = std::move(weights);
     _status.busy = false;
 }
 
-void VINetwork::load_weights_internal() {
+std::optional<VIWeights> VINetwork::load_weights_internal(VIWeights&& weights) {
     using py = track::PythonIntegration;
     reinitialize_internal();
     
+    if(weights.path().empty()) {
+        weights._path = network_path();
+    }
+    
     try {
-        py::run(module_name, "load_weights");
-        Print("\tReloaded weights.");
+        auto json = py::run(module_name, "load_weights", weights.path().str());
+        auto str = glz::write_json(json).value();
+        Print("\tReloaded weights: ", no_quotes(str));
+        _status.weights = VIWeights::fromStr(str);
+        _status.weights._loaded = true;
+        
+        return _status.weights;
         
     } catch(...) {
         throw;
     }
+    
+    return std::nullopt;
 }
 
-void VINetwork::load_weights() {
+VIWeights VINetwork::load_weights(VIWeights&& weights) {
+    std::optional<VIWeights> rweights;
+    
     py::schedule(PackagedTask{
         ._network = &_network,
-        ._task = PromisedTask([this](){
-            load_weights_internal();
+        ._task = PromisedTask([this, w = std::move(weights), &rweights]() mutable
+        {
+            rweights = load_weights_internal(std::move(w));
         }),
         ._can_run_before_init = true
     }).get();
+    
+    return rweights.value();
 }
 
 
@@ -291,17 +314,21 @@ void VINetwork::set_variables_internal(auto && images, callback_t && callback)
     py::check_correct_thread_id();
     
     try {
+        ModuleProxy m(module_name, [&](ModuleProxy &){
+            instance()->setup(true);
+        });
+        
         if(images.size() == 0) {
             Print("Empty images array.");
             callback(std::vector<std::vector<float>>{},std::vector<float>{});
             return;
         }
         
-        py::set_variable("images", images, module_name);
-        py::set_function("receive", std::move(callback), module_name);
-        py::run(module_name, "predict");
-        py::unset_function("receive", module_name);
-        py::unset_function("images", module_name);
+        m.set_variable("images", images);
+        m.set_function("receive", std::move(callback));
+        m.run("predict");
+        m.unset_function("receive");
+        m.unset_function("images");
         
     } catch(const SoftExceptionImpl& e) {
         FormatWarning("Runtime exception: ", e.what());
@@ -419,7 +446,9 @@ bool VINetwork::train(std::shared_ptr<TrainingData> data,
                 
                 //! decide whether to reload the network
                 if(is_in(load_results, TrainingMode::LoadWeights, TrainingMode::Apply))
-                    load_weights_internal();
+                    load_weights_internal(VIWeights{
+                        ._path = network_path()
+                    });
                 else if(load_results == TrainingMode::Restart)
                     reinitialize_internal();
                 
@@ -488,7 +517,8 @@ bool VINetwork::train(std::shared_ptr<TrainingData> data,
                     Print("best_accuracy_worst_class = ", best_accuracy_worst_class);
                     
                     //if(!dont_save)
-                    _status.weights_valid = true;
+                    _status.weights._loaded = true;
+                    _status.weights._uniqueness = best_accuracy_worst_class;
                     _status.busy = false;
                     
                     {
@@ -636,6 +666,21 @@ std::future<void> VINetwork::clear_caches() {
         ._task = PromisedTask([](){
             Python::ModuleProxy m(module_name, nullptr);
             m.run("clear_caches");
+        })
+    });
+}
+
+std::future<void> VINetwork::unload_weights() {
+    return py::schedule(PackagedTask{
+        ._network = instance() ? &instance()->_network : nullptr,
+        ._task = PromisedTask([](){
+            Python::ModuleProxy m(module_name, nullptr);
+            m.run("unload_weights");
+            
+            VINetwork::set_status(Status{
+                .busy = false,
+                .weights = {}
+            });
         })
     });
 }

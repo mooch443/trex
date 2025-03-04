@@ -681,6 +681,7 @@ void TrackingScene::redraw_all() {
     
     SceneManager::getInstance().enqueue([this, frame = _data->_cache->frame_idx](){
         if(_data && _data->_cache) {
+            _data->_tracker_has_added_frames = true;
             _data->_primary_selection = {};
             _data->_cache->set_tracking_dirty();
             _data->_cache->set_raw_blobs_dirty();

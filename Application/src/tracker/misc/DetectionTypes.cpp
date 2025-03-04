@@ -245,7 +245,7 @@ Size2 get_model_image_size() {
         
     } else if (detection_type() == ObjectDetectionType::yolo) {
         const auto region_resolution = SETTING(region_resolution).value<track::detect::DetectResolution>();
-
+        
         Size2 size;
         const float ratio = meta_video_size.height / meta_video_size.width;
         if (region_resolution.width > 0 && not SETTING(region_model).value<file::Path>().empty()) {
@@ -255,7 +255,7 @@ Size2 get_model_image_size() {
         }
         else
             size = Size2(detect_resolution.width, ratio * detect_resolution.height);
-
+        
         //Print("Using a resolution of meta_video_size = ", meta_video_size, " and detect_resolution = ", detect_resolution, " and region_resolution = ", region_resolution," gives a model image size of ", size);
         //return meta_video_size.div(2);
         return size;
@@ -283,6 +283,37 @@ blob::Pose Keypoint::toPose() const {
     return blob::Pose{
         .points = std::move(coords)
     };
+}
+
+}
+
+namespace track::vi {
+
+std::string VIWeights::toStr() const {
+    return glz::write_json(to_json()).value();
+}
+
+glz::json_t VIWeights::to_json() const {
+    glz::json_t json = std::initializer_list<std::pair<const char*, glz::json_t>>{
+        {"path", _path.str()},
+        {"uniqueness", _uniqueness ? glz::json_t(_uniqueness.value()) : nullptr},
+        {"loaded", _loaded},
+        {"status", _status},
+        {"modified", _modified ? glz::json_t(_modified.value()) : nullptr}
+    };
+    return json;
+}
+
+VIWeights VIWeights::fromStr(const std::string &str)
+{
+    VIWeights weights;
+    auto s = Meta::fromStr<std::string>(str);
+    auto error = glz::read_json(weights, s);
+    if(error != glz::error_code::none) {
+        std::string descriptive_error = glz::format_error(error, s);
+        throw U_EXCEPTION("Error loading VIWeights from JSON:\n", no_quotes(descriptive_error));
+    }
+    return weights;
 }
 
 }

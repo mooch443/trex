@@ -14,6 +14,7 @@
 #include <ml/Categorize.h>
 #include <gui/CheckUpdates.h>
 #include <tracking/DatasetQuality.h>
+#include <tracking/VisualIdentification.h>
 
 using namespace track;
 
@@ -137,6 +138,8 @@ TrackingState::~TrackingState() {
     CheckUpdates::cleanup();
     Categorize::terminate();
     Categorize::clear_labels();
+    
+    Python::VINetwork::unload_weights().get();
 #endif
     
     pool.force_stop();
@@ -224,17 +227,17 @@ bool TrackingState::stage_1(ConnectedTasks::Type && ptr) {
         static Timing after_track("Analysis::after_track", 10);
         TakeTiming after_trackt(after_track);
         
-        if(idx + 1_f == video->length()
-           || idx + 1_f > range.end())
-        {
-            on_tracking_done();
-        }
-        
         static Timer last_added;
         if(last_added.elapsed() > 10) {
             tracker->global_tracklet_order_changed();
             tracker->global_tracklet_order();
             last_added.reset();
+        }
+        
+        if(idx + 1_f == video->length()
+           || idx + 1_f > range.end())
+        {
+            on_tracking_done();
         }
         
         //Print(_data->tracker->active_individuals(idx));

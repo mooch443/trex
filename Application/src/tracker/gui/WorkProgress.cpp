@@ -179,7 +179,11 @@ void WorkProgress::start() {
                 {
                     self.gui->_additional.update([](auto&){});
                 }
-                item.fn();
+                try {
+                    item.fn();
+                } catch(const std::exception& ex) {
+                    FormatWarning("Caught an exception in the work queue: ", ex.what());
+                }
                 //std::this_thread::sleep_for(std::chrono::seconds(10));
                 lock.lock();
                 

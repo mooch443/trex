@@ -1337,7 +1337,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
 
 
 void load_string_with_deprecations(const file::Path& settings_file, const std::string& content, sprite::Map& map, AccessLevel accessLevel, const std::vector<std::string>& exclude, bool quiet) {
-    auto rejections = GlobalSettings::load_from_string(sprite::MapSource{ settings_file }, deprecations(), map, content, accessLevel, false, exclude);
+    auto rejections = GlobalSettings::load_from_string(sprite::MapSource{ settings_file }, deprecations(), map, content, accessLevel, false, exclude, &GlobalSettings::map());
     if(!rejections.empty()) {
         for (auto && [key, val] : rejections) {
             if (default_config::is_deprecated(key)) {

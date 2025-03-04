@@ -38,6 +38,8 @@ std::unordered_map<CallbackType, std::function<void()>> _apply_callbacks;
 std::unordered_map<CallbackType, std::function<void(double)>> _apply_percent_callbacks;
 std::mutex _current_lock;
 std::mutex _current_assignment_lock, _current_uniqueness_lock;
+std::mutex _network_lock;
+
 Python::VINetwork* _network{nullptr};
 Accumulation *_current_accumulation = nullptr;
 
@@ -209,34 +211,30 @@ void apply_network(const std::shared_ptr<pv::File>& video_source) {
     
 }
 
-struct AccumulationLock {
-    std::shared_ptr<std::lock_guard<std::mutex>> _guard;
-    Accumulation *_ptr;
-    AccumulationLock(Accumulation* ptr) : _ptr(ptr) {
+AccumulationLock::AccumulationLock(Accumulation* ptr) : _ptr(ptr) {
+    std::lock_guard<std::mutex> g(_current_assignment_lock);
+    _guard = std::make_shared<std::lock_guard<std::mutex>>(_current_lock);
+    _current_accumulation = ptr;
+}
+AccumulationLock::~AccumulationLock() {
+    {
         std::lock_guard<std::mutex> g(_current_assignment_lock);
-        _guard = std::make_shared<std::lock_guard<std::mutex>>(_current_lock);
-        _current_accumulation = ptr;
+        _current_accumulation = nullptr;
     }
-    ~AccumulationLock() {
-        {
-            std::lock_guard<std::mutex> g(_current_assignment_lock);
-            _current_accumulation = nullptr;
-        }
-        
-        try {
-            Accumulation::unsetup();
-        } catch(const SoftExceptionImpl& ) {
-            //! do nothing
+    
+    try {
+        Accumulation::unsetup();
+    } catch(const SoftExceptionImpl& ) {
+        //! do nothing
 #ifndef NDEBUG
-            FormatWarning("Caught SoftException in ~Accumulation.");
+        FormatWarning("Caught SoftException in ~Accumulation.");
 #endif
-        }
-        //PythonIntegration::async_python_function([]() {
-        //    PythonIntegration::execute("import keras.backend as K\nK.clear_session()");
-        //    return true;
-        //}).get();
     }
-};
+    //PythonIntegration::async_python_function([]() {
+    //    PythonIntegration::execute("import keras.backend as K\nK.clear_session()");
+    //    return true;
+    //}).get();
+}
 
 std::mutex _per_class_lock;
 void Accumulation::register_apply_callback(CallbackType type, std::function<void ()> && fn) {
@@ -290,6 +288,7 @@ void Accumulation::setup() {
     using namespace gui;
     
     try {
+        std::unique_lock guard{_network_lock};
         _network = py::VINetwork::instance().get();
         _network->set_skip_button([](){
             return WorkProgress::item_custom_triggered();
@@ -430,7 +429,15 @@ std::tuple<bool, std::map<Idx_t, Idx_t>> Accumulation::check_additional_range(co
     auto && [images, ids] = data.join_arrays();
     
     LockGuard guard(ro_t{}, "Accumulation::generate_training_data");
-    auto averages = _network->paverages(ids, std::move(images));
+    
+    std::map<track::Idx_t, Python::VINetwork::Average> averages;
+    
+    {
+        std::unique_lock guard{_network_lock};
+        if(not _network)
+            throw SoftException("Network is null.");
+        averages = _network->paverages(ids, std::move(images));
+    }
     
     std::set<Idx_t> added_ids = extract_keys(averages);
     std::set<Idx_t> not_added_ids;
@@ -677,9 +684,20 @@ std::tuple<std::shared_ptr<TrainingData>, std::vector<Image::SPtr>, std::map<Fra
     return {data, disc_images, disc_frame_map};
 }
 
-std::tuple<float, hash_map<Frame_t, float>, float> Accumulation::calculate_uniqueness(bool , const std::vector<Image::SPtr>& images, const std::map<Frame_t, Range<size_t>>& map_indexes)
+std::tuple<float, hash_map<Frame_t, float>, float> Accumulation::calculate_uniqueness(bool , const std::vector<Image::SPtr>& images, const std::map<Frame_t, Range<size_t>>& map_indexes, const std::unique_lock<std::mutex>* guard)
 {
-    auto predictions = _network->probabilities(images);
+    std::vector<float> predictions;
+    
+    if(not guard) {
+        std::unique_lock guard{_network_lock};
+        if(not _network)
+            throw SoftException("Network is not set.");
+        
+        predictions = _network->probabilities(images);
+    } else {
+        predictions = _network->probabilities(images);
+    }
+    
     if(predictions.empty()) {
         FormatExcept("Cannot predict ", images.size()," images.");
     }
@@ -807,7 +825,7 @@ Accumulation::~Accumulation() {
 }
 
 float Accumulation::step_calculate_uniqueness() {
-    auto && [_, map, up] = calculate_uniqueness(true, _disc_images, _disc_frame_map);
+    auto && [_, map, up] = calculate_uniqueness(true, _disc_images, _disc_frame_map, (const std::unique_lock<std::mutex>*)0x1);
     if(up >= current_best) {
         current_best = up;
         temp_unique = map;
@@ -839,6 +857,9 @@ bool Accumulation::start() {
     Accumulation::setup();
     
     if(_mode == TrainingMode::LoadWeights) {
+        std::unique_lock guard{_network_lock};
+        if(not _network)
+            throw SoftException("Network is null.");
         _network->load_weights();
         return true;
         
@@ -849,12 +870,22 @@ bool Accumulation::start() {
         }
         
         Print("[CONTINUE] Initializing network and loading available weights from previous run.");
+        
+        std::unique_lock guard{_network_lock};
+        if(not _network)
+            throw SoftException("Network is null.");
         _network->load_weights();
         
     } else if(_mode == TrainingMode::Apply) {
         _collected_data = std::make_shared<TrainingData>();
         _collected_data->set_classes(Tracker::identities());
-        _network->train(_collected_data, FrameRange(), TrainingMode::Apply, 0, true, nullptr, -1);
+        
+        {
+            std::unique_lock guard{_network_lock};
+            if(not _network)
+                throw SoftException("Network is null.");
+            _network->train(_collected_data, FrameRange(), TrainingMode::Apply, 0, true, nullptr, -1);
+        }
         
         elevate_task([video = _video](){
             auto tracker = Tracker::instance();
@@ -1035,6 +1066,10 @@ bool Accumulation::start() {
         });
         
         try {
+            std::unique_lock guard{_network_lock};
+            if(not _network)
+                throw SoftException("Network is null.");
+            
             _network->train(_collected_data, FrameRange(_initial_range), _mode, SETTING(gpu_max_epochs).value<uchar>(), true, &uniqueness_after, SETTING(accumulation_enable) ? 0 : -1);
         
         } catch(...) {
@@ -1283,7 +1318,13 @@ bool Accumulation::start() {
                 py::init().get();
                 
                 try {
-                    _network->train(second_data, FrameRange(range), TrainingMode::Accumulate, SETTING(gpu_max_epochs).value<uchar>(), true, &uniqueness_after, narrow_cast<int>(steps));
+                    {
+                        std::unique_lock guard{_network_lock};
+                        if(not _network)
+                            throw SoftException("Network is null.");
+                        
+                        _network->train(second_data, FrameRange(range), TrainingMode::Accumulate, SETTING(gpu_max_epochs).value<uchar>(), true, &uniqueness_after, narrow_cast<int>(steps));
+                    }
                     
                     auto && [p, map, up] = calculate_uniqueness(false, _disc_images, _disc_frame_map);
                     if(uniqueness_after != up) {
@@ -1330,8 +1371,13 @@ bool Accumulation::start() {
                         /// but still use / merge the data if it isnt
                         if(uniqueness_after >= best_uniqueness_before_step)
                             confirm_weights(); // we keep this network, which is the best we have so far
-                        else if(uniqueness_after < best_uniqueness_before_step * 0.95)
+                        else if(uniqueness_after < best_uniqueness_before_step * 0.95) {
+                            std::unique_lock guard{_network_lock};
+                            if(not _network)
+                                throw SoftException("Network is null.");
+                            
                             _network->load_weights(); // reload network if we are too far off
+                        }
                         
                         overall_ranges.insert(range);
                         
@@ -1349,6 +1395,9 @@ bool Accumulation::start() {
                         Print(str.c_str());
                         end_a_step(MakeResult<AccumulationStatus::Failed, AccumulationReason::UniquenessTooLow>(range, uniqueness_after, str));
                         
+                        std::unique_lock guard{_network_lock};
+                        if(not _network)
+                            throw SoftException("Network is null.");
                         _network->load_weights();
                         
                         return {false, nullptr};
@@ -1371,7 +1420,11 @@ bool Accumulation::start() {
                     } else
                         end_a_step(MakeResult<AccumulationStatus::Failed, AccumulationReason::TrainingFailed>(range, uniqueness_after, str));
                     
+                    std::unique_lock guard{_network_lock};
+                    if(not _network)
+                        throw SoftException("Network is null.");
                     _network->load_weights();
+                    
                     return {false, nullptr};
                 }
                 
@@ -1595,7 +1648,7 @@ bool Accumulation::start() {
             ids.emplace_back(id.get());
         
         auto ss = size.to_string();
-        Print("Images are ",ss," big. Saving to '",ranges_path.str(),"'.");
+        Print("Images are ",ss," big. Saving to ",ranges_path.str(),".");
         
         cmn::npz_save(ranges_path.str(), "ids", ids, "a");
         cmn::npz_save(ranges_path.str(), "images", all_images.data(), { data.validation_images.size() + data.training_images.size(), (size_t)dims.height, (size_t)dims.width, (size_t)channels }, "a");
@@ -1822,7 +1875,13 @@ bool Accumulation::start() {
         const float best_uniqueness_before_step = best_uniqueness();
         float uniqueness_after = best_uniqueness_before_step;
         current_best = 0;
-        _network->train(_collected_data, FrameRange(), TrainingMode::Accumulate, narrow_cast<int>(max(3.f, gpu_max_epochs * 0.25f)), true, &uniqueness_after, -2);
+        {
+            std::unique_lock guard{_network_lock};
+            if(not _network)
+                throw SoftException("Network is null.");
+            
+            _network->train(_collected_data, FrameRange(), TrainingMode::Accumulate, narrow_cast<int>(max(3.f, gpu_max_epochs * 0.25f)), true, &uniqueness_after, -2);
+        }
         
         if(uniqueness_after >= best_uniqueness_before_step) {
             {
@@ -1838,6 +1897,10 @@ bool Accumulation::start() {
             auto str = format<FormatterType::NONE>("Overfitting with uniqueness of ", dec<2>(uniqueness_after), " did not improve score. Ignoring.");
             Print(str.c_str());
             end_a_step(MakeResult<AccumulationStatus::Failed, AccumulationReason::UniquenessTooLow>(Range<Frame_t>{}, uniqueness_after, str));
+            
+            std::unique_lock guard{_network_lock};
+            if(not _network)
+                throw SoftException("Network is null.");
             _network->load_weights();
         }
     }

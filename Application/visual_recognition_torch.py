@@ -894,7 +894,13 @@ def load_model_from_file(file_path: str, new_model : torch.nn.Module = None) -> 
     except Exception as e:
         raise Exception("Failed to load model from checkpoint state dict: " + str(e))
 
-def load_weights():
+def unload_weights():
+    global model
+    model = None
+
+    clear_caches()
+
+def load_weights(path: str = None):
     """
     Loads model weights from the specified checkpoint file and applies them to the current global model.
     
@@ -902,16 +908,43 @@ def load_weights():
     This function loads the checkpoint and then applies it using apply_checkpoint_to_current_model().
     """
     global output_path, model
+
+    if path is None:
+        path = output_path
+
     model = None
+    modified = None
+    saved_path = path + "_model.pth"
     try:
-        cp = load_checkpoint_from_file(output_path+"_model.pth")
+        cp = load_checkpoint_from_file(saved_path)
     except Exception as e:
-        TRex.log(f"Failed to load model from {output_path}_model.pth ({e}). Trying {output_path}.pth")
-        cp = load_checkpoint_from_file(output_path+".pth")
+        saved_path = path+".pth"
+        TRex.log(f"Failed to load model from {path}_model.pth ({e}). Trying {saved_path}")
+        cp = load_checkpoint_from_file(saved_path)
+
+    metadata = cp["metadata"] if "metadata" in cp else None
 
     TRex.log("Loaded checkpoint with metadata: " + str(cp["metadata"] if "metadata" in cp else None))
     model = apply_checkpoint_to_model(model, cp)
     print("Loaded model weights from checkpoint: ", model)
+
+    if cp["metadata"] is not None and "modified" in cp["metadata"]:
+        modified = cp["metadata"]["modified"]
+    else:
+        try:
+            # get modified time as a unix timestamp
+            modified = int(os.path.getmtime(saved_path))
+        except Exception as e:
+            TRex.warn(f"Failed to get modified time for {saved_path}: {str(e)}")
+
+    return json.dumps(TRex.VIWeights(
+            path = saved_path,
+            uniqueness = metadata["uniqueness"] if metadata is not None and "uniqueness" in metadata else None,
+            status = "FINISHED",
+            modified = modified,
+            resolution = TRex.DetectResolution(metadata["input_shape"][:2]) if metadata is not None and "input_shape" in metadata else None,
+            classes = metadata["num_classes"] if metadata is not None and "num_classes" in metadata else None
+        ).to_string())
 
 def predict():
     global receive, images, model, image_channels, device, batch_size, image_width, image_height
@@ -1419,3 +1452,19 @@ def start_learning():
 
     if abort_with_error:
         raise Exception("aborting with error")
+    else:
+        path = output_path+"_model.pth"
+        try:
+            modified = os.path.getmtime(path)
+        except Exception as e:
+            TRex.warn(f"Failed to get modified time for {path}: {str(e)}")
+            modified = 0
+
+        return json.dumps(TRex.VIWeights(
+                path= path,
+                uniqueness= best_accuracy_worst_class,
+                status= "FINISHED",
+                modified= int(modified),
+                resolution = TRex.DetectResolution(image_width, image_height),
+                classes = len(classes)
+            ).to_string())

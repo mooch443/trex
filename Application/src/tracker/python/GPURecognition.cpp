@@ -335,6 +335,11 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
         .def(py::init<int, int>(),
             py::arg("width"),
             py::arg("height"))
+        .def(py::init(
+           [](std::pair<uint32_t, uint32_t> pair) {
+                return DetectResolution(pair.first, pair.second);
+           }),
+           py::arg("size"))
         .def_readonly("width", &DetectResolution::width)
         .def_readonly("height", &DetectResolution::height)
         .def("__repr__", &DetectResolution::toStr)
@@ -457,6 +462,34 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
         })
         .def_readwrite("x", &cmn::Vec2::x)
         .def_readwrite("y", &cmn::Vec2::y);
+    
+    using namespace track::vi;
+    py::class_<VIWeights>(m, "VIWeights")
+        .def(py::init([](std::string path, double uniqueness, std::string status, uint64_t modified, DetectResolution resolution, uint8_t classes)
+        {
+            return VIWeights{
+                ._path = path,
+                ._uniqueness = uniqueness,
+                ._status = status == "FINISHED"
+                    ? VIWeights::Status::FINISHED
+                    : (status == "PROGRESS"
+                        ? VIWeights::Status::PROGRESS
+                        : VIWeights::Status::NONE),
+                ._modified = modified,
+                ._resolution = resolution,
+                ._num_classes = classes
+            };
+        }), py::arg("path"), py::arg("uniqueness"), py::arg("status"), py::arg("modified"), py::arg("resolution"), py::arg("classes"))
+        .def("__repr__", [](const VIWeights& v) -> std::string {
+            return v.toStr();
+        })
+        .def_readwrite("path", &VIWeights::_path)
+        .def_readwrite("uniqueness", &VIWeights::_uniqueness)
+        .def_readwrite("modified", &VIWeights::_modified)
+        .def_readwrite("resolution", &VIWeights::_resolution)
+        .def_readwrite("classes", &VIWeights::_num_classes)
+        .def("to_json", &VIWeights::to_json)
+        .def("to_string", &VIWeights::toStr);
 
     py::class_<track::detect::YoloInput>(m, "YoloInput")
         .def(py::init<std::vector<cmn::Image::Ptr>&&, std::vector<cmn::Vec2>&&, std::vector<cmn::Vec2>&&, std::vector<size_t>&&>())
@@ -920,7 +953,32 @@ bool PythonIntegration::check_module(const std::string& name,
     return result;
 }
 
-void PythonIntegration::run(const std::string& module_name, const std::string& function) {
+std::optional<glz::json_t> result_to_json(py::handle&& result) {
+    if(CHECK_NONE(result)) {
+        return std::nullopt;
+    }
+    
+    std::string str;
+    try {
+        str = result.cast<std::string>();
+        
+        glz::json_t json;
+        auto error = glz::read_json(json, str);
+        if(error != glz::error_code::none) {
+            std::string descriptive_error = glz::format_error(error, str);
+            throw SoftException("Error loading JSON response:\n", no_quotes(descriptive_error));
+        }
+        return json;
+        
+    } catch([[maybe_unused]] const py::cast_error& error) {
+#ifndef NDEBUG
+        FormatError("Cannot convert result to string: ", error.what());
+#endif
+    }
+    return std::nullopt;
+}
+
+std::optional<glz::json_t> PythonIntegration::run(const std::string& module_name, const std::string& function, const std::string& parm) {
     check_correct_thread_id();
 #ifdef TREX_PYTHON_DEBUG
     Print(fmt::clr<FormatColor::DARK_GRAY>("[py] "), "Running ",module_name.c_str(),"::",function.c_str());
@@ -940,7 +998,10 @@ void PythonIntegration::run(const std::string& module_name, const std::string& f
         
         if(!CHECK_NONE(module)) {
             guard.unlock();
-            module();
+            
+            auto result = module(parm);
+            return result_to_json(std::move(result));
+            
         } else
             FormatExcept("Pointer of ",module_name,"::",function," is null.");
     }
@@ -962,6 +1023,56 @@ void PythonIntegration::run(const std::string& module_name, const std::string& f
     } catch(...) {
         throw SoftException("Unknown exception while running ", module_name.c_str(),"::", function.c_str(),"().");
     }
+    
+    return std::nullopt;
+}
+
+std::optional<glz::json_t> PythonIntegration::run(const std::string& module_name, const std::string& function) {
+    check_correct_thread_id();
+#ifdef TREX_PYTHON_DEBUG
+    Print(fmt::clr<FormatColor::DARK_GRAY>("[py] "), "Running ",module_name.c_str(),"::",function.c_str());
+#endif
+    
+    std::unique_lock<std::mutex> guard(module_mutex);
+
+    try {
+        py::handle module;
+        
+        if(!CHECK_NONE(_modules.at(module_name))) {
+            if(function.empty())
+                module = _modules.at(module_name);
+            else
+                module = _modules.at(module_name).attr(function.c_str());
+        }
+        
+        if(!CHECK_NONE(module)) {
+            guard.unlock();
+            auto result = module();
+            return result_to_json(std::move(result));
+            
+        } else
+            FormatExcept("Pointer of ",module_name,"::",function," is null.");
+    }
+    catch (pybind11::error_already_set & e) {
+        e.restore();
+        
+        if (PyErr_Occurred()) {
+            PyErr_PrintEx(0);
+            PyErr_Clear(); // this will reset the error indicator so you can run Python code again
+        }
+        
+        _modules.at(module_name).release();
+        //_modules.at(module_name) = pybind11::none();
+        throw SoftException("Python runtime exception while running ", module_name.c_str(),"::", function.c_str(),"(): ", e.what());
+        
+    } catch(const std::exception& e) {
+        throw SoftException("Non-python error while running ", module_name.c_str(),"::", function.c_str(),"(): ", e.what());
+        
+    } catch(...) {
+        throw SoftException("Unknown exception while running ", module_name.c_str(),"::", function.c_str(),"().");
+    }
+    
+    return std::nullopt;
 }
 
 std::string PythonIntegration::run_retrieve_str(const std::string& module_name, const std::string& function)

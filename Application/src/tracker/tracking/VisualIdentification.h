@@ -9,6 +9,7 @@
 #include <file/Path.h>
 #include <tracking/TrainingData.h>
 #include <tracking/Stuffs.h>
+#include <misc/DetectionTypes.h>
 
 namespace Python {
 
@@ -34,7 +35,7 @@ protected:
 public:
     struct Status {
         bool busy{false};
-        bool weights_valid{false};
+        track::vi::VIWeights weights;
         
         auto operator<=>(const Status& other) const = default;
     };
@@ -83,7 +84,7 @@ public:
     
     //! Initializes network, and loads weights if available
     //! (according to network_path)
-    void load_weights();
+    track::vi::VIWeights load_weights(track::vi::VIWeights&& = track::vi::VIWeights{});
     
     //! Checks network_path() and sees if the file is available
     static bool weights_available();
@@ -116,7 +117,7 @@ public:
                 prom.set_exception(std::current_exception());
                 throw;
             }
-        });
+        }).get();
         
         if(not future.valid()) {
             throw cmn::SoftException("Invalid future.");
@@ -200,6 +201,7 @@ public:
     }
     
     static std::future<void> clear_caches();
+    static std::future<void> unload_weights();
     
 private:
     static void set_variables_internal(auto&&, callback_t&&);
@@ -214,7 +216,7 @@ public:
     
 private:
     void reinitialize_internal();
-    void load_weights_internal();
+    std::optional<track::vi::VIWeights> load_weights_internal(track::vi::VIWeights&&);
     
 public:
     static std::vector<float> transform_results(

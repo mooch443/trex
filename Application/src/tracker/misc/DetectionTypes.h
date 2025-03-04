@@ -90,6 +90,7 @@ struct DetectResolution {
     
     bool operator==(const DetectResolution&) const = default;
     bool operator!=(const DetectResolution&) const = default;
+    auto operator<=>(const DetectResolution& other) const = default;
     
     static DetectResolution fromStr(const std::string& str);
     glz::json_t to_json() const;
@@ -107,4 +108,80 @@ bool is_default_model(const cmn::file::Path&);
 std::string default_model();
 }
 
+}
+
+namespace track::vi {
+
+struct VIWeights {
+    enum Status {
+        NONE,
+        PROGRESS,
+        FINISHED
+    };
+    
+    cmn::file::Path _path;
+    std::optional<double> _uniqueness;
+    bool _loaded{false};
+    Status _status{NONE};
+    std::optional<uint64_t> _modified;
+    detect::DetectResolution _resolution;
+    std::optional<uint8_t> _num_classes;
+    
+    auto operator<=>(const VIWeights& other) const = default;
+    constexpr bool valid() const { return loaded() && status() != NONE; }
+    constexpr bool finished() const { return loaded() && status() == FINISHED; }
+    constexpr bool loaded() const { return _loaded; }
+    const auto& path() const { return _path; }
+    auto uniqueness() const { return _uniqueness; }
+    Status status() const { return _status; }
+    auto modified() const { return _modified; }
+    auto resolution() const { return _resolution; }
+    auto classes() const { return _num_classes; }
+    
+    std::string toStr() const;
+    static VIWeights fromStr(const std::string&);
+    static std::string class_name() { return "VIWeights"; }
+    glz::json_t to_json() const;
+};
+
+}
+
+namespace glz {
+   template <>
+   struct meta<track::vi::VIWeights> {
+      using T = track::vi::VIWeights;
+      static constexpr auto value = object(
+         "path",       &T::_path,
+         "uniqueness", &T::_uniqueness,
+         "loaded",     &T::_loaded,
+         "status",     &T::_status,
+         "modified",   &T::_modified,
+         "resolution", &T::_resolution
+      );
+   };
+
+namespace detail {
+
+    template <>
+   struct from_json<cmn::file::Path>
+   {
+      template <auto Opts>
+      static void op(cmn::file::Path& value, auto&&... args)
+      {
+         std::string str;
+         read<json>::op<Opts>(str, args...);
+          value = cmn::file::Path(str);
+      }
+   };
+
+   template <>
+   struct to_json<cmn::file::Path>
+   {
+      template <auto Opts>
+      static void op(cmn::file::Path& value, auto&&... args) noexcept
+      {
+         write<json>::op<Opts>(value.str(), args...);
+      }
+   };
+}
 }

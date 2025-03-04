@@ -39,6 +39,14 @@ ENUM_CLASS(CallbackType_t,
 );
 
 using CallbackType = CallbackType_t::Class;
+class Accumulation;
+
+struct AccumulationLock {
+    std::shared_ptr<std::lock_guard<std::mutex>> _guard;
+    Accumulation *_ptr;
+    AccumulationLock(Accumulation* ptr);
+    ~AccumulationLock();
+};
 
 class Accumulation {
 public:
@@ -178,7 +186,7 @@ public:
     void confirm_weights();
     void update_coverage(const TrainingData& data);
     
-    static std::tuple<float, hash_map<Frame_t, float>, float> calculate_uniqueness(bool internal, const std::vector<Image::SPtr>&, const std::map<Frame_t, Range<size_t>>&);
+    static std::tuple<float, hash_map<Frame_t, float>, float> calculate_uniqueness(bool internal, const std::vector<Image::SPtr>&, const std::map<Frame_t, Range<size_t>>&, const std::unique_lock<std::mutex>* = nullptr);
     static std::tuple<std::shared_ptr<TrainingData>, std::vector<Image::SPtr>, std::map<Frame_t, Range<size_t>>> generate_discrimination_data(pv::File& video, const std::shared_ptr<TrainingData>& source = nullptr);
     static void setup();
     static void unsetup();
