@@ -304,15 +304,14 @@ struct SettingsScene::Data {
         sprite::Map copy = GlobalSettings::map();
         const auto &defaults = GlobalSettings::defaults();
         const auto &_defaults = GlobalSettings::current_defaults_with_config();
+#ifndef NDEBUG
         Print("current video_conversion_range = ", _defaults.at("video_conversion_range"));
         Print("current video_conversion_range = ", copy.at("video_conversion_range"));
         Print("keys = ", copy.keys());
         Print("_defaults keys = ", _defaults.keys());
+#endif
         
         for(auto &key : copy.keys()) {
-            if(key == "detect_format")
-                Print(copy.at(key));
-            
             if(  ( (_defaults.has(key)
                      && copy.at(key).get() != _defaults.at(key).get())
                    || not defaults.has(key)
@@ -322,17 +321,21 @@ struct SettingsScene::Data {
                && (GlobalSettings::access_level(key) < AccessLevelType::INIT
                    || is_in(key, "output_dir", "output_prefix", "settings_file", "video_conversion_range", "detect_type", "detect_format")))
             {
+#ifndef NDEBUG
                 if(_defaults.has(key))
                     Print("Keeping ", key, "::",GlobalSettings::access_level(key),": default<", _defaults.at(key).get(), "> != assigned<", copy.at(key).get(),">");
                 else
                     Print("Keeping ", key, "::",GlobalSettings::access_level(key),": ", copy.at(key).get());
+#endif
                 
                 continue;
             }
             
             copy.erase(key);
         }
+#ifndef NDEBUG
         Print("Maintaining: ", copy.keys());
+#endif
         return copy;
     }
     
