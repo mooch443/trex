@@ -194,7 +194,7 @@ void DrawUniqueness::Data::update(Entangled& base) {
             graph.set_title("Uniqueness"
                     + (last_origin.has_value() && not last_origin->_path.empty()
                         ? ": "+utils::ShortenText(last_origin->_path.filename(), 35)
-                        : ": No VI weights loaded")
+                        : (last_origin->loaded() ? "" : ": No VI weights loaded"))
                             + ((last_origin.has_value() && last_origin->_uniqueness.has_value() && last_origin->_uniqueness.value() > 0)
                             ? " (" + dec<1>(last_origin->_uniqueness.value()*100).toStr()+"%)"
                             : ""));
