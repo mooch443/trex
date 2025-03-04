@@ -14,6 +14,7 @@ namespace cmn::gui {
 
 struct DrawUniqueness::Data {
     Graph graph{Bounds(50, 100, 800, 400), "uniqueness"};
+    Rect hover_rect{attr::Box{0,0,0,0}, FillClr{White.alpha(15)}};
     std::mutex mutex;
     std::map<Frame_t, float> estimated_uniqueness;
     std::vector<Vec2> uniquenesses;
@@ -49,9 +50,15 @@ DrawUniqueness::DrawUniqueness(GUICache* cache, std::weak_ptr<pv::File> video_so
             }
         }
     });
+    _data->graph.on_hover([this](Event e){
+        _data->hover_rect.set(Box{e.hover.x + _data->graph.pos().x, _data->graph.pos().y, 1, _data->graph.height()});
+    });
 }
 
-DrawUniqueness::~DrawUniqueness() { }
+DrawUniqueness::~DrawUniqueness() {
+    _data->hover_rect.set_parent(nullptr);
+    _data->graph.set_parent(nullptr);
+}
 
 void DrawUniqueness::set(Frame_t frame) {
     if(_data->frameNr == frame)
@@ -183,6 +190,7 @@ void DrawUniqueness::Data::update(Entangled& base) {
         base.set_pos(screen - size);
     }
     
+    
     std::lock_guard guard(mutex);
     if(not estimated_uniqueness.empty()) {
         if(graph.empty()
@@ -236,6 +244,10 @@ void DrawUniqueness::Data::update(Entangled& base) {
         graph.set_zero(frameNr.get());
         base.advance_wrap(graph);
         graph.set_scale(base.scale().reciprocal());
+        
+        if(graph.hovered()) {
+            base.advance_wrap(hover_rect);
+        }
     }
 #endif
 }
