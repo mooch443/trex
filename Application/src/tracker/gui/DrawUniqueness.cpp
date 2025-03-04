@@ -88,11 +88,11 @@ bool DrawUniqueness::Data::should_update_uniquenesses() {
          && origin.value() != Python::VINetwork::status().weights)
        || Python::VINetwork::status().weights.valid())
     {
-        Print("Reasoning: ", uniqueness_origin.has_value()
+        /*Print("Reasoning: ", uniqueness_origin.has_value()
               ? (origin != Python::VINetwork::status().weights
                  ? "updated network: "+origin->toStr() + " vs. " + Python::VINetwork::status().weights.toStr()
                  : "there was an error and the networks are the same")
-              : "no origin");
+              : "no origin");*/
         return true;
     }
     
