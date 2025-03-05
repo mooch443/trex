@@ -506,20 +506,36 @@ bool VINetwork::train(std::shared_ptr<TrainingData> data,
                 
                 try {
                     _status.busy = true;
-                    py::run(module_name, "start_learning");
+                    auto json = py::run(module_name, "start_learning");
+                    VIWeights weights;
+
+                    try {
+                        auto str = glz::write_json(json).value();
+                        weights = VIWeights::fromStr(str);
+                    } catch(...) {
+                        FormatWarning("Trying to parse JSON failed.");
+                    }
                     
                     if (skip_function && skip_function())
                         throw SoftException("User skipped.");
                     
                     best_accuracy_worst_class = py::get_variable<float>("best_accuracy_worst_class", module_name);
-                    if(worst_accuracy_per_class)
-                        *worst_accuracy_per_class = best_accuracy_worst_class;
-                    Print("best_accuracy_worst_class = ", best_accuracy_worst_class);
                     
                     //if(!dont_save)
+                    
+                    if(weights.uniqueness().has_value()
+                       && weights.uniqueness().value() > 0)
+                    {
+                        best_accuracy_worst_class = weights.uniqueness().value();
+                        //_status.weights = weights;
+                    }
+                    
                     _status.weights._loaded = true;
-                    _status.weights._uniqueness = best_accuracy_worst_class;
                     _status.busy = false;
+                    
+                    if(worst_accuracy_per_class && best_accuracy_worst_class > 0)
+                        *worst_accuracy_per_class = best_accuracy_worst_class;
+                    Print("best_accuracy_worst_class = ", best_accuracy_worst_class);
                     
                     {
                         LockGuard guard(w_t{}, "train_internally");

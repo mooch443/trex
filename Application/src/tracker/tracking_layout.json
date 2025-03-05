@@ -518,7 +518,7 @@
                     "foldable":true,
                     "folded":true,
                     "text":" <sym>🖵</sym> Display",
-                    "item_padding":[5,5],
+                    "item_padding":[8,5],
                     "item_font":{"size":0.6,"align":"vcenter"},
                     "detail_font":{"size":0.5,"align":"left"},
                     "items":[
@@ -612,7 +612,7 @@
                     "foldable":true,
                     "folded":true,
                     "text":" <sym>☰</sym> Menu",
-                    "item_padding":[5,5],
+                    "item_padding":[8,5],
                     "item_font":{"size":0.6},
                     "detail_font":{"size":0.5},
                     "item_color":[60,60,60,100],
@@ -646,11 +646,6 @@
                             "text":"<sym>👽</sym> Clear VI predictions",
                             "detail":"clears all existing VI predictions",
                             "action":"clear_ml"
-                        },
-                        {
-                            "text":"<sym>👽</sym> Apply identities",
-                            "detail":"applies VI or TAG information",
-                            "action":"auto_correct"
                         },
                         {
                             "text":"<sym>👽</sym> Categorize",

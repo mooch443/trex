@@ -123,102 +123,163 @@ void generate_training_data(GUITaskQueue_t* gui, bool force_load, VIController* 
         }
     };
     
-    static constexpr const char message_concern[] = "Note that once visual identification succeeds, the entire video will be retracked and any previous <i>manual_matches</i> overwritten - you should save them by clicking <i>save config</i> (in the menu) prior to this. Further information is available at <i>trex.run/docs</i>.\n\nKeep in mind that automatically generated results should always be manually validated (at least in samples). Bad results are often indicated by long training times or by ending on uniqueness values below chance.";
-    
-    static constexpr const char message_no_weights[] = "<b>Training will start from scratch.</b>\nMake sure all of your individuals are properly tracked first, by setting parameters like <i>track_threshold</i>, <i>track_max_speed</i> and <i>track_size_filter</i> first. Always try to achieve a decent number of consecutively tracked frames for all individuals (at the same time), but avoid misassignments due to too wide parameter ranges. You may then click on <i>Start</i> below to start the process.";
-    
-    static constexpr const char message_weights_available[] = "<b>A network from a previous session is available.</b>\nYou can either <i>Continue</i> training (trying to improve training results further), simply <i>Apply</i> it to the video, or <i>Restart</i> training from scratch (this deletes the previous network).";
+    static constexpr const char message_concern[] =
+        "Note that once visual identification (VI) succeeds, the entire video will be retracked and any previous <i>manual_matches</i> overwritten. "
+        "Save your configuration via <i>save config</i> (in the main menu) before proceeding. See <i>trex.run/docs</i> for details.\n\n"
+        "Automatically generated results should always be manually validated (at least in samples). Long training times or uniqueness values below chance often indicate suboptimal performance.";
+
+    static constexpr const char message_no_weights[] =
+        "<b>Training will start from scratch.</b>\n\n"
+        "Ensure that all individuals are properly tracked using parameters like <i>track_threshold</i>, <i>track_max_speed</i>, and <i>track_size_filter</i>. "
+        "Aim for a sufficient number of consecutively tracked frames without introducing misassignments. "
+        "Click <i><sym>🎭</sym> Train VI</i> below to begin the process.";
+
+    static constexpr const char preamble[] = "<b>A network from a previous session is available.</b>";
+    static constexpr const char message_weights_available[] =
+        "\n\nYou can <i><sym>💻</sym> Apply VI</i> to use the existing network, <i><sym>🗘</sym> Retrain VI</i> to train a new VI, or <i><sym>🖪</sym> Load VI</i> to switch to a different set of weights stored on disk. "
+        "If you have applied a VI before, and loaded it here, you may also use <i><sym>👽</sym> Auto Correct</i> to automatically fix identification errors based on previous predictions.";
     
     const auto avail = py::VINetwork::weights_available();
+    const auto weights = py::VINetwork::status().weights;
     const std::string message = (avail ?
-                std::string(message_weights_available)
+                                 std::string(preamble)
+                                    + (weights.loaded() ? (weights.path().empty() ? "<i>From memory</i>" : "\n <i><str>\""+weights.path().str()+"\"</str></i>") : "")
+                                    + (weights.loaded() && weights.uniqueness().has_value() && weights.uniqueness().value() >= 0 ? " with <nr>" + dec<1>(py::VINetwork::status().weights.uniqueness().value() * 100).toStr() + "</nr><i>%</i> uniqueness." : (weights.loaded() ? "." : ""))
+                + std::string(message_weights_available)
             :   std::string(message_no_weights))
         + "\n\n" + std::string(message_concern);
     
     if(gui) {
+        // Define a new enum that includes the original training modes plus additional targets.
+        enum class DialogAction {
+            None,
+            Start,
+            Apply,
+            Continue,
+            Restart,
+            LoadWeights,
+            AutoCorrect
+        };
+
+        // In your dialog code, change the mapping to use DialogAction.
         gui->enqueue([global_tracklet_order, fn, avail, message, controller, gui](IMGUIBase* window, DrawStructure& graph) mutable {
-            graph.dialog([global_tracklet_order, fn, avail, window, graph = &graph, controller, gui](Dialog::Result result) {
-                WorkProgress::add_queue("training network", [global_tracklet_order, fn, result, window, graph = graph, avail = avail, controller, gui]() mutable {
-                    try {
-                        TrainingMode::Class mode;
-                        if(avail) {
-                            switch(result) {
-                                case gui::Dialog::OKAY:
-                                    mode = TrainingMode::Continue;
-                                    break;
-                                case gui::Dialog::SECOND:
-                                    mode = TrainingMode::Apply;
-                                    break;
-                                case gui::Dialog::THIRD:
-                                    mode = TrainingMode::Restart;
-                                    break;
-                                case gui::Dialog::FOURTH:
-                                    mode = TrainingMode::LoadWeights;
-                                    break;
-                                case gui::Dialog::ABORT:
-                                    return;
-                                        
-                                default:
-                                    throw SoftException("Unknown mode ",result," in generate_training_data.");
-                                    return;
-                            }
-                                
-                        } else {
-                            switch(result) {
-                                case gui::Dialog::OKAY:
-                                    mode = TrainingMode::Restart;
-                                    break;
-                                case gui::Dialog::ABORT:
-                                    return;
-                                        
-                                default:
-                                    throw SoftException("Unknown mode ",result," in generate_training_data.");
-                                    return;
-                            }
-                        }
-                        
-                        auto run_task = [&]() {
-                            if(is_in(mode, TrainingMode::Continue, TrainingMode::Restart, TrainingMode::Apply))
+            // Build an array of button-action pairs.
+            using ButtonAction = std::pair<std::string_view, DialogAction>;
+            std::vector<ButtonAction> buttonActions;
+            
+            if(Tracker::instance()->has_vi_predictions())
+                buttonActions.push_back({"<sym>👽</sym> Auto Correct", DialogAction::AutoCorrect});
+            
+            if (avail) {
+                // When weights are available, map to some of the standard actions.
+                buttonActions.push_back({"<sym>💻</sym> Apply VI", DialogAction::Apply});
+                buttonActions.push_back({"<sym>🗘</sym> Retrain VI", DialogAction::Restart});
+                buttonActions.push_back({"<sym>🖪</sym> Load VI", DialogAction::LoadWeights});
+            } else {
+                buttonActions.push_back({"<sym>🎭</sym> Train VI", DialogAction::Start});
+            }
+            // Always add a Cancel option.
+            if(buttonActions.size() > 0) {
+                buttonActions.insert(buttonActions.begin() + 1, {"<sym>⮿</sym> Close", DialogAction::None});
+            } else
+                buttonActions.push_back({"<sym>⮿</sym> Close", DialogAction::None});
+
+            // Prepare up to five button texts.
+            std::string btn1 = buttonActions.size() > 0 ? (std::string)buttonActions[0].first : "";
+            std::string btn2 = buttonActions.size() > 1 ? (std::string)buttonActions[1].first : "";
+            std::string btn3 = buttonActions.size() > 2 ? (std::string)buttonActions[2].first : "";
+            std::string btn4 = buttonActions.size() > 3 ? (std::string)buttonActions[3].first : "";
+            std::string btn5 = buttonActions.size() > 4 ? (std::string)buttonActions[4].first : "";
+            
+            graph.dialog(
+                [global_tracklet_order, fn, window, graph = &graph, controller, gui, buttonActions](Dialog::Result result) mutable {
+                    WorkProgress::add_queue("training network", [global_tracklet_order, fn, result, window, graph = graph, controller, gui, buttonActions]() mutable {
+                        try {
+                            int index = static_cast<int>(result);
+                            if(index < 0 || index >= static_cast<int>(buttonActions.size()))
                             {
-                                Accumulation::register_apply_callback(CallbackType_t::AutoCorrect, [controller, gui](){
-                                    Print("Finished. Auto correcting...");
-                                    controller->on_apply_done();
-                                    controller->auto_correct(gui, true);
-                                });
-                                Accumulation::register_apply_callback(CallbackType_t::ProgressTracking, [controller](double percent){
-                                    controller->on_apply_update(percent);
-                                });
+                                FormatWarning("Index ", index, " out of bounds for available button actions.");
+                                return;
                             }
+                            
+                            // Get the selected action from our new enum.
+                            DialogAction action = buttonActions[index].second;
+                            if(action == DialogAction::None)
+                                return;
+                            
+                            if(action == DialogAction::AutoCorrect) {
+                                controller->auto_correct(gui, true);
+                                return;
+                            }
+
+                            auto run_task = [&]() {
+                                // For the original actions, you may want to register callbacks.
+                                if(action == DialogAction::Continue
+                                   || action == DialogAction::Restart
+                                   || action == DialogAction::Apply)
+                                {
+                                    Accumulation::register_apply_callback(CallbackType_t::AutoCorrect, [controller, gui](){
+                                        Print("Finished. Auto correcting...");
+                                        controller->on_apply_done();
+                                        controller->auto_correct(gui, true);
+                                    });
+                                    Accumulation::register_apply_callback(CallbackType_t::ProgressTracking, [controller](double percent){
+                                        controller->on_apply_update(percent);
+                                    });
+                                }
+                                // Call fn with an appropriate conversion if needed.
+                                // For example, if fn originally expects a TrainingMode::Class, you might create a mapping:
+                                TrainingMode::Class mode = TrainingMode::None;
+                                switch(action) {
+                                    case DialogAction::Start:
+                                        mode = TrainingMode::Restart;
+                                        break;
+                                    case DialogAction::Apply:
+                                        mode = TrainingMode::Apply;
+                                        break;
+                                    case DialogAction::Restart:
+                                        mode = TrainingMode::Restart;
+                                        break;
+                                    case DialogAction::LoadWeights:
+                                        mode = TrainingMode::LoadWeights;
+                                        break;
+                                    case DialogAction::Continue:
+                                        mode = TrainingMode::Continue;
+                                        break;
+                                    // For custom targets, either handle them separately here or map them to an existing TrainingMode.
+                                    default:
+                                        FormatWarning("Unimplemented action.");
+                                        return;
+                                }
+                                fn(mode, window, graph, global_tracklet_order);
+                            };
+
+                            // If the action requires global tracklets, perform the check.
+                            if(action == DialogAction::Restart
+                               || action == DialogAction::Continue)
+                            {
+                                /// this is only possible if we have global tracklets.
+                                /// check this first so that the Accumulation does not have to crash.
+                                check_global_tracklets_available(gui, global_tracklet_order, [run_task]() {
+                                    run_task();
+                                }, [](){
+                                    /// error already handled
+                                });
                                 
-                            fn(mode, window, graph, global_tracklet_order);
-                        };
-                        
-                        if(is_in(mode, TrainingMode::Restart, TrainingMode::Continue))
-                        {
-                            /// this is only possible if we have global tracklets.
-                            /// check this first so that the Accumulation does not have to crash.
-                            check_global_tracklets_available(gui, global_tracklet_order, [run_task](){
+                            } else {
                                 run_task();
-                                
-                            }, [](){
-                                /// error already handled
-                            });
-                            
-                        } else {
-                            run_task();
+                            }
+                        } catch(const SoftExceptionImpl& error) {
+                            if(graph)
+                                graph->dialog("Initialization of the training process failed. Please check whether you are in the right python environment and check out this error message:\n\n<i>"
+                                              + escape_html(error.what()) + "<i/>", "Error");
+                            FormatError("Initialization of the training process failed. Please check whether you are in the right python environment and check previous error messages.");
                         }
-                        
-                            
-                    } catch(const SoftExceptionImpl& error) {
-                        //if(SETTING(auto_train_on_startup))
-                        //    throw U_EXCEPTION("Initialization of the training process failed. Please check whether you are in the right python environment and check previous error messages.");
-                        if(graph)
-                            graph->dialog("Initialization of the training process failed. Please check whether you are in the right python environment and check out this error message:\n\n<i>"+escape_html(error.what())+"<i/>", "Error");
-                        FormatError("Initialization of the training process failed. Please check whether you are in the right python environment and check previous error messages.");
-                    }
-                });
-                    
-            }, message, "Training mode", avail ? "Continue" : "Start", "Cancel", avail ? "Apply" : "", avail ? "Restart" : "", avail ? "Load weights" : "");
+                    });
+                },
+                message, "Training mode",
+                btn1, btn2, btn3, btn4, btn5
+            );
         });
         
             
