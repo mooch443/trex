@@ -823,11 +823,13 @@ def apply_checkpoint_to_model(target_model: torch.nn.Module, checkpoint):
                     )
         # Prefer a complete model if available.
         if "model" in checkpoint and checkpoint["model"] is not None:
+            TRex.log("The checkpoint has a complete model...")
             try:
                 state_dict = checkpoint["model"].state_dict()
             except Exception as e:
                 raise Exception("Failed to extract state dict from complete model in checkpoint: " + str(e))
         elif "state_dict" in checkpoint:
+            TRex.log("The checkpoint has a state_dict...")
             state_dict = checkpoint["state_dict"]
         else:
             state_dict = checkpoint
@@ -843,6 +845,9 @@ def apply_checkpoint_to_model(target_model: torch.nn.Module, checkpoint):
         TRex.log("Checkpoint weights applied successfully to target model.")
         return target_model
     except Exception as e:
+        if not "model" in checkpoint:
+            raise e
+
         TRex.warn("Failed to apply checkpoint weights to target model. Trying to load the model directly: " + str(e))
 
         target_model = checkpoint["model"]
@@ -914,13 +919,19 @@ def load_weights(path: str = None):
 
     model = None
     modified = None
-    saved_path = path + "_model.pth"
-    try:
+
+    if path.endswith(".pth"):
+        saved_path = path
         cp = load_checkpoint_from_file(saved_path)
-    except Exception as e:
-        saved_path = path+".pth"
-        TRex.log(f"Failed to load model from {path}_model.pth ({e}). Trying {saved_path}")
-        cp = load_checkpoint_from_file(saved_path)
+
+    else:
+        saved_path = path + "_model.pth"
+        try:
+            cp = load_checkpoint_from_file(saved_path)
+        except Exception as e:
+            saved_path = path+".pth"
+            TRex.log(f"Failed to load model from {path}_model.pth ({e}). Trying {saved_path}")
+            cp = load_checkpoint_from_file(saved_path)
 
     metadata = cp["metadata"] if "metadata" in cp else None
 
@@ -928,7 +939,7 @@ def load_weights(path: str = None):
     model = apply_checkpoint_to_model(model, cp)
     print("Loaded model weights from checkpoint: ", model)
 
-    if cp["metadata"] is not None and "modified" in cp["metadata"]:
+    if "metadata" in cp and cp["metadata"] is not None and "modified" in cp["metadata"]:
         modified = cp["metadata"]["modified"]
     else:
         try:
@@ -968,10 +979,16 @@ def find_available_weights(path: str = None) -> str:
     
     # Use glob to find any .pth files that start with the base name.
     #pattern = path + "*.pth"
-    candidate_files = [
-        path + "_model.pth",
-        path + ".pth"
-    ] #glob.glob(pattern)
+
+
+    # check the extension of this file and see whether it is a .pth file
+    if path.endswith(".pth"):
+        candidate_files = [path]
+    else:
+        candidate_files = [
+            path + "_model.pth",
+            path + ".pth"
+        ] #glob.glob(pattern)
     
     serialized_weights = []
     
@@ -979,6 +996,7 @@ def find_available_weights(path: str = None) -> str:
         # Only process files that match the allowed regex.
         #if not allowed_pattern.match(os.path.basename(file_path)):
         #    continue
+        TRex.log(f"Checking file {file_path}")
         
         try:
             cp = load_checkpoint_from_file(file_path)

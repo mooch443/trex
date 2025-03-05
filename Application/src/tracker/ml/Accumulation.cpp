@@ -1376,7 +1376,9 @@ bool Accumulation::start() {
                             if(not _network)
                                 throw SoftException("Network is null.");
                             
-                            _network->load_weights(); // reload network if we are too far off
+                            _network->load_weights(vi::VIWeights{
+                                ._path = py::VINetwork::network_path()
+                            }); // reload network if we are too far off
                         }
                         
                         overall_ranges.insert(range);
@@ -1398,7 +1400,9 @@ bool Accumulation::start() {
                         std::unique_lock guard{_network_lock};
                         if(not _network)
                             throw SoftException("Network is null.");
-                        _network->load_weights();
+                        _network->load_weights(vi::VIWeights{
+                            ._path = py::VINetwork::network_path()
+                        });
                         
                         return {false, nullptr};
                     }
@@ -1423,7 +1427,9 @@ bool Accumulation::start() {
                     std::unique_lock guard{_network_lock};
                     if(not _network)
                         throw SoftException("Network is null.");
-                    _network->load_weights();
+                    _network->load_weights(vi::VIWeights{
+                        ._path = py::VINetwork::network_path()
+                    });
                     
                     return {false, nullptr};
                 }
@@ -1901,7 +1907,9 @@ bool Accumulation::start() {
             std::unique_lock guard{_network_lock};
             if(not _network)
                 throw SoftException("Network is null.");
-            _network->load_weights();
+            _network->load_weights(vi::VIWeights{
+                ._path = py::VINetwork::network_path()
+            });
         }
     }
     

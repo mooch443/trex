@@ -465,7 +465,7 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
     
     using namespace track::vi;
     py::class_<VIWeights>(m, "VIWeights")
-        .def(py::init([](std::string path, double uniqueness, std::string status, uint64_t modified, DetectResolution resolution, uint8_t classes)
+        .def(py::init([](std::string path, std::optional<double> uniqueness, std::string status, std::optional<uint64_t> modified, std::optional<DetectResolution> resolution, std::optional<uint8_t> classes)
         {
             return VIWeights{
                 ._path = path,

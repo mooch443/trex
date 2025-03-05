@@ -10,6 +10,17 @@
 
 using namespace cmn;
 
+TEST(SpriteMapTest, Basic) {
+    sprite::Map map;
+    map.set_print_by_default(true);
+    map["value"] = std::optional<int>();
+    Print(map.at("value"));
+    map["value"] = std::optional<int>(25);
+    Print(map.at("value"));
+    map["value"].get().set_value_from_string("42");
+    Print(map.at("value"));
+}
+
 struct TrivialType {
     int value;
     constexpr bool operator!=(const TrivialType& other) const { return value != other.value; }

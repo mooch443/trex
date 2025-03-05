@@ -124,7 +124,7 @@ struct VIWeights {
     bool _loaded{false};
     Status _status{NONE};
     std::optional<uint64_t> _modified;
-    detect::DetectResolution _resolution;
+    std::optional<detect::DetectResolution> _resolution;
     std::optional<uint8_t> _num_classes;
     
     auto operator<=>(const VIWeights& other) const = default;

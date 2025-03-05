@@ -267,7 +267,15 @@ std::optional<VIWeights> VINetwork::load_weights_internal(VIWeights&& weights) {
     reinitialize_internal();
     
     if(weights.path().empty()) {
-        weights._path = network_path();
+        auto visual_identification_model_path = SETTING(visual_identification_model_path).value<std::optional<file::Path>>();
+        if(visual_identification_model_path.has_value()
+           && not visual_identification_model_path->empty())
+        {
+            weights._path = visual_identification_model_path.value();
+            
+        } else {
+            weights._path = network_path();
+        }
     }
     
     try {
@@ -340,7 +348,17 @@ std::optional<std::set<track::vi::VIWeights>> VINetwork::get_available_weights()
             ._task = PromisedTask([promise = std::move(promise)]() mutable {
                 try {
                     ModuleProxy m(module_name, [](ModuleProxy&){});
-                    auto array = m.run("find_available_weights");
+                    std::optional<glz::json_t> array;
+                    
+                    auto visual_identification_model_path = SETTING(visual_identification_model_path).value<std::optional<file::Path>>();
+                    if(visual_identification_model_path.has_value()
+                       && not visual_identification_model_path->empty())
+                    {
+                        array = m.run("find_available_weights", visual_identification_model_path->str());
+                        
+                    } else {
+                        array = m.run("find_available_weights");
+                    }
                     
                     weights_list_t weights;
                     
@@ -517,11 +535,17 @@ bool VINetwork::train(std::shared_ptr<TrainingData> data,
                 }
                 
                 //! decide whether to reload the network
-                if(is_in(load_results, TrainingMode::LoadWeights, TrainingMode::Apply))
-                    load_weights_internal(VIWeights{
-                        ._path = network_path()
-                    });
-                else if(load_results == TrainingMode::Restart)
+                if(is_in(load_results, TrainingMode::LoadWeights, TrainingMode::Apply)) {
+                    if(load_results == TrainingMode::Apply) {
+                        if(not VINetwork::status().weights.loaded()) {
+                            load_weights_internal(VIWeights{});
+                        }
+                        
+                    } else {
+                        load_weights_internal(VIWeights{});
+                    }
+                    
+                } else if(load_results == TrainingMode::Restart)
                     reinitialize_internal();
                 
                 py::set_variable("X", joined_data.training_images, module_name);
