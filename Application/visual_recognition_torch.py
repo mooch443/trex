@@ -946,6 +946,66 @@ def load_weights(path: str = None):
             classes = metadata["num_classes"] if metadata is not None and "num_classes" in metadata else None
         ).to_string())
 
+
+def find_available_weights(path: str = None) -> str:
+    """
+    Searches for available model weights in the specified directory and returns a JSON array of serialized TRex.VIWeights strings.
+    
+    Only files matching the allowed pattern are processed. In this implementation, only files with names exactly matching
+    either <path>_model.pth or <path>.pth are allowed.
+    
+    Returns:
+        A JSON-encoded array (string) of serialized TRex.VIWeights objects. If no valid weight files are found, an empty JSON array ("[]") is returned.
+    """
+    global output_path
+
+    if path is None:
+        path = output_path
+
+    # Define a regex pattern that only allows specific weight files:
+    # - Matches "<path>_model.pth" or "<path>.pth" exactly.
+    #allowed_pattern = re.compile(rf"^{re.escape(path)}(_model)?\.pth$")
+    
+    # Use glob to find any .pth files that start with the base name.
+    #pattern = path + "*.pth"
+    candidate_files = [
+        path + "_model.pth",
+        path + ".pth"
+    ] #glob.glob(pattern)
+    
+    serialized_weights = []
+    
+    for file_path in candidate_files:
+        # Only process files that match the allowed regex.
+        #if not allowed_pattern.match(os.path.basename(file_path)):
+        #    continue
+        
+        try:
+            cp = load_checkpoint_from_file(file_path)
+        except Exception as e:
+            TRex.warn(f"Failed to load model from {file_path}: {str(e)}")
+            continue
+
+        metadata = cp.get("metadata", None)
+        modified = None
+        try:
+            # get modified time as a unix timestamp
+            modified = int(os.path.getmtime(file_path))
+        except Exception as e:
+            TRex.warn(f"Failed to get modified time for {file_path}: {str(e)}")
+
+        weight_obj = TRex.VIWeights(
+            path=file_path,
+            uniqueness=metadata["uniqueness"] if metadata is not None and "uniqueness" in metadata else None,
+            status="FINISHED",
+            modified=modified,
+            resolution=TRex.DetectResolution(metadata["input_shape"][:2]) if metadata is not None and "input_shape" in metadata else None,
+            classes=metadata["num_classes"] if metadata is not None and "num_classes" in metadata else None
+        )
+        serialized_weights.append(weight_obj.to_string())
+
+    return json.dumps(serialized_weights)
+
 def predict():
     global receive, images, model, image_channels, device, batch_size, image_width, image_height
     images = np.array(images, copy=False)

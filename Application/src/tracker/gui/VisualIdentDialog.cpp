@@ -124,9 +124,9 @@ void generate_training_data(GUITaskQueue_t* gui, bool force_load, VIController* 
     };
     
     static constexpr const char message_concern[] =
-        "Note that once visual identification (VI) succeeds, the entire video will be retracked and any previous <i>manual_matches</i> overwritten. "
+        "Note that once visual identification (VI) training succeeds, the entire video will be retracked and any previous <i>manual_matches</i> overwritten. "
         "Save your configuration via <i>save config</i> (in the main menu) before proceeding. See <i>trex.run/docs</i> for details.\n\n"
-        "Automatically generated results should always be manually validated (at least in samples). Long training times or uniqueness values below chance often indicate suboptimal performance.";
+        "Automatically generated results should always be manually validated (at least in samples). Hour-long training times or uniqueness values below chance often indicate suboptimal performance.";
 
     static constexpr const char message_no_weights[] =
         "<b>Training will start from scratch.</b>\n\n"
@@ -134,19 +134,27 @@ void generate_training_data(GUITaskQueue_t* gui, bool force_load, VIController* 
         "Aim for a sufficient number of consecutively tracked frames without introducing misassignments. "
         "Click <i><sym>🎭</sym> Train VI</i> below to begin the process.";
 
-    static constexpr const char preamble[] = "<b>A network from a previous session is available.</b>";
+    static constexpr const char preamble[] = "<b>A previously trained VI network is available.</b>";
     static constexpr const char message_weights_available[] =
-        "\n\nYou can <i><sym>💻</sym> Apply VI</i> to use the existing network, <i><sym>🗘</sym> Retrain VI</i> to train a new VI, or <i><sym>🖪</sym> Load VI</i> to switch to a different set of weights stored on disk. "
-        "If you have applied a VI before, and loaded it here, you may also use <i><sym>👽</sym> Auto Correct</i> to automatically fix identification errors based on previous predictions.";
+        "\n\nYou can <i><sym>💻</sym> Apply VI</i> to use an existing VI network for ID calculation and auto-correction, <i><sym>🗘</sym> Retrain VI</i> to train a new network (and apply it), or <i><sym>🖪</sym> Load VI</i> to load a different VI model from disk (for transfer learning). "
+        "If you previously applied a VI, saved the results, and loaded them here, you may also use <i><sym>👽</sym> Auto Correct</i> to fix identification errors based on prior predictions. This is useful if predictions were already made but the process was interrupted or tracklets changed after retracking.";
     
-    const auto avail = py::VINetwork::weights_available();
-    const auto weights = py::VINetwork::status().weights;
+    const auto available_weights = py::VINetwork::get_available_weights();
+    const auto avail = available_weights.has_value() && not available_weights->empty();
+    const auto weights = py::VINetwork::status().weights.loaded()
+                            ? py::VINetwork::status().weights
+                            : (avail ? *available_weights->begin() : track::vi::VIWeights{});
     const std::string message = (avail ?
                                  std::string(preamble)
-                                    + (weights.loaded() ? (weights.path().empty() ? "<i>From memory</i>" : "\n <i><str>\""+weights.path().str()+"\"</str></i>") : "")
-                                    + (weights.loaded() && weights.uniqueness().has_value() && weights.uniqueness().value() >= 0 ? " with <nr>" + dec<1>(py::VINetwork::status().weights.uniqueness().value() * 100).toStr() + "</nr><i>%</i> uniqueness." : (weights.loaded() ? "." : ""))
-                + std::string(message_weights_available)
-            :   std::string(message_no_weights))
+                                    + (not weights.path().empty()
+                                       ? "\n<i><str>\""+weights.path().str()+"\"</str></i>"
+                                       : (weights.loaded() ? "\n<i>From memory</i>" : ""))
+                                    + (weights.loaded() ? "<c>(loaded)</c>" : "")
+                                    + (weights.uniqueness().has_value() && weights.uniqueness().value() >= 0
+                                       ? " with <nr>" + dec<1>(weights.uniqueness().value() * 100).toStr() + "</nr><i>%</i> uniqueness."
+                                       : "")
+                                 + std::string(message_weights_available)
+                                 : std::string(message_no_weights))
         + "\n\n" + std::string(message_concern);
     
     if(gui) {
@@ -271,9 +279,9 @@ void generate_training_data(GUITaskQueue_t* gui, bool force_load, VIController* 
                             }
                         } catch(const SoftExceptionImpl& error) {
                             if(graph)
-                                graph->dialog("Initialization of the training process failed. Please check whether you are in the right python environment and check out this error message:\n\n<i>"
-                                              + escape_html(error.what()) + "<i/>", "Error");
-                            FormatError("Initialization of the training process failed. Please check whether you are in the right python environment and check previous error messages.");
+                                graph->dialog("VI initialization failed. Please check whether you are in the right python environment and check out this error message:\n\n<i>"
+                                              + escape_html(error.what()) + "</i>", "Error");
+                            FormatError("VI initialization failed. Please check whether you are in the right python environment and check previous error messages: ", error.what());
                         }
                     });
                 },

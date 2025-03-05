@@ -1761,6 +1761,9 @@ FrameProperties CompatibilityFrameProperties::convert(Frame_t frame) const {
             //_tracker.generate_pairdistances(i);
         }*/
         
+        /// update the tracklet order cache
+        _tracker.global_tracklet_order_changed();
+        _tracker.global_tracklet_order();
         
         if(!GlobalSettings::is_runtime_quiet()) {
             Print("Successfully read file ",file.filename()," (version:V_",(int)file._header.version+1," gui_frame:",file.header().gui_frame,"u start:",Tracker::start_frame(),"u end:",Tracker::end_frame(),"u)");

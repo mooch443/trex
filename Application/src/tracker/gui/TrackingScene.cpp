@@ -1670,7 +1670,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                     auto _id = Identity::Temporary(fdx);
                     map["color"] = _id.color();
                     map["is_automatic"] = false;
-                    map["segment"] = Range<Frame_t>{};
+                    map["tracklet"] = Range<Frame_t>{};
                     map["name"] = _id.name();
                     
                     auto probs = fdx.valid()
@@ -1723,7 +1723,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                                 map["bdx"] = it->second.bdx;
                                 map["predictions"] = it->second.pred ? it->second.pred.value() : std::vector<float>{};
                                 map["is_automatic"] = it->second.automatic_match;
-                                map["segment"] = it->second.tracklet;
+                                map["tracklet"] = it->second.tracklet;
                                 map["size"] = Float2_t(it->second.basic_stuff.has_value() ? it->second.basic_stuff->thresholded_size : uint64_t(0)) * SQR(FAST_SETTING(cm_per_pixel));
                                 map["px"].toProperty<Float2_t>() = it->second.basic_stuff.has_value() ? it->second.basic_stuff->thresholded_size : uint64_t(0);
                                 

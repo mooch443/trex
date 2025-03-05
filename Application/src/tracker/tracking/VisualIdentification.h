@@ -46,13 +46,18 @@ protected:
     std::map<const char*, std::function<void(float percent, const std::string&)>> _callbacks;
     std::function<bool()> abort_function, skip_function;
     
+    using weights_list_t = std::optional<std::set<track::vi::VIWeights>>;
+    std::mutex _weights_mutex;
+    std::optional<std::shared_future<weights_list_t>> _loading_available_weights;
+    weights_list_t _available_weights;
+    
 private:
     VINetwork();
     
 public:
     //! VINetwork can only be instantiated once. The life-time is managed
     //! internally.
-    static const std::unique_ptr<VINetwork>& instance();
+    static std::shared_ptr<VINetwork> instance();
     
     //! Returns the current status.
     static Status status();
@@ -88,6 +93,8 @@ public:
     
     //! Checks network_path() and sees if the file is available
     static bool weights_available();
+    
+    static std::optional<std::set<track::vi::VIWeights>> get_available_weights();
     
     //! Based on Basic/Posture information, determines whether an image
     //! is eligable for apply/recognition

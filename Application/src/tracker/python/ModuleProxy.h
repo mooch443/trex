@@ -19,7 +19,7 @@ struct TREX_EXPORT ModuleProxy {
         //set_functions.insert(name);
         PythonIntegration::set_variable(name, std::forward<decltype(value)>(value), m);
     }
-    void run(const char* name);
+    std::optional<glz::json_t> run(const char* name);
     void unset_function(const char*name);
 };
 }

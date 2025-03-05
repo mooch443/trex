@@ -38,8 +38,8 @@ ModuleProxy::~ModuleProxy() {
         FormatExcept("Unknown exception when unsetting functions ", set_functions, " in module ", m);
     }
 }
-void ModuleProxy::run(const char* name) {
-    PythonIntegration::run(m, name);
+std::optional<glz::json_t> ModuleProxy::run(const char* name) {
+    return PythonIntegration::run(m, name);
 }
 void ModuleProxy::unset_function(const char*name) {
     PythonIntegration::unset_function(name, m);

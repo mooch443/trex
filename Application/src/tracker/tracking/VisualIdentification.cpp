@@ -19,9 +19,6 @@ using namespace cmn;
 using namespace track;
 using namespace track::vi;
 
-inline static std::mutex _instance_mutex;
-inline static std::unique_ptr<VINetwork> _instance;
-
 static constexpr auto module_name = "visual_recognition_torch";
 
 CREATE_STRUCT(Settings,
@@ -34,10 +31,13 @@ std::string VINetwork::Average::toStr() const {
     return "<s:"+Meta::toStr(samples)+" v:"+Meta::toStr(values)+">";
 }
 
-const std::unique_ptr<VINetwork>& VINetwork::instance() {
+std::shared_ptr<VINetwork> VINetwork::instance() {
+    static std::mutex _instance_mutex;
+    static std::shared_ptr<VINetwork> _instance;
+    
     std::unique_lock guard(_instance_mutex);
     if(!_instance)
-        _instance = std::unique_ptr<VINetwork>(new VINetwork);
+        _instance = std::shared_ptr<VINetwork>(new VINetwork);
     return _instance;
 }
 
@@ -307,6 +307,78 @@ bool VINetwork::weights_available() {
     return filename.add_extension("pth").exists();
 }
 
+std::optional<std::set<track::vi::VIWeights>> VINetwork::get_available_weights()
+{
+    auto ptr = instance();
+    if(not ptr)
+        throw SoftException("No instance of a VINetwork could be fetched.");
+    
+    if(std::unique_lock guard{ptr->_weights_mutex};
+       ptr->_available_weights.has_value())
+    {
+        return ptr->_available_weights.value();
+        
+    } else if(ptr->_loading_available_weights.has_value()) {
+        auto future = ptr->_loading_available_weights.value();
+        if(not future.valid()) {
+            throw SoftException("Could not retrieve available weights due to an unknown error.");
+        }
+        
+        guard.unlock();
+        return future.get();
+    } else {
+        /// not started looking for available weights yet
+        std::promise<weights_list_t> promise;
+        ptr->_loading_available_weights = promise.get_future().share();
+        auto future = ptr->_loading_available_weights.value();
+        
+        guard.unlock();
+        
+        py::schedule(PackagedTask{
+            ._can_run_before_init = false,
+            ._network = &ptr->_network,
+            ._task = PromisedTask([promise = std::move(promise)]() mutable {
+                try {
+                    ModuleProxy m(module_name, [](ModuleProxy&){});
+                    auto array = m.run("find_available_weights");
+                    
+                    weights_list_t weights;
+                    
+                    if(array.has_value() && array->is_array()) {
+                        for(auto& json : array->get_array()) {
+                            auto str = glz::write_json(json).value();
+                            auto w = VIWeights::fromStr(str);
+                            if(not weights.has_value())
+                                weights = weights_list_t::value_type{};
+                            weights->emplace(std::move(w));
+                        }
+                    } else if(array.has_value() && array->is_object()) {
+                        auto str = glz::write_json(array).value();
+                        auto w = VIWeights::fromStr(str);
+                        weights = weights_list_t::value_type{};
+                        weights->emplace(std::move(w));
+                    } else {
+                        auto str = glz::write_json(array).value();
+                        throw SoftException("Cannot parse results from find_available_weights: ", no_quotes(str));
+                    }
+                    
+                    promise.set_value(weights);
+                    
+                } catch(...) {
+                    promise.set_exception(std::current_exception());
+                }
+            })
+        });
+        
+        if(not future.valid()) {
+            throw SoftException("Could not retrieve available weights due to an unknown error.");
+        }
+        
+        return future.get();
+    }
+    
+    return std::nullopt;
+}
 
 void VINetwork::set_variables_internal(auto && images, callback_t && callback)
 {
