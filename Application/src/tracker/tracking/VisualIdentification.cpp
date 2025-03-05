@@ -343,7 +343,6 @@ std::optional<std::set<track::vi::VIWeights>> VINetwork::get_available_weights()
         guard.unlock();
         
         py::schedule(PackagedTask{
-            ._can_run_before_init = false,
             ._network = &ptr->_network,
             ._task = PromisedTask([promise = std::move(promise)]() mutable {
                 try {
@@ -385,7 +384,8 @@ std::optional<std::set<track::vi::VIWeights>> VINetwork::get_available_weights()
                 } catch(...) {
                     promise.set_exception(std::current_exception());
                 }
-            })
+            }),
+            ._can_run_before_init = false
         });
         
         if(not future.valid()) {
