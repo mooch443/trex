@@ -40,6 +40,7 @@ struct IndividualStatus {
 class Tracker {
 public:
     static Tracker* instance();
+    static inline std::atomic<bool> is_checking_tracklet_identities{false};
 
 protected:
     friend class Output::TrackingResults;

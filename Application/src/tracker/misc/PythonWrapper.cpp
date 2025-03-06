@@ -49,6 +49,8 @@ public:
         }
 
         ~Guard() {
+            py::check_correct_thread_id();
+            
             std::unique_lock guard(_data_mutex);
             Print(fmt::clr<FormatColor::DARK_GRAY>("[py] "), "...");
             py::deinit();
@@ -311,19 +313,20 @@ private:
 
             guard.unlock();
             try {
-                if (item._network)
-                    item._network->activate();
-                else {
-                    // deactivate active item?
-                }
+                py::convert_python_exceptions([&](){
+                    if (item._network)
+                        item._network->activate();
+                    else {
+                        // deactivate active item?
+                    }
 
-                item._task();
-
+                    item._task();
+                });
             }
             catch (...) {
                 item._task.promise.set_exception(std::current_exception());
-                guard.lock();
-                throw;
+                //guard.lock();
+                //throw;
             }
 
             guard.lock();
@@ -507,7 +510,7 @@ std::future<void> deinit() {
 });*/
 
 
-std::future<void> schedule(PackagedTask && task, Flag flag) {
+[[nodiscard]] std::future<void> schedule(PackagedTask && task, Flag flag) {
     auto future = task._task.get_future();
     auto init_future = init();
     if(Data::terminate())

@@ -2950,7 +2950,16 @@ void Tracker::set_vi_data(const decltype(_vi_predictions)& predictions) {
     _vi_predictions = std::move(predictions);
 }
     
-    void Tracker::check_tracklets_identities(bool auto_correct, IdentitySource source, std::function<void(float)> callback, const std::function<void(const std::string&, const std::function<void()>&, const std::string&)>& add_to_queue, Frame_t after_frame) {
+    void Tracker::check_tracklets_identities(bool auto_correct, IdentitySource source, std::function<void(float)> callback, const std::function<void(const std::string&, const std::function<void()>&, const std::string&)>& add_to_queue, Frame_t after_frame)
+    {
+        struct G{
+            G() {
+                is_checking_tracklet_identities = true;
+            }
+            ~G() {
+                is_checking_tracklet_identities = false;
+            }
+        } g;
         
         Print("Waiting for lock...");
         LockGuard guard(w_t{}, "check_tracklets_identities");

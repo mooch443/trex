@@ -139,7 +139,11 @@ TrackingState::~TrackingState() {
     Categorize::terminate();
     Categorize::clear_labels();
     
-    Python::VINetwork::unload_weights().get();
+    try {
+        Python::VINetwork::unload_weights().get();
+    } catch(const std::exception& ex) {
+        FormatExcept("Caught an exception when unloading weights: ", ex.what());
+    }
 #endif
     
     pool.force_stop();

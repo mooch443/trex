@@ -31,7 +31,7 @@ auto pack(auto&& f, Network* net = nullptr) {
 
 std::shared_future<void> init();
 std::future<void> deinit();
-std::future<void> schedule(PackagedTask&&, Flag = Flag::DEFAULT);
+[[nodiscard]] std::future<void> schedule(PackagedTask&&, Flag = Flag::DEFAULT);
 bool python_available();
 bool python_initialized();
 bool python_initializing();
@@ -42,7 +42,7 @@ void* get_instance();
 template<typename T>
 concept not_a_task = !cmn::_clean_same<PackagedTask, T>;
 
-std::future<void> schedule(not_a_task auto&& fn) {
+[[nodiscard]] std::future<void> schedule(not_a_task auto&& fn) {
     return schedule(pack(std::move(fn)));
 }
 

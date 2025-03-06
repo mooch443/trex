@@ -1425,13 +1425,20 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
             ActionFunc("python", [](Action action){
                 REQUIRE_EXACTLY(1, action);
                 
-                Python::schedule(Python::PackagedTask{
+                (void)Python::schedule(Python::PackagedTask{
                     ._network = nullptr,
                     ._task = Python::PromisedTask(
                         [action](){
-                            using py = PythonIntegration;
-                            Print("Executing: ", action.first());
-                            py::execute(action.first());
+                            try {
+                                using py = PythonIntegration;
+                                Print("Executing: ", action.first());
+                                py::execute(action.first());
+                            } catch(...) {
+                                /// ignore exceptions
+#ifndef NDEBUG
+                                FormatExcept("Caught exception in python command from dyngui.");
+#endif
+                            }
                         }
                     ),
                     ._can_run_before_init = false

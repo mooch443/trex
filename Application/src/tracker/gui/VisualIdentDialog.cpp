@@ -11,6 +11,7 @@
 #include <tracking/ConnectedTasks.h>
 #include <misc/IdentifiedTag.h>
 #include <gui/Scene.h>
+#include <misc/default_settings.h>
 
 namespace cmn::gui::vident {
 namespace py = Python;
@@ -34,8 +35,8 @@ void check_global_tracklets_available(GUITaskQueue_t* gui,
             throw U_EXCEPTION(message);
             
         } else if(gui) {
-            gui->enqueue([message](IMGUIBase*, DrawStructure& graph){
-                graph.dialog("Initialization of the training process failed.\n\n"+std::string(message), "Error");
+            gui->enqueue([message = std::string(message)](IMGUIBase*, DrawStructure& graph){
+                graph.dialog("Initialization of the training process failed.\n\n"+settings::htmlify(message), "Error");
             });
             
         } else {
@@ -416,8 +417,14 @@ void training_data_dialog(GUITaskQueue_t* gui, bool force_load, std::function<vo
         } catch(const SoftExceptionImpl& ex) {
             if(SETTING(auto_train_on_startup)) {
                 throw U_EXCEPTION("Aborting training data because an exception was thrown (",std::string(ex.what()),").");
-            } else
+            } else {
+                if(gui) {
+                    gui->enqueue([text = std::string(ex.what())](auto, DrawStructure& base) {
+                        base.dialog("A Python exception occurred while opening the Visual Identification dialog:\n\n<i>" + settings::htmlify(text) + "</i>", "Python Exception");
+                    });
+                }
                 Print("Aborting training data because an exception was thrown (",std::string(ex.what()),").");
+            }
         }
         
         if(!before)

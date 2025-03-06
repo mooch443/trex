@@ -291,7 +291,7 @@ std::future<VersionStatus> perform(bool manually_triggered) {
         }
     }
     
-    auto fn = [ptr = std::move(promise)](std::string v) {
+    auto fn = [ptr = promise](std::string v) {
         if(v.empty()) {
             ptr->set_value(VersionStatus::NONE);
             return;
@@ -311,43 +311,51 @@ std::future<VersionStatus> perform(bool manually_triggered) {
         }
     };
     
-    py::schedule(py::PackagedTask{
-        ._task = py::PromisedTask([fn]() {
+    (void)py::schedule(py::PackagedTask{
+        ._task = py::PromisedTask([fn, promise]() {
             using py = PythonIntegration;
-            py::set_function("retrieve_version", fn);
-            
             try {
-                py::execute("import requests");
-                py::execute("retrieve_version(sorted([o['name'].split(':')[0].split('v')[1] for o in requests.get('https://api.github.com/repos/mooch443/trex/releases', headers={'accept':'application/vnd.github.v3.full+json'}).json() if 'v' in o['name']])[-1])");
-            } catch(const SoftExceptionImpl& ex) {
-                std::string line = ex.what();
-                auto array = utils::split(line, '\n');
-                for(auto &l : array)
-                    l = escape_html(l);
+                py::set_function("retrieve_version", fn);
                 
-                if(array.size() > 3) {
-                    array.erase(array.begin() + 1, array.begin() + (array.size() - 2));
-                    array.insert(array.begin() + 1, std::string("<i>see terminal for full stack...</i>"));
-                }
-                
-                line.clear();
-                for(auto &l : array) {
-                    if(l.empty())
-                        continue;
+                try {
+                    py::execute("import requests");
+                    py::execute("retrieve_version(sorted([o['name'].split(':')[0].split('v')[1] for o in requests.get('https://api.github.com/repos/mooch443/trex/releases', headers={'accept':'application/vnd.github.v3.full+json'}).json() if 'v' in o['name']])[-1])");
+                } catch(const SoftExceptionImpl& ex) {
+                    std::string line = ex.what();
+                    auto array = utils::split(line, '\n');
+                    for(auto &l : array)
+                        l = escape_html(l);
                     
-                    if(!line.empty())
-                        line += "\n";
-                    line += l;
+                    if(array.size() > 3) {
+                        array.erase(array.begin() + 1, array.begin() + (array.size() - 2));
+                        array.insert(array.begin() + 1, std::string("<i>see terminal for full stack...</i>"));
+                    }
+                    
+                    line.clear();
+                    for(auto &l : array) {
+                        if(l.empty())
+                            continue;
+                        
+                        if(!line.empty())
+                            line += "\n";
+                        line += l;
+                    }
+                    
+                    _last_error = line;
+                    
+                    FormatError("Failed to retrieve github status to determine what the current version is. Assuming current version is the most up-to-date one.");
+                    fn("");
                 }
                 
-                _last_error = line;
+                py::unset_function("retrieve_version");
                 
-                FormatError("Failed to retrieve github status to determine what the current version is. Assuming current version is the most up-to-date one.");
-                fn("");
+            } catch(...) {
+                try {
+                    promise->set_exception(std::current_exception());
+                } catch(const std::future_error&) {
+                    /// ignore meta errors
+                }
             }
-            
-            py::unset_function("retrieve_version");
-            
         }),
         ._can_run_before_init = true
     });

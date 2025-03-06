@@ -280,6 +280,7 @@ private:
     PythonIntegration() {}
     
 public:
+    static void convert_python_exceptions(std::function<void()>&&);
     
     static void set_settings(GlobalSettings*, file::DataLocation*, void* python_wrapper);
     static void set_display_function(std::function<void(const std::string&, const cv::Mat&)>);
@@ -319,6 +320,8 @@ public:
     static T get_variable(const std::string&, const std::string& = "") {
         //static_assert(false, "Cant use without previously specified type.");
     }
+    
+    static std::optional<std::string> variable_to_string(const std::string &name, const std::string &mod);
 
     static std::vector<track::detect::Result> predict(track::detect::YoloInput&&, const std::string &m = "");
     static std::vector<track::detect::ModelConfig> set_models(const std::vector<track::detect::ModelConfig>&, const std::string& m = "");

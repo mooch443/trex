@@ -122,7 +122,7 @@ public:
                 prom.set_value(transform_results(N, std::move(indexes), std::move(values)));
             } catch(...) {
                 prom.set_exception(std::current_exception());
-                throw;
+                //throw;
             }
         }).get();
         
@@ -186,7 +186,7 @@ public:
     //! @param images the images to be identified
     //! @param callback is a callable that takes void(vector<vector<float>>&&, vector<float>&&)
     //! @throws SoftException if no weights have been loaded yet / trained
-    std::future<void> probabilities(auto&& images, auto&& callback) {
+    [[nodiscard]] std::future<void> probabilities(auto&& images, auto&& callback) {
         return Python::schedule(PackagedTask{
             ._network = &_network,
             ._task = PromisedTask([callback = std::move(callback),

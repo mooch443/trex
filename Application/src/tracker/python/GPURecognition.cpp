@@ -1097,6 +1097,47 @@ std::string PythonIntegration::run_retrieve_str(const std::string& module_name, 
     return "";
 }
 
+std::optional<std::string> PythonIntegration::variable_to_string(const std::string &name, const std::string &module_name) {
+    // Ensure we are on the correct thread
+    check_correct_thread_id();
+    py::object var;
+
+    if(module_name.empty()) {
+        // Look in the global _locals dictionary
+        if (not py::hasattr(*_locals, name.c_str())) {
+            return std::nullopt;
+        }
+        var = _locals->attr(name.c_str());
+    }
+    else {
+        // Look in the specified module
+        if (_modules.count(module_name) == 0)
+            return std::nullopt;
+        auto &mod = _modules[module_name];
+        if (CHECK_NONE(mod)
+            || not py::hasattr(mod, name.c_str()))
+        {
+            return std::nullopt;
+        }
+        
+        var = mod.attr(name.c_str());
+    }
+
+    // Check if the retrieved object is None or invalid
+    if (CHECK_NONE(var))
+        return std::nullopt;
+
+    try {
+        // Convert the object to its string representation.
+        std::string repr = py::str(var).cast<std::string>();
+        return repr;
+    }
+    catch(py::error_already_set &e) {
+        e.restore();
+        return std::nullopt;
+    }
+}
+
 template<typename T>
 T get_variable_internal(const std::string& name, const std::string& m) {
     PythonIntegration::check_correct_thread_id();
@@ -1416,16 +1457,21 @@ bool PythonIntegration::is_none(const std::string& name, const std::string &m) {
     
     try {
         if(m.empty()) {
-            if(CHECK_NONE(_main.attr(name.c_str()))) {
+            if(py::hasattr(_main, name.c_str())
+               && CHECK_NONE(_main.attr(name.c_str())))
+            {
                 return false;
             }
             
         } else {
             if(_modules.count(m)) {
                 auto &mod = _modules[m];
-                if(!CHECK_NONE(mod))
+                if(!CHECK_NONE(mod)
+                   && py::hasattr(mod, name.c_str()))
+                {
                     if(!CHECK_NONE(mod.attr(name.c_str())))
                         return false;
+                }
             }
         }
     } catch(py::error_already_set& e) {
@@ -1433,6 +1479,16 @@ bool PythonIntegration::is_none(const std::string& name, const std::string &m) {
     }
     
     return true;
+}
+
+void PythonIntegration::convert_python_exceptions(std::function<void()>&& fn)
+{
+    try {
+        fn();
+    } catch(py::error_already_set& e) {
+        e.restore();
+        throw SoftException(e.what());
+    }
 }
 
 /*/else SOFT_EXCEPTION("Cannot find key '%S'.", &m); \*/

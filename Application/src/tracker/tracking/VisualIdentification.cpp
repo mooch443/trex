@@ -47,9 +47,10 @@ VINetwork::VINetwork()
     Settings::init();
     
     _network.setup = [this](){
-        py::schedule([this]() {
+        PythonIntegration::check_correct_thread_id();
+        //py::schedule([this]() {
             setup(false);
-        }).get();
+        //}).get();
     };
     _network.unsetup = [](){
         
@@ -94,8 +95,11 @@ void VINetwork::add_percent_callback(
 void VINetwork::setup(bool force) {
     using py = PythonIntegration;
     
+    prefixed_print("VINetwork", "Checking reload (",force,")...");
     auto result = py::check_module(module_name);
     if(result || force || py::is_none("classes", module_name)) {
+        prefixed_print("VINetwork", "Need to reload with variables: device = ", no_quotes(Meta::toStr(py::variable_to_string("device", module_name))), " classes = ", no_quotes(Meta::toStr(py::variable_to_string("classes", module_name))), " image_channels = ", no_quotes(Meta::toStr(py::variable_to_string("image_channels", module_name))), " output_path = ", no_quotes(Meta::toStr(py::variable_to_string("output_path", module_name))), " filename = ", no_quotes(Meta::toStr(py::variable_to_string("filename", module_name))), " model = ", no_quotes(Meta::toStr(py::variable_to_string("model", module_name))));
+        
         uint32_t N = FAST_SETTING(track_max_individuals) ? FAST_SETTING(track_max_individuals) : 1u;
         std::vector<uint32_t> ids;
         ids.resize(N);
@@ -151,6 +155,8 @@ void VINetwork::setup(bool force) {
         if(!py::valid("model", module_name)) {
             py::run(module_name, "reinitialize_network");
         }
+
+        prefixed_print("VINetwork", "Done reloading with variables: device = ", no_quotes(Meta::toStr(py::variable_to_string("device", module_name))), " classes = ", no_quotes(Meta::toStr(py::variable_to_string("classes", module_name))), " image_channels = ", no_quotes(Meta::toStr(py::variable_to_string("image_channels", module_name))), " output_path = ", no_quotes(Meta::toStr(py::variable_to_string("output_path", module_name))), " filename = ", no_quotes(Meta::toStr(py::variable_to_string("filename", module_name))), " model = ", no_quotes(Meta::toStr(py::variable_to_string("model", module_name))));
     }
         
     set_work_variables(result || force);
@@ -165,8 +171,12 @@ void VINetwork::set_skip_button(std::function<bool ()> skip_function) {
 
 void VINetwork::set_work_variables(bool force) {
     using py = track::PythonIntegration;
+    prefixed_print("VINetwork", "Checking work variables ", force, "...");
     
-    if(force || py::is_none("update_work_percent", module_name)) {
+    if(force || py::is_none("update_work_percent", module_name))
+    {
+        prefixed_print("VINetwork", "Need to reload with variables: \nupdate_work_percent = ", no_quotes(Meta::toStr(py::variable_to_string("update_work_percent", module_name))), "\nupdate_work_description = ", no_quotes(Meta::toStr(py::variable_to_string("update_work_description", module_name))), "\nset_stop_reason = ", no_quotes(Meta::toStr(py::variable_to_string("set_stop_reason", module_name))), "\nset_per_class_accuracy = ", no_quotes(Meta::toStr(py::variable_to_string("set_per_class_accuracy", module_name))), "\nset_uniqueness_history = ", no_quotes(Meta::toStr(py::variable_to_string("set_uniqueness_history", module_name))), "\nget_abort_training = ", no_quotes(Meta::toStr(py::variable_to_string("get_abort_training", module_name))), "\nget_skip_step = ", no_quotes(Meta::toStr(py::variable_to_string("get_skip_step", module_name))), "\nmodel = ", no_quotes(Meta::toStr(py::variable_to_string("model", module_name))));
+        
         py::set_function("get_abort_training", (std::function<bool()>)[this]() -> bool {
             return abort_function ? abort_function() : false;
         }, module_name);
@@ -222,6 +232,8 @@ void VINetwork::set_work_variables(bool force) {
             } else
                 FormatWarning("No accumulation object set.");
         }, module_name);
+
+        prefixed_print("VINetwork", "Done reloading with variables: \nupdate_work_percent = ", no_quotes(Meta::toStr(py::variable_to_string("update_work_percent", module_name))), "\nupdate_work_description = ", no_quotes(Meta::toStr(py::variable_to_string("update_work_description", module_name))), "\nset_stop_reason = ", no_quotes(Meta::toStr(py::variable_to_string("set_stop_reason", module_name))), "\nset_per_class_accuracy = ", no_quotes(Meta::toStr(py::variable_to_string("set_per_class_accuracy", module_name))), "\nset_uniqueness_history = ", no_quotes(Meta::toStr(py::variable_to_string("set_uniqueness_history", module_name))), "\nget_abort_training = ", no_quotes(Meta::toStr(py::variable_to_string("get_abort_training", module_name))), "\nget_skip_step = ", no_quotes(Meta::toStr(py::variable_to_string("get_skip_step", module_name))), "\nmodel = ", no_quotes(Meta::toStr(py::variable_to_string("model", module_name))));
     }
 }
 
@@ -331,64 +343,75 @@ std::optional<std::set<track::vi::VIWeights>> VINetwork::get_available_weights()
         if(not future.valid()) {
             throw SoftException("Could not retrieve available weights due to an unknown error.");
         }
+        ptr->_loading_available_weights.reset();
         
         guard.unlock();
         return future.get();
     } else {
         /// not started looking for available weights yet
-        std::promise<weights_list_t> promise;
-        ptr->_loading_available_weights = promise.get_future().share();
+        auto promise = std::make_shared<std::promise<weights_list_t>>();
+        ptr->_loading_available_weights = promise->get_future().share();
         auto future = ptr->_loading_available_weights.value();
         
         guard.unlock();
         
-        py::schedule(PackagedTask{
-            ._network = &ptr->_network,
-            ._task = PromisedTask([promise = std::move(promise)]() mutable {
-                try {
-                    ModuleProxy m(module_name, [](ModuleProxy&){
-                        instance()->setup(false);
-                    });
-                    std::optional<glz::json_t> array;
-                    
-                    auto visual_identification_model_path = SETTING(visual_identification_model_path).value<std::optional<file::Path>>();
-                    if(visual_identification_model_path.has_value()
-                       && not visual_identification_model_path->empty())
-                    {
-                        array = m.run("find_available_weights", visual_identification_model_path->str());
+        try {
+            py::schedule(PackagedTask{
+                ._network = &ptr->_network,
+                ._task = PromisedTask([promise]() mutable {
+                    try {
+                        ModuleProxy m(module_name, [](ModuleProxy&){
+                            instance()->setup(false);
+                        });
+                        std::optional<glz::json_t> array;
                         
-                    } else {
-                        array = m.run("find_available_weights");
-                    }
-                    
-                    weights_list_t weights;
-                    
-                    if(array.has_value() && array->is_array()) {
-                        for(auto& json : array->get_array()) {
-                            auto str = glz::write_json(json).value();
-                            auto w = VIWeights::fromStr(str);
-                            if(not weights.has_value())
-                                weights = weights_list_t::value_type{};
-                            weights->emplace(std::move(w));
+                        auto visual_identification_model_path = SETTING(visual_identification_model_path).value<std::optional<file::Path>>();
+                        if(visual_identification_model_path.has_value()
+                           && not visual_identification_model_path->empty())
+                        {
+                            array = m.run("find_available_weights", visual_identification_model_path->str());
+                            
+                        } else {
+                            array = m.run("find_available_weights");
                         }
-                    } else if(array.has_value() && array->is_object()) {
-                        auto str = glz::write_json(array).value();
-                        auto w = VIWeights::fromStr(str);
-                        weights = weights_list_t::value_type{};
-                        weights->emplace(std::move(w));
-                    } else {
-                        auto str = glz::write_json(array).value();
-                        throw SoftException("Cannot parse results from find_available_weights: ", no_quotes(str));
+                        
+                        weights_list_t weights;
+                        
+                        if(array.has_value() && array->is_array()) {
+                            for(auto& json : array->get_array()) {
+                                auto str = glz::write_json(json).value();
+                                auto w = VIWeights::fromStr(str);
+                                if(not weights.has_value())
+                                    weights = weights_list_t::value_type{};
+                                weights->emplace(std::move(w));
+                            }
+                        } else if(array.has_value() && array->is_object()) {
+                            auto str = glz::write_json(array).value();
+                            auto w = VIWeights::fromStr(str);
+                            weights = weights_list_t::value_type{};
+                            weights->emplace(std::move(w));
+                        } else {
+                            auto str = glz::write_json(array).value();
+                            throw SoftException("Cannot parse results from find_available_weights: ", no_quotes(str));
+                        }
+                        
+                        promise->set_value(weights);
+                        
+                    } catch(...) {
+                        promise->set_exception(std::current_exception());
                     }
-                    
-                    promise.set_value(weights);
-                    
-                } catch(...) {
-                    promise.set_exception(std::current_exception());
-                }
-            }),
-            ._can_run_before_init = false
-        });
+                }),
+                    ._can_run_before_init = false
+            }).get();
+            
+        } catch(...) {
+            try {
+                promise->set_exception(std::current_exception());
+            } catch(const std::future_error& ex) {
+                /// ignore future errors...
+                FormatExcept("Caught future error: ", ex.what());
+            }
+        }
         
         if(not future.valid()) {
             throw SoftException("Could not retrieve available weights due to an unknown error.");

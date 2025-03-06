@@ -20,8 +20,9 @@ void Network::activate() {
     }
     
     if(setup) {
+        setup();
         //Python::schedule(this, [this](){
-            setup();
+            
         //});
     }
 }

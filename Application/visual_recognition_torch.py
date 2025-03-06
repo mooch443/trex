@@ -229,6 +229,60 @@ batch_size = None
 
 network_version = None'''
 
+import torch
+import json
+
+def save_pytorch_model_as_jit(model, output_path, metadata, dummy_input=None):
+    """
+    Converts a PyTorch model to TorchScript and saves it with metadata.
+
+    Parameters:
+      model (torch.nn.Module): The PyTorch model to convert.
+      output_path (str): Path where the TorchScript model will be saved.
+      metadata (dict): Dictionary containing metadata to save with the model.
+                       For example:
+                       {
+                           "input_shape": (width, height, channels),
+                           "model_type": "converted from Keras",
+                           "num_classes": num_classes,
+                           "epoch": None,
+                           "uniqueness": None
+                       }
+      dummy_input (torch.Tensor, optional): A dummy input for model tracing if scripting fails.
+    
+    Returns:
+      torch.jit.ScriptModule: The converted TorchScript model.
+    
+    Raises:
+      ValueError: If scripting fails and no dummy_input is provided for tracing.
+    """
+    try:
+        # Try to convert the model using scripting.
+        scripted_model = torch.jit.script(model)
+        print("Model scripted successfully.")
+    except Exception as e:
+        # If scripting fails and a dummy input is provided, fallback to tracing.
+        if dummy_input is None:
+            raise ValueError("Scripting failed and no dummy input provided for tracing. Error: " + str(e))
+        print("Scripting failed, falling back to tracing. Error:", e)
+        scripted_model = torch.jit.trace(model, dummy_input)
+        print("Model traced successfully.")
+    
+    # Prepare metadata extra file as JSON.
+    extra_files = {"metadata": json.dumps(metadata)}
+    
+    # Save the scripted (or traced) model along with the extra metadata.
+    torch.jit.save(scripted_model, output_path, _extra_files=extra_files)
+    print(f"TorchScript model with metadata saved at: {output_path}")
+    
+    # Optionally, load the model back to verify the metadata was saved.
+    files = {"metadata": ""}
+    _ = torch.jit.load(output_path, _extra_files=files)
+    loaded_metadata = json.loads(files["metadata"])
+    print("JIT Loaded metadata:", loaded_metadata)
+    
+    return scripted_model
+
 def save_model_files(model, output_path, accuracy, suffix='', epoch=None):
     checkpoint = {
         'model': None,
@@ -249,9 +303,11 @@ def save_model_files(model, output_path, accuracy, suffix='', epoch=None):
 
     TRex.log(f"# [saving] saving complete model to {output_path+suffix}_model.pth")
     try:
-        checkpoint['model'] = model
-        checkpoint['state_dict'] = model.state_dict()
-        torch.save(checkpoint, output_path+suffix+"_model.pth")
+        #checkpoint['model'] = model
+        #checkpoint['state_dict'] = model.state_dict()
+        # save as a jit model
+        save_pytorch_model_as_jit(model, output_path+suffix+"_model.pth", checkpoint['metadata'])
+        #torch.save(checkpoint, output_path+suffix+"_model.pth")
     except Exception as e:
         TRex.warn("Error saving model: " + str(e))
         
