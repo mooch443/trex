@@ -50,7 +50,7 @@ struct TrackingState {
     /**
      * @brief Tracker used for tracking objects/entities in the video.
      */
-    std::unique_ptr<track::Tracker> tracker;
+    std::shared_ptr<track::Tracker> tracker;
     
     /**
      * @brief Flag indicating whether to stop the analysis process.
@@ -62,7 +62,7 @@ struct TrackingState {
     /**
      * @brief Manages the analysis tasks and their inter-dependencies.
      */
-    ConnectedTasks analysis;
+    std::shared_ptr<ConnectedTasks> analysis;
     
     /**
      * @brief Pool of threads used for parallel processing of analysis tasks.
@@ -115,7 +115,7 @@ public:
         _apply_callbacks.push(std::move(fn));
     }
     
-    std::unique_ptr<VIControllerImpl> _controller;
+    std::shared_ptr<VIControllerImpl> _controller;
     
     bool stage_0(ConnectedTasks::Type&&);
     bool stage_1(ConnectedTasks::Type&&);

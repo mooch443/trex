@@ -845,7 +845,7 @@ bool Accumulation::start() {
     
     auto ranges = _global_tracklet_order;
     if(ranges.empty()) {
-        throw SoftException("No global segments could be found.");
+        throw SoftException("No global tracklets could be found.");
     }
     
     _initial_range = ranges.front();
@@ -1222,7 +1222,7 @@ bool Accumulation::start() {
         if(sorted.size() > 1) {
             decltype(sorted) filtered;
             
-            //! Splitting video into quadrants, so that we will have the same number of segments left from all parts of the video (if possible).
+            //! Splitting video into quadrants, so that we will have the same number of tracklets left from all parts of the video (if possible).
             std::map<Frame_t::number_t, std::set<std::tuple<DatasetQuality::Quality, Range<Frame_t>>>> sorted_by_quality;
             std::set<std::tuple<DatasetQuality::Quality, Range<Frame_t>>> filtered_out;
             
@@ -1232,7 +1232,7 @@ bool Accumulation::start() {
             sorted_by_quality[L * 3] = {};
             sorted_by_quality[std::numeric_limits<Frame_t::number_t>::max()] = {};
             
-            Print("! Sorted segments into quadrants: ", sorted_by_quality);
+            Print("! Sorted tracklets into quadrants: ", sorted_by_quality);
             
             size_t inserted_elements = 0;
             
@@ -1257,7 +1257,7 @@ bool Accumulation::start() {
             size_t retained = inserted_elements;
             
             if(inserted_elements > accumulation_max_tracklets) {
-                Print("Reducing global segments array by ", inserted_elements - accumulation_max_tracklets," elements (to reach accumulation_max_tracklets limit = ",accumulation_max_tracklets,").");
+                Print("Reducing global tracklets array by ", inserted_elements - accumulation_max_tracklets," elements (to reach accumulation_max_tracklets limit = ",accumulation_max_tracklets,").");
                 
                 retained = 0;
                 for(auto && [end, queue] : sorted_by_quality) {
@@ -1281,10 +1281,10 @@ bool Accumulation::start() {
                         sorted.insert({-1, Frame_t(), q, nullptr, range});
                 }
                 
-                Print("Reduced global segments array by removing ",filtered_out.size()," elements with a quality worse than ",std::get<0>(*sorted_by_quality.begin())," (",filtered_out,"). ",sorted_by_quality.size()," elements remaining.");
+                Print("Reduced global tracklets array by removing ",filtered_out.size()," elements with a quality worse than ",std::get<0>(*sorted_by_quality.begin())," (",filtered_out,"). ",sorted_by_quality.size()," elements remaining.");
                 
             } else {
-                Print("Did not reduce global segments array. There are not too many of them (", sorted,"). ",sorted.size()," elements in list.");
+                Print("Did not reduce global tracklets array. There are not too many of them (", sorted,"). ",sorted.size()," elements in list.");
             }
         }
         
@@ -1540,7 +1540,7 @@ bool Accumulation::start() {
             if(maximal_gaps < analysis_range.length() / 4_f) {
                 Print("---");
                 Print("Added enough frames for all individuals - stopping accumulation.");
-                reason_to_stop = "Added "+Meta::toStr(frame_gaps)+" of frames from global segments with maximal gap of "+Meta::toStr(maximal_gaps)+" / "+Meta::toStr(analysis_range.length())+" frames ("+Meta::toStr(maximal_gaps.get() / float(analysis_range.length().get()) * 100)+"%).";
+                reason_to_stop = "Added "+Meta::toStr(frame_gaps)+" of frames from global tracklets with maximal gap of "+Meta::toStr(maximal_gaps)+" / "+Meta::toStr(analysis_range.length())+" frames ("+Meta::toStr(maximal_gaps.get() / float(analysis_range.length().get()) * 100)+"%).";
                 tried_ranges.clear(); // dont retry stuff
                 
                 //end_a_step(Result("Added enough frames. Maximal gaps are "+Meta::toStr(maximal_gaps)+"/"+Meta::toStr(analysis_range.length() * 0.25)));

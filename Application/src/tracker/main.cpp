@@ -461,7 +461,7 @@ std::string start_tracking(std::future<void>& f) {
     if(SETTING(auto_train)) {
         state.add_apply_callback([&](){
             state.add_tracking_callback(fn);
-            state.analysis.set_paused(false).get();
+            state.analysis->set_paused(false).get();
         });
     } else {
         state.add_tracking_callback(fn);

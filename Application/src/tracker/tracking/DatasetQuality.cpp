@@ -204,7 +204,7 @@ void update() {
     bool changed = false;
     //Rangel longest(-1, -1);
     
-    // search the segments present in current iteration
+    // search the tracklets present in current iteration
     for(auto && [start, end] : manual) {
         auto it = _previous_selected.find(Range<Frame_t>(Frame_t(start), Frame_t(end)));
         if(it != _previous_selected.end())
@@ -220,7 +220,7 @@ void update() {
         }
     }
     
-    // calculate segments for current iteration
+    // calculate tracklets for current iteration
     for(auto && [start, end] : manual) {
         auto range = Range<Frame_t>(Frame_t(start), Frame_t(end));
         if(!has(range) && end_frame >= Frame_t(end) && range.length().get() >= 5) {

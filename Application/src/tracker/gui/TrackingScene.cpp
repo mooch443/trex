@@ -393,7 +393,7 @@ bool TrackingScene::on_global_event(Event event) {
                 break;
             case Keyboard::Comma:
                 WorkProgress::add_queue("Pausing...", [this](){
-                    _state->analysis.set_paused(not _state->analysis.paused()).get();
+                    _state->analysis->set_paused(not _state->analysis->paused()).get();
                 });
                 break;
             case Keyboard::S:
@@ -569,10 +569,10 @@ void TrackingScene::activate() {
             
         } else if(key == "track_pause") {
             /*gui::WorkProgress::add_queue("pausing...", [this](){
-                _state->analysis.bump();
+                _state->analysis->bump();
                 bool pause = SETTING(track_pause).value<bool>();
-                if(_state->analysis.paused() != pause) {
-                    _state->analysis.set_paused(pause).get();
+                if(_state->analysis->paused() != pause) {
+                    _state->analysis->set_paused(pause).get();
                 }
             });*/
         } else if(key == "analysis_range") {
@@ -589,7 +589,7 @@ void TrackingScene::activate() {
                 WorkProgress::add_queue("", [frame = _data->_cache->frame_idx, this](){
                     Tracker::instance()->_remove_frames(frame);
                     if(_state)
-                        _state->analysis.set_paused(false);
+                        _state->analysis->set_paused(false);
                 });
             }
         }
@@ -649,9 +649,11 @@ void TrackingScene::activate() {
     _state->init_video();
     
     _state->tracker->register_add_callback([this](Frame_t frame){
-        if(GUI_SETTINGS(gui_frame) == frame) {
-            redraw_all();
-        }
+        SceneManager::getInstance().enqueue([this, frame](){
+            if(GUI_SETTINGS(gui_frame) == frame) {
+                redraw_all();
+            }
+        });
     });
     
     assert(not _data->_frame_callback);
@@ -957,7 +959,7 @@ void TrackingScene::_draw(DrawStructure& graph) {
         return;
     
     if(_data->_tracker_has_added_frames
-       //&& _state && _state->analysis.is_paused()
+       //&& _state && _state->analysis->is_paused()
        && _data->_cache)
     {
         auto result = _data->_cache->update_slow_tracker_stuff();
@@ -1397,7 +1399,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                     auto frame = Meta::fromStr<Frame_t>(action.first());
                     _state->tracker->_remove_frames(frame);
                 }
-                _state->analysis.set_paused(false);
+                _state->analysis->set_paused(false);
             }),
             ActionFunc("load_results", [this](Action){
                 _state->load_state(SceneManager::getInstance().gui_task_queue(), Output::TrackingResults::expected_filename());
@@ -1441,7 +1443,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                 bool value = Meta::fromStr<bool>(action.first());
                 WorkProgress::add_queue("Pausing...", [this, value](){
                     if(_state)
-                        _state->analysis.set_paused(value).get();
+                        _state->analysis->set_paused(value).get();
                 });
             }),
             ActionFunc("write_config", [video = _state->video](Action){
@@ -1470,12 +1472,12 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                 );
             }),
             ActionFunc("auto_correct", [this](Action){
-                _state->_controller->auto_correct(SceneManager::getInstance().gui_task_queue(), false);
+                VIControllerImpl::auto_correct(_state->_controller, SceneManager::getInstance().gui_task_queue(), false);
             }),
             ActionFunc("visual_identification", [this](Action) {
                 vident::training_data_dialog(SceneManager::getInstance().gui_task_queue(), false, [](){
                     Print("callback ");
-                }, _state->_controller.get());
+                }, _state->_controller);
             }),
             ActionFunc("remove_automatic_matches", [this](const Action& action) {
                 REQUIRE_EXACTLY(2, action);
@@ -1489,7 +1491,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                         LockGuard guard(w_t{}, "automatic assignments");
                         AutoAssign::delete_automatic_assignments(fdx, range);
                         _state->tracker->_remove_frames(range.start());
-                        _state->analysis.set_paused(false);
+                        _state->analysis->set_paused(false);
                     }
                 } else {
                     auto frame = Meta::fromStr<Frame_t>(action.parameters.back());
@@ -1498,7 +1500,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                         LockGuard guard(w_t{}, "automatic assignments");
                         AutoAssign::delete_automatic_assignments(fdx, FrameRange(Range<Frame_t>{frame, frame}));
                         _state->tracker->_remove_frames(frame);
-                        _state->analysis.set_paused(false);
+                        _state->analysis->set_paused(false);
                     }
                 }
                 
@@ -1520,7 +1522,10 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
             VarFunc("is_paused", [this](const VarProps&) -> bool {
                 if(not _state)
                     return false;
-                return _state->analysis.is_paused();
+                return _state->analysis->is_paused();
+            }),
+            VarFunc("is_checking_tracklet_identities", [](const VarProps&) -> bool {
+                return Tracker::is_checking_tracklet_identities.load();
             }),
             VarFunc("get_tracklet", [this](const VarProps& props) -> FrameRange {
                 if(props.parameters.size() != 1)

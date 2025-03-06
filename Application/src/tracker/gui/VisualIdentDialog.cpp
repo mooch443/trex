@@ -63,7 +63,7 @@ void check_global_tracklets_available(GUITaskQueue_t* gui,
     if_okay();
 }
 
-void generate_training_data(GUITaskQueue_t* gui, bool force_load, VIController* controller) {
+void generate_training_data(GUITaskQueue_t* gui, bool force_load, std::shared_ptr<VIController> controller) {
     /*-------------------------/
      SAVE METADATA
      -------------------------*/
@@ -71,7 +71,11 @@ void generate_training_data(GUITaskQueue_t* gui, bool force_load, VIController* 
     //current = std::move(initialized);
     //! TODO: Dont do this.
     
-    auto global_tracklet_order = controller->_tracker->global_tracklet_order();
+    auto tracker = controller->_tracker.lock();
+    if(not tracker)
+        return; /// called on deleted tracker
+    
+    auto global_tracklet_order = tracker->global_tracklet_order();
 
     auto fn = [gui, controller](TrainingMode::Class load, IMGUIBase* window, DrawStructure* graph, std::vector<Range<Frame_t>> global_tracklet_order) -> bool {
         std::vector<Rangel> trained;
@@ -216,7 +220,7 @@ void generate_training_data(GUITaskQueue_t* gui, bool force_load, VIController* 
                                 return;
                             
                             if(action == DialogAction::AutoCorrect) {
-                                controller->auto_correct(gui, true);
+                                VIController::auto_correct(controller, gui, true);
                                 return;
                             }
 
@@ -229,7 +233,7 @@ void generate_training_data(GUITaskQueue_t* gui, bool force_load, VIController* 
                                     Accumulation::register_apply_callback(CallbackType_t::AutoCorrect, [controller, gui](){
                                         Print("Finished. Auto correcting...");
                                         controller->on_apply_done();
-                                        controller->auto_correct(gui, true);
+                                        VIController::auto_correct(controller, gui, true);
                                     });
                                     Accumulation::register_apply_callback(CallbackType_t::ProgressTracking, [controller](double percent){
                                         controller->on_apply_update(percent);
@@ -303,7 +307,7 @@ void generate_training_data(GUITaskQueue_t* gui, bool force_load, VIController* 
             Accumulation::register_apply_callback(CallbackType_t::AutoCorrect, [controller, gui](){
                 Print("Finished. Auto correcting...");
                 controller->on_apply_done();
-                controller->auto_correct(gui, true);
+                VIController::auto_correct(controller, gui, true);
             });
             Accumulation::register_apply_callback(CallbackType_t::ProgressTracking, [controller](double percent){
                 controller->on_apply_update(percent);
@@ -332,7 +336,7 @@ void generate_training_data(GUITaskQueue_t* gui, bool force_load, VIController* 
 }
 
 
-void training_data_dialog(GUITaskQueue_t* gui, bool force_load, std::function<void()> callback, VIController* controller) {
+void training_data_dialog(GUITaskQueue_t* gui, bool force_load, std::function<void()> callback, std::shared_ptr<VIController> controller) {
     if(!py::python_available()) {
         auto message = py::python_available() ? "Recognition is not enabled." : "Python is not available. Check your configuration.";
         if(SETTING(auto_train_on_startup))
@@ -393,11 +397,19 @@ void training_data_dialog(GUITaskQueue_t* gui, bool force_load, std::function<vo
         });*/
         //PythonIntegration::instance();
         
-        bool before = controller->_analysis->is_paused();
-        controller->_analysis->set_paused(true).get();
+        auto analysis = controller->_analysis.lock();
+        if(not analysis)
+            return; /// called on deleted analysis
+        
+        bool before = analysis->is_paused();
+        analysis->set_paused(true).get();
         
         DatasetQuality::update();
-        controller->_tracker->global_tracklet_order();
+        
+        auto tracker = controller->_tracker.lock();
+        if(not tracker)
+            return; /// deleted tracker
+        tracker->global_tracklet_order();
         
         try {
             generate_training_data(gui, force_load, controller);
@@ -409,50 +421,77 @@ void training_data_dialog(GUITaskQueue_t* gui, bool force_load, std::function<vo
         }
         
         if(!before)
-            controller->_analysis->set_paused(false);
+            analysis->set_paused(false);
         
         callback();
     });
 }
 
-void VIController::auto_correct(GUITaskQueue_t* gui, bool force_correct) {
+void VIController::auto_correct(std::shared_ptr<VIController> controller, GUITaskQueue_t* gui, bool force_correct) {
     if(gui && not force_correct) {
-        gui->enqueue([this, gui](IMGUIBase*, DrawStructure& graph){
+        gui->enqueue([controller = std::weak_ptr(controller), gui](IMGUIBase*, DrawStructure& graph){
             const char* message_only_ml = "Automatic correction uses machine learning based predictions to correct potential tracking mistakes. Make sure that you have trained the visual identification network prior to using auto-correct.\n<i>Apply and retrack</i> will overwrite your <key>manual_matches</key> and replace any previous automatic matches based on new predictions made by the visual identification network. If you just want to see averages for the predictions without changing your tracks, click the <i>review</i> button.";
             const char* message_both = "Automatic correction uses machine learning based predictions to correct potential tracking mistakes (visual identification, or physical tag data). Make sure that you have trained the visual identification network prior to using auto-correct, or that tag information is available.\n<i>Visual identification</i> and <i>Tags</i> will overwrite your <key>manual_matches</key> and replace any previous automatic matches based on new predictions made by the visual identification network/the tag data. If you just want to see averages for the visual identification predictions without changing your tracks, click the <i>Review VI</i> button.";
             const bool tags_available = tags::available();
             
-            graph.dialog([this, tags_available, gui](gui::Dialog::Result r) {
+            graph.dialog([controller, tags_available, gui](gui::Dialog::Result r) {
                 if(r == Dialog::ABORT)
                     return;
                 
-                WorkProgress::add_queue("checking identities...", [this, r, tags_available, gui]()
+                WorkProgress::add_queue("checking identities...", [controller, r, tags_available, gui]()
                 {
                     if(r == Dialog::ABORT)
                         return;
                     
-                    correct_identities(gui, r != Dialog::SECOND, tags_available && r == Dialog::THIRD ? IdentitySource::QRCodes : IdentitySource::VisualIdent);
+                    correct_identities(controller.lock(), gui, r != Dialog::SECOND, tags_available && r == Dialog::THIRD ? IdentitySource::QRCodes : IdentitySource::VisualIdent);
                 });
                 
             }, tags_available ? message_both : message_only_ml, "Auto-correct", tags_available ? "Apply visual identification" : "Apply and retrack", "Cancel", "Review VI", tags_available ? "Apply tags" : "");
         });
     } else {
-        WorkProgress::add_queue("checking identities...", [this, force_correct](){
+        WorkProgress::add_queue("checking identities...", [controller = std::weak_ptr(controller), force_correct](){
             const bool tags_available = tags::available();
-            correct_identities(nullptr, force_correct, tags_available ? IdentitySource::QRCodes : IdentitySource::VisualIdent);
+            correct_identities(controller.lock(), nullptr, force_correct, tags_available ? IdentitySource::QRCodes : IdentitySource::VisualIdent);
         });
     }
 }
 
-void VIController::correct_identities(GUITaskQueue_t* gui, bool force_correct, IdentitySource source) {
-    WorkProgress::add_queue("checking identities...", [this, force_correct, source, gui](){
-        _tracker->check_tracklets_identities(force_correct, source, [](float x) { WorkProgress::set_percent(x); }, [this, source, gui, force_correct](const std::string&, const std::function<void()>& fn, const std::string&) 
+void VIController::correct_identities(std::shared_ptr<VIController> controller, GUITaskQueue_t* gui, bool force_correct, IdentitySource source)
+{
+    if(not controller)
+        return;
+    
+    WorkProgress::add_queue("checking identities...", [controller = std::weak_ptr(controller), _tracker = controller->_tracker, _analysis = controller->_analysis, force_correct, source, gui](){
+        auto tracker = _tracker.lock();
+        if(not tracker) {
+            FormatWarning("Called check identities on deleted tracker.");
+            return;
+        }
+        
+        tracker->check_tracklets_identities(force_correct, source, [](float x) { WorkProgress::set_percent(x); }, [controller, _analysis, source, gui, force_correct](const std::string&, const std::function<void()>& fn, const std::string&)
         {
             if(force_correct) {
-                on_tracking_ended([this, source, gui](){
-                    correct_identities(gui, false, source);
+                auto c = controller.lock();
+                if(not c) {
+                    FormatWarning("Deleted controller called.");
+                    return;
+                }
+                
+                c->on_tracking_ended([controller, source, gui](){
+                    auto c = controller.lock();
+                    if(not c) {
+                        FormatWarning("Deleted controller called.");
+                        return;
+                    }
+                    
+                    correct_identities(c, gui, false, source);
                 });
-                _analysis->set_paused(false).get();
+                
+                if(auto analysis = _analysis.lock();
+                   analysis)
+                {
+                    analysis->set_paused(false).get();
+                }
             }
             
             fn();
@@ -462,25 +501,32 @@ void VIController::correct_identities(GUITaskQueue_t* gui, bool force_correct, I
 
 void VIController::export_tracks() {
     bool before{true};
-    if(_analysis) {
-        before = _analysis->is_paused();
-        _analysis->set_paused(true).get();
+    if(auto analysis = _analysis.lock();
+       analysis)
+    {
+        before = analysis->is_paused();
+        analysis->set_paused(true).get();
     }
     
     auto video = _video.lock();
-    if(video)
-        track::export_data(*video, *_tracker, {}, {}, [](float p, std::string_view m) {
+    if(auto tracker = _tracker.lock();
+       video && tracker)
+    {
+        track::export_data(*video, *tracker, {}, {}, [](float p, std::string_view m) {
             if(not m.empty()) {
                 WorkProgress::set_item((std::string)m);
             }
             if(p >= 0)
                 WorkProgress::set_percent(p);
         });
-    else
+    } else
         throw InvalidArgumentException("There was no video to export from.");
     
-    if(not before && _analysis)
-        _analysis->set_paused(false).get();
+    if(auto analysis = _analysis.lock();
+       not before && analysis)
+    {
+        analysis->set_paused(false).get();
+    }
 }
 
 void VIController::auto_quit(GUITaskQueue_t* gui) {
@@ -492,8 +538,11 @@ void VIController::auto_quit(GUITaskQueue_t* gui) {
     //instance()->write_config(true);
     
     if(!SETTING(auto_no_results)) {
-        Output::TrackingResults results(*_tracker);
-        results.save();
+        auto tracker = _tracker.lock();
+        if(tracker) {
+            Output::TrackingResults results(*tracker);
+            results.save();
+        }
     } else {
         file::Path path = Output::TrackingResults::expected_filename();
         path = path.add_extension("meta");
@@ -520,12 +569,12 @@ void VIController::auto_quit(GUITaskQueue_t* gui) {
         SETTING(terminate) = true;
 }
 
-void VIController::auto_apply(GUITaskQueue_t *, std::function<void()> callback) {
-    training_data_dialog(nullptr, true, callback, this);
+void VIController::auto_apply(std::shared_ptr<VIController> controller, GUITaskQueue_t *, std::function<void()> callback) {
+    training_data_dialog(nullptr, true, callback, controller);
 }
 
-void VIController::auto_train(GUITaskQueue_t *, std::function<void()> callback) {
-    training_data_dialog(nullptr, false, callback, this);
+void VIController::auto_train(std::shared_ptr<VIController> controller, GUITaskQueue_t *, std::function<void()> callback) {
+    training_data_dialog(nullptr, false, callback, controller);
 }
 
 }

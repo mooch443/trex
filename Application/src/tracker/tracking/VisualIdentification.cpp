@@ -346,7 +346,9 @@ std::optional<std::set<track::vi::VIWeights>> VINetwork::get_available_weights()
             ._network = &ptr->_network,
             ._task = PromisedTask([promise = std::move(promise)]() mutable {
                 try {
-                    ModuleProxy m(module_name, [](ModuleProxy&){});
+                    ModuleProxy m(module_name, [](ModuleProxy&){
+                        instance()->setup(false);
+                    });
                     std::optional<glz::json_t> array;
                     
                     auto visual_identification_model_path = SETTING(visual_identification_model_path).value<std::optional<file::Path>>();
@@ -463,7 +465,7 @@ bool VINetwork::train(std::shared_ptr<TrainingData> data,
     else if(load_results == TrainingMode::Apply)
         Print("Just loading weights (", data->size()," images)");
     else if(load_results == TrainingMode::Accumulate)
-        Print("Accumulating and training on more segments (", data->size()," images)");
+        Print("Accumulating and training on more tracklets (", data->size()," images)");
     else
         throw U_EXCEPTION("Unknown training mode ",load_results," in train_internally");
     

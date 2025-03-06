@@ -509,7 +509,8 @@ class ValidationCallback:
         model = self.model
         patience = 8
         
-        update_work_percent(min(epoch + 1, self.epochs) / self.epochs)
+        if update_work_percent is not None:
+            update_work_percent(min(epoch + 1, self.epochs) / self.epochs)
         
         self.epoch = min(epoch + 1, self.epochs)
 
@@ -1495,7 +1496,8 @@ def start_learning():
 
     else:
         # just run the test
-        update_work_percent(1.0)
+        if update_work_percent is not None:
+            update_work_percent(1.0)
         
         callback = ValidationCallback(model, classes, X_test, Y_test, max_epochs, filename, output_prefix, output_path, best_accuracy_worst_class, settings, device)
         if len(X_train) > 0:

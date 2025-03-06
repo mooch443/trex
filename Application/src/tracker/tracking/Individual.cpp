@@ -1775,7 +1775,7 @@ tl::expected<IndividualCache, const char*> Individual::cache_for_frame(const Fra
     //Median<size_t> size_median;
     //float weights = 0;
     
-    //! Collect recent number of valid samples within $t - \mathrm{fps} <= \dot{t} <= t$, where all distances between segments must not be reassigned ($\Delta t < fps * T_mathrm{max}$).
+    //! Collect recent number of valid samples within $t - \mathrm{fps} <= \dot{t} <= t$, where all distances between tracklets must not be reassigned ($\Delta t < fps * T_mathrm{max}$).
     size_t N = 0;
     if(it != _tracklets.end()) {
         //assert((*it)->contains(frameIndex));
@@ -2239,7 +2239,7 @@ const BasicStuff* Individual::find_frame(Frame_t frameIndex) const
     int32_t index = (int32_t)_basic_stuff.size()-1;
     if((*it)->start() > frameIndex) {
         if(it != _tracklets.begin()) {
-            // it is either in between segments (no frame)
+            // it is either in between tracklets (no frame)
             // or inside the previous segment
             --it;
             

@@ -9,8 +9,8 @@ void Network::activate() {
         if(active_network != this) {
             previous = active_network;
             active_network = this;
-        } else
-            return; // we do not need to initialize
+        } //else
+            //return; // we do not need to initialize
     }
     
     if(previous && previous->unsetup) {// run unsetup, since we stole the activation
