@@ -230,6 +230,8 @@ public:
          const size_t N,
          std::vector<float>&& indexes,
          std::vector<std::vector<float>>&& values);
+    
+    ~VINetwork();
 };
 
 }

@@ -41,6 +41,10 @@ std::shared_ptr<VINetwork> VINetwork::instance() {
     return _instance;
 }
 
+VINetwork::~VINetwork() {
+    Print("Destroying VINetwork.");
+}
+
 VINetwork::VINetwork()
     : _network("VINetwork")
 {
@@ -53,7 +57,7 @@ VINetwork::VINetwork()
         //}).get();
     };
     _network.unsetup = [](){
-        
+        Print("Unsetup.");
     };
 }
 
@@ -171,12 +175,11 @@ void VINetwork::set_skip_button(std::function<bool ()> skip_function) {
 
 void VINetwork::set_work_variables(bool force) {
     using py = track::PythonIntegration;
-    prefixed_print("VINetwork", "Checking work variables ", force, "...");
+    prefixed_print("VINetwork", "Need to reload with variables: \nupdate_work_percent = ", no_quotes(Meta::toStr(py::variable_to_string("update_work_percent", module_name))), "\nupdate_work_description = ", no_quotes(Meta::toStr(py::variable_to_string("update_work_description", module_name))), "\nset_stop_reason = ", no_quotes(Meta::toStr(py::variable_to_string("set_stop_reason", module_name))), "\nset_per_class_accuracy = ", no_quotes(Meta::toStr(py::variable_to_string("set_per_class_accuracy", module_name))), "\nset_uniqueness_history = ", no_quotes(Meta::toStr(py::variable_to_string("set_uniqueness_history", module_name))), "\nget_abort_training = ", no_quotes(Meta::toStr(py::variable_to_string("get_abort_training", module_name))), "\nget_skip_step = ", no_quotes(Meta::toStr(py::variable_to_string("get_skip_step", module_name))), "\nmodel = ", no_quotes(Meta::toStr(py::variable_to_string("model", module_name))));
     
     if(force || py::is_none("update_work_percent", module_name))
     {
-        prefixed_print("VINetwork", "Need to reload with variables: \nupdate_work_percent = ", no_quotes(Meta::toStr(py::variable_to_string("update_work_percent", module_name))), "\nupdate_work_description = ", no_quotes(Meta::toStr(py::variable_to_string("update_work_description", module_name))), "\nset_stop_reason = ", no_quotes(Meta::toStr(py::variable_to_string("set_stop_reason", module_name))), "\nset_per_class_accuracy = ", no_quotes(Meta::toStr(py::variable_to_string("set_per_class_accuracy", module_name))), "\nset_uniqueness_history = ", no_quotes(Meta::toStr(py::variable_to_string("set_uniqueness_history", module_name))), "\nget_abort_training = ", no_quotes(Meta::toStr(py::variable_to_string("get_abort_training", module_name))), "\nget_skip_step = ", no_quotes(Meta::toStr(py::variable_to_string("get_skip_step", module_name))), "\nmodel = ", no_quotes(Meta::toStr(py::variable_to_string("model", module_name))));
-        
+        prefixed_print("VINetwork", "Checking work variables ", force, "...");
         py::set_function("get_abort_training", (std::function<bool()>)[this]() -> bool {
             return abort_function ? abort_function() : false;
         }, module_name);
@@ -249,6 +252,7 @@ void VINetwork::unset_work_variables() {
                 py::unset_function("set_uniqueness_history", module_name);
                 py::unset_function("get_abort_training", module_name);
                 py::unset_function("get_skip_step", module_name);
+                py::unset_function("classes", module_name);
             } catch(...) {
                 FormatExcept("Failed to unset some variables.");
             }
@@ -818,6 +822,8 @@ std::future<void> VINetwork::unload_weights() {
                 .busy = false,
                 .weights = {}
             });
+            
+            unset_work_variables();
         })
     });
 }
