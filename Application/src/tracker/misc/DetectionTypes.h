@@ -156,32 +156,32 @@ namespace glz {
          "loaded",     &T::_loaded,
          "status",     &T::_status,
          "modified",   &T::_modified,
-         "resolution", &T::_resolution
+         "resolution", &T::_resolution,
+         "num_classes", &T::_num_classes
       );
    };
 
-namespace detail {
+    template <>
+    struct from<JSON, track::detect::DetectResolution>
+    {
+        template <auto Opts>
+        static void op(track::detect::DetectResolution& value, auto&&... args)
+        {
+            std::array<int,2> arr;
+            parse<JSON>::op<Opts>(arr, args...);
+            value.width = arr[0];
+            value.height = arr[1];
+        }
+    };
 
     template <>
-   struct from_json<cmn::file::Path>
-   {
-      template <auto Opts>
-      static void op(cmn::file::Path& value, auto&&... args)
-      {
-         std::string str;
-         read<json>::op<Opts>(str, args...);
-          value = cmn::file::Path(str);
-      }
-   };
-
-   template <>
-   struct to_json<cmn::file::Path>
-   {
-      template <auto Opts>
-      static void op(cmn::file::Path& value, auto&&... args) noexcept
-      {
-         write<json>::op<Opts>(value.str(), args...);
-      }
-   };
-}
+    struct to<JSON, track::detect::DetectResolution>
+    {
+        template <auto Opts>
+        static void op(const track::detect::DetectResolution& value, auto&&... args) noexcept
+        {
+            std::array<int,2> arr{value.width, value.height};
+            serialize<JSON>::op<Opts>(arr, args...);
+        }
+    };
 }

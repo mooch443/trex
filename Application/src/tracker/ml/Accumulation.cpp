@@ -1936,7 +1936,13 @@ bool Accumulation::start() {
     
     // GUI::work().item_custom_triggered() could be set, but we accept the training nonetheless if it worked so far. its just skipping one specific step
     if(!gui::WorkProgress::item_aborted() && !uniqueness_history().empty()) {
-        elevate_task([this](){apply_network(_video);});
+        elevate_task([this](){
+            auto tracker = Tracker::instance();
+            tracker->clear_tracklets_identities();
+            tracker->clear_vi_predictions();
+        
+            apply_network(_video);
+        });
     }
     
     return true;

@@ -26,6 +26,15 @@ struct DrawUniqueness::Data {
     std::map<long_t, float> smooth_points;
     GUICache* _cache{nullptr};
     std::weak_ptr<pv::File> _video_source;
+    
+    struct Samples {
+        std::shared_ptr<TrainingData> data;
+        std::vector<Image::SPtr> images;
+        std::map<Frame_t, Range<size_t>> map;
+    };
+    
+    std::mutex _samples_mutex;
+    std::optional<Samples> _samples;
 
     void update(Entangled& base);
     bool should_update_uniquenesses();
@@ -79,10 +88,18 @@ void DrawUniqueness::update() {
     });
 }
 
+void DrawUniqueness::reset() {
+    if(_data) {
+        std::unique_lock guard{_data->_samples_mutex};
+        _data->_samples.reset();
+    }
+}
+
 bool DrawUniqueness::Data::should_update_uniquenesses() {
     std::lock_guard guard(mutex);
     if(not estimated_uniqueness.empty()
-       && last_origin == Python::VINetwork::status().weights)
+       && last_origin.has_value()
+       && last_origin.value() == Python::VINetwork::status().weights)
     {
         return false;
     }
@@ -92,8 +109,9 @@ bool DrawUniqueness::Data::should_update_uniquenesses() {
     
     if(auto origin = uniqueness_origin.value();
        (origin.has_value()
-         && origin.value() != Python::VINetwork::status().weights)
-       || Python::VINetwork::status().weights.valid())
+        && origin.value() != Python::VINetwork::status().weights)
+       || (not origin.has_value()
+            && last_origin != Python::VINetwork::status().weights))
     {
         /*Print("Reasoning: ", uniqueness_origin.has_value()
               ? (origin != Python::VINetwork::status().weights
@@ -112,64 +130,89 @@ void DrawUniqueness::Data::update(Entangled& base) {
         return;
     }
     
+    if(std::lock_guard guard(mutex);
+       running
+       && (not running->valid()
+           || running->wait_for(std::chrono::milliseconds(0)) == std::future_status::ready))
     {
-        std::lock_guard guard(mutex);
-        if(running
-           && (not running->valid()
-               || running->wait_for(std::chrono::milliseconds(0)) == std::future_status::ready))
-        {
-            try {
-                if(running->valid()) {
-                    running->get();
-                    running.reset();
-                    
-                    graph.clear();
-                } else
-                    running.reset();
-            } catch(const SoftExceptionImpl&) {
-                /// nothing
+        try {
+            if(running->valid()) {
+                running->get();
+                running.reset();
+                
+                graph.clear();
+            } else
+                running.reset();
+        } catch(const SoftExceptionImpl&) {
+            /// nothing
 #ifndef NDEBUG
-                FormatWarning("Caught exception.");
+            FormatWarning("Caught exception.");
 #endif
-            } catch(const std::exception& ex) {
-                FormatExcept("Exception when loading uniqueness: ", ex.what());
-            }
+        } catch(const std::exception& ex) {
+            FormatExcept("Exception when loading uniqueness: ", ex.what());
         }
     }
     
     if(should_update_uniquenesses()) {
         if(not running) {
             running = WorkProgress::add_queue("generate images", [&]() {
-                if(auto lock = _video_source.lock();
-                   lock)
-                {
-                    try {
-                        Accumulation::setup();
-                        auto && [data, images, image_map] = Accumulation::generate_discrimination_data(*lock);
-                        auto && [u, umap, uq] = Accumulation::calculate_uniqueness(false, images, image_map);
-                        
-                        std::lock_guard guard(mutex);
-                        last_origin.reset();
+                try {
+                    Accumulation::setup();
+                    auto w = Python::VINetwork::status().weights;
+                    if(std::lock_guard guard(mutex);
+                       not w.loaded())
+                    {
+                        uniqueness_origin = tl::unexpected<std::string>("No weights are loaded.");
+                        last_origin = w;
                         estimated_uniqueness.clear();
-                        
-                        for(auto &[k,v] : umap)
-                            estimated_uniqueness[k] = v;
-                        
                         uniquenesses.clear();
-                        for(auto && [frame, q] :umap) {
-                            uniquenesses.push_back(Vec2(frame.get(), q));
+                        return;
+                    } else {
+                        last_origin = w;
+                    }
+                    
+                    std::tuple<float, hash_map<Frame_t, float>, float> unique;
+                    
+                    {
+                        std::unique_lock guard{_samples_mutex};
+                        if(not _samples) {
+                            if(auto lock = _video_source.lock();
+                               lock)
+                            {
+                                auto && [data, images, image_map] = Accumulation::generate_discrimination_data(*lock);
+                                
+                                _samples = Samples{
+                                    .data = std::move(data),
+                                    .images = std::move(images),
+                                    .map = std::move(image_map)
+                                };
+                            }
                         }
                         
-                        last_origin = Python::VINetwork::status().weights;
-                        uniqueness_origin = last_origin.value();
-                        
-                    } catch(const SoftExceptionImpl& e) {
-#ifndef NDEBUG
-                        FormatExcept("Caught exception: ", e.what());
-#endif
-                        std::lock_guard guard(mutex);
-                        uniqueness_origin = tl::unexpected<std::string>(e.what());
+                        unique = Accumulation::calculate_uniqueness(false, _samples->images, _samples->map);
                     }
+                    
+                    std::lock_guard guard(mutex);
+                    estimated_uniqueness.clear();
+                    
+                    auto && [u, umap, uq] = unique;
+                    
+                    for(auto &[k,v] : umap)
+                        estimated_uniqueness[k] = v;
+                    
+                    uniquenesses.clear();
+                    for(auto && [frame, q] :umap) {
+                        uniquenesses.push_back(Vec2(frame.get(), q));
+                    }
+                    
+                    uniqueness_origin = last_origin.value();
+                    
+                } catch(const SoftExceptionImpl& e) {
+#ifndef NDEBUG
+                    FormatExcept("Caught exception: ", e.what());
+#endif
+                    std::lock_guard guard(mutex);
+                    uniqueness_origin = tl::unexpected<std::string>(e.what());
                 }
             });
         }

@@ -42,6 +42,11 @@ bool CHECK_NONE(T obj) {
     return !obj.ptr() || obj.is_none();
 }
 
+namespace track {
+pybind11::module numpy, TRex, _main, _json_module;
+pybind11::dict* _locals = nullptr;
+}
+
 namespace pybind11 {
     namespace detail {
         /*template<> struct type_caster<cmn::Image::Ptr>
@@ -465,11 +470,12 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
     
     using namespace track::vi;
     py::class_<VIWeights>(m, "VIWeights")
-        .def(py::init([](std::string path, std::optional<double> uniqueness, std::string status, std::optional<uint64_t> modified, std::optional<DetectResolution> resolution, std::optional<uint8_t> classes)
+        .def(py::init([](std::string path, std::optional<double> uniqueness, bool loaded, std::string status, std::optional<uint64_t> modified, std::optional<DetectResolution> resolution, std::optional<uint8_t> classes)
         {
             return VIWeights{
                 ._path = path,
                 ._uniqueness = uniqueness,
+                ._loaded = loaded,
                 ._status = status == "FINISHED"
                     ? VIWeights::Status::FINISHED
                     : (status == "PROGRESS"
@@ -479,16 +485,19 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
                 ._resolution = resolution,
                 ._num_classes = classes
             };
-        }), py::arg("path"), py::arg("uniqueness"), py::arg("status"), py::arg("modified"), py::arg("resolution"), py::arg("classes"))
+        }), py::arg("path"), py::arg("uniqueness"), py::arg("loaded"), py::arg("status"), py::arg("modified"), py::arg("resolution"), py::arg("classes"))
         .def("__repr__", [](const VIWeights& v) -> std::string {
             return v.toStr();
         })
         .def_readwrite("path", &VIWeights::_path)
         .def_readwrite("uniqueness", &VIWeights::_uniqueness)
+        .def_readwrite("loaded", &VIWeights::_loaded)
         .def_readwrite("modified", &VIWeights::_modified)
         .def_readwrite("resolution", &VIWeights::_resolution)
         .def_readwrite("classes", &VIWeights::_num_classes)
-        .def("to_json", &VIWeights::to_json)
+        .def("to_json", [](const VIWeights& v) -> py::object {
+            return track::_json_module.attr("loads")(v.toStr());
+        })
         .def("to_string", &VIWeights::toStr);
 
     py::class_<track::detect::YoloInput>(m, "YoloInput")
@@ -553,6 +562,9 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
         
         if(device.empty())
             device = choose_backend();
+
+        //auto torch = py::module::import("torch");
+        //auto device_obj = torch.attr("device")(device);
         return device;
     });
 
@@ -676,10 +688,7 @@ std::string& python_gpu_name() {
     return _python_gpu_name;
 }
 
-pybind11::module numpy, TRex, _main;
-pybind11::dict* _locals = nullptr;
 std::mutex module_mutex;
-
 std::map<std::string, std::string> _module_contents;
 std::map<std::string, pybind11::module> _modules;
 
@@ -785,6 +794,7 @@ void PythonIntegration::init() {
         });
         
         TRex = _main.import("TRex");
+        _json_module = _main.import("json");
         _locals = new pybind11::dict();
         Print("# imported TRex module");
         
@@ -838,6 +848,7 @@ void PythonIntegration::deinit() {
         track::numpy.release();
         track::TRex.release();
         track::_main.release();
+        track::_json_module.release();
 
         {
             std::lock_guard<std::mutex> guard(module_mutex);

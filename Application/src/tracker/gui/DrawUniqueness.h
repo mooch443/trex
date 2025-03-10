@@ -21,6 +21,8 @@ public:
     void update();
     using Entangled::set;
     void set(Frame_t);
+    
+    void reset();
 };
 
 }

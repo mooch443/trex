@@ -25,6 +25,8 @@ using namespace default_config;
 // (Optional, but can help avoid cross-test pollution.)
 static void resetGlobalSettings()
 {
+    default_config::get(GlobalSettings::map(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
+    
     // Clear out the global SETTING(...) states used by these tests:
     SETTING(output_fields) = std::vector<std::pair<std::string, std::vector<std::string>>>{};
     SETTING(detect_classes) = track::detect::yolo::names::owner_map_t{};
@@ -32,6 +34,9 @@ static void resetGlobalSettings()
     // Assuming KeypointFormat has a default constructor or can be reset to a default value.
     SETTING(detect_keypoint_format) = KeypointFormat{};
     SETTING(detect_keypoint_names) = KeypointNames{};
+    
+    SETTING(frame_rate) = Settings::frame_rate_t{25};
+    SETTING(cm_per_pixel) = Settings::cm_per_pixel_t{1};
     
     SETTING(output_auto_pose) = true;
 }
@@ -510,6 +515,8 @@ public:
      default_config::get(GlobalSettings::map(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
      SETTING(match_min_probability) = float(0.1);
      SETTING(match_mode) = table_->match_mode;
+     SETTING(frame_rate) = Settings::frame_rate_t{ 25 };
+     SETTING(cm_per_pixel) = Settings::cm_per_pixel_t{ 1 };
  }
  void TearDown() override {
    delete table_;

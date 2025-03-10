@@ -299,7 +299,9 @@ glz::json_t VIWeights::to_json() const {
         {"uniqueness", _uniqueness ? glz::json_t(_uniqueness.value()) : nullptr},
         {"loaded", _loaded},
         {"status", _status},
-        {"modified", _modified ? glz::json_t(_modified.value()) : nullptr}
+        {"modified", _modified ? glz::json_t(_modified.value()) : nullptr},
+        {"resolution", _resolution ? cvt2json(_resolution.value()) : nullptr},
+        {"num_classes", _num_classes ? glz::json_t(_num_classes.value()) : nullptr}
     };
     return json;
 }
@@ -311,7 +313,7 @@ VIWeights VIWeights::fromStr(const std::string &str)
     auto error = glz::read_json(weights, s);
     if(error != glz::error_code::none) {
         std::string descriptive_error = glz::format_error(error, s);
-        throw U_EXCEPTION("Error loading VIWeights from JSON:\n", no_quotes(descriptive_error));
+        throw U_EXCEPTION("Error loading VIWeights from JSON:\n", no_quotes(descriptive_error)," full json: ", no_quotes(s));
     }
     return weights;
 }

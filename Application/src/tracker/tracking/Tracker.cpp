@@ -233,7 +233,7 @@ void Tracker::predicted(Frame_t frame, pv::bid bdx, std::span<float> ps) {
     auto &ff = _vi_predictions[frame];
 #ifndef NDEBUG
     if(ff.count(bdx)) {
-        FormatWarning("bdx ", bdx, " already in predictions (forgot to clear?): ", ff.at(bdx));
+        FormatWarning("bdx ", bdx, " already in predictions (forgot to clear?): ", ff.at(bdx), " vs. ", ps);
     }
 #endif
     ff[bdx] = std::vector<float>{ps.data(), ps.data() + ps.size()};

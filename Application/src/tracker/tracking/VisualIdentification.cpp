@@ -102,7 +102,7 @@ void VINetwork::setup(bool force) {
     prefixed_print("VINetwork", "Checking reload (",force,")...");
     auto result = py::check_module(module_name);
     if(result || force || py::is_none("classes", module_name)) {
-        prefixed_print("VINetwork", "Need to reload with variables: device = ", no_quotes(Meta::toStr(py::variable_to_string("device", module_name))), " classes = ", no_quotes(Meta::toStr(py::variable_to_string("classes", module_name))), " image_channels = ", no_quotes(Meta::toStr(py::variable_to_string("image_channels", module_name))), " output_path = ", no_quotes(Meta::toStr(py::variable_to_string("output_path", module_name))), " filename = ", no_quotes(Meta::toStr(py::variable_to_string("filename", module_name))), " model = ", no_quotes(Meta::toStr(py::variable_to_string("model", module_name))));
+        prefixed_print("VINetwork", "Need to reload with variables: device = ", no_quotes(Meta::toStr(py::variable_to_string("device", module_name))), " classes = ", no_quotes(Meta::toStr(py::variable_to_string("classes", module_name))), " image_channels = ", no_quotes(Meta::toStr(py::variable_to_string("image_channels", module_name))), " output_path = ", no_quotes(Meta::toStr(py::variable_to_string("output_path", module_name))), " filename = ", no_quotes(Meta::toStr(py::variable_to_string("filename", module_name))), " model = ", no_quotes(utils::ShortenText(Meta::toStr(py::variable_to_string("model", module_name)), 25)));
         
         uint32_t N = FAST_SETTING(track_max_individuals) ? FAST_SETTING(track_max_individuals) : 1u;
         std::vector<uint32_t> ids;
@@ -122,12 +122,6 @@ void VINetwork::setup(bool force) {
         auto version = SETTING(visual_identification_version).value<default_config::visual_identification_version_t::Class>();
         Print("network version: ", version);
     
-        auto device = SETTING(gpu_torch_device).value<default_config::gpu_torch_device_t::Class>().toStr();
-        if(device == "automatic")
-            py::unset_function("device", module_name);
-        else
-            py::set_variable("device", device, module_name);
-        
         py::set_variable("accumulation_step", (long_t)-1, module_name);
         py::set_variable("network_version", version.toStr(), module_name);
         py::set_variable("classes", ids, module_name);
@@ -157,10 +151,11 @@ void VINetwork::setup(bool force) {
         py::set_variable("filename", (std::string)SETTING(filename).value<file::Path>().filename(), module_name);
         
         if(!py::valid("model", module_name)) {
-            py::run(module_name, "reinitialize_network");
+            FormatWarning("No model set in ", module_name,".");
+            //py::run(module_name, "reinitialize_network");
         }
 
-        prefixed_print("VINetwork", "Done reloading with variables: device = ", no_quotes(Meta::toStr(py::variable_to_string("device", module_name))), " classes = ", no_quotes(Meta::toStr(py::variable_to_string("classes", module_name))), " image_channels = ", no_quotes(Meta::toStr(py::variable_to_string("image_channels", module_name))), " output_path = ", no_quotes(Meta::toStr(py::variable_to_string("output_path", module_name))), " filename = ", no_quotes(Meta::toStr(py::variable_to_string("filename", module_name))), " model = ", no_quotes(Meta::toStr(py::variable_to_string("model", module_name))));
+        prefixed_print("VINetwork", "Done reloading with variables: device = ", no_quotes(Meta::toStr(py::variable_to_string("device", module_name))), " classes = ", no_quotes(Meta::toStr(py::variable_to_string("classes", module_name))), " image_channels = ", no_quotes(Meta::toStr(py::variable_to_string("image_channels", module_name))), " output_path = ", no_quotes(Meta::toStr(py::variable_to_string("output_path", module_name))), " filename = ", no_quotes(Meta::toStr(py::variable_to_string("filename", module_name))), " model = ", no_quotes(utils::ShortenText(Meta::toStr(py::variable_to_string("model", module_name)), 25)));
     }
         
     set_work_variables(result || force);
@@ -175,11 +170,11 @@ void VINetwork::set_skip_button(std::function<bool ()> skip_function) {
 
 void VINetwork::set_work_variables(bool force) {
     using py = track::PythonIntegration;
-    prefixed_print("VINetwork", "Need to reload with variables: \nupdate_work_percent = ", no_quotes(Meta::toStr(py::variable_to_string("update_work_percent", module_name))), "\nupdate_work_description = ", no_quotes(Meta::toStr(py::variable_to_string("update_work_description", module_name))), "\nset_stop_reason = ", no_quotes(Meta::toStr(py::variable_to_string("set_stop_reason", module_name))), "\nset_per_class_accuracy = ", no_quotes(Meta::toStr(py::variable_to_string("set_per_class_accuracy", module_name))), "\nset_uniqueness_history = ", no_quotes(Meta::toStr(py::variable_to_string("set_uniqueness_history", module_name))), "\nget_abort_training = ", no_quotes(Meta::toStr(py::variable_to_string("get_abort_training", module_name))), "\nget_skip_step = ", no_quotes(Meta::toStr(py::variable_to_string("get_skip_step", module_name))), "\nmodel = ", no_quotes(Meta::toStr(py::variable_to_string("model", module_name))));
     
     if(force || py::is_none("update_work_percent", module_name))
     {
-        prefixed_print("VINetwork", "Checking work variables ", force, "...");
+        prefixed_print("VINetwork", "Need to reload with variables: \nupdate_work_percent = ", no_quotes(Meta::toStr(py::variable_to_string("update_work_percent", module_name))), "\nupdate_work_description = ", no_quotes(Meta::toStr(py::variable_to_string("update_work_description", module_name))), "\nset_stop_reason = ", no_quotes(Meta::toStr(py::variable_to_string("set_stop_reason", module_name))), "\nset_per_class_accuracy = ", no_quotes(Meta::toStr(py::variable_to_string("set_per_class_accuracy", module_name))), "\nset_uniqueness_history = ", no_quotes(Meta::toStr(py::variable_to_string("set_uniqueness_history", module_name))), "\nget_abort_training = ", no_quotes(Meta::toStr(py::variable_to_string("get_abort_training", module_name))), "\nget_skip_step = ", no_quotes(Meta::toStr(py::variable_to_string("get_skip_step", module_name))), "\nmodel = ", no_quotes(utils::ShortenText(Meta::toStr(py::variable_to_string("model", module_name)), 25)));
+        
         py::set_function("get_abort_training", (std::function<bool()>)[this]() -> bool {
             return abort_function ? abort_function() : false;
         }, module_name);
@@ -236,7 +231,7 @@ void VINetwork::set_work_variables(bool force) {
                 FormatWarning("No accumulation object set.");
         }, module_name);
 
-        prefixed_print("VINetwork", "Done reloading with variables: \nupdate_work_percent = ", no_quotes(Meta::toStr(py::variable_to_string("update_work_percent", module_name))), "\nupdate_work_description = ", no_quotes(Meta::toStr(py::variable_to_string("update_work_description", module_name))), "\nset_stop_reason = ", no_quotes(Meta::toStr(py::variable_to_string("set_stop_reason", module_name))), "\nset_per_class_accuracy = ", no_quotes(Meta::toStr(py::variable_to_string("set_per_class_accuracy", module_name))), "\nset_uniqueness_history = ", no_quotes(Meta::toStr(py::variable_to_string("set_uniqueness_history", module_name))), "\nget_abort_training = ", no_quotes(Meta::toStr(py::variable_to_string("get_abort_training", module_name))), "\nget_skip_step = ", no_quotes(Meta::toStr(py::variable_to_string("get_skip_step", module_name))), "\nmodel = ", no_quotes(Meta::toStr(py::variable_to_string("model", module_name))));
+        prefixed_print("VINetwork", "Done reloading with variables: \nupdate_work_percent = ", no_quotes(Meta::toStr(py::variable_to_string("update_work_percent", module_name))), "\nupdate_work_description = ", no_quotes(Meta::toStr(py::variable_to_string("update_work_description", module_name))), "\nset_stop_reason = ", no_quotes(Meta::toStr(py::variable_to_string("set_stop_reason", module_name))), "\nset_per_class_accuracy = ", no_quotes(Meta::toStr(py::variable_to_string("set_per_class_accuracy", module_name))), "\nset_uniqueness_history = ", no_quotes(Meta::toStr(py::variable_to_string("set_uniqueness_history", module_name))), "\nget_abort_training = ", no_quotes(Meta::toStr(py::variable_to_string("get_abort_training", module_name))), "\nget_skip_step = ", no_quotes(Meta::toStr(py::variable_to_string("get_skip_step", module_name))), "\nmodel = ", no_quotes(utils::ShortenText(Meta::toStr(py::variable_to_string("model", module_name)), 25)));
     }
 }
 
@@ -280,7 +275,7 @@ void VINetwork::reinitialize_internal() {
 
 std::optional<VIWeights> VINetwork::load_weights_internal(VIWeights&& weights) {
     using py = track::PythonIntegration;
-    reinitialize_internal();
+    //reinitialize_internal();
     
     if(weights.path().empty()) {
         auto visual_identification_model_path = SETTING(visual_identification_model_path).value<std::optional<file::Path>>();
@@ -297,13 +292,18 @@ std::optional<VIWeights> VINetwork::load_weights_internal(VIWeights&& weights) {
     try {
         auto json = py::run(module_name, "load_weights", weights.path().str());
         auto str = glz::write_json(json).value();
+        str = glz::prettify_json(str);
         Print("\tReloaded weights: ", no_quotes(str));
-        _status.weights = VIWeights::fromStr(str);
-        _status.weights._loaded = true;
+        
+        set_status(Status{
+            .busy = false,
+            .weights = VIWeights::fromStr(str)
+        });
         
         return _status.weights;
         
     } catch(...) {
+        set_status(Status{});
         throw;
     }
     
@@ -379,9 +379,17 @@ std::optional<std::set<track::vi::VIWeights>> VINetwork::get_available_weights()
                             array = m.run("find_available_weights");
                         }
                         
-                        weights_list_t weights;
+                        weights_list_t::value_type weights;
+                        if(array.has_value()) {
+                            auto str = glz::write_json(array.value()).value();
+                            auto error = glz::read_json(weights, str);
+                            if(error != glz::error_code::none) {
+                                std::string descriptive_error = glz::format_error(error, str);
+                                throw SoftException("Error loading JSON response:\n", no_quotes(descriptive_error));
+                            }
+                        }
                         
-                        if(array.has_value() && array->is_array()) {
+                        /*if(array.has_value() && array->is_array()) {
                             for(auto& json : array->get_array()) {
                                 auto str = glz::write_json(json).value();
                                 auto w = VIWeights::fromStr(str);
@@ -397,7 +405,7 @@ std::optional<std::set<track::vi::VIWeights>> VINetwork::get_available_weights()
                         } else {
                             auto str = glz::write_json(array).value();
                             throw SoftException("Cannot parse results from find_available_weights: ", no_quotes(str));
-                        }
+                        }*/
                         
                         promise->set_value(weights);
                         
