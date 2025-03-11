@@ -1172,7 +1172,7 @@ void TrackingScene::_draw(DrawStructure& graph) {
     _data->_bowl->update_scaling(_data->_cache->dt());
     
     auto alpha = SETTING(gui_background_color).value<Color>().a;
-    _data->_background->set_color(Color(255, 255, 255, alpha ? alpha : 1));
+    _data->_background->set_color(Color(255, 255, 255, alpha > 0 ? alpha : 1));
     
     graph.wrap_object(*_data->_background);
     

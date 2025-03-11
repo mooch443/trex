@@ -376,8 +376,8 @@ void AnimatedBackground::before_draw() {
         set_animating(false);
     }
 
-    _static_image.set_color(_tint.alpha(255 * _fade));
-    _grey_image.set_color(_static_image.color().alpha(255 * (_is_greyscale ? 0.5 : 1) * (1.0 - _fade)));
+    _static_image.set_color(_tint.multiply_alpha(_fade));
+    _grey_image.set_color(_static_image.color().alpha(Float2_t(_tint.a) * (_is_greyscale ? 0.5 : 1) * (1.0 - _fade)));
     
     _fade_timer.reset();
     

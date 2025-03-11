@@ -446,6 +446,20 @@ void Segmenter::trigger_average_generator(bool do_generate_average, cv::Mat& bg)
         std::unique_lock guard(average_generator_mutex);
         average_generator = std::async(std::launch::async, [this, size = _output_size, channels]()
         {
+            // Define a simple RAII helper:
+            struct NotifyGuard {
+                std::mutex& mutex;
+                std::condition_variable& cv;
+                NotifyGuard(std::condition_variable& cv, std::mutex& mutex) : cv(cv), mutex(mutex) {}
+                ~NotifyGuard() {
+                    std::unique_lock guard{mutex};
+                    cv.notify_all();
+                    
+                    // in case somebody is waiting on us:
+                    Print("Average image terminated.");
+                }
+            } guard(average_variable, average_generator_mutex);
+            
             cv::Mat bg = cv::Mat::zeros(size.height, size.width, CV_8UC(channels));
             bg.setTo(255);
             
@@ -505,10 +519,6 @@ void Segmenter::trigger_average_generator(bool do_generate_average, cv::Mat& bg)
             } catch(...) {
                 FormatExcept("Unknown exception in callback.");
             }
-            
-            // in case somebody is waiting on us:
-            average_variable.notify_all();
-            Print("Average image terminated.");
         });
         
         /// if background subtraction is disabled for tracking, we don't need to
