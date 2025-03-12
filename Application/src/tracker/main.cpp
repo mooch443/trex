@@ -793,7 +793,6 @@ int main(int argc, char**argv) {
                     if (f.valid())
                         f.get();
 
-                    Detection::manager().clean_up();
                     Detection::deinit();
                     WorkProgress::stop();
                     
@@ -826,7 +825,6 @@ int main(int argc, char**argv) {
         if (f.valid())
             f.get();
 
-        Detection::manager().clean_up();
         Detection::deinit();
         py::deinit();
     } catch(const std::exception& e) {

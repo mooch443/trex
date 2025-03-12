@@ -45,6 +45,8 @@ void Detection::deinit() {
     } else if(detection_type() == ObjectDetectionType::background_subtraction) {
         manager().clean_up();
         BackgroundSubtraction::deinit();
+    } else {
+        manager().clean_up();
     }
 }
 

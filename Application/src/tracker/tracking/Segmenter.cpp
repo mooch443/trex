@@ -92,7 +92,6 @@ Segmenter::Segmenter(std::function<void()> eof_callback, std::function<void(std:
             }
             
             try {
-                Detection::manager().clean_up();
                 Detection::deinit();
             } catch(const std::exception& e) {
                 FormatExcept("Exception when joining detection thread: ", e.what());

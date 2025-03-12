@@ -145,11 +145,13 @@ public:
 
             fn(std::move(packet));
             
+#ifndef NDEBUG
             for(auto &data : packet) {
                 if(data) {
                     Print("Data not null");
                 }
             }
+#endif
             packet.clear();
         })
     { }
