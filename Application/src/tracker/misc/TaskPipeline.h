@@ -139,6 +139,7 @@ public:
                     FormatError("Images empty: ", BaseTask<Data>::_weight);
 #endif
                 packet.swap(_images);
+                _images.clear();
                 BaseTask<Data>::_weight = 0;
             }
 
