@@ -219,8 +219,8 @@ elseif(CMAKE_CXX_COMPILER_ID MATCHES "^(Apple)?Clang$")
     if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64")
         set(M1OPTIONS "")
     endif()
-
-    set(TREX_WARNING_FLAGS "-Wmove -Werror=return-stack-address -Wthread-safety")
+    
+    set(TREX_WARNING_FLAGS "-Wmove -Werror=return-stack-address") #-Wthread-safety")
 
     set(C_SANITIZE_OPTIONS "")
     set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0 -g ${C_SANITIZE_OPTIONS} -fno-lto")
