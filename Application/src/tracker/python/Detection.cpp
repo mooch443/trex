@@ -162,10 +162,20 @@ PipelineManager<TileImage, true>& BackgroundSubtraction::manager() {
     {
         /// in background subtraction case, we have to wait until the background
         /// image has been generated and hang in the meantime.
+        auto start_time = std::chrono::steady_clock::now();
+        auto message_time = start_time;
         while(not data().has_background()
               && not manager().is_terminated())
         {
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+            auto elapsed = std::chrono::steady_clock::now() - message_time;
+            if(std::chrono::duration_cast<std::chrono::seconds>(elapsed).count() > 30) {
+                FormatExcept("Background image not set in ",
+                             std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - start_time).count(),
+                             " seconds. Waiting for background image...");
+                message_time = std::chrono::steady_clock::now();
+            }
         }
         
         if(not manager().is_terminated()) {
@@ -207,6 +217,7 @@ void BackgroundSubtraction::set_background(Image::Ptr && average) {
 
 void BackgroundSubtraction::Data::set(Image::Ptr&& average) {
     std::scoped_lock guard(_background_mutex, _gpu_mutex);
+    Print("Setting background image to ", hex(average.get()));
     _background = std::move(average);
     if(_background) {
         _background->get().copyTo(_gpu);
