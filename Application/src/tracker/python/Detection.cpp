@@ -39,12 +39,13 @@ Detection::Detection() {
 }
 
 void Detection::deinit() {
-    if(detection_type() == ObjectDetectionType::yolo)
+    if(detection_type() == ObjectDetectionType::yolo) {
         YOLO::deinit();
-    else if(detection_type() == ObjectDetectionType::background_subtraction)
+        manager().clean_up();
+    } else if(detection_type() == ObjectDetectionType::background_subtraction) {
+        manager().clean_up();
         BackgroundSubtraction::deinit();
-    
-    manager().clean_up();
+    }
 }
 
 bool Detection::is_initializing() {
@@ -242,8 +243,6 @@ std::future<SegmentationData> BackgroundSubtraction::apply(TileImage &&tiled) {
 }
 
 void BackgroundSubtraction::deinit() {
-    data().set_background(nullptr);
-    data().set(nullptr);
 }
 
 double BackgroundSubtraction::fps() {
