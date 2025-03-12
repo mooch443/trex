@@ -52,13 +52,13 @@
                                 "var":"available_options",
                                 "placeholder":"No items.",
                                 "list":{
-                                    "size":"[{-:{column_width}:15},{-:{column_height}:135}]",
+                                    "size":"[{-:{column_width}:15},{-:{column_height}:120}]",
                                     "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
                                     "fill":[25,25,25,220]
                                 },
                                 "detail":{
                                     "font":{
-                                        "size":0.3,
+                                        "size":0.35,
                                         "align":"center"
                                     }
                                 },
@@ -108,13 +108,13 @@
                                 "item_line":[100,100,100,150],
                                 "placeholder":"Click on an item on the left\nto add it to the list.",
                                 "list":{
-                                    "size":"[{-:{column_width}:15},{-:{column_height}:135}]",
+                                    "size":"[{-:{column_width}:15},{-:{column_height}:120}]",
                                     "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
                                     "fill":[25,25,25,220]
                                 },
                                 "detail":{
                                     "font":{
-                                        "size":0.3,
+                                        "size":0.35,
                                         "align":"center"
                                     }
                                 },

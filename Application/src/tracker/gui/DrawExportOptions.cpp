@@ -304,6 +304,9 @@ struct DrawExportOptions::Data {
     //ScrollableList<Item> export_options;
     DynamicGUI _gui;
     
+    std::optional<std::map<std::string, std::set<std::string>>> previous_graphs;
+    std::optional<std::string> previous_text;
+    
     std::vector<sprite::Map> _filtered_options, _selected_options;
     std::vector<std::shared_ptr<dyn::VarBase_t>> _filtered_variables, _selected_variables;
     std::vector<bool> _auto_variables;
@@ -341,13 +344,7 @@ struct DrawExportOptions::Data {
             SETTING(output_fields) = graphs;
         });*/
         
-        static bool first = true;
-        
-        if(first) {
             parent.set_draggable();
-            first = false;
-        }
-
     }
     
     std::optional<doc_strings::Description> get_description(std::string_view param) {
@@ -594,14 +591,15 @@ struct DrawExportOptions::Data {
             }
             return result;
         }();
-        static decltype(graphs_map) previous_graphs;
         
         base.wrap_object(parent);
         parent.set_scale(base.scale().reciprocal());
-        
-        static std::string previous_text;
         //
-        if(previous_graphs != graphs_map || _search_text != previous_text) {
+        if(not previous_graphs
+           || *previous_graphs != graphs_map
+           || not previous_text
+           || _search_text != *previous_text)
+        {
             previous_graphs = graphs_map;
             previous_text = _search_text;
             

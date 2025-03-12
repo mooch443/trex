@@ -1225,20 +1225,22 @@ void TrackingScene::_draw(DrawStructure& graph) {
     }
     
     if(GUI_SETTINGS(gui_show_dataset)) {
-        if(not _data->_dataset) {
+        if(not _data->_dataset)
             _data->_dataset = std::make_unique<DrawDataset>();
-        }
-        
         _data->_dataset->set_data(_data->_cache->frame_idx, *_data->_cache);
         graph.wrap_object(*_data->_dataset);
+        
+    } else if(_data->_dataset) {
+        _data->_dataset = nullptr;
     }
     
     if(GUI_SETTINGS(gui_show_export_options)) {
-        if(not _data->_export_options) {
+        if(not _data->_export_options)
             _data->_export_options = std::make_unique<DrawExportOptions>();
-        }
-        
         _data->_export_options->draw(graph, _state.get());
+        
+    } else if(_data->_export_options) {
+        _data->_export_options = nullptr;
     }
     
     if(GUI_SETTINGS(gui_show_uniqueness)) {
@@ -1248,6 +1250,9 @@ void TrackingScene::_draw(DrawStructure& graph) {
         
         _data->_uniqueness->set(_data->_cache->frame_idx);
         graph.wrap_object(*_data->_uniqueness);
+        
+    } else if(_data->_uniqueness) {
+        _data->_uniqueness = nullptr;
     }
     
     //if(not graph.root().is_dirty() && not graph.root().is_animating())
