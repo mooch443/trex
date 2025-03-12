@@ -178,11 +178,11 @@ PipelineManager<TileImage, true>& BackgroundSubtraction::manager() {
     return instance;
 }
 
-BasicManager<TileImage>& Detection::manager() {
+PipelineManager<TileImage, true>& Detection::manager() {
     if(detection_type() ==  ObjectDetectionType::background_subtraction) {
         return BackgroundSubtraction::manager();
     } else {
-        static auto instance = PipelineManager<TileImage>(max(1u, SETTING(detect_batch_size).value<uchar>()), [](std::vector<TileImage>&& images) {
+        static auto instance = PipelineManager<TileImage, true>(max(1u, SETTING(detect_batch_size).value<uchar>()), [](std::vector<TileImage>&& images) {
             // do what has to be done when the queue is full
             // i.e. py::execute()
 #ifndef NDEBUG
@@ -230,7 +230,10 @@ std::future<SegmentationData> BackgroundSubtraction::apply(TileImage &&tiled) {
     return f;
 }
 
-void BackgroundSubtraction::deinit() {}
+void BackgroundSubtraction::deinit() {
+    data().set_background(nullptr);
+    data().set(nullptr);
+}
 
 double BackgroundSubtraction::fps() {
     return data().fps();

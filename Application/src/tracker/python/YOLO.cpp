@@ -49,6 +49,37 @@ std::future<void> transferred_done;
 std::vector<detect::ModelConfig> _loaded_models;
 std::unique_ptr<GenericThreadPool> _pool;
 
+struct YOLO::Data {
+    std::atomic<bool> _background_required;
+    std::atomic<bool> _background_set;
+    
+    Data() {
+        reset();
+    }
+    void reset() {
+        _background_required = SETTING(track_background_subtraction).value<bool>();
+        _background_set = false;
+    }
+    
+    bool has_background() const {
+        return not _background_required.load() || _background_set.load();
+    }
+    void set_background(const Image::Ptr& background) {
+        _background_set = background != nullptr;
+    }
+};
+
+YOLO::Data& YOLO::data() {
+    static Data _data;
+    return _data;
+}
+
+void YOLO::set_background(const Image::Ptr &image) {
+    data().set_background(image);
+    if(data().has_background())
+        Detection::manager().set_paused(false);
+}
+
 void YOLO::reinit(ModuleProxy& proxy) {
     proxy.set_variable("model_type", detect::detection_type().toStr());
     
@@ -59,6 +90,7 @@ void YOLO::reinit(ModuleProxy& proxy) {
 
     using namespace track::detect;
     _loaded_models.clear();
+    data().reset();
 
     // caching here since it can be modified above
     auto path = SETTING(detect_model).value<file::Path>();
@@ -126,6 +158,8 @@ void YOLO::reinit(ModuleProxy& proxy) {
 void YOLO::init() {
     bool expected = false;
     if(yolo_initialized.compare_exchange_strong(expected, true)) {
+        data().reset();
+        
         _network_fps = _network_samples = 0;
         _pool = std::make_unique<GenericThreadPool>(3, "Yolo");
 
@@ -172,6 +206,8 @@ void YOLO::deinit() {
         Python::schedule([](){
             track::PythonIntegration::unload_module("bbx_saved_model");
         }).get();
+        
+        data().reset();
     }
 }
 

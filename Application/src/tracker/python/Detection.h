@@ -31,7 +31,7 @@ struct TREX_EXPORT Detection {
     static bool is_initializing();
     static double fps();
 
-    static BasicManager<TileImage>& manager();
+    static PipelineManager<TileImage, true>& manager();
     
 private:
     static void apply(std::vector<TileImage>&& tiled);

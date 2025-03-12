@@ -450,7 +450,7 @@ void Segmenter::trigger_average_generator(bool do_generate_average, cv::Mat& bg)
             struct NotifyGuard {
                 std::mutex& mutex;
                 std::condition_variable& cv;
-                NotifyGuard(std::condition_variable& cv, std::mutex& mutex) : cv(cv), mutex(mutex) {}
+                NotifyGuard(std::condition_variable& cv, std::mutex& mutex) : mutex(mutex), cv(cv) {}
                 ~NotifyGuard() {
                     std::unique_lock guard{mutex};
                     cv.notify_all();
@@ -499,12 +499,13 @@ void Segmenter::trigger_average_generator(bool do_generate_average, cv::Mat& bg)
             
             Image::Ptr ptr;
             cv::Mat mat;
-            
             try {
                 ptr = finalize_bg_image(bg);
                 mat = ptr->get();
                 if(detection_type() == ObjectDetectionType::background_subtraction)
                     BackgroundSubtraction::set_background(std::move(ptr));
+                else if(detection_type() == ObjectDetectionType::yolo)
+                    YOLO::set_background(ptr);
                 
             } catch(const std::exception& ex) {
                 FormatExcept("Exception when finalizing the average image: ", ex.what());
@@ -542,6 +543,7 @@ void Segmenter::trigger_average_generator(bool do_generate_average, cv::Mat& bg)
         try {
             ptr = finalize_bg_image(bg);
             mat = ptr->get();
+            YOLO::set_background(ptr);
             BackgroundSubtraction::set_background(std::move(ptr));
             
         } catch(const std::exception& ex) {
