@@ -822,7 +822,7 @@ def check_checkpoint_compatibility(
     expected_num_classes = len(classes)
 
     errors = []
-    if expected_input_shape is not None and "input_shape" in metadata:
+    if expected_input_shape is not None and metadata is not None and "input_shape" in metadata:
         # Compare as lists to avoid issues with tuples vs lists.
         if list(metadata["input_shape"]) != list(expected_input_shape):
             if context:
@@ -833,7 +833,7 @@ def check_checkpoint_compatibility(
                 errors.append(
                     f"Mismatch in input dimensions: expected {expected_input_shape} but checkpoint metadata has {metadata['input_shape']}."
                 )
-    if expected_num_classes is not None and "num_classes" in metadata:
+    if expected_num_classes is not None and metadata is not None and "num_classes" in metadata:
         if metadata["num_classes"] != expected_num_classes:
             if context:
                 errors.append(
@@ -1132,7 +1132,7 @@ def find_available_weights(path: str = None) -> str:
             uniqueness=metadata["uniqueness"] if metadata is not None and "uniqueness" in metadata else None,
             status="FINISHED",
             modified=modified,
-            loaded=False,
+            loaded=loaded_weights.path.str() == file_path if loaded_weights is not None else False,
             resolution=TRex.DetectResolution(metadata["input_shape"][:2]) if metadata is not None and "input_shape" in metadata else None,
             classes=metadata["num_classes"] if metadata is not None and "num_classes" in metadata else None
         ).to_json())

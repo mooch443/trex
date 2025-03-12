@@ -14,7 +14,10 @@ namespace cmn::gui {
 
 class StartingScene : public Scene {
     RecentItems _recents;
-    std::vector<std::shared_ptr<dyn::VarBase_t>> _recents_list;
+    std::string _search_text;
+    std::vector<std::string> _corpus;
+    PreprocessedData _preprocessed_corpus;
+    std::vector<std::shared_ptr<dyn::VarBase_t>> _recents_list, _filtered_recents;
     std::vector<sprite::Map> _data;
 
     // The HorizontalLayout for the two buttons and the image

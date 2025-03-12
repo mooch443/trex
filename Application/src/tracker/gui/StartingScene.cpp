@@ -75,6 +75,7 @@ void StartingScene::activate() {
     // Fill list variable
     _recents_list.clear();
     _data.clear();
+    _corpus.clear();
     
     size_t i=0;
     for(auto& item : _recents.items()) {
@@ -84,6 +85,8 @@ void StartingScene::activate() {
         tmp["detail"] = detail.detail();
         tmp["tooltip"] = detail.tooltip();
         tmp["index"] = i;
+        
+        _corpus.emplace_back(detail.name()+" "+detail.detail()+" "+detail.tooltip());
         
         file::PathArray array;
         if(item._options.has("source"))
@@ -100,6 +103,16 @@ void StartingScene::activate() {
         });
         
         ++i;
+    }
+    
+    _preprocessed_corpus = preprocess_corpus(_corpus);
+    
+    /// perform a search in all the texts
+    _filtered_recents.clear();
+    auto indexes = text_search(_search_text, _corpus, _preprocessed_corpus);
+    
+    for(auto index : indexes) {
+        _filtered_recents.emplace_back(_recents_list.at(index));
     }
     
     RecentItems::set_select_callback([](RecentItemJSON item){
@@ -211,12 +224,23 @@ void StartingScene::_draw(DrawStructure& graph) {
                                        {});
                         
                         SceneManager::getInstance().set_active("settings-scene");
+                    }),
+                    ActionFunc("clear_recent_items", [](auto) {
+                        SceneManager::getInstance().enqueue([](auto, DrawStructure& base){
+                            base.dialog([](Dialog::Result r) {
+                                if (r == Dialog::OKAY) {
+                                    RecentItems::reset_file();
+                                }
+
+                            }, "<b>Are you sure you want to clear your recent items list?</b>\nThis action can not be undone.", "Clear List", "Yes", "Cancel");
+                        });
                     })
                 };
 
                 context.variables = {
-                    VarFunc("recent_items", [this](const VarProps&) -> std::vector<std::shared_ptr<dyn::VarBase_t>>&{
-                        return _recents_list;
+                    VarFunc("recent_items", [this](const VarProps&) -> std::vector<std::shared_ptr<dyn::VarBase_t>>&
+                    {
+                        return _filtered_recents;
                     }),
                     VarFunc("window_size", [](const VarProps&) -> Vec2 {
                         return FindCoord::get().screen_size();
@@ -253,6 +277,35 @@ void StartingScene::_draw(DrawStructure& graph) {
                     (IMGUIBase*)window(),
                     []() {
                         return FindCoord::get().screen_size();
+                    }
+                });
+                
+                context.custom_elements["recent_filter"] = std::unique_ptr<CustomElement>(new CustomElement {
+                    "option_search",
+                    [this](LayoutContext& layout) -> Layout::Ptr {
+                        derived_ptr<Textfield> search = std::make_shared<Textfield>(Box(Vec2(), Size2(100, 30)));
+                        Placeholder_t placeholder{ layout.get(std::string("Type to filter..."), "placeholder") };
+                        search->set(placeholder);
+                        ClearText_t cleartext{ layout.get(std::string("<sym>⮾</sym>"), "cleartext") };
+                        search->set(cleartext);
+                        search->set(LineClr{ layout.get(Transparent, "line") });
+                        search->set(FillClr{ layout.get(Transparent, "fill") });
+                        
+                        search->on_text_changed([this, ptr = search.get()](){
+                            _search_text = ptr->text();
+                            
+                            /// perform a search in all the texts
+                            _filtered_recents.clear();
+                            auto indexes = text_search(_search_text, _corpus, _preprocessed_corpus);
+                            
+                            for(auto index : indexes) {
+                                _filtered_recents.emplace_back(_recents_list.at(index));
+                            }
+                        });
+                        return Layout::Ptr(search);
+                    },
+                    [](Layout::Ptr&, const Context& , State& , const auto& ) -> bool {
+                        return false;
                     }
                 });
                 

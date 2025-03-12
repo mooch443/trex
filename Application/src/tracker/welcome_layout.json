@@ -96,29 +96,84 @@
         "name":"recent",
         "pos":"[{-:{window_size.x}:10},10]",
         "origin":[1,0],
-        "pad":[10,8,10,0],
+        "pad":[0,0,0,-1],
         "children":[
             {
                 "type":"list",
+                "name":"recent_items",
                 "var":"recent_items",
-				"fill":[40,40,40,220],
-				"color":[225,225,225],
-                "item_line":[100,100,100,150],
+                "pad":[0,0,0,0],
+                "item":{
+                    "line":[100,100,100,150],
+                    "font":{
+                        "size":0.75,
+                        "align":"center"
+                    }
+                },
                 "placeholder":"No recent items yet.",
                 "list":{
-                    "size":"[{*:{window_size.x}:0.4},{-:{window_size.y}:35}]",
+                    "size":"[{*:{window_size.x}:0.4},{-:{window_size.y}:63}]",
                     "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
-					"fill":[25,25,25,220]
-                },
-                "item_font":{
-                    "size":0.75,
-                    "align":"center"
+					"fill":[25,25,25,220],
+                    "font":{
+                        "size":0.75,
+                        "align":"center"
+                    }
                 },
                 "template": {
                     "text":"{i.name}",
                     "detail":"{i.detail}",
                     "action":"open_recent"
                 }
+            },
+            {
+                "type":"hlayout",
+                "pad":[0,0,0,0],
+                "children":[
+                    {
+                        "type":"recent_filter",
+                        "fill":[50,50,50,220],
+                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
+                        "size":"[{-:{*:{window_size.x}:0.4}:55},45]",
+                        "placeholder":" Type to filter... ",
+                        "color":[200,200,200],
+                        "font":{
+                            "size":0.7
+                        }
+                    },
+                    { 
+                        "type":"list",
+                        "size":[55,45],
+                        "item":{
+                            "pad":[8,5],
+                            "color":[60,60,60,100]
+                        },
+                        "detail":{
+                            "font":{"size":0.6},
+                            "color":[150,150,150,255]
+                        },
+                        "list":{
+                            "size":"[200,{-:{window_size.y}:50}]",
+                            "fill":[25,25,25,220],
+                            "line":[120,120,120,220],
+                            "font":{"size":0.7}
+                        },
+                        "label":{
+                            "fill":[40,40,40,220],
+                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
+                            "font":{"size":0.8,"align":"center"},
+                            "text":"<sym>☰</sym>"
+                        },
+                        "foldable":true,
+                        "folded":true,
+                        "items":[
+                            {
+                                "text":"<sym>⮾</sym> Clear Items",
+                                "action":"clear_recent_items"
+                            }
+                        ]
+                    }
+                ] 
             }
         ]
     }

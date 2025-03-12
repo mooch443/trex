@@ -128,9 +128,21 @@ void load_key_if_avail(auto& key, file::Path path, std::string_view name, const 
     }
 };
 
+void RecentItems::reset_file() {
+    auto path = filename();
+    if(path.exists()) {
+        RecentItems items;
+        items.write();
+    }
+}
+
+file::Path RecentItems::filename() {
+    return file::DataLocation::parse("app", ".trex_recent_files");
+}
+
 RecentItems RecentItems::read() {
-    auto path = file::DataLocation::parse("app", ".trex_recent_files");
     RecentItems items;
+    auto path = filename();
 
     Print("Searching for ", path, ": ", path.exists());
     if (path.exists())
@@ -251,7 +263,8 @@ void RecentItems::add(std::string name, const sprite::Map& options) {
 }
 
 void RecentItems::write() {
-    auto path = file::DataLocation::parse("app", ".trex_recent_files.backup");
+    file::Path path = filename().add_extension("backup");
+    
     try {
         RecentItemFile file{
             .entries = _items,

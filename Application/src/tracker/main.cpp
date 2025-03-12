@@ -158,7 +158,7 @@ void launch_gui(std::future<void>& f) {
         UNUSED(ptr);
         //graph.draw_log_messages(Bounds(Vec2(0, 80), graph.dialog_window_size()));
         return true;
-    }, [ptr = &base](DrawStructure&g, Event e) {
+    }, [](DrawStructure&g, Event e) {
         if(not SceneManager::getInstance().on_global_event(e)) {
             if(e.type == EventType::KEY) {
                 if(e.key.code == Keyboard::Escape) {
@@ -168,8 +168,8 @@ void launch_gui(std::future<void>& f) {
             } else if(e.type == EventType::WINDOW_RESIZED) {
                 auto h = g.height();
                 auto w = g.width();
-                auto scale = max(1.f, sqrtf(480.f / h));
-                auto yscale = max(1.f, sqrtf(480.f / w));
+                auto scale = max(1_F, sqrtf(550_F / h));
+                auto yscale = max(1_F, sqrtf(550_F / w));
                 if(yscale > scale) {
                     scale = yscale;
                 }

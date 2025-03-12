@@ -63,4 +63,7 @@ public:
     bool has(std::string) const;
     void show(cmn::gui::ScrollableList<cmn::gui::DetailTooltipItem>& list);
     static RecentItems read();
+    static void reset_file();
+    
+    static cmn::file::Path filename();
 };

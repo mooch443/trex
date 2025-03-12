@@ -467,6 +467,14 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
         })
         .def_readwrite("x", &cmn::Vec2::x)
         .def_readwrite("y", &cmn::Vec2::y);
+
+    py::class_<cmn::file::Path>(m, "Path")
+        .def(py::init<std::string>())
+        .def("__repr__", [](const cmn::file::Path& v) -> std::string {
+            return v.toStr();
+        })
+        .def("str", &cmn::file::Path::str)
+        .def("exists", &cmn::file::Path::exists);
     
     using namespace track::vi;
     py::class_<VIWeights>(m, "VIWeights")

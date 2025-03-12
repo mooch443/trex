@@ -511,16 +511,20 @@
                     "label":{
                         "fill":[40,40,40,220],
                         "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
-                        "font":{"size":0.6}
+                        "font":{"size":0.6},
+                        "text":" <sym>🖵</sym> Display"
                     },
-                    "item_color":[60,60,60,100],
-                    "detail_color":[150,150,150,255],
+                    "item":{
+                        "color":[60,60,60,100],
+                        "pad":[8,5],
+                        "font":{"size":0.6,"align":"vcenter"}
+                    },
+                    "detail":{
+                        "color":[150,150,150,255],
+                        "font":{"size":0.5,"align":"left"}
+                    },
                     "foldable":true,
                     "folded":true,
-                    "text":" <sym>🖵</sym> Display",
-                    "item_padding":[8,5],
-                    "item_font":{"size":0.6,"align":"vcenter"},
-                    "detail_font":{"size":0.5,"align":"left"},
                     "items":[
                         {
                             "text":"Selection Circles",
@@ -606,16 +610,20 @@
                     "label":{
                         "fill":[40,40,40,220],
                         "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
-                        "font":{"size":0.6}
+                        "font":{"size":0.6},
+                        "text":" <sym>☰</sym> Menu"
                     },
-                    "detail_color":[150,150,150,255],
+                    "item":{
+                        "pad":[8,5],
+                        "font":{"size":0.6},
+                        "color":[60,60,60,100]
+                    },
+                    "detail":{
+                        "color":[150,150,150,255],
+                        "font":{"size":0.5}
+                    },
                     "foldable":true,
                     "folded":true,
-                    "text":" <sym>☰</sym> Menu",
-                    "item_padding":[8,5],
-                    "item_font":{"size":0.6},
-                    "detail_font":{"size":0.5},
-                    "item_color":[60,60,60,100],
                     "items":[
                         {
                             "text":"<sym>📤</sym> Load state",
