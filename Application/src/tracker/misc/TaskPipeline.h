@@ -131,8 +131,9 @@ public:
       : BaseTask<Data>(0),
         task([this, fn = std::move(fn)]() mutable {
             decltype(_images) packet;
+            //std::unique_lock guard(_task_mutex);
             {
-                std::scoped_lock guard(_mutex, _task_mutex);
+                std::unique_lock image_guard(_mutex);
 #ifndef NDEBUG
                 if(_images.empty())
                     FormatError("Images empty: ", BaseTask<Data>::_weight);
@@ -141,7 +142,6 @@ public:
                 BaseTask<Data>::_weight = 0;
             }
 
-            std::lock_guard guard(_task_mutex);
             fn(std::move(packet));
             
             for(auto &data : packet) {
