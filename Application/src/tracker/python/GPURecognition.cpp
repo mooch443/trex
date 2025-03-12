@@ -341,8 +341,8 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
             py::arg("width"),
             py::arg("height"))
         .def(py::init(
-           [](std::pair<uint32_t, uint32_t> pair) {
-                return DetectResolution(pair.first, pair.second);
+           [](std::pair<uint16_t, uint16_t> pair) {
+               return DetectResolution{pair.first, pair.second};
            }),
            py::arg("size"))
         .def_readonly("width", &DetectResolution::width)
