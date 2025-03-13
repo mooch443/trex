@@ -626,7 +626,7 @@ public:
     PPFrame(const Size2&);
 
     PPFrame(const PPFrame&) = delete;
-    PPFrame(PPFrame&& other) noexcept 
+    PPFrame(PPFrame&& other) noexcept
         : _finalized(other._finalized),
         _finalized_at(std::move(other._finalized_at)),
         _tags(std::move(other._tags)),
@@ -639,6 +639,18 @@ public:
         _pixel_samples(other._pixel_samples),
         _resolution(other._resolution)
     {
+        blob_mappings = std::move(other.blob_mappings);
+        paired = std::move(other.paired);
+        last_positions = std::move(other.last_positions);
+        hints = std::move(other.hints);
+        _loading_time = other._loading_time;
+        fixed_matches = std::move(other.fixed_matches);
+        _individual_cache = std::move(other._individual_cache);
+        _previously_active_identities = std::move(other._previously_active_identities);
+        time = other.time;
+        timestamp = other.timestamp;
+        _index = other._index;
+        _source_index = other._source_index;
         {
             std::scoped_lock guard(_blob_grid_mutex, other._blob_grid_mutex);
             _blob_grid = std::move(other._blob_grid);
@@ -659,13 +671,26 @@ public:
             _big_ids = std::move(other._big_ids);
             _num_pixels = other._num_pixels;
             _pixel_samples = other._pixel_samples;
+            _index = other._index;
+            _source_index = other._source_index;
             _resolution = other._resolution;
+            blob_mappings = std::move(other.blob_mappings);
+            paired = std::move(other.paired);
+            last_positions = std::move(other.last_positions);
+            hints = std::move(other.hints);
+            _loading_time = other._loading_time;
+            fixed_matches = std::move(other.fixed_matches);
+            _individual_cache = std::move(other._individual_cache);
+            _previously_active_identities = std::move(other._previously_active_identities);
+            time = other.time;
+            timestamp = other.timestamp;
+            _finalized = other._finalized;
+            _finalized_at = std::move(other._finalized_at);
             {
                 std::scoped_lock guard(_blob_grid_mutex, other._blob_grid_mutex);
                 _blob_grid = std::move(other._blob_grid);
             }
-            _finalized = other._finalized;
-            _finalized_at = other._finalized_at;
+            // _blob_grid_mutex; // mutex can't be moved, leave as is
             other._finalized = false;
             other._finalized_at = source_location::current();
         }

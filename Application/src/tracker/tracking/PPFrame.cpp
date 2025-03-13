@@ -798,6 +798,14 @@ void PPFrame::clear() {
     paired.clear();
     last_positions.clear();
     fixed_matches.clear();
+    _index.invalidate();
+    _source_index.invalidate();
+    
+    // Clear additional fields
+    _tags.clear();
+    _big_ids.clear();
+    _loading_time = 0;
+    _previously_active_identities.clear();
     
     _check_owners();
 }
