@@ -756,7 +756,7 @@ void PPFrame::finalize(source_location loc) {
 }
 
 void PPFrame::unfinalize(source_location) {
-    ASSUME_NOT_FINALIZED;
+    //ASSUME_FINALIZED;
     _finalized = false;
     _finalized_at = {};
     _check_owners();
