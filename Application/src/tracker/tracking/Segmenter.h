@@ -42,15 +42,18 @@ struct GeneratorStep {
     void terminate_wait_blocking(UninterruptableStep&);
     bool has_data() const;
     
-    bool valid() const { return tid.valid(); }
+    bool valid() const;
+    ThreadGroupId threadID() const;
     void notify() const;
 };
 
 struct UninterruptableStep {
+private:
     ThreadGroupId tid;
     mutable std::mutex mutex;
     SegmentationData data;
     
+public:
     UninterruptableStep() noexcept = default;
     UninterruptableStep(UninterruptableStep&& other) {
         *this = std::move(other);
@@ -70,7 +73,8 @@ struct UninterruptableStep {
     std::optional<SegmentationData> transfer_data();
     bool has_data() const;
     
-    bool valid() const { return tid.valid(); }
+    ThreadGroupId threadID() const;
+    bool valid() const;
     void notify() const;
 };
 

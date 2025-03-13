@@ -28,6 +28,23 @@ UninterruptableStep::UninterruptableStep(std::string_view name, std::string_view
     ThreadManager::getInstance().addThread(tid, (std::string)subname, std::move(thread));
 }
 
+ThreadGroupId GeneratorStep::threadID() const {
+    std::scoped_lock guard{mutex};
+    return tid;
+}
+ThreadGroupId UninterruptableStep::threadID() const {
+    std::scoped_lock guard{mutex};
+    return tid;
+}
+bool GeneratorStep::valid() const {
+    std::scoped_lock guard{mutex};
+    return tid.valid();
+}
+bool UninterruptableStep::valid() const {
+    std::scoped_lock guard{mutex};
+    return tid.valid();
+}
+
 GeneratorStep::GeneratorStep(std::string_view name, std::string_view subname, ManagedThread&& thread) {
     tid = REGISTER_THREAD_GROUP((std::string)name);
     ThreadManager::getInstance().addThread(tid, (std::string)subname, std::move(thread));
@@ -48,7 +65,7 @@ Segmenter::Segmenter(std::function<void()> eof_callback, std::function<void(std:
         [this](auto&){ tracking_thread(); }
     });
     
-    ThreadManager::getInstance().addOnEndCallback(_tracking_step.tid, OnEndMethod{
+    ThreadManager::getInstance().addOnEndCallback(_tracking_step.threadID(), OnEndMethod{
         [this](){
             if (std::unique_lock guard(_mutex_general);
                 _output_file != nullptr)
@@ -124,7 +141,7 @@ bool GeneratorStep::receive(std::tuple<Frame_t, std::future<SegmentationData>>&&
 }
 
 void UninterruptableStep::terminate() {
-    ThreadManager::getInstance().terminateGroup(tid);
+    ThreadManager::getInstance().terminateGroup(threadID());
 }
 
 void UninterruptableStep::terminate_wait_blocking() {
@@ -143,7 +160,7 @@ void UninterruptableStep::terminate_wait_blocking() {
 }
 
 void GeneratorStep::terminate_wait_blocking(UninterruptableStep& next_step) {
-    ThreadManager::getInstance().terminateGroup(tid);
+    ThreadManager::getInstance().terminateGroup(threadID());
     
     /// while the generator is shutdown already now,
     /// we still need to wait for the tracker and ffmpeg queue to finish
@@ -599,7 +616,7 @@ void Segmenter::open_video() {
             std::move(video_base),
             [this]() {
                 /// we generated some SegmentationData!
-                ThreadManager::getInstance().notify(_generating_step.tid);
+                _generating_step.notify();
             }
         });
     }
@@ -681,7 +698,7 @@ void Segmenter::open_camera() {
            BackgroundSubtraction{},
            std::move(camera),
            [this]() {
-               ThreadManager::getInstance().notify(_generating_step.tid);
+               _generating_step.notify();
                //_cv_messages.notify_one();
            }
         );
@@ -691,7 +708,7 @@ void Segmenter::open_camera() {
            Detection{},
            std::move(camera),
            [this]() {
-               ThreadManager::getInstance().notify(_generating_step.tid);
+               _generating_step.notify();
                //_cv_messages.notify_one();
            }
         );
@@ -770,9 +787,9 @@ void Segmenter::start() {
     
     start_recording_ffmpeg();
 
-    ThreadManager::getInstance().startGroup(_generating_step.tid);
-    ThreadManager::getInstance().startGroup(_writing_step.tid);
-    ThreadManager::getInstance().startGroup(_tracking_step.tid);
+    ThreadManager::getInstance().startGroup(_generating_step.threadID());
+    ThreadManager::getInstance().startGroup(_writing_step.threadID());
+    ThreadManager::getInstance().startGroup(_tracking_step.threadID());
 }
 
 void Segmenter::start_recording_ffmpeg() {
@@ -943,7 +960,7 @@ void Segmenter::generator_thread() {
 #if !defined(NDEBUG) && defined(DEBUG_TM_ITEMS)
             thread_print("TM EOF: ", result.error());
 #endif
-            ThreadManager::getInstance().notify(_writing_step.tid);
+            _writing_step.notify();
             
             if(_output_file && _output_file->length() == 0_f
                && not _generating_step.has_data()
@@ -973,7 +990,7 @@ void Segmenter::generator_thread() {
                 && index > _video_conversion_range.end)
         )
     {
-        ThreadManager::getInstance().notify(_writing_step.tid);
+        _writing_step.notify();
         graceful_end();
     }
     else {
@@ -1170,12 +1187,12 @@ std::optional<SegmentationData> UninterruptableStep::transfer_data() {
 void GeneratorStep::notify() const {
     if(not valid())
         return; // not a valid thread
-    ThreadManager::getInstance().notify(tid);
+    ThreadManager::getInstance().notify(threadID());
 }
 void UninterruptableStep::notify() const {
     if(not valid())
         return; // not a valid thread
-    ThreadManager::getInstance().notify(tid);
+    ThreadManager::getInstance().notify(threadID());
 }
 
 void Segmenter::serialize_thread() {
