@@ -169,14 +169,16 @@ void TrackingHelper::apply_manual_matches()
     if(not cannot_find.empty()) {
         struct Blaze {
             PPFrame *_frame;
-            Blaze(PPFrame& frame) : _frame(&frame) {
+            cmn::source_location _loc;
+            Blaze(PPFrame& frame, cmn::source_location loc) : _frame(&frame), _loc(loc)
+            {
                 _frame->_finalized = false;
             }
             
             ~Blaze() {
-                _frame->finalize();
+                _frame->finalize(_loc);
             }
-        } blaze(frame);
+        } blaze(frame, cmn::source_location::current());
         
         std::map<pv::bid, std::vector<std::tuple<Idx_t, Vec2, pv::bid>>> assign_blobs;
         const auto max_speed_px = SLOW_SETTING(track_max_speed) / SLOW_SETTING(cm_per_pixel);
