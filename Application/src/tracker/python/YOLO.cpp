@@ -190,14 +190,17 @@ void YOLO::deinit() {
             if(transferred_done.valid())
                 transferred_done.get();
         }
-        
-        std::unique_lock guard(running_mutex);
         _pool = nullptr;
         
-        if(running_prediction.valid()) {
-            Print("Still have an active prediction running, waiting...");
-            running_prediction.wait();
-            Print("Got it.");
+        std::unique_lock guard(running_mutex);
+        {
+            if(running_prediction.valid()) {
+                Print("Still have an active prediction running, waiting...");
+                running_prediction.get();
+                Print("Got it.");
+            }
+            running_promise = {};
+            running_prediction = {};
         }
         
         if(not Python::python_initialized())
