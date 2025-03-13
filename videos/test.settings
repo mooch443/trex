@@ -20,3 +20,4 @@ track_threshold = 9
 track_posture_threshold = 9
 meta_real_width = 2304
 outline_resample = 0.5
+meta_encoding = gray
