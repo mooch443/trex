@@ -34,36 +34,12 @@
 #include <gui/GuiSettings.h>
 #include <gui/PreviewAdapterElement.h>
 #include <tracking/FilterCache.h>
+#include <gui/LabelWrapper.h>
+#include <gui/LabelElement.h>
 
 namespace cmn::gui {
 using namespace dyn;
 using Skeleton = blob::Pose::Skeleton;
-
-class LabelWrapper;
-using LabelCache_t = ObjectCache<Label, 100, std::shared_ptr>;
-
-class LabelWrapper : public Layout {
-    std::shared_ptr<Label> _label;
-    LabelCache_t* _cache;
-    
-public:
-    LabelWrapper(LabelCache_t& cache, std::shared_ptr<Label>&& label)
-        : _label(std::move(label)), _cache(&cache)
-    {
-        set_children({Layout::Ptr(_label)});
-    }
-    
-    LabelWrapper(LabelWrapper&) = delete;
-    LabelWrapper(LabelWrapper&&) = default;
-    LabelWrapper& operator=(LabelWrapper&) = delete;
-    LabelWrapper& operator=(LabelWrapper&&) = default;
-    
-    Label* label() const { return _label.get(); }
-    
-    ~LabelWrapper() {
-        _cache->returnObject(std::move(_label));
-    }
-};
 
 uint64_t interleaveBits(const Vec2& pos) {
     uint32_t x(pos.x), y(pos.y);
@@ -252,106 +228,8 @@ struct ConvertScene::Data {
                 return {filters, std::nullopt};
             }));
             dynGUI.context.custom_elements["label"] = std::unique_ptr<CustomElement>(
-              new CustomElement {
-                "label",
-                [this](LayoutContext& layout) -> Layout::Ptr {
-                    std::shared_ptr<Label> ptr;
-                    auto text = layout.get<std::string>("", "text");
-                    auto center = layout.get<Vec2>(Vec2(), "center");
-                    auto line_length = layout.get<float>(float(60), "length");
-                    auto id = layout.get<Idx_t>(Idx_t(), "id");
-                    auto color = layout.textClr;
-                    auto line = layout.line;
-                    auto fill = layout.fill;
-
-                    if (id.valid()) {
-                        auto it = _labels.find(id);
-                        if (it != _labels.end()) {
-                            ptr = it->second;
-                        } else
-                            _labels[id] = ptr = _unassigned_labels.getObject();
-                        
-                    } else {
-                        ptr = _unassigned_labels.getObject();
-                    }
-
-                    if (not ptr)
-                        throw RuntimeError("Apparently out of memory generating label ", text, ".");
-
-                    ptr->set_line_length(line_length);
-                    ptr->set_data(0_f, text, Bounds(layout.pos, layout.size), center);
-                    auto font = parse_font(layout.obj, layout._defaults.font);
-                    ptr->text()->set(font);
-                    ptr->text()->set(color);
-                    ptr->set(FillClr{ fill });
-                    ptr->set_line_color(line);
-                    
-                    if(not id.valid())
-                        ptr->set_uninitialized();
-                    
-                    return Layout::Ptr(std::make_shared<LabelWrapper>(_unassigned_labels, std::move(ptr)));
-                },
-                [this](Layout::Ptr& o, const Context& context, State& state, const auto& patterns) -> bool
-                {
-                    //Print("Updating label with patterns: ", patterns);
-                    //Print("o = ", o.get());
-
-                    Idx_t id;
-                    if (patterns.contains("id"))
-                        id = Meta::fromStr<Idx_t>(parse_text(patterns.at("id").original, context, state));
-                    
-                    if (id.valid()) {
-                        if (auto it = _labels.find(id);
-                            it != _labels.end())
-                        {
-                            if(it->second.get() != o.get())
-                                o = Layout::Ptr(it->second);
-                        }
-                    }
-
-                    Label* p;
-                    if(o.is<LabelWrapper>()) {
-                        p = o.to<LabelWrapper>()->label();
-                    } else
-                        p = o.to<Label>();
-                    
-                    if(not id.valid()) {
-                        p->set_uninitialized();
-                    }
-                    
-                    auto source = p->source();
-                    using namespace cmn::ct;
-                    
-                    CTCollection map{
-                        Key<"text", "pos", "size", "center", "line", "fill", "color">{},
-                        p->text()->text(),
-                        Vec2(source.pos()),
-                        source.size(),
-                        source.pos() + Vec2(source.width, source.height) * 0.5_F,
-                        p->line_color(),
-                        p->fill_color(),
-                        TextClr{p->text()->text_color()}
-                    };
-                    
-                    map.apply([&](std::string_view key, auto& value) {
-                        value = parse_value_with_default(value, key, patterns, context, state);
-                    });
-                    
-                    source = Bounds{ map.get<"pos">(), map.get<"size">() };
-                    p->set_line_color(map.get<"line">());
-                    p->set_fill_color(map.get<"fill">());
-                    p->text()->set(map.get<"color">());
-                    
-                    p->set_data(0_f,
-                                map.get<"text">(),
-                                source,
-                                map.get<"center">());
-                    
-                    p->update(FindCoord::get(), 1, 1, false, dt, Scale{1});
-                    
-                    return true;
-                }
-              });
+                new LabelElement(&_unassigned_labels, &_labels, &dt)
+            );
         }
         
         dynGUI.update(graph, nullptr);
@@ -859,6 +737,7 @@ void ConvertScene::Data::drawBlobs(
         (*tmp)["box"] = blob->bounds();
         (*tmp)["pos"] = bds.pos();
         (*tmp)["selected"] = selected;
+        (*tmp)["num_pixels"] = blob->num_pixels();
         (*tmp)["bdx"] = blob->blob_id();
         (*tmp)["center"] = first_pose;
         (*tmp)["tracked"] = tracked_id.valid() ? true : false;
@@ -1279,8 +1158,8 @@ bool ConvertScene::Data::retrieve_and_prepare_data() {
             fish_selected_blobs[fish->identity().ID()] = std::move(blob);
         }
         
-        if (basic->blob.parent_id.valid())
-            visible_bdx.emplace(basic->blob.parent_id, fish->identity());
+        //if (basic->blob.parent_id.valid())
+        //    visible_bdx.emplace(basic->blob.parent_id, fish->identity());
         visible_bdx.emplace(basic->blob.blob_id(), fish->identity());
         
         std::vector<Vertex> line;

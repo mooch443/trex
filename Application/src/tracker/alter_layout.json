@@ -91,7 +91,7 @@
 		"var":"untracked",
 		"do": {
 			"type":"condition",
-			"var":"{&&:{>:{/:{i.px}:{global.cm_per_pixel}}:2}:{i.visible}}",
+			"var":"{&&:{>:{i.num_pixels}:1}:{i.visible}}",
 			"then":{
 				"type":"collection",
 				"children":[
@@ -105,7 +105,7 @@
 					},
 					{
 						"type":"condition",
-						"var":"{global.gui_show_texts}",
+						"var":"{&&:{>:{i.num_pixels}:10}:{global.gui_show_texts}}",
 						"then":{
 							"type":"label",
 							"text":"<c><b><gray>noise</gray></b></c>{if:{equal:{global.detect_type}:background_subtraction}:' (<lightgray>s=<i><nr>{dec:2:{i.px}}</nr></i></lightgray>)':': {i.type} (p=<i>{int:{*:100:{i.p}}}%</i> s=<i>{dec:2:{i.px}}</i>)'}",

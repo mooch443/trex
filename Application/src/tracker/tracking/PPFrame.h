@@ -443,7 +443,8 @@ public:
                    size_t pixels, size_t samples);
     
     void fill_proximity_grid(const Size2&);
-    void finalize(source_location loc = source_location::current());
+    void finalize(source_location loc);
+    void unfinalize(source_location loc = source_location::current());
     void init_from_blobs(std::vector<pv::BlobPtr>&& vec);
     
     template<typename T>

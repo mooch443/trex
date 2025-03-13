@@ -63,7 +63,7 @@ HistorySplit::HistorySplit(PPFrame &frame, PPFrame::NeedGrid need, GenericThread
      */
     if(!FAST_SETTING(track_do_history_split)) {
         //! history split is disabled, so we can skip this step
-        frame.finalize();
+        frame.finalize(cmn::source_location::current());
         return;
     }
     
@@ -315,7 +315,7 @@ HistorySplit::HistorySplit(PPFrame &frame, PPFrame::NeedGrid need, GenericThread
         return false;
     });
     
-    frame.finalize();
+    frame.finalize(cmn::source_location::current());
 }
 
 

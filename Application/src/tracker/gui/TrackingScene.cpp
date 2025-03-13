@@ -42,6 +42,7 @@
 #include <gui/PreviewAdapterElement.h>
 #include <gui/DrawUniqueness.h>
 #include <gui/TimingStatsElement.h>
+#include <gui/DrawSegmentsElement.h>
 
 using namespace track;
 
@@ -982,6 +983,11 @@ void TrackingScene::_draw(DrawStructure& graph) {
         _data->_clicked_background = [&](const Vec2& pos, bool v, std::string key) {
             gui::tracker::clicked_background(graph, *_data->_cache, pos, v, key);
         };
+        
+        if(_data->dynGUI && _data->dynGUI.context.custom_elements.contains("drawsegments"))
+        {
+            ((DrawSegmentsElement*)_data->dynGUI.context.custom_elements["drawsegments"].get())->set_cache(_data->_cache.get());
+        }
     }
     
     auto mouse = graph.mouse_position();
@@ -1821,60 +1827,9 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
         return {filters, std::nullopt};
     }));
     
-    g.context.custom_elements["drawsegments"] = std::unique_ptr<CustomElement>(new CustomElement{
-        "drawsegments",
-        [](LayoutContext& context) -> Layout::Ptr {
-            [[maybe_unused]] auto fdx = context.get(Idx_t(), "fdx");
-            auto pad = context.get(Bounds(), "pad");
-            auto limit = context.get(Size2(), "max_size");
-            auto font = parse_font(context.obj);
-            auto ptr = Layout::Make<DrawSegments>();
-            ptr.to<DrawSegments>()->set(font);
-            ptr.to<DrawSegments>()->set(attr::Margins{pad});
-            ptr.to<DrawSegments>()->set(attr::SizeLimit{limit});
-            return ptr;
-        },
-        [this](Layout::Ptr&o, const Context& context, State& state, const auto& patterns) {
-            auto ptr = o.to<DrawSegments>();
-            
-            Idx_t fdx;
-            Frame_t frame = _data->_cache->frame_idx;
-            
-            if(patterns.contains("fdx")) {
-                try {
-                    fdx = Meta::fromStr<Idx_t>(parse_text(patterns.at("fdx").original, context, state));
-                } catch(...) {
-                    
-                }
-            }
-            
-            SizeLimit limit;
-            if(patterns.contains("max_size")) {
-                try {
-                    limit = Meta::fromStr<SizeLimit>(parse_text(patterns.at("max_size").original, context, state));
-                    ptr->set(limit);
-                } catch(...) {
-                    
-                }
-            }
-            
-            if(fdx != ptr->fdx()
-               || frame != ptr->frame())
-            {
-                std::vector<ShadowTracklet> segments;
-                if(fdx.valid() && frame.valid()) {
-                    if(auto it = _data->_cache->_individual_ranges.find(fdx);
-                       it != _data->_cache->_individual_ranges.end())
-                    {
-                        segments = it->second;
-                    }
-                }
-                ptr->set(fdx, frame, segments);
-            }
-            
-            return false;
-        }
-    });
+    g.context.custom_elements["drawsegments"] = std::unique_ptr<CustomElement>(
+        new DrawSegmentsElement(_data->_cache.get())
+    );
     
     g.context.custom_elements["timingstats"] = std::unique_ptr<TimingStatsElement>{
         new TimingStatsElement(TimingStatsCollector::getInstance())

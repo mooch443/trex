@@ -755,6 +755,13 @@ void PPFrame::finalize(source_location loc) {
     _check_owners();
 }
 
+void PPFrame::unfinalize(source_location) {
+    ASSUME_NOT_FINALIZED;
+    _finalized = false;
+    _finalized_at = {};
+    _check_owners();
+}
+
 void PPFrame::init_from_blobs(std::vector<pv::BlobPtr>&& vec) {
     ASSUME_NOT_FINALIZED;
     

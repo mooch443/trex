@@ -774,9 +774,9 @@ void YOLO::ReceivePackage(TransferData&& transfer, std::vector<track::detect::Re
         }
     });
     
-    transferred_done = _pool->enqueue([p = std::move(p)](){
+    transferred_done = _pool ? _pool->enqueue([p = std::move(p)](){
         p();
-    });
+    }) : std::future<void>{};
 }
 
 void YOLO::apply(std::vector<TileImage>&& tiles) {

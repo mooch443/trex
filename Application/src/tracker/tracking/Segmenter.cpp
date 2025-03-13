@@ -995,6 +995,7 @@ void Segmenter::perform_tracking(SegmentationData&& progress_data) {
     Timer timer;
 
     // collect all the blobs we find
+    std::unordered_map<pv::bid, const pv::Blob*> progress_bdx;
     std::vector<pv::BlobPtr> progress_blobs;
     //thread_print("Tracking frame ", progress_data.written_index());
     
@@ -1008,6 +1009,7 @@ void Segmenter::perform_tracking(SegmentationData&& progress_data) {
         progress_blobs.reserve(pp.N_blobs());
         pp.transform_all([&](const pv::Blob& blob){
             progress_blobs.emplace_back(pv::Blob::Make(blob));
+            progress_bdx[blob.blob_id()] = progress_blobs.back().get();
             
             auto &b = *progress_blobs.back();
             if(b.last_recount_threshold() == -1) {
@@ -1019,6 +1021,29 @@ void Segmenter::perform_tracking(SegmentationData&& progress_data) {
         });
         
         _tracker->add(pp);
+        pp.transform_all([&](pv::Blob& blob){
+            auto it = progress_bdx.find(blob.blob_id());
+            if(it != progress_bdx.end()) {
+                if(not blob.pixels()) {
+                    blob.set_pixels( *progress_bdx.at(blob.blob_id())->pixels());
+                }
+                progress_bdx.erase(it);
+                
+            } else {
+#ifndef NDEBUG
+                /// weird should not happen
+                FormatWarning("Cannot find bdx ", blob.blob_id(), " in the progress_bdx.");
+#endif
+            }
+        });
+        
+        /// now find all the deleted ones and insert them back in
+        pp.unfinalize();
+        for(auto &[bdx, ptr] : progress_bdx) {
+            pp.add_regular(pv::Blob::Make(*ptr));
+        }
+        pp.finalize(cmn::source_location::current());
+        
         /*if (pp.index().get() % 100 == 0) {
             Print(track::IndividualManager::num_individuals(), " individuals known in frame ", pp.index());
         }*/
