@@ -323,7 +323,7 @@ namespace pv {
     
     class File : public cmn::DataFormat, public cmn::GenericVideo {
     protected:
-        std::mutex _lock;
+        mutable std::mutex _lock;
         Header _header;
         cv::Mat _average, _mask;
         GETTER(file::Path, filename);
@@ -402,10 +402,12 @@ namespace pv {
         void print_info() { Print(get_info().c_str()); }
         
         virtual CropOffsets crop_offsets() const override {
+            std::unique_lock lock(_lock);
             return _header.offsets;
         }
         
         virtual void set_offsets(const CropOffsets& offsets) override {
+            std::unique_lock lock(_lock);
             _header.offsets = offsets;
         }
         
@@ -474,8 +476,8 @@ namespace pv {
         /**
          * ### GENERICVIDEO INTERFACE ###
          **/
-        const cv::Size& size() const override { return _header.resolution; }
-        Frame_t length() const override { return Frame_t(_header.num_frames); }
+        const cv::Size& size() const override;
+        Frame_t length() const override;
         
         using GenericVideo::frame;
         void frame(Frame_t frameIndex, cv::Mat& output, cmn::source_location loc = cmn::source_location::current());

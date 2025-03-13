@@ -1145,6 +1145,15 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         
         return ret;
     }*/
+
+const cv::Size& File::size() const {
+    std::unique_lock lock(_lock);
+    return _header.resolution;
+}
+Frame_t File::length() const {
+    std::unique_lock lock(_lock);
+    return Frame_t(_header.num_frames);
+}
     
     Header& File::header() {
         if(not bool(_mode & FileMode::WRITE))
