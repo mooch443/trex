@@ -437,6 +437,7 @@ Tracker::~Tracker() {
     _global_tracklet_order.clear();
     //_analysis_range = {};
     
+    AutoAssign::clear_automatic_ranges();
     IndividualManager::clear();
     emergency_finish();
 
@@ -1807,7 +1808,7 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
             }
 
             auto previous = Tracker::properties(frameIndex - 1_f);
-            
+
             IndividualManager::transform_inactive([&](auto fish)
             {
                 Match::PairedProbabilities::ordered_assign_map_t for_this;

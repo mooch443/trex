@@ -295,7 +295,7 @@ std::string VIWeights::toStr() const {
 
 glz::json_t VIWeights::to_json() const {
     glz::json_t json = std::initializer_list<std::pair<const char*, glz::json_t>>{
-        {"path", _path.str()},
+        {"path", _path.to_json()},
         {"uniqueness", _uniqueness ? glz::json_t(_uniqueness.value()) : nullptr},
         {"loaded", _loaded},
         {"status", _status},
@@ -309,12 +309,14 @@ glz::json_t VIWeights::to_json() const {
 VIWeights VIWeights::fromStr(const std::string &str)
 {
     VIWeights weights;
-    auto s = Meta::fromStr<std::string>(str);
-    auto error = glz::read_json(weights, s);
+    //auto s = Meta::fromStr<std::string>(str);
+    auto error = glz::read_json(weights, str);
     if(error != glz::error_code::none) {
-        std::string descriptive_error = glz::format_error(error, s);
-        throw U_EXCEPTION("Error loading VIWeights from JSON:\n", no_quotes(descriptive_error)," full json: ", no_quotes(s));
+        std::string descriptive_error = glz::format_error(error, str);
+        throw U_EXCEPTION("Error loading VIWeights from JSON:\n", no_quotes(descriptive_error)," full json: ", no_quotes(str));
     }
+
+    //weights._path = unescape(weights._path.str());
     return weights;
 }
 

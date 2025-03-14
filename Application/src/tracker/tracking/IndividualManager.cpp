@@ -15,19 +15,27 @@ individuals_map_t _individuals;
 //! a non-owning pointer of the last active individuals
 set_of_individuals_t* last_active{nullptr};
 
+//! individuals in first-in-last-out order:
+inactive_individuals_t inactive_individuals;
+
+//! saves all global frames
+active_individuals_map_t all_frames;
+
+void IndividualManager::log_frame_info(Frame_t frame) {
+    PPFrame::Log("Frame ", frame, " has ", individuals().size(), " individuals.");
+    PPFrame::Log(" * Individuals: ", individuals());
+	PPFrame::Log(" * Last active: ", _last_active() ? *_last_active() : set_of_individuals_t{});
+    PPFrame::Log(" * Active: ", _current);
+	PPFrame::Log(" * Inactive: ", _inactive());
+}
+
 set_of_individuals_t*& IndividualManager::_last_active() {
     return last_active;
 }
 
-//! individuals in first-in-last-out order:
-inactive_individuals_t inactive_individuals;
-
 inactive_individuals_t& IndividualManager::_inactive() {
     return inactive_individuals;
 }
-
-//! saves all global frames
-active_individuals_map_t all_frames;
 
 active_individuals_map_t& IndividualManager::_all_frames() {
     return all_frames;
@@ -272,11 +280,11 @@ void IndividualManager::remove_frames(Frame_t from,  std::function<void(Individu
     else
         Identity::Reset(largest_valid + Idx_t(1));
     
-#ifndef NDEBUG
-    Print("[IManager] Removed frames from ", from, ".");
-    Print("[IManager] Inactive individuals: ", track::inactive_individuals);
-    Print("[IManager] Active individuals: ", track::last_active ? Meta::toStr(*track::last_active) : "null");
-    Print("[IManager] All individuals: ", individuals());
+#if TREX_ENABLE_HISTORY_LOGS
+    PPFrame::Log("[IManager] Removed frames from ", from, ".");
+    PPFrame::Log("[IManager] Inactive individuals: ", track::inactive_individuals);
+    PPFrame::Log("[IManager] Active individuals: ", track::last_active ? Meta::toStr(*track::last_active) : "null");
+    PPFrame::Log("[IManager] All individuals: ", individuals());
 #endif
 }
 
@@ -489,12 +497,15 @@ IndividualManager::IndividualManager(const PPFrame& frame)
                 auto fish = make_individual(id);
                 //std::scoped_lock guard(global_mutex);
                 track::inactive_individuals[id] = (fish);
+                PPFrame::Log("Created individual ", id, ". inactive=", track::inactive_individuals, " active=", _current);
                 /*auto result = retrieve_globally(id);
                 if(not result)
                     throw U_EXCEPTION("Was unable to create a new individual with id ", id, " because: ", result.error());*/
             }
         }
     }
+
+	log_frame_info(_frame);
 }
 
 IndividualManager::~IndividualManager() {
@@ -535,6 +546,7 @@ void IndividualManager::become_active(Individual* fish) {
         track::inactive_individuals.erase(it);
     
     _current.insert(fish);
+    PPFrame::Log("Made individual ", fish->identity().ID(), " active. inactive=", track::inactive_individuals, " active=", _current);
 }
 
 }

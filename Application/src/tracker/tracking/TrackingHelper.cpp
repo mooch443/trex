@@ -306,13 +306,16 @@ void TrackingHelper::apply_automatic_matches() {
     for(auto && [fdx, bdx] : automatic_assignments) {
         
     }*/
+    PPFrame::Log(" * Automatic assignments: ", automatic_assignments);
+
     _manager.assign(AssignInfo{
         .frame = &frame,
         .f_prop = props,
         .f_prev_prop = prev_props,
         .match_mode = default_config::matching_mode_t::none
         
-    }, std::move(automatic_assignments), [frameIndex](pv::bid, Idx_t, Individual* fish) {
+    }, std::move(automatic_assignments), [frameIndex](pv::bid bdx, Idx_t id, Individual* fish) {
+        PPFrame::Log("Adding auto assignment: ", id, " -> ", bdx);
         fish->add_automatic_match(frameIndex);
     }
 #ifndef NDEBUG
