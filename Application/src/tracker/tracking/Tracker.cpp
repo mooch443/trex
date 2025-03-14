@@ -2963,7 +2963,7 @@ void Tracker::set_vi_data(const decltype(_vi_predictions)& predictions) {
         } g;
         
         Print("Waiting for lock...");
-        LockGuard guard(ro_t{}, "check_tracklets_identities");
+        LockGuard guard(w_t{}, "check_tracklets_identities");
         Print("Updating automatic ranges starting from ", !after_frame.valid() ? Frame_t(0) : after_frame);
         
         if (source == IdentitySource::QRCodes)

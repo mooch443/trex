@@ -30,6 +30,9 @@ namespace cmn::gui {
         Frame_t frame;
         std::vector<Range<Frame_t>> tracklet_order;
         
+        struct Data;
+        std::unique_ptr<Data> _data;
+        
     public:
         DrawDataset();
         virtual ~DrawDataset();

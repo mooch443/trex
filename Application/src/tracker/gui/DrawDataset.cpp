@@ -8,9 +8,16 @@
 
 namespace cmn::gui {
     using namespace track;
+
+struct DrawDataset::Data {
+    GridLayout layout;
+    std::vector<Layout::Ptr> rows;
+};
     
-    DrawDataset::DrawDataset()
-        : _last_tracklet({}, {}), _initial_pos_set(false)
+    DrawDataset::DrawDataset() :
+        _last_tracklet({}, {}),
+        _initial_pos_set(false),
+        _data(std::make_unique<Data>())
     {
         set_background(_color);
         set_origin(Vec2(1));
@@ -22,11 +29,11 @@ namespace cmn::gui {
     }
 
 void DrawDataset::update_background_color(bool hovered) {
-    auto c = Color::blend(_color.alpha(150), Black.alpha(255));
+    auto c = _color;//Color::blend(_color.alpha(150), Black.alpha(255));
     if(hovered)
-        this->set_background(c.alpha(25));
+        this->set_background(Black.alpha(150), c.alpha(150));
     else
-        this->set_background(c.alpha(150));
+        this->set_background(Black.alpha(25), c.alpha(100));
 }
 
 DrawDataset::~DrawDataset() {}
@@ -131,6 +138,16 @@ DrawDataset::~DrawDataset() {}
             set_content_changed(true);
         }
     }
+
+    inline Layout::Ptr makeLayoutRow(std::initializer_list<std::string> labels, Font font = Font(0.6)) {
+        std::vector<Layout::Ptr> cells;
+        for (auto label : labels) {
+            cells.push_back(Layout::Make<Layout>(
+                                                 std::vector<Layout::Ptr>{ Layout::Make<StaticText>(Str{label}, font, Margins{}) }
+            ));
+        }
+        return Layout::Make<Layout>(cells);
+    }
     
     void DrawDataset::update() {
         if(parent() && parent()->stage()) {
@@ -189,114 +206,57 @@ DrawDataset::~DrawDataset() {}
                 }
             }
             
-            std::map<Idx_t, std::tuple<float, float>> fish_offset;
-            float y = 10, max_w = 0;
-            Font font(0.55);
+            auto text = add<Text>(Str{"Current tracklet "+Meta::toStr(_last_current_frames)+" ("+Meta::toStr(_current_quality)+")"}, Loc{8,10}, Font(0.7, Style::Bold));
             
-            y += add<Text>(Str("Identities"), Loc(10,y), TextClr(White), Font(0.6f, Style::Bold))->height();
-            y += 10;
+            
+            if(_data->rows.empty()) {
+                _data->rows.emplace_back(
+                     makeLayoutRow({
+                         "ID",
+                         "Visual ID",
+                         "Frame",
+                         "Cells",
+                         "Travelled",
+                         "Angle Var.",
+                         "Midline Len.",
+                         "Outline Len."
+                     }, Font(0.6, Style::Bold))
+                );
+                
+                _data->layout.set(Clickable{true});
+                _data->layout.set(Margins{8,3,8,3});
+            }
+            
+            _data->rows.resize(1);
             
             for(auto && [id, tup] : _cache) {
-                auto text = add<Text>(Str(_names.at(id)+": "), Loc(10, y), TextClr(White), Font(font.size, Style::Bold));
                 auto && [samples, max_id, max_p] = max_identity.at(id);
+                auto & data = _meta_current.at(id);
                 
-                Color color = White.alpha(200);
-                if(max_id.valid() && double_identities.find(max_id) != double_identities.end())
-                    color = Red.exposureHSL(1.5).alpha(200);
-                else if(samples == 1)
-                    color = Yellow.alpha(200);
-                
-                Drawable *secondary;
-                if(max_id.valid())
-                    secondary = add<Text>(Str(Meta::toStr(max_id)+" ("+Meta::toStr(max_p)+", "+Meta::toStr(samples)+" samples)"), Loc(text->pos() + Vec2(text->width(), 0)), TextClr(color), font);
-                else
-                    secondary = add<Text>(Str("N/A ("+Meta::toStr(samples)+" samples)"), Loc(text->pos() + Vec2(text->width(), 0)), TextClr(DarkCyan.exposureHSL(1.5).alpha(200)), font);
-                
-                fish_offset[id] = { y, text->height() };
-                
-                y += text->height();
-                if(secondary->width() + secondary->pos().x > max_w)
-                    max_w = secondary->width() + secondary->pos().x;
+                _data->rows.emplace_back(
+                     makeLayoutRow({
+                         "<c><b>"+_names.at(id)+"</b></c>",
+                         max_id.valid()
+                            ? "<c>"+Meta::toStr(max_id)+"</c> (<nr>"+Meta::toStr(max_p)+"</nr>, <nr>"+Meta::toStr(samples)+"</nr> <i>samples</i>)"
+                            : "<purple>N/A (<c><nr>"+Meta::toStr(samples)+"</nr></c> <i>samples</i>)</purple>",
+                         "<c><nr>"+Meta::toStr(data.number_frames)+"</nr></c>",
+                         "<c><nr>"+Meta::toStr(data.grid_cells_visited)+"</nr></c>",
+                         "<c><nr>"+Meta::toStr(dec<2>(data.distance_travelled))+"</nr></c><i>cm</i>",
+                         "<c><nr>"+Meta::toStr(data.median_angle_var)+"</nr></c>",
+                         "<c><nr>"+Meta::toStr(dec<2>(data.midline_len))+"</nr></c>±<c><nr>"+Meta::toStr(dec<2>(data.midline_std))+"</nr></c><i>cm</i>",
+                         "<c><nr>"+Meta::toStr(dec<2>(data.outline_len))+"</nr></c>±<c><nr>"+Meta::toStr(dec<2>(data.outline_std))+"</nr></c><i>cm</i>"
+                     })
+                );
             }
             
-            /**
-             * Now focus on the dataset selected by _tracklet.
-             * The information displayed is:
-             *      - number of trainable frames / individual
-             *      - midline length within those frames / individual (+ std)
-             *      - position distribution within the tank
-             */
-            float x = max_w + 20;
-            size_t index = 0;
-            float h;
+            _data->layout.set(_data->rows);
             
-            auto display_dataset = [this, &index, &fish_offset, &x, &max_w, &h, &gy = y, font](const decltype(_meta)& meta, float offset_y) {
-                // horizontal line under the titles
-                for(auto && [id, data] : meta) {
-                    std::stringstream ss;
-                    ss  << "<number>" << data.number_frames << "</number> frames, "
-                    << "<number>" << data.grid_cells_visited << "</number> cells, "
-                    << "<number>" << data.distance_travelled << "</number>cm travelled,"
-                    << " midline angle var: <number>" << data.median_angle_var << "</number>,"
-                    << " midline: <number>" << std::showpoint << std::fixed << std::setprecision(3) << data.midline_len << "</number>+-<number>" << std::showpoint << std::fixed << std::setprecision(3) << data.midline_std << "</number>cm"
-                    << " outline: <number>" << long_t(data.outline_len) << "</number>+-<number>" << long_t(data.outline_std) << "</number>";
-                    
-                    if(index >= _texts.size()) {
-                        _texts.push_back(std::make_unique<StaticText>(font));
-                        _texts.back()->set_background(Transparent, Transparent);
-                        _texts.back()->set_margins(Margins());
-                        _texts.back()->set_clickable(false);
-                    }
-                    
-                    auto && [y_, h] = fish_offset.at(id);
-                    
-                    auto& text = _texts.at(index++);
-                    advance_wrap(*text);
-                    
-                    text->set_txt(ss.str());
-                    text->set_pos(Vec2(x, y_ + offset_y + (h - text->height()) * 0.5f));
-                    gy = text->pos().y + text->height();
-                    
-                    if(text->pos().x + text->width() > max_w)
-                        max_w = text->pos().x + text->width();
-                }
-                
-                // draw line afterwards, so max_w is already set
-                add<Line>(Line::Point_t(10, 10 + offset_y + h + 5), Line::Point_t(10 + max_w, 10 + offset_y + h + 5), LineClr{ White.alpha(150) });
-            };
+            _data->layout.set(Loc{0,text->pos().y + text->size().height + 10});
+            _data->layout.set_layout_dirty();
+            _data->layout.update_layout();
+            advance_wrap(_data->layout);
             
-            if(_last_current_frames.start.valid() && !_meta_current.empty()) {
-                h = add<Text>(Str("Current tracklet "+Meta::toStr(_last_current_frames)+" ("+Meta::toStr(_current_quality)+")"), Loc(x, 10), TextClr(White), Font(0.6f, Style::Bold))->height();
-                display_dataset(_meta_current, 0);
-                
-                if(!_meta.empty()) {
-                    h = add<Text>(Str("Best tracklet "+Meta::toStr(_last_tracklet)+" ("+Meta::toStr(_quality)+")"), Loc(x, 10 + y + 5), TextClr(White), Font(0.6f, Style::Bold))->height();
-                    
-                    float cy = y + 5 + 10 + 10 + h;
-                    
-                    //cy += advance(new Text("Frame ("+Meta::toStr(_current_quality)+")", Vec2(10, cy), White, Font(0.8, Style::Bold)))->height();
-                    //cy += 10;
-                    
-                    for(auto && [id, offsets] : fish_offset) {
-                        //auto [offy, h] = offsets;
-                        cy += add<Text>(Str(_names.at(id)), Loc(x - 20, cy), TextClr(White), Font(font.size, Style::Bold, Align::Right))->height();
-                    }
-                    
-                    display_dataset(_meta, y + 5);
-                }
-                
-            } else if(!_meta.empty()) {
-                h = add<Text>(Str("Best tracklet "+Meta::toStr(_last_tracklet)+" ("+Meta::toStr(_quality)+")"), Loc(x, 10), TextClr(White), Font(0.6f, Style::Bold))->height();
-                display_dataset(_meta, 0);
-            }
-            
-            // vertical line between columns
-            add<Line>(Line::Point_t(x - 10, 5), Line::Point_t(x - 10, y + 5), LineClr{ White.alpha(150) });
-            
-            if(index < _texts.size())
-                _texts.erase(_texts.begin() + (int64_t)index, _texts.end());
-            
-            set_size(Size2(max_w + 10, y + 10));
+            set_size(_data->layout.size() + _data->layout.pos() + Size2(0,10));
         });
         
         auto coord = FindCoord::get();
