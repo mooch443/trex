@@ -482,7 +482,7 @@ Fish::~Fish() {
                         if (p < FAST_SETTING(match_min_probability))
                             return;
                         
-                        auto clr = Viridis::value(p).alpha(uint8_t(min(255, 255.f * p)));
+                        auto clr = cmap::ColorMap::value<cmap::CMaps::viridis>(p).alpha(uint8_t(min(255, 255.f * p)));
                         *(ptr + 0) = clr.r;
                         *(ptr + 1) = clr.g;
                         *(ptr + 2) = clr.b;
@@ -1376,8 +1376,9 @@ void Fish::selection_clicked(Event) {
                 //paintPath(offset);
             }
 
-            if (FAST_SETTING(track_max_individuals) > 0 && OPTION(gui_show_boundary_crossings))
+            if (FAST_SETTING(track_max_individuals) > 0 && OPTION(gui_show_boundary_crossings)) {
                 update_recognition_circle();
+            }
 
             if(panic_button) {
                 _view.add<Line>(Line::Point_t(_posture.pos()), Line::Point_t(mp), LineClr{ White.alpha(50) });
@@ -1523,7 +1524,7 @@ void Fish::selection_clicked(Event) {
                     auto ptr = rgba->data();
                     auto m = difference->data();
                     for(; ptr < rgba->data() + rgba->size(); ptr += rgba->dims, ++m) {
-                        auto c = Viridis::value((float(*m) - minimum_grey) / (maximum_grey - minimum_grey));
+                        auto c = cmap::ColorMap::value<cmap::CMaps::viridis>((float(*m) - minimum_grey) / (maximum_grey - minimum_grey));
                         *(ptr) = c.r;
                         *(ptr+1) = c.g;
                         *(ptr+2) = c.b;
@@ -1935,7 +1936,7 @@ void Fish::updatePath(Individual& obj, Frame_t to, Frame_t from) {
         if(GUICache::instance().border().in_recognition_bounds(_fish_pos)) {
             if(!_recognition_circle) {
                 // is inside bounds, but we didnt know that yet! start animation
-                _recognition_circle = std::make_shared<Circle>(Radius{1}, LineClr{Transparent}, FillClr{Cyan.alpha(50)});
+                _recognition_circle = std::make_shared<Circle>(Radius{1}, LineClr{Transparent}, FillClr{Cyan.alpha(50)}, attr::Name{"RecCircle"+_id.toStr()});
             }
             
             auto ts = GUICache::instance().dt();

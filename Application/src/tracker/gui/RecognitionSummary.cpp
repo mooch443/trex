@@ -87,7 +87,7 @@ namespace cmn::gui {
                     for (size_t j=0; j<output_size; ++j) {
                         auto p = idx_to_fdx.count(j) ? outputs.at(row * output_size + idx_to_fdx.at(j).get()) : 0;
                         
-                        Color interp = Viridis::value(p).alpha(200);
+                        Color interp = cmap::ColorMap::value<cmap::CMaps::viridis>(p).alpha(200);
                         cv::rectangle(mat,
                                       Vec2(j,row) * bar_width + Vec2(1),
                                       Vec2(j+1,row+1) * bar_width - Vec2(2),

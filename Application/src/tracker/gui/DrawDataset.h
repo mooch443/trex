@@ -12,6 +12,9 @@ namespace cmn::gui {
     class DrawDataset : public Entangled {
         Frame_t _last_frame;
         Range<Frame_t> _last_tracklet, _last_current_frames;
+        
+        double _index_percentage{0.0};
+        Color _color{Black.alpha(150)};
         track::DatasetQuality::Quality _quality, _current_quality;
         
         std::map<track::Idx_t, std::tuple<size_t, std::map<track::Idx_t, float>>> _cache;
@@ -36,6 +39,6 @@ namespace cmn::gui {
         void clear_cache();
         
     private:
-        
+        void update_background_color(bool hovered);
     };
 }

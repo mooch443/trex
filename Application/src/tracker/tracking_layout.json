@@ -854,7 +854,7 @@
                                 "type": "rect",
                                 "pos": "[{+:10:{*:{/:{i.start}:{length}}:{width}}},-9]",
                                 "size": "[{*:{/:{-:{-:{i.end}:{i.start}}:1}:{length}}:{width}},28]",
-                                "fill": "{clrAlpha:{i.color}:100}",
+                                "fill": "{clrAlpha:{cmap:blacktowhite:{sqr:{i.percentage}}}:{+:15:{*:125:{sqr:{sqr:{i.percentage}}}}}}",
                                 "line": [150,150,150,0]
                             }
                         },

@@ -168,8 +168,13 @@ void launch_gui(std::future<void>& f) {
             } else if(e.type == EventType::WINDOW_RESIZED) {
                 auto h = g.height();
                 auto w = g.width();
-                auto scale = max(1_F, sqrtf(550_F / h));
-                auto yscale = max(1_F, sqrtf(550_F / w));
+                //auto ratio = g.width() / g.height();
+                auto min_width = 750_F;
+                auto min_height = 500_F;
+                
+                auto scale = max(1_F, sqrt(min_width / w));
+                auto yscale = max(1_F, sqrt(min_height / h));
+                //Print("scale=",scale, " yscale=",yscale, " w=",w," h=",h," ratio=", ratio);
                 if(yscale > scale) {
                     scale = yscale;
                 }

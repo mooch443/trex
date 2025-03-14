@@ -1643,8 +1643,9 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                 //auto consec = _data->tracker->global_tracklet_order();
                 auto &consec = _data->_cache->global_tracklet_order();
                 
-                ColorWheel wheel;
-                for(size_t i=0; i<5 && i < consec.size(); ++i) {
+                //ColorWheel wheel;
+                const size_t max_items = min(consec.size(), 1000u);
+                for(size_t i=0; i<max_items; ++i) {
                     if(_data->tracklets.size() <= i) {
                         _data->tracklets.emplace_back();
                         _data->variables.emplace_back(new Variable([i, this](const VarProps&) -> sprite::Map& {
@@ -1656,9 +1657,11 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                     auto& map = _data->tracklets.at(i);
                     //if(map.print_by_default())
                     //    map.set_print_by_default(false);
-                    map["color"] = wheel.next();
+                    map["color"] = cmap::ColorMap::value<cmap::CMaps::viridis>(1.0 - double(i) / double(max_items));
+                    map["percentage"] = 1.0 - double(i) / double(max_items); //wheel.next();
                     map["start"] = consec.at(i).start;
                     map["end"] = consec.at(i).end + 1_f;
+                    map["index"] = i;
                 }
                 
                 if(_data->tracklets.size() >= consec.size()) {

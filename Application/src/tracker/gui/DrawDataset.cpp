@@ -12,17 +12,22 @@ namespace cmn::gui {
     DrawDataset::DrawDataset()
         : _last_tracklet({}, {}), _initial_pos_set(false)
     {
-        set_background(Black.alpha(150));
+        set_background(_color);
         set_origin(Vec2(1));
         on_hover([this](Event e) {
-            if(e.hover.hovered)
-                this->set_background(Black.alpha(25));
-            else
-                this->set_background(Black.alpha(150));
+            update_background_color(e.hover.hovered);
         });
         set_clickable(true);
         set_draggable();
     }
+
+void DrawDataset::update_background_color(bool hovered) {
+    auto c = Color::blend(_color.alpha(150), Black.alpha(255));
+    if(hovered)
+        this->set_background(c.alpha(25));
+    else
+        this->set_background(c.alpha(150));
+}
 
 DrawDataset::~DrawDataset() {}
     
@@ -34,17 +39,21 @@ DrawDataset::~DrawDataset() {}
         _current_quality = DatasetQuality::Quality();
         _meta_current.clear();
         _last_current_frames = Range<Frame_t>({}, {});
+        _color = Black.alpha(150);
     }
 
     void DrawDataset::set_data(Frame_t frameIndex, const GUICache &cache) {
         frame = frameIndex;
         tracklet_order = cache.global_tracklet_order();
         consec = {};
+        _index_percentage = 0.0;
         
         if(frame.valid()) {
-            for(auto & range : tracklet_order) {
+            for(size_t i = 0; i<tracklet_order.size(); ++i) {
+                auto & range = tracklet_order[i];
                 if(range.contains(frame)) {
                     current_consec = range;
+                    _index_percentage = double(i) / double(tracklet_order.size());
                     break;
                 }
             }
@@ -101,6 +110,8 @@ DrawDataset::~DrawDataset() {}
                 _meta_current = DatasetQuality::per_fish(current_consec);
                 _current_quality = DatasetQuality::quality(current_consec);
                 _last_current_frames = current_consec;
+                _color = cmap::ColorMap::value<cmap::CMaps::viridis>(1.0 - _index_percentage);
+                update_background_color(hovered());
             }
             
             if(!current_consec.start.valid()) {

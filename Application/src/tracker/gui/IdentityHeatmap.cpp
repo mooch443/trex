@@ -385,8 +385,8 @@ void HeatmapController::sort_data_into_custom_grid() {
     
     auto mat = grid_image->get();
     
-    static auto empty = (cv::Scalar)Viridis::value(0).alpha(0);
-    static auto empty_variance = (cv::Scalar)Viridis::value(1).alpha(200);
+    static auto empty = (cv::Scalar)cmap::ColorMap::value<cmap::CMaps::viridis>(0.0).alpha(0);
+    static auto empty_variance = (cv::Scalar)cmap::ColorMap::value<cmap::CMaps::viridis>(1.0).alpha(200);
     if(_normalization == normalization_t::variance)
         mat.setTo(empty_variance);
     else
@@ -408,7 +408,7 @@ void HeatmapController::sort_data_into_custom_grid() {
             if(_normalization == normalization_t::variance)
                 percentage = 1 - percentage;
             
-            *ptr = Viridis::value(percentage).alpha(uint8_t(percentage * 200));
+            *ptr = cmap::ColorMap::value<cmap::CMaps::viridis>(percentage).alpha(uint8_t(percentage * 200));
         }
     }
     
