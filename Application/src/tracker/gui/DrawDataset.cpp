@@ -37,7 +37,7 @@ struct DrawDataset::Data {
         _data(std::make_unique<Data>())
     {
         set_background(_color);
-        set_origin(Vec2(1));
+        //set_origin(Vec2(1));
         on_hover([this](Event e) {
             update_background_color(e.hover.hovered);
         });
@@ -316,12 +316,14 @@ DrawDataset::~DrawDataset() {}
         auto bds = global_bounds();
         auto pp = pos();
         
-        if(pp.x > screen_dimensions.width + bds.width * 0.5f)
-            pp.x = screen_dimensions.width - 10 + bds.width * 0.5f;
-        if(pp.y > screen_dimensions.height + bds.height * 0.5)
-            pp.y = screen_dimensions.height - 10 + bds.height * 0.5f;
-        if(pp.x < bds.width * 0.5f)
-            pp.x = bds.width * 0.5f + 10;
+        if(pp.x > screen_dimensions.width - bds.width)
+            pp.x = screen_dimensions.width - bds.width;
+        if(pp.y > screen_dimensions.height - bds.height)
+            pp.y = screen_dimensions.height - bds.height;
+        if(pp.x < 0)
+            pp.x = 0;
+        if(pp.y < 0)
+            pp.y = 0;
         
         //auto &bar = GUI::instance()->timeline().bar();
         /*auto bar_height = bar ? bar->global_bounds().y + bar->global_bounds().height + 10 : 10;
