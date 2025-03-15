@@ -5,13 +5,30 @@
 #include <tracking/IndividualManager.h>
 #include <gui/GUICache.h>
 #include <misc/Coordinates.h>
+#include <misc/default_settings.h>
+#include <gui/types/Button.h>
 
 namespace cmn::gui {
     using namespace track;
 
 struct DrawDataset::Data {
     GridLayout layout;
+    StaticText title;
     std::vector<Layout::Ptr> rows;
+    Button _close{
+        attr::Size{30,30},
+        Str{"X"},
+        FillClr{100,50,50,150},
+        TextClr{White}, Font{0.55}, Margins{-5,0,0,0}, Origin{1,0}
+    };
+    
+    struct Cache {
+        std::string name;
+        bool automatic;
+        std::tuple<size_t, std::map<track::Idx_t, float>> probabilities;
+        track::DatasetQuality::Single meta;
+    };
+    std::map<track::Idx_t, Cache> _caches;
 };
     
     DrawDataset::DrawDataset() :
@@ -26,14 +43,18 @@ struct DrawDataset::Data {
         });
         set_clickable(true);
         set_draggable();
+        
+        _data->_close.on_click([](auto){
+            SETTING(gui_show_dataset) = false;
+        });
     }
 
 void DrawDataset::update_background_color(bool hovered) {
     auto c = _color;//Color::blend(_color.alpha(150), Black.alpha(255));
     if(hovered)
-        this->set_background(Black.alpha(150), c.alpha(150));
+        this->set_background(Black.alpha(200), c.alpha(200));
     else
-        this->set_background(Black.alpha(25), c.alpha(100));
+        this->set_background(Black.alpha(100), c.alpha(100));
 }
 
 DrawDataset::~DrawDataset() {}
@@ -42,9 +63,8 @@ DrawDataset::~DrawDataset() {}
         _cache.clear();
         _last_tracklet = Range<Frame_t>({}, {});
         _last_frame.invalidate();
-        _meta.clear();
+        _data->_caches.clear();
         _current_quality = DatasetQuality::Quality();
-        _meta_current.clear();
         _last_current_frames = Range<Frame_t>({}, {});
         _color = Black.alpha(150);
     }
@@ -81,20 +101,33 @@ DrawDataset::~DrawDataset() {}
                 return;
             }
             
-            using dataset_t = std::tuple<std::map<track::Idx_t, DatasetQuality::Single>, DatasetQuality::Quality>;
+            //using dataset_t = std::tuple<std::map<track::Idx_t, DatasetQuality::Single>, DatasetQuality::Quality>;
             auto identities = Tracker::identities();
+            for(auto it = _data->_caches.begin(); it != _data->_caches.end(); ) {
+                auto &[id, cache] = *it;
+                if(not identities.contains(id))
+                    it = _data->_caches.erase(it);
+                else {
+                    cache.name = {};
+                    cache.automatic = false;
+                    cache.probabilities = {};
+                    
+                    ++it;
+                }
+            }
             
             IndividualManager::transform_all([&](auto id, const auto fish) {
                 if(!identities.count(id))
                     return;
                 
-                _names[id] = fish->identity().name();
-                _cache[id] = {};
+                auto& entry = _data->_caches[id];
+                entry.name = fish->identity().name();
+                entry.automatic = fish->is_automatic_match(frameIndex);
                 
                 auto && [condition, seg] = fish->has_processed_tracklet(frame);
                 if(condition) {
                     auto &tup = fish->processed_recognition(seg.start());
-                    _cache[id] = tup;
+                    entry.probabilities = tup;
                     
                 } else {
                     auto blob = fish->compressed_blob(frame);
@@ -103,8 +136,8 @@ DrawDataset::~DrawDataset() {}
                         if(pred) {
                             auto map = track::prediction2map(*pred);
                             for (auto & [fdx, p] : map)
-                                std::get<1>(_cache[id])[fdx] = p;
-                            std::get<0>(_cache[id]) = 1;
+                                std::get<1>(entry.probabilities)[fdx] = p;
+                            std::get<0>(entry.probabilities) = 1;
                         }
                     }
                 }
@@ -112,28 +145,33 @@ DrawDataset::~DrawDataset() {}
             
             // the frame we're currently in is not in the range we selected as "best"
             // so we want to display information about the other one too
-            if(current_consec != consec && current_consec.start.valid() && _last_current_frames != current_consec)
+            if(//current_consec !=
+               current_consec.start.valid()
+               && _last_current_frames != current_consec)
             {
-                _meta_current = DatasetQuality::per_fish(current_consec);
+                Print("* changed to ", current_consec);
+                for(auto&[id, q] : DatasetQuality::per_fish(current_consec)) {
+                    _data->_caches[id].meta = q;
+                }
                 _current_quality = DatasetQuality::quality(current_consec);
                 _last_current_frames = current_consec;
-                _color = cmap::ColorMap::value<cmap::CMaps::viridis>(1.0 - _index_percentage);
+                _color = cmap::ColorMap::value<cmap::CMaps::blacktocyan>(1.0 - _index_percentage);
                 update_background_color(hovered());
             }
             
             if(!current_consec.start.valid()) {
-                _meta_current.clear();
-                _last_current_frames = current_consec;
+                //_meta_current.clear();
+                //_last_current_frames = current_consec;
             }
             
-            auto && [per_fish, quality] = dataset_t {
+            /*auto && [per_fish, quality] = dataset_t {
                 DatasetQuality::per_fish(consec),
                 DatasetQuality::quality(consec)
             };
             
-            _meta = per_fish;
+            _meta = per_fish;*/
             _last_tracklet = consec;
-            _quality = quality;
+            //_quality = quality;
             
             set_content_changed(true);
         }
@@ -182,8 +220,8 @@ DrawDataset::~DrawDataset() {}
             std::set<Idx_t> double_identities;
             std::map<Idx_t, std::tuple<size_t, Idx_t, float>> max_identity;
             
-            for(auto && [id, tup] : _cache) {
-                auto & [samples, map] = tup;
+            for(auto && [id, cache] : _data->_caches) {
+                auto & [samples, map] = cache.probabilities;
                 float max_p = 0;
                 Idx_t max_id;
                 for(auto & [id, p] : map) {
@@ -206,8 +244,8 @@ DrawDataset::~DrawDataset() {}
                 }
             }
             
-            auto text = add<Text>(Str{"Current tracklet "+Meta::toStr(_last_current_frames)+" ("+Meta::toStr(_current_quality)+")"}, Loc{8,10}, Font(0.7, Style::Bold));
-            
+            _data->title.create(Str{"<h3>Current tracklet</h3>\n<c>"+settings::htmlify(Meta::toStr(_current_quality))+"</c>"}, Loc{8,10}, Font(0.6));
+            advance_wrap(_data->title);
             
             if(_data->rows.empty()) {
                 _data->rows.emplace_back(
@@ -229,15 +267,21 @@ DrawDataset::~DrawDataset() {}
             
             _data->rows.resize(1);
             
-            for(auto && [id, tup] : _cache) {
+            for(auto && [id, cache] : _data->_caches) {
                 auto && [samples, max_id, max_p] = max_identity.at(id);
-                auto & data = _meta_current.at(id);
+                auto & data = cache.meta;
+                
+                std::string color = "white";
+                if(max_id.valid() && double_identities.find(max_id) != double_identities.end())
+                    color = "lightred";
+                else if(samples == 1)
+                    color = "yellow";
                 
                 _data->rows.emplace_back(
                      makeLayoutRow({
-                         "<c><b>"+_names.at(id)+"</b></c>",
+                         "<"+color+"><c><b>"+cache.name+"</b></c></"+color+">",
                          max_id.valid()
-                            ? "<c>"+Meta::toStr(max_id)+"</c> (<nr>"+Meta::toStr(max_p)+"</nr>, <nr>"+Meta::toStr(samples)+"</nr> <i>samples</i>)"
+                            ? "<"+color+"><c>"+Meta::toStr(max_id)+"</c></"+color+"> (<c><nr>"+dec<2>(max_p * 100).toStr()+"</nr>%</c>, <c><nr>"+Meta::toStr(samples)+"</nr></c> <i>samples</i>)"
                             : "<purple>N/A (<c><nr>"+Meta::toStr(samples)+"</nr></c> <i>samples</i>)</purple>",
                          "<c><nr>"+Meta::toStr(data.number_frames)+"</nr></c>",
                          "<c><nr>"+Meta::toStr(data.grid_cells_visited)+"</nr></c>",
@@ -251,12 +295,15 @@ DrawDataset::~DrawDataset() {}
             
             _data->layout.set(_data->rows);
             
-            _data->layout.set(Loc{0,text->pos().y + text->size().height + 10});
+            _data->layout.set(Loc{10,_data->title.pos().y + _data->title.size().height + 10});
             _data->layout.set_layout_dirty();
             _data->layout.update_layout();
             advance_wrap(_data->layout);
+            advance_wrap(_data->_close);
             
-            set_size(_data->layout.size() + _data->layout.pos() + Size2(0,10));
+            set_size(max(_data->layout.size(), _data->title.size()) + _data->layout.pos() + Size2(10,10));
+            
+            _data->_close.set(Loc{width() - 10, 10});
         });
         
         auto coord = FindCoord::get();
