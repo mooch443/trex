@@ -1395,10 +1395,10 @@ void Fish::selection_clicked(Event) {
                         : nullptr);
             
             auto c_pos = (centroid ? centroid->pos<Units::PX_AND_SECONDS>() + offset : Vec2());
-            if(not bg || c_pos.x >= bg->image().cols || c_pos.y >= bg->image().rows)
+            if(not bg) //|| c_pos.x >= bg->image().cols || c_pos.y >= bg->image().rows || c_pos.y < 0 || c_pos.x < 0)
                 return;
         
-            auto v = 255 - int(bg->image().at(c_pos.y, c_pos.x));
+            auto v = 255 - int(bg->image().at(saturate(c_pos.y, 0u, bg->image().cols), saturate(c_pos.x, 0u, bg->image().rows)));
             if(v >= 100)
                 v = 220;
             else
