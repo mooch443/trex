@@ -149,7 +149,7 @@ DrawDataset::~DrawDataset() {}
                current_consec.start.valid()
                && _last_current_frames != current_consec)
             {
-                Print("* changed to ", current_consec);
+                //Print("* changed to ", current_consec);
                 for(auto&[id, q] : DatasetQuality::per_fish(current_consec)) {
                     _data->_caches[id].meta = q;
                 }
