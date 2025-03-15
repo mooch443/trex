@@ -16,8 +16,8 @@ struct DrawDataset::Data {
     StaticText title;
     std::vector<Layout::Ptr> rows;
     Button _close{
-        attr::Size{30,30},
-        Str{"X"},
+        attr::Size{25,25},
+        Str{"<sym>✕</sym>"},
         FillClr{100,50,50,150},
         TextClr{White}, Font{0.55}, Margins{-5,0,0,0}, Origin{1,0}
     };
@@ -41,6 +41,7 @@ struct DrawDataset::Data {
         on_hover([this](Event e) {
             update_background_color(e.hover.hovered);
         });
+        set_origin(Vec2(0.5));
         set_clickable(true);
         set_draggable();
         
@@ -198,7 +199,11 @@ DrawDataset::~DrawDataset() {}
         
         set_content_changed(false);
         
-        OpenContext([this]{
+        
+        auto coord = FindCoord::get();
+        Size2 screen_dimensions = coord.screen_size();
+        
+        OpenContext([&, this]{
             /**
              * Collect information about the current frame(-segment).
              * This tells the users how the probabilities are distributed among
@@ -304,26 +309,27 @@ DrawDataset::~DrawDataset() {}
             set_size(max(_data->layout.size(), _data->title.size()) + _data->layout.pos() + Size2(10,10));
             
             _data->_close.set(Loc{width() - 10, 10});
+            
+            if(not identities_found.empty()) {
+                
+                if(!_initial_pos_set) {
+                    set_pos(screen_dimensions * 0.5);
+                    _initial_pos_set = true;
+                }
+            }
         });
-        
-        auto coord = FindCoord::get();
-        Size2 screen_dimensions = coord.screen_size();
-        if(!_initial_pos_set) {
-            set_pos(screen_dimensions * 0.5 - local_bounds().size() + Vec2(10, 10));
-            _initial_pos_set = true;
-        }
         
         auto bds = global_bounds();
         auto pp = pos();
         
-        if(pp.x > screen_dimensions.width - bds.width)
-            pp.x = screen_dimensions.width - bds.width;
-        if(pp.y > screen_dimensions.height - bds.height)
-            pp.y = screen_dimensions.height - bds.height;
-        if(pp.x < 0)
-            pp.x = 0;
-        if(pp.y < 0)
-            pp.y = 0;
+        if(pp.x > screen_dimensions.width - bds.width * 0.5)
+            pp.x = screen_dimensions.width - bds.width * 0.5;
+        if(pp.y > screen_dimensions.height - bds.height * 0.5)
+            pp.y = screen_dimensions.height - bds.height * 0.5;
+        if(pp.x < bds.width * 0.5)
+            pp.x = bds.width * 0.5;
+        if(pp.y < bds.height * 0.5)
+            pp.y = bds.height * 0.5;
         
         //auto &bar = GUI::instance()->timeline().bar();
         /*auto bar_height = bar ? bar->global_bounds().y + bar->global_bounds().height + 10 : 10;
