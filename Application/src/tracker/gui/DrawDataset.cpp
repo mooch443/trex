@@ -252,7 +252,7 @@ DrawDataset::~DrawDataset() {}
                      makeLayoutRow({
                          "ID",
                          "Visual ID",
-                         "Frame",
+                         "Frames",
                          "Cells",
                          "Travelled",
                          "Angle Var.",
