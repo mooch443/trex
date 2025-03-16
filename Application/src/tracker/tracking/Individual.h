@@ -173,7 +173,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
         //! Contains a map with individual -> probability for the blob that has been
         //  assigned to this individual.
         std::map<Frame_t, std::tuple<size_t, std::map<Idx_t, float>>> average_recognition_tracklet;
-        std::map<Frame_t, std::tuple<size_t, std::map<Idx_t, float>>> average_processed_tracklet;
+        std::map<Frame_t, std::tuple<size_t, std::map<Idx_t, float>, Range<Frame_t>>> average_processed_tracklet;
         
         //! Contains a map from fish id to probability that averages over
         //  all available segments when "check identities" was last clicked
@@ -283,7 +283,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
         std::tuple<bool, FrameRange> has_processed_tracklet(Frame_t frameIndex) const;
         //const decltype(average_recognition_tracklet)::mapped_type& average_recognition(long_t segment_start) const;
         const decltype(average_recognition_tracklet)::mapped_type average_recognition(Frame_t segment_start);
-        const decltype(average_recognition_tracklet)::mapped_type processed_recognition(Frame_t segment_start);
+        std::optional<std::tuple<size_t, std::map<Idx_t, float>, Range<Frame_t>>> processed_recognition(Frame_t segment_start);
         std::tuple<size_t, Idx_t, float> average_recognition_identity(Frame_t segment_start) const;
         
         //! Properties based on centroid:

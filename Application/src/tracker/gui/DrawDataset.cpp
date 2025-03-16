@@ -7,6 +7,7 @@
 #include <misc/Coordinates.h>
 #include <misc/default_settings.h>
 #include <gui/types/Button.h>
+#include <tracking/AutomaticMatches.h>
 
 namespace cmn::gui {
     using namespace track;
@@ -16,7 +17,7 @@ struct DrawDataset::Data {
     StaticText title;
     std::vector<Layout::Ptr> rows;
     Button _close{
-        attr::Size{25,25},
+        attr::Size{30,30},
         Str{"<sym>✕</sym>"},
         FillClr{100,50,50,150},
         TextClr{White}, Font{0.55}, Margins{-5,0,0,0}, Origin{1,0}
@@ -24,8 +25,9 @@ struct DrawDataset::Data {
     
     struct Cache {
         std::string name;
-        bool automatic;
-        std::tuple<size_t, std::map<track::Idx_t, float>> probabilities;
+        std::optional<Range<Frame_t>> automatic;
+        std::optional<std::map<track::Idx_t, float>> probabilities;
+        size_t samples;
         track::DatasetQuality::Single meta;
     };
     std::map<track::Idx_t, Cache> _caches;
@@ -110,35 +112,51 @@ DrawDataset::~DrawDataset() {}
                     it = _data->_caches.erase(it);
                 else {
                     cache.name = {};
-                    cache.automatic = false;
-                    cache.probabilities = {};
+                    cache.automatic = {};
+                    cache.probabilities = std::nullopt;
+                    cache.samples = 0;
                     
                     ++it;
                 }
             }
             
-            IndividualManager::transform_all([&](auto id, const auto fish) {
+            IndividualManager::transform_all([&](auto id, Individual* fish) {
                 if(!identities.count(id))
                     return;
                 
                 auto& entry = _data->_caches[id];
                 entry.name = fish->identity().name();
-                entry.automatic = fish->is_automatic_match(frameIndex);
+                entry.automatic = std::nullopt;
+                entry.probabilities = std::nullopt;
+                entry.samples = 0;
                 
-                auto && [condition, seg] = fish->has_processed_tracklet(frame);
+                auto [condition, seg] = fish->has_processed_tracklet(frame);
                 if(condition) {
-                    auto &tup = fish->processed_recognition(seg.start());
-                    entry.probabilities = tup;
-                    
-                } else {
-                    auto blob = fish->compressed_blob(frame);
-                    if(blob) {
+                    if(auto tup = fish->processed_recognition(seg.start());
+                       tup.has_value())
+                    {
+                        entry.probabilities = std::get<1>(*tup);
+                        entry.samples = std::get<0>(*tup);
+                        
+                        if(fish->is_automatic_match(frameIndex)) {
+                            entry.automatic = std::get<2>(*tup);
+                        }
+                    } else {
+                        condition = false;
+                    }
+                }
+                
+                if(not condition) {
+                    if(auto blob = fish->compressed_blob(frame);
+                       blob != nullptr)
+                    {
                         auto pred = Tracker::instance()->find_prediction(frame, blob->blob_id());
                         if(pred) {
                             auto map = track::prediction2map(*pred);
+                            entry.probabilities = std::map<track::Idx_t, float>{};
                             for (auto & [fdx, p] : map)
-                                std::get<1>(entry.probabilities)[fdx] = p;
-                            std::get<0>(entry.probabilities) = 1;
+                                (*entry.probabilities)[fdx] = p;
+                            entry.samples = 1;
                         }
                     }
                 }
@@ -226,7 +244,12 @@ DrawDataset::~DrawDataset() {}
             std::map<Idx_t, std::tuple<size_t, Idx_t, float>> max_identity;
             
             for(auto && [id, cache] : _data->_caches) {
-                auto & [samples, map] = cache.probabilities;
+                if(not cache.probabilities) {
+                    max_identity[id] = { 0, Idx_t(), 0.f };
+                    continue;
+                }
+                
+                auto & map = *cache.probabilities;
                 float max_p = 0;
                 Idx_t max_id;
                 for(auto & [id, p] : map) {
@@ -236,7 +259,7 @@ DrawDataset::~DrawDataset() {}
                     }
                 }
                 
-                max_identity[id] = { samples, max_id, max_p };
+                max_identity[id] = { cache.samples, max_id, max_p };
                 
                 if(max_id.valid()) {
                     if(identities_found.find(max_id) != identities_found.end()
@@ -257,6 +280,8 @@ DrawDataset::~DrawDataset() {}
                      makeLayoutRow({
                          "ID",
                          "Visual ID",
+                         "",
+                         "AutoAssign",
                          "Frames",
                          "Cells",
                          "Travelled",
@@ -288,6 +313,8 @@ DrawDataset::~DrawDataset() {}
                          max_id.valid()
                             ? "<"+color+"><c>"+Meta::toStr(max_id)+"</c></"+color+"> (<c><nr>"+dec<2>(max_p * 100).toStr()+"</nr>%</c>, <c><nr>"+Meta::toStr(samples)+"</nr></c> <i>samples</i>)"
                             : "<purple>N/A (<c><nr>"+Meta::toStr(samples)+"</nr></c> <i>samples</i>)</purple>",
+                         "",
+                         "<c><key>"+(cache.automatic ? Meta::toStr(cache.automatic) : "none")+"</key></c>",
                          "<c><nr>"+Meta::toStr(data.number_frames)+"</nr></c>",
                          "<c><nr>"+Meta::toStr(data.grid_cells_visited)+"</nr></c>",
                          "<c><nr>"+Meta::toStr(dec<2>(data.distance_travelled))+"</nr></c><i>cm</i>",

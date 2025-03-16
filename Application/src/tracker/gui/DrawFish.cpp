@@ -348,7 +348,7 @@ Fish::~Fish() {
         if(std::get<0>(_has_processed_tracklet)) {
             processed_tracklet = obj.processed_recognition(std::get<1>(_has_processed_tracklet).start());
         } else
-            processed_tracklet = {};
+            processed_tracklet = std::nullopt;
         
         _tracklet = GUICache::instance().tracklet_cache(_id.ID());//obj.tracklet_for(_frame);
         if(_tracklet) {
@@ -378,16 +378,22 @@ Fish::~Fish() {
          * ML Predictions
          */
         if(_basic_stuff) {
-            auto && [valid, tracklet] = obj.has_processed_tracklet(frameIndex);
+            auto [valid, tracklet] = obj.has_processed_tracklet(frameIndex);
             
             std::string title = "recognition";
             
             if(valid) {
-                auto && [n, values] = obj.processed_recognition(tracklet.start());
-                title = "average n:"+Meta::toStr(n);
-                _raw_preds = values;
-                
-            } else {
+                auto rec = obj.processed_recognition(tracklet.start());
+                if(rec.has_value()) {
+                    auto && [n, values, _] = *rec;
+                    title = "average n:"+Meta::toStr(n);
+                    _raw_preds = values;
+                } else {
+                    valid = false;
+                }
+            }
+            
+            if(not valid) {
                 auto pred = GUICache::instance().find_prediction(_basic_stuff->blob.blob_id());
                 if(pred)
                     _raw_preds = track::prediction2map(*pred);

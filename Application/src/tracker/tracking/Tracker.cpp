@@ -3154,8 +3154,11 @@ void Tracker::set_vi_data(const decltype(_vi_predictions)& predictions) {
                     if (after_frame.valid() && tracklet.end() < after_frame)
                         continue;
 
-                    auto& [n, average] = fish->processed_recognition(start);
-                    collect_virtual_fish(fdx, fish, tracklet, n, average);
+                    auto rec = fish->processed_recognition(start);
+                    if(rec) {
+                        auto [n, average, _] = *rec;
+                        collect_virtual_fish(fdx, fish, tracklet, n, average);
+                    }
                 }
             });
         }

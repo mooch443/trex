@@ -116,7 +116,7 @@ struct UpdateSettings {
         Range<Frame_t> _range;
         
         std::tuple<bool, FrameRange> _has_processed_tracklet;
-        std::tuple<size_t, std::map<track::Idx_t, float>> processed_tracklet;
+        std::optional<std::tuple<size_t, std::map<track::Idx_t, float>, Range<Frame_t>>> processed_tracklet;
         std::shared_ptr<track::TrackletInformation> _tracklet;
         track::IDaverage _qr_code;
         std::vector<float> _pred;

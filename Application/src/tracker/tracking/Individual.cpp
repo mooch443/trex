@@ -2689,7 +2689,7 @@ std::tuple<bool, FrameRange> Individual::has_processed_tracklet(Frame_t frameInd
     return average_recognition_tracklet.at(segment_start);
 }*/
 
-const decltype(Individual::average_recognition_tracklet)::mapped_type Individual::processed_recognition(Frame_t segment_start) {
+std::optional<std::tuple<size_t, std::map<Idx_t, float>, Range<Frame_t>>> Individual::processed_recognition(Frame_t segment_start) {
     auto it = average_processed_tracklet.find(segment_start);
     if(it == average_processed_tracklet.end()) {
         //! acquire write access
@@ -2702,8 +2702,10 @@ const decltype(Individual::average_recognition_tracklet)::mapped_type Individual
         
         const auto &[ segment, usable] = sit->second;
         
-        if(segment.end >= _endFrame && Tracker::end_frame() != Tracker::analysis_range().end()) {
-            return {0, {}};
+        if(segment.end >= _endFrame
+           && Tracker::end_frame() != Tracker::analysis_range().end())
+        {
+            return std::nullopt;
         }
         
         std::map<Idx_t, std::tuple<long_t, float>> samples;
@@ -2735,14 +2737,17 @@ const decltype(Individual::average_recognition_tracklet)::mapped_type Individual
                 s += average[key];
             }
             
-            if(s > 0.001)
-                average_processed_tracklet[segment_start] = {overall, average};
-            else {
+            if(s > 0.001) {
+                auto &entry = average_processed_tracklet[segment_start];
+                entry = {overall, average, segment};
+                return entry;
+
+            } else {
                 Print("Not using fish ",identity().ID()," tracklet ",segment_start,"-",segment.end," because sum is ",s);
-                return {0, {}};
             }
-        } else
-            return {0, {}};
+        }
+        
+        return std::nullopt;
     }
     
     return average_processed_tracklet.at(segment_start);
