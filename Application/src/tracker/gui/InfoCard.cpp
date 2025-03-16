@@ -401,16 +401,22 @@ void InfoCard::update() {
                 }
                 
                 auto blob_id = _shadow->blob.blob_id();
-                auto && [valid, tracklet] = fish->has_processed_tracklet(_shadow->frame);
+                auto [valid, tracklet] = fish->has_processed_tracklet(_shadow->frame);
                 
                 std::string title = "recognition";
                 
                 if(valid) {
-                    auto && [n, values] = fish->processed_recognition(tracklet.start());
-                    title = "average n:"+Meta::toStr(n);
-                    _shadow->raw = values;
-                    
-                } else {
+                    auto rec = fish->processed_recognition(tracklet.start());
+                    if(rec.has_value()) {
+                        auto && [n, values, _] = *rec;
+                        title = "average n:"+Meta::toStr(n);
+                        _shadow->raw = values;
+                    } else {
+                        valid = false;
+                    }
+                }
+                
+                if(not valid) {
                     auto pred = Tracker::instance()->find_prediction(_shadow->frame, blob_id);
                     if(pred)
                         _shadow->raw = track::prediction2map(*pred);
