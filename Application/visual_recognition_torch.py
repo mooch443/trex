@@ -1239,10 +1239,10 @@ def train(model, train_loader, val_loader, criterion, optimizer : torch.optim.Ad
 
                     #return'''
                 #print(f"Batch {batch}/{len(train_loader)} - inputs: {inputs.shape} targets: {targets.shape} - {torch.argmax(targets, dim=1)[0]}")
-                #static_inputs = inputs.clone()
-                #static_targets = targets.clone()
-                static_inputs.resize_(inputs.shape).copy_(inputs)
-                static_targets.resize_(targets.shape).copy_(targets)
+                static_inputs = inputs.clone()
+                static_targets = targets.clone()
+                #static_inputs.resize_(inputs.shape).copy_(inputs)
+                #static_targets.resize_(targets.shape).copy_(targets)
 
                 #assert static_inputs.is_contiguous()
                 #assert static_targets.is_contiguous()

@@ -561,7 +561,7 @@ void TrackingState::save_state(GUITaskQueue_t* gui, bool force_overwrite) {
             auto what = std::string(e.what());
             if(gui)
                 gui->enqueue([what](auto, DrawStructure& graph){
-                    graph.dialog([](Dialog::Result){}, "Something went wrong saving the program state. Maybe no write permissions? Check out this message, too:\n<i>"+what+"</i>", "Error");
+                    graph.dialog([](Dialog::Result){}, "Something went wrong saving the program state. Maybe no write permissions? Check out this message, too:\n<i>"+what+"</i>", "<sym>⮿</sym> Error");
                 });
             
             FormatExcept("Something went wrong saving program state. Maybe no write permissions?"); }
@@ -861,7 +861,7 @@ std::future<void> TrackingState::load_state(GUITaskQueue_t* gui, file::Path from
             auto what = std::string(e.what());
             if(gui)
                 gui->enqueue([from, what](IMGUIBase*, DrawStructure& graph) {
-                    graph.dialog([](Dialog::Result){}, "Cannot load results from '"+from.str()+"'. Loading crashed with this message:\n<i>"+what+"</i>", "Error");
+                    graph.dialog([](Dialog::Result){}, "Cannot load results from '"+from.str()+"'. Loading crashed with this message:\n<i>"+what+"</i>", "<sym>⮿</sym> Error");
                 });
             
             auto start = Tracker::start_frame();
