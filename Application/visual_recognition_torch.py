@@ -1187,7 +1187,7 @@ def train(model, train_loader, val_loader, criterion, optimizer : torch.optim.Ad
     recall = torchmetrics.Recall(task='multiclass', num_classes=num_classes, average='macro').to(device)
 
     best_val_acc = 0.0
-    softmax = nn.Softmax(dim=1)#.to(device)
+    softmax = nn.Softmax(dim=1).to(device)
 
     static_inputs = None
     static_targets = None
@@ -1204,99 +1204,82 @@ def train(model, train_loader, val_loader, criterion, optimizer : torch.optim.Ad
         #import torch.autograd.profiler as profiler
 
         #with profiler.profile(with_stack=True, profile_memory=True) as prof:
-        if True:
-            # dont use train_loader, manually iterate over the dataset
-            for batch, (inputs, targets) in tqdm(enumerate(train_loader), total=len(train_loader)):
-                #inputs = transform(inputs.permute(0, 3, 1, 2) / 255).permute(0, 2, 3, 1) * 255
+        # dont use train_loader, manually iterate over the dataset
+        for batch, (inputs, targets) in tqdm(enumerate(train_loader), total=len(train_loader)):
+            #inputs = transform(inputs.permute(0, 3, 1, 2) / 255).permute(0, 2, 3, 1) * 255
+            if isinstance(inputs, np.ndarray):
+                static_inputs = torch.from_numpy(inputs).to(device, dtype=torch.float32).contiguous()
+            else:
+                static_inputs = inputs.to(device).contiguous()
 
-                #inputs = torch.tensor(inputs, dtype=torch.float32, device=device)
-                targets = torch.tensor(targets, dtype=torch.float32)#, device=device)
+            if isinstance(targets, np.ndarray):
+                static_targets = torch.from_numpy(targets).to(device, dtype=torch.float32).contiguous()
+            else:
+                static_targets = targets.to(device).contiguous()
+            #inputs = torch.tensor(inputs, dtype=torch.float32, device=device)
+            #targets = torch.tensor(targets, dtype=torch.float32)#, device=device)
 
-                #for i in range(0, len(X), settings["batch_size"]):
-                #batch = i // settings["batch_size"]
+            #for i in range(0, len(X), settings["batch_size"]):
+            #batch = i // settings["batch_size"]
 
-                #inputs = torch.tensor(X[i:i+settings["batch_size"]], dtype=torch.float32, device=device)
-                #targets = torch.tensor(callback.Y_one_hot[i:i+settings["batch_size"]], dtype=torch.float32, device=device)
+            #inputs = torch.tensor(X[i:i+settings["batch_size"]], dtype=torch.float32, device=device)
+            #targets = torch.tensor(callback.Y_one_hot[i:i+settings["batch_size"]], dtype=torch.float32, device=device)
 
-                #TRex.log(f"Batch {batch}/{len(X)} - inputs: {inputs.shape} targets: {targets.shape}")
-                
-                #for batch, (inputs, targets) in tqdm(enumerate(train_loader), total=len(train_loader)):
-                
-
-                '''if batch == 0 and epoch == 0:
-                    print(f"Batch {batch}/{len(train_loader)} - inputs: {inputs.shape} targets: {targets.shape} - {torch.argmax(targets, dim=1)[0]}")
-
-                    import torchvision
-                    grid = torchvision.utils.make_grid(inputs.permute(0, 3, 1, 2), nrow=16, value_range=(0,255))
-                    image = grid.permute(1, 2, 0).numpy().astype(np.uint8)
-
-                    TRex.log(f"Image shape: {image.shape}")
-                    TRex.imshow("batch0", image)
-                    #plt.imshow(grid.permute(1, 2, 0).numpy().astype(int))
-                    #plt.show()
-
-                    #return'''
-                #print(f"Batch {batch}/{len(train_loader)} - inputs: {inputs.shape} targets: {targets.shape} - {torch.argmax(targets, dim=1)[0]}")
-                static_inputs = inputs.contiguous()
-                static_targets = targets.contiguous()
-
-                assert static_inputs.is_contiguous()
-                assert static_targets.is_contiguous()
-
-                #print(f"Device: {static_inputs.device} vs. {device} vs. {inputs.device}")
-                #assert static_inputs.device == device
+            #TRex.log(f"Batch {batch}/{len(X)} - inputs: {inputs.shape} targets: {targets.shape}")
             
-                outputs = model(static_inputs).cpu()
-                loss = criterion(outputs, static_targets)
-                loss.backward()
-                optimizer.step()
-                optimizer.zero_grad(set_to_none=True)
+            #for batch, (inputs, targets) in tqdm(enumerate(train_loader), total=len(train_loader)):
+            
 
-                with torch.no_grad():
-                    outputs = softmax(outputs.detach())
-                    acc = torch.mean((outputs.argmax(dim=1) == static_targets.argmax(dim=1)).float())
-                
-                running_acc += acc
-                running_loss += loss.item()
+            '''if batch == 0 and epoch == 0:
+                print(f"Batch {batch}/{len(train_loader)} - inputs: {inputs.shape} targets: {targets.shape}")
 
-                logs = {'loss': loss.item(), 'acc': acc}
-                callback.on_batch_end(batch, logs)
+                import torchvision
+                grid = torchvision.utils.make_grid(inputs.permute(0, 3, 1, 2), nrow=16, value_range=(0,255))
+                image = grid.permute(1, 2, 0).cpu().numpy().astype(np.uint8)
 
-                del inputs
-                del targets
-                del outputs
-                del loss
-                del acc
-                del logs
+                TRex.log(f"Image shape: {image.shape}")
+                TRex.imshow("batch0", image)
+                #plt.imshow(grid.permute(1, 2, 0).numpy().astype(int))
+                #plt.show()
 
-                #gc.collect()
+                #return'''
+            #print(f"Batch {batch}/{len(train_loader)} - inputs: {inputs.shape} targets: {targets.shape} - {torch.argmax(targets, dim=1)[0]}")
+
+            assert static_inputs.is_contiguous()
+            assert static_targets.is_contiguous()
+
+            #print(f"Device: {static_inputs.device} vs. {device} vs. {inputs.device}")
+            #assert static_inputs.device == device
+        
+            outputs = model(static_inputs)
+            loss = criterion(outputs, static_targets)
+            loss.backward()
+            optimizer.step()
+            optimizer.zero_grad(set_to_none=True)
+
+            with torch.no_grad():
+                outputs = softmax(outputs).detach()
+                acc = torch.mean((outputs.argmax(dim=1) == static_targets.argmax(dim=1)).float())
+            
+            running_acc += acc
+            running_loss += loss.item()
+
+            logs = {'loss': loss.item(), 'acc': acc}
+            callback.on_batch_end(batch, logs)
+
+            del inputs
+            del targets
+            del loss
+            del acc
+            del logs
+
+            #gc.collect()
 
         #print(prof.key_averages(group_by_stack_n=5).table(sort_by='self_cpu_time_total', row_limit=5))
         #gc.collect()
 
         running_loss /= len(train_loader)
         acc = running_acc / len(train_loader)
-
-        # Check gradients (debugging)
-        '''for name, param in model.named_parameters():
-            if param.grad is not None:
-                print(f'{name} - Gradients: {param.grad.norm()}')
-            else:
-                print(f'{name} - No gradients')'''
-
-        #gc.collect()
-        #snapshot2 = tracemalloc.take_snapshot()
-
-        # print stack traces with the most allocations
-        '''traces = snapshot2.compare_to(snapshot0, 'traceback')[:5]
-        for index, stat in enumerate(traces):
-            TRex.log(f"Most allocated: {stat.size} bytes - {stat.count} times")
-            for line in stat.traceback.format():
-                TRex.log(line)
-
-        del snapshot0
-        del snapshot2
-        del traces'''
 
         # Set the model to evaluation mode, disabling dropout and using population
         # statistics for batch normalization.
@@ -1313,24 +1296,27 @@ def train(model, train_loader, val_loader, criterion, optimizer : torch.optim.Ad
                 #    targets = callback.Y_val_one_hot[i:i+settings["batch_size"]].clone().detach().to(device=device)
 
                 for batch, (inputs, targets) in enumerate(val_loader):
-                    #inputs = torch.tensor(inputs, dtype=torch.float32, device=device)
-                    targets = torch.tensor(targets, dtype=torch.float32)#, device=device)
-
-                    #static_inputs.resize_(inputs.shape).copy_(inputs)
-                    #static_targets.resize_(targets.shape).copy_(targets)
-
-                    static_inputs = inputs.contiguous()
-                    static_targets = targets.contiguous()
+                    if isinstance(inputs, np.ndarray):
+                        static_inputs = torch.from_numpy(inputs).to(device, dtype=torch.float32).contiguous()
+                    else:
+                        static_inputs = inputs.to(device).contiguous()
+    
+                    if isinstance(targets, np.ndarray):
+                        static_targets = torch.from_numpy(targets).to(device, dtype=torch.float32).contiguous()
+                    else:
+                        static_targets = targets.to(device).contiguous()
 
                     #inputs = inputs.to(device)
                     #targets = targets.to(device)
 
                     #outputs = model(inputs)
-                    outputs = model(static_inputs).cpu().detach()
+                    outputs = model(static_inputs)
+
+                    #TRex.log(f"outputs on device {outputs.device} vs. {static_targets.device} vs. {device}")
                     loss = criterion(outputs, static_targets)
                     val_loss += loss.item()
 
-                    outputs = softmax(outputs)
+                    outputs = softmax(outputs.detach())
 
                     # Calculate the accuracy of the model on the validation set
                     # by counting the number of correct predictions.
@@ -1343,12 +1329,14 @@ def train(model, train_loader, val_loader, criterion, optimizer : torch.optim.Ad
                     #precision.update(predicted, static_targets.argmax(dim=1))
                     #recall.update(predicted, static_targets.argmax(dim=1))
 
-                    del inputs
-                    del targets
                     del outputs
                     del loss
                     del predicted
 
+            del static_inputs
+            del static_targets
+
+            # Compute average loss and accuracy
             val_loss /= len(val_loader)
             val_acc = correct / total
             
@@ -1401,8 +1389,6 @@ def train(model, train_loader, val_loader, criterion, optimizer : torch.optim.Ad
     
     del precision
     del recall
-
-    del static_targets, static_inputs
 
     #tracemalloc.stop()
 

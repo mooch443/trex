@@ -41,27 +41,14 @@
 				"type":"collection",
 				"children":[
 					{
-						"type":"condition",
-						"var":"{i.selected}",
-						"else":{
-							"type":"rect",
-							"pos":"{i.pos}",
-							"size":"{i.size}",
-							"fill":"{if:{hovered}:[0,255,0,30]:[255,255,0,30]}",
-							"line":"{i.color}",
-							"origin":[0,0],
-							"clickable":true,
-							"click":"set:gui_focus_group:{if:{equal:{global.gui_focus_group}:[{i.fdx}]}:[]:[{i.fdx}]}"
-						},
-						"then":{
-							"type":"circle",
-							"radius":"{i.radius}",
-							"origin":[0.5,0.5],
-							"pos":"{addVector:{i.pos}:{mulVector:{i.size}:0.5}}",
-							"line":[250,250,250,255],
-							"clickable":true,
-							"click":"set:gui_focus_group:{if:{equal:{global.gui_focus_group}:[{i.fdx}]}:[]:[{i.fdx}]}"
-						}
+						"type":"rect",
+						"pos":"{i.pos}",
+						"size":"{i.size}",
+						"fill":"{if:{hovered}:[255,255,255,30]:{clrAlpha:{i.color}:15}}",
+						"line":"{if:{i.selected}:[255,255,255,150]:{clrAlpha:{i.color}:100}}",
+						"origin":[0,0],
+						"clickable":true,
+						"click":"set:gui_focus_group:{if:{equal:{global.gui_focus_group}:[{i.fdx}]}:[]:[{i.fdx}]}"
 					},
 					
 					{
@@ -127,7 +114,7 @@
 
 	{ 
 		"type":"gridlayout",
-		"pos":[20,10],
+		"pos":[10,10],
 		"scale":[1.0,1.0],
 		"pad":[10,10,10,10],
 		"fill":[0,0,0,150],

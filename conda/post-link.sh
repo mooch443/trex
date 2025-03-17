@@ -14,13 +14,13 @@ fi
 echo "Installing pip packages..." >> $PREFIX/.messages.txt
 if [ "$(uname -p)" == "arm" ]; then
     echo "ARM architecture detected, installing packages..." >> $PREFIX/.messages.txt
-    { python -m pip install 'torch>=2.0.0,<2.5.0' 'torchvision<0.20.0' torchmetrics 'opencv-python>=4,<5' 'ultralytics>=8.3.0,<9' numpy==1.26.4 dill 2>&1; } >> $PREFIX/.messages.txt;
+    { python -m pip install 'torch>=2.0.0,<2.7.0' 'torchvision<0.22.0' torchmetrics 'opencv-python>=4,<5' 'ultralytics>=8.3.0,<9' numpy==1.26.4 dill 2>&1; } >> $PREFIX/.messages.txt;
 elif [ "$(uname)" == "Darwin" ]; then
     echo "macOS detected, installing packages..." >> $PREFIX/.messages.txt
-    { python -m pip install 'torch>=2.0.0,<2.5.0' 'torchvision<0.20.0' torchmetrics 'opencv-python>=4,<5' 'ultralytics>=8.3.0,<9' numpy==1.26.4 dill 2>&1; } >> $PREFIX/.messages.txt
+    { python -m pip install 'torch>=2.0.0,<2.7.0' 'torchvision<0.22.0' torchmetrics 'opencv-python>=4,<5' 'ultralytics>=8.3.0,<9' numpy==1.26.4 dill 2>&1; } >> $PREFIX/.messages.txt
 else
     echo "Linux architecture detected, installing packages..." >> $PREFIX/.messages.txt
-    { python -m pip install torchmetrics 'torch>=2.0.0,<2.5.0' 'torchvision<0.20.0' 'opencv-python>=4,<5' 'ultralytics>=8.3.0,<9' numpy==1.26.4 "dill" --index-url https://download.pytorch.org/whl/cu118 --extra-index-url https://pypi.org/simple 2>&1; } >> $PREFIX/.messages.txt
+    { python -m pip install torchmetrics 'torch>=2.0.0,<2.7.0' 'torchvision<0.22.0' 'opencv-python>=4,<5' 'ultralytics>=8.3.0,<9' numpy==1.26.4 "dill" --index-url https://download.pytorch.org/whl/cu118 --extra-index-url https://pypi.org/simple 2>&1; } >> $PREFIX/.messages.txt
 fi
 
 echo "Testing installation..." >> $PREFIX/.messages.txt
