@@ -889,13 +889,19 @@ def load_checkpoint_from_file(file_path: str, device: str):
             PermuteAxesWrapper, Normalize, V118_3, V110, V119, V200
         )
         # Register safe globals for torch.serialization.
-        torch.serialization.add_safe_globals([PermuteAxesWrapper, Normalize, transforms.transforms.Normalize])
-        torch.serialization.add_safe_globals([set])
-        torch.serialization.add_safe_globals([V118_3, V110, V119, V200])
-        torch.serialization.add_safe_globals([nn.Softmax, nn.Conv2d, nn.BatchNorm2d, nn.ReLU,
+        # Check if `torch.serialization.add_safe_globals` is available
+        if hasattr(torch.serialization, "add_safe_globals"):
+            # Register safe globals for torch.serialization.
+            torch.serialization.add_safe_globals([PermuteAxesWrapper, Normalize, transforms.transforms.Normalize])
+            torch.serialization.add_safe_globals([set])
+            torch.serialization.add_safe_globals([V118_3, V110, V119, V200])
+            torch.serialization.add_safe_globals([nn.Softmax, nn.Conv2d, nn.BatchNorm2d, nn.ReLU,
                                                 nn.MaxPool2d, nn.Linear, nn.Dropout, nn.Dropout2d,
                                                 nn.LayerNorm, nn.AdaptiveAvgPool2d, nn.AdaptiveMaxPool2d,
                                                 nn.AvgPool2d, nn.MaxPool2d, nn.Flatten, nn.Sequential])
+        else:
+            # Log a warning or handle the absence of `add_safe_globals` gracefully
+            TRex.warn("`torch.serialization.add_safe_globals` is not available in this version of PyTorch. Skipping safe globals registration.")
 
         cp = torch.load(file_path, map_location=device, weights_only=True)
         TRex.log(f"\t+ Loaded torch.load checkpoint from {file_path}: {cp.keys()}")
