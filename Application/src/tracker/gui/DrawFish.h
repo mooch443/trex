@@ -96,6 +96,7 @@ struct UpdateSettings {
         float _color_start, _color_end;
         std::deque<FrameVertex> frame_vertices;
         std::shared_ptr<Circle> _recognition_circle;
+        float _recognition_radius{0.f};
         std::vector<Vec2> points;
         
         UpdateSettings _options;

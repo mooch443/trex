@@ -1180,7 +1180,6 @@ def predict():
 
 def train(model, train_loader, val_loader, criterion, optimizer : torch.optim.Adam, callback : ValidationCallback, scheduler, transform, settings, device):
     global get_abort_training
-    global static_inputs, static_targets
     num_classes = len(settings["classes"])
 
     # Initialize metrics
@@ -1189,11 +1188,10 @@ def train(model, train_loader, val_loader, criterion, optimizer : torch.optim.Ad
 
     best_val_acc = 0.0
     softmax = nn.Softmax(dim=1)#.to(device)
-    
-    if static_inputs is None or static_inputs.shape[-1] != settings["image_channels"]:
-        static_inputs = torch.empty((settings["batch_size"], settings["image_height"], settings["image_width"], settings["image_channels"]), dtype=torch.float32, device=device, requires_grad=False).detach()
-        static_targets = torch.empty((settings["batch_size"], num_classes), dtype=torch.float32, device='cpu', requires_grad=False).detach()
 
+    static_inputs = None
+    static_targets = None
+    
     #import tracemalloc;
     #tracemalloc.start(50)
 
@@ -1239,13 +1237,11 @@ def train(model, train_loader, val_loader, criterion, optimizer : torch.optim.Ad
 
                     #return'''
                 #print(f"Batch {batch}/{len(train_loader)} - inputs: {inputs.shape} targets: {targets.shape} - {torch.argmax(targets, dim=1)[0]}")
-                static_inputs = inputs.clone()
-                static_targets = targets.clone()
-                #static_inputs.resize_(inputs.shape).copy_(inputs)
-                #static_targets.resize_(targets.shape).copy_(targets)
+                static_inputs = inputs.contiguous()
+                static_targets = targets.contiguous()
 
-                #assert static_inputs.is_contiguous()
-                #assert static_targets.is_contiguous()
+                assert static_inputs.is_contiguous()
+                assert static_targets.is_contiguous()
 
                 #print(f"Device: {static_inputs.device} vs. {device} vs. {inputs.device}")
                 #assert static_inputs.device == device
@@ -1320,8 +1316,11 @@ def train(model, train_loader, val_loader, criterion, optimizer : torch.optim.Ad
                     #inputs = torch.tensor(inputs, dtype=torch.float32, device=device)
                     targets = torch.tensor(targets, dtype=torch.float32)#, device=device)
 
-                    static_inputs.resize_(inputs.shape).copy_(inputs)
-                    static_targets.resize_(targets.shape).copy_(targets)
+                    #static_inputs.resize_(inputs.shape).copy_(inputs)
+                    #static_targets.resize_(targets.shape).copy_(targets)
+
+                    static_inputs = inputs.contiguous()
+                    static_targets = targets.contiguous()
 
                     #inputs = inputs.to(device)
                     #targets = targets.to(device)
@@ -1400,11 +1399,10 @@ def train(model, train_loader, val_loader, criterion, optimizer : torch.optim.Ad
         
         #gc.collect()
     
-    #del static_inputs
-    #del static_targets
-
     del precision
     del recall
+
+    del static_targets, static_inputs
 
     #tracemalloc.stop()
 

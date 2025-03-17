@@ -488,6 +488,11 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
                 }
                 
                 {
+                    std::unique_lock guard{_fish_map_mutex};
+                    _fish_map.clear();
+                }
+                
+                {
                     std::unique_lock guard(_next_frame_cache_mutex);
                     _next_frame_caches.clear();
                 }

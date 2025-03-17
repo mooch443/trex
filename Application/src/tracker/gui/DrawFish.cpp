@@ -569,6 +569,12 @@ Fish::~Fish() {
             }
         }
         
+        if(not _basic_stuff.has_value()
+           || _safe_frame != frameIndex)
+        {
+            _recognition_radius = 0.f;
+        }
+        
         try {
             dyn::State state;
             _data->label_text = dyn::parse_text(OPTION(gui_fish_label), _data->context, state);
@@ -1939,25 +1945,32 @@ void Fish::updatePath(Individual& obj, Frame_t to, Frame_t from) {
     }
     
     void Fish::update_recognition_circle() {
-        if(GUICache::instance().border().in_recognition_bounds(_fish_pos)) {
-            if(!_recognition_circle) {
-                // is inside bounds, but we didnt know that yet! start animation
-                _recognition_circle = std::make_shared<Circle>(Radius{1}, LineClr{Transparent}, FillClr{Cyan.alpha(50)}, attr::Name{"RecCircle"+_id.toStr()});
-            }
-            
+        if(GUICache::instance().border().in_recognition_bounds(_fish_pos)
+           && _safe_frame == _frame)
+        {
             auto ts = GUICache::instance().dt();
-            float target_radius = 100;
-            float percent = min(1, _recognition_circle->radius() / target_radius);
-            //Print(_id, " = ", percent, " target:", target_radius);
+            double target_radius = 100;
+            double percent = saturate(_recognition_radius / target_radius, 0.0, 1.0);
             
-            if(percent < 1.0) {
-                percent *= percent;
+            if(percent < 0.95) {
+                if(!_recognition_circle) {
+                    // is inside bounds, but we didnt know that yet! start animation
+                    _recognition_circle = std::make_shared<Circle>(Radius{_recognition_radius}, LineClr{Transparent}, FillClr{Transparent}, attr::Name{"RecCircle"+_id.toStr()});
+                }
                 
-                _recognition_circle->set_pos(_fish_pos - _view.pos());
-                _recognition_circle->set_radius(_recognition_circle->radius() + ts * (1 - percent) * target_radius * 2);
-                _recognition_circle->set_fill_clr(Cyan.alpha(50 * (1-percent)));
+                //percent *= percent;
+                auto radius_delta = ts * (1 - percent) * target_radius * 2;
+                auto next_radius = min(target_radius, _recognition_radius + radius_delta);
+                
                 _view.advance_wrap(*_recognition_circle);
+                _recognition_circle->set_pos(_fish_pos - _view.pos());
+                _recognition_radius = next_radius;
+                _recognition_circle->set_radius(_recognition_radius);
+                _recognition_circle->set_fill_clr(Cyan.alpha(50 * (1-percent)));
+                _recognition_circle->set_animating(true);
                 
+            } else if(_recognition_circle) {
+                _recognition_circle = nullptr;
             }
             
         } else if(_recognition_circle) {
