@@ -99,13 +99,13 @@
                                 {
                                     "type":"stext",
                                     "text":"<c><white>categorization</white></c>",
-                                    "fill":[150,150,150,150],
+                                    "fill":[150,150,150,100],
                                     "pad":[5,5,5,5],
                                     "font":{"size":0.45}
                                 },
                                 {
                                     "type":"hlayout",
-                                    "fill":[25,25,25,150],
+                                    "fill":[25,25,25,100],
                                     "pad":[0,0,0,5],
                                     "line":[150,150,150,150],
                                     "children":[
@@ -627,6 +627,11 @@
                             "text":"Categorization",
                             "detail":"{if:{global.gui_highlight_categories}:'hide':'show'}",
                             "action":"set:gui_highlight_categories:{not:{global.gui_highlight_categories}}"
+                        },
+                        {
+                            "text":"Uniqueness (VI)",
+                            "detail":"{if:{global.gui_show_uniqueness}:'hide <small>(VI needs to be loaded)</small>':'show'}",
+                            "action":"set:gui_show_uniqueness:{not:{global.gui_show_uniqueness}}"
                         },
                         {
                             "text":"Text Labels",

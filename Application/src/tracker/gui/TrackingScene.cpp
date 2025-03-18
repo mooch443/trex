@@ -517,6 +517,9 @@ void TrackingScene::activate() {
         "gui_show_selections",
         "gui_zoom_polygon",
         "gui_zoom_limit",
+        "gui_highlight_categories",
+        "gui_show_match_modes",
+        "gui_show_cliques",
         
         "gui_fish_label",
         
@@ -608,6 +611,7 @@ void TrackingScene::activate() {
                  "track_background_subtraction",
                  "meta_encoding",
                  "individual_image_normalization",
+                 "gui_highlight_categories",
                  "individual_image_size",
                  "individual_image_scale",
                  "gui_zoom_polygon",//"gui_zoom_limit",
@@ -1485,6 +1489,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                         }
                         Print(text.c_str());
                         _state->_controller->_current_percent = percent;
+                        redraw_all();
                         //GUI::instance()->set_status(text);
                     }
                 );

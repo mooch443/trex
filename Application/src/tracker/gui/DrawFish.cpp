@@ -1379,7 +1379,7 @@ void Fish::selection_clicked(Event) {
                     window.add<Circle>(Loc(head->pos<Units::PX_AND_SECONDS>() + offset), Radius{3}, LineClr{Red.alpha(255)});
                 }
             }
-            });
+        });
         
         
         //! this does not work since update() is called within before_draw :S
@@ -1391,10 +1391,7 @@ void Fish::selection_clicked(Event) {
             if(not _basic_stuff.has_value()) {
                 return;
             }
-
-            if(_id.ID() == Idx_t(28)) {
-                //Print("Updating ", _id, " animating=",_view.is_animating());
-            }
+            
             _path_dirty = false;
             
             if (OPTION(gui_show_paths)) {
@@ -1994,42 +1991,6 @@ void Fish::updatePath(Individual& obj, Frame_t to, Frame_t from) {
     }
 
 void Fish::label(const FindCoord& coord, Entangled &e) {
-    if(OPTION(gui_highlight_categories)) {
-        if(_avg_cat.has_value()) {
-            e.add<Circle>(Loc(_view.pos() + _view.size() * 0.5),
-                          Radius{_view.size().length()},
-                          LineClr{Transparent},
-                          FillClr{ColorWheel(_avg_cat.value()).next().alpha(75)});
-        } else {
-            /*e.add<Circle>(Loc(_view.pos() + _view.size() * 0.5),
-                          Radius{_view.size().length()},
-                          LineClr{Transparent},
-                          FillClr{Purple.alpha(15)});*/
-        }
-    }
-    
-    if(OPTION(gui_show_match_modes)) {
-        e.add<Circle>(Loc(_view.pos() + _view.size() * 0.5),
-                      Radius{_view.size().length()},
-                      LineClr{Transparent},
-                      FillClr{ColorWheel(_match_mode.has_value() ? (int)_match_mode.value().value() : -1).next().alpha(50)});
-    }
-    
-    //auto bdx = blob->blob_id();
-    if(OPTION(gui_show_cliques)) {
-        uint32_t i=0;
-        for(auto &clique : GUICache::instance()._cliques) {
-            if(clique.fishs.contains(_id.ID())) {
-                e.add<Circle>(Loc(_view.pos() + _view.size() * 0.5),
-                              Radius{_view.size().length()},
-                              LineClr{Transparent},
-                              FillClr{ColorWheel(i).next().alpha(50)});
-                break;
-            }
-            ++i;
-        }
-    }
-    
     if (!OPTION(gui_show_texts))
         return;
     
@@ -2143,6 +2104,7 @@ void Fish::label(const FindCoord& coord, Entangled &e) {
 Drawable* Fish::shadow() {
     auto active = GUICache::instance().active_ids.find(_id.ID()) != GUICache::instance().active_ids.end();
     
+    std::vector<Layout::Ptr> children;
     if(OPTION(gui_show_shadows) && active) {
         if(!_polygon) {
             _polygon = std::make_shared<Polygon>(std::make_shared<std::vector<Vec2>>());
@@ -2160,8 +2122,50 @@ Drawable* Fish::shadow() {
         }
 #endif
 #endif
-        return _polygon.get();//window.wrap_object(*_polygon);
+        children.emplace_back(_polygon);
+        //return _polygon.get();//window.wrap_object(*_polygon);
     }
-    return nullptr;
+    
+    if(OPTION(gui_highlight_categories)) {
+        if(_avg_cat.has_value()) {
+            children.emplace_back(Layout::Make<Circle>(
+                  Loc(_view.pos() + _view.size() * 0.5),
+                  Radius{_view.size().length()},
+                  LineClr{Transparent},
+                  FillClr{ColorWheel(_avg_cat.value()).next().alpha(75)}));
+        } else {
+            /*e.add<Circle>(Loc(_view.pos() + _view.size() * 0.5),
+                          Radius{_view.size().length()},
+                          LineClr{Transparent},
+                          FillClr{Purple.alpha(15)});*/
+        }
+    }
+    
+    if(OPTION(gui_show_match_modes)) {
+        children.emplace_back(Layout::Make<Circle>(
+              Loc(_view.pos() + _view.size() * 0.5),
+              Radius{_view.size().length()},
+              LineClr{Transparent},
+              FillClr{ColorWheel(_match_mode.has_value() ? (int)_match_mode.value().value() : -1).next().alpha(50)}));
+    }
+    
+    //auto bdx = blob->blob_id();
+    if(OPTION(gui_show_cliques)) {
+        uint32_t i=0;
+        for(auto &clique : GUICache::instance()._cliques) {
+            if(clique.fishs.contains(_id.ID())) {
+                children.emplace_back(Layout::Make<Circle>(
+                      Loc(_view.pos() + _view.size() * 0.5),
+                      Radius{_view.size().length()},
+                      LineClr{Transparent},
+                      FillClr{ColorWheel(i).next().alpha(50)}));
+                break;
+            }
+            ++i;
+        }
+    }
+    
+    _shadow_layout.set_children(children);
+    return children.empty() ? nullptr : &_shadow_layout;
 }
 }

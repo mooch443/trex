@@ -144,6 +144,7 @@ struct UpdateSettings {
         std::unique_ptr<Data> _data;
         std::optional<std::map<track::Idx_t, float>> _raw_preds;
         
+        Layout _shadow_layout;
         Entangled _posture, _label_parent;
         std::unique_ptr<Skelett> _skelett;
         
