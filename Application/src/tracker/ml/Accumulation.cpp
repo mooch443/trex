@@ -184,6 +184,8 @@ void apply_network(const std::shared_ptr<pv::File>& video_source) {
                 
                 for(auto & [_,c] : _apply_callbacks)
                     c();
+                
+                Print("[Apply] Ran ", _apply_callbacks.size() + _apply_percent_callbacks.size(), " callbacks with keys ", extract_keys(_apply_callbacks), " and ", extract_keys(_apply_percent_callbacks),".");
 
                 _apply_callbacks.clear();
                 _apply_percent_callbacks.clear();
@@ -208,7 +210,7 @@ void apply_network(const std::shared_ptr<pv::File>& video_source) {
         std::move(settings)
     };
     
-    
+    e.future().get();
 }
 
 AccumulationLock::AccumulationLock(Accumulation* ptr) : _ptr(ptr) {
