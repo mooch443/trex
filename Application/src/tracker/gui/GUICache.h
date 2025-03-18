@@ -250,7 +250,10 @@ namespace globals {
         std::mutex _fish_map_mutex;
         std::unordered_map<Idx_t, std::unique_ptr<gui::Fish>> _fish_map;
         std::map<Frame_t, track::Statistics> _statistics;
+        
         std::unordered_map<pv::bid, uint16_t> _ranged_blob_labels;
+        std::unordered_map<pv::bid, uint16_t> _blob_labels;
+        std::unordered_map<Idx_t, uint16_t> _individual_avg_categories;
         
         std::vector<track::Clique> _cliques;
         

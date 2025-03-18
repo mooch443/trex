@@ -988,10 +988,31 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
              * Reload all ranged label information.
              */
             _ranged_blob_labels.clear();
+            _blob_labels.clear();
+            _individual_avg_categories.clear();
             
 #if !COMMONS_NO_PYTHON
-            std::shared_lock guard(Categorize::DataStore::range_mutex());
-            if(frameIndex.valid() && !Categorize::DataStore::_ranges_empty_unsafe()) {
+            if(std::shared_lock guard(Categorize::DataStore::cache_mutex());
+               frameIndex.valid())
+            {
+                for(auto &b: raw_blobs) {
+                    auto label = Categorize::DataStore::_label_unsafe(frameIndex, b->blob->blob_id());
+                    if(label.has_value())
+                        _blob_labels[b->blob->blob_id()] = label.value();
+                }
+                
+                auto lock = lock_individuals();
+                for(auto &[id, ptr]: lock.individuals) {
+                    auto label = Categorize::DataStore::_label_averaged_unsafe(ptr, frameIndex);
+                    if(label && label->id.has_value())
+                        _individual_avg_categories[id] = label->id.value();
+                }
+            }
+            
+            if(std::shared_lock guard(Categorize::DataStore::range_mutex());
+               frameIndex.valid()
+               && !Categorize::DataStore::_ranges_empty_unsafe())
+            {
                 Frame_t f(frameIndex);
                 
                 if(raw_blobs.size() > 50) {
@@ -1120,7 +1141,7 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
             std::unordered_set<Idx_t> ids;
             std::unordered_map<Idx_t, Individual*> actives;
             
-            std::unique_lock g(Categorize::DataStore::cache_mutex());
+            //std::unique_lock g(Categorize::DataStore::cache_mutex());
             for (auto& fish : (source.empty() ? active : source)) {
                 auto id = fish->identity().ID();
                 ids.insert(id);

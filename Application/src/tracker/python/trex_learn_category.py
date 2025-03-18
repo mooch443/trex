@@ -119,6 +119,9 @@ class Categorize:
         input_shape = (self.channels, self.height, self.width)
         self.model = PyTorchModel(input_shape, len(self.categories))
         self.model = self.model.float()  # Ensure model is using float
+        self.device = TRex.choose_device()
+        self.model = self.model.to(self.device)
+        TRex.log("Using device: " + str(self.device))
         self.optimizer = optim.Adam(self.model.parameters(), lr=0.0001)
         self.criterion = nn.CrossEntropyLoss()
 
@@ -175,7 +178,7 @@ class Categorize:
         #try:
         if True:
             #with np.load(self.output_file, allow_pickle=True) as npz:
-            npz = torch.load(self.output_file)
+            npz = torch.load(self.output_file, weights_only=False)
             if "samples" in npz:
                 # Handle reshaping if data is in a different shape
                 if len(np.array(npz["samples"]).shape) == 3:
@@ -240,6 +243,8 @@ class Categorize:
                 X_test = torch.tensor(X[self.validation_indexes], dtype=torch.float32) / 127.5 - 1
                 Y_test = torch.tensor(Y[self.validation_indexes], dtype=torch.long)
                 X_test = X_test.permute(0, 3, 1, 2)  # Change to (batch_size, channels, height, width)
+                X_test = X_test.to(self.device)
+                Y_test = Y_test.to(self.device)
 
                 self.model.eval()
                 with torch.no_grad():
@@ -295,6 +300,8 @@ class Categorize:
         for epoch in range(10):
             running_loss = 0.0
             for inputs, labels in train_loader:
+                inputs = inputs.to(self.device)
+                labels = labels.to(self.device)
                 inputs, labels = inputs.float(), labels.long()
 
                 self.optimizer.zero_grad()
@@ -309,6 +316,8 @@ class Categorize:
 
         self.model.eval()
         with torch.no_grad():
+            X_test = X_test.to(self.device)
+            Y_test = Y_test.to(self.device)
             outputs = self.model(X_test)
             loss = self.criterion(outputs, Y_test)
             TRex.log(f"# Final validation loss: {loss.item()}")
@@ -357,6 +366,7 @@ class Categorize:
         assert self.model
         images = torch.tensor(np.array(images), dtype=torch.float32) / 127.5 - 1
         images = images.permute(0, 3, 1, 2)  # Change to (batch_size, channels, height, width)
+        images = images.to(self.device)
         with torch.no_grad():
             y = self.model(images)
             y = nn.Softmax(dim=1)(y).argmax(dim=1).cpu().numpy().tolist()

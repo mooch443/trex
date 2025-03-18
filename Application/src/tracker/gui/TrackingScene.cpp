@@ -159,9 +159,9 @@ TrackingScene::Data::Data(Image::Ptr&& average, pv::File& video)
     _background->add_event_handler(EventType::SCROLL, [this](Event e) {
         handle_zooming(e);
     });
-    _background->add_event_handler(EventType::DRAG, [this](Event e) {
+    /*_background->add_event_handler(EventType::DRAG, [](Event e) {
         Print("Drag: ", e.drag.rx, ",",e.drag.ry);
-    });
+    });*/
     /*SceneManager::getInstance().enqueue([](DrawStructure& graph) {
         graph.root().add_event_handler(EventType::SCROLL, [this](Event e) {
             handle_zooming(e);
@@ -1698,6 +1698,8 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                     map["is_automatic"] = false;
                     map["tracklet"] = Range<Frame_t>{};
                     map["name"] = _id.name();
+                    map["avg_category"] = std::string();
+                    map["category"] = std::string();
                     
                     auto probs = fdx.valid()
                         ? _data->_cache->probs(fdx)
@@ -1752,6 +1754,27 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                                 map["tracklet"] = it->second.tracklet;
                                 map["size"] = Float2_t(it->second.basic_stuff.has_value() ? it->second.basic_stuff->thresholded_size : uint64_t(0)) * SQR(FAST_SETTING(cm_per_pixel));
                                 map["px"].toProperty<Float2_t>() = it->second.basic_stuff.has_value() ? it->second.basic_stuff->thresholded_size : uint64_t(0);
+                                
+                                std::string avg_label;
+                                if(auto it = _data->_cache->_individual_avg_categories.find(fdx);
+                                   it != _data->_cache->_individual_avg_categories.end())
+                                {
+                                    auto label = Categorize::DataStore::label(MaybeLabel(it->second));
+                                    if(label)
+                                        avg_label = label->name;
+                                }
+                                map["avg_category"] = avg_label;
+                                
+                                auto bdx = it->second.bdx;
+                                std::string blob_label;
+                                if(auto it = _data->_cache->_blob_labels.find(bdx);
+                                   it != _data->_cache->_blob_labels.end())
+                                {
+                                    auto label = Categorize::DataStore::label(MaybeLabel(it->second));
+                                    if(label)
+                                        blob_label = label->name;
+                                }
+                                map["category"] = blob_label;
                                 
                                 if(probs) {
                                     if(auto pit = probs->find(it->second.bdx);

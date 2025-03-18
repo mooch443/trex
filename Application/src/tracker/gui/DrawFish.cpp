@@ -206,6 +206,8 @@ Fish::~Fish() {
     
     void Fish::set_data(const UpdateSettings& options, Individual& obj, Frame_t frameIndex, double time, const EventAnalysis::EventMap *events)
     {
+        auto &cache = GUICache::instance();
+        
         _options = options;
         _safe_frame = frameIndex;
         _time = time;
@@ -222,6 +224,9 @@ Fish::~Fish() {
         
         _library_y = GlobalSettings::invalid();
         _avg_cat = std::nullopt;
+        _cat = std::nullopt;
+        _avg_cat_name.clear();
+        _cat_name.clear();
         _next_frame_cache = std::nullopt;
         if (_image.source())
             _image.unsafe_get_source().set_index(-1);
@@ -312,18 +317,29 @@ Fish::~Fish() {
                             : _view.bounds();
         
 #if !COMMONS_NO_PYTHON
-        if(frameIndex == _safe_frame && _basic_stuff) {
-            auto c = Categorize::DataStore::_label_averaged_unsafe(&obj, Frame_t(frameIndex));
-            if(c) {
-                _avg_cat = c->id;
-                _avg_cat_name = c->name;
+        if(/*frameIndex == _safe_frame &&*/ _basic_stuff) {
+            if(auto it = cache._individual_avg_categories.find(_id.ID());
+               it != cache._individual_avg_categories.end())
+            {
+                auto label = Categorize::DataStore::label(MaybeLabel(it->second));
+                if(label) {
+                    _avg_cat = label->id;
+                    _avg_cat_name = label->name;
+                }
             }
         }
         
         auto bdx = _basic_stuff.has_value() ? _basic_stuff->blob.blob_id() : pv::bid();
-        _cat = Categorize::DataStore::_label_unsafe(Frame_t(_frame), bdx);
-        if (_cat.has_value() && _cat != _avg_cat) {
-            _cat_name = Categorize::DataStore::label(_cat)->name;
+        if(bdx.valid()) {
+            if(auto it = cache._blob_labels.find(_basic_stuff->blob.blob_id());
+               it != cache._blob_labels.end())
+            {
+                auto label = Categorize::DataStore::label(MaybeLabel(it->second));
+                if(label) {
+                    _cat = label->id;
+                    _cat_name = label->name;
+                }
+            }
         }
 #endif
         
@@ -436,7 +452,6 @@ Fish::~Fish() {
 
         updatePath(obj, _safe_frame, cmn::max(obj.start_frame(), _safe_frame.try_sub(1000_f)));
         
-        auto &cache = GUICache::instance();
         if(OPTION(gui_show_probabilities)
            && cache.is_selected(_id.ID()))
         {
@@ -999,7 +1014,7 @@ bool Fish::setup_rotated_bbx(const FindCoord& coords, const Vec2& offset, const 
        //ellipse = std::make_unique<periodic::points_t::element_type>(vertices);
     }
     
-    const auto init = [this](auto& o) {
+    const auto init = [](auto&) {
         /*if constexpr(std::is_base_of_v<Drawable, std::remove_cvref_t<decltype(o)>>) {
             //Print("Registering ", o);
             o.on_hover([this](Event e) {
@@ -1146,7 +1161,7 @@ void Fish::selection_clicked(Event) {
         
         const auto centroid = _basic_stuff.has_value() ? &_basic_stuff->centroid : nullptr;
         const auto head = _posture_stuff.has_value() ? _posture_stuff->head.get() : nullptr;
-        const auto pcentroid = _posture_stuff.has_value() ? _posture_stuff->centroid_posture.get() : nullptr;
+        //const auto pcentroid = _posture_stuff.has_value() ? _posture_stuff->centroid_posture.get() : nullptr;
         
         _fish_pos = centroid
             ? centroid->pos<Units::PX_AND_SECONDS>()
