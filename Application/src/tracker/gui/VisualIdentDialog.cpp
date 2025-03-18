@@ -36,7 +36,7 @@ void check_global_tracklets_available(GUITaskQueue_t* gui,
             
         } else if(gui) {
             gui->enqueue([message = std::string(message)](IMGUIBase*, DrawStructure& graph){
-                graph.dialog("Initialization of the training process failed.\n\n"+settings::htmlify(message), "<sym>⮿</sym> Error");
+                graph.dialog("Initialization of the training process failed.\n\n"+settings::htmlify(message), "<sym>☣</sym> Error");
             });
             
         } else {
@@ -122,7 +122,7 @@ void generate_training_data(GUITaskQueue_t* gui, bool force_load, std::shared_pt
                 throw U_EXCEPTION("The training process failed. Please check whether you are in the right python environment and check previous error messages.");
 
             if (graph)
-                graph->dialog("The training process failed. Please check whether you are in the right python environment and check out this error message:\n\n<i>" + escape_html(error.what()) + "</i>", "<sym>⮿</sym> Error");
+                graph->dialog("The training process failed. Please check whether you are in the right python environment and check out this error message:\n\n<i>" + escape_html(error.what()) + "</i>", "<sym>☣</sym> Error");
             FormatError("The training process failed. Please check whether you are in the right python environment and check previous error messages.");
             return false;
         }
@@ -285,7 +285,7 @@ void generate_training_data(GUITaskQueue_t* gui, bool force_load, std::shared_pt
                         } catch(const SoftExceptionImpl& error) {
                             if(graph)
                                 graph->dialog("VI initialization failed. Please check whether you are in the right python environment and check out this error message:\n\n<i>"
-                                              + escape_html(error.what()) + "</i>", "<sym>⮿</sym> Error");
+                                              + escape_html(error.what()) + "</i>", "<sym>☣</sym> Error");
                             FormatError("VI initialization failed. Please check whether you are in the right python environment and check previous error messages: ", error.what());
                         }
                     });

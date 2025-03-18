@@ -1235,7 +1235,7 @@ void write_config(const pv::File* video, bool overwrite, gui::GUITaskQueue_t* qu
                         } else {
                             FormatExcept("Dont have write permissions for file ",filename.str(),".");
                             queue->enqueue([filename](auto, auto& graph){
-                                graph.dialog("Cannot write configuration to <cyan><c>" + filename.str()+"</c></cyan>. Please check file permissions.", "<sym>⮿</sym> Error");
+                                graph.dialog("Cannot write configuration to <cyan><c>" + filename.str()+"</c></cyan>. Please check file permissions.", "<sym>☣</sym> Error");
                             });
                         }
                     }

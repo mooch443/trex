@@ -928,7 +928,7 @@ bool Accumulation::start() {
                 if(_gui)
                     _gui->enqueue([text](auto, gui::DrawStructure& graph) {
                         using namespace gui;
-                        graph.dialog(text, "<sym>⮿</sym> Training Error");
+                        graph.dialog(text, "<sym>☣</sym> Training Error");
                     });
                 
                 FormatWarning(text);
@@ -1082,7 +1082,7 @@ bool Accumulation::start() {
                 if(_gui)
                     _gui->enqueue([text](auto, gui::DrawStructure& graph) {
                         using namespace gui;
-                        graph.dialog(text, "<sym>⮿</sym> Training Error");
+                        graph.dialog(text, "<sym>☣</sym> Training Error");
                     });
                 
                 FormatExcept(text.c_str());
@@ -1605,7 +1605,7 @@ bool Accumulation::start() {
                 if(_gui)
                     _gui->enqueue([text](auto, gui::DrawStructure& graph) {
                         using namespace gui;
-                        graph.dialog(text, "<sym>⮿</sym> Training Error");
+                        graph.dialog(text, "<sym>☣</sym> Training Error");
                     });
                 
                 FormatExcept(text);

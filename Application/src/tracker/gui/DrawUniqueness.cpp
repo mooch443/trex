@@ -70,6 +70,9 @@ DrawUniqueness::DrawUniqueness(GUICache* cache, std::weak_ptr<pv::File> video_so
         }
     });
     on_hover([this](Event e){
+        if(not _data)
+            return;
+        
         _data->hover_rect.set(Box{
             e.hover.x + _data->graph.pos().x,
             _data->graph.pos().y,
@@ -88,6 +91,7 @@ DrawUniqueness::~DrawUniqueness() {
     _data->hover_rect.set_parent(nullptr);
     _data->graph.set_parent(nullptr);
     _data->_close.set_parent(nullptr);
+    _data = nullptr;
 }
 
 void DrawUniqueness::set(Frame_t frame) {
@@ -242,18 +246,19 @@ void DrawUniqueness::Data::update(Entangled& base) {
     auto coords = FindCoord::get();
     auto size = Size2(max(500_F, coords.screen_size().width - 300_F), min(coords.screen_size().height - 100_F, 400_F));
     
-    if(auto p = base.pos();
-       p.x < 0 || p.y < 0)
     {
-        base.set_pos(Vec2());
-        
-    } else if(auto screen = coords.screen_size();
-              p.x >= screen.width
-           || p.y >= screen.height)
-    {
-        base.set_pos(screen - size);
+        auto p = base.pos();
+        if(p.x < 0 || p.y < 0) {
+            base.set_pos(Vec2(max(p.x, 0), max(p.y, 0)));
+        }
+        if(auto screen = coords.screen_size();
+           p.x + size.width > screen.width
+           || p.y + size.height > screen.height)
+        {
+            Vec2 min_pos = screen - size;
+            base.set_pos(min(min_pos, p));
+        }
     }
-    
     
     std::lock_guard guard(mutex);
     if(not estimated_uniqueness.empty()) {
@@ -263,13 +268,14 @@ void DrawUniqueness::Data::update(Entangled& base) {
            || not graph.size().Equals(size))
         {
             graph.clear();
-            _title.set_txt("Uniqueness"
+            _title.set_txt("<h3>Uniqueness</h3>\n<c>"
                     + (last_origin.has_value() && not last_origin->_path.empty()
-                        ? ": "+utils::ShortenText(last_origin->_path.filename(), 35)
-                        : (last_origin->loaded() ? "" : ": No VI weights loaded"))
+                        ? utils::ShortenText(last_origin->_path.filename(), 100)
+                        : (last_origin->loaded() ? "" : "No VI weights loaded"))
                             + ((last_origin.has_value() && last_origin->_uniqueness.has_value() && last_origin->_uniqueness.value() > 0)
-                            ? " (" + dec<1>(last_origin->_uniqueness.value()*100).toStr()+"%)"
-                            : ""));
+                            ? " (<nr>" + dec<1>(last_origin->_uniqueness.value()*100).toStr()+"</nr><i>%</i>)"
+                            : "")
+                    + "</c>");
             
             long_t L = (long_t)uniquenesses.size();
             for (long_t i=0; i<L; ++i) {
@@ -290,7 +296,7 @@ void DrawUniqueness::Data::update(Entangled& base) {
             }
             
             graph.set_ranges(Rangef(_cache->tracked_frames.start.get(), _cache->tracked_frames.end.get()), Rangef(0, 1));
-            graph.add_function(Graph::Function("raw", Graph::Type::DISCRETE, [this, uq = &estimated_uniqueness](float x) -> float {
+            graph.add_function(Graph::Function("", Graph::Type::DISCRETE, [this, uq = &estimated_uniqueness](float x) -> float {
                 std::lock_guard guard(mutex);
                 auto it = uq->upper_bound(Frame_t(sign_cast<uint32_t>(x)));
                 if(!uq->empty() && it != uq->begin())
@@ -301,17 +307,17 @@ void DrawUniqueness::Data::update(Entangled& base) {
                 return gui::GlobalSettings::invalid();
             }, Cyan));
             graph.add_points("", uniquenesses);
-            graph.set_bounds(Bounds(Vec2(0,50), size - Size2(0,50)));
+            graph.set_bounds(Bounds(Vec2(10,_title.height() + _title.pos().y + 10), size - Size2(10 * 2,_title.height() + _title.pos().y + 15)));
         }
         
         graph.set_zero(frameNr.get());
         base.advance_wrap(graph);
         graph.set_scale(base.scale().reciprocal());
         
-        _title.set(Loc{5, 5});
+        _title.set(Loc{15, 15});
         base.advance_wrap(_title);
         base.advance_wrap(_close);
-        _close.set(Loc{size.width - 10, 10});
+        _close.set(Loc{size.width - 15, 15});
         base.set_size(size);
         
         if(base.hovered()) {

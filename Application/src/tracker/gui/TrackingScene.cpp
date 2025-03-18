@@ -350,7 +350,7 @@ bool TrackingScene::on_global_event(Event event) {
                         if(result == Dialog::Result::OKAY) {
                             SETTING(terminate) = true;
                         }
-                    }, "Are you sure you want to exit the application? Any unsaved changes will be discarded.", "<sym>⮿</sym> Exit", "Quit", "Cancel");
+                    }, "Are you sure you want to exit the application? Any unsaved changes will be discarded.", "Exit", "Quit", "Cancel");
                 });
                 break;
             case Keyboard::Space:
@@ -1375,7 +1375,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                         if(result == Dialog::Result::OKAY) {
                             SETTING(terminate) = true;
                         }
-                    }, "Are you sure you want to exit the application? Any unsaved changes will be discarded.", "<sym>⮿</sym> Exit", "Quit", "Cancel");
+                    }, "Are you sure you want to exit the application? Any unsaved changes will be discarded.", "Exit", "Quit", "Cancel");
                 });
             }),
             ActionFunc("set", [this](Action action) {
