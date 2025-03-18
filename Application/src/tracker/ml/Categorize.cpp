@@ -264,7 +264,7 @@ void start_applying(std::weak_ptr<pv::File> video_source) {
         .num_threads = max_threads,
         .normalization = normalize,
         .item_step = 1u,
-        .tracklet_min_samples = Frame_t(FAST_SETTING(categories_min_sample_images)),
+        .tracklet_min_samples = Frame_t(FAST_SETTING(categories_apply_min_tracklet_length)),
         .query_lock = [](){
             return std::make_unique<std::shared_lock<std::shared_mutex>>(DataStore::cache_mutex());
         }

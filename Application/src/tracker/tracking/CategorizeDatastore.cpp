@@ -298,8 +298,7 @@ Sample::Ptr DataStore::random_sample(std::weak_ptr<pv::File> source, Idx_t fid) 
         if(!tracklet)
             return Sample::Invalid();
         
-        const auto max_len = FAST_SETTING(tracklet_max_length);
-        const auto min_len = uint32_t(max_len > 0 ? max(1, max_len * 0.1 * float(FAST_SETTING(frame_rate))) : FAST_SETTING(categories_min_sample_images));
+        const auto min_len = FAST_SETTING(categories_train_min_tracklet_length);
         return sample(source, tracklet, fish, 150u, min_len);
         
     }).or_else([](auto) -> tl::expected<Sample::Ptr, const char*> {

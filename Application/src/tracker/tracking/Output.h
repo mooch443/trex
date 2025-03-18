@@ -125,8 +125,9 @@ namespace Output {
             V_36, // writing blob::Prediction objects to results files
             V_37, // writing main outline for blob::Prediction objects
             V_38, // writing midline conversion factor
+            V_39, // adding AutoAssign
             
-            current = V_38
+            current = V_39
         };
         
     private:

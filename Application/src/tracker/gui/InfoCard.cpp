@@ -261,7 +261,7 @@ Float2_t DrawSegments::add_segments(bool display_hints, float)
         p.y += text->height();
     }
     
-    p.y += add<Text>(Str(Meta::toStr(_tracklets.size())+" segments"),
+    p.y += add<Text>(Str(Meta::toStr(_tracklets.size())+" tracklets"),
                      Loc(Vec2(offx, p.y - 12)),
                      TextClr(Gray),
                      _font)
@@ -504,7 +504,7 @@ void InfoCard::update() {
 #if DEBUG_ORIENTATION
         auto text =
 #endif
-        add<Text>(Str(Meta::toStr(tracklets.size())+" segments"), Loc(Vec2(10, y) + Vec2(offx, Base::default_line_spacing(font))), TextClr(White), Font(0.8f));
+        add<Text>(Str(Meta::toStr(tracklets.size())+" tracklets"), Loc(Vec2(10, y) + Vec2(offx, Base::default_line_spacing(font))), TextClr(White), Font(0.8f));
         
 #if DEBUG_ORIENTATION
         auto reason = fish->why_orientation(frameNr);

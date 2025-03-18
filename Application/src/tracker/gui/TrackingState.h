@@ -126,7 +126,7 @@ public:
     void on_apply_done();
     
     void save_state(GUITaskQueue_t*, bool);
-    std::future<void> load_state(GUITaskQueue_t*, file::Path);
+    std::future<void> load_state(GUITaskQueue_t*, file::Path, bool force = false);
     
 private:
     template<typename Func>

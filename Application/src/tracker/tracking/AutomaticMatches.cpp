@@ -1,19 +1,25 @@
 #include "AutomaticMatches.h"
 #include <tracking/Tracker.h>
 
-namespace track {
+namespace track::AutoAssign {
 
-namespace AutoAssign {
-
+std::shared_mutex _mutex;
 std::vector<RangesForID> _automatically_assigned_ranges;
 
 void clear_automatic_ranges() {
+    std::unique_lock guard{_mutex};
     _automatically_assigned_ranges.clear();
 }
 
 void set_automatic_ranges(decltype(_automatically_assigned_ranges)&& tmp_ranges)
 {
+    std::unique_lock guard{_mutex};
     _automatically_assigned_ranges = std::move(tmp_ranges);
+}
+
+bool have_assignments() {
+    std::unique_lock guard{_mutex};
+    return not _automatically_assigned_ranges.empty();
 }
 
 void add_assigned_range(std::vector<RangesForID>& assigned, Idx_t fdx, const Range<Frame_t>& range, std::vector<pv::bid>&& bids) {
@@ -30,6 +36,7 @@ std::map<pv::bid, Idx_t> automatically_assigned(Frame_t frame) {
     //LockGuard guard;
     std::map<pv::bid, Idx_t> blob_for_fish;
     
+    std::shared_lock guard{_mutex};
     for(auto && [fdx, bff] : _automatically_assigned_ranges) {
         //blob_for_fish[fdx] = pv::bid::invalid;
         
@@ -46,7 +53,7 @@ std::map<pv::bid, Idx_t> automatically_assigned(Frame_t frame) {
 }
 
 void delete_automatic_assignments(Idx_t fish_id, const FrameRange& search_range) {
-    LockGuard guard(w_t{}, "delete_automatic_assignments");
+    std::unique_lock guard{_mutex};
     
     auto it = std::find(_automatically_assigned_ranges.begin(), _automatically_assigned_ranges.end(), fish_id);
     if(it == _automatically_assigned_ranges.end()) {
@@ -128,7 +135,106 @@ void delete_automatic_assignments(Idx_t fish_id, const FrameRange& search_range)
     }
 }
 
+void write(cmn::DataFormat& ref) {
+    /// Check if there are no automatic assignments; if so, write 0 and exit.
+    if(not have_assignments()) {
+        ref.write<uint64_t>(0);
+        return;
+    }
+    
+    /// Acquire a shared lock to safely read the automatic assignments.
+    std::shared_lock guard{_mutex};
+    /// Write the total number of automatic assignments.
+    ref.write<uint64_t>(_automatically_assigned_ranges.size());
+    
+    for(auto &[id, ranges] : _automatically_assigned_ranges) {
+        assert(id.valid());
+        /// Write the valid fish identifier as a 32-bit unsigned integer.
+        ref.write<uint32_t>(id.get());
+        /// Write the number of ranges associated with this fish.
+        ref.write<uint64_t>(ranges.size());
+        
+        for(uint64_t i = 0; i < ranges.size(); ++i) {
+            // If the range's start or end is not valid, write default values and skip this range.
+            if(not ranges[i].range.start.valid()
+               || not ranges[i].range.end.valid())
+            {
+                ref.write<uint32_t>(0);
+                ref.write<uint32_t>(0);
+                ref.write<uint64_t>(0);
+                continue;
+            }
+            
+            /// Write the starting frame of the range.
+            ref.write<uint32_t>(ranges[i].range.start.get());
+            /// Write the ending frame of the range.
+            ref.write<uint32_t>(ranges[i].range.end.get());
+            
+            /// Write the number of bid IDs. The count must equal the length of the range plus one.
+            ref.write<uint64_t>(ranges[i].bids.size());
+            assert(ranges[i].bids.size() == ranges[i].range.length().get() + 1);
+            
+            /// Iterate over each bid and write its identifier.
+            for(auto& bdx : ranges[i].bids) {
+                assert(bdx.valid());
+                ref.write<uint32_t>(bdx._id);
+            }
+        }
+    }
+}
 
+void read(cmn::DataFormat& ref) {
+    uint64_t N;
+    /// Read the total number of automatic assignments from the binary stream.
+    ref.read<uint64_t>(N);
+    
+    /// If there are no assignments, exit early.
+    if(N == 0)
+        return;
+    
+    using namespace AutoAssign;
+    
+    /// Temporary container to accumulate the read assignments.
+    std::vector<RangesForID> ranges_for_id(N);
+    for(auto& [id, ranges] : ranges_for_id) {
+        /// Read the fish identifier.
+        ref.read<uint32_t>(id._identity);
+        assert(id.valid());
+        
+        uint64_t Nranges;
+        /// Read the number of ranges associated with the current fish.
+        ref.read<uint64_t>(Nranges);
+        ranges.resize(Nranges);
+        
+        for(auto& range : ranges) {
+            uint32_t start, end;
+            /// Read the starting and ending frames for the range.
+            ref.read<uint32_t>(start);
+            ref.read<uint32_t>(end);
+            
+            /// Construct the frame range from the read start and end values.
+            range.range = Range<Frame_t>{
+                Frame_t(start),
+                Frame_t(end)
+            };
+            
+            uint64_t n;
+            /// Read the number of bid IDs, which should equal (end - start + 1).
+            ref.read<uint64_t>(n);
+            assert(n == end - start + 1);
+            
+            /// Read each bid ID and store them in a vector.
+            range.bids.resize(n);
+            for (auto &bid : range.bids) {
+                uint32_t bdx;
+                ref.read<uint32_t>(bdx);
+                bid = pv::bid(bdx);
+            }
+        }
+    }
+    
+    /// Update the global automatic assignments with the newly read data.
+    set_automatic_ranges(std::move(ranges_for_id));
 }
 
 }

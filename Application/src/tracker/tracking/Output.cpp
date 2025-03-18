@@ -11,6 +11,8 @@
 #include <tracking/IndividualManager.h>
 #include <tracking/DatasetQuality.h>
 #include <misc/SettingsInitializer.h>
+#include <tracking/TrackingHelper.h>
+#include <tracking/AutomaticMatches.h>
 
 using namespace track;
 typedef int64_t data_long_t;
@@ -934,6 +936,25 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
         fish->_qrcode_identities = qrcode_identities;
     }
     
+    /// Read auto match property
+    fish->automatically_matched.clear();
+    if(_header.version >= Versions::V_39)
+    {
+        uint64_t N;
+        ref.read<uint64_t>(N);
+        
+        for(uint64_t i = 0; i < N; ++i) {
+            uint32_t index;
+            ref.read<uint32_t>(index);
+            
+            if(not Frame_t(index).valid()) {
+                FormatWarning("[AutoAssign] Read invalid frame ", index, " from ", filename(), " for individual ", fish->identity());
+                continue;
+            }
+            fish->automatically_matched.insert(Frame_t(index));
+        }
+    }
+    
     //delta = this->tell() - pos_before;
     try {
         _post_pool.enqueue(fish);
@@ -1142,6 +1163,11 @@ uint64_t Data::write(const Individual& val) {
 #else
     pack.write<uint64_t>(0u);
 #endif
+    
+    pack.write<uint64_t>(val.automatically_matched.size());
+    for(auto &frame : val.automatically_matched) {
+        pack.write<uint32_t>(frame.valid() ? frame.get() : static_cast<uint32_t>(-1));
+    }
     
     //str = Meta::toStr(FileSize(pack.size()));
     //auto estimate = Meta::toStr(FileSize(pack_size));
@@ -1363,6 +1389,9 @@ namespace Output {
         
         //! write other tag representation
         tags::write(*this);
+        
+        //! write automatic assignments, if we have any
+        AutoAssign::write(*this);
     }
     
     uint64_t ResultsFormat::write_data(uint64_t num_bytes, const char *buffer) {
@@ -1604,6 +1633,11 @@ FrameProperties CompatibilityFrameProperties::convert(Frame_t frame) const {
         
         if(file.header().version >= ResultsFormat::Versions::V_35) {
             tags::read(file);
+        }
+        
+        //! see if we need automatic assignments
+        if(file.header().version >= ResultsFormat::Versions::V_39) {
+            AutoAssign::read(file);
         }
 
         // read frame properties

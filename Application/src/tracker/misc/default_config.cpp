@@ -214,7 +214,8 @@ ENUM_CLASS_DOCS(gpu_torch_device_t,
         {"matching_probability_threshold", "match_min_probability"},
         {"manual_ignore_bdx", "track_ignore_bdx"},
         {"track_absolute_difference", "track_threshold_is_absolute"},
-        {"enable_absolute_difference", "detect_threshold_is_absolute"}
+        {"enable_absolute_difference", "detect_threshold_is_absolute"},
+        {"categories_min_sample_images", "categories_apply_min_tracklet_length"}
     };
 
 /**
@@ -655,7 +656,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("gui_show_texts", true, "Showing or hiding individual identity (and related) texts in tracking view.");
         CONFIG("gui_show_matching_info", true, "Showing or hiding probabilities for relevant blobs in the info card if an individual is selected.");
         CONFIG("gui_show_misc_metrics", true, "Showing or hiding some metrics for a selected individual in the info card.");
-        CONFIG("gui_show_autoident_controls", true, "Showing or hiding controls for removing forced auto-ident in the info card if an individual is selected.");
+        CONFIG("gui_show_autoident_controls", false, "Showing or hiding controls for removing forced auto-ident in the info card if an individual is selected.");
         CONFIG("gui_show_infocard", true, "Showing / hiding some facts about the currently selected individual on the top left of the window.");
         CONFIG("gui_show_timing_stats", false, "Showing / hiding rendering information.");
         CONFIG("gui_show_blobs", true, "Showing or hiding individual raw blobs in tracking view (are always shown in RAW mode).");
@@ -760,11 +761,12 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         
         CONFIG("gui_highlight_categories", false, "If enabled, categories (if applied in the video) will be highlighted in the tracking view.");
         CONFIG("categories_ordered", std::vector<std::string>{}, "Ordered list of names of categories that are used in categorization (classification of types of individuals).");
-        CONFIG("categories_min_sample_images", uint32_t(0), "Minimum number of images for a sample to be considered relevant. This will default to 50, or ten percent of `tracklet_max_length`, if that parameter is set. If `tracklet_max_length` is set, the value of this parameter will be ignored. If set to zero or one, then all samples are valid.");
+        CONFIG("categories_train_min_tracklet_length", uint32_t(50), "Minimum number of images for a sample to be considered relevant for training categorization. Will default to 50, meaning all tracklets longer than that will be presented for training.");
+        CONFIG("categories_apply_min_tracklet_length", uint32_t(0), "Minimum number of images for a sample to be considered relevant when applying the categorization. This defaults to 0, meaning all samples are valid. If set to anything higher, only tracklets with more than N frames will be processed.");
         CONFIG("tracklet_max_length", float(0), "If set to something bigger than zero, this represents the maximum number of seconds that a tracklet can be.");
         
         CONFIG("track_only_segmentations", false, "If this is enabled, only segmentation results will be tracked - this avoids double tracking of bounding boxes and segmentation masks.");
-        CONFIG("track_only_categories", std::vector<std::string>{}, "If this is a non-empty list, only objects that have previously been assigned one of the correct categories will be tracked. Note that this also affects anything below `categories_min_sample_images` length (e.g. noise particles or short tracklets).");
+        CONFIG("track_only_categories", std::vector<std::string>{}, "If this is a non-empty list, only objects that have previously been assigned one of the correct categories will be tracked. Note that this also affects anything below `categories_apply_min_tracklet_length` length (e.g. noise particles or short tracklets).");
         CONFIG("track_only_classes", std::vector<std::string>{}, "If this is a non-empty list, only objects that have any of the given labels (assigned by a ML network during video conversion) will be tracked.");
         CONFIG("track_conf_threshold", 0.1_F, "During tracking, detections with confidence levels below the given fraction (0-1) for labels (assigned by an ML network during video conversion) will be discarded. These objects will not be assigned to any individual.");
         

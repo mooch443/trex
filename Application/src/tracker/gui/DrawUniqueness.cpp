@@ -7,6 +7,7 @@
 #include <gui/WorkProgress.h>
 #include <ml/Accumulation.h>
 #include <misc/Coordinates.h>
+#include <gui/types/Button.h>
 
 namespace py = Python;
 
@@ -15,6 +16,13 @@ namespace cmn::gui {
 struct DrawUniqueness::Data {
     Graph graph{Bounds(50, 100, 800, 400), "uniqueness"};
     Rect hover_rect{attr::Box{0,0,0,0}, FillClr{White.alpha(15)}};
+    StaticText _title{attr::Margins{0, 0, 0, 0}};
+    Button _close{
+        attr::Size{30,30},
+        Str{"<sym>✕</sym>"},
+        FillClr{100,50,50,150},
+        TextClr{White}, Font{0.55}, Margins{-5,0,0,0}, Origin{1,0}
+    };
     std::mutex mutex;
     std::map<Frame_t, float> estimated_uniqueness;
     std::vector<Vec2> uniquenesses;
@@ -46,11 +54,13 @@ DrawUniqueness::DrawUniqueness(GUICache* cache, std::weak_ptr<pv::File> video_so
     assert(cache);
     _data->_cache = cache;
     _data->_video_source = video_source;
-    _data->graph.on_click([this](Event e){
+    _data->graph.set_clickable(false);
+    _data->graph.set_background(Transparent);
+    on_click([this](Event e){
         auto frames = max(0_F, (Float2_t)_data->_cache->tracked_frames.end.get() - (Float2_t)_data->_cache->tracked_frames.start.get());
         if(_data && _data->graph.size().width > 0) {
             auto frameIndex = saturate(e.mbutton.x / _data->graph.size().width * frames, 0_F, (Float2_t)frames);
-            if(euclidean_distance(_data->graph.absolute_drag_start(), _data->graph.global_bounds().pos()) < 5)
+            if(euclidean_distance(absolute_drag_start(), global_bounds().pos()) < 5)
             {
                 //Print("click = ", e.mbutton.x, ", ", e.mbutton.y, " = ", frameIndex);
                 SETTING(gui_frame) = Frame_t((uint32_t)frameIndex);
@@ -59,14 +69,25 @@ DrawUniqueness::DrawUniqueness(GUICache* cache, std::weak_ptr<pv::File> video_so
             }
         }
     });
-    _data->graph.on_hover([this](Event e){
-        _data->hover_rect.set(Box{e.hover.x + _data->graph.pos().x, _data->graph.pos().y, 1, _data->graph.height()});
+    on_hover([this](Event e){
+        _data->hover_rect.set(Box{
+            e.hover.x + _data->graph.pos().x,
+            _data->graph.pos().y,
+            1,
+            _data->graph.height()});
     });
+    
+    _data->_close.on_click([](auto){
+        SETTING(gui_show_uniqueness) = false;
+    });
+    
+    set_draggable();
 }
 
 DrawUniqueness::~DrawUniqueness() {
     _data->hover_rect.set_parent(nullptr);
     _data->graph.set_parent(nullptr);
+    _data->_close.set_parent(nullptr);
 }
 
 void DrawUniqueness::set(Frame_t frame) {
@@ -242,7 +263,7 @@ void DrawUniqueness::Data::update(Entangled& base) {
            || not graph.size().Equals(size))
         {
             graph.clear();
-            graph.set_title("Uniqueness"
+            _title.set_txt("Uniqueness"
                     + (last_origin.has_value() && not last_origin->_path.empty()
                         ? ": "+utils::ShortenText(last_origin->_path.filename(), 35)
                         : (last_origin->loaded() ? "" : ": No VI weights loaded"))
@@ -280,16 +301,24 @@ void DrawUniqueness::Data::update(Entangled& base) {
                 return gui::GlobalSettings::invalid();
             }, Cyan));
             graph.add_points("", uniquenesses);
-            graph.set_draggable();
-            graph.set_size(size);
+            graph.set_bounds(Bounds(Vec2(0,50), size - Size2(0,50)));
         }
         
         graph.set_zero(frameNr.get());
         base.advance_wrap(graph);
         graph.set_scale(base.scale().reciprocal());
         
-        if(graph.hovered()) {
+        _title.set(Loc{5, 5});
+        base.advance_wrap(_title);
+        base.advance_wrap(_close);
+        _close.set(Loc{size.width - 10, 10});
+        base.set_size(size);
+        
+        if(base.hovered()) {
+            base.set_background(Black.alpha(200), Color::blend(Green.alpha(100), White.alpha(200)).alpha(200));
             base.advance_wrap(hover_rect);
+        } else {
+            base.set_background(Black.alpha(125), White.alpha(200));
         }
     }
 #endif

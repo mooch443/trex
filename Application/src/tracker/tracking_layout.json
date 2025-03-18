@@ -111,13 +111,13 @@
                                     "children":[
                                         {
                                             "type":"stext",
-                                            "text":"<c><gray>tracklet_average[</gray><nr>{primary_selection.avg_category}</nr><gray>]</gray></c>",
+                                            "text":"<c><gray>tracklet[</gray><nr>{shorten:{primary_selection.avg_category}:3}</nr><gray>]</gray></c>",
                                             "pad":[5,5,5,5],
                                             "font":{"size":0.45}
                                         },
                                         {
                                             "type":"stext",
-                                            "text":"<c><gray>local[</gray>{primary_selection.category}<gray>]</gray></c>",
+                                            "text":"<c><gray>frame[</gray>{shorten:{primary_selection.category}:3}<gray>]</gray></c>",
                                             "pad":[5,5,5,5],
                                             "font":{"size":0.45}
                                         }
@@ -157,13 +157,13 @@
                                         "children":[
                                             {
                                                 "type":"stext",
-                                                "text":"<c><gray>segment was force-assigned by\nvisual ident <sym>⮧</sym></gray></c>",
+                                                "text":"<c><gray>tracklet was force-assigned by\nvisual identification <sym>⮧</sym></gray></c>",
                                                 "pad":[5,5,5,5],
                                                 "font":{"size":0.45}
                                             },
                                             {
                                                 "type":"button",
-                                                "text":"<sym>🗘</sym> unassign entire segment",
+                                                "text":"<sym>🗘</sym> unassign entire tracklet",
                                                 "action":"remove_automatic_matches:{primary_selection.fdx}:{primary_selection.tracklet}",
                                                 "font":{"size":0.5},
                                                 "size":[210,25],
@@ -240,11 +240,6 @@
                                                         "type":"collection",
                                                         "children":[
                                                             {
-                                                                "type":"rect",
-                                                                "size":"[{*:{if:{hovered:infos}:0.3:0.0}:{infocard_width}},0]",
-                                                                "fill":[0,0,0,0]
-                                                            },
-                                                            {
                                                                 "type": "stext",
                                                                 "max_size": "[{*:0.3:{infocard_width}},300]",
                                                                 "pad":[5,5,5,5],
@@ -256,11 +251,6 @@
                                                     {
                                                         "type":"collection",
                                                         "children":[
-                                                            {
-                                                                "type":"rect",
-                                                                "size":"[{*:{if:{hovered:infos}:0.68:1.0}:{infocard_width}},0]",
-                                                                "fill":[0,0,0,0]
-                                                            },
                                                             {
                                                                 "type":"stext",
                                                                 "font": {"size": 0.5},
@@ -1028,7 +1018,7 @@
                                     {
                                         "type":"stext",
                                         "pad":[5,5,5,5],
-                                        "text":"{if:{is_segment:{smart_highlighted}}:'<b>{.get_tracklet:{smart_highlighted}}</b>':'<i>no global segment</i>'}\n{if:{number_individuals}:{number_individuals} {global.individual_prefix}{if:{>:{number_individuals}:1}:s:''}:''}",
+                                        "text":"{if:{is_segment:{smart_highlighted}}:'<b>{.get_tracklet:{smart_highlighted}}</b>':'<i>no global tracklet</i>'}\n{if:{number_individuals}:{number_individuals} {global.individual_prefix}{if:{>:{number_individuals}:1}:s:''}:''}",
                                         "font":{"size":0.6}
                                     }
                                 ]

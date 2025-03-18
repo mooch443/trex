@@ -609,7 +609,7 @@ void TrackingState::save_state(GUITaskQueue_t* gui, bool force_overwrite) {
         addSafeTask("Saving results...", fn);
 }
 
-std::future<void> TrackingState::load_state(GUITaskQueue_t* gui, file::Path from) {
+std::future<void> TrackingState::load_state(GUITaskQueue_t* gui, file::Path from, bool force) {
     static bool state_visible = false;
     if(state_visible)
         return {};
@@ -912,15 +912,19 @@ std::future<void> TrackingState::load_state(GUITaskQueue_t* gui, file::Path from
     };
     
     if(gui)
-        return gui->enqueue([this, fn = std::move(fn)](auto, DrawStructure& graph){
-            graph.dialog([this, fn](Dialog::Result result) {
-                if(result == Dialog::Result::OKAY) {
-                    addSafeTask("Loading results...", fn);
-                } else {
-                    state_visible = false;
-                }
-                
-            }, "Are you sure you want to load results from <c><cyan>"+Output::TrackingResults::expected_filename().str()+"</cyan></c>?\nThis will discard any unsaved changes.", "Load results", "Yes", "Cancel");
+        return gui->enqueue([this, fn = std::move(fn), force](auto, DrawStructure& graph){
+            if(force) {
+                addSafeTask("Loading results...", fn);
+            } else {
+                graph.dialog([this, fn](Dialog::Result result) {
+                    if(result == Dialog::Result::OKAY) {
+                        addSafeTask("Loading results...", fn);
+                    } else {
+                        state_visible = false;
+                    }
+                    
+                }, "Are you sure you want to load results from <c><cyan>"+Output::TrackingResults::expected_filename().str()+"</cyan></c>?\nThis will discard any unsaved changes.", "Load results", "Yes", "Cancel");
+            }
         });
     else
         return addSafeTask("Loading results...", fn);

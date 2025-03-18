@@ -509,7 +509,7 @@ void Bowl::set_data(Frame_t) {
 void Bowl::update_scaling(double dt) {
     dt = saturate(dt, 0.001, 0.1);
     
-    const float lerp_speed = 3.0f * saturate(GUI_SETTINGS(gui_playback_speed), 1.f, 10.f);
+    const float lerp_speed = 4.0f * saturate(GUI_SETTINGS(gui_playback_speed), 1.f, 10.f);
     float lerp_factor = 1.0f - std::exp(-lerp_speed * dt);
     
     _current_pos = _current_pos + (_target_pos - _current_pos) * lerp_factor;

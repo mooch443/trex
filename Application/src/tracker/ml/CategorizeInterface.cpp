@@ -103,7 +103,7 @@ Cell::Cell() :
     _button_layout(std::make_shared<HorizontalLayout>()),
     _selected(false),
     _image(std::make_shared<ExternalImage>(Image::Make(50,50,1))),
-    _text(std::make_shared<StaticText>(Font(0.5))),
+    _text(std::make_shared<StaticText>(Font(0.45))),
     _cat_border(std::make_shared<Rect>(Box(50,50))),
     _block(std::make_shared<Entangled>([this](Entangled& e){
         /**
@@ -119,7 +119,8 @@ Cell::Cell() :
         
         auto labels = DataStore::label_names();
         for(auto &c : labels) {
-            auto b = Layout::Make<Button>(Str(c), Box(Size2(Base::default_text_bounds(c, nullptr, Font(0.75)).width + 10, 33)));
+            auto b = Layout::Make<Button>(Str(c), Font(0.5, Style::Monospace, Align::Center), FillClr{DarkGray});
+            b->set(Size{b.to<Button>()->text_dims().width + 5, 25});
             
             b->on_click([this, c](auto){
                 if(_sample && _row) {
@@ -138,7 +139,8 @@ Cell::Cell() :
             add(b);
         }
         
-        auto b = Layout::Make<Button>(Str("Skip"), Box(Vec2(), Size2(50,33)));
+        auto b = Layout::Make<Button>(Str("Skip"), Font(0.5, Style::Monospace, Align::Center), FillClr{DarkGray}, TextClr{White});
+        b->set(Size{b.to<Button>()->text_dims().width + 5, 25});
         b->on_click([this](Event) {
             if(_row) {
                 if(_sample) {
@@ -242,11 +244,11 @@ void Cell::update(float s) {
     for(auto &c : _buttons) {
         c.to<Button>()->set_text_clr(White.alpha(235 * s));
         c.to<Button>()->set_line_clr(Black.alpha(200 * s));
-        c.to<Button>()->set_fill_clr(DarkCyan.exposure(s).alpha(150 * s));
+        //c.to<Button>()->set_fill_clr(DarkCyan.exposure(s).alpha(150 * s));
     }
     
     if(_sample) {
-        auto text = "<nr>"+Meta::toStr(_animation_index+1)+"</nr>/<nr>"+Meta::toStr(_sample->_images.size())+"</nr>";
+        auto text = "<c><nr>"+Meta::toStr(_animation_index+1)+"</nr>/<nr>"+Meta::toStr(_sample->_images.size())+"</nr></c>";
         
         std::lock_guard guard(Work::recv_mutex());
         if(!_sample->_probabilities.empty()) {
