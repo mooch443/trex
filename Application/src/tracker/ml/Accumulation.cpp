@@ -239,18 +239,22 @@ AccumulationLock::~AccumulationLock() {
 }
 
 std::mutex _per_class_lock;
-void Accumulation::register_apply_callback(CallbackType type, std::function<void ()> && fn) {
+void Accumulation::register_apply_callback(cmn::source_location loc, CallbackType type, std::function<void ()> && fn) {
     std::unique_lock guard(callback_mutex);
     if(_apply_callbacks.contains(type)) {
-        FormatWarning("We already have a callback for ", type, ".");
+        _FormatWarning(loc, "We already have a callback for ", type, ".");
+    } else {
+        _FormatPrint(loc, "Adding apply callback of type ", type, ".");
     }
     _apply_callbacks.emplace(type, std::move(fn));
 }
 
-void Accumulation::register_apply_callback(CallbackType type, std::function<void (double)> && fn) {
+void Accumulation::register_apply_callback(cmn::source_location loc, CallbackType type, std::function<void (double)> && fn) {
     std::unique_lock guard(callback_mutex);
     if(_apply_percent_callbacks.contains(type)) {
-        FormatWarning("We already have a callback for ", type, ".");
+        _FormatWarning(loc, "We already have a callback for ", type, ".");
+    } else {
+        _FormatPrint(loc, "Adding apply callback of type ", type, ".");
     }
     _apply_percent_callbacks.emplace(type, std::move(fn));
 }

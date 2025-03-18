@@ -231,12 +231,12 @@ void generate_training_data(GUITaskQueue_t* gui, bool force_load, std::shared_pt
                                    || action == DialogAction::Restart
                                    || action == DialogAction::Apply)
                                 {
-                                    Accumulation::register_apply_callback(CallbackType_t::AutoCorrect, [controller, gui](){
+                                    Accumulation::register_apply_callback(cmn::source_location::current(), CallbackType_t::AutoCorrect, [controller, gui](){
                                         Print("Finished. Auto correcting...");
                                         controller->on_apply_done();
                                         VIController::auto_correct(controller, gui, true);
                                     });
-                                    Accumulation::register_apply_callback(CallbackType_t::ProgressTracking, [controller](double percent){
+                                    Accumulation::register_apply_callback(cmn::source_location::current(), CallbackType_t::ProgressTracking, [controller](double percent){
                                         controller->on_apply_update(percent);
                                     });
                                 }
@@ -305,12 +305,12 @@ void generate_training_data(GUITaskQueue_t* gui, bool force_load, std::shared_pt
         {
             Print("Registering auto correct callback.");
             
-            Accumulation::register_apply_callback(CallbackType_t::AutoCorrect, [controller, gui](){
+            Accumulation::register_apply_callback(cmn::source_location::current(), CallbackType_t::AutoCorrect, [controller, gui](){
                 Print("Finished. Auto correcting...");
                 controller->on_apply_done();
                 VIController::auto_correct(controller, gui, true);
             });
-            Accumulation::register_apply_callback(CallbackType_t::ProgressTracking, [controller](double percent){
+            Accumulation::register_apply_callback(cmn::source_location::current(), CallbackType_t::ProgressTracking, [controller](double percent){
                 controller->on_apply_update(percent);
             });
         }

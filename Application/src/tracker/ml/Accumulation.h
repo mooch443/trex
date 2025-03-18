@@ -176,8 +176,8 @@ public:
     
     static Status& status();
     
-    static void register_apply_callback(CallbackType, std::function<void()>&&);
-    static void register_apply_callback(CallbackType, std::function<void(double)>&&);
+    static void register_apply_callback(cmn::source_location, CallbackType, std::function<void()>&&);
+    static void register_apply_callback(cmn::source_location, CallbackType, std::function<void(double)>&&);
     static void on_terminate();
     
     static float good_uniqueness();
