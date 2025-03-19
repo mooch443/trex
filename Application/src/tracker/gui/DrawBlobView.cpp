@@ -998,9 +998,9 @@ void draw_boundary_selection(DrawStructure& base, Base* window, GUICache& cache,
             
             if(top_left.x != FLT_MAX) {
                 Bounds bds{
-                    (top_left + bottom_right) * 0.5 + Vec2{
+                    (top_left) + Vec2{
                             0.f,
-                            Base::default_line_spacing(Font(0.6)) + 10.f
+                            - 50.f
                         },
                     Size2(0, 35)
                 };
@@ -1084,7 +1084,12 @@ void draw_boundary_selection(DrawStructure& base, Base* window, GUICache& cache,
                 //if(bdry.size() > 1
                 //    || bdry.front().size() > 2)
                 //{
+                if(bdry.size() > 1 || (not bdry.empty() && bdry.back().size() > 2)) {
                     p = top_left + (bottom_right - top_left) * 0.5;
+                } else {
+                    p = top_left - Vec2(0, 20); //+ (bottom_right - top_left) * 0.5;
+                }
+                
                 //} else {
                 //    p = top_left - Vec2(combine->width() * sca.x, 0);//Vec2(top_left.x, top_left.y + (bottom_right.y - top_left.y) * 0.5); //- Vec2(20, 0).mul(sca);
                     
@@ -1112,11 +1117,11 @@ void draw_boundary_selection(DrawStructure& base, Base* window, GUICache& cache,
                 
                 auto object_bounds = Bounds{p, combine->size()};
                 
-                if(object_bounds.x - viewport.x < 0) {
-                    object_bounds.x = viewport.x;
+                if(object_bounds.x - viewport.x < 100) {
+                    object_bounds.x = viewport.x + 100;
                 }
-                if(object_bounds.y - viewport.y < 0) {
-                    object_bounds.y = viewport.y;
+                if(object_bounds.y - viewport.y < 80) {
+                    object_bounds.y = viewport.y + 80;
                 }
                 if(object_bounds.x - viewport.x >= viewport.width) {
                     object_bounds.x = viewport.x + viewport.width - object_bounds.width;
@@ -1164,7 +1169,12 @@ void draw_boundary_selection(DrawStructure& base, Base* window, GUICache& cache,
                 
                 p += Vec2(combine->origin().x == 0 ? 15 : -15,
                           combine->origin().y == 0 ? 5 : -5).mul(sca);
-                combine->set_pos(p);
+                
+                auto dt = cache.dt();
+                auto prev_pos = combine->pos();
+                auto next_pos = prev_pos + (p - prev_pos) * dt * 10;
+                
+                combine->set_pos(next_pos);
                 combine->set_scale(sca);
                 combine->set(LineClr{Red});
             }
