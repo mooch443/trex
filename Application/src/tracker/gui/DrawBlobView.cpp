@@ -1086,8 +1086,10 @@ void draw_boundary_selection(DrawStructure& base, Base* window, GUICache& cache,
                 //{
                 if(bdry.size() > 1 || (not bdry.empty() && bdry.back().size() > 2)) {
                     p = top_left + (bottom_right - top_left) * 0.5;
+                //} else if(combine->origin().x > 0) {
+                //    p = top_left - Vec2(0, 20); //+ (bottom_right - top_left) * 0.5;
                 } else {
-                    p = top_left - Vec2(0, 20); //+ (bottom_right - top_left) * 0.5;
+                    p = Vec2((top_left.x + bottom_right.x) * 0.5, top_left.y) - Vec2(0, 20);
                 }
                 
                 //} else {
