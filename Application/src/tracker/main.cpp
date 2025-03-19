@@ -168,18 +168,27 @@ void launch_gui(std::future<void>& f) {
             } else if(e.type == EventType::WINDOW_RESIZED) {
                 auto h = g.height();
                 auto w = g.width();
-                //auto ratio = g.width() / g.height();
+#if defined(WIN32)
+                Float2_t dpi = 1_F;
+#else
                 Float2_t dpi = ptr->dpi_scale();
+#endif
                 auto min_width = 1350_F * dpi;
-                auto min_height = 950_F * dpi;
+                auto min_height = 1100_F * dpi;
                 
+#if defined(WIN32)
+                auto scale = max(sqrt(min_width / w), 0.5_F);
+                auto yscale = max(sqrt(min_height / h), 0.5_F);
+#else
                 auto scale = max(1_F, sqrt(min_width / w));
                 auto yscale = max(1_F, sqrt(min_height / h));
-                //Print("scale=",scale, " yscale=",yscale, " w=",w," h=",h, " dpi=", dpi);
+#endif
                 if(yscale > scale) {
-                    scale = yscale;
+                    SETTING(gui_interface_scale) = Float2_t(yscale);
+                } else {
+                    SETTING(gui_interface_scale) = Float2_t(scale);
                 }
-                SETTING(gui_interface_scale) = Float2_t(scale);
+                //Print("scale=",scale, " yscale=",yscale, " w=",w," h=",h, " dpi=", dpi, " (", ptr->dpi_scale(), ")");
             }
         }
     });

@@ -316,7 +316,7 @@ struct DrawExportOptions::Data {
     Data()
         :
             _layout(),
-            parent(Box(100, 100, 750, 600))//,
+            parent(Box(100, 100, 800, 650))//,
             //export_options(Box(Vec2(5, 15), Size2(parent.width() - 10, 30)), ItemFont_t(0.5, Align::Left))
     {
         _layout.set(Box(0, 0, 200, parent.height()));

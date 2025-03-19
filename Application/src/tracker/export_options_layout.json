@@ -2,7 +2,7 @@
 "defaults":{
     "vars":{
         "column_width":"{-:{/:{-:{window_size.x}:20}:3}:20}",
-        "column_height":"{-:{window_size.y}:38}"
+        "column_height":"{-:{window_size.y}:58}"
     }
 },
 "objects":[
@@ -23,7 +23,7 @@
     "max_size":"[{min:740:{-:{window_size.x}:25}},150]",
     "color":[255,255,255],
     "pad":[20,20,0,0],
-    "font":{"size":0.5}
+    "font":{"size":0.55}
 },
 { "type":"hlayout",
     "pad":[10,10,5,5],
@@ -42,7 +42,7 @@
                             {
                                 "type":"stext",
                                 "text":"<c>Available options</c>",
-                                "font":{"size":0.45},
+                                "font":{"size":0.55},
                                 "pad":[5,5,5,5],
                                 "color":[255,255,255],
                                 "fill":[100,100,100,200]
@@ -58,7 +58,7 @@
                                 },
                                 "detail":{
                                     "font":{
-                                        "size":0.35,
+                                        "size":0.45,
                                         "align":"center"
                                     }
                                 },
@@ -66,7 +66,7 @@
                                     "item_line":[100,100,100,150],
                                     "pad":[8,2],
                                     "font":{
-                                        "size":0.4,
+                                        "size":0.55,
                                         "align":"center"
                                     }
                                 },
@@ -94,7 +94,7 @@
                             {
                                 "type":"stext",
                                 "text":"<c>Chosen for export</c>",
-                                "font":{"size":0.45},
+                                "font":{"size":0.55},
                                 "pad":[5,5,5,5],
                                 "color":[255,255,255],
                                 "fill":[100,100,100,200]
@@ -114,7 +114,7 @@
                                 },
                                 "detail":{
                                     "font":{
-                                        "size":0.35,
+                                        "size":0.45,
                                         "align":"center"
                                     }
                                 },
@@ -122,7 +122,7 @@
                                     "item_line":[100,100,100,150],
                                     "pad":[8,2],
                                     "font":{
-                                        "size":0.45,
+                                        "size":0.55,
                                         "align":"center"
                                     }
                                 },
@@ -149,7 +149,7 @@
                         "placeholder":" Type to filter... ",
                         "color":[200,200,200],
                         "font":{
-                            "size":0.45
+                            "size":0.5
                         }
                     },
                     {
@@ -160,8 +160,8 @@
                     {
                         "type":"button",
                         "text":"<sym>⮌</sym> Reset to defaults",
-                        "font":{ "size":0.45 },
-                        "size":[123,27],
+                        "font":{ "size":0.5 },
+                        "size":[134,27],
                         "fill":[40,40,40,200],
                         "line":[100,100,100,150],
                         "action":"reset_options"
@@ -170,8 +170,8 @@
                     {
                         "type":"button",
                         "text":"<sym>⮾</sym> Clear list",
-                        "font":{ "size":0.45 },
-                        "size":[80,27],
+                        "font":{ "size":0.5 },
+                        "size":[85,27],
                         "fill":[60,40,40,200],
                         "line":[100,100,100,150],
                         "action":"clear_list"
@@ -285,7 +285,7 @@
                     "pad":[5,0,0,0],
                     "text":"<c>Destination prefix</c>",
                     "font":{
-                        "size":0.4
+                        "size":0.45
                     },
                     "color":[255,255,255]
                 },
@@ -478,7 +478,7 @@
 {
     "type":"collection",
     "origin":[1,1],
-    "pos":"[{-:{window_size.x}:10},{-:{window_size.y}:10}]",
+    "pos":"[{-:{window_size.x}:2},{-:{window_size.y}:2}]",
     "children":[
         { 
             "type":"hlayout",
