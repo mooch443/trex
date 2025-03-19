@@ -169,7 +169,6 @@ void generate_training_data(GUITaskQueue_t* gui, bool force_load, std::shared_pt
             Start,
             Apply,
             Continue,
-            Restart,
             LoadWeights,
             AutoCorrect
         };
@@ -186,7 +185,7 @@ void generate_training_data(GUITaskQueue_t* gui, bool force_load, std::shared_pt
             if (avail) {
                 // When weights are available, map to some of the standard actions.
                 buttonActions.push_back({"<sym>💻</sym> Apply VI", DialogAction::Apply});
-                buttonActions.push_back({"<sym>🗘</sym> Retrain VI", DialogAction::Restart});
+                buttonActions.push_back({"<sym>🗘</sym> Retrain VI", DialogAction::Start});
                 buttonActions.push_back({"<sym>🖪</sym> Load VI", DialogAction::LoadWeights});
             } else {
                 buttonActions.push_back({"<sym>🎭</sym> Train VI", DialogAction::Start});
@@ -228,7 +227,7 @@ void generate_training_data(GUITaskQueue_t* gui, bool force_load, std::shared_pt
                             auto run_task = [&]() {
                                 // For the original actions, you may want to register callbacks.
                                 if(action == DialogAction::Continue
-                                   || action == DialogAction::Restart
+                                   || action == DialogAction::Start
                                    || action == DialogAction::Apply)
                                 {
                                     Accumulation::register_apply_callback(cmn::source_location::current(), CallbackType_t::AutoCorrect, [controller, gui](){
@@ -250,9 +249,6 @@ void generate_training_data(GUITaskQueue_t* gui, bool force_load, std::shared_pt
                                     case DialogAction::Apply:
                                         mode = TrainingMode::Apply;
                                         break;
-                                    case DialogAction::Restart:
-                                        mode = TrainingMode::Restart;
-                                        break;
                                     case DialogAction::LoadWeights:
                                         mode = TrainingMode::LoadWeights;
                                         break;
@@ -268,7 +264,7 @@ void generate_training_data(GUITaskQueue_t* gui, bool force_load, std::shared_pt
                             };
 
                             // If the action requires global tracklets, perform the check.
-                            if(action == DialogAction::Restart
+                            if(action == DialogAction::Start
                                || action == DialogAction::Continue)
                             {
                                 /// this is only possible if we have global tracklets.
