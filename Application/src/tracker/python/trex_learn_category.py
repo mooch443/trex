@@ -9,6 +9,8 @@ import numpy as np
 import cv2
 import TRex
 
+from trex_utils import clear_caches
+
 categorize = None
 
 class PyTorchModel(nn.Module):
@@ -419,9 +421,14 @@ def predict():
     del images
     receive(results)
 
+def clear():
+    clear_caches()
+    TRex.log("# cleared images")
+
 def clear_images():
     global categorize
 
     TRex.log("# clearing images")
     categorize = None
+    clear()
     start()

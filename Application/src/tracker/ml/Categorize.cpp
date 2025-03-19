@@ -222,6 +222,14 @@ void hide() {
         Work::learning() = false;
         Work::variable().notify_all();
     //}
+    
+    DataStore::clear_cache();
+    
+    std::lock_guard guard(Work::mutex());
+    Print("[Categorize] Clear ", Work::_generated_samples.size(), " pregenerated samples...");
+    while(not Work::_generated_samples.empty()) {
+        Work::_generated_samples.pop();
+    }
 }
 
 using namespace gui;
@@ -358,6 +366,7 @@ void start_applying(std::weak_ptr<pv::File> video_source) {
                     
                     py::unset_function("receive", module);
                     py::unset_function("images", module);
+                    py::run(module, "clear");
                         
                 }), module);
                 
@@ -448,6 +457,11 @@ void start_applying(std::weak_ptr<pv::File> video_source) {
             _set_status_fn(text, percent);
         
     }, std::move(settings));
+    
+    std::unique_lock guard(Work::learning_mutex());
+    while(not Work::queue().empty()) {
+        Work::queue().pop();
+    }
 }
 
 file::Path output_location() {
@@ -597,7 +611,7 @@ void Work::start_learning(std::weak_ptr<pv::File> video_source) {
                             break;
                         }
                             
-                        case LearningTask::Type::Restart:
+                        case LearningTask::Type::Restart: {
                             reset_variables();
                             py::run(module, "clear_images");
                             clear_probs = true;
@@ -609,6 +623,7 @@ void Work::start_learning(std::weak_ptr<pv::File> video_source) {
                             Work::learning_variable().notify_one();
                             Work::variable().notify_one();
                             break;
+                        }
                             
                         case LearningTask::Type::Prediction: {
                             auto idx = prediction_images.size();

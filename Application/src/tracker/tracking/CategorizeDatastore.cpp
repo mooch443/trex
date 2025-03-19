@@ -389,8 +389,10 @@ void DataStore::_set_ranged_label_unsafe(RangedLabel&& r)
         
         if(m.valid())
             it->_maximum_frame_after = m;
+#ifndef NDEBUG
         else
             FormatWarning("m is null: ", it->_maximum_frame_after);
+#endif
         
         if(it != _ranged_labels.begin()) {
             if(!m.valid() || it->_range.start() < m)

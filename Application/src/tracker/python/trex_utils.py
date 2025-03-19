@@ -13,6 +13,7 @@ import torch.nn as nn
 import TRex
 from torchvision import transforms
 import numpy as np
+import gc
 
 # It is assumed that the following globals are defined elsewhere:
 #   image_width, image_height, image_channels, classes, model
@@ -181,3 +182,18 @@ def save_pytorch_model_as_jit(model, output_path, metadata, dummy_input=None):
     print("JIT Loaded metadata:", {key:str(loaded_metadata[key])[:100] for key in loaded_metadata})
     
     return scripted_model
+
+def clear_caches():
+    device = TRex.choose_device()
+    TRex.log(f"Clearing caches for {device}...")
+    
+    if device == 'cuda':
+        torch.cuda.empty_cache()
+    elif device == 'mps':
+        current_mem=torch.mps.current_allocated_memory()
+        torch.mps.empty_cache()
+        TRex.log(f"Current memory: {current_mem/1024/1024}MB -> {torch.mps.current_allocated_memory()/1024/1024}MB")
+    else:
+        TRex.log(f"No cache to clear {device}")
+
+    gc.collect()

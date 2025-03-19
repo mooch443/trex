@@ -618,19 +618,23 @@ void Interface::init(std::weak_ptr<pv::File> video, IMGUIBase* window, DrawStruc
 
         std::vector<Layout::Ptr> objects{stext};
 
+        apply->clear_event_handlers();
         apply->on_click([this](auto) {
             auto lock = _video.lock();
             if(lock)
                 Work::set_state(lock, Work::State::APPLY);
         });
+        close->clear_event_handlers();
         close->on_click([this](auto) {
             Work::set_state(_video.lock(), Work::State::NONE);
         });
+        load->clear_event_handlers();
         load->on_click([this](auto) {
             auto lock = _video.lock();
             if(lock)
                 Work::set_state(lock, Work::State::LOAD);
         });
+        restart->clear_event_handlers();
         restart->on_click([this](auto) {
             Work::learning() = false;
             Work::learning_variable().notify_all();
@@ -641,6 +645,7 @@ void Interface::init(std::weak_ptr<pv::File> video, IMGUIBase* window, DrawStruc
             if(lock)
                 Work::set_state(lock, Work::State::SELECTION);
         });
+        reapply->clear_event_handlers();
         reapply->on_click([this](auto) {
             DataStore::clear();
             Categorize::clear_labels();
@@ -650,6 +655,7 @@ void Interface::init(std::weak_ptr<pv::File> video, IMGUIBase* window, DrawStruc
             if(lock)
                 Work::set_state(lock, Work::State::APPLY);
         });
+        train->clear_event_handlers();
         train->on_click([](auto) {
             if (Work::state() == Work::State::SELECTION) {
                 Work::add_training_sample(nullptr);
@@ -657,6 +663,7 @@ void Interface::init(std::weak_ptr<pv::File> video, IMGUIBase* window, DrawStruc
             else
                 FormatWarning("Not in selection mode. Can only train while samples are being selected, not during apply or inactive.");
         });
+        shuffle->clear_event_handlers();
         shuffle->on_click([this](auto) {
             reshuffle();
         });
