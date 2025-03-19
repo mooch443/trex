@@ -2471,3 +2471,53 @@ TEST(StaticParseTest, invalid_label) {
     auto ranges = StaticText::to_tranges(fail);
 
 }
+
+using namespace cmn::utils;
+
+TEST(StripHtmlTest, NoHtmlTags) {
+    std::string input = "This is plain text.";
+    std::string expected = "This is plain text.";
+    EXPECT_EQ(strip_html(input), expected);
+}
+
+TEST(StripHtmlTest, SimpleHtmlTag) {
+    std::string input = "Hello <b>World</b>!";
+    std::string expected = "Hello World!";
+    EXPECT_EQ(strip_html(input), expected);
+}
+
+TEST(StripHtmlTest, HtmlComment) {
+    std::string input = "Text <!-- comment --> More text";
+    std::string expected = "Text  More text";  // Note: extra whitespace remains where comment was removed.
+    EXPECT_EQ(strip_html(input), expected);
+}
+
+TEST(StripHtmlTest, WithAttributes) {
+    std::string input = "<p class=\"text\">Paragraph</p>";
+    std::string expected = "Paragraph";
+    EXPECT_EQ(strip_html(input), expected);
+}
+
+TEST(StripHtmlTest, CStyleStringInput) {
+    const char* input = "<div>Content</div>";
+    std::string expected = "Content";
+    EXPECT_EQ(strip_html(input), expected);
+}
+
+TEST(StripHtmlTest, StringViewInput) {
+    std::string_view input = "<span>Test</span>";
+    std::string expected = "Test";
+    EXPECT_EQ(strip_html(input), expected);
+}
+
+TEST(StripHtmlTest, EmptyInput) {
+    std::string input = "";
+    std::string expected = "";
+    EXPECT_EQ(strip_html(input), expected);
+}
+
+TEST(StripHtmlTest, NestedTagsAndQuotes) {
+    std::string input = "Start <div title=\"Example <tag>\">Middle</div> End";
+    std::string expected = "Start Middle End";
+    EXPECT_EQ(strip_html(input), expected);
+}
