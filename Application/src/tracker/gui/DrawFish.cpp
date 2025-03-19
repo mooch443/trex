@@ -138,7 +138,6 @@ Fish::~Fish() {
         _posture.set_origin(Vec2(0));
         _view.set_name(_id.name());
         
-        _tight_selection.set_clickable(true);
         _tight_selection.on_hover([this](Event e) {
             selection_hovered(e);
         });
@@ -1147,6 +1146,8 @@ void Fish::selection_clicked(Event) {
 }
     
     void Fish::update(const FindCoord& coord, Entangled& parent, DrawStructure &graph) {
+        _tight_selection.set_clickable(not graph.is_key_pressed(Codes::LSystem));
+        
         //const auto frame_rate = slow::frame_rate;//FAST_SETTING(frame_rate);
         //const float track_max_reassign_time = FAST_SETTING(track_max_reassign_time);
         const auto single_identity = OPTION(gui_single_identity_color);
@@ -1625,11 +1626,11 @@ void Fish::selection_clicked(Event) {
                         
                         //Print("Highlight ", o);
                         if(_tight_selection.hovered()) {
-                            o.set(FillClr{White.alpha(50)});
-                            o.set(LineClr{White.alpha(200)});
+                            o.set(FillClr{White.alpha(100)});
+                            o.set(LineClr{White.alpha(250)});
                         } else {
-                            o.set(FillClr{White.alpha(5)});
-                            o.set(LineClr{White.alpha(100)});
+                            o.set(FillClr{White.alpha(10)});
+                            o.set(LineClr{White.alpha(250)});
                         }
                         
                         _view.advance_wrap(o);
@@ -1734,11 +1735,12 @@ Color Fish::get_color(const BasicStuff * basic) const {
     if(not basic)
         return Transparent;
     
+    uint8_t max_alpha = _tight_selection.immediately_clickable() ? 255 : 125;
     const auto single_identity = OPTION(gui_single_identity_color);
-    auto base_color = single_identity != Transparent ? single_identity : _id.color();
+    auto base_color = (single_identity != Transparent ? single_identity : _id.color()).alpha(max_alpha);
     
     auto color_source = OPTION(gui_fish_color);
-    auto clr = base_color.alpha(255);
+    auto clr = base_color.alpha(max_alpha);
     if(single_identity.a != 0) {
         clr = single_identity;
     }
@@ -1754,7 +1756,7 @@ Color Fish::get_color(const BasicStuff * basic) const {
                 y /= video_size.height * slow::cm_per_pixel;
             
             auto percent = saturate(cmn::abs(y), 0.f, 1.f);
-            return clr.alpha(255) * percent + Color(50, 50, 50, 255) * (1 - percent);
+            return clr.alpha(max_alpha) * percent + Color(50, 50, 50, max_alpha) * (1 - percent);
         }
     } else
         return base_color;

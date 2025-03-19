@@ -337,6 +337,12 @@ bool TrackingScene::on_global_event(Event event) {
         _data->_zoom_dirty = true;
     }
     if(event.type == EventType::KEY) {
+        if(event.key.code == Codes::LSystem
+           || event.key.code == Codes::RSystem)
+        {
+            redraw_all();
+        }
+    
         if(event.key.code == Keyboard::LShift)
             _data->_zoom_dirty = true;
         

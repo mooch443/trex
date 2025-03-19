@@ -886,13 +886,13 @@ void clicked_background(DrawStructure& base, GUICache& cache, const Vec2& pos, b
 #else
         if(!base.is_key_pressed(Codes::LControl)) {
 #endif
-            /*if(_current_boundary.empty()) {
+            if(_current_boundary.empty()) {
                 if(not GUI_SETTINGS(gui_zoom_polygon).empty()) {
                     SETTING(gui_zoom_polygon) = std::vector<Vec2>();
                 } else {
-                    _current_boundary = {{pos}};
+                    //_current_boundary = {{pos}};
                 }
-            } else*/
+            } else
                 _current_boundary.clear();
             
         } else {
