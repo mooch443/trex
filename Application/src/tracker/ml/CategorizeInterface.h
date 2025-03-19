@@ -19,6 +19,8 @@ using namespace cmn::gui;
 struct Row;
 
 struct Interface {
+    struct Rows;
+    
     static constexpr size_t per_row = 4;
     
     VerticalLayout layout;
@@ -38,8 +40,10 @@ struct Interface {
 
     IMGUIBase *_window{nullptr};
     std::weak_ptr<pv::File> _video;
+    std::unique_ptr<Rows> _rows;
     bool _initialized{false};
     bool _asked{false};
+    std::mutex rows_mutex;
 
     static Interface& get();
 
@@ -47,6 +51,11 @@ struct Interface {
     void clear_probabilities();
     void reset();
     void reshuffle();
+    ~Interface();
+    
+    Interface();
+    
+    static Rows& rows();
 private:
     void init(std::weak_ptr<pv::File> video, IMGUIBase*, DrawStructure& base);
     void clear_rows();

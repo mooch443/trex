@@ -3,11 +3,14 @@
 #include <tracking/Tracker.h>
 #include <misc/default_settings.h>
 #include <gui/IMGUIBase.h>
+#include <gui/Scene.h>
 
 namespace track {
 namespace Categorize {
 
 struct Row;
+
+
 
 struct Cell {
 private:
@@ -46,7 +49,7 @@ public:
     
     const Bounds& bounds();
 };
-    
+
 struct Row {
     int index;
     
@@ -67,12 +70,20 @@ struct Row {
     void update(size_t cell_index, const Sample::Ptr& sample);
     
     bool empty() const;
-    
-    static std::array<Row, 2>& rows() {
-        static std::array<Row, 2> rows{ Row(0), Row(1) };
-        return rows;
-    }
 };
+
+struct Interface::Rows {
+    std::array<Row, 2> rows{ Row(0), Row(1) };
+};
+
+Interface::Interface() {}
+Interface::~Interface() {}
+
+Interface::Rows& Interface::rows() {
+    if(not Interface::get()._rows)
+        Interface::get()._rows = std::make_unique<Interface::Rows>();
+    return *Interface::get()._rows;
+}
 
 Sample::Ptr retrieve() {
     Sample::Ptr sample = Work::front_sample();
@@ -86,7 +97,8 @@ Sample::Ptr retrieve() {
         if(Interface::get().layout.stage()) {
             gui_guard = GUI_LOCK(Interface::get().layout.stage()->lock());
         }*/
-        for(auto &row : Row::rows()) {
+        //std::unique_lock g{Interface::get().rows_mutex};
+        for(auto &row : Interface::rows().rows) {
             for(auto &c : row._cells) {
                 if(c._sample == sample) {
                     sample = Sample::Invalid();
@@ -132,6 +144,7 @@ Cell::Cell() :
                         
                     }
                     
+                    std::unique_lock g{Interface::get().rows_mutex};
                     _row->update(_index, retrieve());
                 }
             });
@@ -147,6 +160,7 @@ Cell::Cell() :
                     _sample->set_label(NULL);
                 }
                 
+                std::unique_lock g{Interface::get().rows_mutex};
                 _row->update(_index, retrieve());
             }
         });
@@ -216,7 +230,9 @@ void receive_prediction_results(const LearningTask& task) {
         const uint16_t read_label_index{narrow_cast<uint16_t>(raw_label)};
 #ifndef NDEBUG
         auto id = DataStore::label(MaybeLabel{read_label_index})->id;
-        assert(read_label_index == id.value());
+        if(read_label_index != id.value()) {
+            FormatWarning("The read label ",read_label_index," is not the same as the label id ", id.value(),".");
+        }
 #endif
         task.sample->_probabilities[read_label_index] += float(1);
     }
@@ -534,8 +550,8 @@ Interface& Interface::get() {
 }
 
 void Interface::clear_probabilities() {
-    std::lock_guard g(Work::recv_mutex());
-    for(auto &row : Row::rows()) {
+    std::scoped_lock g(Work::recv_mutex(), rows_mutex);
+    for(auto &row : Interface::rows().rows) {
         for(auto &cell : row._cells) {
             if(cell._sample) {
                 cell._sample->_probabilities.clear();
@@ -547,10 +563,18 @@ void Interface::clear_probabilities() {
 }
 
 void Interface::clear_rows() {
-    for(auto &row : Row::rows()) {
-        row.clear();
-    }
+    auto fn = [](){
+        std::unique_lock g{Interface::get().rows_mutex};
+        for(auto &row : Interface::rows().rows) {
+            row.clear();
+        }
+        Interface::get()._rows = nullptr;
+    };
     
+    if(SceneManager::is_gui_thread()) {
+        fn();
+    } else
+        SceneManager::getInstance().enqueue(fn);
     /*std::lock_guard g(Work::recv_mutex());
     for(auto &row : Row::rows()) {
         size_t i = 0;
@@ -567,6 +591,7 @@ void Interface::clear_rows() {
 void Interface::reset() {
     _initialized = false;
     _asked = false;
+    clear_rows();
 }
 
 void Interface::init(std::weak_ptr<pv::File> video, IMGUIBase* window, DrawStructure& base) {
@@ -644,22 +669,25 @@ void Interface::init(std::weak_ptr<pv::File> video, IMGUIBase* window, DrawStruc
         tooltip.set_scale(base.scale().reciprocal());
         tooltip.text().set_default_font(Font(0.5));
 
-        for (auto& row : Row::rows()) {
-            /**
-             * If the row is empty, that means that the whole grid has not been initialized yet.
-             * Create images and put them into a per_row^2 grid, and add them to the layout.
-             */
-            if (row.empty()) {
-                row.init(per_row);
-            }
-            objects.emplace_back(row.layout);
-
-            /**
-             * After ensuring we do have rows, fill them with new samples:
-             */
-            for (size_t i = 0; i < row.length(); ++i) {
-                auto sample = retrieve();
-                row.update(i, sample);
+        {
+            std::unique_lock g{Interface::get().rows_mutex};
+            for (auto& row : Interface::rows().rows) {
+                /**
+                 * If the row is empty, that means that the whole grid has not been initialized yet.
+                 * Create images and put them into a per_row^2 grid, and add them to the layout.
+                 */
+                if (row.empty()) {
+                    row.init(per_row);
+                }
+                objects.emplace_back(row.layout);
+                
+                /**
+                 * After ensuring we do have rows, fill them with new samples:
+                 */
+                for (size_t i = 0; i < row.length(); ++i) {
+                    auto sample = retrieve();
+                    row.update(i, sample);
+                }
             }
         }
 
@@ -680,7 +708,8 @@ void Interface::init(std::weak_ptr<pv::File> video, IMGUIBase* window, DrawStruc
 }
 
 void Interface::reshuffle() {
-    for (auto& row : Row::rows()) {
+    std::unique_lock g{rows_mutex};
+    for (auto& row : Interface::rows().rows) {
         for (size_t i = 0; i < row._cells.size(); ++i) {
             row.update(i, retrieve());
         }
@@ -747,15 +776,18 @@ void Interface::draw(const std::weak_ptr<pv::File>& video, IMGUIBase* window, Dr
     static Timer timer;
 
     float max_w = 0;
-    for (auto& row : Row::rows()) {
-        for (auto& cell : row._cells) {
-            if (!cell._sample)
-                row.update(cell._index, retrieve());
-
-            cell._block->auto_size(Margin{ 0,0 });
-            max_w = max(max_w, cell._block->global_bounds().width);
+    {
+        std::unique_lock g{rows_mutex};
+        for (auto& row : Interface::rows().rows) {
+            for (auto& cell : row._cells) {
+                if (!cell._sample)
+                    row.update(cell._index, retrieve());
+                
+                cell._block->auto_size(Margin{ 0,0 });
+                max_w = max(max_w, cell._block->global_bounds().width);
+            }
+            row.update(base, timer.elapsed());
         }
-        row.update(base, timer.elapsed());
     }
 
     max_w = per_row * (max_w + 10);

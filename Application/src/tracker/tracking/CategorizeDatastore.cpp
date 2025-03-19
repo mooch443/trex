@@ -789,6 +789,15 @@ static void log_event(const std::string& name, Frame_t frame, const Identity& id
 }
 #endif
 
+void DataStore::clear_labels() {
+    clear();
+    clear_cache();
+    
+    std::lock_guard guard(mutex());
+    _labels.clear();
+    _number_labels = 0;
+}
+
 void DataStore::clear() {
     clear_cache();
     

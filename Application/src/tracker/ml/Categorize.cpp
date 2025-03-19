@@ -196,7 +196,7 @@ void terminate() {
         pool = nullptr;
         
         DataStore::clear();
-        
+        clear_model();
         Work::state() = Work::State::NONE;
         Work::terminate() = false;
     }
@@ -434,6 +434,8 @@ void start_applying(std::weak_ptr<pv::File> video_source) {
                 });
             }
             
+            DataStore::clear();
+            
             if(SETTING(auto_categorize) && SETTING(auto_quit)) {
                 if(_auto_quit_fn)
                     _auto_quit_fn();
@@ -582,12 +584,16 @@ void Work::start_learning(std::weak_ptr<pv::File> video_source) {
                 try {
                     switch (item.type) {
                         case LearningTask::Type::Load: {
+                            clear_model();
+                            Work::status() = "Loading...";
+                            
                             py::run(module, "load");
                             //py::run(module, "send_samples");
                             clear_probs = true;
                             if (item.callback)
                                 item.callback(item);
                             Work::learning_variable().notify_one();
+                            Work::status() = "";
                             break;
                         }
                             
@@ -595,7 +601,7 @@ void Work::start_learning(std::weak_ptr<pv::File> video_source) {
                             reset_variables();
                             py::run(module, "clear_images");
                             clear_probs = true;
-                            DataStore::clear_frame_cache();
+                            clear_model();
                             DataStore::clear_cache();
                             DataStore::init_frame_cache();
                             if (item.callback)
@@ -1204,6 +1210,12 @@ void draw(const std::shared_ptr<pv::File>& video, IMGUIBase* window, gui::DrawSt
 void clear_labels() {
     DataStore::clear_ranged_labels();
     DataStore::clear_probability_cache();
+}
+
+void clear_model() {
+    Work::set_best_accuracy(0);
+    DataStore::clear_frame_cache();
+    Work::state() = Work::State::NONE;
 }
 
 bool weights_available() {

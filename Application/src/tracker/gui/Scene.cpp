@@ -49,7 +49,9 @@ SceneManager& SceneManager::getInstance() {
 
 SceneManager::SceneManager()
     : _gui_queue(std::make_unique<GUITaskQueue_t>())
-{ }
+{
+    _gui_thread_id = std::this_thread::get_id();
+}
 
 void SceneManager::set_active(Scene* scene) {
     auto fn = [this, scene]() {
@@ -272,6 +274,10 @@ bool SceneManager::on_global_event(Event event) {
 
 GUITaskQueue_t* SceneManager::gui_task_queue() const {
     return _gui_queue.get();
+}
+
+bool SceneManager::is_gui_thread() {
+    return not getInstance()._gui_thread_id || std::this_thread::get_id() == getInstance()._gui_thread_id.value();
 }
 
 }

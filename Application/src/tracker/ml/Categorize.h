@@ -88,6 +88,7 @@ void draw(const std::shared_ptr<pv::File>&, gui::IMGUIBase*, gui::DrawStructure&
 void terminate();
 file::Path output_location();
 void clear_labels();
+void clear_model();
 
 bool weights_available();
 

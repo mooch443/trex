@@ -138,6 +138,8 @@ TrackingState::~TrackingState() {
     CheckUpdates::cleanup();
     Categorize::terminate();
     Categorize::clear_labels();
+    Categorize::clear_model();
+    Categorize::DataStore::clear_labels();
     
     try {
         Python::VINetwork::unload_weights().get();
@@ -620,7 +622,7 @@ std::future<void> TrackingState::load_state(GUITaskQueue_t* gui, file::Path from
         //bool before = analysis->is_paused();
         analysis->set_paused(true).get();
         
-        track::Categorize::DataStore::clear();
+        track::Categorize::DataStore::clear_labels();
         
         LockGuard guard(w_t{}, "GUI::load_state");
         Output::TrackingResults results{*tracker};

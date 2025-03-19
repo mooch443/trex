@@ -58,7 +58,8 @@ DrawUniqueness::DrawUniqueness(GUICache* cache, std::weak_ptr<pv::File> video_so
     _data->graph.set_background(Transparent);
     on_click([this](Event e){
         auto frames = max(0_F, (Float2_t)_data->_cache->tracked_frames.end.get() - (Float2_t)_data->_cache->tracked_frames.start.get());
-        if(_data && _data->graph.size().width > 0) {
+        if(_data && _data->graph.size().width > 0 && _data->graph.bounds().contains(Vec2(e.mbutton.x, e.mbutton.y)))
+        {
             auto frameIndex = saturate(e.mbutton.x / _data->graph.size().width * frames, 0_F, (Float2_t)frames);
             if(euclidean_distance(absolute_drag_start(), global_bounds().pos()) < 5)
             {

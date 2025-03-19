@@ -46,6 +46,7 @@ class SceneManager {
     Size2 last_resolution;
     double last_dpi{0};
     mutable std::mutex _mutex;
+    std::optional<std::thread::id> _gui_thread_id;
 
     // Private constructor to prevent external instantiation
     SceneManager();
@@ -86,6 +87,8 @@ public:
     void update_queue();
     bool on_global_event(Event);
     void clear();
+    
+    static bool is_gui_thread();
 
     template<typename F>
         requires (not std::is_invocable_v<F, IMGUIBase*, DrawStructure&>)

@@ -101,7 +101,7 @@ if(NOT TREX_CONDA_PACKAGE_INSTALL)
     )
     set(RESOURCE_COPY_SINGLE_FILES
         ${CMAKE_SOURCE_DIR}/default.settings
-        ${CMAKE_SOURCE_DIR}/learn_static.py
+        ${CMAKE_CURRENT_SOURCE_DIR}/python/learn_static.py
         ${CMAKE_CURRENT_SOURCE_DIR}/python/trex_init.py
         ${CMAKE_CURRENT_SOURCE_DIR}/python/trex_learn_category.py
         ${CMAKE_CURRENT_SOURCE_DIR}/python/visual_identification_network.py
@@ -236,7 +236,7 @@ install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/gfx DESTINATION ${CMAKE_INSTALL_PR
 
 install(FILES 
         ${CMAKE_SOURCE_DIR}/default.settings 
-        ${CMAKE_SOURCE_DIR}/learn_static.py 
+        ${CMAKE_CURRENT_SOURCE_DIR}/python/learn_static.py
         ${CMAKE_CURRENT_SOURCE_DIR}/python/trex_init.py 
         ${CMAKE_CURRENT_SOURCE_DIR}/python/visual_identification_network.py 
         ${CMAKE_CURRENT_SOURCE_DIR}/python/trex_learn_category.py 
@@ -251,5 +251,5 @@ install(FILES
         ${CMAKE_CURRENT_SOURCE_DIR}/tracking_layout.json
     DESTINATION ${CMAKE_INSTALL_PREFIX}/usr/share/trex)
 
-install(FILES ${CMAKE_SOURCE_DIR}/default.settings ${CMAKE_SOURCE_DIR}/learn_static.py ${CMAKE_CURRENT_SOURCE_DIR}/python/trex_init.py 
+install(FILES ${CMAKE_SOURCE_DIR}/default.settings ${CMAKE_CURRENT_SOURCE_DIR}/python/learn_static.py ${CMAKE_CURRENT_SOURCE_DIR}/python/trex_init.py 
     ${CMAKE_CURRENT_SOURCE_DIR}/python/visual_identification_network.py ${CMAKE_CURRENT_SOURCE_DIR}/python/bbx_saved_model.py ${CMAKE_CURRENT_SOURCE_DIR}/python/trex_learn_category.py ${CMAKE_CURRENT_SOURCE_DIR}/alter_layout.json ${CMAKE_CURRENT_SOURCE_DIR}/annotation_layout.json ${CMAKE_CURRENT_SOURCE_DIR}/calibrate_layout.json ${CMAKE_CURRENT_SOURCE_DIR}/welcome_layout.json ${CMAKE_CURRENT_SOURCE_DIR}/settings_layout.json ${CMAKE_CURRENT_SOURCE_DIR}/tracking_settings_layout.json ${CMAKE_CURRENT_SOURCE_DIR}/choose_settings_layout.json ${CMAKE_CURRENT_SOURCE_DIR}/tracking_layout.json DESTINATION ${CMAKE_INSTALL_PREFIX}/usr/share/trex)

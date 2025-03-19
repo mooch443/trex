@@ -183,6 +183,7 @@ struct DataStore {
     static bool wants_to_read(DataFormat&, int version); // see if the file contains recognition data
     
     static Composition composition();
+    static void clear_labels();
     static void clear();
     static void clear_cache();
     static Label::Ptr label(Frame_t, pv::bid);
