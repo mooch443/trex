@@ -174,20 +174,12 @@ void launch_gui(std::future<void>& f) {
                 Float2_t dpi = ptr->dpi_scale();
 #endif
                 auto min_width = 1350_F * dpi;
-                auto min_height = 1100_F * dpi;
+                auto min_height = 1200_F * dpi;
                 
-#if defined(WIN32)
-                auto scale = max(sqrt(min_width / w), 0.5_F);
-                auto yscale = max(sqrt(min_height / h), 0.5_F);
-#else
-                auto scale = max(1_F, sqrt(min_width / w));
-                auto yscale = max(1_F, sqrt(min_height / h));
-#endif
-                if(yscale > scale) {
-                    SETTING(gui_interface_scale) = Float2_t(yscale);
-                } else {
-                    SETTING(gui_interface_scale) = Float2_t(scale);
-                }
+                auto scale = max(0.9_F, sqrt(min_width / w));
+                auto yscale = max(0.9_F, sqrt(min_height / h));
+                
+                SETTING(gui_interface_scale) = Float2_t(yscale > scale ? yscale : yscale);
                 //Print("scale=",scale, " yscale=",yscale, " w=",w," h=",h, " dpi=", dpi, " (", ptr->dpi_scale(), ")");
             }
         }
