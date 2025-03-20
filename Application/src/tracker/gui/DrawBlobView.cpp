@@ -34,6 +34,9 @@ SelectedSettingType _selected_setting_type;
 std::atomic<pv::bid> _clicked_blob_id;
 std::atomic<Frame_t> _clicked_blob_frame;
 
+
+derived_ptr<::gui::Polygon> _bdry_polygon;
+
 static std::unordered_map<const pv::Blob*, std::tuple<bool, std::unique_ptr<Circle>, std::unique_ptr<Label>, std::unique_ptr<Skelett>>> _blob_labels;
 static std::vector<decltype(_blob_labels)::mapped_type> _unused_labels;
 
@@ -43,6 +46,12 @@ void set_clicked_blob_frame(Frame_t v) { _clicked_blob_frame = v; }
 void blob_view_shutdown() {
     _blob_labels.clear();
     _unused_labels.clear();
+    _bdry_polygon = nullptr;
+    _current_boundary.clear();
+    _selected_setting_name.clear();
+    _selected_setting_type = SelectedSettingType::NONE;
+    _clicked_blob_id = pv::bid{};
+    _clicked_blob_frame = Frame_t();
 }
 
 struct Outer {
@@ -942,8 +951,11 @@ void draw_boundary_selection(DrawStructure& base, Base* window, GUICache& cache,
             
             for(auto &boundary : bdry) {
                 if(boundary.size() > 2) {
-                    static ::gui::Polygon polygon(nullptr);
-                    
+                    if(not _bdry_polygon) { 
+                        _bdry_polygon = Layout::Make<Polygon>();
+                    }
+
+                    auto &polygon = *_bdry_polygon;
                     //! need to force a convex hull here
                     auto v = poly_convex_hull(&boundary);
                     polygon.set_vertices(*v);

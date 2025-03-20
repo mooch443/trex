@@ -81,7 +81,7 @@ void generate_training_data(GUITaskQueue_t* gui, bool force_load, std::shared_pt
     auto fn = [gui, controller](TrainingMode::Class load, IMGUIBase* window, DrawStructure* graph, std::vector<Range<Frame_t>> global_tracklet_order) -> bool {
         std::vector<Rangel> trained;
 
-        WorkProgress::set_progress("training network", 0);
+        WorkProgress::set_progress("Initializing VI...", 0);
         WorkProgress::set_item_abortable(true);
 
         try {
@@ -98,15 +98,11 @@ void generate_training_data(GUITaskQueue_t* gui, bool force_load, std::shared_pt
                 controller->auto_quit(gui);
             }
 
-            auto objects = acc.move_gui_objects();
+            //auto objects = acc.move_gui_objects();
             //assert(not acc._textarea.get());
             //assert(objects.textarea.get() != nullptr);
             
-            SceneManager::getInstance().enqueue([objects = std::move(objects)]() mutable{
-                assert(objects.textarea.get() != nullptr);
-                /// gets destructed here
-            });
-            
+            SceneManager::getInstance().enqueue(acc.move_objects());
             SceneManager::getInstance().enqueue([](){
                 Print("Trying to give MPS another chance...");
                 Python::VINetwork::clear_caches().get();

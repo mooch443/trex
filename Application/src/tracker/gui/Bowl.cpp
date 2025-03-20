@@ -141,7 +141,7 @@ bool Bowl::Data::update_shapes() {
                 } else if(rect.size() > 2) {
                     //auto r = std::make_shared<std::vector<Vec2>>(rect);
                     auto r = poly_convex_hull(&rect); // force a convex polygon for these shapes, as thats the only thing that the in/out polygon test works with
-                    auto ptr = std::make_unique<gui::Polygon>(r);
+                    auto ptr = std::make_unique<gui::Polygon>(*r);
                     ptr->set_fill_clr(Green.alpha(25));
                     ptr->set_border_clr(Green.alpha(100));
                     //ptr->set_clickable(true);
@@ -177,7 +177,7 @@ bool Bowl::Data::update_shapes() {
                 } else if(rect.size() > 2) {
                     //auto r = std::make_shared<std::vector<Vec2>>(rect);
                     auto r = poly_convex_hull(&rect); // force convex polygon
-                    auto ptr = std::make_unique<gui::Polygon>(r);
+                    auto ptr = std::make_unique<gui::Polygon>(*r);
                     ptr->set_fill_clr(Red.alpha(25));
                     ptr->set_border_clr(Red.alpha(100));
                     //ptr->set_clickable(true);
@@ -199,7 +199,7 @@ bool Bowl::Data::update_shapes() {
     {
         Shape shape{_gui_zoom_polygon};
         auto r = poly_convex_hull(&_gui_zoom_polygon); // force convex polygon
-        _reduced_zoom_polygon = Layout::Make<gui::Polygon>(r);
+        _reduced_zoom_polygon = Layout::Make<gui::Polygon>(*r);
         _reduced_zoom_polygon->set_border_clr(White.alpha(25));
         
         _zoom_polygon_indicators.clear();
@@ -253,7 +253,7 @@ bool Bowl::Data::update_shapes() {
                     for(auto &pt : copy)
                         r->emplace_back(pt);
                     
-                    auto ptr = std::make_unique<gui::Polygon>(std::move(r));
+                    auto ptr = std::make_unique<gui::Polygon>(*r);
                     ptr->set_show_points(true);
                     ptr->set_fill_clr(Orange.alpha(25));
                     ptr->set_border_clr(Orange.alpha(100));

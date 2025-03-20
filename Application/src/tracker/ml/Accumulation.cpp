@@ -92,6 +92,36 @@ void elevate_task(F&& fn) {
     });
 }
 
+struct Accumulation::GUIObjects {
+    gui::derived_ptr<gui::StaticText> textarea;
+    gui::derived_ptr<gui::Graph> graph;
+    gui::derived_ptr<gui::HorizontalLayout> layout;
+    gui::derived_ptr<gui::VerticalLayout> layout_rows;
+    gui::derived_ptr<gui::ExternalImage> coverage_image;
+    gui::derived_ptr<gui::Entangled> dots;
+    
+    ~GUIObjects() {
+        Print("[Accumulation] GUI objects deleted.");
+    }
+};
+
+Accumulation::GUIObjects Accumulation::move_gui_objects() {
+    return {
+        std::move(_textarea),
+        std::move(_graph),
+        std::move(_layout),
+        std::move(_layout_rows),
+        std::move(_coverage_image),
+        std::move(_dots)
+    };
+}
+
+std::function<void()> Accumulation::move_objects() {
+    return [objects = move_gui_objects()]() mutable{
+        UNUSED(objects);
+    };
+}
+
 Accumulation::Status& Accumulation::status() {
     static Status status;
     return status;

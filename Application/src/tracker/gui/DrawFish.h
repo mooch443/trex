@@ -83,7 +83,7 @@ struct UpdateSettings {
         Color _color;
         Vec2 _v;
         std::shared_ptr<std::vector<Vec2>> _polygon_points;
-        std::shared_ptr<Polygon> _polygon;
+        derived_ptr<Polygon> _polygon;
         
         Range<Frame_t> _prev_frame_range;
         

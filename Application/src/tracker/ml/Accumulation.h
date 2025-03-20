@@ -146,25 +146,10 @@ public:
     ~Accumulation();
     bool start();
 
-    struct GUIObjects {
-        gui::derived_ptr<gui::StaticText> textarea;
-        gui::derived_ptr<gui::Graph> graph;
-        gui::derived_ptr<gui::HorizontalLayout> layout;
-        gui::derived_ptr<gui::VerticalLayout> layout_rows;
-        gui::derived_ptr<gui::ExternalImage> coverage_image;
-        gui::derived_ptr<gui::Entangled> dots;
-    };
+    struct GUIObjects;
 
-    GUIObjects move_gui_objects() {
-        return {
-            std::move(_textarea),
-            std::move(_graph),
-            std::move(_layout),
-            std::move(_layout_rows),
-            std::move(_coverage_image),
-            std::move(_dots)
-        };
-    }
+    GUIObjects move_gui_objects();
+    std::function<void()> move_objects();
     
     struct Status {
         bool busy{false};

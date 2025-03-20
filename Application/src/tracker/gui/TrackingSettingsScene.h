@@ -11,7 +11,7 @@ namespace cmn::gui {
 
 class TrackingSettingsScene : public Scene {
     // showing preview video
-    std::shared_ptr<ExternalImage> _preview_image;
+    derived_ptr<ExternalImage> _preview_image;
     
     SettingsTooltip _settings_tooltip;
     std::shared_ptr<VerticalLayout> _buttons_and_items = std::make_shared<VerticalLayout>();
