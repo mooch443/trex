@@ -20,11 +20,6 @@ namespace cmn::gui {
 StartingScene::StartingScene(Base& window)
 : Scene(window, "starting-scene", [this](auto&, DrawStructure& graph){ _draw(graph); })
 {
-    auto path = file::DataLocation::parse("app", "gfx/welcome/ComfyUI_00032_717534771402803_wind_").str() + "%1.15.4d.jpg";
-    Print("loading ", path);
-    //_video_adapter = std::make_unique<GUIVideoAdapter>(file::PathArray(path));
-    //_video_adapter->set(GUIVideoAdapter::Blur{0.5});
-    //_video_adapter->set(GUIVideoAdapter::FrameTime{0.25});
 }
 
 StartingScene::~StartingScene() {

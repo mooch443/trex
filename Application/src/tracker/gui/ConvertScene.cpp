@@ -464,7 +464,6 @@ void ConvertScene::activate()  {
     Print("Loading source = ", no_quotes(utils::ShortenText(source.toStr(), 1000)));
     SETTING(meta_source_path) = source.source();
     try {
-
         if (source == file::PathArray("webcam"))
             open_camera();
         else

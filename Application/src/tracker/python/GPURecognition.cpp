@@ -519,12 +519,10 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
         .def("orig_id", &track::detect::YoloInput::orig_id);
 
     m.def("log", [](std::string text) {
-        auto txt = utils::strip_html(text);
-        Print(fmt::clr<FormatColor::DARK_GRAY>("[py] "), txt.c_str());
+        Print(fmt::clr<FormatColor::DARK_GRAY>("[py] "), text.c_str());
     });
     m.def("log", [](std::string filename, int line, std::string text) {
-        auto txt = utils::strip_html(text);
-        Print(fmt::clr<FormatColor::DARK_GRAY>("[" + (std::string)file::Path(filename).filename() + ":"+Meta::toStr(line) + "] "), txt.c_str());
+        Print(fmt::clr<FormatColor::DARK_GRAY>("[" + (std::string)file::Path(filename).filename() + ":"+Meta::toStr(line) + "] "), text.c_str());
      });
 
     auto choose_backend = []() -> std::string {
@@ -585,7 +583,6 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
         auto filename = filename_py.cast<std::string>();
         auto line_no = line_no_py.cast<uint32_t>();
         
-        text = utils::strip_html(text);
         FormatWarning(fmt::clr<FormatColor::DARK_GRAY>("[py "), fmt::clr<FormatColor::DARK_YELLOW>(no_quotes(filename)), fmt::clr<FormatColor::DARK_GRAY>(":"), fmt::clr<FormatColor::GREEN>(Meta::toStr(line_no)), fmt::clr<FormatColor::DARK_GRAY>("] "), text.c_str());
     });
 

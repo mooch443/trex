@@ -1039,7 +1039,7 @@ void load(file::PathArray source,
             if(auto source = combined.map.at("source").value<file::PathArray>();
                source == file::PathArray("webcam"))
             {
-                combined.map["meta_video_size"] = 1920_F;
+                combined.map["meta_video_size"] = Size2(1920_F, 1080_F);
                 
             } else if(source.get_paths().size() == 1
                       && source.get_paths().front().has_extension("pv"))

@@ -414,7 +414,8 @@ void Segmenter::set_metadata() {
     if(video_conversion_range.end != -1)
         conversion_range.end = video_conversion_range.end;
     
-    _output_file->set_source(Meta::fromStr<std::string>(SETTING(source).value<file::PathArray>().toStr()));
+    auto meta_source_path = SETTING(meta_source_path).value<std::string>();
+    _output_file->set_source(meta_source_path.empty() ? Meta::fromStr<std::string>(SETTING(source).value<file::PathArray>().toStr()) : meta_source_path);
     _output_file->set_conversion_range(conversion_range);
 }
 
@@ -685,10 +686,38 @@ void Segmenter::open_camera() {
     }
 
     setDefaultSettings();
-    _output_size = (Size2(camera.size()) * SETTING(meta_video_scale).value<float>()).map(roundf);
+    
+    _start_time = std::chrono::system_clock::now();
+    _output_file_name = file::DataLocation::parse("output", SETTING(filename).value<file::Path>());
+    DebugHeader("Output: ", _output_file_name);
+
+    auto path = _output_file_name.remove_filename();
+    if (not path.exists()) {
+        path.create_folder();
+    }
+    
     //SETTING(output_size) = _output_size;
     SETTING(meta_video_size) = camera.size();
     
+    if(SETTING(save_raw_movie)) {
+        auto path = output_file_name();
+        if (not SETTING(save_raw_movie_path).value<file::Path>().empty()
+            && SETTING(save_raw_movie_path).value<file::Path>().remove_filename().exists())
+        {
+            path = SETTING(save_raw_movie_path).value<file::Path>();
+        }
+        
+        if(path.has_extension())
+            path = path.replace_extension("mp4");
+        else
+            path = path.add_extension("mp4");
+        
+        SETTING(save_raw_movie_path) = path.absolute();
+        SETTING(meta_source_path) = path.absolute().str();
+        SETTING(meta_video_scale) = 1.f;
+    }
+    
+    _output_size = (Size2(camera.size()) * SETTING(meta_video_scale).value<float>()).map(roundf);
     SETTING(video_conversion_range) = Range<long_t>(-1,-1);
     
     if(std::unique_lock vlock(_mutex_video);
@@ -725,33 +754,25 @@ void Segmenter::open_camera() {
 
     printDebugInformation();
 
-    cv::Mat bg = cv::Mat::zeros(_output_size.height, _output_size.width, CV_8UC(channels));
-    bg.setTo(255);
-
-    {
+    /*{
         std::unique_lock guard(_mutex_tracker);
         _tracker = std::make_unique<Tracker>(Image::Make(bg), Background::meta_encoding(), SETTING(meta_real_width).value<Float2_t>());
     }
+    static_assert(ObjectDetection<Detection>);*/
+    _video_conversion_range = Range<Frame_t>{ 0_f, {} };
+    init_undistort_from_settings();
+    
+    auto [do_generate_average, bg] = get_preliminary_background(_output_size);
     static_assert(ObjectDetection<Detection>);
+    
+    trigger_average_generator(do_generate_average, bg);
 
-    _start_time = std::chrono::system_clock::now();
-    _output_file_name = file::DataLocation::parse("output", SETTING(filename).value<file::Path>());
-    DebugHeader("Output: ", _output_file_name);
-
-    auto path = _output_file_name.remove_filename();
-    if (not path.exists()) {
-        path.create_folder();
-    }
-
-    {
+    /*{
         std::unique_lock vlock(_mutex_general);
         _output_file = pv::File::Make<pv::FileMode::OVERWRITE | pv::FileMode::WRITE>(_output_file_name, encoding);
         set_metadata();
         _output_file->set_average(bg);
-    }
-
-    _video_conversion_range = Range<Frame_t>{ 0_f, {} };
-    init_undistort_from_settings();
+    }*/
 }
 
 void Segmenter::init_undistort_from_settings() {

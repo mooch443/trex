@@ -18,7 +18,7 @@
         "label_padding":[0,20,10,5],
         "selected_video_x":"{if:{video_file}:{video_size.x}:1024}",
         "selected_video_y":"{if:{video_file}:{video_size.y}:576}",
-        "ratio":"{max:{/:{window_size.x}:{selected_video_x}}:{/:{window_size.y}:{selected_video_y}}}",
+        "ratio":"{max:{/:{window_size.x}:{video_size.x}}:{/:{window_size.y}:{video_size.y}}}",
         "bg_scale":"[{ratio},{ratio}]",
         "valid_pv_file":"{file_exists:{resulting_path}.pv}",
 

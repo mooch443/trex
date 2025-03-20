@@ -83,7 +83,7 @@ AnimatedBackground::AnimatedBackground(Image::Ptr&& image, const pv::File* video
             // found it, so we escape
             break;
         }
-        catch (const UtilsException& e) {
+        catch (const std::exception& e) {
             FormatError("Cannot load animated gui background: ", e.what());
         }
     }
