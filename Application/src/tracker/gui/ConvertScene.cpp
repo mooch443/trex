@@ -89,7 +89,7 @@ struct ConvertScene::Data {
     std::vector<Idx_t> _inactive_ids;
     std::vector<Idx_t> _active_ids;
 
-    std::unordered_map<Idx_t, std::shared_ptr<Label>> _labels;
+    std::unordered_map<Idx_t, Label_t> _labels;
     std::vector<std::unique_ptr<Skelett>> _skeletts;
     std::unordered_map<Idx_t, std::tuple<Frame_t, Bounds>> _last_bounds;
     

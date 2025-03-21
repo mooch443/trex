@@ -844,7 +844,7 @@ float Accumulation::good_uniqueness() {
 
 Accumulation::Accumulation(cmn::gui::GUITaskQueue_t* gui, std::shared_ptr<pv::File>&& video, std::vector<Range<Frame_t>>&& global_tracklet_order, gui::IMGUIBase* base, TrainingMode::Class mode) : _mode(mode), _accumulation_step(0), _counted_steps(0), _last_step(1337), _video(std::move(video)), _base(base), _global_tracklet_order(global_tracklet_order), _gui(gui) {
     using namespace gui;
-    _textarea = std::make_shared<StaticText>(SizeLimit{700,180}, TextClr(150,150,150,255), Font(0.6));
+    _textarea = new StaticText(SizeLimit{700,180}, TextClr(150,150,150,255), Font(0.6));
 }
 
 Accumulation::~Accumulation() {
@@ -2108,7 +2108,7 @@ void Accumulation::update_display(gui::Entangled &e, const std::string& text) {
     auto screen_dimensions = coord.screen_size();
     
     if(!_graph) {
-        _graph = std::make_shared<Graph>(Bounds(Size2(400, 180)), "");
+        _graph = new Graph(Bounds(Size2(400, 180)), "");
         _graph->add_function(Graph::Function("uniqueness per class", (int)Graph::DISCRETE | (int)Graph::AREA | (int)Graph::POINTS, [](float x) -> float
         {
             std::lock_guard<std::mutex> g(_current_assignment_lock);
@@ -2132,7 +2132,7 @@ void Accumulation::update_display(gui::Entangled &e, const std::string& text) {
     }
     
     if(!_textarea) {
-        _textarea = std::make_shared<StaticText>(SizeLimit{700,180}, TextClr(150,150,150,255), Font(0.6));
+        _textarea = new StaticText(SizeLimit{700,180}, TextClr(150,150,150,255), Font(0.6));
     }
     
     _textarea->set(SizeLimit{max(700.f, float(screen_dimensions.width - 200.f - 500.f)), 180.f});
@@ -2144,7 +2144,7 @@ void Accumulation::update_display(gui::Entangled &e, const std::string& text) {
         std::lock_guard<std::mutex> guard(_coverage_mutex);
         if(_raw_coverage) {
             if(!_coverage_image) {
-                _coverage_image = std::make_shared<ExternalImage>();
+                _coverage_image = new ExternalImage();
             }
             _coverage_image->set_source(std::move(_raw_coverage));
         }
@@ -2175,7 +2175,7 @@ void Accumulation::update_display(gui::Entangled &e, const std::string& text) {
         _coverage_image->set_scale(Vec2(1));
     
     if(!_layout) {
-        _layout = std::make_shared<HorizontalLayout>();
+        _layout = new HorizontalLayout();
         _layout->set_policy(HorizontalLayout::Policy::TOP);
         _layout->set_margins(Margins{15,5,15,10});
         _layout->set_children(std::vector<Layout::Ptr>{
@@ -2194,7 +2194,7 @@ void Accumulation::update_display(gui::Entangled &e, const std::string& text) {
     auto history = uniqueness_history();
     if(!history.empty()) {
         if(!_dots)
-            _dots = std::make_shared<Entangled>();
+            _dots = new Entangled();
         _dots->update([&](Entangled& e) {
             Loc offset;
             //float previous = accepted_uniqueness();
@@ -2248,7 +2248,7 @@ void Accumulation::update_display(gui::Entangled &e, const std::string& text) {
     }
     
     if(!_layout_rows) {
-        _layout_rows = std::make_shared<VerticalLayout>();
+        _layout_rows = new VerticalLayout();
         _layout_rows->set_policy(VerticalLayout::Policy::CENTER);
         _layout_rows->set(Margins{0,0,0,10});
     }

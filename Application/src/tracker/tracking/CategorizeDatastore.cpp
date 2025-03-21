@@ -817,7 +817,8 @@ void DataStore::clear() {
 void DataStore::clear_cache() {
     {
         std::unique_lock guard(DataStore::cache_mutex());
-        Print("[Categorize] Clearing frame cache (", _frame_cache.size(),").");
+        if(not _frame_cache.empty())
+            Print("[Categorize] Clearing frame cache (", _frame_cache.size(),").");
         _frame_cache.clear();
 #ifndef NDEBUG
         _current_cached_frames.clear();
@@ -1199,7 +1200,9 @@ Sample::Ptr DataStore::temporary(
         }
         
         if(!ptr) {
+#ifndef NDEBUG
             FormatExcept("Failed to generate frame ", frame,".");
+#endif
             return Sample::Invalid();
         }
         

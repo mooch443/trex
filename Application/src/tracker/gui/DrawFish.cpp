@@ -1210,7 +1210,7 @@ void Fish::selection_clicked(Event) {
             
             if (OPTION(gui_show_shadows)) {
                 if (!_polygon) {
-                    _polygon = std::make_shared<Polygon>();
+                    _polygon = new Polygon();
                     _polygon->set_fill_clr(Black.alpha(25));
                     _polygon->set_origin(Vec2(0.5));
                 }
@@ -2109,7 +2109,7 @@ Drawable* Fish::shadow() {
     std::vector<Layout::Ptr> children;
     if(OPTION(gui_show_shadows) && active) {
         if(!_polygon) {
-            _polygon = std::make_shared<Polygon>();
+            _polygon = new Polygon();
             _polygon->set_fill_clr(Black.alpha(125));
             _polygon->set_origin(Vec2(0.5));
         }

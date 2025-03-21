@@ -3,20 +3,22 @@
 #include <commons.pc.h>
 #include <gui/types/Layout.h>
 #include <misc/ObjectCache.h>
+#include <gui/Label.h>
 
 namespace cmn::gui {
 
-class Label;
+//class Label;
 
 class LabelWrapper;
-using LabelCache_t = ObjectCache<Label, 100, std::shared_ptr>;
+using Label_t = derived_ptr<Label>;
+using LabelCache_t = ObjectCache<Label, 100, derived_ptr >;
 
 class LabelWrapper : public Layout {
-    std::shared_ptr<Label> _label;
+    derived_ptr<Label> _label;
     LabelCache_t* _cache;
     
 public:
-    LabelWrapper(LabelCache_t& cache, std::shared_ptr<Label>&& label);
+    LabelWrapper(LabelCache_t& cache, derived_ptr<Label>&& label);
     
     LabelWrapper(LabelWrapper&) = delete;
     LabelWrapper(LabelWrapper&&) = default;

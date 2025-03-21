@@ -199,7 +199,7 @@ bool Bowl::Data::update_shapes() {
     {
         Shape shape{_gui_zoom_polygon};
         auto r = poly_convex_hull(&_gui_zoom_polygon); // force convex polygon
-        _reduced_zoom_polygon = Layout::Make<gui::Polygon>(*r);
+        _reduced_zoom_polygon = new gui::Polygon(*r);
         _reduced_zoom_polygon->set_border_clr(White.alpha(25));
         
         _zoom_polygon_indicators.clear();

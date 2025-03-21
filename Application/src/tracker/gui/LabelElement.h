@@ -12,7 +12,7 @@ class LabelElement : public dyn::CustomElement {
 public:
     // Constructor: takes non-owning pointers to the label cache, the labels map, and dt.
     explicit LabelElement(LabelCache_t* labelCache,
-                          std::unordered_map<track::Idx_t, std::shared_ptr<Label>>* labelsMap,
+                          std::unordered_map<track::Idx_t, Label_t>* labelsMap,
                           double* dt);
     LabelElement(LabelElement&&) = delete;
     LabelElement(const LabelElement&) = delete;
@@ -30,7 +30,7 @@ public:
 
 private:
     LabelCache_t* _labelCache; // Non-owning pointer to the label cache.
-    std::unordered_map<track::Idx_t, std::shared_ptr<Label>>* _labelsMap; // Non-owning pointer to the labels map.
+    std::unordered_map<track::Idx_t, Label_t>* _labelsMap; // Non-owning pointer to the labels map.
     double* _dt; // Non-owning pointer to the dt variable.
 };
 

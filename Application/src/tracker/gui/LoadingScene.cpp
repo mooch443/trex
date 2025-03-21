@@ -19,12 +19,11 @@ void LoadingScene::set_tabs(const std::vector<Settings>& tabs) {
                 set_tab(button->txt());
             }
             });
-        auto ptr = std::shared_ptr<Drawable>(button);
-        tabs_elements.push_back(ptr);
+        tabs_elements.push_back(Layout::Ptr(button));
     }
 
     if (_tabs.size() > 1) {
-        _tabs_bar = std::make_shared<HorizontalLayout>(tabs_elements);
+        _tabs_bar = new HorizontalLayout(tabs_elements);
     }
     else {
         _tabs_bar = nullptr;
@@ -135,7 +134,7 @@ void LoadingScene::set_tooltip(int ID, const std::shared_ptr<Drawable>& ptr, con
     }
     else {
         if (it == _tooltips.end()) {
-            _tooltips[ID] = std::make_shared<Tooltip>(ptr, 400);
+            _tooltips[ID] = new Tooltip(ptr, 400);
             _tooltips[ID]->text().set_default_font(Font(0.5));
             it = _tooltips.find(ID);
         }
@@ -239,7 +238,7 @@ void LoadingScene::file_selected(size_t, file::Path p) {
         }
         else {
             if (!_selected_text)
-                _selected_text = std::make_shared<StaticText>(Str("Selected: " + _selected_file.str()), SizeLimit(700, 0), Font(0.6f));
+                _selected_text = new StaticText(Str("Selected: " + _selected_file.str()), SizeLimit(700, 0), Font(0.6f));
             else
                 _selected_text->set_txt("Selected: " + _selected_file.str());
 

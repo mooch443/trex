@@ -84,7 +84,7 @@ void CalibrateScene::_draw(DrawStructure &graph) {
                             text.set_fill_color(DarkGray.alpha(50));
                             text.set_text_color(White);
                             
-                            derived_ptr<Entangled> e = std::make_shared<Entangled>();
+                            derived_ptr<Entangled> e = new Entangled();
                             e->update([&](Entangled& e) {
                                 e.advance_wrap(text);
                             });

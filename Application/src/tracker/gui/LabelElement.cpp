@@ -12,7 +12,7 @@ using namespace track;
 using namespace dyn;
 
 LabelElement::LabelElement(LabelCache_t* labelCache,
-                           std::unordered_map<Idx_t, std::shared_ptr<Label>>* labelsMap,
+                           std::unordered_map<Idx_t, Label_t>* labelsMap,
                            double* dt)
     : _labelCache(labelCache), _labelsMap(labelsMap), _dt(dt)
 {
@@ -35,7 +35,7 @@ LabelElement::~LabelElement() {
 }
 
 Layout::Ptr LabelElement::_create(dyn::LayoutContext& layout) {
-    std::shared_ptr<Label> ptr;
+    Label_t ptr;
     
     auto text = layout.get<std::string>("", "text");
     auto center = layout.get<Vec2>(Vec2(), "center");
@@ -70,7 +70,7 @@ Layout::Ptr LabelElement::_create(dyn::LayoutContext& layout) {
     if (!id.valid())
         ptr->set_uninitialized();
     
-    return Layout::Ptr(std::make_shared<LabelWrapper>(*_labelCache, std::move(ptr)));
+    return Layout::Ptr(new LabelWrapper(*_labelCache, std::move(ptr)));
 }
 
 bool LabelElement::_update(Layout::Ptr& o,

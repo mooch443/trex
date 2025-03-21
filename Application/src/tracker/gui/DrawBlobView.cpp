@@ -767,7 +767,7 @@ void clicked_background(DrawStructure& base, GUICache& cache, const Vec2& pos, b
             text.set_fill_color(DarkGray.alpha(50));
             text.set_text_color(White);
             
-            derived_ptr<Entangled> e = std::make_shared<Entangled>();
+            derived_ptr<Entangled> e =  new Entangled();
             e->update([&](Entangled& e) {
                 e.advance_wrap(text);
             });
@@ -952,7 +952,7 @@ void draw_boundary_selection(DrawStructure& base, Base* window, GUICache& cache,
             for(auto &boundary : bdry) {
                 if(boundary.size() > 2) {
                     if(not _bdry_polygon) { 
-                        _bdry_polygon = Layout::Make<Polygon>();
+                        _bdry_polygon = new Polygon();
                     }
 
                     auto &polygon = *_bdry_polygon;

@@ -198,9 +198,11 @@ DrawDataset::~DrawDataset() {}
 
     inline Layout::Ptr makeLayoutRow(std::initializer_list<std::string> labels, Font font = Font(0.6)) {
         std::vector<Layout::Ptr> cells;
-        for (auto label : labels) {
+        for (auto& label : labels) {
             cells.push_back(Layout::Make<Layout>(
-                                                 std::vector<Layout::Ptr>{ Layout::Make<StaticText>(Str{label}, font, Margins{}) }
+                 std::vector<Layout::Ptr>{ 
+                Layout::Make<StaticText>(Str{label}, font, Margins{}) 
+            }
             ));
         }
         return Layout::Make<Layout>(cells);

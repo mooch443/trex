@@ -149,7 +149,7 @@ void AnnotationView::set_annotation(Annotation && a) {
         
         _circles.clear();
         for(auto &p : a.points) {
-            _circles.push_back(std::make_shared<Circle>(Loc{p}, Radius{15}, FillClr{Red.alpha(50)}, LineClr{Red.alpha(125)}));
+            _circles.push_back(new Circle(Loc{p}, Radius{15}, FillClr{Red.alpha(50)}, LineClr{Red.alpha(125)}));
             _circles.back()->set_draggable();
             _circles.back()->on_hover([ptr = _circles.back().get()](Event e) {
                 if(e.hover.hovered)
@@ -170,7 +170,7 @@ void AnnotationView::set_annotation(Annotation && a) {
     } else {
         _circles.clear();
         for(auto &p : a.points) {
-            _circles.push_back(std::make_shared<Circle>(Loc{p}, Radius{15}, FillClr{Red.alpha(50)}, LineClr{Red.alpha(125)}));
+            _circles.push_back(new Circle(Loc{p}, Radius{15}, FillClr{Red.alpha(50)}, LineClr{Red.alpha(125)}));
             _circles.back()->set_draggable();
         }
     }
@@ -408,14 +408,14 @@ void AnnotationScene::_draw(DrawStructure& graph) {
         
         _gui->context.custom_elements["pose"] = std::unique_ptr<CustomElement>(new CustomElement {"pose",
             [this](LayoutContext& layout) -> Layout::Ptr {
-                std::shared_ptr<Skelett> ptr;
+                Skelett* ptr = nullptr;
                 auto points = layout.get<std::vector<Pose::Point>>(std::vector<Pose::Point>{}, "points");
                 //auto color = layout.textClr;
                 auto line = layout.line;
                 auto fill = layout.fill;
 
                 if (not ptr) {
-                    ptr = std::make_shared<Skelett>();
+                    ptr = new Skelett;
                     ptr->set_skeleton(_skeleton);
                 }
 

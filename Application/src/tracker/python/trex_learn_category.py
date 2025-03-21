@@ -215,12 +215,12 @@ class Categorize:
                 self.model.load_state_dict(m)
 
                 validation_indexes = np.array(npz["validation_indexes"]).astype(int)
-                TRex.log("# loading indexes: " + str(validation_indexes))
+                #TRex.log("# loading indexes: " + str(validation_indexes))
                 TRex.log("# adding data: " + str(np.shape(npz["samples"])))
 
                 # Add current offset to validation_indexes
                 validation_indexes += len(self.samples)
-                TRex.log("# with offset: " + str(validation_indexes))
+                #TRex.log("# with offset: " + str(validation_indexes))
                 self.validation_indexes = np.concatenate(
                     (self.validation_indexes, validation_indexes), axis=0)
 
@@ -343,14 +343,14 @@ class Categorize:
         with torch.no_grad():
             TRex.log("# evaluating model...")
             TRex.log("# X_test: "+str(X_test.shape)+" Y_test: "+str(Y_test.shape))
-            TRex.log("#/class: "+str(np.unique(Y_test.cpu().numpy(), return_counts=True)))
+            TRex.log("#ytest/class: "+str(np.unique(Y_test.cpu().numpy(), return_counts=True)))
 
             y_pred = self.model(X_test)
             softmax = nn.Softmax(dim=1)
             y_pred = softmax(self.model(X_test)).argmax(dim=1)
 
-            TRex.log("# y_pred: "+str(y_pred.shape)+" y_pred:"+str(y_pred))
-            TRex.log("#/class: "+str(np.unique(y_pred.cpu().numpy(), return_counts=True)))
+            #TRex.log("# y_pred: "+str(y_pred.shape)+" y_pred:"+str(y_pred))
+            TRex.log("#ypred/class: "+str(np.unique(y_pred.cpu().numpy(), return_counts=True)))
 
             report = classification_report(Y_test.cpu().numpy(), y_pred.cpu().numpy(), output_dict=True, zero_division=0)
 

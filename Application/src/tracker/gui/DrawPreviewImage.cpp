@@ -158,12 +158,21 @@ void LabeledDropDown::update() {
 namespace cmn::gui {
 namespace DrawPreviewImage {
 
-Entangled preview;
 using namespace default_config;
 
 std::map<std::string, std::unique_ptr<meta::LabeledField>> fields;
-VerticalLayout layout;
-SettingsTooltip tooltip;
+
+struct PreviewData {
+
+    VerticalLayout layout;
+    SettingsTooltip tooltip;
+    Entangled preview;
+};
+
+PreviewData& preview_data() {
+    static std::unique_ptr<PreviewData> _preview_data = std::make_unique<PreviewData>();
+    return *_preview_data;
+}
 
 Image::Ptr convert_image_to_rgba(Image::Ptr&& image,
                          meta_encoding_t::Class from, bool is_r3g3b2)
@@ -275,7 +284,7 @@ void draw(const Background* average, const PPFrame& pp,Frame_t frame, DrawStruct
         std::vector<Layout::Ptr> objects;
         for(auto &[key, obj] : fields)
             obj->add_to(objects);
-        layout.set_children(objects);
+        preview_data().layout.set_children(objects);
     }
     
     
@@ -299,7 +308,7 @@ void draw(const Background* average, const PPFrame& pp,Frame_t frame, DrawStruct
     
     LockGuard guard(ro_t{}, "DrawPreviewImage", 100);
     if(!guard.locked() && !first) {
-        graph.wrap_object(preview);
+        graph.wrap_object(preview_data().preview);
         return;
     }
     
@@ -310,7 +319,7 @@ void draw(const Background* average, const PPFrame& pp,Frame_t frame, DrawStruct
     button.set_scale(graph.scale().reciprocal());
     offset.x += button.local_bounds().width + 10;
     
-    preview.update([&](Entangled& e) {
+    preview_data().preview.update([&](Entangled& e) {
         ExternalImage *ptr{nullptr};
         auto bds = e.add<Text>(Str("Image settings"), offset, TextClr(White.alpha(200)), Font(0.75, Style::Bold), Scale(graph.scale().reciprocal()))->local_bounds();
         
@@ -379,19 +388,19 @@ void draw(const Background* average, const PPFrame& pp,Frame_t frame, DrawStruct
         
         e.advance_wrap(button);
         
-        layout.set_scale(graph.scale().reciprocal());
-        layout.set_pos(offset);
-        e.advance_wrap(layout);
+        preview_data().layout.set_scale(graph.scale().reciprocal());
+        preview_data().layout.set_pos(offset);
+        e.advance_wrap(preview_data().layout);
     });
     
-    preview.auto_size({5.0,5.0});
+    preview_data().preview.auto_size({5.0,5.0});
     
     if(first) {
-        preview.set_pos(graph.dialog_window_size().mul(0.5, 0.4));
-        preview.set_origin(Vec2(0.5, 0));
-        preview.set_clickable(true);
-        preview.set_draggable();
-        preview.set_background(DarkCyan.exposure(0.5).alpha(100), Red.alpha(50));
+        preview_data().preview.set_pos(graph.dialog_window_size().mul(0.5, 0.4));
+        preview_data().preview.set_origin(Vec2(0.5, 0));
+        preview_data().preview.set_clickable(true);
+        preview_data().preview.set_draggable();
+        preview_data().preview.set_background(DarkCyan.exposure(0.5).alpha(100), Red.alpha(50));
         
         text.set_clickable(false);
         text.set_background(Black.alpha(5), Transparent);
@@ -403,15 +412,15 @@ void draw(const Background* average, const PPFrame& pp,Frame_t frame, DrawStruct
         first = false;
     }
     
-    graph.wrap_object(preview);
+    graph.wrap_object(preview_data().preview);
     
     for(auto &[k, f] : fields) {
         if(f->representative()
            && f->representative()->hovered())
         {
-            tooltip.set_other(f->representative());
-            tooltip.set_parameter(k);
-            graph.wrap_object(tooltip);
+            preview_data().tooltip.set_other(f->representative());
+            preview_data().tooltip.set_parameter(k);
+            graph.wrap_object(preview_data().tooltip);
             break;
         }
     }

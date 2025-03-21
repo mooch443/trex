@@ -27,10 +27,10 @@ public:
     int _max_id = -1;
     
     // gui elements
-    std::shared_ptr<ExternalImage> _image;
-    std::shared_ptr<StaticText> _text;
-    std::shared_ptr<Rect> _cat_border;
-    std::shared_ptr<Entangled> _block;
+    derived_ptr<ExternalImage> _image;
+    derived_ptr<StaticText> _text;
+    derived_ptr<Rect> _cat_border;
+    derived_ptr<Entangled> _block;
     
 public:
     Cell();
@@ -54,7 +54,7 @@ struct Row {
     int index;
     
     std::vector<Cell> _cells;
-    std::shared_ptr<HorizontalLayout> layout;
+    derived_ptr<HorizontalLayout> layout;
     
     Row(int i);
     
@@ -112,12 +112,12 @@ Sample::Ptr retrieve() {
 }
 
 Cell::Cell() :
-    _button_layout(std::make_shared<HorizontalLayout>()),
+    _button_layout(new HorizontalLayout()),
     _selected(false),
-    _image(std::make_shared<ExternalImage>(Image::Make(50,50,1))),
-    _text(std::make_shared<StaticText>(Font(0.45))),
-    _cat_border(std::make_shared<Rect>(Box(50,50))),
-    _block(std::make_shared<Entangled>([this](Entangled& e){
+    _image(new ExternalImage(Image::Make(50,50,1))),
+    _text(new StaticText(Font(0.45))),
+    _cat_border(new Rect(Box(50,50))),
+    _block(new Entangled([this](Entangled& e){
         /**
          * This is the block that contains all display-elements of a Cell.
          * 1. A sample image animation
@@ -444,7 +444,7 @@ void Cell::set_sample(const Sample::Ptr &sample) {
 }
 
 Row::Row(int i)
-    : index(i), layout(std::make_shared<HorizontalLayout>())
+    : index(i), layout(new HorizontalLayout)
 { }
 
 void Row::init(size_t additions) {
@@ -756,7 +756,7 @@ void Interface::draw(const std::weak_ptr<pv::File>& video, IMGUIBase* window, Dr
                     }, "Please enter the categories (comma-separated), e.g.:\n<i>W,S</i> for categories <str>W</str> and <str>S</str>.", "Categorize", "Okay", "Cancel");
                 
                 textfield = Layout::Make<Textfield>(Str("W,S"), Box(Size2(500 * 0.75, 33)));
-                d->set_custom_element(textfield);
+                d->set_custom_element(derived_ptr<Textfield>(textfield));
                 d->layout().Layout::update_layout();
             }
             return;

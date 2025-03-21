@@ -12,12 +12,12 @@ namespace cmn::gui {
 
 TrackingSettingsScene::TrackingSettingsScene(Base& window)
 : Scene(window, "tracking-settings-scene", [this](auto&, DrawStructure& graph){ _draw(graph); }),
-_preview_image(std::make_shared<ExternalImage>())
+_preview_image(new ExternalImage())
 {
     auto dpi = ((const IMGUIBase*)&window)->dpi_scale();
     Print(window.window_dimensions().mul(dpi), " and logo ", _preview_image->size());
     
-    _button_layout = std::make_shared<HorizontalLayout>(std::vector<Layout::Ptr>{});
+    _button_layout = new HorizontalLayout(std::vector<Layout::Ptr>{});
     //_button_layout->set_pos(Vec2(1024 - 10, 550));
     //_button_layout->set_origin(Vec2(1, 0));
     

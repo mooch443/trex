@@ -142,7 +142,7 @@ public:
         _overall->set_policy(VerticalLayout::CENTER);
         //_overall->set_background(Transparent, Blue);
 
-        _list = std::make_shared<ScrollableList<FileItem>>(Box(
+        _list = new ScrollableList<FileItem>(Box(
             0,
             0,
             //_graph->width() - 
@@ -158,7 +158,7 @@ public:
 
         _button = Button::MakePtr(Str{"Open"}, Box(_list->pos() + Vec2(0, _list->height() + 40), attr::Size(100, 30)));
 
-        _textfield = std::make_shared<Dropdown>(Box(0, 0, _list->width(), 30));
+        _textfield = new Dropdown(Box(0, 0, _list->width(), 30));
         //_textfield = std::make_shared
         _textfield->on_select([this](auto, const Dropdown::TextItem& item) {
             file::Path path;
@@ -192,7 +192,7 @@ public:
             }
             });
 
-        _rows = std::make_shared<VerticalLayout>(std::vector<Layout::Ptr>{
+        _rows = new VerticalLayout(std::vector<Layout::Ptr>{
             _textfield, _list
         });
         //_rows->set_background(Transparent, Yellow);

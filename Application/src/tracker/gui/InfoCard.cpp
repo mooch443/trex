@@ -351,7 +351,7 @@ InfoCard::~InfoCard() {
 
 void InfoCard::update() {
     static Tooltip tooltip(nullptr);
-    std::shared_ptr<Text> other = nullptr;
+    derived_ptr<Text> other = nullptr;
     
     for(auto &[text, tooltip_text] : tracklet_texts) {
         if(text->hovered()) {
@@ -362,7 +362,7 @@ void InfoCard::update() {
     }
     
     if(auto p = previous.lock();
-       other != p)
+       other.get() != p.get())
     {
         set_content_changed(true);
     }
@@ -548,7 +548,7 @@ void InfoCard::update() {
             auto p = Vec2(width() - 10 + offx, float(height() - 40) * 0.5f + ((i - 2) + 1) * (float)Base::default_line_spacing(Font(1.1f)));
             auto alpha = 25 + 230 * (1 - cmn::abs(i-2) / 5.0f);
             
-            auto text = std::make_shared<Text>(Str(str), Loc(p),
+            derived_ptr<Text> text = new Text(Str(str), Loc(p),
                              TextClr{_shadow->frame != range.start()
                                         ? White.alpha(alpha)
                                         : Color(200,235,255).alpha(alpha)},
@@ -847,7 +847,7 @@ void InfoCard::update() {
     }
     
     if(other) {
-        tooltip.set_other(other);
+        tooltip.set_other(std::weak_ptr(other.get_smart()));
         advance_wrap(tooltip);
     }
     
