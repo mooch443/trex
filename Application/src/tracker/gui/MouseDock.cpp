@@ -20,7 +20,7 @@ void MouseDock::draw_background(Entangled &) {}
         dt = min(0.1, dt);
         timer.reset();
 
-        auto mp = coord.convert(HUDCoord(graph.stage()->mouse_position()));
+        auto mp = coord.convert(HUDCoord(graph.stage()->mouse_position() + Vec2(25)));
         //mp = (mp - ptr->pos()).div(ptr->scale());
         
         std::sort(instance->attached.begin(), instance->attached.end(), [&mp](Label* A, Label* B){
@@ -34,7 +34,7 @@ void MouseDock::draw_background(Entangled &) {}
 
         //Print("mag = ", mag, " (", sqrtf(mag) * dt * 40, ")");
 
-        if (mag > 5) {
+        if (mag > 1) {
             instance->pos = animate_position<InterpolationType::EASE_OUT>(instance->pos, mp, dt, 1/6.0);
             //GUICache::instance().set_animating(animator, true, &graph);
             //GUICache::instance().set_blobs_dirty();
@@ -57,7 +57,7 @@ void MouseDock::draw_background(Entangled &) {}
         instance->_rect.set_fillclr(Black.alpha(150));
         
         Bounds bounds(FLT_MAX, FLT_MAX, 0, 0);
-        float y = 15;
+        float y = 0;
 
         for (auto label : instance->attached) {
             //graph.advance_wrap(*label);
