@@ -174,7 +174,7 @@ void launch_gui(std::future<void>& f) {
                 Float2_t dpi = ptr->dpi_scale();
 #endif
                 auto min_width = 1350_F * dpi;
-                auto min_height = 1200_F * dpi;
+                auto min_height = 1024_F * dpi;
                 
                 auto scale = max(0.9_F, sqrt(min_width / w));
                 auto yscale = max(0.9_F, sqrt(min_height / h));

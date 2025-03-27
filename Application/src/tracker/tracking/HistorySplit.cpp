@@ -63,10 +63,12 @@ HistorySplit::HistorySplit(PPFrame &frame, PPFrame::NeedGrid need, GenericThread
      */
     if(!FAST_SETTING(track_do_history_split)) {
         //! history split is disabled, so we can skip this step
+        PPFrame::Log("> history_split is off. skipping history split!");
         frame.finalize(cmn::source_location::current());
         return;
     }
     
+    PPFrame::Log("> history_split is on. investigating ", frame.blob_mappings.size(), " blob mappings...");
     for(auto && [bdx, set] : frame.blob_mappings) {
         PPFrame::Log("\tblob ", bdx," has ", set.size()," fish mapped to it");
         

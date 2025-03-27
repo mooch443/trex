@@ -184,6 +184,9 @@ void PrefilterBlobs::split_big(
         return true;
     };
     
+    if(track_ignore_bdx_c)
+        PPFrame::Log("\ttrack_ignore_bdx_c = ", track_ignore_bdx_c.value());
+    
     auto work = [&](auto, auto start, auto end, auto)
     {
         std::vector<pv::BlobPtr> noise, regular;
