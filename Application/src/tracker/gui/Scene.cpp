@@ -240,22 +240,29 @@ void SceneManager::update_queue() {
         _queue.pop();
 
         if(scene
-            && active_scene != scene) 
+            && active_scene != scene)
         {
 #ifndef NDEBUG
             FormatWarning("Will not execute task for scene ", scene->name(), " as it is no longer active.");
 #endif
             continue;
         }
-
+        
         guard.unlock();
-        try {
-            f();
-        }
-        catch (...) {
-            // pass
-        }
+        execute_task(std::move(f));
         guard.lock();
+    }
+}
+
+void SceneManager::execute_task(std::function<void ()> &&f)
+{
+    assert(is_gui_thread());
+
+    try {
+        f();
+    }
+    catch (...) {
+        // pass
     }
 }
 

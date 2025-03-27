@@ -482,6 +482,107 @@ bool TrackingScene::on_global_event(Event event) {
     return false;
 }
 
+void TrackingScene::settings_callback(std::string_view key) {
+    if(key == "gui_wait_for_background") {
+        //if(_data && _data->_background)
+           // _data->_background->set_strict(SETTING(gui_wait_for_background).value<bool>());
+    }
+    else if(is_in(key,
+             "cam_matrix",
+             "cam_undistort",
+             "cam_undistort_vector"))
+    {
+        if(_data
+           && _data->_background)
+        {
+            init_undistortion();
+        }
+        
+    } else if((key == "gui_zoom_polygon"
+               || key == "gui_zoom_limit"
+               || key == "gui_focus_group")
+              && _data->_bowl)
+    {
+        _data->_bowl->_screen_size = Vec2();
+        _data->_zoom_dirty = true;
+        _data->_cache->set_fish_dirty(true);
+    } else if(key == "gui_run") {
+        
+    } else if(key == "track_pause") {
+        /*gui::WorkProgress::add_queue("pausing...", [this](){
+            _state->analysis->bump();
+            bool pause = SETTING(track_pause).value<bool>();
+            if(_state->analysis->paused() != pause) {
+                _state->analysis->set_paused(pause).get();
+            }
+        });*/
+    } else if(key == "analysis_range") {
+        _data->_analysis_range = Tracker::analysis_range();
+        
+    } else if(is_in(key, "track_ignore_bdx", "manual_splits", "manual_matches")
+              && _data
+              && _data->_cache)
+    {
+        if(Tracker::end_frame().valid()
+           && _data->_cache->frame_idx.valid()
+           && Tracker::end_frame() >= _data->_cache->frame_idx)
+        {
+            WorkProgress::add_queue("", [frame = _data->_cache->frame_idx, this](){
+                Tracker::instance()->_remove_frames(frame);
+                if(_state)
+                    _state->analysis->set_paused(false);
+            });
+        }
+    }
+    
+    if(utils::beginsWith(key, "gui_show_")
+       || is_in(key,
+             "cam_matrix",
+             "cam_undistort",
+             "cam_undistort_vector",
+             "analysis_range",
+             "track_threshold",
+             "track_posture_threshold",
+             "track_size_filter",
+             "frame_rate",
+             "track_background_subtraction",
+             "meta_encoding",
+             "individual_image_normalization",
+             "gui_highlight_categories",
+             "individual_image_size",
+             "individual_image_scale",
+             "gui_zoom_polygon",//"gui_zoom_limit",
+             "detect_skeleton",
+             "track_include", "track_ignore"))
+    {
+        redraw_all();
+    }
+    
+    if(key == "gui_focus_group"
+       || key == "gui_fish_label"
+       || key == "detect_skeleton"
+       || utils::beginsWith(key, "heatmap_"))
+    {
+        if(_data && _data->_cache) {
+            _data->_primary_selection = {};
+            _data->_cache->set_tracking_dirty();
+            //_data->_cache->set_raw_blobs_dirty();
+            _data->_cache->set_fish_dirty(true);
+            //if(frame.valid())
+            //    _data->_cache->set_reload_frame(frame);
+            _data->_cache->set_redraw();
+            //_data->_cache->set_blobs_dirty();
+            //_data->_cache->frame_idx = {};
+            //SETTING(gui_frame) = Frame_t{};
+            //set_frame(frame);
+        }
+    }
+    
+    if(key == "output_prefix") {
+        window()->set_title(window_title());
+    }
+}
+
 void TrackingScene::activate() {
     WorkProgress::instance().start();
     
@@ -551,109 +652,10 @@ void TrackingScene::activate() {
         
         "gui_wait_for_background"
         
-    }, [this](std::string_view key) {
-        if(key == "gui_wait_for_background") {
-            //if(_data && _data->_background)
-               // _data->_background->set_strict(SETTING(gui_wait_for_background).value<bool>());
-        }
-        else if(is_in(key,
-                 "cam_matrix",
-                 "cam_undistort",
-                 "cam_undistort_vector"))
-        {
-            if(_data
-               && _data->_background)
-            {
-                init_undistortion();
-            }
-            
-        } else if((key == "gui_zoom_polygon"
-                   || key == "gui_zoom_limit"
-                   || key == "gui_focus_group")
-                  && _data->_bowl)
-        {
-            _data->_bowl->_screen_size = Vec2();
-            _data->_zoom_dirty = true;
-            _data->_cache->set_fish_dirty(true);
-        } else if(key == "gui_run") {
-            
-        } else if(key == "track_pause") {
-            /*gui::WorkProgress::add_queue("pausing...", [this](){
-                _state->analysis->bump();
-                bool pause = SETTING(track_pause).value<bool>();
-                if(_state->analysis->paused() != pause) {
-                    _state->analysis->set_paused(pause).get();
-                }
-            });*/
-        } else if(key == "analysis_range") {
-            _data->_analysis_range = Tracker::analysis_range();
-            
-        } else if(is_in(key, "track_ignore_bdx", "manual_splits", "manual_matches")
-                  && _data
-                  && _data->_cache)
-        {
-            if(Tracker::end_frame().valid()
-               && _data->_cache->frame_idx.valid()
-               && Tracker::end_frame() >= _data->_cache->frame_idx)
-            {
-                WorkProgress::add_queue("", [frame = _data->_cache->frame_idx, this](){
-                    Tracker::instance()->_remove_frames(frame);
-                    if(_state)
-                        _state->analysis->set_paused(false);
-                });
-            }
-        }
-        
-        if(utils::beginsWith(key, "gui_show_")
-           || is_in(key,
-                 "cam_matrix",
-                 "cam_undistort",
-                 "cam_undistort_vector",
-                 "analysis_range", 
-                 "track_threshold", 
-                 "track_posture_threshold",
-                 "track_size_filter",
-                 "frame_rate",
-                 "track_background_subtraction",
-                 "meta_encoding",
-                 "individual_image_normalization",
-                 "gui_highlight_categories",
-                 "individual_image_size",
-                 "individual_image_scale",
-                 "gui_zoom_polygon",//"gui_zoom_limit",
-                 "detect_skeleton",
-                 "track_include", "track_ignore"))
-        {
-            redraw_all();
-        }
-        
-        if(key == "gui_focus_group"
-           || key == "gui_fish_label"
-           || key == "detect_skeleton"
-           || utils::beginsWith(key, "heatmap_"))
-        {
-            SceneManager::getInstance().enqueue([this, frame = _data && _data->_cache ? _data->_cache->frame_idx : Frame_t{}](){
-                if(_data && _data->_cache) {
-                    _data->_primary_selection = {};
-                    _data->_cache->set_tracking_dirty();
-                    //_data->_cache->set_raw_blobs_dirty();
-                    _data->_cache->set_fish_dirty(true);
-                    //if(frame.valid())
-                    //    _data->_cache->set_reload_frame(frame);
-                    _data->_cache->set_redraw();
-                    //_data->_cache->set_blobs_dirty();
-                    //_data->_cache->frame_idx = {};
-                    //SETTING(gui_frame) = Frame_t{};
-                    //set_frame(frame);
-                }
-            });
-        }
-        
-        if(key == "output_prefix") {
-            SceneManager::getInstance().enqueue([this](){
-                window()->set_title(window_title());
-            });
-        }
+    }, [this](std::string_view key){
+        SceneManager::getInstance().enqueue([this, key](){
+            settings_callback(key);
+        });
     });
     
     _data->_analysis_range = Tracker::analysis_range();
@@ -693,20 +695,21 @@ void TrackingScene::redraw_all() {
     }
     
     SceneManager::getInstance().enqueue([this, frame = _data->_cache->frame_idx](){
-        if(_data && _data->_cache) {
-            _data->_tracker_has_added_frames = true;
-            _data->_primary_selection = {};
-            _data->_cache->set_tracking_dirty();
-            _data->_cache->set_raw_blobs_dirty();
-            _data->_cache->set_fish_dirty(true);
-            if(frame.valid())
-                _data->_cache->set_reload_frame(frame);
-            _data->_cache->set_redraw();
-            _data->_cache->set_blobs_dirty();
-            //_data->_cache->frame_idx = {};
-            //SETTING(gui_frame) = Frame_t{};
-            //set_frame(frame);
-        }
+        if(not _data || not _data->_cache)
+            return;
+        
+        //_data->_tracker_has_added_frames = true;
+        _data->_primary_selection = {};
+        _data->_cache->set_tracking_dirty();
+        _data->_cache->set_raw_blobs_dirty();
+        _data->_cache->set_fish_dirty(true);
+        if(frame.valid())
+            _data->_cache->set_reload_frame(frame);
+        _data->_cache->set_redraw();
+        _data->_cache->set_blobs_dirty();
+        //_data->_cache->frame_idx = {};
+        //SETTING(gui_frame) = Frame_t{};
+        //set_frame(frame);
     });
 }
 

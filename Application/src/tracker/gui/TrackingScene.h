@@ -49,6 +49,7 @@ private:
     void set_frame(Frame_t);
     bool on_global_event(Event) override;
     void update_run_loop();
+    void settings_callback(std::string_view);
      
     void next_poi(track::Idx_t _s_fdx);
     void prev_poi(track::Idx_t _s_fdx);

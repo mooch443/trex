@@ -54,6 +54,8 @@ class SceneManager {
     static read_once<std::string> _switching_error;
     
 public:
+    struct ForceAsync {};
+    
     static auto& switching_error() {
         return _switching_error;
     }
@@ -93,6 +95,18 @@ public:
     template<typename F>
         requires (not std::is_invocable_v<F, IMGUIBase*, DrawStructure&>)
     void enqueue(F&& task) {
+        if(is_gui_thread()) {
+            execute_task(std::move(task));
+            return;
+        }
+        
+        std::unique_lock guard(_mutex);
+        _queue.emplace(active_scene, std::move(task));
+    }
+    
+    template<typename F>
+        requires (not std::is_invocable_v<F, IMGUIBase*, DrawStructure&>)
+    void enqueue(ForceAsync, F&& task) {
         std::unique_lock guard(_mutex);
         _queue.emplace(active_scene, std::move(task));
     }
@@ -116,6 +130,9 @@ public:
     }
     
     GUITaskQueue_t* gui_task_queue() const;
+    
+private:
+    void execute_task(std::function<void()>&& fn);
 };
 
 }  // namespace gui
