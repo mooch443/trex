@@ -162,7 +162,7 @@ TrackingScene::Data::Data(Image::Ptr&& average, pv::File& video)
     /*_background->add_event_handler(EventType::DRAG, [](Event e) {
         Print("Drag: ", e.drag.rx, ",",e.drag.ry);
     });*/
-    /*SceneManager::getInstance().enqueue([](DrawStructure& graph) {
+    /*SceneManager::enqueue([](DrawStructure& graph) {
         graph.root().add_event_handler(EventType::SCROLL, [this](Event e) {
             handle_zooming(e);
         });
@@ -351,7 +351,7 @@ bool TrackingScene::on_global_event(Event event) {
         
         switch (event.key.code) {
             case Keyboard::Escape:
-                SceneManager::getInstance().enqueue([](auto, DrawStructure& graph) {
+                SceneManager::enqueue([](auto, DrawStructure& graph) {
                     graph.dialog([](Dialog::Result result) {
                         if(result == Dialog::Result::OKAY) {
                             SETTING(terminate) = true;
@@ -447,7 +447,7 @@ bool TrackingScene::on_global_event(Event event) {
                 break;
                 
             case Keyboard::F: {
-                SceneManager::getInstance().enqueue([](IMGUIBase* base, DrawStructure& graph){
+                SceneManager::enqueue([](IMGUIBase* base, DrawStructure& graph){
                     if(graph.is_key_pressed(Codes::LSystem))
                     {
                         base->toggle_fullscreen(graph);
@@ -456,13 +456,13 @@ bool TrackingScene::on_global_event(Event event) {
                 break;
             }
             case Keyboard::F11:
-                SceneManager::getInstance().enqueue([](IMGUIBase* base, DrawStructure& graph){
+                SceneManager::enqueue([](IMGUIBase* base, DrawStructure& graph){
                     base->toggle_fullscreen(graph);
                 });
                 break;
             case Keyboard::R: {
                 if(_data) {
-                    SceneManager::getInstance().enqueue([this](IMGUIBase* base, DrawStructure& graph){
+                    SceneManager::enqueue([this](IMGUIBase* base, DrawStructure& graph){
                         if(_data->_recorder.recording()) {
                             _data->_recorder.stop_recording(base, &graph);
                             _data->_background->set_strict(false);
@@ -653,7 +653,7 @@ void TrackingScene::activate() {
         "gui_wait_for_background"
         
     }, [this](std::string_view key){
-        SceneManager::getInstance().enqueue([this, key](){
+        SceneManager::enqueue([this, key](){
             settings_callback(key);
         });
     });
@@ -662,7 +662,7 @@ void TrackingScene::activate() {
     _state->init_video();
     
     _state->tracker->register_add_callback([this](Frame_t frame){
-        SceneManager::getInstance().enqueue([this, frame](){
+        SceneManager::enqueue([this, frame](){
             if(GUI_SETTINGS(gui_frame) == frame) {
                 redraw_all();
             }
@@ -694,7 +694,7 @@ void TrackingScene::redraw_all() {
         return;
     }
     
-    SceneManager::getInstance().enqueue([this, frame = _data->_cache->frame_idx](){
+    SceneManager::enqueue([this, frame = _data->_cache->frame_idx](){
         if(not _data || not _data->_cache)
             return;
         
@@ -1383,7 +1383,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                 ol.print();
             }),
             ActionFunc("quit", [](Action) {
-                SceneManager::getInstance().enqueue([](auto, DrawStructure& graph) {
+                SceneManager::enqueue([](auto, DrawStructure& graph) {
                     graph.dialog([](Dialog::Result result) {
                         if(result == Dialog::Result::OKAY) {
                             SETTING(terminate) = true;
@@ -1432,7 +1432,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                 _state->save_state(SceneManager::getInstance().gui_task_queue(), false);
             }),
             ActionFunc("clear_ml", [this](Action) {
-                SceneManager::getInstance().enqueue([this](auto, DrawStructure& graph) {
+                SceneManager::enqueue([this](auto, DrawStructure& graph) {
                     graph.dialog([this](Dialog::Result result) {
                         if(result == Dialog::Result::OKAY
                            && _state && _state->tracker)

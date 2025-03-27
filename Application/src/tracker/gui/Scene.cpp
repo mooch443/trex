@@ -87,7 +87,7 @@ void SceneManager::set_active(Scene* scene) {
 			}
         }
     };
-    enqueue(fn);
+    _enqueue(AlwaysAsync{}, fn);
 }
 
 Scene* SceneManager::last_active() const {
@@ -268,7 +268,7 @@ void SceneManager::execute_task(std::function<void ()> &&f)
 
 bool SceneManager::on_global_event(Event event) {
     if(event.type == EventType::WINDOW_RESIZED) {
-        enqueue([](gui::IMGUIBase* base, gui::DrawStructure& graph) {
+        _enqueue([](gui::IMGUIBase* base, gui::DrawStructure& graph) {
             FindCoord::set_screen_size(graph, *base);
         });
     }

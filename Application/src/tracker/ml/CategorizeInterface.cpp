@@ -563,18 +563,13 @@ void Interface::clear_probabilities() {
 }
 
 void Interface::clear_rows() {
-    auto fn = [](){
+    SceneManager::enqueue([](){
         std::unique_lock g{Interface::get().rows_mutex};
         for(auto &row : Interface::rows().rows) {
             row.clear();
         }
         Interface::get()._rows = nullptr;
-    };
-    
-    if(SceneManager::is_gui_thread()) {
-        fn();
-    } else
-        SceneManager::getInstance().enqueue(fn);
+    });
     /*std::lock_guard g(Work::recv_mutex());
     for(auto &row : Row::rows()) {
         size_t i = 0;

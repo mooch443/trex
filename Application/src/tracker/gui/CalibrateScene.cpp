@@ -96,12 +96,12 @@ void CalibrateScene::_draw(DrawStructure &graph) {
                             
                             Print("calibrating ", action.first(), " with a distance of ", D);
                             
-                            SceneManager::getInstance().enqueue([D, e=std::move(e)](auto, DrawStructure& graph) mutable {
+                            SceneManager::enqueue([D, e=std::move(e)](auto, DrawStructure& graph) mutable {
                                 graph.dialog([D](Dialog::Result r) {
                                     if(r != Dialog::OKAY)
                                         return;
                                     
-                                    SceneManager::getInstance().enqueue([D](auto, DrawStructure& graph) mutable {
+                                    SceneManager::enqueue([D](auto, DrawStructure& graph) mutable {
                                         graph.dialog([D](Dialog::Result auto_change_parameters) {
                                             try {
                                                 auto value = Meta::fromStr<float>(text.text());
@@ -149,14 +149,14 @@ void CalibrateScene::_draw(DrawStructure &graph) {
                                                         
                                                         SETTING(cm_per_pixel) = new_cm_per_pixel;
                                                         
-                                                        SceneManager::getInstance().enqueue([detect_size_filter, track_max_speed, track_size_filter](auto, DrawStructure& graph)
+                                                        SceneManager::enqueue([detect_size_filter, track_max_speed, track_size_filter](auto, DrawStructure& graph)
                                                                                             {
                                                             graph.dialog("Successfully set <ref>cm_per_pixel</ref> to <nr>"+Meta::toStr(SETTING(cm_per_pixel).value<Float2_t>())+"</nr> and recalculated <ref>detect_size_filter</ref> from <nr>"+Meta::toStr(detect_size_filter)+"</nr> to <nr>"+Meta::toStr(SETTING(detect_size_filter).value<SizeFilters>())+"</nr>, and <ref>track_size_filter</ref> from <nr>"+Meta::toStr(track_size_filter)+"</nr> to <nr>"+Meta::toStr(SETTING(track_size_filter).value<SizeFilters>())+"</nr> and <ref>track_max_speed</ref> from <nr>"+Meta::toStr(track_max_speed)+"</nr> to <nr>"+Meta::toStr(SETTING(track_max_speed).value<Float2_t>())+"</nr>.", "Calibration successful", "Okay");
                                                         });
                                                         
                                                     } else {
                                                         SETTING(cm_per_pixel) = Float2_t(value / D);
-                                                        SceneManager::getInstance().enqueue([](auto, DrawStructure& graph)
+                                                        SceneManager::enqueue([](auto, DrawStructure& graph)
                                                                                             {
                                                             graph.dialog("Successfully set <ref>cm_per_pixel</ref> to <nr>"+Meta::toStr(SETTING(cm_per_pixel).value<Float2_t>())+"</nr>.", "Calibration successful", "Okay");
                                                         });

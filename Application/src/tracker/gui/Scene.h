@@ -54,7 +54,7 @@ class SceneManager {
     static read_once<std::string> _switching_error;
     
 public:
-    struct ForceAsync {};
+    struct AlwaysAsync {};
     
     static auto& switching_error() {
         return _switching_error;
@@ -91,47 +91,57 @@ public:
     void clear();
     
     static bool is_gui_thread();
-
+    
+    template<typename F>
+    static void enqueue(F&& task) {
+        getInstance()._enqueue(std::forward<F>(task));
+    }
+    
+    template<typename F>
+    static void enqueue(AlwaysAsync, F&& task) {
+        getInstance()._enqueue(AlwaysAsync{}, std::forward<F>(task));
+    }
+    
+    GUITaskQueue_t* gui_task_queue() const;
+    
+private:
     template<typename F>
         requires (not std::is_invocable_v<F, IMGUIBase*, DrawStructure&>)
-    void enqueue(F&& task) {
+    void _enqueue(F&& task) {
         if(is_gui_thread()) {
-            execute_task(std::move(task));
+            execute_task(std::forward<F>(task));
             return;
         }
         
-        std::unique_lock guard(_mutex);
-        _queue.emplace(active_scene, std::move(task));
+        _enqueue(AlwaysAsync{}, std::forward<F>(task));
     }
     
     template<typename F>
         requires (not std::is_invocable_v<F, IMGUIBase*, DrawStructure&>)
-    void enqueue(ForceAsync, F&& task) {
+    void _enqueue(AlwaysAsync, F&& task) {
         std::unique_lock guard(_mutex);
         _queue.emplace(active_scene, std::move(task));
     }
     
     template<typename F>
         requires (std::is_invocable_v<F, IMGUIBase*, DrawStructure&>)
-    void enqueue(F&& task) {
+    void _enqueue(F&& task) {
         std::unique_lock guard(_mutex);
-        if(_gui_queue) {
-            _gui_queue->enqueue([this, scene = active_scene, task = std::forward<F>(task)](IMGUIBase* gui, DrawStructure& base) mutable {
-                if(scene && active_scene != scene) {
+        if(not _gui_queue)
+            return;
+        
+        _gui_queue->enqueue([this, scene = active_scene, task = std::move(task)](IMGUIBase* gui, DrawStructure& base) mutable {
+            if(scene && active_scene != scene) {
 #ifndef NDEBUG
-                    FormatWarning("Will not execute task for scene ", scene->name(), " as it is no longer active.");
+                FormatWarning("Will not execute task for scene ", scene->name(), " as it is no longer active.");
 #endif
-                    return;
-                }
+                return;
+            }
 
-                task(gui, base);
-            });
-        }
+            task(gui, base);
+        });
     }
     
-    GUITaskQueue_t* gui_task_queue() const;
-    
-private:
     void execute_task(std::function<void()>&& fn);
 };
 

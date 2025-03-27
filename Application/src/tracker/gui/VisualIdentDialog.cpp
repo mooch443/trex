@@ -102,8 +102,8 @@ void generate_training_data(GUITaskQueue_t* gui, bool force_load, std::shared_pt
             //assert(not acc._textarea.get());
             //assert(objects.textarea.get() != nullptr);
             
-            SceneManager::getInstance().enqueue(acc.move_objects());
-            SceneManager::getInstance().enqueue([](){
+            SceneManager::enqueue(SceneManager::AlwaysAsync{}, acc.move_objects());
+            SceneManager::enqueue(SceneManager::AlwaysAsync{}, [](){
                 Print("Trying to give MPS another chance...");
                 Python::VINetwork::clear_caches().get();
             });

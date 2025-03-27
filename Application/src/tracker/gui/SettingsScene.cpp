@@ -359,7 +359,7 @@ struct SettingsScene::Data {
                         GlobalSettings::get(parm).get().set_value_from_string(value);
                     }),
                     ActionFunc("reset_settings", [](auto){
-                        SceneManager::getInstance().enqueue([](auto, DrawStructure& graph) {
+                        SceneManager::enqueue([](auto, DrawStructure& graph) {
                             graph.dialog([](Dialog::Result result) mutable {
                                 if(result == Dialog::Result::OKAY) {
                                     /// resets settings that come from the recentitems
@@ -382,7 +382,7 @@ struct SettingsScene::Data {
                     }),
                     ActionFunc("go-back", [this](auto){
                         if(_last_layouts.empty()) {
-                            SceneManager::getInstance().enqueue([](auto, auto&) {
+                            SceneManager::enqueue(SceneManager::AlwaysAsync{}, []() {
                                 SceneManager::getInstance().set_active("starting-scene");
                             });
                             return;
@@ -391,7 +391,7 @@ struct SettingsScene::Data {
                         layout_name = _last_layouts.top();
                         _last_layouts.pop();
                         
-                        SceneManager::getInstance().enqueue([this](auto, auto&) {
+                        SceneManager::enqueue(SceneManager::AlwaysAsync{}, [this]() {
                             dynGUI.clear();
                             dynGUI = {};
                         });
@@ -435,7 +435,7 @@ struct SettingsScene::Data {
                             }
                             settings::load(SETTING(source), filename, default_config::TRexTask_t::convert, SETTING(detect_type), {}, copy);
                             
-                            SceneManager::getInstance().enqueue([this,
+                            SceneManager::enqueue([this,
                                 before = std::move(before),
                                 defaults = std::move(defaults),
                                 defaults_with_config = std::move(defaults_with_config)
@@ -454,7 +454,7 @@ struct SettingsScene::Data {
                                                 _last_layouts.push(layout_name);
                                                 layout_name = "settings_layout.json";
 
-                                                SceneManager::getInstance().enqueue([this](auto, auto&) {
+                                                SceneManager::enqueue(SceneManager::AlwaysAsync{}, [this]() {
                                                     dynGUI.clear();
                                                     dynGUI = {};
                                                 });
@@ -504,7 +504,7 @@ struct SettingsScene::Data {
                         _last_layouts.push(layout_name);
                         layout_name = name+".json";
                         
-                        SceneManager::getInstance().enqueue([this](auto, auto&) {
+                        SceneManager::enqueue(SceneManager::AlwaysAsync{}, [this]() {
                             dynGUI.clear();
                             dynGUI = {};
                         });
@@ -555,14 +555,14 @@ struct SettingsScene::Data {
                             settings::load(array, SETTING(filename), default_config::TRexTask_t::track, track::detect::ObjectDetectionType::none, {}, copy);
                             
                             auto open_file = [](){
-                                SceneManager::getInstance().enqueue([](){
+                                SceneManager::enqueue(SceneManager::AlwaysAsync{}, [](){
                                     SceneManager::getInstance().set_active("tracking-scene");
                                 });
                             };
                             
                             auto fname = target_file("results");
                             if(fname.exists()) {
-                                SceneManager::getInstance().enqueue([open_file, fname, before = std::move(before), defaults = std::move(defaults), defaults_with_config = std::move(defaults_with_config)](auto,DrawStructure& graph)
+                                SceneManager::enqueue([open_file, fname, before = std::move(before), defaults = std::move(defaults), defaults_with_config = std::move(defaults_with_config)](auto,DrawStructure& graph)
                                                                     {
                                     graph.dialog([open_file, before = std::move(before), defaults = std::move(defaults), defaults_with_config = std::move(defaults_with_config)](Dialog::Result result) mutable {
                                         if(result == Dialog::Result::OKAY) {
@@ -898,7 +898,7 @@ void SettingsScene::Data::check_video_source(file::PathArray source) {
             Print("VideoSource for ",no_quotes(utils::ShortenText(source.toStr(), 1000))," of size ", v.size(),".");
         }
         
-        SceneManager::getInstance().enqueue([this, source](){
+        SceneManager::enqueue([this, source](){
             try {
                 if(_initial_source.empty()
                    && not source.empty())

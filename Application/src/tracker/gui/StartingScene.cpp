@@ -190,7 +190,7 @@ void StartingScene::_draw(DrawStructure& graph) {
                                  type,
                                  {},
                                  copy);
-                            SceneManager::getInstance().enqueue([](auto, auto&) {
+                            SceneManager::enqueue(SceneManager::AlwaysAsync{}, []() {
                                 SceneManager::getInstance().set_active("settings-scene");
                             });
                         });
@@ -221,7 +221,7 @@ void StartingScene::_draw(DrawStructure& graph) {
                         SceneManager::getInstance().set_active("settings-scene");
                     }),
                     ActionFunc("clear_recent_items", [](auto) {
-                        SceneManager::getInstance().enqueue([](auto, DrawStructure& base){
+                        SceneManager::enqueue([](auto, DrawStructure& base){
                             base.dialog([](Dialog::Result r) {
                                 if (r == Dialog::OKAY) {
                                     RecentItems::reset_file();

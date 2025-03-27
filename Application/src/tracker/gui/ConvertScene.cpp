@@ -484,7 +484,7 @@ void ConvertScene::activate()  {
     _data->callback = GlobalSettings::map().register_callbacks({
         "detect_skeleton"
     }, [this](auto) {
-        SceneManager::getInstance().enqueue([this](auto,auto&) {
+        SceneManager::enqueue([this]() {
             _data->skelet = SETTING(detect_skeleton).value<Skeleton>();
             _data->_skeletts.clear();
         });
@@ -502,7 +502,7 @@ void ConvertScene::activate()  {
     window()->set_title(window_title());
     _data->bar.set_progress(0);
     
-    SceneManager::getInstance().enqueue([this](IMGUIBase*, DrawStructure& graph) {
+    SceneManager::enqueue([this](IMGUIBase*, DrawStructure& graph) {
         if(not _data || not _data->_segmenter)
             return;
         if(not _data->_segmenter->output_size().empty())
@@ -848,7 +848,7 @@ dyn::DynamicGUI ConvertScene::Data::init_gui(Base* window) {
     
     context.actions = {
         ActionFunc("terminate", [this](auto) {
-            SceneManager::getInstance().enqueue([&](IMGUIBase*, DrawStructure& graph){
+            SceneManager::enqueue([&](IMGUIBase*, DrawStructure& graph){
                 graph.dialog([&](Dialog::Result result){
                     if(result == Dialog::OKAY) {
                         if (_segmenter)
@@ -870,7 +870,7 @@ dyn::DynamicGUI ConvertScene::Data::init_gui(Base* window) {
         ActionFunc("set_clipboard", [](const Action& action) {
             auto text = action.parameters.at(0);
             gui::set_clipboard(text);
-            SceneManager::getInstance().enqueue([text](auto, DrawStructure& graph) {
+            SceneManager::enqueue([text](auto, DrawStructure& graph) {
                 graph.dialog("Copied to clipboard:\n<c><str>"+text+"</str></c>");
             });
         }),

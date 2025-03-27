@@ -14,6 +14,34 @@ using namespace cmn;
 using namespace cmn::gui;
 using namespace dyn;
 
+TEST(TestDerivedPtr, Construct) {
+    derived_ptr<Drawable> ptr;
+    ASSERT_EQ(ptr, nullptr);
+    
+    {
+        auto text_ptr = Layout::Make<Text>();
+        ptr = text_ptr;
+        
+        ASSERT_EQ(text_ptr, ptr);
+        ASSERT_TRUE(text_ptr.get_smart());
+        ASSERT_EQ(text_ptr.get_smart().use_count(), ptr.get_smart().use_count());
+        ASSERT_EQ(text_ptr.get_smart().use_count(), 2);
+    }
+    
+    {
+        ASSERT_EQ(ptr.get_smart().use_count(), 1);
+        auto smart = ptr.get_smart();
+        ASSERT_EQ(ptr.get_smart().use_count(), 2);
+        ptr = nullptr;
+        ASSERT_EQ(smart.use_count(), 1);
+    }
+}
+
+TEST(TestDerivedPtr, Convert) {
+    auto button = Layout::Make<Button>();
+    static_assert(std::same_as<decltype(button), derived_ptr<Drawable>>, "");
+}
+
 // Unit Tests
 TEST(ParseText, BasicReplacement) {
     State state;

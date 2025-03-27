@@ -34,6 +34,9 @@ SelectedSettingType _selected_setting_type;
 std::atomic<pv::bid> _clicked_blob_id;
 std::atomic<Frame_t> _clicked_blob_frame;
 
+std::shared_ptr<Entangled> popup;
+std::shared_ptr<Dropdown> list;
+pv::bid last_blob_id;
 
 derived_ptr<::gui::Polygon> _bdry_polygon;
 
@@ -52,6 +55,9 @@ void blob_view_shutdown() {
     _selected_setting_type = SelectedSettingType::NONE;
     _clicked_blob_id = pv::bid{};
     _clicked_blob_frame = Frame_t();
+    popup = nullptr;
+    list = nullptr;
+    last_blob_id = {};
 }
 
 struct Outer {
@@ -556,10 +562,7 @@ void draw_blob_view(const DisplayParameters& parm)
         }
     });
     
-    static pv::bid last_blob_id;
     if(_clicked_blob_id.load().valid() && _clicked_blob_frame.load() == frame) {
-        static std::shared_ptr<Entangled> popup;
-        static std::shared_ptr<Dropdown> list;
         if(popup == nullptr) {
             popup = std::make_shared<Entangled>();
             list = std::make_shared<Dropdown>(Box(0, 0, 200, 35), ListDims_t{200,200}, Font{0.6}, ListFillClr_t{60,60,60,200}, FillClr{60,60,60,200}, LineClr{100,175,250,200}, TextClr{225,225,225});
@@ -638,6 +641,14 @@ void draw_blob_view(const DisplayParameters& parm)
             if(blob->blob->blob_id() == _clicked_blob_id.load()) {
                 blob_pos = blob->blob->bounds().center();
                 auto pt = parm.coord.convert(BowlCoord(blob_pos));
+                //auto top = pt.y < parm.coord.screen_size().height * 0.5_F
+                //            ? 0_F : 1_F;
+                if(pt.x < parm.coord.screen_size().width * 0.5_F) {
+                    popup->set_origin(Vec2(0, 0));
+                } else {
+                    popup->set_origin(Vec2(1, 0));
+                }
+                
                 popup->set_pos(pt);
                 found = true;
                 break;
