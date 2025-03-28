@@ -286,9 +286,11 @@ public:
         //if(not data)
         //    return;
         if(data) {
-            std::unique_lock p(_pause_mutex);
-            while(_paused)
-                _pause_variable.wait(p);
+            {
+                std::unique_lock p(_pause_mutex);
+                while(_paused)
+                    _pause_variable.wait(p);
+            }
             
             BasicManager<Data>::enqueue(std::move(data));
         } else {

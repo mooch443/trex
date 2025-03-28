@@ -91,7 +91,7 @@ html_js_files = [
 html_theme_options = {
     'canonical_url': '',
     'logo_only': True,
-    'display_version': True,
+    #'display_version': True,
     'prev_next_buttons_location': 'bottom',
     'style_external_links': True,
 #    'style_nav_header_background': '',
