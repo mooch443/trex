@@ -25,7 +25,13 @@ echo pythoninclude is %pythoninclude%
 for /f %%w in ('%PREFIX%\python ../find_library.py') do set findlib=%%w
 echo findlib is %findlib%
 
+echo CMakeGen %CMAKE_GEN%
 echo Generator %CMAKE_GENERATOR%
+
+if "%CMAKE_GENERATOR%" == "" (
+    set CMAKE_GENERATOR=Visual Studio 17 2022 Win64
+)
+
 echo Python %PYTHON%
 echo GITHUB_WORKFLOW %GITHUB_WORKFLOW%
 set GENERATOR=-G "Visual Studio 16 2019"
