@@ -254,18 +254,6 @@ void SceneManager::update_queue() {
     }
 }
 
-void SceneManager::execute_task(std::function<void ()> &&f)
-{
-    assert(is_gui_thread());
-
-    try {
-        f();
-    }
-    catch (...) {
-        // pass
-    }
-}
-
 bool SceneManager::on_global_event(Event event) {
     if(event.type == EventType::WINDOW_RESIZED) {
         _enqueue([](gui::IMGUIBase* base, gui::DrawStructure& graph) {

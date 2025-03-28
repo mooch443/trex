@@ -11,6 +11,7 @@
 #include <gui/DrawPosture.h>
 #include <tracking/FilterCache.h>
 #include <misc/TimingStatsCollector.h>
+#include <gui/Scene.h>
 
 namespace cmn::gui {
     
@@ -482,14 +483,17 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
         if(not _delete_frame_callback) {
             _delete_frame_callback = _tracker.register_delete_callback([this](){
                 {
-                    std::unique_lock guard(_tracklet_cache_mutex);
-                    _processed_tracklet_caches.clear();
-                    _tracklet_caches.clear();
+                    std::unique_lock guard{_fish_map_mutex};
+                    SceneManager::enqueue([fish_map = std::move(_fish_map)]() mutable {
+                        fish_map.clear();
+                    });
+                    assert(_fish_map.empty());
                 }
                 
                 {
-                    std::unique_lock guard{_fish_map_mutex};
-                    _fish_map.clear();
+                    std::unique_lock guard(_tracklet_cache_mutex);
+                    _processed_tracklet_caches.clear();
+                    _tracklet_caches.clear();
                 }
                 
                 {

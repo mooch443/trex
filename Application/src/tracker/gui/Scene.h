@@ -41,7 +41,7 @@ class SceneManager {
     Scene* active_scene{ nullptr };
     Scene* last_active_scene{nullptr};
     std::map<std::string, Scene*> _scene_registry;
-    std::queue<std::tuple<const Scene*, std::function<void()>>> _queue;
+    std::queue<std::tuple<const Scene*, package::F<void()> >> _queue;
     std::unique_ptr<GUITaskQueue_t> _gui_queue;
     Size2 last_resolution;
     double last_dpi{0};
@@ -94,12 +94,12 @@ public:
     
     template<typename F>
     static void enqueue(F&& task) {
-        getInstance()._enqueue(std::forward<F>(task));
+        getInstance()._enqueue(std::move(task));
     }
     
     template<typename F>
     static void enqueue(AlwaysAsync, F&& task) {
-        getInstance()._enqueue(AlwaysAsync{}, std::forward<F>(task));
+        getInstance()._enqueue(AlwaysAsync{}, std::move(task));
     }
     
     GUITaskQueue_t* gui_task_queue() const;
@@ -109,18 +109,21 @@ private:
         requires (not std::is_invocable_v<F, IMGUIBase*, DrawStructure&>)
     void _enqueue(F&& task) {
         if(is_gui_thread()) {
-            execute_task(std::forward<F>(task));
+            execute_task(std::move(task));
             return;
         }
         
-        _enqueue(AlwaysAsync{}, std::forward<F>(task));
+        _enqueue(AlwaysAsync{}, std::move(task));
     }
     
     template<typename F>
         requires (not std::is_invocable_v<F, IMGUIBase*, DrawStructure&>)
     void _enqueue(AlwaysAsync, F&& task) {
         std::unique_lock guard(_mutex);
-        _queue.emplace(active_scene, std::move(task));
+        _queue.emplace(active_scene, package::F<void()>(std::move(task)));
+        /*_queue.emplace(active_scene, [task = std::move(task)]() mutable{
+            task();
+        });*/
     }
     
     template<typename F>
@@ -142,7 +145,17 @@ private:
         });
     }
     
-    void execute_task(std::function<void()>&& fn);
+    template<typename F>
+    void execute_task(F&& fn) {
+        assert(is_gui_thread());
+
+        try {
+            fn();
+        }
+        catch (...) {
+            // pass
+        }
+    }
 };
 
 }  // namespace gui
