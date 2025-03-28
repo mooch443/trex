@@ -76,7 +76,9 @@ struct Interface::Rows {
     std::array<Row, 2> rows{ Row(0), Row(1) };
 };
 
-Interface::Interface() {}
+Interface::Interface() {
+    Work::aborted_category_selection() = false;
+}
 Interface::~Interface() {}
 
 Interface::Rows& Interface::rows() {
@@ -746,6 +748,8 @@ void Interface::draw(const std::weak_ptr<pv::File>& video, IMGUIBase* window, Dr
 
                         for (auto& cat : categories)
                             DataStore::label(cat.c_str()); // create labels
+                    } else {
+                        Work::aborted_category_selection() = true;
                     }
 
                     }, "Please enter the categories (comma-separated), e.g.:\n<i>W,S</i> for categories <str>W</str> and <str>S</str>.", "Categorize", "Okay", "Cancel");

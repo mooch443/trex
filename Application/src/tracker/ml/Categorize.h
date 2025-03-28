@@ -71,6 +71,8 @@ std::atomic_bool& terminate();
 std::atomic_bool& learning();
 std::atomic<bool>& terminate_prediction();
 
+std::atomic<bool>& aborted_category_selection();
+
 inline constexpr float good_enough() {
     return 0.75;
 }

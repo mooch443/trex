@@ -74,6 +74,10 @@ static std::mutex& learning_mutex() {
 }
 
 std::unique_ptr<std::thread> thread;
+std::atomic<bool>& aborted_category_selection() {
+    static std::atomic<bool> _aborted_category_selection{false};
+    return _aborted_category_selection;
+}
 
 struct Task {
     Range<Frame_t> range;
@@ -543,7 +547,10 @@ void Work::start_learning(std::weak_ptr<pv::File> video_source) {
         };
         
         Timer timer;
-        while(FAST_SETTING(categories_ordered).empty() && Work::learning()) {
+        while(not Work::aborted_category_selection()
+              && FAST_SETTING(categories_ordered).empty()
+              && Work::learning())
+        {
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
             if(timer.elapsed() >= 1) {
                 FormatWarning("# Waiting for labels...");
@@ -552,6 +559,10 @@ void Work::start_learning(std::weak_ptr<pv::File> video_source) {
         }
         reset_variables();
         
+        if(Work::aborted_category_selection()) {
+            Work::learning() = false;
+            Work::aborted_category_selection() = false;
+        }
         Work::status() = "";
         
         std::vector<std::tuple<LearningTask, size_t>> prediction_tasks;
