@@ -483,6 +483,8 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
         if(not _delete_frame_callback) {
             _delete_frame_callback = _tracker.register_delete_callback([this](){
                 {
+                    /// make sure that the gui elements are actually deleted in the
+                    /// gui thread, not in the callback thread
                     std::unique_lock guard{_fish_map_mutex};
                     SceneManager::enqueue([fish_map = std::move(_fish_map)]() mutable {
                         fish_map.clear();
