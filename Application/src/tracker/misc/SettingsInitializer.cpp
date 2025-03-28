@@ -83,15 +83,21 @@ set_defaults_for(detect::ObjectDetectionType_t detect_type,
     };
     
     if(detect_type == track::detect::ObjectDetectionType::background_subtraction) {
-        static const sprite::Map values {
+        auto cm_per_pixel = SETTING(cm_per_pixel).value<Settings::cm_per_pixel_t>();
+        if(cm_per_pixel <= 0) {
+            cm_per_pixel = 1;
+        }
+        
+        const sprite::Map values {
             "track_threshold", 15,
             "track_posture_threshold", 15,
             "track_background_subtraction", true,
             "calculate_posture", true,
-            "track_size_filter", SizeFilters(),
-            "detect_size_filter", SizeFilters({Ranged(10, 100000)}),
+            //"track_size_filter", SizeFilters(),
+            "detect_size_filter", SizeFilters({Ranged(10 * SQR(cm_per_pixel),
+                                                      100000 * SQR(cm_per_pixel))}),
             //"meta_encoding", meta_encoding_t::rgb8,
-            "track_do_history_split", true,
+            //"track_do_history_split", true,
             "detect_classes", detect::yolo::names::owner_map_t{},
             "individual_image_normalization", individual_image_normalization_t::posture,
             "blob_split_algorithm", blob_split_algorithm_t::threshold,
@@ -108,11 +114,11 @@ set_defaults_for(detect::ObjectDetectionType_t detect_type,
             "track_posture_threshold", 0,
             "track_background_subtraction", false,
             "detect_size_filter", SizeFilters(),
-            "track_size_filter", SizeFilters(),
+            //"track_size_filter", SizeFilters(),
             "calculate_posture", true,
             "outline_resample", 1.f,
             "outline_approximate", uchar(3),
-            "track_do_history_split", false,
+            //"track_do_history_split", true,
             "individual_image_normalization", individual_image_normalization_t::posture,
             "detect_model", file::Path(detect::yolo::default_model()),
             "blob_split_algorithm", blob_split_algorithm_t::none,
@@ -827,8 +833,13 @@ void load(file::PathArray source,
                             map["meta_real_width"] = infer_meta_real_width_from(f, &combined.map);
                             return &map.at("meta_real_width").get();
                         }},
-                        {"cm_per_pixel", [&](auto&) {
-                            FormatWarning("Source ", path, " does not have `cm_per_pixel`.");
+                        {"cm_per_pixel", [&](auto& map) -> const sprite::PropertyType* {
+                            if(tmp.has("cm_per_pixel")) {
+                                tmp.at("cm_per_pixel").get().copy_to(map);
+                                return &map.at("cm_per_pixel").get();
+                            } else {
+                                FormatWarning("Source ", path, " does not have `cm_per_pixel`.");
+                            }
                             return nullptr;
                         }},
                         {"detect_type", [&](auto& map) -> const sprite::PropertyType* {

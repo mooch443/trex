@@ -26,6 +26,7 @@
 #include <gui/types/StaticText.h>
 #include <gui/GuiTypes.h>
 #include <misc/Coordinates.h>
+#include <gui/Scene.h>
 
 namespace py = Python;
 
@@ -842,22 +843,15 @@ float Accumulation::good_uniqueness() {
     return max(0.9, (float(FAST_SETTING(track_max_individuals)) - 0.5f) / float(FAST_SETTING(track_max_individuals)));
 }
 
-Accumulation::Accumulation(cmn::gui::GUITaskQueue_t* gui, std::shared_ptr<pv::File>&& video, std::vector<Range<Frame_t>>&& global_tracklet_order, gui::IMGUIBase* base, TrainingMode::Class mode) : _mode(mode), _accumulation_step(0), _counted_steps(0), _last_step(1337), _video(std::move(video)), _base(base), _global_tracklet_order(global_tracklet_order), _gui(gui) {
-    using namespace gui;
-    _textarea = new StaticText(SizeLimit{700,180}, TextClr(150,150,150,255), Font(0.6));
-}
+Accumulation::Accumulation(cmn::gui::GUITaskQueue_t* gui, std::shared_ptr<pv::File>&& video, std::vector<Range<Frame_t>>&& global_tracklet_order, gui::IMGUIBase* base, TrainingMode::Class mode) : _mode(mode), _accumulation_step(0), _counted_steps(0), _last_step(1337), _video(std::move(video)), _base(base), _global_tracklet_order(global_tracklet_order), _gui(gui)
+{ }
 
 Accumulation::~Accumulation() {
     /*auto lock = LOGGED_LOCK_VAR_TYPE(std::recursive_mutex);
     if(_textarea && _textarea->stage()) {
         lock = GUI_LOCK(_textarea->stage()->lock());
     }*/
-    _textarea = nullptr;
-    _graph = nullptr;
-    _layout = nullptr;
-    _layout_rows = nullptr;
-    _coverage_image = nullptr;
-    _dots = nullptr;
+    gui::SceneManager::enqueue(gui::SceneManager::AlwaysAsync{}, move_objects());
 }
 
 float Accumulation::step_calculate_uniqueness() {
@@ -2104,6 +2098,7 @@ void Accumulation::end_a_step(Result ) {
 
 void Accumulation::update_display(gui::Entangled &e, const std::string& text) {
     using namespace gui;
+    assert(gui::SceneManager::is_gui_thread());
     auto coord = FindCoord::get();
     auto screen_dimensions = coord.screen_size();
     

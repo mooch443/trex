@@ -1077,8 +1077,11 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             "meta_source_path",
             "meta_real_width",
             "detect_type",
+            "detect_size_filter",
             "meta_encoding",
-            "cm_per_pixel"
+            "cm_per_pixel",
+            "calculate_posture",
+            "track_background_subtraction"
         };
         
         if(auto type = SETTING(detect_type).value<track::detect::ObjectDetectionType_t>();
@@ -1106,6 +1109,9 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             exclude_fields.push_back("detect_conf_threshold");
             exclude_fields.push_back("detect_model");
             exclude_fields.push_back("detect_format");
+            exclude_fields.push_back("detect_classes");
+            
+            explicitly_include.emplace("detect_threshold");
         }
         
         /**

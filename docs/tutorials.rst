@@ -91,15 +91,15 @@ Open your `Miniforge` Prompt and run:
 
 .. NOTE::
 
-   This only works if `conda-forge` is the *only* channel you have added to your `conda` configuration. By default, this is the case if you're using `Miniforge`. If you have other channels added, or are using Anaconda, you can run the following command instead:
+   This only works if `conda-forge` is the *only* channel you have added to your `conda` configuration. By default, this is the case if you're using `Miniforge`. If added other channels manually, or you are using Anaconda, you can run the following command instead:
 
    .. code-block:: bash
 
       conda create -n track --override-channels -c trex-beta -c conda-forge trex
 
-   If any other channels are used, the installation might not work as expected and may throw `package not found` errors.
+   If any other channels are used, the installation might not work as expected and may throw `package not found` errors. This will probably work, but we give no guarantees.
 
-This will create a new conda environment called ``track`` with |trex| installed. This could take a while, especially during conda's 'verifying transaction' phase. Activate the environment using:
+This will create a new conda environment called ``track`` with |trex| installed. This could take a while, especially during conda's 'verifying transaction' phase when it is installing additional packages via pip. Once it's done, you can activate the environment using:
 
 .. code-block:: bash
 
@@ -143,7 +143,7 @@ To improve tracking performance, the software will produce a *cached* version of
 
 .. admonition:: On Video Files and File Sizes
 
-   Standard encoded video files, such as `.mp4`, can often be surprisingly difficult to scrub through. You may have noticed delays when trying to rewind or fast-forward a movie you're watching. |trex| video files are designed to make scrubbing faster by avoiding *delta encoding* (i.e. storing only the changes between frames). Instead, all objects of interest in every frame are stored in full - omitting all background pixels. This enables seamless jumps (e.g. during `4x` playback) and fast random data access during tracking. On the downside, this approach can sometimes result in slightly larger file sizes compared to the original `.mp4` — though this depends on your specific situation and is not always the case.
+   Standard encoded video files, such as `.mp4`, can often be surprisingly difficult to scrub through - you may have noticed this, for example, as `delays` when trying to rewind or fast-forward a movie you're watching. |trex| *preprocessed* video files are designed to make scrubbing faster by avoiding *delta encoding* (i.e. storing only the changes between frames). Instead, all objects of interest in every frame are stored in full - omitting all background pixels. This enables seamless jumps (e.g. during `4x` playback) and fast random data access during tracking. On the downside, this approach can sometimes result in slightly larger file sizes compared to the original `.mp4` — though this depends on your specific situation and is not always the case.
 
    The file size of a |trex| video also depends on your settings. For instance, the :param:`meta_encoding` parameter determines whether all RGB channels are stored, only greyscale, or none at all (resulting in much smaller files). Refer to the documentation for more details on these options.
 
@@ -177,7 +177,7 @@ If you want to follow along exactly as described, you can download the example v
 Setting Up a New Project
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-When you first start |trex|, you'll see a window with a welcome message and a button to open a file or start the webcam. Click on the folder icon in the center of the screen to proceed to the `initial settings screen <welcome_screen>`.
+When you first start |trex|, you'll see a window with a welcome message and a button to open a file or start the webcam. Click on the folder icon in the center of the screen to proceed to the :ref:`initial settings screen <initialsettings>`.
 
 There are a few tabs on top of your screen now (see :numref:`initialsettings`). You will be landed on the first one:
 
@@ -187,14 +187,18 @@ There are a few tabs on top of your screen now (see :numref:`initialsettings`). 
 
 .. _initialsettings:
 
-.. figure:: images/configuration_screen-1.mov
+.. figure:: images/initial_settings.png
    :width: 100%
 
    Initial settings screen where you can choose your input and output files, as well as various detection and tracking parameters.
 
 Let's set an input file first and then go through a few more steps to get started:
 
-1. **Select the Input File**: Click on the 📂 folder button next to the input file name at the top, or enter the path manually. Once you selected the video, the background of the dialog will change to a slowed down and slightly blurry version of it (you can hover it to see it more clearly).
+1. **Select the Input File**: Click on the 📂 folder button next to the input file name at the top, or enter the path manually. Once you selected the video, the background of the dialog will change to a slowed down and slightly blurry version of it (you can hover it to see it more clearly). 
+   
+   .. NOTE::
+
+      To follow along with the tutorial you can download the ``hexbug_20250129_5.mp4`` file from `here <https://edmond.mpg.de/dataset.xhtml?persistentId=doi:10.17617/3.7F5MGE>`_ and select it here.
 
 2. **Setting Output Preferences** (optional):
 
@@ -207,32 +211,52 @@ Let's set an input file first and then go through a few more steps to get starte
 
    Tracking can generally be defined as connecting the dots between detections across the temporal dimension. The first step in this process is detecting the individuals in each frame. |trex|, at the moment, offers two different detection types:
 
-   - **Background subtraction**: This is the fastest detection type and works well for most videos recorded in *controlled conditions*. It's based on the difference between the current frame and a background model. This model is built from the first few frames of the video and is updated over time. It's a simple and fast method that works well for most videos.
+   - **Background subtraction**: This is the fastest detection type and works well for most videos recorded in *controlled conditions*. It's based on the difference between the current frame and a background image. This background is built from uniformly sampled frames of the video - e.g. by averaging them - getting rid of the moving entities. It's a simple and fast method that works well for most videos.
    - **YOLO** (*default*): This is a more advanced detection type that uses a deep learning model (e.g., YOLO architecture) to detect individuals. These models are better at handling complex scenes, but are also slower and need more computational power. They are recommended for videos with complex backgrounds/low foreground to background contrast, complicated occlusions, or other challenging conditions. If the default models (trained on e.g. human-pose or everyday objects) are not sufficient, you can also train your own model (see :doc:`model_training`).
 
-   For the basics tutorials, we'll use the default *background subtraction* method. However, YOLO is selected by default - please navigate to the **Detection** tab to fix that. In the same tab we can also change the :param:`detect_threshold` value, which is the minimum greyscale intensity value ``[0-255]`` for a pixel to be considered part of an individual. The default value is ``15``, but you can adjust it to better fit your video. Unlike :param:`track_threshold`, this value acts *destructively* and could actually be regarded as a lower bound for :param:`track_threshold`.
+   For this tutorial, we'll use the default *background subtraction* method. However, YOLO is selected by default - please navigate to the **Detection** tab to fix that. In the same tab we can also change the :param:`detect_threshold` value, which is the minimum greyscale intensity value ``[0-255]`` for a pixel to be considered part of an individual. The default value is ``15``, but you can adjust it to better fit your video: in our case we'll go with ``50``. Unlike :param:`track_threshold`, this value acts *destructively* and could actually be regarded as a lower bound for :param:`track_threshold`.
    
    We will check back on thresholds later.
 
 4. **Set the Number of Individuals**:
 
    - Navigate to the **Tracking** tab.
-   - We counted the individuals when we recorded the video, so we should specify that number here: set the *maximum* number of individuals to ``8``. 
+   - We counted the individuals when we recorded the video, so we should specify that number here: set the *maximum* number of individuals to ``5``. 
      
    It's called a *maximum* number because in some frames (e.g., during overlap or occlusion) the software might not be able to detect all individuals - or more objects are detected than there are individuals in the scene. This is a common problem in tracking and not specific to |trex|. The software will try to resolve this by, for example, splitting objects, but it's not always possible to get it right. If you set the maximum number too low you might lose individuals in the analysis. If you set it too high, you might get more overdetection. The software will try to resolve this as best as it can, but it's always a good idea to check the results visually.
 
    .. _settings_pane:
 
-   .. figure:: images/settings_pane.png
+   .. figure:: images/tracking_settings.png
       :width: 100%
 
       The tracking settings tab allows you to set the number of individuals to track, as well as other tracking-related settings.
 
-5. **Start the Conversion**:
+5. **Set further tracking settings**:
+
+   - :param:`track_threshold` we can set to `80`, but if we change our minds later on, we can decrease this after conversion down to the value of :param:`detect_threshold` (which we set to `50` earlier).
+   - :param:`calculate_posture` make sure we are calculating posture by turning this on
+   - :param:`cm_per_pixel` is the conversion factor for any pixel to cm conversion (and vice-versa). You can either set this to `0.0257` now because you magically know this number - or you can click on "Calibrate". This gets you to this screen here:
+
+   .. _calibrate_view:
+
+   .. figure:: images/calibrate_view.png
+      :width: 100%
+
+      Click on two points here to draw the line, then click on "configure" to set the actual length of this line in the real world. In this example, the floor of the arena is approximately `60cm` wide. |trex| will use this information to calculate a conversion factor to be used for all spatial units. Be sure to also accept changes to the other parameters once you click on "Okay"! This will automatically adapt :param:`track_max_speed` (and similar) for the new conversion factor (maximum speed is given in cm).
+
+   - :param:`track_max_speed` can be set to ``100`` since the individuals are moving quite fast! This essentially means that at ``100cm/s`` we don't believe them anymore. 
+   - At the very bottom, set :param:`meta_encoding` to ``gray`` instead of ``rgb8`` because we know this video is actually grayscale, so we don't generate redundant Red Green and Blue values (which are going to be indentical).
+
+   .. NOTE::
+
+      If you set the maximum speed *before* calibrating, obviously this number will change its meaning!
+
+6. **Start the Conversion**:
 
   Once you're happy with how you've configured the settings, click the **Convert** button at the bottom right to begin processing. On most computers this will be done relatively quickly, but it can take longer for larger videos or more complex scenes. After conversion is done, you'll be dropped into the default :ref:`Tracking View <tracking_view>`.
 
-It is fairly normal to have to adjust the settings a few times to get the best results. Anything related to tracking can be changed at any time, but detection settings are fixed once the conversion starts. So if you're not happy with the initial **Detection**, you can always cancel an ongoing conversion, go back to the opening dialog and try again. **Tracking problems**, on the other hand, can be resolved more easily later on; the only requirement is that the detection is good enough to start with - meaning no individuals are completely undetected or deformed by irreversible settings such as the :param:`detect_threshold` mentioned earlier.
+Now the results don't look perfect yet. It is fairly normal to have to adjust the settings a few times to get the best results. Anything related to tracking can be changed at any time, but detection settings are fixed once the conversion starts. So if you're not happy with the initial **Detection**, you can always cancel an ongoing conversion, go back to the opening dialog and try again. **Tracking problems**, on the other hand, can be resolved more easily later on; the only requirement is that the detection is good enough to start with - meaning no individuals are completely undetected or deformed by irreversible settings such as the :param:`detect_threshold` mentioned earlier.
 
 .. epigraph::
 
@@ -243,7 +267,7 @@ It is fairly normal to have to adjust the settings a few times to get the best r
 The Graphical Interface
 ^^^^^^^^^^^^^^^^^^^^^^^
 
-There are a few elements of the graphical user-interface (**GUI**) that are important to understand:
+Before we jump into adjusting a few more parameters, there are a few elements of the graphical user-interface (**GUI**) that are important to understand:
 
 - **Top Bar**: This is where you can find the main menu, which includes options to open a new file, save the current configuration, and close the file. You can also find the **Reanalyse** button here, which allows you to retrack the video with the current settings.
 
@@ -302,17 +326,13 @@ There are two ways of changing parameters:
 
 The general intuition here is that if your parameter of choice applies during the tracking phase (i.e. anything that is not detection-related), you can change its value at any time. You may have to **reanalyse** to see the changes, but this is usually a lot faster than reconverting the entire video. Detection parameters, on the other hand, are fixed once the conversion starts, so you'll have to cancel the conversion and start over if you're not happy with the results. 
 
-Luckily, we can improve our results by adjusting a few settings - since our detection parameters are the issue here, let's reconvert the video. First, go back to the welcome screen. You can do that by clicking on the **☰ Menu** button in the top right corner of the screen, then → **Close file**.
-
-You should see the guppy video now as one of the "Recent files". Click on it to open the settings dialog again. This time, we'll adjust the :param:`detect_threshold` value in the **Detection** tab. Trust me here, this threshold was a bit too high which led to some individuals not being detected fully or at all, as well as causing additional noise because of fragmented individuals. We'll set it to ``9`` this time. While this will produce slightly more particles floating around, those are easily filtered out by changing the :param:`track_size_filter` setting later on.
-
-Now click on **Convert** again and agree to overwrite the existing file.
+If our detection parameters (i.e. :param:`detect_threshold`) were the issue here, we'd have to reconvert the video. To do that we'd first go back to the welcome screen. You can do that by clicking on the **☰ Menu** button in the top right corner of the screen, then → **Close file**. There, you should see the video now as one of the "Recent files". Click on it to open the settings dialog again. You can then adjust all the parameters you like and click on **Convert** again + agree to overwrite the existing file.
 
 .. warning::
 
-   This will overwrite the existing video cache (.pv), but it will **not** automatically overwrite the settings file it generated the first time. This means that your adjusted settings are not gonna be around next time you click on the guppy video unless, after being dropped into tracking view, you do **☰ Menu** → **Save Config** to overwrite it manually.
+   Reconverting overwrites the existing video cache (.pv), but it will **not** automatically overwrite the settings file it generated the first time. This means that your adjusted settings are not gonna be around next time you click on the guppy video unless, after being dropped into tracking view, you do **☰ Menu** → **Save Config** to overwrite it manually.
 
-Once that's done, and you're back in tracking view, you'll notice that not all individuals are tracked while some of the randomly floating particles are! Luckily, we can fix this rather easily by adjusting :param:`track_size_filter` - but what are the correct values here?
+However, we're fine on that I think, so let's continue with the tracking parameters now. In tracking view, you'll notice that not all individuals are tracked while some of the randomly floating particles are! Luckily, we can fix this rather easily by adjusting :param:`track_size_filter` - but what are the correct values here?
 
 .. _tracking_view:
 
