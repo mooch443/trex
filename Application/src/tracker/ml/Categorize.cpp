@@ -228,6 +228,7 @@ void hide() {
     //}
     
     DataStore::clear_cache();
+    Work::status() = "";
     
     std::lock_guard guard(Work::mutex());
     Print("[Categorize] Clear ", Work::_generated_samples.size(), " pregenerated samples...");
@@ -562,6 +563,7 @@ void Work::start_learning(std::weak_ptr<pv::File> video_source) {
         if(Work::aborted_category_selection()) {
             Work::learning() = false;
             Work::aborted_category_selection() = false;
+            hide();
         }
         Work::status() = "";
         
