@@ -1,11 +1,13 @@
 #pragma once
 
+#include <commons.pc.h>
 #include <gui/types/Button.h>
 #include <gui/types/Layout.h>
 #include <gui/types/Textfield.h>
 #include <gui/DrawStructure.h>
 #include <gui/types/Tooltip.h>
 #include <pv.h>
+#include <misc/Timer.h>
 
 namespace cmn::gui {
 class IMGUIBase;
@@ -17,6 +19,7 @@ namespace Categorize {
 using namespace cmn::gui;
 
 struct Row;
+struct Cell;
 
 struct Interface {
     struct Rows;
@@ -59,6 +62,15 @@ struct Interface {
 private:
     void init(std::weak_ptr<pv::File> video, IMGUIBase*, DrawStructure& base);
     void clear_rows();
+    
+public:
+    Cell* _selected = nullptr;
+    bool redrawing = true;
+    float previous_max = 100;
+    Timer draw_timer;
+    Timer timer;
+    //Layout::Ptr textfield;
+    Rect rect{FillClr{Black.alpha(125)}};
 };
 
 

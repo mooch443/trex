@@ -15,10 +15,11 @@ struct Row;
 struct Cell {
 private:
     std::vector<Layout::Ptr> _buttons;
-    GETTER(std::shared_ptr<HorizontalLayout>, button_layout);
+    GETTER(std::shared_ptr<HorizontalLayout>, button_layout){new HorizontalLayout()};
     GETTER_SETTER_I(bool, selected, false);
     
 public:
+    Interface* interface = &Interface::get();
     Row *_row = nullptr;
     size_t _index = 0;
     Sample::Ptr _sample;
@@ -27,9 +28,9 @@ public:
     int _max_id = -1;
     
     // gui elements
-    derived_ptr<ExternalImage> _image;
-    derived_ptr<StaticText> _text;
-    derived_ptr<Rect> _cat_border;
+    derived_ptr<ExternalImage> _image{new ExternalImage(Image::Make(50,50,1))};
+    derived_ptr<StaticText> _text{new StaticText(Font(0.45))};
+    derived_ptr<Rect> _cat_border{new Rect(Box(50,50))};
     derived_ptr<Entangled> _block;
     
 public:
@@ -114,11 +115,6 @@ Sample::Ptr retrieve() {
 }
 
 Cell::Cell() :
-    _button_layout(new HorizontalLayout()),
-    _selected(false),
-    _image(new ExternalImage(Image::Make(50,50,1))),
-    _text(new StaticText(Font(0.45))),
-    _cat_border(new Rect(Box(50,50))),
     _block(new Entangled([this](Entangled& e){
         /**
          * This is the block that contains all display-elements of a Cell.
@@ -177,22 +173,20 @@ Cell::Cell() :
     /**
      * Handle clicks on cells
      */
-    static Cell* _selected = nullptr;
-
     _image->on_click([this](Event e) {
         if(e.mbutton.button == 0 && _image.get() == _image->parent()->stage()->hovered_object()) {
             if(_sample) {
-                if(_selected == this) {
+                if(interface->_selected == this) {
                     this->set_selected(false);
-                    _selected = nullptr;
+                    interface->_selected = nullptr;
                     
                 } else {
-                    if(_selected) {
-                        _selected->set_selected(false);
-                        _selected = this;
+                    if(interface->_selected) {
+                        interface->_selected->set_selected(false);
+                        interface->_selected = this;
                     }
                     
-                    _selected = this;
+                    interface->_selected = this;
                     this->set_selected(true);
                 }
             }
@@ -592,7 +586,7 @@ void Interface::reset() {
 }
 
 void Interface::init(std::weak_ptr<pv::File> video, IMGUIBase* window, DrawStructure& base) {
-    if (!_initialized) {
+    if (!_initialized && window) {
         //PythonIntegration::ensure_started();
         //PythonIntegration::async_python_function([]()->bool{return true;});
         //Work::start_learning();
@@ -734,9 +728,9 @@ void Interface::draw(const std::weak_ptr<pv::File>& video, IMGUIBase* window, Dr
                 _asked = true;
 
                 using namespace gui;
-                static Layout::Ptr textfield;
+                derived_ptr<Textfield> textfield = new Textfield(Str("W,S"), Box(Size2(500 * 0.75, 33)));
 
-                auto d = base.dialog([](Dialog::Result r) {
+                auto d = base.dialog([textfield](Dialog::Result r) mutable {
                     if (r == Dialog::OKAY) {
                         std::vector<std::string> categories;
                         for (auto text : utils::split(textfield.to<Textfield>()->text(), ',')) {
@@ -754,8 +748,7 @@ void Interface::draw(const std::weak_ptr<pv::File>& video, IMGUIBase* window, Dr
 
                     }, "Please enter the categories (comma-separated), e.g.:\n<i>W,S</i> for categories <str>W</str> and <str>S</str>.", "Categorize", "Okay", "Cancel");
                 
-                textfield = Layout::Make<Textfield>(Str("W,S"), Box(Size2(500 * 0.75, 33)));
-                d->set_custom_element(derived_ptr<Textfield>(textfield));
+                d->set_custom_element(textfield);
                 d->layout().Layout::update_layout();
             }
             return;
@@ -763,7 +756,6 @@ void Interface::draw(const std::weak_ptr<pv::File>& video, IMGUIBase* window, Dr
     }
 
     using namespace gui;
-    static Rect rect(FillClr{Black.alpha(125)});
 
     auto screen_size = (window ? (window->window_dimensions().div(base.scale())) : Size2(base.width(), base.height())) * gui::interface_scale();
     auto center = screen_size * 0.5;
@@ -778,8 +770,6 @@ void Interface::draw(const std::weak_ptr<pv::File>& video, IMGUIBase* window, Dr
 
     layout.auto_size();
     base.wrap_object(layout);
-
-    static Timer timer;
 
     float max_w = 0;
     {
@@ -808,9 +798,6 @@ void Interface::draw(const std::weak_ptr<pv::File>& video, IMGUIBase* window, Dr
 #endif
     //max_w = max(base.width() * 0.5, max_w * 1.25);
 
-    static bool redrawing = true;
-    static float previous_max = 100;
-    static Timer draw_timer;
     if (abs(max_w - previous_max) > abs(previous_max)
         || previous_max > hard_limit)
     {
