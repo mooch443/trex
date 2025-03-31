@@ -64,91 +64,6 @@ The following sections will guide you through increasingly complex problems and 
 
    Different data types that can be extracted from a video: just the centroid position, pose/keypoint data, and outline-type data including directionality (front/back).
 
-Recommended System Requirements
--------------------------------
-
-While |trex| is designed to be lightweight, ensuring a modern CPU, sufficient RAM (8GB or more), and a dedicated GPU (optional but beneficial for advanced machine learning tasks) can optimize performance. Our test systems cover a broad spectrum of operating systems and architectures, such as Windows, macOS, and Linux, and we recommend using a system with at least the following specifications:
-
-- **Operating System**: Windows 10, macOS 10.15, or Ubuntu 20.04 LTS
-- **Processor**: Intel Core i5 or AMD Ryzen 5
-- **Memory**: 8GB RAM
-- **Graphics** (optional but recommended): dedicated NVIDIA GPU with 2GB VRAM, or Apple Silicon's integrated GPU
-
-This is a general recommendation, and |trex| can run on systems with lower specifications depending on the specific task at hand. However, the performance may be slower, especially for larger videos or more complex scenes. If you encounter any issues with the software that you think should not be happening, feel free to file a bug report on our `GitHub repository <https://github.com/mooch443/trex>`_.
-
-Installation
-------------
-
-You can download the latest version of |trex| using `Miniforge` (conda). To install |trex|, you need to have `Miniforge` installed on your system.
-
-If you're not familiar with `conda` or `Miniforge`, you can find more information on how to install them `here <https://conda-forge.org/miniforge/>`_. Miniforge is a minimal installer for `conda`, an open-source package manager that helps you create virtual environments and install software and libraries without installing them globally on your system [#f3]_. We do not support Anaconda's default channels, so please use `Miniforge` instead (in Anaconda, you can also restrict your channels to `conda-forge` only [#f4]_).
-
-Open your `Miniforge` Prompt and run:
-
-.. code-block:: bash
-
-   conda create -n track -c trex-beta trex
-
-.. NOTE::
-
-   This only works if `conda-forge` is the *only* channel you have added to your `conda` configuration. By default, this is the case if you're using `Miniforge`. If added other channels manually, or you are using Anaconda, you can run the following command instead:
-
-   .. code-block:: bash
-
-      conda create -n track --override-channels -c trex-beta -c conda-forge trex
-
-   If any other channels are used, the installation might not work as expected and may throw `package not found` errors. This will probably work, but we give no guarantees.
-
-This will create a new conda environment called ``track`` with |trex| installed. This could take a while, especially during conda's 'verifying transaction' phase when it is installing additional packages via pip. Once it's done, you can activate the environment using:
-
-.. code-block:: bash
-
-   conda activate track
-
-Then start |trex| by typing:
-
-.. code-block:: bash
-
-   trex
-
-and pressing **Enter**. 
-
-If a window showing a friendly T-Rex appears, you've successfully installed the software and can proceed to the next section.
-
-.. _welcome_screen:
-
-.. figure:: images/welcome_screen.png
-   :width: 100%
-
-   The TRex graphical user interface (GUI) showing the welcome screen.
-
-If you have any issues with the installation, please refer to the (more detailed) :doc:`installation guide <install>`.
-
-.. [#f3] The advantage of this is that you can have different versions of the same software installed on your system without conflicts, and that they can be easily removed.
-
-.. [#f4] We do not support Anaconda's default channels because forge has easier license agreements and is often more up-to-date. Anaconda's hosted channels can be problematic for you too, if your institution does not have a license agreement with them.
-
-
-Workflow & Quick Start
-^^^^^^^^^^^^^^^^^^^^^^
-
-The general workflow of using |trex| is quite straight-forward. Usually, you'd have your videos already recorded and will simply
-
-1. Open |trex|
-2. Open the video file, change a few settings and click **Convert**
-3. Wait a bit until you're dropped into **Tracking View**
-4. Quickly check for mistakes and, if OK, export the data by pressing ``S``
-
-To improve tracking performance, the software will produce a *cached* version of your video file (``.pv``) that contains all the information needed, but not more. This includes all objects of interest (i.e. not the background per frame) as well as a single averaged background image.
-
-.. admonition:: On Video Files and File Sizes
-
-   Standard encoded video files, such as `.mp4`, can often be surprisingly difficult to scrub through - you may have noticed this, for example, as `delays` when trying to rewind or fast-forward a movie you're watching. |trex| *preprocessed* video files are designed to make scrubbing faster by avoiding *delta encoding* (i.e. storing only the changes between frames). Instead, all objects of interest in every frame are stored in full - omitting all background pixels. This enables seamless jumps (e.g. during `4x` playback) and fast random data access during tracking. On the downside, this approach can sometimes result in slightly larger file sizes compared to the original `.mp4` — though this depends on your specific situation and is not always the case.
-
-   The file size of a |trex| video also depends on your settings. For instance, the :param:`meta_encoding` parameter determines whether all RGB channels are stored, only greyscale, or none at all (resulting in much smaller files). Refer to the documentation for more details on these options.
-
-   If you're running out of storage space, you can delete the .pv file and reconvert the video later using the settings you previously saved.
-
 Parameters
 ^^^^^^^^^^
 
@@ -524,7 +439,7 @@ For most of these, in order to see any effect, you'll have to reanalyse at least
 Tutorial: Machine-learning based pose detection
 -----------------------------------------------
 
-In this tutorial, we'll guide you through the process of using a machine-learning based detection model in |trex|. This process is very similar to any other detection mode, we just have some additional parameters to look into. You can also train your own model and use it here but, in case you don't have one, you can use our `model <https://trex.run/15locusts_model.pt>`_, and `this <https://trex.run/15locusts.mp4>`_ video.
+In this tutorial, we'll guide you through the process of using a machine-learning based detection model in |trex|. This process is very similar to any other detection mode, we just have some additional parameters to look into. You can also train your own model and use it here but, in case you don't have one, you can use our `model <https://trex.run/15locusts_model.pt>`_, and the ``locusts-mix_20250206_10.mp4`` video downloadable from `here <https://edmond.mpg.de/dataset.xhtml?persistentId=doi:10.17617/3.7F5MGE>`_.
 
 .. warning::
 

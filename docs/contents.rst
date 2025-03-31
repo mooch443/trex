@@ -76,14 +76,14 @@ If you use this software in your work, please cite our `open-access paper <https
    :caption: Contents:
    :hidden:
    
+   install
+   quickstart
    tutorials
    model_training
-   install
    run
    update
    examples
    gui
-   identification
    batch
    formats
    parameters_trex

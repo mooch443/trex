@@ -9,33 +9,69 @@
 Installation
 ############
 
-The easy way (Windows, Linux and Intel macOS)
-*********************************************
+Recommended System Requirements
+-------------------------------
 
-|trex| supports all major platforms. There is an easy way to install |trex| using Anaconda, by creating a new virtual environment (here named ``tracking``, but you can name it whatever you like) and installing |trex| into it:
+|trex| supports all major platforms. While |trex| is designed to be lightweight, ensuring a modern CPU, sufficient RAM (8GB or more), and a dedicated GPU (optional but beneficial for advanced machine learning tasks) can optimize performance. Our test systems cover a broad spectrum of operating systems and architectures, such as Windows, macOS, and Linux, and we recommend using a system with at least the following specifications:
 
-:green:`# macOS (Apple Silicone)`::
+- **Operating System**: Windows 10, macOS 10.15, or Ubuntu 20.04 LTS
+- **Processor**: Intel Core i5 or AMD Ryzen 5
+- **Memory**: 8GB RAM
+- **Graphics** (optional but recommended): dedicated NVIDIA GPU with 2GB VRAM, or Apple Silicon's integrated GPU
 
-	conda create -n tracking --override-channels -c trex-beta -c pytorch -c conda-forge trex
+This is a general recommendation, and |trex| can run on systems with lower specifications depending on the specific task at hand. However, the performance may be slower, especially for larger videos or more complex scenes. If you encounter any issues with the software that you think should not be happening, feel free to file a bug report on our `GitHub repository <https://github.com/mooch443/trex>`_.
 
-:green:`# macOS (Intel)`::
+Installation
+------------
 
-	conda create -n tracking --override-channels -c trex-beta -c pytorch -c local trex
+You can download the latest version of |trex| using `Miniforge` (conda). To install |trex|, you need to have `Miniforge` installed on your system.
 
-:green:`# Windows, Linux`::
+If you're not familiar with `conda` or `Miniforge`, you can find more information on how to install them `here <https://conda-forge.org/miniforge/>`_. Miniforge is a minimal installer for `conda`, an open-source package manager that helps you create virtual environments and install software and libraries without installing them globally on your system [#f3]_. We do not support Anaconda's default channels, so please use `Miniforge` instead (in Anaconda, you can also restrict your channels to `conda-forge` only [#f4]_).
 
-	conda create -n tracking --override-channels -c trex-beta -c pytorch -c nvidia -c defaults trex
+Open your `Miniforge` Prompt and run:
 
-After the installation is complete, you can activate the environment and run |trex| using the following commands::
+.. code-block:: bash
 
-	conda activate tracking
-	trex
-
-The down-side of installing through conda may be that pre-built binaries are compiled with fewer optimzations and features than a manually compiled one (due to compatibility and licensing issues) and thus are slightly slower =(. For example, the conda version does not offer support for Basler cameras. If you need to use machine vision cameras, or need as much speed as possible/the newest version, please consider compiling the software yourself. 
+   conda create -n track -c trex-beta trex
 
 .. NOTE::
-	
-	You can also check out our beta channel for the latest features and bug fixes (but maybe also new bugs). Just replace the ``-c trexing`` with ``-c trex-beta`` in the above command.
+
+   This only works if `conda-forge` is the *only* channel you have added to your `conda` configuration. By default, this is the case if you're using `Miniforge`. If added other channels manually, or you are using Anaconda, you can run the following command instead:
+
+   .. code-block:: bash
+
+      conda create -n track --override-channels -c trex-beta -c conda-forge trex
+
+   If any other channels are used, the installation might not work as expected and may throw `package not found` errors. This will probably work, but we give no guarantees.
+
+This will create a new conda environment called ``track`` with |trex| installed. This could take a while, especially during conda's 'verifying transaction' phase when it is installing additional packages via pip. Once it's done, you can activate the environment using:
+
+.. code-block:: bash
+
+   conda activate track
+
+Then start |trex| by typing:
+
+.. code-block:: bash
+
+   trex
+
+and pressing **Enter**. 
+
+If a window showing a friendly T-Rex appears, you've successfully installed the software and can proceed to the next section.
+
+.. _welcome_screen:
+
+.. figure:: images/welcome_screen.png
+   :width: 100%
+
+   The TRex graphical user interface (GUI) showing the welcome screen.
+
+If you have any issues with the installation, please refer to the (more detailed) :doc:`installation guide <install>`.
+
+.. [#f3] The advantage of this is that you can have different versions of the same software installed on your system without conflicts, and that they can be easily removed.
+
+.. [#f4] We do not support Anaconda's default channels because forge has easier license agreements and is often more up-to-date. Anaconda's hosted channels can be problematic for you too, if your institution does not have a license agreement with them.
 
 Compile it yourself
 *******************
