@@ -13,6 +13,7 @@
 #include <tracking/PPFrame.h>
 #include <tracking/Tracker.h>
 #include <gui/Skelett.h>
+#include <gui/Scene.h>
 
 using namespace cmn::gui;
 
@@ -27,37 +28,71 @@ enum class SelectedSettingType {
     NONE
 };
 
-std::vector<std::vector<Vec2>> _current_boundary;
-std::string _selected_setting_name;
-SelectedSettingType _selected_setting_type;
+struct BlobView {
+    std::vector<std::vector<Vec2>> _current_boundary;
+    std::string _selected_setting_name;
+    SelectedSettingType _selected_setting_type;
 
-std::atomic<pv::bid> _clicked_blob_id;
-std::atomic<Frame_t> _clicked_blob_frame;
+    std::atomic<pv::bid> _clicked_blob_id;
+    std::atomic<Frame_t> _clicked_blob_frame;
 
-std::shared_ptr<Entangled> popup;
-std::shared_ptr<Dropdown> list;
-pv::bid last_blob_id;
+    std::shared_ptr<Entangled> popup;
+    std::shared_ptr<Dropdown> list;
+    
+    Entangled _mousedock_collection;
+    NumericTextfield<double> cm_per_pixel_text{1.0, Bounds(0, 0, 200,30), arange<double>{0, infinity<double>()}};
+    
+    std::unique_ptr<Entangled> combine = std::make_unique<Entangled>();
+    std::shared_ptr<Button> button = nullptr;
+    std::shared_ptr<Dropdown> dropdown = nullptr;
+    
+    Frame_t _last_frame;
+    
+    pv::bid last_blob_id;
 
-derived_ptr<::gui::Polygon> _bdry_polygon;
+    derived_ptr<::gui::Polygon> _bdry_polygon;
 
-static std::unordered_map<const pv::Blob*, std::tuple<bool, std::unique_ptr<Circle>, std::unique_ptr<Label>, std::unique_ptr<Skelett>>> _blob_labels;
-static std::vector<decltype(_blob_labels)::mapped_type> _unused_labels;
+    std::unordered_map<pv::bid, std::tuple<bool, std::unique_ptr<Circle>, std::unique_ptr<Label>, std::unique_ptr<Skelett>>> _blob_labels;
+    std::vector<decltype(_blob_labels)::mapped_type> _unused_labels;
+    
+    ~BlobView() {
+        assert(SceneManager::is_gui_thread());
+        _blob_labels.clear();
+        _unused_labels.clear();
+        _bdry_polygon = nullptr;
+        _current_boundary.clear();
+        _selected_setting_name.clear();
+        _selected_setting_type = SelectedSettingType::NONE;
+        _clicked_blob_id = pv::bid{};
+        _clicked_blob_frame = Frame_t();
+        popup = nullptr;
+        list = nullptr;
+        last_blob_id = {};
+    }
+    
+    void draw(const DisplayParameters&);
+    void set_clicked_blob_id(pv::bid v) { _clicked_blob_id = v; }
+    void set_clicked_blob_frame(Frame_t v) { _clicked_blob_frame = v; }
+    void clicked_background(DrawStructure& base, GUICache& cache, const Vec2& pos, bool v, std::string key);
+    void draw_boundary_selection(DrawStructure& base, Base* window, GUICache& cache, SectionInterface* bowl);
+};
 
-void set_clicked_blob_id(pv::bid v) { _clicked_blob_id = v; }
-void set_clicked_blob_frame(Frame_t v) { _clicked_blob_frame = v; }
+std::mutex _blob_view_mutex;
+std::unique_ptr<BlobView> _blob_view;
+
+BlobView& blob_view() {
+    std::unique_lock guard{_blob_view_mutex};
+    if(not _blob_view)
+        _blob_view = std::make_unique<BlobView>();
+    return *_blob_view;
+}
+
+void set_clicked_blob_id(pv::bid v) { blob_view().set_clicked_blob_id(v); }
+void set_clicked_blob_frame(Frame_t v) { blob_view().set_clicked_blob_frame(v); }
 
 void blob_view_shutdown() {
-    _blob_labels.clear();
-    _unused_labels.clear();
-    _bdry_polygon = nullptr;
-    _current_boundary.clear();
-    _selected_setting_name.clear();
-    _selected_setting_type = SelectedSettingType::NONE;
-    _clicked_blob_id = pv::bid{};
-    _clicked_blob_frame = Frame_t();
-    popup = nullptr;
-    list = nullptr;
-    last_blob_id = {};
+    std::unique_lock guard{_blob_view_mutex};
+    _blob_view = nullptr;
 }
 
 struct Outer {
@@ -220,7 +255,11 @@ void add_manual_match(Frame_t frameIndex, Idx_t fish_id, pv::bid blob_id) {
     SETTING(manual_matches) = matches;
 }
 
-void draw_blob_view(const DisplayParameters& parm)
+void draw_blob_view(const DisplayParameters& parm) {
+    blob_view().draw(parm);
+}
+
+void BlobView::draw(const DisplayParameters& parm)
 {
     //static std::vector<Outer> outers;
     //static std::vector<std::unique_ptr<ExternalImage>> outer_images;
@@ -323,10 +362,9 @@ void draw_blob_view(const DisplayParameters& parm)
                 base.text(Str(text), Loc(pos + Vec2(2)), TextClr(White), Font(0.5), scale);
             }
             
-            static Frame_t last;
-            if(last != frame) {
+            if(_last_frame != frame) {
                 _blob_labels.clear();
-                last = frame;
+                _last_frame = frame;
             }
             
             for(auto & [id, tup] : _blob_labels)
@@ -338,24 +376,24 @@ void draw_blob_view(const DisplayParameters& parm)
             
             //Print("Updating frame ", parm.cache.processed_frame);
             parm.cache.processed_frame().transform_noise([&](pv::Blob& blob){
-                //auto id = blob.blob_id();
+                auto id = blob.blob_id();
                 auto d = euclidean_distance(mp, blob.bounds().pos());
                 draw_order.insert({d, &blob, false});
                 
-                if(_blob_labels.count(&blob))
-                    std::get<0>(_blob_labels.at(&blob)) = true;
+                if(_blob_labels.count(id))
+                    std::get<0>(_blob_labels.at(id)) = true;
             });
             
             if(!SETTING(gui_draw_only_filtered_out)) {
                 parm.cache.processed_frame().transform_blobs([&](pv::Blob& blob){
-                    //auto id = blob.blob_id();
+                    auto id = blob.blob_id();
                     auto d = euclidean_distance(mp, blob.bounds().pos());
                     draw_order.insert({d, &blob, true});
                     
                     //Print(id, ": ", d);
                     
-                    if(_blob_labels.count(&blob))
-                        std::get<0>(_blob_labels.at(&blob)) = true;
+                    if(_blob_labels.count(id))
+                        std::get<0>(_blob_labels.at(id)) = true;
                 });
             }
             
@@ -457,17 +495,18 @@ void draw_blob_view(const DisplayParameters& parm)
                 
                 auto text = label_for_blob(parm, *blob, real_size, active, d, register_label);
                 
-                decltype(_blob_labels)::iterator it = _blob_labels.find(blob);
+                auto id = blob->blob_id();
+                decltype(_blob_labels)::iterator it = _blob_labels.find(id);
                 if(it == _blob_labels.end()) {
                     if(!_unused_labels.empty()) {
-                        auto [k, success] = _blob_labels.try_emplace(blob, std::move(_unused_labels.back()));
+                        auto [k, success] = _blob_labels.try_emplace(id, std::move(_unused_labels.back()));
                         _unused_labels.resize(_unused_labels.size()-1);
                         
                         it = k;
                         //std::get<2>(it->second)->set_data(text, blob->bounds(), blob->center());
                         
                     } else {
-                        auto [k, success] = _blob_labels.insert_or_assign(blob, decltype(_blob_labels)::mapped_type{ true, std::make_unique<Circle>(), std::make_unique<Label>(text, blob->bounds(), blob->center()), nullptr });
+                        auto [k, success] = _blob_labels.insert_or_assign(id, decltype(_blob_labels)::mapped_type{ true, std::make_unique<Circle>(), std::make_unique<Label>(text, blob->bounds(), blob->center()), nullptr });
                         it = k;
                     }
                     
@@ -476,21 +515,27 @@ void draw_blob_view(const DisplayParameters& parm)
                     circ->set_clickable(true);
                     circ->set_radius(8.f);
                     circ->clear_event_handlers();
-                    circ->on_click([id = blob->blob_id(), &cache = parm.cache, frame = frame](auto) mutable {
+                    circ->on_click([id = blob->blob_id(), &cache = parm.cache, frame = frame, this](auto) mutable {
                         _current_boundary.clear();
                         set_clicked_blob_id(id);
                         set_clicked_blob_frame(frame);
                         cache.set_blobs_dirty();
+                    });
+                    circ->on_hover([circ](Event e){
+                        if(e.hover.hovered)
+                            circ->set_fill_clr(White.alpha(150));
+                        else
+                            circ->set_fill_clr(White.alpha(25));
                     });
                 }
                 
                 auto & [visited, circ, label, skelett] = it->second;
                 //e.set_scale(sca);
                 
-                if(circ->hovered())
+                /*if(circ->hovered())
                     circ->set_fill_clr(White.alpha(150 * d));
                 else
-                    circ->set_fill_clr(White.alpha(25 * d));
+                    circ->set_fill_clr(White.alpha(25 * d));*/
                 circ->set_line_clr(White.alpha(250));
                 circ->set_pos(blob->center());
                 circ->set_scale(s->scale().reciprocal());
@@ -543,9 +588,8 @@ void draw_blob_view(const DisplayParameters& parm)
                 //if(d > 0 && real_size > 0) 
             };
             
-            static Entangled _collection;
-            base.wrap_object(_collection);
-            _collection.update([&](auto& e) {
+            base.wrap_object(_mousedock_collection);
+            _mousedock_collection.update([&](auto& e) {
                 MouseDock::draw_background(e);
                 displayed = 0;
                 for (auto&& [d, blob, active] : draw_order) {
@@ -554,7 +598,7 @@ void draw_blob_view(const DisplayParameters& parm)
                 MouseDock::update(parm.cache.dt(), parm.coord, e);
             });
 
-            _collection.set_bounds(Bounds(Vec2(), res));
+            _mousedock_collection.set_bounds(Bounds(Vec2(), res));
             //_collection.set_scale(Vec2(1));
             //_collection.set_pos(Vec2());
             
@@ -566,7 +610,7 @@ void draw_blob_view(const DisplayParameters& parm)
         if(popup == nullptr) {
             popup = std::make_shared<Entangled>();
             list = std::make_shared<Dropdown>(Box(0, 0, 200, 35), ListDims_t{200,200}, Font{0.6}, ListFillClr_t{60,60,60,200}, FillClr{60,60,60,200}, LineClr{100,175,250,200}, TextClr{225,225,225});
-            list->on_open([list=list.get(), &cache = parm.cache](bool opened) {
+            list->on_open([list=list.get(), &cache = parm.cache, this](bool opened) {
                 if(!opened) {
                     //list->set_items({});
                     _clicked_blob_id = pv::bid::invalid;
@@ -574,7 +618,7 @@ void draw_blob_view(const DisplayParameters& parm)
                     cache.set_raw_blobs_dirty();
                 }
             });
-            list->on_select([&cache = parm.cache](auto, const Dropdown::TextItem& item) {
+            list->on_select([this, &cache = parm.cache](auto, const Dropdown::TextItem& item) {
                 auto number = uint64_t(item.custom());
                 uint32_t item_id = (number >> 32) & 0xFFFFFFFF;
                 uint32_t blob_id = number & 0xFFFFFFFF;
@@ -753,12 +797,16 @@ void draw_blob_view(const DisplayParameters& parm)
     }
 }
 
-void clicked_background(DrawStructure& base, GUICache& cache, const Vec2& pos, bool v, std::string key /*Dropdown& settings_dropdown, Textfield& value_input*/) {
+void clicked_background(DrawStructure& base, GUICache& cache, const Vec2& pos, bool v, std::string key) {
+    blob_view().clicked_background(base, cache, pos, v, key);
+}
+
+void BlobView::clicked_background(DrawStructure& base, GUICache& cache, const Vec2& pos, bool v, std::string key) {
     //const std::string chosen = settings_dropdown.has_selection() ? settings_dropdown.selected_item().name() : "";
     //if (key.empty())
     //    key = chosen;
     
-    cmn::gui::tracker::set_clicked_blob_id(pv::bid::invalid);
+    set_clicked_blob_id(pv::bid::invalid);
     
     bool is_bounds = GlobalSettings::get(key).is_type<std::vector<Bounds>>();
     bool is_vec_of_vec = GlobalSettings::get(key).is_type<std::vector< std::vector<Vec2> >>();
@@ -773,14 +821,13 @@ void clicked_background(DrawStructure& base, GUICache& cache, const Vec2& pos, b
     
     if(_selected_setting_type == SelectedSettingType::NONE && v) {
         if(_current_boundary.size() == 1 && _current_boundary.front().size() == 2) {
-            static NumericTextfield<double> text(1.0, Bounds(0, 0, 200,30), arange<double>{0, infinity<double>()});
-            text.set_postfix("cm");
-            text.set_fill_color(DarkGray.alpha(50));
-            text.set_text_color(White);
+            cm_per_pixel_text.set_postfix("cm");
+            cm_per_pixel_text.set_fill_color(DarkGray.alpha(50));
+            cm_per_pixel_text.set_text_color(White);
             
             derived_ptr<Entangled> e =  new Entangled();
             e->update([&](Entangled& e) {
-                e.advance_wrap(text);
+                e.advance_wrap(cm_per_pixel_text);
             });
             e->auto_size(Margin{0, 0});
             
@@ -789,10 +836,10 @@ void clicked_background(DrawStructure& base, GUICache& cache, const Vec2& pos, b
             auto E = bound.back();
             auto D = euclidean_distance(S, E);
             
-            base.dialog([D, &base](Dialog::Result r) {
+            base.dialog([this, D, &base](Dialog::Result r) {
                 if(r == Dialog::OKAY) {
                     try {
-                        auto value = Meta::fromStr<float>(text.text());
+                        auto value = Meta::fromStr<float>(cm_per_pixel_text.text());
                         Print("Value is: ", value);
                         
                         if(value > 0) {
@@ -932,10 +979,10 @@ void clicked_background(DrawStructure& base, GUICache& cache, const Vec2& pos, b
 };
     
 void draw_boundary_selection(DrawStructure& base, Base* window, GUICache& cache, SectionInterface* bowl) {
-    static std::unique_ptr<Entangled> combine = std::make_unique<Entangled>();
-    static std::shared_ptr<Button> button = nullptr;
-    static std::shared_ptr<Dropdown> dropdown = nullptr;
+    blob_view().draw_boundary_selection(base, window, cache, bowl);
+}
     
+void BlobView::draw_boundary_selection(DrawStructure& base, Base* window, GUICache& cache, SectionInterface* bowl) {
     base.section("boundary", [&](DrawStructure &base, Section*s) {
         auto bdry = _current_boundary;
         

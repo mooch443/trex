@@ -235,7 +235,7 @@ Let's set an input file first and then go through a few more steps to get starte
 5. **Set further tracking settings**:
 
    - :param:`track_threshold` we can set to `80`, but if we change our minds later on, we can decrease this after conversion down to the value of :param:`detect_threshold` (which we set to `50` earlier).
-   - :param:`calculate_posture` make sure we are calculating posture by turning this on
+   - :param:`calculate_posture` make sure we are calculating posture by turning this on (otherwise you won't see the outlines around your individuals later)
    - :param:`cm_per_pixel` is the conversion factor for any pixel to cm conversion (and vice-versa). You can either set this to `0.0257` now because you magically know this number - or you can click on "Calibrate". This gets you to this screen here:
 
    .. _calibrate_view:
@@ -326,15 +326,13 @@ There are two ways of changing parameters:
 
 The general intuition here is that if your parameter of choice applies during the tracking phase (i.e. anything that is not detection-related), you can change its value at any time. You may have to **reanalyse** to see the changes, but this is usually a lot faster than reconverting the entire video. Detection parameters, on the other hand, are fixed once the conversion starts, so you'll have to cancel the conversion and start over if you're not happy with the results. 
 
-If our detection parameters (i.e. :param:`detect_threshold`) were the issue here, we'd have to reconvert the video. To do that we'd first go back to the welcome screen. You can do that by clicking on the **☰ Menu** button in the top right corner of the screen, then → **Close file**. There, you should see the video now as one of the "Recent files". Click on it to open the settings dialog again. You can then adjust all the parameters you like and click on **Convert** again + agree to overwrite the existing file.
+If detection parameters such as :param:`detect_threshold` were the issue, the video would have to be reconverted. To do so, you'd first save the current settings via **☰ Menu** → **Save config**. Then return to the welcome screen by clicking **☰ Menu** → **Close file**. The video should now appear in the list of "Recent files" — click on it to reopen the settings dialog, adjust the necessary parameters, and click **Convert** again. Confirm overwriting the existing file when prompted.
 
 .. warning::
 
-   Reconverting overwrites the existing video cache (.pv), but it will **not** automatically overwrite the settings file it generated the first time. This means that your adjusted settings are not gonna be around next time you click on the guppy video unless, after being dropped into tracking view, you do **☰ Menu** → **Save Config** to overwrite it manually.
+   Reconverting will overwrite the existing video cache (.pv), but **not** the settings file it generated the first time. To make sure your new settings persist, you need to manually save them after conversion via **☰ Menu** → **Save Config** from the Tracking View.
 
-However, we're fine on that I think, so let's continue with the tracking parameters now. In tracking view, you'll notice that not all individuals are tracked while some of the randomly floating particles are! Luckily, we can fix this rather easily by adjusting :param:`track_size_filter` - but what are the correct values here? 
-
-Go to frame ``270``. We can already tell that there's a bunch of problems here: some parts of the wall are tracked, some individuals aren't (despite being separated and visible). Let's fix this by excluding unreasonably sized objects.
+However, since we're fine on detection parameters it seems, let's move on to tracking parameters. Go to frame ``270``. You’ll see several issues: some parts of the wall are being tracked, and some actual individuals are missed despite being clearly visible. This is because we set :param:`track_max_individuals` and there are many objects in the frame - none of which are being filtered out. We can fix this by directly excluding detections that are unrealistically small or large. :param:`track_size_filter` is the relevant parameter for this — but what values should we use?
 
 .. _tracking_view:
 
@@ -343,13 +341,22 @@ Go to frame ``270``. We can already tell that there's a bunch of problems here: 
 
    The tracking view shows the video with the detected individuals highlighted. You can adjust the tracking settings here to improve the results. You may have already spotted some problems here, but don't worry - we'll fix them now.
 
-Press the ``D`` key, or alternatively click on **Raw** on the top-right, to switch to the **Raw view**. This view shows you the raw detections in each frame, and you can see the size of each detection when you hover it. Hover some of the individuals and particles, and you'll quickly see that all of the individuals are around a size of ``5-7`` pixels, while the particles are much smaller. 
+Press the ``D`` key, or alternatively click on **Raw** on the top-right, to switch to the **Raw view**. This view shows you the raw detections in each frame, and you can see the size of each detection when you hover it. Hover some of the individuals and particles, and you'll quickly see that all of the individuals are around ``5-7``, while the particles are much smaller (some aren't even labeled because they're too small). 
 
-We can use this information to filter out unwanted particles and reflections by setting the :param:`track_size_filter` to ``[4,10]``. Typically, the lower bound should be a bit below the smallest individual size, and the upper bound a bit above the largest individual size. This will filter out most of the particles, but keep the individuals.
+.. _object_sizes:
 
-Now press ``D`` again to switch back to tracking view. Nothing has been applied yet, so click on **🔄 Reanalyse** on the top-right to apply your changes by retracking the video.
+.. figure:: images/object_sizes.png
+   :width: 100%
 
-Scrub through the video by clicking on (or dragging across) the timeline at the top. Tracking should be nice now! At this point you could already press ``S`` to export what you have and use it elsewhere. We will be going for a few more optimizations, though.
+   An example of noise particles vs. "real objects" that we'd like to track. You can see the size of each object when you hover it (see red box). The ones that are considered for tracking are cyan, others are white/gray.
+
+Currently, :param:`track_size_filter` is an empty range and so does not filter out any objects based on size. However, we can use the information we just gained to filter out unwanted small particles and reflections by setting the filter to ``[4,10]`` instead. Typically, the lower bound (``4``) should be a bit below the smallest individual size, and the upper bound (``10``) a bit above the largest individual size. This will filter out most of the particles, but keep the individuals. You'll hopefully see that some of the particles font turns grey while all the to-be-tracked individuals fonts are cyan (this means they are considered by the tracker).
+
+Now press ``D`` again to switch back to tracking view. As you can see, nothing has been applied yet, so click on **🔄 Reanalyse** on the top-right to apply your changes by retracking the video.
+
+Once it's done analysing, scrub through the video by clicking on (or dragging across) the timeline at the top to get an idea of the results. Tracking should be nice now! 
+
+At this point you could press ``S`` to export what you have and use it elsewhere - try it if you like. We will be going for a few more optimizations, though. For now, click on **☰ Menu** → **Save config** to save the settings we have found for next time.
 
 .. NOTE::
 
@@ -361,7 +368,7 @@ Scrub through the video by clicking on (or dragging across) the timeline at the 
 Tracklets
 ^^^^^^^^^
 
-A bit more important background knowledge: Tracking in |trex| heavily relies on consecutively tracked trajectory pieces - the so called *tracklets* - for multiple reasons. Before we continue, let's have a quick look at them so we know what we're aiming for when changing parameters.
+A bit more important background knowledge: Tracking in |trex| heavily relies on consecutively tracked trajectory pieces - the so called *tracklets* - for multiple reasons. Before we continue, let's have a quick look at them so we know what we're aiming for.
 
 .. epigraph::
 
@@ -369,7 +376,7 @@ A bit more important background knowledge: Tracking in |trex| heavily relies on 
    
 Within this sequence of frames, based on basic kinematics, we can be confident that the same physical individual is being tracked continuously. If |trex| is not confident, it terminates the tracklet and starts a new one. It's important to emphasize the word *confident* here: almost every tracking software will be 100% sure that if an individual disappears for a couple of frames, a trajectory piece ends (although some will definitely interpolate by default). We are, however, also looking at cases where speeds are suspiciously high, or where multiple individuals are expected in the vicinity of too few available objects. The advantage of this is that we are *even more conservative* so we can, for example, use the tracklets as a baseline truth for :ref:`visual_identification` (see below).
 
-You can find them, as numbers in the format ``start-end``, in |trex| by selecting an individual and looking at the **Info Card** on the top-left (see :numref:`tracklets_image`). You can click on any of them to jump to the start of the tracklet, or press the ``C`` / ``V`` keys to jump to the previous / next. You can also hover the numbers to discover why each tracklet has been terminated.
+You can find them in |trex| by selecting an individual and looking at the **Info Card** on the top-left (see :numref:`tracklets_image`) as numbers in the format ``start-end``. You can click on any of them to jump to the start of the tracklet, or press the ``C`` / ``V`` keys to jump to the previous / next. You can also hover the numbers directly to discover why each tracklet has been terminated.
 
 .. _tracklets_image:
 
@@ -447,7 +454,7 @@ There are a few preconditions, and related settings to pay attention to, namely:
  - **Known group size**: We need to know how many individuals there are, otherwise we don't know what to search for. Practically, this means that you'll have to define :param:`track_max_individuals` before tracking (as we did above).
  - **Baseline truth**: All individuals of the group have to be present at the same time at least once. This is also called a *global tracklet*. It is one of the preconditions because we need at least one example of each individual to know what it looks like. The VI algorithm then tries to systematically add more examples of each individual, starting the search within the "longest global tracklet" and then going on to look at shorter ones. If all individuals are visible and separate at the same time, we know that at least in this frame the identities are unique. This is the baseline truth [#f7]_. Actually, we can also utilize each individual tracklet intersecting with this global tracklet, not only the parts that are contained within it. Global tracklets are displayed as colorful bars in the timeline as long as the number of individuals is defined (see :numref:`image_settings`). If there are none, you might either have miscounted, the individuals were not all visible at the same time, or there are other issues with tracking.
 
-You may also need to setup the :param:`individual_image_size` and :param:`individual_image_scale`, in case the default values don't fit your particular situation - it's a good idea to check beforehand: Select an individual, unfold the :ref:`image settings <image_settings>` in the **Info Card** on the top-left, and adjusting the values there. You can let the video play to see the individual move and bend, and adjust the settings accordingly in realtime. By default, these images are normalized based on posture, but you can also choose to use the raw images or *moments* if you prefer. Try selecting different ones to observe the changes (see also :numref:`normalization_types`). If posture isn't available (:param:`calculate_posture`) then *moments* will be used by default.
+You will also need to setup the :param:`individual_image_size` and :param:`individual_image_scale`, in case the default values don't fit your particular situation - it's a good idea to check beforehand: Select an individual, unfold the :ref:`image settings <image_settings>` in the **Info Card** on the top-left, and adjusting the values there.
 
 .. _image_settings:
 
@@ -455,6 +462,17 @@ You may also need to setup the :param:`individual_image_size` and :param:`indivi
    :width: 100%
 
    The image settings allow you to adjust the size and scaling factor of the individual images used for visual identification (and some other features, such as tracklet images).
+
+In our case, setting :param:`individual_image_size` to ``[64,64]`` and :param:`individual_image_scale` to ``0.35`` preserves sufficient visual information, while restricting individual images to the image frame.
+
+.. _image_settings_done:
+
+.. figure:: images/image_settings_done.png
+   :width: 100%
+
+   The image settings are now set up correctly. You can see the individual image on the left, and the corresponding object in frame on the right.
+
+You can let the video play to see the individual move and turn, and adjust the settings accordingly in realtime. By default, these images are normalized based on posture - as you can tell by one end of the body appearing fixed in a specific position -, but you can also choose to use the raw images or *moments* if you prefer. Try selecting different methods to observe the changes (see also :numref:`normalization_types`). If posture isn't available (:param:`calculate_posture`) then *moments* will be used by default.
 
 Finally, to start the training process in our example, simply click on **☰ Menu** → **Train visual identification**. It will guide you through a few dialogs to define what you want to do and then start learning. In case it is successful it will automatically reanalyse the entire video given the new information - always visually confirm whether the results make sense. Mistakes will happen, but **Visual identification** gives |trex| an independent source of information that prevents follow-up errors - meaning it can rediscover the correct individual again, even after short erroneous sequences. So that's nice to have.
 
@@ -465,7 +483,9 @@ Finally, to start the training process in our example, simply click on **☰ Men
 Posture
 -------
 
-If you're interested in the posture of the individuals, or using :ref:`visual_identification`, you can also adjust the posture parameters in |trex|. These parameters control how the posture data is calculated and used in the analysis. If you are detecting individuals using a ``YOLO-pose`` type model, |trex| will try to use the detected keypoints to generate an outline and a center-line through the individuals - you can check out how to change those here: :param:`pose_midline_indexes`. Note that *pose* and *posture* are two different things in |trex|: 
+If you're interested in the posture of the individuals you can also adjust the posture parameters in |trex|. Having good posture-estimation can also help :ref:`visual_identification` because it leads to better (posture-based) image normalization; consequentially reducing the complexity of the learning task. 
+
+Posture parameters control how the posture data is calculated and used in the analysis. If you are detecting individuals using a ``YOLO-pose`` type model, |trex| will try to use the detected keypoints to generate an outline and a center-line through the individuals - you can check out how to change those here: :param:`pose_midline_indexes`. Note that *pose* and *posture* are two different things in |trex|: 
 
 - **Pose** refers to the :ref:`keypoints <locust_keypoints>` detected by a machine-learning model,
 - **Posture** refers to the :ref:`outline and center-line <posture_preview>` generated by |trex|.
@@ -476,6 +496,7 @@ Here are a few key parameters to pay attention to:
 
 - :param:`calculate_posture`: This parameter controls whether posture data is calculated or not. If you're not interested in posture data, you can set this to ``false`` to save some computational resources.
 - :param:`track_posture_threshold`: If this is set to anything greater than zero, individual images will be thresholded before being passed on to the posture algorithm. You can use this to "eat away" at the individual a bit. This has no effect if it is lower than :param:`detect_threshold` or :param:`track_threshold`, since these are applied first.
+- :param:`midline_invert`: This parameter is particularly interesting for the hexbugs because it seems that the head is consistently estimated to be the back-end of the individual and not the front. Set it to true, reanalyse and everything is inverted!
 - :param:`outline_approximate`: This parameter, if set to anything greater than zero, controls how *round* the individual is going to look. It defines the number of elliptical Fourier descriptors (EFT) used, which are used to approximate the outline of the individual. The higher the number, the more accurate the outline, but also the more computationally expensive it is. We find that typically, e.g. for fish, a value of ``3`` or ``7`` is pretty good here. We also recommend turning everything else into a "fish", in order to make it easier for |trex| to find the head and tail ends of it.
 - :param:`outline_curvature_range_ratio`: In order for |trex| to find the head and tail of an individual, it looks for *bumps* in the curvature of the outline. This parameter controls how big these bumps have to be in relation to the overall outline. If you're having trouble with the head and tail detection, you can try adjusting this parameter to make it more or less sensitive.
 - :param:`midline_stiff_percentage`: The center-line through an individual is not directly impacted by this, but normalization based on posture is. It is a percentage of the midline length, defining essentially the 'head' portion of an individual. The part that will, most likely, not bend. This portion will then be used to take an angle measurement when aligning images of the same individual.

@@ -15,12 +15,18 @@ void MouseDock::draw_background(Entangled &) {}
             return;
         }
 
-        static Timer timer;
         //auto dt = min(0.1, timer.elapsed());
-        dt = min(0.1, dt);
-        timer.reset();
+        dt = saturate(dt, 0.0001, 0.1);
+        instance->timer.reset();
 
         auto mp = coord.convert(HUDCoord(graph.stage()->mouse_position() + Vec2(25)));
+        auto screen_size = coord.screen_size();
+        auto bds = coord.convert(HUDRect(Bounds(Vec2(), screen_size)));
+        screen_size = bds.pos() + bds.size() - instance->_rect.size();
+        if(mp.x >= screen_size.width)
+            mp.x = screen_size.width;
+        if(mp.y >= screen_size.height)
+            mp.y = screen_size.height;
         //mp = (mp - ptr->pos()).div(ptr->scale());
         
         std::sort(instance->attached.begin(), instance->attached.end(), [&mp](Label* A, Label* B){
@@ -54,7 +60,9 @@ void MouseDock::draw_background(Entangled &) {}
         //std::vector<Bounds> boundses;
         //auto rect = graph.add<Rect>(Bounds(), attr::FillClr(Black.alpha(50)));
         
-        instance->_rect.set_fillclr(Black.alpha(150));
+        instance->_rect.set_fillclr(Black.alpha(150 * (1_F - saturate(mag / 50_F, 0_F, 1_F))));
+        
+        //Print(" * dock (",instance->attached.size(),"): ", instance->_rect.fillclr(), " mag=",mag, " at ", instance->pos);
         
         Bounds bounds(FLT_MAX, FLT_MAX, 0, 0);
         float y = 0;
@@ -74,7 +82,7 @@ void MouseDock::draw_background(Entangled &) {}
             //GUICache::instance().set_animating(label->text().get(), true);
             
             auto bds = label->text()->local_bounds();
-            if(distance < 50) {
+            if(distance < 30) {
                 bounds.combine(bds);
                 y += bds.height;
             }

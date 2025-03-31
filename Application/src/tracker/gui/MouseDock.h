@@ -61,6 +61,7 @@ struct MouseDock {
     Vec2 pos;
     Rect _rect;
     std::unordered_map<Label*, Vec2> centers;
+    Timer timer;
     static inline std::mutex mutex;
     static std::unique_ptr<MouseDock> instance;
 
