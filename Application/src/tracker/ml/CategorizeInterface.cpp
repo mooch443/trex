@@ -19,7 +19,7 @@ private:
     GETTER_SETTER_I(bool, selected, false);
     
 public:
-    Interface* interface = &Interface::get();
+    Interface* _interface = &Interface::get();
     Row *_row = nullptr;
     size_t _index = 0;
     Sample::Ptr _sample;
@@ -176,17 +176,17 @@ Cell::Cell() :
     _image->on_click([this](Event e) {
         if(e.mbutton.button == 0 && _image.get() == _image->parent()->stage()->hovered_object()) {
             if(_sample) {
-                if(interface->_selected == this) {
+                if(_interface->_selected == this) {
                     this->set_selected(false);
-                    interface->_selected = nullptr;
+                    _interface->_selected = nullptr;
                     
                 } else {
-                    if(interface->_selected) {
-                        interface->_selected->set_selected(false);
-                        interface->_selected = this;
+                    if(_interface->_selected) {
+                        _interface->_selected->set_selected(false);
+                        _interface->_selected = this;
                     }
                     
-                    interface->_selected = this;
+                    _interface->_selected = this;
                     this->set_selected(true);
                 }
             }
