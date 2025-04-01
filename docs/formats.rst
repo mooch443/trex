@@ -264,11 +264,11 @@ as well as some meta data:
 Heatmaps
 ========
 
-Saved are files named as (for example)::
+Saved are npz files named like::
 
-	data/hexbug_20250129_5_heatmap_p0_64_47x47.npz
+	data/<videoname>_heatmap_p0_<cellsize>_<width>x<height>.npz
 
-Where ``64`` is the grid cell size and 47x47 is the resolution of the heatmaps (interpreted as images). It contains::
+Where ``<cellsize>`` is the grid cell size and ``<width>x<height>`` is the resolution of the heatmaps (interpreted as images). It contains (for example)::
 
 	['heatmap', 'frames', 'meta']
 	heatmap.shape = (4999, 2, 47, 47)
@@ -281,6 +281,33 @@ Where ``meta`` is an array of:
 - :param:`heatmap_resolution`
 - type of :param:`heatmap_normalization`
 - number of frames used as context (usually :param:`heatmap_frames` or :param:`video_length`)
+
+Here's a small example of how to load and plot the heatmap data:
+
+.. code:: ipython3
+
+	import numpy as np
+	import matplotlib.pyplot as plt
+
+	# Load the heatmap data file
+	heatmap_file = "data/video_heatmap_p0_4_47x47.npz"  # adjust filename as needed
+	with np.load(heatmap_file) as data:
+		# Extract the heatmap, frames, and meta data
+		heatmap = data['heatmap']
+		frames = data['frames']
+		meta = data['meta']
+
+		# Print the shape of the heatmap
+		print(f"Heatmap shape: {heatmap.shape}")
+		print(f"Frames shape: {frames.shape}")
+		print(f"Meta data: {meta}")
+
+	# Plot the heatmap for the first frame (using the first channel)
+	plt.figure(figsize=(6, 6))
+	plt.imshow(heatmap[0, 0, :, :], cmap='hot', interpolation='nearest')
+	plt.title(f"Heatmap (Frame: {frames[0]})")
+	plt.colorbar(label='Intensity')
+	plt.show()
 
 PreprocessedVideo (pv)
 ======================
