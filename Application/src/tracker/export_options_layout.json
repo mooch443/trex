@@ -191,7 +191,7 @@
 
             [{
                 "type":"vlayout",
-                "pad":[0,0,0,5],
+                "pad":[0,0,0,3],
                 "children":[
                 {
                     "type":"stext",
@@ -224,7 +224,7 @@
 
             [{
                 "type":"vlayout",
-                "pad":[0,0,0,5],
+                "pad":[0,0,0,3],
                 "children":[
                 {
                     "type":"stext",
@@ -278,7 +278,7 @@
 
             [{
                 "type":"vlayout",
-                "pad":[0,0,0,5],
+                "pad":[0,0,0,3],
                 "children":[
                 {
                     "type":"stext",
@@ -350,6 +350,40 @@
                 "pad":[10,0,15,5],
                 "line":[100,100,100,50],
                 "children":[
+                    {
+                        "type":"stext",
+                        "pad":[5,7,0,0],
+                        "text":"<c>Save heatmap data</c>",
+                        "font":{"size":0.45},
+                        "color":[255,255,255]
+                    },
+                    {
+                        "type":"settings",
+                        "var":"output_heatmaps",
+                        "desc":"",
+                        "label":{
+                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[150,150,220,50]}",
+                            "fill":"{if:{||:{selected}:{hovered}}:[10,80,110,240]:[10,50,80,240]}",
+                            "font":{"size":0.45}
+                        },
+                        "list":{
+                            "line":[220,220,220,200],
+                            "fill":[25,25,25,220],
+                            "size":"[{column_width},200]",
+                            "font":{"size":0.45}
+                        },
+                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[150,150,220,50]}",
+                        "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,40]:[50,50,50,240]}",
+                        "size":"[150,30]"
+                    }
+                ]
+            }],
+
+            [{
+                "type":"vlayout",
+                "pad":[10,0,15,5],
+                "line":[100,100,100,50],
+                "children":[
                 {
                     "type":"stext",
                     "pad":[5,7,0,0],
@@ -382,7 +416,7 @@
                     "var":"{global.output_image_per_tracklet}",
                     "then":{
                         "type":"vlayout",
-                        "pad":[0,0,0,5],
+                        "pad":[0,0,0,3],
                         "children":[
                             {
                                 "type":"stext",

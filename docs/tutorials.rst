@@ -318,7 +318,7 @@ While the results look pretty nice already, basic tracking does not give you any
 - **Obscured vision**: The camera might not be able to see the individuals for some time, potentially even multiple individuals at the same time. They might also be out of frame for a bit or merge with the background.
 - **Speed bursts**: Sometimes the individuals move faster than the camera frame rate, which would make it impossible to know who went where in some situations.
 
-Often, basic tracking with imperfect identities suffices. |trex| saves the start and end time-point for each uninterrupted sequence (**tracklet**) so that you can utilise these shorter sequences to, for example, measure speed within a certain part of the arena. Important to note here is that all tracklets overlapping in time are almost definitely *not* the same individual - a fact also used by the :doc:`identification` algorithm (see below).
+Often, basic tracking with imperfect identities suffices. |trex| saves the start and end time-point for each uninterrupted sequence (**tracklet**) so that you can utilise these shorter sequences to, for example, measure speed within a certain part of the arena. Important to note here is that all tracklets overlapping in time are almost definitely *not* the same individual - a fact also used by the :ref:`visual_identification` algorithm.
 
 .. _reasons_lost:
 
@@ -330,7 +330,7 @@ Often, basic tracking with imperfect identities suffices. |trex| saves the start
 However, if you do need a stronger guarantee on identities (and really only if you do, because this is usually time-intensive), you can consider two options:
 
   - **Manual correction**: You can manually correct the tracking by selecting an individual and dragging it to the correct position. This is a bit tedious, but it can be done in the tracking view. You can also use the ``C`` and ``V`` keys to jump to the previous and next tracklet, respectively. This is a good way to correct small mistakes, but it can be time-consuming for larger videos or more complex scenes.
-  - **Visual Identification** (see also :doc:`identification` for more detail): This basically tries to automatically become an expert on visually differentiating between the individuals of a fixed group and uses only individual images, no time-series. It does not require much manual input but has a few preconditions (e.g., a fixed group size, visually differentiable individuals).
+  - **Visual Identification** (see :ref:`visual_identification`): This basically tries to automatically become an expert on visually differentiating between the individuals of a fixed group and uses only individual images, no time-series. It does not require much manual input but has a few preconditions (e.g., a fixed group size, visually differentiable individuals).
 
 Correcting Manually
 ^^^^^^^^^^^^^^^^^^^

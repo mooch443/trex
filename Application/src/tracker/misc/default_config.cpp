@@ -179,6 +179,8 @@ ENUM_CLASS_DOCS(gpu_torch_device_t,
         {"gpu_accumulation_max_segments", "accumulation_max_tracklets"},
         {"gpu_accumulation_enable_final_step", "accumulation_enable_final_step"},
         {"fixed_count", ""},
+        {"gui_dpi_scale", ""},
+        {"output_graphs", "output_fields"},
         {"fish_minmax_size", "track_size_filter"},
         {"blob_size_range", "detect_size_filter"},
         {"segment_size_filter", "detect_size_filter"},
@@ -589,6 +591,15 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("detect_classes", detect_classes, "Class names for object classification in video during conversion.");
         CONFIG("detect_skeleton", blob::Pose::Skeleton{}, "Skeleton to be used when displaying pose data.");
         CONFIG("meta_source_path", std::string(""), "Path of the original video file for conversions (saved as debug info).", LOAD);
+        CONFIG("meta_species", std::string(""), "Name of the species used.");
+        CONFIG("meta_age_days", long_t(-1), "Age of the individuals used in days.");
+        CONFIG("meta_conditions", std::string(""), "Treatment name.");
+        CONFIG("meta_misc", std::string(""), "Other information.");
+        CONFIG("meta_cmd", std::string(""), "Command-line of the framegrabber when conversion was started.", SYSTEM);
+        CONFIG("meta_build", std::string(""), "The current commit hash. The video is branded with this information for later inspection of errors that might have occured.", SYSTEM);
+        CONFIG("meta_video_size", Size2(), "Resolution of the original video.", LOAD);
+        CONFIG("meta_video_scale", float(1), "Scale applied to the original video / footage.", LOAD);
+        CONFIG("meta_conversion_time", std::string(""), "This contains the time of when this video was converted / recorded as a string.", LOAD);
         CONFIG("meta_real_width", Float2_t(0), "Used to calculate the `cm_per_pixel` conversion factor, relevant for e.g. converting the speed of individuals from px/s to cm/s (to compare to `track_max_speed` which is given in cm/s). By default set to 30 if no other values are available (e.g. via command-line). This variable should reflect actual width (in cm) of what is seen in the video image. For example, if the video shows a tank that is 50cm in X-direction and 30cm in Y-direction, and the image is cropped exactly to the size of the tank, then this variable should be set to 50.", INIT);
         CONFIG("cm_per_pixel", Float2_t(0), "The ratio of `meta_real_width / video_width` that is used to convert pixels to centimeters. Will be automatically calculated based on a meta-parameter saved inside the video file (`meta_real_width`) and does not need to be set manually.");
         CONFIG("video_length", uint64_t(0), "The length of the video in frames", LOAD);

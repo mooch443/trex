@@ -78,7 +78,9 @@ Segmenter::Segmenter(std::function<void()> eof_callback, std::function<void(std:
                     std::string suffix;
                     auto filename = file::DataLocation::parse("output_settings");
                     if(filename.exists()) {
-                        suffix = "backup";
+                        if(not filename.move_to(filename.add_extension("backup"))) {
+                            suffix = "new";
+                        }
                     }
                     settings::write_config(_output_file.get(), false, nullptr, suffix);
                 } catch(const std::exception&e) {

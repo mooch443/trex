@@ -179,11 +179,15 @@ void HeatmapController::save() {
         temporary_save(path, [&](file::Path use_path) {
             cmn::npz_save(use_path.str(), "heatmap", per_frame.data(), shape);
             cmn::npz_save(use_path.str(), "frames", frames, "a");
+            
+            const auto frame_range = _frame_context.valid()
+                ? _frame_context
+                : Frame_t(narrow_cast<Frame_t::number_t>(FAST_SETTING(video_length)));
             cmn::npz_save(use_path.str(), "meta", std::vector<double>{
                 (double)package_index,
                 (double)uniform_grid_cell_size,
                 (double)_normalization.value(),
-                (double)_frame_context.get()
+                (double)frame_range.get()
             }, "a");
         });
 

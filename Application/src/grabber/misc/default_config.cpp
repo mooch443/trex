@@ -173,20 +173,6 @@ namespace default_config {
         
         CONFIG("gui_interface_scale", Float2_t(1), "A lower number will make the texts and GUI elements bigger.", SYSTEM);
         
-        CONFIG("meta_encoding", meta_encoding_t::gray, "The encoding used for the given .pv video.");
-        CONFIG("meta_species", std::string(""), "Name of the species used.");
-        CONFIG("meta_age_days", long_t(-1), "Age of the individuals used in days.");
-        CONFIG("meta_conditions", std::string(""), "Treatment name.");
-        CONFIG("meta_misc", std::string(""), "Other information.");
-        CONFIG("meta_real_width", Float2_t(30), "Width of whatever is visible in the camera frame from left to right. Used to calculate `cm_per_pixel` ratio.", INIT);
-        CONFIG("meta_source_path", std::string(""), "Path of the original video file for conversions (saved as debug info).", LOAD);
-        CONFIG("meta_cmd", std::string(""), "Command-line of the framegrabber when conversion was started.", SYSTEM);
-        CONFIG("meta_build", std::string(""), "The current commit hash. The video is branded with this information for later inspection of errors that might have occured.", SYSTEM);
-        CONFIG("meta_video_size", Size2(), "Resolution of the original video.", LOAD);
-        CONFIG("meta_video_scale", float(1), "Scale applied to the original video / footage.", LOAD);
-        
-        CONFIG("meta_conversion_time", std::string(""), "This contains the time of when this video was converted / recorded as a string.", LOAD);
-        
         CONFIG("mask_path", Path(""), "Path to a video file containing a mask to be applied to the video while recording. Only works for conversions.", STARTUP);
         CONFIG("log_file", Path(""), "If set to a filename, this will save output to a log file.");
         

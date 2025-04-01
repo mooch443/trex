@@ -169,6 +169,7 @@ int main(int argc, char**argv) {
     SETTING(quiet) = false;
     
     //DebugHeader("LOADING DEFAULT SETTINGS");
+    grab::default_config::get(GlobalSettings::map(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
     default_config::get(GlobalSettings::map(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
     default_config::get(GlobalSettings::set_defaults(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
     
@@ -193,8 +194,20 @@ int main(int argc, char**argv) {
         DebugHeader("LOADED ",default_path);
     }
     
-    //const char *command = NULL, *value = NULL;
-    size_t i=0;
+    if(argc == 2) {
+        parse_input(CommandLine::Option{
+            .name = "input",
+            .value = argv[1]
+        });
+    } else if(argc > 2) {
+        if(file::Path(argv[1]).exists()) {
+            parse_input(CommandLine::Option{
+                .name = "input",
+                .value = argv[1]
+            });
+        }
+    }
+    
     for(auto &option : cmd) {
         if(Arguments::has(option.name)) {
             switch (Arguments::get(option.name)) {
@@ -274,8 +287,6 @@ int main(int argc, char**argv) {
                 updated_settings = parse_set_meta(option.value);
             }
         }
-        //}
-        ++i;
     }
     
     auto merge_videos = SETTING(merge_videos).value<std::vector<file::Path>>();
@@ -289,7 +300,7 @@ int main(int argc, char**argv) {
     
     file::Path settings_file = file::DataLocation::parse("settings");
     if(settings_file.exists())
-        GlobalSettings::load_from_file({}, settings_file.str(), AccessLevelType::STARTUP);
+        GlobalSettings::load_from_file(default_config::deprecations(), settings_file.str(), AccessLevelType::STARTUP, {}, nullptr, &GlobalSettings::map());
     
     file::Path input = SETTING(filename).value<file::Path>();
     //if(!input.exists())
@@ -302,11 +313,11 @@ int main(int argc, char**argv) {
             
             file::Path settings_file = file::DataLocation::parse("settings");
             if(settings_file.exists())
-                GlobalSettings::load_from_file({}, settings_file.str(), AccessLevelType::STARTUP);
+                GlobalSettings::load_from_file(default_config::deprecations(), settings_file.str(), AccessLevelType::STARTUP, {}, nullptr, &GlobalSettings::map());
             
             auto output_settings = file::DataLocation::parse("output_settings");
             if(output_settings.exists() && output_settings != settings_file) {
-                GlobalSettings::load_from_file({}, output_settings.str(), AccessLevelType::STARTUP);
+                GlobalSettings::load_from_file(default_config::deprecations(), output_settings.str(), AccessLevelType::STARTUP, {}, nullptr, &GlobalSettings::map());
             }
             
             video.close();
@@ -315,7 +326,7 @@ int main(int argc, char**argv) {
         SETTING(crop_offsets) = video.header().offsets;
         
         if(video.header().metadata.has_value())
-            sprite::parse_values(sprite::MapSource{ video.filename()}, GlobalSettings::map(), video.header().metadata.value());
+            sprite::parse_values(sprite::MapSource{ video.filename()}, GlobalSettings::map(), video.header().metadata.value(), nullptr, {}, default_config::deprecations());
         
         if(!be_quiet)
             video.print_info();
@@ -331,7 +342,7 @@ int main(int argc, char**argv) {
         
         auto output_settings = file::DataLocation::parse("output_settings");
         if(output_settings.exists() && output_settings != settings_file) {
-            GlobalSettings::load_from_file({}, output_settings.str(), AccessLevelType::STARTUP);
+            GlobalSettings::load_from_file(default_config::deprecations(), output_settings.str(), AccessLevelType::STARTUP, {}, nullptr, &GlobalSettings::map());
         }
         
         SETTING(quiet) = true;
@@ -484,7 +495,7 @@ int main(int argc, char**argv) {
             std::vector<std::string> keys;
             if(video.header().metadata.has_value()) {
                 keys = sprite::parse_values(sprite::MapSource{name}, video.header().metadata.value()).keys();
-                sprite::parse_values(sprite::MapSource{name}, GlobalSettings::map(), video.header().metadata.value());
+                sprite::parse_values(sprite::MapSource{name}, GlobalSettings::map(), video.header().metadata.value(), nullptr, {}, default_config::deprecations());
             }
             
             for (auto &[k,v] : updated_settings) {
