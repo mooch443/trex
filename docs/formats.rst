@@ -273,7 +273,7 @@ Where ``64`` is the grid cell size and 47x47 is the resolution of the heatmaps (
 	['heatmap', 'frames', 'meta']
 	heatmap.shape = (4999, 2, 47, 47)
 	frames.shape = (4999,)
-	meta = [0.0, 64.0, 2.0, -1.0]
+	meta = [0.0, 64.0, 2.0, 4999.0]
 
 Where ``meta`` is an array of:
 
