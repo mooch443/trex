@@ -19,14 +19,19 @@ void MouseDock::draw_background(Entangled &) {}
         dt = saturate(dt, 0.0001, 0.1);
         instance->timer.reset();
 
-        auto mp = coord.convert(HUDCoord(graph.stage()->mouse_position() + Vec2(25)));
         auto screen_size = coord.screen_size();
-        auto bds = coord.convert(HUDRect(Bounds(Vec2(), screen_size)));
-        screen_size = bds.pos() + bds.size() - instance->_rect.size();
-        if(mp.x >= screen_size.width)
-            mp.x = screen_size.width;
-        if(mp.y >= screen_size.height)
-            mp.y = screen_size.height;
+        auto rect_size = min(coord.convert(BowlRect(Bounds(Vec2(), instance->_rect.size()))).size(), Size2(screen_size * 0.25));
+        auto limited_pos = graph.stage()->mouse_position() + Vec2(25) + rect_size;
+        if(limited_pos.x >= screen_size.width)
+            limited_pos.x = screen_size.width;
+        if(limited_pos.y >= screen_size.height)
+            limited_pos.y = screen_size.height;
+        limited_pos -= rect_size;
+        
+        auto mp = coord.convert(HUDCoord(limited_pos));
+        
+        //auto bds = coord.convert(HUDRect(Bounds(Vec2(), screen_size)));
+        //screen_size = bds.pos() + bds.size() - instance->_rect.size();
         //mp = (mp - ptr->pos()).div(ptr->scale());
         
         std::sort(instance->attached.begin(), instance->attached.end(), [&mp](Label* A, Label* B){
@@ -63,7 +68,7 @@ void MouseDock::draw_background(Entangled &) {}
         Float2_t percent = 1_F - saturate(mag / 50_F, 0_F, 1_F);
         instance->_rect.set_fillclr(Black.alpha(150 * SQR(percent)));
         
-        //Print(" * dock (",instance->attached.size(),"): ", instance->_rect.fillclr(), " mag=",mag, " at ", instance->pos);
+        //Print(" * dock (",instance->attached.size(),"): ", instance->_rect.fillclr(), " mag=",mag, " at ", instance->pos, " rect=", instance->_rect.size(), " percent=",percent, " mp=", mp);
         
         Bounds bounds(FLT_MAX, FLT_MAX, 0, 0);
         float y = 0;
@@ -83,7 +88,7 @@ void MouseDock::draw_background(Entangled &) {}
             //GUICache::instance().set_animating(label->text().get(), true);
             
             auto bds = label->text()->local_bounds();
-            if(distance < 20) {
+            if(distance < 30) {
                 bounds.combine(bds);
                 y += bds.height;
             }

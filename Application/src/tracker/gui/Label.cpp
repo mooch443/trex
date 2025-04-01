@@ -165,7 +165,13 @@ float Label::update(const FindCoord& coord, float alpha, float, bool disabled, d
     auto screen_target = coord.convert(BowlCoord(text_pos));
     auto screen_source = coord.convert(BowlCoord(_text->pos()));
     auto screen_rect = coord.convert(BowlRect(_source));
-    float max_w = screen_size.width *= 0.1;
+    
+    /*if(screen_target.x < 0)
+        screen_target.x = 0;
+    if(screen_target.y < 0)
+        screen_target.y = 0;*/
+    
+    /*float max_w = screen_size.width *= 0.1;
     float max_h = screen_size.height *= 0.1;
     if (screen_rect.width * 0.5 > max_w) {
         screen_rect.x += screen_rect.width * 0.5 - max_w;
@@ -174,11 +180,12 @@ float Label::update(const FindCoord& coord, float alpha, float, bool disabled, d
     if (screen_rect.height * 0.5 > max_h) {
         screen_rect.y += screen_rect.height * 0.5 - max_h;
         screen_rect.height = max_h * 2;
-    }
+    }*/
     //auto dis = euclidean_distance(screen_target, screen_source) / screen_rect.size().max();
-    auto dis = euclidean_distance(screen_target, screen_source) / (2 * sqrtf(SQR(screen_rect.width) + SQR(screen_rect.height)));
-    //if (dis > 0.1)
-    //    Print("sqdistance ", screen_source, " => ", screen_target, " = ", dis, " for ", screen_rect.size().max(), " dock=", is_in_mouse_dock, " ", text()->text());
+    //auto dis = euclidean_distance(screen_target, screen_source) / (2 * sqrtf(SQR(screen_rect.width) + SQR(screen_rect.height)));
+    auto dis = euclidean_distance(screen_target, screen_source) / cmn::sqrt(SQR(screen_rect.width) + SQR(screen_size.height));
+    //if (dis > 0.001)
+    //    Print("sqdistance ", screen_source, " => ", screen_target, " = ", dis, " for ", screen_rect.size().max(), " dock=", is_in_mouse_dock, " ", text()->text(), " alpha=",alpha);
 
     _color = (disabled ? (is_in_mouse_dock ? White : Gray) : _line_color).alpha(255 * alpha);
 
@@ -187,7 +194,7 @@ float Label::update(const FindCoord& coord, float alpha, float, bool disabled, d
     else
         _text->set_text_color(White);
 
-    return update_positions(text_pos, _initialized && dis <= 0.25, dt);
+    return update_positions(text_pos, _initialized && dis <= 0.2, dt);
 }
 
 void Label::set_uninitialized() {
@@ -210,7 +217,7 @@ float Label::update_positions(Vec2 text_pos, bool do_animate, double dt) {
         return 0;
     }
 
-    dt = min(dt, 0.5) * 2;
+    dt = saturate(dt, 0.01, 0.5) * 2;
     //animation_timer.reset();
     auto next = animate_position<InterpolationType::EASE_OUT>(_text->pos(), text_pos, dt, 1/2.0);
     //if(next.Equals(_text->pos()) && not text_pos.Equals(_text->pos()))
