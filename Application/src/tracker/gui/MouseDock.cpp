@@ -60,7 +60,8 @@ void MouseDock::draw_background(Entangled &) {}
         //std::vector<Bounds> boundses;
         //auto rect = graph.add<Rect>(Bounds(), attr::FillClr(Black.alpha(50)));
         
-        instance->_rect.set_fillclr(Black.alpha(150 * (1_F - saturate(mag / 50_F, 0_F, 1_F))));
+        Float2_t percent = 1_F - saturate(mag / 50_F, 0_F, 1_F);
+        instance->_rect.set_fillclr(Black.alpha(150 * SQR(percent)));
         
         //Print(" * dock (",instance->attached.size(),"): ", instance->_rect.fillclr(), " mag=",mag, " at ", instance->pos);
         
@@ -82,7 +83,7 @@ void MouseDock::draw_background(Entangled &) {}
             //GUICache::instance().set_animating(label->text().get(), true);
             
             auto bds = label->text()->local_bounds();
-            if(distance < 30) {
+            if(distance < 20) {
                 bounds.combine(bds);
                 y += bds.height;
             }

@@ -96,6 +96,13 @@ else
     echo "Setting up for macOS."
     echo ""
     echo "Building GLFW, ZIP, and ZLIB - checking for OpenCV."
+
+    MACOSX_DEPLOYMENT_TARGET=$(printenv MACOSX_DEPLOYMENT_TARGET)
+    if [ ! $MACOSX_DEPLOYMENT_TARGET ]; then
+        MACOSX_DEPLOYMENT_TARGET="15.4"
+        export MACOSX_DEPLOYMENT_TARGET=$MACOSX_DEPLOYMENT_TARGET
+    fi
+    echo "MACOSX_DEPLOYMENT_TARGET=$MACOSX_DEPLOYMENT_TARGET"
     
     if [ ${IN_CONDA} ]; then
         echo "**************************************"
@@ -103,7 +110,7 @@ else
         echo "If you dont want this, please deactivate the conda environment first."
         echo "**************************************"
         
-        PKG_CONFIG_PATH=$CONDA_PREFIX/lib/pkgconfig cmake .. \
+        PKG_CONFIG_PATH=$CONDA_PREFIX/lib/pkgconfig MACOSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET} cmake .. \
             -DPYTHON_INCLUDE_DIR:FILEPATH=$(python3 -c "from distutils.sysconfig import get_python_inc; print(get_python_inc())") \
             -DPYTHON_LIBRARY:FILEPATH=$(python3 ../find_library.py) \
             -DPYTHON_EXECUTABLE:FILEPATH=$(which python3) \
@@ -115,6 +122,8 @@ else
             -DCOMMONS_BUILD_ZIP=ON \
             -DCOMMONS_BUILD_PNG=ON \
             -DCOMMONS_BUILD_OPENCV=ON \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET} \
+            -DCMAKE_OSX_SYSROOT=/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX${MACOSX_DEPLOYMENT_TARGET}.sdk \
             -DCMAKE_PREFIX_PATH="$CONDA_PREFIX;$CONDA_PREFIX/lib/pkgconfig;$CONDA_PREFIX/lib"
     else
         echo "**************************************"
@@ -135,6 +144,8 @@ else
             -DCOMMONS_BUILD_ZIP=ON \
             -DCOMMONS_BUILD_PNG=ON \
             -DCOMMONS_BUILD_OPENCV=ON \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET} \
+            -DCMAKE_OSX_SYSROOT=/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX${MACOSX_DEPLOYMENT_TARGET}.sdk \
             -G Xcode \
             -DWITH_FFMPEG=ON
     fi
