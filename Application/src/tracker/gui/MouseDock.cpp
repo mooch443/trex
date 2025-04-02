@@ -34,7 +34,7 @@ void MouseDock::draw_background(Entangled &) {}
         //screen_size = bds.pos() + bds.size() - instance->_rect.size();
         //mp = (mp - ptr->pos()).div(ptr->scale());
         
-        std::sort(instance->attached.begin(), instance->attached.end(), [&mp](Label* A, Label* B){
+        std::sort(instance->attached.begin(), instance->attached.end(), [mp = coord.convert(HUDCoord(graph.stage()->mouse_position()))](Label* A, Label* B){
             return sqdistance(A->center(), mp) < sqdistance(B->center(), mp);
         });
 
