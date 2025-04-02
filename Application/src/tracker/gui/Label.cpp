@@ -51,7 +51,7 @@ void Label::set_data(Frame_t frame, const std::string &text, const Bounds &sourc
 }
 
 float Label::update(const FindCoord& coord, float alpha, float, bool disabled, double dt, Scale text_scale) {
-    alpha = saturate(alpha, 0.5, 1.0);
+    alpha = saturate(alpha, 0.75, 1.0);
     
     if(disabled)
         alpha *= 0.75;

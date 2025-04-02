@@ -71,6 +71,8 @@ struct BlobView {
         bool split;
         bool tried_to_split;
         cmn::blob::Prediction prediction;
+        float real_size;
+        float d;
         
         constexpr bool operator==(const BlobInfo&) const noexcept = default;
     } _blob_info;
@@ -136,6 +138,12 @@ struct BlobView {
                 }),
                 VarFunc("instance", [this](const VarProps&) {
                     return _blob_info.instance;
+                }),
+                VarFunc("real_size", [this](const VarProps&) {
+                    return _blob_info.real_size;
+                }),
+                VarFunc("d", [this](const VarProps&) {
+                    return _blob_info.d;
                 })
             };
 
@@ -269,6 +277,8 @@ std::string BlobView::label_for_blob(const DisplayParameters& parm, const pv::Bl
     _blob_info.name = blob.name();
     _blob_info.active = active;
     _blob_info.dock = register_label || d==1;
+    _blob_info.real_size = real_size;
+    _blob_info.d = d;
     
     if(saved_info.label_text.has_value()
        && std::get<0>(saved_info.label_text.value()) == _blob_info)
@@ -303,10 +313,14 @@ std::string BlobView::label_for_blob(const DisplayParameters& parm, const pv::Bl
         { FilterReason::BdxIgnored, "Inside track_ignore_bdx" }
     };
     
-    if(not contains(reasons, blob.reason()))
-        _blob_info.filter_reason = reasons.at(FilterReason::Unknown);
-    else
-        _blob_info.filter_reason = reasons.at(blob.reason());
+    if(blob.reason() != FilterReason::Unknown) {
+        if(not contains(reasons, blob.reason()))
+            _blob_info.filter_reason = reasons.at(FilterReason::Unknown);
+        else
+            _blob_info.filter_reason = reasons.at(blob.reason());
+    } else {
+        _blob_info.filter_reason.clear();
+    }
     
     std::string label_text;
     try {
