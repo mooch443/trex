@@ -14,6 +14,8 @@
 #include <tracking/Tracker.h>
 #include <gui/Skelett.h>
 #include <gui/Scene.h>
+#include <gui/DynamicGUI.h>
+#include <gui/dyn/ParseText.h>
 
 using namespace cmn::gui;
 
@@ -51,11 +53,98 @@ struct BlobView {
     pv::bid last_blob_id;
 
     derived_ptr<::gui::Polygon> _bdry_polygon;
+    
+    std::string gui_blob_label;
+    CallbackCollection callback;
+    
+    dyn::Context context;
+    dyn::State state;
+    
+    struct BlobInfo {
+        std::string name;
+        bool instance;
+        pv::bid bdx;
+        std::string category;
+        std::string filter_reason;
+        bool active;
+        bool dock;
+        bool split;
+        bool tried_to_split;
+        cmn::blob::Prediction prediction;
+        
+        constexpr bool operator==(const BlobInfo&) const noexcept = default;
+    } _blob_info;
+    
+    struct BlobObjects {
+        bool found_in_frame{false};
+        std::unique_ptr<Circle> circle;
+        std::unique_ptr<Label> label;
+        std::unique_ptr<Skelett> skelett;
+        
+        std::optional<std::tuple<BlobInfo, std::string>> label_text;
+    };
 
-    std::unordered_map<pv::bid, std::tuple<bool, std::unique_ptr<Circle>, std::unique_ptr<Label>, std::unique_ptr<Skelett>>> _blob_labels;
+    std::unordered_map<const pv::Blob*, BlobObjects> _blob_labels;
     std::vector<decltype(_blob_labels)::mapped_type> _unused_labels;
     
+    BlobView() {
+        callback = GlobalSettings::map().register_callbacks({
+            "gui_blob_label"
+        }, [this](auto) {
+            gui_blob_label = SETTING(gui_blob_label).value<std::string>();
+        });
+        
+        context = [&](){
+            using namespace dyn;
+            Context context;
+            context.actions = {
+            };
+/// {name}{if:{not:{has_pred}}:' {max_pred}':''}
+            context.variables = {
+                VarFunc("help", [this](const VarProps&) -> std::string {
+                    return "The following variables are available:\n"+Meta::toStr(extract_keys(this->context.variables));
+                }),
+                VarFunc("window_size", [](const VarProps&) -> Vec2 {
+                    return FindCoord::get().screen_size();
+                }),
+                VarFunc("bdx", [this](const VarProps&) {
+                    return _blob_info.bdx;
+                }),
+                VarFunc("category", [this](const VarProps&) {
+                    return _blob_info.category;
+                }),
+                VarFunc("filter_reason", [this](const VarProps&) {
+                    return _blob_info.filter_reason;
+                }),
+                VarFunc("active", [this](const VarProps&) {
+                    return _blob_info.active;
+                }),
+                VarFunc("dock", [this](const VarProps&) {
+                    return _blob_info.dock;
+                }),
+                VarFunc("split", [this](const VarProps&) {
+                    return _blob_info.split;
+                }),
+                VarFunc("tried_to_split", [this](const VarProps&) {
+                    return _blob_info.tried_to_split;
+                }),
+                VarFunc("prediction", [this](const VarProps&) {
+                    return _blob_info.prediction;
+                }),
+                VarFunc("name", [this](const VarProps&) {
+                    return _blob_info.name;
+                }),
+                VarFunc("instance", [this](const VarProps&) {
+                    return _blob_info.instance;
+                })
+            };
+
+            return context;
+        }();
+    }
     ~BlobView() {
+        GlobalSettings::map().unregister_callbacks(std::move(callback));
+        
         assert(SceneManager::is_gui_thread());
         _blob_labels.clear();
         _unused_labels.clear();
@@ -75,6 +164,7 @@ struct BlobView {
     void set_clicked_blob_frame(Frame_t v) { _clicked_blob_frame = v; }
     void clicked_background(DrawStructure& base, GUICache& cache, const Vec2& pos, bool v, std::string key);
     void draw_boundary_selection(DrawStructure& base, Base* window, GUICache& cache, SectionInterface* bowl);
+    std::string label_for_blob(const DisplayParameters& parm, const pv::Blob& blob, float real_size, bool active, float d, bool register_label, BlobObjects&);
 };
 
 std::mutex _blob_view_mutex;
@@ -168,8 +258,70 @@ public:
     return gimage;
 }*/
 
-std::string label_for_blob(const DisplayParameters& parm, const pv::Blob& blob, float real_size, bool active, float d, bool register_label)
+std::string BlobView::label_for_blob(const DisplayParameters& parm, const pv::Blob& blob, float real_size, bool active, float d, bool register_label, BlobObjects& saved_info)
 {
+    
+    _blob_info.split = blob.split();
+    _blob_info.tried_to_split = blob.tried_to_split();
+    _blob_info.bdx = blob.blob_id();
+    _blob_info.prediction = blob.prediction();
+    _blob_info.instance = blob.is_instance_segmentation();
+    _blob_info.name = blob.name();
+    _blob_info.active = active;
+    _blob_info.dock = register_label || d==1;
+    
+    if(saved_info.label_text.has_value()
+       && std::get<0>(saved_info.label_text.value()) == _blob_info)
+    {
+        return std::get<1>(saved_info.label_text.value());
+    }
+    
+    {
+        auto it = parm.cache._blob_labels.find(blob.blob_id());
+        if(it != parm.cache._blob_labels.end())
+        {
+            auto cats = FAST_SETTING(categories_ordered);
+            if(size_t(it->second) < cats.size()) // also excludes < 0
+                _blob_info.category = cats.at(it->second);
+            else
+                _blob_info.category = "unknown(" + Meta::toStr(it->second) + ")";
+        }
+    }
+    
+    static const std::unordered_map<FilterReason, const char*> reasons {
+        { FilterReason::Unknown, "unkown" },
+        { FilterReason::Category, "Category" },
+        { FilterReason::Label, "Label" },
+        { FilterReason::LabelConfidenceThreshold, "Confidence" },
+        { FilterReason::OutsideRange, "Inacceptable size" },
+        { FilterReason::SecondThreshold, "Outside range after track_threshold_2" },
+        { FilterReason::OutsideInclude, "Outside track_include shape" },
+        { FilterReason::InsideIgnore, "Inside ignored shape (track_ignore)" },
+        { FilterReason::DontTrackTags, "Tags are not tracked" },
+        { FilterReason::OnlySegmentations, "Only segmentations are tracked" },
+        { FilterReason::SplitFailed, "Split failed" },
+        { FilterReason::BdxIgnored, "Inside track_ignore_bdx" }
+    };
+    
+    if(not contains(reasons, blob.reason()))
+        _blob_info.filter_reason = reasons.at(FilterReason::Unknown);
+    else
+        _blob_info.filter_reason = reasons.at(blob.reason());
+    
+    std::string label_text;
+    try {
+        label_text = dyn::parse_text(gui_blob_label, context, state);
+    } catch(const std::exception& ex) {
+#ifndef NDEBUG
+        FormatWarning("Caught exception when parsing text: ", ex.what());
+#endif
+        label_text = "[<red>ERROR</red>] <lightgray>gui_blob_label</lightgray>: <red>"+std::string(ex.what())+"</red>";
+    }
+    
+    saved_info.label_text = { _blob_info, label_text };
+    
+    //Print(gui_blob_label, " => ", label_text, " for ", blob);
+    return label_text;
     
     std::stringstream ss;
     //if(not active)
@@ -367,8 +519,8 @@ void BlobView::draw(const DisplayParameters& parm)
                 _last_frame = frame;
             }
             
-            for(auto & [id, tup] : _blob_labels)
-                std::get<0>(tup) = false;
+            for(auto & [id, object] : _blob_labels)
+                object.found_in_frame = false;
             
             std::set<std::tuple<float, pv::BlobWeakPtr, bool>, std::greater<>> draw_order;
             //Transform section_transform = s->global_transform();
@@ -376,24 +528,22 @@ void BlobView::draw(const DisplayParameters& parm)
             
             //Print("Updating frame ", parm.cache.processed_frame);
             parm.cache.processed_frame().transform_noise([&](pv::Blob& blob){
-                auto id = blob.blob_id();
                 auto d = euclidean_distance(mp, blob.bounds().pos());
                 draw_order.insert({d, &blob, false});
                 
-                if(_blob_labels.count(id))
-                    std::get<0>(_blob_labels.at(id)) = true;
+                if(_blob_labels.count(&blob))
+                    _blob_labels.at(&blob).found_in_frame = true;
             });
             
             if(!SETTING(gui_draw_only_filtered_out)) {
                 parm.cache.processed_frame().transform_blobs([&](pv::Blob& blob){
-                    auto id = blob.blob_id();
                     auto d = euclidean_distance(mp, blob.bounds().pos());
                     draw_order.insert({d, &blob, true});
                     
                     //Print(id, ": ", d);
                     
-                    if(_blob_labels.count(id))
-                        std::get<0>(_blob_labels.at(id)) = true;
+                    if(_blob_labels.count(&blob))
+                        _blob_labels.at(&blob).found_in_frame = true;
                 });
             }
             
@@ -407,9 +557,9 @@ void BlobView::draw(const DisplayParameters& parm)
             
             // move unused elements to unused list
             for(auto it = _blob_labels.begin(); it != _blob_labels.end(); ) {
-                if(!std::get<0>(it->second)) {
-                    auto ptr = std::get<2>(it->second).get();
-                    std::get<1>(it->second)->clear_event_handlers();
+                if(not it->second.found_in_frame) {
+                    auto ptr = it->second.label.get();
+                    it->second.circle->clear_event_handlers();
                     MouseDock::unregister_label(ptr);
                     _unused_labels.emplace_back(std::move(it->second));
                     it = _blob_labels.erase(it);
@@ -493,25 +643,23 @@ void BlobView::draw(const DisplayParameters& parm)
                 
                 bool register_label = (real_size > 0 && found );
                 
-                auto text = label_for_blob(parm, *blob, real_size, active, d, register_label);
-                
-                auto id = blob->blob_id();
-                decltype(_blob_labels)::iterator it = _blob_labels.find(id);
+                std::string text;
+                decltype(_blob_labels)::iterator it = _blob_labels.find(blob);
                 if(it == _blob_labels.end()) {
                     if(!_unused_labels.empty()) {
-                        auto [k, success] = _blob_labels.try_emplace(id, std::move(_unused_labels.back()));
+                        auto [k, success] = _blob_labels.try_emplace(blob, std::move(_unused_labels.back()));
                         _unused_labels.resize(_unused_labels.size()-1);
                         
                         it = k;
                         //std::get<2>(it->second)->set_data(text, blob->bounds(), blob->center());
                         
                     } else {
-                        auto [k, success] = _blob_labels.insert_or_assign(id, decltype(_blob_labels)::mapped_type{ true, std::make_unique<Circle>(), std::make_unique<Label>(text, blob->bounds(), blob->center()), nullptr });
+                        auto [k, success] = _blob_labels.insert_or_assign(blob, decltype(_blob_labels)::mapped_type{ true, std::make_unique<Circle>(), std::make_unique<Label>("", blob->bounds(), blob->center()), nullptr });
                         it = k;
                     }
                     
                     //auto & [visited, circ, label] = _blob_labels[blob->blob_id()];
-                    auto circ = std::get<1>(it->second).get();
+                    auto circ = it->second.circle.get();
                     circ->set_clickable(true);
                     circ->set_radius(8.f);
                     circ->clear_event_handlers();
@@ -529,7 +677,9 @@ void BlobView::draw(const DisplayParameters& parm)
                     });
                 }
                 
-                auto & [visited, circ, label, skelett] = it->second;
+                text = label_for_blob(parm, *blob, real_size, active, d, register_label, it->second);
+                
+                auto & [visited, circ, label, skelett, _] = it->second;
                 //e.set_scale(sca);
                 
                 /*if(circ->hovered())

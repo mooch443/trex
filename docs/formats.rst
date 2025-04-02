@@ -152,7 +152,7 @@ Tracklet images can be quite useful when a different software has to perform ope
 
 The container ``<VIDEO>_tracklet_images.npz`` contains summaries of all tracklets for each individual in the form of ``['images', 'meta']``, where ``meta`` is matrix of ``Nx3`` (where ``N`` is the number of segments). The three columns are ID, segment start and segment end (frame numbers). Images is a matrix of ``NxWxH`` depending on the image dimensions set in :param:`individual_image_size`.
 
-.. code:: ipython3
+.. code:: python
 
     import numpy as np
     import matplotlib.pyplot as plt
@@ -160,7 +160,7 @@ The container ``<VIDEO>_tracklet_images.npz`` contains summaries of all tracklet
 Open all images of a certain individual ID
 ------------------------------------------
 
-.. code:: ipython3
+.. code:: python
 
     with np.load("Videos/data/video_tracklet_images_single_part0.npz") as npz:
         print(npz.files)
@@ -197,7 +197,7 @@ Now we want to see that for all individuals
 But we are using the meta tracklet pack for this. It contains only one
 image per consecutive segment.
 
-.. code:: ipython3
+.. code:: python
 
     with np.load("Videos/data/video_tracklet_images.npz") as npz:
         meta = npz["meta"]
@@ -219,7 +219,7 @@ image per consecutive segment.
 We can now map from segments (meta) to tracklet images from the big file
 ------------------------------------------------------------------------
 
-.. code:: ipython3
+.. code:: python
 
     for ID, start, end in meta:
         mask = np.logical_and(ids == ID, np.logical_and(frames >= start, frames <= end))
@@ -284,7 +284,7 @@ Where ``meta`` is an array of:
 
 Here's a small example of how to load and plot the heatmap data:
 
-.. code:: ipython3
+.. code:: python
 
 	import numpy as np
 	import matplotlib.pyplot as plt
@@ -312,11 +312,13 @@ Here's a small example of how to load and plot the heatmap data:
 PreprocessedVideo (pv)
 ======================
 
-Videos in the PV format are structured as follows::
+Videos in the PV format are structured as follows:
+
+.. code:: c++
 
   **[HEADER SECTION]**
   (string) "PV" + (version_nr)
-  (string) encoding name    (replaces the previous “channels” field; e.g. "gray", "rgb8", "r3g3b2")
+  (string) encoding name    (replaces the previous "channels" field; e.g. "gray", "rgb8", "r3g3b2")
   (uint16) width
   (uint16) height
   (Rect2i) four ushorts with the mask-offsets left,top,right,bottom
@@ -363,10 +365,12 @@ Videos in the PV format are structured as follows::
   
   **[METADATA]**
   (string) JSONized metadata array
-  
-  Where the HorizontalLine struct is made up of::
-  
+
+Where the HorizontalLine struct is made up of:
+
+.. code:: c++
+
   (uint16) x0    (starting x-coordinate)
   (uint16) x1    (ending x-coordinate; least significant bit reserved as EOL flag)
-  
-  The EOL flag indicates that this line is the last on the current y-coordinate, meaning the y-counter should be incremented. This, together with the “y of first HorizontalLine”, is sufficient to reconstruct the entire object.
+
+The EOL flag indicates that this line is the last on the current y-coordinate, meaning the y-counter should be incremented. This, together with the “y of first HorizontalLine”, is sufficient to reconstruct the entire object.
