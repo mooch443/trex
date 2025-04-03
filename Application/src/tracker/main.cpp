@@ -727,7 +727,12 @@ int main(int argc, char**argv) {
         f = py::schedule([](){
             //Print("Python = ", py::get_instance());
             track::PythonIntegration::set_settings(GlobalSettings::instance(), file::DataLocation::instance(), Python::get_instance());
-            track::PythonIntegration::set_display_function([](auto& name, auto& mat) { tf::imshow(name, mat); });
+            track::PythonIntegration::set_display_function([](auto& name, auto& mat) {
+                tf::imshow(name, mat);
+            },
+            []() {
+				tf::destroyAllWindows();
+            });
         });
     } catch(const std::exception& e) {
         FormatError("Cannot initialize python. Please refer to the above error messages prefixed with [py] to estimate the cause of this issue: ", e.what());

@@ -724,7 +724,12 @@ void fix_paths(bool force_init, cmn::source_location loc) {
             static std::once_flag flag2;
             std::call_once(flag2, [](){
                 track::PythonIntegration::set_settings(GlobalSettings::instance(), file::DataLocation::instance(), Python::get_instance());
-                track::PythonIntegration::set_display_function([](auto& name, auto& mat) { tf::imshow(name, mat); });
+                track::PythonIntegration::set_display_function([](auto& name, auto& mat) {
+                    tf::imshow(name, mat);
+                },
+                []() {
+                    tf::destroyAllWindows();
+                });
             });
             
             counter = 2; // set this independently of success

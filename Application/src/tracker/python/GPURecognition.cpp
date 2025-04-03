@@ -186,6 +186,7 @@ MESSAGE_TYPE(PythonWarn, TYPE_WARNING, false, YELLOW, "python");*/
 
 cmn::GlobalSettings* _settings{ nullptr };
 std::function<void(const std::string&, const cv::Mat&)> _mat_display = [](auto&, auto&) { };
+std::function<void()> _destroy_all_windows = []() {};
 
 #include "GPURecognition.h"
 #include <pybind11/stl.h>
@@ -650,6 +651,18 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
 #endif
         }, pybind11::arg().none(), pybind11::arg().noconvert());
 
+    m.def("destroyAllWindows", []() {
+#if CMN_WITH_IMGUI_INSTALLED
+        namespace py = pybind11;
+
+        if (_settings->map().has("nowindow")
+            && !_settings->map().at("nowindow").value<bool>())
+        {
+            _destroy_all_windows();
+        }
+#endif
+        });
+
     py::bind_vector<std::vector<cmn::Image::Ptr>>(m, "ImageVector", "Vector of images");
     py::bind_vector<std::vector<float>>(m, "FloatVector", "Float vector");
     py::bind_vector<std::vector<std::string>>(m, "StringVector", "String vector");
@@ -712,8 +725,9 @@ void PythonIntegration::set_settings(GlobalSettings* obj, file::DataLocation* in
 template<typename T>
 void set_function_internal(const char* name_, T&& f, const std::string& m);
 
-void PythonIntegration::set_display_function(std::function<void(const std::string&, const cv::Mat&)> fn) {
+void PythonIntegration::set_display_function(std::function<void(const std::string&, const cv::Mat&)> fn, std::function<void()> destroy_all_windows) {
     _mat_display = fn;
+    _destroy_all_windows = destroy_all_windows;
 }
 
 #ifdef _WIN32

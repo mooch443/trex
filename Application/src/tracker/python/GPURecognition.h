@@ -283,7 +283,7 @@ public:
     static void convert_python_exceptions(std::function<void()>&&);
     
     static void set_settings(GlobalSettings*, file::DataLocation*, void* python_wrapper);
-    static void set_display_function(std::function<void(const std::string&, const cv::Mat&)>);
+    static void set_display_function(std::function<void(const std::string&, const cv::Mat&)>, std::function<void()>);
     
     static bool exists(const std::string&, const std::string& m = "");
     static bool valid(const std::string&, const std::string& m = "");

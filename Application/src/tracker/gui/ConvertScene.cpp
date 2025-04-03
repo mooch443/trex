@@ -186,11 +186,22 @@ struct ConvertScene::Data {
     void check_module() {
         if(not closed_loop_enable)
             return;
-        
-        Python::schedule([this](){
-            auto proxy = module_proxy();
-            proxy.run("update");
-        }).get();
+
+        try {
+            auto json = frame_info();
+            if (json.is_null())
+                return;
+
+            auto str = glz::write_json(json).value();
+
+            Python::schedule([this, str]() {
+                auto proxy = module_proxy();
+                proxy.run("update", str);
+            }).get();
+        }
+        catch (...) {
+
+        }
     }
     
     dyn::DynamicGUI init_gui(Base* window);
@@ -240,15 +251,15 @@ struct ConvertScene::Data {
             closed_loop_path.str(),
             [this](ModuleProxy& m) {
                 Print("Running reinit...");
-                m.unset_function("frame_info");
+                /*m.unset_function("frame_info");
                 m.set_function<std::function<glz::json_t()>>("frame_info", [this]() {
                     return frame_info();
-                });
+                });*/
                 m.run("init");
             },
             false,
             [](ModuleProxy& m){
-                m.unset_function("frame_info");
+                //m.unset_function("frame_info");
                 m.run("deinit");
             }
         };

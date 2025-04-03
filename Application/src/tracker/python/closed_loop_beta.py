@@ -7,73 +7,98 @@ import cv2
 
 quit_app = False
 polling_thread = None
+video_size = None
+skeleton = None
+
+def update_thread(status):
+    global quit_app, video_size, skeleton
+    try:
+        #TRex.log("Polling C++ for status...")
+        #status = None
+        #status = frame_info()
+        #TRex.log(f"status = {status} {type(status)}")
+
+        if status is None or status == "None":
+            TRex.log("No status received from C++")
+            time.sleep(1)
+            return False
+        
+        #TRex.log("Converting status to JSON...")
+        status = json.loads(status)
+        #TRex.log(f"status.json = {status}")
+
+        if video_size is None:
+            video_size = eval(TRex.setting("meta_video_size"))
+            skeleton = eval(TRex.setting("detect_skeleton"))[-1]
+
+        # draw a picture of objects
+        image = np.zeros((video_size[1], video_size[0], 3), np.uint8)
+        cv2.rectangle(image, (0, 0), (video_size[0], video_size[1]), (255, 255, 255), 3)
+
+        for obj in status["objects"]:
+            clr = tuple(obj['color'])
+            box = np.array(obj["box"])
+            center = box[:2] + box[2:] / 2
+
+            # Log object information
+            #TRex.log(f"Object {obj['id']} is at {center} and of size {box[2:]} with color {clr} and pose {obj['pose']}")
+
+            # Draw circles and rectangles on the image
+            cv2.circle(image, (int(center[0]), int(center[1])), 15, (125,125,125), 1)
+            cv2.circle(image, (int(center[0]), int(center[1])), 10, clr, 1)
+            cv2.rectangle(image, (int(box[0]), int(box[1])), (int(box[0] + box[2]), int(box[1] + box[3])), (125,125,125), 3)
+
+            if obj["selected"]:
+                cv2.rectangle(image, (int(box[0]), int(box[1])), (int(box[0] + box[2]), int(box[1] + box[3])), clr, 3)
+
+            # Draw pose lines and circles
+            if obj['pose'] is not None and len(obj['pose']) > 0:
+                for A,B in skeleton:
+                    if A >= len(obj['pose']) or B >= len(obj['pose']):
+                        continue
+                    x1,y1 = obj['pose'][A]
+                    x2,y2 = obj['pose'][B]
+
+                    if (x1 != 0 or y1 != 0) and (x2 != 0 or y2 != 0):
+                        cv2.line(image, (int(x1), int(y1)), (int(x2), int(y2)), clr, 3)
+                
+                for x,y in obj['pose']:
+                    if x == 0 and y == 0:
+                        continue
+                    cv2.circle(image, (int(x), int(y)), 10, clr, 1)        
+
+            if "outline" in obj and obj["outline"] is not None:
+                for i in range(len(obj["outline"]) - 1):
+                    x1,y1 = obj["outline"][i]
+                    x2,y2 = obj["outline"][i + 1]
+                    cv2.line(image, (int(x1), int(y1)), (int(x2), int(y2)), clr, 3)
+
+                x1,y1 = obj["outline"][-1]
+                x2,y2 = obj["outline"][0]
+                cv2.line(image, (int(x1), int(y1)), (int(x2), int(y2)), clr, 3)
+
+        if image.shape[1] >= 800:
+            ratio = image.shape[1] / image.shape[0]
+            new_width = 800
+            new_height = int(new_width / ratio)
+            image = cv2.resize(image, (new_width, new_height), interpolation=cv2.INTER_AREA)
+            #TRex.log(f"Resized image to {image.shape[1]}x{image.shape[0]} {image.dtype} {image.shape}")
+        TRex.imshow("Objects", cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+        #TRex.log(f"Skeleton = {TRex.setting('detect_skeleton')}")
+        #TRex.log(f"Polled C++ message and got: {status} (took seconds)")
+    except Exception as e:
+        TRex.log(f"Error polling C++: {e}")
+    start = time.time()
+    time.sleep(0.01)  # Sleep for 100 milliseconds
+    return True
 
 def poll_cpp():
-    global quit_app, frame_info
+    global quit_app, video_size, skeleton
     start = time.time()
-    video_size = None
-    skeleton = None
 
-    while not quit_app:
-        try:
-            TRex.log("Polling C++ for status...")
-            TRex.log(f"frame_info = {frame_info}")
-            status = None
-            status = frame_info()
-            #TRex.log(f"status = {status} {type(status)}")
-
-            if status is None or status == "None":
-                TRex.log("No status received from C++")
-                time.sleep(1)
-                continue
-            
-            #TRex.log("Converting status to JSON...")
-            status = json.loads(status)
-            #TRex.log(f"status.json = {status}")
-
-            if video_size is None:
-                video_size = eval(TRex.setting("meta_video_size"))
-                skeleton = eval(TRex.setting("detect_skeleton"))[-1]
-
-            # draw a picture of objects
-            image = np.zeros((video_size[1], video_size[0], 3), np.uint8)
-
-            for obj in status["objects"]:
-                clr = tuple(obj['color'])
-                box = np.array(obj["box"])
-                center = box[:2] + box[2:] / 2
-
-                # Log object information
-                #TRex.log(f"Object {obj['id']} is at {center} and of size {box[2:]} with color {clr} and pose {obj['pose']}")
-
-                # Draw circles and rectangles on the image
-                cv2.circle(image, (int(center[0]), int(center[1])), 15, (125,125,125), 1)
-                cv2.circle(image, (int(center[0]), int(center[1])), 10, clr, 1)
-                cv2.rectangle(image, (int(box[0]), int(box[1])), (int(box[0] + box[2]), int(box[1] + box[3])), (125,125,125), 3)
-
-                # Draw pose lines and circles
-                if obj['pose'] is not None and len(obj['pose']) > 0:
-                    for A,B in skeleton:
-                        if A >= len(obj['pose']) or B >= len(obj['pose']):
-                            continue
-                        x1,y1 = obj['pose'][A]
-                        x2,y2 = obj['pose'][B]
-
-                        if (x1 != 0 or y1 != 0) and (x2 != 0 or y2 != 0):
-                            cv2.line(image, (int(x1), int(y1)), (int(x2), int(y2)), clr, 3)
-                    
-                    for x,y in obj['pose']:
-                        if x == 0 and y == 0:
-                            continue
-                        cv2.circle(image, (int(x), int(y)), 10, clr, 1)        
-
-            TRex.imshow("Objects", cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
-            #TRex.log(f"Skeleton = {TRex.setting('detect_skeleton')}")
-            #TRex.log(f"Polled C++ message and got: {status} (took {time.time() - start} seconds)")
-        except Exception as e:
-            TRex.log(f"Error polling C++: {e}")
-        start = time.time()
-        time.sleep(0.01)  # Sleep for 100 milliseconds
+    #while not quit_app:
+    #    if not update_thread():
+    #        break
         
     TRex.log("Ending poll_cpp thread.")
 
@@ -95,18 +120,23 @@ def init():
     polling_thread.start()
 
 def deinit():
-    global quit_app, polling_thread
+    global quit_app, polling_thread, video_size, skeleton
     if polling_thread is not None:
         quit_app = True
         polling_thread.join()
         polling_thread = None
-        quit_app = False
-        TRex.log("deinit message")
+    
+    quit_app = False
+    TRex.log("deinit message")
+    TRex.destroyAllWindows()
+    TRex.log("destroyed windows")
+    video_size = None
+    skeleton = None
 
-def update():
+def update(status):
     global quit_app
     if quit_app:
         TRex.log("we are quitting, so not updating")
         return
-    #TRex.log("update message")
-    #time.sleep(0.1)
+    #TRex.log(f"Updating with status: {status}")
+    update_thread(status)
