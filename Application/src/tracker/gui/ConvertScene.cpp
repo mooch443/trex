@@ -188,8 +188,9 @@ struct ConvertScene::Data {
             return;
         
         Python::schedule([this](){
-            module_proxy();
-        });
+            auto proxy = module_proxy();
+            proxy.run("update");
+        }).get();
     }
     
     dyn::DynamicGUI init_gui(Base* window);

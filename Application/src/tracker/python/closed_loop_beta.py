@@ -1,3 +1,4 @@
+import json
 import TRex
 import threading
 import time
@@ -16,13 +17,19 @@ def poll_cpp():
     while not quit_app:
         try:
             TRex.log("Polling C++ for status...")
+            TRex.log(f"frame_info = {frame_info}")
+            status = None
             status = frame_info()
-            TRex.log(f"status = {status}")
+            #TRex.log(f"status = {status} {type(status)}")
 
-            if status is None:
+            if status is None or status == "None":
                 TRex.log("No status received from C++")
-                #time.sleep(1)
+                time.sleep(1)
                 continue
+            
+            #TRex.log("Converting status to JSON...")
+            status = json.loads(status)
+            #TRex.log(f"status.json = {status}")
 
             if video_size is None:
                 video_size = eval(TRex.setting("meta_video_size"))
@@ -62,11 +69,11 @@ def poll_cpp():
 
             TRex.imshow("Objects", cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
             #TRex.log(f"Skeleton = {TRex.setting('detect_skeleton')}")
-            TRex.log(f"Polled C++ message and got: {status} (took {time.time() - start} seconds)")
+            #TRex.log(f"Polled C++ message and got: {status} (took {time.time() - start} seconds)")
         except Exception as e:
             TRex.log(f"Error polling C++: {e}")
         start = time.time()
-        time.sleep(0.1)  # Sleep for 100 milliseconds
+        time.sleep(0.01)  # Sleep for 100 milliseconds
         
     TRex.log("Ending poll_cpp thread.")
 
@@ -84,8 +91,7 @@ def init():
     
     TRex.log("starting thread...")
     quit_app = False
-    polling_thread = threading.Thread(target=poll_cpp)
-    #polling_thread.daemon = True  # Optionally make it a daemon thread
+    polling_thread = threading.Thread(target=poll_cpp, name="poll_cpp_thread", daemon=True)
     polling_thread.start()
 
 def deinit():
@@ -96,3 +102,11 @@ def deinit():
         polling_thread = None
         quit_app = False
         TRex.log("deinit message")
+
+def update():
+    global quit_app
+    if quit_app:
+        TRex.log("we are quitting, so not updating")
+        return
+    #TRex.log("update message")
+    #time.sleep(0.1)

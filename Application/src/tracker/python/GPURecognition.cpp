@@ -1320,15 +1320,22 @@ void PythonIntegration::set_function(const char* name_, std::function<bool()> f,
     set_function_internal(name_, f, m);
 }
 void PythonIntegration::set_function(const char* name_, std::function<glz::json_t()> f, const std::string &m) {
-    set_function_internal(name_, [f = std::move(f)]() -> py::object {
+    set_function_internal(name_, [f = std::move(f)]() -> py::str {
         //py::dict dict = json_to_pydict(f());
-        glz::json_t json = f();
-        if(json.is_null()) {
-            return py::none();
+        try {
+            glz::json_t json = f();
+            if(json.is_null()) {
+                return py::none();
+            }
+            auto str = glz::write_json(json).value();
+            
+            //auto obj = track::_json_module.attr("loads")(str);
+            return py::str(str);
+        } catch(py::error_already_set& e) {
+            FormatExcept("Exception: ", e.what());
+            e.restore();
         }
-        auto str = glz::write_json(json).value();
-        
-        return track::_json_module.attr("loads")(str);
+        return py::none();
     }, m);
 }
 void PythonIntegration::set_function(const char* name_, std::function<float()> f, const std::string &m) {
