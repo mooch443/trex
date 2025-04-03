@@ -195,10 +195,14 @@ int main(int argc, char**argv) {
     }
     
     if(argc == 2) {
-        parse_input(CommandLine::Option{
-            .name = "input",
-            .value = argv[1]
-        });
+        try {
+            parse_input(CommandLine::Option{
+                .name = "input",
+                .value = argv[1]
+            });
+        } catch(...) {
+            /// ignore errors
+        }
     } else if(argc > 2) {
         if(file::Path(argv[1]).exists()) {
             parse_input(CommandLine::Option{
