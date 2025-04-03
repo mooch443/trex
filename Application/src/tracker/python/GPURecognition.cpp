@@ -707,6 +707,8 @@ std::string& python_gpu_name() {
     return _python_gpu_name;
 }
 
+py::dict json_to_pydict(const glz::json_t& j);
+
 std::mutex module_mutex;
 std::map<std::string, std::string> _module_contents;
 std::map<std::string, pybind11::module> _modules;
@@ -1106,6 +1108,56 @@ std::optional<glz::json_t> PythonIntegration::run(const std::string& module_name
     return std::nullopt;
 }
 
+std::optional<glz::json_t> PythonIntegration::run(const std::string& module_name, const std::string& function, const glz::json_t& json)
+{
+    check_correct_thread_id();
+#ifdef TREX_PYTHON_DEBUG
+    Print(fmt::clr<FormatColor::DARK_GRAY>("[py] "), "Running ",module_name.c_str(),"::",function.c_str());
+#endif
+    
+    std::unique_lock<std::mutex> guard(module_mutex);
+
+    try {
+        py::handle module;
+        
+        if(!CHECK_NONE(_modules.at(module_name))) {
+            if(function.empty())
+                module = _modules.at(module_name);
+            else
+                module = _modules.at(module_name).attr(function.c_str());
+        }
+        
+        if(!CHECK_NONE(module)) {
+            guard.unlock();
+            
+            auto result = module(json_to_pydict(std::move(json)));
+            return result_to_json(std::move(result));
+            
+        } else
+            FormatExcept("Pointer of ",module_name,"::",function," is null.");
+    }
+    catch (pybind11::error_already_set & e) {
+        e.restore();
+        
+        if (PyErr_Occurred()) {
+            PyErr_PrintEx(0);
+            PyErr_Clear(); // this will reset the error indicator so you can run Python code again
+        }
+        
+        _modules.at(module_name).release();
+        //_modules.at(module_name) = pybind11::none();
+        throw SoftException("Python runtime exception while running ", module_name.c_str(),"::", function.c_str(),"(): ", e.what());
+        
+    } catch(const std::exception& e) {
+        throw SoftException("Non-python error while running ", module_name.c_str(),"::", function.c_str(),"(): ", e.what());
+        
+    } catch(...) {
+        throw SoftException("Unknown exception while running ", module_name.c_str(),"::", function.c_str(),"().");
+    }
+    
+    return std::nullopt;
+}
+
 std::string PythonIntegration::run_retrieve_str(const std::string& module_name, const std::string& function)
 {
     check_correct_thread_id();
@@ -1334,17 +1386,15 @@ void PythonIntegration::set_function(const char* name_, std::function<bool()> f,
     set_function_internal(name_, f, m);
 }
 void PythonIntegration::set_function(const char* name_, std::function<glz::json_t()> f, const std::string &m) {
-    set_function_internal(name_, [f = std::move(f)]() -> py::str {
+    set_function_internal(name_, [f = std::move(f)]() -> py::dict {
         //py::dict dict = json_to_pydict(f());
         try {
             glz::json_t json = f();
             if(json.is_null()) {
                 return py::none();
             }
-            auto str = glz::write_json(json).value();
+            return json_to_pydict(std::move(json));
             
-            //auto obj = track::_json_module.attr("loads")(str);
-            return py::str(str);
         } catch(py::error_already_set& e) {
             FormatExcept("Exception: ", e.what());
             e.restore();

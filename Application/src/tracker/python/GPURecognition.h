@@ -314,6 +314,7 @@ public:
     static bool is_none(const std::string& name, const std::string& attribute);
     static std::optional<glz::json_t> run(const std::string& module_name, const std::string& function);
     static std::optional<glz::json_t> run(const std::string& module_name, const std::string& function, const std::string& parm);
+    static std::optional<glz::json_t> run(const std::string& module_name, const std::string& function, const glz::json_t& json);
     static std::string run_retrieve_str(const std::string& module_name, const std::string& function);
 
     template<typename T>

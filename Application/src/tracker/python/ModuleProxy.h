@@ -21,6 +21,7 @@ struct TREX_EXPORT ModuleProxy {
     }
     std::optional<glz::json_t> run(const char* name);
     std::optional<glz::json_t> run(const char* name, const std::string& parm);
+    std::optional<glz::json_t> run(const char* name, const glz::json_t& parm);
     void unset_function(const char*name);
 };
 }

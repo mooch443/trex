@@ -191,12 +191,10 @@ struct ConvertScene::Data {
             auto json = frame_info();
             if (json.is_null())
                 return;
-
-            auto str = glz::write_json(json).value();
-
-            Python::schedule([this, str]() {
+            
+            Python::schedule([this, json = std::move(json)]() {
                 auto proxy = module_proxy();
-                proxy.run("update", str);
+                proxy.run("update", std::move(json));
             }).get();
         }
         catch (...) {

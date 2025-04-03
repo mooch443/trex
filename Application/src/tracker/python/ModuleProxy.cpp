@@ -44,6 +44,9 @@ std::optional<glz::json_t> ModuleProxy::run(const char* name) {
 std::optional<glz::json_t> ModuleProxy::run(const char* name, const std::string& parm) {
     return PythonIntegration::run(m, name, parm);
 }
+std::optional<glz::json_t> ModuleProxy::run(const char* name, const glz::json_t& parm) {
+    return PythonIntegration::run(m, name, std::move(parm));
+}
 void ModuleProxy::unset_function(const char*name) {
     PythonIntegration::unset_function(name, m);
 }
