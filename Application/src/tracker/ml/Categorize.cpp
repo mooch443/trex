@@ -164,6 +164,10 @@ auto& task_queue() {
 static std::weak_ptr<pv::File> last_source;
 
 void Work::add_training_sample(const Sample::Ptr& sample) {
+    if(sample && not sample->_assigned_label) {
+        throw U_EXCEPTION("Cannot assign an empty label.");
+    }
+    
     if(sample) {
         DataStore::add_sample(sample);
     }
@@ -213,6 +217,8 @@ void show(const std::shared_ptr<pv::File>& video, const std::function<void()>& a
     {
         _auto_quit_fn = auto_quit;
         _set_status_fn = set_status;
+        
+        DataStore::init_labels(false);
         
         Work::set_state(video, Work::State::SELECTION);
         Work::visible() = true;
@@ -652,6 +658,7 @@ void Work::start_learning(std::weak_ptr<pv::File> video_source) {
                             auto ldx = training_labels.size();
                             auto idx = training_images.size();
                             if(item.sample) {
+                                assert(item.sample->_assigned_label != nullptr);
                                 training_labels.insert(training_labels.end(), item.sample->_frames.size(), item.sample->_assigned_label->name);
                                 training_images.insert(training_images.end(), item.sample->_images.begin(), item.sample->_images.end());
                             } else

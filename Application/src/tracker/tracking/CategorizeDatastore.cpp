@@ -123,6 +123,7 @@ std::vector<std::vector<BlobLabel>>& DataStore::_unsafe_probability_cache() {
 }
 
 std::atomic<int> _number_labels{0};
+std::vector<std::string> _last_categories;
 
 int DataStore::number_labels() {
     return _number_labels.load();
@@ -222,16 +223,25 @@ void DataStore::clear_ranged_labels() {
 }
 
 void DataStore::init_labels(bool force) {
+    Settings::categories_ordered_t cats;
+    
     std::lock_guard guard(DataStore::mutex());
-    if(not force
-       && not _labels.empty())
-    {
+    if(force
+       || _labels.empty())
+    { // renew labels
+        cats = FAST_SETTING(categories_ordered);
+        
+    } else if(cats = FAST_SETTING(categories_ordered);
+              cats != _last_categories)
+    { // renew labels
+        /// pass...
+    } else {
         return;
     }
 
+    _last_categories = cats;
     _number_labels = 0;
     _labels.clear();
-    auto cats = FAST_SETTING(categories_ordered);
     for(size_t i=0; i<cats.size(); ++i) {
         _labels[Label::Make(cats.at(i), i)] = {};
     }

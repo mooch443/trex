@@ -8,6 +8,7 @@ from sklearn.metrics import classification_report
 import numpy as np
 import cv2
 import TRex
+import psutil
 
 from trex_utils import clear_caches
 
@@ -368,11 +369,46 @@ class Categorize:
         assert self.model
         images = torch.tensor(np.array(images), dtype=torch.float32) / 127.5 - 1
         images = images.permute(0, 3, 1, 2)  # Change to (batch_size, channels, height, width)
-        images = images.to(self.device)
-        with torch.no_grad():
-            y = self.model(images)
-            y = nn.Softmax(dim=1)(y).argmax(dim=1).cpu().numpy().tolist()
-        return y
+
+        # these images might be too big for the gpu.
+        # we need to find the maximum number of images that fit into the gpu memory at the same time (or let's say 50% of gpu memory)
+        # and then split the images into batches:
+
+        gpu_mem = 0.0
+        device = self.device.split(":")[0]
+        if device == 'cuda':
+            gpu_mem = torch.cuda.get_device_properties(self.device).total_memory
+        elif device == 'mps' or device == 'cpu':
+            # in this case the system memory is the gpu memory:
+            mem = psutil.virtual_memory()
+            gpu_mem = mem.total
+        gpu_mem = gpu_mem * 0.5
+        
+        if gpu_mem == 0.0:
+            gpu_mem = 32 * self.width * self.height * self.channels * 4
+            TRex.log(f"# no {device} memory available. estimating 32 images = {gpu_mem} bytes")
+        
+        max_images = int(gpu_mem / (self.width * self.height * 3 * 4))
+        TRex.log(f"# maximum images that can be processed at the same time on {device}: {max_images} in {gpu_mem} memory")
+
+        if max_images > 1 and len(images) > max_images:
+            TRex.log(f"# splitting images into batches of {max_images} images")
+            results = []
+            for i in range(0, len(images), max_images):
+                batch_images = images[i:i + max_images]
+                batch_images = batch_images.to(self.device)
+                with torch.no_grad():
+                    y = self.model(batch_images)
+                    y = nn.Softmax(dim=1)(y).argmax(dim=1).cpu().numpy().tolist()
+                    results.extend(y)
+            return results
+        else:
+            TRex.log(f"# processing all {len(images)} images")
+            images = images.to(self.device)
+            with torch.no_grad():
+                y = self.model(images)
+                y = nn.Softmax(dim=1)(y).argmax(dim=1).cpu().numpy().tolist()
+            return y
 
 
 def start():
