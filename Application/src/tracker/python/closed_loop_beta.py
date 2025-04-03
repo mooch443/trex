@@ -8,14 +8,22 @@ quit_app = False
 polling_thread = None
 
 def poll_cpp():
-    global quit_app
+    global quit_app, frame_info
     start = time.time()
     video_size = None
     skeleton = None
 
     while not quit_app:
         try:
+            TRex.log("Polling C++ for status...")
             status = frame_info()
+            TRex.log(f"status = {status}")
+
+            if status is None:
+                TRex.log("No status received from C++")
+                #time.sleep(1)
+                continue
+
             if video_size is None:
                 video_size = eval(TRex.setting("meta_video_size"))
                 skeleton = eval(TRex.setting("detect_skeleton"))[-1]
@@ -54,7 +62,7 @@ def poll_cpp():
 
             TRex.imshow("Objects", cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
             #TRex.log(f"Skeleton = {TRex.setting('detect_skeleton')}")
-            #TRex.log(f"Polled C++ message and got: {status} (took {time.time() - start} seconds)")
+            TRex.log(f"Polled C++ message and got: {status} (took {time.time() - start} seconds)")
         except Exception as e:
             TRex.log(f"Error polling C++: {e}")
         start = time.time()

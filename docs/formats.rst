@@ -242,7 +242,14 @@ We can now map from segments (meta) to tracklet images from the big file
 Visual fields
 =============
 
-Visual fields are saved by clicking the respective menu button ("export visual fields") in |trex|. This will save one or multiple files, depending on file size. If the files are bigger than ~3GB, then they have to be saved separately in individual .npy files - otherwise they will all be merged into one .npz container called e.g. ``data/<VIDEONAME>_visual_field_fish0.npz``.
+Visual fields are saved by clicking enabling the "Save visual field data" switch in the export options dialog (see :numref:`save_visual_field`). This will save one or multiple files, depending on file size. If the files are bigger than ~3GB, then they have to be saved separately in individual .npy files - otherwise they will all be merged into one .npz container called e.g. ``data/<VIDEONAME>_visual_field_fish0.npz``.
+
+.. _save_visual_field:
+
+.. figure:: images/save_visual_field.png
+   :width: 100%
+
+   This is the export options dialog. Enable the highlighted switch to enable visual field export! Be careful, though, since visual field data can easily get pretty big if you have a lot of individuals.
 
 Each container holds multiple arrays, each are shaped ``Nx2x2x512`` for ``N`` frames, 2 eyes and 2 depth-layers per eye:
 
@@ -255,11 +262,15 @@ as well as some meta data:
 	- **colors**: (``Mx4``): ID + RGB for M individuals
 	- **fov_range** (``2x1``): FOV range in radians
 	- **frame_range** (``2x1``): Start and end of exported region
-	- **fish_pos** (``Nx2``): XY position of the individual for each frame
+	- **fish_pos** (``Nx2``): XY head-position of the individual for each frame
 	- **fish_angle** (``Nx1``): angle of the body relative to the x-axis
 	- **eye_pos** (``Nx2x2``): XY position for each eye
 	- **eye_angle** (``Nx2``): angle for each eye
-	- **frames** (``Nx1``): frame index
+	- **frames** (``Nx1``): frame index (corresponds to the same frame index in kinematics npz files)
+
+Essentially, a visual field is a 1D image per frame and individual - it maps 260° of visual information onto a fixed width image (512px). That means that each pixel corresponds with a range of angles around the head of the individual (or more specifically, around each eye of the individual). Internally, this eye is represented as a point slightly outside the outline of the individual, adjustable by :param:`visual_field_eye_offset` and :param:`visual_field_eye_separation`. The visual field of an individual can intercept with the same individual, objects in the frame (which are represented by negative ids) and, of course, other individuals' outlines. If another individual is not present in the current frame, the last available data for this individual is used (up to a time limit).
+
+An example for how to use this data is provided `here <https://github.com/mooch443/trex/blob/e9d98c0427dcc9c28b72b789cb4fde17ec451fe6/docs/notebooks/PlotVisualField.ipynb>`_. It shows how to plot visual fields similar to how |trex| displays them in-app, as well as how to combine visual field data with other trajectory data exported alongside the visual fields.
 
 Heatmaps
 ========

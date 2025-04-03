@@ -1277,6 +1277,9 @@ py::object json_to_pyobject(const glz::json_t& j);
 
 py::dict json_to_pydict(const glz::json_t& j) {
     py::dict dict;
+    if(j.is_null())
+        return dict;
+    
     for (const auto& [key, item] : j.get_object()) {
         dict[py::str(key)] = json_to_pyobject(item);
     }
@@ -1317,9 +1320,15 @@ void PythonIntegration::set_function(const char* name_, std::function<bool()> f,
     set_function_internal(name_, f, m);
 }
 void PythonIntegration::set_function(const char* name_, std::function<glz::json_t()> f, const std::string &m) {
-    set_function_internal(name_, [f = std::move(f)]() -> py::dict{
-        py::dict dict = json_to_pydict(f());
-        return dict;
+    set_function_internal(name_, [f = std::move(f)]() -> py::object {
+        //py::dict dict = json_to_pydict(f());
+        glz::json_t json = f();
+        if(json.is_null()) {
+            return py::none();
+        }
+        auto str = glz::write_json(json).value();
+        
+        return track::_json_module.attr("loads")(str);
     }, m);
 }
 void PythonIntegration::set_function(const char* name_, std::function<float()> f, const std::string &m) {

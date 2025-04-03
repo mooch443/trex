@@ -13,9 +13,9 @@ Command-line
 
 .. |movie| replace:: path/to/VIDEO.mp4
 
-The command-line interface is the most powerful way to use |trex|, as it allows you to automate tasks and run them in batch mode. The following examples will show you how to use the command-line interface to achieve common tasks.
+Often, the command-line interface is the most powerful way to use |trex|, as it allows you to automate tasks and run them in batch mode. The following examples will show you how to use the command-line interface to achieve common tasks. Just to note: you can reach most or all of these functions through the graphical user interface, using the same parameter names. Instructions from here should be fairly easy to transfer over!
 
-As you may know, simply starting the program without any arguments will open the graphical user interface. If you want to use the command-line interface, you have to specify the input  using the ``-i`` option. For example, to open a video file, you would use::
+As you may know, simply starting the program without any arguments will open the graphical user interface. If you want to use the command-line interface, you have to specify the input using the ``-i`` option. For example, to open a video file, you would use::
 
 	trex -i webcam
 
@@ -24,17 +24,17 @@ As you may know, simply starting the program without any arguments will open the
 
 .. raw:: html
 
-   <p>This will open the webcam, if you have one installed and allow the program to use it, and use <code class="docutils literal notranslate"><span class="pre">yolov8n-pose</span></code> (see <a href="https://docs.ultralytics.com/models/yolov8/#supported-tasks-and-modes" target="_blank">YOLOv8 models</a>) to find you in the picture.</p>
+   <p>This will open the webcam, if you have one installed and allow the program to use it, and use <code class="docutils literal notranslate"><span class="pre">yolov8n-pose</span></code> (see <a href="https://docs.ultralytics.com/models/yolov11/#supported-tasks-and-modes" target="_blank">YOLOv11 models</a>) to find you in the picture.</p>
    
 Just for fun, we also set a different :param:`detect_iou_threshold` which will change the IOU threshold for YOLO object detection - the higher the percentage, the more overlap between bounding boxes is allowed. The default is 70%, but we set it to 35%::
 
 	trex -i webcam -detect_iou_threshold 0.35
 
-You may have already noticed that, by default, |trex| will see if a PV file already exists for the video you're trying to open. If it does, it will open it and you will end up in the tracking view immediately. However, we start from scratch here which can be enforced by adding the ``-task convert`` option in the same way::
+You may have already noticed that, by default, |trex| will see if a PV file already exists for the video you're trying to open. If it does, it will open it and you will end up in the tracking view immediately. However, we want to start over from scratch here - which can be enforced by adding the ``-task convert`` option in the same way::
 
 	trex -i webcam -task convert -detect_iou_threshold 0.35
 
-The ``detect_iou_threshold`` here is simply the parameter :param:`detect_iou_threshold`, as described in the documentation. You may add any parameter found in there to the command-line, and it will be evaluated when the program starts - if there are any errors, an ``ERROR`` will be displayed somewhere in the command-line output.
+The ``detect_iou_threshold`` here is simply the parameter :param:`detect_iou_threshold`, as described in the documentation. You may add any parameter found in there to the command-line, and it will be evaluated when the program starts - if there are any errors, an ``ERROR`` will be displayed somewhere in the command-line output. Those errors might also be interesting in case its not a user error, but a software bug (which you are welcome to `report here <https://github.com/mooch443/trex/issues/new?assignees=mooch443&labels=bug&template=bug_report.md&title=>`_ on GitHub!).
 
 For example, we can also limit the number of individuals to track::
 
@@ -102,7 +102,7 @@ This will save a couple of files named ``<VIDEO>_tracklet_images_*.npz`` in your
 Create a short clip of objects with or w/o background after converting to PV
 ****************************************************************************
 
-The tool ``pvconvert``, included in the standard install of |trex|, can be used to achieve this. It reads the PV file format and exports sequences of images. For example::
+The tool ``pvconvert``, included in the standard installation of |trex|, can be used to achieve this. It reads the PV file format and exports sequences of images. For example::
 
 	pvconvert -i /Volumes/Public/videos/group_1  \
 		-disable_background true             \
@@ -118,11 +118,13 @@ produces this gif, which is cropped, scaled, short, and has lost its background:
 Closed-loop
 ===========
 
-To enable closed-loop, edit the ``closed_loop.py`` file (it contains a few examples) and open tgrabs using::
+To enable closed-loop, open |trex| using::
 
-	tgrabs -i basler -enable_closed_loop -threshold 35 -track_threshold 35
+	trex -i webcam -closed_loop_enable -track_max_individuals 1
 
 .. NOTE::
 	Now you also have to attach ``track_`` parameters and set everything up properly for tracking (see next section)!
 
 Every frame that has been tracked will be forwarded to your python script. Be aware that if your script takes too long, frames might be dropped and the tracking might become less reliable. In cases like that, or with many individuals, it might be beneficial to change ``match_mode`` to ``approximate`` (if you don't need extremely good identity consistency, just general position information).
+
+You may, of course, edit the closed_loop file according to your needs. The exact path is displayed in the temrinal, which you maybe shouldn't modify but *copy* to a different location. You can then use :param:`closed_loop_path` to point |trex| to the correct script with custom code. The path used is displayed in the terminal (by default its in ``$CONDA_PREFIX/usr/share/trex/closed_loop_beta.py``).

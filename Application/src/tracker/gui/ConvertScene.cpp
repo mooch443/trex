@@ -188,16 +188,7 @@ struct ConvertScene::Data {
             return;
         
         Python::schedule([this](){
-            ModuleProxy proxy(closed_loop_path.str(), [this](ModuleProxy& m) {
-                m.set_function<std::function<glz::json_t()>>("frame_info", [this]() {
-                    std::unique_lock guard{_current_json_mutex};
-                    return _current_json;
-                });
-                m.run("init");
-            }, false, [](ModuleProxy& m){
-                m.unset_function("frame_info");
-                m.run("deinit");
-            });
+            module_proxy();
         });
     }
     
@@ -237,6 +228,30 @@ struct ConvertScene::Data {
     void draw(bool dirty, DrawStructure& graph, Base* window);
     bool retrieve_and_prepare_data();
     void draw_scene(DrawStructure& graph, const detect::yolo::names::map_t& detect_classes, bool dirty);
+    
+    glz::json_t frame_info() {
+        std::unique_lock guard{_current_json_mutex};
+        return _current_json;
+    }
+    
+    ModuleProxy module_proxy() {
+        return ModuleProxy{
+            closed_loop_path.str(),
+            [this](ModuleProxy& m) {
+                Print("Running reinit...");
+                m.unset_function("frame_info");
+                m.set_function<std::function<glz::json_t()>>("frame_info", [this]() {
+                    return frame_info();
+                });
+                m.run("init");
+            },
+            false,
+            [](ModuleProxy& m){
+                m.unset_function("frame_info");
+                m.run("deinit");
+            }
+        };
+    }
 };
 
 Segmenter& ConvertScene::segmenter() const {
@@ -532,14 +547,8 @@ void ConvertScene::activate()  {
         Print("Loading closed_loop module at ", path.absolute().add_extension("py"));
         
         Python::schedule([this](){
-            ModuleProxy proxy(_data->closed_loop_path.str(), [this](ModuleProxy& m) {
-                m.set_function<std::function<glz::json_t()>>("frame_info", [this]() {
-                    std::unique_lock guard{_data->_current_json_mutex};
-                    return _data->_current_json;
-                });
-                m.run("init");
-            });
-        });
+            _data->module_proxy();
+        }).get();
     }
 }
 
