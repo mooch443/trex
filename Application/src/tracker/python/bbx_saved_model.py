@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
-from typing import List, Tuple, Any
+from typing import List, Tuple, Any, Optional
 
+from trex_detection_model import DetectionModel, TRexDetection
 import TRex
 
 from trex_yolo import YOLOModel, TRexYOLO
 
-model = None
+model: Optional[TRexDetection] = None
 image_size = [640,640]
 model_path = None
 segmentation_path = None
@@ -50,28 +51,3 @@ def predict(input : TRex.YoloInput) -> List[TRex.Result]:
     return model.inference(input, 
                            conf_threshold = conf_threshold, 
                            iou_threshold = iou_threshold)
-
-def apply():
-    #from pyinstrument import Profiler
-
-    #profiler = Profiler()
-    #profiler.start()
-
-    #import time
-    #start = time.time()
-
-    try:
-        global model, image_size, segmentation_resolution, image, oimages, model_type, offsets, device
-        if model_type == "yolo" or model_type == "yolo8" or model_type == "yolo8seg":
-            #im = np.array(image, copy=False)[..., :3]
-            model.inference(image, offsets=offsets, conf_threshold=conf_threshold, iou_threshold=iou_threshold)
-
-        else:
-            raise Exception("model_type was not set before running inference:")
-
-    finally:
-        #e = time.time()
-        #profiler.stop()
-        #profiler.print(show_all=True)
-        pass
-        #print("Took ", (e - start)*1000, "ms")

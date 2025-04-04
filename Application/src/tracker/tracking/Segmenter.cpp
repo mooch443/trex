@@ -29,20 +29,16 @@ UninterruptableStep::UninterruptableStep(std::string_view name, std::string_view
 }
 
 ThreadGroupId GeneratorStep::threadID() const {
-    std::scoped_lock guard{mutex};
-    return tid;
+    return tid.load();
 }
 ThreadGroupId UninterruptableStep::threadID() const {
-    std::scoped_lock guard{mutex};
-    return tid;
+    return tid.load();
 }
 bool GeneratorStep::valid() const {
-    std::scoped_lock guard{mutex};
-    return tid.valid();
+    return threadID().valid();
 }
 bool UninterruptableStep::valid() const {
-    std::scoped_lock guard{mutex};
-    return tid.valid();
+    return threadID().valid();
 }
 
 GeneratorStep::GeneratorStep(std::string_view name, std::string_view subname, ManagedThread&& thread) {

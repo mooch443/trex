@@ -18,7 +18,7 @@ struct UninterruptableStep;
 
 struct GeneratorStep {
     static constexpr size_t MAX_CAPACITY = 10;
-    ThreadGroupId tid;
+    std::atomic<ThreadGroupId> tid;
     mutable std::mutex mutex;
     std::vector<std::tuple<Frame_t, std::future<SegmentationData>>> items;
     SegmentationData data;
@@ -31,7 +31,7 @@ struct GeneratorStep {
     
     GeneratorStep& operator=(GeneratorStep&& other) {
         std::scoped_lock guard(other.mutex, mutex);
-        tid = std::move(other.tid);
+        tid = other.tid.load();
         items = std::move(other.items);
         data = std::move(other.data);
         return *this;
@@ -49,7 +49,7 @@ struct GeneratorStep {
 
 struct UninterruptableStep {
 private:
-    ThreadGroupId tid;
+    std::atomic<ThreadGroupId> tid;
     mutable std::mutex mutex;
     SegmentationData data;
     
@@ -62,7 +62,7 @@ public:
     
     UninterruptableStep& operator=(UninterruptableStep&& other) {
         std::scoped_lock guard(other.mutex, mutex);
-        tid = std::move(other.tid);
+        tid = other.tid.load();
         data = std::move(other.data);
         return *this;
     }
