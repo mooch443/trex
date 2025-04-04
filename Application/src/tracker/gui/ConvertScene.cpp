@@ -69,8 +69,6 @@ struct ConvertScene::Data {
     
     CallbackCollection callback;
     Skeleton skelet;
-    bool closed_loop_enable{SETTING(closed_loop_enable)};
-    file::Path closed_loop_path{SETTING(closed_loop_path).value<file::Path>().remove_extension()};
     
     std::mutex _current_json_mutex;
     glz::json_t _current_json;
@@ -129,6 +127,106 @@ struct ConvertScene::Data {
     std::atomic<double> _time{0};
     std::unique_ptr<Bowl> _bowl;
     
+    struct ClosedLoopUpdate {
+        std::optional<std::future<void>> _python_future;
+        
+        file::Path closed_loop_path{SETTING(closed_loop_path).value<file::Path>().remove_extension()};
+        
+        ClosedLoopUpdate()
+            : closed_loop_path( SETTING(closed_loop_path).value<file::Path>().remove_extension())
+        {
+            auto path = closed_loop_path.add_extension("py");
+            if(not path.is_regular())
+                throw U_EXCEPTION("Cannot find module ", path, " as is specified in `closed_loop_path`.");
+            
+            Print("Loading closed_loop module at ", path.absolute().add_extension("py"));
+            module_proxy().get();
+        }
+        
+        ClosedLoopUpdate(ClosedLoopUpdate&&) = default;
+        ClosedLoopUpdate& operator=(ClosedLoopUpdate&&) = default;
+        
+        ~ClosedLoopUpdate() {
+            /// check if we have been moved from...
+            if(not closed_loop_path.empty()) {
+                Python::schedule([closed_loop_path = this->closed_loop_path](){
+                    ModuleProxy(closed_loop_path.str(), [](auto&){}).run("deinit");
+                }).get();
+                
+                retrieve_closed_loop(true);
+            }
+        }
+        
+        void retrieve_closed_loop(bool blocking) {
+            if(not _python_future.has_value())
+                return;
+            
+            if(not _python_future->valid()) {
+                _python_future.reset();
+                return;
+            }
+            
+            /// check if the future is ready
+            if((blocking
+                || _python_future->wait_for(std::chrono::milliseconds(0)) == std::future_status::ready))
+            {
+                try {
+                    _python_future->get();
+                }
+                catch (const std::exception& ex) {
+                    FormatWarning("Trouble running the python module: ", ex.what());
+                }
+                
+                /// reset in any case cause we're now either invalid or
+                /// the value has been extracted
+                _python_future.reset();
+            }
+        }
+        
+        void check_module(std::function<glz::json_t()> frame_info) {
+            retrieve_closed_loop(false);
+            
+            if(not _python_future.has_value()) {
+                try {
+                    auto json = frame_info();
+                    
+                    if (json.is_null())
+                        return;
+                    
+                    _python_future = module_proxy("update", std::move(json));
+                }
+                catch (const std::exception& ex) {
+                    FormatWarning("Trouble scheduling the python module: ", ex.what());
+                }
+            }
+        }
+        
+        template<typename... Args>
+        [[nodiscard]] std::future<void> module_proxy(Args&&... args) {
+            constexpr size_t argCount = sizeof...(Args);
+            auto boundArgs = std::make_tuple(std::forward<Args>(args)...);
+            return Python::schedule([closed_loop_path = this->closed_loop_path, boundArgs = std::move(boundArgs), argCount]() mutable {
+                ModuleProxy proxy{
+                     closed_loop_path.str(),
+                     [](ModuleProxy& m) {
+                         m.run("init");
+                     },
+                     false,
+                     [](ModuleProxy& m){
+                         m.run("deinit");
+                     }
+                };
+                if constexpr(argCount > 0) {
+                    std::apply([&proxy](auto&&... unpackedArgs) {
+                         proxy.run(std::forward<decltype(unpackedArgs)>(unpackedArgs)...);
+                    }, boundArgs);
+                }
+             });
+        }
+    };
+    
+    std::optional<ClosedLoopUpdate> _closed_loop;
+    
     Size2 output_size;
     Size2 video_size;
     Vec2 _last_mouse;
@@ -183,25 +281,6 @@ struct ConvertScene::Data {
     bool fetch_new_data();
     void update_background_image();
     
-    void check_module() {
-        if(not closed_loop_enable)
-            return;
-
-        try {
-            auto json = frame_info();
-            if (json.is_null())
-                return;
-            
-            Python::schedule([this, json = std::move(json)]() {
-                auto proxy = module_proxy();
-                proxy.run("update", std::move(json));
-            }).get();
-        }
-        catch (...) {
-
-        }
-    }
-    
     dyn::DynamicGUI init_gui(Base* window);
     void check_gui(DrawStructure& graph, Base* window) {
         if(not dynGUI) {
@@ -242,25 +321,6 @@ struct ConvertScene::Data {
     glz::json_t frame_info() {
         std::unique_lock guard{_current_json_mutex};
         return _current_json;
-    }
-    
-    ModuleProxy module_proxy() {
-        return ModuleProxy{
-            closed_loop_path.str(),
-            [this](ModuleProxy& m) {
-                Print("Running reinit...");
-                /*m.unset_function("frame_info");
-                m.set_function<std::function<glz::json_t()>>("frame_info", [this]() {
-                    return frame_info();
-                });*/
-                m.run("init");
-            },
-            false,
-            [](ModuleProxy& m){
-                //m.unset_function("frame_info");
-                m.run("deinit");
-            }
-        };
     }
 };
 
@@ -372,12 +432,7 @@ void ConvertScene::deactivate() {
         _data->spinner.set_progress(100);
         _data->spinner.mark_as_completed();
         
-        if(_data->closed_loop_enable) {
-            Python::schedule([this](){
-                ModuleProxy proxy(_data->closed_loop_path.str(), [](auto&){});
-                proxy.run("deinit");
-            }).get();
-        }
+        _data->_closed_loop.reset();
         
         if (_data) {
             _data->_object_blobs.clear();
@@ -548,17 +603,8 @@ void ConvertScene::activate()  {
     segmenter().start();
     RecentItems::open(source, GlobalSettings::current_defaults_with_config());
     
-    if(auto path = _data->closed_loop_path.add_extension("py");
-       _data->closed_loop_enable)
-    {
-        if(not path.is_regular())
-            throw U_EXCEPTION("Cannot find module ", path, " as is specified in `closed_loop_path`.");
-        
-        Print("Loading closed_loop module at ", path.absolute().add_extension("py"));
-        
-        Python::schedule([this](){
-            _data->module_proxy();
-        }).get();
+    if(SETTING(closed_loop_enable)) {
+        _data->_closed_loop = Data::ClosedLoopUpdate{};
     }
 }
 
@@ -782,7 +828,7 @@ void ConvertScene::Data::drawBlobs(
         }
         
         /// save for closed loop
-        if(closed_loop_enable)
+        if(_closed_loop)
             acc_json.push_back(sprite_map_to_json(*tmp));
 
         if (tracked_id.valid() 
@@ -850,8 +896,12 @@ void ConvertScene::Data::drawBlobs(
         _bowl->set_target_focus(_zoom_targets);
     }
     
-    if(closed_loop_enable && dirty) {
+    if(dirty && _closed_loop) {
         std::unique_lock guard{_current_json_mutex};
+        //if(frameIndex.valid())
+        //    _current_json["frame"] = frameIndex.get();
+       // else
+            _current_json["frame"] = nullptr;
         _current_json["objects"] = acc_json;
     }
 }
@@ -897,17 +947,22 @@ dyn::DynamicGUI ConvertScene::Data::init_gui(Base* window) {
         ActionFunc("python", [](Action action){
             REQUIRE_EXACTLY(1, action);
             
-            Python::schedule(Python::PackagedTask{
-                ._network = nullptr,
-                ._task = Python::PromisedTask(
-                    [action](){
-                        using py = PythonIntegration;
-                        Print("Executing: ", no_quotes(util::unescape(action.first())));
-                        py::execute(action.first());
-                    }
-                ),
-                ._can_run_before_init = false
-            });
+            try {
+                Python::schedule(Python::PackagedTask{
+                    ._network = nullptr,
+                    ._task = Python::PromisedTask(
+                                                  [action](){
+                                                      using py = PythonIntegration;
+                                                      Print("Executing: ", no_quotes(util::unescape(action.first())));
+                                                      py::execute(action.first());
+                                                  }
+                                                  ),
+                        ._can_run_before_init = false
+                }).get();
+                
+            } catch(const std::exception& ex) {
+                FormatExcept("Caught python exception: ", ex.what());
+            }
         })
     };
     context.variables = {
@@ -1245,7 +1300,11 @@ void ConvertScene::Data::update_background_image() {
 
         _current_data.image = nullptr;
         
-        check_module();
+        if(_closed_loop) {
+            _closed_loop->check_module([this](){
+                return frame_info();
+            });
+        }
     }
 }
 

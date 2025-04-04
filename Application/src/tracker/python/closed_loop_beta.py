@@ -4,17 +4,27 @@ import time
 import numpy as np
 import cv2
 
-quit_app = False
 video_size = None
 skeleton = None
 
-def update_thread(status):
-    global quit_app, video_size, skeleton
+def init():
+    TRex.log("hi message")
+
+def deinit():
+    global video_size, skeleton
+    TRex.log("deinit called")
+    TRex.destroyAllWindows()
+    video_size = None
+    skeleton = None
+
+def update(status):
+    global video_size, skeleton
+    #TRex.log(f"Updating with status: {status}")
     try:
         if status is None:
             TRex.log("Empty status received from C++")
             time.sleep(1)
-            return False
+            return
         
         if video_size is None:
             video_size = eval(TRex.setting("meta_video_size"))
@@ -67,20 +77,5 @@ def update_thread(status):
         #TRex.log(f"Skeleton = {TRex.setting('detect_skeleton')}")
     except Exception as e:
         TRex.log(f"Error polling C++: {e}")
-    start = time.time()
+
     time.sleep(0.01)  # Sleep for 100 milliseconds
-    return True
-
-def init():
-    TRex.log("hi message")
-
-def deinit():
-    global video_size, skeleton
-    TRex.log("deinit called")
-    TRex.destroyAllWindows()
-    video_size = None
-    skeleton = None
-
-def update(status):
-    #TRex.log(f"Updating with status: {status}")
-    update_thread(status)
