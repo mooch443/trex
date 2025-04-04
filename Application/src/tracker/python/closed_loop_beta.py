@@ -23,7 +23,6 @@ def update(status):
     try:
         if status is None:
             TRex.log("Empty status received from C++")
-            time.sleep(1)
             return
         
         if video_size is None:
@@ -77,5 +76,3 @@ def update(status):
         #TRex.log(f"Skeleton = {TRex.setting('detect_skeleton')}")
     except Exception as e:
         TRex.log(f"Error polling C++: {e}")
-
-    time.sleep(0.01)  # Sleep for 100 milliseconds
