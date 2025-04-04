@@ -10,7 +10,7 @@ from TRex import ModelTaskType
 from TRex import DetectResolution
 from TRex import ObjectDetectionFormat
 
-from trex_detection_model import DetectionModel, StrippedResults
+from trex_detection_model import DetectionModel, StrippedResults, TRexDetection
 from trex_detection_model import BBox
 from typing import List, Any
 
@@ -147,12 +147,14 @@ class StrippedYoloResults(StrippedResults):
         self.orig_shape = results.orig_shape
 
         box = np.array([box[0],box[1]])
+        box_offset = np.array([box[0], box[1]])
         
         if results.keypoints is not None:
             self.keypoints = []#results.keypoints.cpu().numpy()
+            #print(f"keypoints={results.keypoints}")
 
-            keys = results.keypoints.cpu().data[..., :2]
-            #print("keys=",keys.shape, result.keypoints.cpu())
+            keys = results.keypoints.cpu().data[..., :2].numpy()
+            #print("keys=",keys.shape, results.keypoints.cpu())
             if len(keys) > 0 and len(keys[0]):
                 #print(result.keypoints.cpu().xy, scale)
 
@@ -210,7 +212,6 @@ class StrippedYoloResults(StrippedResults):
                 assert self.masks[-1].flags['C_CONTIGUOUS']
 
         # Scale and offset the bounding boxes
-        box_offset = np.array([box[0], box[1]])
         self.boxes[:, :2] = (self.boxes[:, :2] + offset + box_offset) * scale[0]
         self.boxes[:, 2:4] = (self.boxes[:, 2:4] + offset + box_offset) * scale[1]
 
@@ -303,13 +304,15 @@ class YOLOModel(DetectionModel):
         Predict the objects in the image.
 
         Args:
-            input (List[TRex.YoloInput]): A list of images to predict on.
+            images (List[np.ndarray]): A list of images to predict on.
+            scales (List[Any]): A list of scales for each image.
+            offsets (List[Any]): A list of offsets for each image.
             **kwargs: Additional arguments to be passed to the model.
 
         Returns:
             List[TRex.Result]: A list of results for each image.
         """
-        if len(input) == 0:
+        if len(images) == 0:
             return []
 
         results = []
@@ -319,9 +322,9 @@ class YOLOModel(DetectionModel):
                 results.append((self.ptr.track(image, tracker="bytetrack.yaml", persist=True, device=self.device, **kwargs)[0], scale, offset))
         else:
             results = self.ptr.predict(images, device=self.device, stream=True, **kwargs)
-            results = [(r, scale, offset) for r, scale, offset, orig in zip(results, scales, offsets)]
+            results = [(r, scale, offset) for r, scale, offset in zip(results, scales, offsets)]
 
-        return [StrippedYoloResults(r, scale, offset) for r, scale, offset, _ in results]
+        return [StrippedYoloResults(r, scale, offset) for r, scale, offset in results]
 
 
 class TRexYOLO(TRexDetection):

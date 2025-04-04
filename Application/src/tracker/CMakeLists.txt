@@ -180,6 +180,8 @@ if(NOT TREX_CONDA_PACKAGE_INSTALL)
         ${CMAKE_CURRENT_SOURCE_DIR}/python/learn_static.py
         ${CMAKE_CURRENT_SOURCE_DIR}/python/visual_recognition_torch.py 
         ${CMAKE_CURRENT_SOURCE_DIR}/python/visual_identification_network_torch.py
+        ${CMAKE_CURRENT_SOURCE_DIR}/python/trex_detection_model.py
+        ${CMAKE_CURRENT_SOURCE_DIR}/python/trex_yolo.py
         ${CMAKE_CURRENT_SOURCE_DIR}/python/trex_init.py
         ${CMAKE_CURRENT_SOURCE_DIR}/python/closed_loop_beta.py
         ${CMAKE_CURRENT_SOURCE_DIR}/python/trex_learn_category.py
@@ -367,4 +369,4 @@ install(FILES
         ${CMAKE_CURRENT_SOURCE_DIR}/export_options_layout.json
     DESTINATION ${CMAKE_INSTALL_PREFIX}/usr/share/trex)
 
-install(FILES ${CMAKE_SOURCE_DIR}/default.settings ${CMAKE_CURRENT_SOURCE_DIR}/python/learn_static.py ${CMAKE_CURRENT_SOURCE_DIR}/python/visual_recognition_torch.py ${CMAKE_CURRENT_SOURCE_DIR}/python/visual_identification_network_torch.py ${CMAKE_CURRENT_SOURCE_DIR}/python/trex_init.py ${CMAKE_CURRENT_SOURCE_DIR}/python/visual_identification_network.py ${CMAKE_CURRENT_SOURCE_DIR}/python/bbx_saved_model.py ${CMAKE_CURRENT_SOURCE_DIR}/python/trex_utils.py ${CMAKE_CURRENT_SOURCE_DIR}/python/trex_learn_category.py ${CMAKE_CURRENT_SOURCE_DIR}/alter_layout.json ${CMAKE_CURRENT_SOURCE_DIR}/annotation_layout.json ${CMAKE_CURRENT_SOURCE_DIR}/calibrate_layout.json ${CMAKE_CURRENT_SOURCE_DIR}/welcome_layout.json ${CMAKE_CURRENT_SOURCE_DIR}/settings_layout.json ${CMAKE_CURRENT_SOURCE_DIR}/tracking_settings_layout.json ${CMAKE_CURRENT_SOURCE_DIR}/choose_settings_layout.json ${CMAKE_CURRENT_SOURCE_DIR}/tracking_layout.json ${CMAKE_CURRENT_SOURCE_DIR}/export_options_layout.json DESTINATION ${CMAKE_INSTALL_PREFIX}/usr/share/trex)
+install(FILES ${CMAKE_SOURCE_DIR}/default.settings ${CMAKE_CURRENT_SOURCE_DIR}/python/learn_static.py ${CMAKE_CURRENT_SOURCE_DIR}/python/visual_recognition_torch.py ${CMAKE_CURRENT_SOURCE_DIR}/python/visual_identification_network_torch.py ${CMAKE_CURRENT_SOURCE_DIR}/python/trex_detection_model.py ${CMAKE_CURRENT_SOURCE_DIR}/python/trex_yolo.py ${CMAKE_CURRENT_SOURCE_DIR}/python/trex_init.py ${CMAKE_CURRENT_SOURCE_DIR}/python/visual_identification_network.py ${CMAKE_CURRENT_SOURCE_DIR}/python/bbx_saved_model.py ${CMAKE_CURRENT_SOURCE_DIR}/python/trex_utils.py ${CMAKE_CURRENT_SOURCE_DIR}/python/trex_learn_category.py ${CMAKE_CURRENT_SOURCE_DIR}/alter_layout.json ${CMAKE_CURRENT_SOURCE_DIR}/annotation_layout.json ${CMAKE_CURRENT_SOURCE_DIR}/calibrate_layout.json ${CMAKE_CURRENT_SOURCE_DIR}/welcome_layout.json ${CMAKE_CURRENT_SOURCE_DIR}/settings_layout.json ${CMAKE_CURRENT_SOURCE_DIR}/tracking_settings_layout.json ${CMAKE_CURRENT_SOURCE_DIR}/choose_settings_layout.json ${CMAKE_CURRENT_SOURCE_DIR}/tracking_layout.json ${CMAKE_CURRENT_SOURCE_DIR}/export_options_layout.json DESTINATION ${CMAKE_INSTALL_PREFIX}/usr/share/trex)
