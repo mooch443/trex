@@ -1253,14 +1253,15 @@ gui::Transform Midline::transform(const default_config::individual_image_normali
 
 Vec2 Midline::real_point(const Bounds& bounds, size_t index) const {
     auto pt = segments().at(index).pos;
+    return real_point(bounds, pt);
+}
+
+Vec2 Midline::real_point(const Bounds& bounds, const Vec2& pt) const {
     auto angle = this->angle() + M_PI;
     auto x = (pt.x * cmn::cos(angle) - pt.y * cmn::sin(angle));
     auto y = (pt.x * cmn::sin(angle) + pt.y * cmn::cos(angle));
     
-    pt = Vec2(x, y);
-    pt += bounds.pos() + offset();
-    
-    return pt;
+    return Vec2(x, y) + bounds.pos() + offset();
 }
 
 Midline::Ptr Midline::normalize(Float2_t fix_length, bool debug) const {
