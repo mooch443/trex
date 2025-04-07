@@ -292,6 +292,7 @@ namespace track {
         gui::Transform transform(const default_config::individual_image_normalization_t::Class &type, bool to_real_world = false) const;
         
         Vec2 real_point(const Bounds& bounds, size_t index) const;
+        Vec2 real_point(const Bounds& bounds, const Vec2& pt) const;
         
     private:
         friend class Outline;

@@ -26,7 +26,7 @@ TRex parameters
 	**default value:** 15
 
 
-	If there are more than  global segments to be trained on, they will be filtered according to their quality until said limit is reached.
+	If there are more than  global tracklets to be trained on, they will be filtered according to their quality until said limit is reached.
 
 
 
@@ -371,14 +371,13 @@ TRex parameters
 
 
 
-.. function:: categories_min_sample_images(uint)
+.. function:: categories_apply_min_tracklet_length(uint)
 
 	**default value:** 0
 
 
-	Minimum number of images for a sample to be considered relevant. This will default to 50, or ten percent of ``tracklet_max_length``, if that parameter is set. If ``tracklet_max_length`` is set, the value of this parameter will be ignored. If set to zero or one, then all samples are valid.
+	Minimum number of images for a sample to be considered relevant when applying the categorization. This defaults to 0, meaning all samples are valid. If set to anything higher, only tracklets with more than N frames will be processed.
 
-	.. seealso:: :param:`tracklet_max_length`, :param:`tracklet_max_length`
 
 
 .. function:: categories_ordered(array<string>)
@@ -390,14 +389,22 @@ TRex parameters
 
 
 
+.. function:: categories_train_min_tracklet_length(uint)
+
+	**default value:** 50
+
+
+	Minimum number of images for a sample to be considered relevant for training categorization. Will default to 50, meaning all tracklets longer than that will be presented for training.
+
+
+
 .. function:: closed_loop_enable(bool)
 
 	**default value:** false
 
 
-	When enabled, live tracking will be executed for every frame received. Frames will be sent to the 'closed_loop.py' script - see this script for more information. Sets ``enable_live_tracking`` to true. Allows the tracker to skip frames by default, in order to catch up to the video.
+	When enabled, live tracking will be executed for every frame received. Frames will be sent to the 'closed_loop.py' script - see this script for more information. Allows the tracker to skip frames by default, in order to catch up to the video.
 
-	.. seealso:: :param:`enable_live_tracking`
 
 
 .. function:: closed_loop_path(path)
@@ -540,6 +547,15 @@ TRex parameters
 
 
 
+.. function:: detect_keypoint_names(KeypointNames)
+
+	**default value:** null
+
+
+	An array of names in the correct keypoint index order for the given model.
+
+
+
 .. function:: detect_model(path)
 
 	**default value:** ""
@@ -630,16 +646,6 @@ TRex parameters
 
 	Enables background subtraction. If disabled, ``threshold`` will be applied to the raw greyscale values instead of difference values.
 
-
-
-.. function:: enable_live_tracking(bool)
-
-	**default value:** false
-
-
-	When enabled, the program will save a .results file for the recorded video plus export the data (see ``output_fields`` in the tracker documentation).
-
-	.. seealso:: :param:`output_fields`
 
 
 .. function:: equalize_histogram(bool)
@@ -881,6 +887,15 @@ TRex parameters
 
 
 
+.. function:: gui_blob_label(string)
+
+	**default value:** "{if:{dock}:{name} :''}{if:{active}:<a>:''}{real_size}{if:{split}: <gray>split</gray>:''}{if:{tried_to_split}: <orange>split tried</orange>:''}{if:{prediction}: {prediction}:''}{if:{instance}: <gray>instance</gray>:''}{if:{dock}:{if:{filter_reason}: [<gray>{filter_reason}</gray>]:''}:''}{if:{active}:</a>:''}{if:{category}: {category}:''}"
+
+
+	This is what the graphical user interfaces displays as a label for each blob in raw view. Replace this with {help} to see available variables.
+
+
+
 .. function:: gui_connectivity_matrix(map<int,array<float>>)
 
 	**default value:** {}
@@ -1090,7 +1105,7 @@ TRex parameters
 
 .. function:: gui_show_autoident_controls(bool)
 
-	**default value:** true
+	**default value:** false
 
 
 	Showing or hiding controls for removing forced auto-ident in the info card if an individual is selected.
@@ -1397,6 +1412,15 @@ TRex parameters
 
 
 
+.. function:: gui_show_timing_stats(bool)
+
+	**default value:** false
+
+
+	Showing / hiding rendering information.
+
+
+
 .. function:: gui_show_uniqueness(bool)
 
 	**default value:** false
@@ -1448,6 +1472,25 @@ TRex parameters
 
 
 	Determines the Alpha value for the timeline / tracklets display.
+
+
+
+.. function:: gui_wait_for_background(bool)
+
+	**default value:** true
+
+
+	Sacrifice video playback speed to wait for the background video the load in. This only applies if the background is actually displayed (``gui_show_video_background``).
+
+	.. seealso:: :param:`gui_show_video_background`
+
+
+.. function:: gui_wait_for_pv(bool)
+
+	**default value:** true
+
+
+	Sacrifice video playback speed to wait for the pv file the load in.
 
 
 
@@ -2782,9 +2825,9 @@ TRex parameters
 	**default value:** []
 
 
-	If this is a non-empty list, only objects that have previously been assigned one of the correct categories will be tracked. Note that this also affects anything below ``categories_min_sample_images`` length (e.g. noise particles or short tracklets).
+	If this is a non-empty list, only objects that have previously been assigned one of the correct categories will be tracked. Note that this also affects anything below ``categories_apply_min_tracklet_length`` length (e.g. noise particles or short tracklets).
 
-	.. seealso:: :param:`categories_min_sample_images`
+	.. seealso:: :param:`categories_apply_min_tracklet_length`
 
 
 .. function:: track_only_classes(array<string>)
@@ -2934,7 +2977,7 @@ TRex parameters
 	**default value:** true
 
 
-	Sometimes individuals might be assigned to blobs that are far away from the previous position. This could indicate wrong assignments, but not necessarily. If this variable is set to true, consecutive frame segments will end whenever high speeds are reached, just to be on the safe side. For scenarios with lots of individuals (and no recognition) this might spam yellow bars in the timeline and may be disabled.
+	Sometimes individuals might be assigned to blobs that are far away from the previous position. This could indicate wrong assignments, but not necessarily. If this variable is set to true, tracklets will end whenever high speeds are reached, just to be on the safe side. For scenarios with lots of individuals (and no recognition) this might spam yellow bars in the timeline and may be disabled.
 
 
 
@@ -3053,6 +3096,15 @@ TRex parameters
 
 
 	A list of shapes that should be handled as view-blocking in visual field calculations.
+
+
+
+.. function:: visual_identification_model_path(optional<path>)
+
+	**default value:** null
+
+
+	If this is set to a path, visual identification 'load weights' or 'apply' will try to load this path first if it exists. This way you can facilitate transfer learning (taking a model file from one video and applying it to a different video of the same individuals).
 
 
 
