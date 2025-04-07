@@ -9,6 +9,7 @@
 #include <filesystem>
 #include <misc/Image.h>
 #include <misc/DetectionTypes.h>
+#include <misc/RBSettings.h>
 
 using ::testing::TestWithParam;
 using ::testing::Values;
@@ -39,6 +40,9 @@ static void resetGlobalSettings()
     SETTING(cm_per_pixel) = Settings::cm_per_pixel_t{1};
     
     SETTING(output_auto_pose) = true;
+    
+    SETTING(track_max_speed) = Settings::track_max_speed_t{10};
+    SETTING(track_size_filter) = Settings::track_size_filter_t{};
 }
 
 // ------------------------------------------------------------
@@ -448,6 +452,82 @@ static auto _ = [](){
     
     return 0;
 }();
+
+TEST(TestLocalSettings, Init) {
+    using RB_t = RBSettings<true>;
+    
+    resetGlobalSettings();
+    
+    SETTING(track_max_speed) = Settings::track_max_speed_t(42);
+    {
+        auto round = RB_t::round();
+        Print(RBS(track_max_speed));
+        ASSERT_EQ(RBS(track_max_speed), 42);
+        SETTING(track_max_speed) = Settings::track_max_speed_t(1337);
+        ASSERT_EQ(RBS(track_max_speed), 42);
+    }
+    
+    {
+        auto round = RB_t::round();
+        ASSERT_EQ(RBS(track_max_speed), 1337);
+    }
+}
+
+TEST(TestLocalSettings, AccessMethods) {
+    using RB_t = RBSettings<true>;
+    
+    resetGlobalSettings();
+    
+    SETTING(track_max_speed) = Settings::track_max_speed_t(42);
+    {
+        auto round = RB_t::round();
+        Print(RBSTR(track_max_speed));
+        ASSERT_EQ(RBSTR(track_max_speed), 42);
+        SETTING(track_max_speed) = Settings::track_max_speed_t(1337);
+        ASSERT_EQ(RBSTR(track_max_speed), 42);
+    }
+    
+    {
+        auto round = RB_t::round();
+        ASSERT_EQ(RBSTR(track_max_speed), 1337);
+    }
+}
+
+TEST(TestLocalSettings, Threads) {
+    using RB_t = RBSettings<true>;
+    resetGlobalSettings();
+    
+    SETTING(track_max_speed) = Settings::track_max_speed_t(42);
+    
+    {
+        auto round = RB_t::round();
+        Print(RBS(track_max_speed));
+        ASSERT_EQ(RBS(track_max_speed), 42);
+        SETTING(track_max_speed) = Settings::track_max_speed_t(1337);
+        ASSERT_EQ(RBS(track_max_speed), 42);
+    
+        auto thread_1 = std::async(std::launch::async, [](){
+            {
+                auto round = RB_t::round();
+                Print(RBS(track_max_speed));
+                ASSERT_EQ(RBS(track_max_speed), 1337);
+                SETTING(track_max_speed) = Settings::track_max_speed_t(4321);
+                ASSERT_EQ(RBS(track_max_speed), 1337);
+            }
+            
+            {
+                auto round = RB_t::round();
+                ASSERT_EQ(RBS(track_max_speed), 4321);
+            }
+        });
+        
+        thread_1.get();
+        ASSERT_EQ(RBS(track_max_speed), 42);
+    }
+    
+    auto round = RB_t::round();
+    ASSERT_EQ(RBS(track_max_speed), 4321);
+}
 
 struct PairingTest {
     default_config::matching_mode_t::Class match_mode;
