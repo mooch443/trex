@@ -481,7 +481,6 @@ TEST(TestLocalSettings, AccessMethods) {
     SETTING(track_max_speed) = Settings::track_max_speed_t(42);
     {
         auto round = RB_t::round();
-        Print(RBSTR(track_max_speed));
         ASSERT_EQ(RBSTR(track_max_speed), 42);
         SETTING(track_max_speed) = Settings::track_max_speed_t(1337);
         ASSERT_EQ(RBSTR(track_max_speed), 42);
@@ -501,7 +500,6 @@ TEST(TestLocalSettings, Threads) {
     
     {
         auto round = RB_t::round();
-        Print(RBS(track_max_speed));
         ASSERT_EQ(RBS(track_max_speed), 42);
         SETTING(track_max_speed) = Settings::track_max_speed_t(1337);
         ASSERT_EQ(RBS(track_max_speed), 42);
@@ -509,7 +507,6 @@ TEST(TestLocalSettings, Threads) {
         auto thread_1 = std::async(std::launch::async, [](){
             {
                 auto round = RB_t::round();
-                Print(RBS(track_max_speed));
                 ASSERT_EQ(RBS(track_max_speed), 1337);
                 SETTING(track_max_speed) = Settings::track_max_speed_t(4321);
                 ASSERT_EQ(RBS(track_max_speed), 1337);
@@ -527,6 +524,313 @@ TEST(TestLocalSettings, Threads) {
     
     auto round = RB_t::round();
     ASSERT_EQ(RBS(track_max_speed), 4321);
+}
+
+struct BenchmarkBase {
+    std::string label;
+    std::function<int()> func;
+    BenchmarkBase(const std::string& label, std::function<int()>&& func)
+        : label(label), func(std::move(func)) {}
+    virtual ~BenchmarkBase() = default;
+    
+    virtual void start() { }
+    virtual void end() { }
+    virtual int run() {
+        return func();
+    }
+    virtual std::unique_ptr<BenchmarkBase> clone() const {
+        return std::unique_ptr<BenchmarkBase>(new BenchmarkBase(*this));
+    }
+};
+
+template <typename GuardFunc, typename RunFunc>
+struct BenchmarkWithInit : public BenchmarkBase {
+    GuardFunc init_func;
+    RunFunc run_func;
+    std::optional<decltype(GuardFunc{}())> guard;
+    
+    BenchmarkWithInit(const std::string& label, GuardFunc init_func, RunFunc func)
+        : BenchmarkBase(label, nullptr), init_func(std::move(init_func)), run_func(std::move(func))
+    {
+    }
+    BenchmarkWithInit(const BenchmarkWithInit& other)
+        : BenchmarkBase(other.label, nullptr), init_func(other.init_func), run_func(other.run_func)
+    { }
+    BenchmarkWithInit(BenchmarkWithInit&& other)
+        : BenchmarkBase(other.label, nullptr), init_func(std::move(other.init_func)), run_func(std::move(other.run_func))
+    { }
+    
+    virtual void start() override {
+        if(guard.has_value())
+            guard->settings->start_round();
+        else
+            guard = init_func();
+    }
+    virtual void end() override {
+        //guard.reset();
+        guard->settings->end_round();
+    }
+    int run() override {
+        return run_func(guard.value());
+    }
+    
+    std::unique_ptr<BenchmarkBase> clone() const override {
+        return std::unique_ptr<BenchmarkWithInit>(new BenchmarkWithInit(*this));
+    }
+};
+
+std::function<std::vector<double>()> benchmark_accessor(BenchmarkBase* initializer, size_t N = 1000000,
+                        bool parallel = false, bool mutate_setting = false, bool randomize_rounds = false, size_t nthreads = 10) {
+    using namespace std::chrono;
+
+    auto single_run = [N]<bool mutate_setting, bool randomize_rounds>(size_t run_id, std::unique_ptr<BenchmarkBase>&& benchmark) {
+        std::vector<int> results;
+        results.reserve(N);
+        struct G {
+            BenchmarkBase* ptr;
+            G(BenchmarkBase* ptr) : ptr(ptr) {
+                ptr->start();
+            }
+            ~G() {
+                ptr->end();
+            }
+        };
+        
+        std::unique_ptr<G> guard = std::make_unique<G>(benchmark.get());
+        
+        auto start = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double, std::micro> total_mutate_time(0);
+        for (size_t i = 0; i < N; ++i) {
+            if constexpr(mutate_setting) {
+                if (i % ((run_id + 1) * 100) == 0) {
+                    auto t_lock_start = std::chrono::high_resolution_clock::now();
+                    {
+                        SETTING(track_max_speed) = Settings::track_max_speed_t(123 + (i + run_id) % 100);
+                    }
+                    auto t_lock_end = std::chrono::high_resolution_clock::now();
+                    total_mutate_time += (t_lock_end - t_lock_start);
+                }
+            }
+            results.push_back(benchmark->run());
+            
+            if constexpr(randomize_rounds) {
+                if(i % (run_id + 1) * 1000) {
+                    benchmark->end();
+                    benchmark->start();
+                }
+            }
+        }
+        
+        guard = nullptr;
+        
+        auto end = std::chrono::high_resolution_clock::now();
+        benchmark = nullptr;
+        
+        return (std::chrono::duration_cast<std::chrono::duration<double, std::micro>>(end - start).count() - total_mutate_time.count()) / double(N);
+    };
+
+    if (parallel) {
+        return [initializer, single_run, nthreads, mutate_setting, randomize_rounds](){
+            std::vector<std::future<double>> futures;
+            std::vector<double> times;
+            times.reserve(nthreads);
+            
+            for (size_t r = 0; r < nthreads; ++r) {
+                futures.emplace_back(std::async(std::launch::async, [&single_run, initializer, mutate_setting, randomize_rounds](auto r){
+                    if(mutate_setting) {
+                        if(randomize_rounds) {
+                            return single_run.operator()<true, true>(r, initializer->clone());
+                        } else {
+                            return single_run.operator()<true, false>(r, initializer->clone());
+                        }
+                    } else {
+                        if(randomize_rounds) {
+                            return single_run.operator()<false, true>(r, initializer->clone());
+                        } else {
+                            return single_run.operator()<false, false>(r, initializer->clone());
+                        }
+                    }
+                }, r));
+            }
+            for (auto& f : futures) {
+                times.push_back(f.get());
+            }
+            
+            return times;
+        };
+        
+    } else {
+        return [initializer, single_run, mutate_setting, nthreads, randomize_rounds](){
+            std::vector<double> times;
+            for(size_t i=0; i<nthreads; ++i) {
+                times.push_back(
+                    mutate_setting
+                    ? (randomize_rounds
+                       ? single_run.operator()<true, true>(0, initializer->clone())
+                       : single_run.operator()<true, false>(0, initializer->clone()))
+                    : (randomize_rounds
+                       ? single_run.operator()<false, true>(0, initializer->clone())
+                       : single_run.operator()<false, false>(0, initializer->clone()))
+                    );
+            }
+            return times;
+        };
+    }
+}
+
+TEST(SettingsBenchmark, RandomizedAccessBenchmark)
+{
+    using RB_t = RBSettings<true>;
+    SETTING(track_max_speed) = Settings::track_max_speed_t(123);
+    
+    std::vector<std::unique_ptr<BenchmarkBase>> benchmarks;
+    
+    benchmarks.push_back(std::unique_ptr<BenchmarkBase>(
+        new BenchmarkWithInit(
+            "RBS(track_max_speed)",
+            []() { return RB_t::round(); },
+            [](auto& round) { return round.template get< RB_t::ThreadObject::Variables::track_max_speed >(); }
+        )
+    ));
+    
+    benchmarks.push_back(std::unique_ptr<BenchmarkBase>(
+        new BenchmarkWithInit(
+            "RBSTR(track_max_speed)",
+            []() { return RB_t::round(); },
+            [](auto& round) { return round.template get< "track_max_speed" >(); }
+        )
+    ));
+    
+    benchmarks.push_back(std::unique_ptr<BenchmarkBase>(
+        new BenchmarkBase("FAST_SETTING(track_max_speed)", []() {
+            return FAST_SETTING(track_max_speed);
+        })
+    ));
+    
+    benchmarks.push_back(std::unique_ptr<BenchmarkBase>(
+        new BenchmarkBase("SETTING(track_max_speed)", []() {
+            return SETTING(track_max_speed).value<Settings::track_max_speed_t>();
+        })
+    ));
+    
+    benchmarks.push_back(std::unique_ptr<BenchmarkBase>(
+        new BenchmarkWithInit(
+            "RBS(track_size_filter)",
+            []() { return RB_t::round(); },
+            [](auto& round) { return round.template get< RB_t::ThreadObject::Variables::track_size_filter >(); }
+        )
+    ));
+    
+    benchmarks.push_back(std::unique_ptr<BenchmarkBase>(
+        new BenchmarkWithInit(
+            "RBSTR(track_size_filter)",
+            []() { return RB_t::round(); },
+            [](auto& round) { return round.template get< "track_size_filter" >(); }
+        )
+    ));
+    
+    benchmarks.push_back(std::unique_ptr<BenchmarkBase>(
+        new BenchmarkBase("FAST_SETTING(track_size_filter)", []() {
+            return FAST_SETTING(track_size_filter);
+        })
+    ));
+    
+    benchmarks.push_back(std::unique_ptr<BenchmarkBase>(
+        new BenchmarkBase("SETTING(track_size_filter)", []() {
+            return SETTING(track_size_filter).value<Settings::track_size_filter_t>();
+        })
+    ));
+    
+    // Structure to store a trial (one run of one mode variant).
+    struct TrialEntry {
+        std::string label;
+        std::function<std::vector<double>()> run;
+    };
+    std::vector<TrialEntry> trials;
+    
+    const size_t N = 1000;
+    const size_t rounds_per_mode = 15;
+    // For each benchmark create trials in three modes:
+    // 1. Serial: normal run.
+    // 2. Parallel: run the trial on an async thread.
+    // 3. Mutating: global setting is mutated during the run.
+    for (const auto& bm : benchmarks) {
+        for(bool randomize_rounds : {true,false}) {
+            // Serial trials
+            for (size_t r = 0; r < rounds_per_mode; ++r) {
+                std::string modeLabel = bm->label + " [Serial" + (randomize_rounds ? " rand" : "") + "]";
+                trials.push_back({modeLabel, benchmark_accessor(bm.get(), N, false, false, randomize_rounds)});
+            }
+            // Parallel trials
+            for (size_t r = 0; r < rounds_per_mode; ++r) {
+                std::string modeLabel = bm->label + " [Parallel" + (randomize_rounds ? " rand" : "") + "]";;
+                trials.push_back({modeLabel, benchmark_accessor(bm.get(), N, true, false, randomize_rounds)});
+            }
+            // Mutating trials
+            for (size_t r = 0; r < rounds_per_mode; ++r) {
+                std::string modeLabel = bm->label + " [Mutating" + (randomize_rounds ? " rand" : "") + "]";;
+                trials.push_back({modeLabel, benchmark_accessor(bm.get(), N, true, true, randomize_rounds)});
+            }
+        }
+    }
+    
+    // Randomize order of all trials.
+    std::random_device rd;
+    std::mt19937 g(rd());
+    std::shuffle(trials.begin(), trials.end(), g);
+    
+    // Structure to store the result for one trial.
+    struct TrialResult {
+        std::string label;
+        std::vector<double> time;
+    };
+    // Run each trial and collect its timing.
+    size_t totalTrials = trials.size();
+    size_t trialCounter = 0;
+    std::vector<TrialResult> results;
+    for (size_t i = 0; i < totalTrials; ++i) {
+        double progress = (trialCounter * 100.0) / totalTrials;
+        // Print progress on the same line. (Using '\r' carriage return.)
+        std::cout << "\rProgress: " << progress << "% completed" << std::flush;
+        auto t = trials[i].run();
+        results.push_back({trials[i].label, std::move(t)});
+        trialCounter++;
+    }
+    std::cout << std::endl;
+    
+    // Write detailed samples to a CSV file.
+    {
+        std::ofstream csv("benchmark_samples.csv");
+        if (!csv.good()) {
+            std::cerr << "Failed to open benchmark_samples.csv for writing." << std::endl;
+        } else {
+            csv << "Mode,TrialIndex,Time\n";
+            for (const auto& res : results) {
+                for (size_t i = 0; i < res.time.size(); ++i) {
+                    csv << res.label << "," << i << "," << res.time[i] << "\n";
+                }
+            }
+            csv.close();
+            std::cout << "CSV file written: benchmark_samples.csv" << std::endl;
+        }
+    }
+    
+    // Group results by mode (i.e. label) to compute summary statistics.
+    std::map<std::string, std::vector<double>> grouped;
+    for (const auto& res : results) {
+        grouped[res.label].insert(grouped[res.label].end(), res.time.begin(), res.time.end());
+    }
+    
+    // Output a summary table.
+    std::cout << "\nBenchmark Results (microseconds per call):\n";
+    std::cout << "Mode, Count, Average, Min, Max\n";
+    for (const auto& [mode, times] : grouped) {
+        double sum = std::accumulate(times.begin(), times.end(), 0.0);
+        double average = sum / times.size();
+        double min_time = *std::min_element(times.begin(), times.end());
+        double max_time = *std::max_element(times.begin(), times.end());
+        std::cout << mode << ", " << times.size() << ", " << average << ", " << min_time << ", " << max_time << "\n";
+    }
 }
 
 struct PairingTest {
