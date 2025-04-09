@@ -54,6 +54,12 @@ jobs:
         cat ~/.condarc
     - name: Show current conda channels
       run: conda config --show channels
+    - name: Enable long paths
+      run: |
+        echo "::group::Enable long paths"
+        reg add "HKLM\SYSTEM\CurrentControlSet\Control\FileSystem" /v LongPathsEnabled /t REG_DWORD /d 1 /f
+        git config --system core.longpaths true
+        echo "::endgroup::"
     - name: Build
       shell: bash -l {0}
       working-directory: ${{runner.workspace}}
