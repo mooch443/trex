@@ -4,28 +4,32 @@
    :maxdepth: 2
 
 
-Usage basics
-============
+Basic Command-line Usage
+========================
 
-|trex| is usually launched from the command-line (with or without parameters), which will show a file opening dialog. There is the possibility of starting it directly using a desktop short-cut (or double-clicking the executable itself), but this requires either a manual compile or changes to your environment variables (see :ref:`run-by-clicking`). The following sections address directly providing parameters using the command-line (e.g. in a batch processing, or generally a more command-line affine use-case). Any additional number of parameters can be passed to |trex| as::
+|trex| is usually launched from the command-line (with or without parameters), which will show a file opening dialog by default.
+
+You probably *should* get familiar with the graphical user-interface of |trex| as well - for example, it makes it easy to detect trouble with parameter values immediately and gives you feedback after changing tracking parameters that you wouldn't get on the command-line. To see how that works, and for some additional detail on the general principles, have a look at :doc:`tutorials`.
+
+The following sections, however, address directly providing parameters using the command-line (e.g. in a batch processing, or generally a more command-line affine use-case). Any additional number of parameters can be passed to |trex| as::
 
 	trex [...] -PARAMETER VALUE
 
-For example, in order to set the number of individuals to 5 and prefix all individuals names/files with "termite" instead of "fish", just change the values of ``track_max_individuals`` and ``individual_prefix`` when launching the application like so (we are also opening a file called "example.mp4" and use a different settings file)::
+For example, in order to set the number of individuals to 5 and prefix all individuals names/files with "termite" instead of "fish", just change the values of ``track_max_individuals`` and ``individual_prefix`` when launching the application like so (we are also opening a file called "example.mp4" and use a specific settings file)::
 
 	trex -i example.mp4 -s tmp.settings -track_max_individuals 5 -individual_prefix "termite"
 
-If you've never run the program before on that specific video file, it'll first convert the mp4 file to a pv file and save an ``example.settings`` file. This might take a bit if its a particularly long video. Afterwards it will use existing pv files - if you want to generate the pv file again, simply add the convert task::
+If you've never run the program before on that specific video file, it'll first convert the mp4 file to a pv file and save an ``example.settings`` file. Conversion might take a bit - especially if its a particularly long video. Next time, however, it will open any existing pv files in tracking mode directly - if you want to generate the pv file again, you'd have to add force the task to ``convert`` like this::
 
-	trex -i example.mp4 -s tmp.settings -track_max_individuals 5 -individual_prefix "termite" -task convert
+	trex -i example.mp4 [...] -task convert
 
 This will overwrite an existing ``example.pv`` (and ``example.settings``) file in that same folder.
 
-A full reference of available parameters for |trex| at :doc:`parameters_trex`.
+Most parameters (except system-variables) can be adjusted after loading a video. A full reference of them is at :doc:`parameters_trex`.
 
-If you're launching |trex| by double-clicking it (or using voice commands), most parameters (except system-variables) can be adjusted after loading a video.
+.. NOTE::
 
-This page is a reference for some commonly used parameters of our software. Some common real-life usage examples can be found at :doc:`examples`.
+	There is the possibility of starting it directly using a desktop short-cut (or double-clicking the executable itself), but this requires either a manual compile or changes to your environment variables (see :ref:`run-by-clicking`) which are not officially supported at the moment. 
 
 Basic principles & Good practices
 ---------------------------------
@@ -40,9 +44,9 @@ Parameters are either changed directly as part of the command-line (using ``-PAR
 
 Command-line parameters always override settings files.
 
-If you know the number of individuals, specify before you do the tracking (using the parameter ``track_max_individuals``).
+If you know the number of individuals, specify before you do the tracking (using the parameter :param:`track_max_individuals`).
 
-When converting videos, :param:`meta_real_width` should always be specified unless you do not know the real-world dimensions of what you see. If not set, then all values will be in fictional units (``meta_real_width`` defaults to 30). This sets the :param:`cm_per_pixel` parameter for the current video to ``meta_real_width / video-width``. However, in newer versions you can set ``cm_per_pixel`` within the |trex| GUI. Simply click into an empty spot of the arena, hold CTRL/⌘ and click somewhere else: a button will pop up to define the selected length as a specific real-world length. See here: `changing the cm to px conversion factor <https://trex.run/docs/gui.html#changing-the-cm-px-conversion-factor>`_.
+When converting videos, :param:`cm_per_pixel` should always be set to provide a valid conversion factor between pixels and real-world coordinates. By default, it's set to ``1`` - meaning there's no conversion and all units (even if it says they are ``cm``) are in pixels. You can set ``cm_per_pixel`` within the |trex| GUI, either in the initial settings dialog (under "tracking" > "calibrate") or in the tracking view. There, simply CTRL/⌘ + click into an empty spot of the arena. Hold CTRL/⌘ and click somewhere else: a button will pop up to define the selected length as a specific real-world length. See here: `changing the cm to px conversion factor <https://trex.run/docs/gui.html#changing-the-cm-px-conversion-factor>`_.
 
 Using settings files
 --------------------

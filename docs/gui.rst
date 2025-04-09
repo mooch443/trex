@@ -46,9 +46,9 @@ Keyboard shortcuts
 +-----------+------------------------------------------------------------------------------------------------+
 | N         | Jump to previous frame where the number of recognized individuals changed (yellow in timeline) |
 +-----------+------------------------------------------------------------------------------------------------+
-| R         | Playback frame-by-frame and save what you see in the tracker window as `<output_dir>/frames`   |
+| R         | Save what you see in the tracker window as a movie clip `<output_dir>/frames`                  |
 +-----------+------------------------------------------------------------------------------------------------+
-| S         | Export data in :param:`output_fields` to CSV files in `<output_dir>/data`                       |
+| S         | Export data in :param:`output_fields` to CSV files in `<output_dir>/data`                      |
 +-----------+------------------------------------------------------------------------------------------------+
 | Z         | Save program state to `<videoname>.results`                                                    |
 +-----------+------------------------------------------------------------------------------------------------+
@@ -76,7 +76,7 @@ It has some extra functionality, however. Sometimes you will see colorful things
 Changing the cm/px conversion factor
 ------------------------------------
 
-Usually the easiest way to set a conversion factor is in TGrabs, before the video is even segmented. TGrabs expects a parameter :param:`meta_real_width`, which contains the "real-world" size in X-direction of the present video and sticks with the video as integrated meta-data. However, in case you want to change this factor later on, you can do this from within TRex. Careful, though. Doing this changes what the values in :param:`track_max_speed` and even :param:`track_size_filter` mean (and thus also tracking results)!
+Usually the easiest way to set a cm/px factor is before the video is even segmented. Simply go to the "tracking" tab and click on ``Calibrate`` to start. However, in case you want to change this factor later on, you can do this from within |trex|. Careful, though. Doing this changes what the values in :param:`track_max_speed` and even :param:`track_size_filter` mean (and thus also tracking results)!
 
 Depending on your operating system, hold ⌘ or ``CTRL`` (depending on your operating system) and click on two points on the background - the distance between them is supposed to be a "known length" - for example, if you have a cm strip integrated into your video background for reference.
 
@@ -125,15 +125,9 @@ Excluding regions / tracking specific regions exclusively
 
 Despite available remedies (i.e. using a different :param:`averaging_method`, :param:`correct_luminance`), sometimes noisy regions in recordings are unavoidable. This can be either due to, for example, changing lighting conditions, or certain parts of the experimental setup moving over time. 
 
-When you are converting the video, and noise concentrates on the outer edges of the image / outside the area of interest, it is possible to specify :param:`crop_offsets` to |grabs| like::
+You can specify (convex) shapes to ignore during tracking (e.g. in |trex|). This is either done graphically via mouse-clicks, or by setting :param:`track_ignore` to the coordinates manually. The coordinates describing the shape are given to ``track_ignore`` in the format::
 
-	tgrabs -i video.mp4 -crop_offsets [0.05,0,0.05,0.1]
-
-Adding the parameter ``crop_offsets`` crops 5% of the image from the left, 0% from the top, 5% from the right, and 10% from the bottom.
-
-Otherwise you may also specify areas of arbitrary shape during tracking (e.g. in |trex|). This is either done graphically via mouse-clicks, or by setting :param:`track_ignore` to the coordinates manually. The coordinates describing the shape are given to ``track_ignore`` in the format::
-
-	array of arrays[array of vectors]
+	<array of arrays>[<array of vectors>]
 
 An example from a hypothetical settings file could thus be::
 
@@ -146,9 +140,15 @@ which describes a triangle with the coordinates 0,100 and 100,100 as it's base a
 	
 	Here, a triangle was selected using CTRL/⌘-Click on multiple points. This shape can now be added to parameters like ``track_ignore``.
 
-Within the graphical user-interface you can set these points by clicking on them, which is usually easier. It works in both the tracking and raw views, but it is sometimes easier to do in raw view (press 🄳). Now, simply click on some empty space (not on an object) and, while holding CTRL/⌘, click on additional points to define a shape. During this process a button appeared, as well as a text-field (where you placed your first point). Click on the text-field and enter ``track_ignore`` and select ``track_ignore`` from the results. Switch back to tracking view and the shape you defined should be highlighted (red).
+Within the graphical user-interface you can set these points by CTRL/⌘ + clicking on them, which is usually easiest. It works in both the tracking and raw views, but it is sometimes easier to do in raw view (press 🄳). Now, holding CTRL/⌘, simply click on a point and keep holding the key + click on additional points to define a shape. During this process a button appeared, as well as a text-field (where you placed your first point). Click on the text-field and select ``track_ignore`` and select ``track_ignore`` from the options. Switch back to tracking view and find the shape you defined highlighted in red (or green depending on your choice).
 
-Any object with it's center within the boundaries of this (convex) shape will now be ignored during tracking. To apply this to your already tracked video, please go to frame 0 and click reanalyse. Now you may play the video back and see if all objects have been excluded properly during tracking.
+Any object with it's center within the boundaries of this (convex) shape will now be ignored during tracking. To apply this to your already tracked video click reanalyse in the top-menu. Now you may play the video back and see if all objects have been excluded properly during tracking.
+
+Sometimes noise always concentrates on the outer edges of the image / outside the area of interest. If you know what you're doing, you may also set some crop offsets directly when you are converting the video. Just specify :param:`crop_offsets` when launching |trex| like::
+
+	trex -i video.mp4 -crop_offsets [0.05,0,0.05,0.1]
+
+Adding the parameter ``crop_offsets`` crops 5% of the image from the left, 0% from the top, 5% from the right, and 10% from the bottom. Just be aware that this is a *destructive* action (in computer scientist terms) - it won't delete your original video, but it will exclude these regions and the only way you can get them back into your tracking data is through reconverting.
 
 Manually assigning individuals
 ------------------------------

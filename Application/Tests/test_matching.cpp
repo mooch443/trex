@@ -543,35 +543,41 @@ struct BenchmarkBase {
     }
 };
 
-template <typename GuardFunc, typename RunFunc>
+template <typename StartFunc, typename EndFunc, typename RunFunc>
 struct BenchmarkWithInit : public BenchmarkBase {
-    GuardFunc init_func;
-    RunFunc run_func;
-    std::optional<decltype(GuardFunc{}())> guard;
+    StartFunc start_func;
+    EndFunc end_func;
     
-    BenchmarkWithInit(const std::string& label, GuardFunc init_func, RunFunc func)
-        : BenchmarkBase(label, nullptr), init_func(std::move(init_func)), run_func(std::move(func))
+    RunFunc run_func;
+    
+    BenchmarkWithInit(const std::string& label, StartFunc start_func, EndFunc end_func, RunFunc func)
+        : BenchmarkBase(label, nullptr),
+            start_func(std::move(start_func)),
+            end_func(std::move(end_func)),
+            run_func(std::move(func))
     {
     }
     BenchmarkWithInit(const BenchmarkWithInit& other)
-        : BenchmarkBase(other.label, nullptr), init_func(other.init_func), run_func(other.run_func)
+        : BenchmarkBase(other.label, nullptr),
+            start_func(other.start_func),
+            end_func(other.end_func),
+            run_func(other.run_func)
     { }
     BenchmarkWithInit(BenchmarkWithInit&& other)
-        : BenchmarkBase(other.label, nullptr), init_func(std::move(other.init_func)), run_func(std::move(other.run_func))
+        : BenchmarkBase(other.label, nullptr),
+            start_func(std::move(other.start_func)),
+            end_func(std::move(other.end_func)),
+            run_func(std::move(other.run_func))
     { }
     
     virtual void start() override {
-        if(guard.has_value())
-            guard->settings->start_round();
-        else
-            guard = init_func();
+        start_func();
     }
     virtual void end() override {
-        //guard.reset();
-        guard->settings->end_round();
+        end_func();
     }
     int run() override {
-        return run_func(guard.value());
+        return run_func();
     }
     
     std::unique_ptr<BenchmarkBase> clone() const override {
@@ -583,20 +589,13 @@ std::function<std::vector<double>()> benchmark_accessor(BenchmarkBase* initializ
                         bool parallel = false, bool mutate_setting = false, bool randomize_rounds = false, size_t nthreads = 10) {
     using namespace std::chrono;
 
-    auto single_run = [N]<bool mutate_setting, bool randomize_rounds>(size_t run_id, std::unique_ptr<BenchmarkBase>&& benchmark) {
+    auto single_run = [N]<bool mutate_setting, bool randomize_rounds>(size_t run_id, const BenchmarkBase* initializer)
+    {
+        auto benchmark = initializer->clone();
+        
         std::vector<int> results;
         results.reserve(N);
-        struct G {
-            BenchmarkBase* ptr;
-            G(BenchmarkBase* ptr) : ptr(ptr) {
-                ptr->start();
-            }
-            ~G() {
-                ptr->end();
-            }
-        };
-        
-        std::unique_ptr<G> guard = std::make_unique<G>(benchmark.get());
+        benchmark->start();
         
         auto start = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::micro> total_mutate_time(0);
@@ -621,7 +620,7 @@ std::function<std::vector<double>()> benchmark_accessor(BenchmarkBase* initializ
             }
         }
         
-        guard = nullptr;
+        benchmark->end();
         
         auto end = std::chrono::high_resolution_clock::now();
         benchmark = nullptr;
@@ -639,15 +638,15 @@ std::function<std::vector<double>()> benchmark_accessor(BenchmarkBase* initializ
                 futures.emplace_back(std::async(std::launch::async, [&single_run, initializer, mutate_setting, randomize_rounds](auto r){
                     if(mutate_setting) {
                         if(randomize_rounds) {
-                            return single_run.operator()<true, true>(r, initializer->clone());
+                            return single_run.operator()<true, true>(r, initializer);
                         } else {
-                            return single_run.operator()<true, false>(r, initializer->clone());
+                            return single_run.operator()<true, false>(r, initializer);
                         }
                     } else {
                         if(randomize_rounds) {
-                            return single_run.operator()<false, true>(r, initializer->clone());
+                            return single_run.operator()<false, true>(r, initializer);
                         } else {
-                            return single_run.operator()<false, false>(r, initializer->clone());
+                            return single_run.operator()<false, false>(r, initializer);
                         }
                     }
                 }, r));
@@ -666,11 +665,11 @@ std::function<std::vector<double>()> benchmark_accessor(BenchmarkBase* initializ
                 times.push_back(
                     mutate_setting
                     ? (randomize_rounds
-                       ? single_run.operator()<true, true>(0, initializer->clone())
-                       : single_run.operator()<true, false>(0, initializer->clone()))
+                       ? single_run.operator()<true, true>(0, initializer)
+                       : single_run.operator()<true, false>(0, initializer))
                     : (randomize_rounds
-                       ? single_run.operator()<false, true>(0, initializer->clone())
-                       : single_run.operator()<false, false>(0, initializer->clone()))
+                       ? single_run.operator()<false, true>(0, initializer)
+                       : single_run.operator()<false, false>(0, initializer))
                     );
             }
             return times;
@@ -690,8 +689,9 @@ TEST(SettingsBenchmark, RandomizedAccessBenchmark)
         benchmarks.push_back(std::unique_ptr<BenchmarkBase>(
             new BenchmarkWithInit(
                   "RBS(track_max_speed)"+std::string(use_atomics?"_atomic":""),
-                  []() { return RB_t::round(); },
-                  [](auto& round) { return round.template get< RB_t::ThreadObject::Variables::track_max_speed >(); }
+                  []() { RB_t::start_round(); },
+                  []() { RB_t::end_round(); },
+                  []() { return RB_t::template get< RB_t::ThreadObject::Variables::track_max_speed >(); }
               )
             ));
 
@@ -706,8 +706,9 @@ TEST(SettingsBenchmark, RandomizedAccessBenchmark)
         benchmarks.push_back(std::unique_ptr<BenchmarkBase>(
             new BenchmarkWithInit(
               "RBS(track_size_filter)"+std::string(use_atomics?"_atomic":""),
-              []() { return RB_t::round(); },
-              [](auto& round) { return round.template get< RB_t::ThreadObject::Variables::track_size_filter >(); }
+              []() { RB_t::start_round(); },
+              []() { RB_t::end_round(); },
+              []() { return RB_t::template get< RB_t::ThreadObject::Variables::track_size_filter >(); }
             )
         ));
 
@@ -753,8 +754,8 @@ TEST(SettingsBenchmark, RandomizedAccessBenchmark)
     };
     std::vector<TrialEntry> trials;
     
-    const size_t N = 1000;
-    const size_t rounds_per_mode = 15;
+    const size_t N = 10000;
+    const size_t rounds_per_mode = 25;
     // For each benchmark create trials in three modes:
     // 1. Serial: normal run.
     // 2. Parallel: run the trial on an async thread.

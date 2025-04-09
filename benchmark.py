@@ -46,8 +46,30 @@ for _, row in group_param_combinations.iterrows():
     modes = sorted(df_subset["Mode"].unique())
     data = [df_subset.loc[df_subset["Mode"] == mode, "Time"].values for mode in modes]
 
-    plt.figure(figsize=(12, 7))
-    plt.boxplot(data, labels=modes, showfliers=False)
+    plt.figure(figsize=(12, 10))
+    if group_name == "SETTING":
+        ylim = None  # No fixed limit
+    elif "track_max_speed" in param:
+        ylim = (0, 0.35)
+    else:
+        ylim = (0, 0.6)
+
+    if ylim:
+        plt.ylim(ylim)
+
+    # Plot the boxplot
+    boxplot = plt.boxplot(data, labels=modes, showfliers=False)
+
+    # Add visual marks for out-of-view data points
+    for i, mode_data in enumerate(data):
+        upper_limit = ylim[1] if ylim else None
+        if upper_limit:
+            out_of_view = mode_data[mode_data > upper_limit]
+            if len(out_of_view) > 0:
+                # Place the mark just below the upper limit
+                plt.text(i + 1, upper_limit, "▲", 
+                        ha="center", va="top", color="red", fontsize=12)
+
     plt.xticks(rotation=45, ha="right")
     plt.ylabel("Time (μs per call)")
     plt.title(title)
