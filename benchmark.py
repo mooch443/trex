@@ -50,9 +50,9 @@ for _, row in group_param_combinations.iterrows():
     if group_name == "SETTING":
         ylim = None  # No fixed limit
     elif "track_max_speed" in param:
-        ylim = (0, 0.35)
+        ylim = (0.02, 0.3)
     else:
-        ylim = (0, 0.6)
+        ylim = (0.1, 0.3)
 
     if ylim:
         plt.ylim(ylim)
