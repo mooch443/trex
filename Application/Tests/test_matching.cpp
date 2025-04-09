@@ -454,7 +454,7 @@ static auto _ = [](){
 }();
 
 TEST(TestLocalSettings, Init) {
-    using RB_t = RBSettings<true>;
+    using RB_t = RBSettings<true, true>;
     
     resetGlobalSettings();
     
@@ -474,7 +474,7 @@ TEST(TestLocalSettings, Init) {
 }
 
 TEST(TestLocalSettings, AccessMethods) {
-    using RB_t = RBSettings<true>;
+    using RB_t = RBSettings<true, true>;
     
     resetGlobalSettings();
     
@@ -493,7 +493,7 @@ TEST(TestLocalSettings, AccessMethods) {
 }
 
 TEST(TestLocalSettings, Threads) {
-    using RB_t = RBSettings<true>;
+    using RB_t = RBSettings<true, true>;
     resetGlobalSettings();
     
     SETTING(track_max_speed) = Settings::track_max_speed_t(42);
@@ -680,61 +680,66 @@ std::function<std::vector<double>()> benchmark_accessor(BenchmarkBase* initializ
 
 TEST(SettingsBenchmark, RandomizedAccessBenchmark)
 {
-    using RB_t = RBSettings<true>;
     SETTING(track_max_speed) = Settings::track_max_speed_t(123);
     
     std::vector<std::unique_ptr<BenchmarkBase>> benchmarks;
     
-    benchmarks.push_back(std::unique_ptr<BenchmarkBase>(
-        new BenchmarkWithInit(
-            "RBS(track_max_speed)",
-            []() { return RB_t::round(); },
-            [](auto& round) { return round.template get< RB_t::ThreadObject::Variables::track_max_speed >(); }
-        )
-    ));
+    auto add_benchmarks = []<bool use_atomics>(std::vector<std::unique_ptr<BenchmarkBase>>& benchmarks){
+        using RB_t = RBSettings<true, use_atomics>;
+        
+        benchmarks.push_back(std::unique_ptr<BenchmarkBase>(
+            new BenchmarkWithInit(
+                  "RBS(track_max_speed)"+std::string(use_atomics?"_atomic":""),
+                  []() { return RB_t::round(); },
+                  [](auto& round) { return round.template get< RB_t::ThreadObject::Variables::track_max_speed >(); }
+              )
+            ));
+
+        /*benchmarks.push_back(std::unique_ptr<BenchmarkBase>(
+            new BenchmarkWithInit(
+                  "RBSTR(track_max_speed)",
+                  []() { return RB_t::round(); },
+                  [](auto& round) { return round.template get< "track_max_speed" >(); }
+              )
+            ));*/
+
+        benchmarks.push_back(std::unique_ptr<BenchmarkBase>(
+            new BenchmarkWithInit(
+              "RBS(track_size_filter)"+std::string(use_atomics?"_atomic":""),
+              []() { return RB_t::round(); },
+              [](auto& round) { return round.template get< RB_t::ThreadObject::Variables::track_size_filter >(); }
+            )
+        ));
+
+        /*benchmarks.push_back(std::unique_ptr<BenchmarkBase>(
+            new BenchmarkWithInit(
+              "RBSTR(track_size_filter)",
+              []() { return RB_t::round(); },
+              [](auto& round) { return round.template get< "track_size_filter" >(); }
+            )
+        ));*/
+    };
     
-    benchmarks.push_back(std::unique_ptr<BenchmarkBase>(
-        new BenchmarkWithInit(
-            "RBSTR(track_max_speed)",
-            []() { return RB_t::round(); },
-            [](auto& round) { return round.template get< "track_max_speed" >(); }
-        )
-    ));
+    add_benchmarks.operator()<true>(benchmarks);
+    add_benchmarks.operator()<false>(benchmarks);
     
     benchmarks.push_back(std::unique_ptr<BenchmarkBase>(
         new BenchmarkBase("FAST_SETTING(track_max_speed)", []() {
             return FAST_SETTING(track_max_speed);
-        })
-    ));
-    
+          })
+        ));
+
     benchmarks.push_back(std::unique_ptr<BenchmarkBase>(
         new BenchmarkBase("SETTING(track_max_speed)", []() {
             return SETTING(track_max_speed).value<Settings::track_max_speed_t>();
-        })
-    ));
-    
-    benchmarks.push_back(std::unique_ptr<BenchmarkBase>(
-        new BenchmarkWithInit(
-            "RBS(track_size_filter)",
-            []() { return RB_t::round(); },
-            [](auto& round) { return round.template get< RB_t::ThreadObject::Variables::track_size_filter >(); }
-        )
-    ));
-    
-    benchmarks.push_back(std::unique_ptr<BenchmarkBase>(
-        new BenchmarkWithInit(
-            "RBSTR(track_size_filter)",
-            []() { return RB_t::round(); },
-            [](auto& round) { return round.template get< "track_size_filter" >(); }
-        )
-    ));
-    
+          })
+        ));
     benchmarks.push_back(std::unique_ptr<BenchmarkBase>(
         new BenchmarkBase("FAST_SETTING(track_size_filter)", []() {
             return FAST_SETTING(track_size_filter);
         })
     ));
-    
+
     benchmarks.push_back(std::unique_ptr<BenchmarkBase>(
         new BenchmarkBase("SETTING(track_size_filter)", []() {
             return SETTING(track_size_filter).value<Settings::track_size_filter_t>();
@@ -758,17 +763,23 @@ TEST(SettingsBenchmark, RandomizedAccessBenchmark)
         for(bool randomize_rounds : {true,false}) {
             // Serial trials
             for (size_t r = 0; r < rounds_per_mode; ++r) {
-                std::string modeLabel = bm->label + " [Serial" + (randomize_rounds ? " rand" : "") + "]";
+                auto use_atomics = utils::contains(bm->label, "_atomic");
+                auto label = utils::find_replace(bm->label, "_atomic", "");
+                std::string modeLabel = label + " [Serial" + (randomize_rounds ? " rand" : "") + (use_atomics ? " atomic" : "") + "]";
                 trials.push_back({modeLabel, benchmark_accessor(bm.get(), N, false, false, randomize_rounds)});
             }
             // Parallel trials
             for (size_t r = 0; r < rounds_per_mode; ++r) {
-                std::string modeLabel = bm->label + " [Parallel" + (randomize_rounds ? " rand" : "") + "]";;
+                auto use_atomics = utils::contains(bm->label, "_atomic");
+                auto label = utils::find_replace(bm->label, "_atomic", "");
+                std::string modeLabel = label + " [Parallel" + (randomize_rounds ? " rand" : "") + (use_atomics ? " atomic" : "") + "]";
                 trials.push_back({modeLabel, benchmark_accessor(bm.get(), N, true, false, randomize_rounds)});
             }
             // Mutating trials
             for (size_t r = 0; r < rounds_per_mode; ++r) {
-                std::string modeLabel = bm->label + " [Mutating" + (randomize_rounds ? " rand" : "") + "]";;
+                auto use_atomics = utils::contains(bm->label, "_atomic");
+                auto label = utils::find_replace(bm->label, "_atomic", "");
+                std::string modeLabel = label + " [Mutating" + (randomize_rounds ? " rand" : "") + (use_atomics ? " atomic" : "") + "]";
                 trials.push_back({modeLabel, benchmark_accessor(bm.get(), N, true, true, randomize_rounds)});
             }
         }
