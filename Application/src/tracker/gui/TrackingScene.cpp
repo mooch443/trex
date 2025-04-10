@@ -1235,7 +1235,9 @@ void TrackingScene::_draw(DrawStructure& graph) {
     
     cmn::gui::tracker::draw_boundary_selection(graph, window(), *_data->_cache, _data->_bowl.get());
     
-    if(SETTING(gui_show_graph).value<bool>()) {
+    if(GUI_SETTINGS(gui_show_timeline)
+       && GUI_SETTINGS(gui_mode) == mode_t::tracking)
+    {
         for(auto &[id, ptr] : _data->_cache->_displayed_graphs) {
             ptr->draw(graph);
         }
