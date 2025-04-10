@@ -43,6 +43,7 @@
 #include <gui/DrawUniqueness.h>
 #include <gui/TimingStatsElement.h>
 #include <gui/DrawSegmentsElement.h>
+#include <gui/DrawGraph.h>
 
 using namespace track;
 
@@ -627,6 +628,7 @@ void TrackingScene::activate() {
         "gui_highlight_categories",
         "gui_show_match_modes",
         "gui_show_cliques",
+        "gui_show_graph",
         
         "gui_fish_label",
         
@@ -1232,6 +1234,12 @@ void TrackingScene::_draw(DrawStructure& graph) {
     }
     
     cmn::gui::tracker::draw_boundary_selection(graph, window(), *_data->_cache, _data->_bowl.get());
+    
+    if(SETTING(gui_show_graph).value<bool>()) {
+        for(auto &[id, ptr] : _data->_cache->_displayed_graphs) {
+            ptr->draw(graph);
+        }
+    }
     
     _data->dynGUI.update(graph, nullptr);
     

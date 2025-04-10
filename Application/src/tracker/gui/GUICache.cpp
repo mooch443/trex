@@ -12,6 +12,7 @@
 #include <tracking/FilterCache.h>
 #include <misc/TimingStatsCollector.h>
 #include <gui/Scene.h>
+#include <gui/DrawGraph.h>
 
 namespace cmn::gui {
     
@@ -1123,6 +1124,8 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
         
         if(properties && (reload_blobs || _fish_dirty || _tracking_dirty))
         {
+            update_graphs(frameIndex);
+            
             set_of_individuals_t source;
             if(Tracker::has_identities()
                 && GUI_SETTINGS(gui_show_inactive_individuals))
@@ -1425,6 +1428,55 @@ std::shared_ptr<track::TrackletInformation> GUICache::tracklet_cache(Idx_t id) c
         return it->second;
     }
     return nullptr;
+}
+
+void GUICache::update_graphs(const Frame_t frameIndex) {
+    if(not SETTING(gui_show_graph).value<bool>()) {
+        _displayed_graphs.clear();
+        return;
+    }
+    
+    auto output_frame_window = Frame_t(SETTING(output_frame_window).value<uint32_t>());
+                    
+    /*for(auto id : PD(cache).selected) {
+        PD(fish_graphs)[i]->setup_graph(frameNr.get(), Rangel((frameNr.try_sub( window)).get(), (frameNr + window).get()), PD(cache).individuals.at(id), nullptr);
+        PD(fish_graphs)[i]->graph().set_scale(base.scale().reciprocal());
+        PD(fish_graphs)[i]->draw(base);
+        
+        if(++i >= PD(fish_graphs).size())
+            break;
+    }*/
+    
+    auto individuals = lock_individuals();
+    auto prev_ids = extract_keys(_displayed_graphs);
+    
+    for(Idx_t id : selected) {
+        if(not individuals.individuals.contains(id)) {
+            FormatWarning("Individuals do not have ", id, ".");
+        }
+        auto fish = individuals.individuals.at(id);
+        auto it = _displayed_graphs.find(id);
+        if(it == _displayed_graphs.end()) {
+            auto r = _displayed_graphs.emplace(id, std::make_unique<PropertiesGraph>());
+            if(not std::get<1>(r)) {
+                FormatWarning("Cannot insert ", id, " into the displayed_graphs");
+                continue;
+            }
+            it = std::get<0>(r);
+        }
+        
+        prev_ids.erase(id);
+        
+        it->second->setup_graph(frameIndex, Range<Frame_t>{
+            frameIndex.try_sub(output_frame_window),
+            frameIndex + output_frame_window
+        }, fish, nullptr);
+    }
+    
+    /// remove all the ones we dont have at the moment
+    for(auto id : prev_ids) {
+        _displayed_graphs.erase(id);
+    }
 }
 
 }

@@ -1,44 +1,44 @@
 #ifndef _DRAWGRAPH_H
 #define _DRAWGRAPH_H
 
-#include <gui/types/Drawable.h>
+#include <commons.pc.h>
 #include <gui/Graph.h>
-#include <tracking/OutputLibrary.h>
+#include <misc/idx_t.h>
 
 namespace track {
 class Tracker;
 class Individual;
 }
 
+namespace Output {
+struct LibraryCache;
+}
+
 namespace cmn::gui {
     class DrawStructure;
 
-    class PropertiesGraph {
+    class PropertiesGraph : public Entangled {
         class Graph : public gui::Graph {
         public:
             Graph(const Size2& dim, const std::string& name) : gui::Graph(Bounds(dim), name, Rangef(), Rangef())
-            {
-                
-            }
+            { }
             
             void before_draw() override;
         };
         
     protected:
-        const track::Individual* _fish;
-        long_t _frameNr;
-        
-        const track::Tracker& _tracker;
-        const Vec2& _mouse_position;
+        track::Idx_t _fdx;
+        Frame_t _frameNr;
         
         //! The graph that was displayed last
         GETTER_NCONST(Graph, graph);
         
     public:
-        PropertiesGraph(const track::Tracker& tracker, const Vec2& mouse_position);
+        PropertiesGraph();
+        void update() override;
         void draw(DrawStructure& d);
-        void setup_graph(long_t frameNr, const Rangel& range, const track::Individual* fish, Output::LibraryCache::Ptr cache);
-        void reset() { _graph.set_dirty(); _fish = NULL; }
+        void setup_graph(Frame_t frameNr, const Range<Frame_t>& range, const track::Individual* fish, std::shared_ptr<Output::LibraryCache> cache);
+        void reset();
     };
 }
 

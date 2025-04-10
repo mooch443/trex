@@ -35,6 +35,7 @@ class ExternalImage;
 class DrawStructure;
 class Circle;
 class Drawable;
+class PropertiesGraph;
 
 namespace globals {
     CREATE_STRUCT(CachedGUIOptions,
@@ -246,6 +247,8 @@ namespace globals {
         ska::bytell_hash_map<Idx_t, ska::bytell_hash_map<pv::bid, DetailProbability>> probabilities;
         std::set<Idx_t> checked_probs;
         
+        std::unordered_map<Idx_t, std::unique_ptr<PropertiesGraph>> _displayed_graphs;
+        
     public:
         std::mutex _fish_map_mutex;
         std::unordered_map<Idx_t, std::unique_ptr<gui::Fish>> _fish_map;
@@ -330,6 +333,8 @@ namespace globals {
         
         void draw_posture(gui::DrawStructure &base, Frame_t frameNr);
         std::optional<std::vector<Range<Frame_t>>> update_slow_tracker_stuff();
+        
+        void update_graphs(const Frame_t frameIndex);
     };
 }
 

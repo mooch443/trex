@@ -19,59 +19,66 @@ Some parameter values cannot be changed (such as the build version of the softwa
 Keyboard shortcuts
 ------------------
 
-+-----------+------------------------------------------------------------------------------------------------+
-| Key       | Action                                                                                         |
-+===========+================================================================================================+
-| Esc       | Terminate                                                                                      |
-+-----------+------------------------------------------------------------------------------------------------+
-| Right,    | Next frame                                                                                     |
-| Return    |                                                                                                |
-+-----------+------------------------------------------------------------------------------------------------+
-| Left,     | Previous frame                                                                                 |
-| Backspace |                                                                                                |
-+-----------+------------------------------------------------------------------------------------------------+
-| Space     | Start/stop playback                                                                            |
-+-----------+------------------------------------------------------------------------------------------------+
-| Comma     | Resume/pause analysis                                                                          |
-+-----------+------------------------------------------------------------------------------------------------+
-| B         | Show/hide posture preview when an individual is selected                                       |
-+-----------+------------------------------------------------------------------------------------------------+
-| T         | Show/hide timeline and some interface elements                                                 |
-+-----------+------------------------------------------------------------------------------------------------+
-| G         | Show/hide graph when an individual is selected                                                 |
-+-----------+------------------------------------------------------------------------------------------------+
-| D         | Switch to RAW view and back to tracking view                                                   |
-+-----------+------------------------------------------------------------------------------------------------+
-| M         | Jump to next frame where the number of recognized individuals changed (yellow in timeline)     |
-+-----------+------------------------------------------------------------------------------------------------+
-| N         | Jump to previous frame where the number of recognized individuals changed (yellow in timeline) |
-+-----------+------------------------------------------------------------------------------------------------+
-| R         | Save what you see in the tracker window as a movie clip `<output_dir>/frames`                  |
-+-----------+------------------------------------------------------------------------------------------------+
-| S         | Export data in :param:`output_fields` to CSV files in `<output_dir>/data`                      |
-+-----------+------------------------------------------------------------------------------------------------+
-| Z         | Save program state to `<videoname>.results`                                                    |
-+-----------+------------------------------------------------------------------------------------------------+
-| L         | Load program state from `<videoname>.results`                                                  |
-+-----------+------------------------------------------------------------------------------------------------+
-| O         | Cycle through fish based on ID (backwards)                                                     |
-+-----------+------------------------------------------------------------------------------------------------+
-| P         | Cycle through fish based on ID (forward)                                                       |
-+-----------+------------------------------------------------------------------------------------------------+
+.. list-table:: Keyboard shortcuts
+   :widths: 10 40
+   :header-rows: 1
+
+   * - Key
+     - Action
+   * - ⎋ Esc
+     - Quit
+   * - → Right / ↵ Return
+     - Next frame
+   * - ← Left / ⌫ Backspace
+     - Previous frame
+   * - ␣ Space
+     - Play/pause
+   * - ， Comma
+     - Toggle analysis
+   * - 🄱 B
+     - Toggle posture preview
+   * - 🅃 T
+     - Toggle timeline
+   * - 🄶 G
+     - Toggle graph
+   * - 🄳 D
+     - Toggle RAW/tracking view
+   * - 🄼 M
+     - Jump to next frame of interest
+   * - 🄽 N
+     - Jump to previous frame of interest
+   * - 🄲 C
+     - Jump to previous tracklet of selected individual
+   * - 🅅 V
+     - Jump to next tracklet of selected individual
+   * - 🅁 R
+     - Export video
+   * - 🅂 S
+     - Export tracking data
+   * - 🅉 Z
+     - Save session
+   * - 🄻 L
+     - Load session
+   * - 🄾 O
+     - Cycle fish (back)
+   * - 🄿 P
+     - Cycle fish (forward)
 
 .. _`Timeline`:
 
 Timeline
 --------
 
-The timeline works like the position indicator in your typical video player application. Click on it, hold the mouse button down and slide it around on the timeline to switch between frames.
+A timeline is shown at the top of the screen - it works like the position indicator in a typical video player application. Click on it, hold the mouse button down and slide it around on the timeline to switch between frames.
 
-.. image:: ../images/timeline.png
+.. image:: images/timeline.png
 	:width: 700
 	:alt: The timeline (outlined in red)
 	:align: center
 
-It has some extra functionality, however. Sometimes you will see colorful things up there. If you set the number of individuals (:param:`track_max_individuals`), then you might get a green, a red, a yellow and a grey rectangle up there -- overlayed on the timeline. These indicate "good" segments for training (ranked as listed previously). If they are yellow/pink/etc. lines on your timeline, then they indicate problematic frames in your video. You can jump between them using the ``M``/``N`` keys on your keyboard (see `Keyboard shortcuts`_). The type of problem depends on your selection of "foi types" in the top menu.
+It also has some extra functionality. If you set the number of individuals (:param:`track_max_individuals`), then you might get different shades of grey up there. These indicate "good" segments for training (ranked as listed previously). The lighter the grey sections are, the better is the respective section of your video in terms of "properly tracking all individuals".
+
+You can also use the arrow keys on your keyboard to move between frames. You can jump between sections of interest (i.e. when individuals are lost) using the ``M``/``N`` keys on your keyboard (see `Keyboard shortcuts`_).
 
 Changing the cm/px conversion factor
 ------------------------------------
@@ -80,45 +87,37 @@ Usually the easiest way to set a cm/px factor is before the video is even segmen
 
 Depending on your operating system, hold ⌘ or ``CTRL`` (depending on your operating system) and click on two points on the background - the distance between them is supposed to be a "known length" - for example, if you have a cm strip integrated into your video background for reference.
 
-.. image:: trex_calibrate_length.png
+.. image:: images/calibrate_0.png
 
 |trex| will then offer to use this known length to calculate the conversion factor.
 
-.. image:: trex_calibrate_length2.png
+.. image:: images/calibrate_1.png
 
 In order to keep the applied changes, don't forget to save your config (Menu -> Save Config) and/or copy your :param:`cm_per_pixel` parameter. You may need to reanalyse the video to apply all changes.
 
 Display menu
 ------------
 
-Different visualisations can be enabled or disabled using the display menu (4) on the bottom left. Expand the "display" list by clicking on it, and you will see various options -- including the heatmaps feature, posture (for which you can also use the 🄱 key), outlines/midlines (a full list can be found below):
+Different visualisation options can be enabled or disabled using the display menu on the top-right. Expand the "display" list by clicking on it, and you will see various options -- including the heatmaps feature, posture (for which you can also use the 🄱 key), outlines/midlines, etc.
 
-.. image:: ../images/trex_display_options.png
-	:width: 200
+.. figure:: images/display_menu.png
 	:alt: All current display options
 	:align: center
 
-- export options
-	Toggles a movable window showing all possible output fields (for when you press 🅂/click on "menu" -> "save tracking data"). (This is currently a bit basic and will be updated in a future version.)
-- zoom on selected
-	Whether to zoom in on the selected individual or not. Can be combined with the next option.
-- auto zoom
-	Always try to keep all individuals in-view, but zoom in if possible.
-- visual field ts
-	The timeseries of the visual field of the first selected individual. This includes left/right eye and all data-streams associated with it (distance/id, body-part).
+	The display menu (top right) allows you to toggle different visualisation options.
+
+Some of the more important options are:
+
+- zoom on selection
+	Whether to zoom in on the selected individual or not.
 - visual field
 	Display visual fields of all selected individuals in the GUI.
-- recognition
-	Toggles display of recognition-related info in the tracking view (per object accuracy percentages).
-- confusion
-	A matrix in the center of the screen, only available after clicking "menu" -> "auto correct" -> "No".
-- dataset
-	Display information about the consecutive segment in the currently viewed frame. This includes stats per individual like midline length variance, as well as (if available) identities as predicted by the neural network.
-- #individuals
-	A graph that shows the number of individuals per frame (only shows data for frames analysed in the current session, not loaded frames).
+- video background
+	Toggles display of the original video in the background (if available). This option is nice visually speaking, but can make playback slower.
+- dataset information
+	Display information about the tracklets in the currently viewed frame. This includes stats per individual like midline length variance, as well as (if available) identities predicted by applying a VI network.
 - heatmap
 	Show a heatmap with customizable properties. Search ``heatmap_`` in the settings box to find all available options. By default it shows a density map for positions of individuals in the whole video.
-
 
 Excluding regions / tracking specific regions exclusively
 ---------------------------------------------------------
@@ -135,8 +134,7 @@ An example from a hypothetical settings file could thus be::
 
 which describes a triangle with the coordinates 0,100 and 100,100 as it's base and 50,150 as it's pointy end.
 
-.. figure:: track_ignore.png
-	:width: 1024
+.. figure:: images/choose_track_ignore.png
 	
 	Here, a triangle was selected using CTRL/⌘-Click on multiple points. This shape can now be added to parameters like ``track_ignore``.
 
@@ -157,10 +155,8 @@ First, press 🄳 to get into raw mode [1]_. Clicking on the small white circle 
 
 This change will be kept even if previous tracking changes, so be sure to go about this chronologically. Changing assignments in earlier parts of a video will affect later parts of the video since these parts are retracked and IDs might differ (unless corrected by automatic indentification, in which case manual corrections are usually not needed anyway).
 
-.. figure:: raw_mode_menu.png
-	:width: 1024
+.. figure:: images/assign_blob.png
 	:name: raw-mode-menu
-
 
 	The small white circles inside objects are clickable and will open a menu where you can choose to manually assign an individual to this object.
 
@@ -168,4 +164,3 @@ The individual will now be assigned in *this* frame to *this* object, which does
 
 
 .. [1] In that mode, tracking info is invisible and only the thresholded objects are displayed (see figure :numref:`raw-mode-menu`).
-

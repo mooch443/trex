@@ -320,12 +320,16 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
             if (fish->frame_count() >= output_min_frames) {
                 if(!no_tracking_data) {
                     if(!range.empty())
-                        fish_graphs.at(thread_index)->setup_graph(range.start.get(), Rangel(range.start.get(), range.end.get()), fish, library_cache.at(thread_index));
+                        fish_graphs.at(thread_index)->setup_graph(range.start, range, fish, library_cache.at(thread_index));
                     else
                         fish_graphs.at(thread_index)->setup_graph(
-                              fish->start_frame().get(),
-                              Rangel(fish->start_frame().get(), fish->end_frame().get()),
-                              fish, library_cache.at(thread_index));
+                              fish->start_frame(),
+                              Range<Frame_t>{
+                                  fish->start_frame(),
+                                  fish->end_frame()
+                              },
+                              fish,
+                              library_cache.at(thread_index));
                     
                     file::Path path = (filename + "_" + fish->identity().name() + "." + output_format.name());
                     file::Path final_path = fishdata / path;
@@ -683,7 +687,7 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
         auto max_threads = hardware_concurrency();
         if(max_threads > 1) {
             for(size_t i=0; i<max_threads; ++i) {
-                fish_graphs.push_back(std::make_shared<PropertiesGraph>(tracker, Vec2()));
+                fish_graphs.push_back(std::make_shared<PropertiesGraph>());
                 library_cache.push_back(std::make_shared<Output::LibraryCache>());
             }
             
