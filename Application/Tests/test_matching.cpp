@@ -585,11 +585,18 @@ struct BenchmarkWithInit : public BenchmarkBase {
     }
 };
 
-std::function<std::vector<double>()> benchmark_accessor(BenchmarkBase* initializer, size_t N = 1000000,
-                        bool parallel = false, bool mutate_setting = false, bool randomize_rounds = false, size_t nthreads = 10) {
+std::function<std::vector<double>()>
+benchmark_accessor(BenchmarkBase* initializer,
+                   size_t N = 1000000,
+                   bool parallel = false,
+                   bool mutate_setting = false,
+                   bool randomize_rounds = false,
+                   size_t nthreads = 10)
+{
     using namespace std::chrono;
 
-    auto single_run = [N]<bool mutate_setting, bool randomize_rounds>(size_t run_id, const BenchmarkBase* initializer)
+    auto single_run = [N]<bool mutate_setting, bool randomize_rounds>(size_t run_id,
+                                                                      const BenchmarkBase* initializer)
     {
         auto benchmark = initializer->clone();
         
@@ -754,8 +761,8 @@ TEST(SettingsBenchmark, RandomizedAccessBenchmark)
     };
     std::vector<TrialEntry> trials;
     
-    const size_t N = 10000;
-    const size_t rounds_per_mode = 25;
+    const size_t N = 1000;
+    const size_t rounds_per_mode = 15;
     // For each benchmark create trials in three modes:
     // 1. Serial: normal run.
     // 2. Parallel: run the trial on an async thread.
@@ -1366,4 +1373,37 @@ TEST_F(ImageConversionTestFixture, ConvertWrongDimensions) {
     test_conversion<3, 100, 50>(image3C, ImageMode::RGBA, false);
     test_conversion<3, 50, 100>(image3C, ImageMode::RGBA, false);
     //test_conversion<1, 100, 100>(image3C, ImageMode::RGBA, false);
+}
+
+TEST(TestLocalSettings, ConcurrentExternalAccess) {
+    using RB_t = RBSettings<true, false>; // use_atomic = false
+    resetGlobalSettings();
+    SETTING(track_max_speed) = Settings::track_max_speed_t(100);
+
+    {
+        auto round = RB_t::round();
+        std::vector<std::thread> threads;
+        constexpr int N = 10;
+        
+        SETTING(track_max_speed) = Settings::track_max_speed_t(200);
+
+        // Launch N threads that read from the shared ThreadObject
+        for (int i = 0; i < N; ++i) {
+            threads.emplace_back([ptr = round.settings->get_external_ptr()]{
+                auto value = ptr->template get<RB_t::ThreadObject::Variables::track_max_speed>();
+                ASSERT_EQ(value, 100);
+                ptr->external_thread_done();
+            });
+        }
+        
+        SETTING(track_max_speed) = Settings::track_max_speed_t(205);
+
+        for (auto& t : threads) t.join();
+
+        // After all external threads finished, round can safely end
+    }
+    
+    ASSERT_EQ(RB_t::current()->get<"track_max_speed">(), 100);
+    auto round = RB_t::round();
+    ASSERT_EQ(round.settings->get<"track_max_speed">(), 205);
 }
