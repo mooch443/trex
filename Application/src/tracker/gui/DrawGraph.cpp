@@ -23,7 +23,7 @@ namespace cmn::gui {
     : _graph(Size2(800, 500), "Individual")
     {
         _graph.set_background(Transparent, Transparent);
-        set_background(Black.alpha(50), White.alpha(200));
+        set_background(Black.alpha(150), White.alpha(200));
         set_draggable();
         set_clickable(true);
         set_bounds(Bounds(Vec2(100), _graph.size()));
@@ -34,9 +34,9 @@ namespace cmn::gui {
         });
         on_hover([this](Event e){
             if(e.hover.hovered)
-                set_background(Black.alpha(80), White.alpha(200));
+                set_background(Black.alpha(180), White.alpha(200));
             else
-                set_background(Black.alpha(50), White.alpha(200));
+                set_background(Black.alpha(150), White.alpha(200));
         });
     }
     

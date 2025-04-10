@@ -396,6 +396,9 @@ bool TrackingScene::on_global_event(Event event) {
             case Keyboard::Z:
                 _state->save_state(SceneManager::getInstance().gui_task_queue(), false);
                 break;
+            case Keyboard::G:
+                SETTING(gui_show_graph) = not SETTING(gui_show_graph).value<bool>();
+                break;
             case Keyboard::T:
                 SETTING(gui_show_timeline) = not SETTING(gui_show_timeline).value<bool>();
                 break;
