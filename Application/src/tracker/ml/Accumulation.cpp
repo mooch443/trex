@@ -1095,19 +1095,11 @@ bool Accumulation::start() {
                 gui::WorkProgress::set_description((desc));
         });
         
-        try {
-            std::unique_lock guard{_network_lock};
-            if(not _network)
-                throw SoftException("Network is null.");
-            
-            _network->train(_collected_data, FrameRange(_initial_range), _mode, SETTING(gpu_max_epochs).value<uchar>(), true, &uniqueness_after, SETTING(accumulation_enable) ? 0 : -1);
-        
-        } catch(...) {
-            auto text = "["+std::string(_mode.name())+"] Initial training failed. Cannot continue to accumulate.";
+        auto error = [this, uniqueness_after](std::string text){
             end_a_step(MakeResult<AccumulationStatus::Failed, AccumulationReason::TrainingFailed>(_initial_range, uniqueness_after, text));
             
             if(SETTING(auto_train_on_startup)) {
-                throw U_EXCEPTION(text.c_str());
+                throw U_EXCEPTION(no_quotes(utils::strip_html(text)));
             } else {
                 if(_gui)
                     _gui->enqueue([text](auto, gui::DrawStructure& graph) {
@@ -1115,8 +1107,22 @@ bool Accumulation::start() {
                         graph.dialog(text, "<sym>☣</sym> Training Error");
                     });
                 
-                FormatExcept(text.c_str());
+                FormatExcept(no_quotes(utils::strip_html(text)));
             }
+        };
+        
+        try {
+            std::unique_lock guard{_network_lock};
+            if(not _network)
+                throw SoftException("Network is null.");
+            
+            _network->train(_collected_data, FrameRange(_initial_range), _mode, SETTING(gpu_max_epochs).value<uchar>(), true, &uniqueness_after, SETTING(accumulation_enable) ? 0 : -1);
+        
+        } catch(const std::exception& ex) {
+            error("["+std::string(_mode.name())+"] <b>VI failed with this error:</b> <c>"+ex.what()+"</c><b>.</b>\n\nPlease check your terminal for more detailed error messages.");
+            return false;
+        } catch(...) {
+            error("["+std::string(_mode.name())+"] <b>VI failed.</b>\n\nPlease check your terminal for more detailed error messages.");
             return false;
         }
         
