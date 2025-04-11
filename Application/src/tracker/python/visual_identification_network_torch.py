@@ -525,7 +525,7 @@ class PermuteAxesWrapper(nn.Module):
 
     def forward(self, x):
         # Permute to channels first (N, H, W, C) -> (N, C, H, W)
-        x = x.permute(0, 3, 1, 2)                        
+        x = x.permute(0, 3, 1, 2).contiguous()                   
         x = self.normalize(x)
         return self.model(x)
 

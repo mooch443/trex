@@ -1073,6 +1073,7 @@ def train(model, train_loader, val_loader, criterion, optimizer : torch.optim.Ad
                 static_targets = torch.from_numpy(targets).to(device, dtype=torch.float32).contiguous()
             else:
                 static_targets = targets.to(device).contiguous()
+            
             #inputs = torch.tensor(inputs, dtype=torch.float32, device=device)
             #targets = torch.tensor(targets, dtype=torch.float32)#, device=device)
 
