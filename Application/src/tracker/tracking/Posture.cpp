@@ -131,14 +131,22 @@ std::vector<Vec2> generateOutline(const Pose& pose, const PoseMidlineIndexes& mi
         }
     }
     
-    /// calculate size of each circle statically or based on the index.
-    /// this will impact the performance of the algorithm / the number
-    /// of points created in the end:
-    for(size_t i = 0; i<centers.size(); ++i) {
-        float radius = radiusMap && centers.size() > 0
+    if(centers.size() == 1) {
+        radii = {
+            radiusMap
+                ? (radiusMap(0) + 1.f)
+                : 10.0f
+        };
+    } else {
+        /// calculate size of each circle statically or based on the index.
+        /// this will impact the performance of the algorithm / the number
+        /// of points created in the end:
+        for(size_t i = 0; i<centers.size(); ++i) {
+            float radius = radiusMap && centers.size() > 0
                 ? (radiusMap(i / float(centers.size() - 1.f)) + 1.f)
                 : 10.0f;
-        radii.push_back(radius);
+            radii.push_back(radius);
+        }
     }
 
     /// this will add new circles if necessary:
