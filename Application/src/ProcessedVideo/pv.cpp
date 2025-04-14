@@ -17,16 +17,6 @@
 namespace cmn {
 using namespace cmn::file;
 
-constexpr bool correct_number_channels(meta_encoding_t::Class encoding, uint8_t channels) {
-    return required_storage_channels(encoding) == channels;
-}
-
-template<typename ImageT>
-    requires (std::same_as<Image, ImageT> || std::same_as<cv::Mat, ImageT>)
-constexpr bool correct_number_channels(meta_encoding_t::Class encoding, const ImageT& image) {
-    return required_image_channels(encoding) == image.channels();
-}
-
 template<> void Data::read(blob::Prediction& pred) {
     auto version = (pv::Version)pred.clid;
     
@@ -151,6 +141,7 @@ File::File(File&& other) noexcept
       _header(Header::move(std::move(other._header))),
       _average(std::move(other._average)),
       _mask(std::move(other._mask)),
+      _real_color_average(std::move(other._real_color_average)),
       _filename(std::move(other._filename)),
       _prev_frame_time(other._prev_frame_time),
       _compression_ratio(other._compression_ratio.load()), // Atomic types can't be moved. Copy the value.
@@ -573,8 +564,9 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         assert(full_image.rows > 0 && full_image.cols > 0);
         assert(!mask_.empty());
         
-        const auto channels = required_image_channels(encoding());
-        assert(full_image.channels() == channels);
+        const auto channels = required_storage_channels(encoding());
+        const auto input_channels = full_image.channels();
+        assert(full_image.channels() == required_image_channels(encoding()));
         
         auto mask = std::make_unique<std::vector<HorizontalLine>>(mask_);
         
@@ -773,7 +765,14 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         
         _header.read(*this);
 
+        assert(required_storage_channels(_header.encoding) == _header.average->channels());
         _average = _header.average->get();
+        if(_header.encoding == meta_encoding_t::r3g3b2) {
+            convert_from_r3g3b2(_header.average->get(), _real_color_average);
+        } else {
+            _real_color_average = _average;
+        }
+        
         if (has_mask())
             _mask = _header.mask->get();
 
@@ -852,7 +851,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
                 if(index < meta_encoding_t::values.size()) {
                     encoding = meta_encoding_t::values.at(index);
                     
-                    if(not correct_number_channels(encoding, channels))
+                    if(required_storage_channels(encoding) != channels)
                         throw InvalidArgumentException("Read illegal number of channels (",channels,") for encoding ", encoding,".");
                     
                 } else {
@@ -919,8 +918,8 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         if(average)
             delete average;
         
-        const auto image_channels = required_image_channels(encoding);
-        average = new Image((uint)this->resolution.height, (uint)this->resolution.width, image_channels);
+        const auto storage_channels = required_storage_channels(encoding);
+        average = new Image((uint)this->resolution.height, (uint)this->resolution.width, storage_channels);
         _average_offset = ref.current_offset();
         ref.read_data(average->size(), (char*)average->data());
         
@@ -933,7 +932,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
             ref.read<uint64_t>(mask_size);
             if(mask_size) {
                 // does it use a mask?
-                mask = new Image((uint)this->resolution.height /*- (offsets.y + offsets.height)*/, (uint)this->resolution.width /*- (offsets.x + offsets.width)*/, image_channels);
+                mask = new Image((uint)this->resolution.height /*- (offsets.y + offsets.height)*/, (uint)this->resolution.width /*- (offsets.x + offsets.width)*/, 1);
                 
                 ref.read_data(mask->size(), (char*)mask->data());
                 
@@ -1029,9 +1028,6 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         // set offsets from global settings
         //if(average)
         //    tf::imshow("average", average->get());
-        if(average && not correct_number_channels(encoding, *average)) {
-            throw InvalidArgumentException("Number of channels ",average->channels()," must match the encoding format ", encoding," for the average image provided ", *average);
-        }
         
         //if(not correct_number_channels(encoding, channels))
         //    throw InvalidArgumentException("Writing illegal number of channels (",channels,") for encoding ", encoding,".");
@@ -1041,7 +1037,8 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         ref.write<std::string>(encoding.name());
         
         if(!resolution.width && !resolution.height)
-            throw U_EXCEPTION("Resolution of the video has not been set.");
+            throw InvalidArgumentException("Resolution of the video has not been set.");
+        
         ref.write(resolution);
         ref.write(offsets);
         
@@ -1066,6 +1063,14 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         ref.write<std::string>((std::string)file::Path(name).filename());
         
         if(average) {
+            if(required_storage_channels(encoding) != average->channels()) {
+                throw InvalidArgumentException("Number of channels ",average->channels()," must match the encoding format ", encoding," (",required_storage_channels(encoding)," channels) for the average image provided ", *average, " (", average->channels()," channels).");
+            }
+            
+            if(cv::Size(average->cols, average->rows) != resolution) {
+                throw InvalidArgumentException("Wrong resolution for average image ", average->cols,"x", average->rows, " vs. ", resolution,".");
+            }
+            
             _average_offset = ref.write_data(average->size(), (char*)average->data());
         } else {
             Image tmp((uint)resolution.height, (uint)resolution.width, required_storage_channels(encoding));
@@ -1117,6 +1122,14 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         ref.write(this->timestamp, _timestamp_offset);
         
         if(average) {
+            if(required_storage_channels(encoding) != average->channels()) {
+                throw InvalidArgumentException("Number of channels ",average->channels()," must match the encoding format ", encoding," (",required_storage_channels(encoding)," channels) for the average image provided ", *average, " (", average->channels()," channels).");
+            }
+            
+            if(cv::Size(average->cols, average->rows) != resolution) {
+                throw InvalidArgumentException("Wrong resolution for average image ", average->cols,"x", average->rows, " vs. ", resolution,".");
+            }
+            
             ref.Data::write_data(_average_offset, average->size(), (char*)average->data());
         }
         
@@ -1511,6 +1524,12 @@ Frame_t File::length() const {
         }
     }
 
+    const cv::Mat& File::average() const {
+        _check_opened();
+        assert(_header.average);
+        return _real_color_average;
+    }
+
     void fix_file(File& file) {
         Print("Starting file copy and fix (",file.filename(),")...");
         
@@ -1724,14 +1743,14 @@ Frame_t File::length() const {
 void File::set_average(const cv::Mat& average) {
     //tf::imshow("average", average);
     
-    if(not correct_number_channels(_header.encoding, average)) {
+    if(required_storage_channels(_header.encoding) != average.channels()) {
         throw InvalidArgumentException("Number of channels ",average.channels()," must match the encoding format ", _header.encoding," for the average image provided.");
     }
     
-    if(average.type() != CV_8UC(required_image_channels(_header.encoding)))
+    if(average.type() != CV_8UC(required_storage_channels(_header.encoding)))
     {
         auto str = getImgType(average.type());
-        throw U_EXCEPTION("Average image is of type ",str," != 'CV_8UC",required_image_channels(_header.encoding),"'.");
+        throw InvalidArgumentException("Average image is of type ",str," != 'CV_8UC",required_storage_channels(_header.encoding),"'.");
     }
     
     if(!_header.resolution.width && !_header.resolution.height) {
@@ -1747,6 +1766,13 @@ void File::set_average(const cv::Mat& average) {
     
     _header.average = new Image(average);
     this->_average = _header.average->get();
+    
+    if(_header.encoding == meta_encoding_t::r3g3b2) {
+        _real_color_average = cv::Mat::zeros(_header.resolution.height, _header.resolution.width, CV_8UC3);
+        convert_from_r3g3b2(_average, _real_color_average);
+    } else {
+        _real_color_average = _average;
+    }
     
     if(bool(_mode & FileMode::MODIFY)) {
         _check_opened();

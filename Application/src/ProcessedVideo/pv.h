@@ -326,6 +326,7 @@ namespace pv {
         mutable std::mutex _lock;
         Header _header;
         cv::Mat _average, _mask;
+        cv::Mat _real_color_average;
         GETTER(file::Path, filename);
         timestamp_t _prev_frame_time;
         
@@ -462,7 +463,7 @@ namespace pv {
         void set_average(const cv::Mat& average);
         const Header& header() const; //{ return _header; }
         Header& header(); //{ return _header; }
-        const cv::Mat& average() const override { _check_opened(); assert(_header.average); return _average; }
+        const cv::Mat& average() const override;
         
         void set_mask(const cv::Mat& mask) {
             if(_header.mask)

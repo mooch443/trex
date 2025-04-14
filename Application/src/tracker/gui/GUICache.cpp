@@ -124,11 +124,18 @@ std::unique_ptr<PPFrame> GUICache::PPFrameMaker::operator()() const {
             .encoding = meta_encoding_t::rgb8
         };
         
-        if (GUICache::instance()._equalize_histograms && !percentiles.empty()) {
-            image_pos = blob->equalized_luminance_alpha_image(*Tracker::background(), threshold, percentiles.front(), percentiles.back(), ptr->unsafe_get_source(), 0, output);
+        if(FAST_SETTING(meta_encoding) == meta_encoding_t::gray
+           || FAST_SETTING(track_background_subtraction))
+        {
+            if (GUICache::instance()._equalize_histograms && !percentiles.empty()) {
+                image_pos = blob->equalized_luminance_alpha_image(*Tracker::background(), threshold, percentiles.front(), percentiles.back(), ptr->unsafe_get_source(), 0, output);
+                
+            } else {
+                image_pos = blob->luminance_alpha_image(*Tracker::background(), threshold, ptr->unsafe_get_source(), 0, output);
+            }
             
         } else {
-            image_pos = blob->luminance_alpha_image(*Tracker::background(), threshold, ptr->unsafe_get_source(), 0, output);
+            image_pos = blob->rgba_image(*Tracker::background(), threshold, ptr->unsafe_get_source());
         }
 
         /*if(Background::meta_encoding() == meta_encoding_t::r3g3b2) {

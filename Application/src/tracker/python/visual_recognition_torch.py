@@ -737,7 +737,7 @@ def get_default_network():
     assert device is not None, "No device specified"
 
     loaded_model = ModelFetcher().get_model(network_version, len(classes), image_channels, image_width, image_height, device=device)
-    TRex.log(f"Reinitialized network with an empty network version {network_version}.")
+    TRex.log(f"Reinitialized network with an empty network version {network_version} @ {image_channels}.")
     TRex.log(f"Trainable parameters: {sum(p.numel() for p in loaded_model.parameters() if p.requires_grad)}")
     TRex.log(f"Device: {device}")
 

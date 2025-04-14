@@ -10,6 +10,7 @@
 #include <file/DataLocation.h>
 #include <tracking/IndividualManager.h>
 #include <python/ModuleProxy.h>
+#include <processing/encoding.h>
 
 namespace Python {
 
@@ -144,8 +145,8 @@ void VINetwork::setup(bool force) {
             Print("Error creating folder for ",filename.str());
         }
         
-        auto image_mode = Background::image_mode();
-        py::set_variable("image_channels", (long_t)required_channels(image_mode), module_name);
+        auto image_mode = Background::meta_encoding();
+        py::set_variable("image_channels", (long_t)required_image_channels(image_mode), module_name);
         py::set_variable("output_path", filename.str(), module_name);
         py::set_variable("output_prefix", SETTING(output_prefix).value<std::string>(), module_name);
         py::set_variable("filename", (std::string)SETTING(filename).value<file::Path>().filename(), module_name);

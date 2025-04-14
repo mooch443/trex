@@ -346,7 +346,7 @@ void Tracker::analysis_state(AnalysisState pause) {
 }
 
 Tracker::Tracker(const pv::File& video)
-    : Tracker(Image::Make(video.average()), video.header().encoding, settings::infer_meta_real_width_from(video))
+    : Tracker(video.header().average ? Image::Make(*video.header().average) :  Image::Make(video.average()), video.header().encoding, settings::infer_meta_real_width_from(video))
 { }
 
 Tracker::Tracker(Image::Ptr&& average, meta_encoding_t::Class encoding, Float2_t meta_real_width)
