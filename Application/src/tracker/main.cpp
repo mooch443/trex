@@ -1,4 +1,22 @@
 #include <commons.pc.h>
+#ifndef WIN32
+__attribute__((constructor))
+static void early_env_setup() {
+    const char* locale = "C";
+    std::locale::global(std::locale(locale));
+    
+    setenv("LC_ALL", "C", 1);
+    setenv("KMP_DUPLICATE_LIB_OK", "TRUE", 1);
+}
+#else
+#pragma section(".CRT$XCU", read)
+__declspec(allocate(".CRT$XCU"))
+static void (*windowsEarlyEnvSetup)(void) = []() {
+    SetEnvironmentVariable("KMP_DUPLICATE_LIB_OK", "TRUE");
+    return;
+};
+#endif
+
 #include <gui/DrawStructure.h>
 #include <gui/IMGUIBase.h>
 #include <gui/SFLoop.h>
@@ -615,14 +633,6 @@ std::string start_converting(std::future<void>& f) {
 int main(int argc, char**argv) {
 #ifdef NDEBUG
     cv::utils::logging::setLogLevel(cv::utils::logging::LogLevel::LOG_LEVEL_ERROR);
-#endif
-    
-    const char* locale = "C";
-    std::locale::global(std::locale(locale));
-    
-#ifndef WIN32
-    setenv("LC_ALL", "C", 1);
-    setenv("KMP_DUPLICATE_LIB_OK", "True", 1);
 #endif
     
     using namespace gui;
