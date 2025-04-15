@@ -14,7 +14,7 @@ Recommended System Requirements
 
 |trex| supports all major platforms. While |trex| is designed to be lightweight, ensuring a modern CPU, sufficient RAM (8GB or more), and a dedicated GPU (optional but beneficial for advanced machine learning tasks) can optimize performance. Our test systems cover a broad spectrum of operating systems and architectures, such as Windows, macOS, and Linux, and we recommend using a system with at least the following specifications:
 
-- **Operating System**: Windows 10, macOS 10.15, or Ubuntu 20.04 LTS
+- **Operating System**: Windows 10, macOS 11, or Ubuntu 20.04 LTS
 - **Processor**: Intel Core i5 or AMD Ryzen 5
 - **Memory**: 8GB RAM
 - **Graphics** (optional but recommended): dedicated NVIDIA GPU with 2GB VRAM, or Apple Silicon's integrated GPU
@@ -36,7 +36,7 @@ Open your `Miniforge` Prompt and run:
 
 .. NOTE::
 
-   This only works if `conda-forge` is the *only* channel you have added to your `conda` configuration. By default, this is the case if you're using `Miniforge`. If added other channels manually, or you are using Anaconda, you can run the following command instead:
+   Installation only works if `conda-forge` is the *only* channel you have added to your `conda` configuration. By default, this is the case if you're using `Miniforge`. If added other channels manually, or you are using Anaconda, you can run the following command instead:
 
    .. code-block:: bash
 
@@ -91,28 +91,41 @@ In order to get your own (local) conda channel, all you need to do is make sure 
 	conda create -n build conda-build git python pip
 	conda activate build
 
-Once this is done, you can clone the |trex| repository and change your directory to the ``conda`` folder::
+Once this is done, you can clone the |trex| repository and change your directory to the ``trex/conda`` folder in the downloaded repository::
 
 	git clone --recursive https://github.com/mooch443/trex
 	cd trex/conda
 
+.. NOTE::
+
+	Please make sure that you do not have a ``bareRepository = explicit`` value in your ``~/.gitconfig`` file. This sometimes prevents proper git repository cloning using ``conda build``!
+
 Next, make sure you have Visual Studio 2022 installed, or Xcode on macOS. Linux should work out of the box, and if not you could try to install `build-essential` first to get ``g++`` (at least version 11).
+
+On MacOS you may need to adjust the SDK location as well as the deployment target. This can be done in the ``conda_build_config.yaml`` file - so these lines here need to be changed::
+
+	SDKROOT:
+      - /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk # [osx]
+
+    CONDA_BUILD_SYSROOT:
+      - /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk # [osx]
+
+Change them to the correct location within your filesystem. You may also have to adapt the ``MACOSX_DEPLOYMENT_TARGET`` and SDK paths in ``build.sh``.
 
 Finally, you can build the package using::
 
-	./build_conda_package.bat # Windows
-	./build_conda_package.sh  # Linux, macOS
-
-This runs ``conda build .`` (+ possibly additional arguments for the channels, as in the ``conda create`` command), which builds the program according to all the settings inside ``meta.yaml`` (for dependencies), using ``build.sh`` (or ``bld.bat`` on Windows) to configure CMake. If you want to enable/disable certain features (e.g. use a locally installed OpenCV library, enable the Pylon SDK, etc.) this build script is the place where you can do that.
+	conda build .
 
 .. NOTE::
-	Note that if you want to add Pylon SDKs etc., you may need to add absolute paths to the cmake call (e.g. adding folders to ``CMAKE_PREFIX_PATH`` in ``build.sh``) so that it can find all your locally installed libraries -- in which case your conda package will probably not be portable.
+	Note that if you want to enable/disable certain features (e.g. use a locally installed OpenCV library, enable the Pylon SDK, etc.) the build script (namely ``build.sh`` or ``bld.bat`` on Windows) is the place where you can do that. You may need to add absolute paths to the cmake call (e.g. adding folders to ``CMAKE_PREFIX_PATH`` in ``build.sh``) so that it can find all your locally installed libraries -- in which case your conda package will probably not be portable.
 
-After compilation was successful, |trex| can be installed using:
+After compilation is successful, |trex| can be installed using:
 
 	conda create -n tracking --override-channels -c local -c conda-forge trex
 
-Notice there is a ``-c local``, instead of the ``-c trex-beta`` for a normal installation. You can also put the output folder here that conda build displayed at the end of a successful compilation.
+Notice there is a ``-c local``, instead of the ``-c trex-beta`` for a normal installation. If this does not work, you can also put the full output folder here that conda build displayed at the end of a successful compilation. For example::
+
+	conda create -n tracking --override-channels -c /home/user/miniforge3/conda-bld -c conda-forge trex
 
 Finally, to run it simply switch to the environment you just created (tracking) using ``conda activate tracking`` and run ``trex`` to see if the window appears!
 
@@ -138,24 +151,8 @@ As well as the general requirements:
 
 The easiest way to ensure that all requirements are met, is by using conda to create a new environment::
 
-	# Windows
-	conda create -n trex git cmake ffmpeg tensorflow=2
-	
-	# Linux (minila)
-	conda create -n trex git cmake ffmpeg=4 tensorflow=2 cxx-compiler c-compiler
+	conda create -n trex git cmake ffmpeg pip numpy==1.26.4 python=3.11 nasm
 
-	# Linux (graphics) - if compilation is missing graphics driver things, try recreating the environment like this and start over:
-	conda create -n trex gcc git cmake ffmpeg=4 tensorflow=2 cxx-compiler c-compiler mesa-libgl-devel-cos6-x86_64 libxdamage-devel-cos6-x86_64 libxi-devel-cos6-x86_64 libxxf86vm-cos6-x86_64 libselinux-devel-cos6-x86_64 libuuid-devel-cos6-x86_64 mesa-libgl-devel-cos6-x86_64
-
-	# on linux you may also need this, so that you don't need to set LD_LIBRARY_PATH every time you want to run trex:
-	conda activate trex
-	conda install -c conda-forge gcc pkg-config libxcursor-devel-cos6-x86_64 libxrender-devel-cos6-x86_64 libx11-devel-cos6-x86_64 libXfixes-devel-cos6-x86_64 libxcb-cos6-x86_64 libxrandr-devel-cos6-x86_64 libxi-devel-cos6-x86_64 libXfixes-devel-cos6-x86_64 libXxf86vm-devel-cos6-x86_64 xorg-x11-proto-devel-cos6-x86_64 libxext-devel-cos6-x86_64 libxdamage-devel-cos6-x86_64 libxinerama-devel-cos6-x86_64 libselinux-cos6-x86_64 libXau-devel-cos6-x86_64 libuuid-devel-cos6-x86_64 libdc1394
-
-
-	conda create -n track -c pytorch-nightly -c nvidia pytorch-cuda=11.7 torchvision torchaudio cmake ffmpeg=4 git scikit-learn requests python 'tensorflow-gpu>=2.4,<3' pip pandas seaborn 'numpy=1.19'
-
-If your GPU is supported by TensorFlow, you can modify the above line by appending ``-gpu`` to ``tensorflow`` to get ``tensorflow-gpu=2``.
-	
 Next, switch to the conda environment using::
 
 	conda activate trex
@@ -163,15 +160,34 @@ Next, switch to the conda environment using::
 You can now clone the repository and change your directory to a build folder::
 
 	git clone --recursive https://github.com/mooch443/trex
-	cd trex/Application
+
+Now run the ``post-link`` script to install some required pip packages::
+
+	# Windows
+	cd trex/conda
+	post-link.bat
+
+	# Linux or MacOS
+	cd trex/conda
+	sh post-link.sh
+
+Create and switch to the build folder::
+
+	cd ../Application
 	mkdir build
 	cd build
 	
 Now we have to generate the project files for the given platform and compiler. The required CMake command varies slightly depending on the operating system. Within the environment, go to the ``trex/Application/build`` repository (created in the previous step) and execute the compile script for your platform (on a Unix system ``../trex_build_unix.sh``, or on Windows ``../trex_build_windows.bat``) or execute cmake yourself with custom settings (have a look at the compile script for your platform for inspiration). You can also modify them, and add switches to the cmake commands.
 
+On MacOS you may need to adjust the SDK location as well as the deployment target. This can be done in the ``trex_build_unix.sh`` script - there is a line that defines e.g.::
+
+	MACOSX_DEPLOYMENT_TARGET="15.2"
+
+Which you can change to your installed SDK version.
+
 Regarding switches, TRex offers a couple of additional options, with which you can decide to either compile libraries on your own or use existing ones in your system/environment path -- see next section.
 
-The compile scripts will attempt to compile the software in Release mode. To compile in a different mode, simply run ``cmake --build . --config mode``. If compilation succeeds, you should now be able to run |trex| and |grabs| from the command-line, within the environment selected during compilation.
+The compile scripts will attempt to compile the software in Release mode and compile sub packages in a specific order, since I was too lazy to make the CMakeLists work by themselves. To compile in a different mode, let this run and then simply run ``cmake --build . --config Debug``, for example. If compilation succeeds, you should now be able to run |trex| from the command-line, within the environment selected during compilation.
 
 Special needs
 ^^^^^^^^^^^^^
@@ -180,12 +196,10 @@ Special needs
 
 * **WITH_PYLON**: Activates Pylon compatibility, enabling support for machine vision cameras from Basler (using USB interfaces). We tested this with versions 5 and 6. See `Basler Pylon support`_ below.
 * **WITH_FFMPEG**: Enabled by default, but can be forcibly turned off. This enables the streaming of MP4 video when recording from a camera in |grabs|. See `FFMPEG support`_.
-* **WITH_HTTPD**: Disabled by default. Enables a web-server (see `Remote access`_ below).
 * **TREX_BUILD_OPENCV**: If set to ``ON``, |trex| builds its own version of OpenCV with OpenCL support enabled, but otherwise limited features. Avoids using system provided binaries (or binaries in the conda environment) if enabled. See `Use an existing OpenCV distribution`_.
 * **TREX_BUILD_ZIP**: Builds libzip and libz.
 * **TREX_BUILD_PNG**: Builds libpng. If set to ``OFF``, then both libraries have to be provided in a way that CMake can find them.
 * **TREX_BUILD_GLFW**: In order to display windows and graphics inside these windows, GLFW is required. You can use a custom build by enabling this option.
-* **TREX_DONT_USE_PCH**: If you are getting errors from precompiled-headers, enable this option.
 * **TREX_WITH_TESTS**: Build or don't build additional test executables.
 
 Basler Pylon support
