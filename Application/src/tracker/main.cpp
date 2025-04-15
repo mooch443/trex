@@ -622,6 +622,7 @@ int main(int argc, char**argv) {
     
 #ifndef WIN32
     setenv("LC_ALL", "C", 1);
+    setenv("KMP_DUPLICATE_LIB_OK", "True", 1);
 #endif
     
     using namespace gui;
