@@ -1423,7 +1423,9 @@ void Fish::selection_clicked(Event) {
             if(not bg) //|| c_pos.x >= bg->image().cols || c_pos.y >= bg->image().rows || c_pos.y < 0 || c_pos.x < 0)
                 return;
         
-            auto v = 255 - int(bg->image().at(saturate(c_pos.y, 0u, bg->image().rows), saturate(c_pos.x, 0u, bg->image().cols)));
+            auto v = 255 - int(bg->image().at(
+                saturate(c_pos.y, 0u, bg->image().rows - 1), 
+                saturate(c_pos.x, 0u, bg->image().cols - 1)));
             if(v >= 100)
                 v = 220;
             else
