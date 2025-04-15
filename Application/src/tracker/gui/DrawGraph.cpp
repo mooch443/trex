@@ -3,6 +3,7 @@
 #include <tracking/Individual.h>
 #include <gui/DrawStructure.h>
 #include <tracking/OutputLibrary.h>
+#include <gui/types/Button.h>
 
 using namespace track;
 
@@ -20,14 +21,23 @@ namespace cmn::gui {
     }
     
     PropertiesGraph::PropertiesGraph()
-    : _graph(Size2(800, 500), "Individual")
+        : _graph(Size2(880, 550), ""),
+        _close(new Button{
+            attr::Size{30,30},
+            Str{"<sym>✕</sym>"},
+            FillClr{100,50,50,255},
+            TextClr{White}, Font{0.55}, Margins{-5,0,0,0}, Origin{1,0}
+        })
     {
         _graph.set_background(Transparent, Transparent);
+        _graph.set(Loc{10,10});
+        _graph.set(Origin{0, 0});
         set_background(Black.alpha(150), White.alpha(200));
         set_draggable();
         set_clickable(true);
-        set_bounds(Bounds(Vec2(100), _graph.size()));
-        _graph.set_pos(Vec2());
+        set(Origin{0.5, 0.5});
+        set_bounds(Bounds(Vec2(200,150), _graph.size() + Size2(20, 20)));
+        
         //_graph.set_scale(0.8);
         add_event_handler(EventType::DRAG, [this](Event){
             _graph.set_content_changed(true);
@@ -37,6 +47,9 @@ namespace cmn::gui {
                 set_background(Black.alpha(180), White.alpha(200));
             else
                 set_background(Black.alpha(150), White.alpha(200));
+        });
+        _close->on_click([](Event){
+            SETTING(gui_show_graph) = false;
         });
     }
     
@@ -48,7 +61,10 @@ namespace cmn::gui {
 void PropertiesGraph::update() {
     OpenContext([this](){
         advance_wrap(_graph);
+        advance_wrap(*_close);
     });
+    
+    _close->set(Loc{width() - 10, 10});
 }
     
     void PropertiesGraph::setup_graph(Frame_t frameNr, const Range<Frame_t>& range, const Individual* fish, Output::LibraryCache::Ptr cache) {
@@ -82,7 +98,7 @@ void PropertiesGraph::update() {
             }
         }
         
-        _graph.set_title("Individual "+fish->identity().ID().toStr());
+        _graph.set_title(fish->identity().name());
         _graph.set_zero(frameNr.valid() ? frameNr.get() : 0);
         _graph.clear();
         

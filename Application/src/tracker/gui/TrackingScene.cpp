@@ -898,9 +898,15 @@ void TrackingScene::update_run_loop() {
             _data->_background
             && _data->_background->valid()
             && SETTING(gui_wait_for_background).value<bool>();
+        const Frame_t video_conversion_start = _state && _state->video && _state->video->header().conversion_range.start.has_value() ? Frame_t(_state->video->header().conversion_range.start.value()) : Frame_t{};
         const bool gui_show_video_background = SETTING(gui_show_video_background).value<bool>();
         const bool gui_wait_for_pv = SETTING(gui_wait_for_pv).value<bool>();
         const Frame_t gui_displayed_frame = SETTING(gui_displayed_frame).value<Frame_t>();
+        const Frame_t background_displayed_frame = _data->_background && _data->_background->valid()
+            ? (video_conversion_start.valid()
+               ? _data->_background->displayed_frame().try_sub(video_conversion_start)
+               : _data->_background->displayed_frame())
+        : Frame_t{};
         
         _data->_cache->set_load_frames_blocking(false);
         _data->_time_since_last_frame += dt;
@@ -910,8 +916,8 @@ void TrackingScene::update_run_loop() {
         if (advances >= 1) {
             Frame_t rounded_advances{uint32_t(std::round(advances))};
             
-            //Print("* displayed frame = ", gui_displayed_frame, " vs. ",
-            //      _data->_background ? _data->_background->displayed_frame() : Frame_t(), " vs. index=", index, " advance=", rounded_advances);
+            /*Print("* displayed frame = gui(", gui_displayed_frame, ") vs. bg(",
+                  background_displayed_frame, ") vs. index=", index, " advance=", rounded_advances);*/
             
             if (gui_show_video_background
                 && gui_wait_for_background)
@@ -920,8 +926,8 @@ void TrackingScene::update_run_loop() {
                     _data->_background->set_enable_fade(false);
                 
                 /// Only advance if both the GUI and background are synchronized.
-                if (not _data->_background
-                    || _data->_background->displayed_frame() != index)
+                if (not background_displayed_frame.valid()
+                    || background_displayed_frame != index)
                 {
                     rounded_advances = {};
                 } else {

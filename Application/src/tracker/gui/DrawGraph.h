@@ -16,6 +16,7 @@ struct LibraryCache;
 
 namespace cmn::gui {
     class DrawStructure;
+    class Button;
 
     class PropertiesGraph : public Entangled {
         class Graph : public gui::Graph {
@@ -32,6 +33,7 @@ namespace cmn::gui {
         
         //! The graph that was displayed last
         GETTER_NCONST(Graph, graph);
+        derived_ptr<Button> _close;
         
     public:
         PropertiesGraph();
