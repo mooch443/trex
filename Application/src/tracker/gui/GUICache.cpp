@@ -135,7 +135,7 @@ std::unique_ptr<PPFrame> GUICache::PPFrameMaker::operator()() const {
             }
             
         } else {
-            image_pos = blob->rgba_image(*Tracker::background(), threshold, ptr->unsafe_get_source());
+            image_pos = blob->rgba_image(*Tracker::background(), threshold, ptr->unsafe_get_source(), 0);
         }
 
         /*if(Background::meta_encoding() == meta_encoding_t::r3g3b2) {

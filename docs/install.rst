@@ -176,18 +176,36 @@ Create and switch to the build folder::
 	cd ../Application
 	mkdir build
 	cd build
-	
-Now we have to generate the project files for the given platform and compiler. The required CMake command varies slightly depending on the operating system. Within the environment, go to the ``trex/Application/build`` repository (created in the previous step) and execute the compile script for your platform (on a Unix system ``../trex_build_unix.sh``, or on Windows ``../trex_build_windows.bat``) or execute cmake yourself with custom settings (have a look at the compile script for your platform for inspiration). You can also modify them, and add switches to the cmake commands.
 
-On MacOS you may need to adjust the SDK location as well as the deployment target. This can be done in the ``trex_build_unix.sh`` script - there is a line that defines e.g.::
+On MacOS you may need to adjust the SDK location as well as the deployment target. This can be done in the ``Application/trex_build_unix.sh`` script - there is a line that defines e.g.::
 
 	MACOSX_DEPLOYMENT_TARGET="15.2"
 
 Which you can change to your installed SDK version.
+	
+Now we have to generate the project files for the given platform and compiler. The required CMake command varies slightly depending on the operating system. Within the environment, execute the compile script for your platform::
+
+	# Linux/MacOS	
+	../trex_build_unix.sh
+
+	# Windows (Miniforge PowerShell)
+	../trex_build_windows.bat
 
 Regarding switches, TRex offers a couple of additional options, with which you can decide to either compile libraries on your own or use existing ones in your system/environment path -- see next section.
 
-The compile scripts will attempt to compile the software in Release mode and compile sub packages in a specific order, since I was too lazy to make the CMakeLists work by themselves. To compile in a different mode, let this run and then simply run ``cmake --build . --config Debug``, for example. If compilation succeeds, you should now be able to run |trex| from the command-line, within the environment selected during compilation.
+The compile scripts will attempt to compile the software in Release mode and compile sub packages in a specific order, *since I was too lazy to make the CMakeLists work by themselves*. To compile in a different mode, let this run and then simply run ``cmake --build . --config Debug``, for example. If compilation succeeds, you should now be able to run |trex| from the command-line, within the environment selected during compilation.
+
+.. NOTE::
+
+	In order to compile the documentation you'll need a few more packages, installable via pip::
+
+		python -m pip install sphinx-hoverxref sphinx-rtd-theme sphinx-rtd-dark-mode sphinx-copybutton
+
+	Then go to the trex/docs folder and run::
+
+		make html
+
+	This is for HTML, but I am told sphinx supports more formats, too :)
 
 Special needs
 ^^^^^^^^^^^^^
