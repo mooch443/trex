@@ -339,29 +339,29 @@ bool Segmenter::is_average_generating() const {
 }
 
 Image::Ptr Segmenter::finalize_bg_image(const cv::Mat& bg) {
-    const auto image_mode = Background::image_mode();
-    const uint8_t channels = required_channels(image_mode);
+    const auto meta_encoding = Background::meta_encoding();
+    const uint8_t channels = required_storage_channels(meta_encoding);
 
     Image::Ptr ptr = Image::Make(_output_size.height, _output_size.width, channels);
     if(bg.channels() == 3
         && bg.cols == _output_size.width
         && bg.rows == _output_size.height
     ) {
-        if(image_mode == ImageMode::R3G3B2) {
+        if(meta_encoding == meta_encoding_t::r3g3b2) {
             assert(channels == 1);
             auto tmp = ptr->get();
             convert_to_r3g3b2<3>(bg, tmp);
             
         } else if(channels == 1) {
-            assert(image_mode == ImageMode::GRAY);
+            assert(meta_encoding == meta_encoding_t::gray);
             cv::cvtColor(bg, ptr->get(), cv::COLOR_BGR2GRAY);
 
-        } else if(image_mode == ImageMode::RGB) {
+        } else if(meta_encoding == meta_encoding_t::rgb8) {
             assert(channels == 3);
             bg.copyTo(ptr->get());
 
         } else {
-            throw InvalidArgumentException("Invalid ImageMode: ", image_mode, " to convert the background image.");
+            throw InvalidArgumentException("Invalid meta_encoding: ", meta_encoding, " to convert the background image.");
         }
 
     } else {
@@ -372,7 +372,7 @@ Image::Ptr Segmenter::finalize_bg_image(const cv::Mat& bg) {
 }
 
 std::tuple<bool, cv::Mat> Segmenter::get_preliminary_background(Size2 size) {
-    const uint8_t channels = required_channels(Background::image_mode());
+    const uint8_t channels = required_storage_channels(Background::meta_encoding());
     cv::Mat bg = cv::Mat::zeros(_output_size.height, _output_size.width, CV_8UC(channels));
     bg.setTo(255);
 
@@ -419,7 +419,7 @@ void Segmenter::set_metadata() {
 
 void Segmenter::callback_after_generating(cv::Mat &bg) {
     const auto encoding = Background::meta_encoding();
-    const auto channels = required_channels(Background::image_mode());
+    const auto channels = required_storage_channels(encoding);
     
     {
         std::unique_lock guard(_mutex_tracker);
@@ -452,8 +452,8 @@ void Segmenter::callback_after_generating(cv::Mat &bg) {
 }
 
 void Segmenter::trigger_average_generator(bool do_generate_average, cv::Mat& bg) {
-    const auto channels = required_channels(Background::image_mode());
     const auto encoding = Background::meta_encoding();
+    const auto channels = required_image_channels(encoding);
     
     // procrastinate on generating the average async because
     // otherwise the GUI stops responding...
@@ -510,6 +510,12 @@ void Segmenter::trigger_average_generator(bool do_generate_average, cv::Mat& bg)
                 FormatExcept("Exception when generating the average image: ", ex.what());
             } catch(...) {
                 FormatExcept("Unknown exception when generating the average image.");
+            }
+            
+            if(Background::meta_encoding() == meta_encoding_t::r3g3b2) {
+                cv::Mat tmp;
+                convert_to_r3g3b2<3>(bg, tmp);
+                std::swap(tmp, bg);
             }
             
             Image::Ptr ptr;
@@ -665,8 +671,8 @@ void Segmenter::open_camera() {
     camera.set_color_mode(ImageMode::RGB);
     
     /// find out which number of channels we are interested in:
-    const auto encoding = Background::meta_encoding();
-    const uint8_t channels = required_channels(Background::image_mode());
+    //const auto encoding = Background::meta_encoding();
+    //const uint8_t channels = required_image_channels(encoding);
 
     SETTING(frame_rate) = Settings::frame_rate_t(camera.frame_rate() == -1
                                                  ? 25

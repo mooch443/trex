@@ -68,7 +68,7 @@ std::string VideoSourceVideoSource::toStr() const {
 }
 
 uint8_t VideoSourceVideoSource::channels() const {
-	return required_channels(source.colors());
+	return required_storage_channels(source.colors());
 }
 
 std::set<std::string_view> VideoSourceVideoSource::recovered_errors() const {

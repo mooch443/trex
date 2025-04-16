@@ -1,6 +1,7 @@
 #include "Webcam.h"
 #include <misc/GlobalSettings.h>
 #include <misc/Timer.h>
+#include <processing/encoding.h>
 
 namespace fg {
     Webcam::Webcam() {
@@ -76,7 +77,7 @@ namespace fg {
     }
 
     bool Webcam::next(cmn::Image &image) {
-        uint8_t channels = required_channels(_color_mode);
+        uint8_t channels = cmn::required_storage_channels(_color_mode);
         std::unique_lock guard(_mutex);
         if(image.dimensions() != _size || image.dims != channels)
             image.create(_size.height, _size.width, channels, image.index());

@@ -62,7 +62,7 @@ template<typename... Args>
 {
     constexpr size_t argCount = sizeof...(Args);
     auto boundArgs = std::make_tuple(std::forward<Args>(args)...);
-    return py::schedule([closed_loop_path = this->closed_loop_path, boundArgs = std::move(boundArgs), argCount]() mutable {
+    return py::schedule([closed_loop_path = this->closed_loop_path, boundArgs = std::move(boundArgs)]() mutable {
         ModuleProxy proxy{
              closed_loop_path.str(),
              [](ModuleProxy& m) {
@@ -77,6 +77,8 @@ template<typename... Args>
             std::apply([&proxy](auto&&... unpackedArgs) {
                  proxy.run(std::forward<decltype(unpackedArgs)>(unpackedArgs)...);
             }, boundArgs);
+        } else {
+            UNUSED(boundArgs);
         }
      });
 }

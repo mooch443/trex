@@ -850,7 +850,7 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
             const bool tracklet_force_normal_color = SETTING(tracklet_force_normal_color).value<bool>();
             
             const auto encoding = Background::meta_encoding();
-            const uint8_t exp_channels = required_channels(Background::image_mode());
+            const uint8_t exp_channels = required_storage_channels(encoding);
             
             std::map<Idx_t, std::map<Range<Frame_t>, std::queue<std::tuple<Vec2, Frame_t, Idx_t, Image::Ptr>>>> queues;
             PPFrame obj;

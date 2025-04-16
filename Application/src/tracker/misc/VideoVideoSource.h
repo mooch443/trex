@@ -1,4 +1,5 @@
 #pragma once
+#include <commons.pc.h>
 #include <misc/AbstractVideoSource.h>
 #include <video/VideoSource.h>
 #include <misc/DetectionImageTypes.h>

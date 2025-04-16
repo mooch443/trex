@@ -565,7 +565,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         assert(!mask_.empty());
         
         const auto channels = required_storage_channels(encoding());
-        const auto input_channels = full_image.channels();
+        //const auto input_channels = full_image.channels();
         assert(full_image.channels() == required_image_channels(encoding()));
         
         auto mask = std::make_unique<std::vector<HorizontalLine>>(mask_);

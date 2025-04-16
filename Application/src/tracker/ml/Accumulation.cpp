@@ -970,7 +970,7 @@ bool Accumulation::start() {
     }
     
     /// required channels for the images that are being generated
-    const auto channels = required_channels(Background::image_mode());
+    const auto channels = required_image_channels(Background::meta_encoding());
     
     auto && [disc, disc_images, disc_map] = generate_discrimination_data(*_video, _collected_data);
     _discrimination_data = disc;
