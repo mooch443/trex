@@ -7,7 +7,7 @@
     "objects":[
     {
         "type":"video",
-        "path":"gfx/menu_background.mp4",
+        "path":"gfx/menu_{lower:{season}}.mp4",
         "pos":"[{*:{window_size.x}:0.5},{*:{window_size.y}:0.5}]",
         "origin":[0.5,0.5],
         "blur":0.5,
@@ -23,10 +23,13 @@
         "children":[
             {
                 "type":"video",
+                "name":"trex",
                 "pad":[-150,-125,-150,-110],
                 "scale":[0.75,0.75],
-                "frame_seconds":0.1,
-                "path":"gfx/welcome/ComfyUI_00014__page_%1.4d.png"
+                "frame_seconds":0.2,
+                "path":"gfx/welcome/ComfyUI_00014__page_%1.4d.png",
+                "clickable":true,
+                "alpha":"{if:{hovered}:0.5:1}"
             },
             {
                 "type":"vlayout",

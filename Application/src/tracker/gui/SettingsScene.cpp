@@ -768,6 +768,9 @@ struct SettingsScene::Data {
                     }),
                     VarFunc("checks_running", [this](const VarProps&) -> bool {
                         return _are_python_tasks_running.load() > 0 || _are_video_checks_running;
+                    }),
+                    VarFunc("season", [](const VarProps&) {
+                        return GlobalSettings::currentSeason().toStr();
                     })
                 }
             };

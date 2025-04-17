@@ -33,5 +33,9 @@ public:
 
     void _draw(DrawStructure& graph);
     bool on_global_event(Event) override;
+    
+private:
+    void update_recent_items();
+    void update_search_filters();
 };
 }

@@ -57,7 +57,6 @@ file::Path pv_file_path_for(const file::PathArray& array) {
 void StartingScene::activate() {
     WorkProgress::instance().start();
     settings::load({}, {}, default_config::TRexTask_t::none, {}, {}, {});
-    _recents = RecentItems::read();
     
     using namespace dyn;
     // Fill the recent items list
@@ -67,7 +66,30 @@ void StartingScene::activate() {
     
     ((IMGUIBase*)window())->center({});
     
+    update_recent_items();
+    
+    RecentItems::set_select_callback([](RecentItemJSON item){
+        item._options.set_print_by_default(true);
+        
+        SETTING(output_dir) = file::Path(item.output_dir);
+        SETTING(output_prefix) = item.output_prefix;
+        SETTING(filename) = file::Path(item.filename);
+        
+        for (auto& key : item._options.keys())
+            item._options[key].get().copy_to(GlobalSettings::map());
+        
+        //CommandLine::instance().load_settings();
+        
+        //RecentItems::open(item.operator DetailItem().detail(), GlobalSettings::map());
+        //SceneManager::getInstance().set_active("convert-scene");
+        SceneManager::getInstance().set_active("settings-scene");
+    });
+}
+
+void StartingScene::update_recent_items() {
     // Fill list variable
+    _recents = RecentItems::read();
+    
     _recents_list.clear();
     _data.clear();
     _corpus.clear();
@@ -91,8 +113,8 @@ void StartingScene::activate() {
         
         _data.push_back(std::move(tmp));
         
-        _recents_list.emplace_back(new Variable{
-            [i, this](const VarProps&) -> sprite::Map& {
+        _recents_list.emplace_back(new dyn::Variable{
+            [i, this](const dyn::VarProps&) -> sprite::Map& {
                 return _data[i];
             }
         });
@@ -103,29 +125,18 @@ void StartingScene::activate() {
     _preprocessed_corpus = preprocess_corpus(_corpus);
     
     /// perform a search in all the texts
+    update_search_filters();
+}
+
+void StartingScene::update_search_filters() {
+    
+    /// perform a search in all the texts
     _filtered_recents.clear();
     auto indexes = text_search(_search_text, _corpus, _preprocessed_corpus);
     
     for(auto index : indexes) {
         _filtered_recents.emplace_back(_recents_list.at(index));
     }
-    
-    RecentItems::set_select_callback([](RecentItemJSON item){
-        item._options.set_print_by_default(true);
-        
-        SETTING(output_dir) = file::Path(item.output_dir);
-        SETTING(output_prefix) = item.output_prefix;
-        SETTING(filename) = file::Path(item.filename);
-        
-        for (auto& key : item._options.keys())
-            item._options[key].get().copy_to(GlobalSettings::map());
-        
-        //CommandLine::instance().load_settings();
-        
-        //RecentItems::open(item.operator DetailItem().detail(), GlobalSettings::map());
-        //SceneManager::getInstance().set_active("convert-scene");
-        SceneManager::getInstance().set_active("settings-scene");
-    });
 }
 
 void StartingScene::deactivate() {
@@ -220,11 +231,12 @@ void StartingScene::_draw(DrawStructure& graph) {
                         
                         SceneManager::getInstance().set_active("settings-scene");
                     }),
-                    ActionFunc("clear_recent_items", [](auto) {
-                        SceneManager::enqueue([](auto, DrawStructure& base){
-                            base.dialog([](Dialog::Result r) {
+                    ActionFunc("clear_recent_items", [this](auto) {
+                        SceneManager::enqueue([this](auto, DrawStructure& base){
+                            base.dialog([this](Dialog::Result r) {
                                 if (r == Dialog::OKAY) {
                                     RecentItems::reset_file();
+                                    update_recent_items();
                                 }
 
                             }, "<b>Are you sure you want to clear your recent items list?</b>\nThis action can not be undone.", "Clear List", "Yes", "Cancel");
@@ -236,6 +248,9 @@ void StartingScene::_draw(DrawStructure& graph) {
                     VarFunc("recent_items", [this](const VarProps&) -> std::vector<std::shared_ptr<dyn::VarBase_t>>&
                     {
                         return _filtered_recents;
+                    }),
+                    VarFunc("season", [](const VarProps&) {
+                        return GlobalSettings::currentSeason().toStr();
                     }),
                     VarFunc("window_size", [](const VarProps&) -> Vec2 {
                         return FindCoord::get().screen_size();
@@ -286,17 +301,15 @@ void StartingScene::_draw(DrawStructure& graph) {
                         search->set(LineClr{ layout.get(Transparent, "line") });
                         search->set(FillClr{ layout.get(Transparent, "fill") });
                         
-                        search->on_text_changed([this, ptr = search.get()](){
+                        search->on_text_changed([this, weak = std::weak_ptr(search.get_smart())](){
+                            auto ptr = weak.lock();
+                            if(not ptr)
+                                return;
+                            
                             _search_text = ptr->text();
-                            
-                            /// perform a search in all the texts
-                            _filtered_recents.clear();
-                            auto indexes = text_search(_search_text, _corpus, _preprocessed_corpus);
-                            
-                            for(auto index : indexes) {
-                                _filtered_recents.emplace_back(_recents_list.at(index));
-                            }
+                            update_search_filters();
                         });
+                        
                         return Layout::Ptr(search);
                     },
                     [](Layout::Ptr&, const Context& , State& , const auto& ) -> bool {

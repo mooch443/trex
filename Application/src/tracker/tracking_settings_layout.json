@@ -28,7 +28,7 @@
     {
         "type":"video",
         "clickable":true,
-        "path":"{if:{video_file}:{video_file}:gfx/menu_background.mp4}",
+        "path":"{if:{video_file}:{video_file}:gfx/menu_{lower:{season}}.mp4}",
         "pos":"[{*:{window_size.x}:0.5},{*:{window_size.y}:0.5}]",
         "origin":[0.5,0.5],
         "blur":"{if:{hovered}:0.01:0.7}",
