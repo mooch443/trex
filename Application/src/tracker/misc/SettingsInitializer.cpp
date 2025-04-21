@@ -974,7 +974,7 @@ void load(file::PathArray source,
                 sprite::Map tmp;
                 tmp["meta_source_path"] = std::string(rejected.at("meta_source_path"));
                 if(not set_config_if_different("meta_source_path", tmp)) {
-                    print("// meta_source_path = ",tmp.at("meta_source_path").get().valueString()," not set");
+                    Print("// meta_source_path = ",tmp.at("meta_source_path").get().valueString()," not set");
                 }
                 tmp.at("meta_source_path").get().copy_to(GlobalSettings::current_defaults_with_config());
             }
