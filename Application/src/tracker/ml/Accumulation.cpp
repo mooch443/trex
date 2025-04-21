@@ -2128,7 +2128,7 @@ void Accumulation::update_display(gui::Entangled &e, const std::string& text) {
             return x>=0 && size_t(x) < _current_accumulation->_current_per_class.size() ? _current_accumulation->_current_per_class.at(size_t(x)) : GlobalSettings::invalid();
         }, Cyan));
         _graph->set_ranges(Rangef(0, float(FAST_SETTING(track_max_individuals))-1), Rangef(0, 1));
-        _graph->set_background(Transparent, Transparent);
+        _graph->reset_bg();
         _graph->set_margin(Vec2(10,2));
     }
     

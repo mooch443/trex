@@ -38,7 +38,7 @@ struct DrawDataset::Data {
         _initial_pos_set(false),
         _data(std::make_unique<Data>())
     {
-        set_background(_color);
+        set(FillClr{_color});
         //set_origin(Vec2(1));
         on_hover([this](Event e) {
             update_background_color(e.hover.hovered);
@@ -54,10 +54,13 @@ struct DrawDataset::Data {
 
 void DrawDataset::update_background_color(bool hovered) {
     auto c = _color;//Color::blend(_color.alpha(150), Black.alpha(255));
-    if(hovered)
-        this->set_background(Black.alpha(200), c.alpha(200));
-    else
-        this->set_background(Black.alpha(100), c.alpha(100));
+    if(hovered) {
+        this->set(FillClr{Black.alpha(200)});
+        this->set(LineClr{c.alpha(200)});
+    } else {
+        this->set(FillClr{Black.alpha(100)});
+        this->set(LineClr{c.alpha(100)});
+    }
 }
 
 DrawDataset::~DrawDataset() {}

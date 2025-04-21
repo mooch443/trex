@@ -970,14 +970,14 @@ void load(file::PathArray source,
             
             warn_deprecated(settings_file, rejected);
             
-            /*if(rejected.contains("meta_source_path")) {
+            if(rejected.contains("meta_source_path")) {
                 sprite::Map tmp;
                 tmp["meta_source_path"] = std::string(rejected.at("meta_source_path"));
                 if(not set_config_if_different("meta_source_path", tmp)) {
                     print("// meta_source_path = ",tmp.at("meta_source_path").get().valueString()," not set");
                 }
-                //tmp.at("meta_source_path").get().copy_to(GlobalSettings::current_defaults_with_config());
-            }*/
+                tmp.at("meta_source_path").get().copy_to(GlobalSettings::current_defaults_with_config());
+            }
             
             //auto before = combined.map.print_by_default();
             //combined.map.set_print_by_default(false);

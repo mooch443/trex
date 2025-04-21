@@ -505,7 +505,7 @@ void WorkProgress::update(IMGUIBase* window, gui::DrawStructure &base, gui::Sect
                 gui->static_desc.set_pos(offset);
                 gui->static_desc.set_origin(Vec2(0.5, 0));
                 gui->static_desc.set_max_size(screen_dimensions * 0.66);
-                gui->static_desc.set_background(Transparent, Transparent);
+                gui->static_desc.reset_bg();
                 
                 base.advance_wrap(gui->static_desc);
                 offset.y += gui->static_desc.height();
@@ -520,7 +520,7 @@ void WorkProgress::update(IMGUIBase* window, gui::DrawStructure &base, gui::Sect
                 
                 gui->_additional.set_origin(Vec2(0.5, 0));
                 gui->_additional.set_pos(offset);
-                gui->_additional.set_background(Transparent, Transparent);
+                gui->_additional.reset_bg();
                 gui->_additional.auto_size(Margin{0,0});
                 
                 offset.y += gui->_additional.height() + 10;
@@ -589,7 +589,8 @@ void WorkProgress::update(IMGUIBase* window, gui::DrawStructure &base, gui::Sect
         }
         
         gui->work_progress.set_origin(Vec2(0.5));
-        gui->work_progress.set_background(Black.alpha(125));
+        gui->work_progress.set(FillClr{Black.alpha(125)});
+        gui->work_progress.set(LineClr{Transparent});
         
         Vec2 screen_offset;
         

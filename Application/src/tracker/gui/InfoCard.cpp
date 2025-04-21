@@ -851,7 +851,7 @@ void InfoCard::update() {
         advance_wrap(tooltip);
     }
     
-    set_background(bg);
+    set(FillClr{bg});
 }
     
     void InfoCard::update(gui::DrawStructure &base, Frame_t frameNr) {

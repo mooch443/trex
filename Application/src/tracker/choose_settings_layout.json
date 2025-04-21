@@ -48,11 +48,20 @@
     "origin":"{if:{is_small_window}:[0,0]:[0.5,0]}",
     "pad":[20,0,0,5],
     "children":[
-        { "type":"stext",
-          "pad":[2,25,0,20],
-          "max_size":"[{min:1024:{-:{window_size.x}:25}},150]",
-          "text":"<h2>Configuration</h2>\n<lightgray>Below are three sections where you can configure the input and output of your project as well as the detection and tracking settings. If you are unsure what to do, you can leave most default settings as they are.</lightgray>", 
-          "font":{ "size":0.7 }
+        {
+            "type":"vlayout",
+            "pad":[0,20,0,-1],
+            "children":[
+                { "type":"stext",
+                "name":"title",
+                "fill":[0,0,0,0],
+                "pad":[10,20,10,20],
+                "max_size":"[{min:1024:{-:{window_size.x}:25}},150]",
+                "text":"<h1><sym>🛠</sym> Configuration</h1> {if:{hovered}:<lightgray>:<lightcyan>}<sym>🛈</sym>{if:{hovered}:</lightgray>:</lightcyan>}", 
+                "font":{ "size":0.85 },
+                "clickable":true
+                }
+            ]
         },
         {
             "type":"hlayout",
@@ -68,19 +77,24 @@
                     "children":[
                         {
                             "type":"collection",
-                            "fill":[20,20,20,220],
+                            "fill":[20,50,80,220],
                             "clickable":true,
                             "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
-                            "size":[249,40],
+                            "size":[249,50],
                             "children":[
                                 {
-                                    "pos":[123.5,20],
+                                    "type":"rect",
+                                    "fill":[0,0,0,25],
+                                    "size":[249,5]
+                                },
+                                {
+                                    "pos":[123.5,24.5],
                                     "origin":[0.5,0.5],
                                     "type":"stext",
                                     "text":"<sym>🗁</sym> Locations",
                                     "font":{
                                         "align":"center",
-                                        "size":0.65
+                                        "size":0.75
                                     }
                                 }
                             ]
@@ -90,10 +104,10 @@
                             "text":"<sym>💻</sym> Detection",
                             "fill":[40,40,40,220],
                             "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
-                            "size":[249,40],
+                            "size":[249,50],
                             "font":{
                                 "align":"center",
-                                "size":0.65
+                                "size":0.75
                             },
                             "action": "change_layout:settings_layout"
                         },
@@ -102,10 +116,10 @@
                             "text":"<sym>🐟</sym> Tracking",
                             "fill":[40,40,40,220],
                             "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
-                            "size":[249,40],
+                            "size":[249,50],
                             "font":{
                                 "align":"center",
-                                "size":0.65
+                                "size":0.75
                             },
                             "action": "change_layout:tracking_settings_layout"
                         }
@@ -471,6 +485,21 @@
         }
     ]},
 
+    {
+        "type":"condition",
+        "var":"{hovered:title}",
+        "then":
+        {
+            "type":"stext",
+            "pos":"[{+:20:{max:{mouse.x}:{at:0:{dimensions:title}}}},{mouse.y}]",
+            "fill":[0,0,0,200],
+            "alpha":1,
+            "pad":[10,10,10,10],
+            "font":{"size":0.75},
+            "text": "<lightgray>Below are three sections where you can configure the input and output of your project as well as the detection and tracking settings. If you are unsure what to do, you can leave most default settings as they are.</lightgray>",
+            "max_size":"[{min:512:{-:{window_size.x}:25}},150]"
+        }
+    },
     {
         "type":"collection",
         "fill":[20,20,20,150],

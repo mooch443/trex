@@ -29,7 +29,7 @@ void Label::update() {
         _text->set(FillClr{ _fill_color });
     }
     else {
-        _text->set_background(Transparent, Transparent);
+        _text->reset_bg();
     }
 
     advance_wrap(_line);

@@ -42,7 +42,7 @@ namespace cmn::gui {
         obj.set_origin(Vec2(0.5));
         obj.set_bounds(Bounds(Vec2(Tracker::average().cols, Tracker::average().rows) * 0.5f,
                               Size2(sidebar_width * 1.5f, Base::default_line_spacing(font) + margin + title_height) + Size2(margin * 2) + bar_width * Size2(output_size, sorted.size())));
-        obj.set_background(Black.alpha(150));
+        obj.set(FillClr{Black.alpha(150)});
 
         if(!cache.recognition_updated) {
             obj.update([&] (Entangled& base) {

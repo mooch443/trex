@@ -53,12 +53,12 @@ void ConfirmedCrossings::draw(gui::DrawStructure & base, Frame_t frame) {
         }
         
         if((frame <= last.foi.frames().end || (!_current_queue.empty() && frame < _current_queue.front().foi.frames().start - 1_f)) && frame >= last.foi.frames().start) {
-            _text->set_background(Color(0,50,0,50));
+            _text->set(FillClr{0,50,0,50});
         }
-        else
-            _text->set_background(Color(50,0,0,50));
+        else _text->set(FillClr{50,0,0,50});
+        
     } else
-        _text->set_background(Black.alpha(50));
+        _text->set(FillClr{Black.alpha(50)});
 
     if(!_wrong.empty() || !_confirmed.empty())
     {

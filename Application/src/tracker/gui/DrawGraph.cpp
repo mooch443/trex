@@ -29,24 +29,27 @@ namespace cmn::gui {
             TextClr{White}, Font{0.55}, Margins{-5,0,0,0}, Origin{1,0}
         })
     {
-        _graph.set_background(Transparent, Transparent);
+        _graph.reset_bg();
         _graph.set(Loc{10,10});
         _graph.set(Origin{0, 0});
-        set_background(Black.alpha(150), White.alpha(200));
+        _graph.set(Graph::DisplayLabels::Outside);
+        set(FillClr{Black.alpha(150)});
+        set(LineClr{White.alpha(200)});
         set_draggable();
         set_clickable(true);
         set(Origin{0.5, 0.5});
-        set_bounds(Bounds(Vec2(200,150), _graph.size() + Size2(20, 20)));
+        set_bounds(Bounds(Vec2(200 + _graph.size().width * 0.5,150 + _graph.size().height * 0.5), _graph.size() + Size2(20, 20)));
         
         //_graph.set_scale(0.8);
         add_event_handler(EventType::DRAG, [this](Event){
             _graph.set_content_changed(true);
         });
         on_hover([this](Event e){
-            if(e.hover.hovered)
-                set_background(Black.alpha(180), White.alpha(200));
-            else
-                set_background(Black.alpha(150), White.alpha(200));
+            if(e.hover.hovered) {
+                set(FillClr{Black.alpha(180)});
+            } else {
+                set(FillClr{Black.alpha(150)});
+            }
         });
         _close->on_click([](Event){
             SETTING(gui_show_graph) = false;

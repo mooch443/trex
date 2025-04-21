@@ -55,7 +55,7 @@ DrawUniqueness::DrawUniqueness(GUICache* cache, std::weak_ptr<pv::File> video_so
     _data->_cache = cache;
     _data->_video_source = video_source;
     _data->graph.set_clickable(false);
-    _data->graph.set_background(Transparent);
+    _data->graph.reset_bg();
     on_click([this](Event e){
         auto frames = max(0_F, (Float2_t)_data->_cache->tracked_frames.end.get() - (Float2_t)_data->_cache->tracked_frames.start.get());
         if(_data && _data->graph.size().width > 0 && _data->graph.bounds().contains(Vec2(e.mbutton.x, e.mbutton.y)))
@@ -322,10 +322,12 @@ void DrawUniqueness::Data::update(Entangled& base) {
         base.set_size(size);
         
         if(base.hovered()) {
-            base.set_background(Black.alpha(200), Color::blend(Green.alpha(100), White.alpha(200)).alpha(200));
+            base.set(FillClr{Black.alpha(200)});
+            base.set(LineClr{Color::blend(Green.alpha(100), White.alpha(200)).alpha(200)});
             base.advance_wrap(hover_rect);
         } else {
-            base.set_background(Black.alpha(125), White.alpha(200));
+            base.set(FillClr{Black.alpha(125)});
+            base.set(LineClr{White.alpha(200)});
         }
     }
 #endif

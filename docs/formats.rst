@@ -238,6 +238,10 @@ We can now map from segments (meta) to tracklet images from the big file
     9 19252 - 19305 (54, 80, 80)
     9 19306 - 19316 (11, 80, 80)
     
+Further examples
+----------------
+
+Please have a look `here <https://github.com/mooch443/trex/blob/806805333f53739a66017f2a07b95a81550674ca/docs/notebooks/LoadTrackletImages.ipynb>`_ for a more detailed example of how to load and plot tracklet images. It also shows how to use the meta data to extract images for specific individuals and segments with different :param:`meta_encoding` settings.
 
 Visual fields
 =============

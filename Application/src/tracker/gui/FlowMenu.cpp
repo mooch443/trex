@@ -97,7 +97,7 @@ namespace cmn::gui {
             //if(stage())
             //    _bg.set_bounds(Bounds(-pos(), Size2(stage()->width(), stage()->height())));
             //_bg.set_fillclr();
-            set_background(Black.alpha(180));
+            set(FillClr{Black.alpha(180)});
         }
         
         auto ctx = OpenContext();

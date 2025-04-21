@@ -43,12 +43,15 @@ bool Posture::valid() const {
         if(hovered() && scroll_enabled()) {
             set_scroll_enabled(false);
             set_content_changed(true);
-            set_background(Black.alpha(125), Color(100,175,250,200).alpha(125));
+            set(FillClr{Black.alpha(125)});
+            set(LineClr{Color(100,175,250,200).alpha(125)});
+            //set_background(Black.alpha(125), Color(100,175,250,200).alpha(125));
         } else if(!hovered() && !scroll_enabled()) {
             set_scroll_enabled(true);
             set_scroll_limits(Rangef(0,0), Rangef(0,0));
             set_content_changed(true);
-            set_background(Transparent, Transparent);
+            //set_background(Transparent, Transparent);
+            reset_bg();
         } //else if(!content_changed())
             //return;
         

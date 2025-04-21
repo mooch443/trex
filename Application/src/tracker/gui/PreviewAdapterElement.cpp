@@ -34,7 +34,7 @@ class IndividualImage : public Entangled {
     
 public:
     using Entangled::set;
-    void set_data(Idx_t fdx, Frame_t frame, pv::BlobWeakPtr blob, const Background* background, const constraints::FilterCache* filters, const Midline* midline) {
+    void set_data(Idx_t fdx, Frame_t frame, pv::BlobWeakPtr blob, const track::Background* background, const constraints::FilterCache* filters, const Midline* midline) {
         // already set
         if(fdx == _fdx && _frame == frame && not settings_changed())
             return;

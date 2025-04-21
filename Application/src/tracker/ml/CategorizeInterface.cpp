@@ -455,7 +455,8 @@ void Row::init(size_t additions) {
     }
     
     layout->set_origin(Vec2(0.5));
-    layout->set_background(Transparent);
+    //layout->set_background(Transparent);
+    layout->reset_bg();
 }
 
 void Row::clear() {

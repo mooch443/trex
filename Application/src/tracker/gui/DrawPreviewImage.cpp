@@ -400,10 +400,11 @@ void draw(const Background* average, const PPFrame& pp,Frame_t frame, DrawStruct
         preview_data().preview.set_origin(Vec2(0.5, 0));
         preview_data().preview.set_clickable(true);
         preview_data().preview.set_draggable();
-        preview_data().preview.set_background(DarkCyan.exposure(0.5).alpha(100), Red.alpha(50));
+        preview_data().preview.set(FillClr{DarkCyan.exposure(0.5).alpha(100)});
+        preview_data().preview.set(LineClr{Red.alpha(50)});
         
         text.set_clickable(false);
-        text.set_background(Black.alpha(5), Transparent);
+        text.set(FillClr{Black.alpha(5)});
         
         button.on_click([](auto){
             SETTING(gui_show_individual_preview) = false;
