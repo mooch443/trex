@@ -64,7 +64,8 @@ AnimatedBackground::AnimatedBackground(Image::Ptr&& image, const pv::File* video
         }
     }
 
-    std::array<std::string, 3> tests {
+    std::array<std::string, 4> tests {
+        SETTING(meta_source_path).value<std::string>(),
         meta_source_path,
         file::DataLocation::parse("input", meta_source_path).str(),
         file::DataLocation::parse("output", meta_source_path).str()
