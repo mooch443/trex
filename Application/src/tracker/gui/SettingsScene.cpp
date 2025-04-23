@@ -55,7 +55,7 @@ struct SettingsScene::Data {
     std::atomic<size_t> _are_python_tasks_running{0};
     std::atomic<bool> _are_video_checks_running{false};
     
-    std::unordered_map<std::string, std::tuple<track::detect::DetectResolution, track::detect::ObjectDetectionFormat_t, track::detect::yolo::names::owner_map_t>> _cached_resolutions;
+    std::unordered_map<std::string, std::tuple<track::detect::DetectResolution, track::detect::ObjectDetectionFormat_t, blob::MaybeObjectClass_t>> _cached_resolutions;
     sprite::Map _defaults;
     std::stack<std::string> _last_layouts;
     
@@ -137,6 +137,8 @@ struct SettingsScene::Data {
                       region_model = SETTING(region_model).value<file::Path>()]()
             {
                 try {
+                    auto original_detect_classes = SETTING(detect_classes).value<blob::MaybeObjectClass_t>();
+                    
                     if(not detect_model.empty()
                        && (track::detect::yolo::is_valid_default_model(detect_model.str())
                            || detect_model.is_regular()))
@@ -163,18 +165,19 @@ struct SettingsScene::Data {
                             /// for no cache, reinit:
                             try {
                                 /// have to clear this before running init, so it will be populated
-                                SETTING(detect_classes) = track::detect::yolo::names::owner_map_t{};
+                                SETTING(detect_classes) = blob::MaybeObjectClass_t{};
                                 
                                 /// populate the settings fields we need
                                 track::YOLO::init();
                                 /// -----
                                 
+                                auto detect_classes = SETTING(detect_classes).value<blob::MaybeObjectClass_t>();
                                 auto format = SETTING(detect_format).value<track::detect::ObjectDetectionFormat_t>();
                                 
                                 _cached_resolutions[detect_model.str()] = {
                                     SETTING(detect_resolution).value<track::detect::DetectResolution>(),
                                     format,
-                                    SETTING(detect_classes).value<track::detect::yolo::names::owner_map_t>()
+                                    detect_classes
                                 };
                                 
                                 if(format != track::detect::ObjectDetectionFormat::poses)
@@ -185,7 +188,7 @@ struct SettingsScene::Data {
                                         _cached_resolutions[region_model.str()] = {
                                             SETTING(region_resolution).value<track::detect::DetectResolution>(),
                                             track::detect::ObjectDetectionFormat::none,
-                                            track::detect::yolo::names::owner_map_t{}
+                                            blob::MaybeObjectClass_t{}
                                         };
                                     }
                                 }
@@ -197,7 +200,7 @@ struct SettingsScene::Data {
                                 SETTING(detect_resolution) = track::detect::DetectResolution{};
                                 SETTING(region_resolution) = track::detect::DetectResolution{};
                                 SETTING(detect_format) = track::detect::ObjectDetectionFormat::none;
-                                SETTING(detect_classes) = track::detect::yolo::names::owner_map_t{};
+                                SETTING(detect_classes) = blob::MaybeObjectClass_t{};
                                 
                                 FormatWarning("Failed to initialize ", SETTING(detect_model).value<file::Path>());
                             }
@@ -206,7 +209,17 @@ struct SettingsScene::Data {
                         SETTING(detect_resolution) = track::detect::DetectResolution{};
                         SETTING(region_resolution) = track::detect::DetectResolution{};
                         SETTING(detect_format) = track::detect::ObjectDetectionFormat::none;
-                        SETTING(detect_classes) = track::detect::yolo::names::owner_map_t{};
+                        SETTING(detect_classes) = blob::MaybeObjectClass_t{};
+                    }
+                    
+                    if(auto detect_classes = SETTING(detect_classes).value<blob::MaybeObjectClass_t>();
+                       original_detect_classes.has_value()
+                       && (not detect_classes.has_value()
+                           || (extract_keys(detect_classes.value()) == extract_keys(original_detect_classes.value())
+                               && detect_classes.value() != original_detect_classes.value())))
+                    {
+                        Print("// Replacing models original classes ", detect_classes, " with custom classes ", original_detect_classes);
+                        SETTING(detect_classes) = original_detect_classes;
                     }
                     
                     --_are_python_tasks_running;

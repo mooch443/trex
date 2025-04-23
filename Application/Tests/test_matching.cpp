@@ -30,7 +30,7 @@ static void resetGlobalSettings()
     
     // Clear out the global SETTING(...) states used by these tests:
     SETTING(output_fields) = std::vector<std::pair<std::string, std::vector<std::string>>>{};
-    SETTING(detect_classes) = track::detect::yolo::names::owner_map_t{};
+    SETTING(detect_classes) = cmn::blob::MaybeObjectClass_t{};
     // Also reset the keypoint format setting if needed.
     // Assuming KeypointFormat has a default constructor or can be reset to a default value.
     SETTING(detect_keypoint_format) = KeypointFormat{};

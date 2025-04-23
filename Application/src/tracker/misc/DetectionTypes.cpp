@@ -77,7 +77,7 @@ namespace yolo {
 namespace names {
 
 std::mutex names_mutex;
-std::optional<owner_map_t> names_owner;
+cmn::blob::MaybeObjectClass_t names_owner;
 std::optional<map_t> easy_cp_names_reference;
 std::optional<vec_t> easy_cp_names_vector;
 
@@ -93,7 +93,12 @@ void check_callbacks() {
             "detect_classes"
         }, [](auto) {
             std::unique_lock g(names_mutex);
-            names_owner = SETTING(detect_classes).value<owner_map_t>();
+            auto detect_classes = SETTING(detect_classes).value<cmn::blob::MaybeObjectClass_t>();
+            if(not detect_classes) {
+                names_owner = cmn::blob::ObjectClass_t{};
+            } else {
+                names_owner = detect_classes.value();
+            }
             easy_cp_names_vector.reset();
             easy_cp_names_reference.reset();
         });

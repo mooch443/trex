@@ -1597,6 +1597,19 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                 auto frame = Meta::fromStr<Frame_t>(props.parameters.front());
                 return _data->_cache->tracked_frames.contains(frame);
             }),
+            VarFunc("fois", [](const VarProps& ) -> std::vector<Frame_t>
+            {
+                auto name = SETTING(gui_foi_name).value<std::string>();
+                auto id = FOI::to_id(name);
+                std::vector<Frame_t> frames;
+                auto fois = FOI::foi(id);
+                if(fois) {
+                    for(const FOI& foi : *fois) {
+                        frames.push_back(foi.frames().start);
+                    }
+                }
+                return frames;
+            }),
             VarFunc("active_individuals", [this](const VarProps& props) -> size_t {
                 if(props.parameters.size() != 1)
                     throw std::invalid_argument("Need exactly one argument for "+props.toStr());

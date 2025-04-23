@@ -2842,48 +2842,54 @@ void process_qr(Frame_t after_frame,
     }
 }
 
-void apply(
+struct AssignmentContext {
 #ifdef TREX_DEBUG_IDENTITIES
- auto f,
+    std::FILE* debugLog;
 #endif
- auto& still_unassigned,
- auto& manual_splits,
- auto &assigned_ranges,
- auto& tmp_assigned_ranges,
- Idx_t fdx,
- const Individual* fish,
- const FrameRange& tracklet,
- Idx_t prev_id,
- Idx_t next_id,
- const MotionRecord* prev_pos,
- const MotionRecord* next_pos)
+    std::map<Idx_t, std::set<Range<Frame_t>>>& unassignedRanges;
+    Settings::manual_splits_t& manualSplits;
+    std::map<Idx_t, std::map<Range<Frame_t>, Idx_t>>& assignedRanges;
+    std::vector<AutoAssign::RangesForID>& tempAssignedRanges;
+};
+
+struct TrackletData {
+    Idx_t fishIndex;
+    const Individual* fishPtr;
+    FrameRange trackletRange;
+    Idx_t previousIdentity;
+    Idx_t nextIdentity;
+    const MotionRecord* previousPosition;
+    const MotionRecord* nextPosition;
+};
+
+void assignTrackletIdentity(const AssignmentContext& ctx, const TrackletData& data)
 {
     Vec2 pos_start(FLT_MAX), pos_end(FLT_MAX);
-    auto blob_start = fish->centroid_weighted(tracklet.start());
-    auto blob_end = fish->centroid_weighted(tracklet.end());
+    auto blob_start = data.fishPtr->centroid_weighted(data.trackletRange.start());
+    auto blob_end = data.fishPtr->centroid_weighted(data.trackletRange.end());
     if (blob_start)
         pos_start = blob_start->pos<Units::CM_AND_SECONDS>();
     if (blob_end)
         pos_end = blob_end->pos<Units::CM_AND_SECONDS>();
 
     if (blob_start && blob_end) {
-        auto dprev = euclidean_distance(prev_pos->pos<Units::CM_AND_SECONDS>(), pos_start)
-            / abs(blob_start->time() - prev_pos->time());
-        auto dnext = euclidean_distance(next_pos->pos<Units::CM_AND_SECONDS>(), pos_end)
-            / abs(next_pos->time() - blob_end->time());
+        auto dprev = euclidean_distance(data.previousPosition->pos<Units::CM_AND_SECONDS>(), pos_start)
+            / abs(blob_start->time() - data.previousPosition->time());
+        auto dnext = euclidean_distance(data.nextPosition->pos<Units::CM_AND_SECONDS>(), pos_end)
+            / abs(data.nextPosition->time() - blob_end->time());
         Idx_t chosen_id;
 
         if (dnext < dprev) {
             if (dprev < FAST_SETTING(track_max_speed) * 0.1)
-                chosen_id = next_id;
+                chosen_id = data.nextIdentity;
         }
         else if (dnext < FAST_SETTING(track_max_speed) * 0.1)
-            chosen_id = prev_id;
+            chosen_id = data.previousIdentity;
 
         if (chosen_id.valid()) {
 #ifdef TREX_DEBUG_IDENTITIES
-            if (tracklet.start() == 0_f) {
-                log(f, "Fish ", fdx, ": chosen_id ", chosen_id, ", assigning ", tracklet, " (", dprev, " / ", dnext, ")...");
+            if (data.trackletRange.start() == 0_f) {
+                log(ctx.debugLog, "Fish ", data.fishIndex, ": chosen_id ", chosen_id, ", assigning ", data.trackletRange, " (", dprev, " / ", dnext, ")...");
             }
 #endif
 
@@ -2892,24 +2898,21 @@ void apply(
             std::set<Range<Frame_t>> remove_from;
 #endif
             std::vector<pv::bid> blob_ids;
-            
-            for (Frame_t frame = tracklet.start(); frame <= tracklet.end(); ++frame) {
-                auto blob = fish->compressed_blob(frame);
+
+            for (Frame_t frame = data.trackletRange.start(); frame <= data.trackletRange.end(); ++frame) {
+                auto blob = data.fishPtr->compressed_blob(frame);
 
                 if (blob) {
-                    //automatically_assigned_blobs[frame][blob->blob_id()] = fdx;
                     blob_ids.push_back(blob->blob_id());
-                    //if(blob->split() && blob->parent_id().valid())
-                    //    manual_splits[frame].insert(blob->parent_id());
                 }
                 else
                     blob_ids.push_back(pv::bid::invalid);
 
-                auto it = std::find(tmp_assigned_ranges.begin(), tmp_assigned_ranges.end(), chosen_id);
-                if (it != tmp_assigned_ranges.end()) {
+                auto it = std::find(ctx.tempAssignedRanges.begin(), ctx.tempAssignedRanges.end(), chosen_id);
+                if (it != ctx.tempAssignedRanges.end()) {
                     for (auto&& [range, blobs] : it->ranges)
                     {
-                        if (range != tracklet.range && range.contains(frame)) {
+                        if (range != data.trackletRange.range && range.contains(frame)) {
 #ifndef NDEBUG
                             remove_from.insert(range);
 #endif
@@ -2922,27 +2925,27 @@ void apply(
 
             if (remove) {
 #ifndef NDEBUG
-                FormatWarning("[ignore] While assigning ", tracklet.range.start, "-", tracklet.range.end, " to ", chosen_id, " -> same fish already assigned in ranges ", remove_from);
+                FormatWarning("[ignore] While assigning ", data.trackletRange.range.start, "-", data.trackletRange.range.end, " to ", chosen_id, " -> same fish already assigned in ranges ", remove_from);
 #else
-                FormatWarning("[ignore] While assigning ", tracklet.range.start, "-", tracklet.range.end, " to ", chosen_id, " -> same fish already assigned in another range.");
+                FormatWarning("[ignore] While assigning ", data.trackletRange.range.start, "-", data.trackletRange.range.end, " to ", chosen_id, " -> same fish already assigned in another range.");
 #endif
             }
             else {
-                assert((int64_t)blob_ids.size() == (tracklet.range.end - tracklet.range.start + 1_f).get());
-                AutoAssign::add_assigned_range(tmp_assigned_ranges, chosen_id, tracklet.range, std::move(blob_ids));
+                assert((int64_t)blob_ids.size() == (data.trackletRange.range.end - data.trackletRange.range.start + 1_f).get());
+                AutoAssign::add_assigned_range(ctx.tempAssignedRanges, chosen_id, data.trackletRange.range, std::move(blob_ids));
 
-                auto blob = fish->blob(tracklet.start());
+                auto blob = data.fishPtr->blob(data.trackletRange.start());
                 if (blob && blob->split() && blob->parent_id().valid())
-                    manual_splits[tracklet.start()].insert(blob->parent_id());
+                    ctx.manualSplits[data.trackletRange.start()].insert(blob->parent_id());
 
-                assigned_ranges[fdx][tracklet.range] = chosen_id;
+                ctx.assignedRanges[data.fishIndex][data.trackletRange.range] = chosen_id;
             }
 
             return;
         }
     }
 
-    still_unassigned[fdx].insert(tracklet.range);
+    ctx.unassignedRanges[data.fishIndex].insert(data.trackletRange.range);
 }
 }
 
@@ -2963,31 +2966,35 @@ void Tracker::set_vi_data(const decltype(_vi_predictions)& predictions) {
         } g;
         
         Print("Waiting for lock...");
-        LockGuard guard(w_t{}, "check_tracklets_identities");
-        Print("Updating automatic ranges starting from ", !after_frame.valid() ? Frame_t(0) : after_frame);
+        LockGuard guard(ro_t{}, "check_tracklets_identities_r");
         
-        if (source == IdentitySource::QRCodes)
-            Print("Using physical tag information.");
-        else
-            Print("Using machine learning data.");
-
-        std::atomic<size_t> count{0u};
-        
-        auto fid = FOI::to_id("split_up");
-        if(fid != -1)
-            FOI::remove_frames(after_frame.valid() ? Frame_t(0) : after_frame, fid);
-        
-#ifdef TREX_DEBUG_IDENTITIES
-        auto f = fopen(file::DataLocation::parse("output", "identities.log").c_str(), "wb");
-#endif
-        float N = float(IndividualManager::num_individuals());
-        IndividualManager::transform_parallel(recognition_pool, [&](auto, auto fish) {
-            fish->clear_recognition();
-            fish->calculate_average_tracklet_id();
+        {
+            LockGuard w_guard(w_t{}, "check_tracklets_identities_w");
+            Print("Updating automatic ranges starting from ", !after_frame.valid() ? Frame_t(0) : after_frame);
             
-            callback(count / N * 0.5f);
-            ++count;
-        });
+            if (source == IdentitySource::QRCodes)
+                Print("Using physical tag information.");
+            else
+                Print("Using machine learning data.");
+            
+            std::atomic<size_t> count{0u};
+            
+            auto fid = FOI::to_id("split_up");
+            if(fid != -1)
+                FOI::remove_frames(after_frame.valid() ? Frame_t(0) : after_frame, fid);
+            
+#ifdef TREX_DEBUG_IDENTITIES
+            auto f = fopen(file::DataLocation::parse("output", "identities.log").c_str(), "wb");
+#endif
+            float N = float(IndividualManager::num_individuals());
+            IndividualManager::transform_parallel(recognition_pool, [&](auto, auto fish) {
+                fish->clear_recognition();
+                fish->calculate_average_tracklet_id();
+                
+                callback(count / N * 0.5f);
+                ++count;
+            });
+        }
         
         using namespace v;
         Settings::manual_matches_t automatic_matches;
@@ -3278,32 +3285,35 @@ void Tracker::set_vi_data(const decltype(_vi_predictions)& predictions) {
         log(f, "----");
 #endif
         decltype(unassigned_ranges) still_unassigned;
+        LockGuard w_guard(w_t{}, "check_tracklets_identities_w2");
 
-        const auto _apply = [&](
-           Idx_t fdx,
-           const Individual* fish,
-           const FrameRange& tracklet,
-           Idx_t prev_id,
-           Idx_t next_id,
-           const MotionRecord* prev_pos,
-           const MotionRecord* next_pos)
+        const auto _apply = [&](Idx_t fishIndex,
+                               const Individual* fishPtr,
+                               const FrameRange& trackletRange,
+                               Idx_t previousIdentity,
+                               Idx_t nextIdentity,
+                               const MotionRecord* previousPosition,
+                               const MotionRecord* nextPosition)
         {
-           apply(
+            AssignmentContext ctx{
 #ifdef TREX_DEBUG_IDENTITIES
-                 f,
+                .debugLog = f,
 #endif
-                 still_unassigned,
-                 manual_splits,
-                 assigned_ranges,
-                 tmp_assigned_ranges,
-                 fdx,
-                 fish,
-                 tracklet,
-                 prev_id,
-                 next_id,
-                 prev_pos,
-                 next_pos
-           );
+                .unassignedRanges = still_unassigned,
+                .manualSplits = manual_splits,
+                .assignedRanges = assigned_ranges,
+                .tempAssignedRanges = tmp_assigned_ranges
+            };
+            TrackletData data{
+                .fishIndex = fishIndex,
+                .fishPtr = fishPtr,
+                .trackletRange = trackletRange,
+                .previousIdentity = previousIdentity,
+                .nextIdentity = nextIdentity,
+                .previousPosition = previousPosition,
+                .nextPosition = nextPosition
+            };
+            assignTrackletIdentity(ctx, data);
         };
         
         if(source == IdentitySource::QRCodes) {

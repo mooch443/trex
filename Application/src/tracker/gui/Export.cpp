@@ -212,8 +212,10 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
         }
     } reset_output_fields;
     
-    if (auto detect_classes = SETTING(detect_classes).value<track::detect::yolo::names::owner_map_t>();
-        !detect_classes.empty() && SETTING(output_auto_pose).value<bool>())
+    if (auto detect_classes = SETTING(detect_classes).value<blob::MaybeObjectClass_t>();
+        detect_classes.has_value()
+        && not detect_classes->empty()
+        && SETTING(output_auto_pose).value<bool>())
     {
         // Generate only the missing ones
         auto new_pose_fields = default_config::add_missing_pose_fields();

@@ -588,8 +588,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("calculate_posture", true, "Enables or disables posture calculation. Can only be set before the video is analysed (e.g. in a settings file or as a startup parameter).");
         
         CONFIG("meta_encoding", meta_encoding_t::rgb8, "The encoding used for the given .pv video.");
-        static const auto detect_classes = track::detect::yolo::names::owner_map_t{};
-        CONFIG("detect_classes", detect_classes, "Class names for object classification in video during conversion.");
+        CONFIG("detect_classes", cmn::blob::MaybeObjectClass_t{}, "Class names for object classification in video during conversion.");
         CONFIG("detect_skeleton", blob::Pose::Skeleton{}, "Skeleton to be used when displaying pose data.");
         CONFIG("meta_source_path", std::string(""), "Path of the original video file for conversions (saved as debug info).", LOAD);
         CONFIG("meta_species", std::string(""), "Name of the species used.");

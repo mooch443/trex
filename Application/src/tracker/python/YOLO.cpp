@@ -130,9 +130,12 @@ void YOLO::reinit(ModuleProxy& proxy) {
         if(config.task == ModelTaskType::detect) {
             SETTING(detect_format) = ObjectDetectionFormat_t(config.output_format);
             SETTING(detect_resolution) = config.trained_resolution;
-            if(SETTING(detect_classes).value<detect::yolo::names::owner_map_t>().empty()) {
+            if(auto detect_classes = SETTING(detect_classes).value<cmn::blob::MaybeObjectClass_t>();
+               not detect_classes.has_value()
+               || detect_classes->empty())
+            {
                 Print("// Loading classes from model: ", config.classes);
-                SETTING(detect_classes) = config.classes;
+                SETTING(detect_classes) = cmn::blob::MaybeObjectClass_t{config.classes};
             }
             
             if(config.output_format == ObjectDetectionFormat::poses)

@@ -4,7 +4,7 @@
 
 namespace track::detect::yolo::names {
 
-using owner_map_t = std::map<uint16_t, std::string>;
+using owner_map_t = cmn::blob::ObjectClass_t;
 using map_t = std::map<uint16_t, std::string_view>;
 using vec_t = std::vector<std::string_view>;
 

@@ -98,7 +98,7 @@ set_defaults_for(detect::ObjectDetectionType_t detect_type,
                                                       100000 * SQR(cm_per_pixel))}),
             //"meta_encoding", meta_encoding_t::rgb8,
             //"track_do_history_split", true,
-            "detect_classes", detect::yolo::names::owner_map_t{},
+            "detect_classes", cmn::blob::MaybeObjectClass_t{},
             "individual_image_normalization", individual_image_normalization_t::posture,
             "blob_split_algorithm", blob_split_algorithm_t::threshold,
             "track_max_reassign_time", 0.5f,
@@ -974,7 +974,7 @@ void load(file::PathArray source,
                 sprite::Map tmp;
                 tmp["meta_source_path"] = std::string(rejected.at("meta_source_path"));
                 if(not set_config_if_different("meta_source_path", tmp)) {
-                    Print("// meta_source_path = ",tmp.at("meta_source_path").get().valueString()," not set");
+                    Print("// meta_source_path = ",no_quotes(tmp.at("meta_source_path").value<std::string>())," not set");
                 }
                 tmp.at("meta_source_path").get().copy_to(GlobalSettings::current_defaults_with_config());
             }
