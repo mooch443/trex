@@ -534,7 +534,7 @@
                             "fill":"{if:{equal:{global.gui_mode}:blobs}:[10,10,10,220]:[40,40,40,220]}",
                             "color":"{if:{equal:{global.gui_mode}:blobs}:[100,100,100,220]:[250,250,250,220]}",
                             "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
-                            "size":[60,30],
+                            "size":[65,30],
                             "action":"set:gui_mode:blobs"
                         }
                     ]
@@ -598,7 +598,7 @@
                     },
                     "item":{
                         "color":[60,60,60,100],
-                        "pad":[8,5],
+                        "pad":[8,0],
                         "font":{"size":0.6,"align":"vcenter"}
                     },
                     "detail":{
@@ -609,78 +609,64 @@
                     "folded":true,
                     "items":[
                         {
-                            "text":"Selection Circles",
-                            "detail":"{if:{global.gui_show_selections}:'hide':'show'}",
+                            "text":"{if:{global.gui_show_selections}:'<sym>☑</sym> ':'<sym>☐</sym> <gray>'}Selection Circles{if:{global.gui_show_selections}:'':</gray>}",
                             "action":"set:gui_show_selections:{not:{global.gui_show_selections}}"
                         },
                         {
-                            "text":"Video Background",
-                            "detail":"{if:{global.gui_show_video_background}:'hide':'show'}",
+                            "text":"{if:{global.gui_show_video_background}:'<sym>☑</sym> ':'<sym>☐</sym> <gray>'}Video Background{if:{global.gui_show_video_background}:'':</gray>}",
                             "action":"set:gui_show_video_background:{not:{global.gui_show_video_background}}"
                         },
                         {
-                            "text":"Blob Images",
-                            "detail":"{if:{global.gui_show_blobs}:'hide':'show'}",
+                            "text":"{if:{global.gui_show_blobs}:'<sym>☑</sym> ':'<sym>☐</sym> <gray>'}Blob Images{if:{global.gui_show_blobs}:'':</gray>}",
                             "action":"set:gui_show_blobs:{not:{global.gui_show_blobs}}"
                         },
                         {
-                            "text":"Heatmap",
-                            "detail":"{if:{global.gui_show_heatmap}:'hide':'show'}",
+                            "text":"{if:{global.gui_show_heatmap}:'<sym>☑</sym> ':'<sym>☐</sym> <gray>'}Heatmap{if:{global.gui_show_heatmap}:'':</gray>}",
                             "action":"set:gui_show_heatmap:{not:{global.gui_show_heatmap}}"
                         },
                         {
-                            "text":"Posture Preview",
-                            "detail":"{if:{global.gui_show_posture}:'hide':'show'}",
+                            "text":"{if:{global.gui_show_posture}:'<sym>☑</sym> ':'<sym>☐</sym> <gray>'}Posture Preview{if:{global.gui_show_posture}:'':</gray>}",
                             "action":"set:gui_show_posture:{not:{global.gui_show_posture}}"
                         },
                         {
-                            "text":"Midline",
-                            "detail":"{if:{global.gui_show_midline}:'hide':'show'}",
+                            "text":"{if:{global.gui_show_midline}:'<sym>☑</sym> ':'<sym>☐</sym> <gray>'}Midline{if:{global.gui_show_midline}:'':</gray>}",
                             "action":"set:gui_show_midline:{not:{global.gui_show_midline}}"
                         },
                         {
-                            "text":"Outline",
-                            "detail":"{if:{global.gui_show_outline}:'hide':'show'}",
+                            "text":"{if:{global.gui_show_outline}:'<sym>☑</sym> ':'<sym>☐</sym> <gray>'}Outline{if:{global.gui_show_outline}:'':</gray>}",
                             "action":"set:gui_show_outline:{not:{global.gui_show_outline}}"
                         },
                         {
-                            "text":"Visual Field",
-                            "detail":"{if:{global.gui_show_visualfield}:'hide':'show'}",
+                            "text":"{if:{global.gui_show_visualfield}:'<sym>☑</sym> ':'<sym>☐</sym> <gray>'}Visual Field{if:{global.gui_show_visualfield}:'':</gray>}",
                             "action":"set:gui_show_visualfield:{not:{global.gui_show_visualfield}}"
                         },
                         {
-                            "text":"Probability Distribution",
-                            "detail":"{if:{global.gui_show_probabilities}:'hide':'show'}",
+                            "text":"{if:{global.gui_show_probabilities}:'<sym>☑</sym> ':'<sym>☐</sym> <gray>'}Probability Distribution{if:{global.gui_show_probabilities}:'':</gray>} ",
                             "action":"set:gui_show_probabilities:{not:{global.gui_show_probabilities}}"
                         },
                         {
-                            "text":"Categorization",
-                            "detail":"{if:{global.gui_highlight_categories}:'hide':'show'}",
+                            "text":"{if:{global.gui_highlight_categories}:'<sym>☑</sym> ':'<sym>☐</sym> '}Categorization",
                             "action":"set:gui_highlight_categories:{not:{global.gui_highlight_categories}}"
                         },
                         {
-                            "text":"Uniqueness (VI)",
-                            "detail":"{if:{global.gui_show_uniqueness}:'hide <small>(VI needs to be loaded)</small>':'show'}",
+                            "text":"{if:{global.gui_show_uniqueness}:'<sym>☑</sym> ':'<sym>☐</sym> <gray>'}Uniqueness (VI){if:{global.gui_show_uniqueness}:'':</gray>}",
+                            "detail":"<small>(VI needs to be loaded)</small>",
                             "action":"set:gui_show_uniqueness:{not:{global.gui_show_uniqueness}}"
                         },
                         {
-                            "text":"Text Labels",
-                            "detail":"{if:{global.gui_show_texts}:'hide':'show'}",
+                            "text":"{if:{global.gui_show_texts}:'<sym>☑</sym> ':'<sym>☐</sym> <gray>'}Text Labels{if:{global.gui_show_texts}:'':</gray>}",
                             "action":"set:gui_show_texts:{not:{global.gui_show_texts}}"
                         },
                         {
-                            "text":"Trajectories",
-                            "detail":"{if:{global.gui_show_paths}:'hide':'show'}",
+                            "text":"{if:{global.gui_show_paths}:'<sym>☑</sym> ':'<sym>☐</sym> <gray>'}Trajectories{if:{global.gui_show_paths}:'':</gray>}",
                             "action":"set:gui_show_paths:{not:{global.gui_show_paths}}"
                         },
                         {
-                            "text":"Zoom on Selection",
-                            "detail":"{if:{global.gui_auto_scale_focus_one}:'disable':'enable'}",
+                            "text":"{if:{global.gui_auto_scale_focus_one}:'<sym>☑</sym> ':'<sym>☐</sym> <gray>'}Zoom on Selection{if:{global.gui_auto_scale_focus_one}:'':</gray>}",
                             "action":"set:gui_auto_scale_focus_one:{not:{global.gui_auto_scale_focus_one}}"
                         },
                         {
-                            "text":"Dataset information",
-                            "detail":"{if:{global.gui_show_dataset}:'hide':'show'}",
+                            "text":"{if:{global.gui_show_dataset}:'<sym>☑</sym> ':'<sym>☐</sym> <gray>'}Dataset information{if:{global.gui_show_dataset}:'':</gray>}",
                             "action":"set:gui_show_dataset:{not:{global.gui_show_dataset}}"
                         }
                     ]
