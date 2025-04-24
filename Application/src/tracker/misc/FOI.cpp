@@ -5,10 +5,10 @@
 namespace track {
     IMPLEMENT(FOI::_mutex);
     IMPLEMENT(FOI::_frames_of_interest);
-    IMPLEMENT(FOI::_string_to_id);
-    IMPLEMENT(FOI::_id_to_string);
+    IMPLEMENT(FOI::_string_to_id){{"none",Properties{ -1, cmn::gui::Transparent }}};
+    IMPLEMENT(FOI::_id_to_string){{-1,"none"}};
     IMPLEMENT(FOI::_wheel);
-    IMPLEMENT(FOI::_ids);
+    IMPLEMENT(FOI::_ids){-1};
     
     static FOI::time_point_t last_change_time;
 
