@@ -568,19 +568,15 @@
                     },
                     "item":{
                         "color":[60,60,60,100],
-                        "pad":[8,5],
+                        "pad":[8,0],
                         "font":{"size":0.6,"align":"vcenter"}
-                    },
-                    "detail":{
-                        "color":[150,150,150,255],
-                        "font":{"size":0.5,"align":"left"}
                     },
                     "foldable":true,
                     "folded":true,
                     "var":"{global.gui_foi_types}",
                     "template":{
-                        "text":"{i}",
-                        "detail":"detail",
+                        "text":"{if:{equal:{global.gui_foi_name}:{i}}:'<sym>☑</sym> ':'<sym>☐</sym> '}{i}",
+                        "disabled":"{if:{equal:{global.gui_foi_name}:{i}}:true:false}",
                         "action":"set:gui_foi_name:{i}"
                     }
                 },
