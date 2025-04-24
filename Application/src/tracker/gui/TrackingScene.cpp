@@ -1971,7 +1971,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                         uchar dst_r = row[idx + 2];
                         uchar dst_a = row[idx + 3];
 
-                        uchar src_a = color.a;
+                        uchar src_a = color.a / 2;
                         // Compute output alpha: src_a + dst_a * (1 - src_a/255)
                         uchar out_a = cv::saturate_cast<uchar>(src_a + dst_a * (255 - src_a) / 255);
 

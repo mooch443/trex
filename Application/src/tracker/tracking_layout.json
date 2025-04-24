@@ -564,6 +564,40 @@
                         "fill":[40,40,40,220],
                         "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
                         "font":{"size":0.6},
+                        "text":" <sym>🖵</sym> FOIs"
+                    },
+                    "item":{
+                        "color":[60,60,60,100],
+                        "pad":[8,5],
+                        "font":{"size":0.6,"align":"vcenter"}
+                    },
+                    "detail":{
+                        "color":[150,150,150,255],
+                        "font":{"size":0.5,"align":"left"}
+                    },
+                    "foldable":true,
+                    "folded":true,
+                    "var":"{global.gui_foi_types}",
+                    "template":{
+                        "text":"{i}",
+                        "detail":"detail",
+                        "action":"set:gui_foi_name:{i}"
+                    }
+                },
+
+                {
+                    "type":"list",
+                    "size":[90,30],
+                    "clickable":true,
+                    "list":{
+                        "size":"[200,{-:{window_size.y}:50}]",
+                        "fill":[25,25,25,220],
+                        "line":[120,120,120,220]
+                    },
+                    "label":{
+                        "fill":[40,40,40,220],
+                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                        "font":{"size":0.6},
                         "text":" <sym>🖵</sym> Display"
                     },
                     "item":{
