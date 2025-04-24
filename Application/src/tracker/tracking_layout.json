@@ -885,6 +885,14 @@
                             "line": [250,250,250,0],
                             "clickable":false
                         },
+
+                        {
+                            "type":"image_generator",
+                            "generator":"fois",
+                            "pos":[11,0],
+                            "scale":"[{/:{-:{window_size.x}:22}:{window_size.x}},20]",
+                            "alpha":0.5
+                        },
                         
                         {
                             "type": "rect",

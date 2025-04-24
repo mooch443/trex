@@ -44,6 +44,7 @@
 #include <gui/TimingStatsElement.h>
 #include <gui/DrawSegmentsElement.h>
 #include <gui/DrawGraph.h>
+#include <gui/ImageDisplayElement.h>
 
 using namespace track;
 
@@ -100,6 +101,14 @@ struct TrackingScene::Data {
     std::vector<std::shared_ptr<dyn::VarBase_t>> variables;
     
     ScreenRecorder _recorder;
+
+    // Cache for frames of interest
+    uint64_t _cached_foi_last_change = 0;
+    std::optional<std::vector<std::tuple<Frame_t, Frame_t, Color>>> _cached_fois;
+    std::string _cached_foi_name;
+    Float2_t _cached_fois_width;
+    
+    bool update_cached_fois();
     
     /**
      * @brief Constructor for the Data struct.
@@ -116,6 +125,30 @@ struct TrackingScene::Data {
     void redraw_all();
     void handle_zooming(Event);
 };
+
+bool TrackingScene::Data::update_cached_fois() {
+    auto name = SETTING(gui_foi_name).value<std::string>();
+    uint64_t last_change = FOI::last_change();
+    if (last_change != _cached_foi_last_change
+        || not _cached_fois.has_value()
+        || _cached_foi_name != name)
+    {
+        _cached_foi_last_change = last_change;
+        _cached_fois = std::vector<std::tuple<Frame_t, Frame_t, Color>>{};
+        _cached_foi_name = name;
+        
+        auto id = FOI::to_id(name);
+        auto fois = FOI::foi(id);
+        auto color = FOI::color(name);
+        if (fois) {
+            for (const FOI& foi : *fois) {
+                _cached_fois->emplace_back(foi.frames().start, foi.frames().end, color);
+            }
+        }
+        return true;
+    }
+    return false;
+}
 
 TrackingScene::~TrackingScene() {
     
@@ -684,7 +717,7 @@ void TrackingScene::activate() {
     
     if(_load_requested) {
         bool exchange = true;
-        if(_load_requested.compare_exchange_strong(exchange, false)) 
+        if(_load_requested.compare_exchange_strong(exchange, false))
         {
             _state->load_state(SceneManager::getInstance().gui_task_queue(), Output::TrackingResults::expected_filename(), true);
         }
@@ -1015,7 +1048,7 @@ void TrackingScene::_draw(DrawStructure& graph) {
     }
     
     auto mouse = graph.mouse_position();
-    if(mouse != _data->_last_mouse 
+    if(mouse != _data->_last_mouse
        //|| _data->_cache->is_animating()
        || graph.root().is_animating())
     {
@@ -1142,7 +1175,7 @@ void TrackingScene::_draw(DrawStructure& graph) {
             for(auto fdx : _data->_cache->selected) {
                 /*bool found = false;
                 if (auto it = _data->_cache->fish_selected_blobs.find(fdx);
-                    it != _data->_cache->fish_selected_blobs.end()) 
+                    it != _data->_cache->fish_selected_blobs.end())
                 {
                     auto const &blob = it->second;
                     if(blob.basic_stuff) {
@@ -1533,7 +1566,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
             ActionFunc("remove_automatic_matches", [this](const Action& action) {
                 REQUIRE_EXACTLY(2, action);
                 auto fdx = Meta::fromStr<Idx_t>(action.parameters.front());
-                if(not action.parameters.back().empty() 
+                if(not action.parameters.back().empty()
                    && action.parameters.back().front() == '[')
                 {
                     auto range = FrameRange(Meta::fromStr<Range<Frame_t>>(action.parameters.back()));
@@ -1597,18 +1630,12 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                 auto frame = Meta::fromStr<Frame_t>(props.parameters.front());
                 return _data->_cache->tracked_frames.contains(frame);
             }),
-            VarFunc("fois", [](const VarProps& ) -> std::vector<Frame_t>
-            {
-                auto name = SETTING(gui_foi_name).value<std::string>();
-                auto id = FOI::to_id(name);
-                std::vector<Frame_t> frames;
-                auto fois = FOI::foi(id);
-                if(fois) {
-                    for(const FOI& foi : *fois) {
-                        frames.push_back(foi.frames().start);
-                    }
-                }
-                return frames;
+            VarFunc("fois", [this](const VarProps&) -> std::vector<std::tuple<Frame_t, Frame_t, Color>> {
+                if(not _data)
+                    throw RuntimeError("No _data.");
+                
+                _data->update_cached_fois();
+                return _data->_cached_fois.value();
             }),
             VarFunc("active_individuals", [this](const VarProps& props) -> size_t {
                 if(props.parameters.size() != 1)
@@ -1906,6 +1933,67 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
     g.context.custom_elements["timingstats"] = std::unique_ptr<TimingStatsElement>{
         new TimingStatsElement(TimingStatsCollector::getInstance())
     };
+    
+    g.context.custom_elements["image_generator"] = std::unique_ptr<CustomElement>(
+            new ImageDisplayElement(&ImageGeneratorRegistry::instance())
+    );
+    
+    ImageGeneratorRegistry::instance().register_generator("fois", ImageGeneratorRegistry::Generator{
+        .generate = [this](auto&) -> Image::Ptr
+        {
+            auto coords = FindCoord::get();
+            auto width = coords.screen_size().width;
+            
+            if((not _data
+                 || not _data->update_cached_fois())
+               && width == _data->_cached_fois_width)
+            {
+                return nullptr;
+                
+            } else {
+                _data->_cached_fois_width = width;
+                
+                auto ptr = Image::Make(1, width, 4);
+                ptr->set_to(0);
+                auto mat = ptr->get();
+                auto length = double(_state->video->length().get());
+                for(const auto &[start, end, color] : *_data->_cached_fois) {
+                    int x_start = static_cast<int>(std::floor(std::min(1.0, double(start.get()) / length) * width));
+                    int x_end   = static_cast<int>(std::ceil (std::min(1.0, double(end.get() + 1) / length) * width));
+                    x_start = std::max(0, std::min((int)width, x_start));
+                    x_end   = std::max(0, std::min((int)width, x_end));
+                    // perform per-channel alpha blending over the region
+                    uchar* row = mat.ptr<uchar>(0);
+                    for(int x = x_start; x < x_end; ++x) {
+                        int idx = x * 4;
+                        uchar dst_b = row[idx + 0];
+                        uchar dst_g = row[idx + 1];
+                        uchar dst_r = row[idx + 2];
+                        uchar dst_a = row[idx + 3];
+
+                        uchar src_a = color.a;
+                        // Compute output alpha: src_a + dst_a * (1 - src_a/255)
+                        uchar out_a = cv::saturate_cast<uchar>(src_a + dst_a * (255 - src_a) / 255);
+
+                        // Blend each channel: (src * src_a + dst * (255 - src_a)) / 255
+                        uchar out_b = cv::saturate_cast<uchar>((int(color.b) * src_a + int(dst_b) * (255 - src_a)) / 255);
+                        uchar out_g = cv::saturate_cast<uchar>((int(color.g) * src_a + int(dst_g) * (255 - src_a)) / 255);
+                        uchar out_r = cv::saturate_cast<uchar>((int(color.r) * src_a + int(dst_r) * (255 - src_a)) / 255);
+
+                        row[idx + 0] = out_b;
+                        row[idx + 1] = out_g;
+                        row[idx + 2] = out_r;
+                        row[idx + 3] = out_a;
+                    }
+                }
+                return ptr;
+            }
+        },
+        .reset = [this](){
+            if(_data)
+                _data->_cached_fois.reset();
+        }
+    });
     
     dynGUI = std::move(g);
 }
