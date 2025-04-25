@@ -2,6 +2,31 @@
 
 _BUILD_PREFIX=$(cat build_env_setup.sh | grep 'export BUILD=' | cut -d'=' -f2 | cut -d'"' -f2)
 
+# --------------------------------------------------------------------------
+# Inject git‑based version information so that meta.yaml still produces
+# exactly the same version/build string it used to build with `os.popen`.
+# --------------------------------------------------------------------------
+if [ -z "${TREX_DESCRIBE_TAG}" ]; then
+    # Latest tag (equivalent to: git describe --tags --always --abbrev=0)
+    export TREX_DESCRIBE_TAG="$(git describe --tags --always --abbrev=0 2>/dev/null || echo vuntagged)"
+    echo "TREX_DESCRIBE_TAG=${TREX_DESCRIBE_TAG}"
+fi
+
+if [ -z "${GIT_DESCRIBE_NUMBER}" ] || [ -z "${GIT_DESCRIBE_HASH}" ]; then
+    # Full describe looks like: v1.2.3-4-gabcdef
+    DESCRIBE_FULL="$(git describe --tags --long --always 2>/dev/null || echo g0000000)"
+    if [[ "${DESCRIBE_FULL}" == *-* ]]; then
+        # Extract the "4" and the "gabcdef"
+        export GIT_DESCRIBE_NUMBER="$(echo "${DESCRIBE_FULL}" | awk -F'-' '{print $(NF-1)}')"
+        export GIT_DESCRIBE_HASH="$(echo "${DESCRIBE_FULL}"  | awk -F'-' '{print $NF}')"
+    else
+        # No tags present; treat the output as the hash
+        export GIT_DESCRIBE_NUMBER="0"
+        export GIT_DESCRIBE_HASH="${DESCRIBE_FULL}"
+        echo "Warning: No tags found. Using hash as version."
+    fi
+fi
+
 cd Application
 mkdir build
 cd build

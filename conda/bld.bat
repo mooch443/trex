@@ -3,7 +3,18 @@ mkdir build
 cd build
 
 @setlocal enableextensions enabledelayedexpansion
+
 @echo off
+
+rem --------------------------------------------------------------------------
+rem Inject git-based version information for meta.yaml (tag portion)
+rem via the TREX_DESCRIBE_TAG environment variable, mirroring build.sh.
+rem --------------------------------------------------------------------------
+if not defined TREX_DESCRIBE_TAG (
+    for /f %%i in ('git describe --tags --always --abbrev=0 2^>NUL') do set "TREX_DESCRIBE_TAG=%%i"
+)
+if not defined TREX_DESCRIBE_TAG set "TREX_DESCRIBE_TAG=vuntagged"
+
 
 set MENU_DIR=%PREFIX%\Menu
 mkdir %MENU_DIR%
