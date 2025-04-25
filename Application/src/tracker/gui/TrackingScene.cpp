@@ -108,7 +108,7 @@ struct TrackingScene::Data {
     std::optional<std::vector<std::tuple<Frame_t, Frame_t, Color>>> _cached_fois;
     Float2_t _cached_fois_width;
     
-    bool update_cached_fois();
+    bool update_cached_fois(bool force = false);
     
     /**
      * @brief Constructor for the Data struct.
@@ -126,10 +126,13 @@ struct TrackingScene::Data {
     void handle_zooming(Event);
 };
 
-bool TrackingScene::Data::update_cached_fois() {
+bool TrackingScene::Data::update_cached_fois(bool force) {
     /* --- throttle to max. 1 Hz --- */
-    if (_last_foi_update.elapsed() <= 1)
+    if (not force
+        && _last_foi_update.elapsed() <= 1)
+    {
         return false;
+    }
     _last_foi_update.reset();
 
     const auto name       = GUI_SETTINGS(gui_foi_name);
@@ -153,14 +156,13 @@ bool TrackingScene::Data::update_cached_fois() {
                 _cached_fois->emplace_back(f.frames().start,
                                            f.frames().end,
                                            col);
+            _cached_fois_width = -1;
         }
         
         /* ---------- update public FOI state (used in the draw loop) ---------- */
-        if (!name.empty()) {
-            if (auto list = FOI::foi(FOI::to_id(name))) {
-                _foi_state.changed_frames = std::move(list.value());
-                _foi_state.color          = FOI::color(name);
-            }
+        if (auto list = FOI::foi(FOI::to_id(name))) {
+            _foi_state.changed_frames = std::move(list.value());
+            _foi_state.color          = FOI::color(name);
         }
         
         return true;
@@ -537,7 +539,11 @@ bool TrackingScene::on_global_event(Event event) {
 }
 
 void TrackingScene::settings_callback(std::string_view key) {
-    if(key == "gui_wait_for_background") {
+    if(key == "gui_foi_name") {
+        _data->update_cached_fois(true);
+        return;
+    }
+    else if(key == "gui_wait_for_background") {
         //if(_data && _data->_background)
            // _data->_background->set_strict(SETTING(gui_wait_for_background).value<bool>());
     }
@@ -682,6 +688,8 @@ void TrackingScene::activate() {
         "gui_show_match_modes",
         "gui_show_cliques",
         "gui_show_graph",
+        
+        "gui_foi_name",
         
         "gui_fish_label",
         
@@ -1941,9 +1949,10 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
             auto coords = FindCoord::get();
             auto width = coords.screen_size().width;
             
-            if((not _data
-                 || not _data->update_cached_fois())
-               && width == _data->_cached_fois_width)
+            if(not _data
+                || (not _data->update_cached_fois()
+                    && width == _data->_cached_fois_width)
+                || not _data->_cached_fois.has_value())
             {
                 return nullptr;
                 

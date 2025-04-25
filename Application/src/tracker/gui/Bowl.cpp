@@ -531,7 +531,8 @@ void Bowl::update_scaling(double dt) {
 
 void Bowl::update(Frame_t frame, DrawStructure &graph, const FindCoord& coord) {
     update([this, &frame, &graph, &coord](auto&) {
-        draw_shapes(graph, coord);
+        if(GUI_SETTINGS(gui_mode) == gui::mode_t::tracking)
+            draw_shapes(graph, coord);
         
         update_blobs(frame);
         
