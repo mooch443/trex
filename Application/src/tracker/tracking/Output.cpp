@@ -1799,6 +1799,9 @@ FrameProperties CompatibilityFrameProperties::convert(Frame_t frame) const {
         _tracker.global_tracklet_order_changed();
         _tracker.global_tracklet_order();
         
+        if(_tracker.end_frame().valid())
+            _tracker._add_frame_callbacks.callAll(_tracker.end_frame());
+        
         if(!GlobalSettings::is_runtime_quiet()) {
             Print("Successfully read file ",file.filename()," (version:V_",(int)file._header.version+1," gui_frame:",file.header().gui_frame,"u start:",Tracker::start_frame(),"u end:",Tracker::end_frame(),"u)");
         

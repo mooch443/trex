@@ -1,5 +1,5 @@
-#include <gtest/gtest.h>
 #include <commons.pc.h>
+#include <gtest/gtest.h>
 #include <misc/Image.h>
 #include <processing/Background.h>
 #include <misc/PixelTree.h>
@@ -14,6 +14,230 @@ using namespace pixel;
 
 using ::testing::TestWithParam;
 using ::testing::Values;
+
+using cmn::gui::Color;
+
+// Default‐constructed Color should be all zeros
+TEST(ColorTest, DefaultConstructor) {
+    Color c;
+    EXPECT_EQ(c.r, 0);
+    EXPECT_EQ(c.g, 0);
+    EXPECT_EQ(c.b, 0);
+    EXPECT_EQ(c.a, 0);
+}
+
+// RGBA constructor
+TEST(ColorTest, RGBAConstructor) {
+    Color c(10, 20, 30, 40);
+    EXPECT_EQ(c.r, 10);
+    EXPECT_EQ(c.g, 20);
+    EXPECT_EQ(c.b, 30);
+    EXPECT_EQ(c.a, 40);
+}
+
+// Gray constructor (grayscale + full alpha)
+TEST(ColorTest, GrayConstructor) {
+    Color c(uint8_t(100u));
+    EXPECT_EQ(c.r, 100);
+    EXPECT_EQ(c.g, 100);
+    EXPECT_EQ(c.b, 100);
+    EXPECT_EQ(c.a, 255);
+}
+
+// bgra() should swap red/blue channels
+TEST(ColorTest, BGRAConversion) {
+    Color c(5, 15, 25, 35);
+    Color swapped = c.bgra();
+    EXPECT_EQ(swapped.r, 25);
+    EXPECT_EQ(swapped.g, 15);
+    EXPECT_EQ(swapped.b, 5);
+    EXPECT_EQ(swapped.a, 35);
+}
+
+// operator[] indexing
+TEST(ColorTest, OperatorIndex) {
+    Color c(7, 14, 21, 28);
+    EXPECT_EQ(c[0], 7);
+    EXPECT_EQ(c[1], 14);
+    EXPECT_EQ(c[2], 21);
+    EXPECT_EQ(c[3], 28);
+}
+
+// to_integer should pack channels as (r<<24)|(g<<16)|(b<<8)|a
+TEST(ColorTest, ToInteger) {
+    Color c(1, 2, 3, 4);
+    uint32_t v = c.to_integer();
+    uint32_t exp = (1u << 24) | (2u << 16) | (3u << 8) | 4u;
+    EXPECT_EQ(v, exp);
+}
+
+// div255 edge‐cases
+TEST(ColorTest, Div255EdgeCases) {
+    EXPECT_EQ(Color::div255(0u), 0u);
+    EXPECT_EQ(Color::div255(255u), 1u);
+    EXPECT_EQ(Color::div255(255u * 255u), 255u);
+}
+
+constexpr Color simple_blend(const Color& A, const Color& B) {
+    auto alphabg = A.a / 255.0;
+    auto alphafg = B.a / 255.0;
+    auto alpha = alphabg + alphafg * ( 1 - alphabg );
+    return Color(
+        (uint8_t)saturate((A.r * alphabg + B.r * alphafg * ( 1 - alphabg )) / alpha),
+        (uint8_t)saturate((A.g * alphabg + B.g * alphafg * ( 1 - alphabg )) / alpha),
+        (uint8_t)saturate((A.b * alphabg + B.b * alphafg * ( 1 - alphabg )) / alpha),
+        (uint8_t)(alpha * 255.0)
+    );
+}
+
+// Opaque blend: foreground fully opaque overwrites background
+TEST(ColorTest, BlendOpaque) {
+    Color bg(10, 20, 30, 255), fg(100, 110, 120, 255);
+    Color out = Color::blend(bg, fg);
+    Color ref = simple_blend(bg, fg);
+    EXPECT_EQ(out.r, ref.r)
+        << "BlendOpaque failed for bg=" << bg.toStr() << " fg=" << fg.toStr()
+        << " => out=" << out.toStr() << " ref=" << ref.toStr();
+    EXPECT_EQ(out.g, ref.g)
+        << "BlendOpaque failed for bg=" << bg.toStr() << " fg=" << fg.toStr()
+        << " => out=" << out.toStr() << " ref=" << ref.toStr();
+    EXPECT_EQ(out.b, ref.b)
+        << "BlendOpaque failed for bg=" << bg.toStr() << " fg=" << fg.toStr()
+        << " => out=" << out.toStr() << " ref=" << ref.toStr();
+    EXPECT_EQ(out.a, ref.a)
+        << "BlendOpaque failed for bg=" << bg.toStr() << " fg=" << fg.toStr()
+        << " => out=" << out.toStr() << " ref=" << ref.toStr();
+}
+
+// Transparent blend: fully transparent foreground leaves background intact
+TEST(ColorTest, BlendTransparent) {
+    Color bg(50, 60, 70, 255), fg(80, 90, 100, 0);
+    Color out = Color::blend(bg, fg);
+    Color ref = simple_blend(bg, fg);
+    EXPECT_EQ(out.r, ref.r)
+        << "BlendTransparent failed for bg=" << bg.toStr() << " fg=" << fg.toStr()
+        << " => out=" << out.toStr() << " ref=" << ref.toStr();
+    EXPECT_EQ(out.g, ref.g)
+        << "BlendTransparent failed for bg=" << bg.toStr() << " fg=" << fg.toStr()
+        << " => out=" << out.toStr() << " ref=" << ref.toStr();
+    EXPECT_EQ(out.b, ref.b)
+        << "BlendTransparent failed for bg=" << bg.toStr() << " fg=" << fg.toStr()
+        << " => out=" << out.toStr() << " ref=" << ref.toStr();
+    EXPECT_EQ(out.a, ref.a)
+        << "BlendTransparent failed for bg=" << bg.toStr() << " fg=" << fg.toStr()
+        << " => out=" << out.toStr() << " ref=" << ref.toStr();
+}
+
+// Semi-transparent blend: roughly a 50/50 mix
+TEST(ColorTest, BlendHalfTransparent) {
+    Color bg(0, 0, 255, 255), fg(255, 0, 0, 128);
+    Color out = Color::blend(bg, fg);
+    Color ref = simple_blend(bg, fg);
+    EXPECT_EQ(out.a, ref.a)
+        << "BlendHalfTransparent failed for bg=" << bg.toStr() << " fg=" << fg.toStr()
+        << " => out=" << out.toStr() << " ref=" << ref.toStr();
+    EXPECT_NEAR(out.r, ref.r, 1)
+        << "BlendHalfTransparent failed for R channel; bg=" << bg.toStr() << " fg=" << fg.toStr()
+        << " => out=" << out.toStr() << " ref=" << ref.toStr();
+    EXPECT_EQ(out.g, ref.g)
+        << "BlendHalfTransparent failed for G channel; bg=" << bg.toStr() << " fg=" << fg.toStr()
+        << " => out=" << out.toStr() << " ref=" << ref.toStr();
+    EXPECT_NEAR(out.b, ref.b, 1)
+        << "BlendHalfTransparent failed for B channel; bg=" << bg.toStr() << " fg=" << fg.toStr()
+        << " => out=" << out.toStr() << " ref=" << ref.toStr();
+}
+
+// limit_alpha should cap the alpha channel
+TEST(ColorTest, LimitAlpha) {
+    Color c(1, 2, 3, 200);
+    Color out = c.limit_alpha(100);
+    EXPECT_EQ(out.a, 100);
+}
+
+// alpha setter should replace alpha
+TEST(ColorTest, AlphaSetter) {
+    Color c(1, 2, 3, 50);
+    Color out = c.alpha(180);
+    EXPECT_EQ(out.a, 180);
+}
+
+// float_multiply should scale each channel by other/255
+TEST(ColorTest, FloatMultiply) {
+    Color c1(100, 150, 200, 255);
+    Color c2(128, 64, 32, 128);
+    Color out = c1.float_multiply(c2);
+    EXPECT_EQ(out.r, static_cast<uint8_t>(100 * (128.0f/255.0f)));
+    EXPECT_EQ(out.g, static_cast<uint8_t>(150 * (64.0f/255.0f)));
+    EXPECT_EQ(out.b, static_cast<uint8_t>(200 * (32.0f/255.0f)));
+    EXPECT_EQ(out.a, static_cast<uint8_t>(255 * (128.0f/255.0f)));
+}
+
+// -----------------------------------------------------------------------------
+// Compare Color::blend implementation against simple_blend reference
+// -----------------------------------------------------------------------------
+TEST(ColorBlendImplementation, MatchSimpleBlend) {
+    struct Case { Color A, B; };
+    std::vector<Case> cases = {
+        // edge cases
+        { Color(0,0,0,0),       Color(0,0,0,0) },
+        { Color(255,255,255,255), Color(255,255,255,255) },
+        { Color(0,0,0,255),     Color(255,0,0,0) },
+        { Color(0,0,255,128),   Color(128,255,0,128) },
+        { Color(50,100,150,75), Color(200,50,100,125) }
+    };
+
+    for (const auto& c : cases) {
+        Color ref = simple_blend(c.A, c.B);
+        Color act = Color::blend(c.A, c.B);
+        EXPECT_NEAR(act.r, ref.r, 1) << "R channel differs for act=" << act.toStr() << " ref=" << ref.toStr() << " after blending " << c.A.toStr() << " with " << c.B.toStr();
+        EXPECT_NEAR(act.g, ref.g, 1) << "G channel differs for act=" << act.toStr() << " ref=" << ref.toStr() << " after blending " << c.A.toStr() << " with " << c.B.toStr();
+        EXPECT_NEAR(act.b, ref.b, 1) << "B channel differs for act=" << act.toStr() << " ref=" << ref.toStr() << " after blending " << c.A.toStr() << " with " << c.B.toStr();
+        EXPECT_NEAR(act.a, ref.a, 1) << "A channel differs for act=" << act.toStr() << " ref=" << ref.toStr() << " after blending " << c.A.toStr() << " with " << c.B.toStr();
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Tests for the simple float-based blend (USE_CUSTOM branch)
+// -----------------------------------------------------------------------------
+
+TEST(ColorTestSimpleBlend, OpaqueBackground) {
+    // A fully opaque background should entirely mask the foreground.
+    Color bg(10, 20, 30, 255);
+    Color fg(200, 150, 100, 128);
+    Color out = Color::blend(bg, fg);
+    EXPECT_EQ(out.r, bg.r);
+    EXPECT_EQ(out.g, bg.g);
+    EXPECT_EQ(out.b, bg.b);
+    EXPECT_EQ(out.a, bg.a);
+}
+
+TEST(ColorTestSimpleBlend, TransparentBackground) {
+    // A fully transparent background should yield exactly the foreground.
+    Color bg(10, 20, 30, 0);
+    Color fg(200, 150, 100, 128);
+    Color out = Color::blend(bg, fg);
+    EXPECT_EQ(out.r, fg.r);
+    EXPECT_EQ(out.g, fg.g);
+    EXPECT_EQ(out.b, fg.b);
+    EXPECT_EQ(out.a, fg.a);
+}
+
+TEST(ColorTestSimpleBlend, SemiTransparentBackground) {
+    // Both BG and FG half-transparent – verify approximate composite.
+    Color bg(100,  50,   0, 128);
+    Color fg(200, 150, 100, 128);
+    Color out = Color::blend(bg, fg);
+
+    // Expected alpha ≈ 128/255 + (128/255)*(1-128/255) ≈ 0.502 + 0.502*0.498 ≈ 0.752 → 0.752*255 ≈ 192
+    EXPECT_NEAR(out.a, 192, 1);
+
+    // R channel ≈ (100*0.502 + 200*0.502*0.498) / 0.752 ≈ 133
+    EXPECT_NEAR(out.r, 133, 2);
+    // G channel ≈ ( 50*0.502 + 150*0.502*0.498) / 0.752 ≈  83
+    EXPECT_NEAR(out.g,  83, 2);
+    // B channel ≈ (  0*0.502 + 100*0.502*0.498) / 0.752 ≈  33
+    EXPECT_NEAR(out.b,  33, 2);
+}
 
 // Test vec_to_r3g3b2 function
 TEST(VecToR3G3B2Test, BasicAssertions) {
@@ -547,7 +771,7 @@ TEST_F(LineWithoutGridTest, NoneDifferenceMethod) {
     std::vector<HorizontalLine> input = {{0, 0, 9}, {1, 0, 9}};
 
     std::array <uchar, 20> input_pixels = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
-    										10,11,12,13,14,15,16,17,18,19 };
+                                            10,11,12,13,14,15,16,17,18,19 };
     int threshold = 5;
     std::vector<HorizontalLine> lines;
     std::vector<uchar> pixels;
@@ -568,7 +792,7 @@ TEST_F(LineWithoutGridTest, NoneDifferenceMethod) {
 
     // in the first row, the last 5 pixels are above the threshold
     // in the second row, all pixels are above the threshold, so all are added
-    std::vector<uchar> expected_pixels = {                      5,  6,  7,  8,  9, 
+    std::vector<uchar> expected_pixels = {                      5,  6,  7,  8,  9,
                                            10, 11, 12, 13, 14, 15, 16, 17, 18, 19 };
 
     // Perform assertions to check if the results are as expected

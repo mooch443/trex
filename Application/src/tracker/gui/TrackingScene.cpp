@@ -61,7 +61,7 @@ struct TrackingScene::Data {
     /// these will help updating some visual stuff whenever
     /// the tracker has added a new frame:
     std::optional<std::size_t> _frame_callback;
-    std::atomic<bool> _tracker_has_added_frames{false};
+    std::atomic<bool> _tracker_has_added_frames{true};
     
     std::unique_ptr<Bowl> _bowl;
     //std::unordered_map<Idx_t, Bounds> _last_bounds;
@@ -1953,8 +1953,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
             } else {
                 _data->_cached_fois_width = width;
                 
-                auto ptr = Image::Make(1, width, 4);
-                ptr->set_to(0);
+                auto ptr = Image::Zeros(1, width, 4);
                 auto mat = ptr->get();
                 auto length = double(_state->video->length().get());
                 for(const auto &[start, end, color] : *_data->_cached_fois) {
@@ -1962,28 +1961,13 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                     int x_end   = static_cast<int>(std::ceil (std::min(1.0, double(end.get() + 1) / length) * width));
                     x_start = std::max(0, std::min((int)width, x_start));
                     x_end   = std::max(0, std::min((int)width, x_end));
-                    // perform per-channel alpha blending over the region
                     uchar* row = mat.ptr<uchar>(0);
+                    // reinterpret row as array of Color
+                    Color* pixels = reinterpret_cast<Color*>(row);
+                    // source at half alpha
+                    Color src = color.alpha(color.a / 2);
                     for(int x = x_start; x < x_end; ++x) {
-                        int idx = x * 4;
-                        uchar dst_b = row[idx + 0];
-                        uchar dst_g = row[idx + 1];
-                        uchar dst_r = row[idx + 2];
-                        uchar dst_a = row[idx + 3];
-
-                        uchar src_a = color.a / 2;
-                        // Compute output alpha: src_a + dst_a * (1 - src_a/255)
-                        uchar out_a = cv::saturate_cast<uchar>(src_a + dst_a * (255 - src_a) / 255);
-
-                        // Blend each channel: (src * src_a + dst * (255 - src_a)) / 255
-                        uchar out_b = cv::saturate_cast<uchar>((int(color.b) * src_a + int(dst_b) * (255 - src_a)) / 255);
-                        uchar out_g = cv::saturate_cast<uchar>((int(color.g) * src_a + int(dst_g) * (255 - src_a)) / 255);
-                        uchar out_r = cv::saturate_cast<uchar>((int(color.r) * src_a + int(dst_r) * (255 - src_a)) / 255);
-
-                        row[idx + 0] = out_b;
-                        row[idx + 1] = out_g;
-                        row[idx + 2] = out_r;
-                        row[idx + 3] = out_a;
+                        pixels[x] = Color::blend(pixels[x], src);
                     }
                 }
                 return ptr;
