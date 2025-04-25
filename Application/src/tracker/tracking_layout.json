@@ -907,7 +907,7 @@
                             "generator":"fois",
                             "pos":[11,-8],
                             "scale":"[{/:{-:{window_size.x}:22}:{window_size.x}},51.5]",
-                            "color":"[255,255,255,{+:50:{*:{-:1:{saturate:{/:{abs:{-:{at:1:{mouse}}:55}}:50}:0:1}}:150}}]"
+                            "color":"{clrAlpha:{foi_color}:{+:50:{*:{-:1:{saturate:{/:{abs:{-:{at:1:{mouse}}:55}}:50}:0:1}}:150}}}"
                         },
                         
                         {

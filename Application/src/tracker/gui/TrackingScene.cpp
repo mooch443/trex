@@ -105,7 +105,7 @@ struct TrackingScene::Data {
     ScreenRecorder _recorder;
 
     // Cache for frames of interest
-    std::optional<std::vector<std::tuple<Frame_t, Frame_t, Color>>> _cached_fois;
+    std::optional<std::vector<std::tuple<Frame_t, Frame_t>>> _cached_fois;
     Float2_t _cached_fois_width;
     
     bool update_cached_fois(bool force = false);
@@ -129,40 +129,41 @@ struct TrackingScene::Data {
 bool TrackingScene::Data::update_cached_fois(bool force) {
     /* --- throttle to max. 1 Hz --- */
     if (not force
-        && _last_foi_update.elapsed() <= 1)
+        && _last_foi_update.elapsed() <= 10)
     {
         return false;
     }
     _last_foi_update.reset();
 
-    const auto name       = GUI_SETTINGS(gui_foi_name);
+    const auto name       = SETTING(gui_foi_name).value<std::string>();
     const uint64_t change = FOI::last_change();
 
-    if (change != _foi_state.last_change
+    if (force
+        || change != _foi_state.last_change
         || !_cached_fois.has_value()
         || _foi_state.name != name)
     {
-        _foi_state.last_change = change;
-        _foi_state.name        = name;
-        _foi_state.changed_frames.clear();
-        _cached_fois            = std::vector<std::tuple<Frame_t, Frame_t, Color>>{};
-
         const auto id    = FOI::to_id(name);
         const auto col   = FOI::color(name);
         
-        /* ---------- update cached list used by DynGUI (“fois” var) ---------- */
+        _foi_state.last_change = change;
+        _foi_state.name        = name;
+        _foi_state.color = col;
+        _foi_state.changed_frames.clear();
+        _cached_fois            = std::vector<std::tuple<Frame_t, Frame_t>>{};
+        _cached_fois_width = -1;
+        
+        if(id == -1)
+            return false;
+        
         if (auto list = FOI::foi(id)) {
+            /* ---------- update cached list used by DynGUI (“fois” var) ---------- */
             for (const FOI& f : *list)
                 _cached_fois->emplace_back(f.frames().start,
-                                           f.frames().end,
-                                           col);
-            _cached_fois_width = -1;
-        }
+                                           f.frames().end);
         
-        /* ---------- update public FOI state (used in the draw loop) ---------- */
-        if (auto list = FOI::foi(FOI::to_id(name))) {
+            /* ---------- update public FOI state (used in the draw loop) ---------- */
             _foi_state.changed_frames = std::move(list.value());
-            _foi_state.color          = FOI::color(name);
         }
         
         return true;
@@ -1633,12 +1634,10 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                 auto frame = Meta::fromStr<Frame_t>(props.parameters.front());
                 return _data->_cache->tracked_frames.contains(frame);
             }),
-            VarFunc("fois", [this](const VarProps&) -> std::vector<std::tuple<Frame_t, Frame_t, Color>> {
+            VarFunc("foi_color", [this](const VarProps&) -> Color {
                 if(not _data)
                     throw RuntimeError("No _data.");
-                
-                _data->update_cached_fois();
-                return _data->_cached_fois.value();
+                return _data->_foi_state.color;
             }),
             VarFunc("active_individuals", [this](const VarProps& props) -> size_t {
                 if(props.parameters.size() != 1)
@@ -1958,11 +1957,12 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                 
             } else {
                 _data->_cached_fois_width = width;
+                Print("* updating FOIS for ", _data->_foi_state.name);
                 
                 auto ptr = Image::Zeros(1, width, 4);
                 auto mat = ptr->get();
                 auto length = double(_state->video->length().get());
-                for(const auto &[start, end, color] : *_data->_cached_fois) {
+                for(const auto &[start, end] : *_data->_cached_fois) {
                     int x_start = static_cast<int>(std::floor(std::min(1.0, double(start.get()) / length) * width));
                     int x_end   = static_cast<int>(std::ceil (std::min(1.0, double(end.get() + 1) / length) * width));
                     x_start = std::max(0, std::min((int)width, x_start));
@@ -1971,7 +1971,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                     // reinterpret row as array of Color
                     Color* pixels = reinterpret_cast<Color*>(row);
                     // source at half alpha
-                    Color src = color.alpha(color.a / 2);
+                    Color src = White.alpha(White.a / 2);
                     for(int x = x_start; x < x_end; ++x) {
                         pixels[x] = Color::blend(pixels[x], src);
                     }
