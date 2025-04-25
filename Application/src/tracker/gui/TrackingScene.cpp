@@ -63,6 +63,8 @@ struct TrackingScene::Data {
     std::optional<std::size_t> _frame_callback;
     std::atomic<bool> _tracker_has_added_frames{true};
     
+    Timer _last_foi_update;
+    
     std::unique_ptr<Bowl> _bowl;
     //std::unordered_map<Idx_t, Bounds> _last_bounds;
     
@@ -103,9 +105,7 @@ struct TrackingScene::Data {
     ScreenRecorder _recorder;
 
     // Cache for frames of interest
-    uint64_t _cached_foi_last_change = 0;
     std::optional<std::vector<std::tuple<Frame_t, Frame_t, Color>>> _cached_fois;
-    std::string _cached_foi_name;
     Float2_t _cached_fois_width;
     
     bool update_cached_fois();
@@ -127,32 +127,49 @@ struct TrackingScene::Data {
 };
 
 bool TrackingScene::Data::update_cached_fois() {
-    auto name = SETTING(gui_foi_name).value<std::string>();
-    uint64_t last_change = FOI::last_change();
-    if (last_change != _cached_foi_last_change
-        || not _cached_fois.has_value()
-        || _cached_foi_name != name)
+    /* --- throttle to max. 1 Hz --- */
+    if (_last_foi_update.elapsed() <= 1)
+        return false;
+    _last_foi_update.reset();
+
+    const auto name       = GUI_SETTINGS(gui_foi_name);
+    const uint64_t change = FOI::last_change();
+
+    if (change != _foi_state.last_change
+        || !_cached_fois.has_value()
+        || _foi_state.name != name)
     {
-        _cached_foi_last_change = last_change;
-        _cached_fois = std::vector<std::tuple<Frame_t, Frame_t, Color>>{};
-        _cached_foi_name = name;
+        _foi_state.last_change = change;
+        _foi_state.name        = name;
+        _foi_state.changed_frames.clear();
+        _cached_fois            = std::vector<std::tuple<Frame_t, Frame_t, Color>>{};
+
+        const auto id    = FOI::to_id(name);
+        const auto col   = FOI::color(name);
         
-        auto id = FOI::to_id(name);
-        auto fois = FOI::foi(id);
-        auto color = FOI::color(name);
-        if (fois) {
-            for (const FOI& foi : *fois) {
-                _cached_fois->emplace_back(foi.frames().start, foi.frames().end, color);
+        /* ---------- update cached list used by DynGUI (“fois” var) ---------- */
+        if (auto list = FOI::foi(id)) {
+            for (const FOI& f : *list)
+                _cached_fois->emplace_back(f.frames().start,
+                                           f.frames().end,
+                                           col);
+        }
+        
+        /* ---------- update public FOI state (used in the draw loop) ---------- */
+        if (!name.empty()) {
+            if (auto list = FOI::foi(FOI::to_id(name))) {
+                _foi_state.changed_frames = std::move(list.value());
+                _foi_state.color          = FOI::color(name);
             }
         }
+        
         return true;
     }
+
     return false;
 }
 
-TrackingScene::~TrackingScene() {
-    
-}
+TrackingScene::~TrackingScene() { }
 
 void TrackingScene::request_load() {
     _load_requested = true;
@@ -1063,30 +1080,8 @@ void TrackingScene::_draw(DrawStructure& graph) {
         //    Print("Is animating", graph.root().is_animating());
     }
     
-    //if(false)
-    {
-        uint64_t last_change = FOI::last_change();
-        auto name = SETTING(gui_foi_name).value<std::string>();
-
-        if (last_change != _data->_foi_state.last_change
-            || name != _data->_foi_state.name)
-        {
-            _data->_foi_state.name = name;
-
-            if (!_data->_foi_state.name.empty()) {
-                long_t id = FOI::to_id(_data->_foi_state.name);
-                if (id != -1) {
-                    auto changed = FOI::foi(id);
-                    if(changed.has_value()) {
-                        _data->_foi_state.changed_frames = std::move(changed.value());
-                        _data->_foi_state.color = FOI::color(_data->_foi_state.name);
-                    }
-                }
-            }
-
-            _data->_foi_state.last_change = last_change;
-        }
-    }
+    /// Update FOIs if necessary.
+    _data->update_cached_fois();
 
     for (auto& [key, code] : _key_map) {
         _data->_keymap[key] = graph.is_key_pressed(code);
@@ -1938,9 +1933,11 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
             new ImageDisplayElement(&ImageGeneratorRegistry::instance())
     );
     
-    ImageGeneratorRegistry::instance().register_generator("fois", ImageGeneratorRegistry::Generator{
+    ImageGeneratorRegistry::instance().register_generator("fois",
+      ImageGeneratorRegistry::Generator {
         .generate = [this](auto&) -> Image::Ptr
         {
+            assert(SceneManager::is_gui_thread());
             auto coords = FindCoord::get();
             auto width = coords.screen_size().width;
             
@@ -1974,10 +1971,11 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
             }
         },
         .reset = [this](){
+            assert(SceneManager::is_gui_thread());
             if(_data)
                 _data->_cached_fois.reset();
         }
-    });
+      });
     
     dynGUI = std::move(g);
 }

@@ -109,7 +109,8 @@ namespace globals {
         (bool, gui_macos_blur),
         (Size2, gui_zoom_limit),
         (blob::Pose::Skeleton, detect_skeleton),
-        (std::vector<Vec2>, gui_zoom_polygon)
+        (std::vector<Vec2>, gui_zoom_polygon),
+        (std::string, gui_foi_name)
     )
 }
 
