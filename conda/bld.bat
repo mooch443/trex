@@ -14,6 +14,8 @@ if not defined TREX_DESCRIBE_TAG (
     for /f %%i in ('git describe --tags --always --abbrev=0 2^>NUL') do set "TREX_DESCRIBE_TAG=%%i"
 )
 if not defined TREX_DESCRIBE_TAG set "TREX_DESCRIBE_TAG=vuntagged"
+echo TREX_DESCRIBE_TAG=%TREX_DESCRIBE_TAG%
+rem --------------------------------------------------------------------------
 
 
 set MENU_DIR=%PREFIX%\Menu
