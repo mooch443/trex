@@ -47,6 +47,8 @@ def predict(input : TRex.YoloInput) -> List[TRex.Result]:
     global model
     conf_threshold = float(TRex.setting("detect_conf_threshold"))
     iou_threshold = float(TRex.setting("detect_iou_threshold"))
+    if not model:
+        raise ValueError("Model not loaded. Please load the model before predicting.")
 
     return model.inference(input, 
                            conf_threshold = conf_threshold, 

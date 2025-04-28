@@ -7,6 +7,8 @@ ModuleProxy::ModuleProxy(const std::string& name,
             std::function<void(ModuleProxy&)> unloader)
     : _unset(unset), m(name)
 {
+    auto had_loaded_module = PythonIntegration::has_loaded_module(name);
+    
     try {
         if(PythonIntegration::check_module(name, [this, unloader]() mutable {
             if(unloader)
@@ -17,7 +19,7 @@ ModuleProxy::ModuleProxy(const std::string& name,
         }
         
     } catch(...) {
-        if(PythonIntegration::has_loaded_module(name)) {
+        if(had_loaded_module) {
             /// we can safely ignore this reload. just keep whatever we had
             return;
         }
@@ -25,6 +27,28 @@ ModuleProxy::ModuleProxy(const std::string& name,
         throw;
     }
 }
+
+ModuleProxy::ModuleProxy(ThrowAlways,
+            const std::string& name,
+            std::function<void(ModuleProxy&)> reinit,
+            bool unset,
+            std::function<void(ModuleProxy&)> unloader)
+    : _unset(unset), m(name)
+{
+    try {
+        if(PythonIntegration::check_module(name, [this, unloader]() mutable {
+            if(unloader)
+                unloader(*this);
+        }))
+        {
+            reinit(*this);
+        }
+        
+    } catch(...) {
+        throw;
+    }
+}
+
 ModuleProxy::~ModuleProxy() {
     if (not _unset)
         return;

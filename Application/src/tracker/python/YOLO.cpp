@@ -170,18 +170,19 @@ void YOLO::init() {
         if(init_future.valid())
             init_future.get();
         
-        init_future = Python::schedule([](){
+        Python::schedule([](){
             ModuleProxy proxy{
+                ThrowAlways{},
                 "bbx_saved_model",
                 YOLO::reinit
             };
-        });//.get();
+        }).get();
         
         //! this will block everything + the GUI
         //! unfortunately currently this is the lazy solution
         //! to the model resolution not being up-to-date with
         //! the actual .pt file.
-        init_future.wait();
+        //init_future.wait();
     }
 }
 

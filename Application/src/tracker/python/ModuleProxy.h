@@ -3,13 +3,26 @@
 #include <python/GPURecognition.h>
 
 namespace track {
+struct ThrowAlways {};
+
 struct TREX_EXPORT ModuleProxy {
     bool _unset;
     std::string m;
     std::set<std::string> set_functions;
-    ModuleProxy(const std::string& name, std::function<void(ModuleProxy&)> reinit, bool unset = false, std::function<void(ModuleProxy&)> unloader = nullptr);
+    
+    ModuleProxy(
+        const std::string& name,
+        std::function<void(ModuleProxy&)> reinit,
+        bool unset = false,
+        std::function<void(ModuleProxy&)> unloader = nullptr);
+    ModuleProxy(ThrowAlways,
+        const std::string& name,
+        std::function<void(ModuleProxy&)> reinit,
+        bool unset = false,
+        std::function<void(ModuleProxy&)> unloader = nullptr);
     ~ModuleProxy();
     
+public:
     template<typename Fn>
     void set_function(const char* name, Fn fn) {
         set_functions.insert(name);

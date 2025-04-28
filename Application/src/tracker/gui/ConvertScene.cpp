@@ -724,6 +724,22 @@ void ConvertScene::Data::drawBlobs(
         (*tmp)["p"] = assign.p;
         (*tmp)["ps"] = std::vector<std::tuple<double, double, double>>{};
         
+        if(tracked_id.valid()
+           && selected)
+        {
+            if(auto it = fish_selected_blobs.find(tracked_id);
+               it != fish_selected_blobs.end())
+            {
+                const BdxAndPred& blob = it->second;
+                if(blob.basic_stuff)
+                    (*tmp)["speed"] = blob.basic_stuff->centroid.speed<Units::CM_AND_SECONDS>(false);
+                (*tmp)["tracklet"] = blob.tracklet;
+                (*tmp)["is_automatic"] = blob.automatic_match;
+                (*tmp)["thresholded_size"] = Float2_t(blob.basic_stuff.has_value() ? blob.basic_stuff->thresholded_size : uint64_t(0)) * SQR(FAST_SETTING(cm_per_pixel));
+                (*tmp)["px"].toProperty<Float2_t>() = blob.basic_stuff.has_value() ? blob.basic_stuff->thresholded_size : uint64_t(0);
+            }
+        }
+        
         if(not selected_ids.empty()
            && selected_ids.front() == tracked_id)
         {
