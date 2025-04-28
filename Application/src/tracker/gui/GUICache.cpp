@@ -321,7 +321,7 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t) {
 
 std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff() {
     if(bool compared = false;
-       _last_consecutive_update.elapsed() > 10
+       _last_consecutive_update.elapsed() > (GUI_SETTINGS(track_pause) ? 1.0 : 10.0)
        && _updating_consecutive.compare_exchange_strong(compared, true))
     {
         _next_tracklet = std::async(std::launch::async, [](){

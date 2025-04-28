@@ -106,7 +106,7 @@ struct TrackingScene::Data {
 
     // Cache for frames of interest
     std::optional<std::vector<std::tuple<Frame_t, Frame_t>>> _cached_fois;
-    Float2_t _cached_fois_width;
+    Float2_t _cached_fois_width{-1};
     
     bool update_cached_fois(bool force = false);
     
@@ -129,7 +129,7 @@ struct TrackingScene::Data {
 bool TrackingScene::Data::update_cached_fois(bool force) {
     /* --- throttle to max. 1 Hz --- */
     if (not force
-        && _last_foi_update.elapsed() <= 10)
+        && _last_foi_update.elapsed() <= (GUI_SETTINGS(track_pause) ? 1.0 : 10.0))
     {
         return false;
     }
@@ -735,8 +735,9 @@ void TrackingScene::activate() {
     
     assert(not _data->_frame_callback);
     _data->_frame_callback = _state->tracker->register_add_callback([this](Frame_t) {
-        if(_data)
+        if(_data) {
             _data->_tracker_has_added_frames = true;
+        }
     });
     
     RecentItems::open(SETTING(source).value<file::PathArray>().source(), GlobalSettings::current_defaults_with_config());

@@ -110,7 +110,8 @@ namespace globals {
         (Size2, gui_zoom_limit),
         (blob::Pose::Skeleton, detect_skeleton),
         (std::vector<Vec2>, gui_zoom_polygon),
-        (std::string, gui_foi_name)
+        (std::string, gui_foi_name),
+        (bool, track_pause)
     )
 }
 
