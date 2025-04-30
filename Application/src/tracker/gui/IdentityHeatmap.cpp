@@ -5,6 +5,8 @@
 #include <gui/Export.h>
 #include <file/DataLocation.h>
 #include <tracking/IndividualManager.h>
+#include <gui/GuiTypes.h>
+#include <gui/types/Entangled.h>
 
 using namespace track;
 

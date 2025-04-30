@@ -1,6 +1,5 @@
 #include "OutputLibrary.h"
 #include <tracking/Tracker.h>
-#include <cmath>
 #include <tracking/EventAnalysis.h>
 #include <file/CSVExport.h>
 #include <misc/cnpy_wrapper.h>
@@ -9,6 +8,7 @@
 #include <misc/IdentifiedTag.h>
 #include <tracking/IndividualManager.h>
 #include <tracking/Individual.h>
+#include <gui/Graph.h>
 
 #define _LIBFNC(CONTENT) LIBPARAM -> Float2_t \
 { auto fish = info.fish; UNUSED(smooth); UNUSED(fish); UNUSED(frame); if(!props) return GlobalSettings::invalid(); CONTENT }
@@ -27,15 +27,18 @@
 #define FN_IS_CENTROID_ONLY_PROPERTY(NAME) add_centroid_only_flag(#NAME)
 
 namespace Output {
+    using namespace cmn;
     using namespace gui;
+    using namespace track;
 
     IMPLEMENT(Library::_callback);
     
     LibraryCache::Ptr _default_cache = std::make_shared<LibraryCache>();
+
+    std::shared_mutex _cache_func_mutex;
     std::map<std::string, Library::FunctionType> _cache_func;
-    std::map<std::string, std::vector<std::pair<Options_t, Calculation>>> _options_map;
+    cached_output_fields_t _options_map;
     default_config::default_options_type _output_defaults;
-    std::mutex _output_variables_lock;
     CallbackCollection _callback_id;
 
     struct LibraryFuncProperties {
@@ -193,6 +196,7 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
 };
     
     std::vector<std::string> Library::functions() {
+        std::shared_lock guard{_cache_func_mutex};
         std::vector<std::string> ret;
         
         for (auto &p : _cache_func) {
@@ -221,7 +225,7 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
         // add the standard functions
         _default_cache->clear();
         
-        std::lock_guard<std::mutex> lock(_output_variables_lock);
+        std::unique_lock lock{_cache_func_mutex};
         _cache_func.clear();
         func_properties.clear();
         
@@ -1119,12 +1123,11 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
             return tag.p;
         });
         
-        SETTING(output_fields) = SETTING(output_fields).value<std::vector<std::pair<std::string, std::vector<std::string>>>>();
-        
-        
         GlobalSettings::map().register_shutdown_callback([](auto) {
             _callback_id.reset();
         });
+        
+        lock.unlock();
         _callback_id = GlobalSettings::map().register_callbacks({
             "output_invalid_value",
             "output_fields",
@@ -1142,90 +1145,36 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
                 
             } else if (is_in(name, "output_fields", "output_default_options", "midline_resolution"))
             {
-                auto graphs = SETTING(output_fields).value<std::vector<std::pair<std::string, std::vector<std::string>>>>();
+                auto graphs = SETTING(output_fields).value<output_fields_t>();
                 _output_defaults = SETTING(output_default_options).value<default_config::default_options_type>();
-                _options_map.clear();
                 
-                
-                std::vector<std::string> remove;
-                for (auto &c : _cache_func) {
-                    if(utils::beginsWith(c.first, "bone")) {
-                        remove.push_back(c.first);
-                    }
-                }
-                for (auto &r : remove) {
-                    _cache_func.erase(r);
-                }
-                
-                for (uint32_t i=1; i<FAST_SETTING(midline_resolution); i++) {
-                    Library::add("bone"+std::to_string(i), [i]
-                     _LIBFNC({
-                         // angular speed at current point
-                         auto midline = fish->midline(frame);
-                         
-                         if (midline) {
-                             float prev_angle = 0.0;
-                             
-                             if(i > 1) {
-                                 auto line = midline->segments().at(i-1).pos - midline->segments().at(i-2).pos;
-                                 float abs_angle = atan2(line.y, line.x);
-                                 
-                                 prev_angle = abs_angle;
-                             }
-                             
-                             auto line = midline->segments().at(i).pos - midline->segments().at(i-1).pos;
-                             float abs_angle = atan2(line.y, line.x) - prev_angle;
-                             
-                             return abs_angle;
-                         } else
-                             FormatWarning("No midline.");
-                         
-                         return GlobalSettings::invalid();
-                    }));
-                    //SETTING(output_default_options).value<std::map<std::string, std::vector<std::string>>>()["bone"+std::to_string(i)] = { "*2" };
-                }
-
-                for (auto &instance : graphs) {
-                    auto &fname = instance.first;
-                    auto &options = instance.second;
-                    
-                    if(_cache_func.count(fname) == 0
-                       && not utils::beginsWith(fname, "pose")) 
-                    {
-                        Print("There is no function called ",fname,".");
-                        continue;
-                    }
-                    
-                    try {
-                        Options_t modifiers;
-                        Calculation func;
-                        
-                        if(_output_defaults.count(fname)) {
-                            auto &o = _output_defaults.at(fname);
-                            for(auto &e : o) {
-                                if(!parse_modifiers(e, modifiers))
-                                    // function is something other than identity
-                                    func = parse_calculation(e);
-                            }
+                {
+                    std::unique_lock g{_cache_func_mutex};
+                    std::vector<std::string> remove;
+                    for (auto &c : _cache_func) {
+                        if(utils::beginsWith(c.first, "bone")) {
+                            remove.push_back(c.first);
                         }
-                        
-                        for(auto &e : options) {
-                            if(!parse_modifiers(e, modifiers)) {
-                                // function is something other than identity
-                                func = parse_calculation(e);
-                            }
-                        }
-                        
-                        _options_map[fname].push_back({ modifiers, func });
-                        
-                    } catch(const std::exception& ex) {
-                        FormatExcept("Cannot parse option ", fname, ": ", ex.what());
                     }
+                    for (auto &r : remove) {
+                        _cache_func.erase(r);
+                    }
+                }
+                
+                auto map = parse_output_fields(graphs);
+                {
+                    std::unique_lock g{_cache_func_mutex};
+                    _options_map = std::move(map);
                 }
             }
         });
 #pragma GCC diagnostic pop
     }
+
+cached_output_fields_t Library::get_cached_fields() {
+    std::shared_lock g{_cache_func_mutex};
+    return _options_map;
+}
     
     void Library::InitVariables() {
         
@@ -1268,8 +1217,10 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
         if(!_cache)
             _cache = _default_cache;
         
-        std::lock_guard<std::recursive_mutex> lock(_cache->_cache_mutex);
-        if(_cache_func.count(name) == 0) {
+        std::unique_lock lock{_cache->_cache_mutex};
+        if(std::shared_lock g{_cache_func_mutex};
+           _cache_func.count(name) == 0)
+        {
             if(utils::beginsWith(name, "poseX")
                || utils::beginsWith(name, "poseY"))
             {
@@ -1311,7 +1262,16 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
             info.rec_depth++;
             const bool smooth = info.modifiers.is(Modifiers::SMOOTH);
             
-            auto value = _cache_func.at(name)(info, frame, info.fish ? retrieve_props(name, info.fish, frame, info.modifiers) : NULL, smooth);
+            Library::FunctionType fn;
+            if(std::shared_lock g{_cache_func_mutex};
+               _cache_func.contains(name))
+            {
+                fn = _cache_func.at(name);
+            } else {
+                return GlobalSettings::invalid();
+            }
+            
+            auto value = fn(info, frame, info.fish ? retrieve_props(name, info.fish, frame, info.modifiers) : NULL, smooth);
             map[info.modifiers] = value;
             return value;
         }
@@ -1322,21 +1282,21 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
         if(!cache)
             cache = _default_cache;
         
-        std::lock_guard<std::recursive_mutex> lock(cache->_cache_mutex);
-        if(_cache_func.count(name) == 0) {
-            static std::string warning = "";
-            if(warning != name) {
-                warning = name;
-                Print("Cannot find output function ",name,".");
-            }
-            return GlobalSettings::invalid();
-        }
-        
         Options_t modifiers = info.modifiers;
         Calculation func;
         
         {
-            std::lock_guard<std::mutex> guard(_output_variables_lock);
+            std::shared_lock guard{_cache_func_mutex};
+            if(_cache_func.count(name) == 0)
+            {
+                static std::string warning = "";
+                if(warning != name) {
+                    warning = name;
+                    Print("Cannot find output function ",name,".");
+                }
+                return GlobalSettings::invalid();
+            }
+            
             if(_output_defaults.count(name)) {
                 auto &o = _output_defaults.at(name);
                 for(auto &e : o) {
@@ -1350,25 +1310,94 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
         return func.apply(Library::get(name, LibInfo(info.fish, modifiers, cache), frame));
     }
     
-    void Library::add(const std::string& name, const FunctionType &func) {
+    void Library::add(const std::string& name,
+                      const FunctionType &func)
+    {
+        std::unique_lock g{_cache_func_mutex};
         if (_cache_func.count(name)) {
             Print("Overwriting ",name," with new function.");
         }
         _cache_func[name] = func;
     }
+
+    cached_output_fields_t Library::parse_output_fields(const output_fields_t& graphs)
+    {
+        cached_output_fields_t cached_fields;
+        
+        for (uint32_t i=1; i<FAST_SETTING(midline_resolution); i++) {
+            Library::add("bone"+std::to_string(i), [i]
+             _LIBFNC({
+                 // angular speed at current point
+                 auto midline = fish->midline(frame);
+                 
+                 if (midline) {
+                     float prev_angle = 0.0;
+                     
+                     if(i > 1) {
+                         auto line = midline->segments().at(i-1).pos - midline->segments().at(i-2).pos;
+                         float abs_angle = atan2(line.y, line.x);
+                         
+                         prev_angle = abs_angle;
+                     }
+                     
+                     auto line = midline->segments().at(i).pos - midline->segments().at(i-1).pos;
+                     float abs_angle = atan2(line.y, line.x) - prev_angle;
+                     
+                     return abs_angle;
+                 } else
+                     FormatWarning("No midline.");
+                 
+                 return GlobalSettings::invalid();
+            }));
+            //SETTING(output_default_options).value<std::map<std::string, std::vector<std::string>>>()["bone"+std::to_string(i)] = { "*2" };
+        }
+        
+        std::shared_lock g{_cache_func_mutex};
+        for (auto &[fname, options] : graphs) {
+            try {
+                Options_t modifiers;
+                Calculation func;
+                
+                if(_cache_func.count(fname) == 0
+                   && not utils::beginsWith(fname, "pose"))
+                {
+                    Print("There is no function called ",fname,".");
+                    continue;
+                }
+                
+                if(_output_defaults.count(fname)) {
+                    auto &o = _output_defaults.at(fname);
+                    for(auto &e : o) {
+                        if(!parse_modifiers(e, modifiers))
+                            // function is something other than identity
+                            func = parse_calculation(e);
+                    }
+                }
+                
+                for(auto &e : options) {
+                    if(!parse_modifiers(e, modifiers)) {
+                        // function is something other than identity
+                        func = parse_calculation(e);
+                    }
+                }
+                
+                cached_fields[fname].push_back({ modifiers, func });
+                
+            } catch(const std::exception& ex) {
+                FormatExcept("Cannot parse option ", fname, ": ", ex.what());
+            }
+        }
+        
+        return cached_fields;
+    }
     
-    void Library::init_graph(Graph &graph, const Individual *fish, LibraryCache::Ptr cache) {
+    void Library::init_graph(const cached_output_fields_t& options_map, Graph &graph, const Individual *fish, LibraryCache::Ptr cache) {
         if(!cache)
             cache = _default_cache;
         
-        std::lock_guard<std::mutex> guard(_output_variables_lock);
-        auto &funcs = _options_map;
         auto annotations = SETTING(output_annotations).value<std::map<std::string, std::string>>();
         
-        for (auto &f : funcs) {
-            auto &fname = f.first;
-            auto &instances = f.second;
-            
+        for (auto &[fname, instances] : options_map) {
             std::string units = "";
             if (annotations.count(fname)) {
                 units = annotations.at(fname);
@@ -1409,6 +1438,7 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
     }
     
     bool Library::has(const std::string &name) {
+        std::shared_lock g{_cache_func_mutex};
         return _cache_func.count(name) ? true : false;
     }
     

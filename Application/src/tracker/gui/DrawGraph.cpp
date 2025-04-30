@@ -12,14 +12,34 @@ namespace cmn::gui {
         /*if(content_changed()) {
             LockGuard guard(ro_t{}, "PropertiesGraph::Graph::before_draw()",100);
             if(guard.locked()) {
-                gui::Graph::update();
+                gui::Graph::before_draw();
                 _content_changed = false;
             }
-        }
-        //gui::Graph::update();*/
-        gui::Graph::before_draw();
+        }*/
+        //gui::Graph::update();
+        Entangled::before_draw();
     }
-    
+
+void PropertiesGraph::Graph::set_bounds_changed() {
+    set_content_changed(true);
+    gui::Graph::set_bounds_changed();
+}
+
+void PropertiesGraph::Graph::set_parent(SectionInterface*parent)
+{
+    if(parent != this->parent()) {
+        set_content_changed(true);
+        gui::Graph::set_parent(parent);
+        
+        LockGuard guard(ro_t{}, "PropertiesGraph::Graph::before_draw()");
+        if(guard.locked()) {
+            set_content_changed(true);
+            gui::Graph::update();
+            _content_changed = false;
+        }
+    }
+}
+
     PropertiesGraph::PropertiesGraph()
         : _graph(Size2(880, 550), ""),
         _close(new Button{
@@ -70,14 +90,14 @@ void PropertiesGraph::update() {
     _close->set(Loc{width() - 10, 10});
 }
     
-    void PropertiesGraph::setup_graph(Frame_t frameNr, const Range<Frame_t>& range, const Individual* fish, Output::LibraryCache::Ptr cache) {
+    void PropertiesGraph::setup_graph(const Output::cached_output_fields_t& output_fields, Frame_t frameNr, const Range<Frame_t>& range, const Individual* fish, Output::LibraryCache::Ptr cache) {
         if(_fdx == fish->identity().ID()
            && frameNr == _frameNr)
         {
             return;
         }
         
-        Print("Updating ", fish->identity().ID());
+        //Print("Updating ", fish->identity().ID());
         
         if(not fish->empty()) {
             if(!range.empty()) {
@@ -109,8 +129,12 @@ void PropertiesGraph::update() {
         _frameNr = frameNr;
         
         using namespace Output;
-        Library::init_graph(_graph, fish, cache);
+        Library::init_graph(output_fields, _graph, fish, cache);
         //_graph.gui::Graph::update();
+        
+        _graph.gui::Graph::update();
+        _graph.set_content_changed(false);
+        set_content_changed(false);
     }
 
     void PropertiesGraph::reset() {

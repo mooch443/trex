@@ -3,37 +3,17 @@
 
 #include <commons.pc.h>
 #include <file/Path.h>
-#include <misc/GlobalSettings.h>
-#include <gui/Graph.h>
 #include <misc/ranges.h>
-#include <misc/OptionsList.h>
+#include <tracking/OutputLibraryTypes.h>
 
-namespace track {
-class Individual;
-class MotionRecord;
+namespace cmn::gui {
+class Graph;
 }
 
 namespace Output {
-using namespace cmn;
-    using namespace track;
-    
-    ENUM_CLASS(Functions,
-               X,Y,
-               VX,VY,
-               SPEED,
-               ACCELERATION,
-               ANGLE,
-               ANGULAR_V,
-               ANGULAR_A,
-               MIDLINE_OFFSET,
-               MIDLINE_DERIV,
-               BINARY,
-               BORDER_DISTANCE,
-               NEIGHBOR_DISTANCE
-            )
     
     // , const std::function<float(float)>& options
-#define LIBPARAM (Output::Library::LibInfo info, Frame_t frame, const track::MotionRecord* props, bool smooth)
+#define LIBPARAM (Output::Library::LibInfo info, cmn::Frame_t frame, const track::MotionRecord* props, bool smooth)
 #define MODIFIED(FNC, MODIFIER) (_output_modifiers.count(FNC) != 0 ? _output_modifiers.at(FNC).is(MODIFIER) : false)
 
     
@@ -41,69 +21,21 @@ using namespace cmn;
     //  Training data will consist of:
     //  frame | x | y | angle | length(v) | length(a) | ..
     //  .. | neighbor[1...N].rel[x,y,angle,len(v),len(a)]
-    bool save_focussed_on(const file::Path& file, const Individual* fish);
-    
-    struct Calculation {
-        float _factor;
-        enum Operation {
-            MUL,
-            ADD,
-            NONE
-        } _operation;
-        
-        Calculation() : _operation(NONE) {}
-        
-        double apply(const double& val) const {
-            // identity
-            if(_operation == NONE)
-                return val;
-            
-            // multiplication type
-            if(_operation == MUL) {
-                return _factor * val;
-            }
-            
-            // add type
-            return _factor + val;
-        }
-    };
-    
-    ENUM_CLASS( Modifiers,
-        SMOOTH,
-        CENTROID,
-        POSTURE_CENTROID,
-        WEIGHTED_CENTROID,
-        HEAD,
-        POINTS,
-        PLUSMINUS
-    );
-
-    using Options_t = OptionsList<Output::Modifiers::Class>;
-    
-    class Library;
-    struct LibraryCache {
-        typedef std::shared_ptr<LibraryCache> Ptr;
-        
-        std::recursive_mutex _cache_mutex;
-        std::map<const Individual*, std::map<Frame_t, std::map<std::string, std::map<Options_t, double>>>> _cache;
-        
-        void clear();
-        static LibraryCache::Ptr default_cache();
-    };
+    bool save_focussed_on(const cmn::file::Path& file, const track::Individual* fish);
     
     class Library {
-        static std::atomic<Vec2>& CENTER();
-        static CallbackCollection _callback;
+        static std::atomic<cmn::Vec2>& CENTER();
+        static cmn::CallbackCollection _callback;
         
     public:
         
         struct LibInfo {
             size_t rec_depth;
-            const Individual* fish;
+            const track::Individual* fish;
             const Options_t modifiers;
             LibraryCache::Ptr _cache;
             
-            LibInfo(const Individual* fish, const Options_t &modifiers, LibraryCache::Ptr cache = nullptr) : rec_depth(0), fish(fish), modifiers(modifiers), _cache(cache)
+            LibInfo(const track::Individual* fish, const Options_t &modifiers, LibraryCache::Ptr cache = nullptr) : rec_depth(0), fish(fish), modifiers(modifiers), _cache(cache)
             {}
         };
         
@@ -115,16 +47,19 @@ using namespace cmn;
         static void InitVariables();
         
         static void clear_cache();
-        static void frame_changed(Frame_t frameIndex, LibraryCache::Ptr cache = nullptr);
+        static void frame_changed(cmn::Frame_t frameIndex, LibraryCache::Ptr cache = nullptr);
         
-        static double get(const std::string& name, LibInfo info, Frame_t frame);
-        static double get_with_modifiers(const std::string& name, LibInfo info, Frame_t frame);
+        static double get(const std::string& name, LibInfo info, cmn::Frame_t frame);
+        static double get_with_modifiers(const std::string& name, LibInfo info, cmn::Frame_t frame);
         static void add(const std::string& name, const FunctionType& func);
-        static void init_graph(gui::Graph &graph, const Individual *fish, LibraryCache::Ptr cache = nullptr);
+        
+        static cached_output_fields_t get_cached_fields();
+        static void init_graph(const cached_output_fields_t& output_fields, cmn::gui::Graph &graph, const track::Individual *fish, LibraryCache::Ptr cache = nullptr);
+        static cached_output_fields_t parse_output_fields(const output_fields_t&);
         static bool has(const std::string& name);
         static std::vector<std::string> functions();
         
-        static double pose(uint8_t index, uint8_t component, LibInfo info, Frame_t frame);
+        static double pose(uint8_t index, uint8_t component, LibInfo info, cmn::Frame_t frame);
         
         static void remove_calculation_options();
         
@@ -137,8 +72,8 @@ using namespace cmn;
         Library() {}
         
         static const track::MotionRecord* retrieve_props(const std::string&, 
-            const Individual* fish, 
-            Frame_t frame,
+            const track::Individual* fish, 
+            cmn::Frame_t frame,
             const Options_t& modifiers);
         
     public:
@@ -146,7 +81,7 @@ using namespace cmn;
         static bool parse_modifiers(const std::string_view& str, Options_t& modifiers);
         
     private:
-        static float tailbeats(Frame_t frame, LibInfo info);
+        static float tailbeats(cmn::Frame_t frame, LibInfo info);
     };
 }
 

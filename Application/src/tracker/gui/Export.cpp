@@ -245,6 +245,8 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
     }
     DebugHeader("...");
     
+    Output::cached_output_fields_t cached_output_fields = Output::Library::get_cached_fields();
+    
     try {
         std::map<Idx_t, float> all_percents;
         std::mutex percent_mutex;
@@ -322,10 +324,10 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
             if (fish->frame_count() >= output_min_frames) {
                 if(!no_tracking_data) {
                     if(!range.empty())
-                        fish_graphs.at(thread_index)->setup_graph(range.start, range, fish, library_cache.at(thread_index));
+                        fish_graphs.at(thread_index)->setup_graph(cached_output_fields, range.start, range, fish, library_cache.at(thread_index));
                     else
                         fish_graphs.at(thread_index)->setup_graph(
-                              fish->start_frame(),
+                                                                  cached_output_fields, fish->start_frame(),
                               Range<Frame_t>{
                                   fish->start_frame(),
                                   fish->end_frame()

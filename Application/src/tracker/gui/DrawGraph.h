@@ -4,14 +4,11 @@
 #include <commons.pc.h>
 #include <gui/Graph.h>
 #include <misc/idx_t.h>
+#include <tracking/OutputLibraryTypes.h>
 
 namespace track {
 class Tracker;
 class Individual;
-}
-
-namespace Output {
-struct LibraryCache;
 }
 
 namespace cmn::gui {
@@ -25,6 +22,10 @@ namespace cmn::gui {
             { }
             
             void before_draw() override;
+            void update() override {}
+            void set_parent(SectionInterface*) override;
+            void set_bounds_changed() override;
+            
         };
         
     protected:
@@ -39,7 +40,7 @@ namespace cmn::gui {
         PropertiesGraph();
         void update() override;
         void draw(DrawStructure& d);
-        void setup_graph(Frame_t frameNr, const Range<Frame_t>& range, const track::Individual* fish, std::shared_ptr<Output::LibraryCache> cache);
+        void setup_graph(const Output::cached_output_fields_t&, Frame_t frameNr, const Range<Frame_t>& range, const track::Individual* fish, std::shared_ptr<Output::LibraryCache> cache);
         void reset();
     };
 }

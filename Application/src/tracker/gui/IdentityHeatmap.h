@@ -8,6 +8,7 @@
 #include <misc/idx_t.h>
 #include <misc/default_config.h>
 #include <misc/Grid.h>
+#include <misc/Image.h>
 
 namespace track {
 class Individual;
@@ -15,6 +16,8 @@ struct TrackletInformation;
 }
 
 namespace cmn::gui {
+class ExternalImage;
+
 namespace heatmap {
 
 using grid_t = grid::Grid2D<std::tuple<double, long_t>, std::vector<grid::pixel<std::tuple<double, long_t>>>>;

@@ -1456,6 +1456,7 @@ void GUICache::update_graphs(const Frame_t frameIndex) {
     
     auto individuals = lock_individuals();
     auto prev_ids = extract_keys(_displayed_graphs);
+    auto cached_output_fields = Output::Library::get_cached_fields();
     
     for(Idx_t id : selected) {
         if(not individuals.individuals.contains(id)) {
@@ -1474,7 +1475,7 @@ void GUICache::update_graphs(const Frame_t frameIndex) {
         
         prev_ids.erase(id);
         
-        it->second->setup_graph(frameIndex, Range<Frame_t>{
+        it->second->setup_graph(cached_output_fields, frameIndex, Range<Frame_t>{
             frameIndex.try_sub(output_frame_window),
             frameIndex + output_frame_window
         }, fish, nullptr);

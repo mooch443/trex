@@ -308,21 +308,63 @@
 										"type": "gridlayout",
 										"clickable":true,
 										"name":"infos",
-										"vertical_clr":[0,0,0,200],
-										"horizontal_clr":[10,50,80,40],
+										"vertical_clr":[0,0,0,30],
+										"horizontal_clr":[10,50,80,80],
 										"halign":"left",
 										"children": [
 											[
 												{
+													"type":"collection",
+													"children":[
+														{
+															"type": "stext",
+															"max_size": "[{*:0.3:{infocard_width}},300]",
+															"pad":[5,5,5,5],
+															"font": {"size": 0.5},
+															"text": "{if:{hovered:infos}:<c>[<b>Size</b>]</c>:''}"
+														}
+													]
+												},
+												{
+													"type":"collection",
+													"children":[
+														{
+															"type":"stext",
+															"font": {"size": 0.5},
+															"max_size": "[{*:{if:{hovered:infos}:0.68:1.0}:{infocard_width}},300]",
+															"pad":[5,5,5,5],
+															"text":"<c><cyan>{primary_selection.thresholded_size}</cyan><gray>cm²/px²</gray></c>"
+														}
+													]
+												}
+											],
+											[
+												{
 													"type": "stext",
-													"max_size": "[{*:0.5:{infocard_width}}, 300]",
+													"max_size": "[{*:0.3:{infocard_width}}, 300]",
 													"pad":[5,5,5,5],
-													"font": {"size": 0.55},
+													"font": {"size": 0.5},
+													"text": "{if:{hovered:infos}:<c>[<b>Pixels</b>]</c>:''}"
+												},
+												{
+													"type":"stext",
+													"font": {"size": 0.5},
+													"max_size": "[{*:{if:{hovered:infos}:0.68:1.0}:{infocard_width}}, 300]",
+													"pad":[5,5,5,5],
+													"text":"<c><cyan>{primary_selection.px}</cyan><gray>px</gray></c>"
+												}
+											],
+											[
+												{
+													"type": "stext",
+													"max_size": "[{*:0.3:{infocard_width}}, 300]",
+													"pad":[5,5,5,5],
+													"font": {"size": 0.5},
 													"text": "{if:{hovered:infos}:<c>[<b>Speed</b>]</c>:''}"
 												},
 												{
 													"type":"stext",
-													"font": {"size": 0.55},
+													"font": {"size": 0.5},
 													"max_size": "[{*:{if:{hovered:infos}:0.68:1.0}:{infocard_width}}, 300]",
 													"pad":[5,5,5,5],
 													"text":"<c><cyan>{round:{primary_selection.speed}:3}</cyan><gray>cm/s</gray></c>"
@@ -331,14 +373,14 @@
 											[
 												{
 													"type": "stext",
-													"max_size": "[{*:0.5:{infocard_width}}, 300]",
+													"max_size": "[{*:0.3:{infocard_width}}, 300]",
 													"pad":[5,5,5,5],
-													"font": {"size": 0.55},
+													"font": {"size": 0.5},
 													"text": "{if:{hovered:infos}:<c>[<b>NearN</b>]</c>:''}"
 												},
 												{
 													"type":"stext",
-													"font": {"size": 0.55},
+													"font": {"size": 0.5},
 													"max_size": "[{*:{if:{hovered:infos}:0.68:1.0}:{infocard_width}}, 300]",
 													"pad":[5,5,5,5],
 													"text":"<c>{if:{primary_selection.has_neighbor}:'<lightgray>{global.individual_prefix}_{primary_selection.nearest_neighbor}</lightgray> (<cyan>{round:{primary_selection.nearest_neighbor_distance}:3}</cyan>cm)':'<gray>[no neighbors]</gray>'}</c>"
