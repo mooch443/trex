@@ -94,7 +94,7 @@ namespace default_config {
         
         CONFIG("app_name", std::string("TGrabs"), "Name of the application.", SYSTEM);
         CONFIG("version", std::string(g_GIT_DESCRIBE_TAG)+(std::string(g_GIT_CURRENT_BRANCH) != "main" ? "_"+std::string(g_GIT_CURRENT_BRANCH) : ""), "Version of the application.", SYSTEM);
-        CONFIG("color_channel", uint8_t(1), "Index (0-2) of the color channel to be used during video conversion, if more than one channel is present in the video file.");
+        CONFIG("color_channel", std::optional<uint8_t>(), "Index (0-2) of the color channel to be used during video conversion, if more than one channel is present in the video file. If set to null it will use the default conversion that OpenCV uses for cv::COLOR_BGRA2GRAY.");
         CONFIG("system_memory_limit", uint64_t(0), "Custom override of how many bytes of system RAM the program is allowed to fill. If `approximate_length_minutes` or `stop_after_minutes` are set, this might help to increase the resulting RAW video footage frame_rate.");
         
         CONFIG("frame_rate", uint32_t(0), "Frame rate of the video will be set according to `cam_framerate` or, for video conversion, the metadata of a given video. If you want to modify your frame rate, please set either `cam_framerate` or `frame_rate` during conversion.", LOAD);

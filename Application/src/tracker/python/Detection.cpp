@@ -265,6 +265,9 @@ void BackgroundSubtraction::apply(std::vector<TileImage> &&tiled) {
     const Float2_t sqcm = SQR(cm_per_pixel);
     cv::Mat r3;
     
+    static thread_local cv::Mat split_channels[4];
+    const auto color_channel = SETTING(color_channel).value<std::optional<uint8_t>>();
+    
     size_t i = 0;
     for(auto && tile : tiled) {
         try {
@@ -282,11 +285,23 @@ void BackgroundSubtraction::apply(std::vector<TileImage> &&tiled) {
                 else if (mode == meta_encoding_t::gray
                          || mode == meta_encoding_t::binary)
                 {
-                    if(image->dims == 3)
-                        cv::cvtColor(image->get(), r3, cv::COLOR_BGR2GRAY);
-                    else if(image->dims == 4)
-                        cv::cvtColor(image->get(), r3, cv::COLOR_BGRA2GRAY);
-                    else
+                    if(is_in(image->dims, 3, 4)) {
+                        if(not color_channel.has_value()
+                           || color_channel.value() >= 4)
+                        {
+                            if(image->dims == 3) {
+                                cv::cvtColor(image->get(), r3, cv::COLOR_BGR2GRAY);
+                            } else /*if(image->dims == 4)*/ {
+                                cv::cvtColor(image->get(), r3, cv::COLOR_BGRA2GRAY);
+                            }
+                            
+                        } else {
+                            
+                            cv::split(image->get(), split_channels);
+                            r3 = split_channels[color_channel.value()];
+                        }
+                        
+                    } else
                         throw U_EXCEPTION("Invalid number of channels (",image->dims,") in input image for the network.");
                 } else if(mode == meta_encoding_t::rgb8) {
                     if(image->dims == 4)
