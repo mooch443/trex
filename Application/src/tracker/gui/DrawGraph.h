@@ -25,7 +25,7 @@ namespace cmn::gui {
             void update() override {}
             void set_parent(SectionInterface*) override;
             void set_bounds_changed() override;
-            
+            void update_sample_cache_automatically() override;
         };
         
     protected:

@@ -10,10 +10,13 @@ namespace EnumMeta {
 const track::detect::ObjectDetectionType_t&
 HasCustomParser<track::detect::ObjectDetectionType_t>::fromStr(const std::string& str) {
     using namespace track::detect;
-    if(str == "yolo" || str == "yolo8")
+    if(str == "yolo" || str == "yolo8") {
         return ObjectDetectionType::yolo;
-    if(str == "background_subtraction")
+    } else if(str == "background_subtraction") {
         return ObjectDetectionType::background_subtraction;
+    } else if(str == "precomputed") {
+        return ObjectDetectionType::precomputed;
+    }
     return ObjectDetectionType::none;
 }
 

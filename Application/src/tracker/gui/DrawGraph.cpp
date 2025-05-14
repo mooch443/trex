@@ -8,8 +8,17 @@
 using namespace track;
 
 namespace cmn::gui {
+
+void PropertiesGraph::Graph::update_sample_cache_automatically() {
+    /// dont
+}
+
     void PropertiesGraph::Graph::before_draw() {
-        /*if(content_changed()) {
+        if(content_changed()) {
+            gui::Graph::update();
+            _content_changed = false;
+        }
+        /*
             LockGuard guard(ro_t{}, "PropertiesGraph::Graph::before_draw()",100);
             if(guard.locked()) {
                 gui::Graph::before_draw();
@@ -132,8 +141,10 @@ void PropertiesGraph::update() {
         Library::init_graph(output_fields, _graph, fish, cache);
         //_graph.gui::Graph::update();
         
-        _graph.gui::Graph::update();
-        _graph.set_content_changed(false);
+        _graph.recompute_sample_cache();   // expensive _get_y() work done here
+        
+        //_graph.gui::Graph::update();
+        _graph.set_content_changed(true);
         set_content_changed(false);
     }
 

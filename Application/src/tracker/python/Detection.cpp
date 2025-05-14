@@ -10,6 +10,7 @@
 #include <misc/Timer.h>
 #include <misc/AbstractVideoSource.h>
 #include <python/TileBuffers.h>
+#include <misc/PrecomuptedDetection.h>
 
 namespace track {
 using namespace detect;
@@ -32,6 +33,15 @@ Detection::Detection() {
     case ObjectDetectionType::background_subtraction:
         BackgroundSubtraction{};
         break;
+            
+    case ObjectDetectionType::precomputed: {
+        auto detect_precomputed_file = SETTING(detect_precomputed_file).value<file::PathArray>();
+        PrecomputedDetection{
+            std::move(detect_precomputed_file),
+            nullptr
+        };
+        break;
+    }
 
     default:
         throw U_EXCEPTION("Unknown detection type: ", detection_type());
@@ -45,6 +55,9 @@ void Detection::deinit() {
     } else if(detection_type() == ObjectDetectionType::background_subtraction) {
         manager().clean_up();
         BackgroundSubtraction::deinit();
+    } else if(detection_type() == ObjectDetectionType::precomputed) {
+        manager().clean_up();
+        PrecomputedDetection::deinit();
     } else {
         manager().clean_up();
     }
@@ -59,9 +72,12 @@ bool Detection::is_initializing() {
 double Detection::fps() {
     if(detection_type() == ObjectDetectionType::yolo)
         return YOLO::fps();
-    if(detection_type() == ObjectDetectionType::background_subtraction)
+    else if(detection_type() == ObjectDetectionType::background_subtraction)
         return BackgroundSubtraction::fps();
-    return AbstractBaseVideoSource::_network_fps.load();
+    else if(detection_type() == ObjectDetectionType::precomputed)
+        return PrecomputedDetection::fps();
+    else
+        return AbstractBaseVideoSource::_network_fps.load();
 }
 
 std::future<SegmentationData> Detection::apply(TileImage&& tiled) {
@@ -107,6 +123,13 @@ std::future<SegmentationData> Detection::apply(TileImage&& tiled) {
         return f;
     }
             
+    case ObjectDetectionType::precomputed: {
+        tiled.promise = std::make_unique<std::promise<SegmentationData>>();
+        auto f = tiled.promise->get_future();
+        manager().enqueue(std::move(tiled));
+        return f;
+    }
+            
     default:
         throw U_EXCEPTION("Unknown detection type: ", detection_type());
     }
@@ -123,6 +146,9 @@ void Detection::apply(std::vector<TileImage>&& tiled) {
         return;
     } else if(detection_type() == ObjectDetectionType::background_subtraction) {
         BackgroundSubtraction::apply(std::move(tiled));
+        return;
+    } else if(detection_type() == ObjectDetectionType::precomputed) {
+        PrecomputedDetection::apply(std::move(tiled));
         return;
     }
 
@@ -194,6 +220,8 @@ PipelineManager<TileImage, true>& BackgroundSubtraction::manager() {
 PipelineManager<TileImage, true>& Detection::manager() {
     if(detection_type() ==  ObjectDetectionType::background_subtraction) {
         return BackgroundSubtraction::manager();
+    } else if(detection_type() == ObjectDetectionType::precomputed) {
+        return PrecomputedDetection::manager();
     } else {
         static auto instance = PipelineManager<TileImage, true>(max(1u, SETTING(detect_batch_size).value<uchar>()), [](std::vector<TileImage>&& images) {
             // do what has to be done when the queue is full

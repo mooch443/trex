@@ -15,7 +15,7 @@ map_t get_map();
 
 namespace track::detect {
 
-ENUM_CLASS(ObjectDetectionType, none, yolo, background_subtraction);
+ENUM_CLASS(ObjectDetectionType, none, yolo, background_subtraction, precomputed);
 ENUM_CLASS(ObjectDetectionFormat, none, boxes, masks, poses);
 
 using ObjectDetectionType_t = ObjectDetectionType::Class;

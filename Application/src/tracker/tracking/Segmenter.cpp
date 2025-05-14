@@ -10,6 +10,7 @@
 #include <tracking/Tracker.h>
 #include <gui/Export.h>
 #include <misc/SettingsInitializer.h>
+#include <misc/PrecomuptedDetection.h>
 
 //#define DEBUG_TM_ITEMS
 
@@ -525,6 +526,8 @@ void Segmenter::trigger_average_generator(bool do_generate_average, cv::Mat& bg)
                 mat = ptr->get();
                 if(detection_type() == ObjectDetectionType::background_subtraction)
                     BackgroundSubtraction::set_background(std::move(ptr));
+                else if(detection_type() == ObjectDetectionType::precomputed)
+                    PrecomputedDetection::set_background(std::move(ptr));
                 else if(detection_type() == ObjectDetectionType::yolo)
                     YOLO::set_background(ptr);
                 
@@ -566,6 +569,7 @@ void Segmenter::trigger_average_generator(bool do_generate_average, cv::Mat& bg)
             mat = ptr->get();
             YOLO::set_background(ptr);
             BackgroundSubtraction::set_background(std::move(ptr));
+            PrecomputedDetection::set_background(std::move(ptr));
             
         } catch(const std::exception& ex) {
             FormatExcept("Exception when finalizing the average image: ", ex.what());
@@ -724,8 +728,9 @@ void Segmenter::open_camera() {
     _output_size = (Size2(camera.size()) * SETTING(meta_video_scale).value<float>()).map(roundf);
     SETTING(video_conversion_range) = Range<long_t>(-1,-1);
     
+    auto detect_type = SETTING(detect_type).value<ObjectDetectionType_t>();
     if(std::unique_lock vlock(_mutex_video);
-       SETTING(track_background_subtraction))
+       detect_type == ObjectDetectionType::background_subtraction)
     {
         _overlayed_video = std::make_unique<VideoProcessor<BackgroundSubtraction>>(
            BackgroundSubtraction{},
@@ -735,6 +740,9 @@ void Segmenter::open_camera() {
                //_cv_messages.notify_one();
            }
         );
+        
+    } else if(detect_type == ObjectDetectionType::precomputed) {
+        throw InvalidArgumentException("Cannot use precomputed data for camera recordings.");
         
     } else {
         _overlayed_video = std::make_unique<VideoProcessor<Detection>>(
