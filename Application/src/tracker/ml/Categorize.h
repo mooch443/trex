@@ -55,7 +55,7 @@ enum class State {
     LOAD
 };
 
-State& state();
+std::atomic<State>& state();
 void set_state(const std::shared_ptr<pv::File>& video_source, State);
 void add_task(LearningTask&&);
 
@@ -63,7 +63,8 @@ void add_task(LearningTask&&);
  For interaction with the GUI:
  */
 std::atomic<float>& best_accuracy();
-std::string& status();
+std::string status();
+void set_status(const std::string&);
 std::mutex& recv_mutex();
 
 std::atomic<bool>& initialized();

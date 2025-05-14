@@ -101,19 +101,20 @@ std::atomic<bool>& visible() {
     return _visible;
 }
 
-bool& initialized_apply() {
-    static bool _init = false;
-    return _init;
-}
-
 auto& queue() {
     static std::queue<LearningTask> _tasks;
     return _tasks;
 }
 
-std::string& status() {
-    static std::string _status;
+static std::mutex _status_mutex;
+static std::string _status;
+std::string status() {
+    std::unique_lock g{_status_mutex};
     return _status;
+}
+void set_status(const std::string& text) {
+    std::unique_lock g{_status_mutex};
+    _status = text;
 }
 
 std::atomic<bool>& initialized() {
@@ -161,6 +162,7 @@ auto& task_queue() {
 
 };
 
+static std::shared_mutex last_source_mutex;
 static std::weak_ptr<pv::File> last_source;
 
 void Work::add_training_sample(const Sample::Ptr& sample) {
@@ -173,7 +175,10 @@ void Work::add_training_sample(const Sample::Ptr& sample) {
     }
     
     try {
-        Work::start_learning(last_source);
+        {
+            std::shared_lock g{last_source_mutex};
+            Work::start_learning(last_source);
+        }
         
         LearningTask task;
         task.sample = sample;
@@ -189,7 +194,10 @@ void Work::add_training_sample(const Sample::Ptr& sample) {
 void terminate() {
     if(Work::thread) {
         Work::terminate() = true;
-        last_source.reset();
+        {
+            std::unique_lock g{last_source_mutex};
+            last_source.reset();
+        }
         Work::learning() = false;
         Work::learning_variable().notify_all();
         Work::variable().notify_all();
@@ -966,6 +974,7 @@ void Work::work_thread() {
             guard.unlock();
             try {
                 //LockGuard g("get_random::loop");
+                std::shared_lock g{last_source_mutex};
                 sample = DataStore::get_random(last_source);
                 if (sample && sample->_images.size() < 1) {
                     sample = Sample::Invalid();
@@ -1153,15 +1162,18 @@ void paint_distributions(int64_t frame) {
 #endif
 }
 
-Work::State& Work::state() {
-    static State _state = Work::State::NONE;
+std::atomic<Work::State>& Work::state() {
+    static std::atomic<State> _state = Work::State::NONE;
     return _state;
 }
 
 void Work::set_state(const std::shared_ptr<pv::File>& video, State state) {
-    auto lock = last_source.lock();
-    if(lock != video)
-        last_source = video;
+    {
+        std::unique_lock g{last_source_mutex};
+        auto lock = last_source.lock();
+        if(lock != video)
+            last_source = video;
+    }
     
     DataStore::init_frame_cache();
     {
@@ -1215,7 +1227,6 @@ void Work::set_state(const std::shared_ptr<pv::File>& video, State state) {
             
         case State::APPLY: {
             //assert(Work::state() == State::SELECTION);
-            Work::initialized_apply() = false;
             LearningTask task;
             task.type = LearningTask::Type::Apply;
             Work::add_task(std::move(task));

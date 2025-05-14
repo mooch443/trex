@@ -388,7 +388,7 @@ class Categorize:
             gpu_mem = 32 * self.width * self.height * self.channels * 4
             TRex.log(f"# no {device} memory available. estimating 32 images = {gpu_mem} bytes")
         
-        max_images = int(gpu_mem / (self.width * self.height * 3 * 4))
+        max_images = int(gpu_mem / (self.width * self.height * 3 * 8))
         TRex.log(f"# maximum images that can be processed at the same time on {device}: {max_images} in {gpu_mem} memory")
 
         if max_images > 1 and len(images) > max_images:
