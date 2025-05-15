@@ -326,12 +326,12 @@ void PrecomputedDetection::apply(std::vector<TileImage> &&tiled) {
                     pv::Blob blob(*lines, flags);
                     auto pixels = blob.calculate_pixels(input_format, output_format, r3);
                     
-                    if(filtered.empty()) {
+                    /*if(filtered.empty()) {
                         blob.set_pixels(*pixels);
                         auto [pos, img] = blob.color_image();
                         auto mat = img->get();
                         tf::imshow("object", mat);
-                    }
+                    }*/
                     
                     filtered.emplace_back(std::move(lines), std::move(pixels));
                 }
