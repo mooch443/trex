@@ -235,8 +235,8 @@ void PrecomputedDetection::apply(std::vector<TileImage> &&tiled) {
     const auto detect_threshold = SETTING(detect_threshold).value<int>();
     
     cmn::OutputInfo output_format{
-        .encoding = mode,
-        .channels = required_storage_channels(mode)
+        .channels = required_storage_channels(mode),
+        .encoding = mode
     };
     
     if(not data()._frame_data.has_value()) {
