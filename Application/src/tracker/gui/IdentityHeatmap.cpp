@@ -374,7 +374,8 @@ void HeatmapController::sort_data_into_custom_grid() {
                     std::sort(values.begin(), values.end());
                     auto percentiles = percentile(values, {0.05, 0.95});
                     //minimum = max(percentiles.front(), minimum);
-                    maximum = min(percentiles.back(), maximum);
+                    //maximum = min(percentiles.back(), maximum);
+                    maximum = percentiles.back();
                     break;
                 }
                 
@@ -410,7 +411,7 @@ void HeatmapController::sort_data_into_custom_grid() {
     for (auto ptr = (Color*)grid_image->data(), to = ptr + grid_image->cols * grid_image->rows; ptr != to; ++ptr, ++samples, ++grid_values)
     {
         if(*samples > 0) {
-            percentage = (*grid_values / *samples - minimum) / ML;
+            percentage = saturate((*grid_values / *samples - minimum) / ML, 0.0, 1.0);
             if(_normalization == normalization_t::variance)
                 percentage = 1 - percentage;
             

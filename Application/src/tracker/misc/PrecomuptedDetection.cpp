@@ -12,7 +12,8 @@ struct PrecomputedDetection::Data {
     gpuMat _gpu;
     gpuMat _float_average;
     
-    
+    using frame_data_t = std::unordered_map<Frame_t, std::vector<Bounds>>;
+    std::optional<std::future<frame_data_t>> _frame_data_loader;
     
     
     void set(Image::Ptr&&);
@@ -29,14 +30,29 @@ struct PrecomputedDetection::Data {
     std::shared_mutex _data_mutex;
     std::optional<file::PathArray> _filename;
     
-    std::optional<std::unordered_map<Frame_t, std::vector<Bounds>>> _frame_data;
+    std::optional<frame_data_t> _frame_data;
     
     void set(file::PathArray&& filename) {
         std::unique_lock guard{_data_mutex};
         if(_filename != filename) {
             _filename = std::move(filename);
             _frame_data.reset();
-            preload_file();
+            
+            std::promise<frame_data_t> promise;
+            if(_frame_data_loader.has_value()
+               && _frame_data_loader->valid())
+            {
+                try {
+                    _frame_data_loader->get();
+                } catch(...) {
+                    FormatExcept("Failed to load frame_data that was still in the queue.");
+                }
+            }
+            
+            _frame_data_loader = std::async(std::launch::async, [this]()
+            {
+                return preload_file();
+            });
         }
     }
     
@@ -55,7 +71,7 @@ struct PrecomputedDetection::Data {
         _samples++;
     }
     
-    void preload_file();
+    frame_data_t preload_file();
 };
 
 PipelineManager<TileImage, true>& PrecomputedDetection::manager() {
@@ -75,6 +91,33 @@ PipelineManager<TileImage, true>& PrecomputedDetection::manager() {
                 FormatExcept("Background image not set in ",
                              std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - start_time).count(),
                              " seconds. Waiting for background image...");
+                message_time = std::chrono::steady_clock::now();
+            }
+        }
+        
+        start_time = std::chrono::steady_clock::now();
+        while(data()._frame_data_loader.has_value()
+              && not manager().is_terminated())
+        {
+            if(data()._frame_data_loader.has_value()
+               && data()._frame_data_loader->valid())
+            {
+                if(data()._frame_data_loader->wait_for(std::chrono::milliseconds(1)) == std::future_status::ready)
+                {
+                    data()._frame_data = data()._frame_data_loader->get();
+                    break;
+                }
+                
+            } else {
+                /// then we remove it...
+                data()._frame_data_loader.reset();
+            }
+            
+            auto elapsed = std::chrono::steady_clock::now() - message_time;
+            if(std::chrono::duration_cast<std::chrono::seconds>(elapsed).count() > 30) {
+                FormatExcept("Loading the precomputed data is taking ",
+                             std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - start_time).count(),
+                             " seconds already. Waiting...");
                 message_time = std::chrono::steady_clock::now();
             }
         }
@@ -538,7 +581,7 @@ void PrecomputedDetection::apply(std::vector<TileImage> &&tiled) {
     }*/
 }
 
-void PrecomputedDetection::Data::preload_file() {
+PrecomputedDetection::Data::frame_data_t PrecomputedDetection::Data::preload_file() {
     if(not _filename.has_value())
         throw RuntimeError("No filename has been set for precomputed detection. Please set the `detect_precomputed_file` parameter.");
     
@@ -577,7 +620,7 @@ void PrecomputedDetection::Data::preload_file() {
         }
     };
     
-    decltype(_frame_data)::value_type result;
+    frame_data_t result;
     for(auto &path : _filename.value()) {
         if(path.has_extension("csv")) {
             bool is_centroid = true;
@@ -616,7 +659,13 @@ void PrecomputedDetection::Data::preload_file() {
                 auto row = table[i];
                 std::optional<double> x = row.get(*x_column);
                 std::optional<double> y = row.get(*y_column);
-                Frame_t frame{ static_cast<uint32_t>(row.get(*frame_column).value()) };
+                double raw_frame = row.get(*frame_column).value();
+                if(raw_frame < 0) {
+                    FormatWarning("Ignoring row ", row.cells, " because the frame number is ", raw_frame,".");
+                    continue;
+                }
+                
+                Frame_t frame{ static_cast<uint32_t>(raw_frame) };
                 
                 std::optional<double> w, h;
                 if(w_column) w = row.get(*w_column);
@@ -637,7 +686,7 @@ void PrecomputedDetection::Data::preload_file() {
         }
     }
     
-    _frame_data = std::move(result);
+    return result;
 }
 
 
