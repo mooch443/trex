@@ -189,27 +189,34 @@ void PrecomputedDetection::apply(std::vector<TileImage> &&tiled) {
     
     const auto color_channel = SETTING(color_channel).value<std::optional<uint8_t>>();
     
-    const auto detect_threshold = SETTING(detect_threshold).value<uint32_t>();
+    const auto detect_threshold = SETTING(detect_threshold).value<int>();
     
     cmn::OutputInfo output_format{
         .encoding = mode,
         .channels = required_storage_channels(mode)
     };
     
+    if(not data()._frame_data.has_value()) {
+        FormatWarning("Frame data is empty for precomputed detection.");
+        return;
+    }
+    
+    auto &fdata = data()._frame_data.value();
+    
     size_t i = 0;
     for(auto &&tile : tiled) {
         std::vector<Bounds> all_objects;
         std::vector<blob::Pair> filtered, filtered_out;
-        auto frame = tile.data.frame.index();
+        auto frame = Frame_t{tile.data.image->index()};
         
-        if(auto frame_data = data()._frame_data.value().find(frame);
-           frame_data != data()._frame_data.value().end())
+        if(auto frame_data = fdata.find(frame);
+           frame_data != fdata.end())
         {
             all_objects = frame_data->second;
         }
         
         /// Collect all tiles for this frame:
-        assert(tile.data.tiles.size() == tile.images.size());
+        assert(tile.data.tiles.empty() || tile.data.tiles.size() == tile.images.size());
         cv::Mat r3;
         
         for(size_t tdx = 0; tdx < tile.images.size(); ++tdx)
@@ -217,13 +224,29 @@ void PrecomputedDetection::apply(std::vector<TileImage> &&tiled) {
             auto& image = tile.images.at(tdx);
             convert_tile_to_rgb_or_gray(image, r3, mode, color_channel);
             
+            if(r3.channels() == 0) {
+                FormatExcept("The resulting image is of 0 dimensions.");
+                convert_tile_to_rgb_or_gray(image, r3, mode, color_channel);
+            }
+            
             InputInfo input_format{
                 .channels = static_cast<uint8_t>(r3.channels()),
                 .encoding = r3.channels() == 1 ? meta_encoding_t::gray : meta_encoding_t::rgb8
             };
             
-            auto bds = tile.data.tiles.at(tdx);
-            for(auto it = all_objects.begin(); it != all_objects.end();)
+            if(input_format.channels == 0) {
+                throw U_EXCEPTION("Empty channels");
+            }
+            
+            assert(not r3.empty());
+            Bounds bds;
+            if(tile.data.tiles.size() <= tdx) {
+                bds = Bounds(0_F, 0_F, Float2_t(r3.cols), Float2_t(r3.rows));
+            } else {
+                bds = tile.data.tiles.at(tdx);
+            }
+            
+            for(auto it = all_objects.begin(); it != all_objects.end(); ++it)
             {
                 /// check whether the top-left position is inside (instead of overlap so we avoid duplicates)
                 if(bds.contains(it->pos())) {
@@ -234,7 +257,7 @@ void PrecomputedDetection::apply(std::vector<TileImage> &&tiled) {
                     }
                     
                     auto lines = std::make_unique<std::vector<HorizontalLine>>();
-                    for(double y = it->y; y < it->y + it->height; ++y)
+                    for(double y = it->y; y < it->y + it->height && y < image->rows; ++y)
                     {
                         lines->emplace_back(y, it->x, it->x + int64_t(it->width + 0.5) - 1);
                         
@@ -259,6 +282,13 @@ void PrecomputedDetection::apply(std::vector<TileImage> &&tiled) {
                         | (mode == meta_encoding_t::binary ? pv::Blob::flag(pv::Blob::Flags::is_binary) : 0);
                     pv::Blob blob(*lines, flags);
                     auto pixels = blob.calculate_pixels(input_format, output_format, r3);
+                    
+                    if(filtered.empty()) {
+                        blob.set_pixels(*pixels);
+                        auto [pos, img] = blob.color_image();
+                        auto mat = img->get();
+                        tf::imshow("object", mat);
+                    }
                     
                     filtered.emplace_back(std::move(lines), std::move(pixels));
                 }
@@ -551,7 +581,7 @@ void PrecomputedDetection::Data::preload_file() {
     for(auto &path : _filename.value()) {
         if(path.has_extension("csv")) {
             bool is_centroid = true;
-            auto table = CSVStreamReader{path, ';', true}.readNumericTableOptional<double>();
+            auto table = CSVStreamReader{path, ',', true}.readNumericTableOptional<double>();
             
             std::optional<std::string_view> x_column, y_column;
             std::optional<std::string_view> w_column, h_column;
@@ -562,6 +592,7 @@ void PrecomputedDetection::Data::preload_file() {
                 match_name({'y'}, name, y_column);
                 match_name({"w", "width"}, name, w_column);
                 match_name({"h", "height"}, name, h_column);
+                match_name({"frame"}, name, frame_column);
             }
             
             if(not x_column || not y_column) {
@@ -598,13 +629,15 @@ void PrecomputedDetection::Data::preload_file() {
                 
                 Bounds bds{*x, *y, *w, *h};
                 if(is_centroid) {
-                    bds = bds - Vec2(*w, *h);
+                    bds = bds - Vec2(*w, *h) * 0.5;
                 }
                 
                 result[frame].push_back(bds);
             }
         }
     }
+    
+    _frame_data = std::move(result);
 }
 
 

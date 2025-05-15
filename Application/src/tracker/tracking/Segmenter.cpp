@@ -567,9 +567,15 @@ void Segmenter::trigger_average_generator(bool do_generate_average, cv::Mat& bg)
         try {
             ptr = finalize_bg_image(bg);
             mat = ptr->get();
-            YOLO::set_background(ptr);
-            BackgroundSubtraction::set_background(std::move(ptr));
-            PrecomputedDetection::set_background(std::move(ptr));
+            
+            if(detection_type() == ObjectDetectionType::background_subtraction)
+                BackgroundSubtraction::set_background(std::move(ptr));
+            else if(detection_type() == ObjectDetectionType::precomputed)
+                PrecomputedDetection::set_background(std::move(ptr));
+            else if(detection_type() == ObjectDetectionType::yolo)
+                YOLO::set_background(std::move(ptr));
+            else
+                throw RuntimeError("Unknown detection_type of ", detection_type(), " when setting average image.");
             
         } catch(const std::exception& ex) {
             FormatExcept("Exception when finalizing the average image: ", ex.what());

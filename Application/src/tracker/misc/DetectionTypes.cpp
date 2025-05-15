@@ -250,6 +250,8 @@ Size2 get_model_image_size() {
     
     if(detection_type() == ObjectDetectionType::background_subtraction) {
         return meta_video_size;
+    } else if(detection_type() == ObjectDetectionType::precomputed) {
+        return meta_video_size;
         
     } else if (detection_type() == ObjectDetectionType::yolo) {
         const auto region_resolution = SETTING(region_resolution).value<track::detect::DetectResolution>();
