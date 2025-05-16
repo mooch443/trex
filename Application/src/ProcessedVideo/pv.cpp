@@ -668,9 +668,12 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
             pack.write(uint16_t(mask->empty() ? 0 : mask->front().y));
             pack.write(uint8_t(flags));
             pack.write(uint16_t(compressed.size()));
-            pack.write_data(compressed.size() * elem_size, (char*)compressed.data());
+            if(not compressed.empty())
+                pack.write_data(compressed.size() * elem_size, (char*)compressed.data());
             
-            if(encoding() != meta_encoding_t::binary) {
+            if(encoding() != meta_encoding_t::binary
+               && not compressed.empty())
+            {
                 auto &pixels = _pixels.at(i);
                 pack.write_data(pixels->size() * sizeof(char), (char*)pixels->data());
             }

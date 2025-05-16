@@ -306,8 +306,13 @@ tl::expected<Result, const char*> calculate_posture(Frame_t, pv::BlobWeakPtr blo
 {
     Outline::check_constants();
     
-    const int initial_threshold = FAST_SETTING(track_posture_threshold);
-    int threshold = initial_threshold;
+    /// cache settings
+    const auto posture_closing_steps = FAST_SETTING(posture_closing_steps);
+    const auto posture_closing_size = FAST_SETTING(posture_closing_size);
+    const auto outline_resample = FAST_SETTING(outline_resample);
+    const auto track_posture_threshold = FAST_SETTING(track_posture_threshold);
+    
+    int threshold = static_cast<int>(track_posture_threshold);
     
     // order the calculated points to make the outline
     static Timing timing("posture", 100);
@@ -317,12 +322,17 @@ tl::expected<Result, const char*> calculate_posture(Frame_t, pv::BlobWeakPtr blo
     
     /// we will store our result here
     Result result;
+    CPULabeling::ListCache_t cache;
+    
+    /// we cannot get lower than a percentage of the original pixels
+    const auto initial_pixels = blob->num_pixels();
+    const uint64_t minimum_pixels = max(1u, initial_pixels / 10u);
     
     while(true) {
         // calculate outline points in (almost) random order based on
         // greyscale values, instead of just binary thresholding.
         //auto raw_outline = subpixel_threshold(greyscale, threshold);
-        auto thresholded_blob = pixel::threshold_get_biggest_blob(blob, threshold, Tracker::background(), FAST_SETTING(posture_closing_steps), FAST_SETTING(posture_closing_size));
+        auto thresholded_blob = pixel::threshold_get_biggest_blob(blob, threshold, Tracker::background(), posture_closing_steps, posture_closing_size, std::move(cache));
         thresholded_blob->add_offset(-blob->bounds().pos());
         
         periodic::points_t selected = nullptr;
@@ -342,7 +352,7 @@ tl::expected<Result, const char*> calculate_posture(Frame_t, pv::BlobWeakPtr blo
             result.outline.clear();
             result.outline.replace_points(std::move(selected));
             
-            result.outline.resample(FAST_SETTING(outline_resample));
+            result.outline.resample(outline_resample);
             
             auto r = calculate_midline(std::move(result));
             if(r) {
@@ -364,7 +374,9 @@ tl::expected<Result, const char*> calculate_posture(Frame_t, pv::BlobWeakPtr blo
         // increase threshold by 2
         threshold += 2;
         
-        if(threshold >= initial_threshold + 50) {
+        if(thresholded_blob->num_pixels() < minimum_pixels
+           || threshold >= track_posture_threshold + 100)
+        {
             break;
         }
     }

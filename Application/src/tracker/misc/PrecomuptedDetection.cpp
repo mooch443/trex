@@ -8,23 +8,23 @@
 namespace track {
 
 struct PrecomputedDetection::Data {
-    Image::Ptr _background;
     gpuMat _gpu;
     gpuMat _float_average;
+    std::optional<Background> _background;
     
     using frame_data_t = std::unordered_map<Frame_t, std::vector<Bounds>>;
     std::optional<std::future<frame_data_t>> _frame_data_loader;
     
     
-    void set(Image::Ptr&&);
+    void set(Image::Ptr&&, meta_encoding_t::Class);
     
     bool has_background() const {
         std::shared_lock guard(_background_mutex);
-        return _background != nullptr;
+        return _background.has_value();
     }
-    void set_background(Image::Ptr&& background) {
+    void set_background(Image::Ptr&& background, meta_encoding_t::Class meta_encoding) {
         std::unique_lock guard(_background_mutex);
-        _background = std::move(background);
+        _background = Background(std::move(background), meta_encoding);
     }
     
     std::shared_mutex _data_mutex;
@@ -132,23 +132,27 @@ PipelineManager<TileImage, true>& PrecomputedDetection::manager() {
     return instance;
 }
 
-PrecomputedDetection::PrecomputedDetection(file::PathArray&& path, Image::Ptr&& average) {
-    data().set(std::move(average));
+PrecomputedDetection::PrecomputedDetection(file::PathArray&& path, Image::Ptr&& average, meta_encoding_t::Class meta_encoding) {
+    data().set(std::move(average), meta_encoding);
     data().set(std::move(path));
 }
 
-void PrecomputedDetection::set_background(Image::Ptr && average) {
-    data().set(std::move(average));
+void PrecomputedDetection::set_background(Image::Ptr && average, meta_encoding_t::Class meta_encoding) {
+    data().set(std::move(average), meta_encoding);
     if(data().has_background())
         manager().set_paused(false);
 }
 
-void PrecomputedDetection::Data::set(Image::Ptr&& average) {
+void PrecomputedDetection::Data::set(Image::Ptr&& average, meta_encoding_t::Class meta_encoding) {
     std::scoped_lock guard(_background_mutex, _gpu_mutex);
     Print("Setting background image to ", hex(average.get()));
-    _background = std::move(average);
+    if(average)
+        _background = Background(std::move(average), meta_encoding);
+    else
+        _background.reset();
+    
     if(_background) {
-        _background->get().copyTo(_gpu);
+        _background->image().get().copyTo(_gpu);
         _gpu.convertTo(_float_average, CV_32FC(_gpu.channels()), 1.0 / 255.0);
         manager().set_paused(false);
     }
@@ -295,10 +299,6 @@ void PrecomputedDetection::apply(std::vector<TileImage> &&tiled) {
                 if(bds.contains(it->pos())) {
                     /// our object is inside the current tile
                     /// lets crop it out
-                    if(detect_threshold > 0) {
-                        /// TODO: implement some version of RawProcessing here
-                    }
-                    
                     auto lines = std::make_unique<std::vector<HorizontalLine>>();
                     for(double y = it->y; y < it->y + it->height && y < image->rows; ++y)
                     {
@@ -326,14 +326,29 @@ void PrecomputedDetection::apply(std::vector<TileImage> &&tiled) {
                     pv::Blob blob(*lines, flags);
                     auto pixels = blob.calculate_pixels(input_format, output_format, r3);
                     
-                    /*if(filtered.empty()) {
-                        blob.set_pixels(*pixels);
-                        auto [pos, img] = blob.color_image();
-                        auto mat = img->get();
-                        tf::imshow("object", mat);
-                    }*/
-                    
-                    filtered.emplace_back(std::move(lines), std::move(pixels));
+                    if(detect_threshold > 0)
+                    {
+                        /// TODO: implement some version of RawProcessing here
+                        blob.set_pixels(std::move(pixels));
+                        auto ptr = blob.threshold(detect_threshold, data()._background.value());
+                        
+                        if(filtered.empty()) {
+                            auto [pos, img] = ptr->color_image();
+                            auto mat = img->get();
+                            tf::imshow("object", mat);
+                        }
+                        
+                        filtered.emplace_back(std::move(ptr->steal_lines()), std::move(ptr->pixels()));
+                    } else {
+                        if(filtered.empty()) {
+                            blob.set_pixels(*pixels);
+                            auto [pos, img] = blob.color_image();
+                            auto mat = img->get();
+                            tf::imshow("object", mat);
+                        }
+                        
+                        filtered.emplace_back(std::move(lines), std::move(pixels));
+                    }
                 }
             }
         }
@@ -376,209 +391,6 @@ void PrecomputedDetection::apply(std::vector<TileImage> &&tiled) {
     if(not tiled.empty()) {
         data().add_time_sample(double(tiled.size()) / timer.elapsed());
     }
-    
-    /*std::shared_lock guard(data()._gpu_mutex);
-    RawProcessing raw(data()._gpu, &data()._float_average, nullptr);
-    gpuMat gpu_buffer;
-    TagCache tag;
-    CPULabeling::ListCache_t cache;
-    const auto cm_per_pixel = SETTING(cm_per_pixel).value<Settings::cm_per_pixel_t>();
-    const auto detect_size_filter = SETTING(detect_size_filter).value<SizeFilters>();
-    const Float2_t sqcm = SQR(cm_per_pixel);
-    cv::Mat r3;
-    
-    static thread_local cv::Mat split_channels[4];
-    const auto color_channel = SETTING(color_channel).value<std::optional<uint8_t>>();
-    
-    size_t i = 0;
-    for(auto && tile : tiled) {
-        try {
-            std::vector<blob::Pair> filtered, filtered_out;
-            
-            for(auto &image : tile.images) {
-                if (mode == meta_encoding_t::r3g3b2) {
-                    if (image->dims == 3)
-                        convert_to_r3g3b2<3>(image->get(), r3);
-                    else if (image->dims == 4)
-                        convert_to_r3g3b2<4>(image->get(), r3);
-                    else
-                        throw U_EXCEPTION("Invalid number of channels (",image->dims,") in input image for the network.");
-                }
-                else if (mode == meta_encoding_t::gray
-                         || mode == meta_encoding_t::binary)
-                {
-                    if(is_in(image->dims, 3, 4)) {
-                        if(not color_channel.has_value()
-                           || color_channel.value() >= 4)
-                        {
-                            if(image->dims == 3) {
-                                cv::cvtColor(image->get(), r3, cv::COLOR_BGR2GRAY);
-                            } else {
-                                cv::cvtColor(image->get(), r3, cv::COLOR_BGRA2GRAY);
-                            }
-                            
-                        } else {
-                            
-                            cv::split(image->get(), split_channels);
-                            r3 = split_channels[color_channel.value()];
-                        }
-                        
-                    } else
-                        throw U_EXCEPTION("Invalid number of channels (",image->dims,") in input image for the network.");
-                } else if(mode == meta_encoding_t::rgb8) {
-                    if(image->dims == 4)
-                        cv::cvtColor(image->get(), r3, cv::COLOR_BGRA2BGR);
-                    else
-                        throw U_EXCEPTION("Invalid number of channels (",image->dims,") in input image for the network.");
-                    
-                } else
-                    throw U_EXCEPTION("Invalid image mode ", mode);
-                
-                gpuMat* input = &gpu_buffer;
-                r3.copyTo(*input);
-                
-                //apply_filters(*input);
-                //Print("CHannels = ", r3.channels(), " input=", input->channels());
-                //Print("size = ", Size2(r3), " input=", Size2(input->cols, input->rows), " average=",Size2(data().gpu.cols, data().gpu.rows), " channels=", data().gpu.channels());
-                assert(Size2(r3) == Size2(data()._gpu.cols, data()._gpu.rows));
-                raw.generate_binary(r3, *input, r3, &tag);
-                
-                {
-                    std::vector<blob::Pair> rawblobs;
-            #if defined(TAGS_ENABLE)
-                    if(!GRAB_SETTINGS(tags_saved_only))
-            #endif
-                        rawblobs = CPULabeling::run(r3, cache, true);
-
-                    const uint8_t flags = pv::Blob::flag(pv::Blob::Flags::is_tag)
-                            | pv::Blob::flag(pv::Blob::Flags::is_instance_segmentation)
-                            | (mode == meta_encoding_t::rgb8 ? pv::Blob::flag(pv::Blob::Flags::is_rgb) : 0)
-                            | (mode == meta_encoding_t::r3g3b2 ? pv::Blob::flag(pv::Blob::Flags::is_r3g3b2) : 0)
-                            | (mode == meta_encoding_t::binary ? pv::Blob::flag(pv::Blob::Flags::is_binary) : 0);
-                    for (auto& blob : tag.tags) {
-                        rawblobs.emplace_back(
-                            std::make_unique<blob::line_ptr_t::element_type>(*blob->lines()),
-                            std::make_unique<blob::pixel_ptr_t::element_type>(*blob->pixels()),
-                            flags);
-                    }
-
-            #ifdef TGRABS_DEBUG_TIMING
-                    _raw_blobs = _sub_timer.elapsed();
-                    _sub_timer.reset();
-            #endif
-                    if(filtered.capacity() == 0) {
-                        filtered.reserve(rawblobs.size() / 2);
-                        filtered_out.reserve(rawblobs.size() / 2);
-                    }
-                    
-                    size_t fidx = 0;
-                    size_t fodx = 0;
-                    
-                    size_t Ni = filtered.size();
-                    size_t No = filtered_out.size();
-                    
-                    for(auto  &&pair : rawblobs) {
-                        auto &pixels = pair.pixels;
-                        auto &lines = pair.lines;
-                        
-                        ptr_safe_t num_pixels;
-                        if(pixels)
-                            num_pixels = pixels->size();
-                        else {
-                            num_pixels = 0;
-                            for(auto &line : *lines) {
-                                num_pixels += ptr_safe_t(line.x1) - ptr_safe_t(line.x0) + ptr_safe_t(1);
-                            }
-                        }
-                        
-                        if(detect_size_filter.in_range_of_one(num_pixels * sqcm))
-                        {
-                            //b->calculate_moments();
-                            assert(lines);
-                            ++fidx;
-                            if(Ni <= fidx) {
-                                filtered.emplace_back(std::move(pair));
-                                //task->filtered.push_back({std::move(lines), std::move(pixels)});
-                                ++Ni;
-                            } else {
-            //                    *task->filtered[fidx].lines = std::move(*lines);
-            //                    *task->filtered[fidx].pixels = std::move(*pixels);
-                                //std::swap(task->filtered[fidx].lines, lines);
-                                //std::swap(task->filtered[fidx].pixels, pixels);
-                                filtered[fidx] = std::move(pair);
-                            }
-                        }
-                        else {
-                            assert(lines);
-                            ++fodx;
-                            if(No <= fodx) {
-                                filtered_out.emplace_back(std::move(pair));
-                                //task->filtered_out.push_back({std::move(lines), std::move(pixels)});
-                                ++No;
-                            } else {
-            //                    *task->filtered_out[fodx].lines = std::move(*lines);
-            //                    *task->filtered_out[fodx].pixels = std::move(*pixels);
-            //                    std::swap(task->filtered_out[fodx].lines, lines);
-            //                    std::swap(task->filtered_out[fodx].pixels, pixels);
-                                filtered_out[fodx] = std::move(pair);
-                            }
-                        }
-                    }
-                    
-                    filtered.reserve(fidx);
-                    filtered_out.reserve(fodx);
-                }
-            }
-            
-            {
-                static Timing timing("adding frame");
-                TakeTiming take(timing);
-                
-                assert(required_storage_channels(mode) == 0 || r3.channels() == required_storage_channels(mode));
-                tile.data.frame.set_encoding(mode);
-                
-                for (auto &&b: filtered) {
-                    if(b.lines->size() < UINT16_MAX) {
-                        if(b.lines->size() < UINT16_MAX)
-                            tile.data.frame.add_object(std::move(b));
-                        else
-                            FormatWarning("Lots of lines!");
-                    }
-                    else
-                        Print("Probably a lot of noise with ",b.lines->size()," lines!");
-                }
-                
-                filtered.clear();
-            }
-            
-            tile.promise->set_value(std::move(tile.data));
-            tile.promise = nullptr;
-            
-        } catch(const std::exception& ex) {
-            FormatExcept("Exception! ", ex.what());
-            tile.promise->set_exception(std::current_exception());
-            tile.promise = nullptr;
-        }
-        
-        try {
-            if(tile.callback)
-                tile.callback();
-            
-        } catch(...) {
-            FormatExcept("Exception for tile ", i," in package of ", tiled.size(), " TileImages.");
-        }
-        
-        for(auto &image: tile.images) {
-            buffers::TileBuffers::get().move_back(std::move(image));
-        }
-        tile.images.clear();
-        
-        ++i;
-    }
-    
-    if(not tiled.empty()) {
-        data().add_time_sample(double(tiled.size()) / timer.elapsed());
-    }*/
 }
 
 PrecomputedDetection::Data::frame_data_t PrecomputedDetection::Data::preload_file() {
@@ -622,6 +434,8 @@ PrecomputedDetection::Data::frame_data_t PrecomputedDetection::Data::preload_fil
     
     frame_data_t result;
     for(auto &path : _filename.value()) {
+        Print(" * Loading ", path, " precomputed data (",FileSize{path.file_size()},")...");
+        
         if(path.has_extension("csv")) {
             bool is_centroid = true;
             auto table = CSVStreamReader{path, ',', true}.readNumericTableOptional<double>();
@@ -647,7 +461,7 @@ PrecomputedDetection::Data::frame_data_t PrecomputedDetection::Data::preload_fil
             }
             
             if(w_column && h_column) {
-                if(not utils::contains(utils::lowercase(w_column.value()), "centroid"))
+                if(not utils::contains(utils::lowercase(x_column.value()), "centroid"))
                 {
                     is_centroid = false;
                 }
@@ -684,6 +498,8 @@ PrecomputedDetection::Data::frame_data_t PrecomputedDetection::Data::preload_fil
                 result[frame].push_back(bds);
             }
         }
+        
+        Print("* Done loading ", path,". Loaded precomputed data for ", result.size(), " frames.");
     }
     
     return result;

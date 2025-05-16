@@ -31,7 +31,10 @@ CREATE_STRUCT(Settings,
     (uint8_t, outline_smooth_samples),
     (bool, midline_start_with_head),
     (float, midline_stiff_percentage),
-    (uint32_t, midline_resolution)
+    (uint32_t, midline_resolution),
+    (uint8_t, posture_closing_steps),
+    (uint8_t, posture_closing_size),
+    (float, outline_resample)
 )
 }
 // saved global settings

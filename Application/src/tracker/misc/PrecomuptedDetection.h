@@ -7,8 +7,8 @@
 namespace track {
 
 struct TREX_EXPORT PrecomputedDetection {
-    PrecomputedDetection(file::PathArray&& filename, Image::Ptr&&);
-    static void set_background(Image::Ptr&&);
+    PrecomputedDetection(file::PathArray&& filename, Image::Ptr&&, meta_encoding_t::Class);
+    static void set_background(Image::Ptr&&, meta_encoding_t::Class);
     
     static detect::ObjectDetectionType_t type() { return detect::ObjectDetectionType::precomputed; }
     static std::future<SegmentationData> apply(TileImage&& tiled);

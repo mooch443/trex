@@ -38,7 +38,8 @@ Detection::Detection() {
         auto detect_precomputed_file = SETTING(detect_precomputed_file).value<file::PathArray>();
         PrecomputedDetection{
             std::move(detect_precomputed_file),
-            nullptr
+            nullptr,
+            meta_encoding_t::binary
         };
         break;
     }

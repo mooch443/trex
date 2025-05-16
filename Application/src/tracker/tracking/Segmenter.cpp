@@ -527,7 +527,7 @@ void Segmenter::trigger_average_generator(bool do_generate_average, cv::Mat& bg)
                 if(detection_type() == ObjectDetectionType::background_subtraction)
                     BackgroundSubtraction::set_background(std::move(ptr));
                 else if(detection_type() == ObjectDetectionType::precomputed)
-                    PrecomputedDetection::set_background(std::move(ptr));
+                    PrecomputedDetection::set_background(std::move(ptr), Background::meta_encoding());
                 else if(detection_type() == ObjectDetectionType::yolo)
                     YOLO::set_background(ptr);
                 
@@ -571,7 +571,7 @@ void Segmenter::trigger_average_generator(bool do_generate_average, cv::Mat& bg)
             if(detection_type() == ObjectDetectionType::background_subtraction)
                 BackgroundSubtraction::set_background(std::move(ptr));
             else if(detection_type() == ObjectDetectionType::precomputed)
-                PrecomputedDetection::set_background(std::move(ptr));
+                PrecomputedDetection::set_background(std::move(ptr), Background::meta_encoding());
             else if(detection_type() == ObjectDetectionType::yolo)
                 YOLO::set_background(std::move(ptr));
             else
