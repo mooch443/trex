@@ -975,6 +975,12 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("cam_undistort", false, "If set to true, the recorded video image will be undistorted using `cam_undistort_vector` (1x5) and `cam_matrix` (3x3).");
         CONFIG("image_invert", false, "Inverts the image greyscale values before thresholding.");
         
+        CONFIG("adaptive_threshold_scale", float(2), "Threshold value to be used for adaptive thresholding, if enabled.");
+        CONFIG("use_adaptive_threshold", false, "Enables or disables adaptive thresholding (slower than normal threshold). Deals better with weird backgrounds.");
+        CONFIG("dilation_size", int32_t(0), "If set to a value greater than zero, detected shapes will be inflated (and potentially merged). When set to a value smaller than zero, detected shapes will be shrunk (and potentially split).");
+        CONFIG("use_closing", false, "Toggles the attempt to close weird blobs using dilation/erosion with `closing_size` sized filters.");
+        CONFIG("closing_size", int(3), "Size of the dilation/erosion filters for if `use_closing` is enabled.");
+        
 #if !CMN_WITH_IMGUI_INSTALLED
         config["nowindow"] = true;
 #endif

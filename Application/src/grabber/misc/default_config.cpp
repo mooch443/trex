@@ -127,11 +127,7 @@ namespace default_config {
         CONFIG("web_time_threshold", float(0.125), "Time-threshold after which a new request can be answered (prevents DDoS).");
         //CONFIG("tgrabs_use_threads", true, "Use threads to process images (specifically the blob detection).", STARTUP);
         CONFIG("video_reading_use_threads", true, "Use threads to read images from a video file.", STARTUP);
-        CONFIG("adaptive_threshold_scale", float(2), "Threshold value to be used for adaptive thresholding, if enabled.");
-        CONFIG("use_adaptive_threshold", false, "Enables or disables adaptive thresholding (slower than normal threshold). Deals better with weird backgrounds.");
-        CONFIG("dilation_size", int32_t(0), "If set to a value greater than zero, detected shapes will be inflated (and potentially merged). When set to a value smaller than zero, detected shapes will be shrunk (and potentially split).", INIT);
-        CONFIG("use_closing", false, "Toggles the attempt to close weird blobs using dilation/erosion with `closing_size` sized filters.", INIT);
-        CONFIG("closing_size", int(3), "Size of the dilation/erosion filters for if `use_closing` is enabled.", INIT);
+
         CONFIG("image_adjust", false, "Converts the image to floating-point (temporarily) and performs f(x,y) * `image_contrast_increase` + `image_brightness_increase` plus, if enabled, squares the image (`image_square_brightness`).");
         CONFIG("image_square_brightness", false, "Squares the floating point input image after background subtraction. This brightens brighter parts of the image, and darkens darker regions.");
         CONFIG("image_contrast_increase", float(3), "Value that is multiplied to the preprocessed image before applying the threshold (see `image_adjust`). The neutral value is 1 here.");
