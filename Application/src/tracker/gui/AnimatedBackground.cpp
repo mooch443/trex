@@ -96,7 +96,8 @@ AnimatedBackground::AnimatedBackground(Image::Ptr&& image, const pv::File* video
     
     update([this](auto&) {
         advance_wrap(_static_image);
-        advance_wrap(_grey_image);
+        if(not _is_greyscale)
+            advance_wrap(_grey_image);
     });
     
     auto_size({});
@@ -332,7 +333,10 @@ void AnimatedBackground::before_draw() {
                 else
                     _static_image.set_color(_tint);
                 
-                _target_fade = 0.0;
+                if(_is_greyscale)
+                    _target_fade = 0.5;
+                else
+                    _target_fade = 0.0;
                 _fade_timer.reset();
                 
             } else {
@@ -347,27 +351,31 @@ void AnimatedBackground::before_draw() {
             set_content_changed(true);
         }
         
-        if(_current_frame != frame)
-            _target_fade = 0.0;
+        if(_current_frame != frame) {
+            if(_is_greyscale)
+                _target_fade = 0.5;
+            else
+                _target_fade = 0.0;
+        }
     }
     
     auto dt = saturate(_fade_timer.elapsed(), 0.01, 0.1);
     
     auto diff = (_target_fade - _fade) * 1 * dt;
-    if(_target_fade == 0) {
+    if(_target_fade < 1) {
         diff = saturate(diff, -1.0, -0.01);
     } else if(_target_fade == 1) {
         diff = saturate(diff, 0.01, 1.0);
     }
     
-    _fade = saturate(_fade + diff, 0.0, 1.0);
+    _fade = saturate(_fade + diff, _target_fade < 1 ? _target_fade : 0.0, 1.0);
     
-    if(not _enable_fade)
-        _fade = 1.0;
+    //if(not _enable_fade)
+        //_fade = 1.0;
 
     // fade image to grayscale by _fade percent
     if(not _static_image.empty()
-       && is_in(_static_image.source()->channels(), 3u, 4u)
+       //&& is_in(_static_image.source()->channels(), 3u, 4u)
        && abs(_fade - _target_fade) > 0.01)
     {
         //Print("Animating... ", _fade, " with dt=",dt);
