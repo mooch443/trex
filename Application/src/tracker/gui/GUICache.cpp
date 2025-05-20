@@ -936,6 +936,11 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
         });
         
         processed_frame().transform_noise([&](pv::Blob& blob) {
+            if(not blob.blob_id().valid()) {
+                FormatWarning("Empty blob here.");
+                return;
+            }
+            
             blob.calculate_moments();
             
             if((nothing_to_zoom_on

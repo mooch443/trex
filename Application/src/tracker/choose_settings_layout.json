@@ -193,7 +193,7 @@
                                             "size":0.8,
                                             "style":"bold"
                                         },
-                                        "action": "choose-file:source:{folder:{source}}:Videos:*.pv *.mp4 *.avi *.mov *.mkv *.flv *.wmv *.webm *.m4v *.mpg *.mpeg *.m2v *.m4v *.ts *.mts *.m2ts *.vob *.3gp *.3g2 *.asf *.ogv *.ogg *.rm *.rmvb *.divx *.xvid *.flv *.f4v *.h264 *.h265 *.hevc *.mxf *.m2p *.m2v *.m2t *.m2ts *.m4p *.m4v *.m4a *.m4b *.m4r *.m4v *.m4p *.m4a *.m4b *.m4r *.m4v *.m4p *.m4a *.m4b *.m4r *.m4v *.m4p *.m4a *.m4b *.m4r *.m4v *.m4p *.m4a *.m4b *.m4r *.m4v *.m4p *.m4a *.m4b *.m4r *.m4v *.m4p *.m4a *.m4b *.m4r"
+                                        "action": "choose-file:source:{folder:{source}}:Videos:*.pv *.mp4 *.avi *.mov *.mkv *.flv *.wmv *.webm *.m4v *.mpg *.mpeg *.m2v *.m4v *.ts *.mts *.m2ts *.vob *.3gp *.3g2 *.asf *.ogv *.ogg *.rm *.rmvb *.divx *.xvid *.flv *.f4v *.h264 *.h265 *.hevc *.mxf *.m2p *.m2v *.m2t *.m2ts *.m4p *.m4v *.m4a *.m4b *.m4r *.m4v *.m4p *.m4a *.m4b *.m4r *.m4v *.m4p *.m4a *.m4b *.m4r *.m4v *.m4p *.m4a *.m4b *.m4r *.m4v *.m4p *.m4a *.m4b *.m4r *.m4v *.m4p *.m4a *.m4b *.m4r *.m4v *.m4p *.m4a *.m4b *.m4r *.jpg"
                                     }
                                 ]
                             },
