@@ -538,7 +538,7 @@ class ValidationCallback:
             TRex.log(f"{description} {str(logs)}")
 
     def evaluate(self, epoch, save=True, logs={}):
-        global update_work_percent, set_stop_reason, set_per_class_accuracy, set_uniqueness_history, estimate_uniqueness
+        global update_work_percent, set_stop_reason, set_per_class_accuracy, set_uniqueness_history, estimate_uniqueness, acceptable_uniqueness, accepted_uniqueness
 
         classes = self.classes
         model = self.model

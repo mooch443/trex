@@ -16,6 +16,9 @@ Usage:
                                [--image_width IMAGE_WIDTH --image_height IMAGE_HEIGHT --channels CHANNELS]
 """
 
+import tensorflow
+print("TensorFlow version:", tensorflow.__version__)
+
 import argparse
 import json
 import keras
@@ -75,25 +78,61 @@ def convert_keras_to_torch(json_path, weights_path=None, image_width=None, image
                     image_height = batch_input_shape[2]
                     image_width  = batch_input_shape[3]
                 found = True
-                print(f"Automatically detected input dimensions: width={image_width}, height={image_height}, channels={channels}")
+                print(f"✅ Automatically detected input dimensions: width={image_width}, height={image_height}, channels={channels} in layer {layer['class_name']}")
                 break
         
         if not found or image_width is None or image_height is None or channels is None:
-            raise ValueError("Could not determine input dimensions from the JSON file. "
+            raise ValueError("⚠️ Could not determine input dimensions from the JSON file. "
                              "Please provide image_width, image_height, and channels explicitly.")
     
     # Replace Lambda layer function with our custom scaling function.
+    found_input_layer = False
     for layer in model_dict["config"]["layers"]:
         if layer["class_name"] == "Lambda":
             layer["config"]["function"] = "scaling_fn"
             layer["config"]["function_type"] = "raw"
             layer["config"]["arguments"] = {}
+        elif layer["class_name"] == "Input":
+            found_input_layer = True
+
+    if not found_input_layer:
+        # we havent found an input layer, so we add one
+        print("⚠️  No input layer found in the model. Please check the JSON file.")
+        print("   Adding an input layer with the specified dimensions.")
+        input_layer = {
+            "class_name": "Input",
+            "config": {
+                "name": "input_1",
+                "dtype": "float32",
+                "batch_input_shape": [None, image_height, image_width, channels],
+                "sparse": False,
+                "ragged": False
+            }
+        }
+        model_dict["config"]["layers"].insert(0, input_layer)
+    
     new_json = json.dumps(model_dict)
     
     # Load and compile the Keras model.
-    tf_model = model_from_json(new_json, custom_objects={"scaling_fn": scaling_fn})
+    tf_model = model_from_json(new_json, custom_objects={
+        "scaling_fn": scaling_fn,
+        "Sequential": keras.Sequential,
+        "Dense": keras.layers.Dense,
+        "Dropout": keras.layers.Dropout,
+        "Activation": keras.layers.Activation,
+        "Cropping2D": keras.layers.Cropping2D,
+        "Flatten": keras.layers.Flatten,
+        "Convolution1D": keras.layers.Convolution1D,
+        "Convolution2D": keras.layers.Convolution2D,
+        "MaxPooling1D": keras.layers.MaxPooling1D,
+        "MaxPooling2D": keras.layers.MaxPooling2D,
+        "SpatialDropout2D": keras.layers.SpatialDropout2D,
+        "Lambda": keras.layers.Lambda,
+        "Input": keras.layers.Input,
+        "BatchNormalization": keras.layers.BatchNormalization,
+    })
     tf_model.compile(loss='categorical_crossentropy',
-                     optimizer=keras.optimizers.Adam(),
+                     optimizer=keras.optimizers.legacy.Adam(),
                      metrics=['accuracy'])
     
     # Optionally, load model weights from a .npz file.
@@ -103,7 +142,7 @@ def convert_keras_to_torch(json_path, weights_path=None, image_width=None, image
             for i, layer in zip(range(len(tf_model.layers)), tf_model.layers):
                 if i in weights:
                     layer.set_weights(weights[i])
-        print(f"Weights loaded from: {weights_path}")
+        print(f"✅ Weights loaded from: {weights_path}")
     
     # Convert the Keras model to ONNX.
     spec = (tf.TensorSpec(tf_model.input.shape, tf.float32, name="input"),)
@@ -117,11 +156,11 @@ def convert_keras_to_torch(json_path, weights_path=None, image_width=None, image
     dummy_input = torch.randn(1, channels, image_height, image_width)
     try:
         scripted_model = torch.jit.script(pytorch_model)
-        print("Model scripted successfully.")
+        print("✅ Model scripted successfully.")
     except Exception as e:
         print("Scripting failed, falling back to tracing. Error:", e)
         scripted_model = torch.jit.trace(pytorch_model, dummy_input)
-        print("Model traced successfully.")
+        print("✅ Model traced successfully.")
     
     # Optionally, save the final TorchScript model.
     if output_path:

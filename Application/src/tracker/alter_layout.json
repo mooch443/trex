@@ -44,8 +44,8 @@
 						"type":"rect",
 						"pos":"{i.pos}",
 						"size":"{i.size}",
-						"fill":"{if:{hovered}:[255,255,255,30]:{clrAlpha:{i.color}:15}}",
-						"line":"{if:{i.selected}:[255,255,255,150]:{clrAlpha:{i.color}:100}}",
+						"fill":"{if:{hovered}:[255,255,255,30]:{clrAlpha:{cmap:wheel:{i.fdx}}:15}}",
+						"line":"{if:{i.selected}:[255,255,255,150]:{clrAlpha:{cmap:wheel:{i.fdx}}:100}}",
 						"origin":[0,0],
 						"clickable":true,
 						"click":"set:gui_focus_group:{if:{equal:{global.gui_focus_group}:[{i.fdx}]}:[]:[{i.fdx}]}"
@@ -59,7 +59,7 @@
 							"text":"<c><b><nr>{i.fdx}</nr></b></c>:{if:{equal:{global.detect_type}:background_subtraction}:' s=<i>{dec:2:{i.px}}</i>':' <c>{i.type}</c> (p=<i>{int:{*:100:{i.p}}}%</i> s=<i>{dec:2:{i.px}}</i>)'}",
 							"pos":"{i.pos}",
 							"length":80,
-							"line":"{i.color}",
+							"line":"{cmap:wheel:{i.fdx}}",
 							"fill":[50,50,50,150],
 							"id":"{i.fdx}",
 							"center":"{i.center}",
@@ -251,7 +251,7 @@
 		"var":"{&&:{global.gui_show_infocard}:{global.gui_focus_group}}",
 		"then":{
 			"type":"vlayout",
-			"pos":[10,90],
+			"pos":[10,100],
 			"fill":[30,30,30,220],
 			"line":"{primary_selection.color}",
 			"pad":[5,5,5,5],
