@@ -186,6 +186,7 @@ ENUM_CLASS_DOCS(gpu_torch_device_t,
         {"segment_size_filter", "detect_size_filter"},
         {"blob_size_ranges", "track_size_filter"},
         {"fish_max_speed", "track_max_speed"},
+        {"max_speed", "track_max_speed"},
         {"fish_speed_decay", "track_speed_decay"},
         {"fish_enable_direction_smoothing", "posture_direction_smoothing"},
         {"fish_use_matching", ""},
@@ -980,6 +981,9 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("dilation_size", int32_t(0), "If set to a value greater than zero, detected shapes will be inflated (and potentially merged). When set to a value smaller than zero, detected shapes will be shrunk (and potentially split).");
         CONFIG("use_closing", false, "Toggles the attempt to close weird blobs using dilation/erosion with `closing_size` sized filters.");
         CONFIG("closing_size", int(3), "Size of the dilation/erosion filters for if `use_closing` is enabled.");
+        
+        CONFIG("track_threshold_is_absolute", true, "If enabled, uses absolute difference values and disregards any pixel |p| < `threshold` during conversion. Otherwise the equation is p < `threshold`, meaning that e.g. bright spots may not be considered trackable when dark spots would. Same as `detect_threshold_is_absolute`, but during tracking instead of converting.");
+        CONFIG("detect_threshold_is_absolute", true, "If enabled, uses absolute difference values and disregards any pixel |p| < `threshold` during conversion. Otherwise the equation is p < `threshold`, meaning that e.g. bright spots may not be considered trackable when dark spots would. Same as `track_threshold_is_absolute`, but during conversion instead of tracking.");
         
 #if !CMN_WITH_IMGUI_INSTALLED
         config["nowindow"] = true;

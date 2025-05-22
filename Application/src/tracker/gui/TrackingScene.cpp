@@ -45,6 +45,8 @@
 #include <gui/DrawSegmentsElement.h>
 #include <gui/DrawGraph.h>
 #include <gui/ImageDisplayElement.h>
+#include <ml/UniquenessProvider.h>
+#include <misc/SampleInterpolator.h>
 
 using namespace track;
 
@@ -84,6 +86,8 @@ struct TrackingScene::Data {
         Color color;
     } _foi_state;
     
+    std::unique_ptr<track::UniquenessProvider> _uniqueness_provider;
+    
     std::atomic<FrameRange> _analysis_range;
     CallbackCollection _callback;
     Vec2 _last_mouse;
@@ -108,7 +112,7 @@ struct TrackingScene::Data {
     std::optional<std::vector<std::tuple<Frame_t, Frame_t>>> _cached_fois;
     Float2_t _cached_fois_width{-1};
     
-    bool update_cached_fois(bool force = false);
+    bool update_cached_fois(std::weak_ptr<pv::File> video, bool force = false);
     
     /**
      * @brief Constructor for the Data struct.
@@ -126,7 +130,7 @@ struct TrackingScene::Data {
     void handle_zooming(Event);
 };
 
-bool TrackingScene::Data::update_cached_fois(bool force) {
+bool TrackingScene::Data::update_cached_fois(std::weak_ptr<pv::File> video, bool force) {
     /* --- throttle to max. 1 Hz --- */
     if (not force
         && _last_foi_update.elapsed() <= (GUI_SETTINGS(track_pause) ? 1.0 : 10.0))
@@ -137,7 +141,7 @@ bool TrackingScene::Data::update_cached_fois(bool force) {
 
     const auto name       = SETTING(gui_foi_name).value<std::string>();
     const uint64_t change = FOI::last_change();
-
+    
     if (force
         || change != _foi_state.last_change
         || !_cached_fois.has_value()
@@ -150,11 +154,29 @@ bool TrackingScene::Data::update_cached_fois(bool force) {
         _foi_state.name        = name;
         _foi_state.color = col;
         _foi_state.changed_frames.clear();
-        _cached_fois            = std::vector<std::tuple<Frame_t, Frame_t>>{};
         _cached_fois_width = -1;
         
-        if(id == -1)
+        if(bool is_uniqueness = _foi_state.name == "uniqueness";
+           id != -1 || is_uniqueness)
+        {
+            _cached_fois = std::vector<std::tuple<Frame_t, Frame_t>>{};
+            if(is_uniqueness) {
+                _foi_state.color = Cyan;
+                if(not _uniqueness_provider) {
+                    _uniqueness_provider = std::make_unique<track::UniquenessProvider>(video);
+                    _uniqueness_provider->request_update();
+                }
+                return true;
+                
+            } else {
+                _uniqueness_provider = nullptr;
+            }
+            
+        } else {
+            _uniqueness_provider = nullptr;
+            _cached_fois.reset();
             return false;
+        }
         
         if (auto list = FOI::foi(id)) {
             /* ---------- update cached list used by DynGUI (“fois” var) ---------- */
@@ -541,7 +563,7 @@ bool TrackingScene::on_global_event(Event event) {
 
 void TrackingScene::settings_callback(std::string_view key) {
     if(key == "gui_foi_name") {
-        _data->update_cached_fois(true);
+        _data->update_cached_fois(_state->video, true);
         return;
     }
     else if(key == "gui_wait_for_background") {
@@ -1091,7 +1113,7 @@ void TrackingScene::_draw(DrawStructure& graph) {
     }
     
     /// Update FOIs if necessary.
-    _data->update_cached_fois();
+    _data->update_cached_fois(_state->video);
 
     for (auto& [key, code] : _key_map) {
         _data->_keymap[key] = graph.is_key_pressed(code);
@@ -1949,8 +1971,38 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
             auto coords = FindCoord::get();
             auto width = coords.screen_size().width;
             
+            if(_data
+               && _data->_foi_state.name == "uniqueness")
+            {
+                assert(_data->_uniqueness_provider);
+                _data->_uniqueness_provider->request_update();
+                
+                if(auto uniquenesses = _data->_uniqueness_provider->points_if_ready();
+                   uniquenesses.has_value())
+                {
+                    _data->_cached_fois_width = width;
+                    Print("* updating FOIS for ", _data->_foi_state.name);
+                    
+                    auto ptr = Image::Zeros(1, width, 4);
+                    auto mat = ptr->get();
+                    auto length = double(_state->video->length().get());
+                    
+                    SampleInterpolator interpolator;
+                    interpolator.set_samples(std::move(uniquenesses.value()));
+                    Color* px = reinterpret_cast<Color*>(mat.ptr<uchar>(0));
+                    for(double x = 0; x < width; ++x, ++px) {
+                        auto y = saturate(interpolator(x / width * (length - 1)), 0.0, 1.0);
+                        *px = White.alpha(y * 255);
+                    }
+                    
+                    tf::imshow("unique", ptr->get());
+                    return ptr;
+                }
+                
+            }
+            
             if(not _data
-                || (not _data->update_cached_fois()
+                || (not _data->update_cached_fois(_state->video)
                     && width == _data->_cached_fois_width)
                 || not _data->_cached_fois.has_value())
             {
@@ -1963,20 +2015,24 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                 auto ptr = Image::Zeros(1, width, 4);
                 auto mat = ptr->get();
                 auto length = double(_state->video->length().get());
-                for(const auto &[start, end] : *_data->_cached_fois) {
-                    int x_start = static_cast<int>(std::floor(std::min(1.0, double(start.get()) / length) * width));
-                    int x_end   = static_cast<int>(std::ceil (std::min(1.0, double(end.get() + 1) / length) * width));
-                    x_start = std::max(0, std::min((int)width, x_start));
-                    x_end   = std::max(0, std::min((int)width, x_end));
-                    uchar* row = mat.ptr<uchar>(0);
-                    // reinterpret row as array of Color
-                    Color* pixels = reinterpret_cast<Color*>(row);
-                    // source at half alpha
-                    Color src = White.alpha(White.a / 2);
-                    for(int x = x_start; x < x_end; ++x) {
-                        pixels[x] = Color::blend(pixels[x], src);
+                
+                {
+                    for(const auto &[start, end] : *_data->_cached_fois) {
+                        int x_start = static_cast<int>(std::floor(std::min(1.0, double(start.get()) / length) * width));
+                        int x_end   = static_cast<int>(std::ceil (std::min(1.0, double(end.get() + 1) / length) * width));
+                        x_start = std::max(0, std::min((int)width, x_start));
+                        x_end   = std::max(0, std::min((int)width, x_end));
+                        uchar* row = mat.ptr<uchar>(0);
+                        // reinterpret row as array of Color
+                        Color* pixels = reinterpret_cast<Color*>(row);
+                        // source at half alpha
+                        Color src = White.alpha(White.a / 2);
+                        for(int x = x_start; x < x_end; ++x) {
+                            pixels[x] = Color::blend(pixels[x], src);
+                        }
                     }
                 }
+                
                 return ptr;
             }
         },
@@ -1985,7 +2041,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
             if(_data)
                 _data->_cached_fois.reset();
         }
-      });
+    });
     
     dynGUI = std::move(g);
 }

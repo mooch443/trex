@@ -8,6 +8,7 @@
 #include <ml/Accumulation.h>
 #include <misc/Coordinates.h>
 #include <gui/types/Button.h>
+#include <ml/UniquenessProvider.h>
 
 namespace py = Python;
 
@@ -35,6 +36,8 @@ struct DrawUniqueness::Data {
     GUICache* _cache{nullptr};
     std::weak_ptr<pv::File> _video_source;
     
+    std::unique_ptr<UniquenessProvider> _provider;
+    
     struct Samples {
         std::shared_ptr<TrainingData> data;
         std::vector<Image::SPtr> images;
@@ -54,6 +57,7 @@ DrawUniqueness::DrawUniqueness(GUICache* cache, std::weak_ptr<pv::File> video_so
     assert(cache);
     _data->_cache = cache;
     _data->_video_source = video_source;
+    _data->_provider = std::make_unique<UniquenessProvider>(video_source);
     _data->graph.set_clickable(false);
     _data->graph.reset_bg();
     on_click([this](Event e){
@@ -156,92 +160,16 @@ void DrawUniqueness::Data::update(Entangled& base) {
         return;
     }
     
-    if(std::lock_guard guard(mutex);
-       running
-       && (not running->valid()
-           || running->wait_for(std::chrono::milliseconds(0)) == std::future_status::ready))
-    {
-        try {
-            if(running->valid()) {
-                running->get();
-                running.reset();
-                
-                graph.clear();
-            } else
-                running.reset();
-        } catch(const SoftExceptionImpl&) {
-            /// nothing
-#ifndef NDEBUG
-            FormatWarning("Caught exception.");
-#endif
-        } catch(const std::exception& ex) {
-            FormatExcept("Exception when loading uniqueness: ", ex.what());
-        }
-    }
-    
-    if(should_update_uniquenesses()) {
-        if(not running) {
-            running = WorkProgress::add_queue("generate images", [&]() {
-                try {
-                    Accumulation::setup();
-                    auto w = Python::VINetwork::status().weights;
-                    if(std::lock_guard guard(mutex);
-                       not w.loaded())
-                    {
-                        uniqueness_origin = tl::unexpected<std::string>("No weights are loaded.");
-                        last_origin = w;
-                        estimated_uniqueness.clear();
-                        uniquenesses.clear();
-                        return;
-                    } else {
-                        last_origin = w;
-                    }
-                    
-                    std::tuple<float, hash_map<Frame_t, float>, float> unique;
-                    
-                    {
-                        std::unique_lock guard{_samples_mutex};
-                        if(not _samples) {
-                            if(auto lock = _video_source.lock();
-                               lock)
-                            {
-                                auto && [data, images, image_map] = Accumulation::generate_discrimination_data(*lock);
-                                
-                                _samples = Samples{
-                                    .data = std::move(data),
-                                    .images = std::move(images),
-                                    .map = std::move(image_map)
-                                };
-                            }
-                        }
-                        
-                        unique = Accumulation::calculate_uniqueness(false, _samples->images, _samples->map);
-                    }
-                    
-                    std::lock_guard guard(mutex);
-                    estimated_uniqueness.clear();
-                    
-                    auto && [u, umap, uq] = unique;
-                    
-                    for(auto &[k,v] : umap)
-                        estimated_uniqueness[k] = v;
-                    
-                    uniquenesses.clear();
-                    for(auto && [frame, q] :umap) {
-                        uniquenesses.push_back(Vec2(frame.get(), q));
-                    }
-                    
-                    uniqueness_origin = last_origin.value();
-                    
-                } catch(const SoftExceptionImpl& e) {
-#ifndef NDEBUG
-                    FormatExcept("Caught exception: ", e.what());
-#endif
-                    std::lock_guard guard(mutex);
-                    uniqueness_origin = tl::unexpected<std::string>(e.what());
-                }
-            });
-        }
+    /// Use UniquenessProvider to get data:
+    _provider->request_update();
+
+    if(_provider->ready() && !_provider->last_error()) {
+        std::lock_guard guard(mutex);
+        estimated_uniqueness.clear();
+        estimated_uniqueness.insert(_provider->estimated_uniqueness().begin(),
+                                    _provider->estimated_uniqueness().end());
+        uniquenesses = _provider->uniqueness_points();
+        last_origin  = _provider->origin();
     }
     
     auto coords = FindCoord::get();

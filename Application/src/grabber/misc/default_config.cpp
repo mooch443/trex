@@ -134,8 +134,7 @@ namespace default_config {
         CONFIG("image_brightness_increase", float(0), "Value that is added to the preprocessed image before applying the threshold (see `image_adjust`). The neutral value is 0 here.");
         CONFIG("blur_difference", false, "Enables a special mode that will 1. truncate all difference values below threshold, 2. blur the remaining difference, 3. threshold again.");
         CONFIG("enable_difference", true, "Enables background subtraction. If disabled, `threshold` will be applied to the raw greyscale values instead of difference values.");
-        CONFIG("track_threshold_is_absolute", true, "If enabled, uses absolute difference values and disregards any pixel |p| < `threshold` during conversion. Otherwise the equation is p < `threshold`, meaning that e.g. bright spots may not be considered trackable when dark spots would. Same as `detect_threshold_is_absolute`, but during tracking instead of converting.");
-        CONFIG("detect_threshold_is_absolute", true, "If enabled, uses absolute difference values and disregards any pixel |p| < `threshold` during conversion. Otherwise the equation is p < `threshold`, meaning that e.g. bright spots may not be considered trackable when dark spots would. Same as `track_threshold_is_absolute`, but during conversion instead of tracking.");
+
         CONFIG("correct_luminance", false, "Attempts to correct for badly lit backgrounds by evening out luminance across the background.", INIT);
         CONFIG("equalize_histogram", false, "Equalizes the histogram of the image before thresholding and background subtraction.");
         CONFIG("quit_after_average", false, "If set to true, this will terminate the program directly after generating (or loading) a background average image.", STARTUP);
