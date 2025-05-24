@@ -712,7 +712,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
 #ifdef __APPLE__
         auto default_recording_t = gui_recording_format_t::mp4;
 #else
-        auto default_recording_t = gui_recording_format_t::avi;
+        auto default_recording_t = gui_recording_format_t::mp4;
 #endif
 
         CONFIG("gui_recording_format", default_recording_t, "Sets the format for recording mode (when R is pressed in the GUI). Supported formats are 'avi', 'jpg' and 'png'. JPEGs have 75%% compression, AVI is using MJPEG compression.");

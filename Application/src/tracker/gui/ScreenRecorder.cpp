@@ -1,4 +1,4 @@
-#include "ScreenRecorder.h"
+﻿#include "ScreenRecorder.h"
 
 #include <commons.pc.h>
 #include <file/Path.h>
@@ -12,7 +12,50 @@
 
 namespace cmn::gui {
 
+    struct CodecSpec {
+        const char* tag;   // for logging / file suffix
+        int fourcc;
+    };
 
+    inline std::vector<CodecSpec> codec_candidates(default_config::gui_recording_format_t::Class format) {
+        using namespace default_config;
+
+#ifdef __APPLE__
+        if (format == gui_recording_format_t::mp4) {
+            return {
+                {"avc1", cv::VideoWriter::fourcc('a','v','c','1')}, // hardware H.264
+                {"hvc1", cv::VideoWriter::fourcc('h','v','c','1')}, // HEVC (10.13+)
+                {"mp4v", cv::VideoWriter::fourcc('m','p','4','v')}, // MPEG‑4 Visual
+                {"MJPG", cv::VideoWriter::fourcc('M','J','P','G')}   // huge but safe
+            };
+        }
+        // .avi or other intra‑frame container on macOS
+        return {
+            {"MJPG", cv::VideoWriter::fourcc('M','J','P','G')},
+            {"FFV1", cv::VideoWriter::fourcc('F','F','V','1')}
+        };
+#else  // Linux / Windows (FFMPEG, MF, V4L2)
+        if (format == gui_recording_format_t::mp4) {
+            return {
+                {"FFV1", cv::VideoWriter::fourcc('F','F','V','1')},
+                {"avc1", cv::VideoWriter::fourcc('a','v','c','1')},
+                {"H264", cv::VideoWriter::fourcc('H','2','6','4')},
+                {"mp4v", cv::VideoWriter::fourcc('m','p','4','v')},
+                {"MJPG", cv::VideoWriter::fourcc('M','J','P','G')},
+                {"XVID", cv::VideoWriter::fourcc('X','V','I','D')}
+            };
+        }
+        // .avi branch: intra‑frame or lossless first
+        return {
+            {"FFV1", cv::VideoWriter::fourcc('F','F','V','1')},
+            {"avc1", cv::VideoWriter::fourcc('a','v','c','1')},
+            {"H264", cv::VideoWriter::fourcc('H','2','6','4')},
+            {"mp4v", cv::VideoWriter::fourcc('m','p','4','v')},
+            {"MJPG", cv::VideoWriter::fourcc('M','J','P','G')},
+            {"XVID", cv::VideoWriter::fourcc('X','V','I','D')}
+        };
+#endif
+    }
 
 struct ScreenRecorder::Data {
     cv::VideoWriter* _recording_capture = nullptr;
@@ -173,107 +216,140 @@ struct ScreenRecorder::Data {
     }
     
     void start_recording(Base* base, Frame_t frame) {
-        if(!base)
+        if (!base)
             return;
-        
+
         _recording_start = frame;
         _last_recording_frame = {};
         _recording = true;
-        
+
         file::Path frames = frame_output_dir();
-        if(!frames.exists()) {
-            if(!frames.create_folder()) {
-                FormatError("Cannot create folder ",frames.str(),". Cannot record.");
+        if (!frames.exists()) {
+            if (!frames.create_folder()) {
+                FormatError("Cannot create folder ", frames.str(), ". Cannot record.");
                 _recording = false;
                 return;
             }
         }
-        
-        std::string clip_prefix = (std::string)SETTING(filename).value<file::Path>().filename()+"_";
-        
+
+        // ---------------------------------------------------------------------
+        // pick clip index
+        // ---------------------------------------------------------------------
+        std::string clip_prefix = (std::string)SETTING(filename).value<file::Path>().filename() + "_";
         size_t max_number = 0;
         try {
-            for(auto &file : frames.find_files()) {
+            for (auto& file : frames.find_files()) {
                 auto name = std::string(file.filename());
-                if(utils::beginsWith(name, clip_prefix)) {
+                if (utils::beginsWith(name, clip_prefix)) {
                     try {
-                        if(utils::endsWith(name, ".avi"))
+                        if (utils::endsWith(name, ".avi") || utils::endsWith(name, ".mp4"))
                             name = name.substr(0, name.length() - 4);
                         auto number = Meta::fromStr<size_t>(name.substr(clip_prefix.length()));
-                        if(number > max_number)
-                            max_number = number;
-                        
-                    } catch(const std::exception& e) {
-                        FormatExcept(name," not a number ('",e.what(),"').");
+                        max_number = std::max(max_number, number);
+                    }
+                    catch (const std::exception& e) {
+                        FormatExcept(name, " not a number ('", e.what(), "').");
                     }
                 }
             }
-            
             ++max_number;
-            
-        } catch(const UtilsException& ex) {
-            Print("Cannot iterate on folder ",frames.str(),". Defaulting to index 0.");
         }
-        
-        Print("Clip index is ", max_number,". Starting at frame ",frame,".");
-        
+        catch (const UtilsException&) {
+            Print("Cannot iterate on folder ", frames.str(), ". Defaulting to index 0.");
+        }
+
+        Print("Clip index is ", max_number, ". Starting at frame ", frame, ".");
+
+        // base path without extension yet
         frames = frames / (clip_prefix + Meta::toStr(max_number));
-        cv::Size size(base
-                    && dynamic_cast<IMGUIBase*>(base)
-                    ? static_cast<IMGUIBase*>(base)->real_dimensions()
-                    : base->window_dimensions());
-        
+
+        cv::Size size(base && dynamic_cast<IMGUIBase*>(base)
+            ? static_cast<IMGUIBase*>(base)->real_dimensions()
+            : base->window_dimensions());
+
+        // ---------------------------------------------------------------------
+        // enforce even dimensions (required by many codecs)
+        // ---------------------------------------------------------------------
+        const auto original_dims = size;
+        size.width &= ~1;   // drop LSB if odd
+        size.height &= ~1;
+        if (size != original_dims) {
+            Print("Trying to record with size ", size.width, "x", size.height, " instead of ",
+                original_dims.width, "x", original_dims.height, " @ ",
+                SETTING(frame_rate).value<uint32_t>());
+        }
+
         using namespace default_config;
         auto format = SETTING(gui_recording_format).value<gui_recording_format_t::Class>();
-        
-        if(is_in(format, gui_recording_format_t::avi, gui_recording_format_t::mp4))
-        {
-            auto original_dims = size;
-            if(size.width % 2 > 0)
-                size.width -= size.width % 2;
-            if(size.height % 2 > 0)
-                size.height -= size.height % 2;
-            Print("Trying to record with size ",size.width,"x",size.height," instead of ",original_dims.width,"x",original_dims.height," @ ",SETTING(frame_rate).value<uint32_t>());
-            
-            frames = frames.add_extension(format.toStr()).str();
-            _recording_capture = new cv::VideoWriter{
-                frames.str(),
-                format == gui_recording_format_t::mp4
-#ifdef __APPLE__
-                    ? cv::VideoWriter::fourcc('a','v','c','1')
-                    : cv::VideoWriter::fourcc('M', 'J', 'P', 'G'),
-#else
-                    ? cv::VideoWriter::fourcc('m', 'p', '4', 'v')
-                    : cv::VideoWriter::fourcc('F', 'F', 'V', '1'),
-#endif
-                (double)SETTING(frame_rate).value<uint32_t>(), size, true};
-            
-            if(!_recording_capture->isOpened()) {
-                FormatExcept("Cannot open video writer for path ",frames,". Please check file permissions, or try another format (`gui_recording_format`).");
+
+        // ---------------------------------------------------------------------
+        // VIDEO branch (mp4 / avi) with codec fallback loop
+        // ---------------------------------------------------------------------
+        if (is_in(format, gui_recording_format_t::avi, gui_recording_format_t::mp4)) {
+
+            bool opened = false;
+            std::string final_file_path;
+            const uint32_t fps = SETTING(frame_rate).value<uint32_t>();
+
+            for (const auto& c : codec_candidates(format)) {
+                std::ostringstream out_name;
+                out_name << frames.str() << '.' << format.toStr();
+                const std::string out_path = out_name.str();
+
+                Print("Trying codec ", c.tag, " -> ", out_path);
+
+                delete _recording_capture;                 // clear any prior attempt
+                _recording_capture = new cv::VideoWriter{
+                    out_path,
+                    c.fourcc,
+                    static_cast<double>(fps),
+                    size,
+                    true
+                };
+
+                if (_recording_capture->isOpened()) {
+                    _recording_capture->set(cv::VIDEOWRITER_PROP_QUALITY, 100);
+                    opened = true;
+                    final_file_path = out_path;
+                    break;
+                }
+            }
+
+            if (!opened) {
+                FormatExcept("Cannot open a VideoWriter for any tested codec in ", frames.str(),
+                    ". Please check your codec install or choose another container/format.");
                 _recording = false;
                 delete _recording_capture;
-                _recording_capture = NULL;
-                
+                _recording_capture = nullptr;
                 return;
             }
-            
-            _recording_capture->set(cv::VIDEOWRITER_PROP_QUALITY, 100);
-            
-        } else if(is_in(format, gui_recording_format_t::jpg, gui_recording_format_t::png))
-        {
-            if(!frames.exists()) {
-                if(!frames.create_folder()) {
-                    FormatError("Cannot create folder ",frames.str(),". Cannot record.");
+
+            // convert back into file::Path for the rest of the pipeline
+            frames = final_file_path;
+
+        }
+        else if (is_in(format, gui_recording_format_t::jpg, gui_recording_format_t::png)) {
+            // -----------------------------------------------------------------
+            // IMAGE‑SEQUENCE branch (creates a folder of numbered stills)
+            // -----------------------------------------------------------------
+            if (!frames.exists()) {
+                if (!frames.create_folder()) {
+                    FormatError("Cannot create folder ", frames.str(), ". Cannot record.");
                     _recording = false;
                     return;
-                } else
-                    Print("Created folder ", frames.str(),".");
+                }
+                else {
+                    Print("Created folder ", frames.str(), ".");
+                }
             }
         }
-        
+
+        // ---------------------------------------------------------------------
+        // Success — flip flag & remember parameters
+        // ---------------------------------------------------------------------
         base->set_frame_recording(true);
-        Print("Recording to ", frames,"... (",format.name(),")");
-        
+        Print("Recording to ", frames, "... (", format.name(), ")");
+
         _recording_size = size;
         _recording_path = frames;
         _recording_format = format;
