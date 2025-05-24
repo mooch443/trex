@@ -896,6 +896,10 @@ TEST(SanitizeFilenameTest, TrailingSpaces) {
   EXPECT_EQ("filename.txt", sanitize_filename("filename.txt  "));
 }
 
+TEST(SanitizeFilenameTest, InsideSpaces) {
+    EXPECT_EQ("file name.txt", sanitize_filename("file name.txt"));
+}
+
 // Test concatenation of two relative paths
 TEST(PathConcatenation, RelativeToRelative) {
     Path lhs("path/to");
