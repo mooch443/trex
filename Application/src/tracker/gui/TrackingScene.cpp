@@ -1997,7 +1997,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                         *px = White.alpha(y * 255);
                     }
                     
-                    tf::imshow("unique", ptr->get());
+                    //tf::imshow("unique", ptr->get());
                     return ptr;
                 }
                 
