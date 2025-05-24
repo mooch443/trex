@@ -87,7 +87,7 @@ Tutorial: Basics
 
 This tutorial will guide you through the basic steps of setting up |trex|, analyzing an example video, and exporting the data.
 
-If you want to follow along exactly as described, you can download the example video from `here <https://trex.run/8guppies_20s.mp4>`_ and place it in any folder you'd like to use as your root analysis folder.
+If you want to follow along exactly as described, you can download the example video from `here <https://edmond.mpg.de/file.xhtml?fileId=265441>`_ and place it in any folder you'd like to use as your root analysis folder.
 
 Setting Up a New Project
 ^^^^^^^^^^^^^^^^^^^^^^^^

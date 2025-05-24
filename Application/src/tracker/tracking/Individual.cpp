@@ -914,15 +914,31 @@ void Individual::LocalCache::add(const PostureStuff& stuff) {
 }
 
 blob::Pose Individual::pose_window(Frame_t start, Frame_t end, Frame_t ref) const {
+    assert(start.valid() && end.valid());
+    
     start = saturate(start, start_frame(), end_frame());
     end = saturate(end, start_frame(), end_frame()) + 1_f;
-    if(not ref.valid() || ref < start || ref >= end) {
+    if(not ref.valid() || ref < start) {
         ref = start;
+    } else if(ref > end) {
+        ref = end;
     }
+    
+    /// [ 0 1 2 3 |4| 5 6 7 8 9 ]
+    ///   before = 4 - 0 = 4
+    ///   after = 9 - 4 = 5
+    double before = double(ref.get()) - double(start.get());
+    double after = double(end.get()) - double(ref.get() + 1);
     
     FrameRange range(Range<Frame_t>(start, end));
     std::vector<const blob::Pose*> collection;
-    collection.reserve(range.length().get());
+    
+    if(after >= before + 1) {
+        auto diff = after - before;
+        collection.resize(size_t(diff));
+    }
+    
+    collection.reserve(collection.size() + range.length().get());
     int64_t ref_index = -1;
     
     iterate_frames(range.range, [&](Frame_t idx, const std::shared_ptr<TrackletInformation> &, const BasicStuff * basic, const PostureStuff *)
@@ -933,18 +949,34 @@ blob::Pose Individual::pose_window(Frame_t start, Frame_t end, Frame_t ref) cons
             }
             
             collection.push_back(&basic->blob.pred.pose);
+        } else {
+            collection.push_back(nullptr);
         }
         return true;
     });
+    
+    if(ref_index == -1)
+        return blob::Pose{};
+    
+    auto ref_pose = collection.at(ref_index);
+    if(before >= after + 1) {
+        auto diff = before - after;
+        assert(ref_pose != nullptr);
+        
+        for (size_t i = 0; i<size_t(diff); ++i) {
+            collection.push_back(ref_pose);
+        }
+    }
+    
+    for(auto &ptr : collection)
+        if(not ptr)
+            ptr = ref_pose;
     
     if(collection.empty())
         return blob::Pose{};
     
     std::vector<size_t> empty_indexes;
     if(not collection.empty()) {
-        if(ref_index == -1) {
-            return {};
-        }
         auto& ref_pose = collection.at(ref_index);
         for(size_t i=0; i<ref_pose->size(); ++i) {
             auto & pt = ref_pose->point(i);
@@ -1299,15 +1331,16 @@ Midline::Ptr Individual::calculate_midline_for(const PostureStuff &posture) cons
     //if(!posture || !basic)
     //    return nullptr;
     
-    auto &ptr = posture.cached_pp_midline;
-    //auto &blob = basic.blob;
-    //basic.pixels = nullptr;
-    
     Midline::Ptr midline;
-    
-    if(ptr) {
-        //Timer timer;
+
+    if(Midline* ptr = posture.cached_pp_midline.get();
+        ptr != nullptr) 
+    {
         midline = std::make_unique<Midline>(*ptr);
+    }
+
+    if(midline) {
+        //Timer timer;
         
         MovementInformation movement;
         if(FAST_SETTING(posture_direction_smoothing) > 1) {
@@ -1326,6 +1359,54 @@ Midline::Ptr Individual::calculate_midline_for(const PostureStuff &posture) cons
     }
     
     return midline;
+}
+
+Individual::PostureDescriptor Individual::calculate_current_posture_for(
+          const BasicStuff& basic,
+          const PostureStuff &posture,
+          const Frame_t gui_pose_smoothing,
+          const track::PoseMidlineIndexes& pose_midline_indexes) const
+{
+    Midline* ptr = posture.cached_pp_midline.get();
+    PostureDescriptor result;
+    
+    Frame_t frameIndex = basic.frame;
+    if(gui_pose_smoothing > 0_f
+       && frameIndex > 0_f)
+    {
+        auto calc = posture::calculate_posture(frameIndex, basic, pose_window(frameIndex.try_sub(gui_pose_smoothing), frameIndex + gui_pose_smoothing, frameIndex), pose_midline_indexes);
+        
+        if(calc) {
+            result.midline = std::move(calc->midline);
+            result.outline = std::move(calc->outline);
+        } else {
+            result.midline = std::make_unique<Midline>(*ptr);
+            result.outline = posture.outline;
+        }
+        
+    } else {
+        result.midline = std::make_unique<Midline>(*ptr);
+        result.outline = posture.outline;
+    }
+    
+    if(result.midline) {
+        MovementInformation movement;
+        if(FAST_SETTING(posture_direction_smoothing) > 1) {
+            movement = calculate_previous_vector(posture.frame);
+        }
+        
+        result.midline->post_process(movement, DebugInfo{posture.frame, identity().ID(), false});
+        if(!result.midline->is_normalized())
+            result.midline = result.midline->normalize();
+#ifndef NDEBUG
+        else if(size_t(_warned_normalized_midline.elapsed())%5 == 0) {
+            FormatWarning(identity().ID()," has a pre-normalized midline in frame ",posture.frame,". not normalizing it again.");
+        }
+#endif
+        
+    }
+    
+    return result;
 }
 
 /*Midline::Ptr Individual::update_frame_with_posture(const BasicStuff>& basic, const std::shared_ptr<PostureStuff>& posture, const CacheHints* hints) {

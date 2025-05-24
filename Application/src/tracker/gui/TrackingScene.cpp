@@ -636,6 +636,7 @@ void TrackingScene::settings_callback(std::string_view key) {
              "individual_image_scale",
              "gui_zoom_polygon",//"gui_zoom_limit",
              "detect_skeleton",
+            "gui_pose_smoothing",
              "track_include", "track_ignore"))
     {
         redraw_all();
@@ -711,6 +712,7 @@ void TrackingScene::activate() {
         "gui_show_match_modes",
         "gui_show_cliques",
         "gui_show_graph",
+        "gui_pose_smoothing",
         
         "gui_foi_name",
         

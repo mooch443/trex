@@ -59,7 +59,8 @@ namespace globals {
         (bool, gui_show_cliques),
         (bool, gui_show_match_modes),
         (Frame_t, gui_pose_smoothing),
-        (track::detect::KeypointNames, detect_keypoint_names)
+        (track::detect::KeypointNames, detect_keypoint_names),
+        (track::PoseMidlineIndexes, pose_midline_indexes)
     )
 
     #define GUIOPTION(NAME) ::cmn::gui::globals::CachedGUIOptions::copy < ::cmn::gui::globals::CachedGUIOptions :: NAME > ()

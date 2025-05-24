@@ -394,6 +394,12 @@ constexpr std::array<const char*, 8> ReasonsNames {
         void update_midlines(const CacheHints*);
         Midline::Ptr calculate_midline_for(const PostureStuff& posture_stuff) const;
         
+        struct PostureDescriptor {
+            Midline::Ptr midline;
+            MinimalOutline outline;
+        };
+        PostureDescriptor calculate_current_posture_for(const BasicStuff& basic_stuff, const PostureStuff& posture_stuff, const Frame_t gui_pose_smoothing, const track::PoseMidlineIndexes& pose_midline_indexes) const;
+        
         blob::Pose pose_window(Frame_t start, Frame_t end, Frame_t ref) const;
         
     private:

@@ -49,6 +49,7 @@ struct UpdateSettings {
     Color gui_single_identity_color;
     Frame_t gui_pose_smoothing;
     float gui_max_path_time;
+    track::PoseMidlineIndexes pose_midline_indexes;
 };
 
     class Fish {
@@ -64,6 +65,7 @@ struct UpdateSettings {
         track::Midline::Ptr _cached_midline;
         const track::Midline* _pp_midline{nullptr};
         const track::MinimalOutline* _cached_outline;
+        track::MinimalOutline _outline;
         GETTER(Vec2, fish_pos);
         
         std::variant<std::monostate, Rect, Polygon, Circle> _selection;

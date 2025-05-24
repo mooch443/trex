@@ -288,7 +288,17 @@ Fish::~Fish() {
            || OPTION(gui_happy_mode))
         {
             if(_posture_stuff) {
-                _cached_midline = SETTING(output_normalize_midline_data) ? obj.fixed_midline(frameIndex) : obj.calculate_midline_for(*_posture_stuff);
+                if(auto gui_pose_smoothing = OPTION(gui_pose_smoothing);
+                   gui_pose_smoothing > 0_f)
+                {
+                    auto &&[midline, outline] = obj.calculate_current_posture_for(*_basic_stuff, *_posture_stuff, gui_pose_smoothing, OPTION(pose_midline_indexes));
+                    _outline = std::move(outline);
+                    _cached_midline = std::move(midline);
+                    _cached_outline = &_outline;
+                } else {
+                    _cached_midline = SETTING(output_normalize_midline_data) ? obj.fixed_midline(frameIndex) : obj.calculate_midline_for(*_posture_stuff);
+                }
+                
                 _pp_midline = obj.pp_midline(frameIndex);
                 assert(!_cached_midline || _cached_midline->is_normalized());
             }
@@ -424,12 +434,7 @@ Fish::~Fish() {
             _color = get_color(&_basic_stuff.value());
         else
             _color = get_color(nullptr);
-
-        //if(OPTION(gui_pose_smoothing) > 0_f)
-        //auto gui_pose_smoothing = OPTION(gui_pose_smoothing);
-        //_average_pose = obj.pose_window(frameIndex.try_sub(gui_pose_smoothing), frameIndex + gui_pose_smoothing, frameIndex);
-        //else
-        //    _average_pose = obj.pos
+        
         if (not _skelett) {
             _skelett = std::make_unique<Skelett>();
         }
@@ -439,12 +444,19 @@ Fish::~Fish() {
             _skelett->set_color(Gray.alpha(100));
         _skelett->set_name(Meta::toStr(_id.color()));
         
-        if(_basic_stuff
-           && _basic_stuff->blob.pred.valid()
-           && not _basic_stuff->blob.pred.pose.empty())
+        if(auto gui_pose_smoothing = OPTION(gui_pose_smoothing);
+           gui_pose_smoothing > 0_f
+           && frameIndex > 0_f)
+        {
+            _skelett->set_pose(obj.pose_window(frameIndex.try_sub(gui_pose_smoothing), frameIndex + gui_pose_smoothing, frameIndex));
+            
+        } else if(_basic_stuff
+             && _basic_stuff->blob.pred.valid()
+             && not _basic_stuff->blob.pred.pose.empty())
         {
             _skelett->set_pose(_basic_stuff->blob.pred.pose);
         }
+        
         _skelett->set_skeleton(GUI_SETTINGS(detect_skeleton));
         if(_skelett->show_text())
             _skelett->set(GUIOPTION(detect_keypoint_names));

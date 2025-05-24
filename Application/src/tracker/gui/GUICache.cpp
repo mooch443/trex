@@ -1228,7 +1228,8 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
                 .gui_fish_color = GUIOPTION(gui_fish_color),
                 .gui_single_identity_color = GUIOPTION(gui_single_identity_color),
                 .gui_pose_smoothing = GUIOPTION(gui_pose_smoothing),
-                .gui_max_path_time = GUIOPTION(gui_max_path_time)
+                .gui_max_path_time = GUIOPTION(gui_max_path_time),
+                .pose_midline_indexes = GUIOPTION(pose_midline_indexes)
             };
             
             {

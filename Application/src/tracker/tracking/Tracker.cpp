@@ -719,8 +719,11 @@ void Tracker::prefilter(
     auto is_class_ignored = [&only_classes](uint8_t clid)
         -> bool
     {
-        if(only_classes.contains(clid))
+        if(only_classes.empty()
+           || not only_classes.contains(clid))
+        {
             return true;
+        }
         return false;
     };
     

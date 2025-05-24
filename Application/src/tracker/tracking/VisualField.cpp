@@ -13,7 +13,9 @@ using Scalar64 = VisualField::Scalar64;
 static constexpr Scalar64 right_angle = RADIANS(90);
 
 CREATE_STRUCT(VFCache,
-    (std::vector<std::vector<Vec2>>, visual_field_shapes)
+    (std::vector<std::vector<Vec2>>, visual_field_shapes),
+    (Frame_t, gui_pose_smoothing),
+    (track::PoseMidlineIndexes, pose_midline_indexes)
 );
 
 #define VFSETTING(NAME) (track::VFCache::copy<track::VFCache:: NAME>())
@@ -371,20 +373,45 @@ void VisualField::calculate(const BasicStuff& basic, const PostureStuff* posture
     
     using namespace gui;
     
-    Midline::Ptr midline{nullptr};
+    auto pose_midline_indexes = VFSETTING(pose_midline_indexes);
+    auto gui_pose_smoothing = VFSETTING(gui_pose_smoothing);
+    
+    Individual::PostureDescriptor descriptor;
+    //Midline::Ptr midline{nullptr};
     IndividualManager::transform_if_exists(_fish_id, [&](auto fish) {
-        midline = fish->calculate_midline_for(*posture);
+        if(gui_pose_smoothing > 0_f)
+            descriptor = fish->calculate_current_posture_for(basic, *posture, gui_pose_smoothing, pose_midline_indexes);
+        else
+            descriptor.midline = fish->calculate_midline_for(*posture);
     });
+    
+    const Midline* midline{nullptr};
+    std::vector<Vec2> opts;
+    double angle;
+    
+    if(not gui_pose_smoothing.valid()
+       || gui_pose_smoothing == 0_f)
+    {
+        descriptor.outline = posture->outline;
+        angle = posture->head->angle();
+        opts = posture->outline.uncompress();
+        
+    } else {
+        angle = descriptor.midline->angle();
+        midline = descriptor.midline.get();
+        auto &outline = descriptor.outline;
+        //auto angle = posture->head->angle();
+        //auto &outline = posture->outline;
+        opts = outline.uncompress();
+    }
+    
     auto &active = Tracker::active_individuals(_frame);
     
     assert(posture);
     
-    auto angle = posture->head->angle();
-    auto &outline = posture->outline;
-    auto opts = outline.uncompress();
     _fish_angle = angle;
     
-    auto&& [eyes, pos] = generate_eyes(frame(), fish_id(), basic, opts, midline, angle);
+    auto&& [eyes, pos] = generate_eyes(frame(), fish_id(), basic, opts, descriptor.midline, angle);
     _fish_pos = pos;
     _eyes = std::move(eyes);
     
@@ -499,16 +526,26 @@ void VisualField::calculate(const BasicStuff& basic, const PostureStuff* posture
         auto virtual_frame = _frame;
         const MinimalOutline* outline = nullptr;
         
-        for (; virtual_frame>=a->start_frame() && virtual_frame + max_back_view >= _frame; --virtual_frame) {
-            outline = a->outline(virtual_frame);
-            if(outline)
-                break;
-        }
+        Midline::Ptr _midline;
+        const Midline* midline{nullptr};
+        if(a->identity().ID() == fish_id()) {
+            virtual_frame = basic.frame;
+            outline = &descriptor.outline;
+            midline = descriptor.midline.get();
+            
+        } else {
+            for (; virtual_frame>=a->start_frame() && virtual_frame + max_back_view >= _frame; --virtual_frame) {
+                outline = a->outline(virtual_frame);
+                if(outline)
+                    break;
+            }
 
-        if(not virtual_frame.valid())
-            continue;
-        
-        auto midline = a->midline(virtual_frame);
+            if(not virtual_frame.valid())
+                continue;
+            
+            _midline = a->midline(virtual_frame);
+            midline = _midline.get();
+        }
         
         // only use outline if we actually have a midline as well (so -> tail_index is set)
         if(outline && midline && midline->tail_index() != -1) {
