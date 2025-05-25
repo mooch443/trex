@@ -398,12 +398,13 @@ void VisualField::calculate(const BasicStuff& basic, const PostureStuff* posture
         
     } else {
         angle = descriptor.midline->angle();
-        midline = descriptor.midline.get();
         auto &outline = descriptor.outline;
         //auto angle = posture->head->angle();
         //auto &outline = posture->outline;
         opts = outline.uncompress();
     }
+
+    midline = descriptor.midline.get();
     
     auto &active = Tracker::active_individuals(_frame);
     
