@@ -945,20 +945,29 @@ bool PythonIntegration::check_module(const std::string& name,
     std::unique_lock guard{module_mutex};
     bool result = false;
     
-    //auto cwd = file::cwd().absolute();
-    //auto app = file::DataLocation::parse("app", name + ".py");
-    /*if(cwd != app) {
-        Print("check_module:CWD: ", cwd);
+    auto cwd = file::cwd().absolute();
+    auto app = file::DataLocation::parse("app");
+#ifdef _WIN32
+    FormatWarning("check_module:CWD: ", cwd);
+    if(cwd != app) {
+#else
+    if(cwd != app) {
+        FormatWarning("check_module:CWD: ", cwd);
+#endif
         file::cd(app);
-    }*/
+    }
+        
+    auto filename = (app / name).add_extension("py");
+    if(not filename.exists())
+        throw U_EXCEPTION("Cannot find the file ", filename, ". Please make sure your TRex installation is not damaged.");
     
-    auto c = utils::read_file(name+".py");
+    auto c = utils::read_file(filename);
     if (c != _module_contents[name] || CHECK_NONE(_modules[name])) {
         auto& mod = _modules[name];
 
         try {
             if (CHECK_NONE(mod)) {
-                mod = import_module_from_file(_main, name);
+                mod = import_module_from_file(_main, filename);
                 //mod = _main.import(name.c_str());
             } else if(unloader) {
                 guard.unlock();
@@ -967,7 +976,7 @@ bool PythonIntegration::check_module(const std::string& name,
                 
                 mod.reload();
             }
-            Print("Reloaded ",name+".py",".");
+            Print("Reloaded ",filename,".");
             result = true;
         }
         catch (pybind11::error_already_set & e) {
