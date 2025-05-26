@@ -947,13 +947,8 @@ bool PythonIntegration::check_module(const std::string& name,
     
     auto cwd = file::cwd().absolute();
     auto app = file::DataLocation::parse("app");
-#ifdef _WIN32
-    FormatWarning("check_module:CWD: ", cwd);
-    if(cwd != app) {
-#else
     if(cwd != app) {
         FormatWarning("check_module:CWD: ", cwd);
-#endif
         file::cd(app);
     }
         
