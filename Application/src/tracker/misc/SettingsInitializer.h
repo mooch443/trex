@@ -20,7 +20,8 @@ void load(file::PathArray source,
           default_config::TRexTask task,
           track::detect::ObjectDetectionType_t type,
           ExtendableVector exclude_parameters,
-          const cmn::sprite::Map&);
+          const cmn::sprite::Map&,
+          bool quiet);
 
 std::unordered_set<std::string_view>
 set_defaults_for( track::detect::ObjectDetectionType_t detect_type,

@@ -14,13 +14,9 @@ TrackingSettingsScene::TrackingSettingsScene(Base& window)
 : Scene(window, "tracking-settings-scene", [this](auto&, DrawStructure& graph){ _draw(graph); }),
 _preview_image(new ExternalImage())
 {
-    auto dpi = ((const IMGUIBase*)&window)->dpi_scale();
-    Print(window.window_dimensions().mul(dpi), " and logo ", _preview_image->size());
-    
     _button_layout = new HorizontalLayout(std::vector<Layout::Ptr>{});
     //_button_layout->set_pos(Vec2(1024 - 10, 550));
     //_button_layout->set_origin(Vec2(1, 0));
-    
     
     _logo_title_layout->set_children({
         Layout::Ptr(_preview_image)
@@ -78,7 +74,6 @@ void TrackingSettingsScene::_draw(DrawStructure& graph) {
                     auto prev = SceneManager::getInstance().last_active();
                     if(prev)
                         SceneManager::getInstance().set_active(prev);
-                    Print("Going back");
                 }),
                 ActionFunc("convert", [](auto){
                     SceneManager::getInstance().set_active("convert-scene");

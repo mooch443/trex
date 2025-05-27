@@ -56,7 +56,7 @@ file::Path pv_file_path_for(const file::PathArray& array) {
 
 void StartingScene::activate() {
     WorkProgress::instance().start();
-    settings::load({}, {}, default_config::TRexTask_t::none, {}, {}, {});
+    settings::load({}, {}, default_config::TRexTask_t::none, {}, {}, {}, true);
     
     using namespace dyn;
     // Fill the recent items list
@@ -200,7 +200,7 @@ void StartingScene::_draw(DrawStructure& graph) {
                                  default_config::TRexTask_t::convert,
                                  type,
                                  {},
-                                 copy);
+                                 copy, false);
                             SceneManager::enqueue(SceneManager::AlwaysAsync{}, []() {
                                 SceneManager::getInstance().set_active("settings-scene");
                             });
@@ -217,7 +217,7 @@ void StartingScene::_draw(DrawStructure& graph) {
                                        default_config::TRexTask_t::convert,
                                        track::detect::ObjectDetectionType::yolo,
                                        {},
-                                       {});
+                                       {}, false);
                         SceneManager::getInstance().set_active("settings-scene");
                     }),
                     ActionFunc("open_camera", [](auto) {
@@ -227,7 +227,7 @@ void StartingScene::_draw(DrawStructure& graph) {
                                        default_config::TRexTask_t::convert,
                                        track::detect::ObjectDetectionType::yolo,
                                        {},
-                                       {});
+                                       {}, false);
                         
                         SceneManager::getInstance().set_active("settings-scene");
                     }),

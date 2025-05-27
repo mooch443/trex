@@ -103,7 +103,6 @@ void save_rst_files() {
 
 TRexTask determineTaskType() {
     auto output_file = settings::find_output_name(GlobalSettings::map());
-    Print("output_name = ", output_file);
     
     if (auto array = SETTING(source).value<file::PathArray>();
         array.empty())
@@ -666,14 +665,13 @@ int main(int argc, char**argv) {
     //auto cwd = file::cwd();
     if(cwd.empty())
         cwd = file::Path(default_config::homedir());
-    Print("CWD: ", cwd);
     CommandLine::instance().add_setting("wd", cwd.str());
-    //SETTING(wd) = cwd;
     file::cd(file::DataLocation::parse("app").absolute());
-    Print("CWD: ", file::cwd());
     
-    /*GlobalSettings::map().register_callbacks({"source", "meta_source_path", "filename", "detect_type", "cm_per_pixel", "track_background_subtraction", "gui_interface_scale", "detect_format", "detect_skeleton"}, [](auto key){
-        if(key == "source")
+    GlobalSettings::map().register_callbacks({"use_closing", "source", "meta_source_path", "filename", "detect_type", "cm_per_pixel", "track_background_subtraction", "gui_interface_scale", "detect_format", "detect_skeleton"}, [](auto key){
+        if(key == "use_closing")
+            Print("Changed use_closing to ", SETTING(use_closing).value<bool>());
+        else if(key == "source")
             Print("Changed source to ", SETTING(source).value<file::PathArray>());
         else if(key == "meta_source_path")
             Print("Changed meta_source_path to ", SETTING(meta_source_path).value<std::string>());
@@ -689,7 +687,7 @@ int main(int argc, char**argv) {
             Print("Changerd cm_per_pixel to ", SETTING(cm_per_pixel));
         else if(key == "track_background_subtraction")
             Print("Changed track_background_subtraction to ", SETTING(track_background_subtraction));
-    });*/
+    });
     
     for(auto a : CommandLine::instance()) {
         if(a.name == "s") {

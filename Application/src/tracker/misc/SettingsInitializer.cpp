@@ -286,18 +286,23 @@ void load(file::PathArray source,
           TRexTask task,
           track::detect::ObjectDetectionType::Class type,
           ExtendableVector exclude_parameters,
-          const cmn::sprite::Map& source_map)
+          const cmn::sprite::Map& source_map,
+          bool quiet)
 {
-    DebugHeader("Reloading settings"); 
+    if(not quiet)
+        DebugHeader("Reloading settings");
     
     struct G {
         std::string s;
-        G(const std::string& name) : s(name) {
-            DebugHeader("// LOADING FROM ", s);
+        bool quiet;
+        G(const std::string& name, bool quiet) : s(name), quiet(quiet) {
+            if(not quiet)
+                DebugHeader("// LOADING FROM ", s);
         }
         ~G() {
             //DebugHeader("// LOADED ", s);
-            Print("");
+            if(not quiet)
+                Print("");
         }
     };
     
@@ -339,7 +344,8 @@ void load(file::PathArray source,
     }
     
     auto exclude = exclude_parameters + default_excludes + system_variables;
-    Print("Excluding from command-line and default.settings: ", exclude);
+    if(not quiet)
+        Print("Excluding from command-line and default.settings: ", exclude);
     
     /// -----------------------------------------
     /// 3. load default.settings from app folder:
@@ -350,7 +356,7 @@ void load(file::PathArray source,
         try {
             auto str = utils::read_file(default_path.str());
             if(not str.empty()) {
-                G g(default_path.str());
+                G g(default_path.str(), quiet);
                 auto rejected = GlobalSettings::load_from_string(sprite::MapSource{default_path.str()}, deprecations(), combined.map, str, AccessLevelType::STARTUP, false, exclude, nullptr);
                 warn_deprecated(default_path, rejected);
             }
@@ -367,7 +373,8 @@ void load(file::PathArray source,
     /// ---------------------------------------------------
     /// excluding filename and source + other defaults
     auto& cmd = CommandLine::instance();
-    combined.map.set_print_by_default(true);
+    if(not quiet)
+        combined.map.set_print_by_default(true);
     sprite::Map current_defaults;
     auto set_config_if_different = [&](const std::string_view& key, const sprite::Map& from, [[maybe_unused]] bool do_print = false) {
         bool was_different{false};
@@ -464,7 +471,7 @@ void load(file::PathArray source,
     /// --------------------------------------------------------
     /// 6. set the source / filename properties from parameters:
     /// --------------------------------------------------------
-    auto stage_guard = std::make_unique<G>("Initial settings");
+    auto stage_guard = std::make_unique<G>("Initial settings", quiet);
     /// ----------------------------
     if(filename.has_extension("pv"))
         filename = filename.remove_extension();
@@ -552,7 +559,7 @@ void load(file::PathArray source,
        && task == TRexTask_t::convert)
     {
         /// ------------------
-        G g{"Source is empty"};
+        G g{"Source is empty", quiet};
         /// ------------------
         const auto source = combined.map.at("source").value<file::PathArray>();
         
@@ -593,7 +600,7 @@ void load(file::PathArray source,
         
     if(filename.empty()) {
         /// -------------------------
-        G g{"Fixing empty filename"};
+        G g{"Fixing empty filename", quiet};
         /// -------------------------
         {
             auto name = combined.map.at("filename").value<file::Path>();
@@ -618,7 +625,6 @@ void load(file::PathArray source,
                 : source;
             
             file::Path path = file::find_basename(_source);
-            Print("found basename = ", path);
             if(task == TRexTask_t::track) {
                 if(not path.empty()) {
                     filename = file::DataLocation::parse("input", path, &combined.map);
@@ -650,7 +656,7 @@ void load(file::PathArray source,
         /// In case the filename has been set, we could be in
         /// a situation where it needs to be reset, since its
         /// just the default for a given video anyway.
-        G g{source.source()};
+        G g{source.source(), quiet};
         /// -----------------------
         const auto _source = source.empty()
             ? combined.map.at("source").value<file::PathArray>()
@@ -733,7 +739,7 @@ void load(file::PathArray source,
             if(not settings_file.exists()
                && source_map.empty())
             {
-                G g(path.str());
+                G g(path.str(), quiet);
                 try {
                     sprite::Map tmp;
                     auto f = pv::File::Read(path);
@@ -785,7 +791,7 @@ void load(file::PathArray source,
                 }
                 
             } else {
-                G g(path.str());
+                G g(path.str(), quiet);
                 try {
                     sprite::Map tmp;
                     auto f = pv::File::Read(path);
@@ -821,7 +827,8 @@ void load(file::PathArray source,
                         "detect_type"
                     };
                     
-                    Print("// Not loading all settings from ", path, " because the settings file ", settings_file, " exists. Checking only ", fields_to_check);
+                    if(not quiet)
+                        Print("// Not loading all settings from ", path, " because the settings file ", settings_file, " exists. Checking only ", fields_to_check);
 
                     // Functions to compute default values when not available in tmp
                     const std::unordered_map<std::string, std::function<const sprite::PropertyType*(sprite::Map&)>> compute_defaults = {
@@ -838,7 +845,8 @@ void load(file::PathArray source,
                                 tmp.at("cm_per_pixel").get().copy_to(map);
                                 return &map.at("cm_per_pixel").get();
                             } else {
-                                FormatWarning("Source ", path, " does not have `cm_per_pixel`.");
+                                if(not quiet)
+                                    FormatWarning("Source ", path, " does not have `cm_per_pixel`.");
                             }
                             return nullptr;
                         }},
@@ -905,7 +913,8 @@ void load(file::PathArray source,
                     }
                     
                 } catch(const std::exception& ex) {
-                    FormatWarning("Failed to execute settings stored inside ", path,": ",ex.what());
+                    if(not quiet)
+                        FormatWarning("Failed to execute settings stored inside ", path,": ",ex.what());
                 }
             }
         }
@@ -922,7 +931,7 @@ void load(file::PathArray source,
     }
     
     {
-        G g(type.toStr() + "-defaults");
+        G g(type.toStr() + "-defaults", quiet);
         const sprite::Map values {
             [type](){
                 sprite::Map values;
@@ -940,7 +949,8 @@ void load(file::PathArray source,
                 GlobalSettings::current_defaults(key, values);
             
             if(contains(exclude_from_default.toVector(), key)) {
-                Print("// Not setting default value ", key);
+                if(not quiet)
+                    Print("// Not setting default value ", key);
                 continue;
             }
             set_config_if_different(key, values);
@@ -956,7 +966,7 @@ void load(file::PathArray source,
     auto settings_file = file::DataLocation::parse("settings", {},  &combined.map);
     if(settings_file.exists())
     {
-        G g(settings_file.str());
+        G g(settings_file.str(), quiet);
         try {
             sprite::Map map;
             map.set_print_by_default(false);
@@ -964,7 +974,8 @@ void load(file::PathArray source,
             auto manual_exclude = changed_model_manually
                     ? (exclude + exclude_from_external).toVector()
                     : exclude.toVector();
-            Print("// Excluding ", manual_exclude, " from settings file.");
+            if(not quiet)
+                Print("// Excluding ", manual_exclude, " from settings file.");
 
             auto rejected = GlobalSettings::load_from_file(deprecations(), settings_file.str(), AccessLevelType::STARTUP, manual_exclude, &map, &combined.map);
             
@@ -973,7 +984,9 @@ void load(file::PathArray source,
             if(rejected.contains("meta_source_path")) {
                 sprite::Map tmp;
                 tmp["meta_source_path"] = std::string(rejected.at("meta_source_path"));
-                if(not set_config_if_different("meta_source_path", tmp)) {
+                if(not set_config_if_different("meta_source_path", tmp)
+                   && not quiet)
+                {
                     Print("// meta_source_path = ",no_quotes(tmp.at("meta_source_path").value<std::string>())," not set");
                 }
                 tmp.at("meta_source_path").get().copy_to(GlobalSettings::current_defaults_with_config());
@@ -1011,7 +1024,7 @@ void load(file::PathArray source,
     /// 13. optionally load the map parameter
     /// -------------------------------------
     if(not source_map.empty()) {
-        G g("GUI settings");
+        G g("GUI settings", quiet);
         //Print("gui settings contains: ", source_map.keys());
         
         for(auto& key : source_map.keys()) {
@@ -1025,7 +1038,8 @@ void load(file::PathArray source,
                     //Print("// Can ignore ", key, " from source map.");
                     continue;
                 }
-                Print("// Not allowed to copy ", key, " from source map.");
+                if(not quiet)
+                    Print("// Not allowed to copy ", key, " from source map.");
                 continue;
             }
             
@@ -1039,13 +1053,14 @@ void load(file::PathArray source,
        && (not combined.map.has("meta_video_size")
            || combined.map.at("meta_video_size").value<Size2>().empty()))
     {
-        Print("// Defaulting to meta_video_size of 1920x1080 for empty source.");
+        if(not quiet)
+            Print("// Defaulting to meta_video_size of 1920x1080 for empty source.");
         combined.map["meta_video_size"] = Size2(1920_F, 1080_F);
         
     } else if(not combined.map.has("meta_video_size")
        || combined.map.at("meta_video_size").value<Size2>().empty())
     {
-        G g{source.source()};
+        G g{source.source(), quiet};
         try {
             if(auto source = combined.map.at("source").value<file::PathArray>();
                source == file::PathArray("webcam"))
@@ -1056,7 +1071,8 @@ void load(file::PathArray source,
                       && source.get_paths().front().has_extension("pv"))
             {
                 /// we are looking at a .pv file as input
-                Print("Should have already loaded this?");
+                if(not quiet)
+                    Print("Should have already loaded this?");
                 
                 /// if this errors out, we should skip... so we let it through
                 pv::File video(source.get_paths().front());
@@ -1073,7 +1089,8 @@ void load(file::PathArray source,
             
         } catch(...) {
             combined.map["meta_video_size"] = Size2(1920_F, 1080_F);
-            FormatWarning("Cannot open video source ", source, ". Please check permissions, or whether the file provided is broken. Defaulting to 1920px.");
+            if(not quiet)
+                FormatWarning("Cannot open video source ", source, ". Please check permissions, or whether the file provided is broken. Defaulting to 1920px.");
         }
     }
     
@@ -1099,7 +1116,8 @@ void load(file::PathArray source,
     
     const Float2_t tmp_cm_per_pixel = combined.map.at("cm_per_pixel").value<Settings::cm_per_pixel_t>();
     current_defaults["track_max_speed"] = 0.25_F * combined.map.at("meta_video_size").value<Size2>().width * (tmp_cm_per_pixel == 0 ? 1_F : tmp_cm_per_pixel);
-    Print(" * default max speed for a video of resolution ", combined.map.at("meta_video_size").value<Size2>().width, " would be ", no_quotes(current_defaults["track_max_speed"].get().valueString()));
+    if(not quiet)
+        Print(" * default max speed for a video of resolution ", combined.map.at("meta_video_size").value<Size2>().width, " would be ", no_quotes(current_defaults["track_max_speed"].get().valueString()));
     
     if(not combined.map.has("track_max_speed")
        || combined.map.at("track_max_speed").value<Settings::track_max_speed_t>() == 0)
@@ -1107,10 +1125,12 @@ void load(file::PathArray source,
         combined.map["track_max_speed"] = current_defaults["track_max_speed"].value<Settings::track_max_speed_t>();
     }
     
-    Print("track_max_speed = ", combined.map.at("track_max_speed").value<Settings::track_max_speed_t>());
-    Print("cm_per_pixel = ", combined.map.at("cm_per_pixel").value<Settings::cm_per_pixel_t>());
-    Print("meta_real_width = ", no_quotes(combined.map.at("meta_real_width").get().valueString()));
-    Print("meta_video_size = ", no_quotes(combined.map.at("meta_video_size").get().valueString()));
+    if(not quiet) {
+        Print("track_max_speed = ", combined.map.at("track_max_speed").value<Settings::track_max_speed_t>());
+        Print("cm_per_pixel = ", combined.map.at("cm_per_pixel").value<Settings::cm_per_pixel_t>());
+        Print("meta_real_width = ", no_quotes(combined.map.at("meta_real_width").get().valueString()));
+        Print("meta_video_size = ", no_quotes(combined.map.at("meta_video_size").get().valueString()));
+    }
     
     if(type == detect::ObjectDetectionType::none)
     {
@@ -1121,7 +1141,10 @@ void load(file::PathArray source,
     combined.map["detect_type"] = type;
     
     /// --------------------------------------
-    G g("FINAL CONFIG");
+    G g("FINAL CONFIG", quiet);
+    bool before = GlobalSettings::map().print_by_default();
+    if(quiet)
+        GlobalSettings::map().set_print_by_default(false);
 
     for(auto &key : combined.map.keys()) {
         try {
@@ -1162,6 +1185,9 @@ void load(file::PathArray source,
     }
     
     //Print("current defaults = ", current_defaults.keys());
+    
+    //combined.map.set_print_by_default(true);
+    GlobalSettings::map().set_print_by_default(before);
     GlobalSettings::current_defaults_with_config() = current_defaults;
     
     CommandLine::instance().reset_settings({

@@ -446,7 +446,7 @@ struct SettingsScene::Data {
                             if (not filename.empty()) {
                                 filename = settings::find_output_name(GlobalSettings::map());
                             }
-                            settings::load(SETTING(source), filename, default_config::TRexTask_t::convert, SETTING(detect_type), {}, copy);
+                            settings::load(SETTING(source), filename, default_config::TRexTask_t::convert, SETTING(detect_type), {}, copy, false);
                             
                             SceneManager::enqueue([this,
                                 before = std::move(before),
@@ -565,7 +565,7 @@ struct SettingsScene::Data {
                                 SETTING(filename) = file::Path(output_file);
                             }
                             
-                            settings::load(array, SETTING(filename), default_config::TRexTask_t::track, track::detect::ObjectDetectionType::none, {}, copy);
+                            settings::load(array, SETTING(filename), default_config::TRexTask_t::track, track::detect::ObjectDetectionType::none, {}, copy, false);
                             
                             auto open_file = [](){
                                 SceneManager::enqueue(SceneManager::AlwaysAsync{}, [](){
@@ -968,7 +968,7 @@ void SettingsScene::Data::load_video_settings(const file::PathArray& source) {
     {
         file::Path filename = GlobalSettings::map().at("filename");
         try {
-            settings::load(source, filename, default_config::TRexTask_t::convert, track::detect::ObjectDetectionType::none, exclude, {});
+            settings::load(source, filename, default_config::TRexTask_t::convert, track::detect::ObjectDetectionType::none, exclude, {}, false);
         }
         catch (const std::exception& ex) {
             FormatWarning("Ex = ", ex.what());
@@ -1006,7 +1006,7 @@ void SettingsScene::Data::load_video_settings(const file::PathArray& source) {
             }
             promote["meta_encoding"] = file.header().encoding;
             
-            settings::load(source, {}, default_config::TRexTask_t::none, detect_type, exclude, promote);
+            settings::load(source, {}, default_config::TRexTask_t::none, detect_type, exclude, promote, false);
             
             //SETTING(source) = csource;
             //SETTING(filename) = filename;
