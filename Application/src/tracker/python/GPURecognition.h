@@ -50,13 +50,18 @@ struct TREX_EXPORT ModelConfig {
     }
     
     std::string toStr() const {
-        std::ostringstream os;
-        os << "ModelConfig<task=" << static_cast<int>(task)
-        << " model_path='" << model_path << "' trained_resolution=" << Meta::toStr(trained_resolution);
-        if(keypoint_format)
-            os << " keypoints=" << keypoint_format->n_points << "x" << keypoint_format->n_dims;
-        os << ">";
-        return os.str();
+        std::string s =
+            "ModelConfig<task=" + Meta::toStr(static_cast<int>(task)) +
+            " model_path='" + model_path +
+            "' trained_resolution=" + Meta::toStr(trained_resolution);
+
+        if (keypoint_format) {
+            s += " keypoints=" + Meta::toStr(keypoint_format->n_points) +
+                 "x" + Meta::toStr(keypoint_format->n_dims);
+        }
+
+        s += ">";
+        return s;
     }
     static std::string class_name() {
         return "detect::ModelConfig";

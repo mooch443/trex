@@ -670,7 +670,7 @@ int main(int argc, char**argv) {
     CommandLine::instance().add_setting("wd", cwd.str());
     file::cd(file::DataLocation::parse("app").absolute());
     
-    GlobalSettings::map().register_callbacks({"use_closing", "source", "meta_source_path", "filename", "detect_type", "cm_per_pixel", "track_background_subtraction", "gui_interface_scale", "detect_format", "detect_skeleton"}, [](auto key){
+    /*GlobalSettings::map().register_callbacks({"use_closing", "source", "meta_source_path", "filename", "detect_type", "cm_per_pixel", "track_background_subtraction", "gui_interface_scale", "detect_format", "detect_skeleton"}, [](auto key){
         if(key == "use_closing")
             Print("Changed use_closing to ", SETTING(use_closing).value<bool>());
         else if(key == "source")
@@ -689,7 +689,7 @@ int main(int argc, char**argv) {
             Print("Changerd cm_per_pixel to ", SETTING(cm_per_pixel));
         else if(key == "track_background_subtraction")
             Print("Changed track_background_subtraction to ", SETTING(track_background_subtraction));
-    });
+    });*/
     
     for(auto a : CommandLine::instance()) {
         if(a.name == "s") {

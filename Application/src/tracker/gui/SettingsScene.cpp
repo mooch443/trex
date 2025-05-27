@@ -565,7 +565,7 @@ struct SettingsScene::Data {
                                 SETTING(filename) = file::Path(output_file);
                             }
                             
-                            settings::load(array, SETTING(filename), default_config::TRexTask_t::track, track::detect::ObjectDetectionType::none, {}, copy, false);
+                            settings::load(array, SETTING(filename), default_config::TRexTask_t::track, track::detect::ObjectDetectionType::none, {}, copy, true);
                             
                             auto open_file = [](){
                                 SceneManager::enqueue(SceneManager::AlwaysAsync{}, [](){

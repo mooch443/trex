@@ -373,8 +373,6 @@ void load(file::PathArray source,
     /// ---------------------------------------------------
     /// excluding filename and source + other defaults
     auto& cmd = CommandLine::instance();
-    if(not quiet)
-        combined.map.set_print_by_default(true);
     sprite::Map current_defaults;
     auto set_config_if_different = [&](const std::string_view& key, const sprite::Map& from, [[maybe_unused]] bool do_print = false) {
         bool was_different{false};
@@ -437,17 +435,6 @@ void load(file::PathArray source,
         return was_different;
     };
     
-    GlobalSettings::map()["gui_frame"].get().set_do_print(false);
-    GlobalSettings::map()["gui_mode"].get().set_do_print(false);
-    GlobalSettings::map()["gui_focus_group"].get().set_do_print(false);
-    GlobalSettings::map()["gui_source_video_frame"].get().set_do_print(false);
-    GlobalSettings::map()["gui_displayed_frame"].get().set_do_print(false);
-    GlobalSettings::map()["heatmap_ids"].get().set_do_print(false);
-    GlobalSettings::map()["gui_run"].get().set_do_print(false);
-    GlobalSettings::map()["track_pause"].get().set_do_print(false);
-    GlobalSettings::map()["terminate"].get().set_do_print(false);
-    GlobalSettings::map()["gui_interface_scale"].get().set_do_print(false);
-    
     cmd.load_settings(nullptr, &combined.map, exclude.toVector());
     if(cmd.settings_keys().contains("wd")) {
         combined.map["wd"] = file::Path(cmd.settings_keys().at("wd"));
@@ -471,7 +458,7 @@ void load(file::PathArray source,
     /// --------------------------------------------------------
     /// 6. set the source / filename properties from parameters:
     /// --------------------------------------------------------
-    auto stage_guard = std::make_unique<G>("Initial settings", quiet);
+    G* stage_guard = nullptr;//std::make_unique<G>("Initial settings", quiet);
     /// ----------------------------
     if(filename.has_extension("pv"))
         filename = filename.remove_extension();
@@ -551,6 +538,9 @@ void load(file::PathArray source,
         combined.map["detect_type"] = type;
         set_config_if_different("detect_type", combined.map);
     }
+    
+    if(not quiet)
+        combined.map.set_print_by_default(true);
     
     /// -----------------------------------------------------
     /// 8. if `source` or `filename` are empty, generate them
@@ -1192,6 +1182,17 @@ void load(file::PathArray source,
     //combined.map.set_print_by_default(true);
     GlobalSettings::map().set_print_by_default(before);
     GlobalSettings::current_defaults_with_config() = current_defaults;
+
+    GlobalSettings::map()["gui_frame"].get().set_do_print(false);
+    GlobalSettings::map()["gui_mode"].get().set_do_print(false);
+    GlobalSettings::map()["gui_focus_group"].get().set_do_print(false);
+    GlobalSettings::map()["gui_source_video_frame"].get().set_do_print(false);
+    GlobalSettings::map()["gui_displayed_frame"].get().set_do_print(false);
+    GlobalSettings::map()["heatmap_ids"].get().set_do_print(false);
+    GlobalSettings::map()["gui_run"].get().set_do_print(false);
+    GlobalSettings::map()["track_pause"].get().set_do_print(false);
+    GlobalSettings::map()["terminate"].get().set_do_print(false);
+    GlobalSettings::map()["gui_interface_scale"].get().set_do_print(false);
     
     CommandLine::instance().reset_settings({
         //"output_dir", 
