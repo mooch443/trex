@@ -570,13 +570,13 @@ bool can_initialize_python() {
         //FormatWarning("Does not exist in working dir: ",exec);
 #if __APPLE__
         auto p = SETTING(wd).value<file::Path>();
-        p = p / ".." / ".." / ".." / CHECK_PYTHON_EXECUTABLE_NAME;
+        p = (p / ".." / ".." / ".." / CHECK_PYTHON_EXECUTABLE_NAME).absolute();
         
         if(p.exists()) {
             Print(p," exists.");
             exec = p.str()+" 2> /dev/null";
         } else {
-            p = SETTING(wd).value<file::Path>() / CHECK_PYTHON_EXECUTABLE_NAME;
+            p = (SETTING(wd).value<file::Path>() / CHECK_PYTHON_EXECUTABLE_NAME).absolute();
             if(p.exists()) {
                 //Print("Pure ",p," exists.");
                 exec = p.str()+" 2> /dev/null";
@@ -587,7 +587,7 @@ bool can_initialize_python() {
                     const bool quiet = GlobalSettings::is_runtime_quiet();
                     if(!quiet)
                         Print("Searching conda environment for trex_check_python... (", std::string(conda_prefix),").");
-                    p = file::Path(conda_prefix) / "usr" / "share" / "trex" / CHECK_PYTHON_EXECUTABLE_NAME;
+                    p = (file::Path(conda_prefix) / "usr" / "share" / "trex" / CHECK_PYTHON_EXECUTABLE_NAME).absolute();
                     if(!quiet)
                         Print("Full path: ", p);
                     if(p.exists()) {

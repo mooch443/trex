@@ -654,9 +654,11 @@ void load(file::PathArray source,
     if(not combined.map["filename"].value<file::Path>().empty()) {
         /// -----------------------
         /// In case the filename has been set, we could be in
-        /// a situation where it needs to be reset, since its
-        /// just the default for a given video anyway.
-        G g{source.source(), quiet};
+        /// a situation where it needs to be emptied, since its
+        /// just the default for a given video anyway and we
+        /// dont want to later save it again as a fixed filename.
+        /// always keep defaults as empty
+        //G g{source.source(), quiet};
         /// -----------------------
         const auto _source = source.empty()
             ? combined.map.at("source").value<file::PathArray>()
@@ -672,7 +674,8 @@ void load(file::PathArray source,
             set_config_if_different("filename", combined.map);
         } else {
 #ifndef NDEBUG
-            Print("Not absolute: ", path);
+            if(not quiet)
+                Print("Not absolute: ", path);
 #endif
             combined.map["filename"] = file::Path(path);
             set_config_if_different("filename", combined.map);

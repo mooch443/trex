@@ -717,9 +717,11 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
         fish->_matched_using.resize(index);
     }
     
+#ifndef NDEBUG
     if(fish->empty()) {
         FormatWarning("Individual ", fish->identity(), " is empty (index=", index, " basic_stuff=", fish->_basic_stuff.size()," N=",N,")");
     }
+#endif
     //assert(!fish->empty());
     
     // read pixel information

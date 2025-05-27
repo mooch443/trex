@@ -89,6 +89,8 @@ using namespace default_config;
 bool wants_to_load{false};
 bool pause_stuff{false};
 
+static_assert(_has_tostr_method<file::Path>, "Expecting Path to have toStr");
+
 void save_rst_files() {
     auto rst = cmn::settings::help_restructured_text("TRex parameters", GlobalSettings::defaults(), GlobalSettings::docs(), GlobalSettings::access_levels(), "", "", "", AccessLevelType::STARTUP);
     file::Path path = file::DataLocation::parse("output", "parameters_trex.rst");
@@ -311,7 +313,7 @@ void launch_gui(std::future<void>& f) {
                        SETTING(filename).value<file::Path>(),
                        taskType,
                        SETTING(detect_type),
-                       {}, {});
+                       {}, {}, true);
         manager.set_active(task_scenes[taskType]);
         
     } else if(task == TRexTask_t::rst) {
@@ -327,19 +329,19 @@ void launch_gui(std::future<void>& f) {
                                SETTING(filename).value<file::Path>(),
                                TRexTask_t::convert,
                                SETTING(detect_type),
-                               {}, {});
+                               {}, {}, false);
             } else if(it->second == &tracking_scene) {
                 settings::load(SETTING(source).value<file::PathArray>(),
                                SETTING(filename).value<file::Path>(),
                                TRexTask_t::track,
                                SETTING(detect_type),
-                               {}, {});
+                               {}, {}, false);
                 
             } else
                 settings::load({}, {}, 
                                TRexTask_t::none,
                                SETTING(detect_type),
-                               {}, {});
+                               {}, {}, true);
             
             manager.set_active(it->second);
         }
@@ -347,7 +349,7 @@ void launch_gui(std::future<void>& f) {
             settings::load({}, {}, 
                            TRexTask_t::none,
                            SETTING(detect_type),
-                           {}, {});
+                           {}, {}, true);
             manager.set_active(&start);
         }
 	}
@@ -792,7 +794,7 @@ int main(int argc, char**argv) {
                        SETTING(filename).value<file::Path>(),
                        task,
                        SETTING(detect_type),
-                       {}, {});
+                       {}, {}, true);
 
         Output::Library::InitVariables();
         Output::Library::Init();
