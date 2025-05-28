@@ -13,6 +13,8 @@
 using namespace track;
 using namespace default_config;
 
+
+
 namespace cmn::settings {
 
 void initialize_filename_for_tracking() {
@@ -227,92 +229,27 @@ SettingsMaps reset(const cmn::sprite::Map& extra_map, cmn::sprite::Map* output) 
     return combined;
 }
 
-/**
- * When calling "load" or "open", what we expect is:
- *  1. Settings are reset to default
- *  2. **exclude** SYSTEM variables
- *  3. load **default.settings**
- *  4. load **command-line** (except exclude) => exclude?
- *     >> exclude `source` and `filename` since we get that
- *        from the function parameters if applicable
- *  5. **exclude** `STARTUP` variables
- *  6. Overwrite `filename` + `source` with parameters if not empty
- *  7. Overwrite `output_dir` + `output_prefix` from map parameter
- *  8. if `source` or `filename` are empty, load them from provided
- *     parameters (e.g. `task`::track + `filename`)
- *  9. **exclude** `output_dir` + `output_prefix` since we have now
- *     locked in the `filename` + `source` parameters
- * 10. If `task` is track, load settings from the .pv file
- * 11. (*optional*) load default values based on task, but exclude
- *                  all options from previous steps (cmd + *default*)
- * 12. Load `video.settings` if they exist
- * 13. load sprite::Map passed to function
- *
- * <=> User-relevant order <=>
- * 1. defaults
- * 2. default.settings
- * 3. task-specific defaults *(done by excluding cmd)*
- * 4. *(tracking)* pv-file
- * 5. *(optional)* <video>.settings
- * 6. command-line
- *
- * <=> IMPORTANT <=>
- *  1. the `source` + `filename` .settings files are not allowed
- *     to contain any of the following parameters:
- *       `{ "source", "filename", "output dir", "output prefix" }`
- *     as to not confuse the entire process of loading parameters.
- *  2. the same goes for the sprite::Map, since that would be
- *     confusing as well.
- *  3. stuff like `app_name` (SYSTEM) variables should not be read
- *
- * So for opening directly via command-line we need to:
- *  1. pass `source` + `filename` + `task` + `detect_type`
- *  2. call
- *
- * For opening tracking after switching from ConvertScene:
- *  /// happening in segmenter.cpp
- *  1. pass `source` + `filename` + `task` + `detect_type`
- *      (since these will be excluded from sprite map)
- *  2. fill everything into sprite::Map in order to maintain settings
- *  3. call
- *
- * For opening converting after settings:
- *  1. maintain settings
- *  2. call
- */
 
-void load(file::PathArray source, 
-          file::Path filename,
-          TRexTask task,
-          track::detect::ObjectDetectionType::Class type,
-          ExtendableVector exclude_parameters,
-          const cmn::sprite::Map& source_map,
-          bool quiet)
-{
-    if(not quiet)
-        DebugHeader("Reloading settings");
+struct G {
+    std::string s;
+    bool quiet;
+    G(const std::string& name, bool quiet) : s(name), quiet(quiet) {
+        if(not quiet)
+            DebugHeader("// LOADING FROM ", s);
+    }
+    ~G() {
+        //DebugHeader("// LOADED ", s);
+        if(not quiet)
+            Print("");
+    }
+};
+
+void LoadContext::init() {
+    combined.map.set_print_by_default(false);
     
-    struct G {
-        std::string s;
-        bool quiet;
-        G(const std::string& name, bool quiet) : s(name), quiet(quiet) {
-            if(not quiet)
-                DebugHeader("// LOADING FROM ", s);
-        }
-        ~G() {
-            //DebugHeader("// LOADED ", s);
-            if(not quiet)
-                Print("");
-        }
-    };
-    
-    SettingsMaps combined;
-    const auto set_combined_access_level =
-    [&combined](auto& name, AccessLevel level) {
+    auto set_combined_access_level = [&](auto& name, AccessLevel level) {
         combined.access_levels[name] = level;
     };
-
-    combined.map.set_print_by_default(false);
     
     /// ---------------------------------------------
     /// 1. setting default values, saved in combined:
@@ -324,24 +261,6 @@ void load(file::PathArray source,
     /// 2. exclude SYSTEM variables
     /// ---------------------------
     /// as well as other defaults
-    auto default_excludes = std::array{
-        //"meta_cmd", // is SYSTEM
-        //"app_name", // is SYSTEM
-        "nowindow",
-        "gui_interface_scale",
-        //"auto_quit",
-        "load",
-        "task",
-        "filename",
-        "source"
-    };
-
-    std::vector<std::string> system_variables;
-    for (auto& key : GlobalSettings::map().keys()) {
-        if (GlobalSettings::access_level(key) >= AccessLevelType::SYSTEM) {
-            system_variables.emplace_back(key);
-        }
-    }
     
     auto exclude = exclude_parameters + default_excludes + system_variables;
     if(not quiet)
@@ -373,67 +292,6 @@ void load(file::PathArray source,
     /// ---------------------------------------------------
     /// excluding filename and source + other defaults
     auto& cmd = CommandLine::instance();
-    sprite::Map current_defaults;
-    auto set_config_if_different = [&](const std::string_view& key, const sprite::Map& from, [[maybe_unused]] bool do_print = false) {
-        bool was_different{false};
-        
-        if(&combined.map != &from) {
-            if((combined.map.has(key)
-                && combined.map.at(key) != from.at(key))
-               || not GlobalSettings::defaults().has(key)
-               || GlobalSettings::defaults().at(key) != from.at(key))
-            {
-                //if(do_print)
-                /*if(not GlobalSettings::defaults().has(key) || GlobalSettings::defaults().at(key) != from.at(key))
-                {
-                    Print("setting current_defaults ", from.at(key), " != ", GlobalSettings::defaults().at(key));
-                }*/
-                if(not combined.map.has(key) || combined.map.at(key) != from.at(key)) {
-                    //Print("setting combined.map ", key, " to ", from.at(key).get().valueString());
-                    from.at(key).get().copy_to(combined.map);
-                    was_different = true;
-                }
-                
-                if(key == "detect_type")
-                    type = from.at(key).value<decltype(type)>();
-            }
-            /*else {
-                Print("/// ", key, " is already set to ", combined.map.at(key).get().valueString());
-            }*/
-        }
-        
-        if(not current_defaults.has(key)
-           || current_defaults.at(key) != from.at(key))
-        {
-            //if(do_print)
-            //    Print("setting current_defaults ", from.at(key), " != ", current_defaults.at(key));
-            if (not GlobalSettings::defaults().has(key)
-                || GlobalSettings::defaults().at(key) != from.at(key)) 
-            {
-                from.at(key).get().copy_to(current_defaults);
-                //Print("/// [current_defaults] ", current_defaults.at(key).get());
-            }
-            else if (current_defaults.has(key)) 
-            {
-                //Print("/// [current_defaults] REMOVE ", current_defaults.at(key).get());
-                current_defaults.erase(key);
-            }
-            else {
-                /// we dont have it, but it is default
-                //Print("/// [current_defaults] ", key, " is default = ", from.at(key).get().valueString());
-            }
-            
-        } //else if(current_defaults.has(key) && current_defaults.at(key) == from.at(key))
-        else if(current_defaults.has(key)) {
-            //Print("/// [current_defaults] ", key, " is already set to ", current_defaults.at(key).get().valueString());
-            //current_defaults.erase(key);
-        }
-        else {
-            //Print("/// *** WEIRD [current_defaults] ", key, " is default = ", from.at(key).get().valueString());
-		}
-        
-        return was_different;
-    };
     
     cmd.load_settings(nullptr, &combined.map, exclude.toVector());
     if(cmd.settings_keys().contains("wd")) {
@@ -441,7 +299,7 @@ void load(file::PathArray source,
         set_config_if_different("wd", combined.map);
     }
     exclude += extract_keys( cmd.settings_keys() );
-
+    
     /// ----------------------------
     /// 5. exclude STARTUP variables
     /// ----------------------------
@@ -454,12 +312,9 @@ void load(file::PathArray source,
 
     /// append cmd parameters so they wont be overwritten
     exclude += startup_variables;
-    
-    /// --------------------------------------------------------
-    /// 6. set the source / filename properties from parameters:
-    /// --------------------------------------------------------
-    G* stage_guard = nullptr;//std::make_unique<G>("Initial settings", quiet);
-    /// ----------------------------
+}
+
+void LoadContext::init_filename() {
     if(filename.has_extension("pv"))
         filename = filename.remove_extension();
     
@@ -480,8 +335,8 @@ void load(file::PathArray source,
                 output_dir = output_dir.remove_filename();
             }
             
-			combined.map["output_dir"] = output_dir;
-			set_config_if_different("output_dir", combined.map);
+            combined.map["output_dir"] = output_dir;
+            set_config_if_different("output_dir", combined.map);
         }
         
         combined.map["filename"] = filename;
@@ -519,11 +374,6 @@ void load(file::PathArray source,
         }
     }
     
-    /// ------------------
-    /// initial settings
-    stage_guard = nullptr;
-    /// ------------------
-
     /// ---------------------------------------------------------------------
     /// 7. set the `output_dir` / `output_prefix` properties from parameters:
     /// ---------------------------------------------------------------------
@@ -541,7 +391,9 @@ void load(file::PathArray source,
     
     if(not quiet)
         combined.map.set_print_by_default(true);
-    
+}
+
+void LoadContext::fix_empty_source() {
     /// -----------------------------------------------------
     /// 8. if `source` or `filename` are empty, generate them
     /// -----------------------------------------------------
@@ -587,7 +439,9 @@ void load(file::PathArray source,
             set_config_if_different("filename", combined.map);
         }
     }
-        
+}
+
+void LoadContext::fix_empty_filename() {
     if(filename.empty()) {
         /// -------------------------
         G g{"Fixing empty filename", quiet};
@@ -641,6 +495,9 @@ void load(file::PathArray source,
         }
     }
     
+}
+
+void LoadContext::reset_default_filenames() {
     if(not combined.map["filename"].value<file::Path>().empty()) {
         /// -----------------------
         /// In case the filename has been set, we could be in
@@ -679,30 +536,13 @@ void load(file::PathArray source,
         combined.map["filename"] = path;
         set_config_if_different("filename", combined.map);
     }
-    
-    /// ----------------------------------------------------------------
-    ///  9. **exclude** `output_dir` + `output_prefix` since we have now
-    ///     locked in the `filename` + `source` parameters
-    /// ----------------------------------------------------------------
-    exclude = exclude + std::array{
-        "output_dir",
-        "output_prefix"
-    };
-    
-    constexpr auto exclude_from_external = std::array{
-        "detect_model",
-        "region_model",
-        "detect_resolution",
-        "region_resolution"
-    };
-    
-    const bool changed_model_manually = combined.map.has("detect_model")
-                && not combined.map.at("detect_model").value<file::Path>().empty();
-    
+}
+
+void LoadContext::load_settings_from_source() {
     /// -----------------------------------------------
     /// 10. load settings from the .pv if tracking mode
     /// -----------------------------------------------
-    auto exclude_from_default = exclude;
+    exclude_from_default = exclude;
     //bool is_source_a_pv_file = false;
     //if(task == TRexTask_t::track)
     {
@@ -766,7 +606,7 @@ void load(file::PathArray source,
                     /// if we are in fact running one. otherwise, just set it if we dont have a detect_type
                     /// set anywhere yet.
                     if(type == track::detect::ObjectDetectionType::none
-                        || task == TRexTask_t::track) 
+                        || task == TRexTask_t::track)
                     {
                         combined.map["detect_type"] = type = tmp.at("detect_type").value<detect::ObjectDetectionType_t>();
                         set_config_if_different("detect_type", combined.map);
@@ -915,7 +755,9 @@ void load(file::PathArray source,
     } //else {
         //Print("// Not loading settings from a potentially existing .pv file in tracking mode.");
    // }
-    
+}
+
+void LoadContext::load_task_defaults() {
     /// ---------------------------
     /// 11. defaults based on task
     /// ---------------------------
@@ -926,7 +768,7 @@ void load(file::PathArray source,
     {
         G g(type.toStr() + "-defaults", quiet);
         const sprite::Map values {
-            [type](){
+            [this](){
                 sprite::Map values;
                 set_defaults_for(type, values);
                 return values;
@@ -950,9 +792,9 @@ void load(file::PathArray source,
             //all.emplace_back(key); // < not technically "custom"
         }
     }
-    
-    GlobalSettings::current_defaults_with_config() = current_defaults;
-    
+}
+
+void LoadContext::load_settings_file() {
     /// --------------------------------------------
     /// 12. load the video settings (if they exist):
     /// --------------------------------------------
@@ -1012,7 +854,9 @@ void load(file::PathArray source,
     } else if(not settings_file.empty()) {
         FormatError("Settings file ", settings_file, " was not found.");
     }
-    
+}
+
+void LoadContext::load_gui_settings() {
     /// -------------------------------------
     /// 13. optionally load the map parameter
     /// -------------------------------------
@@ -1042,6 +886,9 @@ void load(file::PathArray source,
         }
     }
     
+}
+
+void LoadContext::estimate_meta_variables() {
     if(source.empty()
        && (not combined.map.has("meta_video_size")
            || combined.map.at("meta_video_size").value<Size2>().empty()))
@@ -1124,20 +971,11 @@ void load(file::PathArray source,
         Print("meta_real_width = ", no_quotes(combined.map.at("meta_real_width").get().valueString()));
         Print("meta_video_size = ", no_quotes(combined.map.at("meta_video_size").get().valueString()));
     }
-    
-    if(type == detect::ObjectDetectionType::none)
-    {
-        /// we need to have some kind of default.
-        /// use the new technology first:
-        type = detect::ObjectDetectionType::yolo;
-    }
-    combined.map["detect_type"] = type;
-    
+}
+
+void LoadContext::finalize() {
     /// --------------------------------------
     G g("FINAL CONFIG", quiet);
-    bool before = GlobalSettings::map().print_by_default();
-    if(quiet)
-        GlobalSettings::map().set_print_by_default(false);
 
     for(auto &key : combined.map.keys()) {
         try {
@@ -1177,12 +1015,224 @@ void load(file::PathArray source,
         }
     }
     
-    //Print("current defaults = ", current_defaults.keys());
+}
+
+bool LoadContext::set_config_if_different(
+      const std::string_view &key,
+      const sprite::Map &from,
+      [[maybe_unused]] bool do_print)
+{
+    bool was_different{false};
     
+    if(&combined.map != &from) {
+        if((combined.map.has(key)
+            && combined.map.at(key) != from.at(key))
+           || not GlobalSettings::defaults().has(key)
+           || GlobalSettings::defaults().at(key) != from.at(key))
+        {
+            //if(do_print)
+            /*if(not GlobalSettings::defaults().has(key) || GlobalSettings::defaults().at(key) != from.at(key))
+            {
+                Print("setting current_defaults ", from.at(key), " != ", GlobalSettings::defaults().at(key));
+            }*/
+            if(not combined.map.has(key) || combined.map.at(key) != from.at(key)) {
+                //Print("setting combined.map ", key, " to ", from.at(key).get().valueString());
+                from.at(key).get().copy_to(combined.map);
+                was_different = true;
+            }
+            
+            if(key == "detect_type")
+                type = from.at(key).value<decltype(type)>();
+        }
+        /*else {
+            Print("/// ", key, " is already set to ", combined.map.at(key).get().valueString());
+        }*/
+    }
+    
+    if(not current_defaults.has(key)
+       || current_defaults.at(key) != from.at(key))
+    {
+        //if(do_print)
+        //    Print("setting current_defaults ", from.at(key), " != ", current_defaults.at(key));
+        if (not GlobalSettings::defaults().has(key)
+            || GlobalSettings::defaults().at(key) != from.at(key))
+        {
+            from.at(key).get().copy_to(current_defaults);
+            //Print("/// [current_defaults] ", current_defaults.at(key).get());
+        }
+        else if (current_defaults.has(key))
+        {
+            //Print("/// [current_defaults] REMOVE ", current_defaults.at(key).get());
+            current_defaults.erase(key);
+        }
+        else {
+            /// we dont have it, but it is default
+            //Print("/// [current_defaults] ", key, " is default = ", from.at(key).get().valueString());
+        }
+        
+    } //else if(current_defaults.has(key) && current_defaults.at(key) == from.at(key))
+    else if(current_defaults.has(key)) {
+        //Print("/// [current_defaults] ", key, " is already set to ", current_defaults.at(key).get().valueString());
+        //current_defaults.erase(key);
+    }
+    else {
+        //Print("/// *** WEIRD [current_defaults] ", key, " is default = ", from.at(key).get().valueString());
+    }
+    
+    return was_different;
+}
+
+/**
+ * When calling "load" or "open", what we expect is:
+ *  1. Settings are reset to default
+ *  2. **exclude** SYSTEM variables
+ *  3. load **default.settings**
+ *  4. load **command-line** (except exclude) => exclude?
+ *     >> exclude `source` and `filename` since we get that
+ *        from the function parameters if applicable
+ *  5. **exclude** `STARTUP` variables
+ *  6. Overwrite `filename` + `source` with parameters if not empty
+ *  7. Overwrite `output_dir` + `output_prefix` from map parameter
+ *  8. if `source` or `filename` are empty, load them from provided
+ *     parameters (e.g. `task`::track + `filename`)
+ *  9. **exclude** `output_dir` + `output_prefix` since we have now
+ *     locked in the `filename` + `source` parameters
+ * 10. If `task` is track, load settings from the .pv file
+ * 11. (*optional*) load default values based on task, but exclude
+ *                  all options from previous steps (cmd + *default*)
+ * 12. Load `video.settings` if they exist
+ * 13. load sprite::Map passed to function
+ *
+ * <=> User-relevant order <=>
+ * 1. defaults
+ * 2. default.settings
+ * 3. task-specific defaults *(done by excluding cmd)*
+ * 4. *(tracking)* pv-file
+ * 5. *(optional)* <video>.settings
+ * 6. command-line
+ *
+ * <=> IMPORTANT <=>
+ *  1. the `source` + `filename` .settings files are not allowed
+ *     to contain any of the following parameters:
+ *       `{ "source", "filename", "output dir", "output prefix" }`
+ *     as to not confuse the entire process of loading parameters.
+ *  2. the same goes for the sprite::Map, since that would be
+ *     confusing as well.
+ *  3. stuff like `app_name` (SYSTEM) variables should not be read
+ *
+ * So for opening directly via command-line we need to:
+ *  1. pass `source` + `filename` + `task` + `detect_type`
+ *  2. call
+ *
+ * For opening tracking after switching from ConvertScene:
+ *  /// happening in segmenter.cpp
+ *  1. pass `source` + `filename` + `task` + `detect_type`
+ *      (since these will be excluded from sprite map)
+ *  2. fill everything into sprite::Map in order to maintain settings
+ *  3. call
+ *
+ * For opening converting after settings:
+ *  1. maintain settings
+ *  2. call
+ */
+
+void load(LoadContext ctx) {
+    // Entry point to reload and apply all settings in LoadContext 'ctx'.
+    // This function resets defaults, loads from embedded and external sources,
+    // applies command-line and GUI overrides, computes metadata, and finalizes GlobalSettings.
+    if(not ctx.quiet)
+        DebugHeader("Reloading settings");
+
+    ctx.init();
+    // Step 1: Reset to defaults, apply default and startup settings, and set up tracing.
+    
+    // Step 2: Monitor changes to 'calculate_posture'. If manually disabled,
+    // record this fact to avoid automatic re-enabling later.
+    ctx.combined.map.register_callbacks({"calculate_posture"}, [&](auto key) {
+        //if(was_different
+        //   && key == "calculate_posture")
+        {
+            bool calculate_posture = ctx.combined.map.at("calculate_posture").value<bool>();
+            ctx.did_set_calculate_posture_to_false = not calculate_posture;
+        }
+    });
+    
+    // Step 3: Initialize the output filename from parameters or derive from source/defaults.
+    ctx.init_filename();
+    
+    /// ------------------
+    /// initial settings
+    //ctx.stage_guard = nullptr;
+    /// ------------------
+
+    // Step 4a: If 'source' is empty, derive it from filename or provided defaults.
+    ctx.fix_empty_source();
+    // Step 4b: Ensure 'filename' is set; derive it from source if missing.
+    ctx.fix_empty_filename();
+    // Step 4c: Clear default-generated filenames to prevent overriding explicit settings.
+    ctx.reset_default_filenames();
+
+    // Step 5: Exclude 'output_dir' and 'output_prefix' from further default operations,
+    // as filename/source have been locked in.
+    ctx.exclude = ctx.exclude + std::array{
+        "output_dir",
+        "output_prefix"
+    };
+
+    // Step 6: Check if the detection model was manually specified; preserve it if so.
+    ctx.changed_model_manually = ctx.combined.map.has("detect_model")
+                && not ctx.combined.map.at("detect_model").value<file::Path>().empty();
+
+    // Step 7: Load settings embedded in the source .pv file (if present).
+    ctx.load_settings_from_source();
+
+    // Step 8: Apply task-specific defaults based on 'detect_type'.
+    ctx.load_task_defaults();
+
+    // Commit current defaults to GlobalSettings before loading external settings.
+    GlobalSettings::set_current_defaults_with_config(ctx.current_defaults);
+
+    // Step 9: Load external settings file (video.settings), applying overrides appropriately.
+    ctx.load_settings_file();
+
+    // Step 10: Apply GUI-provided overrides from 'source_map'.
+    ctx.load_gui_settings();
+
+    // Step 11: Estimate and set metadata (video size, real-world scale, max speed).
+    ctx.estimate_meta_variables();
+
+    // Step 12: Ensure a valid 'detect_type'; default to YOLO if still unset.
+    if(ctx.type == detect::ObjectDetectionType::none)
+    {
+        /// we need to have some kind of default.
+        /// use the new technology first:
+        ctx.type = detect::ObjectDetectionType::yolo;
+    }
+    ctx.combined.map["detect_type"] = ctx.type;
+
+    // Step 13: For pure detection format (boxes), disable posture estimation.
+    if(auto detect_format = ctx.combined.map.at("detect_format").value<track::detect::ObjectDetectionFormat_t>();
+       detect_format == track::detect::ObjectDetectionFormat::boxes)
+    {
+        if(not ctx.did_set_calculate_posture_to_false) {
+            FormatWarning("Disabling posture for now, since pure detection models cannot produce useful posture (everything will be rectangles).");
+            ctx.combined.map["calculate_posture"] = false;
+        }
+    }
+
+    // Step 14: Finalize settings: copy combined map to GlobalSettings and preserve print state.
+    bool before = GlobalSettings::map().print_by_default();
+    if(ctx.quiet)
+        GlobalSettings::map().set_print_by_default(false);
+
+    ctx.finalize();
+    //Print("current defaults = ", current_defaults.keys());
+
     //combined.map.set_print_by_default(true);
     GlobalSettings::map().set_print_by_default(before);
-    GlobalSettings::current_defaults_with_config() = current_defaults;
+    GlobalSettings::set_current_defaults_with_config(ctx.current_defaults);
 
+    // Suppress printing of transient GUI-related settings to reduce log noise.
     GlobalSettings::map()["gui_frame"].get().set_do_print(false);
     GlobalSettings::map()["gui_mode"].get().set_do_print(false);
     GlobalSettings::map()["gui_focus_group"].get().set_do_print(false);
@@ -1193,14 +1243,15 @@ void load(file::PathArray source,
     GlobalSettings::map()["track_pause"].get().set_do_print(false);
     GlobalSettings::map()["terminate"].get().set_do_print(false);
     GlobalSettings::map()["gui_interface_scale"].get().set_do_print(false);
-    
+
+    // Step 15: Reset selected command-line settings to avoid persisting across runs.
     CommandLine::instance().reset_settings({
-        //"output_dir", 
+        //"output_dir",
         "gpu_torch_device", "wd"
     });
 }
 
-file::Path find_output_name(const sprite::Map& map, 
+file::Path find_output_name(const sprite::Map& map,
                             file::PathArray source,
                             file::Path filename,
                             bool respect_user_choice)
@@ -1209,7 +1260,7 @@ file::Path find_output_name(const sprite::Map& map,
         ? map.at("source").value<file::PathArray>()
         : source;
     
-    auto name = respect_user_choice 
+    auto name = respect_user_choice
         ? map.at("filename").value<file::Path>()
         : file::Path{};
     

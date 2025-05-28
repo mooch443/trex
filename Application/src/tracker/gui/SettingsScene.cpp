@@ -446,7 +446,13 @@ struct SettingsScene::Data {
                             if (not filename.empty()) {
                                 filename = settings::find_output_name(GlobalSettings::map());
                             }
-                            settings::load(SETTING(source), filename, default_config::TRexTask_t::convert, SETTING(detect_type), {}, copy, false);
+                            settings::load(settings::LoadContext{
+                                .source = SETTING(source),
+                                .filename = filename,
+                                .task = default_config::TRexTask_t::convert,
+                                .type = SETTING(detect_type),
+                                .source_map = copy
+                            });
                             
                             SceneManager::enqueue([this,
                                 before = std::move(before),
@@ -565,7 +571,14 @@ struct SettingsScene::Data {
                                 SETTING(filename) = file::Path(output_file);
                             }
                             
-                            settings::load(array, SETTING(filename), default_config::TRexTask_t::track, track::detect::ObjectDetectionType::none, {}, copy, true);
+                            settings::load(settings::LoadContext{
+                                .source = array,
+                                .filename = SETTING(filename),
+                                .task = default_config::TRexTask_t::track,
+                                .type = track::detect::ObjectDetectionType::none,
+                                .source_map = copy,
+                                .quiet = true
+                            });
                             
                             auto open_file = [](){
                                 SceneManager::enqueue(SceneManager::AlwaysAsync{}, [](){
@@ -968,7 +981,13 @@ void SettingsScene::Data::load_video_settings(const file::PathArray& source) {
     {
         file::Path filename = GlobalSettings::map().at("filename");
         try {
-            settings::load(source, filename, default_config::TRexTask_t::convert, track::detect::ObjectDetectionType::none, exclude, {}, false);
+            settings::load(settings::LoadContext{
+                .source = source,
+                .filename = filename,
+                .task = default_config::TRexTask_t::convert,
+                .type = track::detect::ObjectDetectionType::none,
+                .exclude_parameters = exclude
+            });
         }
         catch (const std::exception& ex) {
             FormatWarning("Ex = ", ex.what());
@@ -1006,7 +1025,13 @@ void SettingsScene::Data::load_video_settings(const file::PathArray& source) {
             }
             promote["meta_encoding"] = file.header().encoding;
             
-            settings::load(source, {}, default_config::TRexTask_t::none, detect_type, exclude, promote, false);
+            settings::load(settings::LoadContext{
+                .source = source,
+                .task = default_config::TRexTask_t::none,
+                .type = detect_type,
+                .exclude_from_default = exclude,
+                .source_map = promote
+            });
             
             //SETTING(source) = csource;
             //SETTING(filename) = filename;

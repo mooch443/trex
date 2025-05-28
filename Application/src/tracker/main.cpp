@@ -309,11 +309,13 @@ void launch_gui(std::future<void>& f) {
         task == TRexTask_t::none)
     {
         TRexTask taskType = determineTaskType();
-        settings::load(SETTING(source).value<file::PathArray>(),
-                       SETTING(filename).value<file::Path>(),
-                       taskType,
-                       SETTING(detect_type),
-                       {}, {}, true);
+        settings::load(settings::LoadContext{
+            .source = SETTING(source).value<file::PathArray>(),
+            .filename = SETTING(filename).value<file::Path>(),
+            .task = taskType,
+            .type = SETTING(detect_type),
+            .quiet = false
+        });
         manager.set_active(task_scenes[taskType]);
         
     } else if(task == TRexTask_t::rst) {
@@ -325,31 +327,37 @@ void launch_gui(std::future<void>& f) {
             it != task_scenes.end())
         {
             if(it->second == &converting) {
-                settings::load(SETTING(source).value<file::PathArray>(),
-                               SETTING(filename).value<file::Path>(),
-                               TRexTask_t::convert,
-                               SETTING(detect_type),
-                               {}, {}, false);
-            } else if(it->second == &tracking_scene) {
-                settings::load(SETTING(source).value<file::PathArray>(),
-                               SETTING(filename).value<file::Path>(),
-                               TRexTask_t::track,
-                               SETTING(detect_type),
-                               {}, {}, false);
+                settings::load(settings::LoadContext{
+                    .source = SETTING(source).value<file::PathArray>(),
+                    .filename = SETTING(filename).value<file::Path>(),
+                    .task = TRexTask_t::convert,
+                    .type = SETTING(detect_type)
+                });
                 
-            } else
-                settings::load({}, {}, 
-                               TRexTask_t::none,
-                               SETTING(detect_type),
-                               {}, {}, true);
+            } else if(it->second == &tracking_scene) {
+                settings::load(settings::LoadContext{
+                    .source = SETTING(source).value<file::PathArray>(),
+                    .filename = SETTING(filename).value<file::Path>(),
+                    .task = TRexTask_t::track,
+                    .type = SETTING(detect_type)
+                });
+                
+            } else {
+                settings::load(settings::LoadContext{
+                    .task = TRexTask_t::none,
+                    .type = SETTING(detect_type),
+                    .quiet = true
+                });
+            }
             
             manager.set_active(it->second);
         }
         else {
-            settings::load({}, {}, 
-                           TRexTask_t::none,
-                           SETTING(detect_type),
-                           {}, {}, true);
+            settings::load(settings::LoadContext{
+                .task = TRexTask_t::none,
+                .type = SETTING(detect_type),
+                .quiet = true
+            });
             manager.set_active(&start);
         }
 	}
@@ -790,11 +798,13 @@ int main(int argc, char**argv) {
         if(task == TRexTask_t::none)
             throw U_EXCEPTION("Not sure what to do. Please specify a task (-task <name>) or an input file (-i <path>).");
         
-        settings::load(SETTING(source).value<file::PathArray>(),
-                       SETTING(filename).value<file::Path>(),
-                       task,
-                       SETTING(detect_type),
-                       {}, {}, true);
+        settings::load(settings::LoadContext{
+            .source = SETTING(source).value<file::PathArray>(),
+            .filename = SETTING(filename).value<file::Path>(),
+            .task = task,
+            .type = SETTING(detect_type),
+            .quiet = false
+        });
 
         Output::Library::InitVariables();
         Output::Library::Init();

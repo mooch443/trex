@@ -56,7 +56,9 @@ file::Path pv_file_path_for(const file::PathArray& array) {
 
 void StartingScene::activate() {
     WorkProgress::instance().start();
-    settings::load({}, {}, default_config::TRexTask_t::none, {}, {}, {}, true);
+    settings::load(settings::LoadContext{
+        .quiet = true
+    });
     
     using namespace dyn;
     // Fill the recent items list
@@ -195,12 +197,12 @@ void StartingScene::_draw(DrawStructure& graph) {
                                         : GlobalSettings::defaults().at("detect_type");
                         
                         auto f = WorkProgress::add_queue("", [array, filename, type, item, copy = std::move(copy)](){
-                            settings::load(array,
-                                 filename,
-                                 default_config::TRexTask_t::convert,
-                                 type,
-                                 {},
-                                 copy, false);
+                            settings::load(settings::LoadContext{
+                                .source = array,
+                                .task = default_config::TRexTask_t::convert,
+                                .type = type,
+                                .source_map = copy
+                            });
                             SceneManager::enqueue(SceneManager::AlwaysAsync{}, []() {
                                 SceneManager::getInstance().set_active("settings-scene");
                             });
@@ -212,22 +214,19 @@ void StartingScene::_draw(DrawStructure& graph) {
                         }
                     }),
                     ActionFunc("open_file", [](auto) {
-                        settings::load({},
-                                       {},
-                                       default_config::TRexTask_t::convert,
-                                       track::detect::ObjectDetectionType::yolo,
-                                       {},
-                                       {}, false);
+                        settings::load(settings::LoadContext{
+                            .task = default_config::TRexTask_t::convert,
+                            .type = track::detect::ObjectDetectionType::yolo
+                        });
                         SceneManager::getInstance().set_active("settings-scene");
                     }),
                     ActionFunc("open_camera", [](auto) {
                         SETTING(source) = file::PathArray("webcam");
-                        settings::load(file::PathArray("webcam"),
-                                       {},
-                                       default_config::TRexTask_t::convert,
-                                       track::detect::ObjectDetectionType::yolo,
-                                       {},
-                                       {}, false);
+                        settings::load(settings::LoadContext{
+                            .source = file::PathArray("webcam"),
+                            .task = default_config::TRexTask_t::convert,
+                            .type = track::detect::ObjectDetectionType::yolo
+                        });
                         
                         SceneManager::getInstance().set_active("settings-scene");
                     }),

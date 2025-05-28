@@ -148,14 +148,14 @@ void YOLO::reinit(ModuleProxy& proxy) {
         }
     }
     
-    if(auto detect_format = SETTING(detect_format).value<ObjectDetectionFormat_t>();
+    /*if(auto detect_format = SETTING(detect_format).value<ObjectDetectionFormat_t>();
        detect_format == ObjectDetectionFormat::boxes)
     {
         if(SETTING(calculate_posture).value<bool>()) {
             FormatWarning("Disabling posture for now, since pure detection models cannot produce useful posture (everything will be rectangles).");
             SETTING(calculate_posture) = false;
         }
-    }
+    }*/
 }
 
 void YOLO::init() {
