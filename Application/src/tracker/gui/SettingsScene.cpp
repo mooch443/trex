@@ -1029,7 +1029,7 @@ void SettingsScene::Data::load_video_settings(const file::PathArray& source) {
                 .source = source,
                 .task = default_config::TRexTask_t::none,
                 .type = detect_type,
-                .exclude_from_default = exclude,
+                .exclude_parameters = exclude,
                 .source_map = promote
             });
             
