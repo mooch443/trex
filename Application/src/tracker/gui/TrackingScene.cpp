@@ -1676,7 +1676,11 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                     }
                     
                     if(_state->tracker->properties(frame)) {
-                        _data->_last_active_individuals = Tracker::active_individuals(frame).size();
+                        auto individuals = Tracker::active_individuals(frame);
+                        size_t N = 0;
+                        for(auto fish : individuals)
+                            N += fish->has(frame) ? 1 : 0;
+                        _data->_last_active_individuals = N;
                         return _data->_last_active_individuals;
                     }
                 }

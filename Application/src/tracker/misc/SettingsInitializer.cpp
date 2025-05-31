@@ -1309,7 +1309,7 @@ file::Path find_output_name(const sprite::Map& map,
 
 void write_config(const pv::File* video, bool overwrite, gui::GUITaskQueue_t* queue, const std::string& suffix) {
     auto filename = file::DataLocation::parse(suffix == "backup" ? "backup_settings" : "output_settings");
-    auto text = default_config::generate_delta_config(AccessLevelType::PUBLIC, video).to_settings();
+    auto text = default_config::generate_delta_config(AccessLevelType::INIT, video).to_settings();
     
     if(filename.exists() && !overwrite) {
         if(queue) {
