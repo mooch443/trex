@@ -200,13 +200,14 @@
 				"font":{"size":0.6,"align":"center"},
 				"color":[225,225,225],
 				"placeholder":"<sym>🔍</sym> Parameters",
-				"size":[500,40],
+				"cleartext":"<sym>⮾</sym>",
+				"size":[700,40],
 				"fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,150]}",
 				"line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
 				"list":{
 					"line":[220,220,220,200],
 					"fill":[25,25,25,220],
-					"size":[640,300]
+					"size":[700,300]
 				},
 				"desc":"",
 				"highlight_clr":[75,75,75,255]

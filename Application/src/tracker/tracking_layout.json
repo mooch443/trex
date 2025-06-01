@@ -1023,13 +1023,14 @@
                     "list":{
                         "line":[220,220,220,200],
                         "fill":[25,25,25,220],
-                        "size":[710,300],
+                        "size":[700,300],
                         "font":{"size":0.6}
                     },
                     "size":[700,40],
                     "color":[225,225,225],
                     "desc":"",
                     "placeholder":"<sym>🔍</sym> Parameters",
+                    "cleartext":"<sym>⮾</sym>",
                     "highlight_clr":[75,75,75,255]
                 }
             ]
