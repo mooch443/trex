@@ -1025,6 +1025,7 @@ void SettingsScene::Data::load_video_settings(const file::PathArray& source) {
             
             settings::load(settings::LoadContext{
                 .source = source,
+                .filename = promote["filename"],
                 .task = default_config::TRexTask_t::none,
                 .type = detect_type,
                 .exclude_parameters = exclude,
