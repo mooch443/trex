@@ -987,7 +987,7 @@ void TrackingScene::update_run_loop() {
         const bool gui_wait_for_pv = SETTING(gui_wait_for_pv).value<bool>();
         const Frame_t gui_displayed_frame = SETTING(gui_displayed_frame).value<Frame_t>();
         const Frame_t background_displayed_frame = _data->_background && _data->_background->valid()
-            ? (video_conversion_start.valid()
+            ? (video_conversion_start.valid() && _data->_background->displayed_frame().valid()
                ? _data->_background->displayed_frame().try_sub(video_conversion_start)
                : _data->_background->displayed_frame())
         : Frame_t{};
@@ -1473,6 +1473,10 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                 });
             }),
             ActionFunc("set", [this](Action action) {
+                /**
+                 * @param key   The name of the global setting to change.
+                 * @param value The value to set for the parameter.
+                 */
                 if(action.parameters.size() != 2)
                     throw InvalidArgumentException("Invalid number of arguments for action: ",action);
                 
@@ -1488,6 +1492,9 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                     GlobalSettings::get(parm).get().set_value_from_string(value);
             }),
             ActionFunc("change_scene", [](Action action) {
+                /**
+                 * @param scene  The name of the scene to switch to.
+                 */
                 if(action.parameters.empty())
                     throw U_EXCEPTION("Invalid arguments for ", action, ".");
 
@@ -1498,6 +1505,9 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                 return true;
             }),
             ActionFunc("reanalyse", [this](Action action) {
+                /**
+                 * @param frame  (Optional) The frame from which to reanalyse. If omitted, reanalyse from the beginning.
+                 */
                 if(action.parameters.empty())
                     _state->tracker->_remove_frames(Frame_t{});
                 else {
@@ -1528,6 +1538,9 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                 SETTING(gui_show_export_options) = true;
             }),
             ActionFunc("python", [](Action action){
+                /**
+                 * @param command  The Python command to execute.
+                 */
                 REQUIRE_EXACTLY(1, action);
                 
                 (void)Python::schedule(Python::PackagedTask{
@@ -1550,6 +1563,9 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                 });
             }),
             ActionFunc("set_paused", [this](Action action) {
+                /**
+                 * @param paused  Boolean value indicating whether to set paused state.
+                 */
                 REQUIRE_EXACTLY(1, action);
                 
                 bool value = Meta::fromStr<bool>(action.first());
@@ -1593,6 +1609,10 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                 }, _state->_controller);
             }),
             ActionFunc("remove_automatic_matches", [this](const Action& action) {
+                /**
+                 * @param fdx    The fish index for which to remove matches.
+                 * @param frame  The frame (or range) indicating which automatic matches to delete.
+                 */
                 REQUIRE_EXACTLY(2, action);
                 auto fdx = Meta::fromStr<Idx_t>(action.parameters.front());
                 if(not action.parameters.back().empty()
@@ -1618,6 +1638,82 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                 }
                 
                 Print("Got ", action.name, ": ", action.parameters);
+            }),
+            
+            ActionFunc("ignore_bdxes", [this](const Action& action) {
+                /**
+                 * @param fdx
+                 * @param start
+                 * @param end
+                 */
+                REQUIRE_EXACTLY(3, action);
+                
+                auto fdx = Meta::fromStr<Idx_t>(action.first());
+                auto start = Meta::fromStr<Frame_t>(action.parameters.at(1));
+                auto end = Meta::fromStr<Frame_t>(action.parameters.at(2));
+                
+                if(not start.valid()
+                   || not end.valid())
+                {
+                    throw InvalidArgumentException("Requires both start and end to be adequately set to valid values.");
+                }
+                
+                auto fishes = _data->_cache->lock_individuals();
+                const Individual* fish = fishes.individuals.at(fdx);
+                auto range = FrameRange(Range<Frame_t>(start, end));
+                
+                std::map<Frame_t, std::set<pv::bid>> local;
+                auto track_ignore_bdx = FAST_SETTING(track_ignore_bdx);
+                
+                {
+                    LockGuard guard(w_t{}, "ignore_bdxes");
+                    
+                    fish->iterate_frames(range.range,
+                        [range, &track_ignore_bdx, &local]
+                            (Frame_t frame,
+                             const std::shared_ptr<TrackletInformation>&,
+                             const BasicStuff* basic,
+                             const PostureStuff*)
+                     {
+                        assert(range.contains(frame));
+                        if(basic) {
+                            auto bdx = basic->blob.blob_id();
+                            track_ignore_bdx[frame].insert(bdx);
+                            local[frame].insert(bdx);
+                        }
+                     });
+                }
+                
+                if(local.empty()) {
+                    FormatWarning("Collected an empty list for individual ", fdx, " frames ", start, "-", end);
+                } else {
+                    auto apply_fn = [track_ignore_bdx](){
+                        /// setting the global variable with our collected bdxes
+                        SETTING(track_ignore_bdx) = track_ignore_bdx;
+                    };
+
+                    auto items = RecentItems::read();
+                    if(not items.state().ignore_bdx_warning_shown) {
+                        items.state().ignore_bdx_warning_shown = true;
+                        items.write();
+                        
+                        SceneManager::enqueue([id = fish->identity(), start, end, apply_fn](auto, DrawStructure& graph) {
+                            graph.dialog([id = id, start, end, apply_fn](Dialog::Result result) {
+                                if(result == Dialog::Result::OKAY) {
+                                    /// If the user confirms, we set the ignore_bdxes state.
+                                    apply_fn();
+                                } else {
+                                    /// If the user cancels, we do not set the ignore_bdxes state.
+                                    FormatWarning("Not ignoring bdxes for individual ", id, " frames ", start, "-", end);
+                                }
+                            }, "Do you want to ignore blobs for <c>"+Meta::toStr(id)+"</c> in frames <c><nr>"+Meta::toStr(start)+"</nr>-<nr>"+Meta::toStr(end)+"</nr></c>?\nThis will add all selected blob ids to <c>track_ignore_bdxes</c> and prevent them from being used in future analyses.\n\nYou can always undo this by resetting the <c>track_ignore_bdxes</c> setting. <i>You will not be asked about this in the future.</i>", "Ignore blobs", "Yes", "No");
+                        });
+                    }
+                    else {
+                        /// immediately apply, don't ask
+                        apply_fn();
+                    }
+                }
             }),
             
             VarFunc("is_segment", [this](const VarProps& props) -> bool {

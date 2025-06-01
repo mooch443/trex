@@ -457,7 +457,11 @@ Fish::~Fish() {
             _skelett->set_pose(_basic_stuff->blob.pred.pose);
         }
         
-        _skelett->set_skeleton(GUI_SETTINGS(detect_skeleton));
+        auto skeleton = _basic_stuff && _basic_stuff->blob.pred.valid() ? detect::yolo::names::get_skeleton(_basic_stuff->blob.pred.clid, GUI_SETTINGS(detect_skeleton)) : blob::Pose::Skeleton();
+        if(not skeleton)
+            skeleton = blob::Pose::Skeleton();
+        
+        _skelett->set_skeleton(*skeleton);
         if(_skelett->show_text())
             _skelett->set(GUIOPTION(detect_keypoint_names));
 
@@ -1734,7 +1738,10 @@ void Fish::selection_clicked(Event) {
         
         parent.advance_wrap(_view);
         
-        if(_basic_stuff.has_value() && _basic_stuff->blob.pred.pose.size() > 0) {
+        if(GUIOPTION(gui_show_skeletons)
+           && _basic_stuff.has_value()
+           && _basic_stuff->blob.pred.pose.size() > 0)
+        {
             if(_skelett)
                 parent.advance_wrap(*_skelett);
         }

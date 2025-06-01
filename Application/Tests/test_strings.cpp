@@ -343,12 +343,13 @@ TEST(JSONTest, TestBasicJSON) {
 }
 
 TEST(JSONTest, TestSkeletonJSON) {
-    blob::Pose::Skeleton object{
-        "skeleton",
-        {
-            {0, 1, "first"},
-            {1, 2, "second"}
-        }
+    blob::Pose::Skeletons object{
+        ._skeletons = {{"skeleton",
+            blob::Pose::Skeleton{{
+                {0, 1, "first"},
+                {1, 2, "second"}
+            }}
+        }}
     };
     SETTING(skeleton) = object;
     

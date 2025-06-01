@@ -368,6 +368,8 @@ Tracker::Tracker(Image::Ptr&& average, meta_encoding_t::Class encoding, Float2_t
         })*/
 {
     _instance = this;
+    is_checking_tracklet_identities = false;
+    
     global_tracklet_order_changed();
     
     Identity::Reset(); // reset Identities if the tracker is created
@@ -429,6 +431,7 @@ Tracker::~Tracker() {
         Print("Done waiting.");
     
     _instance = NULL;
+    is_checking_tracklet_identities = false;
     
     {
         std::unique_lock g(_identities_mutex);

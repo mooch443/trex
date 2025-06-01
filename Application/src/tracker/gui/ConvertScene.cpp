@@ -69,7 +69,7 @@ struct ConvertScene::Data {
     std::map<Idx_t, BdxAndPred> fish_selected_blobs;
     
     CallbackCollection callback;
-    Skeleton skelet;
+    std::optional<blob::Pose::Skeletons> skelet;
     
     std::mutex _current_json_mutex;
     glz::json_t _current_json;
@@ -463,12 +463,12 @@ void ConvertScene::activate()  {
     if(not _data)
         _data = std::make_unique<Data>();
 
-    _data->skelet = SETTING(detect_skeleton).value<Skeleton>();
+    _data->skelet = SETTING(detect_skeleton).value<std::optional<blob::Pose::Skeletons>>();
     _data->callback = GlobalSettings::map().register_callbacks({
         "detect_skeleton"
     }, [this](auto) {
         SceneManager::enqueue([this]() {
-            _data->skelet = SETTING(detect_skeleton).value<Skeleton>();
+            _data->skelet = SETTING(detect_skeleton).value<std::optional<blob::Pose::Skeletons>>();
             _data->_skeletts.clear();
         });
     });
@@ -1256,12 +1256,22 @@ void ConvertScene::Data::draw_scene(DrawStructure& graph, const detect::yolo::na
         
         ColorWheel wheel;
         size_t pose_index{ 0 };
+        assert(_current_data.keypoints.empty()
+               || _current_data.keypoints.size() == _current_data.predictions.size());
+        
         for (auto& keypoint : _current_data.keypoints) {
-            auto pose = keypoint.toPose();
+            auto  pose = keypoint.toPose();
+            auto &pred = _current_data.predictions.at(pose_index);
+            auto skeleton = detect::yolo::names::get_skeleton(pred.clid, skelet);
+            if(not skeleton)
+                skeleton = blob::Pose::Skeleton();
+            
             if (pose_index >= _skeletts.size())
-                _skeletts.push_back(std::make_unique<Skelett>(std::move(pose), skelet));
-            else
+                _skeletts.push_back(std::make_unique<Skelett>(std::move(pose), std::move(*skeleton)));
+            else {
+                _skeletts[pose_index]->set_skeleton(*skeleton);
                 _skeletts[pose_index]->set_pose(std::move(pose));
+            }
             _skeletts[pose_index]->set_color(wheel.next());
             graph.wrap_object(*_skeletts[pose_index]);
             pose_index++;

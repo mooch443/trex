@@ -696,6 +696,27 @@ void BlobView::draw(const DisplayParameters& parm)
                 auto & [visited, circ, label, skelett, _] = it->second;
                 //e.set_scale(sca);
                 
+                
+                if(not blob->prediction().pose.points.empty()
+                   && GUIOPTION(gui_show_skeletons))
+                {
+                    auto skeleton = detect::yolo::names::get_skeleton(blob->prediction().clid, GUI_SETTINGS(detect_skeleton));
+                    if(not skeleton) {
+                        skeleton = blob::Pose::Skeleton();
+                    }
+                    
+                    if(not skelett) {
+                        skelett = std::make_unique<Skelett>(blob->prediction().pose, std::move(*skeleton));
+                        skelett->set_show_text(true);
+                    } else {
+                        skelett->set_skeleton(*skeleton);
+                        skelett->set_pose(blob->prediction().pose);
+                    }
+                    skelett->set(GUIOPTION(detect_keypoint_names));
+                    skelett->set_skeleton(*skeleton);
+                    e.advance_wrap(*skelett);
+                }
+
                 /*if(circ->hovered())
                     circ->set_fill_clr(White.alpha(150 * d));
                 else
@@ -716,18 +737,6 @@ void BlobView::draw(const DisplayParameters& parm)
                     }
                 }*/
                 
-                if(not blob->prediction().pose.points.empty()) {
-                    if(not skelett) {
-                        skelett = std::make_unique<Skelett>(blob->prediction().pose, GUI_SETTINGS(detect_skeleton));
-                        skelett->set_show_text(true);
-                    } else {
-                        skelett->set_pose(blob->prediction().pose);
-                    }
-                    skelett->set(GUIOPTION(detect_keypoint_names));
-                    skelett->set_skeleton(GUI_SETTINGS(detect_skeleton));
-                    e.advance_wrap(*skelett);
-                }
-
                 if (d > 0 && real_size > 0) {
                     e.advance_wrap(*label);
                     label->set_data(parm.cache.frame_idx, text, blob->bounds(), blob->center());

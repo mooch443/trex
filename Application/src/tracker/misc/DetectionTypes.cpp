@@ -159,6 +159,29 @@ map_t get_map() {
     return cp;
 }
 
+std::optional<cmn::blob::Pose::Skeleton> get_skeleton(
+      uint8_t clid,
+      const std::optional<cmn::blob::Pose::Skeletons>& skeletons)
+{
+    if(not skeletons) {
+        return std::nullopt;
+    }
+    
+    auto map = detect::yolo::names::get_map();
+    std::optional<blob::Pose::Skeleton> skeleton;
+    if(auto it = map.find(clid);
+       it != map.end())
+    {
+        auto name = (std::string)it->second;
+        
+        if(skeletons) {
+            skeleton = skeletons->get(name);
+        }
+    }
+    
+    return skeleton;
+}
+
 }
 
 bool is_valid_default_model(const std::string& filename) {

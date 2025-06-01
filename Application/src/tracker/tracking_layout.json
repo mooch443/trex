@@ -127,44 +127,92 @@
                         }
                     },
                     {
-                        "type":"condition",
-                        "var":"{primary_selection.is_automatic}",
-                        "then":
-                        {
-                            "type":"vlayout",
-                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
-                            "children":[
-                                {
-                                    "type":"button",
-                                    "text":"<c>adjust auto ident</c> {if:{global.gui_show_autoident_controls}:<sym>△</sym>:<sym>▼</sym>}",
-                                    "fill":"{if:{global.gui_show_autoident_controls}:[20,50,20,200]:[20,50,20,200]}",
-                                    "line":"{if:{global.gui_show_autoident_controls}:[100,100,100,50]:{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}}",
-                                    "color":[225,225,225],
-                                    "font":{"size":0.6},
-                                    "size":"[{+:5:{infocard_width}},30]",
-                                    "checked":"{global.gui_show_autoident_controls}",
-                                    "action":"set:gui_show_autoident_controls:{not:{global.gui_show_autoident_controls}}"
-                                },
-                        
+                        "type":"vlayout",
+                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                        "children":[
+                            {
+                                "type":"button",
+                                "text":"<c>tracklet controls</c> {if:{global.gui_show_autoident_controls}:<sym>△</sym>:<sym>▼</sym>}",
+                                "fill":"{if:{global.gui_show_autoident_controls}:[20,{if:{primary_selection.is_automatic}:50:20},20,200]:[20,{if:{primary_selection.is_automatic}:50:20},20,200]}",
+                                "line":"{if:{global.gui_show_autoident_controls}:[100,100,100,50]:{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}}",
+                                "color":[225,225,225],
+                                "font":{"size":0.6},
+                                "size":"[{+:5:{infocard_width}},30]",
+                                "checked":"{global.gui_show_autoident_controls}",
+                                "action":"set:gui_show_autoident_controls:{not:{global.gui_show_autoident_controls}}"
+                            },
+                            {
+                                "type":"condition",
+                                "var":"{global.gui_show_autoident_controls}",
+                                "then":
                                 {
                                     "type":"condition",
-                                    "var":"{global.gui_show_autoident_controls}",
-                                    "then":{
+                                    "var":"{primary_selection.is_automatic}",
+                                    "then": {
+                                            "type":"vlayout",
+                                            "pad":[5,0,5,2],
+                                            "max_size":"[{infocard_width},0]",
+                                            "fill":"{if:{||:{selected}:{hovered}}:[20,50,20,200]:[20,50,20,200]}",
+                                            "children":[
+                                                {
+                                                    "type":"stext",
+                                                    "text":"<c><gray>tracklet was force-assigned by\nvisual identification <sym>⮧</sym></gray></c>",
+                                                    "pad":[5,5,5,5],
+                                                    "font":{"size":0.45}
+                                                },
+                                                {
+                                                    "type":"button",
+                                                    "text":"<sym>🗘</sym> un-force entire tracklet",
+                                                    "action":"remove_automatic_matches:{primary_selection.fdx}:{primary_selection.tracklet}",
+                                                    "font":{"size":0.5},
+                                                    "size":[210,25],
+                                                    "fill":"{if:{||:{selected}:{hovered}}:[20,20,20,200]:[10,10,10,200]}",
+                                                    "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                                                    "color":"{if:{||:{selected}:{hovered}}:[225,225,225,255]:[200,200,200,255]}"
+                                                },
+                                                {
+                                                    "type":"button",
+                                                    "text":"<sym>⇰</sym> un-force from here",
+                                                    "action":"remove_automatic_matches:{primary_selection.fdx}:[{global.gui_frame},{at:1:{primary_selection.tracklet}}]",
+                                                    "font":{"size":0.5},
+                                                    "size":[210,25],
+                                                    "fill":"{if:{||:{selected}:{hovered}}:[20,20,20,200]:[10,10,10,200]}",
+                                                    "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                                                    "color":"{if:{||:{selected}:{hovered}}:[225,225,225,255]:[200,200,200,255]}"
+                                                },
+                                                {
+                                                    "type":"button",
+                                                    "text":"<sym>\u2716</sym> un-force only this frame",
+                                                    "action":"remove_automatic_matches:{primary_selection.fdx}:{global.gui_frame}",
+                                                    "font":{"size":0.5},
+                                                    "size":[210,25],
+                                                    "fill":"{if:{||:{selected}:{hovered}}:[20,20,20,200]:[10,10,10,200]}",
+                                                    "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                                                    "color":"{if:{||:{selected}:{hovered}}:[225,225,225,255]:[200,200,200,255]}"
+                                                },
+                                                {
+                                                    "type":"rect",
+                                                    "size":[0,5],
+                                                    "fill":[0,0,0,0]
+                                                }
+                                            ]
+                                    },
+                                    "else": {
                                         "type":"vlayout",
                                         "pad":[5,0,5,2],
                                         "max_size":"[{infocard_width},0]",
-                                        "fill":"{if:{||:{selected}:{hovered}}:[20,50,20,200]:[20,50,20,200]}",
+                                        "fill":"{if:{||:{selected}:{hovered}}:[20,20,20,200]:[20,20,20,200]}",
                                         "children":[
                                             {
                                                 "type":"stext",
-                                                "text":"<c><gray>tracklet was force-assigned by\nvisual identification <sym>⮧</sym></gray></c>",
+                                                "text":"<c><gray>raw objects <sym>⮧</sym></gray></c>",
                                                 "pad":[5,5,5,5],
                                                 "font":{"size":0.45}
                                             },
                                             {
                                                 "type":"button",
-                                                "text":"<sym>🗘</sym> unassign entire tracklet",
-                                                "action":"remove_automatic_matches:{primary_selection.fdx}:{primary_selection.tracklet}",
+                                                "text":"<sym>🗘</sym> ignore all from tracklet",
+                                                "action":"ignore_bdxes:{primary_selection.fdx}:{at:0:{primary_selection.tracklet}}:{at:1:{primary_selection.tracklet}}",
                                                 "font":{"size":0.5},
                                                 "size":[210,25],
                                                 "fill":"{if:{||:{selected}:{hovered}}:[20,20,20,200]:[10,10,10,200]}",
@@ -173,8 +221,8 @@
                                             },
                                             {
                                                 "type":"button",
-                                                "text":"<sym>⇰</sym> unassign from here",
-                                                "action":"remove_automatic_matches:{primary_selection.fdx}:[{global.gui_frame},{at:1:{primary_selection.tracklet}}]",
+                                                "text":"<sym>⇰</sym> ignore from here",
+                                                "action":"ignore_bdxes:{primary_selection.fdx}:{global.gui_frame},{at:1:{primary_selection.tracklet}}",
                                                 "font":{"size":0.5},
                                                 "size":[210,25],
                                                 "fill":"{if:{||:{selected}:{hovered}}:[20,20,20,200]:[10,10,10,200]}",
@@ -183,8 +231,8 @@
                                             },
                                             {
                                                 "type":"button",
-                                                "text":"<sym>\u2716</sym> unassign only this frame",
-                                                "action":"remove_automatic_matches:{primary_selection.fdx}:{global.gui_frame}",
+                                                "text":"<sym>\u2716</sym> ignore <c>bdx[<gray>{primary_selection.bdx}</gray>]</c>",
+                                                "action":"ignore_bdxes:{primary_selection.fdx}:{global.gui_frame}:{global.gui_frame}",
                                                 "font":{"size":0.5},
                                                 "size":[210,25],
                                                 "fill":"{if:{||:{selected}:{hovered}}:[20,20,20,200]:[10,10,10,200]}",
@@ -199,8 +247,8 @@
                                         ]
                                     }
                                 }
-                            ]
-                        }
+                            }
+                        ]
                     },
 
                     {
@@ -721,17 +769,20 @@
                         {
                             "text":"<sym>🎭</sym> Train visual identification (VI)",
                             "detail":"learn differences between individuals",
-                            "action":"visual_identification"
+                            "action":"visual_identification",
+                            "disabled":"{if:{||:{is_checking_tracklet_identities}:{vi_busy}}:true:false}"
                         },
                         {
                             "text":"<sym>👽</sym> Clear VI predictions",
                             "detail":"clears all existing VI predictions",
-                            "action":"clear_ml"
+                            "action":"clear_ml",
+                            "disabled":"{if:{||:{is_checking_tracklet_identities}:{vi_busy}}:true:false}"
                         },
                         {
                             "text":"<sym>👽</sym> Categorize",
                             "detail":"differentiate types of individuals",
-                            "action":"categorize"
+                            "action":"categorize",
+                            "disabled":"{if:{||:{is_checking_tracklet_identities}:{vi_busy}}:true:false}"
                         },
                         {
                             "text":"<sym>🢤</sym> Close file",
@@ -972,10 +1023,10 @@
                     "list":{
                         "line":[220,220,220,200],
                         "fill":[25,25,25,220],
-                        "size":[600,300],
+                        "size":[710,300],
                         "font":{"size":0.6}
                     },
-                    "size":[600,40],
+                    "size":[700,40],
                     "color":[225,225,225],
                     "desc":"",
                     "placeholder":"<sym>🔍</sym> Parameters",

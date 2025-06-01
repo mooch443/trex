@@ -154,7 +154,7 @@ struct SettingsScene::Data {
                             SETTING(detect_format) = format;
                             SETTING(detect_classes) = classes;
                             if(format != track::detect::ObjectDetectionFormat::poses)
-                                SETTING(detect_skeleton) = blob::Pose::Skeleton{};
+                                SETTING(detect_skeleton) = std::optional<blob::Pose::Skeletons>{};
                             
                             if(region_model.is_regular()) {
                                 SETTING(region_resolution) = std::get<0>(_cached_resolutions.at(region_model.str()));
@@ -181,7 +181,7 @@ struct SettingsScene::Data {
                                 };
                                 
                                 if(format != track::detect::ObjectDetectionFormat::poses)
-                                    SETTING(detect_skeleton) = blob::Pose::Skeleton{};
+                                    SETTING(detect_skeleton) = std::optional<blob::Pose::Skeletons>{};
                                 
                                 if(region_model.is_regular()) {
                                     if(not _cached_resolutions.contains(region_model.str())) {
@@ -483,9 +483,7 @@ struct SettingsScene::Data {
                                     }
                                 }
 
-                                auto filename = SETTING(filename).value<file::Path>();
-                                if(filename.empty())
-                                    filename = settings::find_output_name(GlobalSettings::map());
+                                auto filename = settings::find_output_name(GlobalSettings::map());
                                 if(not filename.has_extension() || filename.extension() != "pv")
                                     filename = filename.add_extension("pv");
                                 

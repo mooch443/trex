@@ -21,8 +21,12 @@ void RecentItems::set_select_callback(std::function<void (RecentItemJSON)> fn) {
     _recent_select_callback = fn;
 }
 
+std::string RecentState::toStr() const {
+    return "ignore_bdx_warning_shown="+Meta::toStr(ignore_bdx_warning_shown);
+}
+
 std::string RecentItems::toStr() const {
-    return "RecentItems<" + Meta::toStr(_items) + ">";
+    return "RecentItems<" + Meta::toStr(file().entries) + " " + Meta::toStr(file().state) + ">";
 }
 
 timestamp_t RecentItemJSON::t_modified() const {
@@ -90,15 +94,15 @@ void RecentItems::open(const file::PathArray& name, const sprite::Map& options) 
 
 void RecentItems::show(ScrollableList<DetailTooltipItem>& list) {
     std::vector<DetailTooltipItem> items;
-    for (auto& item : _items) {
+    for (auto& item : _file.entries) {
         items.emplace_back(item);
     }
 
     if (list.set_items(items) != 0) {
         list.on_select([](size_t i, auto& name) {
             auto recent = RecentItems::read();
-            if (recent._items.size() > i) {
-                auto& item = recent._items.at(i);
+            if (recent.file().entries.size() > i) {
+                auto& item = recent.file().entries.at(i);
                 if (item.name == name.detail()) {
                     std::unique_lock guard(_recent_select_mutex);
                     if(_recent_select_callback) {
@@ -111,7 +115,7 @@ void RecentItems::show(ScrollableList<DetailTooltipItem>& list) {
                 }
             }
             else {
-                throw U_EXCEPTION("Unexpected item index: ", i, " >= ", recent._items.size());
+                throw U_EXCEPTION("Unexpected item index: ", i, " >= ", recent.file().entries.size());
             }
         });
     }
@@ -155,6 +159,9 @@ RecentItems RecentItems::read() {
                 std::string descriptive_error = glz::format_error(error, str);
                 throw U_EXCEPTION("Error loading ", path, ":\n", no_quotes(descriptive_error));
             }
+            
+            items.file().state = input.state;
+            items.file().modified = input.modified;
 
             for (RecentItemJSON entry : input.entries) {
                 for (auto& [k, v] : entry.settings) {
@@ -184,7 +191,7 @@ RecentItems RecentItems::read() {
                     }
                 }
 
-                items._items.push_back(std::move(entry));
+                items._file.entries.push_back(std::move(entry));
             }
 
         }
@@ -203,14 +210,14 @@ RecentItems RecentItems::read() {
         }
     }
     
-    std::sort(items._items.begin(), items._items.end(), [](const RecentItemJSON& A, const RecentItemJSON& B) {
+    std::sort(items._file.entries.begin(), items._file.entries.end(), [](const RecentItemJSON& A, const RecentItemJSON& B) {
         return std::make_tuple(A.t_modified(), A.t_created()) > std::make_tuple(B.t_modified(), B.t_created());
     });
     return items;
 }
 
 bool RecentItems::has(std::string name) const {
-    for (auto& item : _items)
+    for (auto& item : _file.entries)
         if (item.name == name)
             return true;
     return false;
@@ -220,7 +227,7 @@ void RecentItems::add(std::string name, const sprite::Map& options) {
     auto& config = options;
 
     if (has(name)) {
-        for (auto& item : _items) {
+        for (auto& item : _file.entries) {
             if (item.name == name) {
                 item._options = {};
                 for(auto& key : options.keys()) {
@@ -259,21 +266,18 @@ void RecentItems::add(std::string name, const sprite::Map& options) {
     for(auto &key : item._options.keys())
         item.settings[key] = item._options.at(key).get().to_json();
     //config.write_to(item._options);
-    _items.emplace_back(std::move(item));
+    _file.entries.emplace_back(std::move(item));
 }
 
 void RecentItems::write() {
     file::Path path = filename().add_extension("backup");
     
     try {
-        RecentItemFile file{
-            .entries = _items,
-            .modified = timestamp_t::now().get()
-        };
+        _file.modified = timestamp_t::now().get();
         
         {
             auto f = path.fopen("wb");
-            auto dump = glz::write_json(file);
+            auto dump = glz::write_json(_file);
             if(not dump.has_value())
                 throw U_EXCEPTION("Cannot write recent files to ", path);
             fwrite(dump->c_str(), sizeof(uchar), dump->length(), f.get());

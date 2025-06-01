@@ -49,6 +49,7 @@ namespace globals {
         (bool, gui_show_shadows),
         (bool, gui_show_selections),
         (bool, gui_show_paths),
+        (bool, gui_show_skeletons),
         (uint8_t, gui_outline_thickness),
         (bool, gui_show_texts),
         (float, gui_max_path_time),
@@ -109,7 +110,7 @@ namespace globals {
         (bool, auto_categorize),
         (bool, gui_macos_blur),
         (Size2, gui_zoom_limit),
-        (blob::Pose::Skeleton, detect_skeleton),
+        (std::optional<blob::Pose::Skeletons>, detect_skeleton),
         (std::vector<Vec2>, gui_zoom_polygon),
         (std::string, gui_foi_name),
         (bool, track_pause)

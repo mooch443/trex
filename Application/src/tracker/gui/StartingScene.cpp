@@ -97,7 +97,7 @@ void StartingScene::update_recent_items() {
     _corpus.clear();
     
     size_t i=0;
-    for(auto& item : _recents.items()) {
+    for(auto& item : _recents.file().entries) {
         auto detail = (DetailTooltipItem)item;
         sprite::Map tmp;
         tmp["name"] = detail.name();
@@ -162,10 +162,10 @@ void StartingScene::_draw(DrawStructure& graph) {
                         Print("open_recent got ", str);
                         assert(str.parameters.size() == 1u);
                         auto index = Meta::fromStr<size_t>(str.first());
-                        if(_recents.items().size() <= index)
+                        if(_recents.file().entries.size() <= index)
                             return; /// invalid index
 
-                        auto& item = _recents.items().at(index);
+                        auto& item = _recents.file().entries.at(index);
                         DetailTooltipItem details{item};
                         
                         file::PathArray array;
@@ -199,6 +199,7 @@ void StartingScene::_draw(DrawStructure& graph) {
                         auto f = WorkProgress::add_queue("", [array, filename, type, item, copy = std::move(copy)](){
                             settings::load(settings::LoadContext{
                                 .source = array,
+                                .filename = filename,
                                 .task = default_config::TRexTask_t::convert,
                                 .type = type,
                                 .source_map = copy

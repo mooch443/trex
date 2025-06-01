@@ -430,7 +430,7 @@
                                         "children":[
                                             {
                                                 "type":"stext",
-                                                "text":"<gray><b>Model Resolution</b>\nused to train the model</gray>",
+                                                "text":"<gray><b>Resolution</b>\nused to train the model</gray>",
                                                 "pad":[10,3,10,4],
                                                 "fill":[30,30,30,100],
                                                 "line":[100,100,100,250]

@@ -104,7 +104,7 @@ set_defaults_for(detect::ObjectDetectionType_t detect_type,
             "individual_image_normalization", individual_image_normalization_t::posture,
             "blob_split_algorithm", blob_split_algorithm_t::threshold,
             "track_max_reassign_time", 0.5f,
-            "detect_skeleton", blob::Pose::Skeleton(),
+            "detect_skeleton", std::optional<blob::Pose::Skeletons>{},
             "detect_format", track::detect::ObjectDetectionFormat::none
         };
         
@@ -126,24 +126,28 @@ set_defaults_for(detect::ObjectDetectionType_t detect_type,
             "blob_split_algorithm", blob_split_algorithm_t::none,
             "track_max_reassign_time", 1.f,
             "detect_format", track::detect::ObjectDetectionFormat::none,
-            "detect_skeleton", blob::Pose::Skeleton("human", {
-                {0, 1, "Nose to Left Eye"},
-                {0, 2, "Nose to Right Eye"},
-                {1, 3, "Left Eye to Ear"},
-                {2, 4, "Right Eye to Ear"},
-                {5, 6, "Left to Right Shoulder"},
-                {5, 7, "Left Upper Arm"},
-                {7, 9, "Left Forearm"},
-                {6, 8, "Right Upper Arm"},
-                {8, 10, "Right Forearm"},
-                {5, 11, "Left Shoulder to Hip"},
-                {6, 12, "Right Shoulder to Hip"},
-                {11, 12, "Left to Right Hip"},
-                {11, 13, "Left Thigh"},
-                {13, 15, "Left Shin"},
-                {12, 14, "Right Thigh"},
-                {14, 16, "Right Shin"}
-            })
+            "detect_skeleton", std::optional<blob::Pose::Skeletons>{
+                blob::Pose::Skeletons{
+                    ._skeletons = {{"human", std::vector<blob::Pose::Skeleton::Connection>{
+                        {0, 1, "Nose to Left Eye"},
+                        {0, 2, "Nose to Right Eye"},
+                        {1, 3, "Left Eye to Ear"},
+                        {2, 4, "Right Eye to Ear"},
+                        {5, 6, "Left to Right Shoulder"},
+                        {5, 7, "Left Upper Arm"},
+                        {7, 9, "Left Forearm"},
+                        {6, 8, "Right Upper Arm"},
+                        {8, 10, "Right Forearm"},
+                        {5, 11, "Left Shoulder to Hip"},
+                        {6, 12, "Right Shoulder to Hip"},
+                        {11, 12, "Left to Right Hip"},
+                        {11, 13, "Left Thigh"},
+                        {13, 15, "Left Shin"},
+                        {12, 14, "Right Thigh"},
+                        {14, 16, "Right Shin"}
+                    }}}
+                }
+            }
         };
         
         apply_values(values);
@@ -339,7 +343,7 @@ void LoadContext::init_filename() {
             set_config_if_different("output_dir", combined.map);
         }
         
-        combined.map["filename"] = filename;
+        combined.map["filename"] = file::Path(filename.filename());
         set_config_if_different("filename", combined.map);
     }
     
@@ -986,12 +990,17 @@ void LoadContext::finalize() {
             {
                 //if(not contains(copy.toVector(), key))
                 {
-                    //Print("Updating ",combined.map.at(key));
+                    Print("Updating ",combined.map.at(key));
                     if(key == "filename"
-                       && (combined.map.at(key).value<file::Path>() == find_output_name(combined.map)
+                       && (combined.map.at(key).value<file::Path>() == find_output_name(combined.map, {}, {}, false)
                            || (not combined.map.at(key).value<file::Path>().is_absolute()
                                && combined.map.at(key).value<file::Path>() == file::find_basename(combined.map.at("source").value<file::PathArray>()))))
                     {
+                        #ifndef NDEBUG
+                        if(not quiet) {
+                            Print("Setting filename to empty since it is the default: combined.map[", combined.map.at(key).value<file::Path>(),"] == find_output_name[", find_output_name(combined.map, {}, {}, false),"] or is relative to source: ", combined.map.at("source").value<file::PathArray>(), "(which is ", file::find_basename(combined.map.at("source").value<file::PathArray>()), ")");
+                        }
+                        #endif
                         SETTING(filename) = file::Path();
                         continue;
                     }
@@ -1003,8 +1012,9 @@ void LoadContext::finalize() {
                         continue;
                     }
                     
-                    if(not is_in(key, "gui_interface_scale"))
+                    if(not is_in(key, "gui_interface_scale")) {
                         combined.map.at(key).get().copy_to(GlobalSettings::map());
+                    }
                 }
                 /*else {
                  Print("Would be updating ",combined.map.at(key), " but is forbidden.");
@@ -1148,12 +1158,14 @@ void load(LoadContext ctx) {
     
     // Step 2: Monitor changes to 'calculate_posture'. If manually disabled,
     // record this fact to avoid automatic re-enabling later.
-    ctx.combined.map.register_callbacks({"calculate_posture"}, [&](auto key) {
+    ctx.combined.map.register_callbacks<sprite::RegisterInit::DONT_TRIGGER>({"calculate_posture", "filename"}, [&](auto key) {
         //if(was_different
-        //   && key == "calculate_posture")
+        if(key == "calculate_posture")
         {
             bool calculate_posture = ctx.combined.map.at("calculate_posture").value<bool>();
             ctx.did_set_calculate_posture_to_false = not calculate_posture;
+        } else if(key == "filename") {
+            Print("Changed filename to ", ctx.combined.map.at("filename"));
         }
     });
     

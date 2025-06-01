@@ -590,7 +590,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         
         CONFIG("meta_encoding", meta_encoding_t::rgb8, "The encoding used for the given .pv video.");
         CONFIG("detect_classes", cmn::blob::MaybeObjectClass_t{}, "Class names for object classification in video during conversion.");
-        CONFIG("detect_skeleton", blob::Pose::Skeleton{}, "Skeleton to be used when displaying pose data.");
+        CONFIG("detect_skeleton", std::optional<blob::Pose::Skeletons>{}, "Skeleton to be used when displaying pose data.");
         CONFIG("meta_source_path", std::string(""), "Path of the original video file for conversions (saved as debug info).", LOAD);
         CONFIG("meta_species", std::string(""), "Name of the species used.");
         CONFIG("meta_age_days", long_t(-1), "Age of the individuals used in days.");
@@ -636,6 +636,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("gui_show_fish", std::tuple<pv::bid, Frame_t>{pv::bid::invalid, Frame_t()}, "Show debug output for {blob_id, fish_id}.");
         CONFIG("gui_source_video_frame", Frame_t(0u), "Best information the system has on which frame index in the original video the given `gui_frame` corresponds to (integrated into the pv file starting from V_9).", SYSTEM);
         CONFIG("gui_frame", Frame_t(0u), "The currently selected frame. `gui_displayed_frame` might differ, if loading from file is currently slow.");
+        CONFIG("gui_show_skeletons", true, "Shows / hides keypoint data being shown in the graphical interface.");
         CONFIG("gui_displayed_frame", Frame_t(0u), "The currently visible frame.");
 //#ifdef TREX_ENABLE_EXPERIMENTAL_BLUR
         CONFIG("gui_macos_blur", false, "MacOS supports a blur filter that can be applied to make unselected individuals look more interesting. Purely a visual effect. Does nothing on other operating systems.");

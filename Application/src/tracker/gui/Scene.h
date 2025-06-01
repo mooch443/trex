@@ -52,6 +52,7 @@ class SceneManager {
     SceneManager();
 
     static read_once<std::string> _switching_error;
+    static std::atomic<bool> _displaying_error;
     
 public:
     struct AlwaysAsync {};

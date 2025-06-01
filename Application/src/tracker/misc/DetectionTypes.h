@@ -11,6 +11,8 @@ using vec_t = std::vector<std::string_view>;
 vec_t get_vector();
 map_t get_map();
 
+std::optional<cmn::blob::Pose::Skeleton> get_skeleton(uint8_t clid, const std::optional<cmn::blob::Pose::Skeletons>&);
+
 }
 
 namespace track::detect {

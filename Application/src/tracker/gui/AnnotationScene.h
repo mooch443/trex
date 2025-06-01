@@ -97,7 +97,7 @@ private:
     std::unique_ptr<ExternalImage> _current_image;
     std::unique_ptr<dyn::DynamicGUI> _gui;
     
-    blob::Pose::Skeleton _skeleton;
+    std::optional<blob::Pose::Skeletons> _skeleton;
     Annotation _pose_in_progress;
     Timer _timer;
 

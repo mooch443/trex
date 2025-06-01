@@ -1,9 +1,13 @@
 #pragma once
 
+#include <commons.pc.h>
 #include <gui/types/Entangled.h>
 #include <misc/DetectionTypes.h>
+#include <misc/derived_ptr.h>
 
 namespace cmn::gui {
+
+class Circle;
 
 class Skelett : public Entangled {
     using Skeleton = blob::Pose::Skeleton;
@@ -14,10 +18,12 @@ class Skelett : public Entangled {
     GETTER(bool, show_text){false};
     Color _color = DarkCyan;
     track::detect::KeypointNames _names;
+    std::vector<derived_ptr<Circle>> _circles;
     
 public:
     Skelett() = default;
-    Skelett(const Pose& pose, const Skeleton& skeleton, const Color& color = DarkCyan) : _pose(pose), _skeleton(skeleton), _color(color) {}
+    Skelett(const Pose& pose, const Skeleton& skeleton, const Color& color = DarkCyan);
+    ~Skelett();
 
     using Entangled::set;
     void set(const track::detect::KeypointNames& names) {

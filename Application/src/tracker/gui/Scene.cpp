@@ -10,8 +10,9 @@
 namespace cmn::gui {
 
 IMPLEMENT(SceneManager::_switching_error);
+IMPLEMENT(SceneManager::_displaying_error){false};
 
-Scene::Scene(Base& window, 
+Scene::Scene(Base& window,
              const std::string& name,
              std::function<void(Scene&, DrawStructure& base)> draw)
     : _name(name), _window(&window), _draw(draw)
@@ -80,11 +81,11 @@ void SceneManager::set_active(Scene* scene) {
             SceneManager::set_switching_error(e.what());
 
             if (SceneManager::getInstance().fallback_scene) {
-				SceneManager::getInstance().set_active(SceneManager::getInstance().fallback_scene);
-			}
+                SceneManager::getInstance().set_active(SceneManager::getInstance().fallback_scene);
+            }
             else {
                 Print("[SceneManager] No fallback scene for error: ", e.what());
-			}
+            }
         }
     };
     _enqueue(AlwaysAsync{}, fn);
@@ -138,24 +139,24 @@ void SceneManager::set_active(std::string name) {
 
 void SceneManager::set_fallback(std::string name) {
     if (name.empty()) {
-		fallback_scene = nullptr;
-		return;
-	}
+        fallback_scene = nullptr;
+        return;
+    }
 
-	Scene* ptr{ nullptr };
+    Scene* ptr{ nullptr };
 
     if (std::unique_lock guard{ _mutex };
         _scene_registry.contains(name))
     {
-		ptr = _scene_registry.at(name);
-	}
+        ptr = _scene_registry.at(name);
+    }
 
     if (ptr) {
-		fallback_scene = ptr;
-	}
+        fallback_scene = ptr;
+    }
     else {
-		throw InvalidArgumentException("Cannot find the given Scene name (",name,").");
-	}
+        throw InvalidArgumentException("Cannot find the given Scene name (",name,").");
+    }
 }
 
 bool SceneManager::is_scene_registered(std::string name) const {
@@ -203,7 +204,7 @@ void SceneManager::update(IMGUIBase* window, DrawStructure& graph) {
     _gui_queue->processTasks(window, graph);
     
     if(window->window_dimensions() != last_resolution
-       || window->dpi_scale() != last_dpi) 
+       || window->dpi_scale() != last_dpi)
     {
         last_resolution = window->window_dimensions();
         last_dpi = window->dpi_scale();
@@ -217,15 +218,27 @@ void SceneManager::update(IMGUIBase* window, DrawStructure& graph) {
     catch (const std::exception& e) {
         static const char* msg = nullptr;
         if (msg != e.what()) {
-			msg = e.what();
-            graph.dialog(settings::htmlify(e.what()), "Error");
+            msg = e.what();
+            set_switching_error(e.what());
+            //graph.dialog(settings::htmlify(e.what()), "Error");
             //Print("[SceneManager] Error: ", msg);
-		}
-	}
+        }
+    }
     
-    auto str = switching_error().read();
-    if(not str.empty()) {
-        graph.dialog(settings::htmlify(str), "Error");
+    if (bool expected = false;
+        _displaying_error.compare_exchange_strong(expected, true))
+    {
+        auto error_str = switching_error().read();
+        if (not error_str.empty()) {
+            graph.dialog(
+                [](auto){ _displaying_error = false; },
+                settings::htmlify(error_str),
+                "Error"
+            );
+        } else {
+            // No message to show -> immediately reset the flag
+            _displaying_error = false;
+        }
     }
     
     graph.section("loading", [window](DrawStructure& base, auto section) {
