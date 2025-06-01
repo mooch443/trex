@@ -1158,7 +1158,7 @@ void load(LoadContext ctx) {
     
     // Step 2: Monitor changes to 'calculate_posture'. If manually disabled,
     // record this fact to avoid automatic re-enabling later.
-    ctx.combined.map.register_callbacks<sprite::RegisterInit::DONT_TRIGGER>({"calculate_posture", "filename"}, [&](auto key) {
+    /*ctx.combined.map.register_callbacks<sprite::RegisterInit::DONT_TRIGGER>({"calculate_posture", "filename"}, [&](auto key) {
         //if(was_different
         if(key == "calculate_posture")
         {
@@ -1167,7 +1167,7 @@ void load(LoadContext ctx) {
         } else if(key == "filename") {
             Print("Changed filename to ", ctx.combined.map.at("filename"));
         }
-    });
+    });*/
     
     // Step 3: Initialize the output filename from parameters or derive from source/defaults.
     ctx.init_filename();
