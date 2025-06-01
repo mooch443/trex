@@ -990,7 +990,7 @@ void LoadContext::finalize() {
             {
                 //if(not contains(copy.toVector(), key))
                 {
-                    Print("Updating ",combined.map.at(key));
+                    //Print("Updating ",combined.map.at(key));
                     if(key == "filename"
                        && (combined.map.at(key).value<file::Path>() == find_output_name(combined.map, {}, {}, false)
                            || (not combined.map.at(key).value<file::Path>().is_absolute()
