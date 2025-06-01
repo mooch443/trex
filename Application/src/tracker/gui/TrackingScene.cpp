@@ -2083,7 +2083,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                    uniquenesses.has_value())
                 {
                     _data->_cached_fois_width = width;
-                    Print("* updating FOIS for ", _data->_foi_state.name);
+                    //Print("* updating FOIS for ", _data->_foi_state.name);
                     
                     auto ptr = Image::Zeros(1, width, 4);
                     auto mat = ptr->get();
@@ -2112,7 +2112,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                 
             } else {
                 _data->_cached_fois_width = width;
-                Print("* updating FOIS for ", _data->_foi_state.name);
+                //Print("* updating FOIS for ", _data->_foi_state.name);
                 
                 auto ptr = Image::Zeros(1, width, 4);
                 auto mat = ptr->get();
