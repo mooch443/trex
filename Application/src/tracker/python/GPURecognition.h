@@ -52,6 +52,8 @@ struct TREX_EXPORT ModelConfig {
     std::string toStr() const {
         std::string s =
             "ModelConfig<task=" + Meta::toStr(static_cast<int>(task)) +
+            " format="+ Meta::toStr(ObjectDetectionFormat::values.at((size_t)output_format)) +
+            " use_tracking=" + Meta::toStr(use_tracking) +
             " model_path='" + model_path +
             "' trained_resolution=" + Meta::toStr(trained_resolution);
 
@@ -121,7 +123,7 @@ public:
     Boxes(std::vector<float>&& data, size_t size)
     : data(std::move(data)), rows_count(size / 6u)
     {
-        if (size % 6u != 0u)
+        if (size != 0 && size % 6u != 0u)
             throw std::invalid_argument("Invalid size for Boxes constructor. Please use a size that is divisible by 6 and is a flat float array.");
         // expecting 6 floats per row, 4 for box, 1 for class id, 1 for confidence
         assert(size % 6u == 0u);
@@ -216,19 +218,68 @@ public:
     }
 };
 
+struct TREX_EXPORT ICXYWHR {
+    float clid;  // object id
+    float conf;  // confidence score
+    float x;  // center x
+    float y;  // center y
+    float w;  // width
+    float h;  // height
+    float r;  // rotation in radians
+
+    std::string toStr() const {
+        return "ICXYWHR<"+Meta::toStr(clid)+","+Meta::toStr(conf)+","+Meta::toStr(x)+","+Meta::toStr(y)+","+Meta::toStr(w)+","+Meta::toStr(h)+","+Meta::toStr(r)+">";
+    }
+    static std::string class_name() {
+        return "detect::ICXYWHR";
+    }
+    std::array<cmn::Vec2, 4> corners() const;
+    Bounds bounding_box() const;
+    static Bounds bounding_box(const std::array<cmn::Vec2, 4>&);
+};
+
+class TREX_EXPORT ObbData {
+    GETTER(std::vector<float>, icxywhr);
+    
+public:
+    ObbData(std::vector<float>&& data);
+    ObbData() = default;
+    ObbData(const ObbData&) = default;
+    ObbData& operator=(const ObbData&) = default;
+    ObbData(ObbData&&) = default;
+    ObbData& operator=(ObbData&&) = default;
+
+    ICXYWHR operator[](size_t index) const;
+
+    [[nodiscard]] bool empty() const { return _icxywhr.empty(); }
+    [[nodiscard]] size_t size() const { return _icxywhr.size() / 7u; }
+
+    std::string toStr() const {
+        return "ObbData<"+std::to_string(size())+">";
+    }
+    static std::string class_name() {
+        return "detect::ObbData";
+    }
+};
+
 class TREX_EXPORT Result {
 public:
-    Result(int index, Boxes&& boxes, std::vector<MaskData>&& masks, KeypointData&& keypoints)
-    : _index(index), _boxes(std::move(boxes)), _masks(std::move(masks)), _keypoints(std::move(keypoints))
+    Result(int index, Boxes&& boxes, std::vector<MaskData>&& masks, KeypointData&& keypoints, track::detect::ObbData&& obbdata)
+    : _index(index), _boxes(std::move(boxes)), _masks(std::move(masks)), _keypoints(std::move(keypoints)), _obbdata(std::move(obbdata))
     {
         if (_boxes.num_rows() != 0) {
             if(not _masks.empty() && _masks.size() != _boxes.num_rows())
                 throw std::invalid_argument("Number of masks must be equal to number of boxes.");
         }
+        if(not _obbdata.empty()) {
+            if(_boxes.num_rows() > 0) {
+                throw std::invalid_argument("Boxes must be empty if obb data is set.");
+            }
+        }
     }
     
     std::string toStr() const {
-        return "Result<"+std::to_string(index())+","+_boxes.toStr()+","+Meta::toStr(_masks)+ ","+Meta::toStr(_keypoints)+">";
+        return "Result<"+std::to_string(index())+","+_boxes.toStr()+","+Meta::toStr(_masks)+ ","+Meta::toStr(_keypoints)+","+Meta::toStr(_obbdata)+">";
     }
     static std::string class_name() {
         return "detect::Result";
@@ -239,6 +290,7 @@ protected:
     GETTER(Boxes, boxes);
     GETTER(std::vector<MaskData>, masks);
     GETTER(KeypointData, keypoints);
+    GETTER(ObbData, obbdata);
 };
 
 class TREX_EXPORT YoloInput {

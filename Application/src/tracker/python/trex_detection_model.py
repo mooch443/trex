@@ -24,9 +24,10 @@ class StrippedResults:
         self.orig_shape = None
         self.scale = scale
         self.offset = offset
+        self.obb : Optional[List[np.ndarray]] = None
 
     def __str__(self) -> str:
-        return f"StrippedResults<boxes={self.boxes}, keypoints={self.keypoints}, orig_shape={self.orig_shape}, scale={self.scale}, offset={self.offset}>"
+        return f"StrippedResults<boxes={self.boxes}, keypoints={self.keypoints}, orig_shape={self.orig_shape}, scale={self.scale}, offset={self.offset}, obb={self.obb}>"
 
     def __repr__(self) -> str:
         return self.__str__()
@@ -471,6 +472,7 @@ class TRexDetection:
             coords = []
             masks = []
             keypoints = []
+            obbs = []
             for j, tile in enumerate(tiles):
                 if True:
                 #try:
@@ -481,6 +483,8 @@ class TRexDetection:
                         masks.extend(tile.masks)
                     if tile.keypoints is not None and len(tile.keypoints) > 0:
                         keypoints.extend(tile.keypoints)
+                    if tile.obb is not None and len(tile.obb) > 0:
+                        obbs.extend(tile.obb)
 
                     #print("appended keypoints: ", len(keypoints), " at ", index, "with", tile)
 
@@ -495,12 +499,16 @@ class TRexDetection:
                     finally:'''
                     index += 1
             
-            coords = np.concatenate(coords, axis=0)
             if len(keypoints) > 0:
                 keypoints = np.concatenate(keypoints, axis=0, dtype=np.float32)
-            
-            rexsults.append(TRex.Result(index, TRex.Boxes(coords), masks, TRex.KeypointData(keypoints)))
-        
+            if len(obbs) > 0:
+                obbs = np.concatenate(obbs, axis=0, dtype=np.float32)
+                coords = np.array([], dtype=np.float32)
+            else:
+                coords = np.concatenate(coords, axis=0)
+
+            rexsults.append(TRex.Result(index, TRex.Boxes(coords), masks, TRex.KeypointData(keypoints), TRex.ObbData(obbs)))
+
         return rexsults
 
     def perform_region_proposal(self, tensor: np.ndarray, offsets: List[float], scales: List[float], ious: List[float], confs: List[float]) -> List[TRex.Result]:

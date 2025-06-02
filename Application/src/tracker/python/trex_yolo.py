@@ -143,7 +143,8 @@ class StrippedYoloResults(StrippedResults):
     def __init__(self, results, scale, offset, box = [0, 0, 0, 0]):
         super().__init__(scale, offset)
 
-        self.boxes = results.boxes.data.cpu().numpy()
+        if results.boxes is not None:
+            self.boxes = results.boxes.data.cpu().numpy()
         self.orig_shape = results.orig_shape
 
         box = np.array([box[0],box[1]])
@@ -172,6 +173,24 @@ class StrippedYoloResults(StrippedResults):
                 #keys[..., 0] = (keys[..., 0] + offset[0]) * scale[0] #+ coords[..., 0]).T
                 #keys[..., 1] = (keys[..., 1] + offset[1]) * scale[1] #+ coords[..., 1]).T
                 self.keypoints.append(keys) # bones * 3 elements
+
+        if results.obb is not None:
+            self.obb = results.obb.data[:, :5].cpu().numpy()
+            #TRex.log(f"OBB: {self.obb.shape} {self.obb.dtype} {self.obb}")
+            #TRex.log(f"offset={offset}, box_offset={box_offset}, scale={scale}")
+            # Scale and offset the OBB coordinates
+            self.obb[:, :2] = (self.obb[:, :2] + offset + box_offset) * scale[0]
+            self.obb[:, 2:4] = (self.obb[:, 2:4] + offset + box_offset) * scale[1]
+
+            # insert column for confidence in the front
+            confs = results.obb.conf.cpu().numpy()
+            self.obb = np.insert(self.obb, 0, confs, axis=1)
+
+            # insert column for class id in the front
+            ids = results.obb.cls.cpu().numpy()
+            self.obb = np.insert(self.obb, 0, ids, axis=1)
+
+            #TRex.log(f"OBB after scaling: {self.obb.shape} {self.obb.dtype} {self.obb}")
 
         if results.masks is not None:
             self.masks = []
@@ -211,14 +230,15 @@ class StrippedYoloResults(StrippedResults):
                 self.masks.append(ssub.cpu().numpy())
                 assert self.masks[-1].flags['C_CONTIGUOUS']
 
-        # Scale and offset the bounding boxes
-        self.boxes[:, :2] = (self.boxes[:, :2] + offset + box_offset) * scale[0]
-        self.boxes[:, 2:4] = (self.boxes[:, 2:4] + offset + box_offset) * scale[1]
+        if self.boxes is not None:
+            # Scale and offset the bounding boxes
+            self.boxes[:, :2] = (self.boxes[:, :2] + offset + box_offset) * scale[0]
+            self.boxes[:, 2:4] = (self.boxes[:, 2:4] + offset + box_offset) * scale[1]
 
-        # If coords has more than 6 columns, it contains tracking information
-        # We remove that tracking information by deleting the id-column (at index 4)
-        if self.boxes.shape[1] > 6:
-            self.boxes = np.delete(self.boxes, 4, axis=1)
+            # If coords has more than 6 columns, it contains tracking information
+            # We remove that tracking information by deleting the id-column (at index 4)
+            if self.boxes.shape[1] > 6:
+                self.boxes = np.delete(self.boxes, 4, axis=1)
 
 class YOLOModel(DetectionModel):
     def __init__(self, config: TRex.ModelConfig):
@@ -257,6 +277,8 @@ class YOLOModel(DetectionModel):
             self.config.output_format = ObjectDetectionFormat.boxes
         elif self.ptr.task == "pose":
             self.config.output_format = ObjectDetectionFormat.poses
+        elif self.ptr.task == "obb":
+            self.config.output_format = ObjectDetectionFormat.obb
         else:
             raise Exception(f"Unknown task {self.ptr.task}")
         

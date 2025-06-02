@@ -318,6 +318,73 @@ Keypoint KeypointData::operator[](size_t index) const {
     };
 }
 
+ICXYWHR ObbData::operator[](size_t index) const {
+    if (index * 7u >= icxywhr().size())
+        throw OutOfRangeException("The index ", index, " is outside the OBB arrays dimensions of ", size());
+    return reinterpret_cast<const ICXYWHR*>(icxywhr().data())[index];
+}
+
+ObbData::ObbData(std::vector<float>&& data)
+    : _icxywhr(std::move(data))
+{
+    if (not _icxywhr.empty() && _icxywhr.size() % 7u != 0u)
+        throw InvalidArgumentException("Invalid size for ObbData constructor. Please use a size that is divisible by 7 and is a flat ICXYWHR array.");
+    // expecting 7 floats per row, 1 for id, 1 for confidence, 2 for xy, 2 for wh, 1 for r
+    assert(_icxywhr.size() % 7u == 0u);
+}
+
+
+std::array<cmn::Vec2, 4> ICXYWHR::corners() const {
+    float cos_r = std::cos(r);
+    float sin_r = std::sin(r);
+    float dx = w / 2.f;
+    float dy = h / 2.f;
+    std::array<cmn::Vec2, 4> out;
+    // bottom-left
+    {
+        float x_local = -dx;
+        float y_local = -dy;
+        out[0] = {x + x_local * cos_r - y_local * sin_r, y + x_local * sin_r + y_local * cos_r};
+    }
+    // bottom-right
+    {
+        float x_local = dx;
+        float y_local = -dy;
+        out[1] = {x + x_local * cos_r - y_local * sin_r, y + x_local * sin_r + y_local * cos_r};
+    }
+    // top-right
+    {
+        float x_local = dx;
+        float y_local = dy;
+        out[2] = {x + x_local * cos_r - y_local * sin_r, y + x_local * sin_r + y_local * cos_r};
+    }
+    // top-left
+    {
+        float x_local = -dx;
+        float y_local = dy;
+        out[3] = {x + x_local * cos_r - y_local * sin_r, y + x_local * sin_r + y_local * cos_r};
+    }
+    return out;
+}
+
+Bounds ICXYWHR::bounding_box() const {
+    return bounding_box(corners());
+}
+
+Bounds ICXYWHR::bounding_box(const std::array<cmn::Vec2, 4>& pts) {
+    float min_x = pts[0].x;
+    float min_y = pts[0].y;
+    float max_x = pts[0].x;
+    float max_y = pts[0].y;
+    for (int i = 1; i < 4; ++i) {
+        min_x = std::min(min_x, pts[i].x);
+        min_y = std::min(min_y, pts[i].y);
+        max_x = std::max(max_x, pts[i].x);
+        max_y = std::max(max_y, pts[i].y);
+    }
+    return Bounds(min_x, min_y, max_x - min_x, max_y - min_y);
+}
+
 }
 
 using namespace track::detect;
@@ -335,6 +402,7 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
         .value("boxes", track::detect::ObjectDetectionFormat::boxes)
         .value("masks", track::detect::ObjectDetectionFormat::masks)
         .value("poses", track::detect::ObjectDetectionFormat::poses)
+        .value("obb", track::detect::ObjectDetectionFormat::obb)
         .export_values();
 
     py::class_<DetectResolution>(m, "DetectResolution")
@@ -437,11 +505,20 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
         })
         .def("at", &KeypointData::operator[], py::return_value_policy::reference_internal)
         .def("num_bones", &KeypointData::num_bones);
+    py::class_<ObbData>(m, "ObbData")
+        .def(py::init([](py::array_t<float, py::array::c_style | py::array::forcecast> icxywhr) -> ObbData {
+            return ObbData(move_array<float>(icxywhr));
+        }))
+        .def("__repr__", [](const track::detect::ObbData& obb) -> std::string {
+            return obb.toStr();
+        })
+        .def("at", &ObbData::operator[], py::return_value_policy::reference_internal)
+        .def("size", &ObbData::size);
 
     py::class_<track::detect::Result>(m, "Result")
         .def(py::init([](int index,
                          track::detect::Boxes boxes_and_scores,
-                         py::list masks, track::detect::KeypointData keypoints)
+                         py::list masks, track::detect::KeypointData keypoints, track::detect::ObbData obb)
                 -> Result
             {
                 auto _masks = transfer_masks(masks);
@@ -449,7 +526,8 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
                     index,
                     std::move(boxes_and_scores),
                     std::move(_masks),
-                    std::move(keypoints)
+                    std::move(keypoints),
+                    std::move(obb)
                 };
             })
         )
@@ -459,7 +537,8 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
         .def("index", &Result::index)
         .def("boxes_and_scores", &Result::boxes, py::return_value_policy::reference_internal)
         .def("masks", &Result::masks)
-        .def("keypoints", &Result::keypoints);
+        .def("keypoints", &Result::keypoints)
+        .def("obbdata", &Result::obbdata);
 
     py::class_<cmn::Vec2>(m, "Vec2")
         .def(py::init<>())
@@ -844,7 +923,7 @@ void PythonIntegration::init() {
             fail(ex);
             //return false;
             throw;
-        } 
+        }
         
         initialized() = true;
         initializing() = false;
@@ -1459,7 +1538,7 @@ void PythonIntegration::set_function(const char* name_, std::function<void(const
             }
             batch_vector.push_back(image_vector);
         }
-		f(batch_vector);
+        f(batch_vector);
     };
 
     set_function_internal(name_, fn, m);
