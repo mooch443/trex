@@ -2,6 +2,7 @@
 #include <tracking/SplitBlob.h>
 #include <tracking/Tracker.h>
 #include <tracking/BlobReceiver.h>
+#include <tracking/IndividualManager.h>
 
 namespace track {
 
@@ -68,6 +69,8 @@ HistorySplit::HistorySplit(PPFrame &frame, PPFrame::NeedGrid need, GenericThread
         return;
     }
     
+    std::unordered_map<Idx_t, Frame_t> fdx_has_been_visible;
+    
     PPFrame::Log("> history_split is on. investigating ", frame.blob_mappings.size(), " blob mappings...");
     for(auto && [bdx, set] : frame.blob_mappings) {
         PPFrame::Log("\tblob ", bdx," has ", set.size()," fish mapped to it");
@@ -87,6 +90,8 @@ HistorySplit::HistorySplit(PPFrame &frame, PPFrame::NeedGrid need, GenericThread
         std::queue<pv::bid> q;
         q.push(bdx);
         
+        Frame_t track_history_split_threshold = FAST_SETTING(track_history_split_threshold);
+        
         while(!q.empty()) {
             auto current = q.front();
             q.pop();
@@ -95,6 +100,54 @@ HistorySplit::HistorySplit(PPFrame &frame, PPFrame::NeedGrid need, GenericThread
                 // ignore manually forced splits
                 if(!fdx.valid())
                     continue;
+                
+                if(track_history_split_threshold.valid()) {
+                    /// in case this setting is active, we need to check whether
+                    /// the current tracklet of fdx is long enough to warrant a history split
+                    /// (i.e. it has been visible long enough so it isn't noise).
+                    if(auto kit = fdx_has_been_visible.find(fdx);
+                       kit != fdx_has_been_visible.end())
+                    {
+                        if(not kit->second.valid() || kit->second < track_history_split_threshold)
+                            continue;
+                        
+                    } else {
+                        Frame_t length;
+                        
+                        /*LockGuard g{ro_t{}, "track_history_split_threshold"};
+                        IndividualManager::transform_ids(std::set({fdx}), [&length, frame = frame.index()](Idx_t, const Individual* fish) {
+                            std::shared_ptr<TrackletInformation> tracklet;
+                            
+                            if(fish->end_frame() == frame + 1_f) {
+                                if(not fish->empty()) {
+                                    tracklet = *(--fish->tracklets().end());
+                                }
+                                
+                            } else {
+                                tracklet = fish->tracklet_for(frame);
+                            }
+                            
+                            if(tracklet
+                               && tracklet->start().valid())
+                            {
+                                length = frame.try_sub(tracklet->start());
+                            } else {
+                                length = Frame_t{};
+                            }
+                        });
+                        
+                        fdx_has_been_visible[fdx] = length;*/
+                        auto c = frame.cached(fdx);
+                        if(c
+                           && c->valid_frame_streak > 0)
+                        {
+                            length = Frame_t(c->valid_frame_streak);
+                        }
+                        
+                        if(not length.valid() || length < track_history_split_threshold)
+                            continue;
+                    }
+                }
                 
                 for(auto &[bdx, d] : frame.paired.at(fdx)) {
                     if(!available_bdx.contains(bdx)) {
@@ -112,7 +165,7 @@ HistorySplit::HistorySplit(PPFrame &frame, PPFrame::NeedGrid need, GenericThread
         //frame.clique_for_blob[bdx] = clique;
         //frame.clique_second_order[bdx] = others;
     
-        PPFrame::Log("\t\t", available_fdx, " ", available_bdx);
+        PPFrame::Log("\t\tfdxes=", available_fdx, " bdxes=", available_bdx);
         
         //! do we have more individuals than blobs?
         //! otherwise we can quit here, since no splitting required.

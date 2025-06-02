@@ -716,6 +716,14 @@
                         {
                             "text":"{if:{global.gui_show_dataset}:'<sym>☑</sym> ':'<sym>☐</sym> <gray>'}Dataset information{if:{global.gui_show_dataset}:'':</gray>}",
                             "action":"set:gui_show_dataset:{not:{global.gui_show_dataset}}"
+                        },
+                        {
+                            "text":"{if:{global.gui_show_skeletons}:'<sym>☑</sym> ':'<sym>☐</sym> <gray>'}Skeletons{if:{global.gui_show_skeletons}:'':</gray>}",
+                            "action":"set:gui_show_skeletons:{not:{global.gui_show_skeletons}}"
+                        },
+                        {
+                            "text":"{if:{global.gui_show_boundary_crossings}:'<sym>☑</sym> ':'<sym>☐</sym> <gray>'}Boundary Crossings{if:{global.gui_show_boundary_crossings}:'':</gray>}",
+                            "action":"set:gui_show_boundary_crossings:{not:{global.gui_show_boundary_crossings}}"
                         }
                     ]
 

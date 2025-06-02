@@ -1737,12 +1737,15 @@ tl::expected<IndividualCache, const char*> Individual::cache_for_frame(const Fra
     
     // find posture stuff and basic stuff for previous frame
     long_t bdx = -1, pdx = -1;
+    Frame_t valid_frame_streak;
     if(!_tracklets.empty()) {
         if(it != _tracklets.end()
            && (*it)->contains(frameIndex - 1_f))
         {
             bdx = (*it)->basic_stuff(frameIndex - 1_f);
             pdx = (*it)->posture_stuff(frameIndex - 1_f);
+            
+            valid_frame_streak = frameIndex.try_sub((*it)->start());
             
         } else {
             if(it != _tracklets.end() && (*it)->end() <= frameIndex - 1_f) {
@@ -2104,6 +2107,7 @@ tl::expected<IndividualCache, const char*> Individual::cache_for_frame(const Fra
     //thread_print("** ",frameIndex, ": ", identity().ID(), " => t=",cache.time_probability, " previous=", cache.previous_frame, " recent=",recent_number_samples, " tdelta=", tdelta);
     //PPFrame::Log("** ",frameIndex, ": ", identity().ID(), " => t=",cache.time_probability, " previous=", cache.previous_frame, " recent=",recent_number_samples, " tdelta=", tdelta);
     cache.valid_frame = !h || last_frame_manual;
+    cache.valid_frame_streak = valid_frame_streak.valid() ? (uint8_t)saturate(valid_frame_streak.get(), 0u, std::numeric_limits<uint8_t>::max() - 1u) : 0;
     
     assert(!std::isnan(cache.estimated_px.x) 
            && !std::isnan(cache.estimated_px.y));

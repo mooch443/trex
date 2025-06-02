@@ -148,9 +148,7 @@ RecentItems RecentItems::read() {
     RecentItems items;
     auto path = filename();
 
-    Print("Searching for ", path, ": ", path.exists());
-    if (path.exists())
-    {
+    if (path.exists()) {
         try {
             auto str = path.read_file();
             RecentItemFile input{};
@@ -208,6 +206,9 @@ RecentItems RecentItems::read() {
                 // pass
             }
         }
+    }
+    else {
+        FormatWarning("Recent files state does not exist. Creating a new one at ", path,".");
     }
     
     std::sort(items._file.entries.begin(), items._file.entries.end(), [](const RecentItemJSON& A, const RecentItemJSON& B) {
@@ -287,7 +288,10 @@ void RecentItems::write() {
         
         auto destination = file::DataLocation::parse("app", ".trex_recent_files");
         try {
-            if(destination.is_regular()) {
+            if(not destination.exists()) {
+                /// do nothing
+                
+            } else if(destination.is_regular()) {
                 if(not destination.delete_file()) {
                     FormatWarning("Cannot delete file at ", destination,". Please check file permissions.");
                 }
@@ -300,7 +304,7 @@ void RecentItems::write() {
         }
         
         if(not path.move_to(path.remove_extension())) {
-            FormatError("There was an error moving ", path, " to ", destination, ". Please check permissions.");
+            FormatError("There was an error moving ", path, " to ", destination, ". Please file check permissions.");
         }
             
     }

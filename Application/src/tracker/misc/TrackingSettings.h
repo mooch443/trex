@@ -141,7 +141,8 @@ CREATE_STRUCT(Settings,
   (uint32_t, categories_apply_min_tracklet_length),
   (cmn::meta_encoding_t::Class, meta_encoding),
   (float, outline_compression),
-  (bool, image_invert)
+  (bool, image_invert),
+  (Frame_t, track_history_split_threshold)
 )
 
 //! Shorthand for defining slow settings cache entries:
