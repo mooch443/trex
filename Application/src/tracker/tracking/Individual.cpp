@@ -1635,13 +1635,18 @@ bool CacheHints::full() const {
 }
 
 void CacheHints::clear(size_t size) {
-    if (size == 0 && (FAST_SETTING(frame_rate) < 0 || FAST_SETTING(frame_rate) == uint32_t(-1))) {
+    const uint32_t frame_rate = min(1000u, FAST_SETTING(frame_rate));//SETTING(frame_rate).value<uint32_t>();
+    if (size == 0 && (frame_rate < 0 
+        || frame_rate == std::numeric_limits<uint32_t>::max() 
+        || frame_rate == uint32_t(-1))) 
+    {
 #ifndef NDEBUG
-        FormatExcept("Size=", size," frame_rate=", FAST_SETTING(frame_rate),"");
+        FormatExcept("Size=", size," frame_rate=", FAST_SETTING(frame_rate)," ", std::numeric_limits<uint32_t>::max(), " local=", SETTING(frame_rate).value<uint32_t>());
 #endif
         _last_second.resize(0);
     } else {
-        _last_second.resize(size > 0 ? size : FAST_SETTING(frame_rate));
+        //FormatExcept("Size=", size, " frame_rate=", FAST_SETTING(frame_rate), " ", std::numeric_limits<uint32_t>::max(), " local=", frame_rate);
+        _last_second.resize(size > 0 ? size : frame_rate);
     }
     std::fill(_last_second.begin(), _last_second.end(), nullptr);
     current.invalidate();
