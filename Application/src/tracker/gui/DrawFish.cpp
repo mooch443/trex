@@ -1084,7 +1084,9 @@ bool Fish::setup_rotated_bbx(const FindCoord& coords, const Vec2& offset, const 
         
         auto circle_area = M_PI * SQR(_radius);
         
-        if(_frame_change.elapsed() >= 0.15_F && (poly_area < circle_area * 0.75 || not _basic_stuff.has_value() || _basic_stuff->frame != _frame ))
+        if(_frame_change.elapsed() >= 0.15_F
+           && not GUI_SETTINGS(gui_run)
+           && (poly_area < circle_area * 0.75 || not _basic_stuff.has_value() || _basic_stuff->frame != _frame ))
         {
             // ok
         } else {

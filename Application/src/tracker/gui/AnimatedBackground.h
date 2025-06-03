@@ -30,6 +30,7 @@ class AnimatedBackground : public Entangled {
     
     mutable std::mutex _source_mutex;
     std::unique_ptr<VideoSource> _source;
+    std::atomic<bool> _file_opened{false};
     std::atomic<float> _source_scale{1.f};
     bool _is_greyscale{false};
     

@@ -71,11 +71,12 @@ AnimatedBackground::AnimatedBackground(Image::Ptr&& image, const pv::File* video
         file::DataLocation::parse("output", meta_source_path).str()
     };
     for(auto &test : tests) {
+        std::unique_lock guard(_source_mutex);
         try {
-            std::unique_lock guard(_source_mutex);
             _source = std::make_unique<VideoSource>(test);
             _source->set_colors(ImageMode::RGB);
             _source->set_lazy_loader(true);
+            _file_opened = true;
             
             /*if (_source_scale <= 0 && GlobalSettings::has("meta_video_scale")) {
                 _source_scale = SETTING(meta_video_scale).value<float>();
@@ -86,6 +87,8 @@ AnimatedBackground::AnimatedBackground(Image::Ptr&& image, const pv::File* video
         }
         catch (const std::exception& e) {
             FormatError("Cannot load animated gui background: ", e.what());
+            _source = nullptr;
+            _file_opened = false;
         }
     }
 
@@ -108,6 +111,7 @@ AnimatedBackground::AnimatedBackground(VideoSource&& source)
     buffers("AnimatedBackgroundVideoSource", source.size()),
     grey_buffers("GreyVideoSource", source.size()),
     _source(std::make_unique<VideoSource>(std::move(source))),
+    _file_opened(true),
       preloader([this](Frame_t index) { return preload(index); },
       [this](Image::Ptr&& ptr) {
           buffers.move_back(std::move(ptr));
@@ -140,8 +144,9 @@ void AnimatedBackground::set_video_scale(float scale) {
 }
 
 bool AnimatedBackground::valid() const {
-    std::unique_lock guard(_source_mutex);
-    return _source != nullptr;
+    //std::unique_lock guard(_source_mutex);
+    //return _source != nullptr;
+    return _file_opened.load();
 }
 
 Image::Ptr AnimatedBackground::preload(Frame_t index) {
@@ -323,12 +328,13 @@ void AnimatedBackground::before_draw() {
             /// move old grey image...
             grey_buffers.move_back(_grey_image.exchange_with(std::move(grey)));
             
-            if(static_cast<uint32_t>(image->index()) != frame.get())
+            if(int64_t current = static_cast<int64_t>(image->index()),
+               target = frame.valid() ? static_cast<int64_t>(frame.get()) : -1;
+               current != target)
             {
-                auto index = image->index();
                 buffers.move_back(_static_image.exchange_with(std::move(image)));
                 
-                if(abs(int64_t(index) - int64_t(frame.get())) > 1)
+                /*if(abs(current - frame.get()) > 1)
                     _static_image.set_color(_tint.alpha(_tint.a * 0.95));
                 else
                     _static_image.set_color(_tint);
@@ -336,14 +342,14 @@ void AnimatedBackground::before_draw() {
                 if(_is_greyscale)
                     _target_fade = 0.5;
                 else
-                    _target_fade = 0.0;
+                    _target_fade = 0.0;*/
                 _fade_timer.reset();
                 
             } else {
                 buffers.move_back(_static_image.exchange_with(std::move(image)));
                 _static_image.set_color(_tint);
                 _current_frame = frame;
-                _target_fade = 1.0;
+                //_target_fade = 1.0;
                 _fade_timer.reset();
             }
             
@@ -351,11 +357,20 @@ void AnimatedBackground::before_draw() {
             set_content_changed(true);
         }
         
-        if(_current_frame != frame) {
+        if(int64_t current = _current_frame.valid() ? static_cast<int64_t>(_current_frame.get()) : -1,
+                    target = frame.valid() ? static_cast<int64_t>(frame.get()) : -1;
+           current != target)
+        {
+            double d = abs(current - target);
+            double percent = saturate(d / 5.0, 0.0, 1.0);
+            percent = 1-SQR((1-percent));
+            
             if(_is_greyscale)
-                _target_fade = 0.5;
+                _target_fade = 0.5 * (1.0 - percent) + 0.5;
             else
-                _target_fade = 0.0;
+                _target_fade = 1.0 - percent;
+        } else {
+            _target_fade = 1.0;
         }
     }
     
