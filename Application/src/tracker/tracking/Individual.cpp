@@ -1101,7 +1101,7 @@ std::optional<default_config::matching_mode_t::Class> Individual::matched_using(
     return _matched_using[known_index];
 }
 
-void Individual::_iterate_frames(const Range<Frame_t>& segment, const std::function<bool(Frame_t frame, const std::shared_ptr<TrackletInformation>&, const BasicStuff*, const PostureStuff*)>& fn) const {
+void Individual::_iterate_frames(const Range<Frame_t>& segment, uint32_t step_size, const std::function<bool(Frame_t frame, const std::shared_ptr<TrackletInformation>&, const BasicStuff*, const PostureStuff*)>& fn) const {
     auto fit = iterator_for(segment.start);
     auto end = _tracklets.end();
     
@@ -1110,7 +1110,9 @@ void Individual::_iterate_frames(const Range<Frame_t>& segment, const std::funct
         return tracklet.basic_index.at((frame - tracklet.start()).get());
     };
     
-    for (auto frame = segment.start; frame<=segment.end && fit != end; ++frame) {
+	const Frame_t step{ step_size };
+
+    for (auto frame = segment.start; frame<=segment.end && fit != end; frame += step) {
         while(fit != end && (*fit)->range.end < frame)
             ++fit;
         if(fit == end)

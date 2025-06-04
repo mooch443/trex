@@ -1223,14 +1223,14 @@ void load(LoadContext ctx) {
     ctx.combined.map["detect_type"] = ctx.type;
 
     // Step 13: For pure detection format (boxes), disable posture estimation.
-    if(auto detect_format = ctx.combined.map.at("detect_format").value<track::detect::ObjectDetectionFormat_t>();
+    /*if(auto detect_format = ctx.combined.map.at("detect_format").value<track::detect::ObjectDetectionFormat_t>();
        detect_format == track::detect::ObjectDetectionFormat::boxes)
     {
         if(not ctx.did_set_calculate_posture_to_false) {
             FormatWarning("Disabling posture for now, since pure detection models cannot produce useful posture (everything will be rectangles).");
             ctx.combined.map["calculate_posture"] = false;
         }
-    }
+    }*/
 
     // Step 14: Finalize settings: copy combined map to GlobalSettings and preserve print state.
     bool before = GlobalSettings::map().print_by_default();

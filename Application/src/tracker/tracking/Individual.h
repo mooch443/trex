@@ -319,15 +319,15 @@ constexpr std::array<const char*, 8> ReasonsNames {
         const Midline* pp_midline(Frame_t frameIndex) const;
         const MinimalOutline* outline(Frame_t frameIndex) const;
         
-        void _iterate_frames(const Range<Frame_t>& segment, const std::function<bool(Frame_t frame, const std::shared_ptr<TrackletInformation>&, const BasicStuff*, const PostureStuff*)>& fn) const;
+        void _iterate_frames(const Range<Frame_t>& segment, uint32_t step_size, const std::function<bool(Frame_t frame, const std::shared_ptr<TrackletInformation>&, const BasicStuff*, const PostureStuff*)>& fn) const;
         
         template<typename Fn,
                  typename R = std::remove_cvref_t<std::invoke_result_t<Fn, Frame_t, const std::shared_ptr<TrackletInformation>&, const BasicStuff*, const PostureStuff*>>>
             requires (std::same_as<R, void> || std::same_as<R, bool>)
-        void iterate_frames(const Range<Frame_t>& segment, Fn&& fn) const
+        void iterate_frames(const Range<Frame_t>& segment, Fn&& fn, uint32_t step_size = 1u) const
         {
             if constexpr(std::same_as<R, void>) {
-                _iterate_frames(segment, [&fn](Frame_t frame,
+                _iterate_frames(segment, step_size, [&fn](Frame_t frame,
                                            const std::shared_ptr<TrackletInformation>& ptr,
                                            const BasicStuff* basic,
                                            const PostureStuff* posture)
@@ -337,7 +337,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
                     return true;
                 });
             } else {
-                _iterate_frames(segment, fn);
+                _iterate_frames(segment, step_size, fn);
             }
         }
         

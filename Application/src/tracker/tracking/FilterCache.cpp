@@ -338,59 +338,53 @@ std::shared_ptr<FilterCache> local_midline_length(const Individual *fish,
     /// long and many tracklets (it will average out anyway).
     /// we will add a safety margin here in case we have to skip
     /// some frames and underestimated it:
-    static constexpr size_t max_samples = 200;
-    const size_t step_size = tracklet.empty() ? 1 : max(1u, size_t(tracklet.length().get() * 0.9) / max_samples);
+    static constexpr uint32_t max_samples = 200;
+    const uint32_t step_size = tracklet.empty() ? 1 : max(1u, uint32_t(tracklet.length().get() * 0.9) / max_samples);
     
     Median<Float2_t> median_midline, median_outline, median_angle_diff;
     std::set<Float2_t> midline_lengths, outline_stds;
     
     const PostureStuff* previous_midline = nullptr;
-    size_t nsamples = 0;
     
-    fish->iterate_frames(tracklet, [&](Frame_t frame, const auto&, auto basic, auto posture) -> bool
-    {
-        if(!basic || !posture || basic->blob.split())
-            return true;
-        
-        if(step_size > 1
-           && nsamples % step_size == 0
-           && nsamples++ > 0)
+    if (FAST_SETTING(calculate_posture)) {
+        fish->iterate_frames(tracklet, [&](Frame_t frame, const auto&, auto basic, auto posture) -> bool
         {
-            return true;
-        }
-        
-        auto bounds = basic->blob.calculate_bounds();
-        if(!Tracker::instance()->border().in_recognition_bounds(bounds.pos() + bounds.size() * 0.5))
-            return true;
-        
-        if(posture->cached()) {
-            auto L = posture->midline_length.value();
-            median_midline.addNumber(L);
-            if(calculate_std)
-                midline_lengths.insert(L);
-            
-            if(previous_midline && previous_midline->frame == frame - 1_f) {
-                auto pangle = previous_midline->midline_angle.value();
-                auto cangle = posture->midline_angle.value();
-                
-                auto first = Vec2(sin(pangle), cos(pangle));
-                auto second = Vec2(sin(cangle), cos(cangle));
-                auto diff = (first - second).length();
-                median_angle_diff.addNumber(diff);
+            if (!basic || !posture || basic->blob.split())
+                return true;
+
+            auto bounds = basic->blob.calculate_bounds();
+            if (!Tracker::instance()->border().in_recognition_bounds(bounds.pos() + bounds.size() * 0.5))
+                return true;
+
+            if (posture->cached()) {
+                auto L = posture->midline_length.value();
+                median_midline.addNumber(L);
+                if (calculate_std)
+                    midline_lengths.insert(L);
+
+                if (previous_midline && previous_midline->frame == frame - 1_f) {
+                    auto pangle = previous_midline->midline_angle.value();
+                    auto cangle = posture->midline_angle.value();
+
+                    auto first = Vec2(sin(pangle), cos(pangle));
+                    auto second = Vec2(sin(cangle), cos(cangle));
+                    auto diff = (first - second).length();
+                    median_angle_diff.addNumber(diff);
+                }
+
+                previous_midline = posture;
             }
-            
-            previous_midline = posture;
-        }
-        
-        if(posture->outline) {
-            median_outline.addNumber(posture->outline.size());
-            if(calculate_std)
-                outline_stds.insert(posture->outline.size());
-        }
-        
-        return true;
-    });
-    
+
+            if (posture->outline) {
+                median_outline.addNumber(posture->outline.size());
+                if (calculate_std)
+                    outline_stds.insert(posture->outline.size());
+            }
+
+            return true;
+        }, step_size);
+    }
+
     if(median_midline.added())
         constraints->median_midline_length_px = median_midline.getValue();
     if(median_outline.added())
