@@ -10,10 +10,25 @@
 namespace track {
 
 class IndividualManager;
-struct CachedSettings;
+
+#define DEFINE_CACHE_SETTING(NAME) const Settings:: NAME ## _t NAME = SLOW_SETTING(NAME)
+
+struct CachedSettings {
+    DEFINE_CACHE_SETTING(calculate_posture);
+    const bool save_tags = not FAST_SETTING(tags_path).empty();
+    DEFINE_CACHE_SETTING(track_max_individuals);
+    DEFINE_CACHE_SETTING(frame_rate);
+    const Frame_t approximation_delay_time = Frame_t(max(1u, frame_rate / 4u));
+    DEFINE_CACHE_SETTING(track_size_filter);
+    DEFINE_CACHE_SETTING(match_mode);
+    DEFINE_CACHE_SETTING(track_max_speed);
+    DEFINE_CACHE_SETTING(cm_per_pixel);
+    DEFINE_CACHE_SETTING(match_min_probability);
+    DEFINE_CACHE_SETTING(huge_timestamp_seconds);
+};
 
 struct TrackingHelper {
-    const CachedSettings* cache;
+    GETTER(CachedSettings, cache);
     
 public:
     Frame_t _approximative_enabled_in_frame;

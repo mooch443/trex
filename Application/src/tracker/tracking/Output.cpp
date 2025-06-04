@@ -1548,6 +1548,8 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
     
     ska::bytell_hash_map<Idx_t, Individual::tracklet_map::const_iterator> iterator_map;
     
+    track::CachedSettings cached;
+    
     for(const auto &props : _tracker._added_frames) {
         // number of individuals actually assigned in this frame
         /*n = 0;
@@ -1563,8 +1565,8 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
         if(prev_props && prev_frame > props->frame() + 1_f)
             prev_props = nullptr;
         
-        _tracker.update_consecutive(active, props->frame(), false);
-        _tracker.update_warnings(props->frame(), props->time(), (long_t)number_fish, (long_t)n, (long_t)prev, props.get(), prev_props, active, iterator_map);
+        _tracker.update_consecutive(cached, active, props->frame(), false);
+        _tracker.update_warnings(cached, props->frame(), props->time(), (long_t)number_fish, (long_t)n, (long_t)prev, props.get(), prev_props, active, iterator_map);
         
         prev = n;
         prev_props = props.get();

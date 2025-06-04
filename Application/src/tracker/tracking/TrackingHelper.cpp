@@ -8,12 +8,7 @@
 
 namespace track {
 
-struct CachedSettings {
-    const bool do_posture{SLOW_SETTING(calculate_posture)};
-    const bool save_tags{!FAST_SETTING(tags_path).empty()};
-    const uint32_t number_fish{(uint32_t)SLOW_SETTING(track_max_individuals)};
-    const Frame_t approximation_delay_time{Frame_t(max(1u, SLOW_SETTING(frame_rate) / 4u))};
-};
+#define CACHE_SETTING(NAME) _cache.NAME
 
 inline auto& blob_grid() {
     static grid::ProximityGrid grid{Tracker::average().bounds().size()};
@@ -21,23 +16,20 @@ inline auto& blob_grid() {
 }
 
 bool TrackingHelper::save_tags() const {
-    return cache->save_tags;
+    return CACHE_SETTING(save_tags);
 }
 
 TrackingHelper::~TrackingHelper() {
-    delete cache;
 }
 
 TrackingHelper::TrackingHelper(
    PPFrame& f,
    const std::vector<FrameProperties::Ptr>& added_frames,
    Frame_t approximative_enabled_in_frame)
-    : cache(new CachedSettings),
-      _approximative_enabled_in_frame(approximative_enabled_in_frame),
+    : _approximative_enabled_in_frame(approximative_enabled_in_frame),
       frame(f),
       _manager(frame)
 {
-    const SizeFilters track_size_filter = SLOW_SETTING(track_size_filter);
     double time(double(frame.timestamp) / double(1000*1000));
     props = Tracker::add_next_frame(FrameProperties(frame.index(), time, frame.timestamp));
     
@@ -50,8 +42,8 @@ TrackingHelper::TrackingHelper(
         }
     }
     
-    if(save_tags() && track_size_filter) {
-        frame.transform_noise([this, max_range = track_size_filter.max_range()](const pv::Blob& blob){
+    if(save_tags() && CACHE_SETTING(track_size_filter)) {
+        frame.transform_noise([this, max_range = CACHE_SETTING(track_size_filter).max_range()](const pv::Blob& blob){
             if(blob.recount(-1) <= max_range.start)
                 noise.emplace_back(pv::Blob::Make(blob));
         });
@@ -70,11 +62,11 @@ TrackingHelper::TrackingHelper(
     
     using namespace default_config;
     const auto frameIndex = frame.index();
-    frame_uses_approximate = (_approximative_enabled_in_frame.valid() && frameIndex - _approximative_enabled_in_frame < cache->approximation_delay_time);
+    frame_uses_approximate = (_approximative_enabled_in_frame.valid() && frameIndex - _approximative_enabled_in_frame < CACHE_SETTING(approximation_delay_time));
     
     match_mode = frame_uses_approximate
                     ? default_config::matching_mode_t::hungarian
-                    : SLOW_SETTING(match_mode);
+                    : CACHE_SETTING(match_mode);
     
     // see if there are manually fixed matches for this frame
     apply_manual_matches();
@@ -181,7 +173,7 @@ void TrackingHelper::apply_manual_matches()
         } blaze(frame, cmn::source_location::current());
         
         std::map<pv::bid, std::vector<std::tuple<Idx_t, Vec2, pv::bid>>> assign_blobs;
-        const auto max_speed_px = SLOW_SETTING(track_max_speed) / SLOW_SETTING(cm_per_pixel);
+        const auto max_speed_px = CACHE_SETTING(track_max_speed) / CACHE_SETTING(cm_per_pixel);
         
         for(auto && [bdx, fdxs] : cannot_find) {
             assert(bdx.valid());
@@ -470,7 +462,7 @@ void TrackingHelper::apply_matching() {
         
         _approximative_enabled_in_frame = frameIndex;
         
-        FOI::add(FOI(Range<Frame_t>(frameIndex, frameIndex + cache->approximation_delay_time - 1_f), "apprx matching"));
+        FOI::add(FOI(Range<Frame_t>(frameIndex, frameIndex + CACHE_SETTING(approximation_delay_time) - 1_f), "apprx matching"));
     }
 }
 
@@ -484,7 +476,7 @@ double TrackingHelper::process_postures() {
     double combined_posture_seconds = 0;
     static auto _statistics_mutex = LOGGED_MUTEX("TrackingHelper::statistics_mutex");
     
-    if(cache->do_posture && !_manager.need_postures.empty()) {
+    if(CACHE_SETTING(calculate_posture) && !_manager.need_postures.empty()) {
         const auto pose_midline_indexes = SETTING(pose_midline_indexes).value<PoseMidlineIndexes>();
         
         std::vector<std::tuple<Individual*, BasicStuff*, pv::BlobPtr>> posture_store;

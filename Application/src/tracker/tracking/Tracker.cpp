@@ -1350,105 +1350,130 @@ void Tracker::collect_matching_cliques(TrackingHelper& s, GenericThreadPool& thr
         }
 
     } clique;
+    
+    //! collects all relevant individuals
+    UnorderedVectorSet<Match::fish_index_t> all_individuals;
+    
+    //! collects all cliques
+    std::vector<IndexClique> cliques;
 
-    UnorderedVectorSet<Match::fish_index_t> all_individuals; // collect all relevant individuals
-    std::vector<IndexClique> cliques; // collect all cliques
-
-    const auto p_threshold = FAST_SETTING(match_min_probability);
+    const auto p_threshold = s.cache().match_min_probability;
     auto N_cliques = cliques.size();
     std::vector<bool> to_merge(N_cliques);
     
-    for(auto &[row, idx] : s.paired.row_indexes()) {
-        if(s.paired.degree(idx) > 1) {
-            auto edges = s.paired.edges_for_row(idx);
-            clique.clear();
-            
-            size_t matches = 0;
-            
-            //! collect all cliques that contain this individual
-            //! or any of the blobs associated with this individual
-            for (size_t i = 0; i<N_cliques; ++i) {
-                auto ct = cliques.data() + i;
-                if(contains(ct->fids, idx)) {
-                    to_merge[i] = true;
-                    ++matches;
-                } else if(std::any_of(edges.begin(), edges.end(), [&](const Match::PairedProbabilities::Edge& e){
-                    return e.p < p_threshold || ct->bids.contains(e.cdx);
-                })) {
-                    to_merge[i] = true;
-                    ++matches;
-                } else
-                    to_merge[i] = false;
-            }
-            
-            //! search edges to see if any of them
-            //! have to be considered (>threshold)
-            for(auto &col : edges) {
-                if(col.p >= p_threshold) {
-                    clique.bids.insert(col.cdx);
-                }
-            }
-            
-            //! we have found blobs that are associated with this individual
-            //! so we need to consider it
-            if(!clique.bids.empty()) {
-                IndexClique* first = nullptr;
-                clique.fids.insert(idx);
-                
-                if(matches > 0) {
-                    auto it = cliques.begin();
-                    
-                    for(size_t i=0; i<N_cliques; ++i) {
-                        if(!to_merge[i]) {
-                            ++it;
-                            continue;
-                        }
-                        
-                        //! this is the first to-be-merged element we have found
-                        //! which we will use from now on to add ids to
-                        if(!first) {
-                            first = &(*it);
-                            
-                            first->fids.insert(clique.fids.begin(), clique.fids.end());
-                            first->bids.insert(clique.bids.begin(), clique.bids.end());
-                            
-                            ++it;
-                            continue;
-                        }
-                        
-                        //! not the first element -> add to "first" clique
-                        //! and erase it.
-                        {
-                            // merge into current clique
-                            const auto &c = *it;
-                            first->fids.insert(c.fids.begin(), c.fids.end());
-                            first->bids.insert(c.bids.begin(), c.bids.end());
-                        }
-                        
-                        it = cliques.erase(it);
-                    }
-                }
-                
-                // this individual is connected with any blobs,
-                // so it can be active
-                all_individuals.insert(idx);
-                
-                // no cliques have been merged, but we still want a clique
-                // that only contains our individual and the associated blobs
-                // (the clique is disconnected from everything else)
-                if(!first)
-                    cliques.emplace_back(std::move(clique));
-                
-                // adapt array sizes
-                N_cliques = cliques.size();
-                to_merge.resize(N_cliques);
+    for(auto &[_, fid] : s.paired.row_indexes()) {
+        //! we only need to consider individuals that have more than
+        //! one possible object assigned to them here.
+        //! this individual might still be added because its *blob*
+        //! has other individuals assigned to it later. just skip
+        //! double work.
+        //!
+        //! if there is multiple other individuals with _only_ this
+        //! same object edge then we have another problem alltogether.
+        //! those will be assigned to the best probability object
+        //! (if available) in the last loop:
+        if(s.paired.degree(fid) <= 1)
+            continue;
+        
+        auto edges = s.paired.edges_for_row(fid);
+        clique.clear();
+        
+        //! how many cliques contain this individual,
+        //! or blobs associated with it?
+        size_t matches = 0;
+        
+        //! collect all cliques that contain this individual
+        //! or any of the blobs associated with this individual
+        for (size_t i = 0; i<N_cliques; ++i) {
+            auto& ct = cliques[i];
+            if(contains(ct.fids, fid)) {
+                to_merge[i] = true;
+                ++matches;
+            } else if(std::any_of(edges.begin(), edges.end(), [&](const Match::PairedProbabilities::Edge& e){
+                return e.p < p_threshold || ct.bids.contains(e.cdx);
+            })) {
+                to_merge[i] = true;
+                ++matches;
+            } else
+                to_merge[i] = false;
+        }
+        
+        //! the number of true values should correspond to the number of matches
+        assert(std::accumulate(to_merge.begin(), to_merge.end(), 0u) == matches);
+        
+        //! search edges to see if any of them
+        //! have to be considered (>threshold)
+        for(auto &col : edges) {
+            if(col.p >= p_threshold) {
+                clique.bids.insert(col.cdx);
             }
         }
+        
+        //! check whether we have found blobs that are associated
+        //! with this individual so we need to consider it.
+        //! empty cliques are not interesting.
+        if(clique.bids.empty())
+            continue;
+        
+        IndexClique* first = nullptr;
+        clique.fids.insert(fid);
+        
+        if(matches > 0) {
+            auto it = cliques.begin();
+            
+            //! go through all matches we found and see
+            //! if any of them need to be merged.
+            //! delete any merged cliques.
+            for(size_t i=0; i<N_cliques; ++i) {
+                if(not to_merge[i]) {
+                    ++it;
+                    continue;
+                }
+                
+                //! this is the first to-be-merged element we have found
+                //! which we will use from now on to add ids to if we find
+                //! any others that need to be merged with us too:
+                if(not first) {
+                    first = &(*it);
+                    
+                    first->fids.insert(clique.fids.begin(), clique.fids.end());
+                    first->bids.insert(clique.bids.begin(), clique.bids.end());
+                    
+                    ++it;
+                    continue;
+                }
+                
+                //! not the first element -> add to "first" clique
+                //! and erase it.
+                {
+                    // merge into current clique
+                    const auto &c = *it;
+                    first->fids.insert(c.fids.begin(), c.fids.end());
+                    first->bids.insert(c.bids.begin(), c.bids.end());
+                }
+                
+                it = cliques.erase(it);
+            }
+        }
+        
+        // this individual is connected with any blobs,
+        // so it can be active
+        all_individuals.insert(fid);
+        
+        // no cliques have been merged, but we still want a clique
+        // that only contains our individual and the associated blobs
+        // (the clique is disconnected from everything else)
+        if(not first)
+            cliques.emplace_back(std::move(clique));
+        
+        // adapt array sizes
+        N_cliques = cliques.size();
+        to_merge.resize(N_cliques);
     }
     
     if(cliques.empty()) {
         // if there are absolutely no cliques found, no need to perform any crazy
-        // matching at all:
+        // matching at all, every individual should be max. 1 edge:
         s.match_mode = matching_mode_t::approximate;
     } else {
         //! there are cliques, so we need to check each clique and match all
@@ -1531,10 +1556,10 @@ void Tracker::collect_matching_cliques(TrackingHelper& s, GenericThreadPool& thr
                 }
                 
                 indexes.bids.clear();
-                for(auto i : indexes.fids) {
-                    auto edges = s.paired.edges_for_row(i);
+                for(auto fid : indexes.fids) {
+                    auto edges = s.paired.edges_for_row(fid);
 #ifdef TREX_DEBUG_MATCHING
-                    Print("\t\tExploring row ", i," (aka fish", s.paired.row(i)->identity().ID(),") with edges=",edges);
+                    Print("\t\tExploring row ", fid," (aka fish", s.paired.row(i)->identity().ID(),") with edges=",edges);
 #endif
                     for(auto &e : edges) {
                         if(!contains(cliques[index].bids, e.cdx))
@@ -1619,7 +1644,9 @@ void Tracker::collect_matching_cliques(TrackingHelper& s, GenericThreadPool& thr
         const auto frameIndex = s.frame.index();
         distribute_indexes(work_cliques, thread_pool, cliques.begin(), cliques.end());
         
-        //! update cliques in the global array:
+        //! translate cliques from fish indexes and blob indexes
+        //! to refer to actual `Idx_t` and `pv::bid`.
+        //! then update cliques in the global array:
         Clique translated;
         Tracker::instance()->_cliques[frameIndex].clear();
 
@@ -1658,6 +1685,9 @@ void Tracker::collect_matching_cliques(TrackingHelper& s, GenericThreadPool& thr
         }
 #endif
         
+        //! look at any individuals that have not been paired yet
+        //! and assign them to the highest bidder that hasnt been
+        //! assigned to anything else yet:
         Match::PairedProbabilities paired;
         for(auto &[fish, idx] : s.paired.row_indexes()) {
             if(!s._manager.fish_assigned(fish)) {
@@ -1718,7 +1748,7 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
     //! Initialize helper structure that encapsulates the substeps
     //! of the Tracker::add method:
     TrackingHelper s(frame, _added_frames, _approximative_enabled_in_frame);
-    const auto number_fish = FAST_SETTING(track_max_individuals);
+    const auto number_fish = s.cache().track_max_individuals;
     
     // now that the blobs array has been cleared of all the blobs for fixed matches,
     // get pairings for all the others:
@@ -1801,7 +1831,7 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
             std::vector<std::tuple<Match::prob_t, Idx_t, pv::bid>> new_table;
             std::map<Idx_t, std::map<Match::Blob_t, Match::prob_t>> new_pairings;
             std::map<Individual*, Match::prob_t> max_probs;
-            const Match::prob_t p_threshold = FAST_SETTING(match_min_probability);
+            const Match::prob_t p_threshold = s.cache().match_min_probability;
             
             static PairedProbabilities pairs;
             pairs.clear();
@@ -1955,7 +1985,7 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
     Output::Library::frame_changed(frameIndex);
     
     if(number_fish && s._manager.assigned_count() >= number_fish) {
-        update_consecutive(s._manager.current(), frameIndex, true);
+        update_consecutive(s.cache(), s._manager.current(), frameIndex, true);
     }
     
     _max_individuals = cmn::max(_max_individuals.load(), s._manager.assigned_count());
@@ -1987,7 +2017,7 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
         }, [](auto){});
     }
     
-    update_warnings(frameIndex, s.frame.time, number_fish, n, prev, s.props, s.prev_props, s._manager.current(), _individual_add_iterator_map);
+    update_warnings(s.cache(), frameIndex, s.frame.time, number_fish, n, prev, s.props, s.prev_props, s._manager.current(), _individual_add_iterator_map);
     
 #if !COMMONS_NO_PYTHON
     //! Iterate through qrcodes in this frame and try to assign them
@@ -1999,7 +2029,7 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
         //! to individuals based on position, similarly to how
         //! blobs are assigned to individuals, too.
         Match::PairedProbabilities paired;
-        const Match::prob_t p_threshold = FAST_SETTING(match_min_probability);
+        const Match::prob_t p_threshold = s.cache().match_min_probability;
         std::unordered_map<pv::bid, pv::BlobPtr> owner;
         for(auto && blob : frame.tags()) {
             owner[blob->blob_id()] = std::move(blob);
@@ -2101,200 +2131,200 @@ void Tracker::update_iterator_maps(Frame_t frame, const set_of_individuals_t& ac
     }
 }
             
-    void Tracker::update_warnings(Frame_t frameIndex, double time, long_t /*number_fish*/, long_t n_found, long_t n_prev, const FrameProperties *props, const FrameProperties *prev_props, const set_of_individuals_t& active_individuals, ska::bytell_hash_map<Idx_t, Individual::tracklet_map::const_iterator>& individual_iterators) {
-        std::map<std::string, std::set<FOI::fdx_t>> merge;
-        
-        if(n_found < n_prev-1) {
-            FOI::add(FOI(frameIndex, "lost >=2 fish"));
-        }
-        
-        //if(!prev_props) prev_props = properties(frameIndex - 1);
-        if(prev_props && time - prev_props->time() >= FAST_SETTING(huge_timestamp_seconds)) {
-            FOI::add(FOI(frameIndex, "huge time jump"));
-            for(auto fish : active_individuals)
-                merge["correcting"].insert(FOI::fdx_t(fish->identity().ID()));
-        }
-        
-        std::set<FOI::fdx_t> found_matches;
-        for(auto fish : active_individuals) {
-            if(fish->is_manual_match(frameIndex))
-                found_matches.insert(FOI::fdx_t(fish->identity().ID()));
-        }
-        
-        if(!found_matches.empty()) {
-            FOI::add(FOI(frameIndex, found_matches, "manual match"));
-            merge["correcting"].insert(found_matches.begin(), found_matches.end());
-        }
-        
-        update_iterator_maps(frameIndex - 1_f, active_individuals, individual_iterators);
-        for(auto &fish : active_individuals) {
-            if(_warn_individual_status.size() <= (size_t)fish->identity().ID().get()) {
-                _warn_individual_status.resize(fish->identity().ID().get() + 1);
-            }
-            
-            auto &property = _warn_individual_status[fish->identity().ID().get()];
-            
-            auto fit = individual_iterators.find(fish->identity().ID());
-            if(fit == individual_iterators.end()) {
-                property.prev = property.current = nullptr;
-                continue;
-            }
-            
-            auto &it = fit->second;
-            if(it != fish->tracklets().end() && (*it)->contains(frameIndex - 1_f)) {
-                // prev
-                auto idx = (*it)->basic_stuff(frameIndex - 1_f);
-                property.prev = idx != -1 ? &fish->basic_stuff()[uint32_t(idx)]->centroid : nullptr;
-                
-                // current
-                idx = (*it)->basic_stuff(frameIndex);
-                property.current = idx != -1 ? &fish->basic_stuff()[uint32_t(idx)]->centroid : nullptr;
-                
-            } else
-                property.prev = property.current = nullptr;
-        }
-        
-#ifndef NDEBUG
-        for(auto &fish : active_individuals) {
-            if(_warn_individual_status.size() <= fish->identity().ID().get()) {
-                assert(!fish->has(frameIndex - 1_f));
-                continue;
-            }
-            
-            auto &property = _warn_individual_status.at(fish->identity().ID().get());
-            if(property.prev == nullptr) {
-                assert(!fish->has(frameIndex - 1_f));
-            } else {
-                assert((property.prev != nullptr) == fish->has(frameIndex - 1_f));
-                if(property.prev != nullptr) {
-                    if(property.current == nullptr) {
-                        assert(fish->tracklet_for(frameIndex - 1_f) != fish->tracklet_for(frameIndex));
-                    } else
-                        if(fish->tracklet_for(frameIndex - 1_f) != fish->tracklet_for(frameIndex)) {
-                            auto A = fish->tracklet_for(frameIndex-1_f);
-                            auto B = fish->tracklet_for(frameIndex);
-                            FormatWarning(frameIndex - 1_f, " != ", frameIndex, ": ", A, " vs. ", B);
-                            assert(false);
-                        }
-                } else
-                    assert(property.current == nullptr);
-            }
-        }
-#endif
-        
-        if(prev_props && props) {
-            std::set<FOI::fdx_t> weird_distance, weird_angle, tracklet_end;
-            std::set<FOI::fdx_t> fdx;
-            
-            for(auto fish : active_individuals) {
-                auto properties = _warn_individual_status.size() > (size_t)fish->identity().ID().get() ? &_warn_individual_status[fish->identity().ID().get()] : nullptr;
-                
-                if(properties && properties->current) {
-                    if(properties->current->speed<Units::CM_AND_SECONDS>() >= Individual::weird_distance()) {
-                        weird_distance.insert(FOI::fdx_t{fish->identity().ID()});
-                    }
-                }
-                
-                if(properties && properties->prev && properties->current) {
-                    // only if both current and prev are set, do we have
-                    // both frameIndex-1 and frameIndex present in the same tracklet:
-                    assert(fish->has(frameIndex - 1_f) && fish->has(frameIndex));
-                    if(cmn::abs(angle_difference(properties->prev->angle(), properties->current->angle())) >= M_PI * 0.8)
-                    {
-                        weird_angle.insert(FOI::fdx_t{fish->identity().ID()});
-                    }
-                    
-                } else if(properties && properties->prev) {
-                    tracklet_end.insert(FOI::fdx_t{fish->identity().ID()});
-                    
-                    if(!fish->has(frameIndex)) {
-                        assert(fish->has(frameIndex - 1_f) && !fish->has(frameIndex));
-                        fdx.insert(FOI::fdx_t{fish->identity().ID()});
-                    }
-                    
-                } else if(!properties)
-                    Print("No properties for fish ",fish->identity().ID());
-            }
-            
-#ifndef NDEBUG
-            IndividualManager::transform_ids(tracklet_end, [frameIndex](auto, auto fish)
-            {
-                assert(fish->tracklet_for(frameIndex) != fish->tracklet_for(frameIndex - 1_f));
-            });
-            
-            IndividualManager::transform_ids(fdx, [frameIndex](auto, auto fish)
-            {
-                assert(not fish->has(frameIndex));
-                assert(frameIndex != start_frame() && fish->has(frameIndex - 1_f));
-            });
-#endif
-            
-            if(!fdx.empty()) {
-                FOI::add(FOI(frameIndex, fdx, "lost >=1 fish"));
-                merge["correcting"].insert(fdx.begin(), fdx.end());
-            }
-            
-            if(!weird_distance.empty()) {
-                FOI::add(FOI(frameIndex, weird_distance, "weird distance"));
-                merge["correcting"].insert(weird_distance.begin(), weird_distance.end());
-                
-                if(!found_matches.empty()) {
-                    std::set<FOI::fdx_t> combined;
-                    for(auto id : found_matches)
-                        if(weird_distance.find(id) != weird_distance.end())
-                            combined.insert(id);
-                    FOI::add(FOI(frameIndex, combined, "weird distance + mm"));
-                }
-            }
-            if(!weird_angle.empty())
-                FOI::add(FOI(frameIndex, weird_angle, "weird angle"));
-            if(!tracklet_end.empty())
-                FOI::add(FOI(frameIndex - 1_f, tracklet_end, "tracklet end"));
-        }
-        
-        /*if(n_found < n_prev || frameIndex == start_frame()) {
-            std::set<FOI::fdx_t> fdx;
-            static std::atomic<size_t> finds = 0, misses = 0;
-            
-            update_iterator_maps(frameIndex, active_individuals, individual_iterators);
-            for(auto & fish : active_individuals) {
-                auto fit = individual_iterators.find(fish->identity().ID());
-                if(fit == individual_iterators.end() || fit->second == fish->tracklets().end() || !(*fit->second)->contains(frameIndex))
-                {
-                    fdx.insert(FOI::fdx_t(fish->identity().ID()));
-                }
-            }
-            
-#ifndef NDEBUG
-            {
-                std::set<FOI::fdx_t> fdx1;
-                auto it = _active_individuals_frame.find(frameIndex);
-                if(it != _active_individuals_frame.end()) {
-                    for(auto fish : it->second) {
-                        if(!fish->has(frameIndex))
-                            fdx1.insert(FOI::fdx_t(fish->identity().ID()));
-                    }
-                }
-                if(fdx1 != fdx) {
-                    auto str0 = Meta::toStr(fdx);
-                    auto str1 = Meta::toStr(fdx1);
-                    throw U_EXCEPTION("",str0," != ",str1,"");
-                }
-            }
-#endif
-            
-            if(!fdx.empty()) {
-                FOI::add(FOI(frameIndex, fdx, "lost >=1 fish"));
-                merge["correcting"].insert(fdx.begin(), fdx.end());
-            }
-        }
-        */
-        for(auto && [key, value] : merge)
-            FOI::add(FOI(frameIndex, value, key));
+void Tracker::update_warnings(const CachedSettings& s, Frame_t frameIndex, double time, long_t /*number_fish*/, long_t n_found, long_t n_prev, const FrameProperties *props, const FrameProperties *prev_props, const set_of_individuals_t& active_individuals, ska::bytell_hash_map<Idx_t, Individual::tracklet_map::const_iterator>& individual_iterators)
+{
+    std::map<std::string, std::set<FOI::fdx_t>> merge;
+    
+    if(n_found < n_prev-1) {
+        FOI::add(FOI(frameIndex, "lost >=2 fish"));
     }
+    
+    if(prev_props && time - prev_props->time() >= s.huge_timestamp_seconds) {
+        FOI::add(FOI(frameIndex, "huge time jump"));
+        for(auto fish : active_individuals)
+            merge["correcting"].insert(FOI::fdx_t(fish->identity().ID()));
+    }
+    
+    std::set<FOI::fdx_t> found_matches;
+    for(auto fish : active_individuals) {
+        if(fish->is_manual_match(frameIndex))
+            found_matches.insert(FOI::fdx_t(fish->identity().ID()));
+    }
+    
+    if(!found_matches.empty()) {
+        FOI::add(FOI(frameIndex, found_matches, "manual match"));
+        merge["correcting"].insert(found_matches.begin(), found_matches.end());
+    }
+    
+    update_iterator_maps(frameIndex - 1_f, active_individuals, individual_iterators);
+    for(auto &fish : active_individuals) {
+        if(_warn_individual_status.size() <= (size_t)fish->identity().ID().get()) {
+            _warn_individual_status.resize(fish->identity().ID().get() + 1);
+        }
+        
+        auto &property = _warn_individual_status[fish->identity().ID().get()];
+        
+        auto fit = individual_iterators.find(fish->identity().ID());
+        if(fit == individual_iterators.end()) {
+            property.prev = property.current = nullptr;
+            continue;
+        }
+        
+        auto &it = fit->second;
+        if(it != fish->tracklets().end() && (*it)->contains(frameIndex - 1_f)) {
+            // prev
+            auto idx = (*it)->basic_stuff(frameIndex - 1_f);
+            property.prev = idx != -1 ? &fish->basic_stuff()[uint32_t(idx)]->centroid : nullptr;
+            
+            // current
+            idx = (*it)->basic_stuff(frameIndex);
+            property.current = idx != -1 ? &fish->basic_stuff()[uint32_t(idx)]->centroid : nullptr;
+            
+        } else
+            property.prev = property.current = nullptr;
+    }
+    
+#ifndef NDEBUG
+    for(auto &fish : active_individuals) {
+        if(_warn_individual_status.size() <= fish->identity().ID().get()) {
+            assert(!fish->has(frameIndex - 1_f));
+            continue;
+        }
+        
+        auto &property = _warn_individual_status.at(fish->identity().ID().get());
+        if(property.prev == nullptr) {
+            assert(!fish->has(frameIndex - 1_f));
+        } else {
+            assert((property.prev != nullptr) == fish->has(frameIndex - 1_f));
+            if(property.prev != nullptr) {
+                if(property.current == nullptr) {
+                    assert(fish->tracklet_for(frameIndex - 1_f) != fish->tracklet_for(frameIndex));
+                } else
+                    if(fish->tracklet_for(frameIndex - 1_f) != fish->tracklet_for(frameIndex)) {
+                        auto A = fish->tracklet_for(frameIndex-1_f);
+                        auto B = fish->tracklet_for(frameIndex);
+                        FormatWarning(frameIndex - 1_f, " != ", frameIndex, ": ", A, " vs. ", B);
+                        assert(false);
+                    }
+            } else
+                assert(property.current == nullptr);
+        }
+    }
+#endif
+    
+    if(prev_props && props) {
+        std::set<FOI::fdx_t> weird_distance, weird_angle, tracklet_end;
+        std::set<FOI::fdx_t> fdx;
+        
+        for(auto fish : active_individuals) {
+            auto properties = _warn_individual_status.size() > (size_t)fish->identity().ID().get() ? &_warn_individual_status[fish->identity().ID().get()] : nullptr;
+            
+            if(properties && properties->current) {
+                if(properties->current->speed<Units::CM_AND_SECONDS>() >= Individual::weird_distance()) {
+                    weird_distance.insert(FOI::fdx_t{fish->identity().ID()});
+                }
+            }
+            
+            if(properties && properties->prev && properties->current) {
+                // only if both current and prev are set, do we have
+                // both frameIndex-1 and frameIndex present in the same tracklet:
+                assert(fish->has(frameIndex - 1_f) && fish->has(frameIndex));
+                if(cmn::abs(angle_difference(properties->prev->angle(), properties->current->angle())) >= M_PI * 0.8)
+                {
+                    weird_angle.insert(FOI::fdx_t{fish->identity().ID()});
+                }
+                
+            } else if(properties && properties->prev) {
+                tracklet_end.insert(FOI::fdx_t{fish->identity().ID()});
+                
+                if(!fish->has(frameIndex)) {
+                    assert(fish->has(frameIndex - 1_f) && !fish->has(frameIndex));
+                    fdx.insert(FOI::fdx_t{fish->identity().ID()});
+                }
+                
+            } else if(!properties)
+                Print("No properties for fish ",fish->identity().ID());
+        }
+        
+#ifndef NDEBUG
+        IndividualManager::transform_ids(tracklet_end, [frameIndex](auto, auto fish)
+        {
+            assert(fish->tracklet_for(frameIndex) != fish->tracklet_for(frameIndex - 1_f));
+        });
+        
+        IndividualManager::transform_ids(fdx, [frameIndex](auto, auto fish)
+        {
+            assert(not fish->has(frameIndex));
+            assert(frameIndex != start_frame() && fish->has(frameIndex - 1_f));
+        });
+#endif
+        
+        if(!fdx.empty()) {
+            FOI::add(FOI(frameIndex, fdx, "lost >=1 fish"));
+            merge["correcting"].insert(fdx.begin(), fdx.end());
+        }
+        
+        if(!weird_distance.empty()) {
+            FOI::add(FOI(frameIndex, weird_distance, "weird distance"));
+            merge["correcting"].insert(weird_distance.begin(), weird_distance.end());
+            
+            if(!found_matches.empty()) {
+                std::set<FOI::fdx_t> combined;
+                for(auto id : found_matches)
+                    if(weird_distance.find(id) != weird_distance.end())
+                        combined.insert(id);
+                FOI::add(FOI(frameIndex, combined, "weird distance + mm"));
+            }
+        }
+        if(!weird_angle.empty())
+            FOI::add(FOI(frameIndex, weird_angle, "weird angle"));
+        if(!tracklet_end.empty())
+            FOI::add(FOI(frameIndex - 1_f, tracklet_end, "tracklet end"));
+    }
+    
+    /*if(n_found < n_prev || frameIndex == start_frame()) {
+        std::set<FOI::fdx_t> fdx;
+        static std::atomic<size_t> finds = 0, misses = 0;
+        
+        update_iterator_maps(frameIndex, active_individuals, individual_iterators);
+        for(auto & fish : active_individuals) {
+            auto fit = individual_iterators.find(fish->identity().ID());
+            if(fit == individual_iterators.end() || fit->second == fish->tracklets().end() || !(*fit->second)->contains(frameIndex))
+            {
+                fdx.insert(FOI::fdx_t(fish->identity().ID()));
+            }
+        }
+        
+#ifndef NDEBUG
+        {
+            std::set<FOI::fdx_t> fdx1;
+            auto it = _active_individuals_frame.find(frameIndex);
+            if(it != _active_individuals_frame.end()) {
+                for(auto fish : it->second) {
+                    if(!fish->has(frameIndex))
+                        fdx1.insert(FOI::fdx_t(fish->identity().ID()));
+                }
+            }
+            if(fdx1 != fdx) {
+                auto str0 = Meta::toStr(fdx);
+                auto str1 = Meta::toStr(fdx1);
+                throw U_EXCEPTION("",str0," != ",str1,"");
+            }
+        }
+#endif
+        
+        if(!fdx.empty()) {
+            FOI::add(FOI(frameIndex, fdx, "lost >=1 fish"));
+            merge["correcting"].insert(fdx.begin(), fdx.end());
+        }
+    }
+    */
+    for(auto && [key, value] : merge)
+        FOI::add(FOI(frameIndex, value, key));
+}
 
-    void Tracker::update_consecutive(const set_of_individuals_t &active, Frame_t frameIndex, bool update_dataset) {
-        bool all_good = FAST_SETTING(track_max_individuals) == (uint32_t)active.size();
+void Tracker::update_consecutive(const CachedSettings& s, const set_of_individuals_t &active, Frame_t frameIndex, bool update_dataset) {
+        bool all_good = s.track_max_individuals == (uint32_t)active.size();
         
         //auto manual_identities = FAST_SETTING(manual_identities);
         for(auto fish : active) {

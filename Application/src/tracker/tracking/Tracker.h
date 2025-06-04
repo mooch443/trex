@@ -27,6 +27,7 @@ namespace track {
 class TrainingData;
 class FOI;
 struct SplitData;
+struct CachedSettings;
 
 struct IndividualStatus {
     const MotionRecord* prev;
@@ -271,8 +272,8 @@ public:
     static void analysis_state(AnalysisState);
     
 protected:
-    void update_consecutive(const set_of_individuals_t& active, Frame_t frameIndex, bool update_dataset = false);
-    void update_warnings(Frame_t frameIndex, double time, long_t number_fish, long_t n_found, long_t n_prev, const FrameProperties *props, const FrameProperties *prev_props, const set_of_individuals_t& active_individuals, ska::bytell_hash_map<Idx_t, Individual::tracklet_map::const_iterator>& individual_iterators);
+    void update_consecutive(const CachedSettings&, const set_of_individuals_t& active, Frame_t frameIndex, bool update_dataset = false);
+    void update_warnings(const CachedSettings&, Frame_t frameIndex, double time, long_t number_fish, long_t n_found, long_t n_prev, const FrameProperties *props, const FrameProperties *prev_props, const set_of_individuals_t& active_individuals, ska::bytell_hash_map<Idx_t, Individual::tracklet_map::const_iterator>& individual_iterators);
     
 private:
     static void filter_blobs(PPFrame& frame, GenericThreadPool *pool);

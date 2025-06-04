@@ -1105,6 +1105,11 @@ void Individual::_iterate_frames(const Range<Frame_t>& segment, const std::funct
     auto fit = iterator_for(segment.start);
     auto end = _tracklets.end();
     
+    auto faster_basic_stuff = [&](const TrackletInformation& tracklet, const Frame_t frame)
+    {
+        return tracklet.basic_index.at((frame - tracklet.start()).get());
+    };
+    
     for (auto frame = segment.start; frame<=segment.end && fit != end; ++frame) {
         while(fit != end && (*fit)->range.end < frame)
             ++fit;
@@ -1112,11 +1117,11 @@ void Individual::_iterate_frames(const Range<Frame_t>& segment, const std::funct
             break;
         
         if(fit != end && (*fit)->contains(frame)) {
-            auto bid = (*fit)->basic_stuff(frame);
+            auto bid = faster_basic_stuff(**fit, frame);//(*fit)->basic_stuff(frame);
             auto pid = (*fit)->posture_stuff(frame);
             
             auto& basic = SEGMENT_ACCESS(_basic_stuff, bid);
-            if(!fn(frame, *fit, basic.get(), pid != -1 ? SEGMENT_ACCESS(_posture_stuff, pid).get() : nullptr))
+            if(not fn(frame, *fit, basic.get(), pid != -1 ? SEGMENT_ACCESS(_posture_stuff, pid).get() : nullptr))
                 break;
         }
     }
