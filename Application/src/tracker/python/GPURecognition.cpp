@@ -1024,14 +1024,15 @@ bool PythonIntegration::check_module(const std::string& name,
     std::unique_lock guard{module_mutex};
     bool result = false;
     
-    auto cwd = file::cwd().absolute();
-    auto app = file::DataLocation::parse("app");
-    if(cwd != app) {
-        FormatWarning("check_module:CWD: ", cwd);
-        file::cd(app);
+    auto cwd = file::cwd().canonical();
+    auto app = file::DataLocation::parse("app").canonical();
+    if(not cwd || not app || *cwd != *app) {
+        FormatWarning("check_module:CWD: ", cwd, " app:", app);
+        if(app)
+            file::cd(*app);
     }
         
-    auto filename = (app / name).add_extension("py");
+    auto filename = app ? (*app / name).add_extension("py") : name.add_extension("py");
     if(not filename.exists())
         throw U_EXCEPTION("Cannot find the file ", filename, ". Please make sure your TRex installation is not damaged.");
     
