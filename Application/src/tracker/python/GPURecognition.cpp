@@ -1032,7 +1032,7 @@ bool PythonIntegration::check_module(const std::string& name,
             file::cd(*app);
     }
         
-    auto filename = app ? (*app / name).add_extension("py") : name.add_extension("py");
+    auto filename = app ? (*app / name).add_extension("py") : file::Path(name).add_extension("py");
     if(not filename.exists())
         throw U_EXCEPTION("Cannot find the file ", filename, ". Please make sure your TRex installation is not damaged.");
     
