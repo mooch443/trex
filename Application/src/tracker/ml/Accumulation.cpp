@@ -250,6 +250,7 @@ AccumulationLock::AccumulationLock(Accumulation* ptr) : _ptr(ptr) {
     _current_accumulation = ptr;
 }
 AccumulationLock::~AccumulationLock() {
+    auto mode = _current_accumulation ? _current_accumulation->mode() : TrainingMode::None;
     {
         std::lock_guard<std::mutex> g(_current_assignment_lock);
         _current_accumulation = nullptr;
@@ -267,6 +268,9 @@ AccumulationLock::~AccumulationLock() {
     //    PythonIntegration::execute("import keras.backend as K\nK.clear_session()");
     //    return true;
     //}).get();
+    
+    DebugHeader("Accumulation finished.");
+    Print("// ",mode," took ", DurationUS{ std::chrono::duration_cast<std::chrono::microseconds>((std::chrono::steady_clock::now() - start)).count() });
 }
 
 std::mutex _per_class_lock;

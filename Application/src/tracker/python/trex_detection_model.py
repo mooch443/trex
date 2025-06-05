@@ -8,6 +8,7 @@ import torch
 from functools import lru_cache
 import platform
 from typing import Optional, List, Any, Tuple
+from itertools import groupby
 import numpy as np
 import cv2
 
@@ -17,14 +18,35 @@ Image = np.ndarray
 printed_warning = False
 
 class StrippedResults:
-    def __init__(self, scale, offset):
-        self.boxes : List[np.ndarray] = None
-        self.keypoints : List[Any] = None
-        self.masks : List[Any] = None
-        self.orig_shape = None
-        self.scale = scale
-        self.offset = offset
-        self.obb : Optional[List[np.ndarray]] = None
+    """
+    Base class for stripped detection results, storing bounding boxes, keypoints, masks, and oriented bounding boxes along with scale and offset for coordinate transformations.
+    """
+    def __init__(self, scale: np.ndarray, offset: np.ndarray) -> None:
+        """
+        Initialize StrippedResults with scale and offset for coordinate transformations.
+
+        Args:
+            scale (np.ndarray): A 2-element array [scale_x, scale_y] representing scaling factors applied to model output coordinates to map them back to the original image.
+            offset (np.ndarray): A 2-element array [offset_x, offset_y] representing pixel offsets added to model output coordinates before scaling.
+
+        Attributes:
+            boxes: Array of clid, conf, and bounding boxes in format [clid, conf, x, y, w, h] in original image coordinates.
+
+            keypoints: List of arrays (same length as the boxes array), each of shape [num_keypoints, 2], containing (x, y) coordinates of keypoints in original image space.
+
+            masks: List of 2D numpy arrays (uint8) representing segmentation masks aligned to the original image dimensions. Same length as boxes.
+
+            obb: Array of oriented bounding boxes, with each row formatted as [class_id, confidence, x_center, y_center, width, height, angle] in original image coordinates. Note: if obb is set, boxes is not required and has to be empty.
+
+            orig_shape: Original image shape tuple (height, width) as reported by the model output.
+        """
+        self.boxes: Optional[np.ndarray] = None
+        self.keypoints: Optional[List[np.ndarray]] = None
+        self.masks: Optional[List[np.ndarray]] = None
+        self.orig_shape: Optional[Any] = None
+        self.scale: np.ndarray = scale
+        self.offset: np.ndarray = offset
+        self.obb: Optional[np.ndarray] = None
 
     def __str__(self) -> str:
         return f"StrippedResults<boxes={self.boxes}, keypoints={self.keypoints}, orig_shape={self.orig_shape}, scale={self.scale}, offset={self.offset}, obb={self.obb}>"
@@ -33,7 +55,11 @@ class StrippedResults:
         return self.__str__()
 
 class DetectionModel:
-    def __init__(self, config : TRex.ModelConfig):
+    """
+    Abstract base class for detection models. Provides interface for loading models and performing inference.
+    """
+    def __init__(self, config: TRex.ModelConfig) -> None:
+        """Initialize DetectionModel with a given ModelConfig and set up the computation device."""
         self.config = config
         self.ptr = None
         self.device : Optional[torch.device] = None
@@ -458,8 +484,6 @@ class TRexDetection:
             for r, scale, offset in zip(rs, scales, offsets):
                     results.append(StrippedYoloResults(r, scale=scale, offset=offset))
             #torch.cuda.empty_cache()'''
-
-        from itertools import groupby
 
         # use groupby to group the list elements by id
         results = [[x[1] for x in group] for _, group in groupby(list(zip(orig_id, results)), lambda x: x[0])]

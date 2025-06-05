@@ -212,6 +212,8 @@ void YOLO::deinit() {
         
         Python::schedule([](){
             track::PythonIntegration::unload_module("bbx_saved_model");
+            track::PythonIntegration::unload_module("trex_yolo");
+            track::PythonIntegration::unload_module("trex_detection_model");
         }).get();
         
         data().reset();
@@ -311,7 +313,7 @@ void YOLO::receive(SegmentationData& data, track::detect::Result&& result) {
         else if(data.image->dims == 1)
             r3 = data.image->get();
         else
-			throw U_EXCEPTION("Invalid number of channels (",data.image->dims,") in input image for the network.");
+            throw U_EXCEPTION("Invalid number of channels (",data.image->dims,") in input image for the network.");
     } else
         throw U_EXCEPTION("Invalid image mode ", mode);
 
@@ -629,12 +631,16 @@ std::optional<std::tuple<SegmentationData::Assignment, blob::Pair>> YOLO::proces
      const track::detect::MaskData &mask,
      const AcceptanceSettings& settings)
 {
+    // Extract bounding box from the detection row
     Bounds bounds = row.box;
 
+    // Perform CPU-based connected-component labeling on the mask
     auto blobs = CPULabeling::run(list, mask.mat);
     if(blobs.empty())
+        // If no blobs found, skip this instance
         return std::nullopt;
     
+    // Identify the largest blob by pixel count
     size_t msize = 0, midx = 0;
     for (size_t j = 0; j < blobs.size(); ++j) {
         if (blobs.at(j).pixels->size() > msize) {
@@ -643,8 +649,10 @@ std::optional<std::tuple<SegmentationData::Assignment, blob::Pair>> YOLO::proces
         }
     }
 
+    // Select the blob with the maximum pixel count for further processing
     auto&& pair = blobs.at(midx);
     //size_t num_pixels{ 0u };
+    // Adjust each horizontal line by bounding-box offset and clamp to image dimensions
     for (auto& line : *pair.lines) {
         line.x0 = saturate(coord_t(line.x0 + bounds.x), coord_t(0), w);
         line.x1 = saturate(coord_t(line.x1 + bounds.x), line.x0, w);
@@ -655,12 +663,15 @@ std::optional<std::tuple<SegmentationData::Assignment, blob::Pair>> YOLO::proces
             || line.x1 >= r3.cols
             || line.y >= r3.rows)
             throw U_EXCEPTION("Coordinates of line ", line, " are invalid for image ", r3.cols, "x", r3.rows);
+        // Now each line coordinate lies within valid image bounds
     }
 
+    // Assign class ID and confidence to this blob prediction
     pair.pred = blob::Prediction{
         .clid = static_cast<uint8_t>(row.clid),
         .p = uint8_t(float(row.conf) * 255.f)
     };
+    // Mark blob as instance segmentation and set encoding-based flags
     pair.extra_flags |= pv::Blob::flag(pv::Blob::Flags::is_instance_segmentation);
     
     const auto meta_encoding = Background::meta_encoding();
@@ -672,6 +683,7 @@ std::optional<std::tuple<SegmentationData::Assignment, blob::Pair>> YOLO::proces
     pv::Blob::set_flag(pair.extra_flags, pv::Blob::Flags::is_binary, meta_encoding == meta_encoding_t::binary);
     assert(pv::Blob::is_flag(pair.extra_flags, pv::Blob::Flags::is_rgb) == (meta_encoding == meta_encoding_t::rgb8));
 
+    // Build a Blob object from the labeled lines for acceptance testing and pixel extraction
     pv::Blob blob(std::make_unique<std::vector<HorizontalLine>>(*pair.lines), nullptr, uint8_t(pair.extra_flags), blob::Prediction{pair.pred});
     
     /// Check whether the given object is acceptable regarding the current
@@ -681,10 +693,13 @@ std::optional<std::tuple<SegmentationData::Assignment, blob::Pair>> YOLO::proces
     }
     
     //pv::Blob blob(*pair.lines, *pair.pixels, pair.extra_flags, pair.pred);
+    // Convert the blob outline into actual pixel values from the image
     auto [o, px] = blob.calculate_pixels(r3);
     pair.pixels = std::move(px);
 
+    // Extract the outer contour points from the blob for outline construction
     auto points = pixel::find_outer_points(&blob, 0);
+    // Remove any invalid or empty contour point sets
     for(auto it = points.begin(); it != points.end(); ) {
         if(not *it || (*it)->empty())
             it = points.erase(it);
@@ -692,21 +707,26 @@ std::optional<std::tuple<SegmentationData::Assignment, blob::Pair>> YOLO::proces
             ++it;
     }
     
+    // Prepare assignment structure with class and probability for this detection
     SegmentationData::Assignment assign{
         .clid = size_t(row.clid),
         .p = float(row.conf)
     };
     
+    // If there are contour points, process outlines and optionally compress
     if (not points.empty()) {
         // here we should likely make sure that we collect all possible lines
         // not just the outer lines?
         //Print("We have detected ", points.size(), " outlines here but only use the first one.");
         
+        // Retrieve outline compression setting to reduce vertex count if needed
         /// we may have to downsample outlines
         const auto outline_compression = FAST_SETTING(outline_compression);
         
+        // Containers for storing original and compressed outlines
         std::vector<std::vector<Vec2>> all;
         std::vector<Vec2> reduced;
+        // If compression is enabled and the outline is large, perform downsampling
         if(outline_compression > 0
            && points.front()->size() > 1000)
         {
@@ -715,18 +735,23 @@ std::optional<std::tuple<SegmentationData::Assignment, blob::Pair>> YOLO::proces
             Print(points.front()->size(), " reduced to ", reduced.size());
             all.emplace_back(reduced);
             
+            // Store the compressed outline as the primary outline
             //data.outlines.emplace_back(*points.front());
             pair.pred.outlines.set_original(std::move(reduced));
             
+            // Visualization: draw full outlines for debugging
             draw_outlines(points);
             
         } else {
+            // No compression: store original outline directly
             pair.pred.outlines.set_original(std::move(*points.front()));
         }
         
+        // Remove the used first outline from the list
         points.erase(points.begin());
         
         if(outline_compression > 0) {
+            // Process any remaining outlines after the first
             for(auto& pts : points) {
                 reduced.clear();
                 reduced.reserve(pts->size());
@@ -735,13 +760,16 @@ std::optional<std::tuple<SegmentationData::Assignment, blob::Pair>> YOLO::proces
                 Print("* ",pts->size(), " reduced to ", reduced.size());
                 all.emplace_back(reduced);
                 
+                // Append additional outlines to the prediction object
                 pair.pred.outlines.add(std::move(reduced));
             }
             
             draw_outlines(all, "Reduced");
             
         } else {
+            // Process any remaining outlines after the first
             for(auto& pts : points)
+                // Append additional outlines to the prediction object
                 pair.pred.outlines.add(std::move(*pts));
         }
     }
@@ -759,7 +787,7 @@ bool YOLO::is_initializing() {
 
 double YOLO::fps() {
     if(_network_samples.load() == 0u)
-		return 0.0;
+        return 0.0;
     return _network_fps.load() / double(_network_samples.load());
 }
 
@@ -791,8 +819,7 @@ void YOLO::StartPythonProcess(TransferData&& transfer) {
     if (not yolo_initialized) {
         // probably shutting down at the moment
         throw U_EXCEPTION("Cannot start a python process because we are shutting down.");
-        
-        for (size_t i = 0; i < transfer.datas.size(); ++i) {
+        /*for (size_t i = 0; i < transfer.datas.size(); ++i) {
             transfer.promises.at(i).set_exception(nullptr);
 
             try {
@@ -803,14 +830,31 @@ void YOLO::StartPythonProcess(TransferData&& transfer) {
             }
         }
         FormatExcept("System shutting down.");
-        return;
+        return;*/
     }
 
     Timer timer;
     using py = track::PythonIntegration;
     //thread_print("** transfer of ", (uint64_t)& transfer);
 
+    bool force = false;
     const size_t _N = transfer.datas.size();
+    {
+        [[maybe_unused]] ModuleProxy yolo("trex_yolo", [&force](ModuleProxy& proxy) {
+            force = true;
+        }, true);
+        [[maybe_unused]] ModuleProxy detection_model("trex_detection_model", [&force](ModuleProxy& proxy){
+            force = true;
+        }, true);
+    }
+    
+    if(force) {
+        try {
+            py::unload_module("bbx_saved_model");
+        } catch(...) {
+            FormatWarning("Was unable to unload the module.");
+        }
+    }
     ModuleProxy bbx("bbx_saved_model", YOLO::reinit, true);
     //bbx.set_variable("offsets", std::move(transfer.offsets));
     //bbx.set_variable("image", transfer.images);
@@ -820,10 +864,10 @@ void YOLO::StartPythonProcess(TransferData&& transfer) {
     std::vector<float> mask_points;
 
     try {
-        track::detect::YoloInput input{ 
-            std::move(transfer.images), 
-            (transfer.offsets), 
-            (transfer.scales), 
+        track::detect::YoloInput input{
+            std::move(transfer.images),
+            (transfer.offsets),
+            (transfer.scales),
             (transfer.orig_id),
             [](std::vector<Image::Ptr>&& images)
             {

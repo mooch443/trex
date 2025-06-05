@@ -306,9 +306,20 @@ void ConvertScene::set_segmenter(Segmenter* seg) {
                 return;
             }
             
-            if(percent >= 0)
+            if(percent >= 0) {
+                float fps;
+                {
+                    fps = AbstractBaseVideoSource::_fps.load();
+                    auto samples = AbstractBaseVideoSource::_samples.load();
+                    fps = samples > 0 ? fps / samples : 0;
+                }
+                
                 _data->bar.set_progress(percent);
-            else if(last_tick.elapsed() > 1) {
+                if(fps > 0) {
+                    _data->bar.set_option(ind::option::PostfixText{"Converting video ("+dec<1>(fps).toStr()+" fps)..."});
+                }
+                
+            } else if(last_tick.elapsed() > 1) {
                 _data->spinner.set_option(ind::option::PrefixText{"Recording ("+Meta::toStr(_data->_video_frame)+")"});
                 _data->spinner.tick();
                 last_tick.reset();

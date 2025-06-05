@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-from typing import List, Tuple, Any, Optional
+from typing import List, Optional
 
-from trex_detection_model import DetectionModel, TRexDetection
+from trex_detection_model import TRexDetection
 import TRex
 
 from trex_yolo import YOLOModel, TRexYOLO

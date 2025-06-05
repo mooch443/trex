@@ -12,7 +12,7 @@ from TRex import ObjectDetectionFormat
 
 from trex_detection_model import DetectionModel, StrippedResults, TRexDetection
 from trex_detection_model import BBox
-from typing import List, Any
+from typing import List, Optional, Any
 
 ##############
 ##### since this isnt patched in the ultralytics package yet,
@@ -140,28 +140,50 @@ def unscale_coords(img1_shape, coords, img0_shape, ratio_pad=None):
     return coords
 
 class StrippedYoloResults(StrippedResults):
-    def __init__(self, results, scale, offset, box = [0, 0, 0, 0]):
+    def __init__(
+        self,
+        results: Any,
+        scale: np.ndarray,
+        offset: np.ndarray,
+        box: List[int] = [0, 0, 0, 0]
+    ) -> None:
+        """
+        Initialize StrippedYoloResults from YOLO model output.
+
+        Args:
+            results (Any): Raw output from a YOLO model inference. Expected to contain:
+                - boxes: tensor of shape [n, 6] with values [clid, conf, x, y, w, h].
+                - keypoints (optional): tensor of shape [n, num_keypoints, 2], with (x, y) coordinates.
+                - obb (optional): tensor of shape [n, 5] as [x_center, y_center, width, height, angle] before class/conf insertion.
+                - masks (optional): tensor of shape [n, mask_h, mask_w] for segmentation masks.
+            scale (np.ndarray): A 2-element array [scale_x, scale_y] to map model coordinates back to original image.
+            offset (np.ndarray): A 2-element array [offset_x, offset_y] to apply before scaling.
+            box (List[int]): A 4-element list [x_offset, y_offset, x_offset, y_offset] for additional cropping offset.
+        """
         super().__init__(scale, offset)
 
+        # Extract raw bounding boxes from the model output
         if results.boxes is not None:
             self.boxes = results.boxes.data.cpu().numpy()
+            # Store original boxes array for later scaling
         self.orig_shape = results.orig_shape
 
-        box = np.array([box[0],box[1]])
+        box = np.array([box[0], box[1]])
         box_offset = np.array([box[0], box[1]])
-        
+
+        # Process keypoints: scale valid keypoint coordinates
         if results.keypoints is not None:
-            self.keypoints = []#results.keypoints.cpu().numpy()
+            # keypoints: list of arrays of shape [num_objects, num_keypoints, 2]
+            self.keypoints: List[np.ndarray] = []
             #print(f"keypoints={results.keypoints}")
 
             keys = results.keypoints.cpu().data[..., :2].numpy()
             #print("keys=",keys.shape, results.keypoints.cpu())
             if len(keys) > 0 and len(keys[0]):
-                #print(result.keypoints.cpu().xy, scale)
-
                 # Scale and offset the keypoints, but leave out
                 # the ones where both X and Y are zero (invalid)
-                zero_elements = np.logical_and(keys[..., 0] == 0, keys[..., 1] == 0)
+                zero_elements : np.ndarray = np.logical_and(keys[..., 0] == 0, 
+                                                            keys[..., 1] == 0)
 
                 keys[..., 0] = (keys[..., 0] + offset[0] + box_offset[0]) * scale[0]
                 keys[..., 1] = (keys[..., 1] + offset[1] + box_offset[1]) * scale[1]
@@ -170,15 +192,16 @@ class StrippedYoloResults(StrippedResults):
                     keys[..., 0] = np.where(zero_elements, 0, keys[..., 0])
                     keys[..., 1] = np.where(zero_elements, 0, keys[..., 1])
 
-                #keys[..., 0] = (keys[..., 0] + offset[0]) * scale[0] #+ coords[..., 0]).T
-                #keys[..., 1] = (keys[..., 1] + offset[1]) * scale[1] #+ coords[..., 1]).T
+                # Append scaled keypoints if any valid points exist
                 self.keypoints.append(keys) # bones * 3 elements
 
+        # Process oriented bounding boxes (OBB): 
+        # extract, scale, and annotate with class and confidence
         if results.obb is not None:
-            self.obb = results.obb.data[:, :5].cpu().numpy()
-            #TRex.log(f"OBB: {self.obb.shape} {self.obb.dtype} {self.obb}")
-            #TRex.log(f"offset={offset}, box_offset={box_offset}, scale={scale}")
-            # Scale and offset the OBB coordinates
+            # obb: array of shape [num_obb, 7] after adding class and confidence
+            self.obb: np.ndarray = results.obb.data[:, :5].cpu().numpy()
+            
+            # Scale and offset the center coordinates of each OBB
             self.obb[:, :2] = (self.obb[:, :2] + offset + box_offset) * scale[0]
             self.obb[:, 2:4] = (self.obb[:, 2:4] + offset + box_offset) * scale[1]
 
@@ -190,46 +213,67 @@ class StrippedYoloResults(StrippedResults):
             ids = results.obb.cls.cpu().numpy()
             self.obb = np.insert(self.obb, 0, ids, axis=1)
 
+            # OBBs are now [class, confidence, x_center, y_center, width, height, angle]
             #TRex.log(f"OBB after scaling: {self.obb.shape} {self.obb.dtype} {self.obb}")
 
+        # Process segmentation masks: crop, validate, resize, and store for each box
         if results.masks is not None:
-            self.masks = []
-            
-            coords = np.copy(self.boxes)
-            unscaled = np.copy(coords)
+            # masks: list of 2D numpy arrays corresponding to each box
+            self.masks: List[np.ndarray] = []
 
+            # Duplicate boxes and save for scaling/unscaling
+            coords : np.ndarray = np.copy(self.boxes)
+            unscaled : np.ndarray = np.copy(coords)
+
+            # Scale boxes to resized image coordinates
             coords[:, :2] = (coords[:, :2] + offset + box) * scale[0]
             coords[:, 2:4] = (coords[:, 2:4] + offset + box) * scale[1]
 
             unscaled[:, :2] *= scale[0]
             unscaled[:, 2:4] *= scale[1]
-            
-            new_size = results.orig_shape * scale
-            unscaled[..., :2] = unscale_coords(results.masks.data.shape[1:], unscaled[..., :2], new_size)
-            unscaled[..., 2:4] = unscale_coords(results.masks.data.shape[1:], unscaled[..., 2:4], new_size)
-            
+
+            # Unscale coordinates back to original image resolution
+            # scale xy first and then wh:
+            new_size : np.ndarray = results.orig_shape * scale
+            unscaled[..., :2] = unscale_coords(results.masks.data.shape[1:], 
+                                               unscaled[..., :2], 
+                                               new_size)
+            unscaled[..., 2:4] = unscale_coords(results.masks.data.shape[1:], 
+                                                unscaled[..., 2:4], 
+                                                new_size)
+
+            # Ensure each box has a corresponding mask
             assert len(coords) == len(results.masks.data)
-            index = 0
-            for orig, unscale, k in zip(coords.round().astype(int), unscaled, (results.masks.data * 255).byte()):
+            index :int = 0
+
+            # For each box-mask pair: crop mask, validate, resize, and store
+            # convert coords to int for indexing pixels properly (no float needed)
+            # convert the returned masks data to uint8 as well, since its image data
+            for orig, unscale, k in zip(coords.round().astype(int), 
+                                        unscaled, 
+                                        (results.masks.data * 255).byte()):
+                # Crop mask within its bounding box
                 sub = k[max(0, int(unscale[1])):max(0, int(unscale[3])), max(0,int(unscale[0])):max(0, int(unscale[2]))]
+
+                # If mask is invalid or empty, remove its box and skip
                 if orig[3] - orig[1] <= 0 or orig[2] - orig[0] <= 0 or sub.shape[0] <= 0 or sub.shape[1] <= 0:
                     print(f"WARNING: invalid mask size: orig={orig[3] - orig[1]}x{orig[2] - orig[0]} \n\
                           => sub={sub.shape[0]}x{sub.shape[1]} \n\
                           => unscale={unscale} \n\
                           => k={k.shape}\n\
                           => orig={orig}")
-                    #raise Exception("Invalid mask size")
-                    
-                    # remove invalid mask from self.boxes at the same index
                     self.boxes = np.delete(self.boxes, index, axis=0)
                     continue
 
                 index += 1
 
+                # Resize valid mask to box's size
                 ssub = F.interpolate(sub.unsqueeze(0).unsqueeze(0), size=(int(orig[3] - orig[1]), int(orig[2] - orig[0]))).squeeze(0).squeeze(0)
+                # Store processed mask
                 self.masks.append(ssub.cpu().numpy())
                 assert self.masks[-1].flags['C_CONTIGUOUS']
 
+        # Finally, scale any remaining bounding boxes to the target image space
         if self.boxes is not None:
             # Scale and offset the bounding boxes
             self.boxes[:, :2] = (self.boxes[:, :2] + offset + box_offset) * scale[0]

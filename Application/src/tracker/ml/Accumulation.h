@@ -42,6 +42,7 @@ using CallbackType = CallbackType_t::Class;
 class Accumulation;
 
 struct AccumulationLock {
+    std::chrono::time_point<std::chrono::steady_clock> start{ std::chrono::steady_clock::now() };
     std::shared_ptr<std::lock_guard<std::mutex>> _guard;
     Accumulation *_ptr;
     AccumulationLock(Accumulation* ptr);
@@ -98,7 +99,7 @@ protected:
         return result;
     }
     
-    TrainingMode::Class _mode;
+    GETTER(TrainingMode::Class, mode);
     std::vector<Range<Frame_t>> _trained;
     std::shared_ptr<TrainingData> _collected_data, _generated_data;
     std::shared_ptr<TrainingData> _discrimination_data;
