@@ -270,7 +270,7 @@ AccumulationLock::~AccumulationLock() {
     //}).get();
     
     DebugHeader("Accumulation finished.");
-    Print("// ",mode," took ", DurationUS{ std::chrono::duration_cast<std::chrono::microseconds>((std::chrono::steady_clock::now() - start)).count() });
+    Print("// ",mode," took ", DurationUS{ uint64_t(std::chrono::duration_cast<std::chrono::microseconds>((std::chrono::steady_clock::now() - start)).count()) });
 }
 
 std::mutex _per_class_lock;
