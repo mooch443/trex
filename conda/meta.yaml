@@ -1,3 +1,4 @@
+{% set GIT_DESCRIBE_TAG = environ.get('GIT_DESCRIBE_TAG', None) %}
 {% set latest_tag = environ.get('TREX_DESCRIBE_TAG', (GIT_DESCRIBE_TAG
  or 'vuntagged')) %}
 {% set git_tag = "main" %}

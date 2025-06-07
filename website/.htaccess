@@ -1,4 +1,5 @@
 RewriteEngine On
+RewriteRule ^license$ https://raw.githubusercontent.com/mooch443/trex/main/LICENSE [R=301,L]
 RewriteCond %{SERVER_PORT} !=443
 RewriteRule ^(.*)$ https://trex.run/$1 [R=301,L]
 

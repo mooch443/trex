@@ -191,7 +191,7 @@
 			<div class="box" style="padding-bottom: 30px; padding-top: 30px">
 				<div style="position: relative; height:0; margin-bottom: -26.5px">
 					<div id="version" style="font-family:sans-serif; padding: 2px; padding-top: 3px; border-radius: 50px; position: absolute; background: rgba(100, 0, 0, 0.73); border: rgba(100, 0, 0, 0.82); width: 50px; height: 15px; top: 0; left: 10px; font-size: 10px; color: white">
-						v1.1.8_2
+						v2.0.0
 					</div>
 					<!--<div style="font-family:sans-serif; padding: 2px; padding-top: 3px; border-radius: 50px; position: absolute; background: rgba(100, 0, 0, 0.73); border: rgba(100, 0, 0, 0.82); width: 50px; height: 15px; top: 0; right: 10px; font-size: 10px; color: white">
 						v1.1
@@ -200,23 +200,13 @@
 				
 				<h2><div style="position: absolute; margin-left: 140px">$</div>TRex</h2>
 				
-				<!--<p id="this_command_is_for">
-					The following command is for <span id="os_name">macOS</span> <span id="choose" style="cursor: hand; text-decoration: underline; color: gray">(show all)</span>:
-				</p>-->
-				
-				<p class="labels"># on linux</p><p class="copy_button" onclick="copyEvent('linux')">(copy)</p>
-				<p style="" id="linux" class="on-system">
-					<a href='https://docs.conda.io/en/latest/miniconda.html' target='_blank'>conda</a> create -n tracking -c defaults -c conda-forge -c trexing trex
-				</p>
-				
-				<p class="labels"># on windows, macOS</p><p class="copy_button" onclick="copyEvent('non_linux')">(copy)</p>
-				<p id="non_linux" class="on-system">
-					<a href='https://docs.conda.io/en/latest/miniconda.html' target='_blank'>conda</a> create -n tracking -c trexing trex
-				</p>
-				
-				<p id="on_arm64" style="display:none">
-					On MacOS (arm64) you may need to <a href='https://trex.run/docs/install.html#apple-silicone-macos-arm64'>install</a> additional packages.
-				</p>
+				<!-- OS-specific install instructions removed because TRex installation is identical across all platforms -->
+				<div id="install">
+				    <p class="labels"># install TRex using <a href="https://conda-forge.org/miniforge/" target="_blank">Miniforge</a></p>
+				    <p id="install_command" class="on-system" style="display: inline-block; margin-bottom: 10px">
+				        <a href="https://conda-forge.org/miniforge/" target="_blank">conda</a> create -n track -c trexing trex
+				    </p><p class="copy_button" onclick="copyEvent('install_command')">(copy)</p>
+				</div>
 			</div>
 			<div class="box">
 				<h3>documentation</h3>
@@ -225,7 +215,7 @@
 					help can be found <a href="/docs">here</a>. the docs cover a lot of the frequently asked questions and, for the more practically inclined, give some real-world <a href="/docs/examples.html">examples</a>, too.
 				</p>
 			</div>
-			<div class="box" style=";">
+			<div class="box" style="">
 				<h3>read more</h3>
 				
 				<p>
@@ -257,9 +247,9 @@
 		    }
 			
 			var request = new XMLHttpRequest();
-			request.onload = printRepoCount;
-			request.open('get', 'https://api.github.com/repos/mooch443/trex/releases', true)
-			request.send()
+			//request.onload = printRepoCount;
+			//request.open('get', 'https://api.github.com/repos/mooch443/trex/releases', true)
+			//request.send()
 			
 			function getOS() {
 			  var userAgent = window.navigator.userAgent,
@@ -284,14 +274,15 @@
 			  return os;
 			}
 			
-			/*$("#choose").click(function(){
+			$("#choose").click(function(){
 				$(this).hide();
-				//$("#this_command_is_for").hide();
+				$("#this_command_is_for").html("Showing all commands.<br>Please choose your own operating system :)")
 				$("#linux").show();
-				$("#non_linux").show();
+				$("#on_windows").show();
+				$("#on_macos").show();
 				$("#on_arm64").show();
 				$(".labels").show();
-			});*/
+			});
 			
 			$(document).ready(function() {
 				$(".content, .footer").delay(1500).animate({"opacity":1}, 2000);
@@ -300,14 +291,20 @@
 				var OS = getOS();
 				$("#os_name").text(OS);
 				
-				/*if(OS == "Linux") {
+				$("#on_windows").hide();
+				$("#on_macos").hide();
+				$("#linux").hide();
+				
+				if(OS == "Linux") {
 					$("#linux").show();
-					$("#non_linux").hide();
 				} else {
 					if(OS == "Mac OS") {
 						$("#on_arm64").show();
+						$("#on_macos").show();
+					} else {
+						$("#on_windows").show();
 					}
-				}*/
+				}
 			});
 		</script>
 	</body>

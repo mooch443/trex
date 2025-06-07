@@ -14,12 +14,16 @@ Recommended System Requirements
 
 |trex| supports all major platforms. While |trex| is designed to be lightweight, ensuring a modern CPU, sufficient RAM (8GB or more), and a dedicated GPU (optional but beneficial for advanced machine learning tasks) can optimize performance. Our test systems cover a broad spectrum of operating systems and architectures, such as Windows, macOS, and Linux, and we recommend using a system with at least the following specifications:
 
-- **Operating System**: Windows 10, macOS 11, or Ubuntu 20.04 LTS
+- **Operating System**: Windows 10, macOS 14, or Ubuntu 20.04 LTS
 - **Processor**: Intel Core i5 or AMD Ryzen 5
 - **Memory**: 8GB RAM
 - **Graphics** (optional but recommended): dedicated NVIDIA GPU with 2GB VRAM, or Apple Silicon's integrated GPU
 
 This is a general recommendation, and |trex| can run on systems with lower specifications depending on the specific task at hand. However, the performance may be slower, especially for larger videos or more complex scenes. If you encounter any issues with the software that you think should not be happening, feel free to file a bug report on our `GitHub repository <https://github.com/mooch443/trex>`_.
+
+.. WARNING::
+
+	Our macOS recommendation is based on the fact that there seems to be a bug in the Apple Metal framework that can make YOLO outputs inaccurate when using accelerated hardware. This is not a problem on Windows or Linux, of course, and even on macOS >= 11 you can probably use the software without issues, but you may want set :param:`gpu_torch_device` to ``cpu`` in the settings to avoid this problem.
 
 Installation
 ------------
@@ -128,8 +132,8 @@ Compiling manually (TODO)
 First, make sure that you fulfill the platform-specific requirements:
 
 * **Windows**: Please make sure you have Visual Studio installed on your computer. It can be downloaded for free from https://visualstudio.microsoft.com. We have tested Visual Studio versions 2019 up to 2022. We are using the Anaconda PowerShell here in our examples.
-* **MacOS**: Make sure you have Xcode and the Xcode compiler tools installed. They can be downloaded for free from the App Store (Xcode includes the compiler tools). We used ``macOS >=11`` and ``Xcode >=13``.
-* **Linux**: You should have build-essential installed, as well as ``g++ >=11`` or a different compiler with C++23 support.
+* **MacOS**: Make sure you have Xcode and the Xcode compiler tools installed. They can be downloaded for free from the App Store (Xcode includes the compiler tools). We used ``macOS >=15`` and ``Xcode >=13``.
+* **Linux**: You should have build-essential installed, as well as ``g++ >=13`` or a different compiler with C++23 support.
 
 As well as the general requirements:
 
