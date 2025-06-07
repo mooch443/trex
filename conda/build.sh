@@ -6,15 +6,22 @@ _BUILD_PREFIX=$(cat build_env_setup.sh | grep 'export BUILD=' | cut -d'=' -f2 | 
 # Inject git‑based version information so that meta.yaml still produces
 # exactly the same version/build string it used to build with `os.popen`.
 # --------------------------------------------------------------------------
+if [ -z "${GIT_DESCRIBE_TAG}" ]; then
+    # Get the most recent tag in the repository by commit date
+    export GIT_DESCRIBE_TAG="$(git describe --tags $(git rev-list --tags --max-count=1) 2>/dev/null || echo vuntagged)"
+fi
+
 if [ -z "${TREX_DESCRIBE_TAG}" ]; then
     # Latest tag (equivalent to: git describe --tags --always --abbrev=0)
-    export TREX_DESCRIBE_TAG="$(git describe --tags --always --abbrev=0 2>/dev/null || echo vuntagged)"
-    echo "TREX_DESCRIBE_TAG=${TREX_DESCRIBE_TAG}"
+    export TREX_DESCRIBE_TAG="$(git describe --tags $(git rev-list --tags --max-count=1) 2>/dev/null || echo vuntagged)"
 fi
+
+echo "GIT_DESCRIBE_TAG=${GIT_DESCRIBE_TAG}"
+echo "TREX_DESCRIBE_TAG=${TREX_DESCRIBE_TAG}"
 
 if [ -z "${GIT_DESCRIBE_NUMBER}" ] || [ -z "${GIT_DESCRIBE_HASH}" ]; then
     # Full describe looks like: v1.2.3-4-gabcdef
-    DESCRIBE_FULL="$(git describe --tags --long --always 2>/dev/null || echo g0000000)"
+    DESCRIBE_FULL="$(git describe --tags $(git rev-list --tags --max-count=1) 2>/dev/null || echo g0000000)"
     if [[ "${DESCRIBE_FULL}" == *-* ]]; then
         # Extract the "4" and the "gabcdef"
         export GIT_DESCRIBE_NUMBER="$(echo "${DESCRIBE_FULL}" | awk -F'-' '{print $(NF-1)}')"
@@ -26,6 +33,10 @@ if [ -z "${GIT_DESCRIBE_NUMBER}" ] || [ -z "${GIT_DESCRIBE_HASH}" ]; then
         echo "Warning: No tags found. Using hash as version."
     fi
 fi
+
+echo "GIT_DESCRIBE_NUMBER=${GIT_DESCRIBE_NUMBER}"
+echo "GIT_DESCRIBE_HASH=${GIT_DESCRIBE_HASH}"
+echo "TREX_DESCRIBE_NUMBER=${GIT_DESCRIBE_NUMBER}"
 
 cd Application
 mkdir build
@@ -136,7 +147,7 @@ else
             fi
 
             ls -la /Applications/Xcode*.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs
-            export CONDA_BUILD_SYSROOT="/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.4.sdk"
+            export CONDA_BUILD_SYSROOT="/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.5.sdk"
             export SDKROOT="${CONDA_BUILD_SYSROOT}"
             export MACOSX_DEPLOYMENT_TARGET="11.0"
             CMAKE_PLATFORM_FLAGS+=("-DCMAKE_OSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET}")
@@ -228,5 +239,14 @@ CMAKE_BUILD_PARALLEL_LEVEL=${PROCS} cmake --build . --parallel ${PROCS} --target
 
 cmake .. -DTREX_WITH_TESTS=OFF
 CMAKE_BUILD_PARALLEL_LEVEL=${PROCS} cmake --build . --parallel ${PROCS} && make install
+
+echo "Build complete. Checking Git SHA1..."
+if [ -f src/GitSHA1.cpp ]; then
+    echo "Git SHA1 file exists."
+    echo "Content:"
+    cat src/GitSHA1.cpp
+else
+    echo "Git SHA1 file does not exist. Something went wrong."
+fi
 
 #make -j${PROCS} && make install

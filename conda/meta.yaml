@@ -28,7 +28,7 @@ channels:
   - nodefaults
 source:
     git_url: https://github.com/mooch443/trex.git
-    git_depth: 1
+    git_depth: -1
     git_tag: {{ git_tag }}
 
 app:
