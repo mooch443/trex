@@ -91,9 +91,9 @@ Don't show the graphical user-interface (really only useful when combined with `
 Create tracklet images to use with other posture estimation software
 ********************************************************************
 
-If your desired output are images of each individual, you can combine either of the options above and set ``output_image_per_tracklet`` to ``true`` and ``tracklet_max_images`` to ``0`` (which means 'no limit'). We will output only tracklet images, no tracking data/results files::
+If your desired output are images of each individual, you can combine either of the options above and set ``output_tracklet_images`` to ``true`` and ``tracklet_max_images`` to ``0`` (which means 'no limit'). We will output only tracklet images, no tracking data/results files::
 
-	trex -i <VIDEO> -output_image_per_tracklet -tracklet_max_images 0 \
+	trex -i <VIDEO> -output_tracklet_images -tracklet_max_images 0 \
 		 -tracklet_normalize_orientation true -auto_quit -auto_no_results \
 		 -auto_no_tracking_data
 

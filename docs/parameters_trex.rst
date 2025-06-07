@@ -137,6 +137,16 @@ TRex parameters
 
 
 
+.. function:: auto_no_outputs(bool)
+
+	**default value:** false
+
+
+	If set to true, no data will be exported upon ``auto_quit``. Not even a .settings file will be saved.
+
+	.. seealso:: :param:`auto_quit`
+
+
 .. function:: auto_no_results(bool)
 
 	**default value:** false
@@ -437,12 +447,12 @@ TRex parameters
 	.. seealso:: :param:`meta_real_width`
 
 
-.. function:: color_channel(uchar)
+.. function:: color_channel(optional<uchar>)
 
-	**default value:** 1
+	**default value:** null
 
 
-	Index (0-2) of the color channel to be used during video conversion, if more than one channel is present in the video file.
+	Index (0-2) of the color channel to be used during video conversion, if more than one channel is present in the video file. If set to null it will use the default conversion that OpenCV uses for cv::COLOR_BGRA2GRAY.
 
 
 
@@ -510,9 +520,9 @@ TRex parameters
 
 
 
-.. function:: detect_classes(map<uint16,string>)
+.. function:: detect_classes(optional<map<uint16,string>>)
 
-	**default value:** {}
+	**default value:** null
 
 
 	Class names for object classification in video during conversion.
@@ -574,6 +584,16 @@ TRex parameters
 
 
 
+.. function:: detect_precomputed_file(PathArray)
+
+	**default value:** ""
+
+
+	If ``detect_type`` is set to ``precomputed``, this should point to a csv file (or npz files) containing the necessary tracking data for the given ``source`` video.
+
+	.. seealso:: :param:`detect_type`, :param:`source`
+
+
 .. function:: detect_size_filter(SizeFilters)
 
 	**default value:** []
@@ -583,9 +603,9 @@ TRex parameters
 
 
 
-.. function:: detect_skeleton(Skeleton)
+.. function:: detect_skeleton(optional<Skeletons>)
 
-	**default value:** ["",[]]
+	**default value:** null
 
 
 	Skeleton to be used when displaying pose data.
@@ -681,15 +701,6 @@ TRex parameters
 
 
 	This can be set to the path of an additional settings file that is executed after the normal settings file.
-
-
-
-.. function:: export_visual_fields(bool)
-
-	**default value:** false
-
-
-	Export visual fields for all individuals upon saving.
 
 
 
@@ -1391,6 +1402,15 @@ TRex parameters
 
 
 	Showing or hiding individual shadows in tracking view.
+
+
+
+.. function:: gui_show_skeletons(bool)
+
+	**default value:** true
+
+
+	Shows / hides keypoint data being shown in the graphical interface.
 
 
 
@@ -2129,16 +2149,6 @@ TRex parameters
 
 
 
-.. function:: output_image_per_tracklet(bool)
-
-	**default value:** false
-
-
-	If set to true, the program will output one median image per tracklet (time-series segment) and save it alongside the npz/csv files (inside ``<filename>_tracklet_images.npz``). It will also output (if ``tracklet_max_images`` is 0) all images of each tracklet in a separate npz files named ``<filename>_tracklet_images_single_*.npz``.
-
-	.. seealso:: :param:`tracklet_max_images`
-
-
 .. function:: output_interpolate_positions(bool)
 
 	**default value:** false
@@ -2229,6 +2239,25 @@ TRex parameters
 	Save an NPZ file containing an array with shape Nx16 and contents [``adding_seconds``, ``combined_posture_seconds``, ``number_fish``, ``loading_seconds``, ``posture_seconds``, ``match_number_fish``, ``match_number_blob``, ``match_number_edges``, ``match_stack_objects``, ``match_max_edges_per_blob``, ``match_max_edges_per_fish``, ``match_mean_edges_per_blob``, ``match_mean_edges_per_fish``, ``match_improvements_made``, ``match_leafs_visited``, ``method_used``] and an 1D-array containing all frame numbers. If set to true, a file called '``output_dir``/``fish_data_dir``/``<filename>_statistics.npz``' will be created. This will not output anything interesting, if the data was loaded instead of analysed.
 
 	.. seealso:: :param:`output_dir`
+
+
+.. function:: output_tracklet_images(bool)
+
+	**default value:** false
+
+
+	If set to true, the program will output one median image per tracklet (time-series segment) and save it alongside the npz/csv files (inside ``<filename>_tracklet_images.npz``). It will also output (if ``tracklet_max_images`` is 0) all images of each tracklet in a separate npz files named ``<filename>_tracklet_images_single_*.npz``.
+
+	.. seealso:: :param:`tracklet_max_images`
+
+
+.. function:: output_visual_fields(bool)
+
+	**default value:** false
+
+
+	Export visual fields for all individuals upon saving.
+
 
 
 .. function:: panic_button(int)
@@ -2755,6 +2784,15 @@ TRex parameters
 	.. seealso:: :param:`frame_rate`, :param:`frame_rate`
 
 
+.. function:: track_history_split_threshold(frame)
+
+	**default value:** null
+
+
+	If this is greater than 0, then individuals with tracklets < this threshold will not be considered for the splitting algorithm. That means that objects have to be detected for at least ``N`` frames in a row to play a role in history splitting.
+
+
+
 .. function:: track_ignore(array<array<vec>>)
 
 	**default value:** []
@@ -2948,9 +2986,9 @@ TRex parameters
 	**default value:** 0
 
 
-	This limits the maximum number of images that are being exported per tracklet given that ``output_image_per_tracklet`` is true. If the number is 0 (default), then every image will be exported. Otherwise, only a uniformly sampled subset of N images will be exported.
+	This limits the maximum number of images that are being exported per tracklet given that ``output_tracklet_images`` is true. If the number is 0 (default), then every image will be exported. Otherwise, only a uniformly sampled subset of N images will be exported.
 
-	.. seealso:: :param:`output_image_per_tracklet`
+	.. seealso:: :param:`output_tracklet_images`
 
 
 .. function:: tracklet_max_length(float)
