@@ -490,6 +490,13 @@ File::File(const file::Path& filename, FileMode mode, std::optional<meta_encodin
     
     void Frame::add_object(blob::Pair&& pair) {
         assert(pair.lines->size() < UINT16_MAX);
+        if(pair.lines->empty()) {
+            /// the blob is empty. we do not accept empty objects
+#ifndef NDEBUG
+            FormatWarning("Empty object passed to pv::Frame. Please dont.");
+#endif
+            return;
+        }
         
 #ifndef NDEBUG
         HorizontalLine prev = pair.lines->empty() ? HorizontalLine() : pair.lines->front();
@@ -524,6 +531,14 @@ File::File(const file::Path& filename, FileMode mode, std::optional<meta_encodin
 void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vector<uchar>& pixels, uint8_t flags, const blob::Prediction& pred)
 {
     assert(mask.size() < UINT16_MAX);
+    if(mask.empty()) {
+        /// the blob is empty. we do not accept empty objects
+#ifndef NDEBUG
+        FormatWarning("Empty object passed to pv::Frame. Please dont.");
+#endif
+        return;
+    }
+    
 #ifndef NDEBUG
     HorizontalLine prev = mask.empty() ? HorizontalLine() : mask.front();
 
@@ -562,7 +577,13 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
     
     void Frame::add_object(const std::vector<HorizontalLine> &mask_, const cv::Mat &full_image, uint8_t flags) {
         assert(full_image.rows > 0 && full_image.cols > 0);
-        assert(!mask_.empty());
+        if(mask_.empty()) {
+            /// the blob is empty. we do not accept empty objects
+    #ifndef NDEBUG
+            FormatWarning("Empty object passed to pv::Frame. Please dont.");
+    #endif
+            return;
+        }
         
         const auto channels = required_storage_channels(encoding());
         //const auto input_channels = full_image.channels();
@@ -690,8 +711,8 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         //}
 
         // see whether this frame is worth compressing (size-threshold)
-        if (pack.size() >= 15000
-            /*&& false*/)
+        if (encoding() == meta_encoding_t::rgb8
+            || pack.size() >= 15000)
         {
 #define OUT_LEN(L)     (L + L / 16 + 64 + 3)
 
@@ -716,8 +737,14 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
             // lock for wrkmem
             if (lzo1x_1_compress((uchar*)pack.data(), in_len, (uchar*)out.data(), &out_len, wrkmem) == LZO_E_OK)
             {
+                
+                static std::atomic<double> _compression_ratio = 0.0;
+                static double _compression_value = 0;
+                static uint32_t _compression_samples = 0;
+                
                 uint64_t size = out_len + sizeof(uint32_t) * 2;
-                /*if (size < in_len) {
+                //if (size < in_len)
+                {
                     if (_compression_samples > 1000) {
                         _compression_value = _compression_value / _compression_samples;
                         _compression_samples = 1;
@@ -726,7 +753,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
                     _compression_value = _compression_value + size / float(in_len);
                     _compression_samples++;
                     _compression_ratio = _compression_value / double(_compression_samples);
-                }*/
+                }
 
                 if (size < in_len) {
                     pack.reset_offset();

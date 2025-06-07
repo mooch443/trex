@@ -323,31 +323,35 @@ void PrecomputedDetection::apply(std::vector<TileImage> &&tiled) {
                         (mode == meta_encoding_t::rgb8 ? pv::Blob::flag(pv::Blob::Flags::is_rgb) : 0)
                         | (mode == meta_encoding_t::r3g3b2 ? pv::Blob::flag(pv::Blob::Flags::is_r3g3b2) : 0)
                         | (mode == meta_encoding_t::binary ? pv::Blob::flag(pv::Blob::Flags::is_binary) : 0);
-                    pv::Blob blob(*lines, flags);
-                    auto pixels = blob.calculate_pixels(input_format, output_format, r3);
                     
                     if(detect_threshold > 0)
                     {
+                        pv::Blob blob(std::move(lines), flags);
                         /// TODO: implement some version of RawProcessing here
-                        blob.set_pixels(std::move(pixels));
-                        auto ptr = blob.threshold(detect_threshold, data()._background.value());
+                        blob.set_pixels(blob.calculate_pixels(input_format, output_format, r3));
                         
-                        if(filtered.empty()) {
+                        /*if(filtered.empty()) {
                             auto [pos, img] = ptr->color_image();
                             auto mat = img->get();
                             tf::imshow("object", mat);
-                        }
+                        }*/
+
+                        auto ptr = blob.threshold(detect_threshold, data()._background.value());
+                        if(not ptr->empty())
+                            filtered.emplace_back(std::move(ptr->steal_lines()), std::move(ptr->pixels()));
                         
-                        filtered.emplace_back(std::move(ptr->steal_lines()), std::move(ptr->pixels()));
                     } else {
-                        if(filtered.empty()) {
+                        /*if(filtered.empty()) {
                             blob.set_pixels(*pixels);
                             auto [pos, img] = blob.color_image();
                             auto mat = img->get();
                             tf::imshow("object", mat);
-                        }
+                        }*/
                         
-                        filtered.emplace_back(std::move(lines), std::move(pixels));
+                        if(not lines->empty()) {
+                            auto pixels = pv::Blob::calculate_pixels(input_format, output_format, *lines, r3, std::nullopt);
+                            filtered.emplace_back(std::move(lines), std::move(pixels));
+                        }
                     }
                 }
             }
@@ -475,7 +479,7 @@ PrecomputedDetection::Data::frame_data_t PrecomputedDetection::Data::preload_fil
                 std::optional<double> y = row.get(*y_column);
                 double raw_frame = row.get(*frame_column).value();
                 if(raw_frame < 0) {
-                    FormatWarning("Ignoring row ", row.cells, " because the frame number is ", raw_frame,".");
+                    FormatWarning("Ignoring row ", row.cells ? "null" : Meta::toStr(*row.cells), " because the frame number is ", raw_frame,".");
                     continue;
                 }
                 

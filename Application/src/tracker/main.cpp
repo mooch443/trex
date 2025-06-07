@@ -700,40 +700,56 @@ int main(int argc, char**argv) {
     });*/
     
     for(auto a : CommandLine::instance()) {
-        if(a.name == "s") {
-            SETTING(settings_file) = file::Path(a.value).add_extension("settings");
-            CommandLine::instance().add_setting("settings_file", a.value);
+        if(a.name == "s"
+           && a.value)
+        {
+            SETTING(settings_file) = file::Path(*a.value).add_extension("settings");
+            CommandLine::instance().add_setting("settings_file", *a.value);
         }
-        else if(a.name == "i") {
-            SETTING(source) = file::PathArray(a.value);
-            CommandLine::instance().add_setting("source", a.value);
+        else if(a.name == "i"
+                && a.value)
+        {
+            SETTING(source) = file::PathArray(*a.value);
+            CommandLine::instance().add_setting("source", *a.value);
         }
-        else if(a.name == "m") {
-            SETTING(detect_model) = file::Path(a.value);
-            CommandLine::instance().add_setting("detect_model", a.value);
+        else if(a.name == "m"
+                && a.value)
+        {
+            SETTING(detect_model) = file::Path(*a.value);
+            CommandLine::instance().add_setting("detect_model", *a.value);
         }
-        else if (a.name == "bm") {
-            SETTING(region_model) = file::Path(a.value);
-            CommandLine::instance().add_setting("region_model", a.value);
+        else if (a.name == "bm"
+                 && a.value)
+        {
+            SETTING(region_model) = file::Path(*a.value);
+            CommandLine::instance().add_setting("region_model", *a.value);
         }
-        else if(a.name == "d") {
-            SETTING(output_dir) = file::Path(a.value);
-            CommandLine::instance().add_setting("output_dir", a.value);
+        else if(a.name == "d"
+                && a.value)
+        {
+            SETTING(output_dir) = file::Path(*a.value);
+            CommandLine::instance().add_setting("output_dir", *a.value);
         }
-        else if(a.name == "dim") {
-            SETTING(detect_resolution) = Meta::fromStr<track::detect::DetectResolution>(a.value);
-            CommandLine::instance().add_setting("detect_resolution", a.value);
+        else if(a.name == "dim"
+                && a.value)
+        {
+            SETTING(detect_resolution) = Meta::fromStr<track::detect::DetectResolution>(*a.value);
+            CommandLine::instance().add_setting("detect_resolution", *a.value);
         }
-        else if(a.name == "o") {
-            auto path = file::Path(a.value);
+        else if(a.name == "o"
+                && a.value)
+        {
+            auto path = file::Path(*a.value);
             if(path.has_extension() && path.has_extension("pv"))
                 path = path.remove_extension();
             SETTING(filename) = path;
             CommandLine::instance().add_setting("filename", path.str());
         }
-        else if(a.name == "p") {
-            SETTING(output_prefix) = std::string(a.value);
-            CommandLine::instance().add_setting("output_prefix", a.value);
+        else if(a.name == "p"
+                && a.value)
+        {
+            SETTING(output_prefix) = std::string(*a.value);
+            CommandLine::instance().add_setting("output_prefix", *a.value);
         }
         else if(a.name == "load") {
             wants_to_load = true;

@@ -325,7 +325,7 @@
                     },
                     {
                         "type":"settings",
-                        "var":"export_visual_fields",
+                        "var":"output_visual_fields",
                         "desc":"",
                         "label":{
                             "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[150,150,220,50]}",

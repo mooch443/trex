@@ -219,7 +219,8 @@ ENUM_CLASS_DOCS(gpu_torch_device_t,
         {"track_absolute_difference", "track_threshold_is_absolute"},
         {"enable_absolute_difference", "detect_threshold_is_absolute"},
         {"categories_min_sample_images", "categories_apply_min_tracklet_length"},
-        {"enable_live_tracking", ""}
+        {"enable_live_tracking", ""},
+        {"export_visual_fields", "output_visual_fields"}
     };
 
 /**
@@ -752,7 +753,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("blob_split_global_shrink_limit", float(0.2), "The minimum percentage of the minimum in `track_size_filter`, that a blob is allowed to be reduced to during splitting. If this value is set too low, the program might start recognizing parts of individual as other individual too quickly.");
         CONFIG("blob_split_algorithm", blob_split_algorithm_t::threshold, "The default splitting algorithm used to split objects that are too close together.");
         
-        CONFIG("export_visual_fields", false, "Export visual fields for all individuals upon saving.");
+        CONFIG("output_visual_fields", false, "Export visual fields for all individuals upon saving.");
         CONFIG("visual_field_shapes", std::vector<std::vector<Vec2>>{}, "A list of shapes that should be handled as view-blocking in visual field calculations.");
         CONFIG("visual_field_eye_offset", float(0.15), "A percentage telling the program how much the eye positions are offset from the start of the midline.");
         CONFIG("visual_field_eye_separation", float(60), "Degrees of separation between the eye and looking straight ahead. Results in the eye looking towards head.angle +- `visual_field_eye_separation`.");

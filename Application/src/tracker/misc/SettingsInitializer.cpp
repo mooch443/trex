@@ -266,7 +266,7 @@ void LoadContext::init() {
     /// ---------------------------
     /// as well as other defaults
     
-    auto exclude = exclude_parameters + default_excludes + system_variables;
+    exclude = exclude_parameters + default_excludes + system_variables;
     if(not quiet)
         Print("Excluding from command-line and default.settings: ", exclude);
     
