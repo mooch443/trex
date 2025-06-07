@@ -530,37 +530,40 @@ void VIController::export_tracks() {
 
 void VIController::auto_quit(GUITaskQueue_t* gui) {
     FormatWarning("Saving and quitting...");
-    LockGuard guard(w_t{}, "saving and quitting");
-    //PD(cache).deselect_all();
-    auto video = _video.lock();
-    settings::write_config(video.get(), true, gui);
-    //instance()->write_config(true);
     
-    if(!SETTING(auto_no_results)) {
-        auto tracker = _tracker.lock();
-        if(tracker) {
-            Output::TrackingResults results(*tracker);
-            results.save();
+    if(not SETTING(auto_no_outputs).value<bool>()) {
+        LockGuard guard(w_t{}, "saving and quitting");
+        //PD(cache).deselect_all();
+        auto video = _video.lock();
+        settings::write_config(video.get(), true, gui);
+        //instance()->write_config(true);
+        
+        if(!SETTING(auto_no_results)) {
+            auto tracker = _tracker.lock();
+            if(tracker) {
+                Output::TrackingResults results(*tracker);
+                results.save();
+            }
+        } else {
+            file::Path path = Output::TrackingResults::expected_filename();
+            path = path.add_extension("meta");
+            
+            Print("Writing ",path.str()," meta file instead of .results");
+            
+            auto f = fopen(path.str().c_str(), "wb");
+            if(f) {
+                auto str = SETTING(cmd_line).value<std::string>()+"\n";
+                fwrite(str.data(), sizeof(uchar), str.length(), f);
+                fclose(f);
+            } else
+                Print("Cannot write ",path.str()," meta file.");
         }
-    } else {
-        file::Path path = Output::TrackingResults::expected_filename();
-        path = path.add_extension("meta");
         
-        Print("Writing ",path.str()," meta file instead of .results");
-        
-        auto f = fopen(path.str().c_str(), "wb");
-        if(f) {
-            auto str = SETTING(cmd_line).value<std::string>()+"\n";
-            fwrite(str.data(), sizeof(uchar), str.length(), f);
-            fclose(f);
-        } else
-            Print("Cannot write ",path.str()," meta file.");
-    }
-    
-    try {
-        export_tracks();
-    } catch(const UtilsException&) {
-        SETTING(error_terminate) = true;
+        try {
+            export_tracks();
+        } catch(const UtilsException&) {
+            SETTING(error_terminate) = true;
+        }
     }
     
     SETTING(auto_quit) = false;

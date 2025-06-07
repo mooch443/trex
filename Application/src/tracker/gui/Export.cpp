@@ -158,7 +158,7 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
     Output::Library::remove_calculation_options();
     
     auto previous_output_frame_window = SETTING(output_frame_window).value<uint32_t>();
-    auto output_image_per_tracklet = SETTING(output_image_per_tracklet).value<bool>();
+    auto output_tracklet_images = SETTING(output_tracklet_images).value<bool>();
     auto output_format = SETTING(output_format).value<default_config::output_format_t::Class>();
     auto output_posture_data = SETTING(output_posture_data).value<bool>();
     auto output_min_frames = SETTING(output_min_frames).value<uint16_t>();
@@ -446,7 +446,7 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                  * These are currently median images and will all be saved into one big NPZ file.
                  * TODO: need to check for size issues (>=4GB?) - shouldnt happen too often though
                  */
-                if(output_image_per_tracklet) {
+                if(output_tracklet_images) {
                     Print("Generating tracklet images for fish ",fish->identity().raw_name(),"...");
                     const bool calculate_posture = FAST_SETTING(calculate_posture);
                     const auto individual_image_normalization = default_config::valid_individual_image_normalization();

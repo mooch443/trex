@@ -9,7 +9,7 @@ Tutorials
 
 |trex| is a versatile tracking software that can help you solve a wide range of tracking problems efficiently, minimizing manual effort, computational power, and time. It's designed to be user-friendly for general use but also provides advanced features for more complex situations. This section provides tutorials on how to use |trex|, from setting up the software to analyzing videos and exporting data. 
 
-You can follow along by reading the text or watching the video tutorials on the `YouTube channel <https://www.youtube.com/@TRex-f9g>`_.
+You can follow along by reading the text or watching the video tutorials on the `YouTube channel <https://www.youtube.com/@TRexTracker>`_.
 
 Understanding Computational Complexity
 --------------------------------------

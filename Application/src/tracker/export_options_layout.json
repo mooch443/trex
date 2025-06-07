@@ -393,7 +393,7 @@
                 },
                 {
                     "type":"settings",
-                    "var":"output_image_per_tracklet",
+                    "var":"output_tracklet_images",
                     "desc":"",
                     "label":{
                         "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[150,150,220,50]}",
@@ -413,7 +413,7 @@
 
                 {
                     "type":"condition",
-                    "var":"{global.output_image_per_tracklet}",
+                    "var":"{global.output_tracklet_images}",
                     "then":{
                         "type":"vlayout",
                         "pad":[0,0,0,3],

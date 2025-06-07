@@ -220,7 +220,8 @@ ENUM_CLASS_DOCS(gpu_torch_device_t,
         {"enable_absolute_difference", "detect_threshold_is_absolute"},
         {"categories_min_sample_images", "categories_apply_min_tracklet_length"},
         {"enable_live_tracking", ""},
-        {"export_visual_fields", "output_visual_fields"}
+        {"export_visual_fields", "output_visual_fields"},
+        {"output_image_per_tracklet", "output_tracklet_images"}
     };
 
 /**
@@ -873,6 +874,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("auto_no_memory_stats", true, "If set to true, no memory statistics will be saved on auto_quit.");
         CONFIG("auto_no_results", false, "If set to true, the auto_quit option will NOT save a .results file along with the NPZ (or CSV) files. This saves time and space, but also means that the tracked portion cannot be loaded via -load afterwards. Useful, if you only want to analyse the resulting data and never look at the tracked video again.");
         CONFIG("auto_no_tracking_data", false, "If set to true, the auto_quit option will NOT save any `output_fields` tracking data - just the posture data (if enabled) and the results file (if not disabled). This saves time and space if that is a need.");
+        CONFIG("auto_no_outputs", false, "If set to true, no data will be exported upon `auto_quit`. Not even a .settings file will be saved.");
         CONFIG("auto_train", false, "If set to true, the application will automatically train the recognition network with the best track tracklet and apply it to the video.");
         CONFIG("auto_train_on_startup", false, "This is a parameter that is used by the system to determine whether `auto_train` was set on startup, and thus also whether a failure of `auto_train` should result in a crash (return code != 0).", SYSTEM);
         CONFIG("analysis_range", Range<long_t>(-1, -1), "Sets start and end of the analysed frames.");
@@ -882,9 +884,9 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("output_auto_pose", true, "If this is set to false, then no poseX[n] and poseY[n] fields will automatically be added to the `output_fields` based on what the keypoint model reports. You can still manually add them if you like.");
         CONFIG("output_fields", output_fields, "The functions that will be exported when saving to CSV, or shown in the graph. `[['X',[option], ...]]`");
         CONFIG("tracklet_force_normal_color", true, "If set to true (default) then all images are saved as they appear in the original video. Otherwise, all images are exported according to the individual image settings (as seen in the image settings when an individual is selected) - in which case the background may have been subtracted from the original image and a threshold may have been applied (if `track_threshold` > 0 and `track_background_subtraction` is true).");
-        CONFIG("tracklet_max_images", uint16_t(0), "This limits the maximum number of images that are being exported per tracklet given that `output_image_per_tracklet` is true. If the number is 0 (default), then every image will be exported. Otherwise, only a uniformly sampled subset of N images will be exported.");
+        CONFIG("tracklet_max_images", uint16_t(0), "This limits the maximum number of images that are being exported per tracklet given that `output_tracklet_images` is true. If the number is 0 (default), then every image will be exported. Otherwise, only a uniformly sampled subset of N images will be exported.");
         CONFIG("tracklet_normalize", true, "If enabled, all exported tracklet images are normalized according to the `individual_image_normalization` and padded / shrunk to `individual_image_size` (they appear as they do in the image preview when selecting an individual in the GUI).");
-        CONFIG("output_image_per_tracklet", false, "If set to true, the program will output one median image per tracklet (time-series segment) and save it alongside the npz/csv files (inside `<filename>_tracklet_images.npz`). It will also output (if `tracklet_max_images` is 0) all images of each tracklet in a separate npz files named `<filename>_tracklet_images_single_*.npz`.");
+        CONFIG("output_tracklet_images", false, "If set to true, the program will output one median image per tracklet (time-series segment) and save it alongside the npz/csv files (inside `<filename>_tracklet_images.npz`). It will also output (if `tracklet_max_images` is 0) all images of each tracklet in a separate npz files named `<filename>_tracklet_images_single_*.npz`.");
         CONFIG("output_csv_decimals", uint8_t(2), "Maximum number of decimal places that is written into CSV files (a text-based format for storing data). A value of 0 results in integer values.");
         CONFIG("output_invalid_value", output_invalid_t::inf, "Determines, what is exported in cases where the individual was not found (or a certain value could not be calculated). For example, if an individual is found but posture could not successfully be generated, then all posture-based values (e.g. `midline_length`) default to the value specified here. By default (and for historic reasons), any invalid value is marked by 'inf'.");
         CONFIG("output_format", output_format_t::npz, "When pressing the S(ave) button or using `auto_quit`, this setting allows to switch between CSV and NPZ output. NPZ files are recommended and will be used by default - some functionality (such as visual fields, posture data, etc.) will remain in NPZ format due to technical constraints.");
