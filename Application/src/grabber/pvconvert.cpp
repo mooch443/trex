@@ -165,22 +165,26 @@ int main(int argc, char**argv) {
                     
                 case Arguments::i:
                 case Arguments::input:
-                    SETTING(filename) = Path(option.value);
+                    if(option.value)
+                        SETTING(filename) = Path(*option.value);
                     break;
                     
                 case Arguments::s:
                 case Arguments::settings:
-                    SETTING(settings_file) = Path(option.value);
+                    if(option.value)
+                        SETTING(settings_file) = Path(*option.value);
                     break;
                     
                 case Arguments::o:
                 case Arguments::output:
-                    SETTING(output_dir) = Path(option.value);
+                    if(option.value)
+                        SETTING(output_dir) = Path(*option.value);
                     break;
                     
                 case Arguments::d:
                 case Arguments::dir:
-                    SETTING(output_dir) = Path(option.value);
+                    if(option.value)
+                        SETTING(output_dir) = Path(*option.value);
                     break;
                     
                 default:
