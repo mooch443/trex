@@ -1,18 +1,17 @@
 #pragma once
 
-#include <misc/defines.h>
-#include <misc/Blob.h>
-#include <misc/GlobalSettings.h>
+#include <commons.pc.h>
 #include <misc/frame_t.h>
 
 namespace track {
 
+using namespace cmn;
 class Individual;
 
 class PairDistance {
     GETTER_SETTER_PTR(const Individual*, fish0)
     GETTER_SETTER_PTR(const Individual*, fish1)
-    GETTER_SETTER(float, d)
+    GETTER_SETTER(float, d);
         
 public:
     PairDistance(const Individual* fish0, const Individual* fish1, float d)
@@ -39,22 +38,35 @@ public:
 };
 
 struct FrameProperties {
-    double time;
-    timestamp_t org_timestamp;
-    Frame_t frame;
-    long_t active_individuals;
-        
-    FrameProperties(Frame_t frame, double t, timestamp_t ot)
-        : time(t), org_timestamp(ot), frame(frame), active_individuals(-1)
-    {}
-        
-    FrameProperties()
-        : time(-1), org_timestamp(0), frame(-1), active_individuals(-1)
-    {}
-        
-    bool operator<(Frame_t frame) const {
-        return this->frame < frame;
+    using Ptr = std::unique_ptr<FrameProperties>;
+    
+    template<typename... Args>
+    static auto Make(Args... args) {
+        return std::make_unique<FrameProperties>(std::forward<Args>(args)...);
     }
+    
+    double _time{-1};
+    timestamp_t _org_timestamp{0};
+    GETTER(Frame_t, frame);
+    GETTER(long_t, active_individuals){-1};
+    
+public:
+    FrameProperties(Frame_t frame, double t, timestamp_t ot)
+        : _time(t), _org_timestamp(ot), _frame(frame)
+    {}
+    FrameProperties() noexcept = default;
+    
+    bool operator<(Frame_t frame) const {
+        return this->_frame < frame;
+    }
+    
+    void set_timestamp(uint64_t ts);
+    void set_active_individuals(long_t);
+    
+    timestamp_t timestamp() const;
+    double time() const;
+    std::string toStr() const;
+    static std::string class_name() { return "FrameProperties"; }
 };
 
 struct CacheHints {
@@ -91,28 +103,28 @@ public:
 
 protected:
     friend class DataFormat;
-    GETTER(double, time)
+    GETTER(double, time);
 
     std::array<Vec2, MotionRecord::max_derivatives> _pos;
-    std::array<float, MotionRecord::max_derivatives> _angle;
+    std::array<Float2_t, MotionRecord::max_derivatives> _angle;
         
 public:
-    void init(const MotionRecord* previous, double time, const Vec2& pos, float angle);
+    void init(const MotionRecord* previous, double time, const Vec2& pos, Float2_t angle);
         
-    template<Units to> float speed(bool smooth) const { return v<to>(smooth).length(); }
-    template<Units to> float speed() const { return v<to>().length(); }
+    template<Units to> Float2_t speed(bool smooth) const { return v<to>(smooth).length(); }
+    template<Units to> Float2_t speed() const { return v<to>().length(); }
         
-    template<Units to> float acceleration(bool smooth) const { return length(a<to>(smooth)); }
-    template<Units to> float acceleration() const { return length(a<to>()); }
+    template<Units to> Float2_t acceleration(bool smooth) const { return length(a<to>(smooth)); }
+    template<Units to> Float2_t acceleration() const { return length(a<to>()); }
         
-    float angle(bool smooth) const { return value<float>(0, smooth); };
-    float angle() const { return get<float>(0); };
+    Float2_t angle(bool smooth) const { return value<Float2_t>(0, smooth); }
+    Float2_t angle() const { return get<Float2_t>(0); }
         
-    template<Units to> float angular_velocity(bool smooth) const { return value<to, float>(1, smooth); };
-    template<Units to> float angular_velocity() const { return value<to, float>(1); };
+    template<Units to> Float2_t angular_velocity(bool smooth) const { return value<to, Float2_t>(1, smooth); }
+    template<Units to> Float2_t angular_velocity() const { return value<to, Float2_t>(1); }
         
-    template<Units to> float angular_acceleration(bool smooth) const { return value<to, float>(2, smooth); };
-    template<Units to> float angular_acceleration() const { return value<to, float>(2); };
+    template<Units to> Float2_t angular_acceleration(bool smooth) const { return value<to, Float2_t>(2, smooth); }
+    template<Units to> Float2_t angular_acceleration() const { return value<to, Float2_t>(2); }
         
     template<Units to> Vec2 pos(bool smooth) const { return value<to, Vec2>(0, smooth); }
     template<Units to> Vec2 pos() const { return value<to, Vec2>(0); }
@@ -124,27 +136,27 @@ public:
     template<Units to> Vec2 a() const { return value<to, Vec2>(2); }
         
     void flip(const MotionRecord* previous);
-    static float cm_per_pixel();
+    static Float2_t cm_per_pixel();
         
 private:
     template<typename T>
     const T& get(size_t derivative = 0) const {
         if constexpr (std::is_same_v<T, Vec2>)
             return _pos[derivative];
-        else if constexpr (std::is_same_v<T, float>)
+        else if constexpr (std::is_same_v<T, Float2_t>)
             return _angle[derivative];
         else
-            static_assert(std::same_as<T, float>);
+            static_assert(std::same_as<T, Float2_t>);
     }
 
     template<typename T>
     constexpr T& get(size_t derivative = 0) {
         if constexpr (std::same_as<T, Vec2>)
             return _pos[derivative];
-        else if constexpr (std::is_same_v<T, float>)
+        else if constexpr (std::is_same_v<T, Float2_t>)
             return _angle[derivative];
         else
-            static_assert(std::same_as<T, float>);
+            static_assert(std::same_as<T, Float2_t>);
     }
 
     template<typename T>
@@ -236,7 +248,7 @@ private:
             return;
         }
 
-        float tdelta = /*abs*/(time() - prev->time());
+        Float2_t tdelta = /*abs*/(time() - prev->time());
         const T& current_value = get<T>(index - 1);
         const T& prev_value = prev->get<T>(index - 1);
 

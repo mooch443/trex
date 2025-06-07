@@ -6,51 +6,56 @@
 Usage examples
 ##############
 
-This section contains an assortment of common usage examples, taken from the real world. We will explain each example shortly and move on quickly. If certain details are unclear, :doc:`parameters_trex` or :doc:`parameters_tgrabs` might help!
+This section contains an assortment of common usage examples, taken from the real world, as well as some terminal basics. We will explain each example shortly and move on quickly. If certain details are unclear, :doc:`parameters_trex` might help!
 
-TGrabs examples
-***************
+Command-line
+============
 
-Some things that are good to know:
+.. |movie| replace:: path/to/VIDEO.mp4
 
-	- Converting/recording has to be done before (or at the same time) as tracking!
-	- Everything that appears pink in |grabs| is considered to be noise. If |grabs| is too choosy in your opinion, consider lowering ``threshold``, change ``blob_size_range`` to include the objects that are considered noise, or enabling ``use_closing``!
-	- You should not delete your AVI after converting it to PV. Objects that are not considered noise, are saved losslessly in PV, but the rest is removed (that's the compression here).
+Often, the command-line interface is the most powerful way to use |trex|, as it allows you to automate tasks and run them in batch mode. The following examples will show you how to use the command-line interface to achieve common tasks. Just to note: you can reach most or all of these functions through the graphical user interface, using the same parameter names. Instructions from here should be fairly easy to transfer over!
 
-Converting videos
-=================
+As you may know, simply starting the program without any arguments will open the graphical user interface. If you want to use the command-line interface, you have to specify the input using the ``-i`` option. For example, to open a video file, you would use::
 
-Just open a movie file and convert it to the PV format (it will be saved to the default output location, and named after the input file). Just for fun, we also set a different (higher) threshold::
-
-	tgrabs -i <MOVIE> -threshold 35
-
-We can switch to a different method for generating the background that is used for background-subtraction (which is how the foreground objects are detected), by using :func:`averaging_method`::
-
-	tgrabs -i <MOVIE> -threshold 35 -averaging_method mode -reset_average 
-
-The background will be saved to a png file in the output folder. You can edit it manually, too (until you use use ``reset_average``).
-
-Record using a Basler camera
-============================
-
-Same options as above, but the input is different (note that you'll have to compile the software yourself in order to use this - with the Basler SDK enabled/installed on your system)::
-
-	tgrabs -i basler
-
-Closed-loop
-===========
-
-To enable closed-loop, edit the ``closed_loop.py`` file (it contains a few examples) and open tgrabs using::
-
-	tgrabs -i basler -enable_closed_loop -threshold 35 -track_threshold 35
+	trex -i webcam
 
 .. NOTE::
-	Now you also have to attach ``track_`` parameters and set everything up properly for tracking (see next section)!
+	For multiple webcams, add the :param:`webcam_index` parameter. For example, to open the second webcam, use ``-i webcam -webcam_index 1``. You can also specify a video file using the ``-i`` option, e.g. ``-i /path/to/VIDEO.mp4``.
 
-Every frame that has been tracked will be forwarded to your python script. Be aware that if your script takes too long, frames might be dropped and the tracking might become less reliable. In cases like that, or with many individuals, it might be beneficial to change ``match_mode`` to ``approximate`` (if you don't need extremely good identity consistency, just general position information).
+.. raw:: html
 
-TRex: general usage
-*******************
+   <p>This will open the webcam, if you have one installed and allow the program to use it, and use <code class="docutils literal notranslate"><span class="pre">yolov8n-pose</span></code> (see <a href="https://docs.ultralytics.com/models/yolov11/#supported-tasks-and-modes" target="_blank">YOLOv11 models</a>) to find you in the picture.</p>
+   
+Just for fun, we also set a different :param:`detect_iou_threshold` which will change the IOU threshold for YOLO object detection - the higher the percentage, the more overlap between bounding boxes is allowed. The default is 70%, but we set it to 35%::
+
+	trex -i webcam -detect_iou_threshold 0.35
+
+You may have already noticed that, by default, |trex| will see if a PV file already exists for the video you're trying to open. If it does, it will open it and you will end up in the tracking view immediately. However, we want to start over from scratch here - which can be enforced by adding the ``-task convert`` option in the same way::
+
+	trex -i webcam -task convert -detect_iou_threshold 0.35
+
+The ``detect_iou_threshold`` here is simply the parameter :param:`detect_iou_threshold`, as described in the documentation. You may add any parameter found in there to the command-line, and it will be evaluated when the program starts - if there are any errors, an ``ERROR`` will be displayed somewhere in the command-line output. Those errors might also be interesting in case its not a user error, but a software bug (which you are welcome to `report here <https://github.com/mooch443/trex/issues/new?assignees=mooch443&labels=bug&template=bug_report.md&title=>`_ on GitHub!).
+
+For example, we can also limit the number of individuals to track::
+
+	trex -i webcam -task convert -detect_iou_threshold 0.35 -track_max_individuals 1
+
+This will force |trex| to (re-)convert the video to PV format, overwriting an existing ``VIDEO.pv`` file in the current folder.
+
+If you want the program to quit after it's done, you can use the ``-auto_quit`` option, which also exports trajectory data (if not disabled by ``-auto_no_tracking_data``). Other options omitted, this would look like this::
+
+	trex -i webcam [...] -auto_quit
+
+By default, |trex| will save the resulting .pv file in the same folder as the source video (as well as any exported trajectory data, which will land inside a ``data`` folder). If you want to save it somewhere else, you can use the ``-d`` option::
+
+	trex -i webcam [...] -d /path/to/output/to
+
+Parameters, often also called settings, can be stored in settings files. Almost all parameters can be passed to the program via such a settings file using the ``-s`` option::
+	
+	trex -i webcam [...] -s /path/to/default.settings
+
+TRex: general usage examples
+****************************
 
 .. NOTE::
 	Keep in mind that all parameters specified here in the command-line can also be accessed if you're already within the graphical user interface. Just type into the textfield on the bottom left of the screen and it will auto-complete parameter names for you. See also :doc:`gui`.
@@ -86,9 +91,9 @@ Don't show the graphical user-interface (really only useful when combined with `
 Create tracklet images to use with other posture estimation software
 ********************************************************************
 
-If your desired output are images of each individual, you can combine either of the options above and set ``output_image_per_tracklet`` to ``true`` and ``tracklet_max_images`` to ``0`` (which means 'no limit'). We will output only tracklet images, no tracking data/results files::
+If your desired output are images of each individual, you can combine either of the options above and set ``output_tracklet_images`` to ``true`` and ``tracklet_max_images`` to ``0`` (which means 'no limit'). We will output only tracklet images, no tracking data/results files::
 
-	trex -i <VIDEO> -output_image_per_tracklet -tracklet_max_images 0 \
+	trex -i <VIDEO> -output_tracklet_images -tracklet_max_images 0 \
 		 -tracklet_normalize_orientation true -auto_quit -auto_no_results \
 		 -auto_no_tracking_data
 
@@ -97,7 +102,7 @@ This will save a couple of files named ``<VIDEO>_tracklet_images_*.npz`` in your
 Create a short clip of objects with or w/o background after converting to PV
 ****************************************************************************
 
-The tool ``pvconvert``, included in the standard install of |trex|, can be used to achieve this. It reads the PV file format and exports sequences of images. For example::
+The tool ``pvconvert``, included in the standard installation of |trex|, can be used to achieve this. It reads the PV file format and exports sequences of images. For example::
 
 	pvconvert -i /Volumes/Public/videos/group_1  \
 		-disable_background true             \
@@ -110,3 +115,16 @@ produces this gif, which is cropped, scaled, short, and has lost its background:
 
 .. image:: animated_frames.gif
 
+Closed-loop
+===========
+
+To enable closed-loop, open |trex| using::
+
+	trex -i webcam -closed_loop_enable -track_max_individuals 1
+
+.. NOTE::
+	Now you also have to attach ``track_`` parameters and set everything up properly for tracking (see next section)!
+
+Every frame that has been tracked will be forwarded to your python script. Be aware that if your script takes too long, frames might be dropped and the tracking might become less reliable. In cases like that, or with many individuals, it might be beneficial to change ``match_mode`` to ``approximate`` (if you don't need extremely good identity consistency, just general position information).
+
+You may, of course, edit the closed_loop file according to your needs. The exact path is displayed in the temrinal, which you maybe shouldn't modify but *copy* to a different location. You can then use :param:`closed_loop_path` to point |trex| to the correct script with custom code. The path used is displayed in the terminal (by default its in ``$CONDA_PREFIX/usr/share/trex/closed_loop_beta.py``).

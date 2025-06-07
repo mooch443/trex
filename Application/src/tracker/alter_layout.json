@@ -1,0 +1,600 @@
+{
+	"defaults":{
+		"vars":{
+			"same_folder":"{equal:{folder:{global.source}}:{folder:{output_name}}}",
+			"same_parent":"{equal:{folder:{global.source}}:{folder:{folder:{output_name}}}}",
+			"indent":"{if:{same_parent}:'   ':''}",
+			"movie_in_sub":"{&&:{equal:{folder:{global.save_raw_movie_path}}:{folder:{output_name}}}:{global.save_raw_movie}}",
+			"movie_elsewhere":"{&&:{global.save_raw_movie}:{not:{movie_in_sub}}}",
+			
+			"circles":"[○,◔,◑,◕,●]",
+			"animation":"<sym>{at:{mod:{time}:{array_length:{circles}}}:{circles}}</sym>",
+
+			"ffmpeg_fix":"ffmpeg -i {global.source} -c copy \"{basename:{global.source}}_fixed.mp4\"",
+
+			"clocks":"[🕛,🕐,🕑,🕒,🕓,🕔,🕕,🕖,🕗,🕘,🕙,🕚,🕛]",
+			"animation2":"<sym>{at:{mod:{time}:{array_length:{clocks}}}:{clocks}}</sym>",
+
+			"long_text":"This is a long text that will be animated.",
+			"text_length":"{array_length:'{long_text}'}",
+			"buildup":"{substr:0:{mod:{*:{+:5:{time}}:2}:{+:1:{text_length}}}:{long_text}}",
+
+			"slide_window":10,
+			"spots":"{-:{slide_window}:1}",
+			"text_start":"{mod:{*:{time}:4}:{+:{slide_window}:{text_length}}}",
+			"animation_begin":"{max:0:{-:{spots}:{text_start}}}",
+			"slide":"{pad_string:{animation_begin}:''}{substr:0:{-:{slide_window}:{animation_begin}}:{pad_string:{slide_window}:{substr:{max:0:{-:{-:{text_start}:{spots}}:{animation_begin}}}:{+:{spots}:{text_start}}:{long_text}}}}",
+			"animated_text":"{animation} {animation2}  [<c>{slide}</c>]  <c>{pad_string:{text_length}:{buildup}<sym>❚</sym>}</c>",
+
+			"infocard_width": 215
+		}
+	},
+	"objects":[
+
+	{
+		"type":"each",
+		"var":"fishes",
+		"do": {
+			"type":"condition",
+			"var":"{i.visible}",
+			"then":{
+				"type":"collection",
+				"children":[
+					{
+						"type":"rect",
+						"pos":"{i.pos}",
+						"size":"{i.size}",
+						"fill":"{if:{hovered}:[255,255,255,30]:{clrAlpha:{cmap:wheel:{i.fdx}}:15}}",
+						"line":"{if:{i.selected}:[255,255,255,150]:{clrAlpha:{cmap:wheel:{i.fdx}}:100}}",
+						"origin":[0,0],
+						"clickable":true,
+						"click":"set:gui_focus_group:{if:{equal:{global.gui_focus_group}:[{i.fdx}]}:[]:[{i.fdx}]}"
+					},
+					
+					{
+						"type":"condition",
+						"var":"{global.gui_show_texts}",
+						"then":{
+							"type":"label",
+							"text":"<c><b><nr>{i.fdx}</nr></b></c>:{if:{equal:{global.detect_type}:background_subtraction}:' s=<i>{dec:2:{i.px}}</i>':' <c>{i.type}</c> (p=<i>{int:{*:100:{i.p}}}%</i> s=<i>{dec:2:{i.px}}</i>)'}",
+							"pos":"{i.pos}",
+							"length":80,
+							"line":"{cmap:wheel:{i.fdx}}",
+							"fill":[50,50,50,150],
+							"id":"{i.fdx}",
+							"center":"{i.center}",
+							"size":"{i.size}",
+							"font":{"size":0.5,"align":"middle"}
+						}
+					}
+					
+				]
+			}
+		}
+	},
+
+	{
+		"type":"each",
+		"var":"untracked",
+		"do": {
+			"type":"condition",
+			"var":"{&&:{>:{i.num_pixels}:1}:{i.visible}}",
+			"then":{
+				"type":"collection",
+				"children":[
+					{
+						"type":"rect",
+						"pos":"{i.pos}",
+						"size":"{i.size}",
+						"fill":[50,50,50,30],
+						"line":[200,200,200,200],
+						"origin":[0,0]
+					},
+					{
+						"type":"condition",
+						"var":"{&&:{>:{i.num_pixels}:10}:{global.gui_show_texts}}",
+						"then":{
+							"type":"label",
+							"text":"<c><b><gray>noise</gray></b></c>{if:{equal:{global.detect_type}:background_subtraction}:' (<lightgray>s=<i><nr>{dec:2:{i.px}}</nr></i></lightgray>)':': {i.type} (p=<i>{int:{*:100:{i.p}}}%</i> s=<i>{dec:2:{i.px}}</i>)'}",
+							"pos":"{i.pos}",
+							"length":25,
+							"color":[200,200,200,255],
+							"line":[200,200,200,255],
+							"fill":[50,50,50,150],
+							"center":"{i.center}",
+							"size":"{i.size}",
+							"font":{"size":0.35,"align":"middle"}
+						}
+					}
+				]
+			},
+			"else":{ "type":"rect", "size":[0,0] }
+		}
+	},
+
+	{ 
+		"type":"gridlayout",
+		"pos":[10,10],
+		"scale":[1.0,1.0],
+		"pad":[10,10,10,10],
+		"fill":[0,0,0,150],
+		"line":[150,150,150,150],
+		"clickable":false,
+		"valign":"top",
+		"children": [[
+			{ 
+				"type":"hlayout", 
+				"pad":[0,5,-10,0],
+				"children": [
+					{ 
+						"type":"button", 
+						"text":"Stop", 
+						"action":"terminate",
+						"font":{"size":0.6},
+
+						"fill":[40,40,40,220],
+                   		"line":"{if:{||:{selected}:{hovered}}:[100,175,250,220]:[120,120,120,200]}",
+						"color":[225,225,225]
+					}
+				]
+			},
+
+			{
+				"type":"vlayout",
+				"children":[
+					{
+						"name":"desc",
+						"clickable":true,
+						"type":"stext", "text":"<sym>🗁</sym> {filename:{global.source}} <sym>◦</sym> <c><cyan>{actual_frame}</cyan>{if:{global.video_length}:'/{global.video_length}':''}{if:{equal:{video.frame}:{actual_frame}}:'':'(count = {video.frame}) '}</c>{if:{fps}:' <sym>◦</sym> <i>∅</i> <cyan><c>{int:{fps}}</c></cyan><i>fps</i>':''} <sym>◦</sym> <cyan>{num_tracked}</cyan> <i>{global.individual_prefix}s</i>", "font":{"size":0.6}, "color":[255,255,255], "shadow":0.6
+					},
+					{
+						"type":"stext", 
+						"clickable":true,
+						"text":"{at:0:{video.resolution}} <sym>×</sym>{at:1:{video.resolution}}<i>px</i> <sym>❯</sym> <sym>🎞</sym> {if:{hovered}:'<i>video:</i> ':''}<cyan><c>{.int:{sourceframe}}</c></cyan><i>fps</i> <sym>❯</sym> <sym>▣</sym> {if:{hovered}:'<i>prepare:</i> ':''}<cyan><c>{.int:{resizecvt}}</c></cyan><i>fps</i> <sym>❯</sym> {if:{global.region_model}:'<sym>🖽</sym> {global.region_resolution}<i>px</i> <sym>❯</sym> ':''}<sym>🐟 </sym>{global.detect_resolution}<i>px</i> {if:{hovered}:'<i>model:</i> ':''}<cyan><c>{.int:{net_fps}}</c></cyan><i>fps</i> <sym>❯</sym> {output_size.x}<sym>×</sym>{output_size.y}<i>px</i> <c>[<cyan>{global.meta_encoding}</cyan>]</c>{if:{global.save_raw_movie}:'\n<sym>⮩</sym> <i>save raw:</i> {shorten:{global.save_raw_movie_path}:55}':''}{if:{average_is_generating}:\n{animation} generating <c>{global.averaging_method}</c> average <cyan>{int:{*:{average_percent}:100}}</cyan><i>%</i> (<i>{if:{global.track_background_subtraction}:'for background subtraction':'just in case'}</i>)...:''}", 
+						"font":{"size":0.5}, "color":[230,230,230], "shadow":0.35
+					},
+					{
+						"type":"stext",
+						"text":"<i>tracker:</i> <c><cyan>{int:{track_fps}}</cyan></c><i>fps</i> <sym>❯</sym> <i>disk:</i> <c><cyan>{int:{write_fps}}</cyan></c><i>fps</i> <sym>❯</sym> {.+:{array_length:{inactive_ids}}:{array_length:{active_ids}}} known individuals, {.array_length:{inactive_ids}} inactive, <nr>{.array_length:{active_ids}} active</nr>",
+						"font":{"size":0.5}, "color":[230,230,230], "shadow":0.35
+					},
+					
+					{
+						"type":"condition",
+						"var":"{video_error}",
+						"then":{
+							"type":"stext",
+							"name":"video_error_text",
+							"clickable":true,
+							"click":"set_clipboard:{ffmpeg_fix}",
+							"text":"<orange><sym>⮿</sym> {video_error}</orange>",
+							"font":{"size":0.5}, "color":[230,230,230], "shadow":0.35
+						},
+						"else":{ "type":"rect", "size":[0,0] }
+					}
+				]
+			}
+		]]
+	},
+	{
+		"type":"stext",
+		"pos":"[{-:{window_size.x}:10},{-:{window_size.y}:10}]",
+		"origin":[1,1],
+		"font":{"size":0.5},
+		"clickable":true,
+		"pad":[5,5,5,5],
+		"fill":"{if:{hovered}:[0,0,0,200]:[0,0,0,100]}",
+		"none":"📤🌩🗬🗎🛈▶🛠👁🐈⮩⮞⭯⮞⭓❮←❯➯➾➲➢➝➩○◔◑◕●▷🡢⮚❵↱⮡🢤🠰🕐 🕜 🕑 🕝 🕒 🕞 🕓 🕟 🕔 🕠 🕕 🕡 🕖 🕢 🕗 🕣 🕘 🕤 🕙 🕥 🕚 🕦 🕛 🕧<sym>❯</sym>",
+
+		"text":"{if:{is_initializing}:'{animation} <c>loading</c><sym> 🞙</sym> ':{if:{equal:{global.detect_type}:yolo}:{if:{global.region_model}:<sym>🖽</sym> {global.region_resolution}<i>px</i><sym> 🞙</sym> {shorten:{filename:{global.region_model}}:{if:{hovered}:40:15}} <sym>❯</sym> :''}<sym>🐟 </sym> {global.detect_resolution}<i>px [{global.detect_format}]</i> <sym> 🞙</sym> <c>{shorten:{filename:{global.detect_model}}:{if:{hovered}:40:15}}</c> <sym>❯</sym>:'background subtraction'}} <sym>💻</sym><i>{gpu_device}</i>{if:{global.gui_is_recording}:' <str><sym>○</sym></str>':''}"
+	},
+
+	{
+		"type":"hlayout",
+		"pos":"[10,{-:{window_size.y}:10}]",
+		"origin":[0,1],
+		"children":[
+			{
+				"type":"settings",
+				"var":"",
+				"font":{"size":0.6,"align":"center"},
+				"color":[225,225,225],
+				"placeholder":"<sym>🔍</sym> Parameters",
+				"cleartext":"<sym>⮾</sym>",
+				"size":[700,40],
+				"fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,150]}",
+				"line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+				"list":{
+					"line":[220,220,220,200],
+					"fill":[25,25,25,220],
+					"size":[700,300]
+				},
+				"desc":"",
+				"highlight_clr":[75,75,75,255]
+			}
+		]
+	},
+	{
+		"type":"condition",
+		"var":"{hovered:video_error_text}",
+		"then":{
+			"type":"stext",
+			"fill":[0,0,0,180],
+			"pad":[10,5,10,5],
+			"pos":"[{mouse.x},{+:{mouse.y}:15}]",
+			"origin":[0,0],
+			"font":{"size":0.5},
+			"color":[255,255,255],
+			"max_size":[400,0],
+			"text":"You may want to fix your video file (e.g. using <c>ffmpeg</c>) and try again. <c>ffmpeg</c> is a widely used command-line tool for video processing, already installed within your current conda environment (<c><cyan>{folder:{folder:{global.python_path}}}</cyan></c>). It can also be downloaded from <c><cyan>https://ffmpeg.org/</cyan></c>.\n\nA simple way to remux your file from the terminal is:\n<c><cyan>{ffmpeg_fix}</cyan></c>\n<sym>⮩</sym> <i>click to copy to clipboard</i>\n\nThis will create a new file with the extension <c><cyan>.mp4</cyan></c> without reencoding."
+		},
+		"else":{"type":"rect", "size":[0,0]}
+	},
+	{
+		"type":"condition",
+		"var":"{hovered:desc}",
+		"then":{
+			"type":"stext",
+			"fill":[0,0,0,180],
+			"pad":[10,5,10,5],
+			"pos":"[{mouse.x},{+:{mouse.y}:15}]",
+			"origin":[0,0],
+			"font":{"size":0.5},
+			"color":[255,255,255],
+			"text":"<h4>Preview of the resulting folder structure</h4>\n{if:{||:{same_folder}:{same_parent}}:\"<sym>🗁</sym> {shorten:{folder:{global.source}}:70}{if:{not:{same_folder}}:'\n   <sym>⮡ 🎞</sym> <nr>{filename:{global.source}}</nr> <key>(source)</key>':''}\n{indent}\":\"<sym>🗁</sym> {shorten:{folder:{global.source}}:70}\n   <sym>⮡ 🎞</sym> <nr>{filename:{global.source}}</nr> <key>(source)</key>\n\"}{if:{not:{same_folder}}:'{if:{same_parent}:<sym>⮡ 🗁</sym>:<sym>🗁</sym>} {if:{same_parent}:{filename:{folder:{output_name}}} <key>(output_prefix)</key>:{folder:{output_name}}} <key>(output_dir)</key>\n':''}   {indent}<sym>⮡ 🗁</sym> {global.data_prefix} <key>(data_prefix)</key>\n     {indent}<sym>⮡ 🗎</sym> {output_base}_{global.individual_prefix}[i].npz\n     {indent}<sym>⮡ 🗎</sym> <sym>...</sym>\n   {indent}<sym>⮡ 🗎</sym> {output_base}.pv\n   {indent}<sym>⮡ 🗎</sym> {output_base}.settings\n   {indent}<sym>⮡ 🗎</sym> {output_base}.results{if:{movie_in_sub}:\n   {indent}<sym>⮡ 🗎</sym> {shorten:{{filename:{global.save_raw_movie_path}}}:55}:''}{if:{same_folder}:'\n   {indent}<sym>⮡ 🎞</sym> <nr>{filename:{global.source}}</nr> <key>(source)</key>\n':''}{if:{movie_elsewhere}:'\n<sym>🗁</sym> {folder:{global.save_raw_movie_path}}\n   <sym>⮡ 🎞</sym> {filename:{global.save_raw_movie_path}}':''}"
+		},
+		"else":{"type":"rect", "size":[0,0]}
+	},
+
+
+	{
+		"type":"condition",
+		"var":"{&&:{global.gui_show_infocard}:{global.gui_focus_group}}",
+		"then":{
+			"type":"vlayout",
+			"pos":[10,100],
+			"fill":[30,30,30,220],
+			"line":"{primary_selection.color}",
+			"pad":[5,5,5,5],
+			"clickable":true,
+			"name":"info_box",
+			"children": [
+
+				{
+					"type":"collection",
+					"children":[
+						{
+							"type":"stext",
+							"text":"<c><h4>{global.individual_prefix}_{at:0:{global.gui_focus_group}}</h4>{if:{primary_selection.bdx}:: <gray>(hidden)</gray>}</c>",
+							"pad":[10,15,5,0],
+							"font":{"size":0.6}
+						},
+						{
+							"type":"button",
+							"pos":"[{-:{infocard_width}:26},8]",
+							"text":"<sym>🗙</sym>",
+							"fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+							"line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
+							"action":"set:gui_focus_group:[]",
+							"font":{"size":0.5},
+							"size":[25,25]
+						}
+					]
+				},
+				{
+					"type":"vlayout",
+					"pad":[5,0,5,10],
+					"children":[
+						{
+							"type":"vlayout",
+							"line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+							"children":[
+								{
+									"type":"button",
+									"text":"{if:{global.gui_show_misc_metrics}:<c>some metrics </c> <sym>△</sym>:<c>some metrics </c> <sym>▼</sym>}",
+									"fill":"{if:{global.gui_show_misc_metrics}:[10,10,10,50]:[40,40,40,50]}",
+									"line":"{if:{global.gui_show_misc_metrics}:[100,100,100,50]:{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}}",
+									"color":[225,225,225],
+									"font":{"size":0.6},
+									"size":"[{infocard_width},30]",
+									"checked":"{global.gui_show_misc_metrics}",
+									"action":"set:gui_show_misc_metrics:{not:{global.gui_show_misc_metrics}}"
+								},
+								
+								{
+									"type":"condition",
+									"var": "{&&:{global.gui_show_misc_metrics}:{bool:{primary_selection.bdx}}}",
+									"then":
+									{
+										"type": "gridlayout",
+										"clickable":true,
+										"name":"infos",
+										"vertical_clr":[0,0,0,30],
+										"horizontal_clr":[10,50,80,80],
+										"halign":"left",
+										"children": [
+											[
+												{
+													"type":"collection",
+													"children":[
+														{
+															"type": "stext",
+															"max_size": "[{*:0.3:{infocard_width}},300]",
+															"pad":[5,5,5,5],
+															"font": {"size": 0.5},
+															"text": "{if:{hovered:infos}:<c>[<b>Size</b>]</c>:''}"
+														}
+													]
+												},
+												{
+													"type":"collection",
+													"children":[
+														{
+															"type":"stext",
+															"font": {"size": 0.5},
+															"max_size": "[{*:{if:{hovered:infos}:0.68:1.0}:{infocard_width}},300]",
+															"pad":[5,5,5,5],
+															"text":"<c><cyan>{primary_selection.thresholded_size}</cyan><gray>cm²/px²</gray></c>"
+														}
+													]
+												}
+											],
+											[
+												{
+													"type": "stext",
+													"max_size": "[{*:0.3:{infocard_width}}, 300]",
+													"pad":[5,5,5,5],
+													"font": {"size": 0.5},
+													"text": "{if:{hovered:infos}:<c>[<b>Pixels</b>]</c>:''}"
+												},
+												{
+													"type":"stext",
+													"font": {"size": 0.5},
+													"max_size": "[{*:{if:{hovered:infos}:0.68:1.0}:{infocard_width}}, 300]",
+													"pad":[5,5,5,5],
+													"text":"<c><cyan>{primary_selection.px}</cyan><gray>px</gray></c>"
+												}
+											],
+											[
+												{
+													"type": "stext",
+													"max_size": "[{*:0.3:{infocard_width}}, 300]",
+													"pad":[5,5,5,5],
+													"font": {"size": 0.5},
+													"text": "{if:{hovered:infos}:<c>[<b>Speed</b>]</c>:''}"
+												},
+												{
+													"type":"stext",
+													"font": {"size": 0.5},
+													"max_size": "[{*:{if:{hovered:infos}:0.68:1.0}:{infocard_width}}, 300]",
+													"pad":[5,5,5,5],
+													"text":"<c><cyan>{round:{primary_selection.speed}:3}</cyan><gray>cm/s</gray></c>"
+												}
+											],
+											[
+												{
+													"type": "stext",
+													"max_size": "[{*:0.3:{infocard_width}}, 300]",
+													"pad":[5,5,5,5],
+													"font": {"size": 0.5},
+													"text": "{if:{hovered:infos}:<c>[<b>NearN</b>]</c>:''}"
+												},
+												{
+													"type":"stext",
+													"font": {"size": 0.5},
+													"max_size": "[{*:{if:{hovered:infos}:0.68:1.0}:{infocard_width}}, 300]",
+													"pad":[5,5,5,5],
+													"text":"<c>{if:{primary_selection.has_neighbor}:'<lightgray>{global.individual_prefix}_{primary_selection.nearest_neighbor}</lightgray> (<cyan>{round:{primary_selection.nearest_neighbor_distance}:3}</cyan>cm)':'<gray>[no neighbors]</gray>'}</c>"
+												}
+											]
+										]
+									}
+								}
+							]
+						},
+
+						{
+							"type":"vlayout",
+							"line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+							"children":[
+								{
+									"type":"button",
+									"text":"<c>image settings</c> {if:{global.gui_show_individual_preview}:<sym>△</sym>:<sym>▼</sym>}",
+									"fill":"{if:{global.gui_show_individual_preview}:[10,10,10,50]:[40,40,40,50]}",
+									"line":"{if:{global.gui_show_individual_preview}:[100,100,100,50]:{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}}",
+									"color":[225,225,225],
+									"font":{"size":0.6},
+									"size":"[{infocard_width},30]",
+									"checked":"{global.gui_show_individual_preview}",
+									"action":"set:gui_show_individual_preview:{not:{global.gui_show_individual_preview}}"
+								},
+								
+								{
+									"type":"condition",
+									"var": "{&&:{global.gui_show_individual_preview}:{bool:{primary_selection.bdx}}}",
+									"then":
+									{
+										"type":"vlayout",
+										"children":[
+											{
+												"type":"preview",
+												"fdx":"{primary_selection.fdx}",
+												"clickable":true,
+												"fill":"{if:{||:{selected}:{hovered}}:[20,20,20,200]:[10,10,10,200]}",
+												"line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,175,200,50]}",
+												"scale":"{divVector:[{infocard_width},{infocard_width}]:{global.individual_image_size}}"
+											},
+											{
+												"type":"stext",
+												"text":"<c><gray>used for visual ident / tracklets</gray></c>",
+												"pad":[5,2,5,0],
+												"font":{"size":0.4}
+											},
+											{
+												"type":"rect",
+												"size":[0,5]
+											}
+										]
+									}
+								},
+								{
+									"type":"condition",
+									"var": "{&&:{global.gui_show_individual_preview}:{||:{hovered:info_box}:{selected:info_box}}}",
+									"then":{
+										"type":"vlayout",
+										"pad":[0,5,0,0],
+										"children":[
+											{
+												"type":"hlayout",
+												"children":[
+													{
+														"type":"settings",
+														"fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+														"line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
+														"size":"[{*:0.5:{infocard_width}}, 30]",
+														"var":"individual_image_size",
+														"font":{"size":0.5},
+														"desc":""
+													},
+													{
+														"type":"settings",
+														"fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+														"line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
+														"size":"[{*:0.5:{infocard_width}}, 30]",
+														"var":"individual_image_scale",
+														"font":{"size":0.5},
+														"desc":""
+													}
+												]
+											},
+											{
+												"type":"hlayout",
+												"children":[
+													{
+														"type":"settings",
+														"fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+														"line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
+														"size":"[{*:0.5:{infocard_width}}, 30]",
+														"list":{
+															"font":{"size":0.5}
+														}, 
+														"label":{
+															"fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+															"line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
+															"font":{"size":0.5}
+														},
+														"var":"individual_image_normalization",
+														"font":{"size":0.5},
+														"desc":""
+													},
+													{
+														"type":"settings",
+														"fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+														"line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
+														"size":"[{*:0.5:{infocard_width}}, 30]",
+														"list":{
+															"font":{"size":0.5}
+														},
+														"label":{
+															"fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+															"line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
+															"font":{"size":0.5}
+														},
+														"var":"meta_encoding",
+														"font":{"size":0.5},
+														"desc":""
+													}
+												]
+											},
+											{
+												"type":"button",
+												"text":"<sym>🖵</sym> {if:{global.track_background_subtraction}:Subtract Background:<gray>Subtract Background</gray>}",
+												"action":"set:track_background_subtraction:{not:{global.track_background_subtraction}}",
+												"checked":"{global.track_background_subtraction}",
+												"fill":"{if:{global.track_background_subtraction}:[10,10,10,220]:[40,40,40,220]}",
+												"line":[100,100,100,100],
+												"color":[225,225,225],
+												"font":{"size":0.5},
+												"size":"[{infocard_width}, 30]"
+											}
+										]
+									}
+								}
+							]
+						},
+
+						{
+							"type":"vlayout",
+							"pad":[0,0,0,0],
+							"line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+							"children":[
+								{
+									"type":"button",
+									"text":"{if:{global.gui_show_matching_info}:<c>matching info</c> <sym>△</sym>:<c>matching info</c> <sym>▼</sym>}",
+									"fill":"{if:{global.gui_show_matching_info}:[10,10,10,50]:[40,40,40,50]}",
+									"line":"{if:{global.gui_show_matching_info}:[100,100,100,50]:{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}}",
+									"color":[225,225,225],
+									"name":"matching_info",
+									"font":{"size":0.6},
+									"size":"[{infocard_width},30]",
+									"checked":"{global.gui_show_matching_info}",
+									"action":"set:gui_show_matching_info:{not:{global.gui_show_matching_info}}"
+								},
+								{
+									"type":"condition",
+									"var":"{global.gui_show_matching_info}",
+									"then": {
+										"type":"condition",
+										"var":"{primary_selection.ps}",
+										"else":{
+											"type":"stext",
+											"pad":[0,5,0,10],
+											"font":{"size":0.5,"style":"mono"},
+											"text":" <gray><sym>⮩</sym></gray> <c><gray>[empty]</gray></c>"
+										},
+										"then": {
+											"type":"vlayout",
+											"pad":[0,5,0,0],
+											"children":[
+												{
+													"type":"each",
+													"var":"{primary_selection.ps}",
+													"do":{
+														"type":"stext",
+														"font":{"size":0.5,"style":"mono"},
+														"max_size":"[{infocard_width}, 0]",
+														"text":" {if:{equal:{index}:0}:<gray><sym>⮩</sym></gray> :'<small>   </small>'}bdx[<lightgray>{round:{at:0:{i}}:2}</lightgray>]: <cyan>{round:{at:1:{i}}:2}</cyan>{if:{global.gui_show_detailed_probabilities}:' t=<cyan>{round:{at:2:{i}}:2}</cyan>':''}"
+													}
+												},
+												{
+													"type":"rect",
+													"size":[0,5]
+												}
+											]
+										}
+									}
+								}
+							]
+						}
+					]
+				}
+			]
+		}
+	},
+	
+	{
+		"type":"condition",
+		"var":"{&&:{average_is_generating}:{equal:{global.detect_type}:background_subtraction}}",
+		"then":{
+			"type":"stext",
+			"fill":[0,0,0,180],
+			"pad":[10,5,10,5],
+			"pos":"{mulVector:{window_size}:0.5}",
+			"origin":[0.5,0.5],
+			"font":{"size":0.6},
+			"color":[255,255,255],
+			"max_size":[400,0],
+			"text":"A background image for your video is currently being generated in the background ({animation2} <i><cyan>{int:{*:100:{average_percent}}}</cyan>%</i>).\n\n<i>This is a slow process and may take a while - since it is used for <key>detect_type</key>&lt;<cyan>{global.detect_type}</cyan>&gt;, we will have to wait for it to be finished before we can start tracking.</i>"
+		}
+	}
+]}

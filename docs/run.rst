@@ -4,27 +4,37 @@
    :maxdepth: 2
 
 
-Usage basics
-============
+Basic Command-line Usage
+========================
 
-|trex| is usually launched from the command-line (with or without parameters), which will show a file opening dialog. There is the possibility of starting it directly using a desktop short-cut (or double-clicking the executable itself), but this requires either a manual compile or changes to your environment variables (see :ref:`run-by-clicking`). Its younger sibling, |grabs|, also offers a graphical user interface, but can only be started from the terminal at the moment (we will be working on changing that, and also potentially integrating it completely with |trex|). The following sections address the issue of directly providing parameters using the command-line for both softwares (e.g. in a batch processing, or generally a more command-line affine use-case). Any additional number of parameters can be passed to both |grabs| and |trex| as::
+|trex| is usually launched from the command-line (with or without parameters), which will show a file opening dialog by default.
+
+You probably *should* get familiar with the graphical user-interface of |trex| as well - for example, it makes it easy to detect trouble with parameter values immediately and gives you feedback after changing tracking parameters that you wouldn't get on the command-line. To see how that works, and for some additional detail on the general principles, have a look at :doc:`tutorials`.
+
+The following sections, however, address directly providing parameters using the command-line (e.g. in a batch processing, or generally a more command-line affine use-case). Any additional number of parameters can be passed to |trex| as::
 
 	trex [...] -PARAMETER VALUE
 
-For example, in order to set the number of individuals to 5 and prefix all individuals names/files with "termite" instead of "fish", just change the values of ``track_max_individuals`` and ``individual_prefix`` when launching the application like so (we are also opening a file called "example" and use a different settings file)::
+For example, in order to set the number of individuals to 5 and prefix all individuals names/files with "termite" instead of "fish", just change the values of ``track_max_individuals`` and ``individual_prefix`` when launching the application like so (we are also opening a file called "example.mp4" and use a specific settings file)::
 
-	trex -i example -s tmp.settings -track_max_individuals 5 -individual_prefix "termite"
+	trex -i example.mp4 -s tmp.settings -track_max_individuals 5 -individual_prefix "termite"
 
-A full reference of available parameters for |grabs| can be found at :doc:`parameters_tgrabs`, and for |trex| at :doc:`parameters_trex`.
+If you've never run the program before on that specific video file, it'll first convert the mp4 file to a pv file and save an ``example.settings`` file. Conversion might take a bit - especially if its a particularly long video. Next time, however, it will open any existing pv files in tracking mode directly - if you want to generate the pv file again, you'd have to add force the task to ``convert`` like this::
 
-If you're launching |trex| by double-clicking it (or using voice commands), most parameters (except system-variables) can be adjusted after loading a video.
+	trex -i example.mp4 [...] -task convert
 
-This page is a reference for some commonly used parameters of our software. Some common real-life usage examples can be found at :doc:`examples`.
+This will overwrite an existing ``example.pv`` (and ``example.settings``) file in that same folder.
+
+Most parameters (except system-variables) can be adjusted after loading a video. A full reference of them is at :doc:`parameters_trex`.
+
+.. NOTE::
+
+	There is the possibility of starting it directly using a desktop short-cut (or double-clicking the executable itself), but this requires either a manual compile or changes to your environment variables (see :ref:`run-by-clicking`) which are not officially supported at the moment. 
 
 Basic principles & Good practices
 ---------------------------------
 
-Both |grabs| and |trex| offer many parameters that can be set by users. However, that does not mean that all parameters have to be considered in all cases. In fact, most of them will already be set to reasonable values that work in many situations:
+|trex| offers many parameters that can be set by users. However, that does not mean that all parameters have to be considered in all cases. In fact, most of them will already be set to reasonable values that work in many situations:
 
 	*If there is no problem, do not change parameters.*
 	
@@ -34,77 +44,19 @@ Parameters are either changed directly as part of the command-line (using ``-PAR
 
 Command-line parameters always override settings files.
 
-If you know the number of individuals, specify before you do the tracking (using the parameter ``track_max_individuals``).
+If you know the number of individuals, specify before you do the tracking (using the parameter :param:`track_max_individuals`).
 
-When converting videos, :func:`meta_real_width` should always be specified unless you do not know the real-world dimensions of what you see. If not set, then all values will be in fictional units (``meta_real_width`` defaults to 30). This sets the :func:`cm_per_pixel` parameter for the current video to ``meta_real_width / video-width``. However, in newer versions you can set ``cm_per_pixel`` within the |trex| GUI. Simply click into an empty spot of the arena, hold CTRL/⌘ and click somewhere else: a button will pop up to define the selected length as a specific real-world length. See here: `changing the cm to px conversion factor <https://trex.run/docs/gui.html#changing-the-cm-px-conversion-factor>`_.
-
-Consecutive segments
---------------------
-
-Tracking in |trex| heavily relies on consecutively tracked trajectory pieces. These are often called "segments" or "consecutive segments" here. You can find them in |trex| by selecting an individual and looking at the top-left info card. There it should display frame numbers - with the current frame marked with a line. This moves up when the displayed range of frames (e.g. 1234-1300, or 1234 for a single frame) no longer contains the frame currently viewed in |trex|.
-
-These segments usually end in these situations:
-
-	- the individual cannot be found in a frame (e.g. because it has moved farther than :func:`track_max_speed`)
-	- the individual has not moved too far, but close to too far (90% of ``track_max_speed``)
-	- multiple individuals were expected in the vicinity of too few objects and cannot be separated via thresholding, so it'd rather not track anything to be sure (e.g. when individuals overlap)
-	- is has actually disappeared
-
-If these segments end in other situations, then there is a good chance that some parameters need to be changed. See :ref:`parameter-order` for more information.
+When converting videos, :param:`cm_per_pixel` should always be set to provide a valid conversion factor between pixels and real-world coordinates. By default, it's set to ``1`` - meaning there's no conversion and all units (even if it says they are ``cm``) are in pixels. You can set ``cm_per_pixel`` within the |trex| GUI, either in the initial settings dialog (under "tracking" > "calibrate") or in the tracking view. There, simply CTRL/⌘ + click into an empty spot of the arena. Hold CTRL/⌘ and click somewhere else: a button will pop up to define the selected length as a specific real-world length. See here: `changing the cm to px conversion factor <https://trex.run/docs/gui.html#changing-the-cm-px-conversion-factor>`_.
 
 Using settings files
 --------------------
 
-[TODO] But basically the format is::
+The format is::
 
 	parameter_name = value
 	parameter2 = value2
 
-If you save this as videoname.settings in your output directory (e.g. ``~/Videos`` by default), |trex| will load these settings before any command-line parameters. Command-line, however, always overwrites .settings files.
-
-Running TGrabs
---------------
-
-Running |grabs| usually involves the following parameters::
-
-	tgrabs -i [SOURCE] -o [DESTINATION] [ADDITIONAL]
-
-**Source** can be any of the following:
-
-* **basler**: A Basler camera. This can be followed up by :code:`-cam_serial_number [SERIAL]` if multiple cameras are attached.
-* **webcam**: A generic webcam, e.g. attached via USB or integrated into the computer.
-* **files**: Path to a video file, or an array of video files like :code:`-i [FILE1,FILE2,...,FILEN]` which are going to be concatenated in the order they appear.
-* **pattern**: A patterned path to where the video file is located. This could be, e.g. :code:`-i /path/to/video/%6d.mp4` to indicate that the video-files are named :code:`000000.mp4` to any number :code:`XXXXXX.mp4`. If the video starts at a number higher than zero, one can attach :code:`-i /path/to/video/%6.S.E.mp4` to indicate start (:code:`S`) and end (:code:`E`) indexes.
-* **interactive**: Is a test environment, generating a number of individuals based on the tracking parameter :code:`track_max_individuals` and a set :code:`frame_rate` (:code:`25` by default).
-
-**Destination** is expected to be either a full path, or the name of the video (without extension). This will save a :code:`DESTINATION.pv` video file in the :code:`~/Videos/` folder.
-
-**Additional** can be any number of parameters -- be it for tracking or image processing. A full reference of available parameters for |grabs| can be found at :doc:`parameters_tgrabs`.
-
-If multiple files match the **pattern**, then they will be concatenated into one long video. This can be useful for videos that have been split into many small parts, or just a convenient way of e.g. training visual identification on multiple videos of the same individuals.
-
-If there are ``[XXXXX].npz`` files (named exactly like the video files but with a different extension) in the video folder, then |grabs| will attempt to use them for frame-timestamps. The format of these files is expected to be::
-
-	- 'frame_time': an array of N doubles for all N frames in the video segment
-	- 'imgshape': a tuple of integers (width, height) of the video
-	
-Other useful options are::
-
-	- 'meta_real_width': The width of what is seen in the video in cms. This is used to convert px -> cm internally, and is saved as meta information inside the .pv file.
-	- 'meta_species': Species (meta-information, entirely optional)
-
-See also: :func:`meta_real_width`.
-
-Running TRex
-------------
-
-The tracker only expects an input file::
-
-	trex -i [VIDEONAME]
-
-``VIDEONAME`` is either a full path to the video file, or the name of a video file in the default output folder (``~/Videos`` by default). This will open |trex| with all settings set to default, except if there is a ``[VIDEONAME].settings`` file present next to the video file or in the default output folder.
-
-Just like with |grabs|, you can attach any number of additional parameters to the command-line, simply using ``-PARAMETER VALUE`` (see :doc:`parameters_trex`).
+If you save this as ``videoname.settings`` in your output directory (e.g. by default the same folder as your input video), |trex| will load these settings before loading any command-line parameters. Command-line, however, always overwrites anything loaded from ``.settings`` files.
 
 .. _parameter-order:
 
@@ -113,26 +65,26 @@ Setting parameters in the correct order
 
 Preferably set parameters in this order (with the goal to only match those objects that are your objects of interest, and exclude the ones that you do not want to track):
 
-	- :func:`cm_per_pixel` (in .settings files, command-line or in |trex|) / :func:`meta_real_width` (during conversion)
-	- :func:`track_threshold`
-	- :func:`blob_size_ranges`
+	- :param:`cm_per_pixel` (in .settings files, command-line or in |trex|)
+	- :param:`track_threshold`
+	- :param:`track_size_filter`
 
-Now all objects of interest should have a cyan number next to them in RAW view (pressing ``D`` in tracking view switches to RAW and vice-versa). More "optional" parameters like can now be set in order to maximize the length of consecutive segments:
+Now all objects of interest should have a cyan number next to them in RAW view (pressing ``D`` in tracking view switches to RAW and vice-versa). More "optional" parameters like can now be set in order to maximize the length of tracklets:
 
-	- :func:`track_max_speed`
-	- :func:`track_max_reassign_time`
-	- :func:`track_posture_threshold`
-	- :func:`outline_resample`
-	- :func:`outline_curvature_range_ratio`
+	- :param:`track_max_speed`
+	- :param:`track_max_reassign_time`
+	- :param:`track_posture_threshold`
+	- :param:`outline_resample`
+	- :param:`outline_curvature_range_ratio`
 
 Other command-line tools
 ------------------------
 
 Another tool is included, called ``pvinfo``, which can be used programmatically (e.g. in jupyter notebooks) to retrieve information about converted videos and the settings used to track them::
 
-	$ pvinfo -i <VIDEO> -print_parameters [analysis_range,video_size] -quiet
+	$ pvinfo -i <VIDEO> -print_parameters [analysis_range,meta_video_size] -quiet
 	analysis_range = [1000,50000]
-	video_size = [3712,3712]
+	meta_video_size = [3712,3712]
 	
 If no settings (apart from ``-i <pv-videopath>``) are provided, it displays some information on the PV file::
 

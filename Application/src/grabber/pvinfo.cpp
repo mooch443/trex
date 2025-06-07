@@ -1,3 +1,4 @@
+#include <commons.pc.h>
 #include <pv.h>
 #include <iomanip>
 #include <misc/CommandLine.h>
@@ -10,10 +11,12 @@
 #include <tracker/misc/default_config.h>
 #include <processing/CPULabeling.h>
 #include "pvinfo_merge.h"
-#include <misc/Output.h>
+#include <tracking/Output.h>
 #include <gui/IdentityHeatmap.h>
 #include <opencv2/core/utils/logger.hpp>
 #include <misc/ocl.h>
+#include <file/DataLocation.h>
+#include <misc/parse_parameter_lists.h>
 
 using namespace cmn;
 
@@ -22,150 +25,131 @@ ENUM_CLASS(Arguments,
 
 ENUM_CLASS(parameter_format_t, settings, minimal)
 
+// Handles the opencv_ffmpeg_support case
+int handle_opencv_ffmpeg_support() {
+    std::string build_info = cv::getBuildInformation();
+    std::string line = "";
+    Print(build_info.c_str());
+
+    for (size_t i = 0; i < build_info.length(); ++i) {
+        if (build_info[i] == '\n') {
+            if (utils::contains(line, "FFMPEG:")) {
+                if (utils::contains(line, "YES")) {
+                    Print("Has FFMPEG support.");
+                    return 0;
+                } else {
+                    Print("Does not have FFMPEG support.");
+                }
+            }
+
+            line = "";
+        }
+
+        line += build_info[i];
+    }
+
+    return 1;
+}
+
+// Handles the opencv_opencl_support case
+int handle_opencv_opencl_support() {
+    std::string build_info = cv::getBuildInformation();
+    std::string line = "";
+    Print(build_info.c_str());
+
+    for (size_t i = 0; i < build_info.length(); ++i) {
+        if (build_info[i] == '\n') {
+            if (utils::contains(line, "OpenCL:")) {
+                if (utils::contains(line, "YES")) {
+                    Print("Has OpenCL support.");
+                    return 0;
+                } else {
+                    Print("Does not have OpenCL support.");
+                }
+            }
+
+            line = "";
+        }
+
+        line += build_info[i];
+    }
+
+    return 1;
+}
+
+void parse_input(const cmn::CommandLine::Option& option) {
+    if(not option.value) {
+        FormatWarning("Empty input file has been given.");
+        return;
+    }
+    file::Path path = file::DataLocation::parse("input", file::Path(*option.value));
+
+    if (utils::contains(*option.value, '*')) {
+        std::set<file::Path> found;
+
+        std::regex pattern(utils::find_replace(*option.value, "*", ".*"));
+        file::Path folder = file::DataLocation::parse("input", file::Path(*option.value).remove_filename());
+        Print("Scanning pattern ", option.value, " in folder ", folder.str(), "...");
+
+        for (auto &file : folder.find_files("pv")) {
+            if (!file.is_regular()) {
+                continue;
+            }
+
+            auto filename = (std::string) file.filename();
+
+            if (std::regex_match(filename, pattern)) {
+                found.insert(file);
+            }
+        }
+
+        if (found.size() == 1) {
+            path = file::DataLocation::parse("input", *found.begin());
+
+        } else if (found.size() > 1) {
+            Print("Found too many files matching the pattern ", option.value, ": ", found, ".");
+        } else {
+            Print("No files found that match the pattern ", option.value, ".");
+        }
+    }
+    
+    if(path.has_extension("results")) {
+        SETTING(is_video) = false;
+        SETTING(filename) = path;
+        
+        if(path.exists()) {
+            SETTING(filename) = path.remove_extension();
+            return;
+        } else
+            throw U_EXCEPTION("Cannot find results file ",path,".");
+    }
+    
+    if(!path.has_extension() || path.extension() != "pv")
+        path = path.add_extension("pv");
+    
+    if(!path.exists())
+        throw U_EXCEPTION("Cannot find video file ",path,". (",path.exists(),")");
+    
+    SETTING(filename) = path.remove_extension();
+}
+
 int main(int argc, char**argv) {
 #ifdef NDEBUG
     cv::utils::logging::setLogLevel(cv::utils::logging::LogLevel::LOG_LEVEL_ERROR);
 #endif
     set_runtime_quiet(true);
     
+    const char* locale = "C";
+    std::locale::global(std::locale(locale));
+    
 #ifndef NDEBUG
     auto OS_ACTIVITY_DT_MODE = getenv("OS_ACTIVITY_DT_MODE");
     if(OS_ACTIVITY_DT_MODE) {
-        print("OS_ACTIVITY_DT_MODE: ", OS_ACTIVITY_DT_MODE);
+        Print("OS_ACTIVITY_DT_MODE: ", OS_ACTIVITY_DT_MODE);
     }
 #endif
     //SETTING(quiet) = true;
-    default_config::register_default_locations();
-    
-    /*GenericThreadPool pool(cmn::hardware_concurrency());
-    gui::heatmap::Grid grid;
-    grid.create(Size2(4096, 4096));
-    
-    std::vector<gui::heatmap::DataPoint> points;
-    size_t step_x = (grid.root()->x().length()-1); // 1000;
-    size_t step_y = (grid.root()->y().length()-1); // 1000;
-    
-    print("Step: ", step_x," ",step_y);
-    for(size_t i=0; i<1000000; ++i) {
-        points.push_back({
-            //long_t(float(rand())/float(RAND_MAX) * 20000),
-            long_t(i % 20000),
-            uint32_t(i % step_x),
-            uint32_t(uint32_t(i * 0.005) % step_y),
-            //uint32_t(float(rand())/float(RAND_MAX) * (grid.root()->x().length()-1)),
-            //uint32_t(float(rand())/float(RAND_MAX) * (grid.root()->y().length()-1)),
-            double(float(rand())/float(RAND_MAX) * 150+300)
-        });
-    }
-    
-    std::vector<gui::heatmap::DataPoint> extra_points;
-    for (size_t i=0; i<10000; ++i) {
-        extra_points.push_back({
-            long_t(21000),
-            uint32_t(i % step_x),
-            uint32_t(uint32_t(i * 0.005) % step_y),
-            double(float(rand())/float(RAND_MAX) * 150+300)
-        });
-    }
-    
-    print("Adding ", points.size()," data points.");
-    
-    for(size_t k = 0; k < 1000; ++k) {
-        DebugHeader("RUN %d", k);
-        grid.clear();
-        
-        Timer timer;
-        grid.fill(points);
-        print("Took ", timer.elapsed() * 1000,"ms to fill.");
-        
-        timer.reset();
-        
-        double average = 0;
-        size_t counted = 0;
-        grid.root()->apply([&counted, &average](auto& pt) -> bool {
-            average += pt.value;
-            ++counted;
-            return true;
-        });
-        
-        print("Took ", timer.elapsed() * 1000,"ms to traverse (returned ", counted," datapoints, ",average / double(counted)," average).");
-        
-        counted = 0;
-        average = 0;
-        Range<long_t> range(150, 1000);
-        
-        timer.reset();
-        grid.root()->apply([&counted, &average](auto& pt) -> bool {
-            average += pt.value;
-            ++counted;
-            return true;
-        }, range, Range<uint32_t>(0, 150), Range<uint32_t>(150, 300));
-        
-        print("Took ",timer.elapsed() * 1000,"ms to traverse ",counted," datapoints for frame range ",range.start,"-",range.end," and 150px ranges (average: ",average / double(counted),")");
-        
-        counted = 0;
-        average = 0;
-        
-        timer.reset();
-        grid.root()->apply([&counted, &average](auto& pt) -> bool {
-            average += pt.value;
-            ++counted;
-            return true;
-        }, range);
-        
-        print("Took ",timer.elapsed() * 1000,"ms to traverse ",counted," datapoints for frame range ",range.start,"-",range.end," (average: ",average / double(counted),")");
-        
-        uint32_t resolution = 15;
-        uint32_t step_size = uint32_t(double(grid.root()->x().length() + 0.5) / double(resolution));
-        
-        std::atomic<size_t> counter = 0;
-        //std::vector<std::tuple<uint32_t, uint32_t>> cells;
-        for(uint32_t cx = 0; cx < resolution; ++cx) {
-            for(uint32_t cy = 0; cy < resolution; ++cy) {
-                pool.enqueue([&counter, &range, step_size, &grid](uint32_t cx, uint32_t cy){
-                    grid.root()->apply([&](auto& pt) -> bool {
-                        //average += pt.value;
-                        ++counter;
-                        return true;
-                    }, range,
-                       Range<uint32_t>(cx * step_size, (cx+1) * step_size),
-                       Range<uint32_t>(cy * step_size, (cy+1) * step_size));
-                }, cx, cy);
-                
-                //cells.push_back(std::make_tuple(uint32_t(cx * step_size), uint32_t(cy * step_size)));
-            }
-        }
-        
-        pool.wait();
-        
-        print("Took ",timer.elapsed() * 1000,"ms to traverse ",counted," datapoints for frame range ",range.start,"-",range.end," (average: ",average / double(counted),") as cells");
-        
-        timer.reset();
-        auto removed = grid.erase(Range<long_t>(100,125));
-        print("Removing ", removed," items took ", timer.elapsed() * 1000,"ms (grid now has ",grid.size()," points)");
-        
-        timer.reset();
-        grid.fill(extra_points);
-        print("Inserting ", extra_points.size()," extra points took ", timer.elapsed() * 1000,"ms (grid now has ",grid.size()," points)");
-        //auto str = Meta::toStr(cells);
-        
-        counted = 0;
-        average = 0;
-        
-        timer.reset();
-        grid.root()->apply([&counted, &average](auto& pt) -> bool {
-            average += pt.value;
-            ++counted;
-            return true;
-        }, Range<long_t>(20500,22000));
-        
-        print("Took ", timer.elapsed() * 1000,"ms to traverse ", counted," datapoints for frame range 20500-22000 (average: ",average / double(counted),")");
-        
-        removed = grid.erase(Range<long_t>(21000,21001));
-        print("Removing ", removed," items took ", timer.elapsed() * 1000,"ms (grid now has ",grid.size()," points)");
-    }
-    
-    exit(0);*/
+    ::default_config::register_default_locations();
     
     if(argc < 2)
         throw U_EXCEPTION("Please specify a filename.");
@@ -189,197 +173,94 @@ int main(int argc, char**argv) {
     SETTING(quiet) = false;
     
     //DebugHeader("LOADING DEFAULT SETTINGS");
+    grab::default_config::get(GlobalSettings::map(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
     default_config::get(GlobalSettings::map(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
     default_config::get(GlobalSettings::set_defaults(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
     
-    SETTING(recognition_enable) = false;
-    GlobalSettings::set_access_level("recognition_enable", AccessLevelType::SYSTEM);
+    CommandLine::init(argc, argv, true);
+    auto &cmd = CommandLine::instance();
+    file::cd(file::DataLocation::parse("app"));
     
-    CommandLine cmd(argc, argv, true);
-    cmd.cd_home();
-    
-    std::vector<std::pair<std::string, std::string>> updated_settings;
+    std::map<std::string, std::string> updated_settings;
     std::vector<std::string> remove_settings;
     
     bool fix = false, repair_index = false, save_background = false;
     bool be_quiet = false, print_plain = false, heatmap = false, auto_param = false;
 
     cmd.load_settings();
-    be_quiet = SETTING(quiet).value<bool>();
+    be_quiet = GlobalSettings::is_runtime_quiet();
     set_runtime_quiet(be_quiet);
     
-#if !defined(__APPLE__) && defined(TREX_CONDA_PACKAGE_INSTALL)
-    auto conda_prefix = ::default_config::conda_environment_path().str();
-    if(!conda_prefix.empty()) {
-        file::Path _wd(conda_prefix);
-        _wd = _wd / "usr" / "share" / "trex";
-        
-#if defined(WIN32)
-        if (!SetCurrentDirectoryA(_wd.c_str()))
-#else
-        if (chdir(_wd.c_str()))
-#endif
-            FormatExcept("Cannot change directory to ",_wd.str(),"");
-    }
-#endif
-    
-    if(file::Path("default.settings").exists()) {
-        //DebugHeader("LOADING FROM 'default.settings'");
-        default_config::warn_deprecated("default.settings", GlobalSettings::load_from_file(default_config::deprecations(), "default.settings", AccessLevelType::STARTUP));
-        //DebugHeader("LOADED 'default.settings'");
+    auto default_path = file::DataLocation::parse("default.settings");
+    if(default_path.exists()) {
+        DebugHeader("LOADING FROM ",default_path);
+        default_config::warn_deprecated(default_path, GlobalSettings::load_from_file(default_config::deprecations(), default_path.str(), AccessLevelType::STARTUP));
+        DebugHeader("LOADED ",default_path);
     }
     
-    //const char *command = NULL, *value = NULL;
-    size_t i=0;
+    if(argc == 2) {
+        try {
+            parse_input(CommandLine::Option{
+                .name = "input",
+                .value = argv[1]
+            });
+        } catch(...) {
+            /// ignore errors
+        }
+    } else if(argc > 2) {
+        if(file::Path(argv[1]).exists()) {
+            parse_input(CommandLine::Option{
+                .name = "input",
+                .value = argv[1]
+            });
+        }
+    }
+    
     for(auto &option : cmd) {
         if(Arguments::has(option.name)) {
             switch (Arguments::get(option.name)) {
                 case Arguments::display_average:
                     SETTING(display_average) = true;
                     break;
-                case Arguments::opencv_ffmpeg_support: {
-                    std::string str = cv::getBuildInformation();
-                    std::string line = "";
-                    print(str.c_str());
+                case Arguments::opencv_ffmpeg_support:
+                    return handle_opencv_ffmpeg_support();
                     
-                    for(size_t i=0; i<str.length(); ++i) {
-                        if(str[i] == '\n') {
-                            if(utils::contains(line, "FFMPEG:")) {
-                                if(utils::contains(line, "YES")) {
-                                    print("Has FFMPEG support.");
-                                    return 0;
-                                } else {
-                                    print("Does not have FFMPEG support.");
-                                }
-                            }
-                            
-                            line = "";
-                        }
-                        
-                        line += str[i];
-                    }
-                    
-                    return 1;
-                }
-                    
-                case Arguments::opencv_opencl_support: {
-                    std::string str = cv::getBuildInformation();
-                    std::string line = "";
-                    print(str.c_str());
-                    
-                    for(size_t i=0; i<str.length(); ++i) {
-                        if(str[i] == '\n') {
-                            if(utils::contains(line, "OpenCL:")) {
-                                if(utils::contains(line, "YES")) {
-                                    print("Has OpenCL support.");
-                                    return 0;
-                                } else {
-                                    print("Does not have OpenCL support.");
-                                }
-                            }
-                            
-                            line = "";
-                        }
-                        
-                        line += str[i];
-                    }
-                    
-                    return 1;
-                }
+                case Arguments::opencv_opencl_support:
+                    return handle_opencv_opencl_support();
                     
                 case Arguments::i:
                 case Arguments::input: {
-                    file::Path path = pv::DataLocation::parse("input", file::Path(option.value));
-                    
-                    if(utils::contains(option.value, '*')) {
-                        std::set<file::Path> found;
-                        
-                        auto parts = utils::split(option.value, '*');
-                        file::Path folder = pv::DataLocation::parse("input", file::Path(option.value).remove_filename());
-                        print("Scanning pattern ",option.value," in folder ",folder.str(),"...");
-                        
-                        for(auto &file: folder.find_files("pv")) {
-                            if(!file.is_regular())
-                                continue;
-                            
-                            auto filename = (std::string)file.filename();
-                            
-                            bool all_contained = true;
-                            size_t offset = 0;
-                            
-                            for(size_t i=0; i<parts.size(); ++i) {
-                                auto & part = parts.at(i);
-                                if(part.empty()) {
-                                    continue;
-                                }
-                                
-                                auto index = filename.find(part, offset);
-                                if(index == std::string::npos
-                                   || (i == 0 && index > 0))
-                                {
-                                    all_contained = false;
-                                    break;
-                                }
-                                
-                                offset = index + part.length();
-                            }
-                            
-                            if(all_contained) {
-                                found.insert(file);
-                            }
-                        }
-                        
-                        if(found.size() == 1) {
-                            path = pv::DataLocation::parse("input", *found.begin());
-                            
-                        } else if(found.size() > 1) {
-                            print("Found too many files matching the pattern ",option.value,": ",found,".");
-                        } else
-                            print("No files found that match the pattern ", option.value,".");
-                    }
-                    
-                    if(path.has_extension()) {
-                        if(path.extension() == "results") {
-                            SETTING(is_video) = false;
-                            SETTING(filename) = path;
-                            
-                            if(path.exists()) {
-                                SETTING(filename) = path.remove_extension();
-                                break;
-                            } else
-                                throw U_EXCEPTION("Cannot find results file ",path,".");
-                        }
-                    }
-                    
-                    if(!path.has_extension() || path.extension() != "pv")
-                        path = path.add_extension("pv");
-                    
-                    if(!path.exists())
-                        throw U_EXCEPTION("Cannot find video file ",path,". (",path.exists(),")");
-                    
-                    SETTING(filename) = path.remove_extension();
+                    parse_input(option);
                     break;
                 }
                     
                 case Arguments::md:
-                    SETTING(merge_dir) = file::Path(option.value);
+                    if(option.value)
+                        SETTING(merge_dir) = file::Path(*option.value);
                     break;
                     
                 case Arguments::d:
                 case Arguments::dir:
-                    SETTING(output_dir) = file::Path(option.value);
+                    if(option.value)
+                        SETTING(output_dir) = file::Path(*option.value);
                     break;
                     
                 case Arguments::p:
-                    SETTING(output_prefix) = std::string(option.value);
+                    if(option.value)
+                        SETTING(output_prefix) = std::string(*option.value);
                     break;
                     
                 case Arguments::remove:
-                    remove_settings.push_back(option.value);
+                    if(option.value)
+                        remove_settings.push_back(*option.value);
                     break;
                     
                 case Arguments::quiet:
-                    be_quiet = std::string(option.value).empty() ? true : Meta::fromStr<bool>(option.value);
+                    if(option.value)
+                        be_quiet = Meta::fromStr<bool>(*option.value);
+                    else
+                        be_quiet = true;
+                    
                     SETTING(quiet) = be_quiet;
                     break;
                     
@@ -387,7 +268,8 @@ int main(int argc, char**argv) {
                     print_plain = true;
                     break;
                 case Arguments::s:
-                    SETTING(settings_file) = file::Path(option.value).add_extension("settings");
+                    if(option.value)
+                        SETTING(settings_file) = file::Path(*option.value).add_extension("settings");
                     break;
                     
                 case Arguments::fix:
@@ -413,29 +295,17 @@ int main(int argc, char**argv) {
                     break;
                     
                 default:
-                    FormatWarning("Unknown option ", option.name," with value ",!option.value.empty() ? option.value : "");
+                    FormatWarning("Unknown option ", option.name," with value ",option.value);
                     break;
             }
             
         } else {
-            /*if(std::string(option.name) == "set") {
-                if(i < argc-2) {
-                    updated_settings.push_back({argv[i+1], argv[i+2]});
-                    i+=2;
-                }
-            } else if(!Arguments::has(option.name)) {
-                //if(i+1<argc && value) {
-                    if(GlobalSettings::map().has(command) && GlobalSettings::get(command).is_type<bool>() && (!value || std::string(value).empty())) {
-                        value = "true";
-                    }
-                
-                    if(value)
-                        sprite::parse_values(GlobalSettings::map(), "{'"+std::string(command)+"':"+std::string(value)+"}");
-                //}
-            }*/
+            if(std::string(option.name) == "set_meta"
+               && option.value)
+            {
+                updated_settings = parse_set_meta(*option.value);
+            }
         }
-        //}
-        ++i;
     }
     
     auto merge_videos = SETTING(merge_videos).value<std::vector<file::Path>>();
@@ -447,38 +317,35 @@ int main(int argc, char**argv) {
     if(!GlobalSettings::map().has("filename") && argc >= 1)
         SETTING(filename) = file::Path(argv[argc-1]);
     
-    file::Path settings_file = pv::DataLocation::parse("settings");
+    file::Path settings_file = file::DataLocation::parse("settings");
     if(settings_file.exists())
-        GlobalSettings::load_from_file({}, settings_file.str(), AccessLevelType::STARTUP);
+        GlobalSettings::load_from_file(default_config::deprecations(), settings_file.str(), AccessLevelType::STARTUP, {}, nullptr, &GlobalSettings::map());
     
     file::Path input = SETTING(filename).value<file::Path>();
     //if(!input.exists())
     //    throw U_EXCEPTION("Cannot find file ",input.str(),".");
     
     if(SETTING(is_video)) {
-        pv::File video(input);
-        video.start_reading();
-        
+        auto video = pv::File::Read(input);
         if(video.header().version <= pv::Version::V_2) {
             SETTING(crop_offsets) = CropOffsets();
             
-            file::Path settings_file = pv::DataLocation::parse("settings");
+            file::Path settings_file = file::DataLocation::parse("settings");
             if(settings_file.exists())
-                GlobalSettings::load_from_file({}, settings_file.str(), AccessLevelType::STARTUP);
+                GlobalSettings::load_from_file(default_config::deprecations(), settings_file.str(), AccessLevelType::STARTUP, {}, nullptr, &GlobalSettings::map());
             
-            auto output_settings = pv::DataLocation::parse("output_settings");
+            auto output_settings = file::DataLocation::parse("output_settings");
             if(output_settings.exists() && output_settings != settings_file) {
-                GlobalSettings::load_from_file({}, output_settings.str(), AccessLevelType::STARTUP);
+                GlobalSettings::load_from_file(default_config::deprecations(), output_settings.str(), AccessLevelType::STARTUP, {}, nullptr, &GlobalSettings::map());
             }
             
             video.close();
-            video.start_reading();
         }
         
         SETTING(crop_offsets) = video.header().offsets;
         
-        if(!video.header().metadata.empty())
-            sprite::parse_values(GlobalSettings::map(), video.header().metadata);
+        if(video.header().metadata.has_value())
+            sprite::parse_values(sprite::MapSource{ video.filename()}, GlobalSettings::map(), video.header().metadata.value(), nullptr, {}, default_config::deprecations());
         
         if(!be_quiet)
             video.print_info();
@@ -487,21 +354,13 @@ int main(int argc, char**argv) {
         video.average().copyTo(average);
         if(average.cols == video.size().width && average.rows == video.size().height)
             video.processImage(average, average);
-        
-        if(SETTING(meta_real_width).value<float>() == 0)
-            SETTING(meta_real_width) = float(30.0);
-        
-        // setting cm_per_pixel after average has been generated (and offsets have been set)
-        if(!GlobalSettings::map().has("cm_per_pixel") || SETTING(cm_per_pixel).value<float>() == 0)
-            SETTING(cm_per_pixel) = SETTING(meta_real_width).value<float>() / float(video.average().cols);
-        
         SETTING(video_size) = Size2(average.cols, average.rows);
         SETTING(video_mask) = video.has_mask();
-        SETTING(video_length) = uint64_t(video.length());
+        SETTING(video_length) = uint64_t(video.length().get());
         
-        auto output_settings = pv::DataLocation::parse("output_settings");
+        auto output_settings = file::DataLocation::parse("output_settings");
         if(output_settings.exists() && output_settings != settings_file) {
-            GlobalSettings::load_from_file({}, output_settings.str(), AccessLevelType::STARTUP);
+            GlobalSettings::load_from_file(default_config::deprecations(), output_settings.str(), AccessLevelType::STARTUP, {}, nullptr, &GlobalSettings::map());
         }
         
         SETTING(quiet) = true;
@@ -509,21 +368,17 @@ int main(int argc, char**argv) {
         
         set_runtime_quiet(true);
         
-        SETTING(recognition_enable) = false;
-        track::Tracker _tracker;
-        cv::Mat local;
-        average.copyTo(local);
-        _tracker.set_average(Image::Make(local));
+        track::Tracker _tracker(video);
         
         if(auto_param || SETTING(auto_minmax_size) || SETTING(auto_number_individuals)) {
             track::Tracker::auto_calculate_parameters(video, be_quiet);
         }
         
-        if(SETTING(frame_rate).value<int>() == 0) {
-            if(!SETTING(quiet))
+        if(SETTING(frame_rate).value<uint32_t>() == 0) {
+            if(!GlobalSettings::is_runtime_quiet())
                 FormatWarning("frame_rate == 0, calculating from frame tdeltas.");
             video.generate_average_tdelta();
-            SETTING(frame_rate) = max(1, int(video.framerate()));
+            SETTING(frame_rate) = (uint32_t)max(1, int(video.framerate()));
         }
         
         Output::Library::Init();
@@ -536,28 +391,19 @@ int main(int argc, char**argv) {
             results.load([be_quiet](const std::string& title, float percent, const std::string& text){
                 if(!text.empty() && (int)round(percent * 100) % 10 == 0) {
                     if(!be_quiet)
-                        print("[",title,"] ",text);
+                        Print("[",title,"] ",text);
                 }
             });
-            
-            /*DebugHeader("FINISHED LOADING");
-            
-            long_t frame = track::Tracker::start_frame();
-            for(; frame < track::Tracker::end_frame(); ++frame) {
-                svenja.set_frame(frame);
-            }
-            
-            DebugHeader("PLAYBACK FINISHED");*/
             
             svenja.save();
         }
         
         if(SETTING(write_settings)) {
-            auto text = default_config::generate_delta_config();
-            auto filename = file::Path(pv::DataLocation::parse("output_settings").str() + ".auto");
+            auto text = default_config::generate_delta_config(AccessLevelType::PUBLIC).to_settings();
+            auto filename = file::Path(file::DataLocation::parse("output_settings").str() + ".auto");
             
             if(filename.exists() && !be_quiet)
-                print("Overwriting file ",filename.str(),".");
+                Print("Overwriting file ",filename.str(),".");
             
             FILE *f = fopen(filename.str().c_str(), "wb");
             if(f) {
@@ -565,69 +411,12 @@ int main(int argc, char**argv) {
                 fclose(f);
                 
                 if(!be_quiet)
-                    print("Written settings file ", filename.str(),".");
+                    Print("Written settings file ", filename.str(),".");
             } else {
                 if(!be_quiet)
                     FormatExcept("Dont have write permissions for file ",filename.str(),".");
             }
         }
-        
-        /*if(heatmap) {
-            cv::Mat map(video.header().resolution.height, video.header().resolution.width, CV_32FC1);
-            
-            const uint32_t width = 30;
-            std::vector<double> grid;
-            grid.resize((width + 1) * (width + 1));
-            Vec2 indexing(ceil(video.header().resolution.width / float(width)),
-                          ceil(video.header().resolution.height / float(width)));
-            
-            Median<float> max_pixels;
-            
-            pv::Frame frame;
-            for (size_t idx = 0; idx < video.length(); idx++) {
-                video.read_frame(frame, idx);
-                //video.read_next_frame(frame, idx);
-                
-                for (size_t i=0; i<frame.n(); i++) {
-                    //pv::Blob blob(i, frame.mask().at(i), frame.pixels().at(i));
-                    //if(frame.pixels().at(i)->size() < 20 || frame.pixels().at(i)->size() > 1000)
-                    //    continue;
-                    
-                    double blob_size = frame.pixels().at(i)->size();
-                    max_pixels.addNumber(blob_size);
-                    
-                    //map(blob.bounds()) += 1;
-                    for (auto &h : *frame.mask().at(i)) {
-                        for (ushort x = h.x0; x<=h.x1; ++x) {
-                            uint32_t index = round(x / indexing.x) + round(h.y / indexing.y) * width;
-                            grid.at(index) += blob_size;
-                            //map.at<float>(h.y, x) += 1;
-                        }
-                    }
-                }
-                
-                if (idx % 1000 == 0) {
-                    print("Frame ", idx," / ",video.length(),"...");
-                }
-            }
-            
-            auto mval = *std::max_element(grid.begin(), grid.end());
-            print("Max ", mval);
-            
-            for (uint32_t x=0; x<width; x++) {
-                for (uint32_t y=0; y<width; y++) {
-                    float val = grid.at(x + y * width) / mval;
-                    
-                    cv::rectangle(map, Vec2(x, y).mul(indexing), Vec2(width, width).mul(indexing), cv::Scalar(val), -1);
-                    //cv::rectangle(map, Vec2(x, y).mul(indexing), Vec2(width, width).mul(indexing), cv::Scalar(1));
-                    //cv::putText(map, std::to_string(x)+","+std::to_string(y), Vec2(x, y).mul(indexing) + Vec2(10), CV_FONT_HERSHEY_PLAIN, 0.5, gui::White);
-                }
-            }
-            
-            resize_image(map, 0.25);
-            cv::imshow("heatmap", map);
-            cv::waitKey(0);
-        }*/
         
         if(print_plain) {
             printf("version %d\nframes %llu\n", (int)video.header().version, video.length());
@@ -636,7 +425,7 @@ int main(int argc, char**argv) {
         if(save_background) {
             file::Path file = input.remove_filename() / "background.png";
             cv::imwrite(file.str(), video.average());
-            print("Saved average image to ",file);
+            Print("Saved average image to ",file);
         }
         
         if(!SETTING(replace_background).value<file::Path>().empty()) {
@@ -655,26 +444,29 @@ int main(int argc, char**argv) {
                 throw U_EXCEPTION("Image at ",SETTING(replace_background).value<file::Path>()," is not of compatible resolution (",mat.cols,"x",mat.rows," / ",video.header().resolution.width,"x",video.header().resolution.height,")");
             } else {
                 using namespace pv;
+                // close the current file
+                auto encoding = video.header().encoding;
                 video.close();
-                video.start_modifying();
-                video.set_average(mat);
                 
-                video.close();
-                video.start_reading();
+                {
+                    // open a different instance and replace the average embedded in it
+                    auto modify = pv::File::Write<pv::FileMode::MODIFY>((file::Path)video.filename(), encoding);
+                    modify.set_average(mat);
+                }
                 
-                print("Written new average image.");
+                Print("Written new average image.");
             }
         }
         
         if(repair_index) {
             using namespace pv;
 
-            if(video.length() != 0) {
+            if(not video.length().valid()) {
                 FormatError("The videos index cannot be repaired because it doesnt seem to be broken.");
             } else {
-                print("Starting file copy and fix (",video.filename(),")...");
+                Print("Starting file copy and fix (",video.filename(),")...");
 
-                File copy(video.filename().remove_extension().str()+"_fix.pv");
+                auto copy = File::Write<pv::FileMode::WRITE | pv::FileMode::OVERWRITE> (video.filename().remove_extension().str()+"_fix.pv", video.header().encoding);
                 copy.set_resolution(video.header().resolution);
                 copy.set_offsets(video.crop_offsets());
                 copy.set_average(video.average());
@@ -683,47 +475,53 @@ int main(int argc, char**argv) {
                     copy.set_mask(video.mask());
 
                 copy.header().timestamp = video.header().timestamp;
-                copy.start_writing(true);
 
                 for (size_t idx = 0; true; idx++) {
                     pv::Frame frame;
 
                     try {
-                        frame.read_from(video, idx);
+                        frame.read_from(video, Frame_t(idx), video.header().encoding);
                     } catch(const UtilsException& e) {
-                        print("Breaking after ", idx," frames.");
+                        Print("Breaking after ", idx," frames.");
                         break;
                     }
 
                     copy.add_individual(std::move(frame));
 
                     if (idx % 1000 == 0) {
-                        print("Frame ",idx," / ",video.length()," (",dec<2>(copy.compression_ratio()*100),"% compression ratio)...");
+                        Print("Frame ",idx," / ",video.length()," (",dec<2>(copy.compression_ratio()*100),"% compression ratio)...");
                     }
                 }
 
-                copy.stop_writing();
-
-                print("Written fixed video.");
+                Print("Written fixed video.");
             }
         }
         
         if(fix)
 	        pv::fix_file(video);
         
-        if(!updated_settings.empty() || !remove_settings.empty()) {
+        if(!updated_settings.empty() || !remove_settings.empty())
+        {
+            auto encoding = video.header().encoding;
             video.close();
-            video.start_modifying();
             
-            std::vector<std::string> keys = sprite::parse_values(video.header().metadata).keys();
-            sprite::parse_values(GlobalSettings::map(), video.header().metadata);
+            file::Path name = video.filename();
             
-            for (auto &p : updated_settings) {
-                if(!contains(keys, p.first)) {
-                    keys.push_back(p.first);
+            // new instance with modify rights
+            auto video = pv::File::Write<pv::FileMode::MODIFY>(name, encoding);
+            
+            std::vector<std::string> keys;
+            if(video.header().metadata.has_value()) {
+                keys = sprite::parse_values(sprite::MapSource{name}, video.header().metadata.value()).keys();
+                sprite::parse_values(sprite::MapSource{name}, GlobalSettings::map(), video.header().metadata.value(), nullptr, {}, default_config::deprecations());
+            }
+            
+            for (auto &[k,v] : updated_settings) {
+                if(!contains(keys, k)) {
+                    keys.push_back(k);
                 }
                 
-                sprite::parse_values(GlobalSettings::map(), "{'"+p.first+"':"+p.second+"}");
+                sprite::parse_values(sprite::MapSource{name}, GlobalSettings::map(), "{'"+k+"':"+v+"}");
             }
             
             for (auto &p : remove_settings) {
@@ -747,7 +545,7 @@ int main(int argc, char**argv) {
             //    video.processImage(average, average);
         
 #if !defined(__EMSCRIPTEN__)
-            print("Displaying average image...");
+            Print("Displaying average image...");
             cv::imshow("average", average);
             cv::waitKey();
 #endif
@@ -763,10 +561,10 @@ int main(int argc, char**argv) {
             Timer timer;
             
             timestamp_t prev_timestamp;
-            for (size_t i=0; i<video.length(); i++) {
+            for (Frame_t i=0_f; i<video.length(); ++i) {
                 video.read_frame(frame, i);
                 
-                if(i==0)
+                if(i==0_f)
                     prev_timestamp = frame.timestamp();
                 
                 std::string str = ""+timestamp_t(frame.timestamp()).toStr()+","+(timestamp_t(frame.timestamp())-prev_timestamp).toStr()+"\n";
@@ -774,14 +572,14 @@ int main(int argc, char**argv) {
                 fwrite(str.data(), 1, str.length(), f);
                 prev_timestamp = frame.timestamp();
                 
-                if(i%1000 == 0) {
-                    print("Frame ", i,"/",video.length());
+                if(i.get()%1000 == 0) {
+                    Print("Frame ", i,"/",video.length());
                 }
             }
             
             fclose(f);
             
-            print("Elapsed: ", timer.elapsed(),"s");
+            Print("Elapsed: ", timer.elapsed(),"s");
         }
         
         if(SETTING(blob_detail)) {
@@ -791,7 +589,7 @@ int main(int argc, char**argv) {
             size_t min_pixels = std::numeric_limits<size_t>::max(), max_pixels = 0;
             Median<size_t> pixels_median;
             
-            for (size_t i=0; i<video.length(); i++) {
+            for (Frame_t i=0_f; i<video.length(); ++i) {
                 video.read_frame(frame, i);
                 
                 size_t bytes = 0;
@@ -809,15 +607,15 @@ int main(int argc, char**argv) {
                 }
                 overall += bytes;
                 
-                if(i%size_t(video.length()*0.1) == 0) {
-                    print("Frame ", i,"/",video.length());
+                if(i.get()%size_t(video.length().get()*0.1) == 0) {
+                    Print("Frame ", i,"/",video.length());
                 }
             }
             
-            print("Finding blobs...");
+            Print("Finding blobs...");
             Median<size_t> blobs_per_frame;
             size_t pixels_median_value = pixels_median.getValue();
-            for (size_t i=0; i<video.length(); i++) {
+            for (Frame_t i=0_f; i<video.length(); ++i) {
                 video.read_frame(frame, i);
                 
                 size_t this_frame = 0;
@@ -827,16 +625,25 @@ int main(int argc, char**argv) {
                     }
                 }
                 
+                for(auto &line : frame.mask()) {
+                    if(not line->empty())
+                        Print(line->front());
+                }
+                
+                for(auto & blob: frame.get_blobs()) {
+                    Print(blob->blob_id(), ": ", blob->bounds());
+                }
+                
                 blobs_per_frame.addNumber(this_frame);
                 
-                if(i%size_t(video.length()*0.1) == 0) {
-                    print("Frame ", i,"/",video.length());
+                if(i.get()%size_t(video.length().get()*0.1) == 0) {
+                    Print("Frame ", i,"/",video.length());
                 }
             }
             
-            print(overall," bytes (",dec<2>(double(overall) / 1000.0 / 1000.0),"MB) of blob data");
-            print("Images average at ",double(pixels_per_blob) / double(pixels_samples)," px / blob and the range is [",min_pixels,"-",max_pixels,"] with a median of ",pixels_median.getValue(),".");
-            print("There are ", blobs_per_frame.getValue()," blobs in each frame (median).");
+            Print(overall," bytes (",dec<2>(double(overall) / 1000.0 / 1000.0),"MB) of blob data");
+            Print("Images average at ",double(pixels_per_blob) / double(pixels_samples)," px / blob and the range is [",min_pixels,"-",max_pixels,"] with a median of ",pixels_median.getValue(),".");
+            Print("There are ", blobs_per_frame.getValue()," blobs in each frame (median).");
         }
         
     } else {
@@ -848,15 +655,14 @@ int main(int argc, char**argv) {
             header.average.get().copyTo(average);
             SETTING(video_size) = Size2(average.cols, average.rows);
             SETTING(video_length) = uint64_t(header.video_length);
-            SETTING(analysis_range) = std::pair<long_t, long_t>(header.analysis_range.start, header.analysis_range.end);
-            auto consec = header.consecutive_segments;
+            SETTING(analysis_range) = Range<long_t>(header.analysis_range.start, header.analysis_range.end);
+            auto consec = header.tracklets;
             std::vector<Range<Frame_t>> vec(consec.begin(), consec.end());
             SETTING(consecutive) = vec;
         }
         
         if(path.add_extension("pv").exists()) {
             pv::File video(path);
-            video.start_reading();
             
             video.average().copyTo(average);
             if(average.cols == video.size().width && average.rows == video.size().height)
@@ -864,38 +670,27 @@ int main(int argc, char**argv) {
             
             SETTING(video_size) = Size2(average.cols, average.rows);
             SETTING(video_mask) = video.has_mask();
-            SETTING(video_length) = uint64_t(video.length());
+            SETTING(video_length) = uint64_t(video.length().get());
         }
         
-        if(SETTING(meta_real_width).value<float>() == 0)
-            SETTING(meta_real_width) = float(30.0);
-        if(!GlobalSettings::map().has("cm_per_pixel") || SETTING(cm_per_pixel).value<float>() == 0)
-            SETTING(cm_per_pixel) = SETTING(meta_real_width).value<float>() / float(average.cols);
+        if(SETTING(meta_real_width).value<Float2_t>() == 0)
+            SETTING(meta_real_width) = Float2_t(30.0);
+        if(!GlobalSettings::map().has("cm_per_pixel") || SETTING(cm_per_pixel).value<Float2_t>() == 0)
+            SETTING(cm_per_pixel) = Float2_t(SETTING(meta_real_width).value<Float2_t>() / Float2_t(average.cols));
         
         path = path.add_extension("results");
         
-        auto output_settings = pv::DataLocation::parse("output_settings");
+        auto output_settings = file::DataLocation::parse("output_settings");
         if(output_settings.exists() && output_settings != settings_file) {
             GlobalSettings::load_from_file({}, output_settings.str(), AccessLevelType::STARTUP);
         }
         
-        //SETTING(quiet) = true;
-        //track::Tracker _tracker;
-        //cv::Mat local;
-        //average.copyTo(local);
-        //_tracker.set_average(local);
-        
         cmd.load_settings();
         
-        GlobalSettings::load_from_string(default_config::deprecations(), GlobalSettings::map(), header.settings, AccessLevelType::STARTUP);
+        GlobalSettings::load_from_string(sprite::MapSource{path}, default_config::deprecations(), GlobalSettings::map(), header.settings, AccessLevelType::STARTUP);
         
         SETTING(quiet) = true;
-        track::Tracker tracker;
-        if(!average.empty()) {
-            cv::Mat local;
-            average.copyTo(local);
-            tracker.set_average(Image::Make(local));
-        }
+        track::Tracker tracker(Image::Make(average), SETTING(meta_encoding).value<meta_encoding_t::Class>(), SETTING(meta_real_width).value<Float2_t>());
         
         if(header.version < Output::ResultsFormat::Versions::V_28) {
             Output::TrackingResults results(tracker);
@@ -930,7 +725,7 @@ int main(int argc, char**argv) {
     
     if(!updated_settings.empty() || !remove_settings.empty()) {
         pv::File video(input);
-        video.start_reading();
+        video.print_info();
     }
     
     return 0;

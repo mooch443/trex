@@ -35,9 +35,7 @@ void DebugDrawing::reset_image() {
 }
 
 void DebugDrawing::paint(const Outline &outline, bool erase) {
-    //Tracker::LockGuard guard(*Tracker::instance());
-    
-    print("First: ", outline.points().front().x,",",outline.points().front().y);
+    Print("First: ", outline.points().front().x,",",outline.points().front().y);
     
     if(erase)
         reset_image();
@@ -46,48 +44,46 @@ void DebugDrawing::paint(const Outline &outline, bool erase) {
     cv::Scalar clr(255, 225, 0);
     
     float max_slope = 0.0;
-    int idx = -1;
     assert(outline.size() < INT_MAX);
-    std::vector<float> curvature;
+    std::vector<Float2_t> curvature;
     curvature.resize(outline.size());
     
     auto curvature_range = Outline::calculate_curvature_range(outline.size());
     for (size_t i=0; i<outline.size(); i++) {
-        float slope = Outline::calculate_curvature(curvature_range, outline.points(), i);
+        Float2_t slope = Outline::calculate_curvature(curvature_range, outline.points(), i);
         curvature[i] = slope;
         
         if (cmn::abs(slope) > max_slope) {
             max_slope = cmn::abs(slope);
-            idx = int(i);
         }
     }
     
     {
-        float max_curvature;
-        std::vector<float> corrected;
+        Float2_t max_curvature;
+        std::vector<Float2_t> corrected;
         outline.smooth_array(curvature, corrected, &max_curvature);
-        /*std::vector<float> curvature;
+        /*std::vector<Float2_t> curvature;
         
         curvature.resize(corrected.size());
         for(size_t i=0; i<corrected.size(); i++) {
             curvature[i] = Outline::calculate_curvature(outline.points(), i, 2) * 0.5 + corrected[i] * 0.5;
         }*/
         
-        std::vector<float> io;
+        std::vector<Float2_t> io;
         io.resize(corrected.size());
         
         cv::Mat output(1, (int)corrected.size(), CV_32FC1);
         cv::dft(cv::Mat(1, (int)corrected.size(), CV_32FC1, corrected.data()), output);
         
         const size_t start = min(corrected.size()-1, max(5u, size_t(corrected.size()*0.03)));
-        auto ptr = output.ptr<float>(0, 0);
+        auto ptr = output.ptr<Float2_t>(0, 0);
         std::fill(ptr + start, ptr + corrected.size(), 0.f);
         
         cv::Mat tmp(1, (int)io.size(), CV_32FC1, io.data());
         cv::dft(output, tmp, cv::DFT_INVERSE + cv::DFT_SCALE);
         
         if(!corrected.empty()) {
-            float max_curvature = 0;
+            Float2_t max_curvature = 0;
             
             auto points = outline.points();
             
@@ -99,18 +95,18 @@ void DebugDrawing::paint(const Outline &outline, bool erase) {
             }
             printf("\n");*/
             
-            print("Maxmimum curvature: ", max_curvature);
+            Print("Maxmimum curvature: ", max_curvature);
             
             auto derivative = curves::derive(corrected);
             auto derivative2 = curves::derive(io);
             auto area = curves::area_under_maxima(io);
             
             struct Area {
-                float idx;
-                float area;
+                Float2_t idx;
+                Float2_t area;
             };
             std::vector<Area> areas;
-            float max_area = 0;
+            Float2_t max_area = 0;
             for(auto &a : area)
                 max_area = max(max_area, cmn::abs(io[a.first]));
             for(auto &a : area)
@@ -128,16 +124,16 @@ void DebugDrawing::paint(const Outline &outline, bool erase) {
             auto &maxima = e.maxima;
             
             for(auto &a : areas) {
-                print("Area[", a.idx,"]: ",a.area);
+                Print("Area[", a.idx,"]: ",a.area);
             }
             
             if(minima.empty())
-                print("minima empty.");
+                Print("minima empty.");
             
             Graph graph(Bounds(Size2(800, 600)), "outline", Rangef(0, outline.size()+5), Rangef(-max_slope*1.5, max_slope*1.5));
             graph.set_zero(0);
             
-            /*graph.add_function(Graph::Function("derivative", Graph::Type::DISCRETE, [&](float x) {
+            /*graph.add_function(Graph::Function("derivative", Graph::Type::DISCRETE, [&](Float2_t x) {
                 while(x < 0)
                     x += corrected.size();
                 while(x >= corrected.size())
@@ -162,7 +158,7 @@ void DebugDrawing::paint(const Outline &outline, bool erase) {
             for(auto m : maxima)
                 converted_points.push_back(Vec2(m, io[m]));
             graph.add_points("maxima", converted_points);
-            /*graph.add_function(Graph::Function("curvature", Graph::Type::DISCRETE, [&outline, &max_slope, &corrected, &io](float x) -> float
+            /*graph.add_function(Graph::Function("curvature", Graph::Type::DISCRETE, [&outline, &max_slope, &corrected, &io](Float2_t x) -> Float2_t
             {
                 while(x < 0)
                     x += outline.size();
@@ -198,7 +194,7 @@ void DebugDrawing::paint(const Outline &outline, bool erase) {
                
                if(area.find(x) != area.end())
                    return area[narrow_cast<uint>(x)] / 50;
-               return gui::Graph::invalid();
+               return GlobalSettings::invalid();
                //return output_area[x] / 100;
            }));
             
@@ -255,7 +251,7 @@ void DebugDrawing::paint(const Outline &outline, bool erase) {
     //cv::imshow(window_name, image);
     tf::imshow(window_name, image);
 }
-
+/*
 void DebugDrawing::paint(const cv::Mat& greyscale, const std::vector<track::Posture::EntryPoint>& pts) {
     reset_image();
     
@@ -333,16 +329,17 @@ void DebugDrawing::paint(const track::Posture &posture, const cv::Mat& greyscale
         label = std::to_string(posture.outline().size());
     }
     
-    auto nmidline = posture.normalized_midline();
+    auto& nmidline = posture.normalized_midline();
     if(nmidline) {
         paint(nmidline.get());
     }
     
     tf::imshow(window_name, image, label);
 }
+*/
 
 void DebugDrawing::paint(const Midline *midline) {
-    print("Midline curvature:");
+    Print("Midline curvature:");
     auto &segments = midline->segments();
     long L = segments.size();
     long offset = 1;

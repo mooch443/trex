@@ -1,35 +1,45 @@
 <p align="center"><img src="https://github.com/mooch443/trex/blob/main/images/Icon1024.png" width="160px"></p>
 
-[![CondaBuildLinux](https://github.com/mooch443/trex/actions/workflows/cmake-ubuntu.yml/badge.svg?branch=main)](https://github.com/mooch443/trex/actions/workflows/cmake-ubuntu.yml) [![CondaBuildMacOS](https://github.com/mooch443/trex/actions/workflows/cmake-macos.yml/badge.svg?branch=main)](https://github.com/mooch443/trex/actions/workflows/cmake-macos.yml) [![CondaBuildWindows](https://github.com/mooch443/trex/actions/workflows/cmake-windows.yml/badge.svg?branch=main)](https://github.com/mooch443/trex/actions/workflows/cmake-windows.yml)
+`main`
+[![CondaBuildLinux](https://github.com/mooch443/trex/actions/workflows/cmake-ubuntu.yml/badge.svg?branch=main)](https://github.com/mooch443/trex/actions/workflows/cmake-ubuntu.yml)
+[![CondaBuildMacOS](https://github.com/mooch443/trex/actions/workflows/cmake-macos.yml/badge.svg?branch=main)](https://github.com/mooch443/trex/actions/workflows/cmake-macos.yml)
+[![CondaBuildWindows](https://github.com/mooch443/trex/actions/workflows/cmake-windows.yml/badge.svg?branch=main)](https://github.com/mooch443/trex/actions/workflows/cmake-windows.yml)
 
-*Now with native [Apple Silicone (M1)](https://www.apple.com/mac/m1/) and ML Compute support. [How to install TRex (arm64)](https://trex.run/docs/install.html#install-m1).*
+`dev`
+[![CondaBuildLinux](https://github.com/mooch443/trex/actions/workflows/cmake-ubuntu.yml/badge.svg?branch=dev)](https://github.com/mooch443/trex/actions/workflows/cmake-ubuntu.yml)
+[![CondaBuildMacOS](https://github.com/mooch443/trex/actions/workflows/cmake-macos.yml/badge.svg?branch=dev)](https://github.com/mooch443/trex/actions/workflows/cmake-macos.yml)
+[![CondaBuildWindows](https://github.com/mooch443/trex/actions/workflows/cmake-windows.yml/badge.svg?branch=dev)](https://github.com/mooch443/trex/actions/workflows/cmake-windows.yml)
 
 *Documentation: https://trex.run/docs*
 
 # Hey there
 
-Welcome to the git repository of **TRex** (https://trex.run) -- a software designed to track and identify individuals and other moving entities using computer vision and machine learning. The work-load is split into two (not entirely separate) tools:
+Welcome to the git repository of **TRex** (https://trex.run) -- a software designed to track and identify individuals and other moving entities using computer vision and machine learning.
 
-* **TGrabs**: Record or convert existing videos, perform live-tracking and closed-loop experiments
-* **TRex**: Track converted videos (in PV format), use the automatic visual recognition, explore the data with visual helpers, export task-specific data, and adapt tracking parameters to specific use-cases
+Using background-subtraction, TRex can track 256 fish faster than the video plays back, and for up to 100 individuals allows you to 
+(when speed is not the main focus) visually recognize individuals and automatically correct potential tracking errors using machine-learning based automatic classification.
 
-TRex can track 256 individuals in real-time, or up to 128 with all fancy features like posture estimation enabled, and for up to 100 individuals allows you to 
-(when realtime speed is not required) visually recognize individuals and automatically correct potential tracking errors.
+Since version 2.0, TRex also supports `ultralytics` (https://github.com/ultralytics) machine-learning models like Yolov8, including detection, pose and segmentation as well as simple SAHI-like features (https://github.com/obss/sahi). This replaces background subtraction in situations where it is not sufficient - you can bring your own model, too!
 
-**TGrabs**, which is used to directly process already saved videos or to record directly from webcams and/or Basler machine-vision cameras with integrated and customizable closed-loop support. Camera support can be extended for other APIs with a bit of C++ knowledge, of course.
+It allows you, from the same interface, to load up existing videos or record directly from your webcam. Camera support (and other things) can be extended for other APIs with a bit of C++ or Python knowledge, of course.
 
 # Installation
 
 TRex supports all major platforms. You can create a new virtual environment (named ``tracking`` here) using Anaconda or miniconda/miniforge by running:
 
+`macOS (arm64)`
 ```bash
-# macOS (Intel/arm64 M1), Windows
-conda create -n tracking -c trexing trex 
+conda create -n betarex --override-channels -c trex-beta -c pytorch -c conda-forge trex
 ```
 
+`macOS (Intel)`
 ```bash
-# Linux
-conda create -n tracking -c defaults -c conda-forge -c trexing trex 
+conda create -n betarex --override-channels -c trex-beta -c pytorch -c defaults trex
+```
+
+`Windows, Linux (NVIDIA graphics card recommended)`
+```bash
+conda create -n betarex --override-channels -c trex-beta -c pytorch -c nvidia -c defaults trex
 ```
 
 ## macOS with an arm64 / M1 processor
@@ -40,26 +50,12 @@ Once you're done, you can run this command to create the virtual environment:
 
 ```bash
 # macOS (arm64/M1)
-conda create -n tracking -c trexing trex 
-```
-
-Installing tensorflow on the M1 is a bit more complicated, which is why TRex will not allow you to use machine learning unless you install the following extra packages manually. Instructions will be printed out after you created the environment Apple provides their own tensorflow version for macOS including a native METAL (https://developer.apple.com/metal/tensorflow-plugin/) plugin. To install tensorflow inside your environment, just run:
-
-```bash
-# activate the TRex environment
-conda activate tracking
-
-# install tensorflow dependencies and metal plugin
-conda install -c apple -y tensorflow-deps==2.7.0
-python -m pip install tensorflow-macos==2.7.0 tensorflow-metal==0.3.0
+conda create -n betarex --override-channels -c trex-beta -c pytorch -c conda-forge trex
 ```
 
 ## Manual compilation
 
-Pre-built binaries are compiled with fewer optimzations and features than a manually compiled one (due to compatibility and licensing issues) and thus are slightly slower =(. For example, the conda versions do not offer support for Basler cameras. If you need to use TGrabs with machine vision cameras, or need as much speed as possible (or the newest version), please consider compiling the software yourself.
-
-If you want compatibility with the Basler API (or other things with licensing/portability issues), please 
-use one of the manual compilation options (see https://trex.run/docs/install.html).
+Pre-built binaries are compiled with fewer optimzations and features than a manually compiled one (due to compatibility and licensing issues) and thus are slightly slower =(. For example, the conda versions do not offer support for Basler cameras. If you need to use TRex with machine vision cameras (e.g. Basler), or need as much speed as possible (or the newest version), please consider compiling the software yourself. *Beta note: This feature is not yet available, since the VideoSource for this purpose is not yet implemented. You can implement it yourself, or be patient, sorry :(*
 
 # Usage
 
@@ -67,24 +63,26 @@ Within the conda environment, simply run:
 
 	trex
 
+To convert a video to our custom pv format from the command-line:
+
+	trex -i /full/path/to/video.mp4 -o funny_name
+
+This will output to `/full/path/to/video.pv`. If you want to change the output destination root, add `-d /output/path`.
+
 Opening a video directly and adjusting [parameters](https://trex.run/docs/parameters_trex.html):
 
-	trex -i /path/to/video.pv -track_threshold 25 -track_max_individuals 10
+	trex -i /path/to/video.mp4 -track_threshold 25 -track_max_individuals 10
 
-If you don't want a graphical user interface and save/quit when tracking finishes:
+If you don't want a graphical user interface and save/quit when tracking finishes, add `-nowindow` and `-auto_quit`:
 
 	trex -i /path/to/video.pv -nowindow -auto_quit
 
-To convert a video to our custom pv format (for usage in TRex) from the command-line:
-
-	tgrabs -i /full/path/to/video.mp4 -o funny_name
-
-Read [more](https://trex.run/docs/run.html) about parameters for TRex [here](https://trex.run/docs/parameters_trex.html) and for TGrabs [here](https://trex.run/docs/parameters_tgrabs.html).
+Read [more](https://trex.run/docs/run.html) about parameters for TRex [here](https://trex.run/docs/parameters_trex.html).
 
 # Contributors, Issues, etc.
 
 This project has been developed, is still being updated, by [Tristan Walter](http://moochm.de).
-If you want to contribute, please submit a pull request on github and I will be happy to credit you here, for any substantial contributions!
+If you want to contribute, please submit a pull request on GitHub and I will be happy to credit you here, for any substantial contributions!
 
 If you have any issues running the software please consult the documentation first (especially the FAQ section) 
 and if this does not solve your problem, please file an issue using the [issue tracker](https://github.com/mooch443/trex/issues) here on github. 

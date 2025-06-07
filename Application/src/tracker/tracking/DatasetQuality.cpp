@@ -1,24 +1,37 @@
 #include "DatasetQuality.h"
 #include <tracking/Individual.h>
-#include <gui/gui.h>
-#include <tracking/Recognition.h>
+#include <tracking/VisualIdentification.h>
+#include <tracking/FilterCache.h>
+#include <tracking/IndividualManager.h>
 
 namespace track {
-std::string DatasetQuality::Single::toStr() const {
+namespace DatasetQuality {
+
+namespace py = Python;
+
+Range<Frame_t> _manually_selected{{},{}};
+std::map<Range<Frame_t>, std::map<Idx_t, Single>> _cache;
+std::map<Range<Frame_t>, Quality> _quality;
+std::set<Range<Frame_t>> _previous_selected;
+
+std::set<Quality, std::greater<>> _sorted;
+
+void remove_segment(const Range<Frame_t>& range);
+bool calculate_segment(const Range<Frame_t>&, const uint64_t video_length, const LockGuard&);
+Single evaluate_single(Idx_t id, Individual* fish, const Range<Frame_t>& consec, const LockGuard& guard);
+
+std::string Single::toStr() const {
     return "{"+Meta::toStr(id)+","+Meta::toStr(distance_travelled)+" travelled,"+Meta::toStr(grid_cells_visited)+" cells visited}";
 }
 
-DatasetQuality::DatasetQuality()
-:_manually_selected({},{})
-{
+void print_info() {
+    Print("DatasetQuality: ", _sorted);
+}
+
+Quality quality(const Range<Frame_t> &range) {
+    if(range.empty())
+        return Quality();
     
-}
-
-void DatasetQuality::print_info() const {
-    print("DatasetQuality: ", _sorted);
-}
-
-DatasetQuality::Quality DatasetQuality::quality(const Range<Frame_t> &range) const {
     auto it = _quality.find(range);
     if(it == _quality.end())
         return Quality();
@@ -26,7 +39,19 @@ DatasetQuality::Quality DatasetQuality::quality(const Range<Frame_t> &range) con
     return it->second;
 }
 
-/*float DatasetQuality::quality(float frame) const {
+bool Quality::operator <(const Quality& other) const {
+    //return double(min_cells) * double(average_samples) < double(other.min_cells) * double(other.average_samples);
+    
+    //return std::make_tuple(sum_cells, min_cells, average_samples) < std::make_tuple(sum_cells, other.min_cells, other.average_samples);
+    return std::make_tuple(min_cells, average_samples) < std::make_tuple(other.min_cells, other.average_samples);
+    //return min_cells < other.min_cells || (min_cells == other.min_cells && average_samples < other.average_samples);
+}
+
+std::string Quality::toStr() const {
+    return "Quality<"+Meta::toStr(range)+" min_cells:"+Meta::toStr(min_cells)+" samples:"+Meta::toStr(average_samples)+" sum_cells:"+Meta::toStr(sum_cells)+">";
+}
+
+/*float quality(float frame) const {
     for(auto && [segment, value] : _quality) {
         if(segment.contains(frame) || segment.end == frame)
             return value;
@@ -34,7 +59,7 @@ DatasetQuality::Quality DatasetQuality::quality(const Range<Frame_t> &range) con
     return -1;
 }*/
 
-void DatasetQuality::remove_frames(Frame_t start) {
+void remove_frames(Frame_t start) {
     for(auto it = _sorted.begin(); it != _sorted.end();) {
         if(it->range.end >= start)
             it = _sorted.erase(it);
@@ -57,10 +82,11 @@ void DatasetQuality::remove_frames(Frame_t start) {
     }
     
     _manually_selected = Range<Frame_t>({},{});
-    _last_seen = Range<Frame_t>({}, {});
 }
 
-bool DatasetQuality::calculate_segment(const Range<Frame_t> &consec, const uint64_t video_length, const Tracker::LockGuard& guard) {
+bool calculate_segment(const Range<Frame_t> &consec, const uint64_t video_length, const LockGuard& guard) {
+    if(consec.empty())
+        return false;
     if(consec.length().get() < 5) {
         return true; // skipping range because its too short, but send "ok" signal
     }
@@ -70,10 +96,11 @@ bool DatasetQuality::calculate_segment(const Range<Frame_t> &consec, const uint6
     float max_cells = 0, min_cells = infinity<float>();
     float average_samples = 0;
     float num_average = 0;
+    float sum_cells = 0;
     decltype(_cache)::mapped_type map;
     std::mutex thread_mutex;
     
-    auto work = [&consec, &guard, &thread_mutex, this, &max_cells, &min_cells, &num_average, &average_samples, &map](Individual *fish) {
+    auto work = [&consec, &guard, &thread_mutex, &max_cells, &min_cells, &num_average, &average_samples, &map, &sum_cells](Individual *fish) {
         // collect meta information for the currently selected best consecutive frames
         auto single = evaluate_single(fish->identity().ID(), fish, consec, guard);
         
@@ -86,42 +113,44 @@ bool DatasetQuality::calculate_segment(const Range<Frame_t> &consec, const uint6
             max_cells = cells;
         if(cells < min_cells)
             min_cells = cells;
+        sum_cells += cells;
         
         map[fish->identity().ID()] = single;
     };
     
     std::set<Individual*> found;
     
-    for(auto id : FAST_SETTINGS(manual_identities)) {
-        // does the given fish exist yet?
-        auto it = Tracker::individuals().find(id);
-        if(it == Tracker::individuals().end())
-            continue;
-        
-        auto fish = it->second;
-        if(!fish->frame_segments().empty()) {
-            auto it = fish->frame_segments().rbegin();
+    auto success = IndividualManager::transform_all([&](auto, auto fish){
+        if(!fish->tracklets().empty()) {
+            auto it = fish->tracklets().rbegin();
             if((*it)->range.overlaps(consec)) {
                 assert((*it)->range.end == fish->end_frame());
-                                                                /* implicitly abusing uint64_t(-1) < video_length here */
-                if(fish->end_frame() == Tracker::end_frame() && uint64_t(Tracker::end_frame().get()) < video_length)
+                
+                // has not finished analysing, but our tracklet is still being continued. so we cannot calculate the result yet
+                if(Tracker::end_frame().valid()
+                   && fish->end_frame() == Tracker::end_frame()
+                   && uint64_t(Tracker::end_frame().get()) < video_length)
+                {
                     return false;
+                }
             }
         }
         
-        // if this fish is still found at the end of the analysis range
-        /*if(consec.end < video_length && fish->end_frame() == Tracker::end_frame() && consec.end == fish->end_frame())
-            return false; // send "not ok" signal
-        if(consec.end == fish->end_frame() && fish->end_frame() == Tracker::end_frame() && Tracker::end_frame() < video_length)
-            return false;*/
-        
         found.insert(fish);
+        return true;
+    });
+    
+    if(not success)
+        return false;
+    
+    try {
+        for(auto fish : found)
+            Tracker::thread_pool().enqueue(work, fish);
+    } catch(const UtilsException& e) {
+        FormatExcept("Exception when starting worker threads: ", e.what());
     }
     
-    for(auto fish : found)
-        Tracker::instance()->thread_pool().enqueue(work, fish);
-    
-    Tracker::instance()->thread_pool().wait();
+    Tracker::thread_pool().wait();
     
     if(num_average != 0)
         average_samples /= num_average;
@@ -136,14 +165,14 @@ bool DatasetQuality::calculate_segment(const Range<Frame_t> &consec, const uint6
     _cache[consec] = map;
     
     if(map.empty()) {
-        FormatExcept("Values in DatasetQuality::calculate_segment is empty.");
+        FormatExcept("Values in calculate_segment is empty.");
     } else {
         // calculate quality by multiplying the overall number of
-        // cells visited by all fish inthe segment by the minimum ratio.
-        // so if the segment is average long and has only same-size
+        // cells visited by all fish inthe tracklet by the minimum ratio.
+        // so if the tracklet is average long and has only same-size
         // elements, thats gonna be better than a really long segment
         // where one fish only moves 1 cell.
-        _quality[consec] = Quality(consec, min_cells, average_samples);//(*values.begin()) * sum;
+        _quality[consec] = Quality(consec, min_cells, sum_cells, average_samples);//(*values.begin()) * sum;
         _sorted.insert(_quality[consec]);
         
     }
@@ -151,26 +180,31 @@ bool DatasetQuality::calculate_segment(const Range<Frame_t> &consec, const uint6
     return true;
 }
 
-void DatasetQuality::remove_segment(const Range<Frame_t> &range) {
+void remove_segment(const Range<Frame_t> &range) {
+    if(range.empty())
+        return;
+    
     auto it = _cache.find(range);
     if(it != _cache.end()) {
-        _sorted.erase(range);
+        _sorted.erase(Quality(range));
         _cache.erase(it);
         _quality.erase(range);
     }
 }
 
-void DatasetQuality::update(const Tracker::LockGuard& guard) {
-    if(FAST_SETTINGS(manual_identities).empty() || Tracker::instance()->consecutive().empty())
+void update() {
+    LockGuard guard(ro_t{}, "DatasetQuality::update");
+    if(FAST_SETTING(track_max_individuals) == 0
+       || Tracker::instance()->consecutive().empty())
         return;
     
-    auto video_length = Tracker::analysis_range().end.get();
+    auto video_length = Tracker::analysis_range().end().get();
     auto end_frame = Tracker::end_frame();
-    auto manual = FAST_SETTINGS(manually_approved);
+    auto manual = FAST_SETTING(manually_approved);
     bool changed = false;
     //Rangel longest(-1, -1);
     
-    // search the segments present in current iteration
+    // search the tracklets present in current iteration
     for(auto && [start, end] : manual) {
         auto it = _previous_selected.find(Range<Frame_t>(Frame_t(start), Frame_t(end)));
         if(it != _previous_selected.end())
@@ -178,30 +212,33 @@ void DatasetQuality::update(const Tracker::LockGuard& guard) {
     }
     
     // remove all the ones that have been deleted in the manually_approved segments
-    for(auto & segment : _previous_selected) {
-        if(has(segment)) {
-            print("Removed previous manual segment ", segment.start,"-",segment.end);
-            remove_segment(segment);
+    for(auto & tracklet : _previous_selected) {
+        if(has(tracklet)) {
+            Print("Removed previous manual tracklet ", tracklet.start,"-",tracklet.end);
+            remove_segment(tracklet);
             changed = true;
         }
     }
     
-    // calculate segments for current iteration
+    // calculate tracklets for current iteration
     for(auto && [start, end] : manual) {
         auto range = Range<Frame_t>(Frame_t(start), Frame_t(end));
         if(!has(range) && end_frame >= Frame_t(end) && range.length().get() >= 5) {
             if(calculate_segment(range, video_length, guard)) {
-                print("Calculating manual segment ", start,"-",end);
+                Print("Calculating manual tracklet ", start,"-",end);
                 for(auto && [id, single] : _cache.at(range)) {
-                    print("\t", id,": ",single.number_frames);
+                    Print("\t", id,": ",single.number_frames);
                 }
                 changed = true;
                 
             } else
-                print("Failed calculating ", start,"-",end);
+                Print("Failed calculating ", start,"-",end);
         }
         _previous_selected.insert(range);
     }
+    
+    //std::vector<Range<Frame_t>> segments(Tracker::instance()->consecutive().begin(), Tracker::instance()->consecutive().end());
+    //Print("Consecutives: ", segments);
     
     for(auto &consec : Tracker::instance()->consecutive()) {
         if(consec.end.get() != video_length && consec == Tracker::instance()->consecutive().back())
@@ -211,38 +248,40 @@ void DatasetQuality::update(const Tracker::LockGuard& guard) {
             if(calculate_segment(consec, video_length, guard)) {
                 //break; // if this fails, dont set last seen and try again next time
 #ifndef NDEBUG
-                print("Calculated segment ", consec.start,"-",consec.end);
+                Print("Calculated tracklet ", consec.start,"-",consec.end);
 #endif
                 changed = true;
             }
         }
-        
-        _last_seen = consec;
     }
     
     if(changed)
-        Tracker::global_segment_order_changed();
+        Tracker::instance()->global_tracklet_order_changed();
 }
 
-Range<Frame_t> DatasetQuality::best_range() const {
+Range<Frame_t> best_range() {
     if(!_sorted.empty())
         return _sorted.begin()->range;
     return Range<Frame_t>({},{});
 }
 
-std::map<Idx_t, DatasetQuality::Single> DatasetQuality::per_fish(const Range<Frame_t> &range) const {
+std::map<Idx_t, Single> per_fish(const Range<Frame_t> &range) {
+    if(range.empty())
+        return {};
     auto it = _cache.find(range);
     if(it == _cache.end())
         return {};
     return it->second;
 }
 
-bool DatasetQuality::has(const Range<Frame_t>& range) const {
+bool has(const Range<Frame_t>& range) {
+    if(range.empty())
+        return {};
     auto it = _cache.find(range);
     return it != _cache.end() && !it->second.empty();
 }
 
-DatasetQuality::Single DatasetQuality::evaluate_single(Idx_t id, Individual* fish, const Range<Frame_t> &_consec, const Tracker::LockGuard&)
+Single evaluate_single(Idx_t id, Individual* fish, const Range<Frame_t> &_consec, const LockGuard&)
 {
     //assert(Tracker::individuals().find(id) != Tracker::individuals().end());
     
@@ -270,47 +309,47 @@ DatasetQuality::Single DatasetQuality::evaluate_single(Idx_t id, Individual* fis
     float travelled = 0;
     
     long_t number_frames = 0;
-    bool debug = false;
+    //bool debug = false;
     
-    auto manually_approved = FAST_SETTINGS(manually_approved);
-    if(manually_approved.find(_consec.start.get()) != manually_approved.end())
-        debug = true;
+    auto manually_approved = FAST_SETTING(manually_approved);
+    //if(manually_approved.find(_consec.start.get()) != manually_approved.end())
+    //    debug = true;
     
     FrameRange consec(Range<Frame_t>({}, {}));
-    auto it = std::lower_bound(fish->frame_segments().begin(), fish->frame_segments().end(), _consec.start, [](const auto& ptr, Frame_t frame) {
+    auto it = std::lower_bound(fish->tracklets().begin(), fish->tracklets().end(), _consec.start, [](const auto& ptr, Frame_t frame) {
         return ptr->start() < frame;
     });
-    /*if(debug && it != fish->frame_segments().end())
-        print("\t... ", fish->identity().ID()," -> found before == ", it->second.range.start,"-",it->second.range.end);
+    /*if(debug && it != fish->tracklets().end())
+        Print("\t... ", fish->identity().ID()," -> found before == ", it->second.range.start,"-",it->second.range.end);
     else
-        print("\t... ", fish->identity().ID()," not found before first step");*/
+        Print("\t... ", fish->identity().ID()," not found before first step");*/
     
-    if(it != fish->frame_segments().end()
-       && it != fish->frame_segments().begin()
+    if(it != fish->tracklets().end()
+       && it != fish->tracklets().begin()
        && (*it)->start() > _consec.end)
     {
         --it;
-    } else if(it != fish->frame_segments().end()
+    } else if(it != fish->tracklets().end()
               && (*it)->start() > _consec.start) {
         
     }
     
-    /*if(debug && it != fish->frame_segments().end())
-        print("\t... ", fish->identity().ID()," -> found it == ", it->second.range.start,"-",it->second.range.end);
+    /*if(debug && it != fish->tracklets().end())
+        Print("\t... ", fish->identity().ID()," -> found it == ", it->second.range.start,"-",it->second.range.end);
     else
-        print("\t... ", fish->identity().ID()," not found in first step");*/
+        Print("\t... ", fish->identity().ID()," not found in first step");*/
     
-    if(it == fish->frame_segments().end() && !fish->frame_segments().empty()
-       && (*fish->frame_segments().rbegin())->overlaps(_consec))
+    if(it == fish->tracklets().end() && !fish->tracklets().empty()
+       && (*fish->tracklets().rbegin())->overlaps(_consec))
     {
-        it = fish->frame_segments().end();
+        it = fish->tracklets().end();
         --it;
     }
     
-    //if(debug && it != fish->frame_segments().end())
+    //if(debug && it != fish->tracklets().end())
     
-    while(it != fish->frame_segments().end()
-          && it != fish->frame_segments().begin()
+    while(it != fish->tracklets().end()
+          && it != fish->tracklets().begin()
           && (*it)->overlaps(_consec))
     {
         auto copy = it;
@@ -322,11 +361,11 @@ DatasetQuality::Single DatasetQuality::evaluate_single(Idx_t id, Individual* fis
             break;
     }
     
-    /*if(debug && it != fish->frame_segments().end())
-        print("\t... ", fish->identity().ID()," -> starting with it == ", it->second.range.start,"-",it->second.range.end);*/
+    /*if(debug && it != fish->tracklets().end())
+        Print("\t... ", fish->identity().ID()," -> starting with it == ", it->second.range.start,"-",it->second.range.end);*/
     
-    // we found the segment where the start-frame is not smaller than _consec.start
-    while(it != fish->frame_segments().end()
+    // we found the tracklet where the start-frame is not smaller than _consec.start
+    while(it != fish->tracklets().end()
           && (*it)->overlaps(_consec))
     {
         if(!consec.range.start.valid())
@@ -338,11 +377,11 @@ DatasetQuality::Single DatasetQuality::evaluate_single(Idx_t id, Individual* fis
     }
     
     if(consec.empty()) {
-        FormatWarning("consec:[",consec.start(),"-",consec.end(),"] _consec:[",_consec.start,",",_consec.end,"] end()?",it == fish->frame_segments().end() ? 1 : 0," segments:", fish->frame_segments());
-        if(it != fish->frame_segments().end()) {
+        FormatWarning("consec:[",consec.start(),"-",consec.end(),"] _consec:[",_consec.start,",",_consec.end,"] end()?",it == fish->tracklets().end() ? 1 : 0," segments:", fish->tracklets());
+        if(it != fish->tracklets().end()) {
             FormatWarning("\tit:[",(*it)->start(),"-",(*it)->end(),"] overlaps:",(*it)->overlaps(_consec) ? 1 : 0);
         }
-        //auto it = fish->frame_segments().lower_bound(_consec.start);
+        //auto it = fish->tracklets().lower_bound(_consec.start);
         
         
         FormatExcept("Cannot find frame ", _consec.start," for fish ", fish->identity().ID(),"");
@@ -350,27 +389,28 @@ DatasetQuality::Single DatasetQuality::evaluate_single(Idx_t id, Individual* fis
     }
     
     /*if(debug) {
-        auto str = Meta::toStr(fish->frame_segments());
+        auto str = Meta::toStr(fish->tracklets());
         std::stringstream ss;
-        for(auto && [first, segment] : fish->frame_segments()) {
+        for(auto && [first, segment] : fish->tracklets()) {
             if(segment.overlaps(_consec)) {
                 ss << "\t\t"<< first <<": [" << segment.start() << "-" << segment.end() << "]\n";
             }
         }
         str = ss.str();
         
-        print("\t... ",fish->identity().ID()," -> ",consec.range.start,"-",consec.range.end," (",str.c_str(),")");
+        Print("\t... ",fish->identity().ID()," -> ",consec.range.start,"-",consec.range.end," (",str.c_str(),")");
     }*/
         
     //! TODO: Use local_midline_length function instead
-    auto constraints = Tracker::recognition()->local_midline_length(fish, consec.range, true);
+    using namespace track::constraints;
+    auto constraints = local_midline_length(fish, consec.range, true);
     if(consec.start() > Tracker::start_frame() && fish->centroid_weighted(consec.start() - 1_f)) {
         prev = fish->centroid_weighted(consec.start() - 1_f)->pos<Units::PX_AND_SECONDS>();
     }
     
-    fish->iterate_frames(consec.range, [&](Frame_t i, const auto&, const Individual::BasicStuff* basic, auto posture) -> bool
+    fish->iterate_frames(consec.range, [&](Frame_t i, const auto&, const BasicStuff* basic, auto posture) -> bool
     {
-        if(!Recognition::eligible_for_training(basic, posture, constraints))
+        if(!py::VINetwork::is_good(basic, posture))
             return true;
         
         // go through all frames within the segment
@@ -385,11 +425,11 @@ DatasetQuality::Single DatasetQuality::evaluate_single(Idx_t id, Individual* fis
             
             positions.push_back(pos);
             
-            if(posture && posture->outline && posture->cached())
-                orientations.insert(std::round(DEGREE(posture->midline_angle)));
+            if(posture && posture->outline && posture->midline_angle.has_value())
+                orientations.insert(std::round(DEGREE(posture->midline_angle.value())));
             
             if(i > consec.start() && prev.x != FLT_MAX && pos != prev) {
-                auto L = ((pos - prev) * FAST_SETTINGS(cm_per_pixel)).length();
+                auto L = ((pos - prev) * FAST_SETTING(cm_per_pixel)).length();
                 travelled += L;
             }
             
@@ -402,13 +442,14 @@ DatasetQuality::Single DatasetQuality::evaluate_single(Idx_t id, Individual* fis
     
     Single single(id);
     single.grid_cells_visited = grid_cells.size();
-    single.midline_len = constraints.median_midline_length_px;
-    single.midline_std = constraints.midline_length_px_std;
+    single.midline_len = constraints->median_midline_length_px;
+    single.midline_std = constraints->midline_length_px_std;
     single.distance_travelled = travelled;
-    single.outline_len = constraints.median_number_outline_pts;
-    single.outline_std = constraints.outline_pts_std;
-    single.median_angle_var = constraints.median_angle_diff;
+    single.outline_len = constraints->median_number_outline_pts;
+    single.outline_std = constraints->outline_pts_std;
+    single.median_angle_var = constraints->median_angle_diff;
     single.number_frames = number_frames;
     return single;
+}
 }
 }

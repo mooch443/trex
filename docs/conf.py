@@ -1,5 +1,18 @@
 import sphinx_rtd_theme
+import os
+import sys
+
+# Enable automatic figure numbering
 numfig = True
+numfig_secnum_depth = 3  # Adjusts depth for including section numbers
+
+# Customize numbering format (optional)
+numfig_format = {
+    'figure': 'Figure %s',
+    'table': 'Table %s',
+    'code-block': 'Listing %s',
+    'section': 'Section %s'
+}
 
 # Configuration file for the Sphinx documentation builder.
 #
@@ -21,7 +34,7 @@ numfig = True
 # -- Project information -----------------------------------------------------
 
 project = 'TRex'
-copyright = '2020, Tristan Walter'
+copyright = '2024, Tristan Walter'
 author = 'Tristan Walter'
 
 
@@ -32,14 +45,18 @@ author = 'Tristan Walter'
 # ones.
 extensions = [
     "sphinx_rtd_dark_mode",
-    'sphinx.ext.autosectionlabel'
+    'sphinx.ext.autosectionlabel',
+    'sphinx_copybutton',
+    'hoverxref.extension'  # Add the hoverxref extension
 ]
 
 default_dark_mode = True
 autosectionlabel_prefix_document = True
-autosectionlabel_maxdepth = 4
+autosectionlabel_maxdepth = 3
 
-html_sidebars = { '**': ['globaltoc.html', 'relations.html', 'sourcelink.html', 'searchbox.html'] }
+hoverxref_auto_ref = True
+
+html_sidebars = { '**': ['localtoc.html', 'relations.html', 'sourcelink.html', 'searchbox.html'] }
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -62,24 +79,78 @@ master_doc = 'contents'
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = [ 
+    "css",
+    "images"
+]
+html_css_files = [
     "custom.css"
 ]
-html_css_files = []
+html_js_files = [
+]
 
 html_theme_options = {
     'canonical_url': '',
     'logo_only': True,
-    'display_version': True,
+    #'display_version': True,
     'prev_next_buttons_location': 'bottom',
     'style_external_links': True,
 #    'style_nav_header_background': '',
     # Toc options
-    'collapse_navigation': True,
-#    'sticky_navigation': False,
-#    'navigation_depth': 3,
+    'collapse_navigation': False,
+    'sticky_navigation': True,
+    'navigation_depth': 3,
     'includehidden': True,
 #    'titles_only': True
 }
 
+# Configuration for hoverxref
+hoverxref_api_host = 'https://trex.run/docs/docs2'
+
+hoverxref_roles = [
+    'py:func',
+    'ref',
+    'param'              # Enable hover previews for the param role
+]  
+hoverxref_role_types = {
+    'class': 'tooltip',  # Use tooltip for class role,
+    'py:func': 'tooltip',  # Use tooltip for py:func role,
+    'param': 'tooltip',  # Use tooltip for param role
+    'ref': 'tooltip',  # Use tooltip for ref role
+}
+
+from docutils import nodes, utils
+from docutils.parsers.rst.roles import set_classes
+from sphinx.addnodes import pending_xref
+
+def green_role(name, rawtext, text, lineno, inliner, options={}, content=[]):
+    set_classes(options)
+    text = utils.unescape(text)
+    node = nodes.inline(rawtext, text, classes=['green-text'])
+    return [node], []
+
+def param_role(name, rawtext, text, lineno, inliner, options={}, content=[]):
+    """
+    Create a cross-reference to a function defined in parameters_trex.rst.
+    Example: :param:`adaptive_threshold_scale`
+    """
+    set_classes(options)
+    # Create a pending_xref node that references a Python function
+    node = pending_xref(
+        rawsource=rawtext,
+        refdomain='py',  # Use the Python domain
+        reftype='func',  # Use the function reference type
+        reftarget=text,  # The target is the function name
+        modname=None,
+        classname=None,
+        refexplicit=False,
+        refwarn=True,
+        classes=['param-reference'],
+        **options
+    )
+    node += nodes.literal(text, text)
+    return [node], []
+
 def setup(app):
     app.add_css_file('custom.css')  # may also be an URL
+    app.add_role('green', green_role)
+    app.add_role('param', param_role)  # So you can do :param:`my_parameter`

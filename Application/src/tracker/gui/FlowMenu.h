@@ -2,7 +2,7 @@
 
 #include <gui/types/PieChart.h>
 
-namespace gui {
+namespace cmn::gui {
     class FlowMenu : public Entangled {
     public:
         class Layer {

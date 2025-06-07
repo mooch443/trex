@@ -42,6 +42,12 @@ def init():
     tagwork = Tagwork(width, height, model_path)
     TRex.log("# loading network "+model_path)
     tagwork.load(model_path)
+    
+    TRex.log("# predicting with shape "+str(width)+"x"+str(height))
+    images = np.zeros((100,height,width,1), dtype=float)
+    TRex.log(str(images.shape))
+    y = np.argmax(tagwork.model.predict(images))
+    TRex.log(str(y))
 
 def load():
     pass

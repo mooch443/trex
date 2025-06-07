@@ -1,3 +1,5 @@
-.. |trex| replace:: TRex
-.. |grabs| replace:: TGrabs
-.. |tgrabs| replace:: TGrabs
+.. |trex| replace:: 🦖
+
+
+.. role:: strike
+    :class: strike

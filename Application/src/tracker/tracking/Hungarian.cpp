@@ -39,8 +39,8 @@
 #define byte     int_fast8_t
 #define boolean  int_fast8_t
 #define null     0
-#define true     1
-#define false    0
+//#define true     1
+//#define false    0
 
 #if defined(_MSC_VER)
 using ssize_t = track::ssize_t;

@@ -1,7 +1,8 @@
 #pragma once
 
-namespace gui {
+namespace cmn::gui {
 class DrawStructure;
+struct TrackingState;
 
 struct DrawExportOptions {
     struct Data;
@@ -10,6 +11,6 @@ struct DrawExportOptions {
 public:
     DrawExportOptions();
     ~DrawExportOptions();
-    void draw(DrawStructure&);
+    void draw(DrawStructure&, TrackingState*);
 };
 }

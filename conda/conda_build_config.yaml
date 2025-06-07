@@ -1,8 +1,8 @@
 SDKROOT:
-  - /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk # [osx]
+  - /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.4.sdk # [osx]
 
 CONDA_BUILD_SYSROOT:
-  - /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk # [osx]
+  - /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.4.sdk # [osx]
 
 CC:
   - /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang # [osx]
@@ -13,19 +13,22 @@ CXX:
 #CXX:
 #  - $BUILD_PREFIX/bin/clang++ # [osx and not arm64]
 
+numpy:
+  - 1.26.4
+
 MACOSX_DEPLOYMENT_TARGET:
   - 11.0 # [osx and not arm64]
   - 11.0 # [osx and arm64]
   #- 10.15 # [osx and not arm64]
 
 c_compiler:
-- vs2019 # [win]
+  - vs2022 # [win]
 cxx_compiler:
-- vs2019 # [win]
+  - vs2022 # [win]
 cxx_compiler_version:
-  - 11 # [linux]
+  - 13 # [linux]
 c_compiler_version:
-  - 11 # [linux]
+  - 13 # [linux]
 
 pin_run_as_build:
   python:
@@ -34,3 +37,7 @@ pin_run_as_build:
   ffmpeg:
     min_pin: x.x.x
     max_pin: x.x.x
+    
+channel_sources:
+  - conda-forge
+  - nodefaults

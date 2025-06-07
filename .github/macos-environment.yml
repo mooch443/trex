@@ -1,5 +1,7 @@
 name: tracking
 channels:
-    - main
+    - conda-forge
+    - nodefaults
 dependencies:
     - conda-build
+    - git

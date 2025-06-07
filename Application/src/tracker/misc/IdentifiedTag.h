@@ -1,16 +1,16 @@
 #pragma once
 
+#include <commons.pc.h>
 #include <misc/frame_t.h>
 #include <misc/idx_t.h>
-#include <misc/vec2.h>
-#include <misc/PVBlob.h>
+#include <misc/bid.h>
 #include <file/DataFormat.h>
 
 namespace track {
 namespace tags {
 	struct Detection {
 		Idx_t id;
-		Vec2 pos;
+		cmn::Vec2 pos;
 		pv::bid bid;
 		float p;
 		
@@ -38,7 +38,7 @@ struct Assignment {
     {}
     
     bool valid() const {
-        return bid.valid();
+        return bid.valid() && id.valid();
     }
 
     auto operator<=>(const Assignment&) const = default;
@@ -56,15 +56,15 @@ struct Assignment {
 			}
 		}
 	}
-	void detected(Frame_t, Detection&& tag);
-	void remove(Frame_t, pv::bid);
-	Assignment find(Frame_t, pv::bid);
+	void detected(cmn::Frame_t, Detection&& tag);
+	void remove(cmn::Frame_t, pv::bid);
+	Assignment find(cmn::Frame_t, pv::bid);
 	//UnorderedVectorSet<std::tuple<float, Assignment>> query(Frame_t frame, const Vec2& pos, float distance);
 	bool available();
     
     //! writes to results file / binary format
-    void write(Data&);
+    void write(cmn::Data&);
     //! reads from results file / binary format
-    void read(Data&);
+    void read(cmn::Data&);
 }
 }

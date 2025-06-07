@@ -13,15 +13,23 @@ elseif(WIN32)
   add_library(tracker_gui STATIC ${SRCS} ${HDRS})
 endif()
 
-add_dependencies(tracker_gui tracker_misc commons)
+#add_dependencies(tracker_gui tracker_misc commons)
 
-target_link_libraries(tracker_gui PRIVATE
+if(WITH_FFMPEG)
+    target_compile_definitions(tracker_gui PUBLIC WITH_FFMPEG=true)
+endif()
+
+target_link_libraries(tracker_gui PUBLIC
     tracker_tracking
     tracker_misc
     commons
 )
+
+if(CMAKE_COMPILER_IS_GNUCXX)
+target_link_libraries(tracker_gui PUBLIC atomic)
+endif()
 #target_precompile_headers(tracker_gui REUSE_FROM commons)
 
 if(APPLE)
-  target_compile_options(tracker_gui PRIVATE "-DNS_FORMAT_ARGUMENT(A)=" "-D_Nullable_result=_Nullable")
+  #target_compile_options(tracker_gui PUBLIC "-DNS_FORMAT_ARGUMENT(A)=" "-D_Nullable_result=_Nullable")
 endif()

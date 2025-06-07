@@ -6,7 +6,8 @@ env:
   # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
   BUILD_TYPE: Release
   MACOSX_DEPLOYMENT_TARGET: 11.0
-  CONDA_BUILD_SYSROOT: /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX13.1.sdk
+  CONDA_BUILD_SYSROOT: /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk
+  SDKROOT: /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk
   GITHUB_WORKFLOW: CondaBuildMacOS
 
 jobs:
@@ -19,51 +20,82 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ["macos-12"]
-        python-version: ["3.7.9"]
+        os: ["macos-14"]
+        python-version: ["3.11"]
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         ref: ${{ github.ref }}
         submodules: 'recursive'
+    - name: Select current SDK
+      run: |
+        sudo xcode-select -s $(dirname $(dirname $(dirname $(dirname $(dirname $SDKROOT)))))
+        echo "Xcode version selected:"
+        xcodebuild -version
     - name: Cache conda
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       env:
         # Increase this value to reset cache if etc/example-environment.yml has not changed
         CACHE_NUMBER: 0
       with:
         path: ~/conda_pkgs_dir
         key: ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{ hashFiles('.github/macos-environment.yml') }}
-    - uses: conda-incubator/setup-miniconda@v2
+    - uses: conda-incubator/setup-miniconda@v3
       with:
+        miniforge-version: latest
         environment-file: .github/macos-environment.yml
         activate-environment: tracking
         python-version: ${{ matrix.python-version }}
-        channels: main
+        channels: conda-forge
         auto-activate-base: true
         auto-update-conda: true
         use-only-tar-bz2: true
+    - name: Create .condarc file
+      run: |
+        conda config --show channels
+        echo "channels:" > ~/.condarc
+        echo "  - conda-forge" >> ~/.condarc
+        echo "channel_priority: strict" >> ~/.condarc
+        echo "default_channels: []" >> ~/.condarc
+    - name: Verify .condarc content
+      run: |
+        cat ~/.condarc
+    - name: Show current conda channels
+      run: conda config --show channels
     - name: Build
       shell: bash -l {0}
       working-directory: ${{runner.workspace}}
       run: |
         echo "::group::Info"
         conda info
+        conda search --override-channels -c conda-forge numpy
         conda list
         echo "::endgroup::"
         echo "::group::Fix Meta"
         cd $GITHUB_WORKSPACE/conda
         p=${GITHUB_REF##*/}
-        sed -i -e 's+main+'$p'+g' meta.yaml
+        sed -i -e '/^{% set git_tag =/ s+main+'$p'+g' meta.yaml
         cat meta.yaml
         echo "::endgroup::"
-        echo "::group::Build"
-        conda build .
+        echo "::group::Fix PostLink"
+        sed -i.bak '/from ultralytics import YOLO/d' post-link.sh
+        cat post-link.sh
         echo "::endgroup::"
+        echo "::group::Build"
+        conda update --all --override-channels -c conda-forge -y
+        conda build . --override-channels -c conda-forge
+        echo "::endgroup::"
+        echo $CONDA_PREFIX
+    - name: Test
+      shell: bash -l {0}
+      working-directory: ${{runner.workspace}}
+      run: |
         echo "::group::Test"
         echo $CONDA_PREFIX
-        conda create -y -n test -c $CONDA_PREFIX/conda-bld/ trex
+        conda search --override-channels -c conda-forge numpy
+        conda create -y -n test --override-channels -c $CONDA_PREFIX/conda-bld/ -c conda-forge trex
         conda activate test
+        conda install -y git
         pvinfo -opencv_ffmpeg_support
         pvinfo -opencv_opencl_support
         echo "::endgroup::"

@@ -6,7 +6,7 @@
 Batch processing support
 ========================
 
-|trex| and |grabs| both offer full batch processing support. All parameters that can be setup via the settings box (and even some that are read-only when the program is already started), can be appended to the command-line -- as mentioned above. For batch processing, special parameters are available:
+|trex| offers full batch processing support. All parameters that can be setup via the settings box (and even some that are read-only when the program is already started), can be appended to the command-line -- as mentioned above. For batch processing, special parameters are available:
 
 +-----------------------+--------------------------------------------------------------------------------------------+
 | Parameter             | Description                                                                                |
@@ -81,11 +81,12 @@ A modified version of his script (reference above) follows, which additionally c
     BASE="$2"
 
     if [ ! -f "${EWD}/videos_pv/${BASE}.pv" ]; then
-       CMD="tgrabs \
+       CMD="trex \
             -d ${EWD}/videos_pv \
             -i ${f} \
             -s ${CONV_SETTINGS} \
-            -o tmp"
+            -o tmp \
+            -task convert"
 
        echo -e "\t${CMD} ..."
        if { eval $CMD 2>&1; } > convert_${BASE}.log; then
@@ -123,7 +124,8 @@ A modified version of his script (reference above) follows, which additionally c
            -d ${EWD}/results \
            -i ../videos_pv/${BASE}.pv \
            -s ${TRACK_SETTINGS} \
-           -auto_quit"
+           -auto_quit \
+           -task track"
 
         if { eval $CMD 2>&1; } > track_${BASE}.log; then
            echo -e "\tTracked ${EWD}."

@@ -9,6 +9,7 @@
 #include <gui/DrawFish.h>
 #include <gui/InfoCard.h>
 #include <video/VideoSource.h>
+#include <file/DataLocation.h>
 
 static std::unordered_map<const track::Individual*, std::unique_ptr<gui::Fish>> map;
 
@@ -27,7 +28,6 @@ void async_main(void*) {
 
 	//throw U_EXCEPTION("End of program");
 
-	DrawStructure graph(1024, 1024);
 	Timer timer;
 	Vec2 last_mouse_pos;
 	Entangled e;
@@ -36,9 +36,9 @@ void async_main(void*) {
 
 	//SETTING(do_history_split) = false;
 
-	GlobalSettings::load_from_string({}, GlobalSettings::map(),
-		"blob_size_ranges = [[0.001,0.07]]\n"
-		//"blob_size_ranges = [[80, 400]]\n"
+	GlobalSettings::load_from_string(sprite::MapSource::defaults, {}, GlobalSettings::map(),
+		"track_size_filter = [[0.001,0.07]]\n"
+		//"track_size_filter = [[80, 400]]\n"
 		"blob_split_global_shrink_limit = 0.005\n"
 		"blob_split_max_shrink = 0.1\n"
 		"gpu_enable_accumulation = false\n"
@@ -62,7 +62,7 @@ void async_main(void*) {
 	pv::File file("group_1.pv");
 #else
 	//VideoSource source({ file::Path("C:\\Users\\tristan\\trex\\Application\\build_js\\guppy_8_t36_d15_20191212_085800.avi") });
-	pv::File file("C:/Users/tristan/Videos/group_1.pv");
+	pv::File file("C:/Users/tristan/Videos/group_1.pv", pv::FileMode::READ);
 	//pv::File file("C:/Users/tristan/trex/videos/test.pv");
 #endif
 	//cv::Mat mat;
@@ -72,35 +72,22 @@ void async_main(void*) {
 	//cv::waitKey(0);
 	print("Will open... group_1...");
 
-	file.start_reading();
 	file.print_info();
 
 	SETTING(gui_frame) = Frame_t(0);
-	SETTING(analysis_paused) = false;
+	SETTING(track_pause) = false;
 	SETTING(terminate) = false;
 
 	try {
-		Tracker tracker;
+		Tracker tracker(std::make_unique<Image>(file.average()), file);
 		print("Added tracker");
 		print("Image: ", Size2(file.average()));
-		tracker.set_average(std::make_unique<Image>(file.average()));
 
 		Tracker::auto_calculate_parameters(file);
 
-		if (SETTING(manual_identities).value<std::set<track::Idx_t>>().empty() && SETTING(track_max_individuals).value<uint32_t>() != 0)
-		{
-			std::set<track::Idx_t> vector;
-			for (uint32_t i = 0; i < SETTING(track_max_individuals).value<uint32_t>(); ++i) {
-				vector.insert(track::Idx_t(i));
-			}
-			SETTING(manual_identities) = vector;
-		}
-
-		GUICache cache{ &graph, &file };
 
 		std::atomic<double> fps{ 0.0 };
 
-		//Tracker::set_of_individuals_t active;
 		std::thread tracking([&]() {
 			set_thread_name("Tracking");
 			PPFrame frame;
@@ -110,38 +97,37 @@ void async_main(void*) {
 			double samples = 0;
 
 			while (!SETTING(terminate)) {
-				if(SETTING(analysis_paused)) {
+				if(SETTING(track_pause)) {
 					std::this_thread::sleep_for(std::chrono::milliseconds(10));
 					continue;
 				}
 
 				Frame_t index = tracker.end_frame();
-				if(!index.valid())
+				if(not index.valid())
 					index = 0_f;
-				else if(index.get() < file.length() - 1)
+				else if(index + 1_f < file.length())
 					index += 1_f;
 				else {
 					std::this_thread::sleep_for(std::chrono::milliseconds(10));
 					continue;
 				}
 
-				file.read_frame(single, index.get());
+				file.read_frame(single, index);
+                
+				//frame = std::move(single);
+				//frame.set_index(index);
+				//frame.set_timestamp(single.timestamp());
 
-				frame.clear();
-				frame.set_index(index);
-				frame.frame() = single;
-				frame.frame().set_index(index.get());
-				frame.frame().set_timestamp(single.timestamp());
-				frame.set_index(index);
-
-				track::Tracker::LockGuard guard("update_tracker_queue");
-				if(frame.index() != Tracker::end_frame() + 1_f && (Tracker::end_frame().valid() || frame.index() == 0_f)) 
+                track::LockGuard guard(track::w_t{}, "update_tracker_queue");
+				if(Tracker::end_frame().valid()
+				   && frame.index() != Tracker::end_frame() + 1_f
+                   && (Tracker::end_frame().valid() || frame.index() == 0_f)) 
 				{
 					print("Reanalyse event ", frame.index(), " -> ", Tracker::end_frame());
 					continue;
 				}
 
-				track::Tracker::preprocess_frame(frame, {}, NULL, NULL, false);
+				track::Tracker::preprocess_frame(std::move(single), frame, NULL, track::PPFrame::NeedGrid::NoNeed, file.header().resolution, false);
 				tracker.add(frame);
 				++samples;
 				time_per_frame += timer.elapsed();
@@ -156,9 +142,10 @@ void async_main(void*) {
 
 		FrameInfo frameinfo;
 		InfoCard card(nullptr);
-		cache.set_redraw();
 		
-		IMGUIBase base("TRex platik version", graph, [&]() -> bool {
+		IMGUIBase base("TRex platik version", Size2(1024,1024), [&](DrawStructure& graph) -> bool 
+        {
+            static GUICache cache{ &graph, &file };
 			static Timeline timeline(nullptr, [](bool) {}, []() {}, frameinfo);
 			timeline.set_base(ptr);
 
@@ -176,8 +163,8 @@ void async_main(void*) {
 			graph.draw_log_messages();//Bounds(Vec2(0), dim));
 
 			static Timer frame_timer;
-			if (frame_timer.elapsed() >= 1.0 / (double)SETTING(frame_rate).value<int>()
-				&& index.get() + 1 < file.length())
+			if (frame_timer.elapsed() >= 1.0 / (double)SETTING(frame_rate).value<uint32_t>()
+				&& index + 1_f < file.length())
 			{
 				if (SETTING(gui_run)) {
 					index += 1_f;
@@ -203,7 +190,7 @@ void async_main(void*) {
 					return;
 				}
 
-				track::Tracker::LockGuard guard("update", 10);
+				track::LockGuard guard(track::ro_t{}, "update", 10);
 				if (!guard.locked()) {
 					s->reuse_objects();
 					return;
@@ -216,7 +203,7 @@ void async_main(void*) {
 				graph.image(Vec2(0), std::make_unique<Image>(tracker.average().get()), Vec2(1), White.alpha(150));
 				//graph.image(Vec2(0), std::make_unique<Image>(mat), Vec2(1), White.alpha(150));
 				frameinfo.analysis_range = tracker.analysis_range();
-				frameinfo.video_length = file.length();
+				frameinfo.video_length = file.length().get();
 				frameinfo.consecutive = tracker.consecutive();
 				frameinfo.current_fps = fps;
 
@@ -250,7 +237,7 @@ void async_main(void*) {
 									drawfish = std::make_unique<gui::Fish>(*fish);
 									fish->register_delete_callback(drawfish.get(), [&](Individual* f) {
 										//std::lock_guard<std::mutex> lock(_individuals_frame._mutex);
-										std::lock_guard<std::recursive_mutex> guard(graph.lock());
+										auto guard = GUI_LOCK(graph.lock());
 
 										auto it = map.find(f);
 										if (it != map.end())
@@ -258,13 +245,16 @@ void async_main(void*) {
 										});
 								}
 
-								drawfish->set_data(index, props->time, nullptr);
+								drawfish->set_data(index, props->time, nullptr, dt);
 
 								{
-									drawfish->update(ptr, s, e, graph);
+									drawfish->update(ptr->window_dimensions(), s, e, graph, dt);
 								}
 								//print("\t", fish->identity().name(), " has frame ", index, " at ", basic->centroid.pos<Units::PX_AND_SECONDS>());
-								graph.circle(basic->centroid.pos<Units::PX_AND_SECONDS>(), 5, fish->identity().color(), fish->identity().color().alpha(150));
+                                graph.circle(Loc(basic->centroid.pos<Units::PX_AND_SECONDS>()),
+                                             Radius{5},
+                                             LineClr{fish->identity().color()},
+                                             FillClr{fish->identity().color().alpha(150)});
 							}
 						}
 					});
@@ -307,9 +297,9 @@ void async_main(void*) {
 			 * 
 			 */
 			static Entangled menu([&graph, &tracker](Entangled& menu) {
-				static Button reanalyse("reanalyse", Bounds{ Size2(100, 33) }, [&]() {
+                static Button reanalyse(Str{"reanalyse"}, Box{ Size2(100, 33) }, [&]() {
 					auto index = SETTING(gui_frame).value<Frame_t>();
-					std::lock_guard guard(graph.lock());
+					auto guard = GUI_LOCK(graph.lock());
 					if(index.valid() && tracker.end_frame().valid()
 						&& index <= tracker.end_frame()) 
 					{
@@ -326,7 +316,7 @@ void async_main(void*) {
 
 			return !terminate;
 
-		}, [&](const Event& e) {
+		}, [&](DrawStructure& graph, const Event& e) {
 			if (e.type == EventType::KEY && !e.key.pressed) {
 				if (e.key.code == Codes::F && graph.is_key_pressed(Codes::LControl)) {
 					ptr->toggle_fullscreen(graph);
@@ -358,18 +348,18 @@ void async_main(void*) {
 
 int main(int argc, char**argv) {
 	using namespace track;
+    const char* locale = "C";
+    std::locale::global(std::locale(locale));
+    
 	default_config::register_default_locations();
-	GlobalSettings::map().set_do_print(true);
+	GlobalSettings::map().set_print_by_default(true);
 
-	CommandLine cmd(argc, argv);
-	cmd.cd_home();
+	CommandLine::init(argc, argv);
+    file::cd(file::DataLocation::parse("app"));
 
 	gui::init_errorlog();
 	set_thread_name("main");
 	srand((uint)time(NULL));
-
-	FILE* log_file = NULL;
-	std::mutex log_mutex;
 
 	/**
 	 * Set default values for global settings
@@ -380,6 +370,8 @@ int main(int argc, char**argv) {
 	default_config::get(GlobalSettings::set_defaults(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
 	GlobalSettings::map().dont_print("gui_frame");
 	GlobalSettings::map().dont_print("gui_focus_group");
+    
+    track::initialize_slows();
 
 	FileSize size{ sizeof(MotionRecord) };
 	auto str = size.toStr();
@@ -387,12 +379,12 @@ int main(int argc, char**argv) {
 
 	for (int i = 1; i <= 10; ++i) {
 		SETTING(cm_per_pixel) = float(i);
-		SETTING(frame_rate) = int(60);
+		SETTING(frame_rate) = uint32_t(60);
 
 		Frame_t f0 = 0_f, f1 = 1_f;
 
 		double t0 = 0;
-		double t1 = double(f1.get()) / double(SETTING(frame_rate).value<int>());
+		double t1 = double(f1.get()) / double(SETTING(frame_rate).value<uint32_t>());
 
 		Vec2 p0(i, sqrtf(i)), 
 			p1((i - 1) / float(i) + 1, i - 1);
@@ -407,13 +399,14 @@ int main(int argc, char**argv) {
         print("Manual: ", manual,"cm/s");
 
 		auto epsilon = manual * 0.0001;
-		ASSERT(manual - next.speed<Units::CM_AND_SECONDS>() <= epsilon,
-			"Difference between manually chosen and automatically calculated speed > %f", epsilon);
+		auto speed = next.speed<Units::CM_AND_SECONDS>();
+		ASSERT(manual - speed <= epsilon,
+			"Difference between manually chosen (",manual,") and automatically calculated speed (",speed,") > ", epsilon," points: ", p0, " => ", p1, " / ", t1 - t0);
 	}
 
 
 	SETTING(cm_per_pixel) = float(2);
-	SETTING(frame_rate) = int(60);
+	SETTING(frame_rate) = uint32_t(60);
 
 	const MotionRecord* previous = nullptr;
 	std::vector<MotionRecord> vector;
@@ -422,7 +415,7 @@ int main(int argc, char**argv) {
 	auto speed = v.length();
 
 	for (Frame_t frame = 0_f; frame <= 10_f; ++frame) {
-		double time = (double)frame.get() / (double)SETTING(frame_rate).value<int>();
+		double time = (double)frame.get() / (double)SETTING(frame_rate).value<uint32_t>();
 		double dt = time - (previous ? previous->time() : 0);
 		
 		pos = pos + v * dt;

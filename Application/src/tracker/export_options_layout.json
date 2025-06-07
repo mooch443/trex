@@ -1,0 +1,553 @@
+{
+"defaults":{
+    "vars":{
+        "column_width":"{-:{/:{-:{window_size.x}:20}:3}:20}",
+        "column_height":"{-:{window_size.y}:58}"
+    }
+},
+"objects":[
+
+{
+    "type":"rect",
+    "fill":[0,0,0,200],
+    "line":[250,250,250,240],
+    "size":"{window_size}",
+    "pos":[0,0]
+},
+{
+"type":"vlayout",
+"children":[
+{
+    "type":"stext",
+    "text":"<h3>Export tracking data</h3>\n<lightgray>Select what you want to export by clicking on list items on the left. Then select additional options (e.g. where you want to save it) on the right. Finally, click the <sym>🖫</sym> Export button to write the files to disk (<i>this replaces existing files</i>).</lightgray>",
+    "max_size":"[{min:740:{-:{window_size.x}:25}},150]",
+    "color":[255,255,255],
+    "pad":[20,20,0,0],
+    "font":{"size":0.55}
+},
+{ "type":"hlayout",
+    "pad":[10,10,5,5],
+    "align":"top",
+    "children":[{
+        "type":"vlayout",
+        "pad":[5,5,0,0],
+        "children":[
+
+            {
+                "type":"hlayout",
+                "children":[
+                    {
+                        "type":"vlayout",
+                        "children":[
+                            {
+                                "type":"stext",
+                                "text":"<c>Available options</c>",
+                                "font":{"size":0.55},
+                                "pad":[5,5,5,5],
+                                "color":[255,255,255],
+                                "fill":[100,100,100,200]
+                            },
+                            {
+                                "type":"list",
+                                "var":"available_options",
+                                "placeholder":"No items.",
+                                "list":{
+                                    "size":"[{-:{column_width}:15},{-:{column_height}:120}]",
+                                    "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
+                                    "fill":[25,25,25,220]
+                                },
+                                "detail":{
+                                    "font":{
+                                        "size":0.45,
+                                        "align":"center"
+                                    }
+                                },
+                                "item":{
+                                    "item_line":[100,100,100,150],
+                                    "pad":[8,2],
+                                    "font":{
+                                        "size":0.55,
+                                        "align":"center"
+                                    }
+                                },
+                                "template": {
+                                    "text":"<b>{i.name}</b>{if:{i.sub}:#<gray>{i.sub}</gray>:''}",
+                                    "detail":"{if:{>:{i.count}:0}:{if:{not:{i.auto}}:'added (click to remove)':'<b>automatically added</b>'}:{i.doc}}",
+                                    "tooltip":"{i.doc_tooltip}",
+                                    "action":"add_option"
+                                }
+                            }
+                        ]
+                    },
+
+                    {
+                        "type":"stext",
+                        "text":">\n<",
+                        "font":{"size":0.5},
+                        "pad":[5,5,5,5],
+                        "color":[150,150,150]
+                    },
+
+                    {
+                        "type":"vlayout",
+                        "children":[
+                            {
+                                "type":"stext",
+                                "text":"<c>Chosen for export</c>",
+                                "font":{"size":0.55},
+                                "pad":[5,5,5,5],
+                                "color":[255,255,255],
+                                "fill":[100,100,100,200]
+                            },
+
+                            {
+                                "type":"list",
+                                "var":"chosen_options",
+                                "fill":[40,40,40,220],
+                                "color":[225,225,225],
+                                "item_line":[100,100,100,150],
+                                "placeholder":"Click on an item on the left\nto add it to the list.",
+                                "list":{
+                                    "size":"[{-:{column_width}:15},{-:{column_height}:120}]",
+                                    "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
+                                    "fill":[25,25,25,220]
+                                },
+                                "detail":{
+                                    "font":{
+                                        "size":0.45,
+                                        "align":"center"
+                                    }
+                                },
+                                "item":{
+                                    "item_line":[100,100,100,150],
+                                    "pad":[8,2],
+                                    "font":{
+                                        "size":0.55,
+                                        "align":"center"
+                                    }
+                                },
+                                "template": {
+                                    "text":"{if:{>:{i.count}:0}:<b><green>{i.name}</green></b>{if:{i.sub}:#<gray>{i.sub}</gray>:''}:{i.name}{if:{i.sub}:#<gray>{i.sub}</gray>:''}}",
+                                    "detail":"{if:{>:{i.count}:0}:{if:{not:{i.auto}}:'added (click to remove)':'<b>automatically added</b>'}:{i.doc}}",
+                                    "tooltip":"{i.doc_tooltip}",
+                                    "action":"remove_option"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            },
+
+            {
+                "type":"hlayout",
+                "pad":[0,0,5,0],
+                "children":[
+                    {
+                        "type":"option_search",
+                        "fill":[50,50,50,125],
+                        "size":"[{-:{column_width}:15},27]",
+                        "placeholder":" Type to filter... ",
+                        "color":[200,200,200],
+                        "font":{
+                            "size":0.5
+                        }
+                    },
+                    {
+                        "type":"rect",
+                        "fill":[0,0,0,0],
+                        "size":[8,27]
+                    },
+                    {
+                        "type":"button",
+                        "text":"<sym>⮌</sym> Reset to defaults",
+                        "font":{ "size":0.5 },
+                        "size":[134,27],
+                        "fill":[40,40,40,200],
+                        "line":[100,100,100,150],
+                        "action":"reset_options"
+                    },
+
+                    {
+                        "type":"button",
+                        "text":"<sym>⮾</sym> Clear list",
+                        "font":{ "size":0.5 },
+                        "size":[85,27],
+                        "fill":[60,40,40,200],
+                        "line":[100,100,100,150],
+                        "action":"clear_list"
+                    }
+                ]
+            }
+            
+        ]
+    },
+    {
+        "type":"gridlayout",
+        "pad":[0,0,5,0],
+        "vertical_clr":[0,0,0,0],
+        "horizontal_clr":[10,50,80,40],
+        "clickable":false,
+        "children":[
+
+            [{
+                "type":"vlayout",
+                "pad":[0,0,0,3],
+                "children":[
+                {
+                    "type":"stext",
+                    "pad":[5,0,0,0],
+                    "text":"<c>output_format</c>",
+                    "font":{"size":0.45},
+                    "color":[255,255,255]
+                },
+                {
+                    "type":"settings",
+                    "var":"output_format",
+                    "desc":"",
+                    "label":{
+                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,250]}",
+                        "fill":"{if:{||:{selected}:{hovered}}:[10,80,110,240]:[10,50,80,240]}",
+                        "font":{"size":0.45}
+                    },
+                    "list":{
+                        "line":[220,220,220,200],
+                        "fill":[25,25,25,220],
+                        "size":"[{column_width},200]",
+                        "font":{"size":0.45}
+                    },
+                    "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,50]}",
+                    "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,40]:[50,50,50,240]}",
+                    "size":"[150,30]"
+                }
+                ]
+            }],
+
+            [{
+                "type":"vlayout",
+                "pad":[0,0,0,3],
+                "children":[
+                {
+                    "type":"stext",
+                    "pad":[5,0,0,0],
+                    "text":"<c>Destination folder</c>",
+                    "font":{"size":0.45},
+                    "color":[255,255,255]
+                },
+                {
+                    "type":"hlayout",
+                    "pad":[0,0,0,0],
+                    "children":[
+                        {
+                            "type":"settings",
+                            "var":"output_dir",
+                            "desc":"",
+                            "label":{
+                                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,250]}",
+                                "fill":"{if:{||:{selected}:{hovered}}:[10,80,110,240]:[10,50,80,240]}",
+                                "font":{"size":0.45}
+                            },
+                            "list":{
+                                "line":[220,220,220,200],
+                                "fill":[25,25,25,220],
+                                "size":"[{column_width},200]",
+                                "font":{"size":0.45}
+                            },
+                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,50]}",
+                            "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,40]:[50,50,50,240]}",
+                            "size":"[{-:{column_width}:30},30]"
+                        },
+                        {
+                            "type":"button",
+                            "text":"<sym>🗁</sym>",
+                            "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                            "size":[30,30],
+                            "pad":[1,0,0,0],
+                            "font":{
+                                "align":"center",
+                                "size":0.6,
+                                "style":"bold"
+                            },
+                            "action": "choose-folder:output_dir:{output_dir}"
+                        }
+                    ]
+                }
+                
+                ]
+            }],
+
+            [{
+                "type":"vlayout",
+                "pad":[0,0,0,3],
+                "children":[
+                {
+                    "type":"stext",
+                    "pad":[5,0,0,0],
+                    "text":"<c>Destination prefix</c>",
+                    "font":{
+                        "size":0.45
+                    },
+                    "color":[255,255,255]
+                },
+                {
+                    "type":"settings",
+                    "var":"output_prefix",
+                    "desc":"",
+                    "label":{
+                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,250]}",
+                        "fill":"{if:{||:{selected}:{hovered}}:[10,80,110,240]:[10,50,80,240]}",
+                        "font":{"size":0.45}
+                    },
+                    "list":{
+                        "line":[220,220,220,200],
+                        "fill":[25,25,25,220],
+                        "size":"[{column_width},200]",
+                        "font":{"size":0.45}
+                    },
+                    "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,50]}",
+                    "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,40]:[50,50,50,240]}",
+                    "size":"[{column_width},30]"
+                }
+                ]
+            }],
+
+            [{
+                "type":"vlayout",
+                "pad":[10,0,15,5],
+                "line":[100,100,100,50],
+                "children":[
+                    {
+                        "type":"stext",
+                        "pad":[5,7,0,0],
+                        "text":"<c>Save visual field data</c>",
+                        "font":{"size":0.45},
+                        "color":[255,255,255]
+                    },
+                    {
+                        "type":"settings",
+                        "var":"output_visual_fields",
+                        "desc":"",
+                        "label":{
+                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[150,150,220,50]}",
+                            "fill":"{if:{||:{selected}:{hovered}}:[10,80,110,240]:[10,50,80,240]}",
+                            "font":{"size":0.45}
+                        },
+                        "list":{
+                            "line":[220,220,220,200],
+                            "fill":[25,25,25,220],
+                            "size":"[{column_width},200]",
+                            "font":{"size":0.45}
+                        },
+                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[150,150,220,50]}",
+                        "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,40]:[50,50,50,240]}",
+                        "size":"[150,30]"
+                    }
+                ]
+            }],
+
+            [{
+                "type":"vlayout",
+                "pad":[10,0,15,5],
+                "line":[100,100,100,50],
+                "children":[
+                    {
+                        "type":"stext",
+                        "pad":[5,7,0,0],
+                        "text":"<c>Save heatmap data</c>",
+                        "font":{"size":0.45},
+                        "color":[255,255,255]
+                    },
+                    {
+                        "type":"settings",
+                        "var":"output_heatmaps",
+                        "desc":"",
+                        "label":{
+                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[150,150,220,50]}",
+                            "fill":"{if:{||:{selected}:{hovered}}:[10,80,110,240]:[10,50,80,240]}",
+                            "font":{"size":0.45}
+                        },
+                        "list":{
+                            "line":[220,220,220,200],
+                            "fill":[25,25,25,220],
+                            "size":"[{column_width},200]",
+                            "font":{"size":0.45}
+                        },
+                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[150,150,220,50]}",
+                        "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,40]:[50,50,50,240]}",
+                        "size":"[150,30]"
+                    }
+                ]
+            }],
+
+            [{
+                "type":"vlayout",
+                "pad":[10,0,15,5],
+                "line":[100,100,100,50],
+                "children":[
+                {
+                    "type":"stext",
+                    "pad":[5,7,0,0],
+                    "text":"<c>Save tracklet images</c>",
+                    "font":{"size":0.45},
+                    "color":[255,255,255]
+                },
+                {
+                    "type":"settings",
+                    "var":"output_tracklet_images",
+                    "desc":"",
+                    "label":{
+                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[150,150,220,50]}",
+                        "fill":"{if:{||:{selected}:{hovered}}:[10,80,110,240]:[10,50,80,240]}",
+                        "font":{"size":0.45}
+                    },
+                    "list":{
+                        "line":[220,220,220,200],
+                        "fill":[25,25,25,220],
+                        "size":"[{column_width},200]",
+                        "font":{"size":0.45}
+                    },
+                    "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[150,150,220,50]}",
+                    "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,40]:[50,50,50,240]}",
+                    "size":"[150,30]"
+                },
+
+                {
+                    "type":"condition",
+                    "var":"{global.output_tracklet_images}",
+                    "then":{
+                        "type":"vlayout",
+                        "pad":[0,0,0,3],
+                        "children":[
+                            {
+                                "type":"stext",
+                                "pad":[5,7,0,0],
+                                "text":"<c>tracklet_max_images</c>",
+                                "font":{"size":0.45},
+                                "color":[255,255,255]
+                            },
+                            {
+                                "type":"settings",
+                                "var":"tracklet_max_images",
+                                "desc":"",
+                                "label":{
+                                    "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,250]}",
+                                    "fill":"{if:{||:{selected}:{hovered}}:[10,80,110,240]:[10,50,80,240]}",
+                                    "font":{"size":0.45}
+                                },
+                                "list":{
+                                    "line":[220,220,220,200],
+                                    "fill":[25,25,25,220],
+                                    "size":"[{column_width},200]",
+                                    "font":{"size":0.45}
+                                },
+                                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,50]}",
+                                "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,40]:[50,50,50,240]}",
+                                "size":"[{-:{-:{column_width}:13}:50},30]"
+                            },
+
+                            {
+                                "type":"stext",
+                                "pad":[5,7,0,0],
+                                "text":"<c>tracklet_normalize</c>",
+                                "font":{"size":0.45},
+                                "color":[255,255,255]
+                            },
+                            {
+                                "type":"settings",
+                                "var":"tracklet_normalize",
+                                "desc":"",
+                                "label":{
+                                    "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[150,150,220,50]}",
+                                    "fill":"{if:{||:{selected}:{hovered}}:[10,80,110,240]:[10,50,80,240]}",
+                                    "font":{"size":0.45}
+                                },
+                                "list":{
+                                    "line":[220,220,220,200],
+                                    "fill":[25,25,25,220],
+                                    "size":"[{column_width},200]",
+                                    "font":{"size":0.45}
+                                },
+                                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[150,150,220,50]}",
+                                "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,40]:[50,50,50,240]}",
+                                "size":"[{-:{-:{column_width}:13}:50},30]"
+                            },
+
+                            {
+                                "type":"stext",
+                                "pad":[5,7,0,0],
+                                "text":"<c>tracklet_force_normal_color</c>",
+                                "font":{"size":0.45},
+                                "color":[255,255,255]
+                            },
+                            {
+                                "type":"settings",
+                                "var":"tracklet_force_normal_color",
+                                "desc":"",
+                                "label":{
+                                    "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[150,150,220,50]}",
+                                    "fill":"{if:{||:{selected}:{hovered}}:[10,80,110,240]:[10,50,80,240]}",
+                                    "font":{"size":0.45}
+                                },
+                                "list":{
+                                    "line":[220,220,220,200],
+                                    "fill":[25,25,25,220],
+                                    "size":"[{column_width},200]",
+                                    "font":{"size":0.45}
+                                },
+                                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[150,150,220,50]}",
+                                "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,40]:[50,50,50,240]}",
+                                "size":"[{-:{-:{column_width}:13}:50},30]"
+                            }
+                        ]
+                    }
+                }]
+            }]
+        ]
+    }
+]
+}
+]
+},
+
+{
+    "type":"collection",
+    "origin":[1,1],
+    "pos":"[{-:{window_size.x}:2},{-:{window_size.y}:2}]",
+    "children":[
+        { 
+            "type":"hlayout",
+            "pad":[5,5,5,5],
+            "children":[
+                {
+                    "type":"button",
+                    "text":"<sym>🛇</sym> Close",
+                    "action":"set:gui_show_export_options:false",
+                    "font":{
+                        "size":0.5,
+                        "style":"bold"
+                    },
+                    "fill":"{if:{||:{selected}:{hovered}}:[60,40,40,200]:[50,30,30,200]}",
+                    "line":"{if:{||:{selected}:{hovered}}:[250,175,150,200]:[160,100,100,50]}",
+                    "size":[90,30]
+                },
+                {
+                    "type":"button",
+                    "text":"<sym>🖫</sym> Export",
+                    "action":"export",
+                    "font":{
+                        "size":0.5,
+                        "style":"bold"
+                    },
+                    "fill":"{if:{||:{selected}:{hovered}}:[60,90,60,200]:[50,80,50,200]}",
+                    "line":"{if:{||:{selected}:{hovered}}:[100,205,150,200]:[100,100,100,50]}",
+                    "size":[90,30]
+                }
+            ]
+        }
+    ]
+}
+
+
+]
+
+}

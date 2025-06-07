@@ -28,7 +28,7 @@ I hope this will be of help to people of the future.
 | M         | Jump to next frame where the number of recognized individuals changed (yellow in timeline)     |
 | N         | Jump to previous frame where the number of recognized individuals changed (yellow in timeline) |
 | R         | Playback frame-by-frame and save what you see in the tracker window as `<output_dir>/images`   |
-| S         | Export data in `output_graphs` to CSV files in `<output_dir>/fishdata`                         |
+| S         | Export data in `output_fields` to CSV files in `<output_dir>/fishdata`                         |
 | Z         | Save program state to `<videoname>.results`                                                    |
 | L         | Load program state from `<videoname>.results`                                                  |
 | I         | Save events to CSV files `<output_dir>/fishdata/<videoname>_events<fishid>.csv`                |
@@ -90,4 +90,4 @@ done
 - When calculating **postures**, try looking at the posture preview on the top-right (enable it by clicking on an individual in the tracker). If the posture has lots of one color (red), but not of the other color (green), you should try changing `outline_curvature_range` until there are clear peaks of both colors.
 - Other ways to **improve posture detection** is by smoothing the outline. If e.g. the posture is flipped quite often, then usually its because of lots of curvature peaks in the outline. Try setting `outline_smooth_samples` to a higher value.
 - For really big fish on **high resolution videos**, it is recommended to increase `outline_resample` above `1`. For small fish, it is recommended to decrease it to a value between `0.1` and `1`.
-- **Really big groups** of fish can be quite slow to track because of the many possible combinations of blobs and fish. Try increasing `matching_probability_threshold`.
+- **Really big groups** of fish can be quite slow to track because of the many possible combinations of blobs and fish. Try increasing `match_min_probability`.

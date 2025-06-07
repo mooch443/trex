@@ -4,6 +4,7 @@ if(WITH_GITSHA1)
 	include(GetGitRevisionDescription)
 	get_git_head_revision(GIT_REFSPEC GIT_SHA1)
     git_get_description(GIT_DESCRIBE_TAG)
+    git_get_branch(GIT_CURRENT_BRANCH)
 
     set(TREX_CMAKE_BUILD_TYPE_IN "${TREX_CMAKE_BUILD_TYPE}")
     set(TREX_BUILD_CXX_OPTIONS "${CMAKE_CXX_FLAGS} ${CMAKE_CXX_FLAGS_RELEASE}")
@@ -19,6 +20,15 @@ endif()
 
 #add_subdirectory(frugally)
 #add_subdirectory(cnpy)
+
+FetchContent_Declare(
+  indicators
+  GIT_REPOSITORY https://github.com/p-ranav/indicators.git
+  GIT_TAG        v2.3
+)
+
+FetchContent_MakeAvailable(indicators)
+include_directories(${indicators_SOURCE_DIR}/include)
 
 include_directories(.)
 

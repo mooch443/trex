@@ -11,7 +11,7 @@ Instructions vary depending on how you installed the application. Please locate 
 Installed using conda
 ---------------------
 
-If you want to make absolutely sure that everything works as expected, you should always re-run the installation instructions to create an entirely new environment. This may also bear the benefit that your old version is still available if needed since, sometimes, as was the case from v1.0.x to v1.1.x, changes may be *breaking* changes. Meaning that data you created previously may not transfer 1:1 to the new version. However, with v1.1.9 comes a parameter with which you can change the target version for the files that you generated (:func:`visual_identification_version`). See :doc:`install` for installation instructions.
+If you want to make absolutely sure that everything works as expected, you should always re-run the installation instructions to create an entirely new environment. This may also bear the benefit that your old version is still available if needed since, sometimes, as was the case from v1.0.x to v1.1.x, changes may be *breaking* changes. Meaning that data you created previously may not transfer 1:1 to the new version. However, with v1.1.9 comes a parameter with which you can change the target version for the files that you generated (:param:`visual_identification_version`). See :doc:`install` for installation instructions.
 
 conda-integrated update mechanism
 ---------------------------------

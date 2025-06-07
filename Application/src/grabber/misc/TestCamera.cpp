@@ -3,6 +3,8 @@
 #include <misc/SpriteMap.h>
 
 namespace fg {
+    using namespace cmn;
+
     TestCamera::TestCamera(cv::Size size, size_t element_size) : _size(size) {
         _image = cv::Mat::zeros(_size.height, _size.width, CV_8UC1);
         
@@ -11,7 +13,7 @@ namespace fg {
             if (test_image == "checkerboard") {
                 static cv::Mat checkerboard;
                 checkerboard = cv::Mat::ones(_image.rows, _image.cols, CV_8UC1) * 255;
-                const int size = element_size, padding = 1;
+                const int size = sign_cast<int>(element_size), padding = 1;
                 for (int j=0; j<_image.rows; j++) {
                     if(j%(size+padding) >= size)
                         continue;
@@ -42,7 +44,7 @@ namespace fg {
             } else if(test_image == "diagonal") {
                 static cv::Mat checkerboard;
                 checkerboard = cv::Mat::ones(_image.rows, _image.cols, CV_8UC1) * 255;
-                const int size = element_size, padding = 1;
+                const int size = sign_cast<int>(element_size), padding = 1;
                 int running = 0;
                 for (int j=0; j<_image.rows; j++) {
                     if(j%(size+padding) >= size)
@@ -62,7 +64,7 @@ namespace fg {
                 cv::Mat image = cv::Mat::ones(size.height, size.width, CV_8UC1) * 255;
                 // element_size determines size of playing field
                 const size_t number_of_fields = max(size.width, size.height) / (element_size*0.5) + 1;
-                print("Size: ", size,", Nr: ", number_of_fields,", width: ", element_size);
+                Print("Size: ", size,", Nr: ", number_of_fields,", width: ", element_size);
                 
                 for(size_t i=0; i<number_of_fields; i++) {
                     for(size_t j=0; j<number_of_fields; j++) {

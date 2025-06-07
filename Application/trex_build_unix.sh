@@ -60,9 +60,10 @@ if [ "$(uname)" == "Linux" ]; then
             -DPYTHON_EXECUTABLE:FILEPATH=$(which python3) \
             -DCMAKE_BUILD_TYPE=Release \
             -DWITH_FFMPEG=ON \
-            -DCOMMONS_BUILD_ZLIB=OFF \
-            -DCOMMONS_BUILD_ZIP=OFF \
-            -DCOMMONS_BUILD_PNG=OFF \
+            -DCOMMONS_BUILD_ZLIB=ON \
+            -DCOMMONS_BUILD_ZIP=ON \
+            -DCOMMONS_BUILD_PNG=ON \
+            -DTREX_WITH_TESTS=ON \
             -DCOMMONS_BUILD_OPENCV=ON \
             -DCMAKE_PREFIX_PATH="$CONDA_PREFIX;$CONDA_PREFIX/lib/pkgconfig;$CONDA_PREFIX/lib" \
             -DWITH_PYLON=ON
@@ -85,6 +86,7 @@ if [ "$(uname)" == "Linux" ]; then
             -DCOMMONS_BUILD_ZLIB=ON \
             -DCOMMONS_BUILD_ZIP=ON \
             -DCOMMONS_BUILD_PNG=ON \
+            -DTREX_WITH_TESTS=ON \
             -DCOMMONS_BUILD_OPENCV=ON \
             -DCMAKE_PREFIX_PATH="$PKG_CONFIG_PATH" \
             -DWITH_PYLON=ON
@@ -94,6 +96,13 @@ else
     echo "Setting up for macOS."
     echo ""
     echo "Building GLFW, ZIP, and ZLIB - checking for OpenCV."
+
+    MACOSX_DEPLOYMENT_TARGET=$(printenv MACOSX_DEPLOYMENT_TARGET)
+    if [ ! $MACOSX_DEPLOYMENT_TARGET ]; then
+        MACOSX_DEPLOYMENT_TARGET="15.4"
+        export MACOSX_DEPLOYMENT_TARGET=$MACOSX_DEPLOYMENT_TARGET
+    fi
+    echo "MACOSX_DEPLOYMENT_TARGET=$MACOSX_DEPLOYMENT_TARGET"
     
     if [ ${IN_CONDA} ]; then
         echo "**************************************"
@@ -101,7 +110,7 @@ else
         echo "If you dont want this, please deactivate the conda environment first."
         echo "**************************************"
         
-        PKG_CONFIG_PATH=$CONDA_PREFIX/lib/pkgconfig cmake .. \
+        PKG_CONFIG_PATH=$CONDA_PREFIX/lib/pkgconfig MACOSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET} cmake .. \
             -DPYTHON_INCLUDE_DIR:FILEPATH=$(python3 -c "from distutils.sysconfig import get_python_inc; print(get_python_inc())") \
             -DPYTHON_LIBRARY:FILEPATH=$(python3 ../find_library.py) \
             -DPYTHON_EXECUTABLE:FILEPATH=$(which python3) \
@@ -113,6 +122,8 @@ else
             -DCOMMONS_BUILD_ZIP=ON \
             -DCOMMONS_BUILD_PNG=ON \
             -DCOMMONS_BUILD_OPENCV=ON \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET} \
+            -DCMAKE_OSX_SYSROOT=/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX${MACOSX_DEPLOYMENT_TARGET}.sdk \
             -DCMAKE_PREFIX_PATH="$CONDA_PREFIX;$CONDA_PREFIX/lib/pkgconfig;$CONDA_PREFIX/lib"
     else
         echo "**************************************"
@@ -133,12 +144,32 @@ else
             -DCOMMONS_BUILD_ZIP=ON \
             -DCOMMONS_BUILD_PNG=ON \
             -DCOMMONS_BUILD_OPENCV=ON \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET} \
+            -DCMAKE_OSX_SYSROOT=/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX${MACOSX_DEPLOYMENT_TARGET}.sdk \
             -G Xcode \
             -DWITH_FFMPEG=ON
     fi
 fi
 
-cmake --build . --target Z_LIB --config Release
-cmake --build . --target CustomOpenCV --config Release
+# Determine OS and set NPROC appropriately
+if [ "$(uname)" == "Darwin" ]; then
+    # macOS
+    NPROC=$(sysctl -n hw.ncpu)
+elif [ "$(uname)" == "Linux" ]; then
+    # Linux
+    NPROC=$(nproc)
+else
+    echo "Unsupported operating system"
+    exit 1
+fi
+
+echo "NPROC=$NPROC"
+
+# Build targets with cmake
+CMAKE_BUILD_PARALLEL_LEVEL=$NPROC cmake --build . --target Z_LIB --config Release --parallel ${NPROC}
+CMAKE_BUILD_PARALLEL_LEVEL=$NPROC cmake --build . --target libzip --config Release --parallel ${NPROC}
+CMAKE_BUILD_PARALLEL_LEVEL=$NPROC cmake --build . --target libpng_custom --config Release --parallel ${NPROC}
 cmake ..
-cmake --build . --config Release
+CMAKE_BUILD_PARALLEL_LEVEL=$NPROC cmake --build . --target CustomOpenCV --config Release --parallel ${NPROC}
+cmake ..
+CMAKE_BUILD_PARALLEL_LEVEL=$NPROC cmake --build . --config Release --parallel ${NPROC}

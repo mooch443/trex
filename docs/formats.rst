@@ -14,62 +14,63 @@ Upon hitting the ``S`` key/clicking the export tracking data button in the menu,
 all of the data fields selected from the export options.
 
 .. NOTE::
-	Variable names, user-specified or exported from |trex|/|grabs|, can have attachments indicated by ``#`` (such as ``X#wcentroid``). 
-	The text after ``#`` is the "source" for the data, of which there are four different ones:
-		- ``#head`` or empty (default): **head position** (only available if postures are calculated)
-		- ``#wcentroid``: **body center** (based on weighted image/pixel information)
-		- ``#centroid``: **body center** (center of mass of all thresholded pixels)
-		- ``#pcentroid``: **posture centroid** (the center of the midline)
-	The resulting data can differ between data sources to varying degrees, depending on the posture detection, 
-	size and movement speed of individuals. This is most notable during sharp turns, where the body center (centroid)
-	will remain fairly stable while the head position moves quickly (and thus also has higher SPEED).
 
-	Make sure you are using the most suitable one for your purposes.
+  Variable names, user-specified or exported from |trex|, can have attachments indicated by ``#`` (such as ``X#wcentroid``). 
+  The text after ``#`` is the "source" for the data, of which there are four different ones:
 
+  - ``#head`` or empty (default): **head position** (only available if postures are calculated)
+  - ``#wcentroid``: **body center** (based on weighted image/pixel information)
+  - ``#centroid``: **body center** (center of mass of all thresholded pixels)
+  - ``#pcentroid``: **posture centroid** (the center of the midline)
+  
+  The resulting data can differ between data sources to varying degrees, depending on the posture detection, 
+  size and movement speed of individuals. This is most notable during sharp turns, where the body center (centroid)
+  will remain fairly stable while the head position moves quickly (and thus also has higher SPEED).
 
+  Make sure you are using the most suitable one for your purposes.
 
-+------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| Variable               | Description                                                                                                                                                                                                                                                                                                        |
-+========================+====================================================================================================================================================================================================================================================================================================================+
-| X,Y                    | Position on the X/Y-axis. Y starts on the top-left. Both are in cm (if :func:`cm_per_pixel` is set correctly, otherwise the conversion is based on an assumed width of 30cm for the arena). If :func:`output_interpolate_positions` is set, then this value can be an interpolated value (if `missing` is also 1). |
-+------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| missing                | Set to 0 if the individual has data in this frame, or 1 otherwise.                                                                                                                                                                                                                                                 |
-+------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| SPEED                  | Magnitude of the first derivative of position (in cm/s).                                                                                                                                                                                                                                                           |
-+------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| VX,VY                  | X/Y-component of the first derivative of position (in cm/s).                                                                                                                                                                                                                                                       |
-+------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| AX,AY                  | X/Y-component of the acceleration in cm/s (if :func:`cm_per_pixel` is set correctly, otherwise the conversion is based on an assumed width of 30cm for the arena).                                                                                                                                                 |
-+------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| time                   | Time in seconds (floating point) from the start of the video, consistent across individuals.                                                                                                                                                                                                                       |
-+------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| timestamp              | The time as a UNIX timestamp.                                                                                                                                                                                                                                                                                      |
-+------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| frame                  | Montonically increasing integer number, consistent across individuals. Note: when exporting to CSV/NPZ, the individual files do not *have* to start at frame ``0``, and do not have to contain all frames from ``0`` to ``N``.                                                                                     |
-+------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| num_pixels             | The number of pixels in the blob (after thresholding).                                                                                                                                                                                                                                                             |
-+------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ANGLE                  | The absolute angle in radians with respect to the X-axis of the image (e.g. 0rad indicates the individual is horizontal, looking to the right). You can convert this to degrees using ANGLE/pi*180.                                                                                                                |
-+------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| blobid                 | Each objects gets a (more or less) unique identifier per frame, based on its position and size. This ID is saved here, and is what's used for manual assignments of individuals to objects, for example.                                                                                                           |
-+------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| midline_length         | The length of the midline for the given frame (in pixels) - the sum of all euclidean distances between midline segments.                                                                                                                                                                                           |
-+------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| outline_size           | The number of points in the outline of the individual. This can be used as a coarse approximation of individual size.                                                                                                                                                                                              |
-+------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| consecutive_segment_id | Each consecutively tracked frame segments gets an ID, which is returned here.                                                                                                                                                                                                                                      |
-+------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| average_category       | This applies only to videos where visual categorization of individuals has been applied. Here, the average category represents the predicted class for this individual, within the current consecutively tracked frame segment.                                                                                    |
-+------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| category               | As above, but not averaged and instead saved individually per frame.                                                                                                                                                                                                                                               |
-+------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| BORDER_DISTANCE        | Usually this is the distance from the centroid of the individual to the edge of the image - in case a :func:`use_circle_mask` has been used during conversion, the circle is used as an approximation of the tank size.                                                                                            |
-+------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| NEIGHBOR_DISTANCE      | Average euclidean distance to neighbors (in cm).                                                                                                                                                                                                                                                                   |
-+------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| MIDLINE_OFFSET         | The offset of the tail of an individual to the center line through its body (roughly speaking). More specifically, it is the y-coordinate of the tail tip, after normalizing the orientation and position of the individual (as in the posture window).                                                            |
-+------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-
++------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| Variable               | Description                                                                                                                                                                                                                                                                                                          |
++========================+======================================================================================================================================================================================================================================================================================================================+
+| X,Y                    | Position on the X/Y-axis. Y starts on the top-left. Both are in cm (if :param:`cm_per_pixel` is set correctly, otherwise the conversion is based on an assumed width of 30cm for the arena). If :param:`output_interpolate_positions` is set, then this value can be an interpolated value (if `missing` is also 1). |
++------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| missing                | Set to 0 if the individual has data in this frame, or 1 otherwise.                                                                                                                                                                                                                                                   |
++------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| SPEED                  | Magnitude of the first derivative of position (in cm/s).                                                                                                                                                                                                                                                             |
++------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| VX,VY                  | X/Y-component of the first derivative of position (in cm/s).                                                                                                                                                                                                                                                         |
++------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| AX,AY                  | X/Y-component of the acceleration in cm/s (if :param:`cm_per_pixel` is set correctly, otherwise the conversion is based on an assumed width of 30cm for the arena).                                                                                                                                                  |
++------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| time                   | Time in seconds (floating point) from the start of the video, consistent across individuals.                                                                                                                                                                                                                         |
++------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| timestamp              | The time as a UNIX timestamp.                                                                                                                                                                                                                                                                                        |
++------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| frame                  | Montonically increasing integer number, consistent across individuals. Note: when exporting to CSV/NPZ, the individual files do not *have* to start at frame ``0``, and do not have to contain all frames from ``0`` to ``N``.                                                                                       |
++------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| num_pixels             | The number of pixels in the blob (after thresholding).                                                                                                                                                                                                                                                               |
++------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| ANGLE                  | The absolute angle in radians with respect to the X-axis of the image (e.g. 0rad indicates the individual is horizontal, looking to the right). You can convert this to degrees using ANGLE/pi*180.                                                                                                                  |
++------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| blobid                 | Each objects gets a (more or less) unique identifier per frame, based on its position and size. This ID is saved here, and is what's used for manual assignments of individuals to objects, for example.                                                                                                             |
++------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| midline_length         | The length of the midline for the given frame (in pixels) - the sum of all euclidean distances between midline segments.                                                                                                                                                                                             |
++------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| outline_size           | The number of points in the outline of the individual. This can be used as a coarse approximation of individual size.                                                                                                                                                                                                |
++------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| tracklet_id            | Each consecutively tracked frame segments gets an ID, which is returned here.                                                                                                                                                                                                                                        |
++------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| average_category       | This applies only to videos where visual categorization of individuals has been applied. Here, the average category represents the predicted class for this individual, within the current consecutively tracked frame segment.                                                                                      |
++------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| category               | As above, but not averaged and instead saved individually per frame.                                                                                                                                                                                                                                                 |
++------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| BORDER_DISTANCE        | Usually this is the distance from the centroid of the individual to the edge of the image - in case a :param:`cam_circle_mask` has been used during conversion, the circle is used as an approximation of the tank size.                                                                                             |
++------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| NEIGHBOR_DISTANCE      | Average euclidean distance to neighbors (in cm).                                                                                                                                                                                                                                                                     |
++------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| MIDLINE_OFFSET         | The offset of the tail of an individual to the center line through its body (roughly speaking). More specifically, it is the y-coordinate of the tail tip, after normalizing the orientation and position of the individual (as in the posture window).                                                              |
++------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+  
 
 Each of these metrics is saved per frame, meaning that each metric mentioned here has the same number of values per individual. However, not all individuals have the same number of frames and do not necessarily start at the same time (even though the time variable is consistent across individuals). If an individual is first detected later in the video (not in the first frame), then that frame is the first one to appear in the exported data. Individuals may also not appear towards the end of the video, in which case there also won't be any data exported for that part.
 
@@ -108,7 +109,7 @@ If one metric (such as anything posture-related) is not available in a frame -- 
 Posture-data
 ============
 
-For each individual (as long as :func:`output_posture_data` is set to ``true``), |trex| writes a file ``[output_path]/[FILENAME]_posture_*.npz`` containing the following fields:
+For each individual (as long as :param:`output_posture_data` is set to ``true``), |trex| writes a file ``[output_path]/[FILENAME]_posture_*.npz`` containing the following fields:
 
 .. raw:: html
 
@@ -129,9 +130,9 @@ For each individual (as long as :func:`output_posture_data` is set to ``true``),
 	frames, "Frame index for all data contained in all other arrays."
 	offset, "Top-left corner (px) of the object that this posture was generated from."
 	midline_lengths, "Number of points in the midline."
-	midline_centimeters, "Length of the midline in cms (based on the :func:`cm_per_pixel` parameter)"
+	midline_centimeters, "Length of the midline in cms (based on the :param:`cm_per_pixel` parameter)"
  	midline_offsets, "A bit obscure: Angle (rad) from start to end of the midline (line through first and last point)."
-	midline_angle, "Angle (rad) of a line from head-position (first midline segment) through the midline segment at a fraction of :func:`midline_stiff_percentage` of the midline - approximating the heading of the individual."
+	midline_angle, "Angle (rad) of a line from head-position (first midline segment) through the midline segment at a fraction of :param:`midline_stiff_percentage` of the midline - approximating the heading of the individual."
 	posture_area, "Area of the polygon spanned by the outline points (calculated using the Shoe lace formula)."
 	midline_points, "2D Points (px) of the midline in real-world coordinates."
 	midline_points_raw, "2D Points (px) of the midline in normalized coordinates."
@@ -149,9 +150,9 @@ Tracklet images can be quite useful when a different software has to perform ope
 
 .. image:: collection.gif
 
-The container ``<VIDEO>_tracklet_images.npz`` contains summaries of all consecutive segments for each individual in the form of ``['images', 'meta']``, where ``meta`` is matrix of ``Nx3`` (where ``N`` is the number of segments). The three columns are ID, segment start and segment end (frame numbers). Images is a matrix of ``NxWxH`` depending on the image dimensions set in :func:`recognition_image_size`.
+The container ``<VIDEO>_tracklet_images.npz`` contains summaries of all tracklets for each individual in the form of ``['images', 'meta']``, where ``meta`` is matrix of ``Nx3`` (where ``N`` is the number of segments). The three columns are ID, segment start and segment end (frame numbers). Images is a matrix of ``NxWxH`` depending on the image dimensions set in :param:`individual_image_size`.
 
-.. code:: ipython3
+.. code:: python
 
     import numpy as np
     import matplotlib.pyplot as plt
@@ -159,7 +160,7 @@ The container ``<VIDEO>_tracklet_images.npz`` contains summaries of all consecut
 Open all images of a certain individual ID
 ------------------------------------------
 
-.. code:: ipython3
+.. code:: python
 
     with np.load("Videos/data/video_tracklet_images_single_part0.npz") as npz:
         print(npz.files)
@@ -196,7 +197,7 @@ Now we want to see that for all individuals
 But we are using the meta tracklet pack for this. It contains only one
 image per consecutive segment.
 
-.. code:: ipython3
+.. code:: python
 
     with np.load("Videos/data/video_tracklet_images.npz") as npz:
         meta = npz["meta"]
@@ -218,7 +219,7 @@ image per consecutive segment.
 We can now map from segments (meta) to tracklet images from the big file
 ------------------------------------------------------------------------
 
-.. code:: ipython3
+.. code:: python
 
     for ID, start, end in meta:
         mask = np.logical_and(ids == ID, np.logical_and(frames >= start, frames <= end))
@@ -237,11 +238,22 @@ We can now map from segments (meta) to tracklet images from the big file
     9 19252 - 19305 (54, 80, 80)
     9 19306 - 19316 (11, 80, 80)
     
+Further examples
+----------------
+
+Please have a look `here <https://github.com/mooch443/trex/blob/806805333f53739a66017f2a07b95a81550674ca/docs/notebooks/LoadTrackletImages.ipynb>`_ for a more detailed example of how to load and plot tracklet images. It also shows how to use the meta data to extract images for specific individuals and segments with different :param:`meta_encoding` settings.
 
 Visual fields
 =============
 
-Visual fields are saved by clicking the respective menu button ("export visual fields") in |trex|. This will save one or multiple files, depending on file size. If the files are bigger than ~3GB, then they have to be saved separately in individual .npy files - otherwise they will all be merged into one .npz container called e.g. ``data/<VIDEONAME>_visual_field_fish0.npz``.
+Visual fields are saved by clicking enabling the "Save visual field data" switch in the export options dialog (see :numref:`save_visual_field`). This will save one or multiple files, depending on file size. If the files are bigger than ~3GB, then they have to be saved separately in individual .npy files - otherwise they will all be merged into one .npz container called e.g. ``data/<VIDEONAME>_visual_field_fish0.npz``.
+
+.. _save_visual_field:
+
+.. figure:: images/save_visual_field.png
+   :width: 100%
+
+   This is the export options dialog. Enable the highlighted switch to enable visual field export! Be careful, though, since visual field data can easily get pretty big if you have a lot of individuals.
 
 Each container holds multiple arrays, each are shaped ``Nx2x2x512`` for ``N`` frames, 2 eyes and 2 depth-layers per eye:
 
@@ -254,66 +266,126 @@ as well as some meta data:
 	- **colors**: (``Mx4``): ID + RGB for M individuals
 	- **fov_range** (``2x1``): FOV range in radians
 	- **frame_range** (``2x1``): Start and end of exported region
-	- **fish_pos** (``Nx2``): XY position of the individual for each frame
+	- **fish_pos** (``Nx2``): XY head-position of the individual for each frame
 	- **fish_angle** (``Nx1``): angle of the body relative to the x-axis
 	- **eye_pos** (``Nx2x2``): XY position for each eye
 	- **eye_angle** (``Nx2``): angle for each eye
-	- **frames** (``Nx1``): frame index
+	- **frames** (``Nx1``): frame index (corresponds to the same frame index in kinematics npz files)
+
+Essentially, a visual field is a 1D image per frame and individual - it maps 260° of visual information onto a fixed width image (512px). That means that each pixel corresponds with a range of angles around the head of the individual (or more specifically, around each eye of the individual). Internally, this eye is represented as a point slightly outside the outline of the individual, adjustable by :param:`visual_field_eye_offset` and :param:`visual_field_eye_separation`. The visual field of an individual can intercept with the same individual, objects in the frame (which are represented by negative ids) and, of course, other individuals' outlines. If another individual is not present in the current frame, the last available data for this individual is used (up to a time limit).
+
+An example for how to use this data is provided `here <https://github.com/mooch443/trex/blob/e9d98c0427dcc9c28b72b789cb4fde17ec451fe6/docs/notebooks/PlotVisualField.ipynb>`_. It shows how to plot visual fields similar to how |trex| displays them in-app, as well as how to combine visual field data with other trajectory data exported alongside the visual fields.
 
 Heatmaps
 ========
-(Todo)
+
+Saved are npz files named like::
+
+	data/<videoname>_heatmap_p0_<cellsize>_<width>x<height>.npz
+
+Where ``<cellsize>`` is the grid cell size and ``<width>x<height>`` is the resolution of the heatmaps (interpreted as images). It contains (for example)::
+
+	['heatmap', 'frames', 'meta']
+	heatmap.shape = (4999, 2, 47, 47)
+	frames.shape = (4999,)
+	meta = [0.0, 64.0, 2.0, 4999.0]
+
+Where ``meta`` is an array of:
+
+- Package index
+- :param:`heatmap_resolution`
+- type of :param:`heatmap_normalization`
+- number of frames used as context (usually :param:`heatmap_frames` or :param:`video_length`)
+
+Here's a small example of how to load and plot the heatmap data:
+
+.. code:: python
+
+	import numpy as np
+	import matplotlib.pyplot as plt
+
+	# Load the heatmap data file
+	heatmap_file = "data/video_heatmap_p0_4_47x47.npz"  # adjust filename as needed
+	with np.load(heatmap_file) as data:
+		# Extract the heatmap, frames, and meta data
+		heatmap = data['heatmap']
+		frames = data['frames']
+		meta = data['meta']
+
+		# Print the shape of the heatmap
+		print(f"Heatmap shape: {heatmap.shape}")
+		print(f"Frames shape: {frames.shape}")
+		print(f"Meta data: {meta}")
+
+	# Plot the heatmap for the first frame (using the first channel)
+	plt.figure(figsize=(6, 6))
+	plt.imshow(heatmap[0, 0, :, :], cmap='hot', interpolation='nearest')
+	plt.title(f"Heatmap (Frame: {frames[0]})")
+	plt.colorbar(label='Intensity')
+	plt.show()
 
 PreprocessedVideo (pv)
 ======================
 
-Videos in the PV format are structured as follows::
+Videos in the PV format are structured as follows:
 
-	**[HEADER SECTION]**
-	(string) "PV" + (version_nr)
-	(byte)   channels
-	(uint16) width
-	(uint16) height
-	(Rect2i) four ushorts with the mask-offsets left,top,right,bottom
-	(uchar)  sizeof(HorizontalLine)
-	(uint32) number of frames
-	(uint64) pointer to index at the end of file
-	(uint64) timestamp (time since 1970 in microseconds)
-	(string) project name
-	(byte*)  average img ([width x height] x channels)
-	(size_t) mask present / mask size in bytes (if 0 no mask)
-	[byte*]  mask, but only present if mask_size != NULL
-	
-	**[DATA SECTION]**
-	for each frame:
-	  (uchar) compression flag (if 1, the whole frame is compressed)
-	  if compressed:
-	     (uint32) original size
-	     (uint32) compressed size
-	     (byte*) lzo1x compressed data (see below for uncompressed)
-	  else:
-	     [UNCOMPRESSED DATA PER FRAME] {
-	         (uint64) timestamp (in microseconds) since start of movie
-	         (uint16) number of individual cropped images
+.. code:: c++
 
-	         for each object/blob:
-	             (uint16) y of first HorizontalLine
-	             (uint16) (n)umber of HorizontalLine structs
-	             (byte*)  n * sizeof(HorizontalLine)
-	             (byte*)  original image pixels ordered exactly as in HorizontalLines (BGR, CV_8UC(n))
-	     }
+  **[HEADER SECTION]**
+  (string) "PV" + (version_nr)
+  (string) encoding name    (replaces the previous "channels" field; e.g. "gray", "rgb8", "r3g3b2")
+  (uint16) width
+  (uint16) height
+  (Rect2i) four ushorts with the mask-offsets left,top,right,bottom
+  (int64) conversion range start    (value or -1 if not used)
+  (int64) conversion range end      (value or -1 if not used)
+  (string) original source      (video file path or identifier)
+  (uchar) sizeof(HorizontalLine)    (number of bytes per mask line)
+  (uint32) number of frames    (placeholder; updated when finalizing the file)
+  (uint64) pointer to index at the end of file
+  (uint64) timestamp (time since 1970 in microseconds)
+  (string) project name
+  (byte*)  average img ([width x height] x channels)
+  (uint64) mask present / mask size in bytes (if 0 no mask)
+  [byte*]  mask, but only present if mask_size != NULL
+  
+  **[DATA SECTION]**
+  for each frame:
+    (uchar) compression flag (if 1, the whole frame is compressed)
+    if compressed:
+      (uint32) original size
+      (uint32) compressed size
+      (byte*) lzo1x compressed data (see below for uncompressed)
+    else:
+      [UNCOMPRESSED DATA PER FRAME] {
+        (uint64) frame timestamp    (in microseconds since start of movie)
+        (uint16) number of objects    (cropped images or blobs)
+        (uint32) source frame index    (or -1 if not available)
+        
+        For each object/blob:
+          (uint16) y of first HorizontalLine    (0 if mask is empty)
+          (uint8) flags    (encoding properties, e.g. RGB, binary, or alternative such as r3g3b2)
+          (uint16) number of HorizontalLine entries
+          (byte*) compressed mask data    (n * sizeof(HorizontalLine))
+          (byte*) pixel data    (raw image pixels ordered as in HorizontalLines; present if encoding is not binary)
+        
+        (uint16) number of prediction entries
+        For each prediction:
+          (byte*) cmn::blob::Prediction data
+      }
+  
+  **[INDEX TABLE]**
+  For each frame:
+    (uint64) frame start position in file
+  
+  **[METADATA]**
+  (string) JSONized metadata array
 
-	**[INDEX TABLE]**
-	for each frame
-	  (uint64) frame start position in file
+Where the HorizontalLine struct is made up of:
 
-	**[METADATA]**
-	  (string) JSONized metadata array
+.. code:: c++
 
-Where the HorizontalLine struct is made up of::
+  (uint16) x0    (starting x-coordinate)
+  (uint16) x1    (ending x-coordinate; least significant bit reserved as EOL flag)
 
-	(uint16) x0
-	(uint15) y0
-	(1 bit ) eol
-
-The last bit (EOL, or "end of line") in this case suggests to the reader that this line is the last on the current y-coordinate, meaning that the y-counter has to be incremented by one. This, together with the "y of first HorizontalLine", is enough to reconstruct the entire object.
+The EOL flag indicates that this line is the last on the current y-coordinate, meaning the y-counter should be incremented. This, together with the “y of first HorizontalLine”, is sufficient to reconstruct the entire object.

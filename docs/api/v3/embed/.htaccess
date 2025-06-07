@@ -1,0 +1,8 @@
+# Ensure DirectoryIndex is set correctly
+DirectoryIndex index.php
+
+RewriteEngine On
+
+# Append trailing slash to any directory where it has been omitted
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^(.+[^/])$ $1/ [L]

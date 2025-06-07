@@ -1,0 +1,687 @@
+{ "defaults": {
+    "font": {
+        "size": 0.6,
+        "align": "left"
+    },
+    "color":[225,225,225,255],
+    "highlight_clr":[50,50,75],
+    "window_color":[10,10,10],
+    "vars":{
+        "label_w":200,
+        "element_w":"{min:1024:{-:{-:{window_size.x}:{label_w}}:100}}",
+        "is_small_window":"{<:{element_w}:1020004}",
+        "inside_label_w":"{+:{label_w}:10}",
+        "textfield_w":"{max:100:{+:{element_w}:160}}",
+        "machine_learning":"{equal:{global.detect_type}:yolo}",
+        "label_offset":[15,0],
+        "label_origin":[0,0],
+        "label_padding":[0,20,10,5],
+        "ratio":"{max:{/:{window_size.x}:{video_size.x}}:{/:{window_size.y}:{video_size.y}}}",
+        "bg_scale":"[{ratio},{ratio}]",
+        "valid_pv_file":"{file_exists:{resulting_path}.pv}",
+
+        "circles":"[○,◔,◑,◕,●]",
+        "animation":"<sym>{at:{mod:{time}:{array_length:{circles}}}:{circles}}</sym>"
+    }
+  },
+  "objects":[
+    {
+        "type":"video",
+        "clickable":true,
+        "path":"{if:{video_file}:{video_file}:gfx/menu_{lower:{season}}.mov}",
+        "pos":"[{*:{window_size.x}:0.5},{*:{window_size.y}:0.5}]",
+        "origin":[0.5,0.5],
+        "blur":"{if:{hovered}:0.01:0.7}",
+        "alpha":"{if:{hovered}:0.75:0.25}",
+        "frame_seconds":0.1,
+        "scale":"{bg_scale}"
+    },
+    {
+    "type":"vlayout",
+    "align":"left",
+    "line":"{if:{is_small_window}:[0,0,0,0]:[0,0,0,255]}",
+    "fill":"{if:{is_small_window}:[0,0,0,0]:[0,0,0,50]}",
+    "pos":"{if:{is_small_window}:[0,0]:[{*:{window_size.x}:0.5},20]}",
+    "origin":"{if:{is_small_window}:[0,0]:[0.5,0]}",
+    "pad":[20,0,0,5],
+    "children":[
+        {
+            "type":"vlayout",
+            "pad":[0,20,0,-1],
+            "children":[
+                { "type":"stext",
+                "name":"title",
+                "fill":[0,0,0,0],
+                "pad":[10,20,10,20],
+                "max_size":"[{min:1024:{-:{window_size.x}:25}},150]",
+                "text":"<h1><sym>🛠</sym> Configuration</h1> {if:{hovered}:<lightgray>:<lightcyan>}<sym>🛈</sym>{if:{hovered}:</lightgray>:</lightcyan>}", 
+                "font":{ "size":0.85 },
+                "clickable":true
+                }
+            ]
+        },
+        {
+            "type":"hlayout",
+            "pad":[0,-10,-36,-1.5],
+            "children":[
+                {
+                    "type":"hlayout",
+                    "align":"bottom",
+                    "origin":[0,0],
+                    "clickable":true,
+                    "pad":[-1,0,0,0],
+                    "children":[
+                        {
+                            "type":"button",
+                            "text":"<sym>🗁</sym> Locations",
+                            "fill":[40,40,40,220],
+                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
+                            "size":[249,50],
+                            "font":{
+                                "align":"center",
+                                "size":0.75
+                            },
+                            "action": "change_layout:choose_settings_layout"
+                        },
+                        {
+                            "type":"button",
+                            "text":"<sym>💻</sym> Detection",
+                            "fill":[40,40,40,220],
+                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
+                            "size":[250,50],
+                            "font":{
+                                "align":"center",
+                                "size":0.75
+                            },
+                            "action": "change_layout:settings_layout"
+                        },
+                        {
+                            "type":"collection",
+                            "fill":[20,50,80,220],
+                            "clickable":true,
+                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
+                            "size":[249,50],
+                            "children":[
+                                {
+                                    "type":"rect",
+                                    "fill":[0,0,0,25],
+                                    "size":[249,5]
+                                },
+                                {
+                                    "pos":[124.5,24.5],
+                                    "origin":[0.5,0.5],
+                                    "type":"stext",
+                                    "text":"<sym>🐟</sym> Tracking",
+                                    "font":{
+                                        "align":"center",
+                                        "size":0.75
+                                    }
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "type":"gridlayout",
+            "vertical_clr":[0,0,0,0],
+            "horizontal_clr":[10,50,80,140],
+            "cellfillclr":[20,20,20,180],
+            "line":[100,100,100,150],
+            "mincellsize":[227,0],
+            "pad":[10,0,10,0],
+            "clickable":true,
+            "halign":"left",
+            "valign":"top",
+            "children":[
+                [ 
+                    {
+                        "type":"stext",
+                        "text":"<b>Tracking</b>\n<small><gray>These settings are used to follow individuals across frames.</gray></small>",
+                        "font":{"size":0.75},
+                        "origin":"{label_origin}", "pos":"{label_offset}",
+                        "max_size":"[{label_w},0]",
+                        "pad":"{label_padding}"
+                    },
+                    [
+                    {
+                        "type":"vlayout",
+                        "children":[
+                            {
+                                "type":"rect",
+                                "fill":[0,0,0,0],
+                                "size":"[{-:{element_w}:0},20]"
+                            },
+                            {
+                                "type":"gridlayout",
+                                "pad":[0,0,15,5],
+                                "cellfillclr":[60,60,60,150],
+                                "celllineclr":[100,100,100,50],
+                                "cellfillinterval":2,
+                                "children":[
+                                    [
+                                        {
+                                            "type":"stext",
+                                            "text":"max. #individuals",
+                                            "pad":[10,0,0,0],
+                                            "origin":[0,0.5], "pos":[0,20],
+                                            "max_size":"[{-:{inside_label_w}:20},0]"
+                                        },
+                                        {
+                                            "type":"settings",
+                                            "var":"track_max_individuals",
+                                            "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                                            "size":"[{max:50:{*:{textfield_w}:0.1}},40]",
+                                            "desc":""
+                                        },
+                                        {
+                                            "type":"stext",
+                                            "text":"track_threshold",
+                                            "pad":[10,0,0,0],
+                                            "origin":[0,0.5], "pos":[0,20],
+                                            "max_size":"[{-:{inside_label_w}:20},0]"
+                                        },
+                                        {
+                                            "type":"settings",
+                                            "var":"track_threshold",
+                                            "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                                            "size":"[{max:50:{*:{textfield_w}:0.1}},40]",
+                                            "desc":""
+                                        }
+                                    ],
+                                    [
+                                        {
+                                            "type":"stext",
+                                            "text":"size ranges",
+                                            "pad":[10,0,0,0],
+                                            "origin":[0,0.5], "pos":[0,20],
+                                            "max_size":"[{-:{inside_label_w}:20},0]"
+                                        },
+                                        {
+                                            "type":"settings",
+                                            "var":"track_size_filter",
+                                            "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                                            "size":"[{max:50:{*:{textfield_w}:0.1}},40]",
+                                            "desc":""
+                                        },
+                                        {
+                                            "type":"stext",
+                                            "text":"split closeby blobs",
+                                            "pad":[10,0,0,0],
+                                            "origin":[0,0.5], "pos":[0,20],
+                                            "max_size":"[{-:{inside_label_w}:20},0]"
+                                        },
+                                        {
+                                            "type":"settings",
+                                            "var":"track_do_history_split",
+                                            "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                                            "size":"[{max:50:{*:{textfield_w}:0.1}},40]",
+                                            "desc":""
+                                        }
+                                    ],
+                                    [
+                                        {
+                                            "type":"stext",
+                                            "text":"max speed <i>(cm/s)</i>",
+                                            "pad":[10,0,0,0],
+                                            "origin":[0,0.5], "pos":[0,20],
+                                            "max_size":"[{-:{inside_label_w}:20},0]"
+                                        },
+                                        {
+                                            "type":"settings",
+                                            "var":"track_max_speed",
+                                            "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                                            "size":"[{*:{textfield_w}:0.1},40]",
+                                            "desc":""
+                                        },
+                                        {
+                                            "type":"stext",
+                                            "text":"conversion <i>(cm/px)</i>",
+                                            "origin":[0,0.5], "pos":[0,20],
+                                            "pad":[10,0,0,0],
+                                            "max_size":"[{-:{inside_label_w}:20},0]"
+                                        },
+                                        [
+                                            {
+                                                "type":"settings",
+                                                "var":"cm_per_pixel",
+                                                "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                                                "size":"[{max:50:{*:{textfield_w}:0.08}},40]",
+                                                "desc":""
+                                            },
+                                            {
+                                                "type":"button",
+                                                "text":"Calibrate",
+                                                "fill":[50,90,50],
+                                                "pos":"[{max:50:{*:{textfield_w}:0.08}},0]",
+                                                "size":"[{max:80:{*:{textfield_w}:0.08}},40]",
+                                                "action":"change_scene:'calibrate-scene'"
+                                            }
+                                        ]
+                                    ]
+                                ]
+                            },
+
+                            {
+                                "type":"stext",
+                                "max_size": "[{min:700:{element_w}},80]",
+                                "text": "The <cyan><c>maximum #individuals</c></cyan> setting determines how many individuals can be tracked at the same time. The <cyan><c>max speed</c></cyan> setting determines the maximum speed an individual can move between frames. The <cyan><c>conversion</c></cyan> setting is used to convert pixel distances to real-world distances (e.g. cm).",
+                                "font":{"size":0.5}
+                            },
+
+                            {
+                                "type":"rect",
+                                "fill":[0,0,0,0],
+                                "size":[1,20]
+                            }
+                        ]
+                    }]
+                ],
+
+                [
+                    {
+                        "type":"stext",
+                        "text":"<b>Posture</b>\n<small><gray>Estimate a centerline and head/tail positions (in bilateral animals) from image or pose (e.g. YOLO) information.</gray></small>",
+                        "font":{"size":0.75},
+                        "origin":"{label_origin}", "pos":"{label_offset}",
+                        "max_size":"[{label_w},0]",
+                        "pad":"{label_padding}"
+                    },
+                    {
+                        "type":"vlayout",
+                        "children":[
+                            {
+                                "type":"rect",
+                                "fill":[0,0,0,0],
+                                "size":[1,10]
+                            },
+                            {
+                                "type":"hlayout",
+                                "pad":[0,0,0,20],
+                                "children":[
+                                    {
+                                        "type":"stext",
+                                        "text":"enable posture",
+                                        "fill":[60,60,60,150],
+                                        "line":[100,100,100,50],
+                                        "pad":[10,10,10,11],
+                                        "origin":[0,0.5], "pos":[0,20],
+                                        "max_size":"[{-:{inside_label_w}:20},0]"
+                                    },
+                                    {
+                                        "type":"settings",
+                                        "var":"calculate_posture",
+                                        "label":{
+                                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,250]}",
+                                            "fill":"{if:{||:{selected}:{hovered}}:[10,80,110,240]:[10,50,80,240]}",
+                                            "font":{"size":0.65}
+                                        },
+                                        "size":"[{*:{textfield_w}:0.16},40]",
+                                        "desc":""
+                                    }
+                                ]
+                            },
+                            
+                            {
+                                "type":"condition",
+                                "var":"{global.calculate_posture}",
+                                "then": {
+                                    "type":"gridlayout",
+                                    "pad":[0,0,15,5],
+                                    "cellfillclr":[60,60,60,150],
+                                    "celllineclr":[100,100,100,50],
+                                    "cellfillinterval":2,
+                                    "children":[
+                                        [
+                                            {
+                                                "type":"stext",
+                                                "text":"posture threshold",
+                                                "origin":[0,0.5], "pos":[0,20],
+                                                "pad":[10,0,0,0],
+                                                "max_size":"[{-:{inside_label_w}:20},0]"
+                                            },
+                                            {
+                                                "type":"settings",
+                                                "var":"track_posture_threshold",
+                                                "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                                                "size":"[{*:{textfield_w}:0.1},40]",
+                                                "desc":""
+                                            },
+                                            {
+                                                "type":"stext",
+                                                "text":"outline smoothing",
+                                                "origin":[0,0.5], "pos":[0,20],
+                                                "pad":[10,0,0,0],
+                                                "max_size":"[{-:{inside_label_w}:20},0]"
+                                            },
+                                            {
+                                                "type":"settings",
+                                                "var":"outline_smooth_samples",
+                                                "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                                                "size":"[{max:50:{*:{textfield_w}:0.1}},40]",
+                                                "desc":""
+                                            }
+                                        ],
+                                        [
+                                            {
+                                                "type":"stext",
+                                                "text":"outline approximate",
+                                                "origin":[0,0.5], "pos":[0,20],
+                                                "pad":[10,0,0,0],
+                                                "max_size":"[{-:{inside_label_w}:20},0]"
+                                            },
+                                            {
+                                                "type":"settings",
+                                                "var":"outline_approximate",
+                                                "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                                                "size":"[{*:{textfield_w}:0.1},40]",
+                                                "desc":""
+                                            },
+                                            {
+                                                "type":"stext",
+                                                "text":"outline resample",
+                                                "origin":[0,0.5], "pos":[0,20],
+                                                "pad":[10,0,0,0],
+                                                "max_size":"[{-:{inside_label_w}:20},0]"
+                                            },
+                                            {
+                                                "type":"settings",
+                                                "var":"outline_resample",
+                                                "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                                                "size":"[{max:50:{*:{textfield_w}:0.1}},40]",
+                                                "desc":""
+                                            }
+                                        ],
+                                        [
+                                            {
+                                                "type":"stext",
+                                                "text":"midline points",
+                                                "origin":[0,0.5], "pos":[0,20],
+                                                "pad":[10,0,0,0],
+                                                "max_size":"[{-:{inside_label_w}:20},0]"
+                                            },
+                                            {
+                                                "type":"settings",
+                                                "var":"midline_resolution",
+                                                "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                                                "size":"[{*:{textfield_w}:0.1},40]",
+                                                "desc":""
+                                            },
+                                            {
+                                                "type":"stext",
+                                                "text":"invert midline",
+                                                "origin":[0,0.5], "pos":[0,20],
+                                                "pad":[10,0,0,0],
+                                                "max_size":"[{-:{inside_label_w}:20},0]"
+                                            },
+                                            {
+                                                "type":"settings",
+                                                "var":"midline_invert",
+                                                "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                                                "size":"[{max:50:{*:{textfield_w}:0.1}},40]",
+                                                "desc":""
+                                            }
+                                        ]
+                                    ]
+                                }
+                            },
+
+                            {
+                                "type":"stext",
+                                "max_size": "[{min:700:{element_w}},80]",
+                                "text": "<c><cyan>Posture estimation</cyan></c> is used to determine an outline around the individual, as well as a centerline at the ends of which are the head and tail positions. This only works <i>properly</i> for bilateral individuals and should only be enabled if needed. <orange><b>Required for visual fields.</b></orange>",
+                                "font":{"size":0.5}
+                            },
+
+
+                            {
+                                "type":"rect",
+                                "fill":[0,0,0,0],
+                                "size":[1,20]
+                            }
+                        ]
+                    }
+                ],
+
+                [ 
+                    {
+                        "type":"stext",
+                        "text":"<b>Storage format</b>\n<small><gray>Which data is stored. Simpler is sometimes better.</gray></small>",
+                        "font":{"size":0.75},
+                        "origin":"{label_origin}", "pos":"{label_offset}",
+                        "max_size":"[{label_w},0]",
+                        "pad":"{label_padding}"
+                    },
+                    [
+                    {
+                        "type":"vlayout",
+                        "children":[
+                            {
+                                "type":"rect",
+                                "fill":[0,0,0,0],
+                                "size":[1,20]
+                            },
+                            {
+                                "type":"gridlayout",
+                                "pad":[0,0,15,10],
+                                "cellfillclr":[60,60,60,150],
+                                "celllineclr":[100,100,100,50],
+                                "cellfillinterval":2,
+                                "children":[
+                                    [
+                                        {
+                                            "type":"stext",
+                                            "text":"encoding",
+                                            "origin":[0,0.5], "pos":[0,20],
+                                            "pad":[10,0,-5,0],
+                                            "max_size":"[{-:{inside_label_w}:20},0]"
+                                        },
+                                        {
+                                            "type":"settings",
+                                            "var":"meta_encoding",
+                                            "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                                            "size":"[{max:50:{*:{textfield_w}:0.1}},40]",
+                                            "desc":""
+                                        }
+                                    ]
+    
+                                ]
+                            },
+
+                            {
+                                "type":"stext",
+                                "max_size": "[{min:500:{element_w}},80]",
+                                "text": "The <cyan><c>meta_encoding</c></cyan> setting is used to determine how the tracking data is stored. This can play a role for example in general tracking and overlap resolution, as well as visual identification.",
+                                "font":{"size":0.5}
+                            },
+
+                            {
+                                "type":"rect",
+                                "fill":[0,0,0,0],
+                                "size":[1,20]
+                            }
+                        ]
+                    }]
+                ]
+            ]
+        }
+    ]},
+
+    {
+        "type":"condition",
+        "var":"{hovered:title}",
+        "then":
+        {
+            "type":"stext",
+            "pos":"[{+:20:{max:{mouse.x}:{at:0:{dimensions:title}}}},{mouse.y}]",
+            "fill":[0,0,0,200],
+            "alpha":1,
+            "pad":[10,10,10,10],
+            "font":{"size":0.75},
+            "text": "<lightgray>Below are three sections where you can configure the input and output of your project as well as the detection and tracking settings. If you are unsure what to do, you can leave most default settings as they are.</lightgray>",
+            "max_size":"[{min:512:{-:{window_size.x}:25}},150]"
+        }
+    },
+
+    {
+        "type":"collection",
+        "fill":[20,20,20,150],
+        "size":"[{window_size.x},55]",
+        "origin":[0,1],
+        "pos":"[0,{window_size.y}]",
+        "clickable":true,
+        "children":[
+
+            {
+                "type":"hlayout",
+                "align":"center",
+                "pad":[5,0,5,0],
+                "pos":[10,8],
+                "origin":[0,0],
+                "children":[
+                    {
+                        "type":"settings",
+                        "var":"",
+                        "font":{"size":0.6,"align":"center"},
+                        "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                        "placeholder":"<sym>🔍</sym> Parameters",
+                        "cleartext":"<sym>⮾</sym>",
+                        "list":{
+                            "line":[220,220,220,200],
+                            "fill":[25,25,25,220],
+                            "size":"[{max:350:{-:{element_w}:90}},300]"
+                        },
+                        "label":{
+                            "font":{"size":0.6}
+                        },
+                        "size":"[{max:350:{-:{element_w}:220}},40]",
+                        "color":[225,225,225],
+                        "desc":"",
+                        "highlight_clr":[75,75,75,255]
+                    }
+                ]
+            },
+        
+            {
+                "type":"hlayout",
+                "align":"center",
+                "pad":[5,0,5,0],
+                "pos":"[{-:{window_size.x}:10},8]",
+                "origin":[1,0],
+                "children":[
+                    {
+                        "type":"button",
+                        "text":"<sym>🛇</sym> Back to menu",
+                        "fill":[40,40,40,220],
+                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
+                        "size":[150,40],
+                        "font":{
+                            "align":"center",
+                            "size":0.65
+                        },
+                        "action": "change_scene:'starting-scene'"
+                    },
+                    {
+                        "type":"button",
+                        "text":"<sym>⮜</sym> {if:{previous_stack_size}:Back:Back to menu}",
+                        "fill":[40,40,40,220],
+                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
+                        "size":[100,40],
+                        "font":{
+                            "align":"center",
+                            "size":0.65
+                        },
+                        "action": "go-back"
+                    },
+                    {
+                        "type":"button",
+                        "text":"<sym>⭯</sym> Reset",
+                        "fill":[40,40,40,220],
+                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
+                        "size":[100,40],
+                        "font":{
+                            "align":"center",
+                            "size":0.65
+                        },
+                        "action": "reset_settings"
+                    },
+                    {
+                        "type":"condition",
+                        "var":"{not:{checks_running}}",
+                        "then":{
+                            "type":"button",
+                            "text":"Convert <sym>⮞</sym>",
+                            "fill":[40,40,40,220],
+                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
+                            "size":[100,40],
+                            "font":{
+                                "align":"center",
+                                "size":0.65
+                            },
+                            "action": "convert"
+                        },
+                        "else":{
+                            "type":"button",
+                            "text":"{animation}",
+                            "fill":[40,40,40,120],
+                            "line":[100,100,100,150],
+                            "color":[100,100,100],
+                            "size":[50,40],
+                            "font":{
+                                "align":"center",
+                                "size":0.65
+                            }
+                        }
+                    },
+                    {
+                        "type":"condition",
+                        "var":"{&&:{not:{checks_running}}:{valid_pv_file}}",
+                        "then":{
+                            "type":"button",
+                            "text":"Track <sym>⮞</sym>",
+                            "fill":[40,40,40,220],
+                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
+                            "size":[100,40],
+                            "font":{
+                                "align":"center",
+                                "size":0.65
+                            },
+                            "action": "track"
+                        },
+                        "else":{
+                            "type":"condition",
+                            "var":"{checks_running}",
+                            "then":{
+                                "type":"button",
+                                "text":"{animation}",
+                                "fill":[40,40,40,120],
+                                "line":[100,100,100,150],
+                                "color":[100,100,100],
+                                "size":[50,40],
+                                "font":{
+                                    "align":"center",
+                                    "size":0.65
+                                }
+                            }
+                        }
+                    }
+                ]
+            }
+        ]
+    }
+]}
