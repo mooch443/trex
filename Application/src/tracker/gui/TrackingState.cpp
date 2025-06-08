@@ -142,7 +142,8 @@ TrackingState::~TrackingState() {
     Categorize::DataStore::clear_labels();
     
     try {
-        Python::VINetwork::unload_weights().get();
+        if(Python::VINetwork::status().weights.valid())
+            Python::VINetwork::unload_weights().get();
     } catch(const std::exception& ex) {
         FormatExcept("Caught an exception when unloading weights: ", ex.what());
     }

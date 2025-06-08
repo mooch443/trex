@@ -238,7 +238,7 @@ void launch_gui(std::future<void>& f) {
                     TrackingScene::request_load();
                     manager.set_active("tracking-scene");
                 }
-			}
+            }
         },
         [&manager, &errored_out](std::string error) {
             if(SETTING(nowindow))
@@ -430,6 +430,8 @@ static void signal_handler(int sig) {
     }
     if (sig == SIGKILL) panic("KILL signal ended program\n");
     if(sig == SIGINT) {
+        SETTING(auto_quit) = false;
+        
         if(!SETTING(terminate_error))
             SETTING(terminate_error) = true;
         if(!SETTING(terminate)) {
@@ -461,7 +463,7 @@ void init_signals() {
 #if !defined(WIN32) && !defined(__EMSCRIPTEN__)
     sigact.sa_handler = signal_handler;
     sigemptyset(&sigact.sa_mask);
-    sigact.sa_flags = 0;
+    sigact.sa_flags = SV_INTERRUPT;
     sigaction(SIGINT, &sigact, (struct sigaction *)NULL);
     
     sigaddset(&sigact.sa_mask, SIGSEGV);
@@ -514,7 +516,7 @@ std::string start_tracking(std::future<void>& f) {
     if(f.valid())
         f.get();
     
-    while(not terminate)
+    while(not terminate && not SETTING(terminate))
         std::this_thread::sleep_for(std::chrono::seconds(1));
     
     while(SETTING(auto_quit))
@@ -766,7 +768,7 @@ int main(int argc, char**argv) {
                 tf::imshow(name, mat);
             },
             []() {
-				tf::destroyAllWindows();
+                tf::destroyAllWindows();
             });
         });
     } catch(const std::exception& e) {

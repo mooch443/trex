@@ -828,6 +828,19 @@ BOOL WINAPI consoleHandler(DWORD signal_code) {
 #endif
 
 void PythonIntegration::init() {
+#if !defined(WIN32)
+    struct SignalRestorer {
+        PyOS_sighandler_t handler = PyOS_getsig(SIGINT);
+        
+        ~SignalRestorer() {
+#ifndef NDEBUG
+            Print("* handler ", hex(handler), " vs ", PyOS_getsig(SIGINT));
+#endif
+            PyOS_setsig(SIGINT, handler);
+        }
+    } _restorer;
+#endif
+    
     auto fail = [](const auto& e, cmn::source_location loc = cmn::source_location::current()){
         python_init_error() = e.what();
         initializing() = false;
@@ -894,6 +907,7 @@ void PythonIntegration::init() {
             python_gpu_name() = physical_name;
         });
         
+        numpy = _main.import("numpy");
         TRex = _main.import("TRex");
         _json_module = _main.import("json");
         _locals = new pybind11::dict();
