@@ -1419,7 +1419,7 @@ int main(int argc, char** argv)
             auto path = py::VINetwork::network_path();
             path = path.add_extension("npz");
             
-            SETTING(terminate_error) = true;
+            SETTING(error_terminate) = true;
             SETTING(terminate) = true;
             throw U_EXCEPTION("Cannot apply a network without network_weights available. (searching at ",path.str(),")");
         }
@@ -1431,7 +1431,7 @@ int main(int argc, char** argv)
             auto file = (std::string)SETTING(filename).value<file::Path>().filename();
             auto output = (std::string)file::DataLocation::parse("output").str();
             
-            SETTING(terminate_error) = true;
+            SETTING(error_terminate) = true;
             SETTING(terminate) = true;
             throw U_EXCEPTION("Make sure that a file called '",file,"_categories.npz' is located inside '",output,"'");
         }

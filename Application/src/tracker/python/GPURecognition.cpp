@@ -811,25 +811,9 @@ void PythonIntegration::set_display_function(std::function<void(const std::strin
     _destroy_all_windows = destroy_all_windows;
 }
 
-#ifdef _WIN32
-BOOL WINAPI consoleHandler(DWORD signal_code) {
-    if (signal_code == CTRL_C_EVENT) {
-        if (!SETTING(terminate)) {
-            SETTING(terminate) = true;
-            Print("Waiting for video to close.");
-            return TRUE;
-        }
-        else
-            FormatExcept("Pressing CTRL+C twice immediately stops the program in an undefined state.");
-    }
-
-    return FALSE;
-}
-#endif
-
 void PythonIntegration::init() {
-#if !defined(WIN32)
     struct SignalRestorer {
+#if !defined(WIN32)
         PyOS_sighandler_t handler = PyOS_getsig(SIGINT);
         
         ~SignalRestorer() {
@@ -838,8 +822,16 @@ void PythonIntegration::init() {
 #endif
             PyOS_setsig(SIGINT, handler);
         }
-    } _restorer;
+#else
+        ~SignalRestorer() {
+            // after you’ve created the interpreter…
+            HMODULE hExe = GetModuleHandle(NULL);                    // or the name of the module that exports it
+            auto fn = (void(*)())GetProcAddress(hExe, "RehookConsoleHandler");
+            if (fn)
+                fn();
+        }
 #endif
+    } _restorer;
     
     auto fail = [](const auto& e, cmn::source_location loc = cmn::source_location::current()){
         python_init_error() = e.what();
@@ -1078,7 +1070,10 @@ bool PythonIntegration::check_module(const std::string& name,
     }
 
 #ifdef _WIN32
-    SetConsoleCtrlHandler(consoleHandler, TRUE);
+    // after you’ve created the interpreter…
+    HMODULE hExe = GetModuleHandle(NULL);                    // or the name of the module that exports it
+    auto fn = (void(*)())GetProcAddress(hExe, "RehookConsoleHandler");
+    if (fn) fn();
 #endif
 
     return result;

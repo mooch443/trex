@@ -432,8 +432,8 @@ static void signal_handler(int sig) {
     if(sig == SIGINT) {
         SETTING(auto_quit) = false;
         
-        if(!SETTING(terminate_error))
-            SETTING(terminate_error) = true;
+        if(!SETTING(error_terminate))
+            SETTING(error_terminate) = true;
         if(!SETTING(terminate)) {
             SETTING(terminate) = true;
             Print("Waiting for video to close.");
@@ -444,16 +444,26 @@ static void signal_handler(int sig) {
 #elif defined(WIN32)
 BOOL WINAPI consoleHandler(DWORD signal_code) {
     if (signal_code == CTRL_C_EVENT) {
+        if (SETTING(auto_quit))
+            SETTING(auto_quit) = false;
+		if (not SETTING(error_terminate))
+		    SETTING(error_terminate) = true;
         if (!SETTING(terminate)) {
             SETTING(terminate) = true;
             Print("Waiting for video to close.");
-            return TRUE;
+			return TRUE;
         }
         else
             FormatExcept("Pressing CTRL+C twice immediately stops the program in an undefined state.");
     }
 
     return FALSE;
+}
+
+extern "C" __declspec(dllexport)
+void RehookConsoleHandler() {
+    // re-register the original handler
+    SetConsoleCtrlHandler(consoleHandler, TRUE);
 }
 #endif
 

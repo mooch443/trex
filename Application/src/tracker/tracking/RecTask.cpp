@@ -119,7 +119,7 @@ void RecTask::thread() {
         
     } catch(const SoftExceptionImpl&) {
         // do nothing
-        SETTING(terminate_error) = true;
+        SETTING(error_terminate) = true;
         SETTING(terminate) = true;
     }
 

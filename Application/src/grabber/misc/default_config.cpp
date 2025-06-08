@@ -122,7 +122,7 @@ namespace default_config {
         CONFIG("settings_file", Path(), "The settings filename.", LOAD);
         CONFIG("recording", true, "If set to true, the program will record frames whenever individuals are found.");
         CONFIG("terminate", false, "Terminates the program gracefully.", SYSTEM);
-        CONFIG("terminate_error", false, "Internal variable.", SYSTEM);
+        CONFIG("error_terminate", false, "Internal variable.", SYSTEM);
         
         CONFIG("web_time_threshold", float(0.125), "Time-threshold after which a new request can be answered (prevents DDoS).");
         //CONFIG("tgrabs_use_threads", true, "Use threads to process images (specifically the blob detection).", STARTUP);

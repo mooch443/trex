@@ -101,8 +101,8 @@ static void signal_handler(int sig) {
     if (sig == SIGQUIT) panic("QUIT signal ended program\n");
     if (sig == SIGKILL) panic("KILL signal ended program\n");
     if(sig == SIGINT) {
-        if(!SETTING(terminate_error))
-            SETTING(terminate_error) = true;
+        if(!SETTING(error_terminate))
+            SETTING(error_terminate) = true;
         if(!SETTING(terminate)) {
             SETTING(terminate) = true;
             print("Waiting for video to close.");
@@ -770,6 +770,6 @@ int main(int argc, char** argv)
         fclose(log_file);
     log_file = NULL;
 
-    int returncode = SETTING(terminate_error) ? 1 : 0;
+    int returncode = SETTING(error_terminate) ? 1 : 0;
     exit(returncode);
 }
