@@ -693,7 +693,11 @@ struct SettingsScene::Data {
                                     load_video_settings(file::PathArray{path});
                                     
                                 } else {
-                                    GlobalSettings::load_from_file({}, path.str(), AccessLevelType::LOAD);
+                                    GlobalSettings::load_from_file(path.str(), {
+                                        .deprecations = default_config::deprecations(),
+                                        .access = AccessLevelType::LOAD
+                                    });
+                                    //GlobalSettings::load_from_file({}, path.str(), AccessLevelType::LOAD);
                                 }
                             }
                         });

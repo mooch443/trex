@@ -194,7 +194,12 @@ int main(int argc, char**argv) {
     auto default_path = file::DataLocation::parse("default.settings");
     if(default_path.exists()) {
         DebugHeader("LOADING FROM ",default_path);
-        default_config::warn_deprecated(default_path, GlobalSettings::load_from_file(default_config::deprecations(), default_path.str(), AccessLevelType::STARTUP));
+        default_config::warn_deprecated(default_path,
+            GlobalSettings::load_from_file(default_path.str(), {
+            .deprecations = default_config::deprecations(),
+            .access = AccessLevelType::STARTUP
+        }));
+                                        //GlobalSettings::load_from_file(default_config::deprecations(), default_path.str(), AccessLevelType::STARTUP));
         DebugHeader("LOADED ",default_path);
     }
     
@@ -318,8 +323,14 @@ int main(int argc, char**argv) {
         SETTING(filename) = file::Path(argv[argc-1]);
     
     file::Path settings_file = file::DataLocation::parse("settings");
-    if(settings_file.exists())
-        GlobalSettings::load_from_file(default_config::deprecations(), settings_file.str(), AccessLevelType::STARTUP, {}, nullptr, &GlobalSettings::map());
+    if(settings_file.exists()) {
+        default_config::warn_deprecated(settings_file,
+            GlobalSettings::load_from_file(settings_file.str(), {
+            .deprecations = default_config::deprecations(),
+            .access = AccessLevelType::STARTUP
+        }));
+    }
+        //GlobalSettings::load_from_file(default_config::deprecations(), settings_file.str(), AccessLevelType::STARTUP, {}, nullptr, &GlobalSettings::map());
     
     file::Path input = SETTING(filename).value<file::Path>();
     //if(!input.exists())
@@ -331,12 +342,23 @@ int main(int argc, char**argv) {
             SETTING(crop_offsets) = CropOffsets();
             
             file::Path settings_file = file::DataLocation::parse("settings");
-            if(settings_file.exists())
-                GlobalSettings::load_from_file(default_config::deprecations(), settings_file.str(), AccessLevelType::STARTUP, {}, nullptr, &GlobalSettings::map());
+            if(settings_file.exists()) {
+                default_config::warn_deprecated(settings_file,
+                    GlobalSettings::load_from_file(settings_file.str(), {
+                    .deprecations = default_config::deprecations(),
+                    .access = AccessLevelType::STARTUP
+                }));
+                //GlobalSettings::load_from_file(default_config::deprecations(), settings_file.str(), AccessLevelType::STARTUP, {}, nullptr, &GlobalSettings::map());
+            }
             
             auto output_settings = file::DataLocation::parse("output_settings");
             if(output_settings.exists() && output_settings != settings_file) {
-                GlobalSettings::load_from_file(default_config::deprecations(), output_settings.str(), AccessLevelType::STARTUP, {}, nullptr, &GlobalSettings::map());
+                default_config::warn_deprecated(output_settings,
+                    GlobalSettings::load_from_file(output_settings.str(), {
+                    .deprecations = default_config::deprecations(),
+                    .access = AccessLevelType::STARTUP
+                }));
+                //GlobalSettings::load_from_file(default_config::deprecations(), output_settings.str(), AccessLevelType::STARTUP, {}, nullptr, &GlobalSettings::map());
             }
             
             video.close();
@@ -360,7 +382,12 @@ int main(int argc, char**argv) {
         
         auto output_settings = file::DataLocation::parse("output_settings");
         if(output_settings.exists() && output_settings != settings_file) {
-            GlobalSettings::load_from_file(default_config::deprecations(), output_settings.str(), AccessLevelType::STARTUP, {}, nullptr, &GlobalSettings::map());
+            default_config::warn_deprecated(output_settings,
+                GlobalSettings::load_from_file(output_settings.str(), {
+                .deprecations = default_config::deprecations(),
+                .access = AccessLevelType::STARTUP
+            }));
+            //GlobalSettings::load_from_file(default_config::deprecations(), output_settings.str(), AccessLevelType::STARTUP, {}, nullptr, &GlobalSettings::map());
         }
         
         SETTING(quiet) = true;
@@ -682,12 +709,23 @@ int main(int argc, char**argv) {
         
         auto output_settings = file::DataLocation::parse("output_settings");
         if(output_settings.exists() && output_settings != settings_file) {
-            GlobalSettings::load_from_file({}, output_settings.str(), AccessLevelType::STARTUP);
+            default_config::warn_deprecated(output_settings,
+                GlobalSettings::load_from_file(output_settings.str(), {
+                .deprecations = default_config::deprecations(),
+                .access = AccessLevelType::STARTUP
+            }));
+            //GlobalSettings::load_from_file({}, output_settings.str(), AccessLevelType::STARTUP);
         }
         
         cmd.load_settings();
         
-        GlobalSettings::load_from_string(sprite::MapSource{path}, default_config::deprecations(), GlobalSettings::map(), header.settings, AccessLevelType::STARTUP);
+        default_config::warn_deprecated(path,
+            GlobalSettings::load_from_string(header.settings, {
+            .source = path,
+            .deprecations = default_config::deprecations(),
+            .access = AccessLevelType::STARTUP
+        }));
+        //GlobalSettings::load_from_string(sprite::MapSource{path}, default_config::deprecations(), GlobalSettings::map(), header.settings, AccessLevelType::STARTUP);
         
         SETTING(quiet) = true;
         track::Tracker tracker(Image::Make(average), SETTING(meta_encoding).value<meta_encoding_t::Class>(), SETTING(meta_real_width).value<Float2_t>());

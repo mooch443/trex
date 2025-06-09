@@ -280,7 +280,14 @@ void LoadContext::init() {
             auto str = utils::read_file(default_path.str());
             if(not str.empty()) {
                 G g(default_path.str(), quiet);
-                auto rejected = GlobalSettings::load_from_string(sprite::MapSource{default_path.str()}, deprecations(), combined.map, str, AccessLevelType::STARTUP, false, exclude, nullptr);
+                auto rejected = GlobalSettings::load_from_string(str, {
+                    .source = default_path.str(),
+                    .deprecations = deprecations(),
+                    .access = AccessLevelType::STARTUP,
+                    .exclude = exclude,
+                    .target = &combined.map
+                });
+                //GlobalSettings::load_from_string(sprite::MapSource{default_path.str()}, deprecations(), combined.map, str, AccessLevelType::STARTUP, false, exclude, nullptr);
                 warn_deprecated(default_path, rejected);
             }
             
@@ -816,7 +823,14 @@ void LoadContext::load_settings_file() {
             if(not quiet)
                 Print("// Excluding ", manual_exclude, " from settings file.");
 
-            auto rejected = GlobalSettings::load_from_file(deprecations(), settings_file.str(), AccessLevelType::STARTUP, manual_exclude, &map, &combined.map);
+            auto rejected = GlobalSettings::load_from_file(settings_file.str(), {
+                .deprecations = deprecations(),
+                .access = AccessLevelType::STARTUP,
+                .exclude = manual_exclude,
+                .target = &map,
+                .additional = &combined.map
+            });
+            //auto rejected = GlobalSettings::load_from_file(deprecations(), settings_file.str(), AccessLevelType::STARTUP, true, manual_exclude, &map, &combined.map);
             
             warn_deprecated(settings_file, rejected);
             

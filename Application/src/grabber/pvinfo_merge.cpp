@@ -80,7 +80,11 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
             GlobalSettings::docs_map_t docs;
             grab::default_config::get(*config, docs, NULL);
             
-            GlobalSettings::load_from_string(sprite::MapSource{settings_file}, {}, *config, utils::read_file(settings_file.str()), AccessLevelType::STARTUP);
+            GlobalSettings::load_from_file(settings_file.str(), {
+                .access = AccessLevelType::STARTUP,
+                .target = config.get()
+            });
+            //GlobalSettings::load_from_string(sprite::MapSource{settings_file}, {}, *config, utils::read_file(settings_file.str()), AccessLevelType::STARTUP);
             if(file->header().metadata.has_value())
                 sprite::parse_values(sprite::MapSource{file->filename()}, *config, file->header().metadata.value());
             if(!config->has("meta_real_width") || config->at("meta_real_width").value<Float2_t>() == 0)

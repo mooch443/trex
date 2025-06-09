@@ -1374,7 +1374,22 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
 
 
 void load_string_with_deprecations(const file::Path& settings_file, const std::string& content, sprite::Map& map, AccessLevel accessLevel, const std::vector<std::string>& exclude, bool quiet) {
-    auto rejections = GlobalSettings::load_from_string(sprite::MapSource{ settings_file }, deprecations(), map, content, accessLevel, false, exclude, &GlobalSettings::map());
+    auto rejections = GlobalSettings::load_from_string(content, {
+        .source = settings_file,
+        .deprecations = deprecations(),
+        .access = accessLevel,
+        .correct_deprecations = false,
+        .exclude = exclude,
+        .target = &map
+    });
+    
+    auto options = GlobalSettings::LoadOptions{
+        .source = settings_file,
+        .deprecations = deprecations(),
+        .access = accessLevel,
+        .target = &map
+    };
+    //auto rejections = GlobalSettings::load_from_string(sprite::MapSource{ settings_file }, deprecations(), map, content, accessLevel, false, exclude, &GlobalSettings::map());
     if(!rejections.empty()) {
         for (auto && [key, val] : rejections) {
             if (default_config::is_deprecated(key)) {
@@ -1408,22 +1423,29 @@ void load_string_with_deprecations(const file::Path& settings_file, const std::s
                         
                     } else if(key == "output_npz") {
                         auto value = Meta::fromStr<bool>(val);
-                        GlobalSettings::load_from_string(sprite::MapSource{ settings_file }, deprecations(), map, r + " = " + (value ? "npz" : "csv") + "\n", accessLevel);
+                        GlobalSettings::load_from_string(r + " = " + (value ? "npz" : "csv") + "\n", options);
+                        //GlobalSettings::load_from_string(sprite::MapSource{ settings_file }, deprecations(), map, r + " = " + (value ? "npz" : "csv") + "\n", accessLevel);
                         
                     } else if(key == "match_use_approximate") {
                         auto value = Meta::fromStr<bool>(val);
-                        GlobalSettings::load_from_string(sprite::MapSource{ settings_file }, deprecations(), map, r+" = "+(value ? "approximate" : "accurate")+"\n", accessLevel);
+                        GlobalSettings::load_from_string(r+" = "+(value ? "approximate" : "accurate")+"\n", options);
+                        //GlobalSettings::load_from_string(sprite::MapSource{ settings_file }, deprecations(), map, r+" = "+(value ? "approximate" : "accurate")+"\n", accessLevel);
                     
                     } else if(key == "analysis_stop_after") {
-                        GlobalSettings::load_from_string(sprite::MapSource{ settings_file }, deprecations(), map, r+" = [-1,"+val+"]\n", accessLevel);
+                        GlobalSettings::load_from_string(r+" = [-1,"+val+"]\n", options);
+                        //GlobalSettings::load_from_string(sprite::MapSource{ settings_file }, deprecations(), map, r+" = [-1,"+val+"]\n", accessLevel);
                     } else if(key == "recognition_normalize_direction") {
                         bool value = utils::lowercase(val) != "false";
-                        GlobalSettings::load_from_string(sprite::MapSource{ settings_file }, deprecations(), map, r+" = "+Meta::toStr(value ? individual_image_normalization_t::posture : individual_image_normalization_t::none)+"\n", accessLevel);
+                        GlobalSettings::load_from_string(r+" = "+Meta::toStr(value ? individual_image_normalization_t::posture : individual_image_normalization_t::none)+"\n", options);
+                        //GlobalSettings::load_from_string(sprite::MapSource{ settings_file }, deprecations(), map, r+" = "+Meta::toStr(value ? individual_image_normalization_t::posture : individual_image_normalization_t::none)+"\n", accessLevel);
                     } else if(key == "tracklet_export_difference_images") {
                         bool value = utils::lowercase(val) != "true";
-                        GlobalSettings::load_from_string(sprite::MapSource{ settings_file }, deprecations(), map, r+" = "+Meta::toStr(value)+"\n", accessLevel);
+                        GlobalSettings::load_from_string(r+" = "+Meta::toStr(value)+"\n", options);
+                        //GlobalSettings::load_from_string(sprite::MapSource{ settings_file }, deprecations(), map, r+" = "+Meta::toStr(value)+"\n", accessLevel);
                         
-                    } else GlobalSettings::load_from_string(sprite::MapSource{ settings_file }, deprecations(), map, r+" = "+val+"\n", accessLevel);
+                    } else
+                        GlobalSettings::load_from_string(r+" = "+val+"\n", options);
+                        //GlobalSettings::load_from_string(sprite::MapSource{ settings_file }, deprecations(), map, r+" = "+val+"\n", accessLevel);
                 }
             }
         }

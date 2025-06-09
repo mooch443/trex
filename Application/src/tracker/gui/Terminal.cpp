@@ -99,8 +99,13 @@ void open_terminal() {
             }
         }
         
-        if(!executed)
-            default_config::warn_deprecated("input", GlobalSettings::load_from_string(sprite::MapSource::CMD, default_config::deprecations(), GlobalSettings::map(), cmd, AccessLevelType::PUBLIC));
+        if(!executed) {
+            default_config::warn_deprecated("input", GlobalSettings::load_from_string(cmd, {
+                .source = sprite::MapSource::CMD,
+                .deprecations = default_config::deprecations()
+            }));
+            //default_config::warn_deprecated("input", GlobalSettings::load_from_string(sprite::MapSource::CMD, default_config::deprecations(), GlobalSettings::map(), cmd, AccessLevelType::PUBLIC));
+        }
     }//);
 }
 

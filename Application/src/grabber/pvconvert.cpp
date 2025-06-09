@@ -5,6 +5,7 @@
 #include <misc/GlobalSettings.h>
 #include <misc/CommandLine.h>
 #include <file/DataLocation.h>
+#include <tracker/misc/default_config.h>
 
 using namespace cmn;
 using namespace cmn::file;
@@ -196,7 +197,11 @@ int main(int argc, char**argv) {
     
     if(!SETTING(settings_file).value<Path>().empty()) {
         if(SETTING(settings_file).value<Path>().exists()) {
-            GlobalSettings::load_from_file({}, SETTING(settings_file), AccessLevelType::STARTUP);
+            GlobalSettings::load_from_file(SETTING(settings_file).value<file::Path>().str(), {
+                .deprecations = default_config::deprecations(),
+                .access = AccessLevelType::STARTUP
+            });
+            //GlobalSettings::load_from_file({}, SETTING(settings_file), AccessLevelType::STARTUP);
         } else
             throw U_EXCEPTION("Cannot find settings file ",SETTING(settings_file).value<Path>().str());
     }
