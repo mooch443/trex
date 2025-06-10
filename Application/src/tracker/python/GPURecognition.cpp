@@ -899,9 +899,9 @@ void PythonIntegration::init() {
             python_gpu_name() = physical_name;
         });
         
-        numpy = _main.import("numpy");
         TRex = _main.import("TRex");
         _json_module = _main.import("json");
+        //numpy = _main.import("numpy");
         _locals = new pybind11::dict();
         Print("# imported TRex module");
         
