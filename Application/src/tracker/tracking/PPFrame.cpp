@@ -281,14 +281,62 @@ void PPFrame::init_cache(GenericThreadPool* pool, NeedGrid need)
                         && counter < frame_limit; // shouldnt this be the same as the previous?
                     ++counter)
                 {
+                    auto range = arange<Frame_t>(
+						time_limit > 0 ? max(Frame_t((uint32_t)time_limit), (*sit)->start()) : (*sit)->start(),
+						(last_frame.valid() ? min((*sit)->end(), last_frame) : (*sit)->end()) + 1_f
+                    );
+
                     const auto index = (*sit)->basic_stuff((*sit)->end());
                     const auto pos = fish->basic_stuff().at(index)->centroid.template pos<Units::DEFAULT>();
-
-                    for(auto frame : (*sit)->iterable()) {
-                        if(not last_frame.valid() || frame > last_frame)
+#ifndef NDEBUG
+                    std::vector<Frame_t> considered;
+					considered.reserve(range.size());
+                    for(auto frame : range) {
+                        if (not last_frame.valid() || frame > last_frame) {
+                            //Print("Updating last frame for fish ", fish->identity(), " at ", pos, " to ", frame, " from ", last_frame);
                             break;
-                        if(frame.get() < time_limit)
+                        }
+                        if (frame.get() < time_limit) {
+                            //Print("Skipping fish ", fish->identity(), " at frame ", frame, " because it is before time limit ", time_limit);
                             continue;
+                        }
+                        considered.push_back(frame);
+					}
+
+                    /// traditional method
+					std::vector<Frame_t> old_considered;
+					old_considered.reserve(considered.size());
+
+                    for (auto frame : (*sit)->iterable()) {
+                        if (not last_frame.valid() || frame > last_frame) {
+                            //Print("Updating last frame for fish ", fish->identity(), " at ", pos, " to ", frame, " from ", last_frame);
+                            break;
+                        }
+                        if (frame.get() < time_limit) {
+                            //Print("Skipping fish ", fish->identity(), " at frame ", frame, " because it is before time limit ", time_limit);
+                            continue;
+                        }
+
+						old_considered.push_back(frame);
+                    }
+
+                    if(considered != old_considered) {
+                        Print("Considered frames differ: ", considered, " vs. ", old_considered);
+                        Print("Range: ", range.first, "-", range.last, " for fish ", fish->identity(), " at ", pos, " with last frame ", last_frame, " and time limit ", time_limit, " in range ", (*sit)->start(), "-", (*sit)->end());
+					}
+#endif
+                    //Print("Would iterate ", max(0, int64_t(range.first.get()) - int64_t((*sit)->start().get())), " from ", (*sit)->start(), " to ", range.first, " - ", range.last);
+
+                    for(auto frame : range) {
+                        if (not last_frame.valid() || frame > last_frame) {
+							//Print("Updating last frame for fish ", fish->identity(), " at ", pos, " to ", frame, " from ", last_frame);
+                            break;
+                        }
+                        if (frame.get() < time_limit) {
+							//Print("Skipping fish ", fish->identity(), " at frame ", frame, " because it is before time limit ", time_limit);
+                            continue;
+                        }
+                        //Print("Looking at ", frame, " for fish ", fish->identity(), " at ", pos, " with last frame ", last_frame, " and time limit ", time_limit, " in range ", *sit);
                         
                         auto bindex = (*sit)->basic_stuff(frame);
                         auto pindex = (*sit)->posture_stuff(frame);
