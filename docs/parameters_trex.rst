@@ -1722,7 +1722,7 @@ TRex parameters
 
 .. function:: individual_prefix(string)
 
-	**default value:** "fish"
+	**default value:** "id"
 
 
 	The prefix that is added to all the files containing certain IDs. So individual 0 will turn into '[prefix]0' for all the npz files and within the program.

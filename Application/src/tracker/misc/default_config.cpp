@@ -147,7 +147,110 @@ ENUM_CLASS_DOCS(gpu_torch_device_t,
     "Use the CPU (everybody should have this)."
 )
 
-    static const std::map<std::string, std::string> deprecated = {
+static void apply_whitelist(const Deprecation& obj, std::string_view val, sprite::Map& map)
+{
+    auto values = Meta::fromStr<std::vector<float>>((std::string)val);
+    auto r = obj.replacement.value();
+    
+    if(values.size() == 4) {
+        map[r] = std::vector<std::vector<Vec2>>{
+            {
+                Vec2(values[0], values[1]),
+                Vec2(values[0] + values[2], values[1]),
+                Vec2(values[0] + values[2], values[1] + values[3]),
+                Vec2(values[0], values[1] + values[3])
+            }
+        };
+        
+    } else
+        throw InvalidArgumentException("Invalid number of values while trying to correct ",val," deprecated parameter from ",obj.name," to ",r,".");
+}
+
+static void apply_whitelist_rects(const Deprecation& obj, std::string_view val, sprite::Map& map)
+{
+    auto values = Meta::fromStr<std::vector<Bounds>>((std::string)val);
+    std::vector<std::vector<Vec2>> value;
+    
+    for(auto v : values) {
+        value.push_back({
+            v.pos(), v.pos() + Vec2(v.width, 0),
+            v.pos() + v.size(),
+            v.pos() + Vec2(0, v.height)
+        });
+    }
+    
+    map[obj.replacement.value()] = value;
+}
+
+static void apply_output_npz(const Deprecation& obj, std::string_view val, sprite::Map& map)
+{
+    auto options = GlobalSettings::LoadOptions{
+        .source = sprite::MapSource("deprecations"),
+        .deprecations = deprecations(),
+        .access = AccessLevelType::SYSTEM,
+        .target = &map
+    };
+    
+    auto value = Meta::fromStr<bool>((std::string)val);
+    GlobalSettings::load_from_string(obj.replacement.value() + " = " + (value ? "npz" : "csv") + "\n", options);
+}
+
+static void apply_match_use_approximate(const Deprecation& obj, std::string_view val, sprite::Map& map)
+{
+    auto value = Meta::fromStr<bool>((std::string)val);
+    auto r = obj.replacement.value();
+    auto options = GlobalSettings::LoadOptions{
+        .source = sprite::MapSource("deprecations"),
+        .deprecations = deprecations(),
+        /// this is a security issue in theory
+        .access = AccessLevelType::SYSTEM,
+        .target = &map
+    };
+    GlobalSettings::load_from_string(r+" = "+(value ? "approximate" : "accurate")+"\n", options);
+}
+
+static void apply_analysis_stop_after(const Deprecation& obj, std::string_view val, sprite::Map& map)
+{
+    auto r = obj.replacement.value();
+    auto options = GlobalSettings::LoadOptions{
+        .source = sprite::MapSource("deprecations"),
+        .deprecations = deprecations(),
+        /// this is a security issue in theory
+        .access = AccessLevelType::SYSTEM,
+        .target = &map
+    };
+    GlobalSettings::load_from_string(r+" = [-1,"+(std::string)val+"]\n", options);
+}
+
+static void apply_recognition_normalize_direction(const Deprecation& obj, std::string_view val, sprite::Map& map)
+{
+    bool value = utils::lowercase(val) != "false";
+    auto options = GlobalSettings::LoadOptions{
+        .source = sprite::MapSource("deprecations"),
+        .deprecations = deprecations(),
+        /// this is a security issue in theory
+        .access = AccessLevelType::SYSTEM,
+        .target = &map
+    };
+    auto r = obj.replacement.value();
+    GlobalSettings::load_from_string(r+" = "+Meta::toStr(value ? individual_image_normalization_t::posture : individual_image_normalization_t::none)+"\n", options);
+}
+
+static void apply_tracklet_export_difference_images(const Deprecation& obj, std::string_view val, sprite::Map& map)
+{
+    bool value = utils::lowercase(val) != "true";
+    auto options = GlobalSettings::LoadOptions{
+        .source = sprite::MapSource("deprecations"),
+        .deprecations = deprecations(),
+        /// this is a security issue in theory
+        .access = AccessLevelType::SYSTEM,
+        .target = &map
+    };
+    auto r = obj.replacement.value();
+    GlobalSettings::load_from_string(r+" = "+Meta::toStr(value)+"\n", options);
+}
+
+static inline const Deprecations deprecated = Deprecations({
         {"analysis_paused", "track_pause"},
         {"meta_classes", "detect_classes"},
         {"meta_skeleton", "detect_skeleton"},
@@ -168,7 +271,7 @@ ENUM_CLASS_DOCS(gpu_torch_device_t,
         {"gui_save_npy_quit", "auto_quit"},
         {"gui_auto_quit", "auto_quit"},
         {"gui_stop_after", "analysis_range"},
-        {"analysis_stop_after", "analysis_range"},
+        {"analysis_stop_after", "analysis_range", apply_analysis_stop_after},
         {"track_segment_max_length", "tracklet_max_length"},
         {"track_end_tracklet_for_speed", "tracklet_punish_speeding"},
         {"huge_timestamp_ends_segment", "tracklet_punish_timedelta"},
@@ -193,17 +296,19 @@ ENUM_CLASS_DOCS(gpu_torch_device_t,
         {"fish_time_probability_enabled", "track_time_probability_enabled"},
         {"number_fish", "track_max_individuals"},
         {"outline_remove_loops", ""},
-        {"whitelist_rect", "track_include"},
+        {"whitelist_rects", "track_include", apply_whitelist_rects},
+        {"exclude_rects", "track_ignore", apply_whitelist_rects},
+        {"whitelist_rect", "track_include", apply_whitelist},
         {"track_whitelist", "track_include"},
-        {"exclude_rect", "track_ignore"},
+        {"exclude_rect", "track_ignore", apply_whitelist},
         {"track_blacklist", "track_ignore"},
         {"posture_threshold_constant", "track_posture_threshold"},
         {"threshold_constant", "track_threshold"},
-        {"recognition_rect", "recognition_shapes"},
+        {"recognition_rect", "recognition_shapes", apply_whitelist},
         {"recognition_normalization", "individual_image_normalization"},
-        {"recognition_normalize_direction", "individual_image_normalization"},
-        {"match_use_approximate", "match_mode"},
-        {"output_npz", "output_format"},
+        {"recognition_normalize_direction", "individual_image_normalization", apply_recognition_normalize_direction},
+        {"match_use_approximate", "match_mode", apply_match_use_approximate},
+        {"output_npz", "output_format", apply_output_npz},
         {"gui_heatmap_value_range", "heatmap_value_range"},
         {"gui_heatmap_smooth", "heatmap_smooth"},
         {"gui_heatmap_frames", "heatmap_frames"},
@@ -212,7 +317,7 @@ ENUM_CLASS_DOCS(gpu_torch_device_t,
         {"gui_heatmap_normalization", "heatmap_normalization"},
         {"gui_heatmap_source", "heatmap_source"},
         {"tracklet_normalize_orientation", "tracklet_normalize"},
-        {"tracklet_export_difference_images", "tracklet_force_normal_color"},
+        {"tracklet_export_difference_images", "tracklet_force_normal_color", apply_tracklet_export_difference_images},
         {"track_label_confidence_threshold", "track_conf_threshold"},
         {"matching_probability_threshold", "match_min_probability"},
         {"manual_ignore_bdx", "track_ignore_bdx"},
@@ -222,7 +327,7 @@ ENUM_CLASS_DOCS(gpu_torch_device_t,
         {"enable_live_tracking", ""},
         {"export_visual_fields", "output_visual_fields"},
         {"output_image_per_tracklet", "output_tracklet_images"}
-    };
+});
 
 /**
  * Finds all user-defined pose indexes from output fields.
@@ -470,7 +575,7 @@ file::Path conda_environment_path() {
     return home;
 }
     
-    const std::map<std::string, std::string>& deprecations() {
+    const Deprecations& deprecations() {
         return deprecated;
     }
     
@@ -504,15 +609,15 @@ file::Path conda_environment_path() {
     }
     
     bool is_deprecated(const std::string& key) {
-        return deprecated.find(utils::lowercase(key)) != deprecated.end();
+        return deprecated.is_deprecated(key);
     }
     
     std::string replacement(const std::string& key) {
-        if (!is_deprecated(key)) {
+        if (not is_deprecated(key)) {
             throw U_EXCEPTION("Key ",key," is not deprecated.");
         }
         
-        return deprecated.at(utils::lowercase(key));
+        return deprecated.deprecations.at(utils::lowercase(key)).replacement.value();
     }
 
 #define PYTHON_TIPPS ""
@@ -522,7 +627,14 @@ file::Path conda_environment_path() {
 
 void execute_settings_string(const std::string &content, const file::Path& source, AccessLevelType::Class level, const std::vector<std::string>& exclude) {
     try {
-        default_config::load_string_with_deprecations(source, content, GlobalSettings::map(), level, exclude);
+        GlobalSettings::load_from_string(content, {
+            .source = source,
+            .access = level,
+            .correct_deprecations = true,
+            .exclude = exclude,
+            .target = &GlobalSettings::map()
+        });
+        //default_config::load_string_with_deprecations(source, content, GlobalSettings::map(), level, exclude);
         
     } catch(const cmn::illegal_syntax& e) {
         FormatError("Illegal syntax in settings file.");
@@ -647,7 +759,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("gui_equalize_blob_histograms", false, "Equalize histograms of blobs wihtin videos (makes them more visible).");
         CONFIG("gui_show_video_background", true, "If available, show an animated background of the original video.");
         CONFIG("gui_show_heatmap", false, "Showing a heatmap per identity, normalized by maximum samples per grid-cell.");
-        CONFIG("gui_show_individual_preview", false, "Shows preview images for all selected individuals as they would be processed during network training, based on settings like `individual_image_size`, `individual_image_scale` and `individual_image_normalization`.");
+        CONFIG("gui_show_individual_preview", true, "Shows preview images for all selected individuals as they would be processed during network training, based on settings like `individual_image_size`, `individual_image_scale` and `individual_image_normalization`.");
         CONFIG("gui_draw_blobs_separately", false, "Draw blobs separately. If false, blobs will be drawn on a single full-screen texture and displayed. The second option may be better on some computers (not supported if `gui_macos_blur` is set to true).");
         CONFIG("gui_blob_label", std::string("{if:{dock}:{name} :''}{if:{active}:<a>:''}{real_size}{if:{split}: <gray>split</gray>:''}{if:{tried_to_split}: <orange>split tried</orange>:''}{if:{prediction}: {prediction}:''}{if:{instance}: <gray>instance</gray>:''}{if:{dock}:{if:{filter_reason}: [<gray>{filter_reason}</gray>]:''}:''}{if:{active}:</a>:''}{if:{category}: {category}:''}"), "This is what the graphical user interfaces displays as a label for each blob in raw view. Replace this with {help} to see available variables.");
         CONFIG("gui_fish_label", std::string("{if:{not:{has_pred}}:{name}:{if:{equal:{at:0:{max_pred}}:{id}}:<green>{name}</green>:<red>{name}</red> <i>loc</i>[<c><nr>{at:0:{max_pred}}</nr>:<nr>{int:{*:100:{at:1:{max_pred}}}}</nr><i>%</i></c>]}}{if:{tag}:' <a>tag:{tag.id} ({dec:2:{tag.p}})</a>':''}{if:{average_category}:' <nr>{average_category}</nr>':''}{if:{&&:{category}:{not:{equal:{category}:{average_category}}}}:' <b><i>{category}</i></b>':''}"), "This is what the graphical user interface displays as a label for each individual. Replace this with {help} to see the available variables.");
@@ -722,7 +834,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("gui_is_recording", false, "Is set to true when recording is active.", SYSTEM);
         CONFIG("gui_happy_mode", false, "If `calculate_posture` is enabled, enabling this option likely improves your experience with TRex.");
         CONFIG("individual_names", std::map<track::Idx_t, std::string>{}, "A map of `{individual-id: \"individual-name\", ...}` that names individuals in the GUI and exported data.");
-        CONFIG("individual_prefix", std::string("fish"), "The prefix that is added to all the files containing certain IDs. So individual 0 will turn into '[prefix]0' for all the npz files and within the program.");
+        CONFIG("individual_prefix", std::string("id"), "The prefix that is added to all the files containing certain IDs. So individual 0 will turn into '[prefix]0' for all the npz files and within the program.");
         CONFIG("outline_approximate", uint8_t(3), "If this is a number > 0, the outline detected from the image will be passed through an elliptical fourier transform with `outline_approximate` number of coefficients. When the given number is sufficiently low, the outline will be smoothed significantly (and more so for lower numbers of coefficients).");
         CONFIG("outline_smooth_step", uint8_t(1), "Jump over N outline points when smoothing (reducing accuracy).");
         CONFIG("outline_smooth_samples", uint8_t(4), "Use N samples for smoothing the outline. More samples will generate a smoother (less detailed) outline.");
@@ -1371,85 +1483,5 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             return filename;
         });
     }
-
-
-void load_string_with_deprecations(const file::Path& settings_file, const std::string& content, sprite::Map& map, AccessLevel accessLevel, const std::vector<std::string>& exclude, bool quiet) {
-    auto rejections = GlobalSettings::load_from_string(content, {
-        .source = settings_file,
-        .deprecations = deprecations(),
-        .access = accessLevel,
-        .correct_deprecations = false,
-        .exclude = exclude,
-        .target = &map
-    });
-    
-    auto options = GlobalSettings::LoadOptions{
-        .source = settings_file,
-        .deprecations = deprecations(),
-        .access = accessLevel,
-        .target = &map
-    };
-    //auto rejections = GlobalSettings::load_from_string(sprite::MapSource{ settings_file }, deprecations(), map, content, accessLevel, false, exclude, &GlobalSettings::map());
-    if(!rejections.empty()) {
-        for (auto && [key, val] : rejections) {
-            if (default_config::is_deprecated(key)) {
-                auto r = default_config::replacement(key);
-                if(r.empty()) {
-                    if(!quiet)
-                        FormatWarning("[", settings_file.c_str(),"] Deprecated setting ", key," = ",val," found. Ignoring, as there is no replacement.");
-                } else {
-                    if(!quiet)
-                        Print("[",settings_file.c_str(),"] Deprecated setting ",key," = ",val," found. Replacing with ",r," = ",val);
-                    if(is_in(key, "whitelist_rect", "exclude_rect", "recognition_rect"))
-                    {
-                        auto values = Meta::fromStr<std::vector<float>>(val);
-                        if(values.size() == 4) {
-                            map[r] = std::vector<std::vector<Vec2>>{
-                                { Vec2(values[0], values[1]), Vec2(values[0] + values[2], values[1] + values[3]) }
-                            };
-                            
-                        } else if(!quiet)
-                            FormatExcept("Invalid number of values while trying to correct ",val," deprecated parameter from ",key," to ",r,".");
-                        
-                    } else if(is_in(key, "whitelist_rects", "exclude_rects")) {
-                        auto values = Meta::fromStr<std::vector<Bounds>>(val);
-                        std::vector<std::vector<Vec2>> value;
-                        
-                        for(auto v : values) {
-                            value.push_back({v.pos(), v.pos() + v.size()});
-                        }
-                        
-                        map[r] = value;
-                        
-                    } else if(key == "output_npz") {
-                        auto value = Meta::fromStr<bool>(val);
-                        GlobalSettings::load_from_string(r + " = " + (value ? "npz" : "csv") + "\n", options);
-                        //GlobalSettings::load_from_string(sprite::MapSource{ settings_file }, deprecations(), map, r + " = " + (value ? "npz" : "csv") + "\n", accessLevel);
-                        
-                    } else if(key == "match_use_approximate") {
-                        auto value = Meta::fromStr<bool>(val);
-                        GlobalSettings::load_from_string(r+" = "+(value ? "approximate" : "accurate")+"\n", options);
-                        //GlobalSettings::load_from_string(sprite::MapSource{ settings_file }, deprecations(), map, r+" = "+(value ? "approximate" : "accurate")+"\n", accessLevel);
-                    
-                    } else if(key == "analysis_stop_after") {
-                        GlobalSettings::load_from_string(r+" = [-1,"+val+"]\n", options);
-                        //GlobalSettings::load_from_string(sprite::MapSource{ settings_file }, deprecations(), map, r+" = [-1,"+val+"]\n", accessLevel);
-                    } else if(key == "recognition_normalize_direction") {
-                        bool value = utils::lowercase(val) != "false";
-                        GlobalSettings::load_from_string(r+" = "+Meta::toStr(value ? individual_image_normalization_t::posture : individual_image_normalization_t::none)+"\n", options);
-                        //GlobalSettings::load_from_string(sprite::MapSource{ settings_file }, deprecations(), map, r+" = "+Meta::toStr(value ? individual_image_normalization_t::posture : individual_image_normalization_t::none)+"\n", accessLevel);
-                    } else if(key == "tracklet_export_difference_images") {
-                        bool value = utils::lowercase(val) != "true";
-                        GlobalSettings::load_from_string(r+" = "+Meta::toStr(value)+"\n", options);
-                        //GlobalSettings::load_from_string(sprite::MapSource{ settings_file }, deprecations(), map, r+" = "+Meta::toStr(value)+"\n", accessLevel);
-                        
-                    } else
-                        GlobalSettings::load_from_string(r+" = "+val+"\n", options);
-                        //GlobalSettings::load_from_string(sprite::MapSource{ settings_file }, deprecations(), map, r+" = "+val+"\n", accessLevel);
-                }
-            }
-        }
-    }
-}
 
 }

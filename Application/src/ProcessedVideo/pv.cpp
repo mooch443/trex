@@ -992,13 +992,37 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
                 map["meta_real_width"] = Float2_t();
                 
                 if(not metadata.empty())
-                    sprite::parse_values(sprite::MapSource{ ref.filename() }, map, metadata, &GlobalSettings::map());
-                this->metadata = metadata;
+                    sprite::parse_values(sprite::MapSource{ ref.filename() }, map, metadata, &GlobalSettings::map(), {}, {});
+                
+                if(map.has("meta_real_width"))
+                    meta_real_width = map["meta_real_width"].value<Float2_t>();
+                if(not map.has("cm_per_pixel")
+                   && version <= Version::V_14)
+                {
+                    if(meta_real_width == 0)
+                        meta_real_width = 30;
+                    
+                    Float2_t cm_per_pixel = meta_real_width / resolution.width;
+                    Print("Missing the `cm_per_pixel` key, adding it based on ", meta_real_width, " and ", resolution, " => ", cm_per_pixel);
+                    map["cm_per_pixel"] = cm_per_pixel;
+                }
+                
+                std::map<std::string, std::string> jsons;
+                for(const auto& key : map.keys()) {
+                    try {
+                        jsons.emplace(key, map.at(key).get().valueString());
+                        
+                    } catch(const std::exception& ex) {
+                        FormatWarning("[set_metadata] Cannot convert ", key, " to json properly.");
+                    }
+                }
+                
+                std::string dump = Meta::toStr(jsons);
+                this->metadata = dump;
                 /*for(auto key : map.keys()) {
                  Print("Key: ", key, " Value: ", map[key].get().valueString());
                  }*/
-                if(map.has("meta_real_width"))
-                    meta_real_width = map["meta_real_width"].value<Float2_t>();
+                
             } catch(const std::exception& ex) {
                 FormatExcept("Error parsing settings metadata from ", ref.filename(), ": ", ex.what());
             } catch(...) {
@@ -1323,7 +1347,7 @@ Frame_t File::length() const {
                 sprite::Map map;
                 map.set_print_by_default(false);
                 try {
-                    sprite::parse_values(sprite::MapSource{ filename() }, map, header().metadata.value(), &GlobalSettings::map());
+                    sprite::parse_values(sprite::MapSource{ filename() }, map, header().metadata.value(), &GlobalSettings::map(), {}, {});
                 } catch(...) {
 #ifndef NDEBUG
                     FormatWarning("Cannot parse metadata string: ", no_quotes(header().metadata.value()));
@@ -1575,7 +1599,7 @@ Frame_t File::length() const {
             ? sprite::parse_values(sprite::MapSource{ file.filename() }, file.header().metadata.value()).keys()
             : std::vector<std::string>{};
         if(file.header().metadata.has_value())
-            sprite::parse_values(sprite::MapSource{ file.filename() }, GlobalSettings::map(), file.header().metadata.value());
+            sprite::parse_values(sprite::MapSource{ file.filename() }, GlobalSettings::map(), file.header().metadata.value(), nullptr, {}, {});
         SETTING(meta_write_these) = keys;
         
         if(file.has_mask())
@@ -1639,7 +1663,7 @@ Frame_t File::length() const {
         
         sprite::Map map;
         if(header().metadata.has_value())
-            sprite::parse_values(sprite::MapSource{ filename() }, map, header().metadata.value());
+            sprite::parse_values(sprite::MapSource{ filename() }, map, header().metadata.value(), nullptr, {}, {});
         SETTING(meta_write_these) = map.keys();
         
         pv::Frame frame;

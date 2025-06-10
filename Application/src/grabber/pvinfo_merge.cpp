@@ -9,6 +9,7 @@
 #include <misc/ranges.h>
 #include <file/DataLocation.h>
 #include <processing/DLList.h>
+#include <tracker/misc/default_config.h>
 
 using namespace cmn;
 
@@ -84,9 +85,8 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
                 .access = AccessLevelType::STARTUP,
                 .target = config.get()
             });
-            //GlobalSettings::load_from_string(sprite::MapSource{settings_file}, {}, *config, utils::read_file(settings_file.str()), AccessLevelType::STARTUP);
             if(file->header().metadata.has_value())
-                sprite::parse_values(sprite::MapSource{file->filename()}, *config, file->header().metadata.value());
+                sprite::parse_values(sprite::MapSource{file->filename()}, *config, file->header().metadata.value(), nullptr, {}, default_config::deprecations());
             if(!config->has("meta_real_width") || config->at("meta_real_width").value<Float2_t>() == 0)
                 (*config)["meta_real_width"].value<Float2_t>(30);
             if(!config->has("cm_per_pixel") || config->at("cm_per_pixel").value<Float2_t>() == 0)
@@ -150,7 +150,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
     
     if(SETTING(frame_rate).value<uint32_t>() == 0){
         if(files.front()->header().metadata.has_value())
-            sprite::parse_values(sprite::MapSource{files.front()->filename()}, GlobalSettings::map(), files.front()->header().metadata.value());
+            sprite::parse_values(sprite::MapSource{files.front()->filename()}, GlobalSettings::map(), files.front()->header().metadata.value(), nullptr, {}, default_config::deprecations());
         
         //SETTING(frame_rate) = int(1000 * 1000 / float(frame.timestamp()));
     }

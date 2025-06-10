@@ -160,6 +160,8 @@ RecentItems RecentItems::read() {
             
             items.file().state = input.state;
             items.file().modified = input.modified;
+            
+            const auto& deprecations = default_config::deprecations();
 
             for (RecentItemJSON entry : input.entries) {
                 for (auto& [k, v] : entry.settings) {
@@ -167,22 +169,25 @@ RecentItems RecentItems::read() {
                     if(not is_writable_key(key))
                         continue;
                     
-                    if(default_config::deprecations().contains(k)) {
-                        key = default_config::deprecations().at(k);
-                    }
-                    
-                    auto value = Meta::fromStr<std::string>(glz::write_json(v).value());
                     try {
-                        if (not entry._options.has(key)) {
-                            if (GlobalSettings::defaults().has(key)) {
-                                GlobalSettings::defaults().at(key).get().copy_to(entry._options);
-                            } else if(GlobalSettings::map().has(key)) {
-                                GlobalSettings::map().at(key).get().copy_to(entry._options);
-                            } else
-                                throw std::invalid_argument("Cannot add "+std::string(key)+" since we dont know the type of it.");
+                        auto value = Meta::fromStr<std::string>(glz::write_json(v).value());
+                        if(deprecations.correct_deprecation(k, value, &GlobalSettings::map(), entry._options)) {
+                            /// we corrected a deprecation
+#ifndef NDEBUG
+                            FormatWarning(" * correcting deprecated ", k, " = ", value);
+#endif
+                        } else {
+                            if (not entry._options.has(key)) {
+                                if (GlobalSettings::defaults().has(key)) {
+                                    GlobalSettings::defaults().at(key).get().copy_to(entry._options);
+                                } else if(GlobalSettings::map().has(key)) {
+                                    GlobalSettings::map().at(key).get().copy_to(entry._options);
+                                } else
+                                    throw std::invalid_argument("Cannot add "+std::string(key)+" since we dont know the type of it.");
+                            }
+                            
+                            entry._options[key].get().set_value_from_string(value);
                         }
-                        
-                        entry._options[key].get().set_value_from_string(value);
                     }
                     catch (const std::exception& e) {
                         FormatWarning("Cannot set value for key ", key, ": ", e.what());

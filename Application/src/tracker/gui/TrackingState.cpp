@@ -816,9 +816,14 @@ std::future<void> TrackingState::load_state(GUITaskQueue_t* gui, file::Path from
                 GlobalSettings::docs_map_t docs;
                 default_config::get(config, docs, NULL);
                 try {
-                    default_config::load_string_with_deprecations(from.str(), header.settings, config, AccessLevelType::STARTUP, {}, true);
+                    GlobalSettings::load_from_string(header.settings, {
+                        .source = from,
+                        .access = AccessLevelType::STARTUP,
+                        .correct_deprecations = true,
+                        .target = &config
+                    });
                     
-                } catch(const cmn::illegal_syntax& e) {
+                } catch(const std::exception& e) {
                     Print("Illegal syntax in .results settings (",e.what(),").");
                 }
                 

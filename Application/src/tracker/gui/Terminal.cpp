@@ -102,7 +102,8 @@ void open_terminal() {
         if(!executed) {
             default_config::warn_deprecated("input", GlobalSettings::load_from_string(cmd, {
                 .source = sprite::MapSource::CMD,
-                .deprecations = default_config::deprecations()
+                .deprecations = default_config::deprecations(),
+                .access = AccessLevelType::PUBLIC
             }));
             //default_config::warn_deprecated("input", GlobalSettings::load_from_string(sprite::MapSource::CMD, default_config::deprecations(), GlobalSettings::map(), cmd, AccessLevelType::PUBLIC));
         }

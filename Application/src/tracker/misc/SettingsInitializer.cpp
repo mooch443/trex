@@ -287,7 +287,6 @@ void LoadContext::init() {
                     .exclude = exclude,
                     .target = &combined.map
                 });
-                //GlobalSettings::load_from_string(sprite::MapSource{default_path.str()}, deprecations(), combined.map, str, AccessLevelType::STARTUP, false, exclude, nullptr);
                 warn_deprecated(default_path, rejected);
             }
             

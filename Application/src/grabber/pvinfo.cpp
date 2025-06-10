@@ -548,7 +548,7 @@ int main(int argc, char**argv) {
                     keys.push_back(k);
                 }
                 
-                sprite::parse_values(sprite::MapSource{name}, GlobalSettings::map(), "{'"+k+"':"+v+"}");
+                sprite::parse_values(sprite::MapSource{name}, GlobalSettings::map(), "{'"+k+"':"+v+"}", nullptr, {}, default_config::deprecations());
             }
             
             for (auto &p : remove_settings) {
@@ -725,7 +725,6 @@ int main(int argc, char**argv) {
             .deprecations = default_config::deprecations(),
             .access = AccessLevelType::STARTUP
         }));
-        //GlobalSettings::load_from_string(sprite::MapSource{path}, default_config::deprecations(), GlobalSettings::map(), header.settings, AccessLevelType::STARTUP);
         
         SETTING(quiet) = true;
         track::Tracker tracker(Image::Make(average), SETTING(meta_encoding).value<meta_encoding_t::Class>(), SETTING(meta_real_width).value<Float2_t>());

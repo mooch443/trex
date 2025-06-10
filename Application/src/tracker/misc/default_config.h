@@ -23,7 +23,7 @@ namespace default_config {
     void warn_deprecated(const file::Path& source, sprite::Map& map);
     void warn_deprecated(const file::Path& source, const std::map<std::string, std::string>& keys);
     bool is_deprecated(const std::string& key);
-    const std::map<std::string, std::string>& deprecations();
+    const Deprecations& deprecations();
     std::string replacement(const std::string& key);
 
     struct Config {
@@ -35,10 +35,8 @@ namespace default_config {
     };
     Config generate_delta_config(AccessLevel level, const pv::File* = nullptr, bool include_build_number = false, std::vector<std::string> additional_exclusions = {});
     void register_default_locations();
-    void load_string_with_deprecations(const file::Path& source, const std::string& content, sprite::Map& map, AccessLevel, const std::vector<std::string>& exclude = {}, bool quiet = false);
 
     file::Path conda_environment_path();
-
 
     /*template<typename T>
     struct HasDocsMethod
