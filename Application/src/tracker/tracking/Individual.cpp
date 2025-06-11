@@ -1761,6 +1761,12 @@ tl::expected<IndividualCache, const char*> Individual::cache_for_frame(const Fra
             
         } else {
             if(it != _tracklets.end() && (*it)->end() <= frameIndex - 1_f) {
+                if(auto diff = int64_t((frameIndex - 1_f).get()) - int64_t((*it)->end().get());
+                   diff < track_max_reassign_time)
+                {
+                    valid_frame_streak = (*it)->length();
+                }
+                
                 bdx = (*it)->basic_stuff((*it)->end());
                 pdx = (*it)->posture_stuff((*it)->end());
             }

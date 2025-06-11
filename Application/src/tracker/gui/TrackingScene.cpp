@@ -47,6 +47,7 @@
 #include <gui/ImageDisplayElement.h>
 #include <ml/UniquenessProvider.h>
 #include <misc/SampleInterpolator.h>
+#include <tracking/PPFrame.h>
 
 using namespace track;
 
@@ -1790,6 +1791,26 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                    it != _data->_cache->_individual_ranges.end())
                 {
                     return it->second;
+                }
+                
+                throw InvalidArgumentException("Cannot find individual ", props);
+            }),
+            VarFunc("cache_for", [this](const VarProps& props) -> sprite::Map {
+                REQUIRE_EXACTLY(1, props);
+                auto idx = Meta::fromStr<Idx_t>(props.first());
+                if(auto ptr = _data->_cache->processed_frame().cached(idx);
+                   ptr != nullptr)
+                {
+                    sprite::Map map;
+                    map["valid_frame"] = ptr->valid_frame;
+                    map["valid_frame_streak"] = ptr->valid_frame_streak;
+                    map["current_category"] = ptr->current_category;
+                    map["previous_frame"] = ptr->previous_frame;
+                    map["local_tdelta"] = ptr->local_tdelta;
+                    map["time_probability"] = ptr->time_probability;
+                    map["last_seen_px"] = ptr->last_seen_px;
+                    map["estimated_px"] = ptr->estimated_px;
+                    return map;
                 }
                 
                 throw InvalidArgumentException("Cannot find individual ", props);

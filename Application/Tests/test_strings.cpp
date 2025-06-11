@@ -324,12 +324,70 @@ TEST(ErrorHandlingTest, ValidStringToNumber) {
 
 TEST(CacheSizeTest, Basic) {
     UNUSED(lower);
+    // Equivalence tests between std::optional and TrivialOptional
+    {
+        // Empty-state equivalence
+        TrivialOptional<uint32_t> t_empty{};
+        std::optional<uint32_t> o_empty{};
+        EXPECT_FALSE(t_empty.has_value());
+        EXPECT_FALSE(o_empty.has_value());
+
+        // Value-state equivalence
+        TrivialOptional<uint32_t> t_val{42u};
+        std::optional<uint32_t> o_val{42u};
+        EXPECT_TRUE(t_val.has_value());
+        EXPECT_TRUE(o_val.has_value());
+        EXPECT_EQ(t_val.value(), o_val.value());
+        
+        // Test default constructor
+        TrivialOptional<uint32_t> bla{};
+        if(bla.has_value()) {
+            EXPECT_EQ(bla.value(), uint32_t(-1));
+        }
+        EXPECT_FALSE(bla.has_value());
+        
+        TrivialOptional<uint32_t> blub{42};
+        EXPECT_TRUE(blub.has_value());
+        EXPECT_EQ(blub.value(), 42u);
+        
+        blub = bla;
+        if(blub.has_value()) {
+            EXPECT_EQ(blub.value(), uint32_t(-1));
+        }
+        EXPECT_FALSE(blub.has_value());
+
+        TrivialOptional<uint32_t> boomage{42};
+        boomage = {};
+        if(boomage.has_value()) {
+            EXPECT_EQ(boomage.value(), uint32_t(-1));
+        }
+        EXPECT_FALSE(boomage.has_value());
+        
+        boomage = 42u;
+        EXPECT_TRUE(boomage.has_value());
+        EXPECT_EQ(boomage.value(), 42u);
+        
+        // Reset/clear equivalence
+        t_val = {};
+        o_val.reset();
+        EXPECT_FALSE(t_val.has_value());
+        EXPECT_FALSE(o_val.has_value());
+    }
     
     using namespace track;
-    //static_assert(std::is_trivial_v<TrivialOptional<uint32_t>>);
+    static_assert(TrivialOptional<uint32_t>::InvalidType == TrivialIllegalValueType::NegativeOne);
+    static_assert(TrivialOptional<int32_t>::InvalidType == TrivialIllegalValueType::Lowest);
+    static_assert(TrivialOptional<double>::InvalidType == TrivialIllegalValueType::Infinity);
+    static_assert(TrivialOptional<uint32_t>::InvalidValue == uint32_t(-1));
+    static_assert(TrivialOptional<int32_t>::InvalidValue == std::numeric_limits<int32_t>::lowest());
+    static_assert(TrivialOptional<double>::InvalidValue == std::numeric_limits<double>::infinity());
     static_assert(std::is_trivially_copyable_v<TrivialOptional<uint32_t>>);
-    //Print(sizeof(IndividualCache), " ", sizeof(float), " ", sizeof(Vec2), " ", sizeof(Frame_t), " ", sizeof(Match::prob_t), " ", sizeof(TrivialOptional<uint32_t>));
+    static_assert(std::is_trivially_copyable_v<TrivialOptional<int32_t>>);
+    static_assert(std::is_trivially_copyable_v<TrivialOptional<double>>);
+    Print("cache(",sizeof(IndividualCache), ") float(", sizeof(float), ") vec2(", sizeof(Vec2), ") frame_t(", sizeof(Frame_t), ") ", " trivial(", sizeof(TrivialOptional<uint32_t>), ") vs. optional(", sizeof(std::optional<uint32_t>),")");
     //static_assert(std::is_trivial_v<Frame_t>);
+    
+    
 }
 
 TEST(JSONTest, TestBasicJSON) {
