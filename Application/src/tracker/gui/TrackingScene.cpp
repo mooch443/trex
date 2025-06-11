@@ -74,6 +74,8 @@ struct TrackingScene::Data {
     std::unique_ptr<AnimatedBackground> _background;
     std::unique_ptr<ExternalImage> _gui_mask;
     
+    std::unordered_map<Idx_t, std::optional<sprite::Map>> _cache_maps;
+    
     std::function<void(Vec2, bool, std::string)> _clicked_background;
     double _time_since_last_frame{0};
 
@@ -1795,9 +1797,35 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                 
                 throw InvalidArgumentException("Cannot find individual ", props);
             }),
-            VarFunc("cache_for", [this](const VarProps& props) -> sprite::Map {
+            VarFunc("cache_for", [this](const VarProps& props) -> sprite::Map& {
                 REQUIRE_EXACTLY(1, props);
                 auto idx = Meta::fromStr<Idx_t>(props.first());
+                if(decltype(_data->_cache_maps)::iterator it = _data->_cache_maps.find(idx);
+                   it != _data->_cache_maps.end())
+                {
+                    if(it->second.has_value()) {
+                        auto& map = *it->second;
+                        if(auto ptr = _data->_cache->processed_frame().cached(idx);
+                           ptr != nullptr)
+                        {
+                            map["valid_frame"] = ptr->valid_frame;
+                            map["valid_frame_streak"] = ptr->valid_frame_streak;
+                            map["current_category"] = ptr->current_category;
+                            map["previous_frame"] = ptr->previous_frame;
+                            map["local_tdelta"] = ptr->local_tdelta;
+                            map["time_probability"] = ptr->time_probability;
+                            map["last_seen_px"] = ptr->last_seen_px;
+                            map["estimated_px"] = ptr->estimated_px;
+                            
+                        } else {
+                            it->second.reset();
+                            throw InvalidArgumentException("Cannot find individual ", props);
+                        }
+                        
+                        return *it->second;
+                    }
+                }
+                
                 if(auto ptr = _data->_cache->processed_frame().cached(idx);
                    ptr != nullptr)
                 {
@@ -1810,8 +1838,12 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                     map["time_probability"] = ptr->time_probability;
                     map["last_seen_px"] = ptr->last_seen_px;
                     map["estimated_px"] = ptr->estimated_px;
-                    return map;
+                    
+                    _data->_cache_maps[idx] = std::move(map);
+                    return *_data->_cache_maps[idx];
                 }
+                
+                _data->_cache_maps[idx] = std::nullopt;
                 
                 throw InvalidArgumentException("Cannot find individual ", props);
             }),

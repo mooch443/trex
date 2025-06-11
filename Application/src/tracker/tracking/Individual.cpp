@@ -1762,7 +1762,7 @@ tl::expected<IndividualCache, const char*> Individual::cache_for_frame(const Fra
         } else {
             if(it != _tracklets.end() && (*it)->end() <= frameIndex - 1_f) {
                 if(auto diff = int64_t((frameIndex - 1_f).get()) - int64_t((*it)->end().get());
-                   diff < track_max_reassign_time)
+                   diff < track_max_reassign_time * double(frame_rate))
                 {
                     valid_frame_streak = (*it)->length();
                 }
