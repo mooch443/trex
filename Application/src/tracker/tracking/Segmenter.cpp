@@ -1047,6 +1047,10 @@ double Segmenter::write_fps() const {
     return _write_fps.load();
 }
 
+Frame_t Segmenter::current_frame() const {
+    return _current_frame.load();
+}
+
 void Segmenter::perform_tracking(SegmentationData&& progress_data) {
     Timer timer;
 
@@ -1130,6 +1134,8 @@ void Segmenter::perform_tracking(SegmentationData&& progress_data) {
 #endif
 
     {
+        _current_frame = pp.index();
+        
         std::unique_lock guard(_mutex_current);
         //thread_print("Replacing GUI current ", current.frame.index()," => ", progress.frame.index());
         if(_transferred_current_data)

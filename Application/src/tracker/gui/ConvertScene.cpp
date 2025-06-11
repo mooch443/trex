@@ -135,8 +135,8 @@ struct ConvertScene::Data {
     Vec2 _last_mouse;
     
     // Frame data
-    Frame_t _actual_frame;
-    Frame_t _video_frame;
+    std::atomic<Frame_t> _actual_frame;
+    std::atomic<Frame_t> _video_frame;
     
     dyn::DynamicGUI dynGUI;
     std::future<std::optional<std::set<std::string_view>>> _retrieve_video_info;
@@ -293,39 +293,49 @@ void ConvertScene::set_segmenter(Segmenter* seg) {
     
     assert(_data->_segmenter == nullptr);
     _data->_segmenter = seg;
-    if(seg) {
-        seg->set_progress_callback([this](float percent){
-            if(std::isnan(percent)
-               || std::isinf(percent))
+    update_progress_callback();
+}
+
+void ConvertScene::update_progress_callback() {
+    if(not _data
+       || not _data->_segmenter)
+    {
+        return;
+    }
+    
+    _data->_segmenter->set_progress_callback([this](float percent){
+        if(std::isnan(percent)
+           || std::isinf(percent))
+        {
+            _data->spinner.tick();
+            static std::once_flag flag;
+            std::call_once(flag, [](){
+                FormatWarning("Percent is infinity.");
+            });
+            return;
+        }
+        
+        if(percent >= 0) {
+            float fps;
             {
-                _data->spinner.tick();
-                static std::once_flag flag;
-                std::call_once(flag, [](){
-                    FormatWarning("Percent is infinity.");
-                });
-                return;
+                fps = AbstractBaseVideoSource::_fps.load();
+                auto samples = AbstractBaseVideoSource::_samples.load();
+                fps = samples > 0 ? fps / samples : 0;
             }
             
-            if(percent >= 0) {
-                float fps;
-                {
-                    fps = AbstractBaseVideoSource::_fps.load();
-                    auto samples = AbstractBaseVideoSource::_samples.load();
-                    fps = samples > 0 ? fps / samples : 0;
-                }
+            _data->bar.set_progress(percent);
+            if(fps > 0) {
+                auto video_length = Meta::toStr(_video_length.load());
                 
-                _data->bar.set_progress(percent);
-                if(fps > 0) {
-                    _data->bar.set_option(ind::option::PostfixText{"Converting video ("+dec<1>(fps).toStr()+" fps)..."});
-                }
-                
-            } else if(last_tick.elapsed() > 1) {
-                _data->spinner.set_option(ind::option::PrefixText{"Recording ("+Meta::toStr(_data->_video_frame)+")"});
-                _data->spinner.tick();
-                last_tick.reset();
+                _data->bar.set_option(ind::option::PostfixText{"Converting "+Meta::toStr(_data->_actual_frame.load())+"/"+video_length+" @ "+dec<1>(fps).toStr()+"fps..."});
             }
-        });
-    }
+            
+        } else if(last_tick.elapsed() > 1) {
+            _data->spinner.set_option(ind::option::PrefixText{"Recording ("+Meta::toStr(_data->_video_frame.load())+")"});
+            _data->spinner.tick();
+            last_tick.reset();
+        }
+    });
 }
 
 void ConvertScene::deactivate() {
@@ -409,6 +419,7 @@ void ConvertScene::open_video() {
     
     _video_info["resolution"] = segmenter().size();
     _video_info["length"] = segmenter().video_length();
+    _video_length = segmenter().video_length();
 }
 
 void ConvertScene::open_camera() {
@@ -429,6 +440,7 @@ void ConvertScene::open_camera() {
     
     _video_info["resolution"] = segmenter().size();
     _video_info["length"] = segmenter().video_length();
+    _video_length = segmenter().video_length();
 }
 
 glz::json_t sprite_map_to_json(const sprite::Map& map) {
@@ -985,7 +997,7 @@ dyn::DynamicGUI ConvertScene::Data::init_gui(Base* window) {
             return _segmenter->average_percent();
         }),
         VarFunc("actual_frame", [this](const VarProps&) {
-            return _actual_frame;
+            return _actual_frame.load();
         }),
         VarFunc("video", [](const VarProps&) -> sprite::Map& {
             return _video_info;

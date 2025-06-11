@@ -30,6 +30,7 @@ class ExternalImage;
 class ConvertScene : public Scene {
     static sprite::Map fish;
     static sprite::Map _video_info;
+    std::atomic<Frame_t> _video_length;
     
     Timer last_tick;
     struct Data;
@@ -70,6 +71,9 @@ private:
     
     SegmentationData& current_data();
     ExternalImage& background_image();
+    
+private:
+    void update_progress_callback();
 };
 
 } // namespace gui

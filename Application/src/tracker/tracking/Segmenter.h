@@ -124,6 +124,7 @@ class Segmenter {
     std::atomic<double> _fps{0};
     std::atomic<double> _write_time{0}, _write_time_samples{0};
     std::atomic<double> _write_fps{0};
+    std::atomic<Frame_t> _current_frame;
     
 #if WITH_FFMPEG
     std::unique_ptr<FFMPEGQueue> _queue;
@@ -153,6 +154,7 @@ public:
     double fps() const;
     double write_fps() const;
     std::tuple<SegmentationData, track::PPFrame, std::vector<pv::BlobPtr>> grab();
+    Frame_t current_frame() const;
     
 private:
     void generator_thread();

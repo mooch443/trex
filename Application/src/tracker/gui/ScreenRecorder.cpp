@@ -1,4 +1,4 @@
-﻿#include "ScreenRecorder.h"
+#include "ScreenRecorder.h"
 
 #include <commons.pc.h>
 #include <file/Path.h>
@@ -216,11 +216,12 @@ struct ScreenRecorder::Data {
     }
     
     void start_recording(Base* base, Frame_t frame) {
+        _recording_start = frame;
+        _last_recording_frame = {};
+        
         if (!base)
             return;
 
-        _recording_start = frame;
-        _last_recording_frame = {};
         _recording = true;
 
         file::Path frames = frame_output_dir();
@@ -378,8 +379,29 @@ void ScreenRecorder::update_recording(Image::Ptr&& image, Base *base, Frame_t fr
 void ScreenRecorder::start_recording(Base*base, Frame_t frame) {
     _data->start_recording(base, frame);
     
-    ((IMGUIBase*)base)->platform()->set_frame_buffer_receiver([this, base](Image::Ptr&& image){
-        update_recording(std::move(image), base, Frame_t{}, Frame_t{});
+    Frame_t video_length;
+    if(GlobalSettings::has("video_length")
+       && GlobalSettings::map().is_type<uint64_t>("video_length"))
+    {
+        video_length = Frame_t(SETTING(video_length).value<uint64_t>());
+    }
+    
+    std::function<Frame_t()> current_frame;
+    
+    if(GlobalSettings::has("gui_displayed_frame")
+       && GlobalSettings::map().is_type<Frame_t>("gui_displayed_frame"))
+    {
+        current_frame = [](){
+            return SETTING(gui_displayed_frame).value<Frame_t>();
+        };
+    } else {
+        current_frame = [](){
+            return Frame_t{};
+        };
+    }
+    
+    ((IMGUIBase*)base)->platform()->set_frame_buffer_receiver([this, base, video_length, current_frame](Image::Ptr&& image){
+        update_recording(std::move(image), base, current_frame(), video_length);
     });
 }
 

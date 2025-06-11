@@ -592,7 +592,21 @@ std::string start_converting(std::future<void>& f) {
     };
     
     Timer last_tick;
-    segmenter.set_progress_callback([&](float percent){
+    
+    if (SETTING(source).value<file::PathArray>() == file::PathArray("webcam")) {
+        segmenter.open_camera();
+    } else {
+        segmenter.open_video();
+    }
+    
+    auto finite = segmenter.is_finite();
+    segmenter.start();
+    
+    //! get the python init future at this point
+    if(f.valid())
+        f.get();
+    
+    segmenter.set_progress_callback([&, video_length = Meta::toStr(segmenter.video_length())](float percent){
         if(std::isnan(percent)
            || std::isinf(percent))
         {
@@ -608,7 +622,8 @@ std::string start_converting(std::future<void>& f) {
             percent = saturate(percent, 0.f, 100.f);
             bar.set_progress(percent);
             
-            bar.set_option(ind::option::PostfixText{"Converting "+Meta::toStr(segmenter.video_length())+" "+dec<1>(segmenter.fps()).toStr()+"fps..."});
+            auto frame = segmenter.current_frame();
+            bar.set_option(ind::option::PostfixText{"Converting "+Meta::toStr(frame)+"/"+video_length+" @ "+dec<1>(segmenter.fps()).toStr()+"fps..."});
         } else if(last_tick.elapsed() > 1) {
             spinner.set_option(ind::option::PostfixText{"Recording ("+Meta::toStr(Tracker::end_frame())+")..."});
             spinner.set_option(ind::option::ShowPercentage{false});
@@ -616,19 +631,6 @@ std::string start_converting(std::future<void>& f) {
             last_tick.reset();
         }
     });
-    
-    if (SETTING(source).value<file::PathArray>() == file::PathArray("webcam")) {
-        segmenter.open_camera();
-    } else {
-        segmenter.open_video();
-    }
-    
-    auto finite = segmenter.is_finite();
-    segmenter.start();
-    
-    //! get the python init future at this point
-    if(f.valid())
-        f.get();
     
     while(not SETTING(terminate))
         std::this_thread::sleep_for(std::chrono::seconds(1));
