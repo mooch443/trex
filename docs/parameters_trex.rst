@@ -1225,7 +1225,7 @@ TRex parameters
 
 .. function:: gui_show_individual_preview(bool)
 
-	**default value:** false
+	**default value:** true
 
 
 	Shows preview images for all selected individuals as they would be processed during network training, based on settings like ``individual_image_size``, ``individual_image_scale`` and ``individual_image_normalization``.
@@ -2057,6 +2057,15 @@ TRex parameters
 
 
 	Units (as a string) of output functions to be annotated in various places like graphs.
+
+
+
+.. function:: output_auto_detection_fields(bool)
+
+	**default value:** true
+
+
+	If set to true then this will automatically add fields like ``detection_p`` to the output files saved by TRex. You can also set this to false and add them manually if you like.
 
 
 

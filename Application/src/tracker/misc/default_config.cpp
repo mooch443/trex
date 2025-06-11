@@ -994,6 +994,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("output_interpolate_positions", bool(false), "If turned on this function will linearly interpolate X/Y, and SPEED values, for all frames in which an individual is missing.");
         CONFIG("output_prefix", std::string(), "If this is not empty, all output files will go into `output_dir` / `output_prefix` / ... instead of just into `output_dir`. The output directory is usually the folder where the video is, unless set to a different folder by you.");
         CONFIG("output_auto_pose", true, "If this is set to false, then no poseX[n] and poseY[n] fields will automatically be added to the `output_fields` based on what the keypoint model reports. You can still manually add them if you like.");
+        CONFIG("output_auto_detection_fields", true, "If set to true then this will automatically add fields like `detection_p` to the output files saved by TRex. You can also set this to false and add them manually if you like.");
         CONFIG("output_fields", output_fields, "The functions that will be exported when saving to CSV, or shown in the graph. `[['X',[option], ...]]`");
         CONFIG("tracklet_force_normal_color", true, "If set to true (default) then all images are saved as they appear in the original video. Otherwise, all images are exported according to the individual image settings (as seen in the image settings when an individual is selected) - in which case the background may have been subtracted from the original image and a threshold may have been applied (if `track_threshold` > 0 and `track_background_subtraction` is true).");
         CONFIG("tracklet_max_images", uint16_t(0), "This limits the maximum number of images that are being exported per tracklet given that `output_tracklet_images` is true. If the number is 0 (default), then every image will be exported. Otherwise, only a uniformly sampled subset of N images will be exported.");
@@ -1172,6 +1173,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             "wd",
             "gui_show_fish",
             "auto_quit",
+            "auto_no_outputs",
             "auto_apply", "auto_train",
             "auto_no_results",
             "auto_no_tracking_data",

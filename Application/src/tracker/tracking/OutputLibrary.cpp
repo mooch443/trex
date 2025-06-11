@@ -799,6 +799,25 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
             return GlobalSettings::invalid();
         });
         
+        FN_IS_CENTROID_ONLY_PROPERTY(visual_identification_p);
+        _cache_func["visual_identification_p"] = LIB_NO_CHECK_FNC({
+            auto blob = fish->compressed_blob(frame);
+            if (blob) {
+                auto ptr = Tracker::instance()->find_prediction(frame, blob->blob_id());
+                if(ptr && not ptr->empty()) {
+                    auto map = track::prediction2map(*ptr);
+                    if(auto it = map.find(fish->identity().ID());
+                       it != map.end())
+                    {
+                        return it->second;
+                    }
+                } else {
+                    //FormatWarning("Empty ", frame, " ", blob->blob_id());
+                }
+            }
+            return GlobalSettings::invalid();
+        });
+        
 #if !COMMONS_NO_PYTHON
         FN_IS_CENTROID_ONLY_PROPERTY(category);
         _cache_func["category"] = LIB_NO_CHECK_FNC({

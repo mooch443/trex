@@ -1007,18 +1007,24 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
                     map["cm_per_pixel"] = cm_per_pixel;
                 }
                 
-                std::map<std::string, std::string> jsons;
-                for(const auto& key : map.keys()) {
-                    try {
-                        jsons.emplace(key, map.at(key).get().valueString());
-                        
-                    } catch(const std::exception& ex) {
-                        FormatWarning("[set_metadata] Cannot convert ", key, " to json properly.");
+                try {
+                    std::map<std::string, std::string> jsons;
+                    for(const auto& key : map.keys()) {
+                        try {
+                            jsons.emplace(key, map.at(key).get().valueString());
+                            
+                        } catch(const std::exception& ex) {
+                            FormatWarning("[set_metadata] Cannot convert ", key, " to json properly.");
+                        }
                     }
+                    
+                    std::string dump = Meta::toStr(jsons);
+                    this->metadata = dump;
+                    
+                } catch(...) {
+                    FormatWarning("[set_metadata] There was some trouble updating the metadata. Using the original one from the PV file.");
+                    this->metadata = metadata;
                 }
-                
-                std::string dump = Meta::toStr(jsons);
-                this->metadata = dump;
                 /*for(auto key : map.keys()) {
                  Print("Key: ", key, " Value: ", map[key].get().valueString());
                  }*/

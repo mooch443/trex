@@ -214,23 +214,39 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
     
     if (auto detect_classes = SETTING(detect_classes).value<blob::MaybeObjectClass_t>();
         detect_classes.has_value()
-        && not detect_classes->empty()
-        && SETTING(output_auto_pose).value<bool>())
+        && not detect_classes->empty())
     {
-        // Generate only the missing ones
-        auto new_pose_fields = default_config::add_missing_pose_fields();
-
-        // If there’s nothing new to add, we’re done
-        if (!new_pose_fields.empty())
-        {
-            // Grab the existing output fields
-            auto fields = SETTING(output_fields)
-                .value<std::vector<std::pair<std::string, std::vector<std::string>>>>();
-
-            // Insert the new (missing) ones
-            fields.insert(fields.end(), new_pose_fields.begin(), new_pose_fields.end());
-
-            // Update the setting
+        auto fields = SETTING(output_fields)
+            .value<std::vector<std::pair<std::string, std::vector<std::string>>>>();
+        auto initial_fields = fields; // copy
+        
+        if(SETTING(output_auto_pose).value<bool>()) {
+            // Generate only the missing ones
+            auto new_pose_fields = default_config::add_missing_pose_fields();
+            
+            // If there’s nothing new to add, we’re done
+            if (!new_pose_fields.empty())
+            {
+                // Insert the new (missing) ones
+                fields.insert(fields.end(), new_pose_fields.begin(), new_pose_fields.end());
+            }
+        }
+        
+        if(SETTING(output_auto_detection_fields).value<bool>()) {
+            bool found = false;
+            for(auto &[name, v] : fields) {
+                if(name == "detection_p") {
+                    found = true;
+                }
+            }
+            
+            if(not found) {
+                fields.push_back({"detection_p", {}});
+            }
+        }
+        
+        // Update the setting if required
+        if(fields != initial_fields) {
             SETTING(output_fields) = std::move(fields);
         }
     }

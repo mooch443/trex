@@ -500,17 +500,24 @@ std::tuple<bool, std::map<Idx_t, Idx_t>> Accumulation::check_additional_range(co
                 v /= samples;
         }*/
         
+        std::string value_string = "[";
+        value_string.reserve(2 + 5 * values.size());
+        
         for(uint32_t i=0; i<values.size(); ++i) {
             auto v = values[i];
             if(v > max_p) {
                 max_index = i;
                 max_p = v;
             }
+            
+            if(i > 0)
+                value_string += ",";
+            value_string += Meta::toStr(uint64_t(saturate(v, 0.0, 1.0) * 100));
         }
         
         assert(max_index >= 0);
         
-        Print("\t\t",id,": ",values," (",samples,", ",max_index," = ",max_p,")");
+        Print("\t\t",id,": ",no_quotes(value_string)," (",samples,", ",max_index," = ",max_p,")");
         max_indexes[id] = max_index >= 0 ? Idx_t((uint32_t)max_index) : Idx_t();
         max_probs[id] = max_p;
         print_out[id] = {max_index, max_p};

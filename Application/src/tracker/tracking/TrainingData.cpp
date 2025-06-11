@@ -6,7 +6,7 @@
 #include <tracking/FilterCache.h>
 #include <tracking/IndividualManager.h>
 
-#undef NDEBUG
+//#undef NDEBUG
 
 namespace py = Python;
 

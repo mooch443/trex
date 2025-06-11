@@ -604,9 +604,12 @@ std::string start_converting(std::future<void>& f) {
             return;
         }
         
-        if(percent >= 0)
-            bar.set_progress(saturate(percent, 0.f, 100.f));
-        else if(last_tick.elapsed() > 1) {
+        if(percent >= 0) {
+            percent = saturate(percent, 0.f, 100.f);
+            bar.set_progress(percent);
+            
+            bar.set_option(ind::option::PostfixText{"Converting "+Meta::toStr(segmenter.video_length())+" "+dec<1>(segmenter.fps()).toStr()+"fps..."});
+        } else if(last_tick.elapsed() > 1) {
             spinner.set_option(ind::option::PostfixText{"Recording ("+Meta::toStr(Tracker::end_frame())+")..."});
             spinner.set_option(ind::option::ShowPercentage{false});
             spinner.tick();
