@@ -94,7 +94,6 @@ requirements:
     - {{ cdt('libXdamage-devel') }}            # [linux]
     - {{ cdt('libXau-devel') }}                # [linux]
     - {{ cdt('libuuid-devel') }} # [linux]
-    - gcc_impl_linux-64 =13.3=hfea6d02_1 # [linux]
     - nasm
     - icu
 
@@ -156,6 +155,16 @@ about:
   summary: TRex
   description: >
     TRex is an open source visual tracking software used to retrieve positional data from recorded collectives of individuals.
-    It also provides support for direct recording from cameras.
+    It supports machine-learning based detection and trajectory-corrections for improved accuracy. It also provides support for direct recording from webcam-like cameras.
+  keywords:
+    - tracking
+    - computer-vision
+    - machine-learning
+    - video-analysis
+    - machine-learning
+    - video-tracking
+    - video-processing
   doc_url: https://trex.run/docs
   dev_url: https://github.com/mooch443/trex.git
+  maintainers:
+    - mooch443
