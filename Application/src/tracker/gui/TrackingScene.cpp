@@ -131,6 +131,7 @@ struct TrackingScene::Data {
     
     void redraw_all();
     void handle_zooming(Event);
+    void init_empty_map();
 };
 
 bool TrackingScene::Data::update_cached_fois(std::weak_ptr<pv::File> video, bool force) {
@@ -215,8 +216,23 @@ const static std::unordered_map<std::string_view, gui::Keyboard::Codes> _key_map
     {"ralt", Keyboard::RAlt}
 };
 
+void TrackingScene::Data::init_empty_map() {
+    sprite::Map map;
+    map["valid_frame"] = false;
+    map["valid_frame_streak"] = uint8_t{};
+    map["current_category"] = MaybeLabel{};
+    map["previous_frame"] = Frame_t{};
+    map["local_tdelta"] = float{};
+    map["time_probability"] = float{};
+    map["last_seen_px"] = Vec2{};
+    map["estimated_px"] = Vec2{};
+    _cache_maps[Idx_t()] = std::move(map);
+}
+
 TrackingScene::Data::Data(Image::Ptr&& average, pv::File& video)
 {
+    init_empty_map();
+    
     if(average->dims == 3) {
         auto rgba = Image::Make(average->rows, average->cols, 4);
         cv::cvtColor(average->get(), rgba->get(), cv::COLOR_BGR2BGRA);
@@ -1819,7 +1835,8 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                             
                         } else {
                             it->second.reset();
-                            throw InvalidArgumentException("Cannot find individual ", props);
+                            _data->init_empty_map();
+                            return _data->_cache_maps[Idx_t()].value();
                         }
                         
                         return *it->second;
@@ -1844,8 +1861,8 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                 }
                 
                 _data->_cache_maps[idx] = std::nullopt;
-                
-                throw InvalidArgumentException("Cannot find individual ", props);
+                _data->init_empty_map();
+                return _data->_cache_maps[Idx_t()].value();
             }),
             VarFunc("live_individuals", [this](const VarProps& props) -> size_t {
                 if(props.parameters.size() != 1)

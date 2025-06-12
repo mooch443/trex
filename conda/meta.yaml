@@ -62,6 +62,7 @@ build:
     
 requirements:
   build:
+    - {{ stdlib("c") }} # [linux]
     - m2-filesystem         # [win]
     - m2w64-pkg-config      # [win]
     - pkg-config            # [not win]
@@ -98,6 +99,7 @@ requirements:
     - icu
 
   host:
+    - {{ stdlib("c") }} # [linux]
     - pthread-stubs  # [linux]
     - python =3.11 # [osx and arm64]
     - python =3.11 # [osx and not arm64]
