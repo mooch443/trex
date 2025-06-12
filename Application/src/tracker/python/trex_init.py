@@ -1,7 +1,43 @@
 import locale
-locale.setlocale(locale.LC_ALL, 'C')
-
+import os
 import sys
+
+def enable_utf8() -> None:
+    """
+    Enable UTF-8 encoding for both locale-aware operations and stdio streams.
+    Tries a prioritized list of UTF-8 locales on POSIX, and uses the PYTHONUTF8 env var on Windows.
+    Should be called at the very start of `if __name__ == '__main__'`.
+    """
+    # Ensure Python runs in UTF-8 mode (Python 3.7+)
+    os.environ.setdefault('PYTHONUTF8', '1')
+
+    # Attempt to set a UTF-8 locale on POSIX
+    if os.name != 'nt':
+        candidates = ['C.UTF-8', '', 'en_US.UTF-8']
+        for name in candidates:
+            try:
+                locale.setlocale(locale.LC_ALL, name)
+                break
+            except locale.Error:
+                continue
+    else:
+        # On Windows, rely on PYTHONUTF8=1 or -X utf8
+        # Optionally, adjust console code page (requires ctypes):
+        try:
+            import ctypes
+            ctypes.windll.kernel32.SetConsoleCP(65001)
+            ctypes.windll.kernel32.SetConsoleOutputCP(65001)
+        except Exception:
+            pass
+
+    # Reconfigure stdio to UTF-8 if supported
+    if hasattr(sys.stdin, 'reconfigure'):
+        sys.stdin.reconfigure(encoding='utf-8')
+        sys.stdout.reconfigure(encoding='utf-8')
+        sys.stderr.reconfigure(encoding='utf-8')
+
+enable_utf8()
+
 import numpy as np
 import TRex
 

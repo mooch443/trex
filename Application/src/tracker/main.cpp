@@ -2,16 +2,14 @@
 #ifndef WIN32
 __attribute__((constructor))
 static void early_env_setup() {
-    const char* locale = "C";
-    std::locale::global(std::locale(locale));
-    
-    setenv("LC_ALL", "C", 1);
+    cmn::utf8loc::enable_utf8();
     setenv("KMP_DUPLICATE_LIB_OK", "TRUE", 1);
 }
 #else
 #pragma section(".CRT$XCU", read)
 __declspec(allocate(".CRT$XCU"))
 static void (*windowsEarlyEnvSetup)(void) = []() {
+    cmn::utf8loc::enable_utf8();
     SetEnvironmentVariable("KMP_DUPLICATE_LIB_OK", "TRUE");
     return;
 };
