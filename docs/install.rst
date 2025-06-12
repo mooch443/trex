@@ -36,7 +36,7 @@ Open your `Miniforge` Prompt and run:
 
 .. code-block:: bash
 
-   conda create -n track -c trex-beta trex
+   conda create -n track -c trexing trex
 
 This will create a new conda environment called ``track`` with |trex| installed. This could take a while, especially during conda's 'verifying transaction' phase when it is installing additional packages via pip. Once it's done, you can activate the environment using:
 
@@ -117,7 +117,7 @@ After compilation is successful, |trex| can be installed using:
 
 	conda create -n tracking --override-channels -c local -c conda-forge trex
 
-Notice there is a ``-c local``, instead of the ``-c trex-beta`` for a normal installation. If this does not work, you can also put the full output folder here that conda build displayed at the end of a successful compilation. For example::
+Notice there is a ``-c local``, instead of the ``-c trexing`` for a normal installation. If this does not work, you can also put the full output folder here that conda build displayed at the end of a successful compilation. For example::
 
 	conda create -n tracking --override-channels -c /home/user/miniforge3/conda-bld -c conda-forge trex
 
