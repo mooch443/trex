@@ -40,10 +40,18 @@ namespace track {
         if (GetTempPath(MAX_PATH, chPath))
             tmp_path = chPath;
 #else
-        tmp_path = "/tmp";
+        // Determine temporary directory: environment variable or fallback
+        static const char* env_tmp = std::getenv("TMPDIR");
+        if (env_tmp && file::Path(env_tmp).exists() && access(env_tmp, W_OK) == 0) {
+            tmp_path = env_tmp;
+        } else if (file::Path("/tmp").exists() && access("/tmp", W_OK) == 0) {
+            tmp_path = "/tmp";
+        } else {
+            // no writable temp directory available; proceed without a tmp path
+        }
 #endif
 
-        if (tmp_path.exists()) {
+        if (not tmp_path.empty() && tmp_path.exists()) {
             if (access(tmp_path.c_str(), W_OK) == 0)
                 use_path = tmp_path / path.filename();
         }
@@ -514,7 +522,7 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                                         //pv::bid org_id;
                                         
                                         /*ImageData data(ImageData::Blob{
-                                            blob->num_pixels(), 
+                                            blob->num_pixels(),
                                             pv::CompressedBlob{blob},
                                             org_id,
                                             blob->bounds()

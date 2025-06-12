@@ -30,6 +30,9 @@ cxx_compiler_version:
 c_compiler_version:
   - 15 # [linux]
 
+c_stdlib_version:            # [linux]
+  - 2.28
+
 pin_run_as_build:
   python:
     min_pin: x.x.x

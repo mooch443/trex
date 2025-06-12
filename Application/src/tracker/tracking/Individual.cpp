@@ -1761,14 +1761,41 @@ tl::expected<IndividualCache, const char*> Individual::cache_for_frame(const Fra
             
         } else {
             if(it != _tracklets.end() && (*it)->end() <= frameIndex - 1_f) {
-                if(auto diff = int64_t((frameIndex - 1_f).get()) - int64_t((*it)->end().get());
-                   diff < track_max_reassign_time * double(frame_rate))
-                {
-                    valid_frame_streak = (*it)->length();
-                }
-                
                 bdx = (*it)->basic_stuff((*it)->end());
                 pdx = (*it)->posture_stuff((*it)->end());
+                
+                const auto reassign_frame_limit = track_max_reassign_time * double(frame_rate);
+                if(auto diff = int64_t((frameIndex - 1_f).get()) - int64_t((*it)->end().get());
+                   diff < reassign_frame_limit)
+                {
+                    valid_frame_streak = (*it)->length();
+                    
+                    /// go backwards through the array and add up the lengths
+                    auto cp = it;
+                    const Frame_t min_frame = frameIndex.try_sub(Frame_t((uint32_t)max(0.0, reassign_frame_limit)));
+                    while(cp != _tracklets.begin()
+#ifdef NDEBUG
+                          && valid_frame_streak < 255_f
+#endif
+                          )
+                    {
+                        --cp;
+                        
+                        if((*cp)->start() >= min_frame) {
+                            break;
+                        } else if((*cp)->end() >= min_frame) {
+                            valid_frame_streak += (*cp)->end().try_sub(min_frame);
+                            break;
+                        } else {
+                            valid_frame_streak += (*cp)->length();
+                            continue;
+                        }
+                    }
+                    
+#ifndef NDEBUG
+                    Print("Added a few more frames to valid_frame_streak: ", valid_frame_streak, " (vs. ", (*it)->length(),")");
+#endif
+                }
             }
             else if(frameIndex <= _startFrame && _startFrame.valid()) {
                 bdx = (*_tracklets.begin())->basic_stuff(_startFrame);
