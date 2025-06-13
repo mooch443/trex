@@ -63,8 +63,8 @@ jobs:
     - name: Show Xcode SDK locations
       run: |
         echo "SDKROOT: $SDKROOT"
-        ls -l $SDKROOT
         ls -l /Applications/Xcode*.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/
+        ls -l $SDKROOT
     - name: Show current conda channels
       run: conda config --show channels
     - name: Build
