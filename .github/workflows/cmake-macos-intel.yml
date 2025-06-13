@@ -1,4 +1,4 @@
-name: CondaBuildMacOS
+name: CondaBuildMacOSIntel
 
 on: [push]
 
@@ -20,7 +20,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ["macos-15"]
+        os: ["macos-13"]
         python-version: ["3.11"]
     steps:
     - uses: actions/checkout@v4
@@ -60,6 +60,11 @@ jobs:
     - name: Verify .condarc content
       run: |
         cat ~/.condarc
+    - name: Show Xcode SDK locations
+      run: |
+        echo "SDKROOT: $SDKROOT"
+        ls -l $SDKROOT
+        ls -l /Applications/Xcode*.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/
     - name: Show current conda channels
       run: conda config --show channels
     - name: Build
