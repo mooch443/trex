@@ -47,6 +47,7 @@ fi
 if [ -f "${WPWD}/average_test.png" ]; then
     # delete the average file, as to test that process as well
     rm "${WPWD}/average_test.png"
+    echo "Removing ${WPWD}/average_test.png"
 fi
 
 function compare_csv() {
@@ -143,7 +144,7 @@ function compare_csv_folder() {
 }
 
 rm \"${WPWD}/corrected/test.settings\"
-CMD="${TGRABS} -d "${WPWD}" -i \"${WPWD}/test_frames/frame_%3d.jpg\" -o test -s \"${WPWD}/test.settings\" -auto_quit -nowindow -manual_matches {} -manual_splits {} -task convert -detect_type background_subtraction -match_mode automatic -history_matching_log history_matching_tgrabs.html"
+CMD="${TGRABS} -d "${WPWD}" -i \"${WPWD}/test_frames/frame_%3d.jpg\" -o test -s \"${WPWD}/test.settings\" -auto_quit -nowindow -task convert -detect_type background_subtraction -history_matching_log history_matching_tgrabs.html"
 echo "Running TGrabs... ${CMD}"
 if ! { ${CMD} 2>&1; } > "${PWD}/tgrabs.log"; then
     cat "${PWD}/tgrabs.log"
@@ -177,7 +178,7 @@ echo ""
 MODES="automatic"
 
 for MODE in ${MODES}; do
-    CMD="${TREX} -d \"${WPWD}\" -i \"${WPWD}/test\" -s \"${WPWD}/test.settings\" -auto_quit -nowindow -manual_matches {} -manual_splits {} -task track -detect_type background_subtraction -match_mode automatic -p corrected -match_mode ${MODE} -history_matching_log history_matching_trex.html"
+    CMD="${TREX} -d \"${WPWD}\" -i \"${WPWD}/test\" -s \"${WPWD}/test.settings\" -auto_quit -nowindow -task track -p corrected -match_mode ${MODE} -history_matching_log history_matching_trex.html"
 
     echo "Running TRex (${MODE})... ${CMD}"
 
