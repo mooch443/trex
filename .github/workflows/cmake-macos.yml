@@ -42,7 +42,6 @@ jobs:
         key: ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{ hashFiles('.github/macos-environment.yml') }}
     - uses: conda-incubator/setup-miniconda@v3
       with:
-        installer-url: https://github.com/conda-forge/miniforge/releases/download/25.3.0-3/Miniforge3-25.3.0-3-MacOSX-arm64.sh
         miniforge-version: latest
         environment-file: .github/macos-environment.yml
         activate-environment: tracking
