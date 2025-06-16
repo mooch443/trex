@@ -73,6 +73,7 @@
                     "children":[
                         {
                             "type":"button",
+                            "corners":["topleft"],
                             "text":"<sym>🗁</sym> Locations",
                             "fill":[40,40,40,220],
                             "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
@@ -85,6 +86,7 @@
                         },
                         {
                             "type":"button",
+                            "corners":["none"],
                             "text":"<sym>💻</sym> Detection",
                             "fill":[40,40,40,220],
                             "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
@@ -97,6 +99,7 @@
                         },
                         {
                             "type":"collection",
+                            "corners":["topright"],
                             "fill":[20,50,80,220],
                             "clickable":true,
                             "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
@@ -105,7 +108,7 @@
                                 {
                                     "type":"rect",
                                     "fill":[0,0,0,25],
-                                    "size":[249,5]
+                                    "size":[240,5]
                                 },
                                 {
                                     "pos":[124.5,24.5],
@@ -125,6 +128,7 @@
         },
         {
             "type":"gridlayout",
+            "corners":["bottom","topright"],
             "vertical_clr":[0,0,0,0],
             "horizontal_clr":[10,50,80,140],
             "cellfillclr":[20,20,20,180],
@@ -170,6 +174,7 @@
                                         },
                                         {
                                             "type":"settings",
+                                            "corners":["none"],
                                             "var":"track_max_individuals",
                                             "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
                                             "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
@@ -185,6 +190,7 @@
                                         },
                                         {
                                             "type":"settings",
+                                            "corners":["topright"],
                                             "var":"track_threshold",
                                             "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
                                             "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
@@ -202,6 +208,7 @@
                                         },
                                         {
                                             "type":"settings",
+                                            "corners":["none"],
                                             "var":"track_size_filter",
                                             "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
                                             "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
@@ -217,6 +224,7 @@
                                         },
                                         {
                                             "type":"settings",
+                                            "corners":["none"],
                                             "var":"track_do_history_split",
                                             "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
                                             "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
@@ -234,6 +242,7 @@
                                         },
                                         {
                                             "type":"settings",
+                                            "corners":["none"],
                                             "var":"track_max_speed",
                                             "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
                                             "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
@@ -250,6 +259,7 @@
                                         [
                                             {
                                                 "type":"settings",
+                                                "corners":["none"],
                                                 "var":"cm_per_pixel",
                                                 "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
                                                 "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
@@ -258,6 +268,7 @@
                                             },
                                             {
                                                 "type":"button",
+                                                "corners":["right"],
                                                 "text":"Calibrate",
                                                 "fill":[50,90,50],
                                                 "pos":"[{max:50:{*:{textfield_w}:0.08}},0]",
@@ -308,6 +319,7 @@
                                 "children":[
                                     {
                                         "type":"stext",
+                                        "corners":["left"],
                                         "text":"enable posture",
                                         "fill":[60,60,60,150],
                                         "line":[100,100,100,50],
@@ -317,6 +329,7 @@
                                     },
                                     {
                                         "type":"settings",
+                                        "corners":["right"],
                                         "var":"calculate_posture",
                                         "label":{
                                             "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,250]}",
@@ -349,6 +362,7 @@
                                             },
                                             {
                                                 "type":"settings",
+                                                "corners":["none"],
                                                 "var":"track_posture_threshold",
                                                 "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
                                                 "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
@@ -364,6 +378,7 @@
                                             },
                                             {
                                                 "type":"settings",
+                                                "corners":["topright"],
                                                 "var":"outline_smooth_samples",
                                                 "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
                                                 "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
@@ -381,6 +396,7 @@
                                             },
                                             {
                                                 "type":"settings",
+                                                "corners":["none"],
                                                 "var":"outline_approximate",
                                                 "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
                                                 "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
@@ -396,6 +412,7 @@
                                             },
                                             {
                                                 "type":"settings",
+                                                "corners":["none"],
                                                 "var":"outline_resample",
                                                 "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
                                                 "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
@@ -413,6 +430,7 @@
                                             },
                                             {
                                                 "type":"settings",
+                                                "corners":["none"],
                                                 "var":"midline_resolution",
                                                 "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
                                                 "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
@@ -428,6 +446,7 @@
                                             },
                                             {
                                                 "type":"settings",
+                                                "corners":["bottomright"],
                                                 "var":"midline_invert",
                                                 "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
                                                 "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
@@ -491,6 +510,7 @@
                                         },
                                         {
                                             "type":"settings",
+                                            "corners":["right"],
                                             "var":"meta_encoding",
                                             "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
                                             "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
@@ -540,6 +560,7 @@
     {
         "type":"collection",
         "fill":[20,20,20,150],
+        "corners":["bottom"],
         "size":"[{window_size.x},55]",
         "origin":[0,1],
         "pos":"[0,{window_size.y}]",

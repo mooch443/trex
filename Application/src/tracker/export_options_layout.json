@@ -22,11 +22,11 @@
     "text":"<h3>Export tracking data</h3>\n<lightgray>Select what you want to export by clicking on list items on the left. Then select additional options (e.g. where you want to save it) on the right. Finally, click the <sym>🖫</sym> Export button to write the files to disk (<i>this replaces existing files</i>).</lightgray>",
     "max_size":"[{min:740:{-:{window_size.x}:25}},150]",
     "color":[255,255,255],
-    "pad":[20,20,0,0],
+    "pad":[20,15,0,0],
     "font":{"size":0.55}
 },
 { "type":"hlayout",
-    "pad":[10,10,5,5],
+    "pad":[15,10,5,5],
     "align":"top",
     "children":[{
         "type":"vlayout",
@@ -41,6 +41,7 @@
                         "children":[
                             {
                                 "type":"stext",
+                                "corners":["top"],
                                 "text":"<c>Available options</c>",
                                 "font":{"size":0.55},
                                 "pad":[5,5,5,5],
@@ -49,6 +50,7 @@
                             },
                             {
                                 "type":"list",
+                                "corners":["bottom","topright"],
                                 "var":"available_options",
                                 "placeholder":"No items.",
                                 "list":{
@@ -93,6 +95,7 @@
                         "children":[
                             {
                                 "type":"stext",
+                                "corners":["top"],
                                 "text":"<c>Chosen for export</c>",
                                 "font":{"size":0.55},
                                 "pad":[5,5,5,5],
@@ -102,6 +105,7 @@
 
                             {
                                 "type":"list",
+                                "corners":["bottom","topright"],
                                 "var":"chosen_options",
                                 "fill":[40,40,40,220],
                                 "color":[225,225,225],
@@ -145,6 +149,7 @@
                     {
                         "type":"option_search",
                         "fill":[50,50,50,125],
+                        "line":[100,100,100,150],
                         "size":"[{-:{column_width}:15},27]",
                         "placeholder":" Type to filter... ",
                         "color":[200,200,200],
@@ -516,7 +521,7 @@
     "children":[
         { 
             "type":"hlayout",
-            "pad":[5,5,5,5],
+            "pad":[0,0,5,10],
             "children":[
                 {
                     "type":"button",

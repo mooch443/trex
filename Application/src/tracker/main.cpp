@@ -294,6 +294,9 @@ void launch_gui(std::future<void>& f) {
         });
     manager.register_scene(&loading);
     
+    sprite::Map cmd_options;
+    CommandLine::instance().load_settings(nullptr, &cmd_options);
+    
     using namespace default_config;
     std::unordered_map<TRexTask, Scene*> task_scenes {
         { TRexTask_t::none, &start },
@@ -329,7 +332,8 @@ void launch_gui(std::future<void>& f) {
                     .source = SETTING(source).value<file::PathArray>(),
                     .filename = SETTING(filename).value<file::Path>(),
                     .task = TRexTask_t::convert,
-                    .type = SETTING(detect_type)
+                    .type = SETTING(detect_type),
+                    .source_map = cmd_options
                 });
                 
             } else if(it->second == &tracking_scene) {
@@ -337,7 +341,8 @@ void launch_gui(std::future<void>& f) {
                     .source = SETTING(source).value<file::PathArray>(),
                     .filename = SETTING(filename).value<file::Path>(),
                     .task = TRexTask_t::track,
-                    .type = SETTING(detect_type)
+                    .type = SETTING(detect_type),
+                    .source_map = cmd_options
                 });
                 
             } else {
@@ -829,13 +834,20 @@ int main(int argc, char**argv) {
         if(task == TRexTask_t::none)
             throw U_EXCEPTION("Not sure what to do. Please specify a task (-task <name>) or an input file (-i <path>).");
         
+        Print(SETTING(output_dir));
+        
+        sprite::Map cmd_options;
+        CommandLine::instance().load_settings(nullptr, &cmd_options);
+        
         settings::load(settings::LoadContext{
             .source = SETTING(source).value<file::PathArray>(),
             .filename = SETTING(filename).value<file::Path>(),
             .task = task,
             .type = SETTING(detect_type),
-            .quiet = false
+            .quiet = false,
+            .source_map = cmd_options
         });
+        Print(SETTING(output_dir));
 
         Output::Library::InitVariables();
         Output::Library::Init();

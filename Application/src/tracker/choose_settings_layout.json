@@ -70,6 +70,7 @@
                 {
                     "type":"hlayout",
                     "align":"center",
+                    "corners" :["top"],
                     "origin":[0,0],
                     "clickable":true,
                     "pad":[0,0,-1,0],
@@ -79,6 +80,7 @@
                             "type":"collection",
                             "fill":[20,50,80,220],
                             "clickable":true,
+                            "corners" :["topleft"],
                             "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
                             "size":[249,50],
                             "children":[
@@ -101,6 +103,7 @@
                         },
                         {
                             "type":"button",
+                            "corners":["none"],
                             "text":"<sym>💻</sym> Detection",
                             "fill":[40,40,40,220],
                             "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
@@ -113,6 +116,7 @@
                         },
                         {
                             "type":"button",
+                            "corners":["topright"],
                             "text":"<sym>🐟</sym> Tracking",
                             "fill":[40,40,40,220],
                             "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
@@ -129,6 +133,7 @@
         },
         {
             "type":"gridlayout",
+            "corners":["bottom","topright"],
             "vertical_clr":[0,0,0,0],
             "horizontal_clr":[10,50,80,140],
             "cellfillclr":[20,20,20,180],
@@ -163,6 +168,7 @@
                                 "children":[
                                     {
                                         "type":"settings",
+                                        "corners":["left"],
                                         "var":"source",
                                         "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
                                         "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
@@ -183,6 +189,7 @@
                                     },
                                     {
                                         "type":"button",
+                                        "corners":["right"],
                                         "text":"<sym>🗁</sym>",
                                         "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
                                         "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
@@ -329,6 +336,7 @@
                                             "children":[
                                                 {
                                                     "type":"settings",
+                                                    "corners":["none"],
                                                     "var":"output_dir",
                                                     "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
                                                     "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
@@ -343,6 +351,7 @@
                                                 },
                                                 {
                                                     "type":"button",
+                                                    "corners":["right"],
                                                     "text":"<sym>🗁</sym>",
                                                     "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
                                                     "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
@@ -367,6 +376,7 @@
                                         },
                                         {
                                             "type":"settings",
+                                            "corners":["none"],
                                             "var":"output_prefix",
                                             "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,255]}",
                                             "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
@@ -383,6 +393,7 @@
                                         },
                                         {
                                             "type":"settings",
+                                            "corners":["bottomright"],
                                             "var":"filename",
                                             "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
                                             "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
@@ -432,6 +443,7 @@
                                         "children":[
                                             {
                                                 "type":"vlayout",
+                                                "corners":["topleft","topright"],
                                                 "line":[100,100,100,50],
                                                 "fill":[60,60,60,100],
                                                 "children":[
@@ -442,7 +454,7 @@
                                                     },
                                                     {
                                                         "type":"stext",
-                                                        "pad":[10,10,10,15],
+                                                        "pad":[10,14,10,15],
                                                         "max_size":"[{*:0.45:{element_w}},0]",
                                                         "text":"{if:{resulting_path}:<sym>➥</sym> <c><cyan>{resulting_path}</cyan><lightgray>.pv</lightgray></c>:<sym>➥</sym> <gray>please select an input file first</gray>}"
                                                     }
@@ -503,6 +515,7 @@
     {
         "type":"collection",
         "fill":[20,20,20,150],
+        "corners":["bottom"],
         "size":"[{window_size.x},55]",
         "origin":[0,1],
         "pos":"[0,{window_size.y}]",

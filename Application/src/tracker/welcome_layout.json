@@ -103,6 +103,7 @@
         "children":[
             {
                 "type":"list",
+                "corners":["top"],
                 "name":"recent_items",
                 "var":"recent_items",
                 "pad":[0,0,0,0],
@@ -136,6 +137,7 @@
                     {
                         "type":"recent_filter",
                         "fill":[50,50,50,220],
+                        "corners":["bottomleft"],
                         "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
                         "size":"[{-:{*:{window_size.x}:0.4}:55},45]",
                         "placeholder":" Type to filter... ",
@@ -146,6 +148,7 @@
                     },
                     { 
                         "type":"list",
+                        "corners":["none"],
                         "size":[55,45],
                         "item":{
                             "pad":[8,5],
@@ -165,7 +168,8 @@
                             "fill":[40,40,40,220],
                             "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
                             "font":{"size":0.8,"align":"center"},
-                            "text":"<sym>☰</sym>"
+                            "text":"<sym>☰</sym>",
+                            "corners":["bottomright"]
                         },
                         "foldable":true,
                         "folded":true,

@@ -70,10 +70,12 @@
                     "origin":[0,0],
                     "clickable":true,
                     "pad":[-1,0,0,0],
+                    "corners":["top"],
                     "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
                     "children":[
                         {
                             "type":"button",
+                            "corners":["topleft"],
                             "text":"<sym>🗁</sym> Locations",
                             "fill":[40,40,40,220],
                             "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
@@ -86,6 +88,7 @@
                         },
                         {
                             "type":"collection",
+                            "corners":["none"],
                             "fill":[20,50,80,220],
                             "clickable":true,
                             "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
@@ -110,6 +113,7 @@
                         },
                         {
                             "type":"button",
+                            "corners":["topright"],
                             "text":"<sym>🐟</sym> Tracking",
                             "fill":[40,40,40,220],
                             "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
@@ -126,6 +130,7 @@
         },
         {
             "type":"gridlayout",
+            "corners":["bottom","topright"],
             "vertical_clr":[0,0,0,0],
             "horizontal_clr":[10,50,80,140],
             "cellfillclr":[20,20,20,180],
@@ -185,11 +190,13 @@
                                                             "type":"stext",
                                                             "text":"<b>GPU</b>\n<gray>Select which device is used.</gray>",
                                                             "pad":[10,3,10,4],
+                                                            "corners":["left"],
                                                             "fill":[50,50,50,100],
                                                             "line":[100,100,100,250]
                                                         },
                                                         {
                                                             "type":"settings",
+                                                            "corners":["right"],
                                                             "var":"gpu_torch_device",
                                                             "label":{
                                                                 "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,250]}",
@@ -278,6 +285,7 @@
                                             },
                                             {
                                                 "type":"settings",
+                                                "corners":["right"],
                                                 "var":"detect_iou_threshold",
                                                 "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
                                                 "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
@@ -298,6 +306,7 @@
                                             },
                                             {
                                                 "type":"settings",
+                                                "corners":["right"],
                                                 "var":"detect_conf_threshold",
                                                 "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
                                                 "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
@@ -323,6 +332,7 @@
                                             },
                                             {
                                                 "type":"settings",
+                                                "corners":["right"],
                                                 "var":"detect_size_filter",
                                                 "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
                                                 "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
@@ -350,6 +360,7 @@
                                             },
                                             {
                                                 "type":"settings",
+                                                "corners":["right"],
                                                 "var":"detect_size_filter",
                                                 "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
                                                 "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
@@ -393,6 +404,7 @@
                                     "children":[
                                         {
                                             "type":"settings",
+                                            "corners":["left"],
                                             "var":"detect_model",
                                             "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
                                             "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
@@ -407,6 +419,7 @@
                                         },
                                         {
                                             "type":"button",
+                                            "corners":["right"],
                                             "text":"<sym>🗁</sym>",
                                             "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
                                             "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
@@ -586,6 +599,7 @@
                                 "children":[
                                     {
                                         "type":"settings",
+                                        "corners":["left"],
                                         "name":"conditional_region_model",
                                         "var":"{if:{machine_learning}:'region_model':'detect_threshold'}",
                                         "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
@@ -605,6 +619,7 @@
                                         "then":
                                         {
                                             "type":"button",
+                                            "corners":["right"],
                                             "text":"<sym>🗁</sym>",
                                             "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
                                             "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
@@ -747,6 +762,7 @@
     {
         "type":"collection",
         "fill":[20,20,20,150],
+        "corners":["bottom"],
         "size":"[{window_size.x},55]",
         "origin":[0,1],
         "pos":"[0,{window_size.y}]",
