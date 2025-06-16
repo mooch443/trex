@@ -228,7 +228,7 @@ elseif(CMAKE_CXX_COMPILER_ID MATCHES "^(Apple)?Clang$")
     set(C_SANITIZE_OPTIONS "")
     set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0 -g ${C_SANITIZE_OPTIONS} -fno-lto")
     set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} ${M1OPTIONS} -O3 -flto -ffunction-sections -fdata-sections ${TREX_WARNING_FLAGS}")
-    set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} ${M1OPTIONS} -O1 -g3 -gdwarf-5 -fno-omit-frame-pointer -fno-inline -fno-inline-functions -fno-inline-functions-called-once -fno-default-inline -fno-lto ${TREX_WARNING_FLAGS}")
+    set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} ${M1OPTIONS} -O1 -g3 -gdwarf-5 -fno-omit-frame-pointer -fno-inline -fno-inline-functions -fno-lto ${TREX_WARNING_FLAGS}")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-c++98-compat-pedantic -Wall -Wextra -pedantic ${TREX_WARNING_FLAGS}")
     
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Werror=return-stack-address")

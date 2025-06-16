@@ -4,32 +4,35 @@
 namespace track {
 
 struct LocalSettings {
-    static inline std::atomic<Settings::frame_rate_t> frame_rate;
-    static inline std::atomic<Settings::track_enforce_frame_rate_t> track_enforce_frame_rate;
-    static inline std::atomic<Settings::cm_per_pixel_t> cm_per_pixel;
+    std::atomic<Settings::frame_rate_t> frame_rate;
+    std::atomic<Settings::track_enforce_frame_rate_t> track_enforce_frame_rate;
+    std::atomic<Settings::cm_per_pixel_t> cm_per_pixel;
 };
 
-std::once_flag update_flag;
-void init_settings() {
-    std::call_once(update_flag, [](){
+static LocalSettings local_settings = []() -> LocalSettings {
+    ///static std::once_flag update_flag;
+    //std::call_once(update_flag, [](){
         GlobalSettings::map().register_callbacks({
             "frame_rate",
             "track_enforce_frame_rate",
             "cm_per_pixel"
         }, [](auto name) {
             if(name == "frame_rate")
-                LocalSettings::frame_rate = SETTING(frame_rate).value<Settings::frame_rate_t>();
+                local_settings.frame_rate = SETTING(frame_rate).value<Settings::frame_rate_t>();
             else if(name == "cm_per_pixel")
-                LocalSettings::cm_per_pixel = SETTING(cm_per_pixel).value<Settings::cm_per_pixel_t>();
+                local_settings.cm_per_pixel = SETTING(cm_per_pixel).value<Settings::cm_per_pixel_t>();
             else
-                LocalSettings::track_enforce_frame_rate = SETTING(track_enforce_frame_rate).value<Settings::track_enforce_frame_rate_t>();
+                local_settings.track_enforce_frame_rate = SETTING(track_enforce_frame_rate).value<Settings::track_enforce_frame_rate_t>();
         });
-    });
+    //});
+}();
+
+void init_settings() {
+    
 }
 
 #define LOCAL_SETTING(NAME) []() -> Settings:: NAME ## _t { \
-    init_settings(); \
-    return LocalSettings :: NAME .load(); \
+    return local_settings . NAME .load(); \
 }()
 
 timestamp_t FrameProperties::timestamp() const {

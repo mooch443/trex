@@ -1530,6 +1530,8 @@ namespace Output {
             Print("Trying to open results ",filename.str()," (retrieve header only)");
         ResultsFormat file(filename.str(), [](const auto&, auto, const auto&){});
         file.start_reading();
+        /// we will for sure read this sequentially
+        file.hint_access_pattern(DataFormat::AccessPattern::Sequential);
         return file.header();
     }
 

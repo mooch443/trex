@@ -12,8 +12,7 @@ struct PrecomputedDetection::Data {
     gpuMat _float_average;
     std::optional<Background> _background;
     
-    using frame_data_t = std::unordered_map<Frame_t, std::vector<Bounds>>;
-    std::optional<std::future<frame_data_t>> _frame_data_loader;
+    std::optional<std::future<tl::expected<PrecomputedDetectionCache, std::string>>> _frame_data_loader;
     
     
     void set(Image::Ptr&&, meta_encoding_t::Class);
@@ -30,15 +29,14 @@ struct PrecomputedDetection::Data {
     std::shared_mutex _data_mutex;
     std::optional<file::PathArray> _filename;
     
-    std::optional<frame_data_t> _frame_data;
+    std::optional<PrecomputedDetectionCache> _frame_data_cache;
     
     void set(file::PathArray&& filename) {
         std::unique_lock guard{_data_mutex};
         if(_filename != filename) {
             _filename = std::move(filename);
-            _frame_data.reset();
+            _frame_data_cache.reset();
             
-            std::promise<frame_data_t> promise;
             if(_frame_data_loader.has_value()
                && _frame_data_loader->valid())
             {
@@ -71,8 +69,223 @@ struct PrecomputedDetection::Data {
         _samples++;
     }
     
-    frame_data_t preload_file();
+    tl::expected<PrecomputedDetectionCache, std::string> preload_file();
 };
+
+
+
+PrecomputedDetectionCache::PrecomputedDetectionCache(const file::Path& csv_path)
+  : _cache_path(csv_path.replace_extension("pdcache")), _df(_cache_path)
+{
+    uint64_t csv_hash = computeFileHash(csv_path);
+
+    bool needs_rebuild = true;
+    if (_cache_path.exists()) {
+        // open header to check hash
+        try {
+            cmn::DataFormat tmp(_cache_path);
+            tmp.start_reading();
+            Header hdr;
+            tmp.read(hdr);
+            tmp.close();
+            if (std::memcmp(hdr.magic.parts.tag,"PDC",3)==0 &&
+                hdr.magic.parts.ver==1 &&
+                hdr.file_hash==csv_hash) {
+                needs_rebuild = false;
+            }
+        } catch(...) {
+            /// rebuild it
+        }
+    }
+    if (needs_rebuild) {
+        buildCache(csv_path, _cache_path);
+    }
+
+    _df.start_reading();
+    _df.hint_access_pattern(cmn::DataFormat::AccessPattern::Sequential);
+    _map_ptr  = _df.data();
+    _map_size = _df.reading_file_size();
+    assert(_df.supports_fast());
+
+    const Header* hdr = reinterpret_cast<const Header*>(_map_ptr);
+    if (std::memcmp(hdr->magic.parts.tag, "PDC", 3) != 0 ||
+        hdr->magic.parts.ver != 1) {
+        throw RuntimeError("Invalid cache file format");
+    }
+    const IndexEntry* entries = reinterpret_cast<const IndexEntry*>(_map_ptr + sizeof(Header));
+    _index_entries.assign(entries, entries + hdr->index_count);
+
+    for(auto &e : _index_entries) {
+        _index_map[e.frame] = Offsets{
+            .offset = e.offset,
+            .count = e.count
+        };
+    }
+}
+
+std::optional<PrecomputedDetection::frame_data_t::mapped_type> PrecomputedDetectionCache::get_frame_data(Frame_t frame) {
+    if(auto it = _index_map.find(frame);
+       it != _index_map.end())
+    {
+        const auto& offsets = it->second;
+        const char* ptr = _map_ptr + offsets.offset;
+
+        frame_data_t::mapped_type objs;
+        for (uint32_t i = 0; i < offsets.count; ++i) {
+            float x = *reinterpret_cast<const float*>(ptr); ptr += sizeof(float);
+            float y = *reinterpret_cast<const float*>(ptr); ptr += sizeof(float);
+            float w = *reinterpret_cast<const float*>(ptr); ptr += sizeof(float);
+            float h = *reinterpret_cast<const float*>(ptr); ptr += sizeof(float);
+            objs.emplace_back(x, y, w, h);
+        }
+        return objs;
+    }
+
+    return std::nullopt;
+}
+
+// Helper: quick hash based on path & size
+uint64_t PrecomputedDetectionCache::computeFileHash(const file::Path& p)
+{
+    uint64_t sz  = p.file_size();
+    uint64_t h1  = std::hash<std::string_view>{}(std::string_view(p.c_str()));
+    return (h1 ^ (sz + 0x9e3779b97f4a7c15ULL + (h1<<6) + (h1>>2)));
+}
+
+void PrecomputedDetectionCache::buildCache(const file::Path& csv_path, const file::Path& cache_path) {
+    uint64_t csv_hash = computeFileHash(csv_path);
+    // Detect columns
+    CSVStreamReader reader1(csv_path, ',', true);
+    auto header1 = reader1.header();
+    std::optional<size_t> x_idx, y_idx, w_idx, h_idx, frame_idx;
+    std::optional<std::string_view> x_name, y_name, w_name, h_name, frame_name;
+    
+    for(size_t i=0; i < header1.size(); ++i) {
+        auto &name = header1[i];
+        if(match_name({'x'}, name, x_name)) {
+            x_idx = i;
+        } else if(match_name({'y'}, name, y_name)) {
+            y_idx = i;
+        } else if(match_name({"w", "width"}, name, w_name)) {
+            w_idx = i;
+        } else if(match_name({"h", "height"}, name, h_name)) {
+            h_idx = i;
+        } else if(match_name({"frame"}, name, frame_name)) {
+            frame_idx = i;
+        }
+    }
+    
+    if (not x_idx || not y_idx)
+        throw InvalidArgumentException("Missing X or Y column in CSV");
+    if (not frame_idx)
+        throw InvalidArgumentException("Missing frame column in CSV");
+    
+    bool is_centroid = true;
+    if (w_idx
+        && h_idx
+        && not utils::contains(utils::lowercase(*x_name), "centroid"))
+    {
+        is_centroid = false;
+    }
+    
+    auto default_size = SETTING(individual_image_size).value<Size2>();
+
+    // First pass: count objects per frame
+    std::unordered_map<Frame_t, uint32_t> counts;
+    std::vector<std::string> row;
+    while (reader1.hasNext()) {
+        row = reader1.nextRow();
+        
+        double rf = std::stod(row[*frame_idx]);
+        if (rf < 0) continue;
+        counts[Frame_t{static_cast<uint32_t>(rf)}]++;
+    }
+
+    // Sort frames and prepare index entries
+    std::vector<Frame_t> frames;
+    frames.reserve(counts.size());
+    for (auto& kv : counts) frames.push_back(kv.first);
+    std::sort(frames.begin(), frames.end());
+
+    std::vector<IndexEntry> entries;
+    entries.reserve(frames.size());
+    const uint64_t content_offset = sizeof(Header) + sizeof(IndexEntry) * frames.size();
+    uint64_t offset = content_offset;
+    for (Frame_t f : frames) {
+        uint32_t cnt = counts[f];
+        entries.push_back({f, offset, cnt});
+        offset += uint64_t(cnt) * sizeof(float) * 4;
+    }
+    uint32_t index_count  = static_cast<uint32_t>(entries.size());
+    uint64_t total_size   = offset;
+
+    // Preallocate and map file
+    int fd = ::open(cache_path.c_str(), O_RDWR | O_CREAT, 0666);
+    if (fd < 0) throw RuntimeError("Cannot open cache for writing");
+    if (::ftruncate(fd, (off_t)total_size) != 0) { ::close(fd); throw RuntimeError("Cannot size cache file"); }
+    ::close(fd);
+
+    cmn::DataFormat df(cache_path);
+    df.start_writing(true);
+
+    // Write header
+    Header hdr{};
+    hdr.magic.parts.tag[0] = 'P';
+    hdr.magic.parts.tag[1] = 'D';
+    hdr.magic.parts.tag[2] = 'C';
+    hdr.magic.parts.ver    = 1;
+    hdr.file_hash     = csv_hash;
+    hdr.index_count   = index_count;
+    
+    df.write(hdr);
+
+    // Second pass: write object data
+    CSVStreamReader reader2(csv_path, ',', true);
+    // Build quick lookup from frame → IndexEntry
+    std::unordered_map<Frame_t, const IndexEntry*> idx_lookup;
+    for (const auto& e : entries)
+        idx_lookup.emplace(e.frame, &e);
+    
+    // Write index table
+    for (auto& e : entries)
+        df.write(e);
+    
+    assert(content_offset == df.tell());
+
+    // Remaining objects to write per frame (initialised with the counts)
+    auto remaining = counts;          // copy – we will decrement
+
+    while (reader2.hasNext()) {
+        row = reader2.nextRow();
+
+        double rf = std::stod(row[*frame_idx]);
+        if (rf < 0) continue;
+        Frame_t f{static_cast<uint32_t>(rf)};
+
+        float x = std::stof(row[*x_idx]);
+        float y = std::stof(row[*y_idx]);
+        float w = w_idx ? std::stof(row[*w_idx]) : float(default_size.width);
+        float h = h_idx ? std::stof(row[*h_idx]) : float(default_size.height);
+        if (is_centroid) { x -= w * 0.5f; y -= h * 0.5f; }
+
+        auto it = idx_lookup.find(f);
+        if (it == idx_lookup.end()) continue;        // should not happen
+
+        const IndexEntry* idx = it->second;
+        uint32_t written = idx->count - remaining[f];          // objects already written
+        uint64_t pos = idx->offset + uint64_t(written) * sizeof(float) * 4;
+
+        df.seek(pos);
+        df.write<float>(x);
+        df.write<float>(y);
+        df.write<float>(w);
+        df.write<float>(h);
+
+        if (--remaining[f] == 0)
+            remaining.erase(f);
+    }
+    df.stop_writing();
+}
 
 PipelineManager<TileImage, true>& PrecomputedDetection::manager() {
     static auto instance = PipelineManager<TileImage, true>(1u, [](std::vector<TileImage>&& images)
@@ -104,7 +317,14 @@ PipelineManager<TileImage, true>& PrecomputedDetection::manager() {
             {
                 if(data()._frame_data_loader->wait_for(std::chrono::milliseconds(1)) == std::future_status::ready)
                 {
-                    data()._frame_data = data()._frame_data_loader->get();
+                    auto result = data()._frame_data_loader->get();
+                    if(result.has_value()) {
+                        PrecomputedDetectionCache obj = std::move(result.value());
+                        data()._frame_data_cache = std::move(obj);
+                    } else {
+                        data()._frame_data_cache.reset();
+                        throw InvalidArgumentException("Cannot load file ", data()._filename, " into cache: ", no_quotes(result.error()));
+                    }
                     break;
                 }
                 
@@ -176,7 +396,7 @@ std::future<SegmentationData> PrecomputedDetection::apply(TileImage &&tiled) {
 void PrecomputedDetection::deinit() {
     std::unique_lock guard{data()._data_mutex};
     data()._filename.reset();
-    data()._frame_data.reset();
+    data()._frame_data_cache.reset();
 }
 
 double PrecomputedDetection::fps() {
@@ -243,12 +463,12 @@ void PrecomputedDetection::apply(std::vector<TileImage> &&tiled) {
         .encoding = mode
     };
     
-    if(not data()._frame_data.has_value()) {
+    if(not data()._frame_data_cache.has_value()) {
         FormatWarning("Frame data is empty for precomputed detection.");
         return;
     }
     
-    auto &fdata = data()._frame_data.value();
+    auto &fdata = data()._frame_data_cache.value();
     
     size_t i = 0;
     for(auto &&tile : tiled) {
@@ -256,10 +476,10 @@ void PrecomputedDetection::apply(std::vector<TileImage> &&tiled) {
         std::vector<blob::Pair> filtered, filtered_out;
         auto frame = Frame_t{tile.data.image->index()};
         
-        if(auto frame_data = fdata.find(frame);
-           frame_data != fdata.end())
+        if(auto frame_data = fdata.get_frame_data(frame);
+           frame_data)
         {
-            all_objects = frame_data->second;
+            all_objects = std::move(frame_data.value());
         }
         
         /// Collect all tiles for this frame:
@@ -397,116 +617,21 @@ void PrecomputedDetection::apply(std::vector<TileImage> &&tiled) {
     }
 }
 
-PrecomputedDetection::Data::frame_data_t PrecomputedDetection::Data::preload_file() {
+tl::expected<PrecomputedDetectionCache, std::string> PrecomputedDetection::Data::preload_file() {
     if(not _filename.has_value())
         throw RuntimeError("No filename has been set for precomputed detection. Please set the `detect_precomputed_file` parameter.");
     
-    auto match_name = []<typename MatchType>(
-            const std::initializer_list<MatchType>& matches,
-            const auto& name,
-            auto& target)
-    {
-        using Matches = cmn::remove_cvref_t<decltype(matches)>;
-        
-        bool does_match{false};
-        for(auto& match : matches) {
-            if constexpr(std::same_as<typename Matches::value_type, char>)
-            {
-                if(utils::contains(utils::lowercase(name), match))
-                {
-                    does_match = true;
-                    break;
-                }
-                
-            } else {
-                if(utils::contains(utils::lowercase(name), match))
-                {
-                    does_match = true;
-                    break;
-                }
-            }
-        }
-        
-        if(does_match) {
-            if(not target.has_value()) {
-                target = std::string_view(name);
-            } else {
-                FormatWarning("Found candidate ", name, " to be used as the ",std::vector(matches),"-column, but already have: ", target);
-            }
-        }
-    };
-    
-    frame_data_t result;
     for(auto &path : _filename.value()) {
         Print(" * Loading ", path, " precomputed data (",FileSize{path.file_size()},")...");
         
         if(path.has_extension("csv")) {
-            bool is_centroid = true;
-            auto table = CSVStreamReader{path, ',', true}.readNumericTableOptional<double>();
-            
-            std::optional<std::string_view> x_column, y_column;
-            std::optional<std::string_view> w_column, h_column;
-            std::optional<std::string_view> frame_column;
-            
-            for(auto &name : table.header) {
-                match_name({'x'}, name, x_column);
-                match_name({'y'}, name, y_column);
-                match_name({"w", "width"}, name, w_column);
-                match_name({"h", "height"}, name, h_column);
-                match_name({"frame"}, name, frame_column);
-            }
-            
-            if(not x_column || not y_column) {
-                throw InvalidArgumentException("Cannot read a format that does not contain valid X and Y columns (triggered by ",path,").");
-            }
-            
-            if(not frame_column) {
-                throw InvalidArgumentException("Cannot read a format that does not contain a valid frame column (triggered by ", frame_column,").");
-            }
-            
-            if(w_column && h_column) {
-                if(not utils::contains(utils::lowercase(x_column.value()), "centroid"))
-                {
-                    is_centroid = false;
-                }
-            }
-            
-            const Size2 individual_image_size = SETTING(individual_image_size);
-            
-            for(size_t i=0; i<table.size(); ++i) {
-                auto row = table[i];
-                std::optional<double> x = row.get(*x_column);
-                std::optional<double> y = row.get(*y_column);
-                double raw_frame = row.get(*frame_column).value();
-                if(raw_frame < 0) {
-                    FormatWarning("Ignoring row ", row.cells ? "null" : Meta::toStr(*row.cells), " because the frame number is ", raw_frame,".");
-                    continue;
-                }
-                
-                Frame_t frame{ static_cast<uint32_t>(raw_frame) };
-                
-                std::optional<double> w, h;
-                if(w_column) w = row.get(*w_column);
-                if(h_column) h = row.get(*h_column);
-                
-                if(not w)
-                    w = individual_image_size.width;
-                if(not h)
-                    h = individual_image_size.height;
-                
-                Bounds bds{*x, *y, *w, *h};
-                if(is_centroid) {
-                    bds = bds - Vec2(*w, *h) * 0.5;
-                }
-                
-                result[frame].push_back(bds);
-            }
+            return PrecomputedDetectionCache(path);
         }
         
-        Print("* Done loading ", path,". Loaded precomputed data for ", result.size(), " frames.");
+        Print("* Done loading ", path,".");
     }
     
-    return result;
+    return tl::unexpected("Was not able to load any detection cache files from "+Meta::toStr(_filename)+".");
 }
 
 

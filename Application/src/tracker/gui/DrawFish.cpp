@@ -1115,6 +1115,7 @@ bool Fish::setup_rotated_bbx(const FindCoord& coords, const Vec2& offset, const 
     
     auto &poly = std::get<Polygon>(_selection);
     
+    /// TODO: could add a switch here to selectively not animate points if we have frame times that dont allow it?
     auto finished = morphVectorsWithRotation(_current_points, _cached_points, GUICache::instance().dt() * 1.25_F, 1_F);
     if(finished && _frame_change.elapsed() >= 0.5_F) {
         //Print("done with ",_id,".");

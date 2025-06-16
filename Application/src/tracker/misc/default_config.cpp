@@ -1150,6 +1150,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             "video_length",
             "terminate",
             "cam_limit_exposure",
+            "reset_average",
             //"accumulation_sufficient_uniqueness",
             //"output_fields",
             "auto_minmax_size",

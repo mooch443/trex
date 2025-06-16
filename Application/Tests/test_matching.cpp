@@ -10,6 +10,7 @@
 #include <misc/Image.h>
 #include <misc/DetectionTypes.h>
 #include <misc/RBSettings.h>
+#include <tracker/misc/PrecomuptedDetection.h>
 
 using ::testing::TestWithParam;
 using ::testing::Values;
@@ -43,6 +44,48 @@ static void resetGlobalSettings()
     
     SETTING(track_max_speed) = Settings::track_max_speed_t{10};
     SETTING(track_size_filter) = Settings::track_size_filter_t{};
+}
+
+TEST(PrecomputeTest, LoadTable)
+{
+    resetGlobalSettings();
+
+    // Example CSV path (adjust to an existing CSV with X,Y[,W,H],frame columns).
+    
+    file::Path csv_path{std::string(TREX_TEST_FOLDER)+"/sample_detections.csv"};
+
+    // Build or open the binary cache.
+    track::PrecomputedDetectionCache cache(csv_path);
+
+    // Access the cached data.
+    const auto& frame_data = cache.getData();
+
+    // Basic sanity check: ensure we loaded something.
+    ASSERT_FALSE(frame_data.empty()) << "Cache should contain at least one frame.";
+
+    // Optional diagnostic output – print first few frames.
+    size_t shown = 0;
+    for (const auto& [frame, objects] : frame_data)
+    {
+        Print("Frame ", frame, " has ", objects.size(), " objects");
+        if (++shown == 3) break;
+    }
+    
+    // Access a frame that does not exist
+    auto opt = cache.get_frame_data(100_f);
+    ASSERT_FALSE(opt.has_value());
+
+    // Access frame 1_f (sample CSV has exactly ONE object there)
+    opt = cache.get_frame_data(1_f);
+    ASSERT_TRUE(opt.has_value());
+    ASSERT_EQ(opt->size(), 1u);
+
+    // Check the single object’s geometry matches the sample CSV row
+    const Bounds& b = opt->front();
+    EXPECT_NEAR(b.width, 25.0_F, 1e-3);
+    EXPECT_NEAR(b.height, 20.0_F, 1e-3);
+    EXPECT_NEAR(b.pos().x, 50.2_F, 1e-3);
+    EXPECT_NEAR(b.pos().y, 120.0_F, 1e-3);
 }
 
 // ------------------------------------------------------------
