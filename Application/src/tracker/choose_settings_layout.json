@@ -168,7 +168,7 @@
                                 "children":[
                                     {
                                         "type":"settings",
-                                        "corners":["left"],
+                                        "label":{ "corners":["left"] },
                                         "var":"source",
                                         "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
                                         "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
@@ -300,7 +300,8 @@
                         "type":"stext",
                         "text":"<h3><sym>➥</sym></h3> Output\n<small><gray>This determines where your results will go and what they will be called.</gray></small>",
                         "font":{"size":0.75},
-                        "origin":[0,0], "pos":"{label_offset}",
+                        "origin":[0,0], 
+                        "pos":"{label_offset}",
                         "max_size":"[{label_w},0]",
                         "pad":"{label_padding}"
                     },
@@ -336,8 +337,8 @@
                                             "children":[
                                                 {
                                                     "type":"settings",
-                                                    "corners":["none"],
                                                     "var":"output_dir",
+                                                    "label":{ "corners":["none"] },
                                                     "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
                                                     "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
                                                     "list":{
@@ -351,7 +352,7 @@
                                                 },
                                                 {
                                                     "type":"button",
-                                                    "corners":["right"],
+                                                    "corners":["topright"],
                                                     "text":"<sym>🗁</sym>",
                                                     "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
                                                     "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
@@ -393,7 +394,7 @@
                                         },
                                         {
                                             "type":"settings",
-                                            "corners":["bottomright"],
+                                            "label":{ "corners":["bottomright"] },
                                             "var":"filename",
                                             "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
                                             "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",

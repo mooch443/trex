@@ -224,10 +224,13 @@
                                         },
                                         {
                                             "type":"settings",
-                                            "corners":["none"],
+                                            "label":{
+                                                "corners":["none"],
+                                                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,50]}",
+                                                "fill":"{if:{||:{selected}:{hovered}}:[10,80,110,240]:[10,50,80,240]}",
+                                                "font":{"size":0.65}
+                                            },
                                             "var":"track_do_history_split",
-                                            "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
-                                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
                                             "size":"[{max:50:{*:{textfield_w}:0.1}},40]",
                                             "desc":""
                                         }
@@ -329,10 +332,10 @@
                                     },
                                     {
                                         "type":"settings",
-                                        "corners":["right"],
                                         "var":"calculate_posture",
                                         "label":{
-                                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,250]}",
+                                            "corners":["right"],
+                                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,150]}",
                                             "fill":"{if:{||:{selected}:{hovered}}:[10,80,110,240]:[10,50,80,240]}",
                                             "font":{"size":0.65}
                                         },
@@ -446,16 +449,26 @@
                                             },
                                             {
                                                 "type":"settings",
-                                                "corners":["bottomright"],
+                                                "label":{
+                                                    "corners":["bottomright"],
+                                                    "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,50]}",
+                                                    "fill":"{if:{||:{selected}:{hovered}}:[10,80,110,240]:[10,50,80,240]}",
+                                                    "font":{"size":0.65}
+                                                },
                                                 "var":"midline_invert",
-                                                "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
-                                                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
                                                 "size":"[{max:50:{*:{textfield_w}:0.1}},40]",
                                                 "desc":""
                                             }
                                         ]
                                     ]
                                 }
+                            },
+
+
+                            {
+                                "type":"rect",
+                                "fill":[0,0,0,0],
+                                "size":[1,15]
                             },
 
                             {
@@ -510,10 +523,13 @@
                                         },
                                         {
                                             "type":"settings",
-                                            "corners":["right"],
                                             "var":"meta_encoding",
-                                            "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
-                                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                                            "label":{
+                                                "corners":["right"],
+                                                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,250]}",
+                                                "fill":"{if:{||:{selected}:{hovered}}:[10,80,110,240]:[10,50,80,240]}",
+                                                "font":{"size":0.65}
+                                            },
                                             "size":"[{max:50:{*:{textfield_w}:0.1}},40]",
                                             "desc":""
                                         }

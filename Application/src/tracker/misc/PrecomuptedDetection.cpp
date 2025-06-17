@@ -4,6 +4,9 @@
 #include <misc/SizeFilters.h>
 #include <misc/TrackingSettings.h>
 #include <file/CSVReader.h>
+#include <misc/indicators.h>
+
+namespace ind = indicators;
 
 namespace track {
 
@@ -112,10 +115,22 @@ PrecomputedDetectionCache::PrecomputedDetectionCache(const file::Path& csv_path)
         hdr->magic.parts.ver != 1) {
         throw RuntimeError("Invalid cache file format");
     }
-    const IndexEntry* entries = reinterpret_cast<const IndexEntry*>(_map_ptr + sizeof(Header));
-    _index_entries.assign(entries, entries + hdr->index_count);
+    
+    const FileIndexEntry* fe = reinterpret_cast<const FileIndexEntry*>(_map_ptr + sizeof(Header));
+    _index_entries.resize(hdr->index_count);
+    for (uint32_t i = 0; i < hdr->index_count; ++i) {
+        _index_entries[i] = IndexEntry{
+            Frame_t{fe[i].frame},   // rebuild strong type
+            fe[i].count,
+            fe[i].offset
+        };
+    }
 
     for(auto &e : _index_entries) {
+        if(not e.frame.valid()) {
+            FormatWarning("Frame number is invalid: ", e.frame, " for ", e.offset, " and ", e.count);
+            continue;
+        }
         _index_map[e.frame] = Offsets{
             .offset = e.offset,
             .count = e.count
@@ -196,6 +211,40 @@ void PrecomputedDetectionCache::buildCache(const file::Path& csv_path, const fil
         FormatWarning("[precomputed] individual_image_size is not set.");
     }
 
+    ind::ProgressBar bar{
+        ind::option::BarWidth{50},
+        ind::option::Start{"["},
+/*#ifndef _WIN32
+        ind::option::Fill{"█"},
+        ind::option::Lead{"▂"},
+        ind::option::Remainder{"▁"},
+#else*/
+        ind::option::Fill{"="},
+        ind::option::Lead{">"},
+        ind::option::Remainder{" "},
+//#endif
+        ind::option::End{"]"},
+        ind::option::PostfixText{"Writing cache..."},
+        ind::option::ShowPercentage{true},
+        ind::option::ShowElapsedTime{true},
+        ind::option::ShowRemainingTime{true},
+        ind::option::ForegroundColor{ind::Color::white},
+        ind::option::FontStyles{std::vector<ind::FontStyle>{ind::FontStyle::bold}}
+    };
+    
+    ind::ProgressSpinner spinner{
+        ind::option::PostfixText{"Counting objects..."},
+        ind::option::ForegroundColor{ind::Color::white},
+        ind::option::SpinnerStates{std::vector<std::string>{
+            //"⣾","⣽","⣻","⢿","⡿","⣟","⣯","⣷"
+            //"◢","◣","◤","◥",
+            //"◜◞", "◟◝", "◜◞", "◟◝"
+            " ◴"," ◷"," ◶"," ◵"
+            //"⠈", "⠐", "⠠", "⢀", "⡀", "⠄", "⠂", "⠁"
+        }},
+        ind::option::FontStyles{std::vector<ind::FontStyle>{ind::FontStyle::bold}}
+    };
+    
     // First pass: count objects per frame
     std::unordered_map<Frame_t, uint32_t> counts;
     std::vector<std::string> row;
@@ -204,7 +253,28 @@ void PrecomputedDetectionCache::buildCache(const file::Path& csv_path, const fil
         
         double rf = std::stod(row[*frame_idx]);
         if (rf < 0) continue;
-        counts[Frame_t{static_cast<uint32_t>(rf)}]++;
+        if(rf >= double(std::numeric_limits<uint32_t>::max())) {
+            static bool warning_issued = false;
+            if(not warning_issued) {
+                FormatWarning("CSV provided frame number ", rf, " which is too large to be represented.");
+                warning_issued = true;
+            }
+            continue;
+        }
+        
+        auto frame = Frame_t{static_cast<uint32_t>(rf)};
+        assert(frame.valid());
+        counts[frame]++;
+        
+        if(frame.get() % 100 == 0)
+            spinner.tick();
+    }
+    
+    {
+        spinner.set_option(ind::option::ForegroundColor{ind::Color::green});
+        spinner.set_option(ind::option::PrefixText{"✔"});
+        spinner.set_option(ind::option::ShowSpinner{false});
+        spinner.set_option(ind::option::PostfixText{"Done."});
     }
 
     // Sort frames and prepare index entries
@@ -215,11 +285,14 @@ void PrecomputedDetectionCache::buildCache(const file::Path& csv_path, const fil
 
     std::vector<IndexEntry> entries;
     entries.reserve(frames.size());
-    const uint64_t content_offset = sizeof(Header) + sizeof(IndexEntry) * frames.size();
+    
+    const uint64_t content_offset =
+            sizeof(Header) + sizeof(FileIndexEntry) * frames.size();
+    
     uint64_t offset = content_offset;
     for (Frame_t f : frames) {
         uint32_t cnt = counts[f];
-        entries.push_back({f, offset, cnt});
+        entries.push_back({f, cnt, offset});
         offset += uint64_t(cnt) * sizeof(float) * 4;
     }
     uint32_t index_count  = static_cast<uint32_t>(entries.size());
@@ -252,6 +325,10 @@ void PrecomputedDetectionCache::buildCache(const file::Path& csv_path, const fil
     if (::ftruncate(fd, (off_t)total_size) != 0) { ::close(fd); throw RuntimeError("Cannot size cache file"); }
     ::close(fd);
 #endif
+    
+    {
+        bar.set_progress(0);
+    }
 
     cmn::DataFormat df(cache_path);
     df.start_writing(true);
@@ -275,20 +352,33 @@ void PrecomputedDetectionCache::buildCache(const file::Path& csv_path, const fil
         idx_lookup.emplace(e.frame, &e);
     
     // Write index table
-    for (auto& e : entries)
-        df.write(e);
+    for (auto& e : entries) {
+        FileIndexEntry fe{ e.frame.valid() ? static_cast<uint32_t>(e.frame.get()) : uint32_t(-1), e.count, e.offset };
+        df.write(fe);
+    }
     
     assert(content_offset == df.tell());
 
     // Remaining objects to write per frame (initialised with the counts)
     auto remaining = counts;          // copy – we will decrement
+    const double Nelements = counts.size();
 
     while (reader2.hasNext()) {
         row = reader2.nextRow();
 
         double rf = std::stod(row[*frame_idx]);
         if (rf < 0) continue;
-        Frame_t f{static_cast<uint32_t>(rf)};
+        if(rf >= double(std::numeric_limits<uint32_t>::max())) {
+            static bool warning_issued = false;
+            if(not warning_issued) {
+                FormatWarning("CSV provided frame number ", rf, " which is too large to be represented.");
+                warning_issued = true;
+            }
+            continue;
+        }
+        
+        auto f = Frame_t{static_cast<uint32_t>(rf)};
+        assert(f.valid());
 
         float x = std::stof(row[*x_idx]);
         float y = std::stof(row[*y_idx]);
@@ -309,10 +399,15 @@ void PrecomputedDetectionCache::buildCache(const file::Path& csv_path, const fil
         df.write<float>(w);
         df.write<float>(h);
 
-        if (--remaining[f] == 0)
+        if (--remaining[f] == 0) {
             remaining.erase(f);
+            bar.set_progress(remaining.size() / Nelements);
+        }
     }
     df.stop_writing();
+    
+    bar.set_progress(100);
+    bar.mark_as_completed();
 }
 
 PipelineManager<TileImage, true>& PrecomputedDetection::manager() {

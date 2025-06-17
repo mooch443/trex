@@ -196,9 +196,10 @@
                                                         },
                                                         {
                                                             "type":"settings",
-                                                            "corners":["right"],
+                                                            
                                                             "var":"gpu_torch_device",
                                                             "label":{
+                                                                "corners":["right"],
                                                                 "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,250]}",
                                                                 "fill":"{if:{||:{selected}:{hovered}}:[10,80,110,240]:[10,50,80,240]}",
                                                                 "font":{"size":0.65}
@@ -404,7 +405,7 @@
                                     "children":[
                                         {
                                             "type":"settings",
-                                            "corners":["left"],
+                                            "label":{ "corners":["left"] },
                                             "var":"detect_model",
                                             "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
                                             "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
@@ -445,6 +446,7 @@
                                                 "type":"stext",
                                                 "text":"<gray><b>Resolution</b>\nused to train the model</gray>",
                                                 "pad":[10,3,10,4],
+                                                "corners":["left"],
                                                 "fill":[30,30,30,100],
                                                 "line":[100,100,100,250]
                                             },
@@ -452,15 +454,20 @@
                                                 "type":"stext",
                                                 "text":"<gray><c><cyan>{at:0:{global.detect_resolution}}</cyan></c>px</gray>",
                                                 "pad":[10,12,10,14],
+                                                "corners":["right"],
                                                 "fill":[40,40,40,100],
                                                 "line":[100,100,100,250]
                                             },
-
-
+                                            {
+                                                "type":"rect",
+                                                "fill":[0,0,0,0],
+                                                "size":[10,5]
+                                            },
                                             {
                                                 "type":"stext",
                                                 "text":"<gray><b>Model Type</b>\nwhat it was trained to do</gray>",
                                                 "pad":[10,3,10,4],
+                                                "corners":["left"],
                                                 "fill":[30,30,30,100],
                                                 "line":[100,100,100,250]
                                             },
@@ -468,6 +475,7 @@
                                                 "type":"stext",
                                                 "text":"<gray><c><cyan>{global.detect_format}</cyan></c></gray>",
                                                 "pad":[10,13,10,15],
+                                                "corners":["right"],
                                                 "fill":[40,40,40,100],
                                                 "line":[100,100,100,250]
                                             }
@@ -599,7 +607,7 @@
                                 "children":[
                                     {
                                         "type":"settings",
-                                        "corners":["left"],
+                                        "label":{ "corners":["left"] },
                                         "name":"conditional_region_model",
                                         "var":"{if:{machine_learning}:'region_model':'detect_threshold'}",
                                         "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",

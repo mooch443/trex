@@ -37,4 +37,7 @@ struct TileImage {
     std::vector<Vec2> offsets() const {
         return _offsets;
     }
+    
+private:
+    static useMat_t& resized_image();
 };

@@ -1,8 +1,10 @@
 #include "TileImage.h"
 #include <python/TileBuffers.h>
 
-useMat_t resized, converted, thresholded;
-cv::Mat download_buffer;
+useMat_t& TileImage::resized_image() {
+    static useMat_t resized;
+    return resized;
+}
 
 void TileImage::move_back(Image::Ptr&& ptr) {
     buffers::TileBuffers::get().move_back(std::move(ptr));
@@ -38,10 +40,10 @@ TileImage::TileImage(const useMat_t& source, Image::Ptr&& original, Size2 tile_s
         || tile_size.height > source.rows)
     {
         source_size = tile_size;
-        cv::resize(source, resized, tile_size);
+        cv::resize(source, resized_image(), tile_size);
 
         auto buffer = buffers::TileBuffers::get().get(source_location::current());
-        buffer->create(resized);
+        buffer->create(resized_image());
         images.emplace_back(std::move(buffer));
         _offsets = { Vec2() };
 

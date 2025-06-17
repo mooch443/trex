@@ -84,6 +84,7 @@ public:
 private:
     static void buildCache(const file::Path& csv_path, const file::Path& cache_path);
 
+#pragma pack(push, 1)
     struct Header {
         union {
             struct { char tag[3]; uint8_t ver; } parts;
@@ -95,9 +96,16 @@ private:
 
     struct IndexEntry {
         Frame_t frame;
-        uint64_t offset;
         uint32_t count;
+        uint64_t offset;
     };
+    
+    struct FileIndexEntry {
+        uint32_t frame;
+        uint32_t count;
+        uint64_t offset;
+    };
+#pragma pack(pop)
     
     struct Offsets {
         uint64_t offset;
