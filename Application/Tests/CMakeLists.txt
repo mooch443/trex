@@ -49,6 +49,10 @@ else()
         endforeach()
 endif()
 
+if(WIN32)
+target_compile_options(test_matching PRIVATE /bigobj)
+endif()
+
 # Standard linking to gtest stuff.
 target_link_libraries(test_matching PUBLIC gtest gtest_main)
 target_link_libraries(test_strings PUBLIC gtest gtest_main)
