@@ -220,10 +220,32 @@ void PrecomputedDetectionCache::buildCache(const file::Path& csv_path, const fil
     uint64_t total_size   = offset;
 
     // Preallocate and map file
+#ifdef _WIN32
+    HANDLE hFile = CreateFileA(
+        cache_path.c_str(),
+        GENERIC_WRITE | GENERIC_READ,
+        0,
+        NULL,
+        CREATE_ALWAYS,
+        FILE_ATTRIBUTE_NORMAL,
+        NULL
+    );
+    if (hFile == INVALID_HANDLE_VALUE) {
+        throw RuntimeError("Cannot open cache for writing");
+    }
+    LARGE_INTEGER li{};
+    li.QuadPart = static_cast<LONGLONG>(total_size);
+    if (SetFilePointerEx(hFile, li, NULL, FILE_BEGIN) == 0 || SetEndOfFile(hFile) == 0) {
+        CloseHandle(hFile);
+        throw RuntimeError("Cannot size cache file");
+    }
+    CloseHandle(hFile);
+#else
     int fd = ::open(cache_path.c_str(), O_RDWR | O_CREAT, 0666);
     if (fd < 0) throw RuntimeError("Cannot open cache for writing");
     if (::ftruncate(fd, (off_t)total_size) != 0) { ::close(fd); throw RuntimeError("Cannot size cache file"); }
     ::close(fd);
+#endif
 
     cmn::DataFormat df(cache_path);
     df.start_writing(true);

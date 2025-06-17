@@ -844,8 +844,8 @@ int main(int argc, char**argv) {
             .filename = SETTING(filename).value<file::Path>(),
             .task = task,
             .type = SETTING(detect_type),
-            .quiet = false,
-            .source_map = cmd_options
+            .source_map = cmd_options,
+            .quiet = false
         });
         Print(SETTING(output_dir));
 
