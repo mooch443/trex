@@ -314,7 +314,7 @@
                             },
                             {
                                 "type":"gridlayout",
-                                "pad":[0,0,0,10],
+                                "pad":[0,0,0,0],
                                 "vertical_clr":[0,0,0,0],
                                 "horizontal_clr":[10,50,80,0],
                                 "cellfillclr":[60,60,60,150],

@@ -580,6 +580,7 @@
 
         {
             "type":"hlayout",
+            "z-index":1,
             "pad":[5,0,0,0],
             "pos":"[{-:{window_size.x}:10},6]",
             "origin":[1,0],
@@ -628,209 +629,217 @@
                     "color":[250,250,250,200]
                 },
 
-                {
-                    "type":"list",
-                    "size":[90,30],
-                    "clickable":true,
-                    "list":{
-                        "size":"[200,{-:{window_size.y}:50}]",
-                        "fill":[25,25,25,220],
-                        "line":[120,120,120,220]
-                    },
-                    "label":{
-                        "fill":[40,40,40,220],
-                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
-                        "font":{"size":0.6},
-                        "text":" <sym>🖵</sym> FOIs"
-                    },
-                    "item":{
-                        "color":[60,60,60,100],
-                        "pad":[8,0],
-                        "font":{"size":0.6,"align":"vcenter"}
-                    },
-                    "foldable":true,
-                    "folded":true,
-                    "var":"{concat:[\"uniqueness\"]:{global.gui_foi_types}}",
-                    "template":{
-                        "text":"{if:{equal:{global.gui_foi_name}:{i}}:'<sym>☑</sym> ':'<sym>☐</sym> '}{i}",
-                        "disabled":"{if:{equal:{global.gui_foi_name}:{i}}:true:false}",
-                        "action":"set:gui_foi_name:{i}"
-                    }
-                },
-
-                {
-                    "type":"list",
-                    "size":[90,30],
-                    "clickable":true,
-                    "list":{
-                        "size":"[200,{-:{window_size.y}:50}]",
-                        "fill":[25,25,25,220],
-                        "line":[120,120,120,220]
-                    },
-                    "label":{
-                        "fill":[40,40,40,220],
-                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
-                        "font":{"size":0.6},
-                        "text":" <sym>🖵</sym> Display"
-                    },
-                    "item":{
-                        "color":[60,60,60,100],
-                        "pad":[8,0],
-                        "font":{"size":0.6,"align":"vcenter"}
-                    },
-                    "detail":{
-                        "color":[150,150,150,255],
-                        "font":{"size":0.5,"align":"left"}
-                    },
-                    "foldable":true,
-                    "folded":true,
-                    "items":[
-                        {
-                            "text":"{if:{global.gui_show_selections}:'<sym>☑</sym> ':'<sym>☐</sym> <gray>'}Selection Circles{if:{global.gui_show_selections}:'':</gray>}",
-                            "action":"set:gui_show_selections:{not:{global.gui_show_selections}}"
-                        },
-                        {
-                            "text":"{if:{global.gui_show_video_background}:'<sym>☑</sym> ':'<sym>☐</sym> <gray>'}Video Background{if:{global.gui_show_video_background}:'':</gray>}",
-                            "action":"set:gui_show_video_background:{not:{global.gui_show_video_background}}"
-                        },
-                        {
-                            "text":"{if:{global.gui_show_blobs}:'<sym>☑</sym> ':'<sym>☐</sym> <gray>'}Blob Images{if:{global.gui_show_blobs}:'':</gray>}",
-                            "action":"set:gui_show_blobs:{not:{global.gui_show_blobs}}"
-                        },
-                        {
-                            "text":"{if:{global.gui_show_heatmap}:'<sym>☑</sym> ':'<sym>☐</sym> <gray>'}Heatmap{if:{global.gui_show_heatmap}:'':</gray>}",
-                            "action":"set:gui_show_heatmap:{not:{global.gui_show_heatmap}}"
-                        },
-                        {
-                            "text":"{if:{global.gui_show_posture}:'<sym>☑</sym> ':'<sym>☐</sym> <gray>'}Posture Preview{if:{global.gui_show_posture}:'':</gray>}",
-                            "action":"set:gui_show_posture:{not:{global.gui_show_posture}}"
-                        },
-                        {
-                            "text":"{if:{global.gui_show_midline}:'<sym>☑</sym> ':'<sym>☐</sym> <gray>'}Midline{if:{global.gui_show_midline}:'':</gray>}",
-                            "action":"set:gui_show_midline:{not:{global.gui_show_midline}}"
-                        },
-                        {
-                            "text":"{if:{global.gui_show_outline}:'<sym>☑</sym> ':'<sym>☐</sym> <gray>'}Outline{if:{global.gui_show_outline}:'':</gray>}",
-                            "action":"set:gui_show_outline:{not:{global.gui_show_outline}}"
-                        },
-                        {
-                            "text":"{if:{global.gui_show_visualfield}:'<sym>☑</sym> ':'<sym>☐</sym> <gray>'}Visual Field{if:{global.gui_show_visualfield}:'':</gray>}",
-                            "action":"set:gui_show_visualfield:{not:{global.gui_show_visualfield}}"
-                        },
-                        {
-                            "text":"{if:{global.gui_show_probabilities}:'<sym>☑</sym> ':'<sym>☐</sym> <gray>'}Probability Distribution{if:{global.gui_show_probabilities}:'':</gray>} ",
-                            "action":"set:gui_show_probabilities:{not:{global.gui_show_probabilities}}"
-                        },
-                        {
-                            "text":"{if:{global.gui_highlight_categories}:'<sym>☑</sym> ':'<sym>☐</sym> '}Categorization",
-                            "action":"set:gui_highlight_categories:{not:{global.gui_highlight_categories}}"
-                        },
-                        {
-                            "text":"{if:{global.gui_show_uniqueness}:'<sym>☑</sym> ':'<sym>☐</sym> <gray>'}Uniqueness (VI){if:{global.gui_show_uniqueness}:'':</gray>}",
-                            "detail":"<small>(VI needs to be loaded)</small>",
-                            "action":"set:gui_show_uniqueness:{not:{global.gui_show_uniqueness}}"
-                        },
-                        {
-                            "text":"{if:{global.gui_show_texts}:'<sym>☑</sym> ':'<sym>☐</sym> <gray>'}Text Labels{if:{global.gui_show_texts}:'':</gray>}",
-                            "action":"set:gui_show_texts:{not:{global.gui_show_texts}}"
-                        },
-                        {
-                            "text":"{if:{global.gui_show_paths}:'<sym>☑</sym> ':'<sym>☐</sym> <gray>'}Trajectories{if:{global.gui_show_paths}:'':</gray>}",
-                            "action":"set:gui_show_paths:{not:{global.gui_show_paths}}"
-                        },
-                        {
-                            "text":"{if:{global.gui_auto_scale_focus_one}:'<sym>☑</sym> ':'<sym>☐</sym> <gray>'}Zoom on Selection{if:{global.gui_auto_scale_focus_one}:'':</gray>}",
-                            "action":"set:gui_auto_scale_focus_one:{not:{global.gui_auto_scale_focus_one}}"
-                        },
-                        {
-                            "text":"{if:{global.gui_show_dataset}:'<sym>☑</sym> ':'<sym>☐</sym> <gray>'}Dataset information{if:{global.gui_show_dataset}:'':</gray>}",
-                            "action":"set:gui_show_dataset:{not:{global.gui_show_dataset}}"
-                        },
-                        {
-                            "text":"{if:{global.gui_show_skeletons}:'<sym>☑</sym> ':'<sym>☐</sym> <gray>'}Skeletons{if:{global.gui_show_skeletons}:'':</gray>}",
-                            "action":"set:gui_show_skeletons:{not:{global.gui_show_skeletons}}"
-                        },
-                        {
-                            "text":"{if:{global.gui_show_boundary_crossings}:'<sym>☑</sym> ':'<sym>☐</sym> <gray>'}Boundary Crossings{if:{global.gui_show_boundary_crossings}:'':</gray>}",
-                            "action":"set:gui_show_boundary_crossings:{not:{global.gui_show_boundary_crossings}}"
-                        }
-                    ]
-
-                },
                 { 
-                    "type":"list",
-                    "size":[75,30],
-                    "list":{
-                        "size":"[250,{-:{window_size.y}:50}]",
-                        "fill":[25,25,25,220],
-                        "line":[120,120,120,220]
-                    },
-                    "label":{
-                        "fill":[40,40,40,220],
-                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
-                        "font":{"size":0.6},
-                        "text":" <sym>☰</sym> Menu"
-                    },
-                    "item":{
-                        "pad":[8,5],
-                        "font":{"size":0.6},
-                        "color":[60,60,60,100]
-                    },
-                    "detail":{
-                        "color":[150,150,150,255],
-                        "font":{"size":0.5}
-                    },
-                    "foldable":true,
-                    "folded":true,
-                    "items":[
+                    "type":"hlayout",
+                    "children":[
                         {
-                            "text":"<sym>📤</sym> Load state",
-                            "detail":"loads existing .results file",
-                            "action":"load_results"
+                            "type":"list",
+                            "size":[90,30],
+                            "clickable":true,
+                            "list":{
+                                "size":"[200,{-:{window_size.y}:50}]",
+                                "fill":[25,25,25,220],
+                                "line":[120,120,120,220]
+                            },
+                            "label":{
+                                "fill":[40,40,40,220],
+                                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                                "font":{"size":0.6},
+                                "text":" <sym>🖵</sym> FOIs",
+                                "corners":["left"]
+                            },
+                            "item":{
+                                "color":[60,60,60,100],
+                                "pad":[8,0],
+                                "font":{"size":0.6,"align":"vcenter"}
+                            },
+                            "foldable":true,
+                            "folded":true,
+                            "var":"{concat:[\"uniqueness\"]:{global.gui_foi_types}}",
+                            "template":{
+                                "text":"{if:{equal:{global.gui_foi_name}:{i}}:'<sym>☑</sym> ':'<sym>☐</sym> '}{i}",
+                                "disabled":"{if:{equal:{global.gui_foi_name}:{i}}:true:false}",
+                                "action":"set:gui_foi_name:{i}"
+                            }
                         },
+
                         {
-                            "text":"<sym>📥</sym> Save state",
-                            "detail":"save current state to a .results file",
-                            "action":"save_results"
+                            "type":"list",
+                            "size":[90,30],
+                            "clickable":true,
+                            "list":{
+                                "size":"[200,{-:{window_size.y}:50}]",
+                                "fill":[25,25,25,220],
+                                "line":[120,120,120,220]
+                            },
+                            "label":{
+                                "fill":[40,40,40,220],
+                                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                                "font":{"size":0.6},
+                                "text":" <sym>🖵</sym> Display",
+                                "corners":["none"]
+                            },
+                            "item":{
+                                "color":[60,60,60,100],
+                                "pad":[8,0],
+                                "font":{"size":0.6,"align":"vcenter"}
+                            },
+                            "detail":{
+                                "color":[150,150,150,255],
+                                "font":{"size":0.5,"align":"left"}
+                            },
+                            "foldable":true,
+                            "folded":true,
+                            "items":[
+                                {
+                                    "text":"{if:{global.gui_show_selections}:'<sym>☑</sym> ':'<sym>☐</sym> <gray>'}Selection Circles{if:{global.gui_show_selections}:'':</gray>}",
+                                    "action":"set:gui_show_selections:{not:{global.gui_show_selections}}"
+                                },
+                                {
+                                    "text":"{if:{global.gui_show_video_background}:'<sym>☑</sym> ':'<sym>☐</sym> <gray>'}Video Background{if:{global.gui_show_video_background}:'':</gray>}",
+                                    "action":"set:gui_show_video_background:{not:{global.gui_show_video_background}}"
+                                },
+                                {
+                                    "text":"{if:{global.gui_show_blobs}:'<sym>☑</sym> ':'<sym>☐</sym> <gray>'}Blob Images{if:{global.gui_show_blobs}:'':</gray>}",
+                                    "action":"set:gui_show_blobs:{not:{global.gui_show_blobs}}"
+                                },
+                                {
+                                    "text":"{if:{global.gui_show_heatmap}:'<sym>☑</sym> ':'<sym>☐</sym> <gray>'}Heatmap{if:{global.gui_show_heatmap}:'':</gray>}",
+                                    "action":"set:gui_show_heatmap:{not:{global.gui_show_heatmap}}"
+                                },
+                                {
+                                    "text":"{if:{global.gui_show_posture}:'<sym>☑</sym> ':'<sym>☐</sym> <gray>'}Posture Preview{if:{global.gui_show_posture}:'':</gray>}",
+                                    "action":"set:gui_show_posture:{not:{global.gui_show_posture}}"
+                                },
+                                {
+                                    "text":"{if:{global.gui_show_midline}:'<sym>☑</sym> ':'<sym>☐</sym> <gray>'}Midline{if:{global.gui_show_midline}:'':</gray>}",
+                                    "action":"set:gui_show_midline:{not:{global.gui_show_midline}}"
+                                },
+                                {
+                                    "text":"{if:{global.gui_show_outline}:'<sym>☑</sym> ':'<sym>☐</sym> <gray>'}Outline{if:{global.gui_show_outline}:'':</gray>}",
+                                    "action":"set:gui_show_outline:{not:{global.gui_show_outline}}"
+                                },
+                                {
+                                    "text":"{if:{global.gui_show_visualfield}:'<sym>☑</sym> ':'<sym>☐</sym> <gray>'}Visual Field{if:{global.gui_show_visualfield}:'':</gray>}",
+                                    "action":"set:gui_show_visualfield:{not:{global.gui_show_visualfield}}"
+                                },
+                                {
+                                    "text":"{if:{global.gui_show_probabilities}:'<sym>☑</sym> ':'<sym>☐</sym> <gray>'}Probability Distribution{if:{global.gui_show_probabilities}:'':</gray>} ",
+                                    "action":"set:gui_show_probabilities:{not:{global.gui_show_probabilities}}"
+                                },
+                                {
+                                    "text":"{if:{global.gui_highlight_categories}:'<sym>☑</sym> ':'<sym>☐</sym> '}Categorization",
+                                    "action":"set:gui_highlight_categories:{not:{global.gui_highlight_categories}}"
+                                },
+                                {
+                                    "text":"{if:{global.gui_show_uniqueness}:'<sym>☑</sym> ':'<sym>☐</sym> <gray>'}Uniqueness (VI){if:{global.gui_show_uniqueness}:'':</gray>}",
+                                    "detail":"<small>(VI needs to be loaded)</small>",
+                                    "action":"set:gui_show_uniqueness:{not:{global.gui_show_uniqueness}}"
+                                },
+                                {
+                                    "text":"{if:{global.gui_show_texts}:'<sym>☑</sym> ':'<sym>☐</sym> <gray>'}Text Labels{if:{global.gui_show_texts}:'':</gray>}",
+                                    "action":"set:gui_show_texts:{not:{global.gui_show_texts}}"
+                                },
+                                {
+                                    "text":"{if:{global.gui_show_paths}:'<sym>☑</sym> ':'<sym>☐</sym> <gray>'}Trajectories{if:{global.gui_show_paths}:'':</gray>}",
+                                    "action":"set:gui_show_paths:{not:{global.gui_show_paths}}"
+                                },
+                                {
+                                    "text":"{if:{global.gui_auto_scale_focus_one}:'<sym>☑</sym> ':'<sym>☐</sym> <gray>'}Zoom on Selection{if:{global.gui_auto_scale_focus_one}:'':</gray>}",
+                                    "action":"set:gui_auto_scale_focus_one:{not:{global.gui_auto_scale_focus_one}}"
+                                },
+                                {
+                                    "text":"{if:{global.gui_show_dataset}:'<sym>☑</sym> ':'<sym>☐</sym> <gray>'}Dataset information{if:{global.gui_show_dataset}:'':</gray>}",
+                                    "action":"set:gui_show_dataset:{not:{global.gui_show_dataset}}"
+                                },
+                                {
+                                    "text":"{if:{global.gui_show_skeletons}:'<sym>☑</sym> ':'<sym>☐</sym> <gray>'}Skeletons{if:{global.gui_show_skeletons}:'':</gray>}",
+                                    "action":"set:gui_show_skeletons:{not:{global.gui_show_skeletons}}"
+                                },
+                                {
+                                    "text":"{if:{global.gui_show_boundary_crossings}:'<sym>☑</sym> ':'<sym>☐</sym> <gray>'}Boundary Crossings{if:{global.gui_show_boundary_crossings}:'':</gray>}",
+                                    "action":"set:gui_show_boundary_crossings:{not:{global.gui_show_boundary_crossings}}"
+                                }
+                            ]
+
                         },
-                        {
-                            "text":"<sym>🖫</sym> Export data",
-                            "detail":"exports tracking data",
-                            "action":"export_data"
-                        },
-                        {
-                            "text":"<sym>🛠</sym> Save config",
-                            "detail":"writes parameters to a .settings file",
-                            "action":"write_config"
-                        },
-                        {
-                            "text":"<sym>🎭</sym> Train visual identification (VI)",
-                            "detail":"learn differences between individuals",
-                            "action":"visual_identification",
-                            "disabled":"{if:{||:{is_checking_tracklet_identities}:{vi_busy}}:true:false}"
-                        },
-                        {
-                            "text":"<sym>👽</sym> Clear VI predictions",
-                            "detail":"clears all existing VI predictions",
-                            "action":"clear_ml",
-                            "disabled":"{if:{||:{is_checking_tracklet_identities}:{vi_busy}}:true:false}"
-                        },
-                        {
-                            "text":"<sym>👽</sym> Categorize",
-                            "detail":"differentiate types of individuals",
-                            "action":"categorize",
-                            "disabled":"{if:{||:{is_checking_tracklet_identities}:{vi_busy}}:true:false}"
-                        },
-                        {
-                            "text":"<sym>🢤</sym> Close file",
-                            "detail":"go back to the starting screen",
-                            "action":"change_scene:'starting-scene'",
-                            "disabled":false
-                        },
-                        {
-                            "text":"<sym>⏻</sym> Quit",
-                            "detail":"exits the application",
-                            "action":"quit"
+                        { 
+                            "type":"list",
+                            "size":[75,30],
+                            "list":{
+                                "size":"[250,{-:{window_size.y}:50}]",
+                                "fill":[25,25,25,220],
+                                "line":[120,120,120,220]
+                            },
+                            "label":{
+                                "fill":[40,40,40,220],
+                                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                                "font":{"size":0.6},
+                                "text":" <sym>☰</sym> Menu",
+                                "corners":["right"]
+                            },
+                            "item":{
+                                "pad":[8,5],
+                                "font":{"size":0.6},
+                                "color":[60,60,60,100]
+                            },
+                            "detail":{
+                                "color":[150,150,150,255],
+                                "font":{"size":0.5}
+                            },
+                            "foldable":true,
+                            "folded":true,
+                            "items":[
+                                {
+                                    "text":"<sym>📤</sym> Load state",
+                                    "detail":"loads existing .results file",
+                                    "action":"load_results"
+                                },
+                                {
+                                    "text":"<sym>📥</sym> Save state",
+                                    "detail":"save current state to a .results file",
+                                    "action":"save_results"
+                                },
+                                {
+                                    "text":"<sym>🖫</sym> Export data",
+                                    "detail":"exports tracking data",
+                                    "action":"export_data"
+                                },
+                                {
+                                    "text":"<sym>🛠</sym> Save config",
+                                    "detail":"writes parameters to a .settings file",
+                                    "action":"write_config"
+                                },
+                                {
+                                    "text":"<sym>🎭</sym> Train visual identification (VI)",
+                                    "detail":"learn differences between individuals",
+                                    "action":"visual_identification",
+                                    "disabled":"{if:{||:{is_checking_tracklet_identities}:{vi_busy}}:true:false}"
+                                },
+                                {
+                                    "text":"<sym>👽</sym> Clear VI predictions",
+                                    "detail":"clears all existing VI predictions",
+                                    "action":"clear_ml",
+                                    "disabled":"{if:{||:{is_checking_tracklet_identities}:{vi_busy}}:true:false}"
+                                },
+                                {
+                                    "text":"<sym>👽</sym> Categorize",
+                                    "detail":"differentiate types of individuals",
+                                    "action":"categorize",
+                                    "disabled":"{if:{||:{is_checking_tracklet_identities}:{vi_busy}}:true:false}"
+                                },
+                                {
+                                    "text":"<sym>🢤</sym> Close file",
+                                    "detail":"go back to the starting screen",
+                                    "action":"change_scene:'starting-scene'",
+                                    "disabled":false
+                                },
+                                {
+                                    "text":"<sym>⏻</sym> Quit",
+                                    "detail":"exits the application",
+                                    "action":"quit"
+                                }
+                            ]
                         }
                     ]
                 }

@@ -272,7 +272,7 @@
                                 "var":"{machine_learning}",
                                 "then": {
                                     "type":"gridlayout",
-                                    "pad":[0,0,15,5],
+                                    "pad":[0,0,15,0],
                                     "cellfillclr":[60,60,60,150],
                                     "celllineclr":[100,100,100,50],
                                     "cellfillinterval":2,
@@ -285,7 +285,7 @@
                                             },
                                             {
                                                 "type":"settings",
-                                                "corners":["right"],
+                                                "corners":["topright"],
                                                 "var":"detect_iou_threshold",
                                                 "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
                                                 "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
@@ -332,7 +332,7 @@
                                             },
                                             {
                                                 "type":"settings",
-                                                "corners":["right"],
+                                                "corners":["bottomright"],
                                                 "var":"detect_size_filter",
                                                 "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
                                                 "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
