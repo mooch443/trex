@@ -44,6 +44,8 @@ static void resetGlobalSettings()
     
     SETTING(track_max_speed) = Settings::track_max_speed_t{10};
     SETTING(track_size_filter) = Settings::track_size_filter_t{};
+
+    SETTING(individual_image_size) = Size2(48, 48);
 }
 
 TEST(PrecomputeTest, LoadTable)

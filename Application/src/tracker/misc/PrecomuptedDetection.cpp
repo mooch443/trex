@@ -188,7 +188,13 @@ void PrecomputedDetectionCache::buildCache(const file::Path& csv_path, const fil
         is_centroid = false;
     }
     
-    auto default_size = SETTING(individual_image_size).value<Size2>();
+    Size2 default_size;
+    if (GlobalSettings::map().is_type<Size2>("individual_image_size"))
+        default_size = SETTING(individual_image_size).value<Size2>();
+    else {
+        default_size = Size2(80, 80);
+        FormatWarning("[precomputed] individual_image_size is not set.");
+    }
 
     // First pass: count objects per frame
     std::unordered_map<Frame_t, uint32_t> counts;
