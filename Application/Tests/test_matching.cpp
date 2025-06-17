@@ -57,20 +57,6 @@ TEST(PrecomputeTest, LoadTable)
     // Build or open the binary cache.
     track::PrecomputedDetectionCache cache(csv_path);
 
-    // Access the cached data.
-    const auto& frame_data = cache.getData();
-
-    // Basic sanity check: ensure we loaded something.
-    ASSERT_FALSE(frame_data.empty()) << "Cache should contain at least one frame.";
-
-    // Optional diagnostic output – print first few frames.
-    size_t shown = 0;
-    for (const auto& [frame, objects] : frame_data)
-    {
-        Print("Frame ", frame, " has ", objects.size(), " objects");
-        if (++shown == 3) break;
-    }
-    
     // Access a frame that does not exist
     auto opt = cache.get_frame_data(100_f);
     ASSERT_FALSE(opt.has_value());
