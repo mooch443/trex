@@ -562,18 +562,16 @@ void Segmenter::trigger_average_generator(bool do_generate_average, cv::Mat& bg)
         
     } else {
         Image::Ptr ptr;
-        cv::Mat mat;
         
         try {
             ptr = finalize_bg_image(bg);
-            mat = ptr->get();
             
             if(detection_type() == ObjectDetectionType::background_subtraction)
-                BackgroundSubtraction::set_background(std::move(ptr));
+                BackgroundSubtraction::set_background(Image::Make(*ptr));
             else if(detection_type() == ObjectDetectionType::precomputed)
-                PrecomputedDetection::set_background(std::move(ptr), Background::meta_encoding());
+                PrecomputedDetection::set_background(Image::Make(*ptr), Background::meta_encoding());
             else if(detection_type() == ObjectDetectionType::yolo)
-                YOLO::set_background(std::move(ptr));
+                YOLO::set_background(Image::Make(*ptr));
             else
                 throw RuntimeError("Unknown detection_type of ", detection_type(), " when setting average image.");
             
@@ -584,6 +582,7 @@ void Segmenter::trigger_average_generator(bool do_generate_average, cv::Mat& bg)
         }
         
         try {
+			cv::Mat mat = ptr->get();
             callback_after_generating(mat);
             
         } catch(const std::exception& ex) {

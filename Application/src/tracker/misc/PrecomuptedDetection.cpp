@@ -5,6 +5,8 @@
 #include <misc/TrackingSettings.h>
 #include <file/CSVReader.h>
 #include <misc/indicators.h>
+#include <indicators/indeterminate_progress_bar.hpp>
+#include <indicators/cursor_control.hpp>
 
 namespace ind = indicators;
 
@@ -211,46 +213,26 @@ void PrecomputedDetectionCache::buildCache(const file::Path& csv_path, const fil
         FormatWarning("[precomputed] individual_image_size is not set.");
     }
 
-    ind::ProgressBar bar{
-        ind::option::BarWidth{50},
-        ind::option::Start{"["},
-/*#ifndef _WIN32
-        ind::option::Fill{"█"},
-        ind::option::Lead{"▂"},
-        ind::option::Remainder{"▁"},
-#else*/
-        ind::option::Fill{"="},
-        ind::option::Lead{">"},
-        ind::option::Remainder{" "},
-//#endif
-        ind::option::End{"]"},
-        ind::option::PostfixText{"Writing cache..."},
-        ind::option::ShowPercentage{true},
-        ind::option::ShowElapsedTime{true},
-        ind::option::ShowRemainingTime{true},
+    ind::show_console_cursor(false);
+    ind::IndeterminateProgressBar prog{
         ind::option::ForegroundColor{ind::Color::white},
-        ind::option::FontStyles{std::vector<ind::FontStyle>{ind::FontStyle::bold}}
+        ind::option::PostfixText{"Reading CSV header..."},
+        indicators::option::Start{"["},
+        indicators::option::Fill{"."},
+        indicators::option::Lead{"<==>"},
+        indicators::option::End{"]"},
+		ind::option::BarWidth{40}
     };
-    
-    ind::ProgressSpinner spinner{
-        ind::option::PostfixText{"Counting objects..."},
-        ind::option::ForegroundColor{ind::Color::white},
-        ind::option::SpinnerStates{std::vector<std::string>{
-            //"⣾","⣽","⣻","⢿","⡿","⣟","⣯","⣷"
-            //"◢","◣","◤","◥",
-            //"◜◞", "◟◝", "◜◞", "◟◝"
-            " ◴"," ◷"," ◶"," ◵"
-            //"⠈", "⠐", "⠠", "⢀", "⡀", "⠄", "⠂", "⠁"
-        }},
-        ind::option::FontStyles{std::vector<ind::FontStyle>{ind::FontStyle::bold}}
-    };
-    
+
     // First pass: count objects per frame
     std::unordered_map<Frame_t, uint32_t> counts;
     std::vector<std::string> row;
+    Timer timer;
+    uint64_t num_rows = 0;
     while (reader1.hasNext()) {
         row = reader1.nextRow();
-        
+        ++num_rows;
+
         double rf = std::stod(row[*frame_idx]);
         if (rf < 0) continue;
         if(rf >= double(std::numeric_limits<uint32_t>::max())) {
@@ -266,15 +248,17 @@ void PrecomputedDetectionCache::buildCache(const file::Path& csv_path, const fil
         assert(frame.valid());
         counts[frame]++;
         
-        if(frame.get() % 100 == 0)
-            spinner.tick();
+        if (timer.elapsed() >= 0.1) {
+            prog.tick();
+			timer.reset();
+        }
     }
     
     {
-        spinner.set_option(ind::option::ForegroundColor{ind::Color::green});
-        spinner.set_option(ind::option::PrefixText{"✔"});
-        spinner.set_option(ind::option::ShowSpinner{false});
-        spinner.set_option(ind::option::PostfixText{"Done."});
+        prog.set_option(ind::option::ForegroundColor{ind::Color::green});
+        prog.set_option(ind::option::PrefixText{"✔"});
+        prog.set_option(ind::option::PostfixText{"Done."});
+        prog.mark_as_completed();
     }
 
     // Sort frames and prepare index entries
@@ -326,9 +310,28 @@ void PrecomputedDetectionCache::buildCache(const file::Path& csv_path, const fil
     ::close(fd);
 #endif
     
-    {
-        bar.set_progress(0);
-    }
+    ind::ProgressBar bar{
+        ind::option::BarWidth{40},
+        ind::option::Start{"["},
+        /*#ifndef _WIN32
+                ind::option::Fill{"█"},
+                ind::option::Lead{"▂"},
+                ind::option::Remainder{"▁"},
+        #else*/
+        ind::option::Fill{"="},
+        ind::option::Lead{">"},
+        ind::option::Remainder{" "},
+        //#endif
+        ind::option::End{"]"},
+        ind::option::PostfixText{"Writing cache..."},
+        ind::option::ShowPercentage{true},
+        ind::option::ShowElapsedTime{true},
+        ind::option::ShowRemainingTime{true},
+        ind::option::ForegroundColor{ind::Color::white},
+        ind::option::FontStyles{std::vector<ind::FontStyle>{ind::FontStyle::bold}}
+    };
+
+    bar.set_progress(0);
 
     cmn::DataFormat df(cache_path);
     df.start_writing(true);
@@ -361,10 +364,11 @@ void PrecomputedDetectionCache::buildCache(const file::Path& csv_path, const fil
 
     // Remaining objects to write per frame (initialised with the counts)
     auto remaining = counts;          // copy – we will decrement
-    const double Nelements = counts.size();
+    size_t i = 0;
 
     while (reader2.hasNext()) {
         row = reader2.nextRow();
+        ++i;
 
         double rf = std::stod(row[*frame_idx]);
         if (rf < 0) continue;
@@ -401,13 +405,14 @@ void PrecomputedDetectionCache::buildCache(const file::Path& csv_path, const fil
 
         if (--remaining[f] == 0) {
             remaining.erase(f);
-            bar.set_progress(remaining.size() / Nelements);
+            bar.set_progress(double(i) / double(num_rows) * 100);
         }
     }
     df.stop_writing();
     
     bar.set_progress(100);
     bar.mark_as_completed();
+    ind::show_console_cursor(true);
 }
 
 PipelineManager<TileImage, true>& PrecomputedDetection::manager() {

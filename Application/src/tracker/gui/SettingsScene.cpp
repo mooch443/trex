@@ -410,7 +410,7 @@ struct SettingsScene::Data {
                         });
                     }),
                     ActionFunc("convert", [this](auto){
-                        DebugHeader("Converting ", SETTING(source).value<file::PathArray>());
+                        DebugHeader("Converting ", utils::ShortenText(SETTING(source).value<file::PathArray>().toStr(), 100));
                         
                         auto f = WorkProgress::add_queue("", [this, copy = get_changed_props()]() {
                             Print("changed props = ", copy.keys());
