@@ -5,6 +5,7 @@
 #include <file/Path.h>
 #include <misc/ranges.h>
 #include <tracking/OutputLibraryTypes.h>
+#include <misc/SpriteMap.h>
 
 namespace cmn::gui {
 class Graph;
@@ -25,7 +26,7 @@ namespace Output {
     
     class Library {
         static std::atomic<cmn::Vec2>& CENTER();
-        static cmn::CallbackCollection _callback;
+        static cmn::sprite::CallbackFuture _callback;
         
     public:
         

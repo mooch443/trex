@@ -39,7 +39,7 @@ namespace Output {
     std::map<std::string, Library::FunctionType> _cache_func;
     cached_output_fields_t _options_map;
     default_config::default_options_type _output_defaults;
-    CallbackCollection _callback_id;
+    sprite::CallbackFuture _callback_id;
 
     struct LibraryFuncProperties {
         bool is_global{false};
@@ -1143,7 +1143,7 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
         });
         
         GlobalSettings::map().register_shutdown_callback([](auto) {
-            _callback_id.reset();
+            _callback_id.collection.reset();
         });
         
         lock.unlock();

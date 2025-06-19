@@ -105,7 +105,7 @@ template<> uint64_t Data::write(const blob::Prediction& val) {
 namespace pv {
     // used to register for global settings updates
     static std::atomic_bool use_differences(false);
-    static CallbackCollection _callback;
+    static sprite::CallbackFuture _callback;
 
     /**
      * If there is a task that is async (and can be run read-only for example) and e.g. continously calls "read_frame", then a task sentinel can be registered. This prevents the file from being destroyed until the task is done.
@@ -308,7 +308,7 @@ File::File(const file::Path& filename, FileMode mode, std::optional<meta_encodin
                 use_differences = SETTING(use_differences).value<bool>();
             });
             GlobalSettings::map().register_shutdown_callback([](auto){
-                _callback.reset();
+                _callback.collection.reset();
             });
         });
         

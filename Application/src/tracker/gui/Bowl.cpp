@@ -32,7 +32,7 @@ struct Bowl::Data {
     
     std::map<Shape, std::unique_ptr<Drawable>> _include_shapes, _ignore_shapes, _vf_shapes;
     std::atomic<bool> _shapes_updated{true};
-    CallbackCollection _callback;
+    sprite::CallbackFuture _callback;
     
     bool _was_shift_pressed{false};
     std::vector<Vec2> _gui_zoom_polygon;

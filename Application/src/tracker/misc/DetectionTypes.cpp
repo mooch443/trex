@@ -84,7 +84,7 @@ cmn::blob::MaybeObjectClass_t names_owner;
 std::optional<map_t> easy_cp_names_reference;
 std::optional<vec_t> easy_cp_names_vector;
 
-CallbackCollection callbacks;
+sprite::CallbackFuture callbacks;
 
 void check_callbacks() {
     static std::once_flag flag;

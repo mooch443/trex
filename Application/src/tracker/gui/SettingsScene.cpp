@@ -37,7 +37,7 @@ struct SettingsScene::Data {
     std::future<void> check_new_video_source;
     
     dyn::DynamicGUI dynGUI;
-    CallbackCollection callback;
+    sprite::CallbackFuture callback;
     std::string layout_name { "choose_settings_layout.json" };
     
     std::unordered_map<std::string, std::future<bool>> _scheduled_exist_checks;

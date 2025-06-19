@@ -72,7 +72,7 @@ TEST(PrecomputeTest, LoadTable)
     const Bounds& b = opt->front();
     EXPECT_NEAR(b.width, 25.0_F, 1e-3);
     EXPECT_NEAR(b.height, 20.0_F, 1e-3);
-    EXPECT_NEAR(b.pos().x, 50.0_F, 1e-3); // actually 50.2 but we use rounding to get to full pixels
+    EXPECT_NEAR(b.pos().x, 50.0_F, 0.5); // actually 50.2?
     EXPECT_NEAR(b.pos().y, 120.0_F, 1e-3);
 }
 

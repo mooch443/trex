@@ -92,7 +92,7 @@ struct TrackingScene::Data {
     std::unique_ptr<track::UniquenessProvider> _uniqueness_provider;
     
     std::atomic<FrameRange> _analysis_range;
-    CallbackCollection _callback;
+    sprite::CallbackFuture _callback;
     Vec2 _last_mouse;
     Vec2 _bowl_mouse;
     bool _zoom_dirty{false};

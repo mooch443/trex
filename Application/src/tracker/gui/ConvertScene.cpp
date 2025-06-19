@@ -68,7 +68,7 @@ struct ConvertScene::Data {
     std::map<Idx_t, std::shared_ptr<constraints::FilterCache>> filter_cache;
     std::map<Idx_t, BdxAndPred> fish_selected_blobs;
     
-    CallbackCollection callback;
+    sprite::CallbackFuture callback;
     std::optional<blob::Pose::Skeletons> skelet;
     
     std::mutex _current_json_mutex;

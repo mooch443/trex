@@ -55,7 +55,7 @@ struct BlobView {
     derived_ptr<::gui::Polygon> _bdry_polygon;
     
     std::string gui_blob_label;
-    CallbackCollection callback;
+    sprite::CallbackFuture callback;
     
     dyn::Context context;
     dyn::State state;
