@@ -220,7 +220,7 @@ File::File(const file::Path& filename, FileMode mode, std::optional<meta_encodin
         return std::make_unique<pv::Blob>(*_mask[i],
                 encoding() != meta_encoding_t::binary
                     ? *_pixels[i]
-                    : std::vector<uchar>{},
+                    : PixelArray_t{},
                 _flags[i],
                 _predictions.empty()
                     ? blob::Prediction{}
@@ -423,12 +423,12 @@ File::File(const file::Path& filename, FileMode mode, std::optional<meta_encodin
             if(target_channels > 0
                && channels == target_channels)
             {
-                auto v = std::make_unique<std::vector<uchar>>((uchar*)ref.frame_pixels.data(),
+                auto v = std::make_unique<PixelArray_t>((uchar*)ref.frame_pixels.data(),
                                                               (uchar*)ref.frame_pixels.data() + num_pixels * channels);
                 _pixels.emplace_back(std::move(v));
                 
             } else if(target_channels > 0) {
-                auto v = std::make_unique<std::vector<uchar>>();
+                auto v = std::make_unique<PixelArray_t>();
                 
                 call_image_mode_function(InputInfo{
                     .channels = channels,
@@ -528,7 +528,7 @@ File::File(const file::Path& filename, FileMode mode, std::optional<meta_encodin
         _n++;
     }
 
-void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vector<uchar>& pixels, uint8_t flags, const blob::Prediction& pred)
+void Frame::add_object(const std::vector<HorizontalLine>& mask, const PixelArray_t& pixels, uint8_t flags, const blob::Prediction& pred)
 {
     assert(mask.size() < UINT16_MAX);
     if(mask.empty()) {
@@ -622,7 +622,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
         }
         
         // copy grey values to pixels array
-        auto pixels = std::make_unique<std::vector<uchar>>();
+        auto pixels = std::make_unique<PixelArray_t>();
         pixels->resize(overall * channels);
         //uchar *pixels = (uchar*)malloc(overall);
         
@@ -748,6 +748,8 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const std::vecto
                     if (_compression_samples > 1000) {
                         _compression_value = _compression_value / _compression_samples;
                         _compression_samples = 1;
+                        
+                        Print(" ** compression results: ", _compression_value * 100, "%");
                     }
 
                     _compression_value = _compression_value + size / float(in_len);

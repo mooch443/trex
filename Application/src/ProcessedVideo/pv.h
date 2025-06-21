@@ -159,7 +159,7 @@ namespace pv {
          * ! takes ownership of both arrays
          **/
         void add_object(blob::Pair&& pair);
-        void add_object(const std::vector<HorizontalLine>& mask, const std::vector<uchar>& pixels, uint8_t flags, const cmn::blob::Prediction&);
+        void add_object(const std::vector<HorizontalLine>& mask, const PixelArray_t& pixels, uint8_t flags, const cmn::blob::Prediction&);
 
         uint64_t size() const noexcept;
         void clear();

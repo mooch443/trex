@@ -364,7 +364,7 @@ void YOLO::process_obbs(
         //bounds = bounds.mul(scale_factor);
         bounds.restrict_to(Bounds(0, 0, w, h));
         
-        std::vector<uchar> pixels;
+        cmn::PixelArray_t pixels;
         std::vector<HorizontalLine> lines;
         
         int ymin = bounds.y;
@@ -518,7 +518,7 @@ void YOLO::process_boxes_only(
         //bounds = bounds.mul(scale_factor);
         bounds.restrict_to(Bounds(0, 0, w, h));
         
-        std::vector<uchar> pixels;
+        cmn::PixelArray_t pixels;
         std::vector<HorizontalLine> lines;
 
         for (int y = bounds.y; y < bounds.y + bounds.height; ++y) {

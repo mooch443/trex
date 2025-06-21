@@ -760,7 +760,7 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
     }
     
     if(best_match.threshold != -1) {
-        std::vector<uchar> grey;
+        cmn::PixelArray_t grey;
         
         for (auto& blob : best_match.blobs) {
             if(!blob->pixels()) {
@@ -774,7 +774,7 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
                     N += n;
                 }
                 
-                blob->set_pixels(std::make_unique<std::vector<uchar>>(std::move(grey)));
+                blob->set_pixels(std::make_unique<cmn::PixelArray_t>(std::move(grey)));
                 //result.pixels.push_back(grey);
             }
         }

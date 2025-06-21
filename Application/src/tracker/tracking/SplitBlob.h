@@ -56,7 +56,7 @@ private:
     
     // parameters
     pv::BlobWeakPtr _blob;
-    std::vector<uchar> _diff_px;
+    cmn::PixelArray_t _diff_px;
     cmn::CPULabeling::ListCache_t* _cache{nullptr};
     
 public:

@@ -6,6 +6,7 @@
 #include <misc/TrackingSettings.h>
 #include <tracking/Posture.h>
 #include <processing/LuminanceGrid.h>
+#include <processing/HLine.h>
 
 using namespace cmn;
 using namespace track;
@@ -404,6 +405,128 @@ TEST(ConvertFromR3G3B2Test, AlphaChannel) {
     EXPECT_EQ(output.at<cv::Vec4b>(0, 0), cv::Vec4b(192, 0, 0, 192)); // Red with alpha
 }
 
+// -----------------------------------------------------------------------------
+// Additional HLine32 performance benchmarks
+// -----------------------------------------------------------------------------
+TEST(PerformanceTest, HLine32ConstructorAndAccess) {
+    const int iterations = 1000000;
+    using HLine32 = cmn::CPULabeling::Line32;
+    std::vector<HLine32, NoInitializeAllocator<HLine32>> lines;
+    lines.reserve(iterations);
+    auto start = std::chrono::steady_clock::now();
+    for(int i = 0; i < iterations; ++i) {
+        uint16_t x0 = i & 0x1FFF;
+        uint16_t x1 = x0 + (i & 0x3F);
+        uint16_t y  = i & 0x1FFF;
+        HLine32 line(x0, x1, y);
+        volatile auto vx0 = line.x0();
+        volatile auto vy  = line.y();
+        lines.push_back(line);
+    }
+    auto end = std::chrono::steady_clock::now();
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+    Print("HLine32 constructor and x0/y access: ", ms, " ms");
+    SUCCEED();
+}
+
+TEST(PerformanceTest, HLine32BatchConstructionAndDestruction) {
+    const int batches = 1000;
+    const int batchSize = 10000;
+    using HLine32 = cmn::CPULabeling::Line32;
+    auto start = std::chrono::steady_clock::now();
+    for(int j = 0; j < batches; ++j) {
+        std::vector<HLine32, NoInitializeAllocator<HLine32>> lines;
+        lines.reserve(batchSize);
+        for(int i = 0; i < batchSize; ++i) {
+            lines.emplace_back(i & 0x1FFF, (i & 0x1FFF) + (i & 0x3F), i & 0x1FFF);
+        }
+    }
+    auto end = std::chrono::steady_clock::now();
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+    Print("HLine32 batch construction and destruction: ", ms, " ms");
+    SUCCEED();
+}
+
+TEST(PerformanceTest, HLine32MoveConstruction) {
+    const int iterations = 100000;
+    using HLine32 = cmn::CPULabeling::Line32;
+    std::vector<HLine32, NoInitializeAllocator<HLine32>> src;
+    src.reserve(iterations);
+    for(int i = 0; i < iterations; ++i) {
+        src.emplace_back(i & 0x1FFF, (i & 0x1FFF) + (i & 0x3F), i & 0x1FFF);
+    }
+    auto start = std::chrono::steady_clock::now();
+    std::vector<HLine32, NoInitializeAllocator<HLine32>> dst = std::move(src);
+    auto end = std::chrono::steady_clock::now();
+    auto us = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    Print("HLine32 move construction (microseconds): ", us, " us");
+    SUCCEED();
+}
+
+// -----------------------------------------------------------------------------
+// HorizontalLine performance benchmarks
+// -----------------------------------------------------------------------------
+TEST(PerformanceTest, HorizontalLineConstructorAndAccess) {
+    const int iterations = 1000000;
+    using HL = cmn::HorizontalLine;
+    std::vector<HL, NoInitializeAllocator<HL>> lines;
+    lines.reserve(iterations);
+    auto start = std::chrono::steady_clock::now();
+    for(int i = 0; i < iterations; ++i) {
+        uint16_t x0 = i & 0x1FFF;
+        uint16_t x1 = x0 + (i & 0x3F);
+        uint16_t y  = i & 0x1FFF;
+        HL line(y, x0, x1);
+        volatile auto vx0 = line.x0;
+        volatile auto vy  = line.y;
+        lines.push_back(line);
+    }
+    auto end = std::chrono::steady_clock::now();
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+    Print("HorizontalLine constructor and x0/y access: ", ms, " ms");
+    SUCCEED();
+}
+
+TEST(PerformanceTest, HorizontalLineBatchConstructionAndDestruction) {
+    const int batches = 1000;
+    const int batchSize = 10000;
+    using HL = cmn::HorizontalLine;
+    auto start = std::chrono::steady_clock::now();
+    for(int j = 0; j < batches; ++j) {
+        std::vector<HL, NoInitializeAllocator<HL>> lines;
+        lines.reserve(batchSize);
+        for(int i = 0; i < batchSize; ++i) {
+            uint16_t y  = i & 0x1FFF;
+            uint16_t x0 = i & 0x1FFF;
+            uint16_t x1 = x0 + (i & 0x3F);
+            lines.emplace_back(y, x0, x1);
+        }
+    }
+    auto end = std::chrono::steady_clock::now();
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+    Print("HorizontalLine batch construction and destruction: ", ms, " ms");
+    SUCCEED();
+}
+
+TEST(PerformanceTest, HorizontalLineMoveConstruction) {
+    const int iterations = 100000;
+    using HL = cmn::HorizontalLine;
+    std::vector<HL, NoInitializeAllocator<HL>> src;
+    src.reserve(iterations);
+    for(int i = 0; i < iterations; ++i) {
+        uint16_t y  = i & 0x1FFF;
+        uint16_t x0 = i & 0x1FFF;
+        uint16_t x1 = x0 + (i & 0x3F);
+        src.emplace_back(y, x0, x1);
+    }
+    auto start = std::chrono::steady_clock::now();
+    std::vector<HL, NoInitializeAllocator<HL>> dst = std::move(src);
+    auto end = std::chrono::steady_clock::now();
+    auto us = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    Print("HorizontalLine move construction (microseconds): ", us, " us");
+    SUCCEED();
+}
+
 template<cmn::meta_encoding_t::Class InputEncoding, cmn::meta_encoding_t::Class OutputEncoding, DifferenceMethod DiffMethod>
 struct LineWithoutGridParams {
     static constexpr InputInfo input_info = {
@@ -448,7 +571,7 @@ using LineWithoutGridTypes = ::testing::Types<
 TYPED_TEST_SUITE(LineWithoutGridTest2, LineWithoutGridTypes);
 
 template<InputInfo input>
-void print_results(std::string_view name, const std::vector<HorizontalLine>& lines, const std::vector<uchar>& pixels)
+void print_results(std::string_view name, const std::vector<HorizontalLine>& lines, const PixelArray_t& pixels)
 {
     Print("------------ ",name,"  -----------");
     Print("Lines: ", lines);
@@ -485,7 +608,7 @@ TYPED_TEST(LineWithoutGridTest2, LineWithoutGridTest2) {
 
     /// HorizontalLine{ x0, x1, y }
     std::vector<HorizontalLine> input = {{0, 0, 9}, {1, 0, 9}};
-    std::vector<uchar> input_pixels(20 * params.input_info.channels);
+    PixelArray_t input_pixels(20 * params.input_info.channels);
     size_t i = 0;
     for(auto ptr = input_pixels.data(); ptr < input_pixels.data() + input_pixels.size(); ptr += params.input_info.channels, ++i) {
         for(size_t c = 0; c < params.input_info.channels; ++c) {
@@ -498,13 +621,13 @@ TYPED_TEST(LineWithoutGridTest2, LineWithoutGridTest2) {
     
     int threshold = 50;
     std::vector<HorizontalLine> lines;
-    std::vector<uchar> pixels;
+    PixelArray_t pixels;
     
     uchar* px = input_pixels.data();
     
     // Print debug information
     DebugHeader(no_quotes(params.ToString()));
-    Print("Background: ", std::vector<uchar>{
+    Print("Background: ", PixelArray_t{
         this->bg->image().data(),
         this->bg->image().data() + this->bg->image().size()
     });
@@ -513,7 +636,7 @@ TYPED_TEST(LineWithoutGridTest2, LineWithoutGridTest2) {
     
     // Define expected results based on the parameters
     std::vector<HorizontalLine> expected_lines;
-    std::vector<uchar> expected_pixels;
+    PixelArray_t expected_pixels;
     
     if constexpr (params.diff_method == DifferenceMethod_t::absolute) {
         if constexpr (params.input_info.encoding == meta_encoding_t::gray) {
@@ -597,17 +720,17 @@ TEST_F(LineWithoutGridTest, AbsoluteDifferenceMethod) {
     
     int threshold = 50;
     std::vector<HorizontalLine> lines;
-    std::vector<uchar> pixels;
+    PixelArray_t pixels;
     
     Print("input: ", input);
     Print("pixels: ", input_pixels);
 
     Print("background:",
-          std::vector<uchar>(bg->image().ptr(0, 0),
+          PixelArray_t(bg->image().ptr(0, 0),
                              bg->image().ptr(0, 0) + bg->image().cols),
-          std::vector<uchar>(bg->image().ptr(1, 0),
+          PixelArray_t(bg->image().ptr(1, 0),
                              bg->image().ptr(1, 0) + bg->image().cols));
-    Print(std::vector<uchar>(bg->image().ptr(0, 0),
+    Print(PixelArray_t(bg->image().ptr(0, 0),
                              bg->image().ptr(bg->image().rows-1, bg->image().cols-1)));
     
     constexpr InputInfo iinput{
@@ -633,7 +756,7 @@ TEST_F(LineWithoutGridTest, AbsoluteDifferenceMethod) {
 
     // Expected results
     std::vector<HorizontalLine> expected_lines = {{0, 0, 9}, {1, 0, 0}};
-    std::vector<uchar> expected_pixels = {0,10,20,30,40,50,60,70,80,90,100};
+    PixelArray_t expected_pixels = {0,10,20,30,40,50,60,70,80,90,100};
 
     // Perform assertions to check if the results are as expected
     ASSERT_EQ(lines, expected_lines);
@@ -649,7 +772,7 @@ TEST_F(LineWithoutGridTest, AbsoluteDifferenceMethod) {
     Print("result pixels:", pixels);
     
     expected_lines = std::vector<HorizontalLine>{{0, 5, 9}, {1, 0, 9}};
-    expected_pixels = std::vector<uchar>{50,60,70,80,90,100,110,120,130,140,150,160,170,180,190};
+    expected_pixels = PixelArray_t{50,60,70,80,90,100,110,120,130,140,150,160,170,180,190};
     ASSERT_EQ(lines, expected_lines);
     ASSERT_EQ(pixels, expected_pixels);
     
@@ -718,7 +841,7 @@ namespace cmn {
 
 // PrintTo method for std::vector<uchar>
 namespace std {
-    void PrintTo(const std::vector<uchar>& pixels, std::ostream* os) {
+    void PrintTo(const PixelArray_t& pixels, std::ostream* os) {
         *os << "[";
         for (const auto& pixel : pixels) {
             *os << static_cast<int>(pixel) << ", ";
@@ -729,14 +852,14 @@ namespace std {
 
 TEST_F(LineWithoutGridTest, SignDifferenceMethod) {
     std::vector<HorizontalLine> input = {{0, 0, 9}, {1, 0, 9}};
-    std::vector<uchar> px;
+    PixelArray_t px;
     px.resize(20);
     for (int i = 0; i < 20; ++i) {
         px[i] = static_cast<uchar>((i % 2 == 0) ? i + 1 : 200);
     }
     int threshold = 50;
     std::vector<HorizontalLine> lines;
-    std::vector<uchar> pixels;
+    PixelArray_t pixels;
     
     constexpr InputInfo iinput{
         .channels = 1u,
@@ -755,7 +878,7 @@ TEST_F(LineWithoutGridTest, SignDifferenceMethod) {
     // Expected results
     using HL = HorizontalLine;
     std::vector<HorizontalLine> expected_lines = { HL(0,0,0), HL(0,2,2), HL(0,4,4), HL(0,6,6), HL(0,8,8), HL(1,0,0), HL(1,2,2), HL(1,4,4), HL(1,6,6), HL(1,8,8) };
-    std::vector<uchar> expected_pixels = {1,3,5,7,9,11,13,15,17,19};
+    PixelArray_t expected_pixels = {1,3,5,7,9,11,13,15,17,19};
 
     
     print_results<iinput>("expected", expected_lines, expected_pixels);
@@ -774,7 +897,7 @@ TEST_F(LineWithoutGridTest, NoneDifferenceMethod) {
                                             10,11,12,13,14,15,16,17,18,19 };
     int threshold = 5;
     std::vector<HorizontalLine> lines;
-    std::vector<uchar> pixels;
+    PixelArray_t pixels;
 
     auto start = input_pixels.data();
     constexpr InputInfo iinput{
@@ -792,7 +915,7 @@ TEST_F(LineWithoutGridTest, NoneDifferenceMethod) {
 
     // in the first row, the last 5 pixels are above the threshold
     // in the second row, all pixels are above the threshold, so all are added
-    std::vector<uchar> expected_pixels = {                      5,  6,  7,  8,  9,
+    PixelArray_t expected_pixels = {                      5,  6,  7,  8,  9,
                                            10, 11, 12, 13, 14, 15, 16, 17, 18, 19 };
 
     // Perform assertions to check if the results are as expected
