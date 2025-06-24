@@ -112,12 +112,94 @@ TEST(IllegalArrays, InsertRange) {
         EXPECT_EQ(arr[i], ref[i]);
 }
 
+
 TEST(IllegalArrays, InsertIntoEmpty) {
     cmn::IllegalArray<int> arr;
     arr.insert(nullptr, 42, 3);  // three copies of 42
     EXPECT_EQ(arr.size(), 3u);
     for (std::size_t i = 0; i < 3; ++i)
         EXPECT_EQ(arr[i], 42);
+}
+
+// ---------------------------------------------------------------------------
+// Extra edge‑case coverage for IllegalArray::insert
+// ---------------------------------------------------------------------------
+
+// Prepend a single element at the very beginning
+TEST(IllegalArrays, InsertSingleValuePrepend) {
+    cmn::IllegalArray<int> arr = {2, 3, 4};
+    arr.insert(arr.data(), 1, 1);          // insert one copy of '1' at front
+    int ref[] = {1, 2, 3, 4};
+    ASSERT_EQ(arr.size(), 4u);
+    for (std::size_t i = 0; i < 4; ++i)
+        EXPECT_EQ(arr[i], ref[i]);
+}
+
+// Append multiple copies at the end
+TEST(IllegalArrays, InsertSingleValueAppendMultiple) {
+    cmn::IllegalArray<int> arr = {1, 2, 3};
+    arr.insert(arr.data() + arr.size(), 4, 3); // add 4,4,4 to tail
+    int ref[] = {1, 2, 3, 4, 4, 4};
+    ASSERT_EQ(arr.size(), 6u);
+    for (std::size_t i = 0; i < 6; ++i)
+        EXPECT_EQ(arr[i], ref[i]);
+}
+
+// Insert with count = 0 should leave the container unchanged
+TEST(IllegalArrays, InsertSingleValueZeroCount) {
+    cmn::IllegalArray<int> arr = {5, 6, 7};
+    auto it = arr.data() + 1;
+    arr.insert(it, 99, 0);                 // no‑op
+    ASSERT_EQ(arr.size(), 3u);
+    int ref[] = {5, 6, 7};
+    for (std::size_t i = 0; i < 3; ++i)
+        EXPECT_EQ(arr[i], ref[i]);
+}
+
+// Prepend a range [first, last)
+TEST(IllegalArrays, InsertRangePrepend) {
+    cmn::IllegalArray<int> arr = {4, 5};
+    int extra[] = {1, 2, 3};
+    arr.insert(arr.data(), extra, extra + 3);
+    int ref[] = {1, 2, 3, 4, 5};
+    ASSERT_EQ(arr.size(), 5u);
+    for (std::size_t i = 0; i < 5; ++i)
+        EXPECT_EQ(arr[i], ref[i]);
+}
+
+// Append a range at the very end
+TEST(IllegalArrays, InsertRangeAppend) {
+    cmn::IllegalArray<int> arr = {1, 2};
+    int extra[] = {3, 4, 5};
+    arr.insert(arr.data() + arr.size(), extra, extra + 3);
+    int ref[] = {1, 2, 3, 4, 5};
+    ASSERT_EQ(arr.size(), 5u);
+    for (std::size_t i = 0; i < 5; ++i)
+        EXPECT_EQ(arr[i], ref[i]);
+}
+
+// Insert an empty range (first == last) — should be a no‑op
+TEST(IllegalArrays, InsertRangeEmpty) {
+    cmn::IllegalArray<int> arr = {7, 8, 9};
+    arr.insert(arr.data() + 1, arr.data(), arr.data()); // zero elements
+    int ref[] = {7, 8, 9};
+    ASSERT_EQ(arr.size(), 3u);
+    for (std::size_t i = 0; i < 3; ++i)
+        EXPECT_EQ(arr[i], ref[i]);
+}
+
+// Ensure capacity growth works and data stays intact during insert
+TEST(IllegalArrays, InsertTriggersCapacityGrowth) {
+    cmn::IllegalArray<int> arr;
+    arr.reserve(2);                   // force small initial capacity
+    arr.push_back(1, 2);              // size == capacity == 2
+    auto oldCap = arr.capacity();
+    arr.insert(arr.data() + 1, 99, 1); // insert in the middle
+    int ref[] = {1, 99, 2};
+    ASSERT_EQ(arr.size(), 3u);
+    EXPECT_GE(arr.capacity(), oldCap); // capacity must have grown
+    for (std::size_t i = 0; i < 3; ++i)
+        EXPECT_EQ(arr[i], ref[i]);
 }
 
 TEST(IllegalArrays, ComparisonOperators) {
