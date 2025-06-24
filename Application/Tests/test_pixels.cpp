@@ -18,6 +18,201 @@ using ::testing::Values;
 
 using cmn::gui::Color;
 
+// ---------------------------------------------------------------------------
+// Additional unit tests for cmn::IllegalArray
+// ---------------------------------------------------------------------------
+
+TEST(IllegalArrays, InitializerListConstructor) {
+    cmn::IllegalArray<int> arr = {1, 2, 3, 4};
+    EXPECT_EQ(arr.size(), 4u);
+    for (std::size_t i = 0; i < 4; ++i)
+        EXPECT_EQ(arr[i], static_cast<int>(i + 1));
+}
+
+TEST(IllegalArrays, InitializerListAssignment) {
+    cmn::IllegalArray<int> arr = {1, 2, 3};
+    arr = {10, 20, 30, 40};
+    EXPECT_EQ(arr.size(), 4u);
+    int ref[] = {10, 20, 30, 40};
+    for (std::size_t i = 0; i < 4; ++i)
+        EXPECT_EQ(arr[i], ref[i]);
+}
+
+TEST(IllegalArrays, CopyConstructorAndAssignment) {
+    cmn::IllegalArray<int> src = {5, 6, 7, 8, 9};
+
+    // Copy‑ctor
+    cmn::IllegalArray<int> copy(src);
+    EXPECT_EQ(copy, src);
+
+    // Mutate copy and verify independence
+    copy[0] = 42;
+    EXPECT_NE(copy, src);
+
+    // Copy‑assignment
+    cmn::IllegalArray<int> assign;
+    assign = src;
+    EXPECT_EQ(assign, src);
+}
+
+TEST(IllegalArrays, MoveConstructorAndAssignment) {
+    cmn::IllegalArray<int> src = {1, 2, 3, 4};
+    auto old_ptr = src.data();
+
+    // Move‑ctor
+    cmn::IllegalArray<int> moved(std::move(src));
+    EXPECT_TRUE(src.empty());
+    EXPECT_EQ(moved.size(), 4u);
+    EXPECT_EQ(moved.data(), old_ptr);
+
+    // Move‑assignment
+    cmn::IllegalArray<int> dest;
+    dest.resize(2);
+    dest = std::move(moved);
+    EXPECT_TRUE(moved.empty());
+    EXPECT_EQ(dest.size(), 4u);
+    EXPECT_EQ(dest[3], 4);
+}
+
+TEST(IllegalArrays, SelfAssignment) {
+    cmn::IllegalArray<int> arr = {1, 2, 3};
+    arr = arr;               // copy self‑assign
+    EXPECT_EQ(arr.size(), 3u);
+    arr = std::move(arr);    // move self‑assign
+    EXPECT_EQ(arr.size(), 3u);
+    EXPECT_EQ(arr[1], 2);
+}
+
+TEST(IllegalArrays, PushBackVariadic) {
+    cmn::IllegalArray<int> arr;
+    arr.push_back(1, 2, 3, 4, 5);
+    EXPECT_EQ(arr.size(), 5u);
+    for (int i = 0; i < 5; ++i)
+        EXPECT_EQ(arr[i], i + 1);
+}
+
+TEST(IllegalArrays, InsertSingleValue) {
+    cmn::IllegalArray<int> arr = {1, 2, 3};
+    // Insert two copies of 99 before element '2'
+    arr.insert(arr.data() + 1, 99, 2);
+    int ref[] = {1, 99, 99, 2, 3};
+    EXPECT_EQ(arr.size(), 5u);
+    for (std::size_t i = 0; i < 5; ++i)
+        EXPECT_EQ(arr[i], ref[i]);
+}
+
+TEST(IllegalArrays, InsertRange) {
+    cmn::IllegalArray<int> arr = {1, 2, 3, 4};
+    int extra[] = {7, 8, 9};
+    // Insert range {7,8,9} before value '3'
+    arr.insert(arr.data() + 2, extra, extra + 3);
+    int ref[] = {1, 2, 7, 8, 9, 3, 4};
+    EXPECT_EQ(arr.size(), 7u);
+    for (std::size_t i = 0; i < 7; ++i)
+        EXPECT_EQ(arr[i], ref[i]);
+}
+
+TEST(IllegalArrays, InsertIntoEmpty) {
+    cmn::IllegalArray<int> arr;
+    arr.insert(nullptr, 42, 3);  // three copies of 42
+    EXPECT_EQ(arr.size(), 3u);
+    for (std::size_t i = 0; i < 3; ++i)
+        EXPECT_EQ(arr[i], 42);
+}
+
+TEST(IllegalArrays, ComparisonOperators) {
+    cmn::IllegalArray<int> a = {1, 2, 3};
+    cmn::IllegalArray<int> b = {1, 2, 3};
+    cmn::IllegalArray<int> c = {1, 2, 4};
+    cmn::IllegalArray<int> d = {1, 2};
+
+    EXPECT_TRUE(a == b);
+    EXPECT_FALSE(a != b);
+    EXPECT_TRUE(d < a);
+    EXPECT_TRUE(a < c);
+    EXPECT_TRUE(c > a);
+    EXPECT_TRUE(d <= a);
+    EXPECT_TRUE(c >= b);
+}
+
+TEST(IllegalArrays, CapacityGrowth) {
+    cmn::IllegalArray<int> arr;
+    EXPECT_EQ(arr.capacity(), 0u);
+
+    arr.reserve(10);
+    EXPECT_GE(arr.capacity(), 10u);
+    auto cap = arr.capacity();
+
+    arr.reserve(5);  // should not shrink
+    EXPECT_EQ(arr.capacity(), cap);
+
+    arr.resize(20);
+    EXPECT_EQ(arr.size(), 20u);
+    EXPECT_GE(arr.capacity(), 20u);
+}
+
+TEST(IllegalArrays, Basic) {
+    IllegalArray<int> arr;
+
+    // 1. resize() should allocate memory and allow indexed writes/reads
+    arr.resize(5);
+    for (std::size_t i = 0; i < 5; ++i) {
+        arr[i] = static_cast<int>(i * 10);
+    }
+    for (std::size_t i = 0; i < 5; ++i) {
+        EXPECT_EQ(arr.at(i), static_cast<int>(i * 10));
+    }
+
+    // 2. reserve() with a larger value must keep existing elements intact
+    arr.reserve(20);
+    for (std::size_t i = 0; i < 5; ++i) {
+        EXPECT_EQ(arr.at(i), static_cast<int>(i * 10));
+    }
+
+    // 3. Growing again with resize() should enlarge the usable range
+    arr.resize(10);
+    for (std::size_t i = 5; i < 10; ++i) {
+        arr[i] = static_cast<int>(i * 10);
+    }
+    for (std::size_t i = 0; i < 10; ++i) {
+        EXPECT_EQ(arr.at(i), static_cast<int>(i * 10));
+    }
+
+#ifndef NDEBUG
+    // 4. at() past the current size should trigger an assert in debug builds
+    EXPECT_DEATH_IF_SUPPORTED(arr.at(10), "");
+#endif
+}
+
+TEST(IllegalArrays, RangeLoop) {
+    IllegalArray<int> arr;
+    arr.resize(5);
+    for (std::size_t i = 0; i < 5; ++i) {
+        arr[i] = static_cast<int>(i * 7);   // unique stride to catch ordering errors
+    }
+
+    // Iterate with a non‑const range‑based for loop
+    std::size_t idx = 0;
+    for (int v : arr) {
+        EXPECT_EQ(v, static_cast<int>(idx * 7));
+        ++idx;
+    }
+    EXPECT_EQ(idx, 5u);
+
+    // Iterate with a const range‑based for loop
+    const auto& cref = arr;
+    idx = 0;
+    for (int v : cref) {
+        EXPECT_EQ(v, static_cast<int>(idx * 7));
+        ++idx;
+    }
+    EXPECT_EQ(idx, 5u);
+
+    // Use a standard algorithm to verify compatibility
+    int sum = std::accumulate(arr.begin(), arr.end(), 0);
+    EXPECT_EQ(sum, 7 * (0 + 1 + 2 + 3 + 4)); // 7 * 10 = 70
+}
+
 // Default‐constructed Color should be all zeros
 TEST(ColorTest, DefaultConstructor) {
     Color c;
