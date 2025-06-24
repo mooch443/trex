@@ -1062,9 +1062,10 @@ int64_t Individual::add(const AssignInfo& info, const pv::Blob& blob, prob_t cur
     auto cached = info.frame->cached(identity().ID());
     prob_t p{current_prob};
     if(current_prob == -1 && cached) {
-        p = probability(SLOW_SETTING(track_consistent_categories)
-                        ? info.frame->label(blob.blob_id())
-                        : MaybeLabel{},
+        p = probability(*info.settings,
+                        SLOW_SETTING(track_consistent_categories)
+                            ? info.frame->label(blob.blob_id())
+                            : MaybeLabel{},
                         *cached,
                         frameIndex,
                         stuff->blob);//.p;
@@ -1087,7 +1088,7 @@ int64_t Individual::add(const AssignInfo& info, const pv::Blob& blob, prob_t cur
     
     const auto video_length = Tracker::analysis_range().end();
     if(frameIndex >= video_length) {
-        update_midlines(&_hints);
+        update_midlines(*info.settings, &_hints);
     }
     
     return int64_t(index);
@@ -1258,12 +1259,12 @@ void Individual::clear_post_processing() {
     }
 }
 
-void Individual::update_midlines(const CacheHints* hints) {
+void Individual::update_midlines(const CachedSettings& settings, const CacheHints* hints) {
     /*if(FAST_SETTING(posture_direction_smoothing) == 0) {
         update_frame_with_posture(frameIndex);
     }*/
     
-    const auto smooth_range = Frame_t(FAST_SETTING(posture_direction_smoothing));
+    const auto smooth_range = Frame_t(settings.posture_direction_smoothing);
     const auto video_length = Tracker::analysis_range().end();
     auto end_frame = Tracker::end_frame();
     
@@ -2212,7 +2213,7 @@ inline Float2_t adiffangle(const Vec2& A, const Vec2& B) {
     return -atan2(-B.y*A.x+B.x*A.y, B.x*A.x+B.y*A.y);
 }
 
-prob_t Individual::position_probability(const IndividualCache cache, Frame_t frameIndex, size_t, const Vec2& position, const Vec2& blob_center)
+prob_t Individual::position_probability(const CachedSettings& settings, const IndividualCache cache, Frame_t frameIndex, size_t, const Vec2& position, const Vec2& blob_center)
 {
     UNUSED(frameIndex)
 #ifndef NDEBUG
@@ -2231,7 +2232,7 @@ prob_t Individual::position_probability(const IndividualCache cache, Frame_t fra
         velocity = (cache.local_tdelta != 0) * (position - cache.estimated_px) / cache.local_tdelta;
     assert(!std::isnan(velocity.x) && !std::isnan(velocity.y));
     
-    auto speed = velocity.length() / FAST_SETTING(track_max_speed) * FAST_SETTING(cm_per_pixel);
+    auto speed = velocity.length() / settings.track_max_speed * settings.cm_per_pixel;
     speed = 1 / SQR(1 + speed);
     
     /*if((frameIndex >= 48181 && identity().ID() == 368) || frameIndex == 48182)
@@ -2291,16 +2292,16 @@ prob_t Individual::position_probability(const IndividualCache cache, Frame_t fra
     return max(0.5, 1 - 0.25 * (SQR(cmn::abs(min(2, num_pixels / cache.size_average) - 1))));
 }*/
 
-Probability Individual::probability(MaybeLabel label, const IndividualCache& cache, Frame_t frameIndex, const pv::CompressedBlob& blob) {
+Probability Individual::probability(const CachedSettings& settings, MaybeLabel label, const IndividualCache& cache, Frame_t frameIndex, const pv::CompressedBlob& blob) {
     auto bounds = blob.calculate_bounds();
-    return probability(label, cache, frameIndex, bounds.pos() + bounds.size() * 0.5, blob.num_pixels());
+    return probability(settings, label, cache, frameIndex, bounds.pos() + bounds.size() * 0.5, blob.num_pixels());
 }
 
-Probability Individual::probability(MaybeLabel label, const IndividualCache& cache, Frame_t frameIndex, const pv::Blob& blob) {
-    return probability(label, cache, frameIndex, blob.bounds().pos() + blob.bounds().size() * 0.5, blob.num_pixels());
+Probability Individual::probability(const CachedSettings& settings, MaybeLabel label, const IndividualCache& cache, Frame_t frameIndex, const pv::Blob& blob) {
+    return probability(settings, label, cache, frameIndex, blob.bounds().pos() + blob.bounds().size() * 0.5, blob.num_pixels());
 }
 
-Probability Individual::probability(MaybeLabel label, const IndividualCache& cache, Frame_t frameIndex, const Vec2& position, size_t pixels) {
+Probability Individual::probability(const CachedSettings& settings, MaybeLabel label, const IndividualCache& cache, Frame_t frameIndex, const Vec2& position, size_t pixels) {
     //individual_empty is set in this case
     //assert(frameIndex >= _startFrame);
     
@@ -2326,7 +2327,7 @@ Probability Individual::probability(MaybeLabel label, const IndividualCache& cac
 
     const Vec2& blob_pos = position;
     //auto && [ p_position, p_speed, p_angle ] = 
-    auto p_position =    position_probability(cache, frameIndex, pixels, blob_pos, position);
+    auto p_position =    position_probability(settings, cache, frameIndex, pixels, blob_pos, position);
     //thread_print("** ", frameIndex, ": ", identity().ID(), " + ", blob_pos, " => ", p_position * cache.time_probability, " t=", cache.time_probability);
     
     /**
@@ -2469,7 +2470,8 @@ OrientationProperties Individual::why_orientation(Frame_t frame) const {
 void Individual::save_posture(const BasicStuff& basic,
                               const PoseMidlineIndexes& pose_midline_indexes,
                               Frame_t frameIndex,
-                              pv::BlobPtr&& pixels)
+                              pv::BlobPtr&& pixels,
+                              const CachedSettings& settings)
 {//Image::Ptr greyscale) {
     /*auto c = centroid(frameIndex);
     auto direction = c->v();
@@ -2513,7 +2515,7 @@ void Individual::save_posture(const BasicStuff& basic,
     }
     
     tracklet->add_posture_at(std::move(stuff), this);
-    update_midlines(nullptr);
+    update_midlines(settings, nullptr);
 }
 
 Vec2 Individual::weighted_centroid(const pv::Blob& blob, const std::vector<uchar>& pixels) {

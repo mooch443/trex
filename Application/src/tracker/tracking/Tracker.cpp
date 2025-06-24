@@ -171,7 +171,9 @@ void Tracker::initialize_slows() {
                         {
                             Print("\t", fdx);
                             fish->clear_post_processing();
-                            fish->update_midlines(nullptr);
+                            
+                            CachedSettings settings;
+                            fish->update_midlines(settings, nullptr);
                         });
                     }
                     DatasetQuality::update();
@@ -1181,7 +1183,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                     for (size_t i = 0; i < N_blobs; ++i) {
                         auto &bix = unassigned_blobs[i];
                         auto ptr = ptrs[bix];
-                        auto p = Individual::probability(blob_labels[bix], *cache, frameIndex, *ptr);
+                        auto p = Individual::probability(s.cache(), blob_labels[bix], *cache, frameIndex, *ptr);
                         //PPFrame::Log(bdxes[bix], " + ", fish->identity().ID(), " => ", p, " (t = ", cache->time_probability,")");
                         if (p > match_min_probability)
                             probs[bdxes[bix]] = p;
@@ -1627,7 +1629,8 @@ void Tracker::collect_matching_cliques(TrackingHelper& s, GenericThreadPool& thr
                         .frame = &s.frame,
                         .f_prop = s.props,
                         .f_prev_prop = s.prev_props,
-                        .match_mode = default_config::matching_mode_t::hungarian
+                        .match_mode = default_config::matching_mode_t::hungarian,
+                        .settings = &s.cache()
                     }, std::move(optimal.pairings), [](pv::bid, Idx_t, Individual*)
                     {},
                     [frameIndex](pv::bid bdx, Idx_t fdx, Individual*, const char* error)
@@ -1798,7 +1801,8 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
             .frame = &s.frame,
             .f_prop = s.props,
             .f_prev_prop = s.prev_props,
-            .match_mode = default_config::matching_mode_t::none
+            .match_mode = default_config::matching_mode_t::none,
+            .settings = &s.cache()
         }, unassigned_blobs, [](pv::bid, Individual*) {
             // nothing
             //Print("Assigned inactive ", bdx, " to ", fish);
@@ -1910,7 +1914,8 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
                 .frame = &s.frame,
                 .f_prop = s.props,
                 .f_prev_prop = s.prev_props,
-                .match_mode = default_config::matching_mode_t::none
+                .match_mode = default_config::matching_mode_t::none,
+                .settings = &s.cache()
                 
             }, std::move(optimal.pairings), [](pv::bid bdx, Idx_t fdx, Individual*) {
                 //Print("Test for ", bdx, " -> ", fdx);
@@ -2044,7 +2049,7 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
                 return;
 
             for (const auto &[bdx, blob] : owner) {
-                auto p = Individual::probability(MaybeLabel{}, *cache, frameIndex, *blob);
+                auto p = Individual::probability(s.cache(), MaybeLabel{}, *cache, frameIndex, *blob);
                 if (p >= p_threshold)
                     probs[bdx] = p;
             }

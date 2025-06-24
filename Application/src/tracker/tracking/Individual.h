@@ -34,6 +34,8 @@ namespace mem { struct IndividualMemoryStats; }
 
 namespace track {
 
+struct CachedSettings;
+
 enum class Reasons {
     None = 0,
     FramesSkipped = 1,
@@ -308,7 +310,8 @@ constexpr std::array<const char*, 8> ReasonsNames {
         void save_posture(const BasicStuff& basic,
                           const PoseMidlineIndexes& pose_midline_indexes,
                           Frame_t frameIndex,
-                          pv::BlobPtr&& pixels);
+                          pv::BlobPtr&& pixels,
+                          const CachedSettings& settings);
         Vec2 weighted_centroid(const pv::Blob& blob, const std::vector<uchar>& pixels);
         
         int64_t thresholded_size(Frame_t frameIndex) const;
@@ -346,14 +349,14 @@ constexpr std::array<const char*, 8> ReasonsNames {
         std::tuple<BasicStuff*, PostureStuff*> all_stuff(Frame_t frameIndex) const;
         
         //! Calculates the probability for this fish to be at pixel-position in frame at time.
-        static Probability probability(MaybeLabel label, const IndividualCache& estimated_px, Frame_t frameIndex, const pv::Blob& blob);
-        static Probability probability(MaybeLabel label, const IndividualCache& estimated_px, Frame_t frameIndex, const pv::CompressedBlob& blob);
-        static Probability probability(MaybeLabel label, const IndividualCache& estimated_px, Frame_t frameIndex, const Vec2& position, size_t pixels);
+        static Probability probability(const CachedSettings& settings, MaybeLabel label, const IndividualCache& estimated_px, Frame_t frameIndex, const pv::Blob& blob);
+        static Probability probability(const CachedSettings& settings, MaybeLabel label, const IndividualCache& estimated_px, Frame_t frameIndex, const pv::CompressedBlob& blob);
+        static Probability probability(const CachedSettings& settings, MaybeLabel label, const IndividualCache& estimated_px, Frame_t frameIndex, const Vec2& position, size_t pixels);
         
     private:
         static Match::prob_t time_probability(double tdelta, const Frame_t& previous_frame, size_t recent_number_samples);
         //Match::PairingGraph::prob_t size_probability(const IndividualCache& cache, Frame_t frameIndex, size_t num_pixels) const;
-        static Match::prob_t position_probability(const IndividualCache, Frame_t frameIndex, size_t size, const Vec2& position, const Vec2& blob_center);
+        static Match::prob_t position_probability(const CachedSettings& settings, const IndividualCache, Frame_t frameIndex, size_t size, const Vec2& position, const Vec2& blob_center);
         
     public:
         const BasicStuff* find_frame(Frame_t frameIndex) const;
@@ -391,7 +394,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
         static Float2_t weird_distance();
         //void push_to_segments(Frame_t frameIndex, long_t prev_frame);
         void clear_post_processing();
-        void update_midlines(const CacheHints*);
+        void update_midlines(const CachedSettings&, const CacheHints*);
         Midline::Ptr calculate_midline_for(const PostureStuff& posture_stuff) const;
         
         struct PostureDescriptor {

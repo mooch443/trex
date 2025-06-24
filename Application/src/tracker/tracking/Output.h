@@ -202,7 +202,9 @@ namespace Output {
             double time;
         };
         
-        static void process_frame(const CacheHints* cache_ptr,
+        static void process_frame(
+                           const CachedSettings&,
+                           const CacheHints* cache_ptr,
                            Individual* fish,
                            TemporaryData&& data);
         

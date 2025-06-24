@@ -36,7 +36,8 @@ _post_pool(cmn::hardware_concurrency(), [this](Individual* obj)
     auto name = get_thread_name();
     set_thread_name(obj->identity().name()+"_post");
 
-    obj->update_midlines(_property_cache.get());
+    CachedSettings settings;
+    obj->update_midlines(settings, _property_cache.get());
     obj->_local_cache.regenerate(obj);
 
     if (timer.elapsed() >= 1) {
@@ -453,6 +454,7 @@ uint64_t Data::write(const Midline& val) {
 }
 
 void Output::ResultsFormat::process_frame(
+          const CachedSettings& settings,
           const CacheHints* cache_ptr,
           Individual* fish,
           TemporaryData&& data)
@@ -475,7 +477,7 @@ void Output::ResultsFormat::process_frame(
         auto cache = fish->cache_for_frame(Tracker::properties(frameIndex - 1_f), frameIndex, data.time, cache_ptr);
         if(cache) {
             assert(frameIndex > fish->start_frame());
-            p = Individual::probability(label ? label->id : MaybeLabel{}, cache.value(), frameIndex, data.stuff->blob);//.p;
+            p = Individual::probability(settings, label ? label->id : MaybeLabel{}, cache.value(), frameIndex, data.stuff->blob);//.p;
         } else {
             throw U_EXCEPTION("Cannot calculate cache_for_frame for ", fish->identity(), " in ", frameIndex, " because: ", cache.error());
         }
@@ -596,6 +598,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
             auto thread_name = get_thread_name();
             set_thread_name("read_individual_"+fish->identity().name()+"_worker");
             track::TrackingThreadG g{};
+            CachedSettings settings;
             
             std::unique_lock<std::mutex> guard(mutex);
             while(!stop || !stuffs.empty()) {
@@ -608,7 +611,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
                     guard.unlock();
                     auto frame = data.index;
                     try {
-                        process_frame(cache, fish, std::move(data));
+                        process_frame(settings, cache, fish, std::move(data));
                     } catch(const std::exception& ex) {
                         FormatExcept("Exception when processing frame ",frame," for fish ", fish, ": ", ex.what());
                     } catch(...) {

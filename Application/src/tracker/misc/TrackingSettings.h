@@ -45,12 +45,14 @@ enum IdentitySource {
 //! Information needed to assign an individual to a blob
 class PPFrame;
 struct FrameProperties;
+struct CachedSettings;
 
 struct AssignInfo {
     PPFrame* frame;
     const FrameProperties* f_prop;
     const FrameProperties* f_prev_prop;
     default_config::matching_mode_t::Class match_mode;
+    const CachedSettings* settings;
 };
 
 //! Given a pose (a set of points) this array indicates the order and indexes

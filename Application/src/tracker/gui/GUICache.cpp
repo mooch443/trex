@@ -13,6 +13,7 @@
 #include <misc/TimingStatsCollector.h>
 #include <gui/Scene.h>
 #include <gui/DrawGraph.h>
+#include <tracking/TrackingHelper.h>
 
 namespace cmn::gui {
     
@@ -1360,6 +1361,7 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
                 /// access anything inside individual. should make this static
                 /// to make sure this never happens.
                 //std::unique_lock guard(individuals_mutex);
+                CachedSettings settings;
                 processed_frame().transform_blobs([&](const pv::Blob& blob) {
                     //auto it = active_ids.find(fdx);
                     //if(it == active_ids.end())
@@ -1368,7 +1370,7 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
                     //if(it == individuals.end() || it->second->empty() || frame_idx < it->second->start_frame())
                     //    return;
                     
-                    auto p = Individual::probability(processed_frame().label(blob.blob_id()), *c, frame_idx, blob);
+                    auto p = Individual::probability(settings, processed_frame().label(blob.blob_id()), *c, frame_idx, blob);
                     if(p/*.p*/ >= FAST_SETTING(match_min_probability))
                         probabilities[fdx][blob.blob_id()] = {
                             .p = p,

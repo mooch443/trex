@@ -145,7 +145,8 @@ void TrackingHelper::apply_manual_matches()
             .frame = &frame,
             .f_prop = props,
             .f_prev_prop = prev_props,
-            .match_mode = match_mode
+            .match_mode = match_mode,
+            .settings = &_cache
         }, std::move(actually_assign), [frameIndex](pv::bid, Idx_t, Individual* fish) {
             fish->add_manual_match(frameIndex);
             
@@ -251,7 +252,8 @@ void TrackingHelper::apply_manual_matches()
             .frame = &frame,
             .f_prop = props,
             .f_prev_prop = prev_props,
-            .match_mode = match_mode
+            .match_mode = match_mode,
+            .settings = &_cache
         }, std::move(actual_assignments), [frameIndex, &identities](pv::bid, Idx_t fdx, Individual* fish)
         {
             fish->add_manual_match(frameIndex);
@@ -304,7 +306,8 @@ void TrackingHelper::apply_automatic_matches() {
         .frame = &frame,
         .f_prop = props,
         .f_prev_prop = prev_props,
-        .match_mode = default_config::matching_mode_t::none
+        .match_mode = default_config::matching_mode_t::none,
+        .settings = &_cache
         
     }, std::move(automatic_assignments), [frameIndex](pv::bid bdx, Idx_t id, Individual* fish) {
         PPFrame::Log("Adding auto assignment: ", id, " -> ", bdx);
@@ -403,7 +406,8 @@ void TrackingHelper::apply_matching() {
             .frame = &frame,
             .f_prop = props,
             .f_prev_prop = prev_props,
-            .match_mode = match_mode
+            .match_mode = match_mode,
+            .settings = &_cache
         }, std::move(optimal.pairings), [&](pv::bid, Idx_t, Individual*)
         {
 #ifdef TREX_DEBUG_MATCHING
@@ -452,7 +456,8 @@ void TrackingHelper::apply_matching() {
             .frame = &frame,
             .f_prop = props,
             .f_prev_prop = prev_props,
-            .match_mode = default_config::matching_mode_t::hungarian
+            .match_mode = default_config::matching_mode_t::hungarian,
+            .settings = &_cache
         }, std::move(optimal.pairings), [&](pv::bid, Idx_t, Individual*)
         {
             
@@ -488,7 +493,7 @@ double TrackingHelper::process_postures() {
         
         IndividualManager::Protect{};
         
-        distribute_indexes([frameIndex, &combined_posture_seconds, &pose_midline_indexes](auto, auto start, auto end, auto) {
+        distribute_indexes([frameIndex, &combined_posture_seconds, &pose_midline_indexes, this](auto, auto start, auto end, auto) {
             Timer t;
             double collected = 0;
             
@@ -496,7 +501,7 @@ double TrackingHelper::process_postures() {
                 t.reset();
                 
                 auto &&[fish, basic, pixels] = *it;
-                fish->save_posture(*basic, pose_midline_indexes, frameIndex, std::move(pixels));
+                fish->save_posture(*basic, pose_midline_indexes, frameIndex, std::move(pixels), _cache);
                 collected += t.elapsed();
             }
             

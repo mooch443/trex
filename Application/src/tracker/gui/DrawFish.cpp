@@ -21,6 +21,7 @@
 #include <gui/dyn/Action.h>
 #include <gui/dyn/Context.h>
 #include <gui/dyn/ParseText.h>
+#include <tracking/TrackingHelper.h>
 
 #if defined(__APPLE__) && defined(TREX_ENABLE_EXPERIMENTAL_BLUR)
 //#include <gui.h>
@@ -470,6 +471,7 @@ Fish::~Fish() {
         if(OPTION(gui_show_probabilities)
            && cache.is_selected(_id.ID()))
         {
+            CachedSettings settings;
             auto c = cache.processed_frame().cached(_id.ID());
             if (c) {
                 auto &mat = _image.unsafe_get_source();
@@ -514,7 +516,7 @@ Fish::~Fish() {
                         
                         auto ptr = mat.ptr(pos.y, pos.x);
                         
-                        auto p = obj.probability(MaybeLabel{}, *c, _frame, _probability_center - _probability_radius + pos * res_factor + 0.5, 1); //TODO: add probabilities
+                        auto p = obj.probability(settings, MaybeLabel{}, *c, _frame, _probability_center - _probability_radius + pos * res_factor + 0.5, 1); //TODO: add probabilities
                         if (p < FAST_SETTING(match_min_probability))
                             return;
                         

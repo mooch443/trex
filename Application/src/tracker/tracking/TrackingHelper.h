@@ -25,6 +25,7 @@ struct CachedSettings {
     DEFINE_CACHE_SETTING(cm_per_pixel);
     DEFINE_CACHE_SETTING(match_min_probability);
     DEFINE_CACHE_SETTING(huge_timestamp_seconds);
+    DEFINE_CACHE_SETTING(posture_direction_smoothing);
 };
 
 struct TrackingHelper {
