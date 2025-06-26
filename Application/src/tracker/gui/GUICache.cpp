@@ -401,7 +401,7 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
                 auto maybe_frame = _load_frames_blocking //&& _mistakes_count >= 1u
                     ? _preloader.load_exactly(frameIndex, 1_f)
                     : _preloader.get_frame(frameIndex, 1_f, std::chrono::milliseconds(10));
-                
+                _preloader.notify();
                 // _preloader.get_frame(frameIndex, Frame_t(saturate(static_cast<uint8_t>(GUI_SETTINGS(gui_playback_speed)), 1, 255)), std::chrono::milliseconds(50));
                 
                 //if(maybe_frame.has_value())

@@ -278,6 +278,7 @@ void AnimatedBackground::before_draw() {
         if(_strict) {
             image = preloader.load_exactly(frame, _increment);
             _target_fade = 1.0;
+            //preloader.announce(frame + _increment);
             
         } else {
             auto maybe_image = preloader.get_frame(frame, _increment);
@@ -285,6 +286,8 @@ void AnimatedBackground::before_draw() {
             if(maybe_image.has_value()
                && maybe_image.value())
             {
+                //preloader.announce(frame + _increment);
+                
                 image = std::move(maybe_image.value());
                 
                 //! additional check here. we do not allow the next image to be

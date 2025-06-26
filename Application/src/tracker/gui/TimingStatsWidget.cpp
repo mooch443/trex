@@ -78,6 +78,12 @@ void TimingStatsWidget::update() {
                 case TimingMetric_t::PVRequest:
                     clr = DarkCyan;
                     break;
+                case TimingMetric_t::FrameDisplay:
+                    clr = White;
+                    break;
+                case TimingMetric_t::FrameWaiting:
+                    clr = Black;
+                    break;
                 default:
                     clr = Gray;
                     break;

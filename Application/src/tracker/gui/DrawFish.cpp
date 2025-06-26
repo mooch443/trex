@@ -297,7 +297,14 @@ Fish::~Fish() {
                     _cached_midline = std::move(midline);
                     _cached_outline = &_outline;
                 } else {
-                    _cached_midline = SETTING(output_normalize_midline_data) ? obj.fixed_midline(frameIndex) : obj.calculate_midline_for(*_posture_stuff);
+                    auto it = cache.fish_selected_blobs.find(obj.identity().ID());
+                    if(it != cache.fish_selected_blobs.end()
+                       && it->second.midline)
+                    {
+                        _cached_midline = std::make_unique<Midline>(*it->second.midline);
+                    } else {
+                        _cached_midline = SETTING(output_normalize_midline_data) ? obj.fixed_midline(frameIndex) : obj.calculate_midline_for(*_posture_stuff);
+                    }
                 }
                 
                 _pp_midline = obj.pp_midline(frameIndex);

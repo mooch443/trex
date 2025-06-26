@@ -1174,7 +1174,7 @@
             "then": {
                 "type":"timingstats",
                 "fill":"{if:{hovered}:[10,10,10,150]:[40,40,40,50]}",
-                "window":0.25,
+                "window":10.25,
                 "size":"[{*:0.75:{window_size.x}},200]",
                 "row_height":30,
                 "line":"{if:{hovered}:[100,175,250,230]:[100,100,100,50]}"

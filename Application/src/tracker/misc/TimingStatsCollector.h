@@ -7,6 +7,8 @@
 ENUM_CLASS (TimingMetric_t,
     None,
     FrameRender,       // When a frame is rendered.
+    FrameDisplay,
+    FrameWaiting,
     BackgroundRequest,
     BackgroundLoad,    // When a frame is loaded from the base video file.
     PVRequest,

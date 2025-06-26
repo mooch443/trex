@@ -30,12 +30,16 @@ public:
            std::function<FrameType(Frame_t)> retrieve,
            std::function<void(FrameType&&)> discard = nullptr,
            TimingMetric announceMetric = TimingMetric_t::None,
-           TimingMetric loadMetric = TimingMetric_t::None)
+           TimingMetric loadMetric = TimingMetric_t::None,
+           TimingMetric waitMetric = TimingMetric_t::None,
+           TimingMetric notifyMetric = TimingMetric_t::None)
         : retrieve_next(retrieve),
           discard(discard),
-          next_index_to_use(0),
+          next_index_to_use(0_f),
           _announceMetric(announceMetric),
-          _loadMetric(loadMetric)
+          _loadMetric(loadMetric),
+          _waitMetric(waitMetric),
+          _notifyMetric(notifyMetric)
     {
         PreloadCache::init();
         
@@ -53,15 +57,20 @@ public:
         // Thread will be managed by ThreadManager, no need to join here.
         ThreadManager::getInstance().terminateGroup(group_id);
         
-        std::unique_lock guard(future_mutex);
-        if(future.valid()) {
-            if(future.wait_for(std::chrono::milliseconds(0)) != std::future_status::ready)
+        std::future<std::tuple<Frame_t, FrameType>> local_future;
+        {
+            std::unique_lock guard(future_mutex);
+            local_future = std::move(future);
+        }
+        
+        if(local_future.valid()) {
+            if(local_future.wait_for(std::chrono::milliseconds(0)) != std::future_status::ready)
             {
                 promise->set_value({Frame_t(), nullptr});
                 promise.reset();
             }
             
-            future.get();
+            local_future.get();
         }
     }
     
@@ -73,19 +82,22 @@ public:
         /*if(_announceMetric != TimingMetric_t::None) {
             stats->startEvent(_announceMetric, target_index);
         }*/
-        std::shared_ptr<TimingStatsCollector::HandleGuard> handleGuard
-            = (_announceMetric != TimingMetric_t::None)
-                ? std::make_shared<TimingStatsCollector::HandleGuard>(stats, stats->startEvent(_announceMetric, target_index))
-                : nullptr;
         
-        if(std::unique_lock guard(future_mutex);
-              not id_in_future.valid()
-              || id_in_future != target_index)
+        //if(std::unique_lock guard(future_mutex);
+        //      not id_in_future.valid()
+        //      || id_in_future != target_index)
         {
             
-            auto pguard = LOGGED_LOCK(preloaded_frame_mutex);
-            //thread_print("Reset next index ", id_in_future, " to announced frame => ", target_index, " (next_index_to_use=",next_index_to_use,")");
-            next_index_to_use = target_index;
+            //auto pguard = LOGGED_LOCK(preloaded_frame_mutex);
+            auto index = next_index_to_use.load();
+            if(index != target_index) {
+                std::shared_ptr<TimingStatsCollector::HandleGuard> handleGuard
+                    = (_announceMetric != TimingMetric_t::None)
+                        ? std::make_shared<TimingStatsCollector::HandleGuard>(stats, stats->startEvent(_announceMetric, target_index))
+                        : nullptr;
+                
+                next_index_to_use = target_index;
+            }
         } /*else if(next_index_to_use == target_index
                   && target_index != last_returned_index)
         {
@@ -130,6 +142,10 @@ public:
         }
     }
     
+    void notify() {
+        ThreadManager::getInstance().notify(group_id);
+    }
+    
 private:
     void preload_frames();
 
@@ -142,11 +158,12 @@ private:
     
     LOGGED_MUTEX_VAR(preloaded_frame_mutex, "preloaded_frame_mutex");
 
-    Frame_t next_index_to_use;
+    std::atomic<Frame_t> next_index_to_use;
     Frame_t last_returned_index;
     
     //! content of preload thread:
-    Frame_t current_id, id_in_future;
+    Frame_t current_id;
+    Frame_t id_in_future;
     std::atomic<Frame_t> _last_increment{1_f};
     FrameType image;
     
@@ -161,7 +178,7 @@ private:
     std::mutex future_mutex;
     std::optional<std::promise<std::tuple<Frame_t, FrameType>>> promise;
     
-    TimingMetric _announceMetric, _loadMetric;
+    TimingMetric _announceMetric, _loadMetric, _waitMetric, _notifyMetric;
 };
 
 template<typename FrameType>
@@ -195,106 +212,140 @@ std::optional<FrameType> FramePreloader<FrameType>::get_frame(Frame_t target_ind
             }
         }
         
+        std::shared_ptr<TimingStatsCollector::HandleGuard> handleGuard
+            = (_announceMetric != TimingMetric_t::None)
+                ? std::make_shared<TimingStatsCollector::HandleGuard>(stats, stats->startEvent(_announceMetric, next_index_to_use.load()))
+                : nullptr;
         last_returned_index = index;
     };
 
     auto set_next_index = [&](Frame_t target_index){
         /// we havent returned (so currently we arent working on the
         /// correct image yet), so lets check the next item:
-        if(auto pguard = LOGGED_LOCK(preloaded_frame_mutex);
-            not next_index_to_use.valid()
-            || next_index_to_use != target_index)
+        if(auto index = next_index_to_use.load();
+           not index.valid()
+            || index != target_index)
         {
             /// the next image after the current item will not be the
             /// target index, so we need to update the next index:
             //thread_print("* Reset next index ", next_index_to_use, " to target index ", target_index);
-            next_index_to_use = target_index;
+            next_index_to_use.compare_exchange_strong(index, target_index);
+            
+            std::shared_ptr<TimingStatsCollector::HandleGuard> handleGuard
+                = (_announceMetric != TimingMetric_t::None)
+                    ? std::make_shared<TimingStatsCollector::HandleGuard>(stats, stats->startEvent(_announceMetric, target_index))
+                    : nullptr;
+            //next_index_to_use = target_index;
         }
 
         ThreadManager::getInstance().notify(group_id);
     };
     
-    if (std::unique_lock guard(future_mutex);
-        future.valid()
-        && id_in_future == target_index)
-        
+    /* ----------------------------------------------------------------
+     * Handle any pending future for this target index without ever
+     * calling unlock()/lock() manually.  We sample the state while
+     * holding the mutex, release it, then do any potentially‑blocking
+     * work, and finally take the mutex again only when we really need
+     * it.  All lock management happens through RAII.
+     * ---------------------------------------------------------------- */
+    enum class FutureMode { None, ForTarget, WrongTarget };
+    FutureMode mode = FutureMode::None;
+    std::future<std::tuple<Frame_t, FrameType>> local_future;
+    
     {
-        /// we have already been waiting for the correct index
-        if(future.wait_for(delay) == std::future_status::ready) {
-            /// and it seems to be ready:
-            auto &&[index, image] = future.get();
-            assert(not image || index == id_in_future);
-            id_in_future.invalidate(); // nothing in future
-            
-            if(not image) {
-                // the returned image is illegal
-                //thread_print("* Illegal image for index ", index, " instead of ", target_index);
-                ThreadManager::getInstance().notify(group_id);
-                return std::nullopt;
-            }
-            
-            //thread_print("* Got valid image for index ", index, " (", target_index, ")");
+        std::unique_lock guard(future_mutex);
+        if (future.valid()) {
+            mode = (id_in_future == target_index)
+                     ? FutureMode::ForTarget
+                     : FutureMode::WrongTarget;
+        }
+        
+        local_future = std::move(future);
+    } // ‑‑ guard released here
 
-            guard.unlock();
-            
-            assert(Frame_t(image->index()) == index);
-            update_next_index(index);
-            
-            ThreadManager::getInstance().notify(group_id);
-            return std::optional<FrameType>(std::move(image));
-            
-        } else {
-            /// not ready yet after allowed period!
-            //thread_print("* Image wasnt ready yet for index ", id_in_future, " == ", target_index);
+    /* -------------------------------------------------
+     * Case 1: there is already a future for target_index
+     * ------------------------------------------------- */
+    if (mode == FutureMode::ForTarget) {
+        auto wait_status = local_future.wait_for(delay);
+        if (wait_status != std::future_status::ready) {
+            // Future exists but is not ready – nothing more to do now.
+            std::unique_lock guard(future_mutex);
+            if(future.valid()) {
+                FormatWarning("Mild concern...");
+                guard.unlock();
+                local_future.get(); /// we are throwing this away...?
+            } else
+                future = std::move(local_future);
             return std::nullopt;
         }
-        
-    } else if(future.valid()
-              && id_in_future != target_index)
-    {
-        /// there is something in the pipeline upon read, but
-        /// its unfortunately not the right image... need to get
-        /// rid of it though.
-        if(future.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready) {
-            auto &&[index, image] = future.get();
-            assert(not image || index == id_in_future);
-            id_in_future.invalidate();
-            
-            if(image) {
-                //thread_print("* returning wrong image for index ", index, " instead of ", target_index);
-                guard.unlock();
 
-                if(index != target_index + 1_f) {
+        auto &&[index, image] = local_future.get();
+
+        {
+            std::unique_lock guard(future_mutex);
+            assert(!image || index == id_in_future);
+            id_in_future = Frame_t{};               // clear
+        } // guard released
+
+        if (not image) {
+            ThreadManager::getInstance().notify(group_id);
+            return std::nullopt;
+        }
+
+        assert(Frame_t(image->index()) == index);
+        update_next_index(index);
+        ThreadManager::getInstance().notify(group_id);
+        return std::optional<FrameType>(std::move(image));
+    }
+
+    /* -----------------------------------------------------------
+     * Case 2: a future exists but for the wrong target; consume it
+     * ----------------------------------------------------------- */
+    if (mode == FutureMode::WrongTarget) {
+        // Poll once without blocking.
+        if (local_future.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready) {
+            auto &&[index, image] = local_future.get();
+
+            {
+                std::unique_lock guard(future_mutex);
+                assert(!image || index == id_in_future);
+                id_in_future = Frame_t{};           // clear
+            } // guard released
+
+            if (image) {
+                // Push the image aside so we can reuse it later if it fits (in next_image).
+                // We only store one next_image per time though.
+                if (index != target_index + 1_f) {
                     set_next_index(target_index + 1_f);
                 } else {
-                    // we are stuck in a loop on the same image
-                    set_next_index(target_index);
+                    set_next_index(target_index);   // avoid cycling
                 }
-                
-                //return std::optional<FrameType>(std::move(image));
-                
+
                 std::unique_lock g{next_mutex};
-                if(next_image
-                   && discard)
-                {
+                if (next_image && discard) {
                     discard(std::move(next_image));
                 }
-                
+
                 stored_next_image = Frame_t(image->index());
                 next_image = std::move(image);
-                
-                //if(discard)
-                //    discard(std::move(image));
-                return std::nullopt;
-               // thread_print("* Discarding image for index ", index, " instead of ", target_index);
             }
-            
-        } else {
-            /// not ready yet after allowed period!
-            //thread_print("* Image wasnt ready yet for index ", id_in_future, " != ", target_index);
+
+            return std::nullopt;
         }
+
+        // Future exists but is not ready – nothing more to do now.
+        std::unique_lock guard(future_mutex);
+        if(future.valid()) {
+            FormatWarning("Mild concern...");
+            guard.unlock();
+            local_future.get(); /// we are throwing this away...?
+        } else
+            future = std::move(local_future);
+        return std::nullopt;
     }
     
+    assert(not local_future.valid());
     set_next_index(target_index);
     return std::nullopt;
 }
@@ -304,11 +355,20 @@ void FramePreloader<FrameType>::preload_frames() {
     Frame_t current;
     
     {
-        auto guard = LOGGED_LOCK(preloaded_frame_mutex);
-        if(next_index_to_use.valid()) {
-            if(current_id != next_index_to_use) {
+        auto index = next_index_to_use.load();
+        std::shared_ptr<TimingStatsCollector::HandleGuard> handleGuard
+            = (_waitMetric != TimingMetric_t::None && index.valid())
+                ? std::make_shared<TimingStatsCollector::HandleGuard>(stats, stats->startEvent(_waitMetric, index))
+                : nullptr;
+        
+        //
+        if(auto index = next_index_to_use.load();
+           index.valid())
+        {
+            auto guard = LOGGED_LOCK(preloaded_frame_mutex);
+            if(current_id != index) {
                 if(image) {
-                    //thread_print("Discarding image ", image->index(), " (",current_id,") since we need ", next_index_to_use);
+                    thread_print("Discarding image ", image->index(), " (",current_id,") since we need ", index);
                     
                     /// if the currently stored image is the next one, please
                     /// save it instead of retrieving it again later...
@@ -337,7 +397,7 @@ void FramePreloader<FrameType>::preload_frames() {
                     stats->endEvent(_announceMetric, next_index_to_use);
                 }*/
                 
-                current_id = next_index_to_use;
+                current_id = index;
             }
         }
         current = current_id;
@@ -412,7 +472,7 @@ void FramePreloader<FrameType>::preload_frames() {
         if(current == next_index_to_use) {
             //thread_print("Got image for next index ", current, " (next = ", next_index_to_use,"), invalidating.");
             current_id.invalidate();
-            next_index_to_use.invalidate();
+            next_index_to_use = Frame_t{};
         } else {
             //thread_print("Got image for next index ", current, " (next = ", next_index_to_use,"), confirming.");
             current_id = next_index_to_use;

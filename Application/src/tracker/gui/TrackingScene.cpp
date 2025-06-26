@@ -61,6 +61,9 @@ struct TrackingScene::Data {
     std::unique_ptr<DrawExportOptions> _export_options;
     std::unique_ptr<DrawUniqueness> _uniqueness;
     
+    std::unique_ptr<TimingStatsCollector::HandleGuard> _display_handle, _waiting_handle;
+    Frame_t _last_displayed_frame;
+    
     /// these will help updating some visual stuff whenever
     /// the tracker has added a new frame:
     std::optional<std::size_t> _frame_callback;
@@ -581,6 +584,10 @@ bool TrackingScene::on_global_event(Event event) {
 }
 
 void TrackingScene::settings_callback(std::string_view key) {
+    if(key == "gui_frame") {
+        auto stats = TimingStatsCollector::getInstance();
+        _data->_waiting_handle = std::make_unique<TimingStatsCollector::HandleGuard>(stats, stats->startEvent(TimingMetric_t::FrameWaiting, SETTING(gui_frame).value<Frame_t>()));
+    }
     if(key == "gui_foi_name") {
         _data->update_cached_fois(_state->video, true);
         return;
@@ -757,7 +764,9 @@ void TrackingScene::activate() {
         
         "output_prefix",
         
-        "gui_wait_for_background"
+        "gui_wait_for_background",
+        
+        "gui_frame"
         
     }, [this](std::string_view key){
         SceneManager::enqueue([this, key](){
@@ -1152,8 +1161,13 @@ void TrackingScene::_draw(DrawStructure& graph) {
         if(loaded.valid() || _data->_cache->fish_dirty()) {
             //Print("Update all... ", loaded, "(",frameIndex,")");
             
-            if(loaded.valid())
+            if(loaded.valid()) {
                 SETTING(gui_displayed_frame) = loaded;
+                
+                _data->_waiting_handle = nullptr;
+                auto stats = TimingStatsCollector::getInstance();
+                _data->_display_handle = std::make_unique<TimingStatsCollector::HandleGuard>(stats, stats->startEvent(TimingMetric_t::FrameDisplay, loaded));
+            }
             using namespace dyn;
             
             _data->_individuals.resize(_data->_cache->raw_blobs.size());
