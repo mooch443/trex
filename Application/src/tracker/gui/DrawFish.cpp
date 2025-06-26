@@ -27,6 +27,8 @@
 //#include <gui.h>
 #endif
 
+#define OPTION(NAME) _options. NAME
+
 using namespace track;
 
 namespace cmn::gui {
@@ -35,6 +37,23 @@ struct Fish::Data {
     dyn::Context context;
     std::string label_text;
 };
+
+const std::string& Fish::label_text() {
+    if(OPTION(gui_show_texts)) {
+        try {
+            dyn::State state;
+            _data->label_text = dyn::parse_text(OPTION(gui_fish_label), _data->context, state);
+        } catch(const std::exception& ex) {
+#ifndef NDEBUG
+            FormatWarning("Caught exception when parsing text: ", ex.what());
+#endif
+            _data->label_text = "[<red>ERROR</red>] <lightgray>gui_fish_label</lightgray>: <red>"+std::string(ex.what())+"</red>";
+        }
+    } else {
+        _data->label_text.clear();
+    }
+    return _data->label_text;
+}
 
 Fish::~Fish() {
     if (_label) {
@@ -201,8 +220,6 @@ Fish::~Fish() {
             //}*/
         }
     }
-
-#define OPTION(NAME) _options. NAME
     
     void Fish::set_data(const UpdateSettings& options, Individual& obj, Frame_t frameIndex, double time, const EventAnalysis::EventMap *events)
     {
@@ -612,16 +629,6 @@ Fish::~Fish() {
            || _safe_frame != frameIndex)
         {
             _recognition_radius = 0.f;
-        }
-        
-        try {
-            dyn::State state;
-            _data->label_text = dyn::parse_text(OPTION(gui_fish_label), _data->context, state);
-        } catch(const std::exception& ex) {
-#ifndef NDEBUG
-            FormatWarning("Caught exception when parsing text: ", ex.what());
-#endif
-            _data->label_text = "[<red>ERROR</red>] <lightgray>gui_fish_label</lightgray>: <red>"+std::string(ex.what())+"</red>";
         }
     }
     
@@ -2122,10 +2129,10 @@ void Fish::label(const FindCoord& coord, Entangled &e) {
     }
     
     if (!_label) {
-        _label = new Label(_data->label_text, _basic_stuff->blob.calculate_bounds(), pos);
+        _label = new Label(label_text(), _basic_stuff->blob.calculate_bounds(), pos);
     }
     else
-        _label->set_data(this->frame(), _data->label_text, _basic_stuff->blob.calculate_bounds(), pos);
+        _label->set_data(this->frame(), label_text(), _basic_stuff->blob.calculate_bounds(), pos);
 
     //Print("Drawing label for fish ", _id.ID(), " at ", fish_pos(), " with ", _basic_stuff.has_value() ? "blob " + Meta::toStr(_basic_stuff->blob.blob_id()) : "no blob");
     

@@ -167,6 +167,8 @@ struct UpdateSettings {
         bool setup_rotated_bbx(const FindCoord&, const Vec2& offset, const Vec2& c_pos, Float2_t angle);
         void selection_hovered(Event);
         void selection_clicked(Event);
+        const std::string& label_text();
+        
     public:
         void label(const FindCoord&, Entangled&);
         Drawable* shadow();

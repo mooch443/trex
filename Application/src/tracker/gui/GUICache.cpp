@@ -672,80 +672,96 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
                 connectivity_matrix.clear();
             
             double time = properties ? properties->time() : 0;
+            std::mutex map_mutex;
             
-            for(auto fish : active) {
-                Range<Frame_t> tracklet_range;
-                
-                auto tracklet = fish->tracklet_for(frameIndex);
-                BasicStuff* basic{nullptr};
-                PostureStuff* posture{nullptr};
-                
-                if(tracklet) {
-                    auto basic_index = tracklet->basic_stuff(frameIndex);
-                    auto posture_index = tracklet->posture_stuff(frameIndex);
-                    basic = basic_index != -1 ? fish->basic_stuff().at(basic_index).get() : nullptr;
-                    posture = posture_index != -1 ? fish->posture_stuff().at(posture_index).get() : nullptr;
-                }
-                
-                //if(fish->identity().ID() == primary_selected_id())
-                {
+            distribute_indexes([this, &map_mutex, frameIndex, output_normalize_midline_data](int64_t, auto start, auto end, int64_t){
+                for(auto it = start; it != end; ++it) {
+                    auto fish = *it;
+                    Range<Frame_t> tracklet_range;
+                    std::shared_ptr<track::constraints::FilterCache> filters;
+                    
+                    auto tracklet = fish->tracklet_for(frameIndex);
+                    BasicStuff* basic{nullptr};
+                    PostureStuff* posture{nullptr};
+                    
                     if(tracklet) {
-                        auto filters = constraints::local_midline_length(fish, tracklet->range);
-                        filter_cache[fish->identity().ID()] = std::move(filters);
-                        tracklet_range = tracklet->range;
-                    }
-                }
-                
-                if(basic) {
-                    active_ids.insert(fish->identity().ID());
-                    
-                    BdxAndPred blob{
-                        .bdx = basic->blob.blob_id(),
-                        .basic_stuff = *basic,
-                        .automatic_match = fish->is_automatic_match(frameIndex),
-                        .tracklet = tracklet_range
-                    };
-                    if(posture) {
-                        blob.posture_stuff = posture->clone();
-                        
-                        /// this could be optimized by using the posture stuff
-                        /// in the fixed midline function + SETTING()
-                        blob.midline = output_normalize_midline_data ? fish->fixed_midline(frameIndex) : fish->calculate_midline_for(*posture);
+                        auto basic_index = tracklet->basic_stuff(frameIndex);
+                        auto posture_index = tracklet->posture_stuff(frameIndex);
+                        basic = basic_index != -1 ? fish->basic_stuff().at(basic_index).get() : nullptr;
+                        posture = posture_index != -1 ? fish->posture_stuff().at(posture_index).get() : nullptr;
                     }
                     
-                    blob_selected_fish[blob.bdx] = fish->identity().ID();
-                    fish_last_bounds[fish->identity().ID()] = basic->blob.calculate_bounds();
-                    fish_selected_blobs[fish->identity().ID()] = std::move(blob);
-                    
-                } else {
-                    inactive_ids.insert(fish->identity().ID());
-                    
-                    /// try a slightly more efficient way of getting the basic stuff
-                    /// for the previous frame (in order to allow the gui to quickly
-                    /// switch selected individuals if necessary, even if not all
-                    /// individuals are currently visible)
-                    const BasicStuff *pstuff{nullptr};
-                    if(tracklet && tracklet->contains(frameIndex - 1_f)) {
-                        auto index = tracklet->basic_stuff(frameIndex - 1_f);
-                        if(index != -1)
-                            pstuff = fish->basic_stuff().at(index).get();
-                        
-                    }
-                    
-                    if(not pstuff) {
-                        pstuff = fish->find_frame(frameIndex - 1_f);
-                    }
-                    
-                    if(pstuff) {
-                        fish_last_bounds[fish->identity().ID()] = pstuff->blob.calculate_bounds();
-                        
-                    } else if(auto fit = fish_last_bounds.find(fish->identity().ID());
-                            fit != fish_last_bounds.end())
+                    //if(fish->identity().ID() == primary_selected_id())
                     {
-                        fish_last_bounds.erase(fit);
+                        if(tracklet) {
+                            filters = constraints::local_midline_length(fish, tracklet->range);
+                            tracklet_range = tracklet->range;
+                        }
+                    }
+                    
+                    if(basic) {
+                        BdxAndPred blob{
+                            .bdx = basic->blob.blob_id(),
+                            .basic_stuff = *basic,
+                            .automatic_match = fish->is_automatic_match(frameIndex),
+                            .tracklet = tracklet_range
+                        };
+                        if(posture) {
+                            blob.posture_stuff = posture->clone();
+                            
+                            /// this could be optimized by using the posture stuff
+                            /// in the fixed midline function + SETTING()
+                            blob.midline = output_normalize_midline_data ? fish->fixed_midline(frameIndex) : fish->calculate_midline_for(*posture);
+                        }
+                        
+                        std::unique_lock g{map_mutex};
+                        active_blobs.insert(blob.bdx);
+                        active_ids.insert(fish->identity().ID());
+                        blob_selected_fish[blob.bdx] = fish->identity().ID();
+                        fish_last_bounds[fish->identity().ID()] = basic->blob.calculate_bounds();
+                        fish_selected_blobs[fish->identity().ID()] = std::move(blob);
+                        
+                        /// dont forget the filters
+                        if(filters)
+                            filter_cache[fish->identity().ID()] = std::move(filters);
+                        
+                    } else {
+                        /// try a slightly more efficient way of getting the basic stuff
+                        /// for the previous frame (in order to allow the gui to quickly
+                        /// switch selected individuals if necessary, even if not all
+                        /// individuals are currently visible)
+                        const BasicStuff *pstuff{nullptr};
+                        if(tracklet && tracklet->contains(frameIndex - 1_f)) {
+                            auto index = tracklet->basic_stuff(frameIndex - 1_f);
+                            if(index != -1)
+                                pstuff = fish->basic_stuff().at(index).get();
+                            
+                        }
+                        
+                        if(not pstuff) {
+                            pstuff = fish->find_frame(frameIndex - 1_f);
+                        }
+                        
+                        std::unique_lock g{map_mutex};
+                        inactive_ids.insert(fish->identity().ID());
+                        if(pstuff) {
+                            fish_last_bounds[fish->identity().ID()] = pstuff->blob.calculate_bounds();
+                            
+                        } else if(auto fit = fish_last_bounds.find(fish->identity().ID());
+                                fit != fish_last_bounds.end())
+                        {
+                            fish_last_bounds.erase(fit);
+                        }
+                        
+                        /// dont forget the filters
+                        if(filters)
+                            filter_cache[fish->identity().ID()] = std::move(filters);
+                        
+                        if(pstuff)
+                            active_blobs.insert(pstuff->blob.blob_id());
                     }
                 }
-            }
+            }, pool(), active.begin(), active.end());
             
             if(has_selection()) {
                 auto previous = Tracker::properties(frameIndex - 1_f);
@@ -782,13 +798,6 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
                         }
                     }
                 }
-            }
-            
-            // display all blobs that are assigned to an individual
-            for(auto fish : active) {
-                auto blob = fish->compressed_blob(frameIndex);
-                if(blob)
-                    active_blobs.insert(blob->blob_id());
             }
             
             if(!has_selection() || !SETTING(gui_auto_scale_focus_one)) {
@@ -1250,6 +1259,9 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
                     }
                 }
                 
+                /// if possible, try to get information about probabilities and such
+                /// for the next frame already. this is whats displayed in the gui in the
+                /// blob probabilities for example.
                 if(_props && _next_props) {
                     std::scoped_lock guard(individuals_mutex, _next_frame_cache_mutex, _tracklet_cache_mutex);
                     auto current_time = _props->time();
@@ -1312,16 +1324,22 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
                     }, pool(), ids_to_check.begin(), ids_to_check.end());
                 }
                 
+                /// update the GUI objects with the new data
+                /// this might take a long time for many objects, but is parallelizable
+                /// we just need to make sure not to push any actual gui objects to the actual layouts yet.
                 std::unique_lock guard(_fish_map_mutex);
-                for(auto id : ids_to_check) {
-                    auto it = _fish_map.find(id);
-                    if(it == _fish_map.end())
-                        continue;
-                    
-                    std::unique_lock guard(individuals_mutex);
-                    auto fish = individuals.at(it->first);
-                    it->second->set_data(update_settings, *fish, frameIndex, properties->time(), nullptr);
-                }
+                distribute_indexes([this, frameIndex, &update_settings, &properties](int64_t, auto start, auto end, int64_t) {
+                    for(auto fit = start; fit != end; ++fit) {
+                        auto id = *fit;
+                        auto it = _fish_map.find(id);
+                        if(it == _fish_map.end())
+                            continue;
+                        
+                        std::unique_lock guard(individuals_mutex);
+                        auto fish = individuals.at(it->first);
+                        it->second->set_data(update_settings, *fish, frameIndex, properties->time(), nullptr);
+                    }
+                }, pool(), ids_to_check.begin(), ids_to_check.end());
             }
             
             updated_tracking();

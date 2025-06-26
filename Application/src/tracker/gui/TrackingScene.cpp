@@ -584,10 +584,10 @@ bool TrackingScene::on_global_event(Event event) {
 }
 
 void TrackingScene::settings_callback(std::string_view key) {
-    if(key == "gui_frame") {
+    /*if(key == "gui_frame") {
         auto stats = TimingStatsCollector::getInstance();
         _data->_waiting_handle = std::make_unique<TimingStatsCollector::HandleGuard>(stats, stats->startEvent(TimingMetric_t::FrameWaiting, SETTING(gui_frame).value<Frame_t>()));
-    }
+    }*/
     if(key == "gui_foi_name") {
         _data->update_cached_fois(_state->video, true);
         return;
@@ -764,9 +764,9 @@ void TrackingScene::activate() {
         
         "output_prefix",
         
-        "gui_wait_for_background",
+        "gui_wait_for_background"
         
-        "gui_frame"
+        //"gui_frame"
         
     }, [this](std::string_view key){
         SceneManager::enqueue([this, key](){
