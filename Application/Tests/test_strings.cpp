@@ -1102,7 +1102,7 @@ TEST(PreparseTest, JSONPreparse) {
 template <typename T = std::string, typename ParseFn>
 void benchmark_parse_fn(const std::string& label, ParseFn parse_fn,
                        const std::vector<std::pair<std::string, std::string>>& cases,
-                       gui::dyn::Context& context, gui::dyn::State& state, size_t samples = 1000000)
+                       gui::dyn::Context& context, gui::dyn::State& state, size_t samples = 10000)
 {
     printf("level,desc,%s_us_per_parse\n", label.c_str());
     for (size_t level = 0; level < cases.size(); ++level) {
