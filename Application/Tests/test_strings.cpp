@@ -8,6 +8,15 @@
 #include <tracking/IndividualCache.h>
 #include <misc/detail.h>
 #include <misc/RecentItems.h>
+#include <gui/dyn/ParseText.h>
+#include <gui/dyn/VarProps.h>
+#include <gui/dyn/Context.h>
+#include <gui/dyn/State.h>
+#include <gui/dyn/CTimer.h>
+#include <gui/dyn/Action.h>
+#include <gui/dyn/ResolveVariable.h>
+#include <gui/DynamicGUI.h>
+#include <misc/idx_t.h>
 
 static constexpr auto lower = cmn::utils::lowercase("hiIbImS");
 
@@ -120,6 +129,1059 @@ struct StructTest {
 };
 
 static const auto recent_items_test = R"({"entries":[{"created":"1722898354365058","filename":"/Users/user/Downloads/MatrixIssues/20240407_130252","modified":"1722898656173724","name":"/Users/user/Downloads/MatrixIssues/20240407_130252","output_dir":"","output_prefix":"","settings":{"cam_matrix":[0.9162667552083333,0,0.5045229020833334,0,1.6345315185185185,0.5236356972222223,0,0,1],"cam_undistort":true,"cam_undistort_vector":[-0.314080328,-0.0967427775,-0.000260259724,0.000191272304,0.476336027],"cm_per_pixel":0.019999999552965164,"detect_skeleton":["human",[[0,1],[0,2],[1,3],[2,4],[5,6],[5,7],[7,9],[6,8],[8,10],[5,11],[6,12],[11,12],[11,13],[13,15],[12,14],[14,16]]],"detect_threshold_is_absolute":false,"function_test":null,"individual_image_scale":0.6000000238418579,"midline_stiff_percentage":0.10000000149011612,"output_dir":"","source":"/Users/user/Downloads/MatrixIssues/20240407_130252.MOV","threshold":40,"track_threshold_is_absolute":false,"track_include":[[[1501,817],[463,841],[461,351],[1489,337]],[[1498,803],[1497,847],[456,861],[459,828]],[[1517,300],[1492,347],[456,364],[444,305]],[[498,853],[432,857],[430,316],[490,337]],[[1540,841],[1492,834],[1479,317],[1510,323]]],"track_max_individuals":2,"track_max_speed":40,"track_posture_threshold":9,"track_size_filter":[[0.25,1.5]],"track_threshold":40}},{"created":"1720779303324089","filename":"","modified":"1720779303324089","name":"/Users/user/Videos/tmp/juvenile_birchmanni_4_Trial12_UN_UN","output_dir":"","output_prefix":"","settings":{"blob_split_algorithm":"fill","calculate_posture":false,"cwd":"/Users/user/trex/Application/beta/Debug","detect_model":"yolov8x-pose","individual_image_normalization":"moments","meta_encoding":"r3g3b2","meta_source_path":"/Users/user/Downloads/juvenile_birchmanni_4_Trial12_UN_UN.mov","source":"/Users/user/Downloads/juvenile_birchmanni_4_Trial12_UN_UN.mov","track_do_history_split":false,"track_max_reassign_time":1}},{"created":"1720779303320210","filename":"","modified":"1720779303320210","name":"/Users/user/Videos/tmp/002_full_pilot","output_dir":"","output_prefix":"","settings":{"cm_per_pixel":0.019999999552965164,"detect_skeleton":["human",[[0,1],[0,2],[1,3],[2,4],[5,6],[5,7],[7,9],[6,8],[8,10],[5,11],[6,12],[11,12],[11,13],[13,15],[12,14],[14,16]]],"gpu_torch_no_fixes":true,"output_dir":"/Users/user/Videos/tmp","recognition_segment_add_factor":1,"source":"/Users/user/Downloads/002_full_pilot.MP4","track_max_individuals":4,"track_threshold":15}},{"created":"1720779303312230","filename":"","modified":"1720779303312230","name":"/Users/user/Downloads/002_full_pilot","output_dir":"","output_prefix":"","settings":{"cm_per_pixel":0.10000000149011612,"detect_skeleton":["human",[[0,1],[0,2],[1,3],[2,4],[5,6],[5,7],[7,9],[6,8],[8,10],[5,11],[6,12],[11,12],[11,13],[13,15],[12,14],[14,16]]],"gpu_torch_no_fixes":true,"gui_focus_group":[2],"gui_show_individual_preview":true,"heatmap_ids":[2],"individual_image_size":[80,80],"manual_matches":{"0":{"0":331361215,"1":362298148,"2":365449625,"3":50918454}},"manual_splits":{"10145":[1798340233],"10147":[1794669897],"10392":[1616404981],"10755":[432130367],"11032":[429400456],"11477":[1531453472],"11488":[1524637286],"11966":[152144770],"11968":[148474138],"12968":[183080834],"12993":[230779254],"12996":[228680390],"13308":[227114888],"14421":[174613835],"14426":[171468834],"14944":[1822521131],"15312":[1574971339],"15318":[1578641100],"16071":[66138639],"1653":[67681770],"16850":[913424684],"17002":[44104078],"1732":[67152321],"17605":[1929459522],"17896":[216569868],"17897":[207132831],"17944":[222846982],"17946":[228613767],"18586":[1881244567],"20015":[175739857],"20510":[465689085],"20807":[340865054],"20811":[343485149],"2238":[469772213],"23193":[53004033],"23197":[52479054],"24079":[97563986],"25172":[1928388496],"25174":[1925242007],"27190":[75032149],"27266":[72926034],"278":[1093151078],"280":[1094199649],"2891":[1940964054],"29018":[1131421509],"30853":[1362219416],"31401":[743976203],"31406":[745024848],"31460":[743452091],"3195":[1486995894],"34363":[229209693],"3446":[307347713],"3626":[77129362],"37473":[1757510170],"38899":[1612717393],"3899":[578302611],"44644":[1779992133],"44680":[1758495877],"45275":[109088291],"4540":[1935218378],"4601":[1924228299],"4603":[1903257168],"4821":[1159321968],"4825":[1155127728],"50231":[267946708],"50759":[1803052086],"50932":[1842905049],"54123":[37802975],"5500":[436217029],"5506":[433071617],"55981":[688400379],"57154":[1944147094],"57158":[1937328989],"6038":[922830723],"6039":[923879310],"61508":[217617076],"62288":[1944102445],"62304":[1904777172],"62306":[1900582039],"62552":[1461727497],"62557":[1458582283],"6325":[1518979461],"63657":[1690912047],"67618":[84490233],"6805":[1075946738],"68194":[313629355],"68199":[285841900],"68400":[75552263],"7599":[1828216105],"7649":[1832936187],"7681":[1843423414],"7726":[1867022998],"8488":[370266431],"8495":[351391185],"8496":[402771064],"8499":[382847024],"8555":[144804749],"9027":[1344294991],"9280":[1530968058],"9464":[40954656],"9470":[40955829]},"output_dir":"","segment_size_filter":[[0.10000000149011612,100]],"source":"/Users/user/Downloads/002_full_pilot.MP4","threshold":15,"track_ignore":[[[679,2097],[6,2147],[3,1663]],[[499,10],[6,351],[2,3]],[[3834,2152],[3284,2130],[3832,1723]]],"track_max_individuals":4,"track_max_speed":100,"track_size_filter":[[1.5,10]],"track_threshold":15}}],"modified":"1723213416841714"})";
+
+
+
+struct Prepared;
+struct Unprepared;
+using PreparedPattern = std::variant<std::string_view, Prepared, Prepared*>;
+using PreparedPatterns = std::vector<PreparedPattern>;
+
+using UnpreparedPattern = std::variant<std::string_view, Unprepared>;
+using UnpreparedPatterns = std::vector<UnpreparedPattern>;
+
+struct UnresolvedStringPattern {
+    PreparedPatterns objects;
+    std::optional<size_t> typical_length;
+    std::vector<Prepared*> all_patterns;
+};
+
+struct Unprepared {
+    std::string_view original;
+    std::string_view name;
+    std::vector<std::variant<std::string_view, UnpreparedPatterns>> parameters;
+    std::vector<std::string_view> subs;
+    bool optional{false};
+    bool html{false};
+};
+
+struct Prepared {
+    std::string_view original;
+    std::vector<PreparedPatterns> parameters;
+    gui::dyn::VarProps resolved;
+    
+    std::optional<std::string> _cached_value;
+    bool has_children{false};
+    
+    Prepared(const Unprepared& unprepared);
+    std::string toStr() const;
+    static std::string class_name() { return "Prepared"; }
+    
+    void resolve(UnresolvedStringPattern&, std::string&, const gui::dyn::Context& context, gui::dyn::State& state);
+    const std::optional<std::string>& cached() const {
+        return _cached_value;
+    }
+    void reset() {
+        _cached_value.reset();
+    }
+};
+
+bool operator==(const PreparedPattern& A, const PreparedPattern& B) {
+    if(bool is_sv = std::holds_alternative<std::string_view>(A);
+       is_sv == std::holds_alternative<std::string_view>(B))
+    {
+        if(is_sv) {
+            return std::get<std::string_view>(A) == std::get<std::string_view>(B);
+        } else {
+            return std::get<Prepared>(A) == std::get<Prepared>(B);
+        }
+    }
+    return false;
+}
+
+// Less-than operator for UnresolvedPattern
+bool operator<(const PreparedPattern& A, const PreparedPattern& B)
+{
+    // Order by the index of the held alternative first (string_view < ParsePattern < ParsePattern*)
+    if (A.index() != B.index())
+        return A.index() < B.index();
+
+    // Same variant held – compare the actual contents
+    if (std::holds_alternative<std::string_view>(A)) {
+        return std::get<std::string_view>(A) < std::get<std::string_view>(B);
+    }
+    else if (std::holds_alternative<Prepared>(A)) {
+        // Use a stable lexical ordering of the string representation
+        return std::get<Prepared>(A).toStr() < std::get<Prepared>(B).toStr();
+    }
+    else { // both hold ParsePattern*
+        auto lhs = std::get<Prepared*>(A);
+        auto rhs = std::get<Prepared*>(B);
+
+        // Define ordering for potential nullptrs
+        if (lhs == rhs)           return false;
+        if (lhs == nullptr)       return true;   // nullptr considered smaller
+        if (rhs == nullptr)       return false;
+
+        // Fallback to lexical compare of the pointed‑to patterns
+        return lhs->toStr() < rhs->toStr();
+    }
+}
+
+
+Unprepared create_parse_result(std::string_view trimmedStr) {
+    if (not trimmedStr.empty() and trimmedStr.front() == '{' and trimmedStr.back() == '}')
+    {
+        trimmedStr = trimmedStr.substr(1, trimmedStr.size() - 2);
+    }
+
+    std::size_t pos = 0;
+    
+    Unprepared action;
+    action.original = trimmedStr;
+    
+    while (pos < trimmedStr.size() and trimmedStr[pos] not_eq ':') {
+        ++pos;
+    }
+
+    action.name = trimmedStr.substr(0, pos);
+    bool inQuote = false;
+    char quoteChar = '\0';
+    int braceLevel = 0;  // Keep track of nested braces
+    std::size_t token_start = ++pos;  // Skip the first ':'
+
+    for (; pos < trimmedStr.size(); ++pos) {
+        char c = trimmedStr[pos];
+
+        if (c == ':' and not inQuote and braceLevel == 0) {
+            action.parameters.emplace_back(trimmedStr.substr(token_start, pos - token_start));
+            token_start = pos + 1;
+        } else if ((c == '\'' or c == '\"') and (not inQuote or c == quoteChar)) {
+            inQuote = not inQuote;
+            if (inQuote) {
+                quoteChar = c;
+            }
+        } else if (c == '{' and not inQuote) {
+            // Assuming skipNested advances 'pos'
+            gui::dyn::skipNested(trimmedStr, pos, '{', '}');
+            --pos;
+        } else if (c == '[' and not inQuote) {
+            ++braceLevel;
+        } else if (c == ']' and not inQuote) {
+            --braceLevel;
+        }
+    }
+
+    if (inQuote) {
+        throw std::invalid_argument("Invalid format: Missing closing quote");
+    }
+    
+    if (token_start < pos) {
+        action.parameters.emplace_back(trimmedStr.substr(token_start, pos - token_start));
+    }
+    
+    return action;
+}
+
+Unprepared extractControls(std::string_view variable) {
+    Unprepared props = create_parse_result(variable);
+    
+    bool html{false}, optional{false};
+    std::size_t controlsSize = 0;
+    for (char c : props.name) {
+        if(c == '#' || c == '.') {
+            if (c == '#') {
+                html = true;
+            }
+            else if (c == '.') {
+                optional = true;
+            }
+            controlsSize++;
+        } else {
+            // Once we hit a character that's not a control character,
+            // we break out of the loop.
+            break;
+        }
+    }
+
+    // Parsing the name and sub-variables, omitting the controls
+    auto r = utils::split(std::string_view(props.name).substr(controlsSize), '.');
+    
+    // Assigning the action name without the control characters.
+    if (r.empty())
+        throw InvalidArgumentException("No variables found: ", props.name);
+
+    props.optional = optional;
+    props.html = html;
+    /*VarProps props{
+        .name{std::string(r.front())},
+        .optional = optional,
+        .html = html
+    };*/
+    
+    const size_t N = r.size();
+    props.subs.resize(N - 1);
+    for (size_t i=1, N = r.size(); i<N; ++i) {
+        props.subs[i - 1] = r[i];
+    }
+
+    //Print("Initial parameters = ", props.parameters);
+    //for(auto &p : props.parameters) {
+        // parse parameters here
+        // if the parameter seems to be a string (quotes '"), use parse_text(text, context) function to parse it
+        // if the parameter seems to be a variable, it needs to be resolved:
+    //    p = _parse_text(p, context, state);
+    //}
+    
+    if(r.front() != std::string_view(props.name))
+        props.name = r.front();
+    return props;
+}
+
+UnpreparedPatterns parse_words(std::string_view pattern) {
+    UnpreparedPatterns result;
+    std::stack<std::size_t> nesting_start_positions;
+    bool comment_out = false;
+    std::optional<std::size_t> last_start;
+
+    for(std::size_t i = 0; i < pattern.size(); ++i) {
+        char ch = pattern[i];
+        if(nesting_start_positions.empty()) {
+            if(not last_start
+               && not comment_out
+               && ch != '{')
+            {
+                last_start = i;
+            }
+            
+            switch(ch) {
+                case '\\':
+                    if(not comment_out) {
+                        comment_out = true;
+                    } else {
+                        comment_out = false;
+                    }
+                    break;
+                case '{':
+                    if(not comment_out){
+                        nesting_start_positions.push(i + 1);
+                        if(last_start)
+                            result.push_back(pattern.substr(*last_start, i - *last_start));
+                        last_start.reset();
+                    }
+                    comment_out = false;
+                    break;
+                case '}':
+                    if(!comment_out)
+                        throw InvalidSyntaxException("Mismatched closing brace at position ", i);
+                    comment_out = false;
+                    break;
+                default:
+                    if(comment_out) {
+                        FormatWarning("Invalid escape sequence at position ", i, ": ", ch, ". Only braces need to be escaped.");
+                        comment_out = false;
+                    }
+            }
+        } else {
+            if(comment_out) {
+                comment_out = false;
+                
+            } else if(ch == '\\') {
+                comment_out = true;
+                
+            } else if(ch == '}') {
+                if(nesting_start_positions.empty()) {
+                    throw InvalidSyntaxException("Mismatched closing brace at position ", i);
+                }
+                
+                std::size_t start_pos = nesting_start_positions.top();
+                nesting_start_positions.pop();
+
+                if(nesting_start_positions.empty()) {
+                    std::string_view current_word = pattern.substr(start_pos, i - start_pos);
+                    if(current_word.empty()) {
+                        throw InvalidSyntaxException("Empty braces at position ", i);
+                    }
+                    
+                    auto controls = extractControls(current_word);
+                    
+                    
+                    result.push_back(Unprepared{controls});
+                    last_start = i + 1;
+                }
+                
+            } else if(ch == '{') {
+                nesting_start_positions.push(i + 1);
+                if(last_start)
+                    result.push_back(pattern.substr(*last_start, i - *last_start));
+                last_start.reset();
+            } else {
+                if(nesting_start_positions.empty()) {
+                    throw InvalidSyntaxException("Mismatched opening brace at position ", i);
+                }
+                //nesting.top() += ch;
+            }
+        }
+    }
+
+    if(not nesting_start_positions.empty()) {
+        throw InvalidSyntaxException("Mismatched opening brace");
+    }
+    
+    if(comment_out) {
+        // Trailing backslash without a following character
+        throw InvalidSyntaxException("Trailing backslash");
+    }
+
+    if(last_start
+       && *last_start < pattern.length())
+    {
+        result.push_back(pattern.substr(*last_start, pattern.length() - *last_start));
+    }
+    
+    return result;
+}
+
+Prepared::Prepared(const Unprepared& unprepared)
+    : original(unprepared.original)
+{
+    parameters.reserve(unprepared.parameters.size());
+    for(auto &o : unprepared.parameters) {
+        assert(std::holds_alternative<UnpreparedPatterns>(o));
+        PreparedPatterns r;
+        for(auto &p : std::get<UnpreparedPatterns>(o)) {
+            std::visit([&r](auto& obj) {
+                using T = std::decay_t<decltype(obj)>;
+                if constexpr(std::same_as<T, std::string_view>) {
+                    r.emplace_back(obj);
+                } else if constexpr(std::same_as<T, Unprepared>) {
+                    r.emplace_back(Prepared{
+                        obj
+                    });
+                    
+                } else {
+                    static_assert(std::same_as<T, void>, "unknown type.");
+                }
+            }, p);
+        }
+        parameters.push_back(std::move(r));
+    }
+    
+    auto& props = resolved;
+    props.name = unprepared.name;
+    props.html = unprepared.html;
+    props.optional = unprepared.optional;
+    for(auto &sv : unprepared.subs)
+        props.subs.push_back((std::string)sv);
+}
+
+std::string Prepared::toStr() const {
+    std::string result = "fn<" + (std::string)resolved.name + ">{";
+    for(size_t j = 0; j < parameters.size(); ++j) {
+        auto &parm = parameters[j];
+        if(j > 0)
+            result += ",";
+        if(parm.size() > 1)
+            result += "(";
+        
+        for(size_t i = 0; i < parm.size(); ++i) {
+            if(i > 0)
+                result += ",";
+            
+            std::visit([&result](auto& obj) {
+                using T = std::decay_t<decltype(obj)>;
+                if constexpr(std::same_as<T, std::string_view>) {
+                    result += "str<"+(std::string)obj+">";
+                } else if constexpr(std::same_as<T, Prepared>) {
+                    result += obj.toStr();
+                } else if constexpr(std::same_as<T, Prepared*>) {
+                    result += hex(obj).toStr();
+                } else {
+                    static_assert(std::same_as<void, T>, "Unknown type");
+                }
+                
+            }, parm[i]);
+        }
+        
+        if(parm.size() > 1)
+            result += ")";
+    }
+    result += "}";
+    return result;
+}
+
+void output_object(auto& ss, auto&& arg) {
+    using T = std::decay_t<decltype(arg)>;
+    if constexpr(std::same_as<T, std::string_view>)
+        ss << "str(" << (std::string)arg << ") ";
+    else if constexpr(std::same_as<T, Prepared>) {
+        ss << arg.toStr();
+    } else if constexpr(std::same_as<T, Prepared*>) {
+        ss << hex(arg).toStr();
+    } else {
+        static_assert(std::same_as<void, T>, "Unknown Typename");
+    }
+}
+
+namespace cmn::gui::dyn {
+void fast_fromstr(std::string& output, std::string_view sv) {
+    const std::size_t N = sv.size();
+    if (N < 2) {                               // too short to be quoted
+        output.append(sv);
+        return;
+    }
+    
+    const char quote = sv[0];
+    const bool quoted = ((quote == '"' || quote == '\'') && sv[N-1] == quote);
+    size_t current_size = output.size();
+
+    if (!quoted) {                             // no outer quotes → verbatim
+        output.resize(current_size + N);
+        std::memcpy(output.data() + current_size, sv.data(), N);
+        return;
+    }
+
+    // Payload lies strictly between the two quotes
+    output.reserve(current_size + N - 2);     // worst‑case growth (every '\' drops)
+
+    const char* src   = sv.data() + 1;         // first byte inside the quotes
+    const char* end   = sv.data() + N - 1;     // one‑past‑last payload byte
+    const char* chunk = src;                   // start of current raw slice
+    
+    while (src < end) {
+        if (*src == '\\' && src + 1 < end) {   // found an escape sequence
+            // copy slice *before* '\'
+            size_t L = src - chunk;
+            output.resize(current_size + L);
+            std::memcpy(output.data() + current_size, chunk, L);
+            current_size += L + 1;
+            
+            output.push_back(*(src + 1));      // copy char *after* '\'
+            src  += 2;                         // skip both
+            chunk = src;                       // next slice starts here
+        } else {
+            ++src;
+        }
+    }
+    
+    size_t L = src - chunk;
+    output.resize(current_size + L);
+    std::memcpy(output.data() + current_size, chunk, L);
+}
+
+TEST(FastFromStrTest, EscapedQuoteIsRetained)
+{
+    std::string out;
+    fast_fromstr(out, R"("a\"b")");   // payload is  a\"b  inside the quotes
+
+    // Desired result: back-slash removed, quote kept →  a"b
+    EXPECT_EQ(out, "a\"b");
+}
+
+// A back‑slash that is *not* followed by a quote must be preserved
+TEST(FastFromStrTest, LoneBackslashIsPreserved)
+{
+    // payload inside quotes:  a\c
+    std::string out;
+    fast_fromstr(out, R"("a\c")");
+
+    // Nothing to un‑escape ⇒ output identical (without the surrounding quotes)
+    EXPECT_EQ(out, R"(ac)");
+}
+
+// A double‑back‑slash sequence represents a single literal back‑slash,
+// so both back‑slashes must survive (\" is the *only* collapse rule).
+TEST(FastFromStrTest, DoubleBackslashIsPreserved)
+{
+    std::string out;
+    fast_fromstr(out, R"("a\\\\b")");
+
+    EXPECT_EQ(out, R"(a\\b)");
+}
+
+TEST(FastFromStrTest, OLDoubleBackslashIsPreserved)
+{
+    std::string out;
+    fast_fromstr(out, R"(a\\b)");
+
+    EXPECT_EQ(out, R"(a\\b)");
+}
+
+
+TEST(FastFromStrTest, EmptyQuotedStringProducesEmpty)
+{
+    std::string out;
+    fast_fromstr(out, R"("")");   // just two quote characters
+    EXPECT_EQ(out, "");
+}
+
+TEST(FastFromStrTest, SingleCharacterQuoted)
+{
+    std::string out;
+    fast_fromstr(out, R"("x")");   // minimal payload of one char
+    EXPECT_EQ(out, "x");
+}
+
+TEST(FastFromStrTest, UnquotedStringVerbatim)
+{
+    std::string out;
+    fast_fromstr(out, "plain");    // no surrounding quotes
+    EXPECT_EQ(out, "plain");
+}
+
+TEST(FastFromStrTest, MismatchedQuotesVerbatim)
+{
+    std::string out;
+    fast_fromstr(out, "\"a");      // opening quote without matching closing quote
+    EXPECT_EQ(out, "\"a");
+}
+
+template<typename ApplyF, typename ErrorF>
+    requires std::invocable<ApplyF, std::string&, VarBase_t&, const VarProps&>
+inline auto resolve_variable(UnresolvedStringPattern& patterns, std::string& output, const VarProps& props, const Context& context, State& state, ApplyF&& apply, ErrorF&& error)
+{
+    try {
+        if(auto it = context.find(props.name);
+           it.has_value())
+        {
+            [[maybe_unused]] CTimer ctimer("normal");
+            if constexpr(std::invocable<ApplyF, std::string&, VarBase_t&, const VarProps&>) {
+                apply(output, *it.value()->second, props);
+                return;
+            } else
+                static_assert(std::invocable<ApplyF, std::string&, VarBase_t&, const VarProps&>);
+            
+        } else if(props.name == "if") {
+            REQUIRE_AT_LEAST(2, props);
+            [[maybe_unused]] CTimer ctimer("if");
+            bool condition = props.parameters.front() == "true";
+            //bool condition = resolve_variable_type<bool>(p.parameters.at(0), context, state);
+            //Print("Condition ", props.parameters.at(0)," => ", condition);
+            if(condition)
+                fast_fromstr(output, props.parameters[1]);
+                //output += Meta::fromStr<std::string>(props.parameters[1]);
+            else if(props.parameters.size() == 3)
+                fast_fromstr(output, props.parameters[2]);
+                //output += Meta::fromStr<std::string>(props.parameters[2]);
+            return;
+            
+        } else if(auto it = context.defaults.variables.find(props.name); it != context.defaults.variables.end()) {
+            [[maybe_unused]] CTimer ctimer("custom var");
+            fast_fromstr(output, it->second->value<std::string>(context, state));
+            return;
+            
+        } else if(auto lock = state._current_object_handler.lock();
+                  lock != nullptr)
+        {
+            if(auto ptr = lock->retrieve_named(props.name);
+               ptr != nullptr)
+            {
+                auto v = get_modifier_from_object(ptr.get(), props);
+                if(v.has_value()) {
+                    fast_fromstr(output, v.value());
+                    //output += Meta::fromStr<std::string>(v.value());
+                    return;
+                }
+            }
+            
+        }
+        
+    } catch(...) {
+        // catch exceptions
+    }
+    
+    if constexpr(std::invocable<ErrorF, std::string&, bool>)
+        error(output, props.optional);
+    else
+        error(output);
+}
+}
+
+void resolve_parameter(std::string& c, UnresolvedStringPattern& pattern, PreparedPatterns& patterns, const cmn::gui::dyn::Context& context, cmn::gui::dyn::State& state) {
+    for(auto& o : patterns) {
+        std::visit([&c, &context, &state, &pattern](auto& o) {
+            using T = std::decay_t<decltype(o)>;
+            if constexpr(std::same_as<T, std::string_view>) {
+                c += (std::string)o;
+            } else if constexpr(std::same_as<T, Prepared>) {
+                if(o.cached().has_value()) {
+                    c += o.cached().value();
+                } else
+                    o.resolve(pattern, c, context, state);
+            } else if constexpr(std::same_as<T, Prepared*>) {
+                if(o->cached().has_value()) {
+                    c += o->cached().value();
+                } else {
+                    o->resolve(pattern, c, context, state);
+                }
+                
+            } else {
+                static_assert(std::same_as<void, T>, "Unknown type.");
+            }
+            
+        }, o);
+    }
+}
+
+void Prepared::resolve(UnresolvedStringPattern& pattern, std::string& str, const gui::dyn::Context& context, gui::dyn::State& state)
+{
+    /*if(prepared.parameters.empty())
+    {
+        if(auto it = pattern.cache.find(prepared.original);
+           it != pattern.cache.end())
+        {
+            str += it->second;
+            return;
+        }
+    }*/
+    /*if(prepared._cached_value.has_value()) {
+        //if(auto value = state.cached_variable_value(prepared.original);
+        //   value.has_value())
+        if(prepared._handler.lock()){
+            //Print("* using cached value for ", prepared.original, ": ", *value);
+            str += *prepared._cached_value;
+            return;
+            
+        } else {
+            prepared._handler.reset();
+        }
+    }*/
+    
+    auto& props = resolved;
+    auto& parms = props.parameters;
+    
+    if(resolved.name == "if") {
+        /// we have a special case here where we want lazy evaluation
+        /// lets assume three parameters here:
+        if(not is_in(parameters.size(), 2u, 3u))
+            throw InvalidArgumentException("An if statement (", parameters, ") accepts exactly 2 or 3 parameters.");
+        
+        parms.resize(parameters.size());
+        auto& condition = parms[0];
+        condition.clear();
+        resolve_parameter(condition, pattern, parameters[0], context, state);
+        
+        if(gui::dyn::convert_to_bool(condition)) {
+            parms[1].clear();
+            resolve_parameter(parms[1], pattern, parameters[1], context, state);
+            if(parms.size() == 3)
+                parms[2] = "null";
+        } else if(parms.size() == 3) {
+            parms[2].clear();
+            resolve_parameter(parms[2], pattern, parameters[2], context, state);
+            parms[1] = "null";
+        }
+        
+    } else {
+        const size_t N = parameters.size();
+        parms.resize(N);
+        for(size_t i = 0; i < N; ++i) {
+            auto &p = parameters[i];
+            parms[i].clear();
+            resolve_parameter(parms[i], pattern, p, context, state);
+        }
+    }
+    
+    size_t index = str.length();
+    gui::dyn::resolve_variable(pattern, str, props, context, state, [](std::string& output, cmn::gui::dyn::VarBase_t& variable, const gui::dyn::VarProps& modifiers)
+    {
+        try {
+            if(modifiers.html)
+                output += "<red>html not supported</red>";
+            
+            if(modifiers.subs.empty())
+                output += variable.value_string(modifiers);
+            else if(variable.is<Size2>()) {
+                if(modifiers.subs.front() == "w")
+                    output += Meta::toStr(variable.value<Size2>(modifiers).width);
+                else if(modifiers.subs.front() == "h")
+                    output += Meta::toStr(variable.value<Size2>(modifiers).height);
+                else
+                    throw InvalidArgumentException("Sub ",modifiers," of Size2 is not valid.");
+                
+            } else if(variable.is<Vec2>()) {
+                if(modifiers.subs.front() == "x")
+                    output += Meta::toStr(variable.value<Vec2>(modifiers).x);
+                else if(modifiers.subs.front() == "y")
+                    output += Meta::toStr(variable.value<Vec2>(modifiers).y);
+                else
+                    throw InvalidArgumentException("Sub ",modifiers," of Vec2 is not valid.");
+                
+            } else if(variable.is<Range<Frame_t>>()) {
+                if(modifiers.subs.front() == "start")
+                    output += Meta::toStr(variable.value<Range<Frame_t>>(modifiers).start);
+                else if(modifiers.subs.front() == "end")
+                    output += Meta::toStr(variable.value<Range<Frame_t>>(modifiers).end);
+                else
+                    throw InvalidArgumentException("Sub ",modifiers," of Range<Frame_t> is not valid.");
+                
+            } else
+                output += variable.value_string(modifiers);
+            
+            //if(modifiers.html)
+            //    return settings::htmlify(ret);
+            return;
+            
+        } catch(const std::exception& ex) {
+            if(not modifiers.optional)
+                FormatExcept("Exception: ", ex.what(), " in variable: ", modifiers);
+            output += modifiers.optional ? "" : "null";
+        }
+        
+    }, [&props](std::string&, bool optional) {
+        if(not optional)
+            throw InvalidArgumentException("Failed to evaluate ", props, ".");
+    });
+    
+    /*if(prepared.parameters.empty())
+    {
+        pattern.cache[prepared.original] = std::string_view(str).substr(index);
+    }*/
+    
+    //prepared._handler = state._current_object_handler;
+    if(has_children)
+        _cached_value = std::string_view(str).substr(index);
+    //if(prepared.parameters.empty())
+        //state.set_cached_variable_value(prepared.original, std::string_view(str).substr(index));
+}
+
+std::string RealizeStringPattern(UnresolvedStringPattern& pattern, const gui::dyn::Context& context, gui::dyn::State& state) {
+    std::string str;
+    bool has_length = pattern.typical_length.has_value();
+    if(has_length)
+        str.reserve(pattern.typical_length.value() * 1.5);
+    
+    for(auto ptr : pattern.all_patterns)
+        ptr->reset();
+    
+    for(auto& object : pattern.objects) {
+        std::visit([&str, &context, &state, &pattern](auto& object){
+            using T = std::decay_t<decltype(object)>;
+            if constexpr(std::same_as<T, std::string_view>) {
+                str += (std::string)object;
+            } else if constexpr(std::same_as<T, Prepared>) {
+                if(object.cached().has_value()) {
+                    str += (std::string)object.cached().value();
+                } else
+                    object.resolve(pattern, str, context, state);
+            } else if constexpr(std::same_as<T, Prepared*>) {
+                if(object->cached().has_value()) {
+                    str += (std::string)object->cached().value();
+                } else {
+                    object->resolve(pattern, str, context, state);
+                }
+            } else {
+                static_assert(std::same_as<void, T>, "Unknown type.");
+            }
+        }, object);
+    }
+    
+    if(not has_length)
+        pattern.typical_length = str.length();
+    return str;
+}
+
+UnresolvedStringPattern prepare_string_pattern(std::string_view str) {
+    auto unprepared = parse_words(str);
+    std::queue<Unprepared*> patterns;
+    for(auto& r : unprepared) {
+        std::visit([&](auto& arg) {
+            using T = std::decay_t<decltype(arg)>;
+            if constexpr(std::same_as<T, Unprepared>) {
+                patterns.push(&arg);
+                
+            } else if constexpr(std::same_as<T, std::string_view>) {
+                //result.objects.push_back(arg);
+            } else {
+                static_assert(std::same_as<T, void>, "Unknown Type.");
+            }
+            
+        }, r);
+    }
+    
+    while(not patterns.empty()) {
+        auto unprep = patterns.front();
+        patterns.pop();
+        
+        for(size_t i = 0; i < unprep->parameters.size(); ++i) {
+            assert(std::holds_alternative<std::string_view>(unprep->parameters[i]));
+            unprep->parameters[i] = parse_words(std::get<std::string_view>(unprep->parameters[i]));
+        }
+        
+        for(auto &v : unprep->parameters) {
+            if(std::holds_alternative<std::string_view>(v))
+                continue;
+            
+            for(auto &obj : std::get<UnpreparedPatterns>(v)) {
+                std::visit([&patterns](auto& obj){
+                    using T = std::decay_t<decltype(obj)>;
+                    if constexpr(std::same_as<T, Unprepared>) {
+                        patterns.push(&obj);
+                    }
+                }, obj);
+            }
+        }
+    }
+    
+    auto result = UnresolvedStringPattern{};
+    for(auto &obj : unprepared) {
+        //assert(std::holds_alternative<UnpreparedPatterns>(obj));
+        std::visit([&result](auto& obj) {
+            using T = std::decay_t<decltype(obj)>;
+            if constexpr(std::same_as<T, std::string_view>) {
+                result.objects.push_back(obj);
+            } else if constexpr(std::same_as<T, Unprepared>) {
+                result.objects.push_back(Prepared{
+                    obj
+                });
+                
+            } else {
+                static_assert(std::same_as<T, void>, "unknown type.");
+            }
+        }, obj);
+    }
+    
+    /// second run, try to flatten hierarchy
+    /// document current state:
+    struct Preview {
+        std::string_view name;
+        std::vector<PreparedPatterns> parameters;
+        
+        bool operator<(const Preview& other) const {
+            return std::make_tuple(name, parameters) < std::make_tuple(other.name, other.parameters);
+        }
+    };
+    
+    std::deque<PreparedPattern*> q;
+    std::map<Preview, size_t> counts;
+    std::map<Preview, Prepared*> duplicates;
+    
+    for(auto& r : result.objects) {
+        if(std::holds_alternative<Prepared>(r)) {
+            [[maybe_unused]] auto& pattern = std::get<Prepared>(r);
+            //q.push_front(&std::get<Prepared>(pattern.pieces));
+            q.push_front(&r);
+        }
+    }
+    
+    while(not q.empty()) {
+        PreparedPattern* obj = q.front();
+        q.pop_front();
+        
+        auto &prepared = std::get<Prepared>(*obj);
+        Preview preview{
+            .name = prepared.resolved.name,
+            .parameters = prepared.parameters
+        };
+        counts[preview]++;
+        
+        auto it = duplicates.find(preview);
+        if(it != duplicates.end()) {
+            *obj = (Prepared*)it->second;
+            it->second->has_children = true;
+            continue;
+        }
+        
+        duplicates[preview] = &prepared;
+        result.all_patterns.push_back(&prepared);
+        
+        for(auto &p : prepared.parameters) {
+            for(auto &o : p) {
+                if(std::holds_alternative<Prepared>(o)) {
+                    //q.push_front(&std::get<Prepared>(patt.pieces));
+                    q.push_front(&o);
+                }
+            }
+        }
+    }
+    
+    /*{
+        std::stringstream ss;
+        ss << "[";
+        
+        for(auto& r : result.objects) {
+            std::visit([&](auto&& obj){
+                output_object(ss, std::forward<std::decay_t<decltype(obj)>>(obj));
+            }, r);
+        }
+        
+        ss << "]";
+        Print(no_quotes(ss.str()));
+    }*/
+    
+    /*for(auto &[key, value] : counts) {
+        Print("* ", key.name, ": ", value);
+    }*/
+    
+    return result;
+}
+
+TEST(PreparseTest, JSONPreparse) {
+    /// we need to find all the variables / parsing hierarchy and set it in binary
+    /// in the end this returns a string (which can then be parsed into whatever)
+    /// so we will also need an output type at some point...
+    std::string str = "hi {if:{cond}:'hier ist noch {was} eingelassen':{var}}";
+    auto result = prepare_string_pattern(str);
+    
+    std::stringstream ss;
+    
+    for(auto& word : result.objects) {
+        std::visit([&](auto&& obj){
+            output_object(ss, std::forward<std::decay_t<decltype(obj)>>(obj));
+        }, word);
+    }
+    Print("result: ", ss.str());
+    
+    gui::dyn::Context context;
+    gui::dyn::State state;
+    
+    std::string realized;
+    EXPECT_THROW((realized = RealizeStringPattern(result, context, state)), std::exception);
+    
+    using namespace gui::dyn;
+    bool condition = true;
+    context = {
+        VarFunc("cond", [&condition](const VarProps&) -> bool {
+            return condition;
+        }),
+        VarFunc("was", [](const VarProps&) -> std::string {
+            return "text";
+        })
+    };
+    
+    state = {};
+    EXPECT_NO_THROW((realized = RealizeStringPattern(result, context, state)));
+    Print("Realized#1: ", realized);
+    
+    ASSERT_EQ(realized, "hi hier ist noch text eingelassen");
+    
+    condition = false;
+    state = {};
+    EXPECT_THROW((realized = RealizeStringPattern(result, context, state)), std::exception);
+    
+    context = {
+        VarFunc("cond", [](const VarProps&) -> bool {
+            return false;
+        }),
+        VarFunc("was", [](const VarProps&) -> std::string {
+            return "text";
+        }),
+        VarFunc("var", [](const VarProps&) -> std::string {
+            return "variable resolved";
+        })
+    };
+    
+    state = {};
+    EXPECT_NO_THROW((realized = RealizeStringPattern(result, context, state)));
+    
+    Print("Realized#2: ", realized);
+    ASSERT_EQ(realized, "hi variable resolved");
+    
+    using clock = std::chrono::high_resolution_clock;
+    auto start = clock::now();
+    const size_t samples = 1000;
+    for(size_t i = 0; i < samples; ++i) {
+        realized = RealizeStringPattern(result, context, state);
+    }
+    auto end = clock::now();
+    auto elapsed_us = (double)std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() / double(samples);
+    Print("spent ", elapsed_us, "us / parse");
+    
+    state = {};
+    Print("parse_text result: ", parse_text(str, context, state));
+    
+    start = clock::now();
+    for(size_t i = 0; i < samples; ++i) {
+        realized = parse_text(str, context, state);
+    }
+    end = clock::now();
+    elapsed_us = (double)std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() / double(samples);
+    Print("spent ", elapsed_us, "us / parse");
+}
+
+template <typename T = std::string, typename ParseFn>
+void benchmark_parse_fn(const std::string& label, ParseFn parse_fn,
+                       const std::vector<std::pair<std::string, std::string>>& cases,
+                       gui::dyn::Context& context, gui::dyn::State& state, size_t samples = 100000)
+{
+    printf("level,desc,%s_us_per_parse\n", label.c_str());
+    for (size_t level = 0; level < cases.size(); ++level) {
+        const auto& [desc, pattern_str] = cases[level];
+        std::string out;
+
+        // If your function requires pattern pre-parsing, do it here:
+        // For RealizeStringPattern: auto pattern = prepare_string_pattern(pattern_str);
+        // For parse_text: just use pattern_str
+        T pattern;
+        if constexpr(std::same_as<T, UnresolvedStringPattern>) {
+            pattern = prepare_string_pattern(pattern_str);
+        } else {
+            pattern = pattern_str;
+        }
+
+        // Warmup
+        for (int i = 0; i < 100; ++i)
+            out = parse_fn(pattern, context, state);
+
+        // Timed
+        auto handler = state._current_object_handler.lock();
+        auto start = std::chrono::high_resolution_clock::now();
+        for (size_t i = 0; i < samples; ++i) {
+            handler->_variable_values.clear();
+            //for(size_t j = 0; j < 100; ++j) {
+                out = parse_fn(pattern, context, state);
+            //}
+        }
+        auto end = std::chrono::high_resolution_clock::now();
+
+        double elapsed_us = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() / double(samples);
+        printf("%zu,%s,%f\n", level, desc.c_str(), elapsed_us);
+        //Print(level, ",", desc, ",", elapsed_us);
+    }
+}
+
+TEST(ParsePerformanceTest, CompareParsers) {
+    using namespace gui::dyn;
+
+    std::vector<std::pair<std::string, std::string>> cases = {
+        {"plain", "hello world"},
+        {"var", "hello {foo}"},
+        {"if", "{if:{cond}:'yes':'no'}"},
+        {"nested", "hi {if:{cond}:'nested {foo}':'no'}"},
+        {"deep_nested", "start {if:{cond1}:{if:{cond2}:'deep {foo}':'no'}:'fail'} end"},
+        // Instead of loop10 and long_nested, create more deeply nested but valid constructs:
+        {"many_if_5", "{if:{cond}:{if:{cond}:{if:{cond}:{if:{cond}:{if:{cond}:'deep':'no'}:'no'}:'no'}:'no'}:'no'}"},
+        {"long_repeat_variable", std::string(200, 'x') + utils::repeat("{foo}x",100) + std::string(200, 'x') + "{foo}" + std::string(200, 'x')},
+        // To simulate size/complexity, concatenate valid expressions:
+        {"long_repeat", std::string(200, 'x') + "{foo}" + std::string(200, 'x') + "{foo}" + std::string(200, 'x')},
+        {"long_flat", std::string(1000, 'x')},
+        {"realistic", std::string("{if:{not:{has_pred}}:{name}:{if:{equal:{at:0:{max_pred}}:{id}}:<green>{name}</green>:<red>{name}</red> <i>loc</i>[<c><nr>{at:0:{max_pred}}</nr>:<nr>{int:{*:100:{at:1:{max_pred}}}}</nr><i>%</i></c>]}}{if:{tag}:' <a>tag:{tag.id} ({dec:2:{tag.p}})</a>':''}{if:{average_category}:' <nr>{average_category}</nr>':''}{if:{&&:{category}:{not:{equal:{category}:{average_category}}}}:' <b><i>{category}</i></b>':''}")}
+    };
+
+    // Context setup as in your examples
+    bool condition = true;
+    sprite::Map tag;
+    tag["p"] = float();
+    tag["id"] = uint32_t();
+    gui::dyn::Context context = {
+        VarFunc("cond", [&condition](const VarProps&) -> bool { return condition; }),
+        VarFunc("foo", [](const VarProps&) -> std::string { return "bar"; }),
+        VarFunc("cond1", [](const VarProps&) -> bool { return true; }),
+        VarFunc("cond2", [](const VarProps&) -> bool { return false; }),
+        VarFunc("has_pred", [](const VarProps&) -> bool { return true; }),
+        VarFunc("max_pred", [](const VarProps&) -> std::pair<track::Idx_t, float> { return {track::Idx_t(0), 0.99}; }),
+        VarFunc("category", [](const VarProps&) -> std::string { return "male"; }),
+        VarFunc("tag", [&](const VarProps&) -> sprite::Map& { return tag; }),
+        VarFunc("average_category", [](const VarProps&) -> std::string { return "male"; }),
+        VarFunc("name", [](const VarProps&) -> std::string { return "fish0"; }),
+        VarFunc("id", [](const VarProps&) -> track::Idx_t { return track::Idx_t(0); })
+    };
+    gui::dyn::State state;
+    auto object_handler = std::make_shared<CurrentObjectHandler>();
+    state._current_object_handler = std::weak_ptr(object_handler);
+
+    // RealizeStringPattern benchmark
+    benchmark_parse_fn<UnresolvedStringPattern>("RealizeStringPattern",
+        [](UnresolvedStringPattern& pattern, gui::dyn::Context& ctx, gui::dyn::State& st) -> std::string {
+            return RealizeStringPattern(pattern, ctx, st);
+        }, cases, context, state);
+
+    // parse_text benchmark
+    benchmark_parse_fn("parse_text",
+        [](const std::string& pattern_str, gui::dyn::Context& ctx, gui::dyn::State& st) -> std::string {
+            return parse_text(pattern_str, ctx, st);
+        }, cases, context, state);
+}
 
 TEST(ConversionTest, FileObjects) {
     //dyn::MainFile object;

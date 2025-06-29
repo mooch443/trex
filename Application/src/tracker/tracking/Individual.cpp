@@ -1794,7 +1794,8 @@ tl::expected<IndividualCache, const char*> Individual::cache_for_frame(const Fra
                     }
                     
 #ifndef NDEBUG
-                    Print("Added a few more frames to valid_frame_streak: ", valid_frame_streak, " (vs. ", (*it)->length(),")");
+                    if(valid_frame_streak != (*it)->length())
+                        Print("Added a few more frames to valid_frame_streak: ", valid_frame_streak, " (vs. ", (*it)->length(),")");
 #endif
                 }
             }

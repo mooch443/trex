@@ -748,8 +748,6 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const PixelArray
                     if (_compression_samples > 1000) {
                         _compression_value = _compression_value / _compression_samples;
                         _compression_samples = 1;
-                        
-                        Print(" ** compression results: ", _compression_value * 100, "%");
                     }
 
                     _compression_value = _compression_value + size / float(in_len);
