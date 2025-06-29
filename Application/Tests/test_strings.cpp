@@ -520,7 +520,7 @@ void fast_fromstr(std::string& output, std::string_view sv) {
         output.append(sv);
         return;
     }
-    
+
     const char quote = sv[0];
     const bool quoted = ((quote == '"' || quote == '\'') && sv[N-1] == quote);
     size_t current_size = output.size();
@@ -692,15 +692,20 @@ void resolve_parameter(std::string& c, UnresolvedStringPattern& pattern, Prepare
         std::visit([&c, &context, &state, &pattern](auto& o) {
             using T = std::decay_t<decltype(o)>;
             if constexpr(std::same_as<T, std::string_view>) {
-                c += (std::string)o;
+                c.append(o.data(), o.size());
+                //c += (std::string)o;
             } else if constexpr(std::same_as<T, Prepared>) {
                 if(o.cached().has_value()) {
-                    c += o.cached().value();
+                    auto& sv = o.cached().value();
+                    c.append(sv.data(), sv.size());
+                    //c += o.cached().value();
                 } else
                     o.resolve(pattern, c, context, state);
             } else if constexpr(std::same_as<T, Prepared*>) {
                 if(o->cached().has_value()) {
-                    c += o->cached().value();
+                    auto& sv = o->cached().value();
+                    c.append(sv.data(), sv.size());
+                    //c += o->cached().value();
                 } else {
                     o->resolve(pattern, c, context, state);
                 }
@@ -848,15 +853,20 @@ std::string RealizeStringPattern(UnresolvedStringPattern& pattern, const gui::dy
         std::visit([&str, &context, &state, &pattern](auto& object){
             using T = std::decay_t<decltype(object)>;
             if constexpr(std::same_as<T, std::string_view>) {
-                str += (std::string)object;
+                str.append(object.data(), object.size());   // zero allocations
+                //str += (std::string)object;
             } else if constexpr(std::same_as<T, Prepared>) {
                 if(object.cached().has_value()) {
-                    str += (std::string)object.cached().value();
+                    auto& sv = object.cached().value();
+                    str.append(sv.data(), sv.size());
+                    //str += (std::string)object.cached().value();
                 } else
                     object.resolve(pattern, str, context, state);
             } else if constexpr(std::same_as<T, Prepared*>) {
                 if(object->cached().has_value()) {
-                    str += (std::string)object->cached().value();
+                    //str += (std::string)object->cached().value();
+                    auto& sv = object->cached().value();
+                    str.append(sv.data(), sv.size());
                 } else {
                     object->resolve(pattern, str, context, state);
                 }
@@ -1092,7 +1102,7 @@ TEST(PreparseTest, JSONPreparse) {
 template <typename T = std::string, typename ParseFn>
 void benchmark_parse_fn(const std::string& label, ParseFn parse_fn,
                        const std::vector<std::pair<std::string, std::string>>& cases,
-                       gui::dyn::Context& context, gui::dyn::State& state, size_t samples = 100000)
+                       gui::dyn::Context& context, gui::dyn::State& state, size_t samples = 1000000)
 {
     printf("level,desc,%s_us_per_parse\n", label.c_str());
     for (size_t level = 0; level < cases.size(); ++level) {
