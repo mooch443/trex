@@ -76,9 +76,18 @@ std::unique_ptr<PPFrame> GUICache::PPFrameMaker::operator()() const {
         cache() = this;
         globals::Cache::init();
         globals::CachedGUIOptions::init();
+        
+        _settings_callback = GlobalSettings().map().register_callbacks({"gui_fish_label"}, [this](auto)
+        {
+            std::unique_lock g{label_mutex};
+            _label_text = SETTING(gui_fish_label).value<std::string>();
+            _prepared_label_text.reset();
+        });
     }
 
     GUICache::~GUICache() {
+        GlobalSettings().map().unregister_callbacks(std::move(_settings_callback));
+        
         if(_delete_frame_callback) {
             LockGuard guard(ro_t{}, "Delete Frame Callback Delete");
             if(Tracker::instance()) {
@@ -1171,6 +1180,22 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
             } else
                 _current_predictions.reset();
             
+            const pattern::UnresolvedStringPattern* current_label_text{nullptr};
+            if(std::unique_lock g{label_mutex};
+               not _prepared_label_text)
+            {
+                _prepared_label_text = pattern::UnresolvedStringPattern::prepare(_label_text);
+                
+                for(auto &[id, fish] : _fish_map)
+                    fish->set_label_text(_prepared_label_text.value());
+                
+                current_label_text = &_prepared_label_text.value();
+            } else {
+                current_label_text = &_prepared_label_text.value();
+            }
+            
+            assert(current_label_text);
+            
             std::unordered_set<Idx_t> ids;
             std::unordered_map<Idx_t, Individual*> actives;
             
@@ -1202,7 +1227,9 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
 
                 std::unique_lock guard(_fish_map_mutex);
                 if (not _fish_map.contains(id)) {
-                    _fish_map[id] = std::make_unique<gui::Fish>(*fish);
+                    std::shared_lock g{label_mutex};
+                    _fish_map[id] = std::make_unique<gui::Fish>(*fish, *current_label_text);
+                    
                     /*fish->register_delete_callback(_fish_map[id].get(), [gui = ](Individual* f) {
                             std::unique_lock guard(_fish_map_mutex);
                             auto it = _fish_map.find(f->identity().ID());

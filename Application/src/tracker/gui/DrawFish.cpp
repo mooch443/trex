@@ -36,13 +36,23 @@ namespace cmn::gui {
 struct Fish::Data {
     dyn::Context context;
     std::string label_text;
+    pattern::UnresolvedStringPattern prepared_label;
 };
+
+void Fish::set_label_text(const pattern::UnresolvedStringPattern& pattern)
+{
+    _data->prepared_label = pattern;
+}
 
 const std::string& Fish::label_text() {
     if(OPTION(gui_show_texts)) {
+        if(not _data->label_text.empty())
+            return _data->label_text;
+        
         try {
             dyn::State state;
-            _data->label_text = dyn::parse_text(OPTION(gui_fish_label), _data->context, state);
+            _data->label_text = _data->prepared_label.realize(_data->context, state);
+            //_data->label_text = dyn::parse_text(OPTION(gui_fish_label), _data->context, state);
         } catch(const std::exception& ex) {
 #ifndef NDEBUG
             FormatWarning("Caught exception when parsing text: ", ex.what());
@@ -61,7 +71,7 @@ Fish::~Fish() {
     }
 }
 
-    Fish::Fish(Individual& obj)
+    Fish::Fish(Individual& obj, const pattern::UnresolvedStringPattern& p)
         :   _id(obj.identity()),
             _info(&obj, Output::Options_t{})
     {
@@ -69,9 +79,9 @@ Fish::~Fish() {
         _data->context = [&](){
             using namespace dyn;
             Context context;
-            context.actions = {
-            };
-/// {name}{if:{not:{has_pred}}:' {max_pred}':''}
+            context.actions = {};
+            
+            /// {name}{if:{not:{has_pred}}:' {max_pred}':''}
             context.variables = {
                 VarFunc("help", [this](const VarProps&) -> std::string {
                     return "The following variables are available:\n"+Meta::toStr(extract_keys(_data->context.variables));
@@ -157,6 +167,7 @@ Fish::~Fish() {
         //_circle.set_clickable(true);
         _posture.set_origin(Vec2(0));
         _view.set_name(_id.name());
+        set_label_text(p);
         
         _tight_selection.on_hover([this](Event e) {
             selection_hovered(e);
@@ -238,6 +249,7 @@ Fish::~Fish() {
             _frame_change.reset();
         }
         _frame = frameIndex;
+        _data->label_text.clear();
         
         _library_y = GlobalSettings::invalid();
         _avg_cat = std::nullopt;
@@ -1203,7 +1215,7 @@ void Fish::selection_clicked(Event) {
             ? centroid->pos<Units::PX_AND_SECONDS>()
             : (_blob_bounds.pos() + _blob_bounds.size() * 0.5);
         
-        const bool hovered = std::visit([this](auto& o) -> bool {
+        const bool hovered = std::visit([this](auto&) -> bool {
                 return _tight_selection.hovered();
             
         }, _selection);

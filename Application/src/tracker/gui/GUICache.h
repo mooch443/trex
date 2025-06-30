@@ -19,6 +19,7 @@
 #include <gui/BdxAndPred.h>
 #include <misc/TimingStatsCollector.h>
 #include <misc/DetectionTypes.h>
+#include <gui/dyn/UnresolvedStringPattern.h>
 
 class Timer;
 namespace track {
@@ -278,6 +279,12 @@ namespace globals {
         std::atomic<bool> done_calculating{false};
         
         GETTER(Border, border){nullptr};
+        
+    protected:
+        std::shared_mutex label_mutex;
+        std::string _label_text;
+        sprite::CallbackFuture _settings_callback;
+        GETTER_NCONST(std::optional<pattern::UnresolvedStringPattern>, prepared_label_text);
         
     public:
         bool has_selection() const;

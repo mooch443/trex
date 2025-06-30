@@ -25,6 +25,10 @@ namespace track {
 class Individual;
 }
 
+namespace cmn::pattern {
+struct UnresolvedStringPattern;
+}
+
 namespace cmn::gui {
     class Label;
     class Skelett;
@@ -151,11 +155,12 @@ struct UpdateSettings {
         std::unique_ptr<Skelett> _skelett;
         
     public:
-        Fish(track::Individual& obj);
+        Fish(track::Individual&, const pattern::UnresolvedStringPattern&);
         ~Fish();
         void update(const FindCoord&, Entangled& p, DrawStructure& d);
         //void draw_occlusion(DrawStructure& window);
         void set_data(const UpdateSettings& settings, track::Individual& obj, Frame_t frameIndex, double time, const track::EventAnalysis::EventMap* events);
+        void set_label_text(const pattern::UnresolvedStringPattern&);
         
     private:
         //void paint(cv::Mat &target, int max_frames = 1000) const;
