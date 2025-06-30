@@ -289,48 +289,6 @@ struct PreparedPattern {
     }
 };
 
-/*bool operator==(const PreparedPattern& A, const PreparedPattern& B) {
-    if(bool is_sv = std::holds_alternative<std::string_view>(A);
-       is_sv == std::holds_alternative<std::string_view>(B))
-    {
-        if(is_sv) {
-            return std::get<std::string_view>(A) == std::get<std::string_view>(B);
-        } else {
-            return std::get<Prepared>(A) == std::get<Prepared>(B);
-        }
-    }
-    return false;
-}
-
-// Less-than operator for UnresolvedPattern
-bool operator<(const PreparedPattern& A, const PreparedPattern& B)
-{
-    // Order by the index of the held alternative first (string_view < ParsePattern < ParsePattern*)
-    if (A.index() != B.index())
-        return A.index() < B.index();
-
-    // Same variant held – compare the actual contents
-    if (std::holds_alternative<std::string_view>(A)) {
-        return std::get<std::string_view>(A) < std::get<std::string_view>(B);
-    }
-    else if (std::holds_alternative<Prepared>(A)) {
-        // Use a stable lexical ordering of the string representation
-        return std::get<Prepared>(A).toStr() < std::get<Prepared>(B).toStr();
-    }
-    else { // both hold ParsePattern*
-        auto lhs = std::get<Prepared*>(A);
-        auto rhs = std::get<Prepared*>(B);
-
-        // Define ordering for potential nullptrs
-        if (lhs == rhs)           return false;
-        if (lhs == nullptr)       return true;   // nullptr considered smaller
-        if (rhs == nullptr)       return false;
-
-        // Fallback to lexical compare of the pointed‑to patterns
-        return lhs->toStr() < rhs->toStr();
-    }
-}*/
-
 UnresolvedStringPattern::UnresolvedStringPattern(UnresolvedStringPattern&& other)
     : objects(std::move(other.objects)),
       typical_length(std::move(other.typical_length)),
@@ -406,7 +364,7 @@ Unprepared create_parse_result(std::string_view trimmedStr) {
     return action;
 }
 
-Unprepared extractControls(std::string_view variable) {
+Unprepared extract_unprepared(std::string_view variable) {
     Unprepared props = create_parse_result(variable);
     
     bool html{false}, optional{false};
@@ -436,11 +394,6 @@ Unprepared extractControls(std::string_view variable) {
 
     props.optional = optional;
     props.html = html;
-    /*VarProps props{
-        .name{std::string(r.front())},
-        .optional = optional,
-        .html = html
-    };*/
     
     const size_t N = r.size();
     props.subs.resize(N - 1);
@@ -448,14 +401,6 @@ Unprepared extractControls(std::string_view variable) {
         props.subs[i - 1] = r[i];
     }
 
-    //Print("Initial parameters = ", props.parameters);
-    //for(auto &p : props.parameters) {
-        // parse parameters here
-        // if the parameter seems to be a string (quotes '"), use parse_text(text, context) function to parse it
-        // if the parameter seems to be a variable, it needs to be resolved:
-    //    p = _parse_text(p, context, state);
-    //}
-    
     if(r.front() != std::string_view(props.name))
         props.name = r.front();
     return props;
@@ -526,10 +471,7 @@ UnpreparedPatterns parse_words(std::string_view pattern) {
                         throw InvalidSyntaxException("Empty braces at position ", i);
                     }
                     
-                    auto controls = extractControls(current_word);
-                    
-                    
-                    result.push_back(Unprepared{controls});
+                    result.push_back(extract_unprepared(current_word));
                     last_start = i + 1;
                 }
                 
@@ -618,19 +560,6 @@ std::string Prepared::toStr() const {
             if(i > 0)
                 result += ",";
             
-            /*std::visit([&result](auto& obj) {
-                using T = std::decay_t<decltype(obj)>;
-                if constexpr(std::same_as<T, std::string_view>) {
-                    result += "str<"+(std::string)obj+">";
-                } else if constexpr(std::same_as<T, Prepared>) {
-                    result += obj.toStr();
-                } else if constexpr(std::same_as<T, Prepared*>) {
-                    result += hex(obj).toStr();
-                } else {
-                    static_assert(std::same_as<void, T>, "Unknown type");
-                }
-                
-            }, parm[i]);*/
             result += parm[i].toStr();
         }
         
@@ -641,81 +570,13 @@ std::string Prepared::toStr() const {
     return result;
 }
 
-void output_object(auto& ss, auto&& arg) {
-    using T = std::decay_t<decltype(arg)>;
-    if constexpr(std::same_as<T, std::string_view>)
-        ss << "str(" << (std::string)arg << ") ";
-    else if constexpr(std::same_as<T, Prepared>) {
-        ss << arg.toStr();
-    } else if constexpr(std::same_as<T, Prepared*>) {
-        ss << hex(arg).toStr();
-    } else {
-        static_assert(std::same_as<void, T>, "Unknown Typename");
-    }
-}
-
 UnresolvedStringPattern::~UnresolvedStringPattern() {
-    //Print("Deallocating patterns at ", hex(this));
-    //std::vector<Prepared*> ptrs;
-    /*for(auto pattern : all_patterns) {
-        if(pattern->type == PreparedPattern::PREPARED)
-            ptrs.push_back(pattern->value.prepared);
-    }*/
-    for(auto prepared : all_patterns) {
-        //Print("Deallocating ", hex(prepared));
+    for(auto prepared : all_patterns)
         delete prepared;
-    }
 }
 
 namespace cmn::gui::dyn {
-void fast_fromstr(std::string& output, std::string_view sv) {
-    const std::size_t N = sv.size();
-    if (N < 2) {                               // too short to be quoted
-        output.append(sv);
-        return;
-    }
-
-    const char quote = sv[0];
-    const bool quoted = ((quote == '"' || quote == '\'') && sv[N-1] == quote);
-    size_t current_size = output.size();
-
-    if (!quoted) {                             // no outer quotes → verbatim
-        output.resize(current_size + N);
-        std::memcpy(output.data() + current_size, sv.data(), N);
-        return;
-    }
-
-    // Payload lies strictly between the two quotes
-    output.reserve(current_size + N - 2);     // worst‑case growth (every '\' drops)
-
-    const char* chunk = sv.data() + 1;         // first byte inside the quotes
-    const char* end   = sv.data() + N - 1;     // one‑past‑last payload byte
-
-    while (chunk < end) {
-        // Find the next backslash in the remaining payload
-        const char* bs = static_cast<const char*>(std::memchr(chunk, '\\', end - chunk));
-        if (!bs || bs + 1 >= end) {
-            // No more escape sequences (or stray trailing '\') – copy the rest verbatim
-            size_t L = end - chunk;
-            output.resize(current_size + L);
-            std::memcpy(output.data() + current_size, chunk, L);
-            break;
-        }
-
-        // Copy slice before the backslash
-        size_t L = bs - chunk;
-        output.resize(current_size + L);
-        std::memcpy(output.data() + current_size, chunk, L);
-        current_size += L;
-
-        // Copy the character after the backslash, effectively un‑escaping it
-        output.push_back(*(bs + 1));
-        ++current_size;
-
-        // Advance past the escape sequence
-        chunk = bs + 2;
-    }
-}
+using namespace cmn::utils;
 
 TEST(FastFromStrTest, EscapedQuoteIsRetained)
 {
@@ -786,7 +647,7 @@ TEST(FastFromStrTest, MismatchedQuotesVerbatim)
 
 template<typename ApplyF, typename ErrorF>
     requires std::invocable<ApplyF, std::string&, VarBase_t&, const VarProps&>
-inline auto resolve_variable(UnresolvedStringPattern& patterns, std::string& output, const VarProps& props, const Context& context, State& state, ApplyF&& apply, ErrorF&& error)
+inline auto resolve_variable(std::string& output, const VarProps& props, const Context& context, State& state, ApplyF&& apply, ErrorF&& error)
 {
     try {
         if(auto it = context.find(props.name);
@@ -848,60 +709,11 @@ inline auto resolve_variable(UnresolvedStringPattern& patterns, std::string& out
 void resolve_parameter(std::string& c, UnresolvedStringPattern& pattern, PreparedPatterns& patterns, const cmn::gui::dyn::Context& context, cmn::gui::dyn::State& state) {
     for(auto& o : patterns) {
         o.resolve(c, pattern, context, state);
-        
-        /*std::visit([&c, &context, &state, &pattern](auto& o) {
-            using T = std::decay_t<decltype(o)>;
-            if constexpr(std::same_as<T, std::string_view>) {
-                c.append(o.data(), o.size());
-                //c += (std::string)o;
-            } else if constexpr(std::same_as<T, Prepared>) {
-                if(o.cached().has_value()) {
-                    auto& sv = o.cached().value();
-                    c.append(sv.data(), sv.size());
-                    //c += o.cached().value();
-                } else
-                    o.resolve(pattern, c, context, state);
-            } else if constexpr(std::same_as<T, Prepared*>) {
-                if(o->cached().has_value()) {
-                    auto& sv = o->cached().value();
-                    c.append(sv.data(), sv.size());
-                    //c += o->cached().value();
-                } else {
-                    o->resolve(pattern, c, context, state);
-                }
-                
-            } else {
-                static_assert(std::same_as<void, T>, "Unknown type.");
-            }
-            
-        }, o);*/
     }
 }
 
 void Prepared::resolve(UnresolvedStringPattern& pattern, std::string& str, const gui::dyn::Context& context, gui::dyn::State& state)
 {
-    /*if(prepared.parameters.empty())
-    {
-        if(auto it = pattern.cache.find(prepared.original);
-           it != pattern.cache.end())
-        {
-            str += it->second;
-            return;
-        }
-    }*/
-    /*if(prepared._cached_value.has_value()) {
-        //if(auto value = state.cached_variable_value(prepared.original);
-        //   value.has_value())
-        if(prepared._handler.lock()){
-            //Print("* using cached value for ", prepared.original, ": ", *value);
-            str += *prepared._cached_value;
-            return;
-            
-        } else {
-            prepared._handler.reset();
-        }
-    }*/
-    
     auto& props = resolved;
     auto& parms = props.parameters;
     
@@ -938,7 +750,7 @@ void Prepared::resolve(UnresolvedStringPattern& pattern, std::string& str, const
     }
     
     size_t index = str.length();
-    gui::dyn::resolve_variable(pattern, str, props, context, state, [](std::string& output, cmn::gui::dyn::VarBase_t& variable, const gui::dyn::VarProps& modifiers)
+    gui::dyn::resolve_variable(str, props, context, state, [](std::string& output, cmn::gui::dyn::VarBase_t& variable, const gui::dyn::VarProps& modifiers)
     {
         try {
             if(modifiers.html)
@@ -988,16 +800,8 @@ void Prepared::resolve(UnresolvedStringPattern& pattern, std::string& str, const
             throw InvalidArgumentException("Failed to evaluate ", props, ".");
     });
     
-    /*if(prepared.parameters.empty())
-    {
-        pattern.cache[prepared.original] = std::string_view(str).substr(index);
-    }*/
-    
-    //prepared._handler = state._current_object_handler;
     if(has_children)
         _cached_value = std::string_view(str).substr(index);
-    //if(prepared.parameters.empty())
-        //state.set_cached_variable_value(prepared.original, std::string_view(str).substr(index));
 }
 
 std::string RealizeStringPattern(UnresolvedStringPattern& pattern, const gui::dyn::Context& context, gui::dyn::State& state) {
@@ -1007,37 +811,11 @@ std::string RealizeStringPattern(UnresolvedStringPattern& pattern, const gui::dy
         str.reserve(pattern.typical_length.value() * 1.5);
     
     for(auto ptr : pattern.all_patterns) {
-        //if(ptr->type == PreparedPattern::PREPARED)
-        //    ptr->value.prepared->reset();
         ptr->reset();
     }
     
     for(auto& object : pattern.objects) {
         object.resolve(str, pattern, context, state);
-        /*std::visit([&str, &context, &state, &pattern](auto& object){
-            using T = std::decay_t<decltype(object)>;
-            if constexpr(std::same_as<T, std::string_view>) {
-                str.append(object.data(), object.size());   // zero allocations
-                //str += (std::string)object;
-            } else if constexpr(std::same_as<T, Prepared>) {
-                if(object.cached().has_value()) {
-                    auto& sv = object.cached().value();
-                    str.append(sv.data(), sv.size());
-                    //str += (std::string)object.cached().value();
-                } else
-                    object.resolve(pattern, str, context, state);
-            } else if constexpr(std::same_as<T, Prepared*>) {
-                if(object->cached().has_value()) {
-                    //str += (std::string)object->cached().value();
-                    auto& sv = object->cached().value();
-                    str.append(sv.data(), sv.size());
-                } else {
-                    object->resolve(pattern, str, context, state);
-                }
-            } else {
-                static_assert(std::same_as<void, T>, "Unknown type.");
-            }
-        }, object);*/
     }
     
     if(not has_length)
@@ -1089,7 +867,6 @@ UnresolvedStringPattern prepare_string_pattern(std::string_view str) {
     
     auto result = UnresolvedStringPattern{};
     for(auto &obj : unprepared) {
-        //assert(std::holds_alternative<UnpreparedPatterns>(obj));
         std::visit([&result](auto& obj) {
             using T = std::decay_t<decltype(obj)>;
             if constexpr(std::same_as<T, std::string_view>) {
@@ -1110,14 +887,12 @@ UnresolvedStringPattern prepare_string_pattern(std::string_view str) {
         }, obj);
     }
     
-    /// second run, try to flatten hierarchy
+    /// second run, try to remove duplicates
     /// document current state:
     struct Preview {
         std::string_view name;
-        //std::vector<PreparedPatterns> parameters;
-        
         bool operator<(const Preview& other) const {
-            return name < other.name;//std::make_tuple(name, parameters) < std::make_tuple(other.name, other.parameters);
+            return name < other.name;
         }
     };
     
@@ -1138,8 +913,6 @@ UnresolvedStringPattern prepare_string_pattern(std::string_view str) {
         auto &prepared = obj->value.prepared;
         Preview preview{
             .name = prepared->original
-            //.name = prepared->resolved.name,
-            //.parameters = prepared->parameters
         };
         counts[preview]++;
         
@@ -1158,11 +931,8 @@ UnresolvedStringPattern prepare_string_pattern(std::string_view str) {
         
         for(auto &p : prepared->parameters) {
             for(auto &o : p) {
-                //if(std::holds_alternative<Prepared>(o)) {
-                    //q.push_front(&std::get<Prepared>(patt.pieces));
                 if(o.type == PreparedPattern::PREPARED)
                     q.push_front(&o);
-                //}
             }
         }
     }
