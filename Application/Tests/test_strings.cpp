@@ -134,7 +134,9 @@ static const auto recent_items_test = R"({"entries":[{"created":"172289835436505
 
 struct Prepared;
 struct Unprepared;
-using PreparedPattern = std::variant<std::string_view, Prepared, Prepared*>;
+struct PreparedPattern;
+
+//using PreparedPattern = std::variant<std::string_view, Prepared, Prepared*>;
 using PreparedPatterns = std::vector<PreparedPattern>;
 
 using UnpreparedPattern = std::variant<std::string_view, Unprepared>;
@@ -144,6 +146,12 @@ struct UnresolvedStringPattern {
     PreparedPatterns objects;
     std::optional<size_t> typical_length;
     std::vector<Prepared*> all_patterns;
+    
+    UnresolvedStringPattern() = default;
+    UnresolvedStringPattern(UnresolvedStringPattern&& other);
+    UnresolvedStringPattern& operator=(UnresolvedStringPattern&& other);
+    
+    ~UnresolvedStringPattern();
 };
 
 struct Unprepared {
@@ -163,7 +171,7 @@ struct Prepared {
     std::optional<std::string> _cached_value;
     bool has_children{false};
     
-    Prepared(const Unprepared& unprepared);
+    //Prepared(const Unprepared& unprepared);
     std::string toStr() const;
     static std::string class_name() { return "Prepared"; }
     
@@ -174,9 +182,114 @@ struct Prepared {
     void reset() {
         _cached_value.reset();
     }
+    
+    bool operator==(const Prepared&) const = default;
+    
+    static Prepared* get(const Unprepared& unprepared);
 };
 
-bool operator==(const PreparedPattern& A, const PreparedPattern& B) {
+struct PreparedPattern {
+    union {
+        std::string_view sv;
+        Prepared* prepared;
+        Prepared* ptr;
+    } value;
+    
+    enum Type {
+        SV,
+        PREPARED,
+        POINTER
+    } type;
+    
+    void resolve(std::string& c, UnresolvedStringPattern& pattern, const gui::dyn::Context& context, gui::dyn::State& state)
+    {
+        switch(type) {
+            case SV:
+                c.append(value.sv.data(), value.sv.size());
+                break;
+            case PREPARED:
+                if(auto& o = value.prepared;
+                   o->cached().has_value())
+                {
+                    auto& sv = o->cached().value();
+                    c.append(sv.data(), sv.size());
+                } else {
+                    o->resolve(pattern, c, context, state);
+                }
+                break;
+            case POINTER:
+                if(auto& o = *value.ptr;
+                   o.cached().has_value())
+                {
+                    auto& sv = o.cached().value();
+                    c.append(sv.data(), sv.size());
+                } else {
+                    o.resolve(pattern, c, context, state);
+                }
+                break;
+            default:
+#ifndef NDEBUG
+                throw InvalidArgumentException("Illegal type ", type, ".");
+#endif
+                break;
+        }
+    }
+    
+    bool operator==(const PreparedPattern& other) const noexcept {
+        if(type == other.type) {
+            switch (type) {
+                case SV:
+                    return value.sv == other.value.sv;
+                case PREPARED:
+                    return value.prepared == other.value.prepared;
+                case POINTER:
+                    return value.ptr == other.value.ptr;
+                default:
+                    break;
+            }
+        }
+        return false;
+    }
+    
+    bool operator<(const PreparedPattern& other) const noexcept {
+        if(type != other.type)
+            return type < other.type;
+        switch (type) {
+            case SV:
+                return value.sv < other.value.sv;
+            case PREPARED:
+                return value.prepared->original < other.value.prepared->original;
+            case POINTER:
+                return value.ptr && other.value.ptr ? value.ptr->original < other.value.ptr->original : value.ptr < other.value.ptr;
+                
+            default:
+                break;
+        }
+        return false;
+    }
+    
+    std::string toStr() const {
+        std::string str = "PreparedPattern<";
+        switch (type) {
+            case SV:
+                str += "sv<"+(std::string)value.sv+">";
+                break;
+            case PREPARED:
+                str += "prepared<"+value.prepared->toStr()+">";
+                break;
+            case POINTER:
+                str += "ptr<"+hex(value.ptr).toStr()+">";
+                break;
+                
+            default:
+                break;
+        }
+        str += ">";
+        return str;
+    }
+};
+
+/*bool operator==(const PreparedPattern& A, const PreparedPattern& B) {
     if(bool is_sv = std::holds_alternative<std::string_view>(A);
        is_sv == std::holds_alternative<std::string_view>(B))
     {
@@ -216,6 +329,26 @@ bool operator<(const PreparedPattern& A, const PreparedPattern& B)
         // Fallback to lexical compare of the pointed‑to patterns
         return lhs->toStr() < rhs->toStr();
     }
+}*/
+
+UnresolvedStringPattern::UnresolvedStringPattern(UnresolvedStringPattern&& other)
+    : objects(std::move(other.objects)),
+      typical_length(std::move(other.typical_length)),
+      all_patterns(std::move(other.all_patterns))
+{
+    other.all_patterns.clear();
+}
+
+UnresolvedStringPattern& UnresolvedStringPattern::operator=(UnresolvedStringPattern&& other) {
+    for(auto pattern: all_patterns) {
+        delete pattern;
+    }
+    objects = std::move(other.objects);
+    typical_length = std::move(other.typical_length);
+    all_patterns = std::move(other.all_patterns);
+    
+    other.all_patterns.clear();
+    return *this;
 }
 
 
@@ -432,10 +565,12 @@ UnpreparedPatterns parse_words(std::string_view pattern) {
     return result;
 }
 
-Prepared::Prepared(const Unprepared& unprepared)
-    : original(unprepared.original)
-{
-    parameters.reserve(unprepared.parameters.size());
+Prepared* Prepared::get(const Unprepared& unprepared) {
+    Prepared *prepared = new Prepared{
+        .original = unprepared.original
+    };
+    
+    prepared->parameters.reserve(unprepared.parameters.size());
     for(auto &o : unprepared.parameters) {
         assert(std::holds_alternative<UnpreparedPatterns>(o));
         PreparedPatterns r;
@@ -443,10 +578,14 @@ Prepared::Prepared(const Unprepared& unprepared)
             std::visit([&r](auto& obj) {
                 using T = std::decay_t<decltype(obj)>;
                 if constexpr(std::same_as<T, std::string_view>) {
-                    r.emplace_back(obj);
+                    r.push_back(PreparedPattern{
+                        .value.sv = obj,
+                        .type = PreparedPattern::SV
+                    });
                 } else if constexpr(std::same_as<T, Unprepared>) {
-                    r.emplace_back(Prepared{
-                        obj
+                    r.push_back(PreparedPattern{
+                        .value.prepared = Prepared::get(obj),
+                        .type = PreparedPattern::PREPARED
                     });
                     
                 } else {
@@ -454,15 +593,16 @@ Prepared::Prepared(const Unprepared& unprepared)
                 }
             }, p);
         }
-        parameters.push_back(std::move(r));
+        prepared->parameters.push_back(std::move(r));
     }
     
-    auto& props = resolved;
+    auto& props = prepared->resolved;
     props.name = unprepared.name;
     props.html = unprepared.html;
     props.optional = unprepared.optional;
     for(auto &sv : unprepared.subs)
         props.subs.push_back((std::string)sv);
+    return prepared;
 }
 
 std::string Prepared::toStr() const {
@@ -478,7 +618,7 @@ std::string Prepared::toStr() const {
             if(i > 0)
                 result += ",";
             
-            std::visit([&result](auto& obj) {
+            /*std::visit([&result](auto& obj) {
                 using T = std::decay_t<decltype(obj)>;
                 if constexpr(std::same_as<T, std::string_view>) {
                     result += "str<"+(std::string)obj+">";
@@ -490,7 +630,8 @@ std::string Prepared::toStr() const {
                     static_assert(std::same_as<void, T>, "Unknown type");
                 }
                 
-            }, parm[i]);
+            }, parm[i]);*/
+            result += parm[i].toStr();
         }
         
         if(parm.size() > 1)
@@ -510,6 +651,19 @@ void output_object(auto& ss, auto&& arg) {
         ss << hex(arg).toStr();
     } else {
         static_assert(std::same_as<void, T>, "Unknown Typename");
+    }
+}
+
+UnresolvedStringPattern::~UnresolvedStringPattern() {
+    //Print("Deallocating patterns at ", hex(this));
+    //std::vector<Prepared*> ptrs;
+    /*for(auto pattern : all_patterns) {
+        if(pattern->type == PreparedPattern::PREPARED)
+            ptrs.push_back(pattern->value.prepared);
+    }*/
+    for(auto prepared : all_patterns) {
+        //Print("Deallocating ", hex(prepared));
+        delete prepared;
     }
 }
 
@@ -534,29 +688,33 @@ void fast_fromstr(std::string& output, std::string_view sv) {
     // Payload lies strictly between the two quotes
     output.reserve(current_size + N - 2);     // worst‑case growth (every '\' drops)
 
-    const char* src   = sv.data() + 1;         // first byte inside the quotes
+    const char* chunk = sv.data() + 1;         // first byte inside the quotes
     const char* end   = sv.data() + N - 1;     // one‑past‑last payload byte
-    const char* chunk = src;                   // start of current raw slice
-    
-    while (src < end) {
-        if (*src == '\\' && src + 1 < end) {   // found an escape sequence
-            // copy slice *before* '\'
-            size_t L = src - chunk;
+
+    while (chunk < end) {
+        // Find the next backslash in the remaining payload
+        const char* bs = static_cast<const char*>(std::memchr(chunk, '\\', end - chunk));
+        if (!bs || bs + 1 >= end) {
+            // No more escape sequences (or stray trailing '\') – copy the rest verbatim
+            size_t L = end - chunk;
             output.resize(current_size + L);
             std::memcpy(output.data() + current_size, chunk, L);
-            current_size += L + 1;
-            
-            output.push_back(*(src + 1));      // copy char *after* '\'
-            src  += 2;                         // skip both
-            chunk = src;                       // next slice starts here
-        } else {
-            ++src;
+            break;
         }
+
+        // Copy slice before the backslash
+        size_t L = bs - chunk;
+        output.resize(current_size + L);
+        std::memcpy(output.data() + current_size, chunk, L);
+        current_size += L;
+
+        // Copy the character after the backslash, effectively un‑escaping it
+        output.push_back(*(bs + 1));
+        ++current_size;
+
+        // Advance past the escape sequence
+        chunk = bs + 2;
     }
-    
-    size_t L = src - chunk;
-    output.resize(current_size + L);
-    std::memcpy(output.data() + current_size, chunk, L);
 }
 
 TEST(FastFromStrTest, EscapedQuoteIsRetained)
@@ -689,7 +847,9 @@ inline auto resolve_variable(UnresolvedStringPattern& patterns, std::string& out
 
 void resolve_parameter(std::string& c, UnresolvedStringPattern& pattern, PreparedPatterns& patterns, const cmn::gui::dyn::Context& context, cmn::gui::dyn::State& state) {
     for(auto& o : patterns) {
-        std::visit([&c, &context, &state, &pattern](auto& o) {
+        o.resolve(c, pattern, context, state);
+        
+        /*std::visit([&c, &context, &state, &pattern](auto& o) {
             using T = std::decay_t<decltype(o)>;
             if constexpr(std::same_as<T, std::string_view>) {
                 c.append(o.data(), o.size());
@@ -714,7 +874,7 @@ void resolve_parameter(std::string& c, UnresolvedStringPattern& pattern, Prepare
                 static_assert(std::same_as<void, T>, "Unknown type.");
             }
             
-        }, o);
+        }, o);*/
     }
 }
 
@@ -846,11 +1006,15 @@ std::string RealizeStringPattern(UnresolvedStringPattern& pattern, const gui::dy
     if(has_length)
         str.reserve(pattern.typical_length.value() * 1.5);
     
-    for(auto ptr : pattern.all_patterns)
+    for(auto ptr : pattern.all_patterns) {
+        //if(ptr->type == PreparedPattern::PREPARED)
+        //    ptr->value.prepared->reset();
         ptr->reset();
+    }
     
     for(auto& object : pattern.objects) {
-        std::visit([&str, &context, &state, &pattern](auto& object){
+        object.resolve(str, pattern, context, state);
+        /*std::visit([&str, &context, &state, &pattern](auto& object){
             using T = std::decay_t<decltype(object)>;
             if constexpr(std::same_as<T, std::string_view>) {
                 str.append(object.data(), object.size());   // zero allocations
@@ -873,7 +1037,7 @@ std::string RealizeStringPattern(UnresolvedStringPattern& pattern, const gui::dy
             } else {
                 static_assert(std::same_as<void, T>, "Unknown type.");
             }
-        }, object);
+        }, object);*/
     }
     
     if(not has_length)
@@ -929,10 +1093,15 @@ UnresolvedStringPattern prepare_string_pattern(std::string_view str) {
         std::visit([&result](auto& obj) {
             using T = std::decay_t<decltype(obj)>;
             if constexpr(std::same_as<T, std::string_view>) {
-                result.objects.push_back(obj);
+                result.objects.push_back(PreparedPattern{
+                    .value.sv = obj,
+                    .type = PreparedPattern::SV
+                });
+                
             } else if constexpr(std::same_as<T, Unprepared>) {
-                result.objects.push_back(Prepared{
-                    obj
+                result.objects.push_back(PreparedPattern{
+                    .value.prepared = Prepared::get(obj),
+                    .type = PreparedPattern::PREPARED
                 });
                 
             } else {
@@ -945,10 +1114,10 @@ UnresolvedStringPattern prepare_string_pattern(std::string_view str) {
     /// document current state:
     struct Preview {
         std::string_view name;
-        std::vector<PreparedPatterns> parameters;
+        //std::vector<PreparedPatterns> parameters;
         
         bool operator<(const Preview& other) const {
-            return std::make_tuple(name, parameters) < std::make_tuple(other.name, other.parameters);
+            return name < other.name;//std::make_tuple(name, parameters) < std::make_tuple(other.name, other.parameters);
         }
     };
     
@@ -957,40 +1126,43 @@ UnresolvedStringPattern prepare_string_pattern(std::string_view str) {
     std::map<Preview, Prepared*> duplicates;
     
     for(auto& r : result.objects) {
-        if(std::holds_alternative<Prepared>(r)) {
-            [[maybe_unused]] auto& pattern = std::get<Prepared>(r);
-            //q.push_front(&std::get<Prepared>(pattern.pieces));
+        if(r.type == PreparedPattern::PREPARED)
             q.push_front(&r);
-        }
     }
     
     while(not q.empty()) {
         PreparedPattern* obj = q.front();
         q.pop_front();
         
-        auto &prepared = std::get<Prepared>(*obj);
+        assert(obj->type == PreparedPattern::PREPARED);
+        auto &prepared = obj->value.prepared;
         Preview preview{
-            .name = prepared.resolved.name,
-            .parameters = prepared.parameters
+            .name = prepared->original
+            //.name = prepared->resolved.name,
+            //.parameters = prepared->parameters
         };
         counts[preview]++;
         
         auto it = duplicates.find(preview);
         if(it != duplicates.end()) {
-            *obj = (Prepared*)it->second;
+            assert(not obj->value.prepared->has_children);
+            delete obj->value.prepared;
+            obj->value.ptr = (Prepared*)it->second;
+            obj->type = PreparedPattern::POINTER;
             it->second->has_children = true;
             continue;
         }
         
-        duplicates[preview] = &prepared;
-        result.all_patterns.push_back(&prepared);
+        duplicates[preview] = prepared;
+        result.all_patterns.push_back(prepared);
         
-        for(auto &p : prepared.parameters) {
+        for(auto &p : prepared->parameters) {
             for(auto &o : p) {
-                if(std::holds_alternative<Prepared>(o)) {
+                //if(std::holds_alternative<Prepared>(o)) {
                     //q.push_front(&std::get<Prepared>(patt.pieces));
+                if(o.type == PreparedPattern::PREPARED)
                     q.push_front(&o);
-                }
+                //}
             }
         }
     }
@@ -1026,9 +1198,10 @@ TEST(PreparseTest, JSONPreparse) {
     std::stringstream ss;
     
     for(auto& word : result.objects) {
-        std::visit([&](auto&& obj){
+        /*std::visit([&](auto&& obj){
             output_object(ss, std::forward<std::decay_t<decltype(obj)>>(obj));
-        }, word);
+        }, word);*/
+        ss << word.toStr();
     }
     Print("result: ", ss.str());
     
@@ -1151,10 +1324,10 @@ TEST(ParsePerformanceTest, CompareParsers) {
         {"deep_nested", "start {if:{cond1}:{if:{cond2}:'deep {foo}':'no'}:'fail'} end"},
         // Instead of loop10 and long_nested, create more deeply nested but valid constructs:
         {"many_if_5", "{if:{cond}:{if:{cond}:{if:{cond}:{if:{cond}:{if:{cond}:'deep':'no'}:'no'}:'no'}:'no'}:'no'}"},
-        {"long_repeat_variable", std::string(200, 'x') + utils::repeat("{foo}x",100) + std::string(200, 'x') + "{foo}" + std::string(200, 'x')},
         // To simulate size/complexity, concatenate valid expressions:
         {"long_repeat", std::string(200, 'x') + "{foo}" + std::string(200, 'x') + "{foo}" + std::string(200, 'x')},
         {"long_flat", std::string(1000, 'x')},
+        {"long_repeat_variable", std::string(200, 'x') + utils::repeat("{foo}x",100) + std::string(200, 'x') + "{foo}" + std::string(200, 'x')},
         {"realistic", std::string("{if:{not:{has_pred}}:{name}:{if:{equal:{at:0:{max_pred}}:{id}}:<green>{name}</green>:<red>{name}</red> <i>loc</i>[<c><nr>{at:0:{max_pred}}</nr>:<nr>{int:{*:100:{at:1:{max_pred}}}}</nr><i>%</i></c>]}}{if:{tag}:' <a>tag:{tag.id} ({dec:2:{tag.p}})</a>':''}{if:{average_category}:' <nr>{average_category}</nr>':''}{if:{&&:{category}:{not:{equal:{category}:{average_category}}}}:' <b><i>{category}</i></b>':''}")}
     };
 
