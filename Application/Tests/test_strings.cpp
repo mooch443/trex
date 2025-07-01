@@ -385,6 +385,82 @@ TEST(ParsePerformanceTest, CompareParsers) {
         }, cases, context, state);
 }
 
+using namespace cmn::pattern;
+// Helper: make a Prepared with a given name (unique "original")
+static Prepared* make_prepared(const std::string& label) {
+    auto* p = new Prepared;
+    p->original = label;
+    return p;
+}
+
+TEST(UnresolvedStringPatternTest, CopyAssignmentDeepCopiesAndFixesPointers) {
+    UnresolvedStringPattern a;
+
+    // Step 1: Add a PREPARED pattern to a
+    auto* prepA = make_prepared("A");
+    a.all_patterns.push_back(prepA);
+    PreparedPattern prepPatternA{
+        .value.prepared = prepA,
+        .type = PreparedPattern::PREPARED
+    };
+    a.objects.push_back(prepPatternA);
+
+    // Step 2: Add a POINTER pattern (points to prepA)
+    PreparedPattern pointerPatternA{
+        .value.prepared = prepA,
+        .type = PreparedPattern::POINTER
+    };
+    a.objects.push_back(pointerPatternA);
+
+    // Step 3: Do the copy assignment
+    UnresolvedStringPattern b;
+    b = a;
+
+    // --- TESTS ---
+
+    // 1. all_patterns are deep-copied, not shared
+    ASSERT_EQ(a.all_patterns.size(), b.all_patterns.size());
+    ASSERT_NE(a.all_patterns[0], b.all_patterns[0]);
+    ASSERT_EQ(a.all_patterns[0]->original, b.all_patterns[0]->original);
+
+    // 2. PREPARED pattern in b points to b's Prepared, not a's
+    ASSERT_EQ(b.objects[0].type, PreparedPattern::PREPARED);
+    ASSERT_EQ(b.objects[0].value.prepared, b.all_patterns[0]);
+
+    // 3. POINTER pattern in b also points to b's Prepared, not a's
+    ASSERT_EQ(b.objects[1].type, PreparedPattern::POINTER);
+    ASSERT_EQ(b.objects[1].value.ptr, b.all_patterns[0]);
+    ASSERT_NE(b.objects[1].value.ptr, a.all_patterns[0]);
+
+    // 4. Changing b's Prepared does not affect a's
+    b.all_patterns[0]->original = "B-CHANGED";
+    ASSERT_EQ(b.all_patterns[0]->original, "B-CHANGED");
+    ASSERT_EQ(a.all_patterns[0]->original, "A");
+
+    // 5. Changing a's Prepared does not affect b's
+    a.all_patterns[0]->original = "A-CHANGED";
+    ASSERT_EQ(a.all_patterns[0]->original, "A-CHANGED");
+    ASSERT_EQ(b.all_patterns[0]->original, "B-CHANGED");
+}
+
+TEST(UnresolvedStringPatternTest, SelfAssignmentNoLeakNoCrash) {
+    UnresolvedStringPattern a;
+    auto* prepA = make_prepared("A");
+    a.all_patterns.push_back(prepA);
+    PreparedPattern prepPatternA{
+        .value.prepared = prepA,
+        .type = PreparedPattern::PREPARED
+    };
+    a.objects.push_back(prepPatternA);
+
+    // Self-assignment should not crash or leak
+    a = a;
+    ASSERT_EQ(a.all_patterns.size(), 1);
+    ASSERT_EQ(a.objects.size(), 1);
+    ASSERT_EQ(a.objects[0].type, PreparedPattern::PREPARED);
+    ASSERT_EQ(a.objects[0].value.prepared, a.all_patterns[0]);
+}
+
 TEST(ConversionTest, FileObjects) {
     //dyn::MainFile object;
     //std::string buffer = file::Path("/Users/tristan/trex/Application/src/commons/examples/test_gui.json").read_file();
