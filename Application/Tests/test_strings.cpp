@@ -399,17 +399,11 @@ TEST(UnresolvedStringPatternTest, CopyAssignmentDeepCopiesAndFixesPointers) {
     // Step 1: Add a PREPARED pattern to a
     auto* prepA = make_prepared("A");
     a.all_patterns.push_back(prepA);
-    PreparedPattern prepPatternA{
-        .value.prepared = prepA,
-        .type = PreparedPattern::PREPARED
-    };
+    auto prepPatternA = PreparedPattern::make_prepared(prepA);
     a.objects.push_back(prepPatternA);
 
     // Step 2: Add a POINTER pattern (points to prepA)
-    PreparedPattern pointerPatternA{
-        .value.prepared = prepA,
-        .type = PreparedPattern::POINTER
-    };
+    auto pointerPatternA = PreparedPattern::make_pointer(prepA);
     a.objects.push_back(pointerPatternA);
 
     // Step 3: Do the copy assignment
@@ -447,10 +441,7 @@ TEST(UnresolvedStringPatternTest, SelfAssignmentNoLeakNoCrash) {
     UnresolvedStringPattern a;
     auto* prepA = make_prepared("A");
     a.all_patterns.push_back(prepA);
-    PreparedPattern prepPatternA{
-        .value.prepared = prepA,
-        .type = PreparedPattern::PREPARED
-    };
+    auto prepPatternA = PreparedPattern::make_prepared(prepA);
     a.objects.push_back(prepPatternA);
 
     // Self-assignment should not crash or leak
