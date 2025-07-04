@@ -148,6 +148,15 @@ else
 
             ls -la /Applications/Xcode*.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs
             export CONDA_BUILD_SYSROOT="/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.5.sdk"
+            if [ ! -d "${CONDA_BUILD_SYSROOT}" ]; then
+                # find the newest SDK
+                echo "Cannot find the expected SDK at ${CONDA_BUILD_SYSROOT}!"
+                echo "Using the latest available SDK instead."
+                # Use the latest SDK available
+                export CONDA_BUILD_SYSROOT=$(ls -d /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX*.*.sdk | sort -V | tail -n1)
+                echo "Using CONDA_BUILD_SYSROOT=${CONDA_BUILD_SYSROOT}"
+            fi
+
             export SDKROOT="${CONDA_BUILD_SYSROOT}"
             export MACOSX_DEPLOYMENT_TARGET="11.0"
             CMAKE_PLATFORM_FLAGS+=("-DCMAKE_OSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET}")
