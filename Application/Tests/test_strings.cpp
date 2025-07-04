@@ -387,7 +387,7 @@ TEST(ParsePerformanceTest, CompareParsers) {
 
 using namespace cmn::pattern;
 // Helper: make a Prepared with a given name (unique "original")
-static Prepared* make_prepared(const std::string& label) {
+static Prepared* make_prepared(const char* label) {
     auto* p = new Prepared;
     p->original = label;
     return p;
