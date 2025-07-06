@@ -57,6 +57,7 @@ struct slow {
     DEF_SLOW_SETTINGS(cm_per_pixel);
     DEF_SLOW_SETTINGS(track_size_filter);
     DEF_SLOW_SETTINGS(track_threshold);
+    DEF_SLOW_SETTINGS(calculate_posture);
     DEF_SLOW_SETTINGS(track_posture_threshold);
     DEF_SLOW_SETTINGS_T(blob_split_algorithm_t::Class, blob_split_algorithm);
 };
@@ -90,6 +91,7 @@ SplitBlob::SplitBlob(CPULabeling::ListCache_t* cache, const Background& average,
             DEF_CALLBACK(blob_split_global_shrink_limit);
             DEF_CALLBACK(cm_per_pixel);
             DEF_CALLBACK(track_size_filter);
+            DEF_CALLBACK(calculate_posture);
             DEF_CALLBACK(track_threshold);
             DEF_CALLBACK(track_posture_threshold);
             
@@ -104,6 +106,7 @@ SplitBlob::SplitBlob(CPULabeling::ListCache_t* cache, const Background& average,
             "blob_split_global_shrink_limit",
             "cm_per_pixel",
             "track_size_filter",
+            "calculate_posture",
             "track_threshold",
             "track_posture_threshold",
             "blob_split_algorithm"
@@ -195,8 +198,15 @@ split::Action_t SplitBlob::evaluate_result_multiple(size_t presumed_nr, float fi
     }
     
     const auto &track_size_filter = SPLIT_SETTING(track_size_filter);
-    if(not track_size_filter) {
+    if(track_size_filter) {
         const auto min_size_threshold = track_size_filter.max_range().start * SPLIT_SETTING(blob_split_global_shrink_limit);
+        auto it = std::remove_if(blobs.begin(), blobs.end(), [&](const pv::BlobPtr& blob) {
+            auto fsize = blob->num_pixels() * sqrcm;
+            return fsize < min_size_threshold;
+        });
+        blobs.erase(it, blobs.end());
+    } else {
+        const auto min_size_threshold = pixels * sqrcm * SPLIT_SETTING(blob_split_max_shrink);
         auto it = std::remove_if(blobs.begin(), blobs.end(), [&](const pv::BlobPtr& blob) {
             auto fsize = blob->num_pixels() * sqrcm;
             return fsize < min_size_threshold;
@@ -514,7 +524,7 @@ std::vector<pv::BlobPtr> SplitBlob::split(size_t presumed_nr, const std::vector<
     };
     
     std::atomic<float> max_size;
-    const auto initial_threshold = (SLOW_SETTING(calculate_posture) ? max(SLOW_SETTING(track_threshold), SPLIT_SETTING(track_posture_threshold)) : SLOW_SETTING(track_threshold)) + 1;
+    const auto initial_threshold = (SPLIT_SETTING(calculate_posture) ? max(SPLIT_SETTING(track_threshold), SPLIT_SETTING(track_posture_threshold)) : SPLIT_SETTING(track_threshold)) + 1;
 
     const auto try_threshold = [&](CPULabeling::ListCache_t* cache, int threshold, bool save)
     {

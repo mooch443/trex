@@ -19,7 +19,7 @@ PrefilterBlobs::PrefilterBlobs(Frame_t index, int threshold, const SizeFilters& 
 
 void PrefilterBlobs::big_blob(pv::BlobPtr&& b) {
 #ifdef TREX_BLOB_DEBUG
-    thread_print(frame_index, " Big blob ", b);
+    thread_print("Frame ",frame_index, " Big blob ", b);
 #endif
     big_blobs.emplace_back(std::move(b));
 }
@@ -94,6 +94,7 @@ void PrefilterBlobs::to(PPFrame &frame) && {
     for(auto &b : big_blobs)
         big_ids.insert(b->blob_id());
     
+    //Print("Frame ", frame.index(), " filtering out ", big_blobs.size(), " big blobs because they are outside range.");
     filter_out(std::move(big_blobs), FilterReason::OutsideRange);
     big_blobs.clear();
     
@@ -117,7 +118,7 @@ void PrefilterBlobs::to(PrefilterBlobs &other) && {
 }
 
 bool PrefilterBlobs::is_blob_ignored(
-    Frame_t frame_index,
+    [[maybe_unused]] Frame_t frame_index,
     const pv::Blob& b,
     const std::optional<const msplits_t::mapped_type*>& track_ignore_bdx_c)
 {
@@ -149,6 +150,8 @@ void PrefilterBlobs::split_big(
     GenericThreadPool* pool)
 {
     UNUSED(out);
+    
+    //Print("Frame ", frame_index, " received ", big_blobs.size(), " big blobs to process.");
     
     const int threshold = FAST_SETTING(track_threshold);
     const SizeFilters track_size_filter = FAST_SETTING(track_size_filter);
@@ -227,7 +230,9 @@ void PrefilterBlobs::split_big(
             }
             
             if(ex.allow_less_than && ret.empty()) {
-                if((!discard_small || track_size_filter.close_to_minimum_of_one(rec, 0.25))) {
+                if(not discard_small
+                   || track_size_filter.close_to_minimum_of_one(rec, 0.25))
+                {
                     regular.push_back(std::move(b));
                 } else {
                     noise.push_back(std::move(b));
@@ -244,41 +249,44 @@ void PrefilterBlobs::split_big(
             }
             ret.clear();
             
-            std::sort(found.begin(), found.end(), std::greater<>{});
-            
-            size_t counter = 0;
-            for(auto && [r, id, ptr] : found) {
-                assert(ptr != b);
-                ptr->force_set_recount(threshold, ptr->raw_recount(-1));
-                ptr->add_offset(b->bounds().pos());
-                ptr->set_split(true, b);
-
-                ptr->calculate_moments();
-
-                if(!check_blob(*ptr)) {
-                    noise.emplace_back(std::move(ptr));
-                    continue;
-                }
-                
-                if(track_size_filter.in_range_of_one(r, 0.35, 1)
-                   && (!discard_small || counter < ex.number))
-                {
-                    for_this_blob.emplace_back(std::move(ptr));
-                    ++counter;
-                } else {
-                    noise.emplace_back(std::move(ptr));
-                }
-            }
-            
-            
-            PPFrame::Log("Spkit blob ", b, " -> regular=", for_this_blob, " noise=", noise);
-            
+            /// we couldnt find any relevant blobs?
             if(found.empty()) {
                 noise.emplace_back(std::move(b));
-            } else
+                
+            } else {
+                /// we did find some. sort by size
+                std::sort(found.begin(), found.end(), std::greater<>{});
+                
+                size_t counter = 0;
+                for(auto && [r, id, ptr] : found) {
+                    assert(ptr != b);
+                    ptr->force_set_recount(threshold, ptr->raw_recount(-1));
+                    ptr->add_offset(b->bounds().pos());
+                    ptr->set_split(true, b);
+                    
+                    ptr->calculate_moments();
+                    
+                    if(!check_blob(*ptr)) {
+                        noise.emplace_back(std::move(ptr));
+                        continue;
+                    }
+                    
+                    if(track_size_filter.in_range_of_one(r, 0.35, 1)
+                       && (!discard_small || counter < ex.number))
+                    {
+                        for_this_blob.emplace_back(std::move(ptr));
+                        ++counter;
+                    } else {
+                        noise.emplace_back(std::move(ptr));
+                    }
+                }
+                
+                PPFrame::Log("Spkit blob ", b, " -> regular=", for_this_blob, " noise=", noise);
+                
                 regular.insert(regular.end(),
                                std::make_move_iterator(for_this_blob.begin()),
                                std::make_move_iterator(for_this_blob.end()));
+            }
         }
         
         std::unique_lock guard(thread_mutex);

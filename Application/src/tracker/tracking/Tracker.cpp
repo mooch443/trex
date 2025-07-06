@@ -674,6 +674,8 @@ void Tracker::preprocess_frame(pv::Frame&& frame, PPFrame& pp, GenericThreadPool
     
     //! discarding frame...
     //frame.clear();
+    
+    //Print("Frame ", pp.source_index(), " has ", pp.N_blobs(), " blobs and ", pp.N_noise(), " noise");
 }
 
 void Tracker::prefilter(
@@ -931,6 +933,8 @@ void Tracker::prefilter(
     if (not Tracker::start_frame().valid()
         || result.frame_index == Tracker::start_frame())
     {
+        //Print("* running split_big for Frame ", result.frame_index, " with ", result.big_blobs.size(), " big blobs.");
+        
 #if !COMMONS_NO_PYTHON
         std::vector<pv::BlobPtr> noises;
 #endif
@@ -960,6 +964,10 @@ void Tracker::prefilter(
 #if !COMMONS_NO_PYTHON
         result.filter_out(std::move(noises), FilterReason::SplitFailed);
 #endif
+    } else {
+        //Print("* not running split_big for Frame ", result.frame_index, " with ", result.big_blobs.size(), " big blobs.");
+        result.filter_out(std::move(result.big_blobs), FilterReason::OutsideRange);
+        result.big_blobs.clear();
     }
 }
 

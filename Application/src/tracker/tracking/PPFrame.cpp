@@ -523,12 +523,14 @@ MaybeLabel PPFrame::label(const pv::bid& bdx) const {
 
 void PPFrame::add_noise(pv::BlobPtr && blob) {
     ASSUME_NOT_FINALIZED;
+    //Print("Frame ",index()," has added 1 noise blobs.");
     _add_ownership(false, std::move(blob));
 }
 
 void PPFrame::add_noise(std::vector<pv::BlobPtr>&& v) {
     ASSUME_NOT_FINALIZED;
     
+    //Print("Frame ",index()," has added ", v.size(), " noise blobs.");
     _noise_owner.reserve(_noise_owner.size() + v.size());
     
     for(auto it = std::make_move_iterator(v.begin());
@@ -545,6 +547,8 @@ void PPFrame::add_noise(std::vector<pv::BlobPtr>&& v) {
 void PPFrame::move_to_noise(size_t blob_index) {
     ASSUME_NOT_FINALIZED;
     assert(blob_index < _blob_owner.size());
+    
+    //Print("Frame ", index(), " moving ", blob_index, " to noise");
     
     // no update of pixels or maps is required
     auto ptr = _blob_owner.at(blob_index).get();
@@ -717,6 +721,8 @@ void PPFrame::add_blobs(std::vector<pv::BlobPtr>&& blobs,
     //assert(samples == blobs.size() + noise.size());
     //_num_pixels += pixels;
     //_pixel_samples += samples;
+    
+    //Print("Frame ", index(), " adding ", noise.size(), " noise and ", blobs.size(), " blobs.");
     
     _big_ids = std::move(big_ids);
     _blob_owner.reserve(_blob_owner.size() + blobs.size());

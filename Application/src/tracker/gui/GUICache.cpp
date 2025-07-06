@@ -597,7 +597,7 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
         inactive_estimates.clear();
         blob_selected_fish.clear();
         
-        while(fish_last_bounds.size() > 1000) {
+        while(fish_last_bounds.size() > 10000) {
             fish_last_bounds.erase(fish_last_bounds.begin());
         }
         
