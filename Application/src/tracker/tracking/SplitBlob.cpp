@@ -158,7 +158,7 @@ size_t SplitBlob::apply_threshold(CPULabeling::ListCache_t* cache, int threshold
         threshold = max(threshold, (int)min_pixel);
     }
     
-    output = pixel::threshold_blob(*cache, _blob, _diff_px, threshold, background);
+    output = pixel::threshold_blob(*cache, _blob, _diff_px, threshold);
     
     for(auto &blob: output)
         blob->add_offset(-_blob->bounds().pos());

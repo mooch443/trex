@@ -59,7 +59,7 @@ std::unique_ptr<PPFrame> GUICache::PPFrameMaker::operator()() const {
                         ptr = buffers.get(source_location::current());
                         ptr->clear();
                         
-                        Tracker::preprocess_frame(std::move(frame), *ptr, &_pool, PPFrame::NeedGrid::Need, video->header().resolution);
+                        Tracker::preprocess_frame(std::move(frame), *ptr, &_pool, PPFrame::NeedGrid::Need, video->header().resolution, true);
                     }
                     
                 } catch(...) {

@@ -933,8 +933,6 @@ void Tracker::prefilter(
     if (not Tracker::start_frame().valid()
         || result.frame_index == Tracker::start_frame())
     {
-        //Print("* running split_big for Frame ", result.frame_index, " with ", result.big_blobs.size(), " big blobs.");
-        
 #if !COMMONS_NO_PYTHON
         std::vector<pv::BlobPtr> noises;
 #endif
@@ -960,14 +958,14 @@ void Tracker::prefilter(
 #endif
               {});
         
-        result.big_blobs.clear();
+        result.big_blobs.erase(std::remove_if(result.big_blobs.begin(), result.big_blobs.end(), [](auto& b) { return b == nullptr; }), result.big_blobs.end());
 #if !COMMONS_NO_PYTHON
+        //thread_print("Frame ", result.frame_index, " produced ", noises.size(), " extra noises and ", result.big_blobs.size(), " blobs left over.");
         result.filter_out(std::move(noises), FilterReason::SplitFailed);
 #endif
-    } else {
-        //Print("* not running split_big for Frame ", result.frame_index, " with ", result.big_blobs.size(), " big blobs.");
-        result.filter_out(std::move(result.big_blobs), FilterReason::OutsideRange);
         result.big_blobs.clear();
+    } else {
+        //thread_print("* not running split_big for Frame ", result.frame_index, " with ", result.big_blobs.size(), " big blobs: ", result.big_blobs);
     }
 }
 
@@ -992,36 +990,36 @@ void Tracker::filter_blobs(PPFrame& frame, GenericThreadPool *pool) {
         std::vector<PrefilterBlobs> prefilters;
         std::mutex lock;
         
-        prefilters.reserve(needed_threads + 1);
-        for(size_t i=0; i<needed_threads + 1; ++i) {
+        prefilters.reserve(needed_threads);
+        for(size_t i=0; i<needed_threads; ++i) {
             prefilters.emplace_back(frame.index(), threshold, fish_size, *Tracker::background());
         }
         
         PrefilterBlobs global(frame.index(), threshold, fish_size, *Tracker::background());
         
-        distribute_indexes([&](auto, auto start, auto end, auto j){
-            //auto result = std::make_shared<PrefilterBlobs>(frame.index(), threshold, fish_size, *Tracker::instance()->_background);
-            {
-#ifndef NDEBUG
-                std::lock_guard guard(lock);
-                assert(prefilters.size() > j);
-#endif
-                //prefilters.at(j) = result;
-            }
+        distribute_indexes(
+           [&](auto, auto start, auto end, auto j){
+               auto &pref = prefilters.at(j);
+               prefilter(pref, start, end);
             
-            prefilter(prefilters.at(j), start, end);
-            
-            std::unique_lock guard(lock);
-            std::move(prefilters.at(j)).to(global);
-            
-        }, *pool, std::make_move_iterator(frame.unsafe_access_all_blobs().begin()), std::make_move_iterator(frame.unsafe_access_all_blobs().end()), (uint32_t)needed_threads);
+               std::unique_lock guard(lock);
+               std::move(pref).to(global);
+           },
+           *pool,
+           std::make_move_iterator(frame.unsafe_access_all_blobs().begin()),
+           std::make_move_iterator(frame.unsafe_access_all_blobs().end()),
+           (uint32_t)needed_threads);
+        
+        //thread_print("[main] Frame ", frame.index(), " : ", frame.unsafe_access_all_blobs().size()," objects processed. moving ", global.filtered().size(), " objects, ", global.filtered_out().size(), " noise and ", global.big_blobs.size(), " big blobs.");
         
         frame.clear_blobs();
         std::move(global).to(frame);
         
     } else {
         PrefilterBlobs pref(frame.index(), threshold, fish_size, *Tracker::background());
-        prefilter(pref, std::make_move_iterator(frame.unsafe_access_all_blobs().begin()), std::make_move_iterator(frame.unsafe_access_all_blobs().end()));
+        prefilter(pref,
+                  std::make_move_iterator(frame.unsafe_access_all_blobs().begin()),
+                  std::make_move_iterator(frame.unsafe_access_all_blobs().end()));
         
         frame.clear_blobs();
         std::move(pref).to(frame);

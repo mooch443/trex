@@ -840,10 +840,10 @@ void YOLO::StartPythonProcess(TransferData&& transfer) {
     bool force = false;
     const size_t _N = transfer.datas.size();
     {
-        [[maybe_unused]] ModuleProxy yolo("trex_yolo", [&force](ModuleProxy& proxy) {
+        [[maybe_unused]] ModuleProxy yolo("trex_yolo", [&force](ModuleProxy&) {
             force = true;
         }, true);
-        [[maybe_unused]] ModuleProxy detection_model("trex_detection_model", [&force](ModuleProxy& proxy){
+        [[maybe_unused]] ModuleProxy detection_model("trex_detection_model", [&force](ModuleProxy&){
             force = true;
         }, true);
     }

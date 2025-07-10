@@ -722,7 +722,9 @@ void PPFrame::add_blobs(std::vector<pv::BlobPtr>&& blobs,
     //_num_pixels += pixels;
     //_pixel_samples += samples;
     
-    //Print("Frame ", index(), " adding ", noise.size(), " noise and ", blobs.size(), " blobs.");
+#ifdef TREX_DEBUG_BLOBS
+    thread_print("Frame ", index(), " adding ", noise.size(), " noise and ", blobs.size(), " blobs (big ids =", big_ids,")");
+#endif
     
     _big_ids = std::move(big_ids);
     _blob_owner.reserve(_blob_owner.size() + blobs.size());

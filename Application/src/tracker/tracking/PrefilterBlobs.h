@@ -79,6 +79,7 @@ public:
     void to(PrefilterBlobs&) &&;
     
     void big_blob(pv::BlobPtr&& b);
+    void big_blob(std::vector<pv::BlobPtr>&&);
     
     static void split_big(
         Frame_t frame_index,

@@ -1702,7 +1702,11 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                     LockGuard guard(w_t{}, "ignore_bdxes");
                     
                     fish->iterate_frames(range.range,
-                        [range, &track_ignore_bdx, &local]
+                        [
+#ifndef NDEBUG
+                            range,
+#endif
+                            &track_ignore_bdx, &local]
                             (Frame_t frame,
                              const std::shared_ptr<TrackletInformation>&,
                              const BasicStuff* basic,

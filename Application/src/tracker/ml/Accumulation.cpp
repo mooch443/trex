@@ -1450,8 +1450,6 @@ bool Accumulation::start() {
                         _network->load_weights(vi::VIWeights{
                             ._path = py::VINetwork::network_path()
                         });
-                        
-                        return {false, nullptr};
                     }
                     
                 } catch(...) {
@@ -1477,12 +1475,9 @@ bool Accumulation::start() {
                     _network->load_weights(vi::VIWeights{
                         ._path = py::VINetwork::network_path()
                     });
-                    
-                    return {false, nullptr};
                 }
                 
-                _generated_data->merge_with(second_data, true);
-                return {false, second_data};
+                return {false, nullptr};
             }
             
             if(success)

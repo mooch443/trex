@@ -24,9 +24,17 @@ void PrefilterBlobs::big_blob(pv::BlobPtr&& b) {
     big_blobs.emplace_back(std::move(b));
 }
 
+void PrefilterBlobs::big_blob(std::vector<pv::BlobPtr>&& v) {
+#ifdef TREX_BLOB_DEBUG
+    thread_print("Frame ",frame_index, " Big blobs ", v);
+#endif
+    big_blobs.insert(big_blobs.end(), std::make_move_iterator(v.begin()), std::make_move_iterator(v.end()));
+    v.clear();
+}
+
 void PrefilterBlobs::commit(pv::BlobPtr&& b) {
 #ifdef TREX_BLOB_DEBUG
-    thread_print(frame_index, " Commit ", b);
+    thread_print("Frame ", frame_index, " Commit ", b);
 #endif
     overall_pixels += b->num_pixels();
     ++samples;
@@ -35,7 +43,7 @@ void PrefilterBlobs::commit(pv::BlobPtr&& b) {
 
 void PrefilterBlobs::commit(std::vector<pv::BlobPtr>&& v) {
 #ifdef TREX_BLOB_DEBUG
-    thread_print(frame_index, " Commit ", v);
+    thread_print("Frame ", frame_index, " Commit ", v);
 #endif
     for(const auto &b:v) {
         assert(b != nullptr);
@@ -52,7 +60,7 @@ void PrefilterBlobs::filter_out(pv::BlobPtr&& b, FilterReason reason) {
     overall_pixels += b->num_pixels();
     ++samples;
 #ifdef TREX_BLOB_DEBUG
-    thread_print(frame_index, " Filter out ", b);
+    thread_print("Frame ", frame_index, " Filter out ", b);
 #endif
     _filtered_out.emplace_back(std::move(b));
     filtered_out_reasons.emplace_back(reason);
@@ -79,7 +87,7 @@ void PrefilterBlobs::filter_out(std::vector<pv::BlobPtr>&& v,
 
 void PrefilterBlobs::filter_out_head(std::vector<pv::BlobPtr>&& v) {
 #ifdef TREX_BLOB_DEBUG
-    thread_print(frame_index, " Filter out ", v);
+    thread_print("Frame ", frame_index, " Filter out ", v);
 #endif
     for(const auto &b:v) {
         assert(b != nullptr);
@@ -94,7 +102,9 @@ void PrefilterBlobs::to(PPFrame &frame) && {
     for(auto &b : big_blobs)
         big_ids.insert(b->blob_id());
     
-    //Print("Frame ", frame.index(), " filtering out ", big_blobs.size(), " big blobs because they are outside range.");
+#ifdef TREX_BLOB_DEBUG
+    thread_print("Frame ", frame.index(), " filtering out ", big_ids.size(), " big blobs because they are outside range (ids=", big_ids,")");
+#endif
     filter_out(std::move(big_blobs), FilterReason::OutsideRange);
     big_blobs.clear();
     
@@ -112,7 +122,7 @@ void PrefilterBlobs::to(PPFrame &frame) && {
 void PrefilterBlobs::to(PrefilterBlobs &other) && {
     other.commit(std::move(_filtered));
     other.filter_out(std::move(_filtered_out), std::move(filtered_out_reasons));
-    other.big_blobs = std::move(big_blobs);
+    other.big_blob(std::move(big_blobs));
     other.overall_pixels += overall_pixels;
     other.samples += samples;
 }
@@ -151,8 +161,9 @@ void PrefilterBlobs::split_big(
 {
     UNUSED(out);
     
-    //Print("Frame ", frame_index, " received ", big_blobs.size(), " big blobs to process.");
-    
+#ifdef TREX_BLOB_DEBUG
+    thread_print("* running split_big for Frame ", frame_index, " with ", big_blobs.size(), " big blobs.");
+#endif
     const int threshold = FAST_SETTING(track_threshold);
     const SizeFilters track_size_filter = FAST_SETTING(track_size_filter);
     const auto cm_sq = SQR(FAST_SETTING(cm_per_pixel));

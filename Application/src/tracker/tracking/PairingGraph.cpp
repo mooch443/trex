@@ -93,7 +93,7 @@ prob_t PairedProbabilities::max_prob(fish_index_t rdx) const {
     return _row_max_probs.at((index_t)rdx);
 }
 
-void PairedProbabilities::erase(col_t::value_type col) {
+/*void PairedProbabilities::erase(col_t::value_type col) {
     throw U_EXCEPTION("erase(col) not implemented");
     if(!_col_index.count(col))
         return; //! not found
@@ -162,7 +162,7 @@ void PairedProbabilities::erase(col_t::value_type col) {
         } else
             ++i;
     }
-}
+}*/
 
 void PairedProbabilities::erase(row_t::value_type row) {
     if(!_row_index.count(row))
