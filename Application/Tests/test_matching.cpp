@@ -11,6 +11,7 @@
 #include <misc/DetectionTypes.h>
 #include <misc/RBSettings.h>
 #include <tracker/misc/PrecomuptedDetection.h>
+#include <tracking/SplitBlob.h>
 
 using ::testing::TestWithParam;
 using ::testing::Values;
@@ -46,6 +47,12 @@ static void resetGlobalSettings()
     SETTING(track_size_filter) = Settings::track_size_filter_t{};
 
     SETTING(individual_image_size) = Size2(48, 48);
+    SETTING(blob_split_algorithm) = blob_split_algorithm_t::threshold;
+    SETTING(track_threshold) = Settings::track_threshold_t(50);
+    
+    track::Identity::Reset();
+    if(track::Tracker::instance())
+        track::Tracker::instance()->initialize_slows();
 }
 
 TEST(PrecomputeTest, LoadTable)
@@ -1437,4 +1444,35 @@ TEST(TestLocalSettings, ConcurrentExternalAccess) {
     ASSERT_EQ(RB_t::current()->get<"track_max_speed">(), 100);
     auto round = RB_t::round();
     ASSERT_EQ(round.settings->get<"track_max_speed">(), 205);
+}
+
+TEST(TestSplitting, Basic) {
+    resetGlobalSettings();
+    
+    auto root = std::string(TREX_TEST_FOLDER)+"/../../images";
+    cv::Mat background = cv::Mat::zeros(1024, 1024, CV_8UC1);
+    Background bg(Image::Make(background), meta_encoding_t::gray);
+    
+    cv::Mat termites = cv::imread(root+"/termites_three.png");
+    ASSERT_EQ(termites.empty(), false);
+    
+    cmn::CPULabeling::ListCache_t cache;
+    auto blobs = CPULabeling::run(termites, cache);
+    Print("found ", blobs.size(), "blobs");
+    auto& pair = blobs.front();
+    auto blob = pv::Blob::Make(std::move(pair.lines), std::move(pair.pixels), pair.extra_flags, std::move(pair.pred));
+    SplitBlob split(&cache, bg, blob.get());
+    auto result = split.split(3, {
+        {Vec2()},
+        {Vec2()},
+        {Vec2()}
+    }, bg);
+    Print("Result = ", result);
+    ASSERT_EQ(result.size(), 3u);
+    
+    /*for(auto &b : result) {
+        auto [p, img] = b->gray_image();
+        cv::imshow("img", img->get());
+        cv::waitKey();
+    }*/
 }
