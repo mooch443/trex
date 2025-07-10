@@ -18,14 +18,16 @@ LabelElement::LabelElement(LabelCache_t* labelCache,
 {
     name = "label";
     // Set up the create callback.
-    create = [this](dyn::LayoutContext& layout) -> Layout::Ptr {
+    create = [this](dyn::LayoutContext& layout) -> Layout::Ptr
+    {
         return _create(layout);
     };
     // Set up the update callback.
     update = [this](Layout::Ptr& o,
                     const dyn::Context& context,
                     dyn::State& state,
-                    const dyn::PatternMapType& patterns) -> bool {
+                    dyn::PatternMapType& patterns) -> bool
+    {
         return _update(o, context, state, patterns);
     };
 }
@@ -76,11 +78,15 @@ Layout::Ptr LabelElement::_create(dyn::LayoutContext& layout) {
 bool LabelElement::_update(Layout::Ptr& o,
                            const dyn::Context& context,
                            dyn::State& state,
-                           const dyn::PatternMapType& patterns)
+                           dyn::PatternMapType& patterns)
 {
     Idx_t id;
-    if (patterns.contains("id"))
-        id = Meta::fromStr<Idx_t>(parse_text(patterns.at("id").original, context, state));
+    if (auto it = patterns.find("id");
+        it != patterns.end())
+    {
+        id = Meta::fromStr<Idx_t>(it->second.realize(context, state));
+        //id = Meta::fromStr<Idx_t>(parse_text(patterns.at("id").original, context, state));
+    }
     
     if (id.valid()) {
         if (auto it = _labelsMap->find(id); it != _labelsMap->end()) {

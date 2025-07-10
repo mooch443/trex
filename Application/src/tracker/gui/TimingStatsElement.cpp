@@ -18,7 +18,7 @@ TimingStatsElement::TimingStatsElement(std::shared_ptr<TimingStatsCollector> col
     update = [this](Layout::Ptr& o,
                     const dyn::Context& context,
                     dyn::State& state,
-                    const dyn::PatternMapType& patterns) -> bool {
+                    dyn::PatternMapType& patterns) -> bool {
         return _update(o, context, state, patterns);
     };
 }
@@ -45,21 +45,27 @@ Layout::Ptr TimingStatsElement::_create(dyn::LayoutContext& context) {
 bool TimingStatsElement::_update(Layout::Ptr& o,
                                  const dyn::Context& context,
                                  dyn::State& state,
-                                 const dyn::PatternMapType& patterns)
+                                 dyn::PatternMapType& patterns)
 {
     // Retrieve the TimingStatsWidget.
     auto widget = o.to<TimingStatsWidget>();
 
     // If a new window duration is provided via patterns, update it.
-    if (patterns.contains("window")) {
-        double timeWindowSeconds = Meta::fromStr<double>(parse_text(patterns.at("window").original, context, state));
+    if (auto it = patterns.find("window");
+        it != patterns.end())
+    {
+        double timeWindowSeconds = Meta::fromStr<double>(it->second.realize(context, state));
+        //double timeWindowSeconds = Meta::fromStr<double>(parse_text(patterns.at("window").original, context, state));
         auto window = std::chrono::duration_cast<std::chrono::steady_clock::duration>(
                           std::chrono::duration<double>(timeWindowSeconds));
         widget->set(window);
     }
     
-    if(patterns.contains("row_height")) {
-        int rowHeight = Meta::fromStr<int>(parse_text(patterns.at("row_height").original, context, state));
+    if(auto it = patterns.find("row_height");
+       it != patterns.end())
+    {
+        int rowHeight = Meta::fromStr<int>(it->second.realize(context, state));
+        //int rowHeight = Meta::fromStr<int>(parse_text(patterns.at("row_height").original, context, state));
         widget->set(TimingStatsWidget::RowHeight_t{rowHeight});
     }
     

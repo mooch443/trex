@@ -440,7 +440,7 @@ void AnnotationScene::_draw(DrawStructure& graph) {
                 
                 return Layout::Ptr(ptr);
             },
-            [](Layout::Ptr& o, const Context& context, State& state, const auto& patterns) -> bool {
+            [](Layout::Ptr& o, const Context& context, State& state, auto& patterns) -> bool {
                 //Print("Updating label with patterns: ", patterns);
                 //Print("o = ", o.get());
 
@@ -487,12 +487,25 @@ void AnnotationScene::_draw(DrawStructure& graph) {
                 
                 auto p = o.to<Skelett>();
                 
-                if(patterns.contains("line"))
-                    p->set_color(Meta::fromStr<Color>(parse_text(patterns.at("line").original, context, state)));
-                if (patterns.contains("fill"))
-                    p->set(FillClr{ Meta::fromStr<Color>(parse_text(patterns.at("fill").original, context, state)) });
-                if(patterns.contains("points")) {
-                    auto points = Meta::fromStr<std::vector<Pose::Point>>(parse_text(patterns.at("points").original, context, state));
+                if(auto it = patterns.find("line");
+                   it != patterns.end())
+                {
+                    p->set_color(Meta::fromStr<Color>(it->second.realize(context, state)));
+                    //p->set_color(Meta::fromStr<Color>(parse_text(patterns.at("line").original, context, state)));
+                }
+                if (auto it = patterns.find("fill");
+                    it != patterns.end())
+                {
+                    p->set(FillClr{
+                        Meta::fromStr<Color>(it->second.realize(context, state))
+                    });
+                    //p->set(FillClr{ Meta::fromStr<Color>(parse_text(patterns.at("fill").original, context, state)) });
+                }
+                if(auto it = patterns.find("points");
+                   it != patterns.end())
+                {
+                    auto points = Meta::fromStr<std::vector<Pose::Point>>(it->second.realize(context, state));
+                    //auto points = Meta::fromStr<std::vector<Pose::Point>>(parse_text(patterns.at("points").original, context, state));
                     
                     auto coords = FindCoord::get();
                     for(auto &pt : points)

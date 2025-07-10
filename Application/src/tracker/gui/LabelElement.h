@@ -26,7 +26,7 @@ public:
     bool _update(Layout::Ptr& o,
                  const dyn::Context& context,
                  dyn::State& state,
-                 const dyn::PatternMapType& patterns);
+                 dyn::PatternMapType& patterns);
 
 private:
     LabelCache_t* _labelCache; // Non-owning pointer to the label cache.

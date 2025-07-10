@@ -22,7 +22,7 @@ public:
         update = [this](Layout::Ptr& o,
                         const dyn::Context& ctx,
                         dyn::State& state,
-                        const dyn::PatternMapType& patterns)
+                        dyn::PatternMapType& patterns)
         {
             return _update(o, ctx, state, patterns);
         };
@@ -39,7 +39,7 @@ private:
     bool _update(Layout::Ptr& o,
                  const dyn::Context& context,
                  dyn::State& state,
-                 const dyn::PatternMapType& patterns);
+                 dyn::PatternMapType& patterns);
 };
 
 } // namespace cmn::gui

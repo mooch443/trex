@@ -32,7 +32,7 @@ struct GUIVideoAdapterElement : public dyn::CustomElement {
     bool _update(Layout::Ptr& o,
                  const dyn::Context& context,
                  dyn::State& state,
-                 const dyn::PatternMapType& patterns);
+                 dyn::PatternMapType& patterns);
 };
 
 }

@@ -26,7 +26,7 @@ GUIVideoAdapterElement::GUIVideoAdapterElement(
     update = [this](Layout::Ptr& o,
                     const Context& context,
                     State& state,
-                    const auto& patterns)
+                    auto& patterns)
     {
         return _update(o, context, state, patterns);
     };
@@ -44,7 +44,7 @@ GUIVideoAdapterElement::GUIVideoAdapterElement(const GUIVideoAdapterElement& oth
     update = [this](Layout::Ptr& o,
                     const Context& context,
                     State& state,
-                    const auto& patterns)
+                    auto& patterns)
     {
         return _update(o, context, state, patterns);
     };
@@ -83,12 +83,15 @@ Layout::Ptr GUIVideoAdapterElement::_create(LayoutContext& context) {
 bool GUIVideoAdapterElement::_update(Layout::Ptr& o,
             const Context& context,
             State& state,
-            const PatternMapType& patterns)
+            PatternMapType& patterns)
 {
     auto p = o.to<GUIVideoAdapter>();
     std::string path;
-    if (patterns.contains("path")) {
-        path = Meta::fromStr<std::string>(parse_text(patterns.at("path").original, context, state));
+    if (auto it = patterns.find("path");
+        it != patterns.end())
+    {
+        path = Meta::fromStr<std::string>(it->second.realize(context, state));
+        //path = Meta::fromStr<std::string>(parse_text(patterns.at("path").original, context, state));
         
         if(not _last_path_str || path != *_last_path_str) {
             _last_path_str = path;
@@ -102,33 +105,48 @@ bool GUIVideoAdapterElement::_update(Layout::Ptr& o,
     }
     
     double frame_time = 0.1;
-    if(patterns.contains("frame_seconds")) {
-        frame_time = Meta::fromStr<double>(parse_text(patterns.at("frame_seconds").original, context, state));
+    if(auto it = patterns.find("frame_seconds");
+       it != patterns.end())
+    {
+        frame_time = Meta::fromStr<double>(it->second.realize(context, state));
+        //frame_time = Meta::fromStr<double>(parse_text(patterns.at("frame_seconds").original, context, state));
         p->set(GUIVideoAdapter::FrameTime{frame_time});
     }
     
-    if(patterns.contains("alpha")) {
-        auto alpha = Meta::fromStr<double>(parse_text(patterns.at("alpha").original, context, state));
+    if(auto it = patterns.find("alpha");
+       it != patterns.end())
+    {
+        auto alpha = Meta::fromStr<double>(it->second.realize(context, state));
+        //auto alpha = Meta::fromStr<double>(parse_text(patterns.at("alpha").original, context, state));
         p->set(Alpha{alpha});
     }
     
     float blur = 0.1f;
-    if(patterns.contains("blur")) {
-        blur = Meta::fromStr<float>(parse_text(patterns.at("blur").original, context, state));
-        p->set(GUIVideoAdapter::Blur{blur});
+    if(auto it = patterns.find("blur");
+       it != patterns.end())
+    {
+        blur = Meta::fromStr<float>(it->second.realize(context, state));
+        //blur = Meta::fromStr<float>(parse_text(patterns.at("blur").original, context, state));
     }
+    p->set(GUIVideoAdapter::Blur{blur});
     
     Size2 max_size = _size_function ? _size_function() : Size2();
-    if(patterns.contains("max_size")) {
-        max_size = Meta::fromStr<Size2>(parse_text(patterns.at("max_size").original, context, state));
+    if(auto it = patterns.find("max_size");
+       it != patterns.end())
+    {
+        max_size = Meta::fromStr<Size2>(it->second.realize(context, state));
+        //max_size = Meta::fromStr<Size2>(parse_text(patterns.at("max_size").original, context, state));
     }
     p->set(SizeLimit{max_size});
     
     Margins margins;
-    if(patterns.contains("pad")) {
-        margins = Meta::fromStr<Margins>(parse_text(patterns.at("pad").original, context, state));
-        p->set(margins);
+    if(auto it = patterns.find("pad");
+       it != patterns.end())
+    {
+        margins = Meta::fromStr<Margins>(it->second.realize(context, state));
+        //margins = Meta::fromStr<Margins>(parse_text(patterns.at("pad").original, context, state));
     }
+    p->set(margins);
     
     return false;
 }

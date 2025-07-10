@@ -19,13 +19,16 @@ Layout::Ptr ImageDisplayElement::_create(dyn::LayoutContext& context) {
 bool ImageDisplayElement::_update(Layout::Ptr& o,
              const dyn::Context& context,
              dyn::State& state,
-             const dyn::PatternMapType& patterns)
+             dyn::PatternMapType& patterns)
 {
     // Expect a pattern named "generator" holding the name
-    if (patterns.contains("generator")) {
+    if (auto it = patterns.find("generator");
+        it != patterns.end())
+    {
         // Evaluate the generator name
-        const auto& pat = patterns.at("generator").original;
-        std::string genName = parse_text(pat, context, state);
+        //const auto& pat = patterns.at("generator").original;
+        //std::string genName = parse_text(pat, context, state);
+        std::string genName = it->second.realize(context, state);
         
         // Fetch the lambda and generate an Image::Ptr
         _generator = _registry->get_generator(genName);
@@ -42,10 +45,13 @@ bool ImageDisplayElement::_update(Layout::Ptr& o,
         widget->update_with(std::move(imgPtr));
     }
     
-    if (patterns.contains("color")) {
+    if (auto it = patterns.find("color");
+        it != patterns.end())
+    {
         // parse the desired target color (may include alpha)
         const Color target = Meta::fromStr<Color>(
-            parse_text(patterns.at("color").original, context, state)
+            it->second.realize(context, state)
+            //parse_text(patterns.at("color").original, context, state)
         );
         const Color current = widget->color();
 

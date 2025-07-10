@@ -20,7 +20,7 @@ DrawSegmentsElement::DrawSegmentsElement(GUICache* cache)
     update = [this](Layout::Ptr& o,
                     const dyn::Context& context,
                     dyn::State& state,
-                    const dyn::PatternMapType& patterns) -> bool {
+                    dyn::PatternMapType& patterns) -> bool {
         return _update(o, context, state, patterns);
     };
 }
@@ -51,7 +51,7 @@ Layout::Ptr DrawSegmentsElement::_create(dyn::LayoutContext& context) {
 bool DrawSegmentsElement::_update(Layout::Ptr& o,
                                   const dyn::Context& context,
                                   dyn::State& state,
-                                  const dyn::PatternMapType& patterns)
+                                  dyn::PatternMapType& patterns)
 {
     if(not _cache)
         return false;
@@ -62,9 +62,12 @@ bool DrawSegmentsElement::_update(Layout::Ptr& o,
     // Retrieve the frame index from the cache.
     Frame_t frame = _cache->frame_idx;
     
-    if (patterns.contains("fdx")) {
+    if (auto it = patterns.find("fdx");
+        it != patterns.end())
+    {
         try {
-            fdx = Meta::fromStr<Idx_t>(parse_text(patterns.at("fdx").original, context, state));
+            fdx = Meta::fromStr<Idx_t>(it->second.realize(context, state));
+            //fdx = Meta::fromStr<Idx_t>(parse_text(patterns.at("fdx").original, context, state));
         } catch (const std::exception &ex) {
 #ifndef NDEBUG
             FormatExcept("Error parsing fdx:", no_quotes(ex.what()));
@@ -77,9 +80,12 @@ bool DrawSegmentsElement::_update(Layout::Ptr& o,
     }
     
     SizeLimit limit;
-    if (patterns.contains("max_size")) {
+    if (auto it = patterns.find("max_size");
+        it != patterns.end())
+    {
         try {
-            limit = Meta::fromStr<SizeLimit>(parse_text(patterns.at("max_size").original, context, state));
+            limit = Meta::fromStr<SizeLimit>(it->second.realize(context, state));
+            //limit = Meta::fromStr<SizeLimit>(parse_text(patterns.at("max_size").original, context, state));
             ptr->set(limit);
         } catch (const std::exception &ex) {
 #ifndef NDEBUG

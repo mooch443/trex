@@ -86,7 +86,7 @@ PreviewAdapterElement::PreviewAdapterElement(decltype(get_current_frame)&& fn, d
     update = [this](Layout::Ptr& o,
                     const Context& context,
                     State& state,
-                    const auto& patterns)
+                    auto& patterns)
     {
         return _update(o, context, state, patterns);
     };
@@ -104,7 +104,7 @@ Layout::Ptr PreviewAdapterElement::_create(LayoutContext& context) {
 bool PreviewAdapterElement::_update(Layout::Ptr& o,
             const Context& context,
             State& state,
-            const PatternMapType& patterns)
+            PatternMapType& patterns)
 {
     auto ptr = o.to<IndividualImage>();
     //auto &cache = GUICache::instance();
@@ -117,8 +117,11 @@ bool PreviewAdapterElement::_update(Layout::Ptr& o,
     
     Frame_t frame = ppframe->index();
     
-    if(patterns.contains("fdx")) {
-        fdx = Meta::fromStr<Idx_t>(parse_text(patterns.at("fdx").original, context, state));
+    if(auto it = patterns.find("fdx");
+       it != patterns.end())
+    {
+        fdx = Meta::fromStr<Idx_t>(it->second.realize(context, state));
+        //fdx = Meta::fromStr<Idx_t>(parse_text(patterns.at("fdx").original, context, state));
     }
     /*if(patterns.contains("frame")) {
         frame = Meta::fromStr<Frame_t>(parse_text(patterns.at("frame").original, context, state));

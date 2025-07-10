@@ -437,6 +437,137 @@ TEST(UnresolvedStringPatternTest, CopyAssignmentDeepCopiesAndFixesPointers) {
     ASSERT_EQ(b.all_patterns[0]->original, "B-CHANGED");
 }
 
+// ---------------------------------------------------------------------------
+// Verify that all string_views stored in PreparedPattern::SV refer to the
+// internal `original` buffer of their owning UnresolvedStringPattern object,
+// both before and after a deep copy.
+// ---------------------------------------------------------------------------
+TEST(UnresolvedStringPatternTest, SVStringViewsPointIntoOriginal)
+{
+    using namespace cmn::pattern;
+
+    // Build a reasonably complex pattern containing several string‑views.
+    constexpr std::string_view expr = "hi {foo} and {if:{cond}:'bar':'baz'}!";
+    auto pattern = UnresolvedStringPattern::prepare(expr);
+
+    // Helper that asserts every SV points inside the pattern's own buffer.
+    auto verify = [](const UnresolvedStringPattern& p)
+    {
+        ASSERT_TRUE(p.original);                         // invariant
+        const char* const base = p.original->data();
+        const char* const end  = base + p.original->size();
+
+        // We need mutually‑recursive lambdas, so declare the std::functions
+        // first and assign them afterwards.
+        std::function<void(const PreparedPattern&)> check_pattern;
+        std::function<void(const Prepared&)>        check_prepared;
+
+        check_pattern = [&](const PreparedPattern& pat)
+        {
+            switch (pat.type)
+            {
+                case PreparedPattern::SV:
+                    // The SV’s data pointer must lie within the owned buffer.
+                    ASSERT_GE(pat.value.sv.data(), base);
+                    ASSERT_LE(pat.value.sv.data() + pat.value.sv.size(), end);
+                    break;
+
+                case PreparedPattern::PREPARED:
+                    check_prepared(*pat.value.prepared);
+                    break;
+
+                case PreparedPattern::POINTER:
+                    check_prepared(*pat.value.ptr);
+                    break;
+
+                default:
+                    FAIL() << "Unknown PreparedPattern type";
+            }
+        };
+
+        check_prepared = [&](const Prepared& prep)
+        {
+            for (const auto& paramVec : prep.parameters)
+                for (const auto& child : paramVec)
+                    check_pattern(child);
+        };
+
+        for (const auto& top : p.objects)
+            check_pattern(top);
+    };
+
+    // 1) Original pattern
+    verify(pattern);
+
+    // 2) After a deep copy – every SV must now point *into the copy’s* buffer.
+    UnresolvedStringPattern copy = pattern;
+    verify(copy);
+
+    // Finally, make sure the two buffers are distinct so the above checks
+    // really exercised different memory regions.
+    ASSERT_NE(pattern.original->data(), copy.original->data());
+}
+
+// ---------------------------------------------------------------------------
+// Ensure copy‑assignment fixes POINTERs that appear multiple times
+// (e.g., duplicates inside nested parameters) without triggering assertions.
+// ---------------------------------------------------------------------------
+TEST(UnresolvedStringPatternTest, CopyAssignmentFixesNestedPointers)
+{
+    using namespace cmn::pattern;
+
+    // Pattern with duplicate {foo} occurrences nested inside an {if:…} construct
+    const std::string expr = "{if:{cond}:{foo}:{foo}}";
+    auto original = UnresolvedStringPattern::prepare(expr);
+
+    // Perform copy‑assignment
+    UnresolvedStringPattern copy = original;
+
+    // Collect Prepared* sets for quick membership checks
+    std::unordered_set<const Prepared*> orig_set(original.all_patterns.begin(),
+                                                 original.all_patterns.end());
+    std::unordered_set<const Prepared*> copy_set(copy.all_patterns.begin(),
+                                                 copy.all_patterns.end());
+
+    // Helper lambdas to walk the pattern tree and verify pointers
+    std::function<void(const PreparedPattern&)> check_pattern;
+    std::function<void(const Prepared&)>        check_prepared;
+
+    check_pattern = [&](const PreparedPattern& pat)
+    {
+        switch (pat.type)
+        {
+            case PreparedPattern::POINTER:
+                // POINTERs in the copy must point into the copy’s pool,
+                // and must *not* alias any original Prepared*.
+                ASSERT_TRUE(copy_set.contains(pat.value.ptr));
+                ASSERT_FALSE(orig_set.contains(pat.value.ptr));
+                check_prepared(*pat.value.ptr);
+                break;
+
+            case PreparedPattern::PREPARED:
+                ASSERT_TRUE(copy_set.contains(pat.value.prepared));
+                ASSERT_FALSE(orig_set.contains(pat.value.prepared));
+                check_prepared(*pat.value.prepared);
+                break;
+
+            case PreparedPattern::SV:
+                break;
+        }
+    };
+
+    check_prepared = [&](const Prepared& prep)
+    {
+        for (const auto& vec : prep.parameters)
+            for (const auto& child : vec)
+                check_pattern(child);
+    };
+
+    for (const auto& obj : copy.objects)
+        check_pattern(obj);
+}
+
+
 TEST(UnresolvedStringPatternTest, SelfAssignmentNoLeakNoCrash) {
     UnresolvedStringPattern a;
     auto* prepA = make_prepared("A");

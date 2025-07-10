@@ -2111,6 +2111,9 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
             }),
             VarFunc("vi_busy", [this](const VarProps&) -> bool {
                 return _state->_controller->_busy.load();
+            }),
+            VarFunc("status_text", [](const VarProps&) -> std::string {
+                return "";
             })
         }
     };
