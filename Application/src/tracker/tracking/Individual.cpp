@@ -1251,11 +1251,6 @@ Float2_t Individual::weird_distance() {
     return weird_distance(track_max_speed);
 }
 
-__attribute__((always_inline))
-Float2_t Individual::weird_distance(Float2_t track_max_speed) {
-    return track_max_speed * 0.99_F;
-}
-
 void Individual::clear_post_processing() {
     for(auto & stuff : _posture_stuff) {
         if(stuff->head)

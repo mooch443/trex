@@ -376,7 +376,11 @@ constexpr std::array<const char*, 8> ReasonsNames {
         //size_t memory_size() const;
         
         static Float2_t weird_distance();
-        __attribute__((always_inline)) static Float2_t weird_distance(Float2_t);
+        
+        __attribute__((always_inline))
+        static Float2_t weird_distance(Float2_t track_max_speed) {
+            return track_max_speed * 0.99_F;
+        }
         //void push_to_segments(Frame_t frameIndex, long_t prev_frame);
         void clear_post_processing();
         void update_midlines(const CachedSettings&, const CacheHints*);
