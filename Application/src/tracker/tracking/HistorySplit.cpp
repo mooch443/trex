@@ -335,7 +335,7 @@ HistorySplit::HistorySplit(PPFrame &frame, PPFrame::NeedGrid need, GenericThread
     });
     PPFrame::Log("noise = ", bids);
     
-    auto collection = frame.extract_from_all<PPFrame::VectorHandling::Compress, PPFrame::RemoveHandling::Leave>(big_blobs);
+    auto collection = frame.extract_from_all<PPFrame::VectorHandling::Compress, PPFrame::RemoveHandling::Leave, PPFrame::GridHandling::Leave>(big_blobs);
     assert(frame.extract_from_noise(big_blobs).empty());
     //assert(collection.size() == big_blobs.size());
     big_blobs.clear();

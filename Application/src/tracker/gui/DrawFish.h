@@ -54,6 +54,7 @@ struct UpdateSettings {
     Frame_t gui_pose_smoothing;
     float gui_max_path_time;
     track::PoseMidlineIndexes pose_midline_indexes;
+    Float2_t track_max_speed;
 };
 
     class Fish {
@@ -122,9 +123,8 @@ struct UpdateSettings {
         std::vector<Vec2> _posture_directions;
         Range<Frame_t> _range;
         
-        std::tuple<bool, FrameRange> _has_processed_tracklet;
         std::optional<std::tuple<size_t, std::map<track::Idx_t, float>, Range<Frame_t>>> processed_tracklet;
-        std::shared_ptr<track::TrackletInformation> _tracklet;
+        //std::shared_ptr<track::TrackletInformation> _tracklet;
         track::IDaverage _qr_code;
         std::vector<float> _pred;
         

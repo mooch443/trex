@@ -99,7 +99,7 @@ bool DrawSegmentsElement::_update(Layout::Ptr& o,
     }
     
     if (fdx != ptr->fdx() || frame != ptr->frame()) {
-        std::vector<ShadowTracklet> segments;
+        IllegalArray<ShadowTracklet> segments;
         if (fdx.valid() && frame.valid()) {
             if (auto it = _cache->_individual_ranges.find(fdx);
                 it != _cache->_individual_ranges.end())

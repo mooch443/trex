@@ -136,7 +136,7 @@ Fish::~Fish() {
                     return map;
                 }),
                 VarFunc("qr", [this](const VarProps&) -> sprite::Map {
-                    if(not _tracklet) {
+                    if(not _basic_stuff) {
                         return {};//throw InvalidArgumentException("No tracklet set to retrieve QRCode from.");
                     }
                     
@@ -261,7 +261,8 @@ Fish::~Fish() {
             _image.unsafe_get_source().set_index(-1);
         points.clear();
         
-        auto seg = _frame.valid() ? GUICache::instance().tracklet_cache(_id.ID()) : nullptr;
+        auto tracklet = GUICache::instance()._unsafe_tracklet_cache(_id.ID());
+        auto seg = _frame.valid() ? tracklet : nullptr;
         _match_mode = std::nullopt;
         
         if(seg && seg->contains(_frame)) {
@@ -406,15 +407,14 @@ Fish::~Fish() {
         _range = Range<Frame_t>(obj.start_frame(), obj.end_frame());
         _empty = obj.empty();
         
-        _has_processed_tracklet = GUICache::instance().processed_tracklet_cache(_id.ID()); //obj.has_processed_tracklet(_frame);
-        if(std::get<0>(_has_processed_tracklet)) {
-            processed_tracklet = obj.processed_recognition(std::get<1>(_has_processed_tracklet).start());
+        auto has_processed_tracklet = GUICache::instance()._unsafe_processed_tracklet_cache(_id.ID()); //obj.has_processed_tracklet(_frame);
+        if(has_processed_tracklet) {
+            processed_tracklet = obj.processed_recognition(has_processed_tracklet->start());
         } else
             processed_tracklet = std::nullopt;
         
-        _tracklet = GUICache::instance().tracklet_cache(_id.ID());//obj.tracklet_for(_frame);
-        if(_tracklet) {
-            _qr_code = obj.qrcode_at(_tracklet->start());
+        if(tracklet) {
+            _qr_code = obj.qrcode_at(tracklet->start());
         } else
             _qr_code = {};
         
@@ -426,10 +426,10 @@ Fish::~Fish() {
         
         //if(!_next_frame_cache.valid)
         if(GUICache::instance()._props) {
-            auto result = GUICache::instance().next_frame_cache(_id.ID());
+            auto result = GUICache::instance()._unsafe_next_frame_cache(_id.ID());
             //auto result = obj.cache_for_frame(&GUICache::instance()._props.value(), _frame + 1_f, next_time);
-            if(result.has_value()) {
-                _next_frame_cache = *result.value();
+            if(result) {
+                _next_frame_cache = *result;
             } else {
                 //FormatWarning("Cannot create cache_for_frame of ", _id, " for frame ", _frame + 1_f, " because: ", result.error());
                 _next_frame_cache = std::nullopt;
@@ -614,6 +614,17 @@ Fish::~Fish() {
             }
         }
         
+        auto mp = FindCoord::get().convert(HUDCoord{cache.previous_mouse_position});
+        auto d = euclidean_distance(mp, _blob_bounds.center());
+        
+        //if(d <= _blob_bounds.size().max() * 5)
+        //    Print("* ", _id, " is ", d, " from mouse at ", mp, " blob bounds ", _blob_bounds, " and view ", _view.pos());
+        
+        if(cache.is_selected(_id.ID())
+           || d <= _blob_bounds.size().max() * 2
+           || not _tight_selection.vertices()
+           || _tight_selection.vertices()->empty()
+           || _view.is_animating())
         {
             const auto centroid = _posture_stuff.has_value() && _posture_stuff->centroid_posture
                     ? _posture_stuff->centroid_posture.get()
@@ -773,6 +784,9 @@ bool morphVectorsWithRotation(std::vector<Vec2>& source, std::vector<Vec2>& targ
         source = target;
         return true;
     }
+    
+    //source = target;
+    //return true;
 
     //Print("Morphing vectors with dt =", dt, ", threshold =", threshold);
 
@@ -970,6 +984,7 @@ std::vector<Vec2> find_rbb(const FindCoord& coords, Vec2 offset, Float2_t angle,
 bool Fish::setup_rotated_bbx(const FindCoord& coords, const Vec2& offset, const Vec2&, Float2_t angle)
 {
     bool corners_changed{false};
+    //return true;
     
     if(_basic_stuff
        && _basic_stuff->blob.pred.valid()
@@ -1711,17 +1726,28 @@ void Fish::selection_clicked(Event) {
                     }
                 }, _selection);
             } else {
-                std::visit([this](auto& o) {
+                /*auto mp = FindCoord::get().convert(HUDCoord{cache.previous_mouse_position});
+                auto d = euclidean_distance(mp, _blob_bounds.center());
+                
+                if(d < _blob_bounds.size().max() * 2) {
+                    std::visit([this](auto& o) {
+                        if constexpr(std::is_base_of_v<Drawable, std::remove_cvref_t<decltype(o)>>) {
+                            //Print("Transparent ", o);
+                            o.set(FillClr{Transparent});
+                            o.set(LineClr{Transparent});
+                            //o.set_animating(false);
+                            _view.advance_wrap(o);
+                            //o.set(Rotation{0});
+                        }
+                    }, _selection);
+                }*/
+                std::visit([](auto& o) {
                     if constexpr(std::is_base_of_v<Drawable, std::remove_cvref_t<decltype(o)>>) {
-                        //Print("Transparent ", o);
                         o.set(FillClr{Transparent});
                         o.set(LineClr{Transparent});
-                        //o.set_animating(false);
-                        _view.advance_wrap(o);
-                        //o.set(Rotation{0});
                     }
-                    last_scale = 0_F;
                 }, _selection);
+                last_scale = 0_F;
             }
             
             if ((hovered || is_selected) && OPTION(gui_show_selections)) {
@@ -1943,7 +1969,7 @@ void Fish::updatePath(Individual& obj, Frame_t to, Frame_t from) {
         
         ///TODO: could try to replace vertices 1by1 and get "did change" for free, before we even
         ///      try to update the object.
-        const Float2_t max_distance = SQR(Individual::weird_distance() * 0.1_F / slow::cm_per_pixel);
+        const Float2_t max_distance = SQR(Individual::weird_distance(OPTION(track_max_speed)) * 0.1_F / slow::cm_per_pixel);
         size_t paths_index = 0;
         _vertices.clear();
         _vertices.reserve(frame_vertices.size());
@@ -2129,7 +2155,7 @@ void Fish::label(const FindCoord& coord, Entangled &e) {
     {
         pos = _basic_stuff->blob.pred.pose.points.front();
         
-        if(auto pose_midline_indexes = SETTING(pose_midline_indexes).value<track::PoseMidlineIndexes>();
+        if(auto pose_midline_indexes = OPTION(pose_midline_indexes);
            not pose_midline_indexes.indexes.empty())
         {
             if(_basic_stuff->blob.pred.pose.size() > pose_midline_indexes.indexes.front())

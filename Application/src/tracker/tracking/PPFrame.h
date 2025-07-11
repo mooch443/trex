@@ -189,8 +189,14 @@ public:
         Leave
     };
     
+    enum class GridHandling {
+        Remove,
+        Leave
+    };
+    
     template<VectorHandling compress,
              RemoveHandling remove = RemoveHandling::RemoveFromOwner,
+             GridHandling grid = GridHandling::Remove,
              typename T, typename K = remove_cvref_t<T>,
              typename Value = typename K::value_type,
              typename Positions,
@@ -275,9 +281,11 @@ public:
                 
                 //! we found the blob, so remove it everywhere...
                 if(!_finalized) {
-                    if(not _blob_grid.empty()) {
-                        std::scoped_lock guard(_blob_grid_mutex);
-                        _blob_grid.erase(bdx);
+                    if constexpr(grid == GridHandling::Remove) {
+                        if(not _blob_grid.empty()) {
+                            std::scoped_lock guard(_blob_grid_mutex);
+                            _blob_grid.erase(bdx);
+                        }
                     }
                     
                     _num_pixels -= own->num_pixels();
@@ -309,6 +317,7 @@ public:
     // variant that ensures correct ordering
     template<VectorHandling compress,
              RemoveHandling remove = RemoveHandling::RemoveFromOwner,
+             GridHandling grid = GridHandling::Remove,
              typename T, typename K = remove_cvref_t<T>,
              typename Value = typename K::value_type,
              typename... Owners>
@@ -344,11 +353,12 @@ public:
         assert(objects.empty());
         objects.resize(vector.size());
         
-        ( _extract_from_single_range<VectorHandling::OneToOne, remove>(vector, objects, owners, positions), ... );
+        ( _extract_from_single_range<VectorHandling::OneToOne, remove, grid>(vector, objects, owners, positions), ... );
     }
     
     template<VectorHandling compress,
              RemoveHandling remove = RemoveHandling::RemoveFromOwner,
+             GridHandling grid = GridHandling::Remove,
              typename T, typename K = remove_cvref_t<T>,
              typename... Owners>
         requires (compress == VectorHandling::Compress)
@@ -359,46 +369,50 @@ public:
                             std::vector<pv::BlobPtr>& objects,
                             Owners&... owners)
     {
-        ( _extract_from_single_range<VectorHandling::Compress, remove>(std::forward<T>(vector), objects, owners, (void*)nullptr), ...);
+        ( _extract_from_single_range<VectorHandling::Compress, remove, grid>(std::forward<T>(vector), objects, owners, (void*)nullptr), ...);
     }
     
     template<VectorHandling compress = VectorHandling::Compress,
              RemoveHandling remove = RemoveHandling::RemoveFromOwner,
+             GridHandling grid = GridHandling::Remove,
              typename T, typename K = remove_cvref_t<T>>
         requires (cmn::is_container<K>::value) || (cmn::is_map<K>::value) || (cmn::is_set<K>::value) || std::same_as<K, UnorderedVectorSet<pv::bid>>
     std::vector<pv::BlobPtr> extract_from_blobs(T&& vector) {
         std::vector<pv::BlobPtr> objects;
         objects.reserve(vector.size());
-        extract_from_range<compress, remove>(std::forward<T>(vector), objects, _blob_owner);
+        extract_from_range<compress, remove, grid>(std::forward<T>(vector), objects, _blob_owner);
         _check_owners();
         return objects;
     }
     
     template<VectorHandling compress = VectorHandling::Compress,
              RemoveHandling remove = RemoveHandling::RemoveFromOwner,
+             GridHandling grid = GridHandling::Remove,
              typename T, typename K = remove_cvref_t<T>>
         requires (cmn::is_container<K>::value) || (cmn::is_map<K>::value) || (cmn::is_set<K>::value) || std::same_as<K, UnorderedVectorSet<pv::bid>>
     std::vector<pv::BlobPtr> extract_from_noise(T&& vector) {
         std::vector<pv::BlobPtr> objects;
         objects.reserve(vector.size());
-        extract_from_range<compress, remove>(std::forward<T>(vector), objects,  _noise_owner);
+        extract_from_range<compress, remove, grid>(std::forward<T>(vector), objects,  _noise_owner);
         _check_owners();
         return objects;
     }
     
     template<VectorHandling compress = VectorHandling::Compress,
              RemoveHandling remove = RemoveHandling::RemoveFromOwner,
+             GridHandling grid = GridHandling::Remove,
              typename T, typename K = remove_cvref_t<T>>
         requires (cmn::is_container<K>::value) || (cmn::is_map<K>::value) || (cmn::is_set<K>::value) || std::same_as<K, UnorderedVectorSet<pv::bid>>
     std::vector<pv::BlobPtr> extract_from_all(T&& vector) {
         std::vector<pv::BlobPtr> objects;
         objects.reserve(vector.size());
-        extract_from_range<compress, remove>(std::forward<T>(vector), objects, _blob_owner, _noise_owner);
+        extract_from_range<compress, remove, grid>(std::forward<T>(vector), objects, _blob_owner, _noise_owner);
         _check_owners();
         return objects;
     }
     
     template<VectorHandling compress = VectorHandling::Compress,
+             GridHandling grid = GridHandling::Remove,
              typename T, typename K = remove_cvref_t<T>>
         requires (cmn::is_container<K>::value)
                 || (cmn::is_map<K>::value)
@@ -407,7 +421,7 @@ public:
     std::vector<pv::BlobPtr> extract_from_blobs_unsafe(T&& vector) {
         std::vector<pv::BlobPtr> objects;
         objects.reserve(vector.size());
-        extract_from_range<compress, RemoveHandling::Leave>(std::forward<T>(vector), objects, _blob_owner);
+        extract_from_range<compress, RemoveHandling::Leave, grid>(std::forward<T>(vector), objects, _blob_owner);
         _check_owners();
         return objects;
     }

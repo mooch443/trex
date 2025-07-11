@@ -12,6 +12,45 @@
 #include <gui/types/Tooltip.h>
 #include <gui/GuiTypes.h>
 
+namespace track {
+
+
+template<typename Iterator, typename T>
+    requires (!_is_smart_pointer<typename Iterator::value_type>)
+Iterator find_frame_in_sorted_tracklets(Iterator start, Iterator end, T object, typename std::enable_if< !is_pair<typename Iterator::value_type>::value, void* >::type = nullptr) {
+    if(start != end) {
+        auto it = std::upper_bound(start, end, object, [](T o, const auto& ptr) -> bool {
+            return o < ptr.start;
+        });
+        
+        if((it == end || it != start) && (*(--it)).start == object)
+        {
+            return it;
+        }
+    }
+    
+    return end;
+}
+
+template<typename Iterator, typename T>
+requires (_is_dumb_pointer<Iterator> && not is_pair<std::remove_pointer_t<Iterator>>::value)
+Iterator find_frame_in_sorted_tracklets(Iterator start, Iterator end, T object) {
+    if(start != end) {
+        auto it = std::upper_bound(start, end, object, [](T o, const auto& ptr) -> bool {
+            return o < ptr.start;
+        });
+        
+        if((it == end || it != start) && (*(--it)).start == object)
+        {
+            return it;
+        }
+    }
+
+    return end;
+}
+
+}
+
 namespace cmn::gui {
 struct InfoCard::ShadowIndividual {
     Idx_t fdx{};
@@ -45,7 +84,7 @@ DrawSegments::DrawSegments()
             auto &[text, tooltip_text] = tracklet_texts.at(i);
             if(text->hovered()) {
                 auto &segment = _displayed_tracklets.at(i);
-                SETTING(gui_frame) = segment.frames.start();
+                SETTING(gui_frame) = Frame_t(segment.start);
                 return;
             }
         }
@@ -96,7 +135,7 @@ DrawSegments::DrawSegments()
     });
 }
 
-void DrawSegments::set(Idx_t fdx, Frame_t frame, const std::vector<ShadowTracklet>& tracklets) {
+void DrawSegments::set(Idx_t fdx, Frame_t frame, const IllegalArray<ShadowTracklet>& tracklets) {
     if(_fdx != fdx
        || _frame != frame
        //|| _segments != segments
@@ -122,15 +161,19 @@ Float2_t DrawSegments::add_segments(bool display_hints, float)
     
     // draw segment list
     auto rit = _tracklets.rbegin();
-    Frame_t current_segment;
+    //constexpr bool has_invalid = is_instantiation<TrivialOptional, Frame_t::value_t>::value;
+    uint32_t _current_segment = TrivialOptional<uint32_t>::InvalidValue;
+    uint32_t f = _frame.get();
     for(; rit != _tracklets.rend(); ++rit) {
-        if(rit->frames.end() < _frame)
+        if(rit->end < f)
             break;
         
-        current_segment = rit->frames.start();
-        if(rit->frames.start() <= _frame)
+        _current_segment = rit->start;
+        if(rit->start <= f)
             break;
     }
+    
+    Frame_t current_segment{_current_segment};
     
     std::vector<std::tuple<FrameRange, std::string>> strings;
     //tracklet_texts.clear();
@@ -145,13 +188,13 @@ Float2_t DrawSegments::add_segments(bool display_hints, float)
         
         auto it = rit == _tracklets.rend()
             ? _tracklets.begin()
-            : track::find_frame_in_sorted_tracklets(_tracklets.begin(), _tracklets.end(), rit->frames.start());
+            : track::find_frame_in_sorted_tracklets(_tracklets.begin(), _tracklets.end(), rit->start);
         auto it0 = it;
         
         for (; it != _tracklets.end() && cmn::abs(std::distance(it0, it)) < 5; ++it, ++i)
         {
             std::string str;
-            auto range = it->frames;
+            auto range = FrameRange(Range<Frame_t>(Frame_t(it->start), Frame_t(it->end)));
             if(range.length() <= 1_f)
                 str = range.start().toStr();
             else
@@ -190,7 +233,7 @@ Float2_t DrawSegments::add_segments(bool display_hints, float)
                     tt += " <nr>Analysis ended</nr>";
                 }
                 
-                tt = "Segment "+Meta::toStr(ptr.frames)+" ended because:"+tt;
+                tt = "Segment "+Meta::toStr(ptr)+" ended because:"+tt;
             }
             
             if(i >= narrow_cast<long_t>(tracklet_texts.size())) {
@@ -448,7 +491,8 @@ void InfoCard::update() {
                 {
                     auto range = ((FrameRange)range_of(it));
                     _shadow->tracklets.push_back(ShadowTracklet{
-                        range,
+                        range.start().get(),
+                        range.end().get(),
                         (*it)->error_code
                     });
                 }
@@ -457,15 +501,18 @@ void InfoCard::update() {
                 {
                     auto range = ((FrameRange)range_of(it));
                     _shadow->rec_tracklets.push_back(ShadowTracklet{
-                        range,
+                        range.start().get(),
+                        range.end().get(),
                         0
                     });
                 }
                 
                 FrameRange current_range;
                 for(auto &s : _shadow->tracklets) {
-                    if(s.frames.contains(_shadow->frame)) {
-                        current_range = FrameRange{s.frames};
+                    if(auto range = FrameRange(Range<Frame_t>(Frame_t(s.start), Frame_t(s.end)));
+                       range.contains(_shadow->frame))
+                    {
+                        current_range = FrameRange{range};
                         break;
                     }
                 }
@@ -517,13 +564,13 @@ void InfoCard::update() {
         
         // draw segment list
         auto rit = tracklets.rbegin();
-        Frame_t current_segment;
+        uint32_t _current_segment = TrivialOptional<uint32_t>::InvalidValue;
         for(; rit != tracklets.rend(); ++rit) {
-            if(rit->frames.end() < _shadow->frame)
+            if(rit->end < _shadow->frame.get())
                 break;
             
-            current_segment = rit->frames.start();
-            if(rit->frames.start() <= _shadow->frame)
+            _current_segment = rit->start;
+            if(rit->start <= _shadow->frame.get())
                 break;
         }
         
@@ -532,13 +579,13 @@ void InfoCard::update() {
         i = 0;
         auto it = rit == tracklets.rend()
             ? tracklets.begin()
-            : track::find_frame_in_sorted_tracklets(tracklets.begin(), tracklets.end(), rit->frames.start());
+            : track::find_frame_in_sorted_tracklets(tracklets.begin(), tracklets.end(), rit->start);
         auto it0 = it;
         
         for (; it != tracklets.end() && cmn::abs(std::distance(it0, it)) < 5; ++it, ++i)
         {
             std::string str;
-            auto range = it->frames;
+            auto range = FrameRange(Range<Frame_t>(Frame_t(it->start), Frame_t(it->end)));
             if(range.length() <= 1_f)
                 str = range.start().toStr();
             else
@@ -577,12 +624,13 @@ void InfoCard::update() {
                     tt += " <nr>Analysis ended</nr>";
                 }
                 
-                tt = "Segment "+Meta::toStr(ptr.frames)+" ended because:"+tt;
+                tt = "Segment "+Meta::toStr(ptr)+" ended because:"+tt;
             }
             tracklet_texts.push_back({text, tt});
             
-            if(it->frames.start() == current_segment) {
-                bool inside = it->frames.contains(_shadow->frame);
+            if(it->start == _current_segment) {
+                auto range = FrameRange(Range<Frame_t>(Frame_t(it->start), Frame_t(it->end)));
+                bool inside = range.contains(_shadow->frame);
                 auto offy = - (inside ? 0.f : (Base::default_line_spacing(Font(1.1f))*0.5f));
                 add<Line>(Line::Point_t(10 + offx, p.y + offy), Line::Point_t(text->pos().x - (!inside ? 0 : text->width() + 10), p.y + offy), LineClr{ inside ? White : White.alpha(100) });
             }

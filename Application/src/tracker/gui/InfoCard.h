@@ -37,7 +37,7 @@ namespace cmn::gui {
     };
 
     class DrawSegments : public Entangled {
-        std::vector<ShadowTracklet> _tracklets;
+        IllegalArray<ShadowTracklet> _tracklets;
         std::vector<ShadowTracklet> _displayed_tracklets;
         std::vector<std::tuple<std::shared_ptr<Text>, std::string>> tracklet_texts;
         std::unique_ptr<Tooltip> _tooltip;
@@ -57,7 +57,7 @@ namespace cmn::gui {
         ~DrawSegments();
         
         using Entangled::set;
-        void set(track::Idx_t fdx, Frame_t frame, const std::vector<ShadowTracklet>& tracklets);
+        void set(track::Idx_t fdx, Frame_t frame, const IllegalArray<ShadowTracklet>& tracklets);
         void set(Font);
         void set(Margins);
         void set(SizeLimit);

@@ -383,6 +383,19 @@ std::shared_ptr<TrackletInformation> Individual::tracklet_for(Frame_t frameIndex
     return it == _tracklets.end() || not (*it)->contains(frameIndex) ? nullptr : *it;
 }
 
+const TrackletInformation* Individual::_tracklet_for(Frame_t frameIndex) const {
+    if(not frameIndex.valid())
+        return nullptr;
+    
+    if(empty())
+        return nullptr;
+    if(frameIndex < _startFrame || frameIndex > _endFrame)
+        return nullptr;
+    
+    auto it = iterator_for(frameIndex);
+    return it == _tracklets.end() || not (*it)->contains(frameIndex) ? nullptr : it->get();
+}
+
 #ifndef NDEBUG
 #define SEGMENT_ACCESS(INDEXARRAY, INDEX) INDEXARRAY . at( INDEX )
 #else
@@ -1235,6 +1248,11 @@ TrackletInformation* Individual::update_add_tracklet(const Frame_t frameIndex, c
 
 Float2_t Individual::weird_distance() {
     const auto track_max_speed = FAST_SETTING(track_max_speed);
+    return weird_distance(track_max_speed);
+}
+
+__attribute__((always_inline))
+Float2_t Individual::weird_distance(Float2_t track_max_speed) {
     return track_max_speed * 0.99_F;
 }
 
@@ -1685,13 +1703,13 @@ const FrameProperties* CacheHints::properties(Frame_t index) const {
     return nullptr;
 }
 
-tl::expected<IndividualCache, const char*> Individual::cache_for_frame(const FrameProperties* previous, Frame_t frameIndex, double time, const CacheHints* hints) const {
+std::expected<IndividualCache, const char*> Individual::cache_for_frame(const FrameProperties* previous, Frame_t frameIndex, double time, const CacheHints* hints) const {
     if(not frameIndex.valid())
-        return tl::unexpected("Invalid frame in cache_for_frame.");
+        return std::unexpected("Invalid frame in cache_for_frame.");
     if (not _startFrame.valid())
-        return tl::unexpected("The individual is empty, there is no cache for next frame.");
+        return std::unexpected("The individual is empty, there is no cache for next frame.");
     if (frameIndex <= _startFrame)
-        return tl::unexpected("Cannot cache for a frame before the individuals first frame after the start frame.");
+        return std::unexpected("Cannot cache for a frame before the individuals first frame after the start frame.");
     
     assert(not empty());
     IndividualCache cache;

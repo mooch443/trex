@@ -648,23 +648,37 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
             //_individual_ranges.clear();
             all_ids.clear();
             
+            set_of_individuals_t copy;
+            {
+                std::unique_lock guard(individuals_mutex);
+                copy = _registered_callback;
+            }
+            
             IndividualManager::transform_all([&](auto idx, Individual* fish){
-                if(std::unique_lock guard(individuals_mutex);
-                   !contains(_registered_callback, fish))
-                {
+                if(not contains(copy, fish)) {
+                    copy.insert(fish);
+                    
+                    std::unique_lock guard(individuals_mutex);
                     fish->register_delete_callback((void*)12341337, delete_callback);
                     _registered_callback.insert(fish);
                 }
                 
-                auto &ranges = _individual_ranges[idx];
-                ranges.clear();
-                for(auto& tracklet : fish->tracklets()) {
-                    ranges.emplace_back(ShadowTracklet{
-                        .frames = *tracklet,
-                        .error_code=tracklet->error_code
-                    });
-                }
                 all_ids.insert(idx);
+                
+                IllegalArray<ShadowTracklet> &ranges = _individual_ranges[idx];
+                ranges.resize(fish->tracklets().size());
+                
+                size_t i = 0;
+                for(const std::shared_ptr<TrackletInformation>& tracklet : fish->tracklets()) {
+                    assert(tracklet->start().valid());
+                    assert(tracklet->end().valid());
+                    ranges[i].start = tracklet->start().get();
+                    ranges[i].end = tracklet->end().get();
+                    ranges[i].error_code = tracklet->error_code;
+                    
+                    ++i;
+                }
+                assert(ranges.size() == i);
             });
             
             for(auto it = _individual_ranges.begin(); it != _individual_ranges.end();) {
@@ -684,12 +698,15 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
             std::mutex map_mutex;
             
             distribute_indexes([this, &map_mutex, frameIndex, output_normalize_midline_data](int64_t, auto start, auto end, int64_t){
+                std::vector<std::tuple<pv::bid, Idx_t, Bounds, std::optional<BdxAndPred>, std::shared_ptr<track::constraints::FilterCache>>> results;
+                results.reserve(std::distance(start, end));
+                
                 for(auto it = start; it != end; ++it) {
                     auto fish = *it;
                     Range<Frame_t> tracklet_range;
                     std::shared_ptr<track::constraints::FilterCache> filters;
                     
-                    auto tracklet = fish->tracklet_for(frameIndex);
+                    auto tracklet = fish->_tracklet_for(frameIndex);
                     BasicStuff* basic{nullptr};
                     PostureStuff* posture{nullptr};
                     
@@ -723,7 +740,9 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
                             blob.midline = output_normalize_midline_data ? fish->fixed_midline(frameIndex) : fish->calculate_midline_for(*posture);
                         }
                         
-                        std::unique_lock g{map_mutex};
+                        
+                        results.emplace_back(blob.bdx, fish->identity().ID(), basic->blob.calculate_bounds(), std::move(blob), std::move(filters));
+                        /*std::unique_lock g{map_mutex};
                         active_blobs.insert(blob.bdx);
                         active_ids.insert(fish->identity().ID());
                         blob_selected_fish[blob.bdx] = fish->identity().ID();
@@ -732,7 +751,7 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
                         
                         /// dont forget the filters
                         if(filters)
-                            filter_cache[fish->identity().ID()] = std::move(filters);
+                            filter_cache[fish->identity().ID()] = std::move(filters);*/
                         
                     } else {
                         /// try a slightly more efficient way of getting the basic stuff
@@ -751,7 +770,9 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
                             pstuff = fish->find_frame(frameIndex - 1_f);
                         }
                         
-                        std::unique_lock g{map_mutex};
+                        results.emplace_back(pstuff ? pstuff->blob.blob_id() : pv::bid(), fish->identity().ID(), pstuff ? pstuff->blob.calculate_bounds() : Bounds(), std::nullopt, std::move(filters));
+                        
+                        /*std::unique_lock g{map_mutex};
                         inactive_ids.insert(fish->identity().ID());
                         if(pstuff) {
                             fish_last_bounds[fish->identity().ID()] = pstuff->blob.calculate_bounds();
@@ -767,9 +788,41 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
                             filter_cache[fish->identity().ID()] = std::move(filters);
                         
                         if(pstuff)
-                            active_blobs.insert(pstuff->blob.blob_id());
+                            active_blobs.insert(pstuff->blob.blob_id());*/
                     }
                 }
+                
+                std::unique_lock g{map_mutex};
+                for(auto &[bdx, fdx, bds, blob, filters] : results) {
+                    if(blob) {
+                        active_blobs.insert(bdx);
+                        active_ids.insert(fdx);
+                        blob_selected_fish[bdx] = fdx;
+                        fish_last_bounds[fdx] = bds;
+                        fish_selected_blobs[fdx] = std::move(blob.value());
+                        
+                        /// dont forget the filters
+                        if(filters)
+                            filter_cache[fdx] = std::move(filters);
+                        
+                    } else {
+                        inactive_ids.insert(fdx);
+                        if(bdx.valid()) {
+                            fish_last_bounds[fdx] = bds;
+                            active_blobs.insert(bdx);
+                            
+                        } else if(auto fit = fish_last_bounds.find(fdx);
+                                fit != fish_last_bounds.end())
+                        {
+                            fish_last_bounds.erase(fit);
+                        }
+                        
+                        /// dont forget the filters
+                        if(filters)
+                            filter_cache[fdx] = std::move(filters);
+                    }
+                }
+                
             }, pool(), active.begin(), active.end());
             
             if(has_selection()) {
@@ -1211,7 +1264,7 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
                     continue;
                 }
 
-                auto tracklet = fish->tracklet_for(frameIndex);
+                auto tracklet = fish->_tracklet_for(frameIndex);
                 if (!GUI_SETTINGS(gui_show_inactive_individuals)
                     && (!tracklet || (tracklet->end() != Tracker::end_frame()
                         && tracklet->length().get() < sign_cast<uint32_t>(GUI_SETTINGS(output_min_frames)))))
@@ -1266,7 +1319,8 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
                 .gui_single_identity_color = GUIOPTION(gui_single_identity_color),
                 .gui_pose_smoothing = GUIOPTION(gui_pose_smoothing),
                 .gui_max_path_time = GUIOPTION(gui_max_path_time),
-                .pose_midline_indexes = GUIOPTION(pose_midline_indexes)
+                .pose_midline_indexes = GUIOPTION(pose_midline_indexes),
+                .track_max_speed = GUIOPTION(track_max_speed)
             };
             
             {
@@ -1296,55 +1350,78 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
                     auto next_time = next_props ? next_props->time() : (current_time + 1.f/float(GUI_SETTINGS(frame_rate)));
                     /// cache cache_for_frame(frame + 1)
                     std::mutex map_mutex;
+                    std::unordered_set<Idx_t> ids_to_remove;
                     
-                    for(auto it = _processed_tracklet_caches.begin(); it != _processed_tracklet_caches.end();) {
-                        if(not contains(ids_to_check, it->first)) {
-                            if(auto kit = _tracklet_caches.find(it->first);
-                               kit != _tracklet_caches.end())
-                            {
-                                _tracklet_caches.erase(kit);
+                    /// collect cached ids that need to be removed
+                    /// based on whether they are part of the *ids_to_check*
+                    distribute_indexes([&map_mutex, &ids_to_check, &ids_to_remove](int64_t, auto start, auto end, int64_t){
+                        std::unordered_set<Idx_t> local_ids;
+                        for(auto it = start; it != end; ++it) {
+                            if(not contains(ids_to_check, it->first)) {
+                                local_ids.insert(it->first);
                             }
-                            it = _processed_tracklet_caches.erase(it);
-                        } else
-                            ++it;
+                        }
+                        
+                        std::unique_lock g{map_mutex};
+                        ids_to_remove.insert(local_ids.begin(), local_ids.end());
+                        
+                    }, pool(), _processed_tracklet_caches.begin(), _processed_tracklet_caches.end());
+                    
+                    /// actually remove them
+                    for(auto fdx : ids_to_remove) {
+                        if(auto kit = _tracklet_caches.find(fdx);
+                           kit != _tracklet_caches.end())
+                        {
+                            _tracklet_caches.erase(kit);
+                        }
+                        _processed_tracklet_caches.erase(fdx);
                     }
                     
                     distribute_indexes([this, &map_mutex, next_time, frameIndex](int64_t, auto start, auto end, int64_t)
                     {
                         [[maybe_unused]] track::TrackingThreadG g{};
+                        std::vector<std::tuple<Idx_t, Individual*, const TrackletInformation*, std::optional<IndividualCache>>> found;
+                        found.reserve(std::distance(start, end));
                         
                         for(auto it = start; it != end; ++it) {
                             Individual* fish = individuals.at(*it);
                             auto cache = fish->cache_for_frame(&_props.value(), frameIndex + 1_f, next_time);
-                            auto ptr = fish->tracklet_for(frameIndex);
+                            auto ptr = fish->_tracklet_for(frameIndex);
                             
-                            if(std::unique_lock g(map_mutex);
-                               cache)
-                            {
-                                _next_frame_caches[*it] = std::move(cache.value());
-                                _processed_tracklet_caches[*it] = fish->has_processed_tracklet(frameIndex);
+                            if(cache) {
+                                found.emplace_back(*it, fish, ptr, std::move(cache.value()));
+                            } else {
+                                found.emplace_back(*it, fish, ptr, std::nullopt);
+                                
+                                FormatWarning("Cannot create cache_for_frame of ", *it, " for frame ", frameIndex + 1_f, " because: ", cache.error());
+                            }
+                        }
+                        
+                        std::unique_lock guard(map_mutex);
+                        for(auto &[fdx, fish, ptr, cache] : found) {
+                            if(cache) {
+                                _next_frame_caches[fdx] = std::move(cache.value());
+                                _processed_tracklet_caches[fdx] = fish->has_processed_tracklet(frameIndex);
                                 if(ptr)
-                                    _tracklet_caches[*it] = std::make_shared<TrackletInformation>(*ptr);
-                                else if(auto sit = _tracklet_caches.find(*it);
+                                    _tracklet_caches[fdx] = std::make_shared<TrackletInformation>(*ptr);
+                                else if(auto sit = _tracklet_caches.find(fdx);
                                         sit != _tracklet_caches.end())
                                 {
                                     _tracklet_caches.erase(sit);
                                 }
                                 
                             } else {
-                                auto kit = _next_frame_caches.find(*it);
+                                auto kit = _next_frame_caches.find(fdx);
                                 if(kit != _next_frame_caches.end())
                                     _next_frame_caches.erase(kit);
-                                _processed_tracklet_caches[*it] = fish->has_processed_tracklet(frameIndex);
+                                _processed_tracklet_caches[fdx] = fish->has_processed_tracklet(frameIndex);
                                 if(ptr)
-                                    _tracklet_caches[*it] = std::make_shared<TrackletInformation>(*ptr);
-                                else if(auto sit = _tracklet_caches.find(*it);
+                                    _tracklet_caches[fdx] = std::make_shared<TrackletInformation>(*ptr);
+                                else if(auto sit = _tracklet_caches.find(fdx);
                                         sit != _tracklet_caches.end())
                                 {
                                     _tracklet_caches.erase(sit);
                                 }
-                                
-                                FormatWarning("Cannot create cache_for_frame of ", *it, " for frame ", frameIndex + 1_f, " because: ", cache.error());
                             }
                         }
                         
@@ -1354,7 +1431,9 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
                 /// update the GUI objects with the new data
                 /// this might take a long time for many objects, but is parallelizable
                 /// we just need to make sure not to push any actual gui objects to the actual layouts yet.
-                std::unique_lock guard(_fish_map_mutex);
+                std::scoped_lock guard(_fish_map_mutex, individuals_mutex);
+                std::shared_lock tracklet_caches(_tracklet_cache_mutex);
+                std::shared_lock nextframe_guard(_next_frame_cache_mutex);
                 distribute_indexes([this, frameIndex, &update_settings, &properties](int64_t, auto start, auto end, int64_t) {
                     for(auto fit = start; fit != end; ++fit) {
                         auto id = *fit;
@@ -1362,7 +1441,7 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
                         if(it == _fish_map.end())
                             continue;
                         
-                        std::unique_lock guard(individuals_mutex);
+                        //
                         auto fish = individuals.at(it->first);
                         it->second->set_data(update_settings, *fish, frameIndex, properties->time(), nullptr);
                     }
@@ -1470,6 +1549,16 @@ std::optional<const IndividualCache*> GUICache::next_frame_cache(Idx_t id) const
     return std::nullopt;
 }
 
+const IndividualCache* GUICache::_unsafe_next_frame_cache(Idx_t id) const
+{
+    //std::shared_lock guard(_next_frame_cache_mutex);
+    auto it = _next_frame_caches.find(id);
+    if(it != _next_frame_caches.end()) {
+        return &it->second;
+    }
+    return nullptr;
+}
+
 std::tuple<bool, FrameRange> GUICache::processed_tracklet_cache(Idx_t id) const
 {
     std::shared_lock guard(_tracklet_cache_mutex);
@@ -1480,12 +1569,33 @@ std::tuple<bool, FrameRange> GUICache::processed_tracklet_cache(Idx_t id) const
     return {false, FrameRange{}};
 }
 
+std::optional<FrameRange> GUICache::_unsafe_processed_tracklet_cache(Idx_t id) const
+{
+    auto it = _processed_tracklet_caches.find(id);
+    if(it != _processed_tracklet_caches.end()) {
+        if(std::get<0>(it->second))
+            return std::get<1>(it->second);
+    }
+    return std::nullopt;
+}
+
+
 std::shared_ptr<track::TrackletInformation> GUICache::tracklet_cache(Idx_t id) const
 {
     std::shared_lock guard(_tracklet_cache_mutex);
     auto it = _tracklet_caches.find(id);
     if(it != _tracklet_caches.end()) {
         return it->second;
+    }
+    return nullptr;
+}
+
+const track::TrackletInformation* GUICache::_unsafe_tracklet_cache(Idx_t id) const
+{
+    //std::shared_lock guard(_tracklet_cache_mutex);
+    auto it = _tracklet_caches.find(id);
+    if(it != _tracklet_caches.end()) {
+        return it->second.get();
     }
     return nullptr;
 }

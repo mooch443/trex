@@ -62,7 +62,8 @@ namespace globals {
         (bool, gui_show_match_modes),
         (Frame_t, gui_pose_smoothing),
         (track::detect::KeypointNames, detect_keypoint_names),
-        (track::PoseMidlineIndexes, pose_midline_indexes)
+        (track::PoseMidlineIndexes, pose_midline_indexes),
+        (Float2_t, track_max_speed)
     )
 
     #define GUIOPTION(NAME) ::cmn::gui::globals::CachedGUIOptions::copy < ::cmn::gui::globals::CachedGUIOptions :: NAME > ()
@@ -114,7 +115,8 @@ namespace globals {
         (std::optional<blob::Pose::Skeletons>, detect_skeleton),
         (std::vector<Vec2>, gui_zoom_polygon),
         (std::string, gui_foi_name),
-        (bool, track_pause)
+        (bool, track_pause),
+        (Float2_t, track_max_speed)
     )
 }
 
@@ -139,12 +141,17 @@ namespace globals {
     class GUICache {
         GETTER_NCONST(GenericThreadPool, pool);
         
-        mutable std::shared_mutex _next_frame_cache_mutex, _tracklet_cache_mutex;
+        mutable std::shared_mutex _next_frame_cache_mutex;
+        mutable std::shared_mutex _tracklet_cache_mutex;
         std::unordered_map<Idx_t, IndividualCache> _next_frame_caches;
         std::unordered_map<Idx_t, std::tuple<bool, FrameRange>> _processed_tracklet_caches;
         std::unordered_map<Idx_t, std::shared_ptr<track::TrackletInformation>> _tracklet_caches;
         std::optional<ska::bytell_hash_map<pv::bid, std::vector<float>>> _current_predictions;
-
+    public:
+        std::shared_mutex& tracklet_cache_mutex() const {
+            return _tracklet_cache_mutex;
+        }
+    protected:
         struct PPFrameMaker {
             std::unique_ptr<PPFrame> operator()() const;
         };
@@ -229,13 +236,13 @@ namespace globals {
             return LockIndividuals{ individuals_mutex, individuals };
         }
         
-        std::set<Idx_t> all_ids;
+        robin_hood::unordered_set<Idx_t> all_ids;
         std::set<Idx_t> active_ids;
         std::set<Idx_t> inactive_ids;
         std::set<Idx_t> recognized_ids;
         std::map<Idx_t, std::shared_ptr<gui::Circle>> recognition_circles;
         std::map<Idx_t, Timer> recognition_timer;
-        std::unordered_map<Idx_t, std::vector<ShadowTracklet>> _individual_ranges;
+        std::unordered_map<Idx_t, IllegalArray<ShadowTracklet>> _individual_ranges;
         
         std::unordered_map<pv::bid, Idx_t> blob_selected_fish;
         std::map<Idx_t, BdxAndPred> fish_selected_blobs;
@@ -322,8 +329,11 @@ namespace globals {
         bool something_important_changed(Frame_t) const;
         
         std::optional<const IndividualCache*> next_frame_cache(Idx_t) const;
+        const IndividualCache* _unsafe_next_frame_cache(Idx_t) const;
         std::tuple<bool, FrameRange> processed_tracklet_cache(Idx_t) const;
+        std::optional<FrameRange> _unsafe_processed_tracklet_cache(Idx_t) const;
         std::shared_ptr<track::TrackletInformation> tracklet_cache(Idx_t id) const;
+        const track::TrackletInformation* _unsafe_tracklet_cache(Idx_t id) const;
         
         /// We can preload a pv::Frame here already, but not invalidate
         /// any of the actual data.

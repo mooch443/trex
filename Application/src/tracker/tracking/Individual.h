@@ -60,31 +60,14 @@ constexpr std::array<const char*, 8> ReasonsNames {
 };
 
     template<typename Iterator, typename T>
-        requires _is_smart_pointer<typename Iterator::value_type>
-    Iterator find_frame_in_sorted_tracklets(Iterator start, Iterator end, T object, typename std::enable_if< !is_pair<typename Iterator::value_type>::value, void* >::type = nullptr) {
+        requires (_is_smart_pointer<typename Iterator::value_type> && not is_pair<typename Iterator::value_type>::value)
+    Iterator find_frame_in_sorted_tracklets(Iterator start, Iterator end, T object) {
         if(start != end) {
             auto it = std::upper_bound(start, end, object, [](T o, const auto& ptr) -> bool {
                 return o < ptr->start();
             });
             
             if((it == end || it != start) && (*(--it))->start() == object)
-            {
-                return it;
-            }
-        }
-        
-        return end;
-    }
-
-    template<typename Iterator, typename T>
-        requires (!_is_smart_pointer<typename Iterator::value_type>)
-    Iterator find_frame_in_sorted_tracklets(Iterator start, Iterator end, T object, typename std::enable_if< !is_pair<typename Iterator::value_type>::value, void* >::type = nullptr) {
-        if(start != end) {
-            auto it = std::upper_bound(start, end, object, [](T o, const auto& ptr) -> bool {
-                return o < ptr.frames.start();
-            });
-            
-            if((it == end || it != start) && (*(--it)).frames.start() == object)
             {
                 return it;
             }
@@ -276,6 +259,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
         FrameRange get_tracklet(Frame_t frameIndex) const;
         FrameRange get_tracklet_safe(Frame_t frameIndex) const;
         std::shared_ptr<TrackletInformation> tracklet_for(Frame_t frame) const;
+        const TrackletInformation* _tracklet_for(Frame_t frame) const;
         
         //! Returns iterator for the first tracklet equal to or before given frame
         decltype(_tracklets)::const_iterator iterator_for(Frame_t frame) const;
@@ -386,12 +370,13 @@ constexpr std::array<const char*, 8> ReasonsNames {
         //! Estimates the position in the given frame. Uses the previous position, returns
         //  position in the first frame if no previous position was available.
         //  Also pre-caches a few other properties of the individual.
-        tl::expected<IndividualCache, const char*> cache_for_frame(const FrameProperties* previous, Frame_t frameIndex, double time, const CacheHints* = nullptr) const;
+        std::expected<IndividualCache, const char*> cache_for_frame(const FrameProperties* previous, Frame_t frameIndex, double time, const CacheHints* = nullptr) const;
         
         void save_visual_field(const file::Path& path, Range<Frame_t> range = Range<Frame_t>({}, {}), const std::function<void(float, const std::string&)>& update = [](auto, auto){}, bool blocking = true) const;
         //size_t memory_size() const;
         
         static Float2_t weird_distance();
+        __attribute__((always_inline)) static Float2_t weird_distance(Float2_t);
         //void push_to_segments(Frame_t frameIndex, long_t prev_frame);
         void clear_post_processing();
         void update_midlines(const CachedSettings&, const CacheHints*);

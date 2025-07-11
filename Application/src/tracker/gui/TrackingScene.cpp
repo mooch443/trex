@@ -1820,7 +1820,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                 
                 throw std::invalid_argument("Frame "+Meta::toStr(frame)+" not tracked.");
             }),
-            VarFunc("segments_for", [this](const VarProps& props) -> std::vector<ShadowTracklet>{
+            VarFunc("segments_for", [this](const VarProps& props) -> IllegalArray<ShadowTracklet>{
                 REQUIRE_EXACTLY(1, props);
                 auto idx = Meta::fromStr<Idx_t>(props.first());
                 if(auto it = _data->_cache->_individual_ranges.find(idx);
