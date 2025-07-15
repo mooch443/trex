@@ -595,11 +595,17 @@ void InfoCard::update() {
             auto p = Vec2(width() - 10 + offx, float(height() - 40) * 0.5f + ((i - 2) + 1) * (float)Base::default_line_spacing(Font(1.1f)));
             auto alpha = 25 + 230 * (1 - cmn::abs(i-2) / 5.0f);
             
-            derived_ptr<Text> text = new Text(Str(str), Loc(p),
-                             TextClr{_shadow->frame != range.start()
-                                        ? White.alpha(alpha)
-                                        : Color(200,235,255).alpha(alpha)},
-                             Font(0.8f), Origin(1, 0.5f));
+            derived_ptr<Text> text{
+                new Text{
+                    Str(str),
+                    Loc(p),
+                    TextClr{_shadow->frame != range.start()
+                        ? White.alpha(alpha)
+                        : Color(200,235,255).alpha(alpha)},
+                    Font(0.8f),
+                    Origin(1, 0.5f)
+                }
+            };
             text->set_clickable(true);
             //text = advance(text);
             

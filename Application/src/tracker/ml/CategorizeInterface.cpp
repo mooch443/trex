@@ -729,7 +729,12 @@ void Interface::draw(const std::weak_ptr<pv::File>& video, IMGUIBase* window, Dr
                 _asked = true;
 
                 using namespace gui;
-                derived_ptr<Textfield> textfield = new Textfield(Str("W,S"), Box(Size2(500 * 0.75, 33)));
+                derived_ptr<Textfield> textfield{
+                    new Textfield{
+                        Str("W,S"),
+                        Box(Size2(500 * 0.75, 33))
+                    }
+                };
 
                 auto d = base.dialog([textfield](Dialog::Result r) mutable {
                     if (r == Dialog::OKAY) {

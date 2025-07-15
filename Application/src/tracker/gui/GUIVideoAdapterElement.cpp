@@ -80,6 +80,21 @@ Layout::Ptr GUIVideoAdapterElement::_create(LayoutContext& context) {
     return ptr;
 }
 
+template<typename SourceType, typename TargetType>
+void check_field(std::string_view name, const Layout::Ptr& ptr, PatternMapType& patterns, const Context& context, State& state) {
+    auto it = patterns.find(name);
+    if(it == patterns.end())
+        return;
+    try {
+        auto text = it->second.realize(context, state);
+        auto fill = Meta::fromStr<SourceType>(text);
+        LabeledField::delegate_to_proper_type(TargetType{fill}, ptr);
+        
+    } catch(const std::exception& e) {
+        FormatError("Error parsing context; ", patterns, ": ", e.what());
+    }
+};
+
 bool GUIVideoAdapterElement::_update(Layout::Ptr& o,
             const Context& context,
             State& state,
@@ -104,31 +119,10 @@ bool GUIVideoAdapterElement::_update(Layout::Ptr& o,
             p->set(file::PathArray{});
     }
     
-    double frame_time = 0.1;
-    if(auto it = patterns.find("frame_seconds");
-       it != patterns.end())
-    {
-        frame_time = Meta::fromStr<double>(it->second.realize(context, state));
-        //frame_time = Meta::fromStr<double>(parse_text(patterns.at("frame_seconds").original, context, state));
-        p->set(GUIVideoAdapter::FrameTime{frame_time});
-    }
-    
-    if(auto it = patterns.find("alpha");
-       it != patterns.end())
-    {
-        auto alpha = Meta::fromStr<double>(it->second.realize(context, state));
-        //auto alpha = Meta::fromStr<double>(parse_text(patterns.at("alpha").original, context, state));
-        p->set(Alpha{alpha});
-    }
-    
-    float blur = 0.1f;
-    if(auto it = patterns.find("blur");
-       it != patterns.end())
-    {
-        blur = Meta::fromStr<float>(it->second.realize(context, state));
-        //blur = Meta::fromStr<float>(parse_text(patterns.at("blur").original, context, state));
-    }
-    p->set(GUIVideoAdapter::Blur{blur});
+    check_field<double, GUIVideoAdapter::FrameTime>("frame_seconds", o, patterns, context, state);
+    check_field<double, Alpha>("alpha", o, patterns, context, state);
+    check_field<float, GUIVideoAdapter::Blur>("blur", o, patterns, context, state);
+    check_field<Bounds, Margins>("pad", o, patterns, context, state);
     
     Size2 max_size = _size_function ? _size_function() : Size2();
     if(auto it = patterns.find("max_size");
@@ -138,15 +132,6 @@ bool GUIVideoAdapterElement::_update(Layout::Ptr& o,
         //max_size = Meta::fromStr<Size2>(parse_text(patterns.at("max_size").original, context, state));
     }
     p->set(SizeLimit{max_size});
-    
-    Margins margins;
-    if(auto it = patterns.find("pad");
-       it != patterns.end())
-    {
-        margins = Meta::fromStr<Margins>(it->second.realize(context, state));
-        //margins = Meta::fromStr<Margins>(parse_text(patterns.at("pad").original, context, state));
-    }
-    p->set(margins);
     
     return false;
 }

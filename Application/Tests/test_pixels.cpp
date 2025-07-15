@@ -295,6 +295,55 @@ TEST(IllegalArrays, RangeLoop) {
     EXPECT_EQ(sum, 7 * (0 + 1 + 2 + 3 + 4)); // 7 * 10 = 70
 }
 
+// New test inserted as requested
+TEST(IllegalArrays, AssignFromEmptyArrayAndSelfAssignEmpty) {
+    cmn::IllegalArray<int> arr1 = {1, 2, 3};
+    cmn::IllegalArray<int> empty;
+    
+    // Assign from empty to filled
+    arr1 = empty;
+    EXPECT_TRUE(arr1.empty());
+    
+    // Assign from filled to empty
+    empty = arr1;
+    EXPECT_TRUE(empty.empty());
+    
+    // Copy assign empty to empty
+    cmn::IllegalArray<int> arr2;
+    arr2 = empty;
+    EXPECT_TRUE(arr2.empty());
+    
+    // Move assign empty to filled
+    arr1 = cmn::IllegalArray<int>{};
+    EXPECT_TRUE(arr1.empty());
+    
+    // Move assign empty to empty
+    arr2 = cmn::IllegalArray<int>{};
+    EXPECT_TRUE(arr2.empty());
+    
+    // Self-assign when empty (copy)
+    arr2 = arr2;
+    EXPECT_TRUE(arr2.empty());
+    
+    // Self-assign when empty (move)
+    arr2 = std::move(arr2);
+    EXPECT_TRUE(arr2.empty());
+    
+    // Just to be sure: pushing afterwards
+    arr2.push_back(42);
+    EXPECT_EQ(arr2.size(), 1u);
+    EXPECT_EQ(arr2[0], 42);
+}
+
+TEST(IllegalArrays, MoveAssignDestructSafety) {
+    cmn::IllegalArray<int> a = {1,2,3,4};
+    cmn::IllegalArray<int> b = {5,6};
+    a = std::move(b);
+    // Now destroy b (should not segfault)
+    b.clear();
+    EXPECT_TRUE(b.empty());
+}
+
 // Default‐constructed Color should be all zeros
 TEST(ColorTest, DefaultConstructor) {
     Color c;

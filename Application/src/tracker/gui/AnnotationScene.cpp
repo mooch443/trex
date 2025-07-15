@@ -149,7 +149,7 @@ void AnnotationView::set_annotation(Annotation && a) {
         
         _circles.clear();
         for(auto &p : a.points) {
-            _circles.push_back(new Circle(Loc{p}, Radius{15}, FillClr{Red.alpha(50)}, LineClr{Red.alpha(125)}));
+            _circles.emplace_back(new Circle(Loc{p}, Radius{15}, FillClr{Red.alpha(50)}, LineClr{Red.alpha(125)}));
             _circles.back()->set_draggable();
             _circles.back()->on_hover([ptr = _circles.back().get()](Event e) {
                 if(e.hover.hovered)
@@ -170,7 +170,7 @@ void AnnotationView::set_annotation(Annotation && a) {
     } else {
         _circles.clear();
         for(auto &p : a.points) {
-            _circles.push_back(new Circle(Loc{p}, Radius{15}, FillClr{Red.alpha(50)}, LineClr{Red.alpha(125)}));
+            _circles.emplace_back(new Circle(Loc{p}, Radius{15}, FillClr{Red.alpha(50)}, LineClr{Red.alpha(125)}));
             _circles.back()->set_draggable();
         }
     }

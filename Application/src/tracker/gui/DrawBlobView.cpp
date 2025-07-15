@@ -1063,7 +1063,7 @@ void BlobView::clicked_background(DrawStructure& base, GUICache& cache, const Ve
             cm_per_pixel_text.set_fill_color(DarkGray.alpha(50));
             cm_per_pixel_text.set_text_color(White);
             
-            derived_ptr<Entangled> e =  new Entangled();
+            derived_ptr<Entangled> e{new Entangled};
             e->update([&](Entangled& e) {
                 e.advance_wrap(cm_per_pixel_text);
             });
@@ -1074,7 +1074,7 @@ void BlobView::clicked_background(DrawStructure& base, GUICache& cache, const Ve
             auto E = bound.back();
             auto D = euclidean_distance(S, E);
             
-            base.dialog([this, D, &base](Dialog::Result r) {
+            base.dialog([this, D](Dialog::Result r) {
                 if(r != Dialog::OKAY) {
                     return;
                 }

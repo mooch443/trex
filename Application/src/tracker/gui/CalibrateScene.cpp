@@ -17,7 +17,7 @@ struct CalibrateScene::Data {
     std::atomic<Size2> _next_video_size;
     Size2 _video_size;
     
-    derived_ptr<NumericTextfield<double>> _cm_text = new NumericTextfield<double>{1.0, Bounds(0, 0, 200,30), arange<double>{0, infinity<double>()}};
+    derived_ptr<NumericTextfield<double>> _cm_text{new NumericTextfield<double>{1.0, Bounds(0, 0, 200,30), arange<double>{0, infinity<double>()}}};
 };
 
 CalibrateScene::CalibrateScene(Base& window)
@@ -149,7 +149,7 @@ void CalibrateScene::_draw(DrawStructure &graph) {
                             _data->_cm_text->set_fill_color(DarkGray.alpha(50));
                             _data->_cm_text->set_text_color(White);
                             
-                            derived_ptr<Entangled> e = new Entangled();
+                            derived_ptr<Entangled> e{new Entangled()};
                             e->update([&](Entangled& e) {
                                 e.advance_wrap(*_data->_cm_text);
                             });
