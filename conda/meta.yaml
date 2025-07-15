@@ -108,13 +108,13 @@ requirements:
     - openblas # [arm64]
     - ffmpeg >=3,<=7
     - openh264 # [osx]
-    - numpy ==1.26.4
+    - numpy =2
 
   run:
     - {{ pin_compatible('python', min_pin='x.x', max_pin='x.x') }}
     - {{ pin_compatible('ffmpeg', min_pin='x.x', max_pin='x.x') }}
     - {{ pin_compatible('openh264', min_pin='x.x', max_pin='x.x') }} # [osx]
-    - {{ pin_compatible('numpy', min_pin='x.x.x', max_pin='x.x.x') }}
+    - {{ pin_compatible('numpy', min_pin='x', max_pin='x') }}
     - {{ pin_compatible('openblas', min_pin='x.x', max_pin='x.x') }} # [arm64]
     - {{ pin_compatible('icu', min_pin='x.x', max_pin='x.x') }}
     - seaborn
