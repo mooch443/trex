@@ -205,7 +205,7 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
     else
         Print("[exporting] Exporting all frames (", tracker.number_frames(),")");
     auto individual_prefix = FAST_SETTING(individual_prefix);
-    Print("[exporting] Writing data from `output_fields` to ",fishdata / (filename+"_"+individual_prefix+"*."+output_format.name()));
+    Print("[exporting] Writing data from `output_fields` to ",fishdata / (filename+"_"+individual_prefix+"*."+output_format.str()));
     if(output_posture_data)
         Print("[exporting] Writing posture data to ",posture_path);
     Print("[exporting] Writing recognition data to ",recognition_path);
@@ -359,7 +359,7 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                               fish,
                               library_cache.at(thread_index));
                     
-                    file::Path path = (filename + "_" + fish->identity().name() + "." + output_format.name());
+                    file::Path path = (filename + "_" + fish->identity().name() + "." + output_format.str());
                     file::Path final_path = fishdata / path;
                     
                     try {

@@ -506,7 +506,7 @@ bool TrackingScene::on_global_event(Event event) {
                 break;
             case Keyboard::S:
                 if(GUI_SETTINGS(gui_show_export_options)) {
-                    WorkProgress::add_queue("Saving to "+(std::string)GUI_SETTINGS(output_format).name()+" ...", [this]() { _state->_controller->export_tracks(); });
+                    WorkProgress::add_queue("Saving to "+GUI_SETTINGS(output_format).str()+" ...", [this]() { _state->_controller->export_tracks(); });
                     SETTING(gui_show_export_options) = false;
                 } else {
                     SETTING(gui_show_export_options) = true;

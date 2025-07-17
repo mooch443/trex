@@ -52,7 +52,7 @@ struct bid {
         return cmn::Meta::toStr<uint32_t>(_id);
     }
     static std::string class_name() { return "pv::bid"; }
-    static bid fromStr(const std::string& str) {
+    static bid fromStr(cmn::StringLike auto&& str) {
         return bid(cmn::Meta::fromStr<uint32_t>(str));
     }
 

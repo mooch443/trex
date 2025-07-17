@@ -304,7 +304,7 @@ struct DrawExportOptions::Data {
     //ScrollableList<Item> export_options;
     DynamicGUI _gui;
     
-    std::optional<std::map<std::string, std::set<std::string>>> previous_graphs;
+    std::optional<std::unordered_map<std::string, std::set<std::string_view>, MultiStringHash, MultiStringEqual>> previous_graphs;
     std::optional<std::string> previous_text;
     
     std::vector<sprite::Map> _filtered_options, _selected_options;
@@ -502,7 +502,7 @@ struct DrawExportOptions::Data {
                         ActionFunc("export", [state](auto){
                             Print("Triggered export...");
                             
-                            WorkProgress::add_queue("Saving to "+(std::string)SETTING(output_format).value<default_config::output_format_t::Class>().name()+" ...", [state]()
+                            WorkProgress::add_queue("Saving to "+SETTING(output_format).value<default_config::output_format_t::Class>().str()+" ...", [state]()
                             {
                                 state->_controller->export_tracks();
                                 /// hide yourself:
@@ -561,7 +561,7 @@ struct DrawExportOptions::Data {
         
         auto graphs = SETTING(output_fields).value<std::vector<std::pair<std::string, std::vector<std::string>>>>();
         auto graphs_map = [&graphs]() {
-            std::map<std::string, std::set<std::string>> result;
+            std::unordered_map<std::string, std::set<std::string_view>, MultiStringHash, MultiStringEqual> result;
             for(auto &g : graphs) {
                 static const std::set<Output::Modifiers::Class> wanted{
                     Output::Modifiers::CENTROID,
@@ -663,7 +663,7 @@ struct DrawExportOptions::Data {
                             
                         } else if (it != graphs_map.end()) {
                             //count = narrow_cast<uint32_t>(max(it->second.size(), 1u));
-                            std::set<std::string> append;
+                            std::set<std::string_view> append;
                             for(auto a : it->second) {
                                 a = utils::lowercase(a);
                                 if(not is_in(a, "raw", "smooth", ""))
@@ -676,7 +676,7 @@ struct DrawExportOptions::Data {
                         }
                         
                         items.push_back(Item{
-                            ._name = f,
+                            ._name = (std::string)f,
                             ._source = (std::string)name,
                             ._count = count,
                             ._font = Font(0.5, count ? Style::Bold : Style::Regular, Align::Left)
@@ -688,7 +688,7 @@ struct DrawExportOptions::Data {
                             _selected_options.emplace_back();
                             _auto_variables.emplace_back(auto_generated);
                             auto &map = _selected_options.back();
-                            map["name"] = f;
+                            map["name"] = (std::string)f;
                             map["sub"] = Output::Library::is_global_function(f) || sources.size() <= 1 ? "" : (std::string)hash;
                             map["subname"] = (std::string)name;
                             map["count"] = count;
@@ -711,7 +711,7 @@ struct DrawExportOptions::Data {
                         } else {
                             _filtered_options.emplace_back();
                             auto &map = _filtered_options.back();
-                            map["name"] = f;
+                            map["name"] = (std::string)f;
                             map["sub"] = Output::Library::is_global_function(f) || sources.size() <= 1 ? "" : (std::string)hash;
                             map["subname"] = (std::string)name;
                             map["count"] = count;

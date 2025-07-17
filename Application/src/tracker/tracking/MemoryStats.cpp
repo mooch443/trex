@@ -351,7 +351,7 @@ OutputLibraryMemoryStats::OutputLibraryMemoryStats(Output::LibraryCache::Ptr ptr
                 bytes += sizeof(decltype(fields_modifiers)::value_type) * fields_modifiers.size();
                 
                 for(auto && [field, modifiers_values] : fields_modifiers) {
-                    bytes += field.capacity();
+                    bytes += sizeof(decltype(field));//field.capacity();
                     bytes += sizeof(decltype(modifiers_values)::value_type) * modifiers_values.size();
                     
                     /*for(auto && [modifier, value] : modifiers_values) {

@@ -30,7 +30,7 @@ private:
 };
 
 template<typename MatchType,
-         utils::StringLike Name_t,
+         cmn::StringLike Name_t,
          typename Target_t>
 bool match_name(
         const std::initializer_list<MatchType>& matches,

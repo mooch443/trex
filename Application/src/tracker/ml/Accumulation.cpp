@@ -1881,7 +1881,7 @@ bool Accumulation::start() {
                 // save validation data
                 try {
                     //auto data = _collected_data->join_split_data();
-                    auto ranges_path = file::DataLocation::parse("output", Path(SETTING(filename).value<file::Path>().filename()+"_validation_data_"+method.name()+".npz"));
+                    auto ranges_path = file::DataLocation::parse("output", Path(SETTING(filename).value<file::Path>().filename()+"_validation_data_"+method.str()+".npz"));
                     
                     
                     const Size2 dims = SETTING(individual_image_size);

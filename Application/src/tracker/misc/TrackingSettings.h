@@ -61,7 +61,11 @@ struct AssignInfo {
 struct PoseMidlineIndexes {
     std::vector<uint8_t> indexes;
     
-    static PoseMidlineIndexes fromStr(const std::string&);
+    static PoseMidlineIndexes fromStr(cmn::StringLike auto&& str) {
+        return PoseMidlineIndexes{
+            .indexes = Meta::fromStr<std::vector<uint8_t>>(str)
+        };
+    }
     std::string toStr() const;
     glz::json_t to_json() const;
     static std::string class_name() { return "PoseMidlineIndexes"; }

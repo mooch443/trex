@@ -36,7 +36,7 @@ namespace Output {
     LibraryCache::Ptr _default_cache = std::make_shared<LibraryCache>();
 
     std::shared_mutex _cache_func_mutex;
-    std::map<std::string, Library::FunctionType> _cache_func;
+    std::unordered_map<std::string, Library::FunctionType, MultiStringHash, MultiStringEqual> _cache_func;
     cached_output_fields_t _options_map;
     default_config::default_options_type _output_defaults;
     sprite::CallbackFuture _callback_id;
@@ -170,7 +170,8 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
     return {ptr0, ptr1};
 }
 
-const track::MotionRecord* Library::retrieve_props(const std::string&,
+const track::MotionRecord* Library::retrieve_props(
+    std::string_view,
     const Individual* fish,
     Frame_t frame,
     const Options_t& modifiers)
@@ -195,9 +196,9 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
     return NULL;
 };
     
-    std::vector<std::string> Library::functions() {
+    std::vector<std::string_view> Library::functions() {
         std::shared_lock guard{_cache_func_mutex};
-        std::vector<std::string> ret;
+        std::vector<std::string_view> ret;
         
         for (auto &p : _cache_func) {
             ret.push_back(p.first);
@@ -247,7 +248,7 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
         
         using namespace track;
         
-        _cache_func[Functions::X.name()] = LIBGLFNC( {
+        _cache_func[Functions::X.str()] = LIBGLFNC( {
             auto center = CENTER().load();
             if(!props) {
                 if(!FAST_SETTING(output_interpolate_positions))
@@ -266,7 +267,7 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
                 return (props->pos<Units::CM_AND_SECONDS>(smooth).x - center.x);
         });
         
-        _cache_func[Functions::Y.name()] = LIBGLFNC( {
+        _cache_func[Functions::Y.str()] = LIBGLFNC( {
             auto center = CENTER().load();
             if(!props) {
                 if(!FAST_SETTING(output_interpolate_positions))
@@ -285,16 +286,16 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
                 return (props->pos<Units::CM_AND_SECONDS>(smooth).y - center.y);
         });
         
-        _cache_func[Functions::VX.name()] = LIBFNC ( return props->v<Units::CM_AND_SECONDS>(smooth).x; );
-        _cache_func[Functions::VY.name()] = LIBFNC( return props->v<Units::CM_AND_SECONDS>(smooth).y; );
+        _cache_func[Functions::VX.str()] = LIBFNC ( return props->v<Units::CM_AND_SECONDS>(smooth).x; );
+        _cache_func[Functions::VY.str()] = LIBFNC( return props->v<Units::CM_AND_SECONDS>(smooth).y; );
         _cache_func["AX"] = LIBFNC ( return props->a<Units::CM_AND_SECONDS>(smooth).x; );
         _cache_func["AY"] = LIBFNC( return props->a<Units::CM_AND_SECONDS>(smooth).y; );
         
-        _cache_func[Functions::ANGLE.name()] = LIBFNC( return props->angle(smooth); );
-        _cache_func[Functions::ANGULAR_V.name()] = LIBFNC( return props->angular_velocity<Units::DEFAULT>(smooth); );
-        _cache_func[Functions::ANGULAR_A.name()] = LIBFNC( return props->angular_acceleration<Units::DEFAULT>(smooth); );
+        _cache_func[Functions::ANGLE.str()] = LIBFNC( return props->angle(smooth); );
+        _cache_func[Functions::ANGULAR_V.str()] = LIBFNC( return props->angular_velocity<Units::DEFAULT>(smooth); );
+        _cache_func[Functions::ANGULAR_A.str()] = LIBFNC( return props->angular_acceleration<Units::DEFAULT>(smooth); );
         
-        _cache_func[Functions::SPEED.name()] = LIBGLFNC( {
+        _cache_func[Functions::SPEED.str()] = LIBGLFNC( {
             if(smooth) {
                 Options_t options = info.modifiers;
                 options.remove(Modifiers::SMOOTH);
@@ -329,10 +330,10 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
                 return props->speed<Units::CM_AND_SECONDS>(smooth);
         });
         
-        _cache_func[Functions::ACCELERATION.name()] = LIBFNC( return props->acceleration<Units::CM_AND_SECONDS>(smooth); );
+        _cache_func[Functions::ACCELERATION.str()] = LIBFNC( return props->acceleration<Units::CM_AND_SECONDS>(smooth); );
         
         FN_IS_POSTURE_ONLY_PROPERTY(MIDLINE_OFFSET);
-        _cache_func[Functions::MIDLINE_OFFSET.name()] = LIBFNC({
+        _cache_func[Functions::MIDLINE_OFFSET.str()] = LIBFNC({
             Vec2 spt(0, 0);
             size_t samples = 0;
             
@@ -425,7 +426,7 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
         });
         
         FN_IS_POSTURE_ONLY_PROPERTY(MIDLINE_DERIV);
-        _cache_func[Functions::MIDLINE_DERIV.name()] = LIBFNC({
+        _cache_func[Functions::MIDLINE_DERIV.str()] = LIBFNC({
             auto current = get("normalized_midline", info, frame);
             auto previous = get("normalized_midline", info, frame - 1_f);
             
@@ -438,7 +439,7 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
         });
         
         FN_IS_POSTURE_ONLY_PROPERTY(BINARY);
-        _cache_func[Functions::BINARY.name()] = LIBFNC({
+        _cache_func[Functions::BINARY.str()] = LIBFNC({
             if(frame >= fish->start_frame() + 1_f && frame <= fish->end_frame() - 1_f)
             {
                 //Vec2 p0(x-1, cache_access(fish, Cache::MIDLINE, x-1));
@@ -452,7 +453,7 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
             return GlobalSettings::invalid();
         });
         
-        _cache_func[Functions::BORDER_DISTANCE.name()] = LIBFNC({
+        _cache_func[Functions::BORDER_DISTANCE.str()] = LIBFNC({
             if(GlobalSettings::has("video_mask")
                && SETTING(video_mask))
             {
@@ -487,7 +488,7 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
         });
         
         FN_IS_CENTROID_ONLY_PROPERTY(NEIGHBOR_DISTANCE);
-        _cache_func[Functions::NEIGHBOR_DISTANCE.name()] = LIBFNC({
+        _cache_func[Functions::NEIGHBOR_DISTANCE.str()] = LIBFNC({
             const auto pos = props->pos<Units::CM_AND_SECONDS>();
             const auto individuals = Tracker::active_individuals(frame);
             
@@ -1170,9 +1171,9 @@ const track::MotionRecord* Library::retrieve_props(const std::string&,
                 {
                     std::unique_lock g{_cache_func_mutex};
                     std::vector<std::string> remove;
-                    for (auto &c : _cache_func) {
-                        if(utils::beginsWith(c.first, "bone")) {
-                            remove.push_back(c.first);
+                    for (auto &[name, fn] : _cache_func) {
+                        if(utils::beginsWith(name, "bone")) {
+                            remove.push_back(name);
                         }
                     }
                     for (auto &r : remove) {
@@ -1231,7 +1232,7 @@ cached_output_fields_t Library::get_cached_fields() {
         return pt.y;
     }
     
-    double Library::get(const std::string &name, LibInfo info, Frame_t frame) {
+    double Library::get(std::string_view name, LibInfo info, Frame_t frame) {
         auto _cache = info._cache;
         if(!_cache)
             _cache = _default_cache;
@@ -1272,7 +1273,7 @@ cached_output_fields_t Library::get_cached_fields() {
                 cache.clear();
         }
         
-        auto &map = cache[frame][name];
+        auto &map = cache[frame][(std::string)name];
         
         if (map.count(info.modifiers)) {
             return map.at(info.modifiers);
@@ -1282,10 +1283,11 @@ cached_output_fields_t Library::get_cached_fields() {
             const bool smooth = info.modifiers.is(Modifiers::SMOOTH);
             
             Library::FunctionType fn;
+            decltype(_cache_func)::const_iterator it;
             if(std::shared_lock g{_cache_func_mutex};
-               _cache_func.contains(name))
+               (it = _cache_func.find(name)) != _cache_func.end())
             {
-                fn = _cache_func.at(name);
+                fn = it->second;
             } else {
                 return GlobalSettings::invalid();
             }

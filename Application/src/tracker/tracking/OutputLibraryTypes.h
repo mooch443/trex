@@ -70,7 +70,7 @@ struct LibraryCache {
     typedef std::shared_ptr<LibraryCache> Ptr;
     
     std::recursive_mutex _cache_mutex;
-    std::map<const track::Individual*, std::map<cmn::Frame_t, std::map<std::string, std::map<Options_t, double>>>> _cache;
+    std::map<const track::Individual*, std::map<cmn::Frame_t, std::unordered_map<std::string, std::map<Options_t, double>>>> _cache;
     
     void clear();
     static LibraryCache::Ptr default_cache();

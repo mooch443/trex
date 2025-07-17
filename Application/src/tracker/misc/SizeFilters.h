@@ -31,7 +31,14 @@ public:
         return cvt2json(_ranges);
     }
     static std::string class_name() { return "SizeFilters"; }
-    static SizeFilters fromStr(const std::string& str);
+    static SizeFilters fromStr(cmn::StringLike auto&& str) {
+        if(str == "" || str == "[]")
+            return SizeFilters();
+        if (str[0] == '[' && str[1] != '[') {
+            return SizeFilters({cmn::Meta::fromStr<Range<double>>(str)});
+        }
+        return SizeFilters(cmn::Meta::fromStr<std::vector<Range<double>>>(str));
+    }
 };
 
 }

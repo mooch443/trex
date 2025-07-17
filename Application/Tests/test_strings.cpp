@@ -2211,6 +2211,155 @@ TEST(ParseArrayParts, WithDifferentTypes) {
     ASSERT_EQ(result3.size(), 3);
 }
 
+// ---------------------------------------------------------------------------
+// parse_array_parts – return-type selection and lifetime safety
+// ---------------------------------------------------------------------------
+
+TEST(ParseArrayPartsReturnTypeTest, CharArrayLiteralReturnsViews)
+{
+    auto v = util::parse_array_parts("foo,bar,baz");
+    static_assert(std::is_same_v<typename decltype(v)::value_type,
+                                 std::string_view>,
+                  "Expected std::vector<std::string_view>");
+    std::vector<std::string_view> expected = {"foo", "bar", "baz"};
+    EXPECT_EQ(v, expected);
+}
+
+TEST(ParseArrayPartsReturnTypeTest, CStringPointerReturnsViews)
+{
+    const char* ptr = "foo,bar,baz";
+    auto v = util::parse_array_parts(ptr);
+    static_assert(std::is_same_v<typename decltype(v)::value_type,
+                                 std::string_view>);
+    EXPECT_EQ(v, std::vector<std::string_view>({"foo","bar","baz"}));
+}
+
+TEST(ParseArrayPartsReturnTypeTest, StringLvalueReturnsViewsAndPointsIntoBuffer)
+{
+    std::string s = "foo,bar,baz";
+    auto v = util::parse_array_parts(s);
+    static_assert(std::is_same_v<typename decltype(v)::value_type,
+                                 std::string_view>);
+    const char* base = s.data();
+    const char* end  = base + s.size();
+    for (auto sv : v) {
+        EXPECT_GE(sv.data(), base);
+        EXPECT_LE(sv.data() + sv.size(), end);
+    }
+    EXPECT_EQ(v, std::vector<std::string_view>({"foo","bar","baz"}));
+}
+
+TEST(ParseArrayPartsReturnTypeTest, StringRvalueReturnsOwningStrings)
+{
+    auto v = util::parse_array_parts(std::string("foo,bar,baz"));
+    static_assert(std::is_same_v<typename decltype(v)::value_type,
+                                 std::string>,
+                  "Expected std::vector<std::string>");
+    EXPECT_EQ(v, std::vector<std::string>({"foo","bar","baz"}));
+}
+
+TEST(ParseArrayPartsReturnTypeTest, StringViewArgumentReturnsViews)
+{
+    static_assert(is_viewable<std::string_view>);
+    std::string_view sv_in = "foo,bar,baz";
+    auto v = util::parse_array_parts(sv_in);
+    static_assert(std::is_same_v<typename decltype(v)::value_type, std::string_view>);
+    static_assert(std::is_same_v<decltype(v), std::vector<std::string_view>>);
+    EXPECT_EQ(v, std::vector<std::string_view>({"foo","bar","baz"}));
+}
+
+// ---------------------------------------------------------------------------
+// Behavioral edge-cases
+// ---------------------------------------------------------------------------
+
+TEST(ParseArrayPartsBehaviorTest, TrailingDelimiterAddsEmptyToken)
+{
+    auto v = util::parse_array_parts("foo,bar,");
+    EXPECT_EQ(v.size(), 3u);
+    EXPECT_EQ(v[0], "foo");
+    EXPECT_EQ(v[1], "bar");
+    EXPECT_TRUE(v[2].empty());          // trailing empty element
+}
+
+TEST(ParseArrayPartsBehaviorTest, EmbeddedBracketsOrQuotesAreRespected)
+{
+    auto v = util::parse_array_parts(R"([1,2],{"x":3},"a,b")");
+    static_assert(std::is_same_v<typename decltype(v)::value_type,
+                                 std::string_view>);
+    std::vector<std::string_view> expected = {"[1,2]", R"({"x":3})", R"("a,b")"};
+    EXPECT_EQ(v, expected);
+}
+
+TEST(ParseArrayParts, IgnoresDelimiterInsideParentheses)
+{
+    // Intuitively we want the whole parenthesised expression to stay intact.
+    std::string_view input = "(a,b),c";
+
+    // Desired tokens: ["(a,b)", "c"]
+    std::vector<std::string_view> expected = {"(a,b)", "c"};
+
+    auto result = parse_array_parts(input);
+
+    // This currently FAILS:
+    // result is ["(a", "b)", "c"] because '(' and ')' are not tracked
+    // in the internal `brackets` stack.
+    ASSERT_EQ(result, expected);
+}
+
+TEST(ParseArrayPartsBehaviorTest, HandlesMismatchedClosingBracketGracefully)
+{
+    auto tokens = parse_array_parts("a,b]");
+    std::vector<std::string_view> expected = {"a", "b]"};
+    EXPECT_EQ(tokens, expected);
+}
+
+TEST(ParseArrayPartsBehaviorTest, EscapedBackslashInsideQuotes)
+{
+    auto tokens = parse_array_parts(R"(a,"b\\\\,c")");
+    std::vector<std::string_view> expected = {"a", R"("b\\\\,c")"};
+    EXPECT_EQ(tokens, expected);
+}
+
+TEST(ParseArrayPartsBehaviorTest, NestedDifferentQuoteKinds)
+{
+    auto tokens = parse_array_parts(R"('double inside single', "\"single inside double\"")");
+    std::vector<std::string_view> expected = {R"('double inside single')",
+                                              R"("\"single inside double\"")"};
+    EXPECT_EQ(tokens, expected);
+}
+
+TEST(ParseArrayPartsBehaviorTest, FullWidthCommaIsNotDelimiter)
+{
+    // The middle punctuation is U+FF0C (FULL‑WIDTH COMMA) which must *not* split.
+    auto tokens = parse_array_parts("a，b,c");
+    std::vector<std::string_view> expected = {"a，b", "c"};
+    EXPECT_EQ(tokens, expected);
+}
+
+TEST(ParseArrayPartsBehaviorTest, HugeInputWithoutDelimiters)
+{
+    std::string big(1 << 20, 'x');          // 1 MiB of 'x'
+    auto tokens = parse_array_parts(big);
+    ASSERT_EQ(tokens.size(), 1u);
+    EXPECT_EQ(tokens.front().size(), big.size());
+}
+
+// === truncate – defensive programming ======================================
+
+TEST(TruncateTests, ThrowsOnMismatchedBraces)
+{
+    EXPECT_THROW(truncate("{foo]"), illegal_syntax);
+}
+
+TEST(TruncateTests, TrimsWhitespaceInsideBraces)
+{
+    EXPECT_EQ(truncate("{   foo   }"), "foo");
+}
+
+TEST(TruncateTests, ThrowsOnNonBracedInput)
+{
+    EXPECT_THROW(truncate("plain"), illegal_syntax);
+}
 
 TEST(TruncateTests, HandlesCurlyBracesInStdString) {
     std::string input = "{test}";
@@ -2364,6 +2513,32 @@ TEST(ToStringTest, HandleCompileTimeSignedInt) {
 TEST(ToStringTest, HandleRunTimeSignedInt) {
     ASSERT_EQ(to_string(-9876), "-9876");
     ASSERT_EQ(to_string(-10), "-10");
+}
+
+// === to_string(float) – numerics that bite =================================
+
+TEST(ToStringFloatEdgeCase, NegativeZeroNormalisesToZero)
+{
+    EXPECT_EQ(to_string(-0.0f), "0");
+}
+
+TEST(ToStringFloatEdgeCase, PreservesHalfEvenBoundary)
+{
+    EXPECT_EQ(to_string(1.005f), "1.005");
+}
+
+TEST(ToStringFloatEdgeCase, LargeExactIntegerShowsNoDecimal)
+{
+    constexpr float exact = 16'777'216.0f;   // 2^24 – last exact int in a float
+    EXPECT_EQ(to_string(exact), "16777216");
+}
+
+// === to_string(int) – extreme range ========================================
+
+TEST(ToStringIntEdgeCase, Int64LimitsRoundTrip)
+{
+    EXPECT_EQ(to_string(std::numeric_limits<int64_t>::min()), "-9223372036854775808");
+    EXPECT_EQ(to_string(std::numeric_limits<int64_t>::max()),  "9223372036854775807");
 }
 
 // printto function for gunit automatic printing of conststring_t

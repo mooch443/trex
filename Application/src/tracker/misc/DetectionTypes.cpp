@@ -5,39 +5,12 @@
 
 using namespace cmn;
 
-namespace EnumMeta {
-
-const track::detect::ObjectDetectionType_t&
-HasCustomParser<track::detect::ObjectDetectionType_t>::fromStr(const std::string& str) {
-    using namespace track::detect;
-    if(str == "yolo" || str == "yolo8") {
-        return ObjectDetectionType::yolo;
-    } else if(str == "background_subtraction") {
-        return ObjectDetectionType::background_subtraction;
-    } else if(str == "precomputed") {
-        return ObjectDetectionType::precomputed;
-    }
-    return ObjectDetectionType::none;
-}
-
-}
-
 namespace track::detect {
 
 std::string KeypointNames::toStr() const {
     if(not valid())
         return "null";
     return cmn::Meta::toStr(names.value());
-}
-
-KeypointNames KeypointNames::fromStr(const std::string& str) {
-    if(str == "null") {
-        return KeypointNames{};
-    }
-    auto names = Meta::fromStr<std::vector<std::string>>(str);
-    return KeypointNames{
-        .names = names
-    };
 }
 
 glz::json_t KeypointNames::to_json() const {
@@ -56,17 +29,6 @@ std::string KeypointFormat::toStr() const {
     if(not valid())
         return "null";
     return "[" + cmn::Meta::toStr(n_points) + "," + cmn::Meta::toStr(n_dims) + "]";
-}
-
-KeypointFormat KeypointFormat::fromStr(const std::string& str) {
-    if(str == "null") {
-        return KeypointFormat{};
-    }
-    auto pair = Meta::fromStr<std::pair<uint8_t, uint8_t>>(str);
-    return KeypointFormat{
-        .n_points = pair.first,
-        .n_dims = pair.second
-    };
 }
 
 glz::json_t KeypointFormat::to_json() const {
@@ -231,23 +193,6 @@ bool is_default_model(const file::Path& path) {
 
 }
 
-DetectResolution DetectResolution::fromStr(const std::string& str) {
-    if(utils::beginsWith(str, '[')) {
-        auto pair = Meta::fromStr<std::vector<uint16_t>>(str);
-        if(pair.empty())
-            return {};
-        
-        uint16_t height = pair.front();
-        uint16_t width = height;
-        if(pair.size() > 1)
-            width = pair.back();
-        return {height, width};
-        
-    } else {
-        auto width = Meta::fromStr<uint16_t>(str);
-        return {width, width};
-    }
-}
 glz::json_t DetectResolution::to_json() const {
     return { height, width };
 }

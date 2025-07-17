@@ -52,7 +52,11 @@ struct Idx_t {
     }
     
     static std::string class_name() { return "Idx_t"; }
-    static Idx_t fromStr(const std::string&);
+    static Idx_t fromStr(cmn::StringLike auto&& str) {
+        if(std::string_view(str) == "-1")
+            return Idx_t();
+        return Idx_t(cmn::Meta::fromStr<uint32_t>(str));
+    }
     glz::json_t to_json() const;
     std::string toStr() const { return !valid() ? "-1" : std::to_string((uint32_t)_identity); }
 };

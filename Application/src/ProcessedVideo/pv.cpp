@@ -1094,7 +1094,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const PixelArray
         
         ref.write("PV" + std::to_string((int)Version::current + 1));
         
-        ref.write<std::string>(encoding.name());
+        ref.write<std::string>(encoding.str());
         
         if(!resolution.width && !resolution.height)
             throw InvalidArgumentException("Resolution of the video has not been set.");

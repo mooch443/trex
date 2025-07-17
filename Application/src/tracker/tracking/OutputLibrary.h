@@ -50,7 +50,7 @@ namespace Output {
         static void clear_cache();
         static void frame_changed(cmn::Frame_t frameIndex, LibraryCache::Ptr cache = nullptr);
         
-        static double get(const std::string& name, LibInfo info, cmn::Frame_t frame);
+        static double get(std::string_view name, LibInfo info, cmn::Frame_t frame);
         static double get_with_modifiers(const std::string& name, LibInfo info, cmn::Frame_t frame);
         static void add(const std::string& name, const FunctionType& func);
         
@@ -58,7 +58,7 @@ namespace Output {
         static void init_graph(const cached_output_fields_t& output_fields, cmn::gui::Graph &graph, const track::Individual *fish, LibraryCache::Ptr cache = nullptr);
         static cached_output_fields_t parse_output_fields(const output_fields_t&);
         static bool has(const std::string& name);
-        static std::vector<std::string> functions();
+        static std::vector<std::string_view> functions();
         
         static double pose(uint8_t index, uint8_t component, LibInfo info, cmn::Frame_t frame);
         
@@ -72,7 +72,7 @@ namespace Output {
         
         Library() {}
         
-        static const track::MotionRecord* retrieve_props(const std::string&, 
+        static const track::MotionRecord* retrieve_props(std::string_view, 
             const track::Individual* fish, 
             cmn::Frame_t frame,
             const Options_t& modifiers);

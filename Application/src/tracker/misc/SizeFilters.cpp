@@ -2,15 +2,6 @@
 
 namespace cmn {
 
-SizeFilters SizeFilters::fromStr(const std::string& str) {
-    if(str == "" || str == "[]")
-        return SizeFilters();
-    if (str[0] == '[' && str[1] != '[') {
-        return SizeFilters({Meta::fromStr<Range<double>>(str)});
-    }
-    return SizeFilters(Meta::fromStr<std::vector<Range<double>>>(str));
-}
-
 SizeFilters::SizeFilters(const std::vector<Range<double>>& ranges)
     : _max_range(-1, -1)
 {

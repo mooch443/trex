@@ -28,8 +28,25 @@ using ObjectDetectionFormat_t = ObjectDetectionFormat::Class;
 namespace EnumMeta {
 /// add a tag checker for whether a customparser is available for a given enum class
 template<> struct HasCustomParser<track::detect::ObjectDetectionType_t> : std::true_type {
-    static const track::detect::ObjectDetectionType_t& fromStr(const std::string& str);
+    static const track::detect::ObjectDetectionType_t& fromStr(cmn::StringLike auto&& str);
 };
+
+}
+
+namespace EnumMeta {
+
+const track::detect::ObjectDetectionType_t&
+HasCustomParser<track::detect::ObjectDetectionType_t>::fromStr(cmn::StringLike auto&& str) {
+    using namespace track::detect;
+    if(str == "yolo" || str == "yolo8") {
+        return ObjectDetectionType::yolo;
+    } else if(str == "background_subtraction") {
+        return ObjectDetectionType::background_subtraction;
+    } else if(str == "precomputed") {
+        return ObjectDetectionType::precomputed;
+    }
+    return ObjectDetectionType::none;
+}
 
 }
 
@@ -47,7 +64,16 @@ struct KeypointFormat {
     constexpr bool operator==(const KeypointFormat&) const = default;
     glz::json_t to_json() const;
     std::string toStr() const;
-    static KeypointFormat fromStr(const std::string&);
+    static KeypointFormat fromStr(cmn::StringLike auto&& str) {
+        if(str == "null") {
+            return KeypointFormat{};
+        }
+        auto pair = cmn::Meta::fromStr<std::pair<uint8_t, uint8_t>>(str);
+        return KeypointFormat{
+            .n_points = pair.first,
+            .n_dims = pair.second
+        };
+    }
     constexpr bool valid() const {
         return n_points != 0 && n_dims != 0;
     }
@@ -62,7 +88,15 @@ struct KeypointNames {
     constexpr bool operator==(const KeypointNames&) const = default;
     glz::json_t to_json() const;
     std::string toStr() const;
-    static KeypointNames fromStr(const std::string&);
+    static KeypointNames fromStr(cmn::StringLike auto&& str) {
+        if(str == "null") {
+            return KeypointNames{};
+        }
+        auto names = cmn::Meta::fromStr<std::vector<std::string>>(str);
+        return KeypointNames{
+            .names = names
+        };
+    }
     bool valid() const {
         return names.has_value();
     }
@@ -94,7 +128,24 @@ struct DetectResolution {
     bool operator!=(const DetectResolution&) const = default;
     auto operator<=>(const DetectResolution& other) const = default;
     
-    static DetectResolution fromStr(const std::string& str);
+    static DetectResolution fromStr(cmn::StringLike auto&& str) {
+        if(cmn::utils::beginsWith(str, '[')) {
+            auto pair = cmn::Meta::fromStr<std::vector<uint16_t>>(str);
+            if(pair.empty())
+                return {};
+            
+            uint16_t height = pair.front();
+            uint16_t width = height;
+            if(pair.size() > 1)
+                width = pair.back();
+            return {height, width};
+            
+        } else {
+            auto width = cmn::Meta::fromStr<uint16_t>(str);
+            return {width, width};
+        }
+    }
+    
     glz::json_t to_json() const;
     std::string toStr() const;
     static std::string class_name();
