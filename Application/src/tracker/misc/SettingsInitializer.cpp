@@ -1336,17 +1336,21 @@ void write_config(const pv::File* video, bool overwrite, gui::GUITaskQueue_t* qu
     auto filename = file::DataLocation::parse(suffix == "backup" ? "backup_settings" : "output_settings");
     auto text = default_config::generate_delta_config(AccessLevelType::INIT, video).to_settings();
     
+    auto print_message = [filename](){
+        FormatWarning("Saving current configuration to ",filename.absolute(), "...");
+    };
+    
     if(filename.exists() && !overwrite) {
         if(queue) {
-            queue->enqueue([queue, text, filename](auto, gui::DrawStructure& graph){
-                graph.dialog([queue, str = text, filename](gui::Dialog::Result r) {
+            queue->enqueue([queue, text, filename, print_message](auto, gui::DrawStructure& graph){
+                graph.dialog([queue, str = text, filename, print_message](gui::Dialog::Result r) {
                     if(r == gui::Dialog::OKAY) {
                         if(!filename.remove_filename().exists())
                             filename.remove_filename().create_folder();
                         
+                        print_message();
                         FILE *f = fopen(filename.str().c_str(), "wb");
                         if(f) {
-                            Print("Overwriting file ",filename.str(),".");
                             fwrite(str.data(), 1, str.length(), f);
                             fclose(f);
                         } else {
@@ -1367,11 +1371,11 @@ void write_config(const pv::File* video, bool overwrite, gui::GUITaskQueue_t* qu
         if(!filename.remove_filename().exists())
             filename.remove_filename().create_folder();
         
+        print_message();
         FILE *f = fopen(filename.str().c_str(), "wb");
         if(f) {
             fwrite(text.data(), 1, text.length(), f);
             fclose(f);
-            DebugCallback("Saved ", filename, ".");
         } else {
             FormatExcept("Cannot write file ",filename,".");
         }

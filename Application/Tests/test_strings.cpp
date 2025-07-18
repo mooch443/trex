@@ -18,6 +18,7 @@
 #include <gui/DynamicGUI.h>
 #include <misc/idx_t.h>
 #include <gui/dyn/UnresolvedStringPattern.h>
+#include <misc/Median.h>
 
 static constexpr auto lower = cmn::utils::lowercase("hiIbImS");
 
@@ -3216,4 +3217,70 @@ TEST(StripHtmlTest, NestedTagsAndQuotes) {
     std::string input = "Start <div title=\"Example <tag>\">Middle</div> End";
     std::string expected = "Start Middle End";
     EXPECT_EQ(strip_html(input), expected);
+}
+
+// ---------------------------------------------------------------------------
+// Median – behavioural tests
+// ---------------------------------------------------------------------------
+TEST(MedianTest, ReturnsInsertedElementOdd) {
+    Median<int> m;
+    m.addNumber(3);
+    m.addNumber(1);
+    m.addNumber(2);
+    EXPECT_EQ(m.getValue(), 2);              // middle element
+}
+
+TEST(MedianTest, ReturnsLowerMedianEven) {
+    Median<int> m;
+    m.addNumber(4);
+    m.addNumber(1);
+    m.addNumber(3);
+    m.addNumber(2);
+    EXPECT_EQ(m.getValue(), 2);              // returns lower median (max‑heap top)
+}
+TEST(MedianTest, ReturnsInsertedElementOddFloat) {
+    Median<float> m;
+    m.addNumber(3.5f);
+    m.addNumber(1.1f);
+    m.addNumber(2.2f);
+    EXPECT_EQ(m.getValue(), 2.2f);          // lower median is an inserted value
+}
+
+TEST(MedianTest, ReturnsLowerMedianEvenFloat) {
+    Median<float> m;
+    m.addNumber(4.4f);
+    m.addNumber(1.1f);
+    m.addNumber(3.3f);
+    m.addNumber(2.2f);
+    EXPECT_EQ(m.getValue(), 2.2f);          // lower of the two middles
+}
+
+TEST(MedianTest, HandlesDuplicates) {
+    Median<int> m;
+    m.addNumber(5);
+    m.addNumber(5);
+    m.addNumber(5);
+    EXPECT_EQ(m.getValue(), 5);
+}
+
+TEST(MedianTest, HandlesNegativeAndPositive) {
+    Median<int> m;
+    m.addNumber(-1);
+    m.addNumber(0);
+    m.addNumber(1);
+    EXPECT_EQ(m.getValue(), 0);
+}
+
+TEST(MedianTest, ThrowsOnEmpty) {
+    Median<int> m;
+    EXPECT_THROW(m.getValue(), std::runtime_error);
+}
+
+TEST(MedianTest, LargeDataset) {
+    Median<int> m;
+    constexpr int N = 100001;
+    for (int i = 0; i < N; ++i) {
+        m.addNumber(i);
+    }
+    EXPECT_EQ(m.getValue(), N / 2);
 }

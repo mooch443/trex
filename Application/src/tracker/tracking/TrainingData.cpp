@@ -1193,7 +1193,7 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
     
     if(failed) {
         auto prefix = SETTING(individual_prefix).value<std::string>();
-        FormatWarning("Some (", failed * 100 / counter,"%) ", prefix.c_str()," images are too big. Range: ", minmum_size," -> ", maximum_size," median ",median_size_x.getValue(), "x", median_size_y.getValue());
+        FormatWarning("Some (", failed * 100 / counter,"%) ", prefix.c_str()," images are too big. Range: ", minmum_size," -> ", maximum_size," median ",median_size_x.empty() ? 0 : median_size_x.getValue(), "x", median_size_y.empty() ? 0 : median_size_y.getValue());
     }
     
     lengths.clear();

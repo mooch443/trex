@@ -78,7 +78,12 @@ auto check(F&& fn) -> std::invoke_result_t<F> {
 using namespace work;
 
 struct WorkProgress::WorkGUIObjects {
-    Rect static_background{Box(0, 0, 0, 0), FillClr{Black.alpha(150)}};
+    Rect static_background{
+        Box(0, 0, 0, 0),
+        FillClr{Black.alpha(150)},
+        CornerFlags_t(false, false, true, true),
+        ZIndex{1}
+    };
     StaticText static_desc{
         Str("description"), 
         Font(0.6, Align::Center),
@@ -88,7 +93,7 @@ struct WorkProgress::WorkGUIObjects {
     Button static_button{Str{"abort"}, Box(0, 0, 100, 35)};
     Button custom_static_button{Str{"custom"}, Box(0, 0, 100, 35)};
     Entangled _additional;
-    Entangled work_progress;
+    Entangled work_progress{ZIndex{2}};
     VerticalLayout layout;
     
     WorkGUIObjects& operator=(const WorkGUIObjects&) = delete;

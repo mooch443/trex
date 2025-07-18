@@ -778,6 +778,34 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
             });
         }
         
+        if(tracker.has_vi_predictions()) {
+            std::vector<float> vi_probabilities;
+            vi_probabilities.reserve(SQR(tracker.identities().size()) * tracker.analysis_range().length().get());
+            Print("* assumed ", vi_probabilities.capacity());
+            
+            size_t items = 0;
+            tracker.transform_vi_predictions([&vi_probabilities, &items](Frame_t frame, auto& table){
+                for(auto &[bdx, probs] : table) {
+                    vi_probabilities.insert(vi_probabilities.end(), {
+                        (float)frame.get(), (float)(int64_t)bdx
+                    });
+                    vi_probabilities.insert(vi_probabilities.end(), probs.begin(), probs.end());
+                    ++items;
+                }
+            });
+            
+            Print("* collected ", vi_probabilities.size(), " (", vi_probabilities.capacity(),").");
+            
+            file::Path path{fishdata / (filename+"_vi_probs.npz")};
+            temporary_save(path, [&](file::Path use_path) {
+                cmn::npz_save(use_path.str(), "probs", vi_probabilities.data(), {
+                    items,
+                    vi_probabilities.size() / items
+                }, "w");
+                Print("Saved vi predictions at ", use_path,".");
+            });
+        }
+        
         if(SETTING(output_heatmaps)) {
             heatmap::HeatmapController svenja;
             svenja.save();

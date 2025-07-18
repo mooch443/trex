@@ -3496,13 +3496,11 @@ pv::BlobPtr Tracker::find_blob_noisy(const PPFrame& pp, pv::bid bid, pv::bid, co
             if(!quiet)
                 Print("Determining blob size in ", video.length()," frames...");
             
-            Median<float> blob_size;
             pv::Frame frame;
             std::multiset<float> values;
             const uint32_t number_fish = SETTING(track_max_individuals).value<uint32_t>();
             
             std::vector<std::multiset<Float2_t>> blobs;
-            Median<Float2_t> median;
             
             auto step = Frame_t((video.length().get() - video.length().get()%500) / 500);
             for (Frame_t i=0_f; i<video.length(); i+=step) {
@@ -3540,8 +3538,8 @@ pv::BlobPtr Tracker::find_blob_noisy(const PPFrame& pp, pv::bid bid, pv::bid, co
                     }*/
                     
                     values.insert(result.begin(), result.end());
-                    median.addNumber(*result.begin());
-                    median.addNumber(*result.rbegin());
+                    //median.addNumber(*result.begin());
+                    //median.addNumber(*result.rbegin());
                 }
                 //values.insert(percentile(frame_values, 0.75));
                 //values.insert(percentile(frame_values, 0.90));
@@ -3566,7 +3564,6 @@ pv::BlobPtr Tracker::find_blob_noisy(const PPFrame& pp, pv::bid bid, pv::bid, co
             
             for(auto && vector : blobs) {
                 size_t number = 0;
-                std::map<size_t, Median<float>> min_ratios;
                 std::map<size_t, float> sizes;
                 for(const auto &v : vector) {
                     if(track_size_filter.in_range_of_one(v))

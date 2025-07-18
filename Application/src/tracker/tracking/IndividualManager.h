@@ -386,7 +386,7 @@ public:
         //std::scoped_lock slock(_global_mutex(), _individual_mutex());
         distribute_indexes([&](auto, auto start, auto end, auto){
             for(auto it = start; it != end; ++it)
-                std::invoke(std::forward<F>(fn), it->first, it->second.get());
+                std::invoke(fn, it->first, it->second.get());
         }, pool, individuals().begin(), individuals().end());
     }
     

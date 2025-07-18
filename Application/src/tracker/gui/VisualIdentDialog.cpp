@@ -467,7 +467,9 @@ void VIController::correct_identities(std::shared_ptr<VIController> controller, 
             return;
         }
         
-        tracker->check_tracklets_identities(force_correct, source, [](float x) { WorkProgress::set_percent(x); }, [controller, _analysis, source, gui, force_correct](const std::string&, const std::function<void()>& fn, const std::string&)
+        tracker->check_tracklets_identities(force_correct, source, [](float x) {
+            WorkProgress::set_percent(x);
+        }, [controller, _analysis, source, gui, force_correct](const std::string&, const std::function<void()>& fn, const std::string&)
         {
             if(force_correct) {
                 auto c = controller.lock();
@@ -535,7 +537,14 @@ void VIController::auto_quit(GUITaskQueue_t* gui) {
         LockGuard guard(w_t{}, "saving and quitting");
         //PD(cache).deselect_all();
         auto video = _video.lock();
-        settings::write_config(video.get(), true, gui);
+        
+        if(auto task = SETTING(task).value<default_config::TRexTask>();
+           task == default_config::TRexTask_t::convert)
+        {
+            settings::write_config(video.get(), true, gui);
+        } else {
+            FormatWarning("Not saving current configuration (only save it for conversion, but we have ", task,".");
+        }
         //instance()->write_config(true);
         
         if(!SETTING(auto_no_results)) {

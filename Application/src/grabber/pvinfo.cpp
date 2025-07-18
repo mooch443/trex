@@ -641,7 +641,7 @@ int main(int argc, char**argv) {
             
             Print("Finding blobs...");
             Median<size_t> blobs_per_frame;
-            size_t pixels_median_value = pixels_median.getValue();
+            size_t pixels_median_value = pixels_median_value.empty() ? 0 : pixels_median.getValue();
             for (Frame_t i=0_f; i<video.length(); ++i) {
                 video.read_frame(frame, i);
                 
@@ -670,7 +670,7 @@ int main(int argc, char**argv) {
             
             Print(overall," bytes (",dec<2>(double(overall) / 1000.0 / 1000.0),"MB) of blob data");
             Print("Images average at ",double(pixels_per_blob) / double(pixels_samples)," px / blob and the range is [",min_pixels,"-",max_pixels,"] with a median of ",pixels_median.getValue(),".");
-            Print("There are ", blobs_per_frame.getValue()," blobs in each frame (median).");
+            Print("There are ", blobs_per_frame.empty() ? 0 : blobs_per_frame.getValue()," blobs in each frame (median).");
         }
         
     } else {

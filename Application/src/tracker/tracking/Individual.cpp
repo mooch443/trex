@@ -2647,6 +2647,8 @@ std::map<Frame_t, FrameRange> split_tracklet_by_probability(const Individual* fi
         }
         
         long_t id = median.getValue();
+        if(not first_frame.contains(id))
+            throw InvalidArgumentException("Cannot find id<", id, "> in ", first_frame, ". This should not happen.");
         return { id, first_frame.at(id), last_frame };
     };
     

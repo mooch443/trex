@@ -385,9 +385,9 @@ std::shared_ptr<FilterCache> local_midline_length(const Individual *fish,
         }, step_size);
     }
 
-    if(median_midline.added())
+    if(not median_midline.empty())
         constraints->median_midline_length_px = median_midline.getValue();
-    if(median_outline.added())
+    if(not median_outline.empty())
         constraints->median_number_outline_pts = median_outline.getValue();
     
     if(!midline_lengths.empty())
@@ -395,7 +395,7 @@ std::shared_ptr<FilterCache> local_midline_length(const Individual *fish,
     if(!outline_stds.empty())
         constraints->outline_pts_std = standard_deviation(outline_stds);
     
-    constraints->median_angle_diff = median_angle_diff.added() ? median_angle_diff.getValue() : 0;
+    constraints->median_angle_diff = not median_angle_diff.empty() ? median_angle_diff.getValue() : 0;
     
     if(!constraints->empty()) {
         auto guard = LOGGED_LOCK(filter_mutex());
