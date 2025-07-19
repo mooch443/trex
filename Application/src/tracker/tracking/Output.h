@@ -162,7 +162,7 @@ namespace Output {
         //static QueueThreadPool<Individual*> _blob_pool;
         QueueThreadPool<Individual*> _post_pool;
         GenericThreadPool _generic_pool, _load_pool;
-        std::shared_ptr<CacheHints> _property_cache;
+        GETTER_NCONST(std::shared_ptr<CacheHints>, property_cache);
         
         cmn::atomic<uint64_t> _expected_individuals, _N_written;
         

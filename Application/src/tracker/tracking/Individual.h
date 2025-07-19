@@ -200,7 +200,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
         static void shutdown();
         
     protected:
-        LocalCache _local_cache;
+        GETTER_NCONST(LocalCache, local_cache);
         std::map<void*, std::function<void(Individual*)>> _delete_callbacks;
         
         //! Segment start to Tag

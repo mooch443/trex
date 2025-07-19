@@ -57,20 +57,20 @@ public:
         // Thread will be managed by ThreadManager, no need to join here.
         ThreadManager::getInstance().terminateGroup(group_id);
         
-        std::future<std::tuple<Frame_t, FrameType>> local_future;
+        Queued local_future;
         {
-            std::unique_lock guard(future_mutex);
-            local_future = std::move(future);
+            std::unique_lock guard(queued_mutex);
+            local_future = std::move(queued);
         }
         
         if(local_future.valid()) {
-            if(local_future.wait_for(std::chrono::milliseconds(0)) != std::future_status::ready)
+            if(local_future.future.wait_for(std::chrono::milliseconds(0)) != std::future_status::ready)
             {
                 promise->set_value({Frame_t(), nullptr});
                 promise.reset();
             }
             
-            local_future.get();
+            local_future.future.get();
         }
     }
     
@@ -129,8 +129,8 @@ public:
                     return ptr;
                 }
                 
-            } else if(std::unique_lock guard(future_mutex);
-                      future.valid())
+            } else if(std::unique_lock guard(queued_mutex);
+                      queued.valid())
             {
                 //thread_print("* While trying to load exactly ", target_index, " got nullptr.");
                 guard.unlock();
@@ -163,7 +163,36 @@ private:
     
     //! content of preload thread:
     Frame_t current_id;
-    Frame_t id_in_future;
+    
+    std::mutex queued_mutex;
+    struct Queued {
+        Frame_t index;
+        std::future<std::tuple<Frame_t, FrameType>> future;
+        bool valid() const noexcept { return future.valid(); }
+        Queued(Frame_t index, decltype(future)&& future) : index(index), future(std::move(future)) {}
+        Queued() = default;
+        Queued(const Queued&) = delete;
+        Queued(Queued&& other) {
+            if(index.valid()) {
+                assert(future.valid());
+                future.get(); /// throw this away?
+            }
+            
+            future = std::move(other.future);
+            index = std::move(other.index);
+            
+            assert(not other.future.valid());
+            other.index.invalidate();
+        }
+        Queued& operator=(Queued&& other) {
+            if(&other != this) {
+                this->~Queued();
+                new (this) Queued(std::move(other));
+            }
+            return *this;
+        }
+    } queued;
+    
     std::atomic<Frame_t> _last_increment{1_f};
     FrameType image;
     
@@ -171,11 +200,9 @@ private:
     FrameType next_image;
     Frame_t stored_next_image;
     
-    std::future<std::tuple<Frame_t, FrameType>> future;
     Timer time_to_frame;
     double last_time_to_frame{0};
     
-    std::mutex future_mutex;
     std::optional<std::promise<std::tuple<Frame_t, FrameType>>> promise;
     
     TimingMetric _announceMetric, _loadMetric, _waitMetric, _notifyMetric;
@@ -250,43 +277,38 @@ std::optional<FrameType> FramePreloader<FrameType>::get_frame(Frame_t target_ind
      * ---------------------------------------------------------------- */
     enum class FutureMode { None, ForTarget, WrongTarget };
     FutureMode mode = FutureMode::None;
-    std::future<std::tuple<Frame_t, FrameType>> local_future;
+    Queued local_future;
     
     {
-        std::unique_lock guard(future_mutex);
-        if (future.valid()) {
-            mode = (id_in_future == target_index)
+        std::unique_lock guard(queued_mutex);
+        if (queued.valid()) {
+            mode = (queued.index == target_index)
                      ? FutureMode::ForTarget
                      : FutureMode::WrongTarget;
         }
         
-        local_future = std::move(future);
+        local_future = std::move(queued);
     } // ‑‑ guard released here
 
     /* -------------------------------------------------
      * Case 1: there is already a future for target_index
      * ------------------------------------------------- */
     if (mode == FutureMode::ForTarget) {
-        auto wait_status = local_future.wait_for(delay);
+        auto wait_status = local_future.future.wait_for(delay);
         if (wait_status != std::future_status::ready) {
             // Future exists but is not ready – nothing more to do now.
-            std::unique_lock guard(future_mutex);
-            if(future.valid()) {
+            std::unique_lock guard(queued_mutex);
+            if(queued.valid()) {
                 FormatWarning("Mild concern...");
                 guard.unlock();
-                local_future.get(); /// we are throwing this away...?
+                local_future.future.get(); /// we are throwing this away...?
             } else
-                future = std::move(local_future);
+                queued = std::move(local_future);
             return std::nullopt;
         }
 
-        auto &&[index, image] = local_future.get();
-
-        {
-            std::unique_lock guard(future_mutex);
-            assert(!image || index == id_in_future);
-            id_in_future = Frame_t{};               // clear
-        } // guard released
+        auto &&[index, image] = local_future.future.get();
+        assert(not image || index == local_future.index);
 
         if (not image) {
             ThreadManager::getInstance().notify(group_id);
@@ -304,14 +326,9 @@ std::optional<FrameType> FramePreloader<FrameType>::get_frame(Frame_t target_ind
      * ----------------------------------------------------------- */
     if (mode == FutureMode::WrongTarget) {
         // Poll once without blocking.
-        if (local_future.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready) {
-            auto &&[index, image] = local_future.get();
-
-            {
-                std::unique_lock guard(future_mutex);
-                assert(!image || index == id_in_future);
-                id_in_future = Frame_t{};           // clear
-            } // guard released
+        if (local_future.future.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready) {
+            auto &&[index, image] = local_future.future.get();
+            assert(not image || index == local_future.index);
 
             if (image) {
                 // Push the image aside so we can reuse it later if it fits (in next_image).
@@ -335,13 +352,13 @@ std::optional<FrameType> FramePreloader<FrameType>::get_frame(Frame_t target_ind
         }
 
         // Future exists but is not ready – nothing more to do now.
-        std::unique_lock guard(future_mutex);
-        if(future.valid()) {
+        std::unique_lock guard(queued_mutex);
+        if(queued.valid()) {
             FormatWarning("Mild concern...");
             guard.unlock();
-            local_future.get(); /// we are throwing this away...?
+            local_future.future.get(); /// we are throwing this away...?
         } else
-            future = std::move(local_future);
+            queued = std::move(local_future);
         return std::nullopt;
     }
     
@@ -413,11 +430,14 @@ void FramePreloader<FrameType>::preload_frames() {
                 ? std::make_shared<TimingStatsCollector::HandleGuard>(stats, stats->startEvent(_loadMetric, current))
                 : nullptr;
         
-        promise = typename decltype(promise)::value_type{};
         {
-            std::unique_lock guard(future_mutex);
-            future = promise->get_future();
-            id_in_future = current;
+            std::unique_lock guard(queued_mutex);
+            if(queued.valid())
+                return;
+            assert(not queued.valid());
+            
+            promise = typename decltype(promise)::value_type{};
+            queued = Queued{current, promise->get_future()};
             time_to_frame.reset();
         }
         
@@ -457,7 +477,7 @@ void FramePreloader<FrameType>::preload_frames() {
     if(image) {
         //thread_print("Got image for next index ", current, ".");
         
-        std::unique_lock fguard(future_mutex);
+        //std::unique_lock fguard(queued_mutex);
         auto guard = LOGGED_LOCK(preloaded_frame_mutex);
         promise->set_value({current, std::move(image)});
         promise.reset();

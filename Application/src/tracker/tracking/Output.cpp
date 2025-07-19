@@ -23,6 +23,12 @@ typedef int64_t data_long_t;
     
 });*/
 
+void post_process(Output::ResultsFormat* _self, Individual* obj) {
+    CachedSettings settings;
+    obj->update_midlines(settings, _self->property_cache().get());
+    obj->local_cache().regenerate(obj);
+}
+
 Output::ResultsFormat::ResultsFormat(const file::Path& filename, std::function<void(const std::string&, double, const std::string&)> update_progress)
  :
 DataFormat(filename.str()),
@@ -35,17 +41,13 @@ _post_pool(cmn::hardware_concurrency(), [this](Individual* obj)
     Timer timer;
     auto name = get_thread_name();
     set_thread_name(obj->identity().name()+"_post");
-
-    CachedSettings settings;
-    obj->update_midlines(settings, _property_cache.get());
-    obj->_local_cache.regenerate(obj);
-
+    post_process(this, obj);
+    
     if (timer.elapsed() >= 1) {
         auto us = timer.elapsed() * 1000 * 1000;
         if (!GlobalSettings::is_runtime_quiet())
             Print(obj->identity()," post-processing took ", DurationUS{ (uint64_t)us });
     }
-        
     set_thread_name(name);
         
 }, "Output::post_pool"),
@@ -962,6 +964,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
     
     //delta = this->tell() - pos_before;
     try {
+        //post_process(this, fish);
         _post_pool.enqueue(fish);
     } catch(const UtilsException& e) {
         FormatExcept("Exception when starting worker threads on _post_pool: ", e.what());

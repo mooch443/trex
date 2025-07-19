@@ -203,6 +203,152 @@ TEST(FastFromStrTest, MismatchedQuotesVerbatim)
 }
 }
 
+// ---------------------------------------------------------------------------
+// Extra copy-assignment correctness tests (added without modifying old ones)
+// ---------------------------------------------------------------------------
+
+TEST(UnresolvedStringPatternTest, CopyAssignment_StringViewsRemapped)
+{
+    using namespace cmn::pattern;
+
+    constexpr std::string_view expr = "hello {foo} world {bar}";
+    UnresolvedStringPattern src = UnresolvedStringPattern::prepare(expr);
+
+    UnresolvedStringPattern dst;
+    dst = src;   // copy-assign into non-empty object
+
+    auto verify = [](const UnresolvedStringPattern& pat)
+    {
+        ASSERT_TRUE(pat.original);
+        const char* base = pat.original->data();
+        const char* end  = base + pat.original->size();
+
+        std::function<void(const PreparedPattern&)> check_pattern;
+        std::function<void(const Prepared&)>        check_prepared;
+
+        check_pattern = [&](const PreparedPattern& p)
+        {
+            switch (p.type)
+            {
+                case PreparedPattern::SV:
+                    ASSERT_GE(p.value.sv.data(), base);
+                    ASSERT_LE(p.value.sv.data() + p.value.sv.size(), end);
+                    break;
+
+                case PreparedPattern::PREPARED:
+                    check_prepared(*p.value.prepared);
+                    break;
+
+                case PreparedPattern::POINTER:
+                    check_prepared(*p.value.ptr);
+                    break;
+
+                default:
+                    break;
+            }
+        };
+
+        check_prepared = [&](const Prepared& prep)
+        {
+            ASSERT_GE(prep.original.data(), base);
+            ASSERT_LE(prep.original.data() + prep.original.size(), end);
+            
+            for (const auto& vec : prep.parameters)
+                for (const auto& child : vec)
+                    check_pattern(child);
+        };
+
+        for (const auto& top : pat.objects)
+            check_pattern(top);
+    };
+
+    verify(src);
+    verify(dst);
+    ASSERT_NE(src.original->data(), dst.original->data());
+}
+
+TEST(UnresolvedStringPatternTest, CopyAssignment_SelfAssignmentNoOp)
+{
+    using namespace cmn::pattern;
+
+    auto pattern = UnresolvedStringPattern::prepare("foo {bar}");
+    const void* buffer_before = pattern.original->data();
+    auto patterns_before = pattern.all_patterns;
+
+    pattern = pattern;   // self-assignment
+
+    ASSERT_EQ(buffer_before, pattern.original->data());
+    ASSERT_EQ(patterns_before.size(), pattern.all_patterns.size());
+    for (size_t i = 0; i < patterns_before.size(); ++i)
+        ASSERT_EQ(patterns_before[i], pattern.all_patterns[i]);
+}
+
+TEST(UnresolvedStringPatternTest, CopyAssignment_ReplacesExistingResources)
+{
+    using namespace cmn::pattern;
+
+    UnresolvedStringPattern first  = UnresolvedStringPattern::prepare("{foo}");
+    const char* old_buf = first.original->data();
+
+    UnresolvedStringPattern second = UnresolvedStringPattern::prepare("{bar}");
+    first = second;   // overwrite old contents
+
+    ASSERT_NE(first.original->data(), old_buf);
+    ASSERT_EQ(first.objects.size(), second.objects.size());
+
+    const char* base = first.original->data();
+    const char* end  = base + first.original->size();
+
+    for (const auto& obj : first.objects)
+    {
+        if (obj.type == PreparedPattern::SV)
+        {
+            ASSERT_GE(obj.value.sv.data(), base);
+            ASSERT_LE(obj.value.sv.data() + obj.value.sv.size(), end);
+        }
+    }
+}
+
+//
+TEST(PreparseTest, Real) {
+    std::string str = "{if:{not:{has_pred}}:{name}:{if:{equal:{at:0:{max_pred}}:{id}}:<green>{name}</green>:<red>{name}</red> <i>loc</i>[<c><nr>{at:0:{max_pred}}</nr>:<nr>{at:1:{max_pred}}</nr><i>%</i></c>]}}";
+    
+    using namespace cmn::pattern;
+    using namespace gui::dyn;
+    gui::dyn::Context context;
+    gui::dyn::State state;
+    
+    context = {
+        VarFunc("has_pred", [](const VarProps&) -> bool {
+            return true;
+        }),
+        VarFunc("name", [](const VarProps&) -> std::string {
+            return "Name";
+        }),
+        VarFunc("id", [](const VarProps&) -> track::Idx_t {
+            return track::Idx_t(0);
+        }),
+        VarFunc("max_pred", [](const VarProps&) -> std::pair<track::Idx_t, float> {
+            return {
+                track::Idx_t(0), 0.5f
+            };
+        })
+    };
+    
+    UnresolvedStringPattern result;
+    {
+        auto _result = UnresolvedStringPattern::prepare(str);
+        std::string realized;
+        EXPECT_NO_THROW((realized = _result.realize(context, state)));
+        Print("Realized: ", realized);
+        
+        result = _result;
+    }
+    std::string realized;
+    EXPECT_NO_THROW((realized = result.realize(context, state)));
+    Print("Realized: ", realized);
+}
+
 TEST(PreparseTest, JSONPreparse) {
     /// we need to find all the variables / parsing hierarchy and set it in binary
     /// in the end this returns a string (which can then be parsed into whatever)
@@ -524,6 +670,9 @@ TEST(UnresolvedStringPatternTest, CopyAssignmentFixesNestedPointers)
     // Perform copy‑assignment
     UnresolvedStringPattern copy = original;
 
+    const char* base = copy.original->data();
+    const char* end  = base + copy.original->size();
+    
     // Collect Prepared* sets for quick membership checks
     std::unordered_set<const Prepared*> orig_set(original.all_patterns.begin(),
                                                  original.all_patterns.end());
@@ -553,12 +702,16 @@ TEST(UnresolvedStringPatternTest, CopyAssignmentFixesNestedPointers)
                 break;
 
             case PreparedPattern::SV:
+            default:
                 break;
         }
     };
 
     check_prepared = [&](const Prepared& prep)
     {
+        ASSERT_GE(prep.original.data(), base);
+        ASSERT_LE(prep.original.data() + prep.original.size(), end);
+        
         for (const auto& vec : prep.parameters)
             for (const auto& child : vec)
                 check_pattern(child);
