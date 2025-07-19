@@ -641,7 +641,7 @@ int main(int argc, char**argv) {
             
             Print("Finding blobs...");
             Median<size_t> blobs_per_frame;
-            size_t pixels_median_value = pixels_median_value.empty() ? 0 : pixels_median.getValue();
+            size_t pixels_median_value = pixels_median.empty() ? 0 : pixels_median.getValue();
             for (Frame_t i=0_f; i<video.length(); ++i) {
                 video.read_frame(frame, i);
                 
