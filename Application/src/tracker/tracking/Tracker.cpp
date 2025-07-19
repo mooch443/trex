@@ -3564,7 +3564,6 @@ pv::BlobPtr Tracker::find_blob_noisy(const PPFrame& pp, pv::bid bid, pv::bid, co
             
             for(auto && vector : blobs) {
                 size_t number = 0;
-                std::map<size_t, float> sizes;
                 for(const auto &v : vector) {
                     if(track_size_filter.in_range_of_one(v))
                         ++number;

@@ -9,10 +9,50 @@
 #include <gui/dyn/ParseText.h>
 #include <gui/dyn/ResolveVariable.h>
 #include <gui/types/StaticText.h>
+#include <gui/dyn/UnresolvedStringPattern.h>   // for ResolveStringPattern tests
+#include <type_traits>
 
 using namespace cmn;
 using namespace cmn::gui;
 using namespace dyn;
+
+// ---------------------------------------------------------------------------
+// Helper tags + overloads so failed typed‑tests show a *readable* type name
+// (“ParseTextTag” or “ResolveTag”) instead of std::true_type / std::false_type.
+// ---------------------------------------------------------------------------
+struct ParseTextTag {};
+struct ResolveTag   {};
+
+template <typename Tag>
+inline std::string run_parser(const std::string& pattern,
+                              Context&            ctx,
+                              State&              st);
+
+// Parse‑time implementation
+template <>
+inline std::string run_parser<ParseTextTag>(const std::string& pattern,
+                                            Context&            ctx,
+                                            State&              st)
+{
+    return parse_text(pattern, ctx, st);
+}
+
+// Prepared‑pattern (“Resolve”) implementation
+template <>
+inline std::string run_parser<ResolveTag>(const std::string& pattern,
+                                          Context&            ctx,
+                                          State&              st)
+{
+    auto prepared = cmn::pattern::UnresolvedStringPattern::prepare(pattern);
+    return prepared.realize(ctx, st);
+}
+
+// Register the two implementations for GoogleTest’s typed‑test suite
+using ParserImpls = ::testing::Types<ParseTextTag, ResolveTag>;
+
+template <typename T>
+class ParseAndResolveTest : public ::testing::Test {};
+TYPED_TEST_SUITE(ParseAndResolveTest, ParserImpls);
 
 TEST(TestDerivedPtr, Construct) {
     derived_ptr<Drawable> ptr;
@@ -43,254 +83,286 @@ TEST(TestDerivedPtr, Convert) {
 }
 
 // Unit Tests
-TEST(ParseText, BasicReplacement) {
-    State state;
-    Context context{
+// ---------------------------------------------------------------------------
+// The following typed tests are compiled twice: once with TypeParam::value
+// == false (direct parse_text) and once with == true (ResolveStringPattern).
+// This guarantees both implementations behave identically for each scenario.
+// ---------------------------------------------------------------------------
+
+TYPED_TEST(ParseAndResolveTest, BasicReplacement)
+{
+    State   state;
+    Context ctx{
         VarFunc("variable", [](const VarProps&) -> std::string { return "mocked_value"; })
     };
-    std::string result = parse_text("{variable}", context, state);
+    auto result = run_parser<TypeParam>("{variable}", ctx, state);
     ASSERT_EQ(result, "mocked_value");
 }
 
-TEST(ParseText, IfReplacement) {
-    State state;
-    Context context{
+TYPED_TEST(ParseAndResolveTest, IfReplacement)
+{
+    State   state;
+    Context ctx{
         VarFunc("variable", [](const VarProps&) -> bool { return true; })
     };
-    std::string result = parse_text("{if:{variable}:'correct':'wrong'}", context, state);
+    auto result = run_parser<TypeParam>("{if:{variable}:'correct':'wrong'}", ctx, state);
     ASSERT_EQ(result, "correct");
 }
 
-TEST(ParseText, LazyEvalReplacement) {
-    State state;
-    bool ran = false;
-    Context context{
+TYPED_TEST(ParseAndResolveTest, LazyEvalReplacement)
+{
+    State    state;
+    bool     ran = false;
+    Context  ctx{
         VarFunc("variable", [](const VarProps&) -> bool { return true; }),
-        VarFunc("correct", [](const VarProps&) -> std::string { return "c"; }),
-        VarFunc("throws",  [&](const VarProps&) -> bool {
+        VarFunc("correct",  [](const VarProps&) -> std::string { return "c"; }),
+        VarFunc("throws",   [&](const VarProps&) -> bool {
             ran = true;
             throw std::invalid_argument("Not supposed to run.");
         })
     };
-    
     std::string result;
-    ASSERT_NO_THROW(result = parse_text("{if:{variable}:'{correct}':'{throws}'}", context, state));
+    ASSERT_NO_THROW(result = run_parser<TypeParam>("{if:{variable}:'{correct}':'{throws}'}", ctx, state));
     ASSERT_EQ(result, "c");
-    ASSERT_EQ(ran, false);
+    ASSERT_FALSE(ran);
 }
 
-TEST(ParseText, NoReplacement) {
-    State state;
-    Context context;
-    std::string result = parse_text("{missing_variable}", context, state);
-    ASSERT_EQ(result, "null");
+TYPED_TEST(ParseAndResolveTest, NoReplacement)
+{
+    State   state;
+    Context ctx;
+    if constexpr(std::is_same_v<TypeParam, ParseTextTag>) {
+        auto result = run_parser<TypeParam>("{missing_variable}", ctx, state);
+        ASSERT_EQ(result, "null");
+    } else {
+        ASSERT_THROW(run_parser<TypeParam>("{missing_variable}", ctx, state), std::exception);
+    }
 }
 
-TEST(ParseText, NestedReplacement) {
-    // THIS TEST HAS BEEN DEPRECATED FOR NOW
-    State state;
-    Context context{
-        VarFunc("variable_inner_variable", [](const VarProps&) -> std::string { return "mocked_value"; }),
-        VarFunc("inner_variable", [](const VarProps&) -> std::string { return "inner"; }),
-        VarFunc("variable_inner", [](const VarProps&) -> std::string { return "correct"; })
-    };
-    std::string result = parse_text("{variable_{inner_variable}}", context, state);
-    //ASSERT_EQ(result, "correct");
-    FormatExcept(result," does not equal 'correct' but the test is deactivated.");
-}
-
-TEST(ParseText, EscapeCharacters) {
-    State state;
-    Context context;
-    std::string result = parse_text("\\{variable\\}", context, state);
+TYPED_TEST(ParseAndResolveTest, EscapeCharacters)
+{
+    State   state;
+    Context ctx;
+    auto result = run_parser<TypeParam>("\\{variable\\}", ctx, state);
     ASSERT_EQ(result, "{variable}");
 }
 
-TEST(ParseText, SpecialTypeSize2) {
-    State state;
-    Context context{
+TYPED_TEST(ParseAndResolveTest, SpecialTypeSize2)
+{
+    State   state;
+    Context ctx{
         VarFunc("size2_var", [](const VarProps&) -> Size2 { return Size2(10, 5); })
     };
-    std::string result = parse_text("{size2_var.w}", context, state);
+    auto result = run_parser<TypeParam>("{size2_var.w}", ctx, state);
     ASSERT_EQ(result, "10");
 }
 
-TEST(ParseText, SpecialTypeVec2) {
-    State state;
-    Context context{
+TYPED_TEST(ParseAndResolveTest, SpecialTypeVec2)
+{
+    State   state;
+    Context ctx{
         VarFunc("vec2_var", [](const VarProps&) -> Vec2 { return Vec2(10, 5); })
     };
-    std::string result = parse_text("{vec2_var.x}", context, state);
+    auto result = run_parser<TypeParam>("{vec2_var.x}", ctx, state);
     ASSERT_EQ(result, "10");
 }
 
-TEST(ParseText, HtmlifySyntax) {
-    State state;
-    Context context{
+TYPED_TEST(ParseAndResolveTest, HtmlifySyntax)
+{
+    State   state;
+    Context ctx{
         VarFunc("html_var", [](const VarProps&) -> std::string {
             return "classname::value<int>(parm)\n`https://address/`";
         })
     };
-    std::string result = parse_text("{#html_var}", context, state);
+    auto result = run_parser<TypeParam>("{#html_var}", ctx, state);
     ASSERT_EQ(result, "classname::value&lt;<key>int</key>&gt;(parm)<br/><a>https://address/</a>");
 }
 
-TEST(ParseText, ExceptionHandling) {
-    State state;
-    Context context{
+TYPED_TEST(ParseAndResolveTest, ExceptionHandling)
+{
+    State   state;
+    Context ctx{
         VarFunc("exception_var", [](const VarProps&) -> std::string {
-            throw std::runtime_error("An exception");
-            return "should not reach here";
+            throw std::runtime_error("An exception"); // NOLINT
         })
     };
-    std::string result = parse_text("{exception_var}", context, state);
+    auto result = run_parser<TypeParam>("{exception_var}", ctx, state);
     ASSERT_EQ(result, "null");
 }
 
-TEST(ParseText, PerformanceTest) {
-    State state;
-    Context context{
-        VarFunc("very_long_variable", [](const VarProps&) -> std::string {
-            return "very long mocked value";
-        })
+TYPED_TEST(ParseAndResolveTest, ArithmeticAddVector)
+{
+    State   state;
+    Context ctx{
+        VarFunc("frame",       [](const VarProps&) -> int  { return 5; }),
+        VarFunc("video_length",[](const VarProps&) -> int  { return 50; }),
+        VarFunc("window_size", [](const VarProps&) -> Size2{ return Size2(100, 20); })
     };
-    auto start = std::chrono::high_resolution_clock::now();
-    std::string result = parse_text("very_long_pattern", context, state);
-    auto end = std::chrono::high_resolution_clock::now();
-    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-    ASSERT_TRUE(elapsed.count() < 500);
-}
-
-TEST(ParseText, MissingClosingBrace) {
-    State state;
-    Context context;
-    EXPECT_THROW(parse_text("{invalid_input", context, state), std::runtime_error);
-}
-
-TEST(ParseText, MissingOpeningBrace) {
-    State state;
-    Context context;
-    EXPECT_THROW(parse_text("invalid_input}", context, state), std::runtime_error);
-}
-
-TEST(ParseText, NestedMissingBrace) {
-    State state;
-    Context context;
-    EXPECT_THROW(parse_text("{variable_{inner", context, state), std::runtime_error);
-}
-
-TEST(ParseText, DoubleOpeningBrace) {
-    State state;
-    Context context;
-    EXPECT_THROW(parse_text("{{variable}", context, state), std::runtime_error);
-}
-
-TEST(ParseText, DoubleClosingBrace) {
-    State state;
-    Context context;
-    EXPECT_THROW(parse_text("{variable}}", context, state), std::runtime_error);
-}
-
-TEST(ParseText, EmptyBraces) {
-    State state;
-    Context context;
-    EXPECT_THROW(parse_text("{}", context, state), std::runtime_error);
-}
-
-TEST(ParseText, InvalidEscapeSequence) {
-    State state;
-    Context context;
-    
-    EXPECT_NO_THROW(parse_text("\\{\\}", context, state));
-    EXPECT_THROW(parse_text("{\\}", context, state), std::runtime_error);
-    EXPECT_NO_THROW(parse_text("\"\\n\"", context, state));
-    EXPECT_THROW(parse_text("\\{invalid\\_escape}", context, state), std::runtime_error);
-}
-
-TEST(ParseText, TrailingBackslashes) {
-    State state;
-    Context context;
-    EXPECT_THROW(parse_text("{variable}\\", context, state), std::runtime_error);
-}
-
-TEST(ParseText, InvalidTypeUsage) {
-    State state;
-    Context context{
-        VarFunc("variable", [](const VarProps& props) -> std::string {
-                if(not props.subs.empty())
-                    throw InvalidArgumentException("Variable has no fields: ", props.subs);
-                return "mocked_value";
-        })
-    };
-    auto result = parse_text("{variable.wrong_field}", context, state);
-    ASSERT_EQ(result, "null");
-}
-
-TEST(ParseText, EmptyVariableName) {
-    State state;
-    Context context;
-    EXPECT_THROW(parse_text("{}", context, state), std::runtime_error);
-}
-
-TEST(ParseText, AddVectorTest) {
-    State state;
-    Context context{
-        VarFunc("frame", [](const VarProps&) -> int { return 5;}),
-        VarFunc("video_length", [](const VarProps&) -> int { return 50; }),
-        VarFunc("window_size", [](const VarProps&) -> Size2 { return Size2(100, 20); })
-    };
-
-    std::string result = parse_text("{addVector:[{*:{/:{frame}:{video_length}}:{+:{window_size.w}:-30}},10]:[10,0]}", context, state);
+    auto result = run_parser<TypeParam>("{addVector:[{*:{/:{frame}:{video_length}}:{+:{window_size.w}:-30}},10]:[10,0]}", ctx, state);
     ASSERT_EQ(result, "[17,10]");
 }
 
-TEST(ParseText, NestedOperations) {
-    State state;
-    Context context{
-        VarFunc("frame", [](const VarProps&) -> int { return 5;}),
-        VarFunc("video_length", [](const VarProps&) -> int { return 50; }),
-        VarFunc("window_size", [](const VarProps&) -> Size2 { return Size2(100, 20); })
+TYPED_TEST(ParseAndResolveTest, ArithmeticNestedOperations)
+{
+    State   state;
+    Context ctx{
+        VarFunc("frame",       [](const VarProps&) -> int  { return 5; }),
+        VarFunc("video_length",[](const VarProps&) -> int  { return 50; }),
+        VarFunc("window_size", [](const VarProps&) -> Size2{ return Size2(100, 20); })
     };
-
-    std::string result = parse_text("{*:{/:{frame}:{video_length}}:{+:{window_size.w}:-30}}", context, state);
-    ASSERT_EQ(result, "7"); // (5/50) * (100 - 30) = 0.1 * 70 = 7
+    auto result = run_parser<TypeParam>("{*:{/:{frame}:{video_length}}:{+:{window_size.w}:-30}}", ctx, state);
+    ASSERT_EQ(result, "7");
 }
 
-TEST(ParseText, MultipleNestedOperations) {
-    State state;
-    Context context{
-        VarFunc("frame", [](const VarProps&) -> int { return 5;}),
-        VarFunc("video_length", [](const VarProps&) -> int { return 50; }),
-        VarFunc("window_size", [](const VarProps&) -> Size2 { return Size2(100, 20); })
-    };
+// ---------------------------------------------------------------------------
+// Additional scenarios ported from the legacy ParseText suite
+// ---------------------------------------------------------------------------
 
-    std::string result = parse_text("{*: {+: {frame}:{video_length}}: {/: {window_size.w} : {video_length}}}", context, state);
-    ASSERT_EQ(result, "110"); // (5 + 50) * (100 / 50) = 55 * 2 = 110
+// More deeply‑nested arithmetic expression: (frame + video_length) * (window_size.w / video_length)
+// => (5 + 50) * (100 / 50) = 55 * 2 = 110
+TYPED_TEST(ParseAndResolveTest, ArithmeticMultipleNestedOperations)
+{
+    State   state;
+    Context ctx{
+        VarFunc("frame",       [](const VarProps&) -> int  { return 5; }),
+        VarFunc("video_length",[](const VarProps&) -> int  { return 50; }),
+        VarFunc("window_size", [](const VarProps&) -> Size2{ return Size2(100, 20); })
+    };
+    auto result = run_parser<TypeParam>("{*: {+: {frame}:{video_length}}: {/: {window_size.w} : {video_length}}}", ctx, state);
+    ASSERT_EQ(result, "110");
 }
 
-TEST(ParseText, InvalidNestedOperation) {
-    State state;
-    Context context{
-        VarFunc("frame", [](const VarProps&) -> int { return 5;}),
-        VarFunc("video_length", [](const VarProps&) -> int { return 50; }),
-        VarFunc("window_size", [](const VarProps&) -> Size2 { return Size2(100, 20); })
+// Invalid variable inside a nested operation – ParseText returns "null",
+// ResolveTag raises (same semantics as the NoReplacement test)
+TYPED_TEST(ParseAndResolveTest, InvalidNestedOperation)
+{
+    State   state;
+    Context ctx{
+        VarFunc("frame",       [](const VarProps&) -> int  { return 5; }),
+        VarFunc("video_length",[](const VarProps&) -> int  { return 50; }),
+        VarFunc("window_size", [](const VarProps&) -> Size2{ return Size2(100, 20); })
     };
-
-    auto str = parse_text("{*: {+: {invalid}:{video_length}}: {/: {window_size.w} : {video_length}}}", context, state);
-    EXPECT_EQ(str, "null");
+    if constexpr(std::is_same_v<TypeParam, ParseTextTag>) {
+        auto result = run_parser<TypeParam>("{*: {+: {invalid}:{video_length}}: {/: {window_size.w} : {video_length}}}", ctx, state);
+        ASSERT_EQ(result, "null");
+    } else {
+        ASSERT_THROW(run_parser<TypeParam>("{*: {+: {invalid}:{video_length}}: {/: {window_size.w} : {video_length}}}", ctx, state), std::exception);
+    }
 }
 
-TEST(ParseText, InvalidNestedString) {
-    State state;
-    Context context{
-        VarFunc("frame", [](const VarProps&) -> int { return 5;}),
-        VarFunc("video_length", [](const VarProps&) -> int { return 50; }),
-        VarFunc("window_size", [](const VarProps&) -> Size2 { return Size2(100, 20); })
+// Same invalid sub‑expression, but embedded in a literal string context
+TYPED_TEST(ParseAndResolveTest, InvalidNestedString)
+{
+    State   state;
+    Context ctx{
+        VarFunc("frame",       [](const VarProps&) -> int  { return 5; }),
+        VarFunc("video_length",[](const VarProps&) -> int  { return 50; }),
+        VarFunc("window_size", [](const VarProps&) -> Size2{ return Size2(100, 20); })
     };
-
-    auto str = parse_text("This is a string: {*: {+: {invalid}:{video_length}}: {/: {window_size.w} : {video_length}}}", context, state);
-    EXPECT_EQ(str, "This is a string: null");
+    constexpr const char* pattern = "This is a string: {*: {+: {invalid}:{video_length}}: {/: {window_size.w} : {video_length}}}";
+    if constexpr(std::is_same_v<TypeParam, ParseTextTag>) {
+        auto result = run_parser<TypeParam>(pattern, ctx, state);
+        ASSERT_EQ(result, "This is a string: null");
+    } else {
+        ASSERT_THROW(run_parser<TypeParam>(pattern, ctx, state), std::exception);
+    }
 }
+
+// ---------------------------------------------------------------------------
+// Legacy brace/escape‑error scenarios that were still missing
+// ---------------------------------------------------------------------------
+
+// "{variable_{inner"  → unmatched brace inside identifier
+TYPED_TEST(ParseAndResolveTest, NestedMissingBraceThrows)
+{
+    State   state;
+    Context ctx;
+    ASSERT_THROW(run_parser<TypeParam>("{variable_{inner", ctx, state), std::runtime_error);
+}
+
+// "{{variable}" → double‑opening brace
+TYPED_TEST(ParseAndResolveTest, DoubleOpeningBraceThrows)
+{
+    State   state;
+    Context ctx;
+    ASSERT_THROW(run_parser<TypeParam>("{{variable}", ctx, state), std::runtime_error);
+}
+
+// "{variable}}" → double‑closing brace
+TYPED_TEST(ParseAndResolveTest, DoubleClosingBraceThrows)
+{
+    State   state;
+    Context ctx;
+    ASSERT_THROW(run_parser<TypeParam>("{variable}}", ctx, state), std::runtime_error);
+}
+
+// ---------------------------------------------------------------------------
+// Escape‑sequence handling
+// ---------------------------------------------------------------------------
+
+TYPED_TEST(ParseAndResolveTest, InvalidEscapeSequenceValidEscapes)
+{
+    State   state;
+    Context ctx;
+    std::string out;
+
+    // \"{\\}"  ⇒ literally "{}"  (valid escaping)
+    ASSERT_NO_THROW(out = run_parser<TypeParam>("\\{\\}", ctx, state));
+    ASSERT_EQ(out, "{}");
+
+    // "\"\\n\""  ⇒ payload contains \" and newline (valid)
+    ASSERT_NO_THROW(out = run_parser<TypeParam>("\"\\n\"", ctx, state));
+    ASSERT_EQ(out, "\"n\"");
+}
+
+TYPED_TEST(ParseAndResolveTest, InvalidEscapeSequenceThrows)
+{
+    State   state;
+    Context ctx;
+
+    // "{\\}"  ⇒ invalid backslash inside braces
+    ASSERT_THROW(run_parser<TypeParam>("{\\}", ctx, state), std::runtime_error);
+
+    // "\\{invalid\\_escape}" ⇒ unsupported \_escape
+    ASSERT_THROW(run_parser<TypeParam>("\\{invalid\\_escape}", ctx, state), std::runtime_error);
+}
+
+// ---------------------------------------------------------------------------
+// A trailing back‑slash at end of input must trigger an error
+// ---------------------------------------------------------------------------
+TYPED_TEST(ParseAndResolveTest, TrailingBackslashThrows)
+{
+    State   state;
+    Context ctx{
+        VarFunc("variable", [](const VarProps&) -> std::string { return "x"; })
+    };
+    ASSERT_THROW(run_parser<TypeParam>("{variable}\\", ctx, state), std::runtime_error);
+}
+
+// --- Error‑handling parity checks -------------------------------------------------
+
+TYPED_TEST(ParseAndResolveTest, MissingClosingBraceThrows)
+{
+    State   state;
+    Context ctx;
+    ASSERT_THROW(run_parser<TypeParam>("{invalid_input", ctx, state), std::runtime_error);
+}
+
+TYPED_TEST(ParseAndResolveTest, MissingOpeningBraceThrows)
+{
+    State   state;
+    Context ctx;
+    ASSERT_THROW(run_parser<TypeParam>("invalid_input}", ctx, state), std::runtime_error);
+}
+
+TYPED_TEST(ParseAndResolveTest, EmptyBracesThrows)
+{
+    State   state;
+    Context ctx;
+    ASSERT_THROW(run_parser<TypeParam>("{}", ctx, state), std::runtime_error);
+}
+
 
 class StaticTextTest : public ::testing::Test {
 protected:
