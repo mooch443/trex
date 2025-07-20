@@ -276,18 +276,18 @@ void AnimatedBackground::before_draw() {
         //Print("last increment = ", preloader.last_increment(), " vs. increment = ", _increment, " frame(", frame, ") != current(",_current_frame,")");
         
         if(_strict) {
-            image = preloader.load_exactly(frame, _increment);
+            image = preloader.load_exactly(frame);
+            preloader.announce(frame + _increment);
             _target_fade = 1.0;
             //preloader.announce(frame + _increment);
             
         } else {
-            auto maybe_image = preloader.get_frame(frame, _increment);
+            auto maybe_image = preloader.get_frame(frame);
             
             if(maybe_image.has_value()
                && maybe_image.value())
             {
-                //preloader.announce(frame + _increment);
-                
+                preloader.announce(frame + _increment);
                 image = std::move(maybe_image.value());
                 
                 //! additional check here. we do not allow the next image to be

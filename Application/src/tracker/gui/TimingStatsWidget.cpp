@@ -75,6 +75,9 @@ void TimingStatsWidget::update() {
                 case TimingMetric_t::PVLoad:
                     clr = Cyan;
                     break;
+                case TimingMetric_t::PVWaiting:
+                    clr = DarkCyan;
+                    break;
                 case TimingMetric_t::PVRequest:
                     clr = DarkCyan;
                     break;

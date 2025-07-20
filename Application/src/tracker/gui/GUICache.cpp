@@ -70,7 +70,7 @@ std::unique_ptr<PPFrame> GUICache::PPFrameMaker::operator()() const {
             },
             [this](FramePtr&& ptr) {
                 buffers.move_back(std::move(ptr));
-            }, TimingMetric_t::PVRequest, TimingMetric_t::PVLoad)
+            }, TimingMetric_t::PVRequest, TimingMetric_t::PVLoad, TimingMetric_t::PVWaiting)
 
     {
         cache() = this;
@@ -247,7 +247,7 @@ std::unique_ptr<PPFrame> GUICache::PPFrameMaker::operator()() const {
         {
             buffers.move_back(std::move(_next_processed_frame));
             
-            auto frame = _preloader.get_frame(frameIndex, _preloader.last_increment());
+            auto frame = _preloader.get_frame(frameIndex);
             if(frame.has_value() && frame.value()->index() == frameIndex) {
                 _next_processed_frame = std::move(frame.value());
             }
@@ -287,7 +287,7 @@ std::unique_ptr<PPFrame> GUICache::PPFrameMaker::operator()() const {
     }
 
 void GUICache::request_frame_change_to(Frame_t frame) {
-    _preloader.announce(frame);
+    //_preloader.announce(frame);
 }
 
 const grid::ProximityGrid& GUICache::blob_grid() {
@@ -408,8 +408,9 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
                 /// the next frame does *not* match - at least should
                 /// nudge the preloader:
                 auto maybe_frame = _load_frames_blocking //&& _mistakes_count >= 1u
-                    ? _preloader.load_exactly(frameIndex, 1_f)
-                    : _preloader.get_frame(frameIndex, 1_f, std::chrono::milliseconds(10));
+                    ? _preloader.load_exactly(frameIndex)
+                    : _preloader.get_frame(frameIndex, std::chrono::milliseconds(10));
+                
                 _preloader.notify();
                 // _preloader.get_frame(frameIndex, Frame_t(saturate(static_cast<uint8_t>(GUI_SETTINGS(gui_playback_speed)), 1, 255)), std::chrono::milliseconds(50));
                 
@@ -450,6 +451,7 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
                         } else {
                             /// got correct frameIndex
                             //Print("Got frameIndex ", maybe_frame.value()->index()," (", frameIndex, ")");
+                            _preloader.announce(frameIndex + 1_f);
                         }
                     }
                     

@@ -12,7 +12,8 @@ ENUM_CLASS (TimingMetric_t,
     BackgroundRequest,
     BackgroundLoad,    // When a frame is loaded from the base video file.
     PVRequest,
-    PVLoad             // When a frame is loaded from the base preprocessing file.
+    PVLoad,             // When a frame is loaded from the base preprocessing file.
+    PVWaiting
 )
 
 // Use the enum’s “Class” type as our TimingMetric.

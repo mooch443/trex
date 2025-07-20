@@ -61,8 +61,10 @@ public:
         return _switching_error;
     }
     
-    static void set_switching_error(const std::string& str) {
-        switching_error().set(str);
+    static void set_switching_error(std::string str) {
+        /// we are ignoring the return value here because
+        /// we are only interested in the _first_ error.
+        std::ignore = switching_error().set(str);
     }
 
 public:

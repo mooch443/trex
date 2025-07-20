@@ -114,7 +114,7 @@ void PPFrame::write_log(std::string str) {
     
     *history_log() << str << std::endl;
 #else
-    UNUSED(str)
+    UNUSED(str);
 #endif
 }
 

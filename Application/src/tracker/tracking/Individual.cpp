@@ -2229,7 +2229,7 @@ inline Float2_t adiffangle(const Vec2& A, const Vec2& B) {
 
 prob_t Individual::position_probability(const CachedSettings& settings, const IndividualCache cache, Frame_t frameIndex, size_t, const Vec2& position, const Vec2& blob_center)
 {
-    UNUSED(frameIndex)
+    UNUSED(frameIndex);
 #ifndef NDEBUG
     // individual_empty would be set
     //if (frameIndex <= _startFrame)

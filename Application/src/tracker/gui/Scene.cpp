@@ -229,10 +229,10 @@ void SceneManager::update(IMGUIBase* window, DrawStructure& graph) {
         _displaying_error.compare_exchange_strong(expected, true))
     {
         auto error_str = switching_error().read();
-        if (not error_str.empty()) {
+        if (error_str && not error_str->empty()) {
             graph.dialog(
                 [](auto){ _displaying_error = false; },
-                settings::htmlify(error_str),
+                settings::htmlify(*error_str),
                 "Error"
             );
         } else {
