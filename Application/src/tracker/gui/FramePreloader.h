@@ -101,7 +101,7 @@ public:
     
     /// Blocking call that will try to load exactly the requested frame.
     FrameType load_exactly(Frame_t target_index) {
-        while(true) {
+        while(not shutdown_requested.load(std::memory_order_acquire)) {
             std::optional<FrameType> frame = get_frame(target_index);
             if (frame) {
                 Frame_t index = Frame_t(frame.value()->index());
@@ -120,21 +120,15 @@ public:
                  *    around user code.
                  * ----------------------------------------------------------- */
                 std::unique_lock lk(frame_update_mutex);
-                while (not shutdown_requested.load(std::memory_order_acquire)
-                       && updated_frame.wait_for(lk, std::chrono::milliseconds(250)) == std::cv_status::timeout)
-                {
-                    /* loop – just a heartbeat so we can notice shutdown */
-                }
-            }
-            
-            if (shutdown_requested.load(std::memory_order_acquire)) {
-#ifndef NDEBUG
-                throw std::runtime_error("FramePreloader shutting down while waiting for frame");
-#else
-                return FrameType{};
-#endif
+                updated_frame.wait_for(lk, std::chrono::milliseconds(250));
             }
         }
+        
+#ifndef NDEBUG
+        throw std::runtime_error("FramePreloader shutting down while waiting for frame");
+#else
+        return FrameType{};
+#endif
     }
     
     void notify() {
@@ -154,7 +148,7 @@ private:
     LOGGED_MUTEX_VAR(preloaded_frame_mutex, "preloaded_frame_mutex");
 
     std::atomic<Frame_t> next_index_to_use;
-    Frame_t last_returned_index;
+    std::atomic<Frame_t> last_returned_index;
     
     struct Queued {
         Frame_t index;
@@ -246,6 +240,7 @@ std::optional<FrameType> FramePreloader<FrameType>::get_frame(Frame_t target_ind
                 
                 if (image) {
                     assert(Frame_t(image->index()) == index);
+                    last_returned_index = index;
                     return std::optional<FrameType>(std::move(image));
                 }
             }

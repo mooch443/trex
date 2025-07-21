@@ -345,7 +345,8 @@ void DrawSegments::update() {
         return;
     
     OpenContext([this]{
-        add_segments(true, 0);
+        if(_frame.valid())
+            add_segments(true, 0);
         if(auto s = _selected.lock();
            s != nullptr)
         {
