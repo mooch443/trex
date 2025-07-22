@@ -1476,3 +1476,24 @@ TEST(TestSplitting, Basic) {
         cv::waitKey();
     }*/
 }
+
+
+TEST(PredictionFilterTests, Basic) {
+    resetGlobalSettings();
+    SETTING(detect_classes) = cmn::blob::MaybeObjectClass_t {
+        cmn::blob::ObjectClass_t {
+            {0, "dog"},
+            {1, "bird"},
+            {2, "fish"},
+            {42, "toothbrush"}
+        }
+    };
+    
+    auto filter = PredictionFilter::fromStr(R"([0,2,toothbrush])");
+    Print(filter);
+    ASSERT_EQ("[0,2,42]", filter.toStr());
+    
+    filter = PredictionFilter::fromStr(R"(-[dog,2,toothbrush])");
+    Print(filter);
+    ASSERT_EQ("[1]", filter.toStr());
+}

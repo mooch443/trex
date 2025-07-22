@@ -19,6 +19,10 @@ std::string PredictionFilter::toStr() const {
     return Meta::toStr(detect_only);
 }
 
+glz::json_t PredictionFilter::to_json() const {
+    return toStr(); /// we return a string here because it will include the - sign that is not valid JSON
+}
+
 std::vector<uint16_t> PredictionFilter::invert(const std::vector<uint16_t>& ids, const yolo::names::map_t& detect_classes) {
     std::vector<uint16_t> result;
     for(auto &[id, name] : detect_classes) {
