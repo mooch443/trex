@@ -26,7 +26,9 @@ glz::json_t PredictionFilter::to_json() const {
 std::vector<uint16_t> PredictionFilter::invert(const std::vector<uint16_t>& ids, const yolo::names::map_t& detect_classes) {
     std::vector<uint16_t> result;
     for(auto &[id, name] : detect_classes) {
-        if(not cmn::contains(ids, id)) {
+        if(not cmn::contains(ids, id)
+           && not cmn::contains(result, id))
+        {
             result.push_back(id);
         }
     }
@@ -58,7 +60,8 @@ PredictionFilter PredictionFilter::fromStr(std::string_view sv) {
         } else if(auto id = class_id_for(part, detect_classes);
                   id)
         {
-            only_detect.push_back(*id);
+            if(not cmn::contains(only_detect, *id))
+                only_detect.push_back(*id);
         } else {
             throw InvalidArgumentException("Unknown detection class: ", part);
         }
