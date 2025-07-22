@@ -23,6 +23,30 @@ ENUM_CLASS(ObjectDetectionFormat, none, boxes, masks, poses, obb);
 using ObjectDetectionType_t = ObjectDetectionType::Class;
 using ObjectDetectionFormat_t = ObjectDetectionFormat::Class;
 
+struct PredictionFilter {
+    std::vector<uint16_t> detect_only;
+    std::optional<std::vector<uint16_t>> _inverted_from;
+    
+    std::string toStr() const;
+    glz::json_t to_json() const;
+    static std::string class_name() { return "PredictionFilter"; }
+    
+    static std::vector<uint16_t> invert(const std::vector<uint16_t>& ids, const yolo::names::map_t& detect_classes);
+    static std::optional<uint16_t> class_id_for(std::string_view search, const yolo::names::map_t& detect_classes);
+    static PredictionFilter fromStr(std::string_view sv);
+    
+    auto operator<=>(const PredictionFilter& other) const = default;
+    bool operator==(const PredictionFilter& other) const noexcept = default;
+    
+    auto begin() const { return detect_only.begin(); }
+    auto end() const { return detect_only.end(); }
+    bool empty() const noexcept { return detect_only.empty(); }
+    bool contains(uint16_t obj) const noexcept {
+        return cmn::contains(detect_only, obj);
+    }
+    bool allowed(uint16_t) const;
+};
+
 }
 
 namespace EnumMeta {

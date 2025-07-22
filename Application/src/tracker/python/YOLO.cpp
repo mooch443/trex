@@ -317,7 +317,7 @@ void YOLO::receive(SegmentationData& data, track::detect::Result&& result) {
     } else
         throw U_EXCEPTION("Invalid image mode ", mode);
 
-    const auto detect_only_classes = SETTING(detect_only_classes).value<std::vector<uint8_t>>();
+    const auto detect_only_classes = SETTING(detect_only_classes).value<track::detect::PredictionFilter>();
     const coord_t w = max(0, r3.cols - 1);
     const coord_t h = max(0, r3.rows - 1);
     
@@ -340,7 +340,7 @@ void YOLO::receive(SegmentationData& data, track::detect::Result&& result) {
 }
 
 void YOLO::process_obbs(
-       const std::vector<uint8_t>& detect_only_classes,
+       const track::detect::PredictionFilter& detect_only_classes,
        coord_t w,
        coord_t h,
        const cv::Mat& r3,
@@ -353,9 +353,7 @@ void YOLO::process_obbs(
     
     for (size_t i = 0; i < N_rows; ++i) {
         auto row = obbdata[i];
-        if (not detect_only_classes.empty()
-            && not contains(detect_only_classes, (uint8_t)row.clid))
-        {
+        if (not detect_only_classes.allowed(row.clid)) {
             continue;
         }
         
@@ -495,7 +493,7 @@ void YOLO::process_obbs(
 }
 
 void YOLO::process_boxes_only(
-       const std::vector<uint8_t>& detect_only_classes,
+       const track::detect::PredictionFilter& detect_only_classes,
        coord_t w,
        coord_t h,
        const cv::Mat& r3,
@@ -508,9 +506,7 @@ void YOLO::process_boxes_only(
     
     for (size_t i = 0; i < N_rows; ++i) {
         auto& row = boxes[i];
-        if (not detect_only_classes.empty()
-            && not contains(detect_only_classes, (uint8_t)row.clid))
-        {
+        if (not detect_only_classes.allowed(row.clid)) {
             continue;
         }
         
@@ -570,7 +566,7 @@ void YOLO::process_boxes_only(
 }
 
 void YOLO::process_instance_segmentation(
-      const std::vector<uint8_t>& detect_only_classes,
+      const track::detect::PredictionFilter& detect_only_classes,
       coord_t w,
       coord_t h,
       const cv::Mat& r3,
@@ -594,8 +590,7 @@ void YOLO::process_instance_segmentation(
             auto& row = boxes[i];
             
             /// filter using *detect_only_classes*
-            if (not detect_only_classes.empty()
-                && not contains(detect_only_classes, (uint8_t)row.clid))
+            if (not detect_only_classes.allowed(row.clid))
             {
                 continue;
             }

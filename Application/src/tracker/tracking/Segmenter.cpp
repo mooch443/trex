@@ -1469,8 +1469,8 @@ void Segmenter::reset(Frame_t frame) {
 }
 
 void Segmenter::setDefaultSettings() {
-    SETTING(detect_only_classes) = std::vector<uint8_t>{};
-    SETTING(track_conf_threshold) = SETTING(detect_conf_threshold).value<Float2_t>();
+    //SETTING(detect_only_classes) = track::detect::PredictionFilter{};
+    //SETTING(track_conf_threshold) = SETTING(detect_conf_threshold).value<Float2_t>();
 }
 
 void Segmenter::printDebugInformation() {

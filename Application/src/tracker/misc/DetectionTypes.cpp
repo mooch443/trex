@@ -7,6 +7,73 @@ using namespace cmn;
 
 namespace track::detect {
 
+bool PredictionFilter::allowed(uint16_t clid) const {
+    if(_inverted_from)
+        return not cmn::contains(*_inverted_from, clid);
+    return cmn::contains(detect_only, clid);
+}
+
+std::string PredictionFilter::toStr() const {
+    if(_inverted_from)
+        return "-"+Meta::toStr(_inverted_from.value());
+    return Meta::toStr(detect_only);
+}
+
+std::vector<uint16_t> PredictionFilter::invert(const std::vector<uint16_t>& ids, const yolo::names::map_t& detect_classes) {
+    std::vector<uint16_t> result;
+    for(auto &[id, name] : detect_classes) {
+        if(not cmn::contains(ids, id)) {
+            result.push_back(id);
+        }
+    }
+    return result;
+}
+std::optional<uint16_t> PredictionFilter::class_id_for(std::string_view search, const yolo::names::map_t& detect_classes) {
+    for(auto &[id, name] : detect_classes) {
+        if(utils::lowercase_equal_to(name, search)) {
+            return id;
+        }
+    }
+    
+    return std::nullopt;
+}
+PredictionFilter PredictionFilter::fromStr(std::string_view sv) {
+    const yolo::names::map_t detect_classes = yolo::names::get_map();
+    std::vector<uint16_t> only_detect;
+    
+    bool invert = false;
+    if(utils::beginsWith(sv, '-')) {
+        sv = sv.substr(1);
+        invert = true;
+    }
+    
+    auto parts = util::parse_array_parts(util::truncate(sv));
+    for(auto& part : parts) {
+        if(utils::is_number_string(part)) {
+            only_detect.push_back(Meta::fromStr<uint16_t>(part));
+        } else if(auto id = class_id_for(part, detect_classes);
+                  id)
+        {
+            only_detect.push_back(*id);
+        } else {
+            throw InvalidArgumentException("Unknown detection class: ", part);
+        }
+    }
+    
+    if(invert) {
+        return PredictionFilter{
+            .detect_only = PredictionFilter::invert(only_detect, detect_classes),
+            ._inverted_from = std::move(only_detect)
+        };
+    }
+    
+    return PredictionFilter{
+        .detect_only = std::move(only_detect),
+        ._inverted_from = std::nullopt
+    };
+    
+}
+
 std::string KeypointNames::toStr() const {
     if(not valid())
         return "null";

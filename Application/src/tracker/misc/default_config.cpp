@@ -1060,7 +1060,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("yolo_region_tracking_enabled", false, "If set to true, the program will try to use yolov8s internal tracking routine to improve results for region tracking. This can be significantly slower and disables batching.");
         CONFIG("detect_model", file::Path(), "The path to a .pt file that contains a valid PyTorch object detection model (currently only YOLO networks are supported).");
         CONFIG("detect_precomputed_file", file::PathArray{}, "If `detect_type` is set to `precomputed`, this should point to a csv file (or npz files) containing the necessary tracking data for the given `source` video.");
-        CONFIG("detect_only_classes", std::vector<uint8_t>{}, "An array of class ids that you would like to detect (as returned from the model). If left empty, no class will be filtered out.");
+        CONFIG("detect_only_classes", track::detect::PredictionFilter{}, "An array of class ids that you would like to detect (as returned from the model). If left empty, no class will be filtered out.");
         CONFIG("region_model", file::Path(), "The path to a .pt file that contains a valid PyTorch object detection model used for region proposal (currently only YOLO networks are supported).");
         CONFIG("region_resolution", track::detect::DetectResolution{}, "The resolution of the region proposal network (`region_model`).", SYSTEM);
         CONFIG("detect_resolution", track::detect::DetectResolution{}, "The input resolution of the object detection model (`detect_model`).", SYSTEM);
