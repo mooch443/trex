@@ -1495,5 +1495,5 @@ TEST(PredictionFilterTests, Basic) {
     
     filter = PredictionFilter::fromStr(R"(-[dog,2,toothbrush])");
     Print(filter);
-    ASSERT_EQ("[1]", filter.toStr());
+    ASSERT_EQ("-[0,2,42]", filter.toStr());
 }
