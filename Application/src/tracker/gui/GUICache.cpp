@@ -14,6 +14,7 @@
 #include <gui/Scene.h>
 #include <gui/DrawGraph.h>
 #include <tracking/TrackingHelper.h>
+#include <misc/default_settings.h>
 
 namespace cmn::gui {
     
@@ -1239,7 +1240,14 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
             if(std::unique_lock g{label_mutex};
                not _prepared_label_text)
             {
-                _prepared_label_text = pattern::UnresolvedStringPattern::prepare(_label_text);
+                try {
+                    _prepared_label_text = pattern::UnresolvedStringPattern::prepare(_label_text);
+                } catch(const std::exception& ex) {
+                    FormatWarning("Failed to parse label text for ", _label_text,": ", ex.what());
+                    
+                    auto result = pattern::UnresolvedStringPattern::prepare_static("<red>ERROR</red>: "+settings::htmlify(ex.what()));
+                    _prepared_label_text = std::move(result);
+                }
                 
                 for(auto &[id, fish] : _fish_map)
                     fish->set_label_text(_prepared_label_text.value());

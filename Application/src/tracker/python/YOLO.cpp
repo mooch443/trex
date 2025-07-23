@@ -57,7 +57,7 @@ struct YOLO::Data {
         reset();
     }
     void reset() {
-        _background_required = SETTING(track_background_subtraction).value<bool>();
+        _background_required = GlobalSettings::has("track_background_subtraction") ? SETTING(track_background_subtraction).value<bool>() : false;
         _background_set = false;
     }
     

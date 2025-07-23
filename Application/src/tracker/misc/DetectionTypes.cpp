@@ -10,6 +10,8 @@ namespace track::detect {
 bool PredictionFilter::allowed(uint16_t clid) const {
     if(_inverted_from)
         return not cmn::contains(*_inverted_from, clid);
+    if(detect_only.empty())
+        return true;
     return cmn::contains(detect_only, clid);
 }
 

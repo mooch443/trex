@@ -853,9 +853,12 @@ void PythonIntegration::init() {
         file::cd(file::DataLocation::parse("app"));
     
     auto trex_init = file::DataLocation::is_registered("app")
-        ? file::DataLocation::parse("app", "trex_init.py")
-        : "trex_init.py";
-
+    ? file::DataLocation::parse("app", "trex_init.py")
+    : "trex_init.py";
+    if(not trex_init.exists()) {
+        trex_init = "trex_init.py";
+    }
+    
     try {
         using namespace py::literals;
         
@@ -869,18 +872,18 @@ void PythonIntegration::init() {
         GetEnvironmentVariable("PATH", path, buffSize);
         Print("Inherited path: ", std::string(path));
 #endif
-      
+        
 #if !defined(WIN32)
         // Store the old SIGINT handler for non-Windows systems
         sighandler_t old_sigint_handler = signal(SIGINT, SIG_DFL);
 #endif
-
+        
         _interpreter = std::make_unique<py::scoped_interpreter>();
 #if !defined(WIN32)
         // Restore the old SIGINT handler
         signal(SIGINT, old_sigint_handler);
 #endif
-
+        
         _main = py::module::import("__main__");
         _main.def("set_version", [](std::string x, bool has_gpu, std::string physical_name) {
 #ifndef NDEBUG
@@ -941,6 +944,11 @@ void PythonIntegration::init() {
     } catch(py::error_already_set& e) {
         fail(e);
         throw SoftException(e.what());
+    } catch(const std::exception& ex) {
+        python_init_error() = "Cannot initialize interpreter: "+std::string(ex.what());
+        initializing() = false;
+        initialized() = false;
+        throw SoftException("Cannot initialize interpreter: ", ex.what());
     }
     catch (...) {
         python_init_error() = "Cannot initialize interpreter.";

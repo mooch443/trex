@@ -22,6 +22,13 @@
 #include <grabber/misc/default_config.h>
 #include <misc/zipper.h>
 
+
+#if defined(__APPLE__)
+#include <mach-o/dyld.h>
+#include <string>
+#include <limits.h>
+#endif
+
 const auto homedir = []() {
 #ifndef WIN32
     struct passwd* pw = getpwuid(getuid());
@@ -1327,6 +1334,20 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         
         return result;
     }
+
+#if defined(__APPLE__)
+inline bool isRunningInAppBundle() {
+    char path[PATH_MAX];
+    uint32_t size = sizeof(path);
+    if (_NSGetExecutablePath(path, &size) == 0) {
+        std::string execPath(path);
+        // Find the .app bundle marker
+        auto pos = execPath.find(".app/Contents/MacOS/");
+        return pos != std::string::npos;
+    }
+    return false;
+}
+#endif
     
     void register_default_locations() {
         file::DataLocation::register_path("app", [](const sprite::Map& map, file::Path path) -> file::Path {
@@ -1337,7 +1358,9 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
                 wd = conda_prefix / "usr" / "share" / "trex";
             }
 #elif __APPLE__
-            wd = wd / ".." / "Resources";
+            if(isRunningInAppBundle()) {
+                wd = wd / ".." / "Resources";
+            }
 #endif
             if(path.empty())
                 return wd;
