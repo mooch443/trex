@@ -88,7 +88,11 @@ void check_field(std::string_view name, const Layout::Ptr& ptr, PatternMapType& 
     try {
         auto text = it->second.realize(context, state);
         auto fill = Meta::fromStr<SourceType>(text);
-        LabeledField::delegate_to_proper_type(TargetType{fill}, ptr);
+        
+        if constexpr (takes_attribute<GUIVideoAdapter, TargetType>) {
+            ptr.to<GUIVideoAdapter>()->set(TargetType{fill});
+        } else
+            LabeledField::delegate_to_proper_type(TargetType{fill}, ptr);
         
     } catch(const std::exception& e) {
         FormatError("Error parsing context; ", patterns, ": ", e.what());

@@ -439,7 +439,7 @@ For most of these, in order to see any effect, you'll have to reanalyse at least
 Tutorial: Machine-learning based pose detection
 -----------------------------------------------
 
-In this tutorial, we'll guide you through the process of using a machine-learning based detection model in |trex|. This process is very similar to any other detection mode, we just have some additional parameters to look into. You can also train your own model and use it here but, in case you don't have one, you can use our `model <https://trex.run/15locusts_model.pt>`_, and the ``locusts-mix_20250206_10.mp4`` video downloadable from `here <https://edmond.mpg.de/dataset.xhtml?persistentId=doi:10.17617/3.7F5MGE>`_.
+In this tutorial, we'll guide you through the process of using a machine-learning based detection model in |trex|. This process is very similar to any other detection mode, we just have some additional parameters to look into. You can also train your own model and use it here but, in case you don't have one, you can use our `locust keypoints model <https://github.com/albiangela/TRex-tutorials-data/blob/da58752fd655d8b2dc2c63ea61b8b0447f94b637/YOLO-models/locusts-640_yolo11s_pose.pt>`_, and the ``locusts-mix_20250206_10.mp4`` video downloadable from `here <https://edmond.mpg.de/dataset.xhtml?persistentId=doi:10.17617/3.7F5MGE>`_. Also have a look at `the GitHub repository <https://github.com/albiangela/TRex-tutorials-data>`_ for more information, additional models and example tracking output.
 
 .. warning::
 

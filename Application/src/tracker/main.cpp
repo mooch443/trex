@@ -183,13 +183,14 @@ void launch_gui(std::future<void>& f) {
                 }
                 
             } else if(e.type == EventType::WINDOW_RESIZED) {
-                auto h = g.height();
-                auto w = g.width();
+                auto h = max(10u, g.height());
+                auto w = max(10u, g.width());
 #if defined(WIN32)
                 Float2_t dpi = 1_F;
 #else
                 Float2_t dpi = ptr->dpi_scale();
 #endif
+                assert(not std::isinf(dpi));
                 auto min_width = 1350_F * dpi;
                 auto min_height = 1024_F * dpi;
                 
