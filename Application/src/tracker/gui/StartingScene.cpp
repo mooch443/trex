@@ -14,6 +14,10 @@
 #include <misc/Coordinates.h>
 #include <gui/GUITaskQueue.h>
 #include <gui/GuiSettings.h>
+#include <tracker/misc/default_config.h>
+#include <grabber/misc/default_config.h>
+
+#include <gui/SettingsScene.h>
 
 namespace cmn::gui {
 
@@ -69,23 +73,6 @@ void StartingScene::activate() {
     ((IMGUIBase*)window())->center({});
     
     update_recent_items();
-    
-    RecentItems::set_select_callback([](RecentItemJSON item){
-        item._options.set_print_by_default(true);
-        
-        SETTING(output_dir) = file::Path(item.output_dir);
-        SETTING(output_prefix) = item.output_prefix;
-        SETTING(filename) = file::Path(item.filename);
-        
-        for (auto& key : item._options.keys())
-            item._options[key].get().copy_to(GlobalSettings::map());
-        
-        //CommandLine::instance().load_settings();
-        
-        //RecentItems::open(item.operator DetailItem().detail(), GlobalSettings::map());
-        //SceneManager::getInstance().set_active("convert-scene");
-        SceneManager::getInstance().set_active("settings-scene");
-    });
 }
 
 void StartingScene::update_recent_items() {
@@ -205,6 +192,7 @@ void StartingScene::_draw(DrawStructure& graph) {
                                 .source_map = copy
                             });
                             SceneManager::enqueue(SceneManager::AlwaysAsync{}, []() {
+                                SettingsScene::reset_last_opened_tab();
                                 SceneManager::getInstance().set_active("settings-scene");
                             });
                         });
@@ -219,6 +207,8 @@ void StartingScene::_draw(DrawStructure& graph) {
                             .task = default_config::TRexTask_t::convert,
                             .type = track::detect::ObjectDetectionType::yolo
                         });
+                        
+                        SettingsScene::reset_last_opened_tab();
                         SceneManager::getInstance().set_active("settings-scene");
                     }),
                     ActionFunc("open_camera", [](auto) {
@@ -229,6 +219,7 @@ void StartingScene::_draw(DrawStructure& graph) {
                             .type = track::detect::ObjectDetectionType::yolo
                         });
                         
+                        SettingsScene::reset_last_opened_tab();
                         SceneManager::getInstance().set_active("settings-scene");
                     }),
                     ActionFunc("clear_recent_items", [this](auto) {

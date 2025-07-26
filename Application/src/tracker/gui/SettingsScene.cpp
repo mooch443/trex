@@ -25,8 +25,15 @@
 #include <gui/TrackingScene.h>
 
 #include <portable-file-dialogs.h>
+#include <misc/ProtectedProperty.h>
 
 namespace cmn::gui {
+
+ProtectedProperty<std::string> last_opened_tab{std::string("choose_settings_layout.json")};
+
+void SettingsScene::reset_last_opened_tab() {
+    last_opened_tab.set("choose_settings_layout.json");
+}
 
 struct SettingsScene::Data {
     Timer video_image_timer, animation_timer;
@@ -402,6 +409,7 @@ struct SettingsScene::Data {
                         }
                         
                         layout_name = _last_layouts.top();
+                        last_opened_tab.set(layout_name);
                         _last_layouts.pop();
                         
                         SceneManager::enqueue(SceneManager::AlwaysAsync{}, [this]() {
@@ -472,6 +480,7 @@ struct SettingsScene::Data {
                                             if (layout_name != "settings_layout.json") {
                                                 _last_layouts.push(layout_name);
                                                 layout_name = "settings_layout.json";
+                                                last_opened_tab.set(layout_name);
 
                                                 SceneManager::enqueue(SceneManager::AlwaysAsync{}, [this]() {
                                                     dynGUI.clear();
@@ -520,6 +529,7 @@ struct SettingsScene::Data {
                         auto &name = action.first();
                         _last_layouts.push(layout_name);
                         layout_name = name+".json";
+                        last_opened_tab.set(layout_name);
                         
                         SceneManager::enqueue(SceneManager::AlwaysAsync{}, [this]() {
                             dynGUI.clear();
@@ -1056,6 +1066,7 @@ void SettingsScene::activate() {
     _data->_initial_source = SETTING(source).value<file::PathArray>();
     _data->register_callbacks();
     _data->_defaults = GlobalSettings::map();
+    _data->layout_name = last_opened_tab.get();
 }
 
 void SettingsScene::deactivate() {

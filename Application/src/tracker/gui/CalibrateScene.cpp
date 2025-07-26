@@ -89,14 +89,19 @@ void auto_update_parameters(const std::string& text, Float2_t D,  Dialog::Result
                 
                 SceneManager::enqueue([detect_size_filter, track_max_speed, track_size_filter](auto, DrawStructure& graph)
                                                     {
-                    graph.dialog("Successfully set <ref>cm_per_pixel</ref> to <nr>"+Meta::toStr(SETTING(cm_per_pixel).value<Float2_t>())+"</nr> and recalculated <ref>detect_size_filter</ref> from <nr>"+Meta::toStr(detect_size_filter)+"</nr> to <nr>"+Meta::toStr(SETTING(detect_size_filter).value<SizeFilters>())+"</nr>, and <ref>track_size_filter</ref> from <nr>"+Meta::toStr(track_size_filter)+"</nr> to <nr>"+Meta::toStr(SETTING(track_size_filter).value<SizeFilters>())+"</nr> and <ref>track_max_speed</ref> from <nr>"+Meta::toStr(track_max_speed)+"</nr> to <nr>"+Meta::toStr(SETTING(track_max_speed).value<Float2_t>())+"</nr>.", "Calibration successful", "Okay");
+                    graph.dialog([](auto) {
+                        SceneManager::getInstance().set_active(SceneManager::getInstance().last_active());
+                        
+                    }, "Successfully set <ref>cm_per_pixel</ref> to <nr>"+Meta::toStr(SETTING(cm_per_pixel).value<Float2_t>())+"</nr> and recalculated <ref>detect_size_filter</ref> from <nr>"+Meta::toStr(detect_size_filter)+"</nr> to <nr>"+Meta::toStr(SETTING(detect_size_filter).value<SizeFilters>())+"</nr>, and <ref>track_size_filter</ref> from <nr>"+Meta::toStr(track_size_filter)+"</nr> to <nr>"+Meta::toStr(SETTING(track_size_filter).value<SizeFilters>())+"</nr> and <ref>track_max_speed</ref> from <nr>"+Meta::toStr(track_max_speed)+"</nr> to <nr>"+Meta::toStr(SETTING(track_max_speed).value<Float2_t>())+"</nr>.", "Calibration successful", "Okay");
                 });
                 
             } else {
                 SETTING(cm_per_pixel) = Float2_t(value / D);
                 SceneManager::enqueue([](auto, DrawStructure& graph)
                                                     {
-                    graph.dialog("Successfully set <ref>cm_per_pixel</ref> to <nr>"+Meta::toStr(SETTING(cm_per_pixel).value<Float2_t>())+"</nr>.", "Calibration successful", "Okay");
+                    graph.dialog([](auto){
+                        SceneManager::getInstance().set_active(SceneManager::getInstance().last_active());
+                    }, "Successfully set <ref>cm_per_pixel</ref> to <nr>"+Meta::toStr(SETTING(cm_per_pixel).value<Float2_t>())+"</nr>.", "Calibration successful", "Okay");
                 });
             }
         }

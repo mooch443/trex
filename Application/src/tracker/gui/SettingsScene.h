@@ -16,6 +16,7 @@ public:
     void deactivate() override;
     void _draw(DrawStructure& graph);
     bool on_global_event(Event) override;
+    static void reset_last_opened_tab();
 };
 
 }
