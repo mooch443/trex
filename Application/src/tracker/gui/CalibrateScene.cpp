@@ -187,6 +187,11 @@ void CalibrateScene::_draw(DrawStructure &graph) {
                         return _data->last_mouse;
                     }),
                     VarFunc("video_size", [this](const VarProps&) -> Vec2 {
+                        if(_data->_video_size.width == 0
+                           && _data->_video_size.height == 0)
+                        {
+                            return Vec2(1,1);
+                        }
                         return _data->_video_size;
                     }),
                     VarFunc("points", [this](const VarProps&) {

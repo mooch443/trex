@@ -349,6 +349,113 @@ TEST(PreparseTest, Real) {
     Print("Realized: ", realized);
 }
 
+TEST(PreparseTest, ForLoop) {
+    using namespace cmn::pattern;
+    std::string str = "{for:{points}:punkt {i} }";
+    auto result = UnresolvedStringPattern::prepare(str);
+    Print(result);
+    
+    using namespace gui::dyn;
+    Context context{
+        VarFunc("points", [](const VarProps&) -> std::vector<Vec2> {
+            return {Vec2(1,2), Vec2(3,4)};
+        })
+    };
+    State state;
+    
+    std::string realized;
+    EXPECT_NO_THROW((realized = result.realize(context, state)));
+    
+    Print(no_quotes(realized));
+}
+
+TEST(PreparseTest, ExtendedForLoop) {
+    using namespace cmn::pattern;
+    std::string str = "{for:{points}:{addVector:{screen_center}:{mulVector:{i}:{bg_scale}}:[1,1]}}";
+    auto result = UnresolvedStringPattern::prepare(str);
+    Print(result);
+    
+    using namespace gui::dyn;
+    Context context{
+        VarFunc("points", [](const VarProps&) -> std::vector<Vec2> {
+            return {Vec2(1,2), Vec2(3,4)};
+        }),
+        VarFunc("screen_center", [](const VarProps&) -> Vec2 {
+            return Vec2(5,5);
+        }),
+        VarFunc("bg_scale", [](const VarProps&) -> float {
+            return 5;
+        })
+    };
+    State state;
+    
+    std::string realized;
+    EXPECT_NO_THROW((realized = result.realize(context, state)));
+    
+    Print(no_quotes(realized));
+    ASSERT_EQ(realized, "[[11,16],[21,26]]");
+    
+    state = {};
+    
+    /// test empty arrays
+    context.variables["points"] = VarFunc("points", [](const VarProps&) -> std::vector<Vec2> {
+        return {};
+    }).second;
+    
+    EXPECT_NO_THROW((realized = result.realize(context, state)));
+    
+    Print(no_quotes(realized));
+    ASSERT_EQ(realized, "[]");
+}
+
+TEST(PreparseTest, SubItems) {
+    using namespace cmn::pattern;
+    std::string str = "{size.x}";
+    auto result = UnresolvedStringPattern::prepare(str);
+    Print(result);
+    
+    using namespace gui::dyn;
+    Context context{
+        VarFunc("size", [](const VarProps&) -> Vec2 {
+            return Vec2(1024,768);
+        })
+    };
+    State state;
+    
+    std::string realized;
+    EXPECT_NO_THROW((realized = result.realize(context, state)));
+    
+    Print(no_quotes(realized));
+    
+    ASSERT_EQ(realized, "1024");
+}
+
+TEST(PreparseTest, SubItemsExtended) {
+    using namespace cmn::pattern;
+    std::string str = "{video_size} {dec:3:{*:{video_size.x}:{global.cm_per_pixel}}}";
+    auto result = UnresolvedStringPattern::prepare(str);
+    Print(result);
+    
+    using namespace gui::dyn;
+    SETTING(cm_per_pixel) = Float2_t(1);
+    Context context{
+        VarFunc("video_size", [](const VarProps&) -> Vec2 {
+            return Vec2(1024,768);
+        }),
+        VarFunc("points", [](const VarProps&) -> std::vector<Vec2> {
+            return {Vec2(1,2),Vec2(3,4)};
+        })
+    };
+    State state;
+    
+    std::string realized;
+    EXPECT_NO_THROW((realized = result.realize(context, state)));
+    
+    Print(no_quotes(realized));
+    
+    ASSERT_EQ(realized, "[1024,768] 1024");
+}
+
 TEST(PreparseTest, JSONPreparse) {
     /// we need to find all the variables / parsing hierarchy and set it in binary
     /// in the end this returns a string (which can then be parsed into whatever)
@@ -3436,4 +3543,96 @@ TEST(MedianTest, LargeDataset) {
         m.addNumber(i);
     }
     EXPECT_EQ(m.getValue(), N / 2);
+}
+
+TEST(ConcatTest, Basic) {
+    using cmn::utils::concat_views;
+
+    {
+        SCOPED_TRACE("literals");
+        auto out = concat_views("Hello", ", ", "world");
+        EXPECT_EQ(out, "Hello, world");
+    }
+
+    {
+        SCOPED_TRACE("mixed types");
+        std::string a = "A";
+        std::string_view b = "B";
+        const char* c = "C";
+        std::array<std::string_view, 2> arr = {"D", "E"};
+        auto out = concat_views(a, b, c, arr, "F");
+        EXPECT_EQ(out, "ABCDEF");
+    }
+
+    {
+        SCOPED_TRACE("containers (vector<string_view>, vector<string>, vector<const char*>)");
+        std::vector<std::string_view> v1 = {"foo", "", "bar"};
+        std::vector<std::string>      v2 = {"baz", "qux"};
+        std::vector<const char*>      v3 = {"-", "quux"};
+        auto out = concat_views(v1, v2, v3);
+        EXPECT_EQ(out, "foobarbazqux-quux");
+    }
+
+    {
+        SCOPED_TRACE("initializer_list and array");
+        std::initializer_list<std::string_view> il = {"x", "y", "z"};
+        EXPECT_EQ(concat_views(il), "xyz");
+
+        std::array<const char*, 3> arr2 = {"A", "B", "C"};
+        EXPECT_EQ(concat_views(arr2), "ABC");
+    }
+
+    {
+        SCOPED_TRACE("rvalue containers");
+        EXPECT_EQ(concat_views(std::vector<std::string>{"r", "v"}), "rv");
+        EXPECT_EQ(concat_views(std::vector<const char*>{"1","2","3"}), "123");
+    }
+
+    {
+        SCOPED_TRACE("embedded NULs are preserved");
+        std::string s("a\0b", 3);
+        auto out = concat_views(s, "c");
+        ASSERT_EQ(out.size(), 4u);
+        EXPECT_EQ(out[0], 'a');
+        EXPECT_EQ(out[1], '\0');
+        EXPECT_EQ(out[2], 'b');
+        EXPECT_EQ(out[3], 'c');
+        EXPECT_EQ(out.substr(0, 3), s);
+    }
+
+    {
+        SCOPED_TRACE("Unicode (UTF-8 bytes) are copied verbatim");
+        const char* s1 = "Gr\xc3\xbc""ezi ";
+        const char* s2 = "\xE4\xB8\x96\xE7\x95\x8C"; // "世界"
+        auto out = concat_views(s1, s2);
+        EXPECT_EQ(out, std::string("Gr\xc3\xbc""ezi ") + "\xE4\xB8\x96\xE7\x95\x8C");
+    }
+
+    {
+        SCOPED_TRACE("views into larger strings and result independence");
+        std::string base = "abcdef";
+        std::string_view sv1 = std::string_view(base).substr(1, 2); // "bc"
+        std::vector<std::string_view> parts = { std::string_view(base).substr(3, 2) }; // "de"
+        auto out = concat_views(sv1, parts, std::string_view(base).substr(5)); // "f"
+        EXPECT_EQ(out, "bcdef");
+
+        // result must not alias inputs after the call
+        std::string x = "x";
+        auto r = concat_views(x);
+        x[0] = 'y';
+        EXPECT_EQ(r, "x");
+    }
+
+    {
+        SCOPED_TRACE("zero arguments yields empty string");
+        auto out = concat_views();
+        EXPECT_TRUE(out.empty());
+    }
+
+    {
+        SCOPED_TRACE("many pieces stress");
+        std::vector<std::string> pieces(100, "x");
+        auto out = concat_views(pieces);
+        EXPECT_EQ(out, std::string(100, 'x'));
+    }
 }
