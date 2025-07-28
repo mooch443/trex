@@ -63,7 +63,7 @@ namespace default_config {
         }
     }
     
-    void get(sprite::Map& config, GlobalSettings::docs_map_t& docs, std::function<void(const std::string& name, AccessLevel w)> fn)
+    void get(Configuration& config)
     {
         constexpr auto STARTUP = AccessLevelType::STARTUP;
         constexpr auto SYSTEM = AccessLevelType::SYSTEM;
@@ -71,7 +71,7 @@ namespace default_config {
         constexpr auto INIT = AccessLevelType::INIT;
         
         using namespace settings;
-        Adding adding(config, docs, fn);
+        Adding adding(config);
         
         std::vector<double> buffer {
         };

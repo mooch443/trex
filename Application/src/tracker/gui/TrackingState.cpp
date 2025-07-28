@@ -812,15 +812,14 @@ std::future<void> TrackingState::load_state(GUITaskQueue_t* gui, file::Path from
             }
             
             {
-                sprite::Map config;
-                GlobalSettings::docs_map_t docs;
-                default_config::get(config, docs, NULL);
+                Configuration config;
+                default_config::get(config);
                 try {
                     GlobalSettings::load_from_string(header.settings, {
                         .source = from,
                         .access = AccessLevelType::STARTUP,
                         .correct_deprecations = true,
-                        .target = &config
+                        .target = &config.values
                     });
                     
                 } catch(const std::exception& e) {
@@ -829,7 +828,7 @@ std::future<void> TrackingState::load_state(GUITaskQueue_t* gui, file::Path from
                 
                 std::vector<Idx_t> focus_group;
                 if(config.has("gui_focus_group"))
-                    focus_group = config["gui_focus_group"].value<std::vector<Idx_t>>();
+                    focus_group = config.at("gui_focus_group").value<std::vector<Idx_t>>();
                 
                 //if(GUI::instance() && !gui_frame_on_startup().frame.valid()) {
                 //    WorkProgress::add_queue("", [f = Frame_t(header.gui_frame)](){

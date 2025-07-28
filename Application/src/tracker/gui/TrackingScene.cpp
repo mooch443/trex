@@ -901,18 +901,16 @@ void TrackingScene::deactivate() {
     SETTING(filename) = file::Path();
     SETTING(source) = file::PathArray();
     
-    SettingsMaps combined;
-    combined.map.set_print_by_default(false);
+    Configuration combined;
+    combined.values.set_print_by_default(false);
     
-    grab::default_config::get(combined.map, combined.docs, [&](auto& name, auto level){
-        combined.access_levels[name] = level;
-    });
-    default_config::get(combined.map, combined.docs, [&](auto& name, auto level){
-        combined.access_levels[name] = level;
-    });
+    grab::default_config::get(combined);
+    default_config::get(combined);
     
-    for(auto &key : combined.map.keys()) {
-        if(GlobalSettings::access_level(key) > AccessLevelType::LOAD) {
+    for(auto key : combined.values.keys()) {
+        if(auto level = combined._access_level(key);
+           level > AccessLevelType::LOAD)
+        {
             //combined.map.at(key)->valueString();
             //Print(" - Ignoring ", key, " ", no_quotes(combined.map.at(key)->valueString()), " vs. ", no_quotes(GlobalSettings::at(key)->valueString()));
             continue;
@@ -922,15 +920,15 @@ void TrackingScene::deactivate() {
         if(GlobalSettings::map().has(key)) {
             auto p = GlobalSettings::map().at(key).get().do_print();
             GlobalSettings::map().do_print(key, false);
-            combined.map.at(key).get().copy_to(GlobalSettings::map());
+            combined.at(key).get().copy_to(GlobalSettings::map());
             GlobalSettings::map().do_print(key, p);
         } else {
-            combined.map.at(key).get().copy_to(GlobalSettings::map());
+            combined.at(key).get().copy_to(GlobalSettings::map());
         }
     }
     
-    GlobalSettings::set_current_defaults(combined.map);
-    GlobalSettings::set_current_defaults_with_config(combined.map);
+    GlobalSettings::set_current_defaults(combined.values);
+    GlobalSettings::set_current_defaults_with_config(combined.values);
 }
 
 void TrackingScene::set_frame(Frame_t frameIndex) {
@@ -2162,7 +2160,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
         {
             assert(SceneManager::is_gui_thread());
             auto coords = FindCoord::get();
-            auto width = coords.screen_size().width;
+            auto width = min(20000, coords.screen_size().width);
             
             if(_data
                && _data->_foi_state.name == "uniqueness")

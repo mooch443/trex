@@ -58,7 +58,7 @@ struct UpdateSettings {
 };
 
     class Fish {
-        Entangled _view;
+        GETTER_NCONST(Entangled, view);
         Label* _label { nullptr };
 
         GETTER(Frame_t, frame);

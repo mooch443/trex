@@ -2024,22 +2024,6 @@ void Fish::updatePath(Individual& obj, Frame_t to, Frame_t from) {
                 auto& v = _paths[paths_index];
                 if(v->change_points() != _vertices) {
                     std::swap(v->change_points(), _vertices);
-                    
-                    /// this is to prevent a race condition
-                    /// where the parent is accessed by all fish
-                    /// at the same time
-                    struct G{
-                        Drawable* v;
-                        SectionInterface* p;
-                        G(Drawable* v) : v(v) {
-                            p = v->parent();
-                            v->_illegal_set_parent(nullptr);
-                        }
-                        ~G() {
-                            v->_illegal_set_parent(p);
-                        }
-                    } g(v.get());
-                    
                     v->confirm_points();
                     //_view.advance_wrap(*v);
                 }

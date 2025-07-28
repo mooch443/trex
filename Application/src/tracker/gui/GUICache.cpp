@@ -1451,8 +1451,23 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
                         if(it == _fish_map.end())
                             continue;
                         
-                        //
                         auto fish = individuals.at(it->first);
+                        
+                        /// this is to prevent a race condition
+                        /// where the parent is accessed by all fish
+                        /// at the same time
+                        struct G{
+                            Drawable* v;
+                            SectionInterface* p;
+                            G(Drawable* v) : v(v) {
+                                p = v->parent();
+                                v->_illegal_set_parent(nullptr);
+                            }
+                            ~G() {
+                                v->_illegal_set_parent(p);
+                            }
+                        } g(&it->second->view());
+                        
                         it->second->set_data(update_settings, *fish, frameIndex, properties->time(), nullptr);
                     }
                 }, pool(), ids_to_check.begin(), ids_to_check.end());

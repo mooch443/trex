@@ -176,8 +176,9 @@ void StartingScene::_draw(DrawStructure& graph) {
                         copy["output_prefix"] = output_prefix;
                         copy["output_dir"] = output_dir;
                         
-                        SettingsMaps tmp;
-                        default_config::get(tmp.map, tmp.docs, [](auto,auto){});
+                        Configuration tmp;
+                        grab::default_config::get(tmp);
+                        ::default_config::get(tmp);
                         
                         auto type = item._options.has("detect_type")
                                         ? item._options.at("detect_type") .value<track::detect::ObjectDetectionType_t>()

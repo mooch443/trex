@@ -156,28 +156,24 @@ set_defaults_for(detect::ObjectDetectionType_t detect_type,
     return changed_keys;
 }
 
-SettingsMaps reset(const cmn::sprite::Map& extra_map, cmn::sprite::Map* output) {
+Configuration reset(const cmn::sprite::Map& extra_map, cmn::sprite::Map* output) {
     if(not output)
         output = &GlobalSettings::map();
     
-    SettingsMaps combined;
-    const auto set_combined_access_level =
-        [&combined](auto& name, AccessLevel level) {
-            combined.access_levels[name] = level;
-        };
+    Configuration combined;
+    combined.values.set_print_by_default(false);
     
-    combined.map.set_print_by_default(false);
+    grab::default_config::get(combined);
+    ::default_config::get(combined);
     
-    grab::default_config::get(combined.map, combined.docs, set_combined_access_level);
-    ::default_config::get(combined.map, combined.docs, set_combined_access_level);
-    
-    if(not combined.map.has("detect_type")
-       || combined.map.at("detect_type").value<detect::ObjectDetectionType_t>() == detect::ObjectDetectionType::none)
+    if(auto detect_type = combined.at("detect_type");
+       not detect_type.valid()
+       || detect_type.value<detect::ObjectDetectionType_t>() == detect::ObjectDetectionType::none)
     {
-        combined.map["detect_type"] = detect::ObjectDetectionType::yolo;
+        combined.values["detect_type"] = detect::ObjectDetectionType::yolo;
     }
     
-    set_defaults_for(combined.map.at("detect_type"), combined.map, {});
+    set_defaults_for(combined.at("detect_type"), combined.values, {});
     
     for(auto &key : extra_map.keys()) {
         try {
@@ -186,27 +182,28 @@ SettingsMaps reset(const cmn::sprite::Map& extra_map, cmn::sprite::Map* output) 
                 continue;
             }
             
-            extra_map.at(key).get().copy_to(combined.map);
+            extra_map.at(key).get().copy_to(combined.values);
             
         } catch(const std::exception& ex) {
             FormatExcept("Exception while copying ", key, " to combined map: ", ex.what());
         }
     }
     
-    if(output != &combined.map) {
-        for(auto &key : combined.map.keys()) {
+    if(output != &combined.values) {
+        for(auto &key : combined.values.keys()) {
             try {
-                if(GlobalSettings::access_level(key) < AccessLevelType::SYSTEM
+                if(auto level = combined._access_level(key);
+                   level < AccessLevelType::SYSTEM
                    && (not output->has(key)
-                       || output->at(key).get() != combined.map.at(key).get())
+                       || output->at(key).get() != combined.at(key).get())
                    )
                 {
                     /// special case convenience function for filename
                     /// since we dont need to set it if its just the *default*
                     if(key == "filename"
-                       && (combined.map.at(key).value<file::Path>() == find_output_name(combined.map)
-                           || (not combined.map.at(key).value<file::Path>().is_absolute()
-                               && combined.map.at(key).value<file::Path>() == file::find_basename(combined.map.at("source").value<file::PathArray>()))))
+                       && (combined.at(key).value<file::Path>() == find_output_name(combined.values)
+                           || (not combined.at(key).value<file::Path>().is_absolute()
+                               && combined.at(key).value<file::Path>() == file::find_basename(combined.at("source").value<file::PathArray>()))))
                     {
                         SETTING(filename) = file::Path();
                         continue;
@@ -214,7 +211,7 @@ SettingsMaps reset(const cmn::sprite::Map& extra_map, cmn::sprite::Map* output) 
                     
                     /// same goes for *output_dir*
                     if(key == "output_dir"
-                       && combined.map.at(key).value<file::Path>() == file::find_parent( combined.map.at("source").value<file::PathArray>()))
+                       && combined.at(key).value<file::Path>() == file::find_parent( combined.at("source").value<file::PathArray>()))
                     {
                         SETTING(output_dir) = file::Path();
                         continue;
@@ -222,7 +219,7 @@ SettingsMaps reset(const cmn::sprite::Map& extra_map, cmn::sprite::Map* output) 
                     
                     /// copy to destination map
                     if(not is_in(key, "gui_interface_scale"))
-                        combined.map.at(key).get().copy_to(*output);
+                        combined.at(key).get().copy_to(*output);
                 }
             } catch(const std::exception& ex) {
                 FormatExcept("Cannot parse setting ", key, " and copy it to output map: ", ex.what());
@@ -249,17 +246,13 @@ struct G {
 };
 
 void LoadContext::init() {
-    combined.map.set_print_by_default(false);
-    
-    auto set_combined_access_level = [&](auto& name, AccessLevel level) {
-        combined.access_levels[name] = level;
-    };
+    combined.values.set_print_by_default(false);
     
     /// ---------------------------------------------
     /// 1. setting default values, saved in combined:
     /// ---------------------------------------------
-    grab::default_config::get(combined.map, combined.docs, set_combined_access_level);
-    ::default_config::get(combined.map, combined.docs, set_combined_access_level);
+    grab::default_config::get(combined);
+    ::default_config::get(combined);
     
     /// ---------------------------
     /// 2. exclude SYSTEM variables
@@ -273,7 +266,7 @@ void LoadContext::init() {
     /// -----------------------------------------
     /// 3. load default.settings from app folder:
     /// -----------------------------------------
-    if (auto default_path = file::DataLocation::parse("default.settings", {}, &combined.map);
+    if (auto default_path = file::DataLocation::parse("default.settings", {}, &combined.values);
         default_path.exists())
     {
         try {
@@ -285,7 +278,7 @@ void LoadContext::init() {
                     .deprecations = deprecations(),
                     .access = AccessLevelType::STARTUP,
                     .exclude = exclude,
-                    .target = &combined.map
+                    .target = &combined.values
                 });
                 warn_deprecated(default_path, rejected);
             }
@@ -295,7 +288,7 @@ void LoadContext::init() {
         }
     }
     
-    GlobalSettings::set_current_defaults(combined.map);
+    GlobalSettings::set_current_defaults(combined.values);
     
     /// ---------------------------------------------------
     /// 4. get cmd arguments and overwrite stuff with them:
@@ -303,10 +296,10 @@ void LoadContext::init() {
     /// excluding filename and source + other defaults
     auto& cmd = CommandLine::instance();
     
-    cmd.load_settings(nullptr, &combined.map, exclude.toVector());
+    cmd.load_settings(nullptr, &combined.values, exclude.toVector());
     if(cmd.settings_keys().contains("wd")) {
-        combined.map["wd"] = file::Path(cmd.settings_keys().at("wd"));
-        set_config_if_different("wd", combined.map);
+        combined.values["wd"] = file::Path(cmd.settings_keys().at("wd"));
+        set_config_if_different("wd", combined.values);
     }
     exclude += extract_keys( cmd.settings_keys() );
     
@@ -345,12 +338,12 @@ void LoadContext::init_filename() {
                 output_dir = output_dir.remove_filename();
             }
             
-            combined.map["output_dir"] = output_dir;
-            set_config_if_different("output_dir", combined.map);
+            combined.values["output_dir"] = output_dir;
+            set_config_if_different("output_dir", combined.values);
         }
         
-        combined.map["filename"] = file::Path(filename.filename());
-        set_config_if_different("filename", combined.map);
+        combined.values["filename"] = file::Path(filename.filename());
+        set_config_if_different("filename", combined.values);
     }
     
     if(not source.empty()) {
@@ -367,7 +360,7 @@ void LoadContext::init_filename() {
                 if(path.exists()) {
                     source = file::PathArray(path);
                     
-                } else if(path = file::DataLocation::parse("output", path, &combined.map);
+                } else if(path = file::DataLocation::parse("output", path, &combined.values);
                         path.exists())
                 {
                     source = file::PathArray(path);
@@ -375,12 +368,12 @@ void LoadContext::init_filename() {
             }
         }
         
-        combined.map["source"] = source;
-        set_config_if_different("source", combined.map);
+        combined.values["source"] = source;
+        set_config_if_different("source", combined.values);
         
         if(not contains(exclude.toVector(), "meta_source_path")) {
-            combined.map["meta_source_path"] = source.source();
-            set_config_if_different("meta_source_path", combined.map);
+            combined.values["meta_source_path"] = source.source();
+            set_config_if_different("meta_source_path", combined.values);
         }
     }
     
@@ -395,12 +388,12 @@ void LoadContext::init_filename() {
     }
     
     if(type != track::detect::ObjectDetectionType::none) {
-        combined.map["detect_type"] = type;
-        set_config_if_different("detect_type", combined.map);
+        combined.values["detect_type"] = type;
+        set_config_if_different("detect_type", combined.values);
     }
     
     if(not quiet)
-        combined.map.set_print_by_default(true);
+        combined.values.set_print_by_default(true);
 }
 
 void LoadContext::fix_empty_source() {
@@ -413,14 +406,14 @@ void LoadContext::fix_empty_source() {
         /// ------------------
         G g{"Source is empty", quiet};
         /// ------------------
-        const auto source = combined.map.at("source").value<file::PathArray>();
+        const auto source = combined.at("source").value<file::PathArray>();
         
         file::Path path = file::find_basename(source);
         if(path.has_extension()
            && path.extension() != "pv")
         {
             // did we mean .mp4.pv?
-            auto prefixed = file::DataLocation::parse("output", path.add_extension("pv"), &combined.map);
+            auto prefixed = file::DataLocation::parse("output", path.add_extension("pv"), &combined.values);
             if(not prefixed.exists()) {
                 path = path.remove_extension();
                 
@@ -434,19 +427,19 @@ void LoadContext::fix_empty_source() {
             // automatic filename overwritten
             auto name = CommandLine::instance().settings_keys().at("filename");
             if(not name.empty()) {
-                file::Path filename = file::DataLocation::parse("output", name, &combined.map);
+                file::Path filename = file::DataLocation::parse("output", name, &combined.values);
                 if(filename.has_extension("pv"))
                     filename = filename.remove_extension();
-                combined.map["filename"] = filename;
-                set_config_if_different("filename", combined.map);
+                combined.values["filename"] = filename;
+                set_config_if_different("filename", combined.values);
             }
             
         } else if(not path.empty()) {
-            file::Path filename = file::DataLocation::parse("output", path, &combined.map);
+            file::Path filename = file::DataLocation::parse("output", path, &combined.values);
             if(filename.has_extension("pv"))
                 filename = filename.remove_extension();
-            combined.map["filename"] = filename;
-            set_config_if_different("filename", combined.map);
+            combined.values["filename"] = filename;
+            set_config_if_different("filename", combined.values);
         }
     }
 }
@@ -457,10 +450,10 @@ void LoadContext::fix_empty_filename() {
         G g{"Fixing empty filename", quiet};
         /// -------------------------
         {
-            auto name = combined.map.at("filename").value<file::Path>();
+            auto name = combined.at("filename").value<file::Path>();
             filename = name.empty()
                             ? file::Path()
-                            : file::DataLocation::parse("output", name, &combined.map);
+                            : file::DataLocation::parse("output", name, &combined.values);
         }
         
         if(filename.has_extension("pv"))
@@ -470,29 +463,29 @@ void LoadContext::fix_empty_filename() {
            && filename.add_extension("pv").is_regular())
         {
             /// A PV file of that name exists (with .pv added)
-            combined.map["filename"] = filename;
-            set_config_if_different("filename", combined.map);
+            combined.values["filename"] = filename;
+            set_config_if_different("filename", combined.values);
             
         } else {
             const auto _source = source.empty()
-                ? combined.map.at("source").value<file::PathArray>()
+                ? combined.at("source").value<file::PathArray>()
                 : source;
             
             file::Path path = file::find_basename(_source);
             if(task == TRexTask_t::track) {
                 if(not path.empty()) {
-                    filename = file::DataLocation::parse("input", path, &combined.map);
+                    filename = file::DataLocation::parse("input", path, &combined.values);
                     
                     if(filename.is_regular() || filename.add_extension("pv").is_regular())
                     { } else {
-                        filename = file::DataLocation::parse("output", path, &combined.map);
+                        filename = file::DataLocation::parse("output", path, &combined.values);
                     }
                     
                 } else
                     filename = {};
                 
             } else if(not path.empty()) {
-                filename = file::DataLocation::parse("output", path, &combined.map);
+                filename = file::DataLocation::parse("output", path, &combined.values);
             } else {
                 filename = {};
             }
@@ -500,15 +493,15 @@ void LoadContext::fix_empty_filename() {
             if(filename.has_extension("pv"))
                 filename = filename.remove_extension();
             
-            combined.map["filename"] = filename;
-            set_config_if_different("filename", combined.map);
+            combined.values["filename"] = filename;
+            set_config_if_different("filename", combined.values);
         }
     }
     
 }
 
 void LoadContext::reset_default_filenames() {
-    if(not combined.map["filename"].value<file::Path>().empty()) {
+    if(not combined.at("filename").value<file::Path>().empty()) {
         /// -----------------------
         /// In case the filename has been set, we could be in
         /// a situation where it needs to be emptied, since its
@@ -518,33 +511,34 @@ void LoadContext::reset_default_filenames() {
         //G g{source.source(), quiet};
         /// -----------------------
         const auto _source = source.empty()
-            ? combined.map.at("source").value<file::PathArray>()
+            ? combined.at("source").value<file::PathArray>()
             : source;
-        auto default_path = find_output_name(combined.map, {}, {}, false);
+        auto default_path = find_output_name(combined.values, {}, {}, false);
         
-        auto path = combined.map["filename"].value<file::Path>();
+        auto path = combined.at("filename").value<file::Path>();
         if(path == default_path) {
-            combined.map["filename"] = file::Path();
-            set_config_if_different("filename", combined.map);
+            combined.values["filename"] = file::Path();
+            set_config_if_different("filename", combined.values);
         } else if(path.is_absolute()) {
-            combined.map["filename"] = file::Path(path.filename());
-            set_config_if_different("filename", combined.map);
+            combined.values["filename"] = file::Path(path.filename());
+            set_config_if_different("filename", combined.values);
         } else {
 #ifndef NDEBUG
             if(not quiet)
                 Print("Not absolute: ", path);
 #endif
-            combined.map["filename"] = file::Path(path);
-            set_config_if_different("filename", combined.map);
+            combined.values["filename"] = file::Path(path);
+            set_config_if_different("filename", combined.values);
         }
     }
     
-    if(not combined.map["filename"].value<file::Path>().empty()) {
-        auto path = combined.map["filename"].value<file::Path>();
+    if(auto path = combined.at("filename").value<file::Path>();
+       not path.empty())
+    {
         if(path.is_absolute())
             path = path.filename();
-        combined.map["filename"] = path;
-        set_config_if_different("filename", combined.map);
+        combined.values["filename"] = path;
+        set_config_if_different("filename", combined.values);
     }
 }
 
@@ -571,14 +565,14 @@ void LoadContext::load_settings_from_source() {
         }
         
         if(path.empty())
-            path = find_output_name(combined.map, source, filename);
+            path = find_output_name(combined.values, source, filename);
         
         //auto path = combined.map.at("filename").value<file::Path>();
         if(not path.has_extension() || path.extension() != "pv")
             path = path.add_extension("pv");
         
         if(path.is_regular()) {
-            auto settings_file = file::DataLocation::parse("settings", {},  &combined.map);
+            auto settings_file = file::DataLocation::parse("settings", {},  &combined.values);
             if(not settings_file.exists()
                && source_map.empty())
             {
@@ -599,7 +593,7 @@ void LoadContext::load_settings_from_source() {
                     
                     if(f.header().metadata.has_value()) {
                         const auto& meta = f.header().metadata.value();
-                        sprite::parse_values(sprite::MapSource{ path }, tmp, meta, & combined.map,
+                        sprite::parse_values(sprite::MapSource{ path }, tmp, meta, & combined.values,
                                              changed_model_manually
                                              ? (exclude + exclude_from_external).toVector()
                                              : exclude.toVector(),
@@ -618,15 +612,16 @@ void LoadContext::load_settings_from_source() {
                     if(type == track::detect::ObjectDetectionType::none
                         || task == TRexTask_t::track)
                     {
-                        combined.map["detect_type"] = type = tmp.at("detect_type").value<detect::ObjectDetectionType_t>();
-                        set_config_if_different("detect_type", combined.map);
+                        combined.values["detect_type"] = type = tmp.at("detect_type").value<detect::ObjectDetectionType_t>();
+                        set_config_if_different("detect_type", combined.values);
                     }
                     
-                    if (not combined.map.has("meta_real_width")
-                        || combined.map.at("meta_real_width").value<Float2_t>() == 0)
+                    if (auto meta_real_width = combined.at("meta_real_width");
+                        not meta_real_width.valid()
+                        || meta_real_width.value<Float2_t>() == 0)
                     {
-                        combined.map["meta_real_width"] = infer_meta_real_width_from(f, &combined.map);
-                        set_config_if_different("meta_real_width", combined.map);
+                        combined.values["meta_real_width"] = infer_meta_real_width_from(f, &combined.values);
+                        set_config_if_different("meta_real_width", combined.values);
                     }
                     
                 } catch(const std::exception& ex) {
@@ -652,7 +647,7 @@ void LoadContext::load_settings_from_source() {
                     if(f.header().metadata.has_value()) {
                         const auto& meta = f.header().metadata.value();
                         sprite::parse_values(sprite::MapSource{ path },
-                                             tmp, meta, &combined.map,
+                                             tmp, meta, &combined.values,
                                              changed_model_manually
                                                  ? (exclude + exclude_from_external).toVector()
                                                  : exclude.toVector(),
@@ -680,7 +675,7 @@ void LoadContext::load_settings_from_source() {
                             return &map.at("meta_video_size").get();
                         }},
                         {"meta_real_width", [&](auto& map) {
-                            map["meta_real_width"] = infer_meta_real_width_from(f, &combined.map);
+                            map["meta_real_width"] = infer_meta_real_width_from(f, &combined.values);
                             return &map.at("meta_real_width").get();
                         }},
                         {"cm_per_pixel", [&](auto& map) -> const sprite::PropertyType* {
@@ -722,8 +717,8 @@ void LoadContext::load_settings_from_source() {
                         // or we dont have one.
                         const bool needs_update = not default_value
                             || (default_value
-                                && (not combined.map.has(key)
-                                    || combined.map.at(key).get() == *default_value));
+                                && (not combined.values.has(key)
+                                    || combined.values.at(key).get() == *default_value));
                         
                         // we also need to check if we have a compute function for it
                         if (compute_defaults.contains(key)) {
@@ -744,8 +739,8 @@ void LoadContext::load_settings_from_source() {
                             if (tmp.has(key)) {
                                 // Copy value from tmp if available
                                 //Print("* Checking ", key, ": ", tmp.at(key).get(), " combined=", combined.map.at(key));
-                                tmp.at(key).get().copy_to(combined.map);
-                                set_config_if_different(key, combined.map);
+                                tmp.at(key).get().copy_to(combined.values);
+                                set_config_if_different(key, combined.values);
                             } else {
                                 //Print("* Key not checked ", key);
                             }
@@ -771,8 +766,10 @@ void LoadContext::load_task_defaults() {
     /// ---------------------------
     /// 11. defaults based on task
     /// ---------------------------
-    if(combined.map.has("detect_type")) {
-        type = combined.map.at("detect_type").value<detect::ObjectDetectionType_t>();
+    if(auto detect_type = combined.at("detect_type");
+       detect_type.valid())
+    {
+        type = detect_type.value<detect::ObjectDetectionType_t>();
     }
     
     {
@@ -808,7 +805,7 @@ void LoadContext::load_settings_file() {
     /// --------------------------------------------
     /// 12. load the video settings (if they exist):
     /// --------------------------------------------
-    auto settings_file = file::DataLocation::parse("settings", {},  &combined.map);
+    auto settings_file = file::DataLocation::parse("settings", {},  &combined.values);
     if(settings_file.exists())
     {
         G g(settings_file.str(), quiet);
@@ -827,7 +824,7 @@ void LoadContext::load_settings_file() {
                 .access = AccessLevelType::STARTUP,
                 .exclude = manual_exclude,
                 .target = &map,
-                .additional = &combined.map
+                .additional = &combined.values
             });
             //auto rejected = GlobalSettings::load_from_file(deprecations(), settings_file.str(), AccessLevelType::STARTUP, true, manual_exclude, &map, &combined.map);
             
@@ -884,8 +881,9 @@ void LoadContext::load_gui_settings() {
         for(auto& key : source_map.keys()) {
             if(contains(exclude.toVector(), key))
             {
-                if (combined.map.has(key)
-                    && combined.map.at(key) == source_map.at(key))
+                if (auto value = combined.at(key);
+                    value.valid()
+                    && value == source_map.at(key))
                 {
                     /// can be ignored / no print-out since it would
                     /// not change anything
@@ -907,22 +905,23 @@ void LoadContext::load_gui_settings() {
 
 void LoadContext::estimate_meta_variables() {
     if(source.empty()
-       && (not combined.map.has("meta_video_size")
-           || combined.map.at("meta_video_size").value<Size2>().empty()))
+       && (not combined.values.has("meta_video_size")
+           || combined.values.at("meta_video_size").value<Size2>().empty()))
     {
         if(not quiet)
             Print("// Defaulting to meta_video_size of 1920x1080 for empty source.");
-        combined.map["meta_video_size"] = Size2(1920_F, 1080_F);
+        combined.values["meta_video_size"] = Size2(1920_F, 1080_F);
         
-    } else if(not combined.map.has("meta_video_size")
-       || combined.map.at("meta_video_size").value<Size2>().empty())
+    } else if(auto meta_video_size = combined.at("meta_video_size");
+              not meta_video_size.valid()
+              || meta_video_size.value<Size2>().empty())
     {
         G g{source.source(), quiet};
         try {
-            if(auto source = combined.map.at("source").value<file::PathArray>();
+            if(auto source = combined.at("source").value<file::PathArray>();
                source == file::PathArray("webcam"))
             {
-                combined.map["meta_video_size"] = Size2(1920_F, 1080_F);
+                combined.values["meta_video_size"] = Size2(1920_F, 1080_F);
                 
             } else if(source.get_paths().size() == 1
                       && source.get_paths().front().has_extension("pv"))
@@ -935,58 +934,62 @@ void LoadContext::estimate_meta_variables() {
                 pv::File video(source.get_paths().front());
                 if(video.size().empty())
                     throw InvalidArgumentException("Invalid video size read from ", video.filename());
-                combined.map["meta_video_size"] = Size2(video.size());
+                combined.values["meta_video_size"] = Size2(video.size());
                 ///
                 
             } else {
                 VideoSource video(source);
                 auto size = video.size();
-                combined.map["meta_video_size"] = Size2(size);
+                combined.values["meta_video_size"] = Size2(size);
             }
             
         } catch(...) {
-            combined.map["meta_video_size"] = Size2(1920_F, 1080_F);
+            combined.values["meta_video_size"] = Size2(1920_F, 1080_F);
             if(not quiet)
                 FormatWarning("Cannot open video source ", source, ". Please check permissions, or whether the file provided is broken. Defaulting to 1920px.");
         }
     }
     
-    if (not combined.map.has("meta_real_width")
-        || combined.map.at("meta_real_width").value<Float2_t>() == 0)
+    if (auto meta_real_width = combined.at("meta_real_width");
+        not meta_real_width.valid()
+        || meta_real_width.value<Float2_t>() == 0)
     {
-        auto meta_video_size = combined.map.at("meta_video_size");
+        auto meta_video_size = combined.at("meta_video_size");
         Print(meta_video_size);
         assert(meta_video_size.valid() && not meta_video_size.value<Size2>().empty());
-        combined.map["meta_real_width"] = meta_video_size.value<Size2>().width;
+        combined.values["meta_real_width"] = meta_video_size.value<Size2>().width;
     }
     
-    if (combined.map.has("cm_per_pixel")
-        && combined.map.at("cm_per_pixel").value<Settings::cm_per_pixel_t>() == 0)
+    if (auto cm_per_pixel = combined.at("cm_per_pixel");
+        cm_per_pixel.valid()
+        && cm_per_pixel.value<Settings::cm_per_pixel_t>() == 0)
     {
-        if (combined.map.has("source")
-            && combined.map.at("source").value<file::PathArray>() == file::PathArray("webcam"))
+        if (auto source = combined.at("source");
+            source.valid()
+            && source.value<file::PathArray>() == file::PathArray("webcam"))
         {
-            combined.map["cm_per_pixel"] = Settings::cm_per_pixel_t(1);
+            combined.values["cm_per_pixel"] = Settings::cm_per_pixel_t(1);
         } else
-            combined.map["cm_per_pixel"] = infer_cm_per_pixel(&combined.map);
+            combined.values["cm_per_pixel"] = infer_cm_per_pixel(&combined.values);
     }
     
-    const Float2_t tmp_cm_per_pixel = combined.map.at("cm_per_pixel").value<Settings::cm_per_pixel_t>();
-    current_defaults["track_max_speed"] = 0.25_F * combined.map.at("meta_video_size").value<Size2>().width * (tmp_cm_per_pixel == 0 ? 1_F : tmp_cm_per_pixel);
+    const Float2_t tmp_cm_per_pixel = combined.at("cm_per_pixel").value<Settings::cm_per_pixel_t>();
+    current_defaults["track_max_speed"] = 0.25_F * combined.at("meta_video_size").value<Size2>().width * (tmp_cm_per_pixel == 0 ? 1_F : tmp_cm_per_pixel);
     if(not quiet)
-        Print(" * default max speed for a video of resolution ", combined.map.at("meta_video_size").value<Size2>().width, " would be ", no_quotes(current_defaults["track_max_speed"].get().valueString()));
+        Print(" * default max speed for a video of resolution ", combined.at("meta_video_size").value<Size2>().width, " would be ", no_quotes(current_defaults["track_max_speed"].get().valueString()));
     
-    if(not combined.map.has("track_max_speed")
-       || combined.map.at("track_max_speed").value<Settings::track_max_speed_t>() == 0)
+    if(auto track_max_speed = combined.at("track_max_speed");
+       not track_max_speed.valid()
+       || track_max_speed.value<Settings::track_max_speed_t>() == 0)
     {
-        combined.map["track_max_speed"] = current_defaults["track_max_speed"].value<Settings::track_max_speed_t>();
+        combined.values["track_max_speed"] = current_defaults["track_max_speed"].value<Settings::track_max_speed_t>();
     }
     
     if(not quiet) {
-        Print("track_max_speed = ", combined.map.at("track_max_speed").value<Settings::track_max_speed_t>());
-        Print("cm_per_pixel = ", combined.map.at("cm_per_pixel").value<Settings::cm_per_pixel_t>());
-        Print("meta_real_width = ", no_quotes(combined.map.at("meta_real_width").get().valueString()));
-        Print("meta_video_size = ", no_quotes(combined.map.at("meta_video_size").get().valueString()));
+        Print("track_max_speed = ", combined.at("track_max_speed").value<Settings::track_max_speed_t>());
+        Print("cm_per_pixel = ", combined.at("cm_per_pixel").value<Settings::cm_per_pixel_t>());
+        Print("meta_real_width = ", no_quotes(combined.at("meta_real_width").get().valueString()));
+        Print("meta_video_size = ", no_quotes(combined.at("meta_video_size").get().valueString()));
     }
 }
 
@@ -994,24 +997,24 @@ void LoadContext::finalize() {
     /// --------------------------------------
     G g("FINAL CONFIG", quiet);
 
-    for(auto &key : combined.map.keys()) {
+    for(auto &key : combined.values.keys()) {
         try {
-            if(GlobalSettings::access_level(key) < AccessLevelType::SYSTEM
+            if(combined._access_level(key) < AccessLevelType::SYSTEM
                && (not GlobalSettings::has(key)
-                   || GlobalSettings::map().at(key).get() != combined.map.at(key).get())
+                   || GlobalSettings::map().at(key).get() != combined.at(key).get())
                )
             {
                 //if(not contains(copy.toVector(), key))
                 {
                     //Print("Updating ",combined.map.at(key));
                     if(key == "filename"
-                       && (combined.map.at(key).value<file::Path>() == find_output_name(combined.map, {}, {}, false)
-                           || (not combined.map.at(key).value<file::Path>().is_absolute()
-                               && combined.map.at(key).value<file::Path>() == file::find_basename(combined.map.at("source").value<file::PathArray>()))))
+                       && (combined.at(key).value<file::Path>() == find_output_name(combined.values, {}, {}, false)
+                           || (not combined.at(key).value<file::Path>().is_absolute()
+                               && combined.at(key).value<file::Path>() == file::find_basename(combined.at("source").value<file::PathArray>()))))
                     {
                         #ifndef NDEBUG
                         if(not quiet) {
-                            Print("Setting filename to empty since it is the default: combined.map[", combined.map.at(key).value<file::Path>(),"] == find_output_name[", find_output_name(combined.map, {}, {}, false),"] or is relative to source: ", combined.map.at("source").value<file::PathArray>(), "(which is ", file::find_basename(combined.map.at("source").value<file::PathArray>()), ")");
+                            Print("Setting filename to empty since it is the default: combined.map[", combined.at(key).value<file::Path>(),"] == find_output_name[", find_output_name(combined.values, {}, {}, false),"] or is relative to source: ", combined.at("source").value<file::PathArray>(), "(which is ", file::find_basename(combined.at("source").value<file::PathArray>()), ")");
                         }
                         #endif
                         SETTING(filename) = file::Path();
@@ -1019,14 +1022,14 @@ void LoadContext::finalize() {
                     }
                     
                     if(key == "output_dir"
-                       && combined.map.at(key).value<file::Path>() == file::find_parent( combined.map.at("source").value<file::PathArray>()))
+                       && combined.at(key).value<file::Path>() == file::find_parent( combined.at("source").value<file::PathArray>()))
                     {
                         SETTING(output_dir) = file::Path();
                         continue;
                     }
                     
                     if(not is_in(key, "gui_interface_scale")) {
-                        combined.map.at(key).get().copy_to(GlobalSettings::map());
+                        combined.at(key).get().copy_to(GlobalSettings::map());
                     }
                 }
                 /*else {
@@ -1047,9 +1050,9 @@ bool LoadContext::set_config_if_different(
 {
     bool was_different{false};
     
-    if(&combined.map != &from) {
-        if((combined.map.has(key)
-            && combined.map.at(key) != from.at(key))
+    if(&combined.values != &from) {
+        if((combined.values.has(key)
+            && combined.at(key) != from.at(key))
            || not GlobalSettings::defaults().has(key)
            || GlobalSettings::defaults().at(key) != from.at(key))
         {
@@ -1058,9 +1061,9 @@ bool LoadContext::set_config_if_different(
             {
                 Print("setting current_defaults ", from.at(key), " != ", GlobalSettings::defaults().at(key));
             }*/
-            if(not combined.map.has(key) || combined.map.at(key) != from.at(key)) {
+            if(not combined.values.has(key) || combined.at(key) != from.at(key)) {
                 //Print("setting combined.map ", key, " to ", from.at(key).get().valueString());
-                from.at(key).get().copy_to(combined.map);
+                from.at(key).get().copy_to(combined.values);
                 was_different = true;
             }
             
@@ -1205,8 +1208,8 @@ void load(LoadContext ctx) {
     };
 
     // Step 6: Check if the detection model was manually specified; preserve it if so.
-    ctx.changed_model_manually = ctx.combined.map.has("detect_model")
-                && not ctx.combined.map.at("detect_model").value<file::Path>().empty();
+    ctx.changed_model_manually = ctx.combined.values.has("detect_model")
+                && not ctx.combined.at("detect_model").value<file::Path>().empty();
 
     // Step 7: Load settings embedded in the source .pv file (if present).
     ctx.load_settings_from_source();
@@ -1233,7 +1236,7 @@ void load(LoadContext ctx) {
         /// use the new technology first:
         ctx.type = detect::ObjectDetectionType::yolo;
     }
-    ctx.combined.map["detect_type"] = ctx.type;
+    ctx.combined.values["detect_type"] = ctx.type;
 
     // Step 13: For pure detection format (boxes), disable posture estimation.
     /*if(auto detect_format = ctx.combined.map.at("detect_format").value<track::detect::ObjectDetectionFormat_t>();

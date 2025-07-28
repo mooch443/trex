@@ -667,7 +667,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
     return false;
 }
     
-    void get(sprite::Map& config, GlobalSettings::docs_map_t& docs, std::function<void(const std::string& name, AccessLevel w)> fn)
+    void get(Configuration& config)
     {
         //auto old = config.print_by_default();
         //config.set_print_by_default(true);
@@ -676,9 +676,10 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         constexpr auto SYSTEM = AccessLevelType::SYSTEM;
         constexpr auto LOAD = AccessLevelType::LOAD;
         constexpr auto INIT = AccessLevelType::INIT;
+        constexpr auto PUBLIC = AccessLevelType::PUBLIC;
         
         using namespace settings;
-        Adding adding(config, docs, fn);
+        Adding adding(config);
         
         CONFIG("app_name", std::string("TRex"), "Name of the application.", SYSTEM);
         CONFIG("app_check_for_updates", app_update_check_t::none, "If enabled, the application will regularly check for updates online (`https://api.github.com/repos/mooch443/trex/releases`).");
@@ -711,7 +712,28 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         
         CONFIG("meta_encoding", meta_encoding_t::rgb8, "The encoding used for the given .pv video.");
         CONFIG("detect_classes", cmn::blob::MaybeObjectClass_t{}, "Class names for object classification in video during conversion.");
-        CONFIG("detect_skeleton", std::optional<blob::Pose::Skeletons>{}, "Skeleton to be used when displaying pose data.");
+        CONFIG("detect_skeleton", std::optional<blob::Pose::Skeletons>{}, "Skeleton to be used when displaying pose data.", PUBLIC, std::optional<std::optional<blob::Pose::Skeletons>>{std::optional<blob::Pose::Skeletons>{
+            blob::Pose::Skeletons{
+                ._skeletons = {{"human", std::vector<blob::Pose::Skeleton::Connection>{
+                    {0, 1, "Nose to Left Eye"},
+                    {0, 2, "Nose to Right Eye"},
+                    {1, 3, "Left Eye to Ear"},
+                    {2, 4, "Right Eye to Ear"},
+                    {5, 6, "Left to Right Shoulder"},
+                    {5, 7, "Left Upper Arm"},
+                    {7, 9, "Left Forearm"},
+                    {6, 8, "Right Upper Arm"},
+                    {8, 10, "Right Forearm"},
+                    {5, 11, "Left Shoulder to Hip"},
+                    {6, 12, "Right Shoulder to Hip"},
+                    {11, 12, "Left to Right Hip"},
+                    {11, 13, "Left Thigh"},
+                    {13, 15, "Left Shin"},
+                    {12, 14, "Right Thigh"},
+                    {14, 16, "Right Shin"}
+                }}}
+            }
+        }});
         CONFIG("meta_source_path", std::string(""), "Path of the original video file for conversions (saved as debug info).", LOAD);
         CONFIG("meta_species", std::string(""), "Name of the species used.");
         CONFIG("meta_age_days", long_t(-1), "Age of the individuals used in days.");
@@ -1138,7 +1160,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         auto keys = GlobalSettings::map().keys();
         
         sprite::Map config;
-        GlobalSettings::docs_map_t docs;
+        docs_map_t docs;
         
         config = GlobalSettings::get_current_defaults();
         //grab::default_config::get(config, docs, nullptr);

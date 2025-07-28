@@ -90,7 +90,7 @@ bool pause_stuff{false};
 static_assert(_has_tostr_method<file::Path>, "Expecting Path to have toStr");
 
 void save_rst_files() {
-    auto rst = cmn::settings::help_restructured_text("TRex parameters", GlobalSettings::defaults(), GlobalSettings::docs(), GlobalSettings::access_levels(), "", "", "", AccessLevelType::STARTUP);
+    auto rst = cmn::settings::help_restructured_text("TRex parameters", GlobalSettings::config(), "", "", "", AccessLevelType::STARTUP);
     file::Path path = file::DataLocation::parse("output", "parameters_trex.rst");
     auto f = path.fopen("wb");
     if(!f)
@@ -671,12 +671,8 @@ int main(int argc, char**argv) {
     SetConsoleOutputCP( 65001 );
 #endif
     default_config::register_default_locations();
-    
-    grab::default_config::get(GlobalSettings::map(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
-    grab::default_config::get(GlobalSettings::set_defaults(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
-    
-    ::default_config::get(GlobalSettings::map(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
-    ::default_config::get(GlobalSettings::set_defaults(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
+    grab::default_config::get(GlobalSettings::config());
+    ::default_config::get(GlobalSettings::config());
     
     gui::init_errorlog();
     set_thread_name("main");

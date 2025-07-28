@@ -34,14 +34,14 @@ AnimatedBackground::AnimatedBackground(Image::Ptr&& image, const pv::File* video
             
         } else {
             auto metadata = video->header().metadata;
-            SettingsMaps combined;
+            Configuration combined;
             
             try {
-                grab::default_config::get(combined.map, combined.docs, nullptr);
-                default_config::get(combined.map, combined.docs, nullptr);
+                grab::default_config::get(combined);
+                default_config::get(combined);
                 
                 if(metadata.has_value())
-                    sprite::parse_values(sprite::MapSource{video->filename()}, combined.map, metadata.value(), nullptr, {}, default_config::deprecations());
+                    sprite::parse_values(sprite::MapSource{video->filename()}, combined.values, metadata.value(), nullptr, {}, default_config::deprecations());
                 
             }
             catch (...) {
@@ -55,9 +55,9 @@ AnimatedBackground::AnimatedBackground(Image::Ptr&& image, const pv::File* video
              }*/
             
             if (meta_source_path.empty()
-                && combined.map.has("meta_source_path"))
+                && combined.has("meta_source_path"))
             {
-                meta_source_path = combined.map.at("meta_source_path").value<std::string>();
+                meta_source_path = combined.at("meta_source_path").value<std::string>();
             }
             
             _video_offset = 0;

@@ -6,10 +6,11 @@
 
 namespace grab {
 namespace default_config {
-    
+
+
     
     const std::map<std::string, std::string>& deprecations();
-    void get(cmn::sprite::Map& config, cmn::GlobalSettings::docs_map_t& docs, std::function<void(const std::string& name, cmn::AccessLevel w)> fn);
+    void get(cmn::Configuration& config);
     void warn_deprecated(cmn::sprite::Map& map);
 
 }

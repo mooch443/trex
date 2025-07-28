@@ -24,7 +24,7 @@ struct LoadContext {
     cmn::sprite::Map source_map;
     bool quiet{false};
 
-    SettingsMaps combined;
+    Configuration combined;
     sprite::Map current_defaults;
     bool did_set_calculate_posture_to_false{false};
 
@@ -84,7 +84,7 @@ set_defaults_for( track::detect::ObjectDetectionType_t detect_type,
                   cmn::sprite::Map& output,
                   ExtendableVector exclude = {});
 
-SettingsMaps reset(const cmn::sprite::Map& extra_map = {}, cmn::sprite::Map* output = nullptr);
+Configuration reset(const cmn::sprite::Map& extra_map = {}, cmn::sprite::Map* output = nullptr);
 
 void write_config(const pv::File*, bool overwrite, gui::GUITaskQueue_t* queue, const std::string& suffix = "");
 Float2_t infer_cm_per_pixel(const cmn::sprite::Map* = nullptr);
