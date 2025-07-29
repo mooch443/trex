@@ -13,7 +13,7 @@ static const auto local_settings = []() -> std::unique_ptr<LocalSettings> {
 	auto ptr = std::make_unique<LocalSettings>();
     ///static std::once_flag update_flag;
     //std::call_once(update_flag, [](){
-    GlobalSettings::map().register_callbacks({
+    GlobalSettings::register_callbacks({
         "frame_rate",
         "track_enforce_frame_rate",
         "cm_per_pixel"

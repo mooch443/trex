@@ -710,7 +710,7 @@ bool HeatmapController::update_variables() {
     }
     
     Frame_t context;
-    if(SETTING(heatmap_dynamic)) {
+    if(BOOL_SETTING(heatmap_dynamic)) {
         context = max(1_f, Frame_t(SETTING(heatmap_frames).value<uint32_t>()));
         
     } else {

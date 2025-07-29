@@ -78,7 +78,7 @@ std::unique_ptr<PPFrame> GUICache::PPFrameMaker::operator()() const {
         globals::Cache::init();
         globals::CachedGUIOptions::init();
         
-        _settings_callback = GlobalSettings().map().register_callbacks({"gui_fish_label"}, [this](auto)
+        _settings_callback = GlobalSettings::register_callbacks({"gui_fish_label"}, [this](auto)
         {
             std::unique_lock g{label_mutex};
             _label_text = SETTING(gui_fish_label).value<std::string>();
@@ -87,7 +87,7 @@ std::unique_ptr<PPFrame> GUICache::PPFrameMaker::operator()() const {
     }
 
     GUICache::~GUICache() {
-        GlobalSettings().map().unregister_callbacks(std::move(_settings_callback));
+        GlobalSettings::unregister_callbacks(std::move(_settings_callback));
         
         if(_delete_frame_callback) {
             LockGuard guard(ro_t{}, "Delete Frame Callback Delete");
@@ -355,7 +355,7 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
     
     Frame_t GUICache::update_data(const Frame_t frameIndex) {
         const auto threshold = FAST_SETTING(track_threshold);
-        const bool output_normalize_midline_data = SETTING(output_normalize_midline_data);
+        const bool output_normalize_midline_data = BOOL_SETTING(output_normalize_midline_data);
         //const auto posture_threshold = FAST_SETTING(track_posture_threshold);
         auto& _gui = *_graph;
         _equalize_histograms = GUI_SETTINGS(gui_equalize_blob_histograms);
@@ -865,7 +865,7 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
                 }
             }
             
-            if(!has_selection() || !SETTING(gui_auto_scale_focus_one)) {
+            if(!has_selection() || not BOOL_SETTING(gui_auto_scale_focus_one)) {
                 selected_blobs = active_blobs;
             } else {
                 // display blobs that are selected

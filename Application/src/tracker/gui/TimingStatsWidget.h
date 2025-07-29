@@ -6,6 +6,7 @@
 #include <gui/types/Entangled.h>
 #include <gui/GuiTypes.h>
 #include <gui/types/Layout.h>
+#include <gui/Dispatcher.h>
 
 namespace cmn::gui {
 
@@ -36,5 +37,10 @@ public:
     void set(std::chrono::steady_clock::duration window) { _window = window; }
     void set(RowHeight_t h) { _rowHeight = (int)h; }
 };
+
+namespace attr {
+CMN_GUI_REGISTER_ATTRIBUTE_MEMBER(TimingStatsWidget, TimingStatsWidget::RowHeight_t);
+CMN_GUI_REGISTER_ATTRIBUTE_MEMBER(TimingStatsWidget, std::chrono::steady_clock::duration);
+}
 
 } // namespace cmn::gui

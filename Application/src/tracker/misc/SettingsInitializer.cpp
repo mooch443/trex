@@ -23,7 +23,9 @@ void initialize_filename_for_tracking() {
     if(not SETTING(filename).value<file::Path>().empty()) {
         path = SETTING(filename).value<file::Path>();
     } else {
-        path = file::Path(settings::find_output_name(GlobalSettings::map()));
+        path = GlobalSettings::read([](const Configuration& config){
+            return settings::find_output_name(config.values);
+        });
     }
     
     if(not path.has_extension()
@@ -59,7 +61,8 @@ void initialize_filename_for_tracking() {
 std::unordered_set<std::string_view>
 set_defaults_for(detect::ObjectDetectionType_t detect_type,
                  cmn::sprite::Map& output,
-                 ExtendableVector exclude)
+                 ExtendableVector exclude,
+                 Float2_t cm_per_pixel)
 {
     std::unordered_set<std::string_view> changed_keys;
         
@@ -85,7 +88,6 @@ set_defaults_for(detect::ObjectDetectionType_t detect_type,
     };
     
     if(detect_type == track::detect::ObjectDetectionType::background_subtraction) {
-        auto cm_per_pixel = SETTING(cm_per_pixel).value<Settings::cm_per_pixel_t>();
         if(cm_per_pixel <= 0) {
             cm_per_pixel = 1;
         }
@@ -155,11 +157,15 @@ set_defaults_for(detect::ObjectDetectionType_t detect_type,
     
     return changed_keys;
 }
-
 Configuration reset(const cmn::sprite::Map& extra_map, cmn::sprite::Map* output) {
-    if(not output)
-        output = &GlobalSettings::map();
+    if(output)
+        return reset(extra_map, *output);
     
+    return GlobalSettings::write([&extra_map](Configuration& config){
+        return reset(extra_map, config.values);
+    });
+}
+Configuration reset(const cmn::sprite::Map& extra_map, cmn::sprite::Map& output) {
     Configuration combined;
     combined.values.set_print_by_default(false);
     
@@ -173,7 +179,7 @@ Configuration reset(const cmn::sprite::Map& extra_map, cmn::sprite::Map* output)
         combined.values["detect_type"] = detect::ObjectDetectionType::yolo;
     }
     
-    set_defaults_for(combined.at("detect_type"), combined.values, {});
+    set_defaults_for(combined.at("detect_type"), combined.values, {}, combined.at("cm_per_pixel").value<Settings::cm_per_pixel_t>());
     
     for(auto &key : extra_map.keys()) {
         try {
@@ -189,13 +195,13 @@ Configuration reset(const cmn::sprite::Map& extra_map, cmn::sprite::Map* output)
         }
     }
     
-    if(output != &combined.values) {
+    if(&output != &combined.values) {
         for(auto &key : combined.values.keys()) {
             try {
                 if(auto level = combined._access_level(key);
                    level < AccessLevelType::SYSTEM
-                   && (not output->has(key)
-                       || output->at(key).get() != combined.at(key).get())
+                   && (not output.has(key)
+                       || output.at(key).get() != combined.at(key).get())
                    )
                 {
                     /// special case convenience function for filename
@@ -219,7 +225,7 @@ Configuration reset(const cmn::sprite::Map& extra_map, cmn::sprite::Map* output)
                     
                     /// copy to destination map
                     if(not is_in(key, "gui_interface_scale"))
-                        combined.at(key).get().copy_to(*output);
+                        combined.at(key).get().copy_to(output);
                 }
             } catch(const std::exception& ex) {
                 FormatExcept("Cannot parse setting ", key, " and copy it to output map: ", ex.what());
@@ -270,7 +276,7 @@ void LoadContext::init() {
         default_path.exists())
     {
         try {
-            auto str = utils::read_file(default_path.str());
+            auto str = default_path.read_file();
             if(not str.empty()) {
                 G g(default_path.str(), quiet);
                 auto rejected = GlobalSettings::load_from_string(str, {
@@ -296,7 +302,7 @@ void LoadContext::init() {
     /// excluding filename and source + other defaults
     auto& cmd = CommandLine::instance();
     
-    cmd.load_settings(nullptr, &combined.values, exclude.toVector());
+    cmd.load_settings(combined.values, exclude.toVector());
     if(cmd.settings_keys().contains("wd")) {
         combined.values["wd"] = file::Path(cmd.settings_keys().at("wd"));
         set_config_if_different("wd", combined.values);
@@ -307,7 +313,7 @@ void LoadContext::init() {
     /// 5. exclude STARTUP variables
     /// ----------------------------
     std::vector<std::string> startup_variables;
-    for (auto& key : GlobalSettings::map().keys()) {
+    for (auto& key : GlobalSettings::keys()) {
         if (GlobalSettings::access_level(key) >= AccessLevelType::STARTUP) {
             startup_variables.emplace_back(key);
         }
@@ -777,7 +783,7 @@ void LoadContext::load_task_defaults() {
         const sprite::Map values {
             [this](){
                 sprite::Map values;
-                set_defaults_for(type, values);
+                set_defaults_for(type, values, {}, combined.at("cm_per_pixel").value<Settings::cm_per_pixel_t>());
                 return values;
             }()
         };
@@ -838,28 +844,36 @@ void LoadContext::load_settings_file() {
                 {
                     Print("// meta_source_path = ",no_quotes(tmp.at("meta_source_path").value<std::string>())," not set");
                 }
-                tmp.at("meta_source_path").get().copy_to(GlobalSettings::current_defaults_with_config());
+                
+                GlobalSettings::write([&](sprite::Map&, sprite::Map& with_config) {
+                    tmp.at("meta_source_path").get().copy_to(with_config);
+                });
             }
             
             //auto before = combined.map.print_by_default();
             //combined.map.set_print_by_default(false);
-
+            Print("// map contains ", map.keys());
             for(auto &key : map.keys()) {
                 if(not set_config_if_different(key, map)) {
-                    //Print("// ", key, " was already set to ", no_quotes(map.at(key).get().valueString()));
+                    Print("// ", key, " was already set to ", no_quotes(map.at(key).get().valueString()));
                 }
                 
-                map.at(key).get().copy_to(GlobalSettings::current_defaults_with_config());
+                GlobalSettings::write([&](sprite::Map&, sprite::Map& with_config) {
+                    map.at(key).get().copy_to(with_config);
+                });
             }
             //combined.map.set_print_by_default(before);
             //exclude_from_pv = exclude_from_pv + map.keys();
             
-            /*for(auto &[key, value] : rejected) {
-                if(not map.has(key) || not combined.map.has(key) || map.at(key) != combined.map.at(key)) {
+            for(auto &[key, value] : rejected) {
+                if(not map.has(key)
+                   || not combined.values.has(key)
+                   || map.at(key) != combined.values.at(key))
+                {
                     // has been ignored
-                    Print("// not setting ", key);
+                    Print("// not setting ", key, " because it is ", combined.values.at(key));
                 }
-            }*/
+            }
             
         } catch(const std::exception& ex) {
             FormatError("Failed to execute settings file ",settings_file,": ", ex.what());
@@ -876,7 +890,7 @@ void LoadContext::load_gui_settings() {
     /// -------------------------------------
     if(not source_map.empty()) {
         G g("GUI settings", quiet);
-        //Print("gui settings contains: ", source_map.keys());
+        Print("gui settings contains: ", source_map.keys());
         
         for(auto& key : source_map.keys()) {
             if(contains(exclude.toVector(), key))
@@ -999,14 +1013,14 @@ void LoadContext::finalize() {
 
     for(auto &key : combined.values.keys()) {
         try {
-            if(combined._access_level(key) < AccessLevelType::SYSTEM
-               && (not GlobalSettings::has(key)
-                   || GlobalSettings::map().at(key).get() != combined.at(key).get())
-               )
+            if(auto v = GlobalSettings::read_value<NoType>(key);
+               combined._access_level(key) < AccessLevelType::SYSTEM
+               && (not v.valid() || v.get() != combined.at(key).get())
+            )
             {
                 //if(not contains(copy.toVector(), key))
                 {
-                    //Print("Updating ",combined.map.at(key));
+                    Print("Updating ",combined.values.at(key));
                     if(key == "filename"
                        && (combined.at(key).value<file::Path>() == find_output_name(combined.values, {}, {}, false)
                            || (not combined.at(key).value<file::Path>().is_absolute()
@@ -1029,12 +1043,14 @@ void LoadContext::finalize() {
                     }
                     
                     if(not is_in(key, "gui_interface_scale")) {
-                        combined.at(key).get().copy_to(GlobalSettings::map());
+                        GlobalSettings::write([&](Configuration& config){
+                            combined.at(key).get().copy_to(config.values);
+                        });
                     }
                 }
-                /*else {
-                 Print("Would be updating ",combined.map.at(key), " but is forbidden.");
-                 }*/
+            }
+            else {
+                //Print("Would be updating ",combined.at(key), " but is forbidden.");
             }
         } catch(const std::exception& ex) {
             FormatExcept("Cannot parse setting ", key, " and copy it to GlobalSettings: ", ex.what());
@@ -1051,10 +1067,11 @@ bool LoadContext::set_config_if_different(
     bool was_different{false};
     
     if(&combined.values != &from) {
-        if((combined.values.has(key)
+        if(auto def = GlobalSettings::read_default<NoType>(key);
+           (combined.values.has(key)
             && combined.at(key) != from.at(key))
-           || not GlobalSettings::defaults().has(key)
-           || GlobalSettings::defaults().at(key) != from.at(key))
+           || not def.valid()
+           || def.get() != from.at(key).get())
         {
             //if(do_print)
             /*if(not GlobalSettings::defaults().has(key) || GlobalSettings::defaults().at(key) != from.at(key))
@@ -1062,7 +1079,7 @@ bool LoadContext::set_config_if_different(
                 Print("setting current_defaults ", from.at(key), " != ", GlobalSettings::defaults().at(key));
             }*/
             if(not combined.values.has(key) || combined.at(key) != from.at(key)) {
-                //Print("setting combined.map ", key, " to ", from.at(key).get().valueString());
+                Print("setting combined.map ", key, " to ", from.at(key).get().valueString());
                 from.at(key).get().copy_to(combined.values);
                 was_different = true;
             }
@@ -1070,9 +1087,9 @@ bool LoadContext::set_config_if_different(
             if(key == "detect_type")
                 type = from.at(key).value<decltype(type)>();
         }
-        /*else {
-            Print("/// ", key, " is already set to ", combined.map.at(key).get().valueString());
-        }*/
+        else {
+            Print("/// ", key, " is already set to ", combined.at(key).get().valueString());
+        }
     }
     
     if(not current_defaults.has(key)
@@ -1080,29 +1097,30 @@ bool LoadContext::set_config_if_different(
     {
         //if(do_print)
         //    Print("setting current_defaults ", from.at(key), " != ", current_defaults.at(key));
-        if (not GlobalSettings::defaults().has(key)
-            || GlobalSettings::defaults().at(key) != from.at(key))
+        if (auto def = GlobalSettings::read_default<NoType>(key);
+            not def.valid()
+            || def != from.at(key))
         {
             from.at(key).get().copy_to(current_defaults);
-            //Print("/// [current_defaults] ", current_defaults.at(key).get());
+            Print("/// [current_defaults] ", current_defaults.at(key).get());
         }
         else if (current_defaults.has(key))
         {
-            //Print("/// [current_defaults] REMOVE ", current_defaults.at(key).get());
+            Print("/// [current_defaults] REMOVE ", current_defaults.at(key).get());
             current_defaults.erase(key);
         }
         else {
             /// we dont have it, but it is default
-            //Print("/// [current_defaults] ", key, " is default = ", from.at(key).get().valueString());
+            Print("/// [current_defaults] ", key, " is default = ", from.at(key).get().valueString());
         }
         
     } //else if(current_defaults.has(key) && current_defaults.at(key) == from.at(key))
     else if(current_defaults.has(key)) {
-        //Print("/// [current_defaults] ", key, " is already set to ", current_defaults.at(key).get().valueString());
+        Print("/// [current_defaults] ", key, " is already set to ", current_defaults.at(key).get().valueString());
         //current_defaults.erase(key);
     }
     else {
-        //Print("/// *** WEIRD [current_defaults] ", key, " is default = ", from.at(key).get().valueString());
+        Print("/// *** WEIRD [current_defaults] ", key, " is default = ", from.at(key).get().valueString());
     }
     
     return was_different;
@@ -1248,30 +1266,35 @@ void load(LoadContext ctx) {
         }
     }*/
 
+    bool before = GlobalSettings::write([&ctx](Configuration& config){
+        bool before = config.values.print_by_default();
+        if(ctx.quiet)
+            config.values.set_print_by_default(false);
+        return before;
+    });
+    
     // Step 14: Finalize settings: copy combined map to GlobalSettings and preserve print state.
-    bool before = GlobalSettings::map().print_by_default();
-    if(ctx.quiet)
-        GlobalSettings::map().set_print_by_default(false);
-
     ctx.finalize();
+    
     //Print("current defaults = ", current_defaults.keys());
+    
+    GlobalSettings::write([before, &ctx](Configuration& config){
+        config.values.set_print_by_default(before);
+        GlobalSettings::set_current_defaults_with_config(ctx.current_defaults);
 
-    //combined.map.set_print_by_default(true);
-    GlobalSettings::map().set_print_by_default(before);
-    GlobalSettings::set_current_defaults_with_config(ctx.current_defaults);
-
-    // Suppress printing of transient GUI-related settings to reduce log noise.
-    GlobalSettings::map()["gui_frame"].get().set_do_print(false);
-    GlobalSettings::map()["gui_mode"].get().set_do_print(false);
-    GlobalSettings::map()["gui_focus_group"].get().set_do_print(false);
-    GlobalSettings::map()["gui_source_video_frame"].get().set_do_print(false);
-    GlobalSettings::map()["gui_displayed_frame"].get().set_do_print(false);
-    GlobalSettings::map()["heatmap_ids"].get().set_do_print(false);
-    GlobalSettings::map()["gui_run"].get().set_do_print(false);
-    GlobalSettings::map()["track_pause"].get().set_do_print(false);
-    GlobalSettings::map()["terminate"].get().set_do_print(false);
-    GlobalSettings::map()["gui_interface_scale"].get().set_do_print(false);
-
+        // Suppress printing of transient GUI-related settings to reduce log noise.
+        config.values["gui_frame"].get().set_do_print(false);
+        config.values["gui_mode"].get().set_do_print(false);
+        config.values["gui_focus_group"].get().set_do_print(false);
+        config.values["gui_source_video_frame"].get().set_do_print(false);
+        config.values["gui_displayed_frame"].get().set_do_print(false);
+        config.values["heatmap_ids"].get().set_do_print(false);
+        config.values["gui_run"].get().set_do_print(false);
+        config.values["track_pause"].get().set_do_print(false);
+        config.values["terminate"].get().set_do_print(false);
+        config.values["gui_interface_scale"].get().set_do_print(false);
+    });
+    
     // Step 15: Reset selected command-line settings to avoid persisting across runs.
     CommandLine::instance().reset_settings({
         //"output_dir",
@@ -1386,46 +1409,54 @@ void write_config(const pv::File* video, bool overwrite, gui::GUITaskQueue_t* qu
 }
 
 Float2_t infer_cm_per_pixel(const sprite::Map* map) {
-    if(map == nullptr)
-        map = &GlobalSettings::map();
-
-    // setting cm_per_pixel after average has been generated (and offsets have been set)
-    if(not map->has("cm_per_pixel")
-       || map->at("cm_per_pixel").value<Settings::cm_per_pixel_t>() == 0)
-    {
-        /*auto w = map->at("meta_real_width").value<Float2_t>();
-        if(w <= 0) {
-            return 1;
-        }
+    using Type = Settings::cm_per_pixel_t;
+    static constexpr std::string_view key = "cm_per_pixel";
+    
+    std::optional<Type> cm_per_pixel;
+    if(not map) {
+        cm_per_pixel = GlobalSettings::read_value<Type>(key);
         
-        return 1_F / max(1.0_F, w * 0.05_F);*/
+    } else if(auto v = map->at(key);
+              v.valid())
+    {
+        cm_per_pixel = v.value<Type>();
+    }
+    
+    if(not cm_per_pixel
+       || *cm_per_pixel == 0_F)
+    {
         return 1_F;
-        //return w / float(average().cols);
     }
 
-    return map->at("cm_per_pixel").value<Settings::cm_per_pixel_t>();
+    return *cm_per_pixel;
 }
 
 Float2_t infer_meta_real_width_from(const pv::File &file, const sprite::Map* map) {
-    if(not map)
-        map = &GlobalSettings::map();
+    using Type = Float2_t;
+    static constexpr std::string_view key = "meta_real_width";
     
-    if(not map->has("meta_real_width")
-        || map->at("meta_real_width").value<Float2_t>() == 0)
+    std::optional<Type> meta_real_width;
+    if(not map) {
+        meta_real_width = GlobalSettings::read_value<Type>(key);
+        
+    } else if(auto v = map->at(key);
+              v.valid())
+    {
+        meta_real_width = v.value<Type>();
+    }
+    
+    if(not meta_real_width
+       || *meta_real_width == 0_F)
     {
         if(file.header().meta_real_width <= 0) {
-            FormatWarning("This video does not set `meta_real_width`. Please set this value during conversion (see https://trex.run/docs/parameters_trex.html#meta_real_width for details). Defaulting to 30cm.");
-            return Float2_t(30.0);
+            FormatWarning("This video does not set `",no_quotes(key),"`. Please set this value during conversion (see https://trex.run/docs/parameters_trex.html#meta_real_width for details). Defaulting to 30cm.");
+            return 30_F;
         } else {
-            if(not map->has("meta_real_width")
-                || map->at("meta_real_width").value<Float2_t>() == 0)
-            {
-                return file.header().meta_real_width;
-            }
+            return file.header().meta_real_width;
         }
     }
     
-    return map->at("meta_real_width").value<Float2_t>();
+    return *meta_real_width;
 }
 
 }

@@ -83,7 +83,10 @@ void RecentItems::open(const file::PathArray& name, const sprite::Map& options) 
     //if (recent.has(name)) {
     //    return;
     //}
-    auto basename = settings::find_output_name(GlobalSettings::map(), SETTING(source), SETTING(filename), true);
+    auto basename = GlobalSettings::read([](const Configuration& config) {
+        return settings::find_output_name(config.values, config.values.at("source"), config.values.at("filename"), true);
+    });
+    
     if(basename.empty())
         basename = file::DataLocation::parse("output", file::find_basename(name));
     //file::Path basepath = file::DataLocation::parse("output", basename);
@@ -171,23 +174,25 @@ RecentItems RecentItems::read() {
                     
                     try {
                         auto value = Meta::fromStr<std::string>(glz::write_json(v).value());
-                        if(deprecations.correct_deprecation(k, value, &GlobalSettings::map(), entry._options)) {
-                            /// we corrected a deprecation
-#ifndef NDEBUG
-                            FormatWarning(" * correcting deprecated ", k, " = ", value);
-#endif
-                        } else {
-                            if (not entry._options.has(key)) {
-                                if (GlobalSettings::defaults().has(key)) {
-                                    GlobalSettings::defaults().at(key).get().copy_to(entry._options);
-                                } else if(GlobalSettings::map().has(key)) {
-                                    GlobalSettings::map().at(key).get().copy_to(entry._options);
-                                } else
-                                    throw std::invalid_argument("Cannot add "+std::string(key)+" since we dont know the type of it.");
+                        GlobalSettings::read([&](const Configuration& config){
+                            if(deprecations.correct_deprecation(k, value, &config.values, entry._options)) {
+                                /// we corrected a deprecation
+    #ifndef NDEBUG
+                                FormatWarning(" * correcting deprecated ", k, " = ", value);
+    #endif
+                            } else {
+                                if (not entry._options.has(key)) {
+                                    if (config.defaults.has(key)) {
+                                        config.defaults.at(key).get().copy_to(entry._options);
+                                    } else if(config.values.has(key)) {
+                                        config.values.at(key).get().copy_to(entry._options);
+                                    } else
+                                        throw std::invalid_argument("Cannot add "+std::string(key)+" since we dont know the type of it.");
+                                }
+                                
+                                entry._options[key].get().set_value_from_string(value);
                             }
-                            
-                            entry._options[key].get().set_value_from_string(value);
-                        }
+                        });
                     }
                     catch (const std::exception& e) {
                         FormatWarning("Cannot set value for key ", key, ": ", e.what());

@@ -61,7 +61,9 @@ void BlurryVideoLoop::preloader_thread(const ThreadGroupId& gid) {
             } else if(path.get_paths().size() == 1
                       && path.get_paths().front().has_extension("pv"))
             {
-                auto output = settings::find_output_name(GlobalSettings::map());
+                auto output = GlobalSettings::read([](const Configuration& config){
+                    return settings::find_output_name(config.values);
+                });
                 auto video = pv::File::Read(output);
                 video.header();
                 

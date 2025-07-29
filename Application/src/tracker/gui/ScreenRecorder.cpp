@@ -380,16 +380,14 @@ void ScreenRecorder::start_recording(Base*base, Frame_t frame) {
     _data->start_recording(base, frame);
     
     Frame_t video_length;
-    if(GlobalSettings::has("video_length")
-       && GlobalSettings::map().is_type<uint64_t>("video_length"))
+    if(GlobalSettings::is_type<uint64_t>("video_length"))
     {
         video_length = Frame_t(SETTING(video_length).value<uint64_t>());
     }
     
     std::function<Frame_t()> current_frame;
     
-    if(GlobalSettings::has("gui_displayed_frame")
-       && GlobalSettings::map().is_type<Frame_t>("gui_displayed_frame"))
+    if(GlobalSettings::is_type<Frame_t>("gui_displayed_frame"))
     {
         current_frame = [](){
             return SETTING(gui_displayed_frame).value<Frame_t>();

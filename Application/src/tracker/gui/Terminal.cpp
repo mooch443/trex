@@ -75,14 +75,16 @@ void open_terminal() {
             }
 #endif
                 
-            else if(GlobalSettings::map().has(command)) {
+            else if(auto v = GlobalSettings::read_value<NoType>(command);
+                    v.valid())
+            {
                 Print("Object ",command);
-                auto str = GlobalSettings::get(command).toStr();
+                auto str = v.toStr();
                 Print(no_quotes(str));
             }
             else {
                 std::set<std::string> matches;
-                for(auto key : GlobalSettings::map().keys()) {
+                for(auto key : GlobalSettings::keys()) {
                     if(utils::contains(utils::lowercase(key), utils::lowercase(command))) {
                         matches.insert(key);
                     }

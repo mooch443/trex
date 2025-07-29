@@ -464,12 +464,12 @@ void start_applying(std::weak_ptr<pv::File> video_source) {
             
             DataStore::clear();
             
-            if(SETTING(auto_categorize) && SETTING(auto_quit)) {
+            if(BOOL_SETTING(auto_categorize) && BOOL_SETTING(auto_quit)) {
                 if(_auto_quit_fn)
                     _auto_quit_fn();
             }
             
-            if(SETTING(auto_categorize))
+            if(BOOL_SETTING(auto_categorize))
                 SETTING(auto_categorize) = false;
             
         } else if(_set_status_fn)

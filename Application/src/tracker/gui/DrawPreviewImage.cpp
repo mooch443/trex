@@ -72,9 +72,15 @@ struct LabeledCheckbox : public LabeledField {
 LabeledCheckbox::LabeledCheckbox(const std::string& name)
     : LabeledField(name),
       _checkbox(std::make_shared<gui::Checkbox>(Str{name})),
-      _ref(GlobalSettings::map()[name])
+      _ref(GlobalSettings::get(name))
 {
-    _docs = GlobalSettings::docs()[name];
+    if(auto doc = GlobalSettings::read_doc(name);
+       doc)
+    {
+        _docs = *doc;
+    } else {
+        FormatWarning("Cannot find documentation for ", name, ".");
+    }
     
     _checkbox->set_checked(_ref.value<bool>());
     _checkbox->set_font(Font(0.7f));
@@ -94,12 +100,18 @@ void LabeledCheckbox::update() {
 LabeledTextField::LabeledTextField(const std::string& name)
     : LabeledField(name),
       _text_field(std::make_shared<gui::Textfield>(Box(0, 0, default_element_width, 28))),
-      _ref(GlobalSettings::map()[name])
+      _ref(GlobalSettings::get(name))
 {
     _text_field->set_placeholder(name);
     _text_field->set_font(Font(0.7f));
     
-    _docs = GlobalSettings::docs()[name];
+    if(auto doc = GlobalSettings::read_doc(name);
+       doc)
+    {
+        _docs = *doc;
+    } else {
+        FormatWarning("Cannot find documentation for ", name, ".");
+    }
 
     update();
     _text_field->on_text_changed([this](){
@@ -121,9 +133,15 @@ void LabeledTextField::update() {
 LabeledDropDown::LabeledDropDown(const std::string& name)
     : LabeledField(name),
       _dropdown(std::make_shared<gui::Dropdown>(Box(0, 0, default_element_width, 28))),
-      _ref(GlobalSettings::map()[name])
+      _ref(GlobalSettings::get(name))
 {
-    _docs = GlobalSettings::docs()[name];
+    if(auto doc = GlobalSettings::read_doc(name);
+       doc)
+    {
+        _docs = *doc;
+    } else {
+        FormatWarning("Cannot find documentation for ", name, ".");
+    }
 
     _dropdown->textfield()->set_font(Font(0.7f));
     assert(_ref.get().is_enum());
@@ -269,7 +287,7 @@ std::tuple<Image::Ptr, Vec2> make_image(pv::BlobWeakPtr blob,
 }
 
 void draw(const Background* average, const PPFrame& pp,Frame_t frame, DrawStructure& graph) {
-    if(not SETTING(gui_show_individual_preview)) {
+    if(not BOOL_SETTING(gui_show_individual_preview)) {
         return; //! function is disabled
     }
     

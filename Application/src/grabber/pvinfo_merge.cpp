@@ -30,7 +30,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
     Frame_t min_length;
     std::vector<std::shared_ptr<pv::File>> files;
     std::vector<std::shared_ptr<Background>> backgrounds;
-    std::vector<std::shared_ptr<sprite::Map>> configs;
+    std::vector<Configuration> configs;
     
     std::map<pv::File*, Float2_t> cms_per_pixel;
     Size2 resolution;
@@ -77,23 +77,22 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
         auto settings_file = file::DataLocation::parse("output_settings");
         if(settings_file.exists()) {
             Print("settings for ",name.str()," found");
-            auto config = std::make_shared<sprite::Map>();
-            GlobalSettings::docs_map_t docs;
-            grab::default_config::get(*config, docs, NULL);
+            Configuration config;
+            grab::default_config::get(config);
             
             GlobalSettings::load_from_file(settings_file.str(), {
                 .access = AccessLevelType::STARTUP,
-                .target = config.get()
+                .target = &config.values
             });
             if(file->header().metadata.has_value())
-                sprite::parse_values(sprite::MapSource{file->filename()}, *config, file->header().metadata.value(), nullptr, {}, default_config::deprecations());
-            if(!config->has("meta_real_width") || config->at("meta_real_width").value<Float2_t>() == 0)
-                (*config)["meta_real_width"].value<Float2_t>(30);
-            if(!config->has("cm_per_pixel") || config->at("cm_per_pixel").value<Float2_t>() == 0)
-                (*config)["cm_per_pixel"] = Float2_t(config->at("meta_real_width").value<Float2_t>() / Float2_t(file->average().cols));
+                sprite::parse_values(sprite::MapSource{file->filename()}, config.values, file->header().metadata.value(), nullptr, {}, default_config::deprecations());
+            if(!config.has("meta_real_width") || config.at("meta_real_width").value<Float2_t>() == 0)
+                config.values["meta_real_width"].value<Float2_t>(30);
+            if(!config.has("cm_per_pixel") || config.at("cm_per_pixel").value<Float2_t>() == 0)
+                config.values["cm_per_pixel"] = Float2_t(config.at("meta_real_width").value<Float2_t>() / Float2_t(file->average().cols));
             
-            cms_per_pixel[file.get()] = config->at("cm_per_pixel").value<Float2_t>();
-            configs.push_back(config);
+            cms_per_pixel[file.get()] = config.at("cm_per_pixel").value<Float2_t>();
+            configs.emplace_back(std::move(config));
             
         } else {
             throw U_EXCEPTION("Cant find settings for ",name.str()," at ",settings_file.str());
@@ -150,7 +149,9 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
     
     if(SETTING(frame_rate).value<uint32_t>() == 0){
         if(files.front()->header().metadata.has_value())
-            sprite::parse_values(sprite::MapSource{files.front()->filename()}, GlobalSettings::map(), files.front()->header().metadata.value(), nullptr, {}, default_config::deprecations());
+            GlobalSettings::write([&](Configuration& config) {
+                sprite::parse_values(sprite::MapSource{files.front()->filename()}, config.values, files.front()->header().metadata.value(), nullptr, {}, default_config::deprecations());
+            });
         
         //SETTING(frame_rate) = int(1000 * 1000 / float(frame.timestamp()));
     }
@@ -204,8 +205,8 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
     //auto start_time = output.header().timestamp;
     Print("Writing videos ",files," to '",out_path.c_str(),"' [0,",min_length,"] with resolution (",resolution.width,",",resolution.height,")");
     using namespace track;
-    GlobalSettings::map()["cm_per_pixel"].get().set_do_print(false);
-    const bool merge_overlapping_blobs = SETTING(merge_overlapping_blobs);
+    //GlobalSettings::map()["cm_per_pixel"].get().set_do_print(false);
+    const bool merge_overlapping_blobs = BOOL_SETTING(merge_overlapping_blobs);
     //const float scaled_video_width = floor(sqrt(resolution.width * resolution.height / float(files.size())));
     
     /*for(uint64_t frame=0; frame<min(1000, min_length); ++frame) {
@@ -259,7 +260,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
     
     for (Frame_t frame=0_f; frame<min_length; ++frame) {
         pv::Frame f, o;
-        if(SETTING(terminate))
+        if(BOOL_SETTING(terminate))
             break;
         
         std::vector<pv::BlobPtr> ptrs;
@@ -273,8 +274,8 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
             
             Vec2 offset = merge_mode == merge_mode_t::centered ? Vec2((Size2(average) - Size2(file->average())) * 0.5) : Vec2(0);
             Vec2 scale = merge_mode == merge_mode_t::centered ? Vec2(1) : Vec2(Size2(average).div(Size2(file->average())));
-            auto blob_size_range = configs.at(vdx)->at("blob_size_range").value<Rangef>();
-            const int track_threshold = configs.at(vdx)->at("track_threshold").value<int>();
+            auto blob_size_range = configs.at(vdx).at("blob_size_range").value<Rangef>();
+            const int track_threshold = configs.at(vdx).at("track_threshold").value<int>();
             SETTING(cm_per_pixel) = cms_per_pixel[file.get()];
             
             for(size_t i=0; i<f.n(); ++i) {

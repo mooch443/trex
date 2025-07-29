@@ -181,8 +181,8 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
     //auto calculate_posture = SETTING(calculate_posture).value<bool>();
     
     const Size2 output_size = SETTING(individual_image_size);
-    const bool do_normalize_tracklets = SETTING(tracklet_normalize);
-    const bool do_normalize_output = SETTING(output_normalize_midline_data);
+    const bool do_normalize_tracklets = SETTING(tracklet_normalize).value<bool>();
+    const bool do_normalize_output = SETTING(output_normalize_midline_data).value<bool>();
     const uint16_t tracklet_max_images = SETTING(tracklet_max_images);
     
     auto data_prefix = SETTING(data_prefix).value<file::Path>();
@@ -228,7 +228,7 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
             .value<std::vector<std::pair<std::string, std::vector<std::string>>>>();
         auto initial_fields = fields; // copy
         
-        if(SETTING(output_auto_pose).value<bool>()) {
+        if(BOOL_SETTING(output_auto_pose)) {
             // Generate only the missing ones
             auto new_pose_fields = default_config::add_missing_pose_fields();
             
@@ -240,7 +240,7 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
             }
         }
         
-        if(SETTING(output_auto_detection_fields).value<bool>()) {
+        if(BOOL_SETTING(output_auto_detection_fields)) {
             bool found = false;
             for(auto &[name, v] : fields) {
                 if(name == "detection_p") {
@@ -549,12 +549,12 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                     }
                 }
                 
-                if(SETTING(output_visual_fields).value<bool>()) {
+                if(BOOL_SETTING(output_visual_fields)) {
                     auto path = fishdata / (filename + "_visual_field_"+fish->identity().name());
                     fish->save_visual_field(path, range, progress_callback, true);
                 }
                 
-                if(SETTING(output_recognition_data)) {
+                if(BOOL_SETTING(output_recognition_data)) {
                     // output network data
                     file::Path path = (filename + "_recognition_" + fish->identity().name() + ".npz");
                     
@@ -807,12 +807,12 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
             });
         }
         
-        if(SETTING(output_heatmaps)) {
+        if(BOOL_SETTING(output_heatmaps)) {
             heatmap::HeatmapController svenja;
             svenja.save();
         }
         
-        if(SETTING(output_statistics))
+        if(BOOL_SETTING(output_statistics))
         {
             file::Path path = (filename + "_statistics.npz");
             

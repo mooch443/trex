@@ -950,7 +950,9 @@ void FFMPEGQueue::update_cache_strategy(double needed_ms, double compressed_size
     
     if(not approximate_length.valid() && _finite_source) {
            approximate_length = _video_length;
-    } else if(not approximate_length.valid() && GlobalSettings::has("approximate_length_minutes")) {
+    } else if(not approximate_length.valid()
+              && GlobalSettings::has_value("approximate_length_minutes"))
+    {
         approximate_length = Frame_t(SETTING(approximate_length_minutes).value<uint32_t>() * SETTING(frame_rate).value<uint32_t>() * 60);
         auto stop_after_minutes = SETTING(stop_after_minutes).value<uint32_t>();
         if(stop_after_minutes > 0) {

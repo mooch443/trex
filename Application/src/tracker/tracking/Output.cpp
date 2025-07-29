@@ -1478,7 +1478,9 @@ namespace Output {
     }
     
     Path TrackingResults::expected_filename() {        
-        file::Path filename = settings::find_output_name(GlobalSettings::map());
+        file::Path filename = GlobalSettings::read([](const Configuration& config) {
+            return settings::find_output_name(config.values);
+        });
         filename = filename.has_extension("pv")
                     ? filename.replace_extension("results")
                     : filename.add_extension("results");
@@ -1700,7 +1702,7 @@ FrameProperties CompatibilityFrameProperties::convert(Frame_t frame) const {
             
             file.read_single_individual(&fishes[i]);
             
-            if(SETTING(terminate)) {
+            if(BOOL_SETTING(terminate)) {
                 file._generic_pool.wait();
                 file._post_pool.wait();
                 clean_up();

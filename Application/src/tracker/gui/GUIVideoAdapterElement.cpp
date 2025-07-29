@@ -72,9 +72,9 @@ Layout::Ptr GUIVideoAdapterElement::_create(LayoutContext& context) {
         ptr = Layout::Make<GUIVideoAdapter>(file::PathArray(path), _window, _open_callback);
     
     auto p = ptr.to<GUIVideoAdapter>();
-    p->set(GUIVideoAdapter::Blur{blur});
+    p->set(Blur{blur});
     p->set(SizeLimit{max_size});
-    p->set(GUIVideoAdapter::FrameTime{frame_time});
+    p->set(FrameTime{frame_time});
     p->set(margins);
     p->set(alpha);
     return ptr;
@@ -89,9 +89,9 @@ void check_field(std::string_view name, const Layout::Ptr& ptr, PatternMapType& 
         auto text = it->second.realize(context, state);
         auto fill = Meta::fromStr<SourceType>(text);
         
-        if constexpr (takes_attribute<GUIVideoAdapter, TargetType>) {
+        /*if constexpr (takes_attribute<GUIVideoAdapter, TargetType>) {
             ptr.to<GUIVideoAdapter>()->set(TargetType{fill});
-        } else
+        } else*/
             LabeledField::delegate_to_proper_type(TargetType{fill}, ptr);
         
     } catch(const std::exception& e) {
@@ -123,9 +123,9 @@ bool GUIVideoAdapterElement::_update(Layout::Ptr& o,
             p->set(file::PathArray{});
     }
     
-    check_field<double, GUIVideoAdapter::FrameTime>("frame_seconds", o, patterns, context, state);
+    check_field<double, FrameTime>("frame_seconds", o, patterns, context, state);
     check_field<double, Alpha>("alpha", o, patterns, context, state);
-    check_field<float, GUIVideoAdapter::Blur>("blur", o, patterns, context, state);
+    check_field<float, Blur>("blur", o, patterns, context, state);
     check_field<Bounds, Margins>("pad", o, patterns, context, state);
     
     Size2 max_size = _size_function ? _size_function() : Size2();

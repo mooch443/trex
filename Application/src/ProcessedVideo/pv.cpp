@@ -105,7 +105,7 @@ template<> uint64_t Data::write(const blob::Prediction& val) {
 namespace pv {
     // used to register for global settings updates
     static std::atomic_bool use_differences(false);
-    static sprite::CallbackFuture _callback;
+    static cmn::CallbackFuture _callback;
 
     /**
      * If there is a task that is async (and can be run read-only for example) and e.g. continously calls "read_frame", then a task sentinel can be registered. This prevents the file from being destroyed until the task is done.
@@ -303,11 +303,11 @@ File::File(const file::Path& filename, FileMode mode, std::optional<meta_encodin
         
         static std::once_flag flag;
         std::call_once(flag, [](){
-            use_differences = GlobalSettings::map().has("use_differences") ? SETTING(use_differences).value<bool>() : false;
-            _callback = GlobalSettings::map().register_callbacks({"use_differences"}, [](auto) {
+            use_differences = BOOL_SETTING(use_differences);
+            _callback = GlobalSettings::register_callbacks({"use_differences"}, [](auto) {
                 use_differences = SETTING(use_differences).value<bool>();
             });
-            GlobalSettings::map().register_shutdown_callback([](auto){
+            GlobalSettings::register_shutdown_callback([](auto){
                 _callback.collection.reset();
             });
         });
@@ -899,7 +899,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const PixelArray
             ref.read(offsets);
             
         } else if(version == Version::V_2) {
-            offsets = GlobalSettings::has("crop_offsets") ? SETTING(crop_offsets) : CropOffsets();
+            offsets = GlobalSettings::read_value_with_default("crop_offsets", CropOffsets());
         }
         
         if (version >= Version::V_15) {
@@ -991,8 +991,11 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const PixelArray
                 map["quiet"] = true;
                 map["meta_real_width"] = Float2_t();
                 
-                if(not metadata.empty())
-                    sprite::parse_values(sprite::MapSource{ ref.filename() }, map, metadata, &GlobalSettings::map(), {}, {});
+                if(not metadata.empty()) {
+                    GlobalSettings::write([&](Configuration& config) {
+                        sprite::parse_values(sprite::MapSource{ ref.filename() }, map, metadata, &config.values, {}, {});
+                    });
+                }
                 
                 if(map.has("meta_real_width"))
                     meta_real_width = map["meta_real_width"].value<Float2_t>();
@@ -1353,7 +1356,9 @@ Frame_t File::length() const {
                 sprite::Map map;
                 map.set_print_by_default(false);
                 try {
-                    sprite::parse_values(sprite::MapSource{ filename() }, map, header().metadata.value(), &GlobalSettings::map(), {}, {});
+                    GlobalSettings::write([&](Configuration& config) {
+                        sprite::parse_values(sprite::MapSource{ filename() }, map, header().metadata.value(), &config.values, {}, {});
+                    });
                 } catch(...) {
 #ifndef NDEBUG
                     FormatWarning("Cannot parse metadata string: ", no_quotes(header().metadata.value()));
@@ -1540,7 +1545,6 @@ Frame_t File::length() const {
         assert(output_image.channels() == channels);
         
         for (uint16_t i=0; i<frame.n(); i++) {
-            uint64_t index = 0;
             auto &mask = frame.mask().at(i);
             auto pixels = frame.pixels().empty() ? nullptr : frame.pixels().at(i).get();
             
@@ -1604,8 +1608,11 @@ Frame_t File::length() const {
         auto keys = file.header().metadata.has_value()
             ? sprite::parse_values(sprite::MapSource{ file.filename() }, file.header().metadata.value()).keys()
             : std::vector<std::string>{};
-        if(file.header().metadata.has_value())
-            sprite::parse_values(sprite::MapSource{ file.filename() }, GlobalSettings::map(), file.header().metadata.value(), nullptr, {}, {});
+        if(file.header().metadata.has_value()) {
+            GlobalSettings::write([&](Configuration& config) {
+                sprite::parse_values(sprite::MapSource{ file.filename() }, config.values, file.header().metadata.value(), nullptr, {}, {});
+            });
+        }
         SETTING(meta_write_these) = keys;
         
         if(file.has_mask())
@@ -1665,7 +1672,7 @@ Frame_t File::length() const {
         
         copy.start_writing(true);
         
-        std::vector<std::string> save = GlobalSettings::map().has("meta_write_these") ? SETTING(meta_write_these) : std::vector<std::string>{};
+        auto save = GlobalSettings::read_value_with_default("meta_write_these", std::vector<std::string>{});
         
         sprite::Map map;
         if(header().metadata.has_value())

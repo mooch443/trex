@@ -633,15 +633,17 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
             throw InvalidArgumentException("No _settings has been set.");
         
         std::string device;
-        auto device_from_settings = _settings->map().at("gpu_torch_device").value<default_config::gpu_torch_device_t::Class>();
-        if (device_from_settings == gpu_torch_device_t::automatic) {
+        auto device_from_settings = GlobalSettings::read_value<default_config::gpu_torch_device_t::Class>("gpu_torch_device");
+        if (not device_from_settings
+            || *device_from_settings == gpu_torch_device_t::automatic)
+        {
             device = "";
         } else {
-            auto device_index = _settings->map().at("gpu_torch_device_index").value<int>();
-            if (device_index >= 0)
-                device = device_from_settings.toStr() + ":" + Meta::toStr(device_index);
+            auto device_index = GlobalSettings::read_value<int>("gpu_torch_device_index");
+            if (device_index && *device_index >= 0)
+                device = device_from_settings->toStr() + ":" + Meta::toStr(*device_index);
             else
-                device = device_from_settings.toStr();
+                device = device_from_settings->toStr();
             
             Print("Using device ", device, " from settings.");
         }
@@ -671,20 +673,20 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
         
         pybind11::dict d;
         
-        cmn::Size2 size = _settings->map().at("video_size").value<cmn::Size2>();
-        auto w = size.width,
-            h = size.height;
+        auto size = GlobalSettings::read_value<cmn::Size2>("video_size");
+        auto w = size ? size->width : 1,
+             h = size ? size->height : 1;
 
         d["width"] = w;
         d["height"] = h;
+        
         return d;
-        });
+    });
 
     m.def("setting", [](const std::string& name) -> std::string {
         using namespace pybind11::literals;
-        
-        return _settings->map().operator[](name).get().valueString();
-        });
+        return GlobalSettings::read_value<cmn::NoType>(name).get().valueString();
+    });
 
     m.def("setting", [](const std::string& name, const std::string& value) {
         using namespace pybind11::literals;
@@ -694,11 +696,13 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
             if (!_settings->has_access(name, accessLevel))
                 FormatError("User cannot write setting ", name, " (AccessLevel::", _settings->access_level(name).name(), ").");
             else {
-                if (_settings->has(name)) {
-                    _settings->map().operator[](name).get().set_value_from_string(value);
-                }
-                else
-                    FormatError("Setting ", name, " unknown.");
+                GlobalSettings::write([&](Configuration& config){
+                    if (config.values.has(name)) {
+                        config.values[name].get().set_value_from_string(value);
+                    }
+                    else
+                        FormatError("Setting ", name, " unknown.");
+                });
             }
         }
         catch (...) {
@@ -720,27 +724,25 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
         if (info.ndim != 3 && info.ndim != 2)
             throw std::runtime_error("Incompatible buffer dimension!");
 
-        if (_settings->map().has("nowindow")
-            && !_settings->map().at("nowindow").value<bool>())
+        if (not BOOL_SETTING(nowindow))
         {
             auto map = cv::Mat((int)info.shape[0], (int)info.shape[1], (int)CV_8UC(info.ndim == 2 ? 1 : info.shape[2]), static_cast<uint8_t*>(info.ptr));
             _mat_display(name, map);
             //tf::imshow(name, map);
         }
 #endif
-        }, pybind11::arg().none(), pybind11::arg().noconvert());
+    }, pybind11::arg().none(), pybind11::arg().noconvert());
 
     m.def("destroyAllWindows", []() {
 #if CMN_WITH_IMGUI_INSTALLED
         namespace py = pybind11;
 
-        if (_settings->map().has("nowindow")
-            && !_settings->map().at("nowindow").value<bool>())
+        if (not BOOL_SETTING(nowindow))
         {
             _destroy_all_windows();
         }
 #endif
-        });
+    });
 
     py::bind_vector<std::vector<cmn::Image::Ptr>>(m, "ImageVector", "Vector of images");
     py::bind_vector<std::vector<float>>(m, "FloatVector", "Float vector");
@@ -1050,7 +1052,7 @@ bool PythonIntegration::check_module(const std::string& name,
     if(not filename.exists())
         throw U_EXCEPTION("Cannot find the file ", filename, ". Please make sure your TRex installation is not damaged.");
     
-    auto c = utils::read_file(filename);
+    auto c = filename.read_file();
     if (c != _module_contents[name] || CHECK_NONE(_modules[name])) {
         auto& mod = _modules[name];
 
@@ -1833,7 +1835,7 @@ void PythonIntegration::import_module(const std::string& name) {
     check_correct_thread_id();
     
     std::lock_guard<std::mutex> guard(module_mutex);
-    _module_contents[name] = utils::read_file(name + ".py");
+    _module_contents[name] = file::Path(name + ".py").read_file();
 
     try {
         _modules[name] = _main.import(name.c_str());

@@ -8,7 +8,7 @@ namespace fg {
     TestCamera::TestCamera(cv::Size size, size_t element_size) : _size(size) {
         _image = cv::Mat::zeros(_size.height, _size.width, CV_8UC1);
         
-        if(GlobalSettings::map().has("test_image")) {
+        if(GlobalSettings::has_value("test_image")) {
             std::string test_image = SETTING(test_image);
             if (test_image == "checkerboard") {
                 static cv::Mat checkerboard;

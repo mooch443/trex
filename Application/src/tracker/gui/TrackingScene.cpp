@@ -95,13 +95,15 @@ struct TrackingScene::Data {
     std::unique_ptr<track::UniquenessProvider> _uniqueness_provider;
     
     std::atomic<FrameRange> _analysis_range;
-    sprite::CallbackFuture _callback;
+    cmn::CallbackFuture _callback;
     Vec2 _last_mouse;
     Vec2 _bowl_mouse;
     bool _zoom_dirty{false};
     //pv::Frame _frame;
     size_t _last_active_individuals{0};
     size_t _last_live_individuals{0};
+    
+    Frame_t _manually_requested_frame;
     
     // The dynamic part of the gui that is live-loaded from file
     dyn::DynamicGUI dynGUI;
@@ -346,8 +348,8 @@ void TrackingScene::Data::handle_zooming(Event e) {
             }
         }
 
-        GlobalSettings::map().do_print("gui_zoom_polygon", false);
-        GlobalSettings::map().do_print("gui_zoom_limit", false);
+        GlobalSettings::do_print("gui_zoom_polygon", false);
+        GlobalSettings::do_print("gui_zoom_limit", false);
         SETTING(gui_zoom_polygon) = gui_zoom_polygon;
         
         Size2 dims = gui_zoom_polygon.at(2) - gui_zoom_polygon.front();
@@ -356,17 +358,17 @@ void TrackingScene::Data::handle_zooming(Event e) {
             zoom_limit = dims;
             SETTING(gui_zoom_limit) = zoom_limit;
         }
-        GlobalSettings::map().do_print("gui_zoom_polygon", true);
-        GlobalSettings::map().do_print("gui_zoom_limit", true);
+        GlobalSettings::do_print("gui_zoom_polygon", true);
+        GlobalSettings::do_print("gui_zoom_limit", true);
         
     } else {
         auto zoom_limit = SETTING(gui_zoom_limit).value<Size2>();
         if(e.scroll.dy > 0) {
             zoom_limit *= 0.95_F;
             if(zoom_limit.width > 10) {
-                GlobalSettings::map().do_print("gui_zoom_limit", false);
+                GlobalSettings::do_print("gui_zoom_limit", false);
                 SETTING(gui_zoom_limit) = zoom_limit;
-                GlobalSettings::map().do_print("gui_zoom_limit", true);
+                GlobalSettings::do_print("gui_zoom_limit", true);
             }
             
         } else if(e.scroll.dy < 0) {
@@ -374,9 +376,9 @@ void TrackingScene::Data::handle_zooming(Event e) {
             if(zoom_limit.width < video_size.width * 2
                && zoom_limit.height < video_size.height * 2)
             {
-                GlobalSettings::map().do_print("gui_zoom_limit", false);
+                GlobalSettings::do_print("gui_zoom_limit", false);
                 SETTING(gui_zoom_limit) = zoom_limit;
-                GlobalSettings::map().do_print("gui_zoom_limit", true);
+                GlobalSettings::do_print("gui_zoom_limit", true);
             }
         }
     }
@@ -513,10 +515,10 @@ bool TrackingScene::on_global_event(Event event) {
                 }
                 break;
             case Keyboard::Left:
-                set_frame(GUI_SETTINGS(gui_frame).try_sub(1_f));
+                set_frame(GUI_SETTINGS(gui_frame).try_sub(1_f), false);
                 break;
             case Keyboard::Right:
-                set_frame(GUI_SETTINGS(gui_frame) + 1_f);
+                set_frame(GUI_SETTINGS(gui_frame) + 1_f, false);
                 break;
             case Keyboard::P: {
                 Idx_t id = _data->_cache->primary_selected_id();
@@ -708,7 +710,7 @@ void TrackingScene::activate() {
         }
     };
     
-    _data->_callback = GlobalSettings::map().register_callbacks({
+    _data->_callback = GlobalSettings::register_callbacks({
         "gui_focus_group",
         "gui_run",
         "track_pause",
@@ -792,7 +794,10 @@ void TrackingScene::activate() {
         }
     });
     
-    RecentItems::open(SETTING(source).value<file::PathArray>().source(), GlobalSettings::current_defaults_with_config());
+    {
+        auto current_defaults_with_config = GlobalSettings::read([](const sprite::Map&, const sprite::Map& with_config){ return with_config; });
+        RecentItems::open(SETTING(source).value<file::PathArray>().source(), current_defaults_with_config);
+    }
     
     if(_load_requested) {
         bool exchange = true;
@@ -831,7 +836,7 @@ void TrackingScene::redraw_all() {
 }
 
 void TrackingScene::init_undistortion() {
-    if(not SETTING(cam_undistort)) {
+    if(not BOOL_SETTING(cam_undistort)) {
         _data->_background->set_undistortion(std::nullopt, std::nullopt);
     } else {
         
@@ -868,7 +873,7 @@ void TrackingScene::deactivate() {
         _data->dynGUI.clear();
     
     if(_data && _data->_callback)
-        GlobalSettings::map().unregister_callbacks(std::move(_data->_callback));
+        GlobalSettings::unregister_callbacks(std::move(_data->_callback));
     
     auto config = default_config::generate_delta_config(AccessLevelType::LOAD, _state ? _state->video.get() : nullptr);
     for(auto &[key, value] : config.map) {
@@ -879,24 +884,37 @@ void TrackingScene::deactivate() {
     _data = nullptr;
     _state = nullptr;
     
-    for(auto &key : GlobalSettings::current_defaults_with_config().keys()) {
-        auto value = GlobalSettings::map().at(key);
+    auto keys = GlobalSettings::read([](const sprite::Map&, const sprite::Map& with_config){ return with_config.keys(); });
+    for(auto &key : keys) {
+        auto value = GlobalSettings::read_value<NoType>(key);
         if(/*contains(config.excluded.toVector(), key)
            && GlobalSettings::access_level(key) < AccessLevelType::LOAD*/
-           is_in(key, "filename", "source", "output_dir", "output_prefix"))
+           value.valid()
+           && is_in(key, "filename", "source", "output_dir", "output_prefix"))
         {
             Print(" . ", no_quotes(utils::ShortenText(Meta::toStr(value.get()), 1000)));
-            value.get().copy_to(GlobalSettings::current_defaults_with_config());
+            GlobalSettings::write([&value](sprite::Map&, sprite::Map& with_config){
+                value.get().copy_to(with_config);
+            });
             continue;
         }
         //Print(" - ", value.get());
-        GlobalSettings::current_defaults_with_config().erase(key);
+        GlobalSettings::write([key](sprite::Map&, sprite::Map& with_config) {
+            if(not with_config.has(key))
+                return;
+            with_config.erase(key);
+        });
     }
     
     //GlobalSettings::current_defaults_with_config() = {}
+    GlobalSettings::write([&config](sprite::Map&, sprite::Map& with_config) {
+        config.write_to(with_config);
+    });
     
-    config.write_to(GlobalSettings::current_defaults_with_config());
-    RecentItems::open(SETTING(source).value<file::PathArray>().source(), GlobalSettings::current_defaults_with_config());
+    {
+        auto current_defaults_with_config = GlobalSettings::read([](const sprite::Map&, const sprite::Map& with_config){ return with_config; });
+        RecentItems::open(SETTING(source).value<file::PathArray>().source(), current_defaults_with_config);
+    }
     
     SETTING(filename) = file::Path();
     SETTING(source) = file::PathArray();
@@ -917,26 +935,33 @@ void TrackingScene::deactivate() {
         }
         
         //Print(" * Resetting ", key);
-        if(GlobalSettings::map().has(key)) {
-            auto p = GlobalSettings::map().at(key).get().do_print();
-            GlobalSettings::map().do_print(key, false);
-            combined.at(key).get().copy_to(GlobalSettings::map());
-            GlobalSettings::map().do_print(key, p);
-        } else {
-            combined.at(key).get().copy_to(GlobalSettings::map());
-        }
+        GlobalSettings::write([&](Configuration& config){
+            if(config.values.has(key)) {
+                auto p = config.values.at(key).get().do_print();
+                config.values.do_print(key, false);
+                combined.at(key).get().copy_to(config.values);
+                config.values.do_print(key, p);
+            } else {
+                combined.at(key).get().copy_to(config.values);
+            }
+        });
     }
     
     GlobalSettings::set_current_defaults(combined.values);
     GlobalSettings::set_current_defaults_with_config(combined.values);
 }
 
-void TrackingScene::set_frame(Frame_t frameIndex) {
+void TrackingScene::set_frame(Frame_t frameIndex, bool automatic) {
     if(frameIndex < _state->video->length()
        && GUI_SETTINGS(gui_frame) != frameIndex)
     {
         SETTING(gui_frame) = frameIndex;
         _data->_cache->request_frame_change_to(frameIndex);
+        
+        if(not automatic) {
+            //Print("Setting manually requested = ", frameIndex);
+            _data->_manually_requested_frame = frameIndex;
+        }
     }
 }
 
@@ -978,7 +1003,9 @@ void TrackingScene::update_run_loop() {
     const auto dt = _data->_cache->dt();
     Frame_t index = GUI_SETTINGS(gui_frame);
     
-    if (_data->_recorder.recording()) {
+    if (_data->_recorder.recording()
+        || _data->_manually_requested_frame.valid())
+    {
         /// Recording mode: load frames synchronously.
         _data->_cache->set_load_frames_blocking(true);
         
@@ -995,7 +1022,7 @@ void TrackingScene::update_run_loop() {
             index = L.try_sub(1_f);
             SETTING(gui_run) = false;
         }
-        set_frame(index);
+        set_frame(index, true);
         
         /// Update the background increment to keep visual sync.
         if (_data->_background)
@@ -1067,7 +1094,7 @@ void TrackingScene::update_run_loop() {
                     SETTING(gui_run) = false;
                 }
                 
-                set_frame(index);
+                set_frame(index, true);
                 
                 /// Update the background increment using the calculated advances.
                 if (_data->_background)
@@ -1165,6 +1192,9 @@ void TrackingScene::_draw(DrawStructure& graph) {
                 _data->_waiting_handle = nullptr;
                 auto stats = TimingStatsCollector::getInstance();
                 _data->_display_handle = std::make_unique<TimingStatsCollector::HandleGuard>(stats, stats->startEvent(TimingMetric_t::FrameDisplay, loaded));
+                
+                if(_data->_manually_requested_frame.valid())
+                    _data->_manually_requested_frame.invalidate();
             }
             using namespace dyn;
             
@@ -1419,7 +1449,7 @@ void TrackingScene::next_poi(Idx_t _s_fdx) {
     }
     
     if(frame != next_frame && next_frame.valid()) {
-        set_frame(next_frame);
+        set_frame(next_frame, false);
         
         if(!_s_fdx.valid())
         {
@@ -1454,7 +1484,7 @@ void TrackingScene::prev_poi(Idx_t _s_fdx) {
     }
     
     if(next_frame.valid() && frame != next_frame) {
-        set_frame(next_frame);
+        set_frame(next_frame, false);
         
         if(!_s_fdx.valid())
         {
@@ -1512,13 +1542,13 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                     throw InvalidArgumentException("Invalid number of arguments for action: ",action);
                 
                 auto parm = Meta::fromStr<std::string>(action.first());
-                if(not GlobalSettings::has(parm))
+                if(not GlobalSettings::has_value(parm))
                     throw InvalidArgumentException("No parameter ",parm," in global settings.");
                 
                 auto value = action.last();
                 
                 if(parm == "gui_frame") {
-                    set_frame(Meta::fromStr<Frame_t>(value));
+                    set_frame(Meta::fromStr<Frame_t>(value), false);
                 } else
                     GlobalSettings::get(parm).get().set_value_from_string(value);
             }),
@@ -1615,7 +1645,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                 Categorize::show(_state->video,
                     [this](){
                         _state->_controller->_busy = false;
-                        if(SETTING(auto_quit))
+                        if(BOOL_SETTING(auto_quit))
                             _state->_controller->auto_quit(SceneManager::getInstance().gui_task_queue());
                         //GUI::instance()->auto_quit();
                     },
@@ -1958,7 +1988,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                 return _data->variables;
             }),
             
-            VarFunc("primary_selection", [this](const VarProps&) -> sprite::Map& {
+            VarFunc("primary_selection", [this](const VarProps& props) -> std::string {
                 if(not _data)
                     throw InvalidArgumentException("_data not set.");
                 
@@ -2078,7 +2108,16 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                     }
                 }
                 //map["speed"] = _data->_cache->lock_individuals().individuals.at(fdx)->centroid(_data->_cache->frame_idx)->speed<Units::CM_AND_SECONDS>();
-                return map;
+                
+                if(props.subs.empty())
+                    throw InvalidArgumentException("Need to provide a variable to retrieve in ", props);
+                
+                auto& prop = map.at(props.subs.front()).get();
+                if(prop.is_type<std::string>())
+                    return prop.value<std::string>();
+                else if(prop.is_type<file::Path>())
+                    return prop.value<file::Path>().str();
+                return prop.valueString();
             }),
             
             VarFunc("tracker", [this](const VarProps&) -> Range<Frame_t> {

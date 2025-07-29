@@ -290,7 +290,7 @@ namespace globals {
     protected:
         std::shared_mutex label_mutex;
         std::string _label_text;
-        sprite::CallbackFuture _settings_callback;
+        cmn::CallbackFuture _settings_callback;
         GETTER_NCONST(std::optional<pattern::UnresolvedStringPattern>, prepared_label_text);
         
     public:

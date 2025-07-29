@@ -90,7 +90,7 @@ protected:
 public:
     const std::vector<FrameProperties::Ptr>& frames() const { return _added_frames; }
 protected:
-    CallbackCollection _callback;
+    CallbackFuture _callback;
     Image::Ptr _average;
     GETTER_SETTER(cv::Mat, mask);
     Frame_t _approximative_enabled_in_frame;

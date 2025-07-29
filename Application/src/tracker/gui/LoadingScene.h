@@ -89,8 +89,15 @@ protected:
     HorizontalLayout _main_layout;
 
     dyn::Context context {
-        dyn::VarFunc("global", [](const VarProps&) -> sprite::Map& {
-            return GlobalSettings::map();
+        dyn::VarFunc("global", [](const VarProps& props) -> std::string {
+            if(props.subs.empty())
+                throw InvalidArgumentException("No parameter requested in ", props);
+            return GlobalSettings::read([name = props.subs.front()](const Configuration& config) -> std::string {
+                auto v = config.values.at(name);
+                if(v.valid())
+                    return v.get().valueString();
+                return "null";
+            });
         })
     };
     dyn::State state;
@@ -292,7 +299,7 @@ public:
         if (!_selected_file.empty()) {
 
         }
-        if (SETTING(terminate))
+        if (BOOL_SETTING(terminate))
             _running = false;
     }
 

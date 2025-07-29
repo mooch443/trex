@@ -410,7 +410,7 @@ std::tuple<std::vector<size_t>, std::vector<std::pair<std::string, std::vector<s
     Print("Debug: Entering list_auto_pose_fields");
 #endif
     /// return empty array if automatically generating the fields is disabled.
-    if (not SETTING(output_auto_pose)) {
+    if (not BOOL_SETTING(output_auto_pose)) {
 #ifndef NDEBUG
         Print("Debug: Auto pose field generation is disabled (output_auto_pose is false).");
 #endif
@@ -634,12 +634,14 @@ file::Path conda_environment_path() {
 
 void execute_settings_string(const std::string &content, const file::Path& source, AccessLevelType::Class level, const std::vector<std::string>& exclude) {
     try {
-        GlobalSettings::load_from_string(content, {
-            .source = source,
-            .access = level,
-            .correct_deprecations = true,
-            .exclude = exclude,
-            .target = &GlobalSettings::map()
+        GlobalSettings::write([&](Configuration& config){
+            GlobalSettings::load_from_string(content, {
+                .source = source,
+                .access = level,
+                .correct_deprecations = true,
+                .exclude = exclude,
+                .target = &config.values
+            });
         });
         //default_config::load_string_with_deprecations(source, content, GlobalSettings::map(), level, exclude);
         
@@ -653,7 +655,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
     if(source.exists()) {
         DebugHeader("LOADING ", source);
         try {
-            auto content = utils::read_file(source.str());
+            auto content = source.read_file();
             execute_settings_string(content, source, level, exclude);
             
         } catch(const cmn::illegal_syntax& e) {
@@ -712,7 +714,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         
         CONFIG("meta_encoding", meta_encoding_t::rgb8, "The encoding used for the given .pv video.");
         CONFIG("detect_classes", cmn::blob::MaybeObjectClass_t{}, "Class names for object classification in video during conversion.");
-        CONFIG("detect_skeleton", std::optional<blob::Pose::Skeletons>{}, "Skeleton to be used when displaying pose data.", PUBLIC, std::optional<std::optional<blob::Pose::Skeletons>>{std::optional<blob::Pose::Skeletons>{
+        CONFIG("detect_skeleton", std::optional<blob::Pose::Skeletons>{}, "Skeleton to be used when displaying pose data. This is an optional map from classnames to ", PUBLIC, std::optional<std::optional<blob::Pose::Skeletons>>{std::optional<blob::Pose::Skeletons>{
             blob::Pose::Skeletons{
                 ._skeletons = {{"human", std::vector<blob::Pose::Skeleton::Connection>{
                     {0, 1, "Nose to Left Eye"},
@@ -1157,15 +1159,6 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
     }
     
     Config generate_delta_config(AccessLevel access, const pv::File* video, bool include_build_number, std::vector<std::string> additional_exclusions) {
-        auto keys = GlobalSettings::map().keys();
-        
-        sprite::Map config;
-        docs_map_t docs;
-        
-        config = GlobalSettings::get_current_defaults();
-        //grab::default_config::get(config, docs, nullptr);
-        //default_config::get(config, docs, NULL);
-        
         std::vector<std::string> exclude_fields = {
             "track_pause",
             //"filename",
@@ -1309,7 +1302,9 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             try {
                 auto& metadata = video->header().metadata;
                 if(metadata.has_value()) {
-                    sprite::parse_values(sprite::MapSource{ video->filename() }, tmp, metadata.value(), & GlobalSettings::map(), {}, default_config::deprecations());
+                    GlobalSettings::write([&](Configuration& config) {
+                        sprite::parse_values(sprite::MapSource{ video->filename() }, tmp, metadata.value(), & config.values, {}, default_config::deprecations());
+                    });
                 }
                 /*if(tmp.has("meta_source_path")
                    //&& tmp.at("meta_source_path").value<std::string>() != SETTING(meta_source_path).value<std::string>()
@@ -1322,7 +1317,15 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
                 FormatExcept("Error while trying to inspect the metadata of ", video, ".");
             }
         }
-
+        
+        auto keys = GlobalSettings::keys();
+        //sprite::Map config;
+        //docs_map_t docs;
+        
+        //config = GlobalSettings::get_current_defaults();
+        //grab::default_config::get(config, docs, nullptr);
+        //default_config::get(config, docs, NULL);
+        
         for(auto &key : keys) {
             // dont write meta variables. this could be confusing if those
             // are loaded from the video file as well
@@ -1335,8 +1338,12 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             
             // UPDATE: write only keys with values that have changed compared
             // to the default options
-            if(not config.has(key)
-               || config.at(key) != GlobalSettings::map().at(key)
+            
+            auto current = GlobalSettings::read_current_default<NoType>(key);
+            auto value = GlobalSettings::read_value<NoType>(key);
+            
+            if(not current.valid()
+               || current != value
                || explicitly_include.contains(key))
             {
                 if((include_build_number && utils::beginsWith(key, "build"))
@@ -1345,7 +1352,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
                        && !contains(exclude_fields, key)
                        && !contains(additional_exclusions, key)))
                 {
-                    result[key] = &GlobalSettings::get(key).get();
+                    result[key] = &value.get();
                 } else {
                     //Print("// ",key," not part of delta");
                 }

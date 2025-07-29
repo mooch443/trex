@@ -127,7 +127,7 @@ void init(gui::DrawStructure* gui) {
                 Print("Initial start, no update_check file exists.");
             return;
         }
-        contents = utils::read_file("update_check");
+        contents = file::Path("update_check").read_file();
         auto array = utils::split(contents, '\n');
         if (array.size() != 3) {
             file::Path("update_check").delete_file();

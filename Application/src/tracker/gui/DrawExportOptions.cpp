@@ -513,7 +513,7 @@ struct DrawExportOptions::Data {
                             REQUIRE_EXACTLY(2, action);
                             
                             auto parm = Meta::fromStr<std::string>(action.first());
-                            if(not GlobalSettings::has(parm))
+                            if(not GlobalSettings::has_value(parm))
                                 throw InvalidArgumentException("No parameter ",parm," in global settings.");
                             
                             auto value = action.last();

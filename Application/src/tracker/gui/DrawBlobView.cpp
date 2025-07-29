@@ -55,7 +55,7 @@ struct BlobView {
     derived_ptr<::gui::Polygon> _bdry_polygon;
     
     std::string gui_blob_label;
-    sprite::CallbackFuture callback;
+    cmn::CallbackFuture callback;
     
     dyn::Context context;
     dyn::State state;
@@ -90,7 +90,7 @@ struct BlobView {
     std::vector<decltype(_blob_labels)::mapped_type> _unused_labels;
     
     BlobView() {
-        callback = GlobalSettings::map().register_callbacks({
+        callback = GlobalSettings::register_callbacks({
             "gui_blob_label"
         }, [this](auto) {
             gui_blob_label = SETTING(gui_blob_label).value<std::string>();
@@ -151,7 +151,7 @@ struct BlobView {
         }();
     }
     ~BlobView() {
-        GlobalSettings::map().unregister_callbacks(std::move(callback));
+        GlobalSettings::unregister_callbacks(std::move(callback));
         
         assert(SceneManager::is_gui_thread());
         _blob_labels.clear();
@@ -510,7 +510,7 @@ void BlobView::draw(const DisplayParameters& parm)
         s->set_scale(parm.coord.bowl_scale());
         s->set_pos(parm.coord.hud_viewport().pos());
         
-        if(!SETTING(gui_show_pixel_grid)) {
+        if(not BOOL_SETTING(gui_show_pixel_grid)) {
             parm.cache.updated_blobs(); // if show_pixel_grid is active, it will set the cache to "updated"
         }
         
@@ -549,7 +549,7 @@ void BlobView::draw(const DisplayParameters& parm)
                     _blob_labels.at(&blob).found_in_frame = true;
             });
             
-            if(!SETTING(gui_draw_only_filtered_out)) {
+            if(not BOOL_SETTING(gui_draw_only_filtered_out)) {
                 parm.cache.processed_frame().transform_blobs([&](pv::Blob& blob){
                     auto d = euclidean_distance(mp, blob.bounds().pos());
                     draw_order.insert({d, &blob, true});
@@ -929,7 +929,7 @@ void BlobView::draw(const DisplayParameters& parm)
     
     last_blob_id = _clicked_blob_id;
     
-    if(SETTING(gui_show_pixel_grid)) {
+    if(BOOL_SETTING(gui_show_pixel_grid)) {
         parm.graph.section("collision_model", [&](auto&, auto s) {
             /*if(parm.cache.is_animating() || parm.cache.blobs_dirty()) {
                 s->set_scale(parm.scale);

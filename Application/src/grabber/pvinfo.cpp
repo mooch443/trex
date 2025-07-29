@@ -173,9 +173,10 @@ int main(int argc, char**argv) {
     SETTING(quiet) = false;
     
     //DebugHeader("LOADING DEFAULT SETTINGS");
-    grab::default_config::get(GlobalSettings::map(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
-    default_config::get(GlobalSettings::map(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
-    default_config::get(GlobalSettings::set_defaults(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
+    GlobalSettings::write([](Configuration& config) {
+        grab::default_config::get(config);
+        default_config::get(config);
+    });
     
     CommandLine::init(argc, argv, true);
     auto &cmd = CommandLine::instance();
@@ -319,7 +320,7 @@ int main(int argc, char**argv) {
         return 0;
     }
     
-    if(!GlobalSettings::map().has("filename") && argc >= 1)
+    if(!GlobalSettings::has_value("filename") && argc >= 1)
         SETTING(filename) = file::Path(argv[argc-1]);
     
     file::Path settings_file = file::DataLocation::parse("settings");
@@ -336,7 +337,7 @@ int main(int argc, char**argv) {
     //if(!input.exists())
     //    throw U_EXCEPTION("Cannot find file ",input.str(),".");
     
-    if(SETTING(is_video)) {
+    if(BOOL_SETTING(is_video)) {
         auto video = pv::File::Read(input);
         if(video.header().version <= pv::Version::V_2) {
             SETTING(crop_offsets) = CropOffsets();
@@ -366,8 +367,11 @@ int main(int argc, char**argv) {
         
         SETTING(crop_offsets) = video.header().offsets;
         
-        if(video.header().metadata.has_value())
-            sprite::parse_values(sprite::MapSource{ video.filename()}, GlobalSettings::map(), video.header().metadata.value(), nullptr, {}, default_config::deprecations());
+        if(video.header().metadata.has_value()) {
+            GlobalSettings::write([&](Configuration& config) {
+                sprite::parse_values(sprite::MapSource{ video.filename()}, config.values, video.header().metadata.value(), nullptr, {}, default_config::deprecations());
+            });
+        }
         
         if(!be_quiet)
             video.print_info();
@@ -397,7 +401,10 @@ int main(int argc, char**argv) {
         
         track::Tracker _tracker(video);
         
-        if(auto_param || SETTING(auto_minmax_size) || SETTING(auto_number_individuals)) {
+        if(auto_param
+           || BOOL_SETTING(auto_minmax_size)
+           || BOOL_SETTING(auto_number_individuals))
+        {
             track::Tracker::auto_calculate_parameters(video, be_quiet);
         }
         
@@ -425,7 +432,7 @@ int main(int argc, char**argv) {
             svenja.save();
         }
         
-        if(SETTING(write_settings)) {
+        if(BOOL_SETTING(write_settings)) {
             auto text = default_config::generate_delta_config(AccessLevelType::PUBLIC).to_settings();
             auto filename = file::Path(file::DataLocation::parse("output_settings").str() + ".auto");
             
@@ -540,7 +547,9 @@ int main(int argc, char**argv) {
             std::vector<std::string> keys;
             if(video.header().metadata.has_value()) {
                 keys = sprite::parse_values(sprite::MapSource{name}, video.header().metadata.value()).keys();
-                sprite::parse_values(sprite::MapSource{name}, GlobalSettings::map(), video.header().metadata.value(), nullptr, {}, default_config::deprecations());
+                GlobalSettings::write([&](Configuration& config) {
+                    sprite::parse_values(sprite::MapSource{name}, config.values, video.header().metadata.value(), nullptr, {}, default_config::deprecations());
+                });
             }
             
             for (auto &[k,v] : updated_settings) {
@@ -548,7 +557,9 @@ int main(int argc, char**argv) {
                     keys.push_back(k);
                 }
                 
-                sprite::parse_values(sprite::MapSource{name}, GlobalSettings::map(), "{'"+k+"':"+v+"}", nullptr, {}, default_config::deprecations());
+                GlobalSettings::write([&](Configuration& config) {
+                    sprite::parse_values(sprite::MapSource{name}, config.values, "{'"+k+"':"+v+"}", nullptr, {}, default_config::deprecations());
+                });
             }
             
             for (auto &p : remove_settings) {
@@ -565,7 +576,7 @@ int main(int argc, char**argv) {
         /**
          * Display average image if wanted.
          */
-        if(SETTING(display_average)) {
+        if(BOOL_SETTING(display_average)) {
             cv::Mat average;
             video.average().copyTo(average);
             //if(average.cols == video.size().width && average.rows == video.size().height)
@@ -578,7 +589,7 @@ int main(int argc, char**argv) {
 #endif
         }
         
-        if(GlobalSettings::map().has("output_fps")) {
+        if(GlobalSettings::has_value("output_fps")) {
             pv::Frame frame;
             FILE *f = fopen("fps.csv", "wb");
             std::string str = "time,tdelta\n";
@@ -609,7 +620,7 @@ int main(int argc, char**argv) {
             Print("Elapsed: ", timer.elapsed(),"s");
         }
         
-        if(SETTING(blob_detail)) {
+        if(BOOL_SETTING(blob_detail)) {
             pv::Frame frame;
             size_t overall = 0;
             size_t pixels_per_blob = 0, pixels_samples = 0;
@@ -702,8 +713,11 @@ int main(int argc, char**argv) {
         
         if(SETTING(meta_real_width).value<Float2_t>() == 0)
             SETTING(meta_real_width) = Float2_t(30.0);
-        if(!GlobalSettings::map().has("cm_per_pixel") || SETTING(cm_per_pixel).value<Float2_t>() == 0)
+        if(!GlobalSettings::has_value("cm_per_pixel")
+           || SETTING(cm_per_pixel).value<Float2_t>() == 0)
+        {
             SETTING(cm_per_pixel) = Float2_t(SETTING(meta_real_width).value<Float2_t>() / Float2_t(average.cols));
+        }
         
         path = path.add_extension("results");
         

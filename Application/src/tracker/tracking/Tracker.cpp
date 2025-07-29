@@ -189,8 +189,12 @@ void Tracker::initialize_slows() {
         
         
         Settings::init();
+        
+        auto copy = GlobalSettings::read([](const Configuration& config){
+            return config.values;
+        });
         for(auto &n : Settings :: names())
-            Settings::variable_changed(sprite::Map::Signal::NONE, cmn::GlobalSettings::map(), n, cmn::GlobalSettings::get(n).get());
+            Settings::variable_changed(sprite::Map::Signal::NONE, n, copy.at(n).get());
     });
     
     if (not _callback) {
@@ -198,7 +202,7 @@ void Tracker::initialize_slows() {
             //LockGuard guard(ro_t{}, "changed_settings");
             Settings :: variable_changed(sprite::Map::Signal::NONE, GlobalSettings::map(), name, cmn::GlobalSettings::map().at(name).get());
         };
-        _callback = cmn::GlobalSettings::map().register_callbacks(Settings::names(), callback);
+        _callback = cmn::GlobalSettings::register_callbacks(Settings::names(), callback);
         GlobalSettings::map().register_shutdown_callback([this](auto) {
             _callback.reset();
         });
@@ -337,7 +341,7 @@ void Tracker::analysis_state(AnalysisState pause) {
         throw U_EXCEPTION("No tracker instance can be used to pause.");
 
     const bool do_pause = pause == AnalysisState::PAUSED;
-    if(SETTING(track_pause).value<bool>() == do_pause) {
+    if(BOOL_SETTING(track_pause) == do_pause) {
         return;
     } else {
         std::thread tmp([do_pause]() {
@@ -390,15 +394,15 @@ Tracker::Tracker(Image::Ptr&& average, meta_encoding_t::Class encoding, Float2_t
     
     set_average(std::move(average), encoding);
     
-    if(not GlobalSettings::has("meta_real_width")
-       || SETTING(meta_real_width).value<Float2_t>() == 0)
+    if(auto v = GlobalSettings::read_value<Float2_t>("meta_real_width");
+       not v || *v == 0)
     {
         SETTING(meta_real_width) = meta_real_width;
     }
     
     // setting cm_per_pixel after average has been generated (and offsets have been set)
-    if(!GlobalSettings::has("cm_per_pixel")
-       || SETTING(cm_per_pixel).value<Float2_t>() == 0)
+    if(auto v = GlobalSettings::read_value<Float2_t>("cm_per_pixel");
+       not v || *v == 0)
     {
         SETTING(cm_per_pixel) = settings::infer_cm_per_pixel();
     }
@@ -447,7 +451,7 @@ Tracker::~Tracker() {
     emergency_finish();
 
     if (_callback)
-        cmn::GlobalSettings::map().unregister_callbacks(std::move(_callback));
+        cmn::GlobalSettings::unregister_callbacks(std::move(_callback));
 }
 
 void Tracker::emergency_finish() {
@@ -3482,7 +3486,7 @@ pv::BlobPtr Tracker::find_blob_noisy(const PPFrame& pp, pv::bid bid, pv::bid, co
     }
     
     void Tracker::auto_calculate_parameters(pv::File& video, bool quiet) {
-        if(video.length() > 1000_f && (SETTING(auto_minmax_size) || SETTING(auto_number_individuals))) {
+        if(video.length() > 1000_f && (BOOL_SETTING(auto_minmax_size) || BOOL_SETTING(auto_number_individuals))) {
             gpuMat average;
             video.average().copyTo(average);
             if(average.cols == video.size().width && average.rows == video.size().height)
@@ -3555,7 +3559,7 @@ pv::BlobPtr Tracker::find_blob_noisy(const PPFrame& pp, pv::bid bid, pv::bid, co
             /*middle = median.getValue();
             middle = (ranges[1] - ranges[0]) * 0.5 + ranges[0];*/
             
-            if(SETTING(auto_minmax_size))
+            if(BOOL_SETTING(auto_minmax_size))
                 SETTING(track_size_filter) = SizeFilters({Range<double>(ranges[0] * 0.25, ranges[1] * 1.75)});
             
             auto track_size_filter = SETTING(track_size_filter).value<SizeFilters>();
@@ -3582,7 +3586,7 @@ pv::BlobPtr Tracker::find_blob_noisy(const PPFrame& pp, pv::bid bid, pv::bid, co
                 if(!quiet)
                     FormatWarning("The set (", number_fish,") number of individuals differs from the detected number of individuals / frame (",median_number,").");
                 
-                if(SETTING(auto_number_individuals).value<bool>()) {
+                if(BOOL_SETTING(auto_number_individuals)) {
                     if(!quiet)
                         Print("Setting number of individuals as ", median_number,".");
                     SETTING(track_max_individuals) = uint32_t(median_number);

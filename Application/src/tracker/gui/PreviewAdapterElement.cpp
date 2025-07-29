@@ -52,7 +52,7 @@ public:
         if(_settings.empty())
             return true;
         for(auto&[key, value] : _settings) {
-            if(GlobalSettings::map().at(key).get().valueString() != value) {
+            if(GlobalSettings::get(key).get().valueString() != value) {
                 return true;
             }
         }
@@ -60,7 +60,7 @@ public:
     }
     void update_settings() {
         for(auto key : _setting_names) {
-            _settings[key] = GlobalSettings::map().at(key).get().valueString();
+            _settings[key] = GlobalSettings::get(key).get().valueString();
         }
     }
     

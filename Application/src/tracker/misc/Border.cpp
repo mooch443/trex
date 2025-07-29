@@ -170,7 +170,7 @@ ENUM_CLASS_DOCS(recognition_border_t,
                 video.read_frame(frame, i);
                 auto blobs = frame.get_blobs();
                 
-                if(SETTING(terminate))
+                if(BOOL_SETTING(terminate))
                     break;
                 
                 for(auto &b : blobs) {

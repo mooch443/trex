@@ -122,7 +122,7 @@ cmn::blob::MaybeObjectClass_t names_owner;
 std::optional<map_t> easy_cp_names_reference;
 std::optional<vec_t> easy_cp_names_vector;
 
-sprite::CallbackFuture callbacks;
+cmn::CallbackFuture callbacks;
 
 void check_callbacks() {
     static std::once_flag flag;
@@ -130,7 +130,7 @@ void check_callbacks() {
         if(callbacks)
             return;
         
-        callbacks = GlobalSettings::map().register_callbacks({
+        callbacks = GlobalSettings::register_callbacks({
             "detect_classes"
         }, [](auto) {
             std::unique_lock g(names_mutex);

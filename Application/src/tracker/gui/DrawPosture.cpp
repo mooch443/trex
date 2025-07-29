@@ -285,7 +285,7 @@ bool Posture::valid() const {
             return;
         
         Midline::Ptr midline = nullptr;
-        if(SETTING(output_normalize_midline_data)) {
+        if(BOOL_SETTING(output_normalize_midline_data)) {
             midline = fish->fixed_midline(_frameIndex);
         } else
             midline = fish->midline(_frameIndex);

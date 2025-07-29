@@ -31,7 +31,7 @@ struct LoadContext {
     ExtendableVector exclude, exclude_from_default;
     std::vector<std::string> system_variables = [](){
         std::vector<std::string> system_variables;
-        for (auto& key : GlobalSettings::map().keys()) {
+        for (auto& key : GlobalSettings::keys()) {
             if (GlobalSettings::access_level(key) >= AccessLevelType::SYSTEM) {
                 system_variables.emplace_back(key);
             }
@@ -82,9 +82,11 @@ void load(LoadContext);
 std::unordered_set<std::string_view>
 set_defaults_for( track::detect::ObjectDetectionType_t detect_type,
                   cmn::sprite::Map& output,
-                  ExtendableVector exclude = {});
+                  ExtendableVector exclude ,
+                  Float2_t cm_per_pixel);
 
 Configuration reset(const cmn::sprite::Map& extra_map = {}, cmn::sprite::Map* output = nullptr);
+Configuration reset(const cmn::sprite::Map& extra_map, cmn::sprite::Map& output);
 
 void write_config(const pv::File*, bool overwrite, gui::GUITaskQueue_t* queue, const std::string& suffix = "");
 Float2_t infer_cm_per_pixel(const cmn::sprite::Map* = nullptr);

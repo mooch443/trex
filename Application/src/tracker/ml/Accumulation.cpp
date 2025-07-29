@@ -651,7 +651,7 @@ void Accumulation::update_coverage(const TrainingData &data) {
     } else
         ++_counted_steps;
     
-    if(SETTING(recognition_save_progress_images)) {
+    if(BOOL_SETTING(recognition_save_progress_images)) {
         
         cv::Mat copy;
         cv::cvtColor(image->get(), copy, cv::COLOR_BGRA2RGBA);
@@ -963,7 +963,7 @@ bool Accumulation::start() {
         if(!_collected_data->generate("initial_acc"+Meta::toStr(_accumulation_step)+" "+Meta::toStr(_initial_range), *_video, individuals_per_frame, [](float percent) { gui::WorkProgress::set_progress("", percent); }, NULL)) {
             
             const char* text = "Couldnt generate proper training data (see previous warning messages).";
-            if(SETTING(auto_train_on_startup)) {
+            if(BOOL_SETTING(auto_train_on_startup)) {
                 throw U_EXCEPTION(text);
             } else {
                 if(_gui)
@@ -991,7 +991,7 @@ bool Accumulation::start() {
     Print("Discrimination data is at ", _disc_images.front().get(),".");
     
     if(!_discrimination_data) {
-        if(SETTING(auto_train_on_startup)) {
+        if(BOOL_SETTING(auto_train_on_startup)) {
             throw U_EXCEPTION("Couldnt generate discrimination data (something wrong with the video?).");
         } else
             throw SoftException("Couldnt generate discrimination data (something wrong with the video?).");
@@ -1043,7 +1043,7 @@ bool Accumulation::start() {
     if(is_in(_mode, TrainingMode::Restart, TrainingMode::Continue)) {
         // save validation data
         if(_mode == TrainingMode::Restart
-           && SETTING(visual_identification_save_images))
+           && BOOL_SETTING(visual_identification_save_images))
         {
             try {
                 auto data = _collected_data->join_split_data();
@@ -1109,7 +1109,7 @@ bool Accumulation::start() {
         auto error = [this, uniqueness_after](std::string text){
             end_a_step(MakeResult<AccumulationStatus::Failed, AccumulationReason::TrainingFailed>(_initial_range, uniqueness_after, text));
             
-            if(SETTING(auto_train_on_startup)) {
+            if(BOOL_SETTING(auto_train_on_startup)) {
                 throw U_EXCEPTION(no_quotes(utils::strip_html(text)));
             } else {
                 if(_gui)
@@ -1127,7 +1127,7 @@ bool Accumulation::start() {
             if(not _network)
                 throw SoftException("Network is null.");
             
-            _network->train(_collected_data, FrameRange(_initial_range), _mode, SETTING(gpu_max_epochs).value<uchar>(), true, &uniqueness_after, SETTING(accumulation_enable) ? 0 : -1);
+            _network->train(_collected_data, FrameRange(_initial_range), _mode, SETTING(gpu_max_epochs).value<uchar>(), true, &uniqueness_after, BOOL_SETTING(accumulation_enable) ? 0 : -1);
         
         } catch(const std::exception& ex) {
             error("["+std::string(_mode.name())+"] <b>VI failed with this error:</b> <c>"+ex.what()+"</c><b>.</b>\n\nPlease check your terminal for more detailed error messages.");
@@ -1163,7 +1163,7 @@ bool Accumulation::start() {
     
     if(!ranges.empty()
        && is_in(_mode, TrainingMode::Continue, TrainingMode::Restart)
-       && SETTING(accumulation_enable)
+       && BOOL_SETTING(accumulation_enable)
        && best_uniqueness() < good_uniqueness)
     {
         DebugHeader("Beginning accumulation from ",ranges.size()," ranges in training mode ", _mode.name(),".");
@@ -1641,7 +1641,7 @@ bool Accumulation::start() {
         
         if(sorted.empty() && available_ranges > 0 && successful_ranges == 0) {
             const char* text = "Did not find enough tracklets to train on. This likely means that your tracking parameters are not properly adjusted - try changing parameters such as `track_size_filter` in coordination with `track_threshold` to get cleaner trajectories. Additionally, changing the waiting time until animals are reassigned to arbitrary blobs (`track_max_reassign_time`) can help. None predicted unique IDs. Have to start training from a different segment.";
-            if(SETTING(auto_train_on_startup)) {
+            if(BOOL_SETTING(auto_train_on_startup)) {
                 throw U_EXCEPTION(text);
             } else {
                 if(_gui)
@@ -1708,7 +1708,7 @@ bool Accumulation::start() {
     if((//GUI::instance() &&
         !gui::WorkProgress::item_aborted()
         && !gui::WorkProgress::item_custom_triggered())
-       && SETTING(accumulation_enable_final_step))
+       && BOOL_SETTING(accumulation_enable_final_step))
     {
         std::map<Idx_t, size_t> images_per_class;
         size_t overall_images = 0;
@@ -1793,7 +1793,7 @@ bool Accumulation::start() {
             Print("\tCache sizes are ",FileSize{ uint64_t(mbytes * 1000 * 1000) }," / ",FileSize{ uint64_t(gpu_max_sample_mb * 1000 * 1000) }," (",images_per_class,").");
         }
         
-        if(SETTING(debug_recognition_output_all_methods)) {
+        if(BOOL_SETTING(debug_recognition_output_all_methods)) {
             /**
                 Collect all frames for all individuals.
                 Then generate all frames for all normalization methods.

@@ -90,7 +90,11 @@ bool pause_stuff{false};
 static_assert(_has_tostr_method<file::Path>, "Expecting Path to have toStr");
 
 void save_rst_files() {
-    auto rst = cmn::settings::help_restructured_text("TRex parameters", GlobalSettings::config(), "", "", "", AccessLevelType::STARTUP);
+    std::string rst;
+    GlobalSettings::read([&rst](const Configuration& config) {
+        rst = cmn::settings::help_restructured_text("TRex parameters", config, "", "", "", AccessLevelType::STARTUP);
+    });
+    
     file::Path path = file::DataLocation::parse("output", "parameters_trex.rst");
     auto f = path.fopen("wb");
     if(!f)
@@ -102,7 +106,10 @@ void save_rst_files() {
 }
 
 TRexTask determineTaskType() {
-    auto output_file = settings::find_output_name(GlobalSettings::map());
+    file::Path output_file;
+    GlobalSettings::read([&output_file](const Configuration& config){
+        output_file = settings::find_output_name(config.values);
+    });
     
     if (auto array = SETTING(source).value<file::PathArray>();
         array.empty())
@@ -223,13 +230,18 @@ void launch_gui(std::future<void>& f) {
                 return;
             }
             
-            if (SETTING(auto_quit) && not SETTING(auto_train)) {
-                if (not SETTING(terminate))
+            const bool auto_quit = BOOL_SETTING(auto_quit);
+            const bool auto_train = BOOL_SETTING(auto_train);
+            const bool terminate = BOOL_SETTING(terminate);
+            if (auto_quit && not auto_train) {
+                if (not terminate)
                     SETTING(terminate) = true;
             }
             else {
-                if(not SETTING(terminate)) {
-                    GlobalSettings::map().set_print_by_default(true);
+                if(not terminate) {
+                    GlobalSettings::write([](Configuration& config) {
+                        config.values.set_print_by_default(true);
+                    });
                     thread_print("Segmenter terminating and switching to tracking scene: ", segmenter->output_file_name());
                     if(SETTING(gui_frame).value<Frame_t>().valid())
                         SETTING(gui_frame) = Frame_t(SETTING(gui_frame)).try_sub(10_f);
@@ -240,7 +252,7 @@ void launch_gui(std::future<void>& f) {
             }
         },
         [&manager, &errored_out](std::string error) {
-            if(SETTING(nowindow))
+            if(BOOL_SETTING(nowindow))
                 throw U_EXCEPTION("Error converting: ", error);
             
             errored_out = true;
@@ -296,7 +308,7 @@ void launch_gui(std::future<void>& f) {
     manager.register_scene(&loading);
     
     sprite::Map cmd_options;
-    CommandLine::instance().load_settings(nullptr, &cmd_options);
+    CommandLine::instance().load_settings(cmd_options);
     
     using namespace default_config;
     std::unordered_map<TRexTask, Scene*> task_scenes {
@@ -436,9 +448,9 @@ static void signal_handler(int sig) {
     if(sig == SIGINT) {
         SETTING(auto_quit) = false;
         
-        if(!SETTING(error_terminate))
+        if(not BOOL_SETTING(error_terminate))
             SETTING(error_terminate) = true;
-        if(!SETTING(terminate)) {
+        if(not BOOL_SETTING(terminate)) {
             SETTING(terminate) = true;
             Print("Waiting for video to close.");
         }
@@ -508,7 +520,7 @@ std::string start_tracking(std::future<void>& f) {
         terminate = true;
     };
     
-    if(SETTING(auto_train)) {
+    if(BOOL_SETTING(auto_train)) {
         state.add_apply_callback([&](){
             state.add_tracking_callback(fn);
             state.analysis->set_paused(false).get();
@@ -519,7 +531,13 @@ std::string start_tracking(std::future<void>& f) {
     
     state.init_video();
     
-    RecentItems::open(SETTING(source).value<file::PathArray>().source(), GlobalSettings::current_defaults_with_config());
+    {
+        auto current_defaults_with_config = GlobalSettings::read([](const sprite::Map&, const sprite::Map& with_config) {
+            return with_config;
+        });
+        
+        RecentItems::open(SETTING(source).value<file::PathArray>().source(), current_defaults_with_config);
+    }
     
     if(wants_to_load) {
         wants_to_load = false;
@@ -530,10 +548,10 @@ std::string start_tracking(std::future<void>& f) {
     if(f.valid())
         f.get();
     
-    while(not terminate && not SETTING(terminate))
+    while(not terminate && not BOOL_SETTING(terminate))
         std::this_thread::sleep_for(std::chrono::seconds(1));
     
-    while(SETTING(auto_quit))
+    while(BOOL_SETTING(auto_quit))
         std::this_thread::sleep_for(std::chrono::seconds(1));
     
     WorkProgress::stop();
@@ -542,7 +560,10 @@ std::string start_tracking(std::future<void>& f) {
 
 std::string start_converting(std::future<void>& f) {
     if(SETTING(filename).value<file::Path>().empty()) {
-        SETTING(filename) = file::Path(settings::find_output_name(GlobalSettings::map()));
+        file::Path path = GlobalSettings::read([](const Configuration& config) {
+            return settings::find_output_name(config.values);
+        });
+        SETTING(filename) = path;
     }
     
     /// this needs to go first so it gets destroyed last
@@ -636,10 +657,10 @@ std::string start_converting(std::future<void>& f) {
         }
     });
     
-    while(not SETTING(terminate))
+    while(not BOOL_SETTING(terminate))
         std::this_thread::sleep_for(std::chrono::seconds(1));
     
-    if(not SETTING(error_terminate)) {
+    if(not BOOL_SETTING(error_terminate)) {
         spinner.set_option(ind::option::ForegroundColor{ind::Color::green});
         spinner.set_option(ind::option::PrefixText{"✔"});
         spinner.set_option(ind::option::ShowSpinner{false});
@@ -671,8 +692,11 @@ int main(int argc, char**argv) {
     SetConsoleOutputCP( 65001 );
 #endif
     default_config::register_default_locations();
-    grab::default_config::get(GlobalSettings::config());
-    ::default_config::get(GlobalSettings::config());
+    
+    GlobalSettings::write([](Configuration& config){
+        grab::default_config::get(config);
+        ::default_config::get(config);
+    });
     
     gui::init_errorlog();
     set_thread_name("main");
@@ -684,18 +708,20 @@ int main(int argc, char**argv) {
     //SETTING(meta_video_scale) = float(1);
     
     DebugHeader("LOADING COMMANDLINE");
-    GlobalSettings::map()["wd"].get().set_do_print(true);
+    auto wd = GlobalSettings::write_value<NoType>("wd");
+    wd.get().set_do_print(true);
+    
     CommandLine::init(argc, argv, true);
     
     namespace py = Python;
-    auto cwd = GlobalSettings::map()["wd"].value<file::Path>();
+    auto cwd = wd.value<file::Path>();
     //auto cwd = file::cwd();
     if(cwd.empty())
         cwd = file::Path(default_config::homedir());
     CommandLine::instance().add_setting("wd", cwd.str());
     file::cd(file::DataLocation::parse("app").absolute());
     
-    /*GlobalSettings::map().register_callbacks({"use_closing", "source", "meta_source_path", "filename", "detect_type", "cm_per_pixel", "track_background_subtraction", "gui_interface_scale", "detect_format", "detect_skeleton"}, [](auto key){
+    /*GlobalSettings::register_callbacks({"use_closing", "source", "meta_source_path", "filename", "detect_type", "cm_per_pixel", "track_background_subtraction", "gui_interface_scale", "detect_format", "detect_skeleton"}, [](auto key){
         if(key == "use_closing")
             Print("Changed use_closing to ", SETTING(use_closing).value<bool>());
         else if(key == "source")
@@ -793,8 +819,10 @@ int main(int argc, char**argv) {
     
     using namespace track;
     
-    GlobalSettings::map().set_print_by_default(true);
-    GlobalSettings::map()["gui_frame"].get().set_do_print(false);
+    GlobalSettings::write([](Configuration& config) {
+        config.values.set_print_by_default(true);
+        config.values["gui_frame"].get().set_do_print(false);
+    });
     SETTING(app_name) = std::string("TRex");
     //SETTING(meta_real_width) = 1000_F;
     
@@ -824,7 +852,7 @@ int main(int argc, char**argv) {
     }
     
     std::string last_error;
-    if(SETTING(nowindow)) {
+    if(BOOL_SETTING(nowindow)) {
         auto task = SETTING(task).value<TRexTask>();
         if(task == TRexTask_t::none)
             task = determineTaskType();
@@ -834,7 +862,7 @@ int main(int argc, char**argv) {
         Print(SETTING(output_dir));
         
         sprite::Map cmd_options;
-        CommandLine::instance().load_settings(nullptr, &cmd_options);
+        CommandLine::instance().load_settings(cmd_options);
         
         settings::load(settings::LoadContext{
             .source = SETTING(source).value<file::PathArray>(),
@@ -860,7 +888,7 @@ int main(int argc, char**argv) {
         if(task == TRexTask_t::convert) {
             last_error = start_converting(f);
             
-            if(last_error.empty() && SETTING(auto_train)) {
+            if(last_error.empty() && BOOL_SETTING(auto_train)) {
                 
                 try {
                     if (f.valid())
@@ -904,7 +932,7 @@ int main(int argc, char**argv) {
         FormatExcept("Unknown deinit() error, quitting normally anyways. ", e.what());
     }
     
-    if(SETTING(error_terminate)) {
+    if(BOOL_SETTING(error_terminate)) {
         if(not last_error.empty())
             FormatError(last_error.c_str());
         Print("Returning 1 since error_terminate was set: ", last_error);

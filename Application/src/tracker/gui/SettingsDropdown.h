@@ -8,7 +8,7 @@ class List;
 class IMGUIBase;
 
 struct SettingsDropdown {
-    Dropdown _settings_dropdown = Dropdown(Box(0, 0, 200, 33), GlobalSettings::map().keys());
+    Dropdown _settings_dropdown = Dropdown(Box(0, 0, 200, 33), GlobalSettings::keys());
     Textfield _value_input = Textfield(Box(0, 0, 300, 33));
     std::shared_ptr<gui::List> _settings_choice;
     bool should_select{false};

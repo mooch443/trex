@@ -223,7 +223,7 @@ Segmenter::~Segmenter() {
     thread_print("Total time for converting: ", time, "s");
     
     if(_undistort_callbacks)
-        GlobalSettings::map().unregister_callbacks(std::move(_undistort_callbacks));
+        GlobalSettings::unregister_callbacks(std::move(_undistort_callbacks));
     
     Detection::manager().set_weight_limit(1);
     
@@ -247,7 +247,7 @@ Segmenter::~Segmenter() {
             Output::TrackingResults results(*_tracker);
             results.save();
 
-            if (SETTING(auto_quit)) {
+            if (BOOL_SETTING(auto_quit)) {
                 pv::File* video{ nullptr };
                 std::shared_ptr<pv::File> _video;
                 if (_output_file) {
@@ -262,7 +262,7 @@ Segmenter::~Segmenter() {
                 video->header();
                 
                 /// do not export this already if we are going to go on to the next step!
-                if(not SETTING(auto_train)) {
+                if(not BOOL_SETTING(auto_train)) {
                     track::export_data(*video, *_tracker, {}, {}, [](float, std::string_view) {
                         //if (int(p * 100) % 10 == 0) {
                         //    Print("Exporting ", int(p * 100), "%...");
@@ -606,7 +606,9 @@ void Segmenter::open_video() {
     }
     
     _output_file_name = SETTING(filename).value<file::Path>();*/
-    _output_file_name = settings::find_output_name(GlobalSettings::map());
+    _output_file_name = GlobalSettings::read([](const Configuration& config) {
+        return settings::find_output_name(config.values);
+    });
     
     Print("source = ", no_quotes(utils::ShortenText(SETTING(source).value<file::PathArray>().toStr(), 1000)));
     Print("output = ", _output_file_name);
@@ -712,7 +714,7 @@ void Segmenter::open_camera() {
     //SETTING(output_size) = _output_size;
     SETTING(meta_video_size) = camera.size();
     
-    if(SETTING(save_raw_movie)) {
+    if(BOOL_SETTING(save_raw_movie)) {
         auto path = output_file_name();
         if (not SETTING(save_raw_movie_path).value<file::Path>().empty()
             && SETTING(save_raw_movie_path).value<file::Path>().remove_filename().exists())
@@ -796,8 +798,8 @@ void Segmenter::init_undistort_from_settings() {
     if(_undistort_callbacks)
         return;
     
-    _undistort_callbacks = GlobalSettings::map().register_callbacks({"cam_undistort", "cam_undistort_vector", "cam_matrix"}, [this](auto){
-        if(SETTING(cam_undistort)) {
+    _undistort_callbacks = GlobalSettings::register_callbacks({"cam_undistort", "cam_undistort_vector", "cam_matrix"}, [this](auto){
+        if(BOOL_SETTING(cam_undistort)) {
             auto cam_data = SETTING(cam_matrix).value<std::vector<double>>();
             auto undistort_data = SETTING(cam_undistort_vector).value<std::vector<double>>();
             _overlayed_video->source()->set_undistortion(std::move(cam_data), std::move(undistort_data));
@@ -832,7 +834,7 @@ void Segmenter::start() {
 
 void Segmenter::start_recording_ffmpeg() {
 #if WITH_FFMPEG
-    if(SETTING(save_raw_movie)) {
+    if(BOOL_SETTING(save_raw_movie)) {
         try {
             auto path = output_file_name();
             if (not SETTING(save_raw_movie_path).value<file::Path>().empty()

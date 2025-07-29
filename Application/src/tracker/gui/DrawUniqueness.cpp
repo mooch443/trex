@@ -156,7 +156,7 @@ bool DrawUniqueness::Data::should_update_uniquenesses() {
 
 void DrawUniqueness::Data::update(Entangled& base) {
 #if !COMMONS_NO_PYTHON
-    if(not SETTING(gui_show_uniqueness)) {
+    if(not BOOL_SETTING(gui_show_uniqueness)) {
         return;
     }
     

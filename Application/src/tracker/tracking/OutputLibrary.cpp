@@ -39,7 +39,7 @@ namespace Output {
     std::unordered_map<std::string, Library::FunctionType, MultiStringHash, MultiStringEqual> _cache_func;
     cached_output_fields_t _options_map;
     default_config::default_options_type _output_defaults;
-    sprite::CallbackFuture _callback_id;
+    cmn::CallbackFuture _callback_id;
 
     struct LibraryFuncProperties {
         bool is_global{false};
@@ -231,12 +231,12 @@ const track::MotionRecord* Library::retrieve_props(
         func_properties.clear();
         
         if(not _callback) {
-            _callback = GlobalSettings::map().register_callbacks({"output_centered", "output_origin"}, [](auto) {
+            _callback = GlobalSettings::register_callbacks({"output_centered", "output_origin"}, [](auto) {
                 const auto cm_per_px = FAST_SETTING(cm_per_pixel);
-                const auto CENTER_X = SETTING(output_centered)
+                const auto CENTER_X = BOOL_SETTING(output_centered)
                     ? (SETTING(meta_video_size).value<Size2>().width * 0.5_F * cm_per_px)
                     : (SETTING(output_origin).value<Vec2>().x * cm_per_px);
-                const auto CENTER_Y = SETTING(output_centered)
+                const auto CENTER_Y = BOOL_SETTING(output_centered)
                     ? (SETTING(meta_video_size).value<Size2>().height * 0.5_F * cm_per_px)
                     : (SETTING(output_origin).value<Vec2>().y * cm_per_px);
                 CENTER() = Vec2{CENTER_X, CENTER_Y};
@@ -337,7 +337,7 @@ const track::MotionRecord* Library::retrieve_props(
             Vec2 spt(0, 0);
             size_t samples = 0;
             
-            const bool normalize = SETTING(output_normalize_midline_data);
+            const bool normalize = BOOL_SETTING(output_normalize_midline_data);
             
             for(auto f = frame - Frame_t(smooth?FAST_SETTING(smooth_window):0); f<=frame+Frame_t(smooth?FAST_SETTING(smooth_window):0); ++f)
             {
@@ -454,8 +454,8 @@ const track::MotionRecord* Library::retrieve_props(
         });
         
         _cache_func[Functions::BORDER_DISTANCE.str()] = LIBFNC({
-            if(GlobalSettings::has("video_mask")
-               && SETTING(video_mask))
+            if(auto video_mask = GlobalSettings::read_value<NoType>("video_mask");
+               video_mask.valid())
             {
                 auto center = CENTER().load();
                 // circular tank
@@ -469,8 +469,10 @@ const track::MotionRecord* Library::retrieve_props(
             } else {
                 // rectangular tank
                 Size2 size;
-                if(GlobalSettings::has("meta_video_size")) {
-                    size = SETTING(meta_video_size).value<Size2>();
+                if(auto meta_video_size = GlobalSettings::read_value<Size2>("meta_video_size");
+                   meta_video_size)
+                {
+                    size = *meta_video_size;
                 } else {
                     size = Tracker::average().dimensions();
                 }
@@ -1143,12 +1145,12 @@ const track::MotionRecord* Library::retrieve_props(
             return tag.p;
         });
         
-        GlobalSettings::map().register_shutdown_callback([](auto) {
+        GlobalSettings::register_shutdown_callback([](auto) {
             _callback_id.collection.reset();
         });
         
         lock.unlock();
-        _callback_id = GlobalSettings::map().register_callbacks({
+        _callback_id = GlobalSettings::register_callbacks({
             "output_invalid_value",
             "output_fields",
             "output_default_options",

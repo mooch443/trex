@@ -46,7 +46,7 @@ public:
     
 private:
     void init_gui(dyn::DynamicGUI&, DrawStructure& graph);
-    void set_frame(Frame_t);
+    void set_frame(Frame_t, bool);
     bool on_global_event(Event) override;
     void update_run_loop();
     void settings_callback(std::string_view);

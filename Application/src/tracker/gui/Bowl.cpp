@@ -32,7 +32,7 @@ struct Bowl::Data {
     
     std::map<Shape, std::unique_ptr<Drawable>> _include_shapes, _ignore_shapes, _vf_shapes;
     std::atomic<bool> _shapes_updated{true};
-    sprite::CallbackFuture _callback;
+    cmn::CallbackFuture _callback;
     
     bool _was_shift_pressed{false};
     std::vector<Vec2> _gui_zoom_polygon;
@@ -42,7 +42,7 @@ struct Bowl::Data {
     bool update_shapes();
     
     Data() {
-        _callback = GlobalSettings::map().register_callbacks({
+        _callback = GlobalSettings::register_callbacks({
             "track_ignore",
             "track_include",
             "visual_field_shapes",
@@ -63,7 +63,7 @@ struct Bowl::Data {
     
     ~Data() {
         if(_callback)
-            GlobalSettings::map().unregister_callbacks(std::move(_callback));
+            GlobalSettings::unregister_callbacks(std::move(_callback));
     }
 };
 

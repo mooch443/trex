@@ -10,7 +10,7 @@ void SettingsDropdown::selected_setting(long_t index, const std::string& name, T
         auto val = GlobalSettings::get(name);
         if(val.get().is_enum() || val.is_type<bool>()) {
             auto options = val.get().is_enum() ? val.get().enum_values()() : std::vector<std::string>{ "true", "false" };
-            auto index = val.get().is_enum() ? val.get().enum_index()() : (val ? 0 : 1);
+            auto index = val.get().is_enum() ? val.get().enum_index()() : (val.valid() ? 0 : 1);
             
             std::vector<std::shared_ptr<gui::Item>> items;
             std::map<std::string, bool> selected_option;

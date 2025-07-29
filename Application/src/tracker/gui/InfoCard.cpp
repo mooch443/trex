@@ -714,7 +714,7 @@ void InfoCard::update() {
     auto fdx = _shadow->fdx;
     auto fprobs = cache.probs(fdx);
     
-    bool detail = SETTING(gui_show_detailed_probabilities);
+    bool detail = BOOL_SETTING(gui_show_detailed_probabilities);
     Box tmp(0, y - 10, 200, 0);
     
     //auto idx = index();

@@ -136,7 +136,9 @@ int main(int argc, char**argv) {
     SETTING(use_differences) = false;
     SETTING(crop) = CropOffsets();
     
-    GlobalSettings::map().set_print_by_default(true);
+    GlobalSettings::write([&](Configuration& config) {
+        config.values.set_print_by_default(true);
+    });
     
     CommandLine::init(argc, argv, true);
     
@@ -246,7 +248,7 @@ int main(int argc, char**argv) {
         framerate = 1000.f / (double(current_frame.timestamp() - prev_time) / 1000.f);
     }
     
-    const bool as_gif = SETTING(as_gif);
+    const bool as_gif = BOOL_SETTING(as_gif);
     if(as_gif)
         Print("Will export as gif from ", start_frame," to ", end_frame," (step ",step,").");
     
@@ -256,7 +258,7 @@ int main(int argc, char**argv) {
     CropOffsets tmp = SETTING(crop);
     auto crop_rect = tmp.toPixels(video.size());
     
-    if(SETTING(as_gif)) {
+    if(BOOL_SETTING(as_gif)) {
         std::stringstream ss;
         ss << output_dir / "animated_frames.gif";
         
@@ -266,14 +268,13 @@ int main(int argc, char**argv) {
         GifBegin(writer, ss.str().c_str(), crop_rect.width * SETTING(scale).value<float>(), crop_rect.height * SETTING(scale).value<float>(), 1);//(current_frame.timestamp()-prev_time)/1000.0);
     }
     
-    bool with_background
-    = !SETTING(disable_background);
+    bool with_background = !BOOL_SETTING(disable_background);
     while(frame_index < (long_t)video.header().num_frames && frame_index < end_frame) {
         cv::Mat image;
         video.read_frame(current_frame, Frame_t(frame_index));
         video.frame_optional_background(Frame_t(frame_index), image, with_background);
         
-        if(SETTING(print_framenr)) {
+        if(BOOL_SETTING(print_framenr)) {
             std::stringstream ss;
             ss << "frame " << frame_index;
             cv::putText(image, ss.str(), cv::Point(10, 10), cv::FONT_HERSHEY_PLAIN, 0.8, cv::Scalar(0));
@@ -285,7 +286,7 @@ int main(int argc, char**argv) {
             resize_image(image, SETTING(scale).value<float>());
         }
         
-        if(SETTING(as_gif)) {
+        if(BOOL_SETTING(as_gif)) {
             cv::cvtColor(image, image, cv::COLOR_GRAY2RGBA);
             GifWriteFrame(writer, image.data, image.cols, image.rows, 0);//(current_frame.timestamp()-prev_time)/1000.0);//;
             

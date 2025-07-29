@@ -68,7 +68,7 @@ struct ConvertScene::Data {
     std::map<Idx_t, std::shared_ptr<constraints::FilterCache>> filter_cache;
     std::map<Idx_t, BdxAndPred> fish_selected_blobs;
     
-    sprite::CallbackFuture callback;
+    cmn::CallbackFuture callback;
     std::optional<blob::Pose::Skeletons> skelet;
     
     std::mutex _current_json_mutex;
@@ -341,7 +341,7 @@ void ConvertScene::update_progress_callback() {
 void ConvertScene::deactivate() {
     try {
         if(_data)
-            GlobalSettings::map().unregister_callbacks(std::move(_data->callback));
+            GlobalSettings::unregister_callbacks(std::move(_data->callback));
 
         if(_data && _data->_recorder.recording())
             _data->_recorder.stop_recording(window(), nullptr);
@@ -364,7 +364,10 @@ void ConvertScene::deactivate() {
             _data->dynGUI.clear();
         }
         /// save the last settings used
-        RecentItems::open(SETTING(source).value<file::PathArray>(), GlobalSettings::current_defaults_with_config());
+        auto current_defaults_with_config = GlobalSettings::read([](const auto&, const sprite::Map& with_config) {
+            return with_config;
+        });
+        RecentItems::open(SETTING(source).value<file::PathArray>(), current_defaults_with_config);
         
         if(_data && _data->_segmenter)
             segmenter().force_stop();
@@ -428,7 +431,7 @@ void ConvertScene::open_camera() {
         SETTING(detect_model) = file::Path(track::detect::yolo::default_model());
     }
     
-    if(not GlobalSettings::current_defaults_with_config().has("save_raw_movie"))
+    if(not GlobalSettings::has_current_default_with_config("save_raw_movie"))
     {
         SETTING(save_raw_movie) = true;
     }
@@ -460,11 +463,14 @@ void ConvertScene::activate()  {
     if(_on_activate)
         _on_activate(*this);
 
-    GlobalSettings::map().set_print_by_default(true);
+    file::Path default_filename = GlobalSettings::write([](Configuration& config){
+        config.values.set_print_by_default(true);
+        return file::Path(settings::find_output_name(config.values));
+    });
     
     auto source = SETTING(source).value<file::PathArray>();
     if(SETTING(filename).value<file::Path>().empty()) {
-        SETTING(filename) = file::Path(settings::find_output_name(GlobalSettings::map()));
+        SETTING(filename) = default_filename;
     }
     
     Print("Loading source = ", no_quotes(utils::ShortenText(source.toStr(), 1000)));
@@ -487,7 +493,7 @@ void ConvertScene::activate()  {
         _data = std::make_unique<Data>();
 
     _data->skelet = SETTING(detect_skeleton).value<std::optional<blob::Pose::Skeletons>>();
-    _data->callback = GlobalSettings::map().register_callbacks({
+    _data->callback = GlobalSettings::register_callbacks({
         "detect_skeleton"
     }, [this](auto) {
         SceneManager::enqueue([this]() {
@@ -527,9 +533,13 @@ void ConvertScene::activate()  {
     }
     
     segmenter().start();
-    RecentItems::open(source, GlobalSettings::current_defaults_with_config());
     
-    if(SETTING(closed_loop_enable)) {
+    auto current_defaults_with_config = GlobalSettings::read([](const auto&, const sprite::Map& with_config) {
+        return with_config;
+    });
+    RecentItems::open(source, current_defaults_with_config);
+    
+    if(BOOL_SETTING(closed_loop_enable)) {
         _data->_closed_loop = ml::ClosedLoop{};
     }
 }
@@ -540,7 +550,7 @@ bool ConvertScene::on_global_event(Event e) {
     {
         switch(e.key.code) {
             case Keyboard::T:
-                SETTING(gui_show_texts) = not SETTING(gui_show_texts);
+                SETTING(gui_show_texts) = not BOOL_SETTING(gui_show_texts);
                 break;
                 
             case Keyboard::R:
@@ -874,8 +884,10 @@ dyn::DynamicGUI ConvertScene::Data::init_gui(Base* window) {
         ActionFunc("set", [](const Action& action) {
             auto name = action.parameters.at(0);
             auto value = action.parameters.at(1);
-            if (GlobalSettings::has(name)) {
-                GlobalSettings::get(name).get().set_value_from_string(value);
+            if (auto ref = GlobalSettings::write_value<NoType>(name);
+                ref.valid())
+            {
+                ref.get().set_value_from_string(value);
             }
         }),
         ActionFunc("set_clipboard", [](const Action& action) {
@@ -1133,7 +1145,7 @@ bool ConvertScene::Data::retrieve_and_prepare_data() {
     std::unordered_map<pv::bid, Identity> visible_bdx;
     std::vector<std::vector<Vertex>> lines;
     std::vector<std::tuple<Color, std::vector<Vec2>>> postures;
-    const bool output_normalize_midline_data = SETTING(output_normalize_midline_data);
+    const bool output_normalize_midline_data = BOOL_SETTING(output_normalize_midline_data);
 
     IndividualManager::transform_all([&, frameIndex = _current_data.frame.index()](Idx_t, Individual* fish) {
         if (not fish->has(frameIndex))

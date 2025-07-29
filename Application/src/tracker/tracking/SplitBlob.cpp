@@ -84,24 +84,27 @@ SplitBlob::SplitBlob(CPULabeling::ListCache_t* cache, const Background& average,
         
         auto fn = [](std::string_view name) {
             static bool first = true;
-            auto &map = GlobalSettings::map();
-            auto &value = map.at(name).get();
             
-            DEF_CALLBACK(blob_split_max_shrink);
-            DEF_CALLBACK(blob_split_global_shrink_limit);
-            DEF_CALLBACK(cm_per_pixel);
-            DEF_CALLBACK(track_size_filter);
-            DEF_CALLBACK(calculate_posture);
-            DEF_CALLBACK(track_threshold);
-            DEF_CALLBACK(track_posture_threshold);
-            
-            DEF_CALLBACK(blob_split_algorithm);
+            GlobalSettings::read([name](const Configuration& config) {
+                auto &map = config.values;
+                auto &value = map.at(name).get();
+                
+                DEF_CALLBACK(blob_split_max_shrink);
+                DEF_CALLBACK(blob_split_global_shrink_limit);
+                DEF_CALLBACK(cm_per_pixel);
+                DEF_CALLBACK(track_size_filter);
+                DEF_CALLBACK(calculate_posture);
+                DEF_CALLBACK(track_threshold);
+                DEF_CALLBACK(track_posture_threshold);
+                
+                DEF_CALLBACK(blob_split_algorithm);
+            });
             
             if(first)
                 first = false;
         };
         
-        GlobalSettings::map().register_callbacks({
+        GlobalSettings::register_callbacks({
             "blob_split_max_shrink",
             "blob_split_global_shrink_limit",
             "cm_per_pixel",

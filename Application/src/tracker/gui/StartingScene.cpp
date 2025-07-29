@@ -180,9 +180,10 @@ void StartingScene::_draw(DrawStructure& graph) {
                         grab::default_config::get(tmp);
                         ::default_config::get(tmp);
                         
+                        auto def = GlobalSettings::read_default<track::detect::ObjectDetectionType_t>("detect_type");
                         auto type = item._options.has("detect_type")
                                         ? item._options.at("detect_type") .value<track::detect::ObjectDetectionType_t>()
-                                        : GlobalSettings::defaults().at("detect_type");
+                                        : *def;
                         
                         auto f = WorkProgress::add_queue("", [array, filename, type, item, copy = std::move(copy)](){
                             settings::load(settings::LoadContext{

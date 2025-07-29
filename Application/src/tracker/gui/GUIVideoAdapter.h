@@ -7,16 +7,18 @@
 #include <gui/GuiTypes.h>
 #include <file/PathArray.h>
 #include <misc/Image.h>
+#include <gui/Dispatcher.h>
+
+using Alpha = cmn::gui::attr::Alpha;
 
 namespace cmn::gui {
 
 class IMGUIBase;
 
+NUMBER_ALIAS(Blur, double);
+NUMBER_ALIAS(FrameTime, double);
+
 class GUIVideoAdapter : public Entangled {
-public:
-    NUMBER_ALIAS(Blur, double)
-    NUMBER_ALIAS(FrameTime, double)
-    
 private:
     GETTER(BlurryVideoLoop, video_loop);
     ExternalImage _image;
@@ -57,5 +59,14 @@ public:
     Alpha alpha() const;
     void set_scale(const Vec2& scale) override;
 };
+
+namespace attr {
+CMN_GUI_REGISTER_ATTRIBUTE_MEMBER(GUIVideoAdapter, Blur);
+CMN_GUI_REGISTER_ATTRIBUTE_MEMBER(GUIVideoAdapter, FrameTime);
+CMN_GUI_REGISTER_ATTRIBUTE_MEMBER(GUIVideoAdapter, Margins);
+CMN_GUI_REGISTER_ATTRIBUTE_MEMBER(GUIVideoAdapter, Alpha);
+CMN_GUI_REGISTER_ATTRIBUTE_MEMBER(GUIVideoAdapter, file::PathArray);
+CMN_GUI_REGISTER_ATTRIBUTE_MEMBER(GUIVideoAdapter, SizeLimit);
+}
 
 }

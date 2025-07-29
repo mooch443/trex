@@ -90,7 +90,7 @@ class Segmenter {
     GETTER(Range<Frame_t>, video_conversion_range);
     file::Path _output_file_name;
     
-    sprite::CallbackFuture _undistort_callbacks;
+    cmn::CallbackFuture _undistort_callbacks;
     
     // Overlayed video with detections and tracker for object tracking
     GETTER(std::unique_ptr<BasicProcessor>, overlayed_video);

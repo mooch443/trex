@@ -66,7 +66,7 @@ int main() {
         auto str = format<FormatterType::NONE>("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
         str = Meta::toStr(DurationUS{uint64_t(timer.elapsed() * 1000 * 1000)});
         
-        if(SETTING(terminate))
+        if(BOOL_SETTING(terminate))
             return false;
         
         return true;

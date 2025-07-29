@@ -120,7 +120,7 @@ namespace default_config {
         CONFIG("test_image", std::string("checkerboard"), "Defines, which test image will be used if `video_source` is set to 'test_image'.", LOAD);
         CONFIG("filename", Path(""), "The output filename.", LOAD);
         CONFIG("settings_file", Path(), "The settings filename.", LOAD);
-        CONFIG("recording", true, "If set to true, the program will record frames whenever individuals are found.");
+        //CONFIG("recording", true, "If set to true, the program will record frames whenever individuals are found.");
         CONFIG("terminate", false, "Terminates the program gracefully.", SYSTEM);
         CONFIG("error_terminate", false, "Internal variable.", SYSTEM);
         

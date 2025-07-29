@@ -12,6 +12,7 @@
 #include <misc/RBSettings.h>
 #include <tracker/misc/PrecomuptedDetection.h>
 #include <tracking/SplitBlob.h>
+#include <grabber/misc/default_config.h>
 
 using ::testing::TestWithParam;
 using ::testing::Values;
@@ -28,7 +29,10 @@ using namespace default_config;
 // (Optional, but can help avoid cross-test pollution.)
 static void resetGlobalSettings()
 {
-    default_config::get(GlobalSettings::map(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
+    GlobalSettings::write([&](Configuration& config) {
+        grab::default_config::get(config);
+        ::default_config::get(config);
+    });
     
     // Clear out the global SETTING(...) states used by these tests:
     SETTING(output_fields) = std::vector<std::pair<std::string, std::vector<std::string>>>{};
@@ -481,11 +485,13 @@ TEST(TestValidModels, Invalid) {
 static auto _ = [](){
     Print("Initializing global maps.");
     
-    default_config::get(GlobalSettings::map(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
+    GlobalSettings::write([&](Configuration& config) {
+        default_config::get(config);
+    });
     Settings::init();
     
     for(auto name : Settings::names()) {
-        Settings::variable_changed(sprite::Map::Signal::NONE, GlobalSettings::map(), name, GlobalSettings::get(name).get());
+        Settings::variable_changed(sprite::Map::Signal::NONE, name, GlobalSettings::get(name).get());
     }
     
     return 0;
@@ -953,7 +959,9 @@ public:
      table_ = GetParam()();
      table_->prop = FrameProperties(Frame_t(0), 0, 0);
      
-     default_config::get(GlobalSettings::map(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
+     GlobalSettings::write([&](Configuration& config) {
+         default_config::get(config);
+     });
      SETTING(match_min_probability) = float(0.1);
      SETTING(match_mode) = table_->match_mode;
      SETTING(frame_rate) = Settings::frame_rate_t{ 25 };
@@ -1252,7 +1260,9 @@ protected:
     TrackerAndVideo* data;
 public:
     void SetUp() override {
-        default_config::get(GlobalSettings::map(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
+        GlobalSettings::write([&](Configuration& config) {
+            default_config::get(config);
+        });
         data = new TrackerAndVideo;
     }
     

@@ -31,7 +31,7 @@ void check_global_tracklets_available(GUITaskQueue_t* gui,
 {
     auto display_error = [gui](auto message) {
         /// we have probably not set the number of individuals
-        if(SETTING(auto_train_on_startup)) {
+        if(BOOL_SETTING(auto_train_on_startup)) {
             throw U_EXCEPTION(message);
             
         } else if(gui) {
@@ -94,7 +94,7 @@ void generate_training_data(GUITaskQueue_t* gui, bool force_load, std::shared_pt
             //    current.get();
 
             auto ret = acc.start();
-            if (ret && SETTING(auto_train_dont_apply)) {
+            if (ret && BOOL_SETTING(auto_train_dont_apply)) {
                 controller->auto_quit(gui);
             }
 
@@ -114,7 +114,7 @@ void generate_training_data(GUITaskQueue_t* gui, bool force_load, std::shared_pt
 
         }
         catch (const SoftExceptionImpl& error) {
-            if (SETTING(auto_train_on_startup))
+            if (BOOL_SETTING(auto_train_on_startup))
                 throw U_EXCEPTION("The training process failed. Please check whether you are in the right python environment and check previous error messages.");
 
             if (graph)
@@ -308,7 +308,7 @@ void generate_training_data(GUITaskQueue_t* gui, bool force_load, std::shared_pt
         }
         
         if(!fn(mode, nullptr, nullptr, global_tracklet_order)) {
-            if(SETTING(auto_train_on_startup))
+            if(BOOL_SETTING(auto_train_on_startup))
                 throw U_EXCEPTION("Using the network returned a bad code (false). See previous errors.");
         }
         if(!force_load)
@@ -332,7 +332,7 @@ void generate_training_data(GUITaskQueue_t* gui, bool force_load, std::shared_pt
 void training_data_dialog(GUITaskQueue_t* gui, bool force_load, std::function<void()> callback, std::shared_ptr<VIController> controller) {
     if(!py::python_available()) {
         auto message = py::python_available() ? "Recognition is not enabled." : "Python is not available. Check your configuration.";
-        if(SETTING(auto_train_on_startup))
+        if(BOOL_SETTING(auto_train_on_startup))
             throw U_EXCEPTION(message);
         
         FormatWarning(message);
@@ -407,7 +407,7 @@ void training_data_dialog(GUITaskQueue_t* gui, bool force_load, std::function<vo
         try {
             generate_training_data(gui, force_load, controller);
         } catch(const SoftExceptionImpl& ex) {
-            if(SETTING(auto_train_on_startup)) {
+            if(BOOL_SETTING(auto_train_on_startup)) {
                 throw U_EXCEPTION("Aborting training data because an exception was thrown (",std::string(ex.what()),").");
             } else {
                 if(gui) {
@@ -547,7 +547,7 @@ void VIController::auto_quit(GUITaskQueue_t* gui) {
         }
         //instance()->write_config(true);
         
-        if(!SETTING(auto_no_results)) {
+        if(!BOOL_SETTING(auto_no_results)) {
             auto tracker = _tracker.lock();
             if(tracker) {
                 Output::TrackingResults results(*tracker);
@@ -576,7 +576,7 @@ void VIController::auto_quit(GUITaskQueue_t* gui) {
     }
     
     SETTING(auto_quit) = false;
-    if(!SETTING(terminate))
+    if(!BOOL_SETTING(terminate))
         SETTING(terminate) = true;
 }
 

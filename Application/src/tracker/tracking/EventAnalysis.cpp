@@ -225,7 +225,7 @@ bool _callback_registered;
             auto update_setting = [](auto){
                 _limit = SETTING(limit).value<decltype(_limit)>();
             };
-            GlobalSettings::map().register_callbacks({"limit"}, update_setting);
+            GlobalSettings::register_callbacks({"limit"}, update_setting);
         }
         
         Timer timer;

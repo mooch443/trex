@@ -44,7 +44,7 @@ struct SettingsScene::Data {
     std::future<void> check_new_video_source;
     
     dyn::DynamicGUI dynGUI;
-    sprite::CallbackFuture callback;
+    cmn::CallbackFuture callback;
     std::string layout_name { "choose_settings_layout.json" };
     
     std::unordered_map<std::string, std::future<bool>> _scheduled_exist_checks;
@@ -77,7 +77,7 @@ struct SettingsScene::Data {
         update_running_tasks(true);
         
         if(callback)
-            GlobalSettings::map().unregister_callbacks(std::move(callback));
+            GlobalSettings::unregister_callbacks(std::move(callback));
         dynGUI.clear();
         
         if(std::unique_lock guard{_video_source_mutex};
@@ -95,7 +95,9 @@ struct SettingsScene::Data {
         
         auto filename = SETTING(filename).value<file::Path>();
         if(filename.empty())
-            filename = settings::find_output_name(GlobalSettings::map());
+            filename = GlobalSettings::read([](const Configuration& config){
+                return settings::find_output_name(config.values);
+            });
         if(not filename.has_extension() || filename.extension() != ext)
             filename = filename.add_extension(ext);
         return filename;
@@ -244,21 +246,21 @@ struct SettingsScene::Data {
     
     void register_callbacks() {
         if(callback)
-            GlobalSettings::map().unregister_callbacks(std::move(callback));
+            GlobalSettings::unregister_callbacks(std::move(callback));
         
-        auto fn = [this](auto name) {
+        auto fn = [this](std::string_view name) {
             if(name == "filename") {
-                file::Path path = GlobalSettings::map().at("filename").value<file::Path>();
-                if(not path.empty() && not path.remove_filename().empty()) {
-                    if(path.has_extension("pv"))
-                        path = path.remove_extension();
-                    path = path.filename();
-                    SETTING(filename) = path;
+                auto path = GlobalSettings::read_value<file::Path>("filename");
+                if(path && not path->empty() && not path->remove_filename().empty()) {
+                    if(path->has_extension("pv"))
+                        path = path->remove_extension();
+                    path = path->filename();
+                    SETTING(filename) = *path;
                 }
             } else if(name == "source") {
                 //SETTING(filename) = file::Path();
 
-                file::PathArray source = GlobalSettings::map().at("source");
+                auto source = GlobalSettings::read_value<file::PathArray>("source");
                 
                 std::unique_lock guard{_video_source_mutex};
                 if(check_new_video_source.valid()) {
@@ -270,7 +272,8 @@ struct SettingsScene::Data {
                 check_new_video_source = std::async(std::launch::async, [source, this](){
                     try {
                         update_running_tasks(true);
-                        check_video_source(source);
+                        if(source)
+                            check_video_source(*source);
                         _are_video_checks_running = false;
                         Print("// Video check stopped.");
                     
@@ -298,14 +301,16 @@ struct SettingsScene::Data {
                     };
                 }
                 
-                settings::set_defaults_for(detect_type, GlobalSettings::map(), exclude);
+                GlobalSettings::write([&](Configuration& config){
+                    settings::set_defaults_for(detect_type, config.values, exclude, config.values.at("cm_per_pixel").value<track::Settings::cm_per_pixel_t>());
+                });
                 
             } else if(name == "detect_model" || name == "region_model") {
                 detection_models_updated();
             }
         };
         
-        callback = GlobalSettings::map().register_callbacks<sprite::RegisterInit::DONT_TRIGGER>({
+        callback = GlobalSettings::register_callbacks<sprite::RegisterInit::DONT_TRIGGER>({
             "filename",
             "source",
             "detect_type",
@@ -321,9 +326,15 @@ struct SettingsScene::Data {
     }
     
     sprite::Map get_changed_props() const {
-        sprite::Map copy = GlobalSettings::map();
-        const auto &defaults = GlobalSettings::defaults();
-        const auto &_defaults = GlobalSettings::current_defaults_with_config();
+        auto [copy, defaults] = GlobalSettings::read([](const Configuration& config){
+            return std::make_tuple(config.values, config.defaults);
+        });
+        auto _defaults = GlobalSettings::read([](const sprite::Map&, const sprite::Map& with_config){
+            return with_config;
+        });
+        //const auto &defaults = GlobalSettings::defaults();
+        //const auto &_defaults = GlobalSettings::current_defaults_with_config();
+        
 #ifndef NDEBUG
         Print("current video_conversion_range = ", _defaults.at("video_conversion_range"));
         Print("current video_conversion_range = ", copy.at("video_conversion_range"));
@@ -372,7 +383,7 @@ struct SettingsScene::Data {
                         REQUIRE_EXACTLY(2, action);
                         
                         auto parm = Meta::fromStr<std::string>(action.first());
-                        if(not GlobalSettings::has(parm))
+                        if(not GlobalSettings::has_value(parm))
                             throw InvalidArgumentException("No parameter ",parm," in global settings.");
                         
                         auto value = action.last();
@@ -422,9 +433,13 @@ struct SettingsScene::Data {
                         
                         auto f = WorkProgress::add_queue("", [this, copy = get_changed_props()]() {
                             Print("changed props = ", copy.keys());
-                            sprite::Map before = GlobalSettings::map();
-                            sprite::Map defaults = GlobalSettings::get_current_defaults();
-                            sprite::Map defaults_with_config = GlobalSettings::current_defaults_with_config();
+                            
+                            auto [before, defaults] = GlobalSettings::read([](const Configuration& config){
+                                return std::make_tuple(config.values, config.defaults);
+                            });
+                            auto defaults_with_config = GlobalSettings::read([](const sprite::Map&, const sprite::Map& with_config){
+                                return with_config;
+                            });
 
                             /// if we determine that we are actually reconverting a pv file
                             /// we need to load the source settings from the pv file, since we
@@ -452,7 +467,9 @@ struct SettingsScene::Data {
                             
                             auto filename = SETTING(filename).value<file::Path>();
                             if (not filename.empty()) {
-                                filename = settings::find_output_name(GlobalSettings::map());
+                                filename = GlobalSettings::read([](const Configuration& config) {
+                                    return settings::find_output_name(config.values);
+                                });
                             }
                             settings::load(settings::LoadContext{
                                 .source = SETTING(source),
@@ -492,7 +509,9 @@ struct SettingsScene::Data {
                                     }
                                 }
 
-                                auto filename = settings::find_output_name(GlobalSettings::map());
+                                auto filename = GlobalSettings::read([](const Configuration& config) {
+                                    return settings::find_output_name(config.values);
+                                });
                                 if(not filename.has_extension() || filename.extension() != "pv")
                                     filename = filename.add_extension("pv");
                                 
@@ -508,8 +527,10 @@ struct SettingsScene::Data {
                                             
                                         } else {
                                             /// we have to reset settings:
-                                            GlobalSettings::map() = before;
-                                            GlobalSettings::set_current_defaults(std::move(defaults));
+                                            GlobalSettings::write([&](Configuration& config){
+                                                config.values = before;
+                                                config.defaults = std::move(defaults);
+                                            });
                                             GlobalSettings::set_current_defaults_with_config(std::move(defaults_with_config));
                                         }
                                         
@@ -541,9 +562,12 @@ struct SettingsScene::Data {
                         
                         WorkProgress::add_queue("loading...", [this, copy = get_changed_props()]() mutable
                         {
-                            sprite::Map before = GlobalSettings::map();
-                            sprite::Map defaults = GlobalSettings::get_current_defaults();
-                            sprite::Map defaults_with_config = GlobalSettings::current_defaults_with_config();
+                            auto [before, defaults] = GlobalSettings::read([](const Configuration& config){
+                                return std::make_tuple(config.values, config.defaults);
+                            });
+                            auto defaults_with_config = GlobalSettings::read([](const sprite::Map&, const sprite::Map& with_config){
+                                return with_config;
+                            });
                             
                             copy.register_callbacks({
                                 "detect_format",
@@ -606,8 +630,10 @@ struct SettingsScene::Data {
                                         } else if(result == Dialog::Result::SECOND) {
                                             open_file();
                                         } else {
-                                            GlobalSettings::map() = before;
-                                            GlobalSettings::set_current_defaults(std::move(defaults));
+                                            GlobalSettings::write([&](Configuration& config){
+                                                config.values = before;
+                                                config.defaults = std::move(defaults);
+                                            });
                                             GlobalSettings::set_current_defaults_with_config(std::move(defaults_with_config));
                                         }
                                         
@@ -713,8 +739,11 @@ struct SettingsScene::Data {
                         });
                     }),
                     ActionFunc("reload_selected_source", [this](auto){
-                        file::PathArray source = GlobalSettings::map().at("source");
-                        load_video_settings(source);
+                        auto source = GlobalSettings::read_value<file::PathArray>("source");
+                        if(source)
+                            load_video_settings(*source);
+                        else
+                            FormatWarning("No source selected for reload_selected_source.");
                     }),
                     ActionFunc("toggle-background-subtraction", [](auto){
                         SETTING(track_background_subtraction) = not SETTING(track_background_subtraction).value<bool>();
@@ -799,7 +828,9 @@ struct SettingsScene::Data {
                         if(not last_output_name
                            || output_name_check.elapsed() > 1)
                         {
-                            last_output_name = settings::find_output_name(GlobalSettings::map());
+                            last_output_name = GlobalSettings::read([](const Configuration& config) {
+                                return settings::find_output_name(config.values);
+                            });
                             output_name_check.reset();
                         }
                         return last_output_name.value();
@@ -981,7 +1012,7 @@ void SettingsScene::Data::load_video_settings(const file::PathArray& source) {
     };
     
     if(callback)
-        GlobalSettings::map().unregister_callbacks(std::move(callback));
+        GlobalSettings::unregister_callbacks(std::move(callback));
     
     auto source_path = source.empty()
                         ? file::Path{}
@@ -991,11 +1022,11 @@ void SettingsScene::Data::load_video_settings(const file::PathArray& source) {
         && source_path.is_regular()
         && not source_path.has_extension("pv"))
     {
-        file::Path filename = GlobalSettings::map().at("filename");
+        auto filename = GlobalSettings::read_value<file::Path>("filename");
         try {
             settings::load(settings::LoadContext{
                 .source = source,
-                .filename = filename,
+                .filename = *filename,
                 .task = default_config::TRexTask_t::convert,
                 .type = track::detect::ObjectDetectionType::none,
                 .exclude_parameters = exclude
@@ -1012,8 +1043,11 @@ void SettingsScene::Data::load_video_settings(const file::PathArray& source) {
             
             sprite::Map map;
             try {
-                if(str.has_value())
-                    sprite::parse_values(sprite::MapSource{ source_path }, map, str.value(), &GlobalSettings::defaults(), {}, default_config::deprecations());
+                if(str.has_value()) {
+                    GlobalSettings::read([&](const Configuration& config){
+                        sprite::parse_values(sprite::MapSource{ source_path }, map, str.value(), &config.defaults, {}, default_config::deprecations());
+                    });
+                }
             }
             catch (...) {
                 /// do nothing
@@ -1065,7 +1099,7 @@ void SettingsScene::activate() {
 
     _data->_initial_source = SETTING(source).value<file::PathArray>();
     _data->register_callbacks();
-    _data->_defaults = GlobalSettings::map();
+    _data->_defaults = GlobalSettings::read([](const Configuration& config) { return config.values; });
     _data->layout_name = last_opened_tab.get();
 }
 
@@ -1078,7 +1112,7 @@ void SettingsScene::deactivate() {
     if(_data) {
         //Print("_data is set, need to unregister callbacks...");
         if(_data->callback)
-            GlobalSettings::map().unregister_callbacks(std::move(_data->callback));
+            GlobalSettings::unregister_callbacks(std::move(_data->callback));
         
         //Print("Clearing _data->dynGUI");
         _data->dynGUI.clear();

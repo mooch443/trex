@@ -97,7 +97,7 @@ void TrackingSettingsScene::_draw(DrawStructure& graph) {
                     SETTING(track_background_subtraction) = not SETTING(track_background_subtraction).value<bool>();
                 }),
                 VarFunc("settings_summary", [](const VarProps&) -> std::string {
-                    return std::string(GlobalSettings::map().toStr());
+                    return std::string();
                 })
             }
         };

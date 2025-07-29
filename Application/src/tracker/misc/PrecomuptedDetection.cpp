@@ -28,7 +28,7 @@ struct PrecomputedDetection::Data {
     }
     void set_background(Image::Ptr&& background, meta_encoding_t::Class meta_encoding) {
         std::unique_lock guard(_background_mutex);
-        _background = Background(std::move(background), meta_encoding);
+        _background.emplace(std::move(background), meta_encoding);
     }
     
     std::shared_mutex _data_mutex;
@@ -206,7 +206,7 @@ void PrecomputedDetectionCache::buildCache(const file::Path& csv_path, const fil
     }
     
     Size2 default_size;
-    if (GlobalSettings::map().is_type<Size2>("individual_image_size"))
+    if (GlobalSettings::is_type<Size2>("individual_image_size"))
         default_size = SETTING(individual_image_size).value<Size2>();
     else {
         default_size = Size2(80, 80);
@@ -495,7 +495,7 @@ void PrecomputedDetection::Data::set(Image::Ptr&& average, meta_encoding_t::Clas
     std::scoped_lock guard(_background_mutex, _gpu_mutex);
     Print("Setting background image to ", hex(average.get()));
     if(average)
-        _background = Background(std::move(average), meta_encoding);
+        _background.emplace(std::move(average), meta_encoding);
     else
         _background.reset();
     

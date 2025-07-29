@@ -26,7 +26,7 @@ namespace Output {
     
     class Library {
         static std::atomic<cmn::Vec2>& CENTER();
-        static cmn::sprite::CallbackFuture _callback;
+        static cmn::CallbackFuture _callback;
         
     public:
         
