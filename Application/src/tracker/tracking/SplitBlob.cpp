@@ -65,7 +65,7 @@ struct slow {
 #undef DEF_SLOW_SETTINGS
 
 //! Slow updated, but faster access:
-#define SPLIT_SETTING(NAME) (track::split::slow:: NAME)
+#define SPLIT_SETTING(NAME) track::split::slow::NAME
 
 }
 
@@ -76,14 +76,14 @@ SplitBlob::SplitBlob(CPULabeling::ListCache_t* cache, const Background& average,
 {
     //! Settings initializer:
     static const auto _ = []{
-#define DEF_CALLBACK(X) if( first ) { \
-        SPLIT_SETTING( X ) = map[#X].value<track::split::slow:: X##_t >(); \
+#define DEF_CALLBACK(X) if( _first ) { \
+        SPLIT_SETTING( X ) = map[#X].value< track::split::slow:: X##_t >(); \
     } else if (name == #X) { \
-        SPLIT_SETTING( X ) = value.value<track::split::slow:: X##_t >(); \
-    } void()
+        SPLIT_SETTING( X ) = value.value< track::split::slow:: X##_t >(); \
+    }
         
         auto fn = [](std::string_view name) {
-            static bool first = true;
+            static bool _first = true;
             
             GlobalSettings::read([name](const Configuration& config) {
                 auto &map = config.values;
@@ -100,8 +100,8 @@ SplitBlob::SplitBlob(CPULabeling::ListCache_t* cache, const Background& average,
                 DEF_CALLBACK(blob_split_algorithm);
             });
             
-            if(first)
-                first = false;
+            if(_first)
+                _first = false;
         };
         
         GlobalSettings::register_callbacks({

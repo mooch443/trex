@@ -460,11 +460,11 @@ static void signal_handler(int sig) {
 #elif defined(WIN32)
 BOOL WINAPI consoleHandler(DWORD signal_code) {
     if (signal_code == CTRL_C_EVENT) {
-        if (SETTING(auto_quit))
+        if (BOOL_SETTING(auto_quit))
             SETTING(auto_quit) = false;
-		if (not SETTING(error_terminate))
+		if (not BOOL_SETTING(error_terminate))
 		    SETTING(error_terminate) = true;
-        if (!SETTING(terminate)) {
+        if (!BOOL_SETTING(terminate)) {
             SETTING(terminate) = true;
             Print("Waiting for video to close.");
 			return TRUE;
