@@ -539,8 +539,7 @@ file::Path conda_environment_path() {
 #else
     std::string compiled_path = "";
 #endif
-    
-    auto home = SETTING(python_path).value<file::Path>().str();
+    auto home = GlobalSettings::read_value_with_default("python_path", file::Path()).str();
     if(file::Path(home).is_regular())
         home = file::Path(home).remove_filename().str();
 #if defined(__linux__) || defined(__APPLE__)
@@ -558,8 +557,8 @@ file::Path conda_environment_path() {
         if(conda_prefix) {
             // we are inside a conda environment
             home = conda_prefix;
-        } else if(utils::contains(SETTING(wd).value<file::Path>().str(), "envs"+Meta::toStr(file::Path::os_sep()))) {
-            auto folders = utils::split(SETTING(wd).value<file::Path>().str(), file::Path::os_sep());
+        } else if(utils::contains(GlobalSettings::read_value_with_default("wd", file::Path()).str(), "envs"+Meta::toStr(file::Path::os_sep()))) {
+            auto folders = utils::split(GlobalSettings::read_value_with_default("wd", file::Path()).str(), file::Path::os_sep());
             std::string previous = "";
             home = "";
             
@@ -1085,6 +1084,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("detect_format", track::detect::ObjectDetectionFormat::none, "The type of data returned by the `detect_model`, which can be an instance segmentation", AccessLevelType::INIT);
         CONFIG("detect_keypoint_format", track::detect::KeypointFormat{}, "When a keypoint (pose) type model is loaded, this variable will be set to [n_points,n_dims].", AccessLevelType::SYSTEM);
         CONFIG("detect_keypoint_names", track::detect::KeypointNames{}, "An array of names in the correct keypoint index order for the given model.");
+        CONFIG("detect_point_radii", std::map<int, float>{}, "An array of radii for a given point class in a POLO network.", PUBLIC);
         CONFIG("detect_batch_size", uchar(1), "The batching size for object detection.");
         CONFIG("detect_tile_image", uchar(0), "If > 1, this will tile the input image for Object detection (SAHI method) before passing it to the network. These tiles will be `detect_resolution` pixels high and wide (with zero padding).");
         CONFIG("yolo_tracking_enabled", false, "If set to true, the program will try to use yolov8s internal tracking routine to improve results. This can be significantly slower and disables batching.");

@@ -385,6 +385,38 @@ Bounds ICXYWHR::bounding_box(const std::array<cmn::Vec2, 4>& pts) {
     return Bounds(min_x, min_y, max_x - min_x, max_y - min_y);
 }
 
+std::array<cmn::Vec2, 4> ICXYR::corners() const {
+    return std::array{
+        Vec2(x - r, y - r),
+        Vec2(x + r, y - r),
+        Vec2(x + r, y + r),
+        Vec2(x - r, y + r)
+    };
+}
+
+Bounds ICXYR::bounding_box() const {
+    return bounding_box(corners());
+}
+
+Bounds ICXYR::bounding_box(const std::array<cmn::Vec2, 4>& pts) {
+    return ICXYWHR::bounding_box(pts);
+}
+
+ICXYR PointData::operator[](size_t index) const {
+    if (index * 5u >= icxyr().size())
+        throw OutOfRangeException("The index ", index, " is outside the PointData arrays dimensions of ", size());
+    return reinterpret_cast<const ICXYR*>(icxyr().data())[index];
+}
+
+PointData::PointData(std::vector<float>&& data)
+    : _icxyr(std::move(data))
+{
+    if (not _icxyr.empty() && _icxyr.size() % 5u != 0u)
+        throw InvalidArgumentException("Invalid size for PointData constructor. Please use a size that is divisible by 7 and is a flat ICXYR array.");
+    // expecting 7 floats per row, 1 for id, 1 for confidence, 2 for xy, 2 for wh, 1 for r
+    assert(_icxyr.size() % 5u == 0u);
+}
+
 }
 
 using namespace track::detect;
@@ -403,6 +435,7 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
         .value("masks", track::detect::ObjectDetectionFormat::masks)
         .value("poses", track::detect::ObjectDetectionFormat::poses)
         .value("obb", track::detect::ObjectDetectionFormat::obb)
+        .value("points", track::detect::ObjectDetectionFormat::points)
         .export_values();
 
     py::class_<DetectResolution>(m, "DetectResolution")
@@ -514,11 +547,22 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
         })
         .def("at", &ObbData::operator[], py::return_value_policy::reference_internal)
         .def("size", &ObbData::size);
+    
+    py::class_<PointData>(m, "PointData")
+        .def(py::init([](py::array_t<float, py::array::c_style | py::array::forcecast> icxyr) -> PointData {
+            return PointData(move_array<float>(icxyr));
+        }))
+        .def("__repr__", [](const track::detect::PointData& points) -> std::string {
+            return points.toStr();
+        })
+        .def("at", &PointData::operator[], py::return_value_policy::reference_internal)
+        .def("size", &PointData::size);
 
     py::class_<track::detect::Result>(m, "Result")
         .def(py::init([](int index,
                          track::detect::Boxes boxes_and_scores,
-                         py::list masks, track::detect::KeypointData keypoints, track::detect::ObbData obb)
+                         py::list masks, track::detect::KeypointData keypoints, track::detect::ObbData obb,
+                             track::detect::PointData points)
                 -> Result
             {
                 auto _masks = transfer_masks(masks);
@@ -527,7 +571,8 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
                     std::move(boxes_and_scores),
                     std::move(_masks),
                     std::move(keypoints),
-                    std::move(obb)
+                    std::move(obb),
+                    std::move(points)
                 };
             })
         )

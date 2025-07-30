@@ -333,9 +333,164 @@ void YOLO::receive(SegmentationData& data, track::detect::Result&& result) {
     } else if (not result.obbdata().empty()) {
         /// we have obb data, but no masks
         process_obbs(detect_only_classes, w, h, r3, data, result, settings);
+    } else if(not result.points().empty()) {
+        process_points(detect_only_classes, w, h, r3, data, result, settings);
     } else {
         /// we had no instance segmentation...
         process_boxes_only(detect_only_classes, w, h, r3, data, result, settings);
+    }
+}
+
+void YOLO::process_points(
+       const track::detect::PredictionFilter& detect_only_classes,
+       coord_t w,
+       coord_t h,
+       const cv::Mat& r3,
+       SegmentationData &data,
+       track::detect::Result &result,
+       const AcceptanceSettings &settings)
+{
+    size_t N_rows = result.points().size();
+    auto& points = result.points();
+    
+    for (size_t i = 0; i < N_rows; ++i) {
+        auto row = points[i];
+        if (not detect_only_classes.allowed(row.clid)) {
+            continue;
+        }
+        
+        auto corners = row.corners();
+        Bounds bounds = detect::ICXYR::bounding_box(corners);
+        //bounds = bounds.mul(scale_factor);
+        bounds.restrict_to(Bounds(0, 0, w, h));
+        
+        cmn::PixelArray_t pixels;
+        std::vector<HorizontalLine> lines;
+        
+        int ymin = bounds.y;
+        int ymax = bounds.y + bounds.height;
+        
+        for(int y = ymin; y<=ymax && y < h; ++y) {
+            std::array<float, 4> intersections;
+            size_t index = 0;
+            
+            /// go through all y and collect lines
+            /// go through sides:
+            for(size_t e=0; e<4; ++e) {
+                Vec2 v0 = corners[e];
+                Vec2 v1 = corners[(e+1)%4];
+                
+                // (v1 - v0) * t + v0 = (1 0) * t + (0 yb)
+                //  t = (-v0.x yb-v0.y) / ((v1.x-v0.x-1 v1.y-v0.y))
+                //  tx = -v0.x / (v1.x - v0.x -1)
+                //  ty = (yb - v0.y) / (v1.y - v0.y)
+                
+                auto dy = (v1.y - v0.y);
+                if(dy == 0) {
+                    /// the side is parallel to the y-axis and we are on it
+                    if(y == v0.y) {
+                        auto xmin = min(v0.x, v1.x);
+                        auto xmax = max(v0.x, v1.x);
+                        intersections[index++] = xmin;
+                        intersections[index++] = xmax;
+                    }
+                    
+                } else {
+                    auto ty = (y - v0.y) / dy;
+                    if(ty >= 0 && ty < 1) {
+                        auto xi = (v1.x - v0.x) * ty + v0.x;
+                        intersections[index++] = xi;
+                    }
+                }
+            }
+            
+            
+            if(index < 2) {
+                if(not lines.empty()
+                   && y < ymax)
+                {
+                    FormatWarning("Invalid intersections: ", intersections, " (", index,") for y=", y, " with corners ", corners);
+                    
+                    /*HorizontalLine line{
+                        saturate(coord_t(y), coord_t(0), coord_t(h)),
+                        saturate(coord_t(bounds.x), coord_t(0), coord_t(w)),
+                        saturate(coord_t(bounds.x + bounds.width), coord_t(0), coord_t(w))
+                    };
+                    
+                    pixels.insert(pixels.end(), r3.ptr<uchar>(line.y, line.x0), r3.ptr<uchar>(line.y, line.x1 + 1));
+                    lines.emplace_back(std::move(line));*/
+                    break;
+                }
+                    
+                continue;
+            }
+            
+            // sort the two x‐intersections
+            float xf0 = std::min(intersections[0], intersections[1]);
+            float xf1 = std::max(intersections[0], intersections[1]);
+
+            // now round/clamp to integer pixel columns:
+            int x0 = static_cast<int>(std::ceil(xf0));
+            int x1 = static_cast<int>(std::floor(xf1));
+            
+            // clamp to image bounds [0..w-1]
+            x0 = std::clamp(x0, 0, w-1);
+            x1 = std::clamp(x1, 0, w-1);
+            
+            HorizontalLine line{
+                saturate(coord_t(y), coord_t(0), coord_t(h)),
+                coord_t(x0),
+                coord_t(x1)
+            };
+            
+            pixels.insert(pixels.end(), r3.ptr<uchar>(line.y, line.x0), r3.ptr<uchar>(line.y, line.x1 + 1));
+            lines.emplace_back(std::move(line));
+        }
+        
+        //cv::Mat crop;
+        //r3(bounds).copyTo(crop);
+
+        /*for (int y = bounds.y; y < bounds.y + bounds.height; ++y) {
+            HorizontalLine line{
+                saturate(coord_t(y), coord_t(0), coord_t(h)),
+                saturate(coord_t(bounds.x), coord_t(0), coord_t(w)),
+                saturate(coord_t(bounds.x + bounds.width), coord_t(0), coord_t(w))
+            };
+            pixels.insert(pixels.end(), r3.ptr<uchar>(line.y, line.x0), r3.ptr<uchar>(line.y, line.x1 + 1));
+            lines.emplace_back(std::move(line));
+        }*/
+
+        if (not lines.empty()) {
+            uint8_t flags{0};
+            pv::Blob::set_flag(flags, pv::Blob::Flags::is_rgb, r3.channels() == 3);
+            pv::Blob::set_flag(flags, pv::Blob::Flags::is_r3g3b2, Background::meta_encoding() == meta_encoding_t::r3g3b2);
+            pv::Blob::set_flag(flags, pv::Blob::Flags::is_binary, Background::meta_encoding() == meta_encoding_t::binary);
+
+            pv::Blob blob(lines, flags);
+
+            /// we are not allowed to save this blob to file:
+            if(not settings.is_acceptable(blob)) {
+                continue;
+            }
+
+            data.predictions.push_back({
+                .clid = size_t(row.clid),
+                .p = float(row.conf)
+            });
+
+            blob::Pose pose;
+            if(not result.keypoints().empty()) {
+                auto p = result.keypoints()[i];
+                pose = p.toPose();
+                data.keypoints.push_back(std::move(p));
+            }
+
+            data.frame.add_object(lines, pixels, flags, blob::Prediction{
+                .clid = uint8_t(row.clid),
+                .p = uint8_t(float(row.conf) * 255.f),
+                .pose = std::move(pose)
+            });
+        }
     }
 }
 
