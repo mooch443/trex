@@ -29,7 +29,7 @@
 
 namespace cmn::gui {
 
-ProtectedProperty<std::string> last_opened_tab{std::string("choose_settings_layout.json")};
+ProtectedProperty<std::string> last_opened_tab{"choose_settings_layout.json"};
 
 void SettingsScene::reset_last_opened_tab() {
     last_opened_tab.set("choose_settings_layout.json");
