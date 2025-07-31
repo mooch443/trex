@@ -104,6 +104,7 @@ struct TrackingScene::Data {
     size_t _last_live_individuals{0};
     
     Frame_t _manually_requested_frame;
+    Frame_t _next_manual_request;
     
     // The dynamic part of the gui that is live-loaded from file
     dyn::DynamicGUI dynGUI;
@@ -955,12 +956,22 @@ void TrackingScene::set_frame(Frame_t frameIndex, bool automatic) {
     if(frameIndex < _state->video->length()
        && GUI_SETTINGS(gui_frame) != frameIndex)
     {
-        SETTING(gui_frame) = frameIndex;
-        _data->_cache->request_frame_change_to(frameIndex);
-        
         if(not automatic) {
             //Print("Setting manually requested = ", frameIndex);
-            _data->_manually_requested_frame = frameIndex;
+            if(not _data->_manually_requested_frame.valid()) {
+                _data->_manually_requested_frame = frameIndex;
+                assert(not _data->_next_manual_request.valid());
+                
+                SETTING(gui_frame) = frameIndex;
+                _data->_cache->request_frame_change_to(frameIndex);
+                
+            } else {
+                _data->_next_manual_request = frameIndex;
+            }
+            
+        } else {
+            SETTING(gui_frame) = frameIndex;
+            _data->_cache->request_frame_change_to(frameIndex);
         }
     }
 }
@@ -1193,8 +1204,16 @@ void TrackingScene::_draw(DrawStructure& graph) {
                 auto stats = TimingStatsCollector::getInstance();
                 _data->_display_handle = std::make_unique<TimingStatsCollector::HandleGuard>(stats, stats->startEvent(TimingMetric_t::FrameDisplay, loaded));
                 
-                if(_data->_manually_requested_frame.valid())
-                    _data->_manually_requested_frame.invalidate();
+                if(_data->_manually_requested_frame.valid()) {
+                    if(_data->_next_manual_request.valid()) {
+                        _data->_manually_requested_frame = _data->_next_manual_request;
+                        _data->_next_manual_request.invalidate();
+                        
+                        SETTING(gui_frame) = _data->_manually_requested_frame;
+                        _data->_cache->request_frame_change_to(_data->_manually_requested_frame);
+                    } else
+                        _data->_manually_requested_frame.invalidate();
+                }
             }
             using namespace dyn;
             
