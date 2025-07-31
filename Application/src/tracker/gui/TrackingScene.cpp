@@ -1015,7 +1015,8 @@ void TrackingScene::update_run_loop() {
     Frame_t index = GUI_SETTINGS(gui_frame);
     
     if (_data->_recorder.recording()
-        || _data->_manually_requested_frame.valid())
+        //|| _data->_manually_requested_frame.valid()
+        )
     {
         /// Recording mode: load frames synchronously.
         _data->_cache->set_load_frames_blocking(true);
