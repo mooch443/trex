@@ -568,7 +568,9 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
     ref.read<uint64_t>(N);
     
     auto analysis_range = Tracker::analysis_range();
-    bool check_analysis_range = SETTING(analysis_range).value<Range<long_t>>().start != -1 || SETTING(analysis_range).value<Range<long_t>>().end != -1;
+
+    const auto range = OPTIONAL_SETTING(analysis_range, Range<long_t>);
+    bool check_analysis_range = range && (range->start != -1 || range->end != -1);
     
     std::mutex mutex;
     std::condition_variable variable;
@@ -1373,7 +1375,7 @@ namespace Output {
 
         std::string text = default_config::generate_delta_config(AccessLevelType::LOAD, nullptr, true, _header.exclude_settings).to_settings();
         write<std::string>(text);
-        write<std::string>(SETTING(cmd_line).value<std::string>());
+        write<std::string>(READ_SETTING(cmd_line, std::string));
 
         // write recognition data
         if(not Tracker::instance()->has_vi_predictions())
@@ -1417,7 +1419,7 @@ namespace Output {
         4 + sizeof(data_long_t)*2
         + sizeof(uchar)*3
         + val._basic_stuff.size() * (sizeof(data_long_t)+physical_properties_size+sizeof(uint32_t)+(val._basic_stuff.empty() ? 100 : (*val._basic_stuff.begin())->blob._lines.size())*1.1*sizeof(pv::ShortHorizontalLine))
-        + val._posture_stuff.size() * (sizeof(data_long_t)+sizeof(uint64_t)+((val._posture_stuff.empty() || !val._posture_stuff.front()->cached_pp_midline ?SETTING(midline_resolution).value<uint32_t>() : (*val._posture_stuff.begin())->cached_pp_midline->size()) * sizeof(float) * 2 + sizeof(float) * 5 + sizeof(uint64_t))+physical_properties_size+((val._posture_stuff.empty() || !val._posture_stuff.front()->outline ? 0 : val._posture_stuff.front()->outline.size()*1.1)*sizeof(uint16_t) + sizeof(float)*2+sizeof(uint64_t)))
+        + val._posture_stuff.size() * (sizeof(data_long_t)+sizeof(uint64_t)+((val._posture_stuff.empty() || !val._posture_stuff.front()->cached_pp_midline ?READ_SETTING(midline_resolution, uint32_t) : (*val._posture_stuff.begin())->cached_pp_midline->size()) * sizeof(float) * 2 + sizeof(float) * 5 + sizeof(uint64_t))+physical_properties_size+((val._posture_stuff.empty() || !val._posture_stuff.front()->outline ? 0 : val._posture_stuff.front()->outline.size()*1.1)*sizeof(uint16_t) + sizeof(float)*2+sizeof(uint64_t)))
         + val._basic_stuff.size() * sizeof(decltype(BasicStuff::thresholded_size)) + sizeof(uint64_t);
         
         return pack_size;
@@ -1499,7 +1501,7 @@ namespace Output {
         filename = filename.add_extension("tmp01");
         
         ResultsFormat file(filename.str(), update_progress);
-        auto gui_frame = SETTING(gui_frame).value<Frame_t>();
+        auto gui_frame = READ_SETTING(gui_frame, Frame_t);
         file.header().gui_frame = sign_cast<uint64_t>(gui_frame.valid() ? gui_frame.get() : 0);
         file.header().creation_time = Image::now();
         file.header().exclude_settings = exclude_settings;
@@ -1608,7 +1610,7 @@ FrameProperties CompatibilityFrameProperties::convert(Frame_t frame) const {
             FormatError("Cannot find ",filename.str()," as requested. Trying standard paths.");
 
         if(!filename.exists()) {
-            file::Path file = SETTING(filename).value<Path>();
+            file::Path file = READ_SETTING(filename, Path);
             file = file.has_extension("pv")
                     ? file.replace_extension("results")
                     : file.add_extension("results");
@@ -1661,7 +1663,9 @@ FrameProperties CompatibilityFrameProperties::convert(Frame_t frame) const {
         track::FrameProperties props;
         CompatibilityFrameProperties comp;
         data_long_t frameIndex;
-        bool check_analysis_range = SETTING(analysis_range).value<Range<long_t>>().start != -1 || SETTING(analysis_range).value<Range<long_t>>().end != -1;
+        
+        const auto range = OPTIONAL_SETTING(analysis_range, Range<long_t>);
+        bool check_analysis_range = range && (range->start != -1 || range->end != -1);
         
         auto analysis_range = Tracker::analysis_range();
         _tracker.clear_properties();

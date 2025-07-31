@@ -262,7 +262,7 @@ ConvertScene::ConvertScene(Base& window, std::function<void(ConvertScene&)> on_a
     ,
     [this](const std::string& name) {
         if (name == "gui_frame") {
-            this->segmenter().reset(SETTING(gui_frame).value<Frame_t>());
+            this->segmenter().reset(READ_SETTING(gui_frame, Frame_t));
         }
     }
 },*/
@@ -367,7 +367,7 @@ void ConvertScene::deactivate() {
         auto current_defaults_with_config = GlobalSettings::read([](const auto&, const sprite::Map& with_config) {
             return with_config;
         });
-        RecentItems::open(SETTING(source).value<file::PathArray>(), current_defaults_with_config);
+        RecentItems::open(READ_SETTING(source, file::PathArray), current_defaults_with_config);
         
         if(_data && _data->_segmenter)
             segmenter().force_stop();
@@ -426,7 +426,7 @@ void ConvertScene::open_video() {
 }
 
 void ConvertScene::open_camera() {
-    if(not track::detect::yolo::valid_model(SETTING(detect_model).value<file::Path>()))
+    if(not track::detect::yolo::valid_model(READ_SETTING(detect_model, file::Path)))
     {
         SETTING(detect_model) = file::Path(track::detect::yolo::default_model());
     }
@@ -468,8 +468,8 @@ void ConvertScene::activate()  {
         return file::Path(settings::find_output_name(config.values));
     });
     
-    auto source = SETTING(source).value<file::PathArray>();
-    if(SETTING(filename).value<file::Path>().empty()) {
+    auto source = READ_SETTING(source, file::PathArray);
+    if(READ_SETTING(filename, file::Path).empty()) {
         SETTING(filename) = default_filename;
     }
     
@@ -492,12 +492,12 @@ void ConvertScene::activate()  {
     if(not _data)
         _data = std::make_unique<Data>();
 
-    _data->skelet = SETTING(detect_skeleton).value<std::optional<blob::Pose::Skeletons>>();
+    _data->skelet = READ_SETTING(detect_skeleton, std::optional<blob::Pose::Skeletons>);
     _data->callback = GlobalSettings::register_callbacks({
         "detect_skeleton"
     }, [this](auto) {
         SceneManager::enqueue([this]() {
-            _data->skelet = SETTING(detect_skeleton).value<std::optional<blob::Pose::Skeletons>>();
+            _data->skelet = READ_SETTING(detect_skeleton, std::optional<blob::Pose::Skeletons>);
             _data->_skeletts.clear();
         });
     });
@@ -521,7 +521,7 @@ void ConvertScene::activate()  {
             graph.set_size(Size2(1024, _data->_segmenter->output_size().height / _data->_segmenter->output_size().width * 1024));
     });
     
-    auto range = SETTING(video_conversion_range).value<Range<long_t>>();
+    auto range = READ_SETTING(video_conversion_range, Range<long_t>);
     if (range.start == -1 && range.end == -1) {
         if(segmenter().is_finite())
             SETTING(video_conversion_range) = Range<long_t>(0, segmenter().video_length().get());
@@ -641,7 +641,7 @@ void ConvertScene::Data::drawBlobs(
     std::set<Idx_t> tracked_ids;
     reset_properties();
 
-    auto selected_ids = SETTING(gui_focus_group).value<std::vector<Idx_t>>();
+    auto selected_ids = READ_SETTING(gui_focus_group, std::vector<Idx_t>);
     const bool is_background_subtraction = track::detect::detection_type() == track::detect::ObjectDetectionType::background_subtraction;
     
     std::vector<glz::json_t> acc_json;
@@ -877,7 +877,7 @@ dyn::DynamicGUI ConvertScene::Data::init_gui(Base* window) {
                         else
                             SceneManager::getInstance().set_active("starting-scene");
                     }
-                }, "<b>Do you want to stop recording here?</b>\nThe already converted parts of the video will still be saved to <c><cyan>"+(_segmenter ? _segmenter->output_file_name().str() : SETTING(filename).value<file::Path>().str())+"</cyan></c>.", "End recording", "Yes, stop", "Cancel");
+                }, "<b>Do you want to stop recording here?</b>\nThe already converted parts of the video will still be saved to <c><cyan>"+(_segmenter ? _segmenter->output_file_name().str() : READ_SETTING(filename, file::Path).str())+"</cyan></c>.", "End recording", "Yes, stop", "Cancel");
             });
             
         }),
@@ -972,10 +972,10 @@ dyn::DynamicGUI ConvertScene::Data::init_gui(Base* window) {
         VarFunc("output_name", [this](const VarProps& ) -> file::Path {
             if (_segmenter)
                 return _segmenter->output_file_name();
-            return SETTING(filename).value<file::Path>();
+            return READ_SETTING(filename, file::Path);
         }),
         VarFunc("output_base", [](const VarProps& ) -> file::Path {
-            return SETTING(filename).value<file::Path>().filename();
+            return READ_SETTING(filename, file::Path).filename();
         }),
         VarFunc("output_size", [this](const VarProps&) -> Vec2 {
             if(not _segmenter)
@@ -984,7 +984,7 @@ dyn::DynamicGUI ConvertScene::Data::init_gui(Base* window) {
         }),
         VarFunc("gpu_device", [](const VarProps&) -> std::string {
             using namespace default_config;
-            auto gpu_torch_device = SETTING(gpu_torch_device).value<gpu_torch_device_t::Class>();
+            auto gpu_torch_device = READ_SETTING(gpu_torch_device, gpu_torch_device_t::Class);
             if (gpu_torch_device == gpu_torch_device_t::cpu) {
                 if (utils::contains(utils::lowercase(python_gpu_name()), "metal")
                     || utils::contains(utils::lowercase(python_gpu_name()), "cuda")
@@ -997,7 +997,7 @@ dyn::DynamicGUI ConvertScene::Data::init_gui(Base* window) {
             return python_gpu_name();
         }),
         VarFunc("detect_format", [](const VarProps&) {
-            return SETTING(detect_format).value<detect::ObjectDetectionFormat_t>();
+            return READ_SETTING(detect_format, detect::ObjectDetectionFormat_t);
         }),
         VarFunc("fish", [](const VarProps&) -> sprite::Map& {
             return fish;

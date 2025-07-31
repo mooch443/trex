@@ -167,7 +167,7 @@ bool _callback_registered;
             return true;
         }
         else if(state.last_event_start.valid()) {
-            if(insert && state.current_maximum >= SETTING(event_min_peak_offset).value<float>())
+            if(insert && state.current_maximum >= READ_SETTING(event_min_peak_offset, float))
             {
                 auto len = state.last_event_end - state.last_event_start + 1_f;
                 assert(len.valid());
@@ -223,7 +223,7 @@ bool _callback_registered;
             _callback_registered = true;
             
             auto update_setting = [](auto){
-                _limit = SETTING(limit).value<decltype(_limit)>();
+                _limit = READ_SETTING(limit, decltype(_limit));
             };
             GlobalSettings::register_callbacks({"limit"}, update_setting);
         }

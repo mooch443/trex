@@ -560,8 +560,8 @@ bool can_initialize_python() {
 #else
     exec = "./"+CHECK_PYTHON_EXECUTABLE_NAME;
 #endif
-    if ((SETTING(wd).value<file::Path>() / exec).exists()) {
-        exec = (SETTING(wd).value<file::Path>() / exec).str();
+    if ((READ_SETTING(wd, file::Path) / exec).exists()) {
+        exec = (READ_SETTING(wd, file::Path) / exec).str();
         Print("Exists in working dir: ", exec);
 #ifndef WIN32
         exec += " 2> /dev/null";
@@ -569,14 +569,14 @@ bool can_initialize_python() {
     } else {
         //FormatWarning("Does not exist in working dir: ",exec);
 #if __APPLE__
-        auto p = SETTING(wd).value<file::Path>();
+        auto p = READ_SETTING(wd, file::Path);
         p = (p / ".." / ".." / ".." / CHECK_PYTHON_EXECUTABLE_NAME).absolute();
         
         if(p.exists()) {
             Print(p," exists.");
             exec = p.str()+" 2> /dev/null";
         } else {
-            p = (SETTING(wd).value<file::Path>() / CHECK_PYTHON_EXECUTABLE_NAME).absolute();
+            p = (READ_SETTING(wd, file::Path) / CHECK_PYTHON_EXECUTABLE_NAME).absolute();
             if(p.exists()) {
                 //Print("Pure ",p," exists.");
                 exec = p.str()+" 2> /dev/null";
@@ -633,7 +633,7 @@ bool python_available() {
 
 #if !COMMONS_NO_PYTHON
 void fix_paths(bool force_init, cmn::source_location loc) {
-    static const auto app_name = SETTING(app_name).value<std::string>();
+    static const auto app_name = READ_SETTING(app_name, std::string);
     if (!utils::contains(app_name, "TRex") && !utils::contains(app_name, "TGrabs")) {
         return;
     }
@@ -650,7 +650,7 @@ void fix_paths(bool force_init, cmn::source_location loc) {
 #ifdef COMMONS_PYTHON_EXECUTABLE
         auto home = ::default_config::conda_environment_path().str();
         if (home.empty())
-            home = SETTING(python_path).value<file::Path>().str();
+            home = READ_SETTING(python_path, file::Path).str();
         if (file::Path(home).exists() && file::Path(home).is_regular())
             home = file::Path(home).remove_filename().str();
 

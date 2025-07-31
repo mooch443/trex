@@ -234,11 +234,11 @@ const track::MotionRecord* Library::retrieve_props(
             _callback = GlobalSettings::register_callbacks({"output_centered", "output_origin"}, [](auto) {
                 const auto cm_per_px = FAST_SETTING(cm_per_pixel);
                 const auto CENTER_X = BOOL_SETTING(output_centered)
-                    ? (SETTING(meta_video_size).value<Size2>().width * 0.5_F * cm_per_px)
-                    : (SETTING(output_origin).value<Vec2>().x * cm_per_px);
+                    ? (READ_SETTING(meta_video_size, Size2).width * 0.5_F * cm_per_px)
+                    : (READ_SETTING(output_origin, Vec2).x * cm_per_px);
                 const auto CENTER_Y = BOOL_SETTING(output_centered)
-                    ? (SETTING(meta_video_size).value<Size2>().height * 0.5_F * cm_per_px)
-                    : (SETTING(output_origin).value<Vec2>().y * cm_per_px);
+                    ? (READ_SETTING(meta_video_size, Size2).height * 0.5_F * cm_per_px)
+                    : (READ_SETTING(output_origin, Vec2).y * cm_per_px);
                 CENTER() = Vec2{CENTER_X, CENTER_Y};
             });
         }
@@ -446,7 +446,7 @@ const track::MotionRecord* Library::retrieve_props(
                 Vec2 p1(frame.get(), (Float2_t)get(Functions::MIDLINE_OFFSET.name(), info, frame));
                 Vec2 p2(frame.get()+1, (Float2_t)get(Functions::MIDLINE_OFFSET.name(), info, frame+1_f));
                 
-                int c = crosses_abs_height(p1, p2, SETTING(limit).value<float>());
+                int c = crosses_abs_height(p1, p2, READ_SETTING(limit, float));
                 return c == 0 ? GlobalSettings::invalid() : c;
             }
             
@@ -679,9 +679,9 @@ const track::MotionRecord* Library::retrieve_props(
         });
         
         FN_IS_POSTURE_ONLY_PROPERTY(tailbeat_threshold);
-        _cache_func["tailbeat_threshold"] = LIBFNC( return SETTING(limit).value<float>(); );
+        _cache_func["tailbeat_threshold"] = LIBFNC( return READ_SETTING(limit, float); );
         FN_IS_POSTURE_ONLY_PROPERTY(tailbeat_peak);
-        _cache_func["tailbeat_peak"] = LIBFNC( return SETTING(event_min_peak_offset).value<float>(); );
+        _cache_func["tailbeat_peak"] = LIBFNC( return READ_SETTING(event_min_peak_offset, float); );
         
         _cache_func["threshold_reached"] = LIBFNC({
             return EventAnalysis::threshold_reached(info.fish, frame) ? float(M_PI * 0.3) : GlobalSettings::invalid();
@@ -1158,7 +1158,7 @@ const track::MotionRecord* Library::retrieve_props(
             
         }, [](std::string_view name) {
             if(name == "output_invalid_value") {
-                if(SETTING(output_invalid_value).value<default_config::output_invalid_t::Class>() == default_config::output_invalid_t::nan)
+                if(READ_SETTING(output_invalid_value, default_config::output_invalid_t::Class) == default_config::output_invalid_t::nan)
                     GlobalSettings::set_invalid(std::numeric_limits<float>::quiet_NaN());
                 else
                     GlobalSettings::set_invalid(std::numeric_limits<float>::infinity());
@@ -1167,8 +1167,8 @@ const track::MotionRecord* Library::retrieve_props(
                 
             } else if (is_in(name, "output_fields", "output_default_options", "midline_resolution"))
             {
-                auto graphs = SETTING(output_fields).value<output_fields_t>();
-                _output_defaults = SETTING(output_default_options).value<default_config::default_options_type>();
+                auto graphs = READ_SETTING(output_fields, output_fields_t);
+                _output_defaults = READ_SETTING(output_default_options, default_config::default_options_type);
                 
                 {
                     std::unique_lock g{_cache_func_mutex};
@@ -1372,7 +1372,7 @@ cached_output_fields_t Library::get_cached_fields() {
                  
                  return GlobalSettings::invalid();
             }));
-            //SETTING(output_default_options).value<std::map<std::string, std::vector<std::string>>>()["bone"+std::to_string(i)] = { "*2" };
+            //READ_SETTING(output_default_options, std::map<std::string, std::vector<std::string>>)["bone"+std::to_string(i)] = { "*2" };
         }
         
         std::shared_lock g{_cache_func_mutex};
@@ -1418,7 +1418,7 @@ cached_output_fields_t Library::get_cached_fields() {
         if(!cache)
             cache = _default_cache;
         
-        auto annotations = SETTING(output_annotations).value<std::map<std::string, std::string>>();
+        auto annotations = READ_SETTING(output_annotations, std::map<std::string, std::string>);
         
         for (auto &[fname, instances] : options_map) {
             std::string units = "";
@@ -1556,7 +1556,7 @@ cached_output_fields_t Library::get_cached_fields() {
     
     void Library::remove_calculation_options() {
         using namespace default_config;
-        auto graphs = SETTING(output_fields).value<graphs_type>();
+        auto graphs = READ_SETTING(output_fields, graphs_type);
         
         auto previous = _output_defaults;
         auto previous_graphs = graphs;
@@ -1653,7 +1653,7 @@ cached_output_fields_t Library::get_cached_fields() {
         auto y = Library::get("MIDLINE_OFFSET", info, frame);
         if (right != 0
             && left != 0
-            && cmn::abs(y) >= SETTING(limit).value<float>())
+            && cmn::abs(y) >= READ_SETTING(limit, float))
         {
             return float(mx);
         }

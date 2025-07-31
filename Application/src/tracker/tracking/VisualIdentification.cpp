@@ -73,7 +73,7 @@ VINetwork::Status VINetwork::status(){
 }
 
 file::Path VINetwork::network_path() {
-    file::Path filename = SETTING(filename).value<file::Path>().filename();
+    file::Path filename = READ_SETTING(filename, file::Path).filename();
     filename = filename.has_extension("pv")
                     ? filename.remove_extension()
                     : filename;
@@ -120,7 +120,7 @@ void VINetwork::setup(bool force) {
         else
             batch_size = 128;
         
-        auto version = SETTING(visual_identification_version).value<default_config::visual_identification_version_t::Class>();
+        auto version = READ_SETTING(visual_identification_version, default_config::visual_identification_version_t::Class);
         Print("network version: ", version);
     
         py::set_variable("accumulation_step", (long_t)-1, module_name);
@@ -128,10 +128,10 @@ void VINetwork::setup(bool force) {
         py::set_variable("classes", ids, module_name);
         py::set_variable("image_width", int(PSetting(individual_image_size).width), module_name);
         py::set_variable("image_height", int(PSetting(individual_image_size).height), module_name);
-        py::set_variable("learning_rate", SETTING(gpu_learning_rate).value<float>(), module_name);
+        py::set_variable("learning_rate", READ_SETTING(gpu_learning_rate, float), module_name);
         py::set_variable("batch_size", (long_t)batch_size, module_name);
-        py::set_variable("video_length", narrow_cast<long_t>(SETTING(video_length).value<uint64_t>()), module_name);
-        py::set_variable("verbosity", int(SETTING(gpu_verbosity).value<default_config::gpu_verbosity_t::Class>().value()));
+        py::set_variable("video_length", narrow_cast<long_t>(READ_SETTING(video_length, uint64_t)), module_name);
+        py::set_variable("verbosity", int(READ_SETTING(gpu_verbosity, default_config::gpu_verbosity_t::Class).value()));
         
         auto filename = VINetwork::network_path();
         try {
@@ -148,8 +148,8 @@ void VINetwork::setup(bool force) {
         auto image_mode = Background::meta_encoding();
         py::set_variable("image_channels", (long_t)required_image_channels(image_mode), module_name);
         py::set_variable("output_path", filename.str(), module_name);
-        py::set_variable("output_prefix", SETTING(output_prefix).value<std::string>(), module_name);
-        py::set_variable("filename", (std::string)SETTING(filename).value<file::Path>().filename(), module_name);
+        py::set_variable("output_prefix", READ_SETTING(output_prefix, std::string), module_name);
+        py::set_variable("filename", (std::string)READ_SETTING(filename, file::Path).filename(), module_name);
         
         if(!py::valid("model", module_name)) {
             FormatWarning("No model set in ", module_name,".");
@@ -192,7 +192,7 @@ void VINetwork::set_work_variables(bool force) {
         }, module_name);
         py::set_function("acceptable_uniqueness", (std::function<float(void)>)[](void) -> float {
             if(Accumulation::current())
-                return SETTING(accumulation_sufficient_uniqueness).value<float>();
+                return READ_SETTING(accumulation_sufficient_uniqueness, float);
             FormatWarning("There is currently no accumulation in progress.");
             return -1;
             
@@ -279,7 +279,7 @@ std::optional<VIWeights> VINetwork::load_weights_internal(VIWeights&& weights) {
     //reinitialize_internal();
     
     if(weights.path().empty()) {
-        auto visual_identification_model_path = SETTING(visual_identification_model_path).value<std::optional<file::Path>>();
+        auto visual_identification_model_path = READ_SETTING(visual_identification_model_path, std::optional<file::Path>);
         if(visual_identification_model_path.has_value()
            && not visual_identification_model_path->empty())
         {
@@ -370,7 +370,7 @@ std::optional<std::set<track::vi::VIWeights>> VINetwork::get_available_weights()
                         });
                         std::optional<glz::json_t> array;
                         
-                        auto visual_identification_model_path = SETTING(visual_identification_model_path).value<std::optional<file::Path>>();
+                        auto visual_identification_model_path = READ_SETTING(visual_identification_model_path, std::optional<file::Path>);
                         if(visual_identification_model_path.has_value()
                            && not visual_identification_model_path->empty())
                         {
@@ -610,10 +610,10 @@ bool VINetwork::train(std::shared_ptr<TrainingData> data,
                 
                 Print("Pushing ", (joined_data.validation_images.size() + joined_data.training_images.size())," images (",FileSize((joined_data.validation_images.size() + joined_data.training_images.size()) * PSetting(individual_image_size).width * PSetting(individual_image_size).height * 4),") to python...");
                 
-                uchar setting_max_epochs = int(SETTING(gpu_max_epochs).value<uchar>());
+                uchar setting_max_epochs = int(READ_SETTING(gpu_max_epochs, uchar));
                 py::set_variable("max_epochs", uint64_t(gpu_max_epochs != 0 ? min(setting_max_epochs, gpu_max_epochs) : setting_max_epochs), module_name);
-                py::set_variable("min_iterations", long_t(SETTING(gpu_min_iterations).value<uchar>()), module_name);
-                py::set_variable("verbosity", int(SETTING(gpu_verbosity).value<default_config::gpu_verbosity_t::Class>().value()), module_name);
+                py::set_variable("min_iterations", long_t(READ_SETTING(gpu_min_iterations, uchar)), module_name);
+                py::set_variable("verbosity", int(READ_SETTING(gpu_verbosity, default_config::gpu_verbosity_t::Class).value()), module_name);
                 
                 auto filename = network_path();
                 try {
@@ -635,7 +635,7 @@ bool VINetwork::train(std::shared_ptr<TrainingData> data,
                 best_accuracy_worst_class = -1;
                 
                 py::set_function("do_save_training_images", (std::function<bool()>)[]() -> bool {
-                    return SETTING(visual_identification_save_images).value<bool>();
+                    return BOOL_SETTING(visual_identification_save_images);
                 }, module_name);
                 
                 try {

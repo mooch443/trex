@@ -267,7 +267,7 @@ struct TREX_EXPORT ICXYR {
     float conf;  // confidence score
     float x;  // center x
     float y;  // center y
-    float r;  // rotation in radians
+    float r;  // radius
 
     std::string toStr() const {
         return "ICXYWHR<"+Meta::toStr(clid)+","+Meta::toStr(conf)+","+Meta::toStr(x)+","+Meta::toStr(y)+","+Meta::toStr(r)+">";

@@ -133,8 +133,8 @@ void apply_network(const std::shared_ptr<pv::File>& video_source) {
     uint8_t max_threads = 5u;
     extract::Settings settings{
         .flags = (uint32_t)Flag::RemoveSmallFrames,
-        .max_size_bytes = uint64_t((double)SETTING(gpu_max_cache).value<float>() * 1000.0 * 1000.0 * 1000.0 / double(max_threads)),
-        .image_size = SETTING(individual_image_size).value<Size2>(),
+        .max_size_bytes = uint64_t((double)READ_SETTING(gpu_max_cache, float) * 1000.0 * 1000.0 * 1000.0 / double(max_threads)),
+        .image_size = READ_SETTING(individual_image_size, Size2),
         .num_threads = max_threads,
         .normalization = default_config::valid_individual_image_normalization()
     };
@@ -335,7 +335,7 @@ void Accumulation::setup() {
             return WorkProgress::item_custom_triggered();
         });
         _network->set_abort_training([](){
-            return SETTING(terminate_training).value<bool>() || (WorkProgress::item_aborted());
+            return BOOL_SETTING(terminate_training) || (WorkProgress::item_aborted());
         });
         
     } catch(const std::future_error& error) {
@@ -424,7 +424,7 @@ std::map<Frame_t, std::set<Idx_t>> Accumulation::generate_individuals_per_frame(
 
 std::tuple<bool, std::map<Idx_t, Idx_t>> Accumulation::check_additional_range(const Range<Frame_t>& range, TrainingData& data, bool check_length, DatasetQuality::Quality quality) {
     const Float2_t pure_chance = 1_F / Float2_t(FAST_SETTING(track_max_individuals));
-   // data.set_normalized(SETTING(individual_image_normalization).value<default_config::individual_image_normalization_t::Class>());
+   // data.set_normalized(READ_SETTING(individual_image_normalization, default_config::individual_image_normalization_t::Class));
     
     if(data.empty()) {
         LockGuard guard(ro_t{}, "Accumulation::generate_training_data");
@@ -656,7 +656,7 @@ void Accumulation::update_coverage(const TrainingData &data) {
         cv::Mat copy;
         cv::cvtColor(image->get(), copy, cv::COLOR_BGRA2RGBA);
         
-        auto image_path = file::DataLocation::parse("output", "coverage_"+SETTING(filename).value<file::Path>().filename()+"_a"+Meta::toStr(_accumulation_step)+"_e"+Meta::toStr(_counted_steps)+".png");
+        auto image_path = file::DataLocation::parse("output", "coverage_"+READ_SETTING(filename, file::Path).filename()+"_a"+Meta::toStr(_accumulation_step)+"_e"+Meta::toStr(_counted_steps)+".png");
         _coverage_paths.push_back(image_path);
         cv::imwrite(image_path.str(), copy);
         //tf::imshow("coverage", copy);
@@ -841,7 +841,7 @@ std::tuple<float, hash_map<Frame_t, float>, float> Accumulation::calculate_uniqu
     
     Print("Good: ", good_frames," Bad: ", bad_frames," ratio: ", float(good_frames) / float(good_frames + bad_frames),
         " (", percentages / double(unique_percent.size()), " / ", rpercentages / double(unique_percent_raw.size()), "). "
-        "Hoping for at least ", SETTING(accumulation_sufficient_uniqueness).value<float>(), ". In ", good_timer.elapsed(),"s");
+        "Hoping for at least ", READ_SETTING(accumulation_sufficient_uniqueness, float), ". In ", good_timer.elapsed(),"s");
     
     return {float(good_frames) / float(good_frames + bad_frames), unique_percent, percentages / double(unique_percent.size())};
 }
@@ -891,7 +891,7 @@ bool Accumulation::start() {
     
     _initial_range = ranges.front();
     
-    if(SETTING(accumulation_sufficient_uniqueness).value<float>() == 0) {
+    if(READ_SETTING(accumulation_sufficient_uniqueness, float) == 0) {
         SETTING(accumulation_sufficient_uniqueness) = good_uniqueness();
     }
     
@@ -939,7 +939,7 @@ bool Accumulation::start() {
         return true;
     }
     
-    const gui::WorkInstance training_begin("training ("+Meta::toStr(SETTING(visual_identification_version).value<default_config::visual_identification_version_t::Class>())+")");
+    const gui::WorkInstance training_begin("training ("+Meta::toStr(READ_SETTING(visual_identification_version, default_config::visual_identification_version_t::Class))+")");
     
     _collected_data = std::make_shared<TrainingData>();
     _generated_data = std::make_shared<TrainingData>();
@@ -1047,7 +1047,7 @@ bool Accumulation::start() {
         {
             try {
                 auto data = _collected_data->join_split_data();
-                auto ranges_path = file::DataLocation::parse("output", Path(SETTING(filename).value<file::Path>().filename()+"_validation_data.npz"));
+                auto ranges_path = file::DataLocation::parse("output", Path(READ_SETTING(filename, file::Path).filename()+"_validation_data.npz"));
                 
                 const Size2 dims = SETTING(individual_image_size);
                 FileSize size((max(data.validation_images.size(), data.training_images.size())) * size_t(dims.width * dims.height) * size_t(channels));
@@ -1127,7 +1127,7 @@ bool Accumulation::start() {
             if(not _network)
                 throw SoftException("Network is null.");
             
-            _network->train(_collected_data, FrameRange(_initial_range), _mode, SETTING(gpu_max_epochs).value<uchar>(), true, &uniqueness_after, BOOL_SETTING(accumulation_enable) ? 0 : -1);
+            _network->train(_collected_data, FrameRange(_initial_range), _mode, READ_SETTING(gpu_max_epochs, uchar), true, &uniqueness_after, BOOL_SETTING(accumulation_enable) ? 0 : -1);
         
         } catch(const std::exception& ex) {
             error("["+std::string(_mode.name())+"] <b>VI failed with this error:</b> <c>"+ex.what()+"</c><b>.</b>\n\nPlease check your terminal for more detailed error messages.");
@@ -1158,7 +1158,7 @@ bool Accumulation::start() {
     if(it != ranges.end())
         ranges.erase(it);
     
-    const float good_uniqueness = SETTING(accumulation_sufficient_uniqueness).value<float>();//this->good_uniqueness();
+    const float good_uniqueness = READ_SETTING(accumulation_sufficient_uniqueness, float);//this->good_uniqueness();
     auto analysis_range = Tracker::analysis_range();
     
     if(!ranges.empty()
@@ -1370,7 +1370,7 @@ bool Accumulation::start() {
                         if(not _network)
                             throw SoftException("Network is null.");
                         
-                        _network->train(second_data, FrameRange(range), TrainingMode::Accumulate, SETTING(gpu_max_epochs).value<uchar>(), true, &uniqueness_after, narrow_cast<int>(steps));
+                        _network->train(second_data, FrameRange(range), TrainingMode::Accumulate, READ_SETTING(gpu_max_epochs, uchar), true, &uniqueness_after, narrow_cast<int>(steps));
                     }
                     
                     auto && [p, map, up] = calculate_uniqueness(false, _disc_images, _disc_frame_map);
@@ -1667,7 +1667,7 @@ bool Accumulation::start() {
     // save validation data
     try {
         auto data = _collected_data->join_split_data();
-        const auto ranges_path = file::DataLocation::parse("output", Path(SETTING(filename).value<file::Path>().filename()+"_validation_data.npz"));
+        const auto ranges_path = file::DataLocation::parse("output", Path(READ_SETTING(filename, file::Path).filename()+"_validation_data.npz"));
         
         const Size2 dims = SETTING(individual_image_size);
         FileSize size((data.validation_images.size() + data.training_images.size()) * dims.width * dims.height * channels);
@@ -1726,7 +1726,7 @@ bool Accumulation::start() {
         Print("[Accumulation FINAL] Adding ", overall_images," validation images to the training as well.");
         
         const double number_classes = images_per_class.size();
-        const double gpu_max_sample_mb = double(SETTING(gpu_max_sample_gb).value<float>()) * 1000;
+        const double gpu_max_sample_mb = double(READ_SETTING(gpu_max_sample_gb, float)) * 1000;
         const Size2 output_size = SETTING(individual_image_size);
         const double max_images_per_class = gpu_max_sample_mb * 1000 * 1000 / number_classes / output_size.width / output_size.height / 4;
         
@@ -1881,7 +1881,7 @@ bool Accumulation::start() {
                 // save validation data
                 try {
                     //auto data = _collected_data->join_split_data();
-                    auto ranges_path = file::DataLocation::parse("output", Path(SETTING(filename).value<file::Path>().filename()+"_validation_data_"+method.str()+".npz"));
+                    auto ranges_path = file::DataLocation::parse("output", Path(READ_SETTING(filename, file::Path).filename()+"_validation_data_"+method.str()+".npz"));
                     
                     
                     const Size2 dims = SETTING(individual_image_size);
@@ -1962,7 +1962,7 @@ bool Accumulation::start() {
     }
     
     try {
-        auto path = file::DataLocation::parse("output", Path(SETTING(filename).value<file::Path>().filename()+"_range_history.npz"));
+        auto path = file::DataLocation::parse("output", Path(READ_SETTING(filename, file::Path).filename()+"_range_history.npz"));
         npz_save(path.str(), "tried_ranges", _checked_ranges_output.data(), {_checked_ranges_output.size() / 2, 2});
         Print("[Accumulation STOP] Saved range history to ", path.str(),".");
         
@@ -2207,7 +2207,7 @@ void Accumulation::update_display(gui::Entangled &e, const std::string& text) {
             //float previous = accepted_uniqueness();
             size_t i=0;
             const Font font(0.55f, Style::Monospace, Align::Center);
-            const float terminal_uniqueness = SETTING(accumulation_sufficient_uniqueness).value<float>();
+            const float terminal_uniqueness = READ_SETTING(accumulation_sufficient_uniqueness, float);
             const float best_uniqueness = this->best_uniqueness();
             const float accepted_uniqueness = this->accepted_uniqueness(best_uniqueness);
             

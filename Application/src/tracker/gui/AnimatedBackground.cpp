@@ -23,7 +23,7 @@ AnimatedBackground::AnimatedBackground(Image::Ptr&& image, const pv::File* video
 
     _source_scale = -1;
 
-    std::string meta_source_path = SETTING(meta_source_path).value<std::string>();
+    std::string meta_source_path = READ_SETTING(meta_source_path, std::string);
 
     if (video) {
         if(video->header().source) {
@@ -65,7 +65,7 @@ AnimatedBackground::AnimatedBackground(Image::Ptr&& image, const pv::File* video
     }
 
     std::array<std::string, 4> tests {
-        SETTING(meta_source_path).value<std::string>(),
+        READ_SETTING(meta_source_path, std::string),
         meta_source_path,
         file::DataLocation::parse("input", meta_source_path).str(),
         file::DataLocation::parse("output", meta_source_path).str()
@@ -79,7 +79,7 @@ AnimatedBackground::AnimatedBackground(Image::Ptr&& image, const pv::File* video
             _file_opened = true;
             
             /*if (_source_scale <= 0 && GlobalSettings::has("meta_video_scale")) {
-                _source_scale = SETTING(meta_video_scale).value<float>();
+                _source_scale = READ_SETTING(meta_video_scale, float);
             }*/
             
             // found it, so we escape
@@ -124,7 +124,7 @@ AnimatedBackground::AnimatedBackground(VideoSource&& source)
             _static_image.set_source(Image::Make(_buffer));
         }
         /*if (GlobalSettings::has("meta_video_scale")) {
-            _source_scale = SETTING("meta_video_scale").value<float>();
+            _source_scale = READ_SETTING("meta_video_scale", float);
         }*/
     }
     
@@ -267,7 +267,7 @@ void AnimatedBackground::before_draw() {
         return;
     }
     
-    auto frame = SETTING(gui_source_video_frame).value<Frame_t>();
+    auto frame = READ_SETTING(gui_source_video_frame, Frame_t);
     if(frame.valid()
        && frame != _current_frame
        && _source)

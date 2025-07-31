@@ -148,7 +148,7 @@ bool TrackingScene::Data::update_cached_fois(std::weak_ptr<pv::File> video, bool
     }
     _last_foi_update.reset();
 
-    const auto name       = SETTING(gui_foi_name).value<std::string>();
+    const auto name       = READ_SETTING(gui_foi_name, std::string);
     const uint64_t change = FOI::last_change();
     
     if (force
@@ -279,12 +279,12 @@ TrackingScene::Data::Data(Image::Ptr&& average, pv::File& video)
 }
 
 void TrackingScene::Data::handle_zooming(Event e) {
-    auto video_size = SETTING(meta_video_size).value<Size2>();
+    auto video_size = READ_SETTING(meta_video_size, Size2);
     auto mp = _cache->previous_mouse_position;
     mp = FindCoord::get().convert(HUDCoord{mp});
     
-    if(SETTING(gui_focus_group).value<std::vector<track::Idx_t>>().empty()) {
-        auto gui_zoom_polygon = SETTING(gui_zoom_polygon).value<std::vector<Vec2>>();
+    if(READ_SETTING(gui_focus_group, std::vector<track::Idx_t>).empty()) {
+        auto gui_zoom_polygon = READ_SETTING(gui_zoom_polygon, std::vector<Vec2>);
         if(gui_zoom_polygon.empty() || gui_zoom_polygon.size() != 4)
         {
             gui_zoom_polygon = {
@@ -353,7 +353,7 @@ void TrackingScene::Data::handle_zooming(Event e) {
         SETTING(gui_zoom_polygon) = gui_zoom_polygon;
         
         Size2 dims = gui_zoom_polygon.at(2) - gui_zoom_polygon.front();
-        auto zoom_limit = SETTING(gui_zoom_limit).value<Size2>();
+        auto zoom_limit = READ_SETTING(gui_zoom_limit, Size2);
         if(zoom_limit.width > dims.width) {
             zoom_limit = dims;
             SETTING(gui_zoom_limit) = zoom_limit;
@@ -362,7 +362,7 @@ void TrackingScene::Data::handle_zooming(Event e) {
         GlobalSettings::do_print("gui_zoom_limit", true);
         
     } else {
-        auto zoom_limit = SETTING(gui_zoom_limit).value<Size2>();
+        auto zoom_limit = READ_SETTING(gui_zoom_limit, Size2);
         if(e.scroll.dy > 0) {
             zoom_limit *= 0.95_F;
             if(zoom_limit.width > 10) {
@@ -460,10 +460,10 @@ bool TrackingScene::on_global_event(Event event) {
                 });
                 break;
             case Keyboard::Space:
-                SETTING(gui_run) = not SETTING(gui_run).value<bool>();
+                SETTING(gui_run) = not BOOL_SETTING(gui_run);
                 break;
             case Keyboard::B:
-                SETTING(gui_show_posture) = not SETTING(gui_show_posture).value<bool>();
+                SETTING(gui_show_posture) = not BOOL_SETTING(gui_show_posture);
                 break;
             case Keyboard::M:
                 //if(_data) {
@@ -496,10 +496,10 @@ bool TrackingScene::on_global_event(Event event) {
                 _state->save_state(SceneManager::getInstance().gui_task_queue(), false);
                 break;
             case Keyboard::G:
-                SETTING(gui_show_graph) = not SETTING(gui_show_graph).value<bool>();
+                SETTING(gui_show_graph) = not BOOL_SETTING(gui_show_graph);
                 break;
             case Keyboard::T:
-                SETTING(gui_show_timeline) = not SETTING(gui_show_timeline).value<bool>();
+                SETTING(gui_show_timeline) = not BOOL_SETTING(gui_show_timeline);
                 break;
             case Keyboard::Comma:
                 WorkProgress::add_queue("Pausing...", [this](){
@@ -588,7 +588,7 @@ bool TrackingScene::on_global_event(Event event) {
 void TrackingScene::settings_callback(std::string_view key) {
     /*if(key == "gui_frame") {
         auto stats = TimingStatsCollector::getInstance();
-        _data->_waiting_handle = std::make_unique<TimingStatsCollector::HandleGuard>(stats, stats->startEvent(TimingMetric_t::FrameWaiting, SETTING(gui_frame).value<Frame_t>()));
+        _data->_waiting_handle = std::make_unique<TimingStatsCollector::HandleGuard>(stats, stats->startEvent(TimingMetric_t::FrameWaiting, READ_SETTING(gui_frame, Frame_t)));
     }*/
     if(key == "gui_foi_name") {
         _data->update_cached_fois(_state->video, true);
@@ -596,7 +596,7 @@ void TrackingScene::settings_callback(std::string_view key) {
     }
     else if(key == "gui_wait_for_background") {
         //if(_data && _data->_background)
-           // _data->_background->set_strict(SETTING(gui_wait_for_background).value<bool>());
+           // _data->_background->set_strict(BOOL_SETTING(gui_wait_for_background));
     }
     else if(is_in(key,
              "cam_matrix",
@@ -622,7 +622,7 @@ void TrackingScene::settings_callback(std::string_view key) {
     } else if(key == "track_pause") {
         /*gui::WorkProgress::add_queue("pausing...", [this](){
             _state->analysis->bump();
-            bool pause = SETTING(track_pause).value<bool>();
+            bool pause = BOOL_SETTING(track_pause);
             if(_state->analysis->paused() != pause) {
                 _state->analysis->set_paused(pause).get();
             }
@@ -796,7 +796,7 @@ void TrackingScene::activate() {
     
     {
         auto current_defaults_with_config = GlobalSettings::read([](const sprite::Map&, const sprite::Map& with_config){ return with_config; });
-        RecentItems::open(SETTING(source).value<file::PathArray>().source(), current_defaults_with_config);
+        RecentItems::open(READ_SETTING(source, file::PathArray).source(), current_defaults_with_config);
     }
     
     if(_load_requested) {
@@ -840,8 +840,8 @@ void TrackingScene::init_undistortion() {
         _data->_background->set_undistortion(std::nullopt, std::nullopt);
     } else {
         
-        auto cam_data = SETTING(cam_matrix).value<std::vector<double>>();
-        auto undistort_data = SETTING(cam_undistort_vector).value<std::vector<double>>();
+        auto cam_data = READ_SETTING(cam_matrix, std::vector<double>);
+        auto undistort_data = READ_SETTING(cam_undistort_vector, std::vector<double>);
         _data->_background->set_undistortion(std::move(cam_data), std::move(undistort_data));
     }
 }
@@ -913,7 +913,7 @@ void TrackingScene::deactivate() {
     
     {
         auto current_defaults_with_config = GlobalSettings::read([](const sprite::Map&, const sprite::Map& with_config){ return with_config; });
-        RecentItems::open(SETTING(source).value<file::PathArray>().source(), current_defaults_with_config);
+        RecentItems::open(READ_SETTING(source, file::PathArray).source(), current_defaults_with_config);
     }
     
     SETTING(filename) = file::Path();
@@ -1034,11 +1034,11 @@ void TrackingScene::update_run_loop() {
         const bool gui_wait_for_background =
             _data->_background
             && _data->_background->valid()
-            && SETTING(gui_wait_for_background).value<bool>();
+            && BOOL_SETTING(gui_wait_for_background);
         const Frame_t video_conversion_start = _state && _state->video && _state->video->header().conversion_range.start.has_value() ? Frame_t(_state->video->header().conversion_range.start.value()) : Frame_t{};
-        const bool gui_show_video_background = SETTING(gui_show_video_background).value<bool>();
-        const bool gui_wait_for_pv = SETTING(gui_wait_for_pv).value<bool>();
-        const Frame_t gui_displayed_frame = SETTING(gui_displayed_frame).value<Frame_t>();
+        const bool gui_show_video_background = BOOL_SETTING(gui_show_video_background);
+        const bool gui_wait_for_pv = BOOL_SETTING(gui_wait_for_pv);
+        const Frame_t gui_displayed_frame = READ_SETTING(gui_displayed_frame, Frame_t);
         const Frame_t background_displayed_frame = _data->_background && _data->_background->valid()
             ? (video_conversion_start.valid() && _data->_background->displayed_frame().valid()
                ? _data->_background->displayed_frame().try_sub(video_conversion_start)
@@ -1324,14 +1324,14 @@ void TrackingScene::_draw(DrawStructure& graph) {
     
     _data->_bowl->update_scaling(_data->_cache->dt());
     
-    auto alpha = SETTING(gui_background_color).value<Color>().a;
+    auto alpha = READ_SETTING(gui_background_color, Color).a;
     _data->_background->set_color(Color(255, 255, 255, alpha > 0 ? alpha : 1));
     
     graph.wrap_object(*_data->_background);
     
     _data->_background->set_scale(_data->_bowl->scale());
     _data->_background->set_pos(_data->_bowl->pos());
-    _data->_background->set_video_scale(SETTING(meta_video_scale).value<float>());
+    _data->_background->set_video_scale(READ_SETTING(meta_video_scale, float));
     
     if (alpha > 0) {
         /*if(PD(gui_mask)) {

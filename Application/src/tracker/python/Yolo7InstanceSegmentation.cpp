@@ -10,12 +10,12 @@ namespace track {
 void Yolo7InstanceSegmentation::reinit(ModuleProxy& proxy) {
     proxy.set_variable("model_type", detect::detection_type().toStr());
     
-    if(SETTING(segmentation_model).value<file::Path>().empty())
+    if(READ_SETTING(segmentation_model, file::Path).empty())
         throw U_EXCEPTION("When using yolov7 instance segmentation, please set model using command-line argument -sm <path> to set a model (pytorch model).");
-    else if(not SETTING(segmentation_model).value<file::Path>().exists())
-        throw U_EXCEPTION("Cannot find segmentation instance model file ",SETTING(segmentation_model).value<file::Path>(),".");
+    else if(not READ_SETTING(segmentation_model, file::Path).exists())
+        throw U_EXCEPTION("Cannot find segmentation instance model file ",READ_SETTING(segmentation_model, file::Path),".");
     
-    proxy.set_variable("model_path", SETTING(segmentation_model).value<file::Path>().str());
+    proxy.set_variable("model_path", READ_SETTING(segmentation_model, file::Path).str());
     proxy.set_variable("image_size", detect::get_model_image_size());
     proxy.run("load_model");
 }
@@ -62,7 +62,7 @@ void Yolo7InstanceSegmentation::receive(std::vector<Vec2> offsets, SegmentationD
         Print("\tmeta of object = ", meta.at(i), " offset=", offsets.at(meta.at(i)));
         cls = meta.at(i);
         
-        if (SETTING(do_filter).value<bool>() && not contains(SETTING(filter_classes).value<std::vector<uint8_t>>(), cls))
+        if (BOOL_READ_SETTING(do_filter) && not contains(SETTING(filter_classes, std::vector<uint8_t>), cls))
             continue;
         if (dim.min() < 1)
             continue;
@@ -144,8 +144,8 @@ void Yolo7InstanceSegmentation::receive(std::vector<Vec2> offsets, SegmentationD
 tl::expected<SegmentationData, const char*> Yolo7InstanceSegmentation::apply(TileImage&& tiled) {
     namespace py = Python;
     
-    Vec2 scale = SETTING(output_size).value<Size2>().div(tiled.source_size);
-    Print("Image scale: ", scale, " with tile source=", tiled.source_size, " image=", tiled.data.image->dimensions()," output_size=", SETTING(output_size).value<Size2>(), " original=", tiled.original_size);
+    Vec2 scale = READ_SETTING(output_size, Size2).div(tiled.source_size);
+    Print("Image scale: ", scale, " with tile source=", tiled.source_size, " image=", tiled.data.image->dimensions()," output_size=", READ_SETTING(output_size, Size2), " original=", tiled.original_size);
     
     for(auto p : tiled.offsets()) {
         tiled.data.tiles.push_back(Bounds(p.x, p.y, tiled.tile_size.width, tiled.tile_size.height).mul(scale));

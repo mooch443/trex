@@ -39,7 +39,7 @@ void TrainingData::print_pointer_stats() {
         }
         Print("\t", *ptr);
     }
-    auto image_size = SETTING(individual_image_size).value<Size2>();
+    auto image_size = READ_SETTING(individual_image_size, Size2);
     const int channels = Background::meta_encoding() == meta_encoding_t::gray ? 1 : 3;
     
     size_t overall_unique_images{0};
@@ -796,8 +796,8 @@ std::shared_ptr<TrainingData::DataRange> TrainingData::add_salt(const std::share
     std::map<Idx_t, std::tuple<size_t, size_t, size_t, size_t>> individual_added_salt;
     std::map<Idx_t, std::tuple<size_t, size_t>> individual_samples_before_after;
     
-    const double number_classes = SETTING(track_max_individuals).value<uint32_t>();
-    const double gpu_max_sample_mb = double(SETTING(gpu_max_sample_gb).value<float>()) * 1000;
+    const double number_classes = READ_SETTING(track_max_individuals, uint32_t);
+    const double gpu_max_sample_mb = double(READ_SETTING(gpu_max_sample_gb, float)) * 1000;
     const Size2 output_size = SETTING(individual_image_size);
     const double max_images_per_class = gpu_max_sample_mb * 1000 * 1000 / number_classes / output_size.width / output_size.height / 4;
     
@@ -927,7 +927,7 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
         fewest_samples = most_samples = 0;
     
     const double number_classes = Tracker::identities().size();
-    const double gpu_max_sample_gb = double(SETTING(gpu_max_sample_gb).value<float>());
+    const double gpu_max_sample_gb = double(READ_SETTING(gpu_max_sample_gb, float));
     double percentile = ceil((most_samples - fewest_samples) * 0.65 + fewest_samples); // 0.65 percentile of #images/class
     const double current_filesize_per_class = percentile * (double)output_size.width * (double)output_size.height * 4;
     
@@ -1192,7 +1192,7 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
     Print("Failed blobs: ", failed_blobs," Found blobs: ",found_blobs);
     
     if(failed) {
-        auto prefix = SETTING(individual_prefix).value<std::string>();
+        auto prefix = READ_SETTING(individual_prefix, std::string);
         FormatWarning("Some (", failed * 100 / counter,"%) ", prefix.c_str()," images are too big. Range: ", minmum_size," -> ", maximum_size," median ",median_size_x.empty() ? 0 : median_size_x.getValue(), "x", median_size_y.empty() ? 0 : median_size_y.getValue());
     }
     

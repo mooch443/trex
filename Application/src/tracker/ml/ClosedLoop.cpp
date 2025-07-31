@@ -10,7 +10,7 @@ using namespace cmn;
 using namespace track;
 
 ClosedLoop::ClosedLoop()
-    : closed_loop_path( SETTING(closed_loop_path).value<file::Path>().remove_extension())
+    : closed_loop_path( READ_SETTING(closed_loop_path, file::Path).remove_extension())
 {
     auto path = closed_loop_path.add_extension("py");
     if(not path.is_regular())

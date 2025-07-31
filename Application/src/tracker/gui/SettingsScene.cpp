@@ -93,7 +93,7 @@ struct SettingsScene::Data {
             return filename;
         }
         
-        auto filename = SETTING(filename).value<file::Path>();
+        auto filename = READ_SETTING(filename, file::Path);
         if(filename.empty())
             filename = GlobalSettings::read([](const Configuration& config){
                 return settings::find_output_name(config.values);
@@ -142,11 +142,11 @@ struct SettingsScene::Data {
         _running_tasks.emplace_back(Python::schedule(Python::PackagedTask{
             ._network = nullptr,
             ._task = [this,
-                      detect_model = SETTING(detect_model).value<file::Path>(),
-                      region_model = SETTING(region_model).value<file::Path>()]()
+                      detect_model = READ_SETTING(detect_model, file::Path),
+                      region_model = READ_SETTING(region_model, file::Path)]()
             {
                 try {
-                    auto original_detect_classes = SETTING(detect_classes).value<blob::MaybeObjectClass_t>();
+                    auto original_detect_classes = READ_SETTING(detect_classes, blob::MaybeObjectClass_t);
                     
                     if(not detect_model.empty()
                        && (track::detect::yolo::is_valid_default_model(detect_model.str())
@@ -180,11 +180,11 @@ struct SettingsScene::Data {
                                 track::YOLO::init();
                                 /// -----
                                 
-                                auto detect_classes = SETTING(detect_classes).value<blob::MaybeObjectClass_t>();
-                                auto format = SETTING(detect_format).value<track::detect::ObjectDetectionFormat_t>();
+                                auto detect_classes = READ_SETTING(detect_classes, blob::MaybeObjectClass_t);
+                                auto format = READ_SETTING(detect_format, track::detect::ObjectDetectionFormat_t);
                                 
                                 _cached_resolutions[detect_model.str()] = {
-                                    SETTING(detect_resolution).value<track::detect::DetectResolution>(),
+                                    READ_SETTING(detect_resolution, track::detect::DetectResolution),
                                     format,
                                     detect_classes
                                 };
@@ -195,7 +195,7 @@ struct SettingsScene::Data {
                                 if(region_model.is_regular()) {
                                     if(not _cached_resolutions.contains(region_model.str())) {
                                         _cached_resolutions[region_model.str()] = {
-                                            SETTING(region_resolution).value<track::detect::DetectResolution>(),
+                                            READ_SETTING(region_resolution, track::detect::DetectResolution),
                                             track::detect::ObjectDetectionFormat::none,
                                             blob::MaybeObjectClass_t{}
                                         };
@@ -211,7 +211,7 @@ struct SettingsScene::Data {
                                 SETTING(detect_format) = track::detect::ObjectDetectionFormat::none;
                                 SETTING(detect_classes) = blob::MaybeObjectClass_t{};
                                 
-                                FormatWarning("Failed to initialize ", SETTING(detect_model).value<file::Path>());
+                                FormatWarning("Failed to initialize ", READ_SETTING(detect_model, file::Path));
                             }
                         }
                     } else {
@@ -221,7 +221,7 @@ struct SettingsScene::Data {
                         SETTING(detect_classes) = blob::MaybeObjectClass_t{};
                     }
                     
-                    if(auto detect_classes = SETTING(detect_classes).value<blob::MaybeObjectClass_t>();
+                    if(auto detect_classes = READ_SETTING(detect_classes, blob::MaybeObjectClass_t);
                        original_detect_classes.has_value()
                        && (not detect_classes.has_value()
                            || (extract_keys(detect_classes.value()) == extract_keys(original_detect_classes.value())
@@ -285,17 +285,17 @@ struct SettingsScene::Data {
                 });
                 
             } else if(name == "detect_type") {
-                auto detect_type = SETTING(detect_type).value<track::detect::ObjectDetectionType_t>();
+                auto detect_type = READ_SETTING(detect_type, track::detect::ObjectDetectionType_t);
                 
                 ExtendableVector exclude;
-                if(not SETTING(detect_model).value<file::Path>().empty()
-                   && SETTING(detect_model).value<file::Path>() != file::Path(track::detect::yolo::default_model()).remove_extension())
+                if(not READ_SETTING(detect_model, file::Path).empty()
+                   && READ_SETTING(detect_model, file::Path) != file::Path(track::detect::yolo::default_model()).remove_extension())
                 {
                     exclude = {
                         "detect_model"
                     };
                 }
-                if(not SETTING(region_model).value<file::Path>().empty()){
+                if(not READ_SETTING(region_model, file::Path).empty()){
                     exclude += std::vector<std::string_view>{
                         "region_model"
                     };
@@ -321,7 +321,7 @@ struct SettingsScene::Data {
         
         fn("source");
         
-        if(not SETTING(source).value<file::PathArray>().empty())
+        if(not READ_SETTING(source, file::PathArray).empty())
             fn("detect_model");
     }
     
@@ -405,7 +405,7 @@ struct SettingsScene::Data {
                                     
                                     settings::reset(cleared);
                                     
-                                    //settings::load(SETTING(source).value<file::PathArray>(), SETTING(filename).value<file::Path>(), default_config::TRexTask_t::none, SETTING(detect_type), {}, cleared);
+                                    //settings::load(READ_SETTING(source).value<file::PathArray>(), SETTING(filename, file::Path), default_config::TRexTask_t::none, SETTING(detect_type), {}, cleared);
                                 }
                             }, "This will reset all settings you have made here to defaults, except for the file, output prefix and folder.\n\nAre you sure you want to do this?", "Reset settings", "Reset", "Cancel");
                             
@@ -429,7 +429,7 @@ struct SettingsScene::Data {
                         });
                     }),
                     ActionFunc("convert", [this](auto){
-                        DebugHeader("Converting ", utils::ShortenText(SETTING(source).value<file::PathArray>().toStr(), 100));
+                        DebugHeader("Converting ", utils::ShortenText(READ_SETTING(source, file::PathArray).toStr(), 100));
                         
                         auto f = WorkProgress::add_queue("", [this, copy = get_changed_props()]() {
                             Print("changed props = ", copy.keys());
@@ -444,28 +444,28 @@ struct SettingsScene::Data {
                             /// if we determine that we are actually reconverting a pv file
                             /// we need to load the source settings from the pv file, since we
                             /// cant use the pv file and convert it to itself:
-                            auto source = SETTING(source).value<file::PathArray>();
+                            auto source = READ_SETTING(source, file::PathArray);
                             if (source.size() == 1
                                 && source.get_paths().front().has_extension("pv"))
                             {
-                                auto meta_source_path = SETTING(meta_source_path).value<std::string>();
+                                auto meta_source_path = READ_SETTING(meta_source_path, std::string);
                                 if (not meta_source_path.empty()) {
                                     file::PathArray array(meta_source_path);
                                     auto parent = file::find_parent(source);
                                     auto basename = file::find_basename(source);
 
                                     if (parent && parent->exists()) {
-                                        if(SETTING(output_dir).value<file::Path>().empty())
+                                        if(READ_SETTING(output_dir, file::Path).empty())
 											SETTING(output_dir) = parent.value();
                                     }
 
-                                    if(SETTING(filename).value<file::Path>().empty())
+                                    if(READ_SETTING(filename, file::Path).empty())
 										SETTING(filename) = file::Path(basename);
                                     SETTING(source) = array;
                                 }
                             }
                             
-                            auto filename = SETTING(filename).value<file::Path>();
+                            auto filename = READ_SETTING(filename, file::Path);
                             if (not filename.empty()) {
                                 filename = GlobalSettings::read([](const Configuration& config) {
                                     return settings::find_output_name(config.values);
@@ -485,9 +485,9 @@ struct SettingsScene::Data {
                                 defaults_with_config = std::move(defaults_with_config)
                             ] (auto,DrawStructure& graph) {
                                 using namespace track;
-                                if (SETTING(detect_type).value<detect::ObjectDetectionType_t>() == detect::ObjectDetectionType::yolo) 
+                                if (READ_SETTING(detect_type, detect::ObjectDetectionType_t) == detect::ObjectDetectionType::yolo) 
                                 {
-                                    auto path = SETTING(detect_model).value<file::Path>();
+                                    auto path = READ_SETTING(detect_model, file::Path);
                                     if (track::detect::yolo::valid_model(path))
                                     {
                                         /// we have a valid model
@@ -558,7 +558,7 @@ struct SettingsScene::Data {
                         });
                     }),
                     ActionFunc("track", [this](auto){
-                        DebugHeader("Tracking ", no_quotes(utils::ShortenText(SETTING(source).value<file::PathArray>().toStr(), 1000)));
+                        DebugHeader("Tracking ", no_quotes(utils::ShortenText(READ_SETTING(source, file::PathArray).toStr(), 1000)));
                         
                         WorkProgress::add_queue("loading...", [this, copy = get_changed_props()]() mutable
                         {
@@ -587,7 +587,7 @@ struct SettingsScene::Data {
                             }
                             
                             Print("changed props = ", copy.keys());
-                            auto array = SETTING(source).value<file::PathArray>();
+                            auto array = READ_SETTING(source, file::PathArray);
                             //auto front = file::Path(file::find_basename(array));
                             
                             auto output_file = settings::find_output_name(before);
@@ -746,7 +746,7 @@ struct SettingsScene::Data {
                             FormatWarning("No source selected for reload_selected_source.");
                     }),
                     ActionFunc("toggle-background-subtraction", [](auto){
-                        SETTING(track_background_subtraction) = not SETTING(track_background_subtraction).value<bool>();
+                        SETTING(track_background_subtraction) = not BOOL_SETTING(track_background_subtraction);
                     }),
                     VarFunc("video_file", [this](const VarProps&) -> file::PathArray {
                         return current_path.get();
@@ -1053,8 +1053,8 @@ void SettingsScene::Data::load_video_settings(const file::PathArray& source) {
                 /// do nothing
             }
             
-            auto filename = SETTING(filename).value<file::Path>();
-            auto csource = SETTING(source).value<file::PathArray>();
+            auto filename = READ_SETTING(filename, file::Path);
+            auto csource = READ_SETTING(source, file::PathArray);
             
             sprite::Map promote;
             if(map.has("source")) {
@@ -1097,7 +1097,7 @@ void SettingsScene::activate() {
     _data = std::make_unique<Data>();
     _data->_window = (IMGUIBase*)window();
 
-    _data->_initial_source = SETTING(source).value<file::PathArray>();
+    _data->_initial_source = READ_SETTING(source, file::PathArray);
     _data->register_callbacks();
     _data->_defaults = GlobalSettings::read([](const Configuration& config) { return config.values; });
     _data->layout_name = last_opened_tab.get();

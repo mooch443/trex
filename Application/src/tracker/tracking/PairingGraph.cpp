@@ -845,7 +845,7 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
                         counter += edges.size();
                     }
                     
-                    std::string str = "video "+SETTING(filename).value<file::Path>().str()+" "+std::to_string(frame())
+                    std::string str = "video "+READ_SETTING(filename, file::Path).str()+" "+std::to_string(frame())
                     +" "+Meta::toStr(_individuals.size())+"fish "+Meta::toStr(_blobs.size())+"blobs  "+Meta::toStr(counter)+"edges"
                     +"\n";
                     fwrite(str.data(), 1, str.length(), f);

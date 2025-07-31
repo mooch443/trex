@@ -328,7 +328,7 @@ struct DrawExportOptions::Data {
         //parent.set_background(Black.alpha(200), Black.alpha(240));
 
         /*export_options.on_select([&](auto idx, const std::string&) {
-            auto graphs = SETTING(output_fields).value<std::vector<std::pair<std::string, std::vector<std::string>>>>();
+            auto graphs = READ_SETTING(output_fields, std::vector<std::pair<std::string, std::vector<std::string>>>);
             auto& item = export_options.items().at(idx);
             Print("Removing ",item.value()._name);
 
@@ -436,7 +436,7 @@ struct DrawExportOptions::Data {
                             REQUIRE_EXACTLY(1, action);
                             Print("Got action: ", action);
                             auto idx = Meta::fromStr<uint32_t>(action.parameters.front());
-                            auto graphs = SETTING(output_fields).value<std::vector<std::pair<std::string, std::vector<std::string>>>>();
+                            auto graphs = READ_SETTING(output_fields, std::vector<std::pair<std::string, std::vector<std::string>>>);
                             auto &item = this->_filtered_options.at(idx);
                             
                             if(auto subname = item.at("subname").value<std::string>();
@@ -462,7 +462,7 @@ struct DrawExportOptions::Data {
                             REQUIRE_EXACTLY(1, action);
                             Print("Got action: ", action);
                             auto idx = Meta::fromStr<uint32_t>(action.parameters.front());
-                            auto graphs = SETTING(output_fields).value<std::vector<std::pair<std::string, std::vector<std::string>>>>();
+                            auto graphs = READ_SETTING(output_fields, std::vector<std::pair<std::string, std::vector<std::string>>>);
                             auto &item = this->_selected_options.at(idx);
                             auto automatic = this->_auto_variables.at(idx);
                             
@@ -502,7 +502,7 @@ struct DrawExportOptions::Data {
                         ActionFunc("export", [state](auto){
                             Print("Triggered export...");
                             
-                            WorkProgress::add_queue("Saving to "+SETTING(output_format).value<default_config::output_format_t::Class>().str()+" ...", [state]()
+                            WorkProgress::add_queue("Saving to "+READ_SETTING(output_format, default_config::output_format_t::Class).str()+" ...", [state]()
                             {
                                 state->_controller->export_tracks();
                                 /// hide yourself:
@@ -559,7 +559,7 @@ struct DrawExportOptions::Data {
             });
         }
         
-        auto graphs = SETTING(output_fields).value<std::vector<std::pair<std::string, std::vector<std::string>>>>();
+        auto graphs = READ_SETTING(output_fields, std::vector<std::pair<std::string, std::vector<std::string>>>);
         auto graphs_map = [&graphs]() {
             std::unordered_map<std::string, std::set<std::string_view>, MultiStringHash, MultiStringEqual> result;
             for(auto &g : graphs) {

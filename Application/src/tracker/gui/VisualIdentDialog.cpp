@@ -46,7 +46,7 @@ void check_global_tracklets_available(GUITaskQueue_t* gui,
     
     
     if(global_tracklet_order.empty()) {
-        if(is_in(SETTING(track_max_individuals).value<uint32_t>(), 1000u, 1024u, 0u)) {
+        if(is_in(READ_SETTING(track_max_individuals, uint32_t), 1000u, 1024u, 0u)) {
             static constexpr const char message_concern[] = "You likely have not defined <c>track_max_individuals</c> properly yet. In order to figure out differences within the group, we first need to know how big the group is - please set the parameter, reanalyse the video with those settings and try again.";
             
             display_error(message_concern);
@@ -533,12 +533,12 @@ void VIController::export_tracks() {
 void VIController::auto_quit(GUITaskQueue_t* gui) {
     FormatWarning("Saving and quitting...");
     
-    if(not SETTING(auto_no_outputs).value<bool>()) {
+    if(not BOOL_SETTING(auto_no_outputs)) {
         LockGuard guard(w_t{}, "saving and quitting");
         //PD(cache).deselect_all();
         auto video = _video.lock();
         
-        if(auto task = SETTING(task).value<default_config::TRexTask>();
+        if(auto task = READ_SETTING(task, default_config::TRexTask);
            task == default_config::TRexTask_t::convert)
         {
             settings::write_config(video.get(), true, gui);
@@ -561,7 +561,7 @@ void VIController::auto_quit(GUITaskQueue_t* gui) {
             
             auto f = fopen(path.str().c_str(), "wb");
             if(f) {
-                auto str = SETTING(cmd_line).value<std::string>()+"\n";
+                auto str = READ_SETTING(cmd_line, std::string)+"\n";
                 fwrite(str.data(), sizeof(uchar), str.length(), f);
                 fclose(f);
             } else

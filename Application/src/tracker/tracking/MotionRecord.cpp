@@ -19,11 +19,11 @@ static const auto local_settings = []() -> std::unique_ptr<LocalSettings> {
         "cm_per_pixel"
     }, [ptr = ptr.get()](auto name) {
         if(name == "frame_rate")
-            ptr->frame_rate = SETTING(frame_rate).value<Settings::frame_rate_t>();
+            ptr->frame_rate = READ_SETTING(frame_rate, Settings::frame_rate_t);
         else if(name == "cm_per_pixel")
-            ptr->cm_per_pixel = SETTING(cm_per_pixel).value<Settings::cm_per_pixel_t>();
+            ptr->cm_per_pixel = READ_SETTING(cm_per_pixel, Settings::cm_per_pixel_t);
         else
-            ptr->track_enforce_frame_rate = SETTING(track_enforce_frame_rate).value<Settings::track_enforce_frame_rate_t>();
+            ptr->track_enforce_frame_rate = READ_SETTING(track_enforce_frame_rate, Settings::track_enforce_frame_rate_t);
     });
     //});
     return ptr;

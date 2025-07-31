@@ -353,7 +353,7 @@ std::set<uint8_t> find_user_defined_pose_fields(
     Print("Debug: Entering find_user_defined_pose_fields, number of fields = ", output_fields.size());
 #endif
 
-    auto detect_keypoint_names = SETTING(detect_keypoint_names).value<track::detect::KeypointNames>();
+    auto detect_keypoint_names = READ_SETTING(detect_keypoint_names, track::detect::KeypointNames);
     
     // Always check for numeric style fields.
     for (const auto& [field_name, transforms] : output_fields) {
@@ -418,8 +418,8 @@ std::tuple<std::vector<size_t>, std::vector<std::pair<std::string, std::vector<s
     }
     
     // Retrieve the YOLO classes from a global setting:
-    auto detect_keypoint_format = SETTING(detect_keypoint_format).value<track::detect::KeypointFormat>();
-    auto detect_keypoint_names  = SETTING(detect_keypoint_names).value<track::detect::KeypointNames>();
+    auto detect_keypoint_format = READ_SETTING(detect_keypoint_format, track::detect::KeypointFormat);
+    auto detect_keypoint_names  = READ_SETTING(detect_keypoint_names, track::detect::KeypointNames);
 #ifndef NDEBUG
     Print("Debug: Retrieved detect_keypoint_format=", detect_keypoint_format,
           " detect_keypoint_names=", detect_keypoint_names);
@@ -522,8 +522,8 @@ std::vector<std::pair<std::string, std::vector<std::string>>> add_missing_pose_f
 }
 
 individual_image_normalization_t::Class valid_individual_image_normalization(individual_image_normalization_t::Class base) {
-    const auto n = base != individual_image_normalization_t::none ? base : SETTING(individual_image_normalization).value<individual_image_normalization_t::Class>();
-    const auto normalize = n == individual_image_normalization_t::posture && not SETTING(calculate_posture).value<bool>() ? individual_image_normalization_t::moments :  n;
+    const auto n = base != individual_image_normalization_t::none ? base : READ_SETTING(individual_image_normalization, individual_image_normalization_t::Class);
+    const auto normalize = n == individual_image_normalization_t::posture && not BOOL_SETTING(calculate_posture) ? individual_image_normalization_t::moments :  n;
     return normalize;
 }
 
@@ -1249,13 +1249,13 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             "track_background_subtraction"
         };
         
-        if(auto type = SETTING(detect_type).value<track::detect::ObjectDetectionType_t>();
+        if(auto type = READ_SETTING(detect_type, track::detect::ObjectDetectionType_t);
            type == track::detect::ObjectDetectionType::yolo)
         {
             explicitly_include.emplace("detect_classes");
             explicitly_include.emplace("detect_format");
             
-            if(auto format = SETTING(detect_format).value<track::detect::ObjectDetectionFormat_t>();
+            if(auto format = READ_SETTING(detect_format, track::detect::ObjectDetectionFormat_t);
                format != track::detect::ObjectDetectionFormat::poses)
             {
                 exclude_fields.push_back("detect_skeleton");
@@ -1264,7 +1264,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
                 explicitly_include.emplace("detect_skeleton");
             }
             
-            if(SETTING(region_model).value<file::Path>().empty()) {
+            if(READ_SETTING(region_model, file::Path).empty()) {
                 exclude_fields.push_back("region_model");
             }
             
@@ -1283,12 +1283,12 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
          * Exclude some settings based on what would automatically be assigned
          * if they weren't set at all.
          */
-        if(SETTING(cm_per_pixel).value<Float2_t>() == SETTING(meta_real_width).value<Float2_t>() / SETTING(video_size).value<Size2>().width)
+        if(READ_SETTING_WITH_DEFAULT(cm_per_pixel, 1_F) == READ_SETTING_WITH_DEFAULT(meta_real_width, 0_F) / READ_SETTING(video_size, Size2).width)
         {
             exclude_fields.push_back("cm_per_pixel");
         }
         
-        //if(GUI::instance() && SETTING(frame_rate).value<int>() == GUI::instance()->video_source()->framerate())
+        //if(GUI::instance() && READ_SETTING(frame_rate, int) == GUI::instance()->video_source()->framerate())
         //    exclude_fields.push_back("frame_rate");
         
         /**
@@ -1307,7 +1307,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
                     });
                 }
                 /*if(tmp.has("meta_source_path")
-                   //&& tmp.at("meta_source_path").value<std::string>() != SETTING(meta_source_path).value<std::string>()
+                   //&& tmp.at("meta_source_path").value<std::string>() != READ_SETTING(meta_source_path, std::string)
                    )
                 {
                     explicitly_include.insert("meta_source_path");
