@@ -270,7 +270,7 @@ struct TREX_EXPORT ICXYR {
     float r;  // radius
 
     std::string toStr() const {
-        return "ICXYWHR<"+Meta::toStr(clid)+","+Meta::toStr(conf)+","+Meta::toStr(x)+","+Meta::toStr(y)+","+Meta::toStr(r)+">";
+        return "ICXYR<"+Meta::toStr(clid)+","+Meta::toStr(conf)+","+Meta::toStr(x)+","+Meta::toStr(y)+","+Meta::toStr(r)+">";
     }
     static std::string class_name() {
         return "detect::ICXYR";

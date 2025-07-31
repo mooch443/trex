@@ -1400,9 +1400,9 @@ void Grid::fill(const std::vector<DataPoint> &data)
         }
 
 #ifndef __APPLE__
-        static file::Path path("C:/Users/mooch/Desktop/visualization_cells_"+READ_SETTING(filename).value<file::Path>().filename().to_string()+"_"+SETTING(output_prefix, std::string)+".avi");
+        static file::Path path("C:/Users/mooch/Desktop/visualization_cells_"+READ_SETTING(filename, file::Path).filename().to_string()+"_"+READ_SETTING(output_prefix, std::string)+".avi");
 #else
-        static file::Path path("/Users/tristan/Desktop/visualization_cells_"+READ_SETTING(filename).value<file::Path>().filename().to_string() + "_" + SETTING(output_prefix, std::string) +".avi");
+        static file::Path path("/Users/tristan/Desktop/visualization_cells_"+READ_SETTING(filename, file::Path).filename().to_string() + "_" + READ_SETTING(output_prefix, std::string) +".avi");
 #endif
         static cv::VideoWriter writer(path.str(), cv::VideoWriter::fourcc('F','F','V','1'), FAST_SETTING(frame_rate), cv::Size(smaller.cols, smaller.rows), true);
         

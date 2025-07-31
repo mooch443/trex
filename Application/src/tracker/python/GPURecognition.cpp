@@ -412,8 +412,8 @@ PointData::PointData(std::vector<float>&& data)
     : _icxyr(std::move(data))
 {
     if (not _icxyr.empty() && _icxyr.size() % 5u != 0u)
-        throw InvalidArgumentException("Invalid size for PointData constructor. Please use a size that is divisible by 7 and is a flat ICXYR array.");
-    // expecting 7 floats per row, 1 for id, 1 for confidence, 2 for xy, 2 for wh, 1 for r
+        throw InvalidArgumentException("Invalid size for PointData constructor. Please use a size that is divisible by 5 and is a flat ICXYR array.");
+    // expecting 5 floats per row, 1 for id, 1 for confidence, 2 for xy, 1 for radius
     assert(_icxyr.size() % 5u == 0u);
 }
 

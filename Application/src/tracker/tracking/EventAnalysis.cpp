@@ -223,7 +223,7 @@ bool _callback_registered;
             _callback_registered = true;
             
             auto update_setting = [](auto){
-                _limit = READ_SETTING(limit, decltype(_limit));
+                _limit = READ_SETTING(limit, float);
             };
             GlobalSettings::register_callbacks({"limit"}, update_setting);
         }

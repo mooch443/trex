@@ -539,7 +539,7 @@ file::Path conda_environment_path() {
 #else
     std::string compiled_path = "";
 #endif
-    auto home = GlobalSettings::read_value_with_default("python_path", file::Path()).str();
+    auto home = READ_SETTING_WITH_DEFAULT(python_path, file::Path()).str();
     if(file::Path(home).is_regular())
         home = file::Path(home).remove_filename().str();
 #if defined(__linux__) || defined(__APPLE__)
