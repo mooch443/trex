@@ -369,13 +369,16 @@ void YOLO::process_points(
         
         int ymin = bounds.y;
         int ymax = bounds.y + bounds.height;
+        const bool circle = true;
         //int radius = row.r; // radius is implicit by the dimensions of the image
         
         /// copy a circle over, not a square
-        const float ymiddle = (ymax - ymin) * 0.5 + ymin;
+        const float halfh = (ymax - ymin) * 0.5;
+        const float ymiddle = halfh + ymin;
         const float xmiddle = bounds.x + bounds.width * 0.5;
+        
         for(int y = ymin; y<=ymax && y < h; ++y) {
-            const float r = max(1.f, abs(y - ymiddle));
+            const float r = circle ? max(1, sqrt(halfh*halfh - pow(y - ymiddle, 2))) : (bounds.width * 0.5);
             const float fx0 = xmiddle - r;
             const float fx1 = xmiddle + r;
             
