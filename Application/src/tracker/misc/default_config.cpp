@@ -968,7 +968,8 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             {"num_pixels", {}},
             {"ACCELERATION", {"RAW", "PCENTROID"}},
             //{"ACCELERATION", {"SMOOTH", "PCENTROID"}},
-            {"ACCELERATION", {"RAW", "WCENTROID"}}
+            {"ACCELERATION", {"RAW", "WCENTROID"}},
+            {"visual_identification_p", {"RAW"}}
         };
         
         auto output_annotations = std::map<std::string, std::string>
