@@ -103,7 +103,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
     resolution = resolution.map<round>();
     
     cv::Mat average;
-    if(SETTING(merge_background).value<file::Path>().empty()) {
+    if(READ_SETTING(merge_background, file::Path).empty()) {
         for(auto file : files) {
             if(file->header().resolution.width >= resolution.width
                && file->header().resolution.height >= resolution.height
@@ -114,7 +114,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
         }
         
     } else {
-        auto path = SETTING(merge_background).value<file::Path>();
+        auto path = READ_SETTING(merge_background, file::Path);
         auto raw_path = path;
         path = file::DataLocation::parse("input", path);
         
@@ -147,7 +147,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
     
     Background new_background(Image::Make(average), meta_encoding_t::gray);
     
-    if(SETTING(frame_rate).value<uint32_t>() == 0){
+    if(READ_SETTING(frame_rate, uint32_t) == 0){
         if(files.front()->header().metadata.has_value())
             GlobalSettings::write([&](Configuration& config) {
                 sprite::parse_values(sprite::MapSource{files.front()->filename()}, config.values, files.front()->header().metadata.value(), nullptr, {}, default_config::deprecations());
@@ -191,10 +191,10 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
     
     // frame: {blob : source}
     std::map<Frame_t, std::map<pv::bid, Source>> meta;
-    if(SETTING(merge_output_path).value<file::Path>().empty())
+    if(READ_SETTING(merge_output_path, file::Path).empty())
         SETTING(merge_output_path) = file::Path("merged");
     
-    file::Path out_path = file::DataLocation::parse("output", SETTING(merge_output_path).value<file::Path>());
+    file::Path out_path = file::DataLocation::parse("output", READ_SETTING(merge_output_path, file::Path));
     auto output = pv::File::Write<pv::FileMode::WRITE | pv::FileMode::OVERWRITE>(out_path, files.front()->header().encoding);
     
     output.set_resolution((cv::Size)resolution);

@@ -80,7 +80,7 @@ auto TrackingState::addSafeTask(const std::string& title, Func&& f) {
 }
 
 TrackingState::TrackingState(GUITaskQueue_t* gui)
-  : video(pv::File::Make(SETTING(filename).value<file::Path>())),
+  : video(pv::File::Make(READ_SETTING(filename, file::Path))),
     tracker(std::make_unique<track::Tracker>(*this->video)),
     analysis(std::unique_ptr<ConnectedTasks>(new ConnectedTasks(
       {
@@ -280,7 +280,7 @@ void TrackingState::init_video() {
     Print("Deleted keys:", deleted_keys);
     Print("Remaining:", combined.map.keys());
 
-    thread_print("source = ", SETTING(source).value<file::PathArray>(), " ", (uint64_t)&GlobalSettings::map());
+    thread_print("source = ", READ_SETTING(source, file::PathArray), " ", (uint64_t)&GlobalSettings::map());
     GlobalSettings::map().set_print_by_default(true);
     //default_config::get(GlobalSettings::map(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
     //default_config::get(GlobalSettings::set_defaults(), GlobalSettings::docs(), &GlobalSettings::set_access_level);
@@ -304,7 +304,7 @@ void TrackingState::init_video() {
     //! TODO: have to delegate this to another thread
     //! otherwise we will get stuck here
     bool executed_a_settings{false};
-    thread_print("source = ", SETTING(source).value<file::PathArray>(), " ", (uint64_t)&GlobalSettings::map());*/
+    thread_print("source = ", READ_SETTING(source, file::PathArray), " ", (uint64_t)&GlobalSettings::map());*/
     
     if(video->header().version <= pv::Version::V_2) {
         SETTING(crop_offsets) = CropOffsets();
@@ -319,8 +319,8 @@ void TrackingState::init_video() {
     }
     
     /*
-    Print("meta_source_path = ", SETTING(meta_source_path).value<std::string>());
-    Print("track_max_individuals = ", SETTING(track_max_individuals).value<uint32_t>());
+    Print("meta_source_path = ", READ_SETTING(meta_source_path, std::string));
+    Print("track_max_individuals = ", READ_SETTING(track_max_individuals, uint32_t));
     Print("exclude_parameters = ", exclude_parameters);
 
     try {
@@ -336,7 +336,7 @@ void TrackingState::init_video() {
     SETTING(video_length) = uint64_t(video->length().get());
     SETTING(video_info) = std::string(video->get_info());
     
-    if(SETTING(frame_rate).value<uint32_t>() <= 0) {
+    if(READ_SETTING(frame_rate, uint32_t) <= 0) {
         FormatWarning("frame_rate == 0, calculating from frame tdeltas.");
         video->generate_average_tdelta();
         SETTING(frame_rate) = (uint32_t)max(1, int(video->framerate()));
@@ -362,7 +362,7 @@ void TrackingState::init_video() {
     //cmd.load_settings(&combined);
     
     //SETTING(gui_interface_scale) = Float2_t(1);
-    Print("cm_per_pixel = ", SETTING(cm_per_pixel).value<Float2_t>());
+    Print("cm_per_pixel = ", READ_SETTING(cm_per_pixel, Float2_t));
     
     for (auto i=0_f; i<cache_size; ++i)
         unused.emplace(std::make_unique<PPFrame>(tracker->average().bounds().size()));
@@ -844,7 +844,7 @@ std::future<void> TrackingState::load_state(GUITaskQueue_t* gui, file::Path from
                 
             }
             
-            if((header.analysis_range.start != -1 || header.analysis_range.end != -1) && SETTING(analysis_range).value<Range<long_t>>() == Range<long_t>{-1,-1})
+            if((header.analysis_range.start != -1 || header.analysis_range.end != -1) && READ_SETTING(analysis_range, Range<long_t>) == Range<long_t>{-1,-1})
             {
                 SETTING(analysis_range) = Range<long_t>{
                     narrow_cast<long_t>(header.analysis_range.start), 

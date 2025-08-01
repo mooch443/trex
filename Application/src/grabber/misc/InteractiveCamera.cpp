@@ -42,7 +42,7 @@ void InteractiveCamera::Fish::update(float dt, const Vec2& poi, const std::vecto
     velocity += _force / mass * dt;
     
     auto vl = velocity.length();
-    static const auto max_speed = SETTING(track_max_speed).value<Float2_t>() / SETTING(cm_per_pixel).value<Float2_t>();
+    static const auto max_speed = READ_SETTING(track_max_speed, Float2_t) / READ_SETTING(cm_per_pixel, Float2_t);
     if(vl >= max_speed) {
         velocity = velocity / vl * max_speed;
     }
@@ -77,10 +77,10 @@ void InteractiveCamera::Fish::draw(cv::Mat& img) {
 }
 
 InteractiveCamera::InteractiveCamera() {
-    _size = cv::Size(SETTING(cam_resolution).value<Size2>().width, SETTING(cam_resolution).value<Size2>().height);
+    _size = cv::Size(READ_SETTING(cam_resolution, Size2).width, READ_SETTING(cam_resolution, Size2).height);
     
     if constexpr(use_dynamic) {
-        const auto number_individuals = SETTING(track_max_individuals).value<uint32_t>();
+        const auto number_individuals = READ_SETTING(track_max_individuals, uint32_t);
         constexpr auto random_number = [](const Rangel& range) {
             return Float2_t(rand()) / Float2_t(RAND_MAX) * range.length() + range.start;
         };
@@ -102,7 +102,7 @@ bool InteractiveCamera::next(cmn::Image &image) {
     img = cv::Scalar(0);
     
     static Timer timer;
-    if(timer.elapsed() < 1 / float(SETTING(frame_rate).value<uint32_t>()))
+    if(timer.elapsed() < 1 / float(READ_SETTING(frame_rate, uint32_t)))
         return false;
     
     Vec2 target = mouse_position();

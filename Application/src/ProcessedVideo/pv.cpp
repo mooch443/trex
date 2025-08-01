@@ -305,7 +305,7 @@ File::File(const file::Path& filename, FileMode mode, std::optional<meta_encodin
         std::call_once(flag, [](){
             use_differences = BOOL_SETTING(use_differences);
             _callback = GlobalSettings::register_callbacks({"use_differences"}, [](auto) {
-                use_differences = SETTING(use_differences).value<bool>();
+                use_differences = BOOL_SETTING(use_differences);
             });
             GlobalSettings::register_shutdown_callback([](auto){
                 _callback.collection.reset();

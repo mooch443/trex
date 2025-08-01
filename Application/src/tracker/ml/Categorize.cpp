@@ -286,7 +286,7 @@ void start_applying(std::weak_ptr<pv::File> video_source) {
     uint8_t max_threads = 5u;
     extract::Settings settings{
         .flags = 0,//(uint32_t)Flag::RemoveSmallFrames,
-        .max_size_bytes = uint64_t((double)SETTING(gpu_max_cache).value<float>() * 1000.0 * 1000.0 * 1000.0 / double(max_threads)),
+        .max_size_bytes = uint64_t((double)READ_SETTING(gpu_max_cache, float) * 1000.0 * 1000.0 * 1000.0 / double(max_threads)),
         .image_size = FAST_SETTING(individual_image_size),
         .num_threads = max_threads,
         .normalization = normalize,
@@ -484,7 +484,7 @@ void start_applying(std::weak_ptr<pv::File> video_source) {
 }
 
 file::Path output_location() {
-    auto filename = SETTING(filename).value<file::Path>();
+    auto filename = READ_SETTING(filename, file::Path);
     if(filename.has_extension("pv"))
         filename = filename.remove_extension();
     return file::DataLocation::parse("output", file::Path((std::string)filename.filename() + "_categories.npz"));
@@ -593,7 +593,7 @@ void Work::start_learning(std::weak_ptr<pv::File> video_source) {
         std::unique_lock guard(Work::learning_mutex());
         while(Work::learning()) {
             const auto dims = FAST_SETTING(individual_image_size);
-            const auto gpu_max_sample_images = double(SETTING(gpu_max_sample_gb).value<float>()) * 1000.0 * 1000.0 * 1000.0 / double(sizeof(float)) * 0.5 / dims.width / dims.height;
+            const auto gpu_max_sample_images = double(READ_SETTING(gpu_max_sample_gb, float)) * 1000.0 * 1000.0 * 1000.0 / double(sizeof(float)) * 0.5 / dims.width / dims.height;
             
             Work::learning_variable().wait_for(guard, std::chrono::milliseconds(200));
             

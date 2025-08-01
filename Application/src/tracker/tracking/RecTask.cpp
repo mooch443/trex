@@ -211,10 +211,10 @@ void RecTask::update(RecTask&& task) {
             result.p = float(maximum) / float(N);
             //Print("\t",result._tracklet_start,": individual ", result.individual, " is ", max_key, " with p:", result.p, " (", task._images.size(), " samples)");
 
-            static const bool tags_save_predictions = SETTING(tags_save_predictions).value<bool>();
+            static const bool tags_save_predictions = BOOL_SETTING(tags_save_predictions);
             if (tags_save_predictions) {
                 static std::atomic<int64_t> saved_index{ 0 };
-                static const auto filename = (std::string)SETTING(filename).value<file::Path>().filename();
+                static const auto filename = (std::string)READ_SETTING(filename, file::Path).filename();
 
                 //if(result.p <= 0.7)
                 {
@@ -307,7 +307,7 @@ void RecTask::init() {
         
         try {
             py::import_module(tagwork);
-            auto path = SETTING(tags_model_path).value<file::Path>();
+            auto path = READ_SETTING(tags_model_path, file::Path);
             if(path.empty() || !path.exists()) {
                 throw SoftException("The model at ", path, " can not be found. Please set `tags_model_path` to point to an h5 file with a pretrained network. See `https://trex.run/docs/parameters_trex.html#tags_model_path` for more information.");
             }

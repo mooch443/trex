@@ -111,7 +111,7 @@ TRexTask determineTaskType() {
         output_file = settings::find_output_name(config.values);
     });
     
-    if (auto array = SETTING(source).value<file::PathArray>();
+    if (auto array = READ_SETTING(source, file::PathArray);
         array.empty())
     {
         return TRexTask_t::none;
@@ -243,7 +243,7 @@ void launch_gui(std::future<void>& f) {
                         config.values.set_print_by_default(true);
                     });
                     thread_print("Segmenter terminating and switching to tracking scene: ", segmenter->output_file_name());
-                    if(SETTING(gui_frame).value<Frame_t>().valid())
+                    if(READ_SETTING(gui_frame, Frame_t).valid())
                         SETTING(gui_frame) = Frame_t(SETTING(gui_frame)).try_sub(10_f);
                 
                     TrackingScene::request_load();
@@ -319,13 +319,13 @@ void launch_gui(std::future<void>& f) {
         { TRexTask_t::rst, &start }
 	};
 
-    if (const auto task = SETTING(task).value<TRexTask>();
+    if (const auto task = READ_SETTING(task, TRexTask);
         task == TRexTask_t::none)
     {
         TRexTask taskType = determineTaskType();
         settings::load(settings::LoadContext{
-            .source = SETTING(source).value<file::PathArray>(),
-            .filename = SETTING(filename).value<file::Path>(),
+            .source = READ_SETTING(source, file::PathArray),
+            .filename = READ_SETTING(filename, file::Path),
             .task = taskType,
             .type = SETTING(detect_type),
             .quiet = false
@@ -342,8 +342,8 @@ void launch_gui(std::future<void>& f) {
         {
             if(it->second == &converting) {
                 settings::load(settings::LoadContext{
-                    .source = SETTING(source).value<file::PathArray>(),
-                    .filename = SETTING(filename).value<file::Path>(),
+                    .source = READ_SETTING(source, file::PathArray),
+                    .filename = READ_SETTING(filename, file::Path),
                     .task = TRexTask_t::convert,
                     .type = SETTING(detect_type),
                     .source_map = cmd_options
@@ -351,8 +351,8 @@ void launch_gui(std::future<void>& f) {
                 
             } else if(it->second == &tracking_scene) {
                 settings::load(settings::LoadContext{
-                    .source = SETTING(source).value<file::PathArray>(),
-                    .filename = SETTING(filename).value<file::Path>(),
+                    .source = READ_SETTING(source, file::PathArray),
+                    .filename = READ_SETTING(filename, file::Path),
                     .task = TRexTask_t::track,
                     .type = SETTING(detect_type),
                     .source_map = cmd_options
@@ -379,12 +379,12 @@ void launch_gui(std::future<void>& f) {
 	}
     
     base.platform()->set_icons({
-        //file::DataLocation::parse("app", "gfx/"+SETTING(app_name).value<std::string>()+"_16.png"),
-        file::DataLocation::parse("app", "gfx/"+SETTING(app_name).value<std::string>()+"_32.png"),
-        file::DataLocation::parse("app", "gfx/"+SETTING(app_name).value<std::string>()+"_48.png"),
-        file::DataLocation::parse("app", "gfx/"+SETTING(app_name).value<std::string>()+"_64.png"),
-        file::DataLocation::parse("app", "gfx/"+SETTING(app_name).value<std::string>()+"_128.png"),
-        file::DataLocation::parse("app", "gfx/"+SETTING(app_name).value<std::string>()+"_256.png")
+        //file::DataLocation::parse("app", "gfx/"+READ_SETTING(app_name, std::string)+"_16.png"),
+        file::DataLocation::parse("app", "gfx/"+READ_SETTING(app_name, std::string)+"_32.png"),
+        file::DataLocation::parse("app", "gfx/"+READ_SETTING(app_name, std::string)+"_48.png"),
+        file::DataLocation::parse("app", "gfx/"+READ_SETTING(app_name, std::string)+"_64.png"),
+        file::DataLocation::parse("app", "gfx/"+READ_SETTING(app_name, std::string)+"_128.png"),
+        file::DataLocation::parse("app", "gfx/"+READ_SETTING(app_name, std::string)+"_256.png")
     });
     
     file::cd(file::DataLocation::parse("app"));
@@ -536,7 +536,7 @@ std::string start_tracking(std::future<void>& f) {
             return with_config;
         });
         
-        RecentItems::open(SETTING(source).value<file::PathArray>().source(), current_defaults_with_config);
+        RecentItems::open(READ_SETTING(source, file::PathArray).source(), current_defaults_with_config);
     }
     
     if(wants_to_load) {
@@ -559,7 +559,7 @@ std::string start_tracking(std::future<void>& f) {
 }
 
 std::string start_converting(std::future<void>& f) {
-    if(SETTING(filename).value<file::Path>().empty()) {
+    if(READ_SETTING(filename, file::Path).empty()) {
         file::Path path = GlobalSettings::read([](const Configuration& config) {
             return settings::find_output_name(config.values);
         });
@@ -599,7 +599,7 @@ std::string start_converting(std::future<void>& f) {
         });
     
     Print("Loading source = ",
-          utils::ShortenText(SETTING(source).value<file::PathArray>().toStr(), 1000));
+          utils::ShortenText(READ_SETTING(source, file::PathArray).toStr(), 1000));
     
     bar.set_progress(0);
     
@@ -618,7 +618,7 @@ std::string start_converting(std::future<void>& f) {
     
     Timer last_tick;
     
-    if (SETTING(source).value<file::PathArray>() == file::PathArray("webcam")) {
+    if (READ_SETTING(source, file::PathArray) == file::PathArray("webcam")) {
         segmenter.open_camera();
     } else {
         segmenter.open_video();
@@ -723,13 +723,13 @@ int main(int argc, char**argv) {
     
     /*GlobalSettings::register_callbacks({"use_closing", "source", "meta_source_path", "filename", "detect_type", "cm_per_pixel", "track_background_subtraction", "gui_interface_scale", "detect_format", "detect_skeleton"}, [](auto key){
         if(key == "use_closing")
-            Print("Changed use_closing to ", SETTING(use_closing).value<bool>());
+            Print("Changed use_closing to ", BOOL_SETTING(use_closing));
         else if(key == "source")
-            Print("Changed source to ", SETTING(source).value<file::PathArray>());
+            Print("Changed source to ", READ_SETTING(source, file::PathArray));
         else if(key == "meta_source_path")
-            Print("Changed meta_source_path to ", SETTING(meta_source_path).value<std::string>());
+            Print("Changed meta_source_path to ", READ_SETTING(meta_source_path, std::string));
         else if(key == "filename")
-            Print("Changed filename to ", SETTING(filename).value<file::Path>());
+            Print("Changed filename to ", READ_SETTING(filename, file::Path));
         else if(key == "detect_type")
             Print("Changed detection type to ", SETTING(detect_type));
         else if(key == "detect_format")
@@ -844,8 +844,8 @@ int main(int argc, char**argv) {
 
     CommandLine::instance().load_settings();
     
-    if (not SETTING(filename).value<file::Path>().empty()) {
-        auto path = SETTING(filename).value<file::Path>();
+    if (not READ_SETTING(filename, file::Path).empty()) {
+        auto path = READ_SETTING(filename, file::Path);
         if(path.has_extension("pv"))
             path = path.remove_extension();
         SETTING(filename) = file::DataLocation::parse("output", path);
@@ -853,7 +853,7 @@ int main(int argc, char**argv) {
     
     std::string last_error;
     if(BOOL_SETTING(nowindow)) {
-        auto task = SETTING(task).value<TRexTask>();
+        auto task = READ_SETTING(task, TRexTask);
         if(task == TRexTask_t::none)
             task = determineTaskType();
         if(task == TRexTask_t::none)
@@ -865,8 +865,8 @@ int main(int argc, char**argv) {
         CommandLine::instance().load_settings(cmd_options);
         
         settings::load(settings::LoadContext{
-            .source = SETTING(source).value<file::PathArray>(),
-            .filename = SETTING(filename).value<file::Path>(),
+            .source = READ_SETTING(source, file::PathArray),
+            .filename = READ_SETTING(filename, file::Path),
             .task = task,
             .type = SETTING(detect_type),
             .source_map = cmd_options,

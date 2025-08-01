@@ -71,7 +71,7 @@ namespace track {
                     color = gui::Yellow;
                 _string_to_id[utils::lowercase(reason)] = Properties{ mid, color };
                 
-                all_ids = SETTING(gui_foi_types).value<std::vector<std::string>>();
+                all_ids = READ_SETTING(gui_foi_types, std::vector<std::string>);
                 all_ids.push_back(utils::lowercase(reason));
                 
                 changed();

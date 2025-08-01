@@ -70,7 +70,7 @@ std::tuple<Image::Ptr, Vec2> normalize_image(
        cv::warpAffine(image, padded, t, (cv::Size)size, cv::INTER_NEAREST, cv::BORDER_CONSTANT);
     else
        cv::warpAffine(image, padded, t, (cv::Size)size, cv::INTER_LINEAR, cv::BORDER_CONSTANT);
-    //resize_image(padded, SETTING(individual_image_scale).value<float>());
+    //resize_image(padded, READ_SETTING(individual_image_scale, float));
     
     //tf::imshow("after", padded);
     int left = 0, right = 0, top = 0, bottom = 0;

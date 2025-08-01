@@ -20,7 +20,7 @@ namespace track {
 Timer start_timer;
 
 file::Path average_name() {
-    auto path = file::DataLocation::parse("output", "average_" + (std::string)SETTING(filename).value<file::Path>().filename() + ".png");
+    auto path = file::DataLocation::parse("output", "average_" + (std::string)READ_SETTING(filename, file::Path).filename() + ".png");
     return path;
 }
 
@@ -89,7 +89,7 @@ Segmenter::Segmenter(std::function<void()> eof_callback, std::function<void(std:
                 for(auto &key : GlobalSettings::map().keys())
                     GlobalSettings::map().at(key).get().copy_to(parm);
                     
-                ::settings::load(SETTING(source).value<file::PathArray>(),
+                ::settings::load(READ_SETTING(source, file::PathArray),
                                  file::Path(output_file_name()),
                                  default_config::TRexTask_t::track,
                                  SETTING(detect_type),
@@ -377,7 +377,7 @@ std::tuple<bool, cv::Mat> Segmenter::get_preliminary_background(Size2 size) {
     cv::Mat bg = cv::Mat::zeros(_output_size.height, _output_size.width, CV_8UC(channels));
     bg.setTo(255);
 
-    bool do_generate_average { SETTING(reset_average).value<bool>() };
+    bool do_generate_average { BOOL_SETTING(reset_average) };
     if (not average_name().exists()) {
         do_generate_average = true;
     }
@@ -407,14 +407,14 @@ void Segmenter::set_metadata() {
     _output_file->set_metadata(std::move(diff));
     
     pv::Header::ConversionRange_t conversion_range;
-    auto video_conversion_range = SETTING(video_conversion_range).value<Range<long_t>>();
+    auto video_conversion_range = READ_SETTING(video_conversion_range, Range<long_t>);
     if(video_conversion_range.start != -1)
         conversion_range.start = video_conversion_range.start;
     if(video_conversion_range.end != -1)
         conversion_range.end = video_conversion_range.end;
     
-    auto meta_source_path = SETTING(meta_source_path).value<std::string>();
-    _output_file->set_source(meta_source_path.empty() ? Meta::fromStr<std::string>(SETTING(source).value<file::PathArray>().toStr()) : meta_source_path);
+    auto meta_source_path = READ_SETTING(meta_source_path, std::string);
+    _output_file->set_source(meta_source_path.empty() ? Meta::fromStr<std::string>(READ_SETTING(source, file::PathArray).toStr()) : meta_source_path);
     _output_file->set_conversion_range(conversion_range);
 }
 
@@ -425,7 +425,7 @@ void Segmenter::callback_after_generating(cv::Mat &bg) {
     {
         std::unique_lock guard(_mutex_tracker);
         if(not _tracker)
-            _tracker = std::make_unique<Tracker>(Image::Make(bg), encoding, SETTING(meta_real_width).value<Float2_t>());
+            _tracker = std::make_unique<Tracker>(Image::Make(bg), encoding, READ_SETTING(meta_real_width, Float2_t));
         //else
         //    _tracker->set_average(Image::Make(bg));
     }
@@ -441,7 +441,7 @@ void Segmenter::callback_after_generating(cv::Mat &bg) {
             
         } catch(const std::exception& ex) {
             FormatWarning("Error setting the background image for ", *_output_file, ": ", ex.what());
-            if(auto detect_type = SETTING(detect_type).value<ObjectDetectionType_t>();
+            if(auto detect_type = READ_SETTING(detect_type, ObjectDetectionType_t);
                detect_type == ObjectDetectionType::background_subtraction)
             {
                 throw U_EXCEPTION("Cannot continue in mode ", detect_type," without a background image. Error: ", ex.what(), "");
@@ -483,7 +483,7 @@ void Segmenter::trigger_average_generator(bool do_generate_average, cv::Mat& bg)
                 float last_percent = 0;
                 last_percent = 0;
                 
-                VideoSource tmp(SETTING(source).value<file::PathArray>());
+                VideoSource tmp(READ_SETTING(source, file::PathArray));
                 
                 /// for future purposes everything in rgb, so if the
                 /// user switches to gray later on it still works:
@@ -548,11 +548,11 @@ void Segmenter::trigger_average_generator(bool do_generate_average, cv::Mat& bg)
         
         /// if background subtraction is disabled for tracking, we don't need to
         /// wait for the average image to generate first:
-        if(not SETTING(track_background_subtraction).value<bool>()) {
+        if(not BOOL_SETTING(track_background_subtraction)) {
             {
                 std::unique_lock guard(_mutex_tracker);
                 auto image_size = _output_size;
-                _tracker = std::make_unique<Tracker>(Image::Make(image_size.height, image_size.width, channels), Background::meta_encoding(), SETTING(meta_real_width).value<Float2_t>());
+                _tracker = std::make_unique<Tracker>(Image::Make(image_size.height, image_size.width, channels), Background::meta_encoding(), READ_SETTING(meta_real_width, Float2_t));
             }
 
             std::unique_lock vlock(_mutex_general);
@@ -594,23 +594,23 @@ void Segmenter::trigger_average_generator(bool do_generate_average, cv::Mat& bg)
 }
 
 void Segmenter::open_video() {
-    VideoSource video_base(SETTING(source).value<file::PathArray>());
+    VideoSource video_base(READ_SETTING(source, file::PathArray));
     video_base.set_colors(ImageMode::RGB);
 
-    if(SETTING(frame_rate).value<uint32_t>() <= 0)
+    if(READ_SETTING(frame_rate, uint32_t) <= 0)
         SETTING(frame_rate) = Settings::frame_rate_t(video_base.framerate() != short(-1) ? video_base.framerate() : 25);
     
-    /*if (SETTING(filename).value<file::Path>().empty()) {
+    /*if (READ_SETTING(filename, file::Path).empty()) {
         throw U_EXCEPTION("Filename was empty for converting a video.");
         SETTING(filename) = file::DataLocation::parse("output", file::Path(file::Path(video_base.base()).filename()));
     }
     
-    _output_file_name = SETTING(filename).value<file::Path>();*/
+    _output_file_name = READ_SETTING(filename, file::Path);*/
     _output_file_name = GlobalSettings::read([](const Configuration& config) {
         return settings::find_output_name(config.values);
     });
     
-    Print("source = ", no_quotes(utils::ShortenText(SETTING(source).value<file::PathArray>().toStr(), 1000)));
+    Print("source = ", no_quotes(utils::ShortenText(READ_SETTING(source, file::PathArray).toStr(), 1000)));
     Print("output = ", _output_file_name);
     Print("video_base = ", video_base.base());
     Print("length = ", video_base.length());
@@ -618,7 +618,7 @@ void Segmenter::open_video() {
 
     setDefaultSettings();
     
-    const auto meta_video_scale = SETTING(meta_video_scale).value<float>();
+    const auto meta_video_scale = READ_SETTING(meta_video_scale, float);
     _output_size = (Size2(video_base.size()) * meta_video_scale).map(roundf);
     SETTING(meta_video_size) = Size2(video_base.size());
     //SETTING(output_size) = _output_size;
@@ -643,7 +643,7 @@ void Segmenter::open_video() {
     //SETTING(cm_per_pixel) = Settings::cm_per_pixel_t(0.01);
     //SETTING(meta_real_width) = Float2_t(_output_size.width);
 
-    //SETTING(cm_per_pixel) = float(SETTING(meta_real_width).value<float>() / _overlayed_video->source.size().width);
+    //READ_SETTING(cm_per_pixel) = float(SETTING(meta_real_width, float) / _overlayed_video->source.size().width);
 
     printDebugInformation();
 
@@ -651,7 +651,7 @@ void Segmenter::open_video() {
     static_assert(ObjectDetection<Detection>);
 
     _start_time = std::chrono::system_clock::now();
-    //_output_file_name = file::DataLocation::parse("output", SETTING(filename).value<file::Path>());
+    //_output_file_name = file::DataLocation::parse("output", READ_SETTING(filename, file::Path));
     DebugHeader("Output: ", _output_file_name);
     
     init_undistort_from_settings();
@@ -663,7 +663,7 @@ void Segmenter::open_video() {
 
     trigger_average_generator(do_generate_average, bg);
 
-    auto range = SETTING(video_conversion_range).value<Range<long_t>>();
+    auto range = READ_SETTING(video_conversion_range, Range<long_t>);
     _video_conversion_range = Range<Frame_t>{
         range.start == -1
             ? 0_f
@@ -688,10 +688,10 @@ void Segmenter::open_camera() {
     SETTING(frame_rate) = Settings::frame_rate_t(camera.frame_rate() == -1
                                                  ? 25
                                                  : camera.frame_rate());
-    if (SETTING(filename).value<file::Path>().empty())
-        SETTING(filename) = file::DataLocation::parse("output", file::Path(file::find_basename(SETTING(source).value<file::PathArray>())));
+    if (READ_SETTING(filename, file::Path).empty())
+        SETTING(filename) = file::DataLocation::parse("output", file::Path(file::find_basename(READ_SETTING(source, file::PathArray))));
     
-    if(SETTING(source).value<file::PathArray>() == file::PathArray("webcam")) {
+    if(READ_SETTING(source, file::PathArray) == file::PathArray("webcam")) {
         //if(not CommandLine::instance().settings_keys().contains("detect_model"))
         //    SETTING(detect_model) = file::Path(Yolo::default_model());
         //if(not CommandLine::instance().settings_keys().contains("save_raw_movie"))
@@ -703,7 +703,7 @@ void Segmenter::open_camera() {
     setDefaultSettings();
     
     _start_time = std::chrono::system_clock::now();
-    _output_file_name = file::DataLocation::parse("output", SETTING(filename).value<file::Path>());
+    _output_file_name = file::DataLocation::parse("output", READ_SETTING(filename, file::Path));
     DebugHeader("Output: ", _output_file_name);
 
     auto path = _output_file_name.remove_filename();
@@ -716,10 +716,10 @@ void Segmenter::open_camera() {
     
     if(BOOL_SETTING(save_raw_movie)) {
         auto path = output_file_name();
-        if (not SETTING(save_raw_movie_path).value<file::Path>().empty()
-            && SETTING(save_raw_movie_path).value<file::Path>().remove_filename().exists())
+        if (not READ_SETTING(save_raw_movie_path, file::Path).empty()
+            && READ_SETTING(save_raw_movie_path, file::Path).remove_filename().exists())
         {
-            path = SETTING(save_raw_movie_path).value<file::Path>();
+            path = READ_SETTING(save_raw_movie_path, file::Path);
         }
         
         if(path.has_extension())
@@ -732,10 +732,10 @@ void Segmenter::open_camera() {
         SETTING(meta_video_scale) = 1.f;
     }
     
-    _output_size = (Size2(camera.size()) * SETTING(meta_video_scale).value<float>()).map(roundf);
+    _output_size = (Size2(camera.size()) * READ_SETTING(meta_video_scale, float)).map(roundf);
     SETTING(video_conversion_range) = Range<long_t>(-1,-1);
     
-    auto detect_type = SETTING(detect_type).value<ObjectDetectionType_t>();
+    auto detect_type = READ_SETTING(detect_type, ObjectDetectionType_t);
     if(std::unique_lock vlock(_mutex_video);
        detect_type == ObjectDetectionType::background_subtraction)
     {
@@ -762,20 +762,20 @@ void Segmenter::open_camera() {
         );
     }
     
-    _overlayed_video->source()->set_video_scale(SETTING(meta_video_scale).value<float>());
+    _overlayed_video->source()->set_video_scale(READ_SETTING(meta_video_scale, float));
     _overlayed_video->source()->notify();
     
     SETTING(video_length) = uint64_t(video_length().get());
     //SETTING(cm_per_pixel) = Settings::cm_per_pixel_t(0.01);
     //SETTING(meta_real_width) = Float2_t(_output_size.width);
 
-    //SETTING(cm_per_pixel) = float(SETTING(meta_real_width).value<float>() / _overlayed_video->source.size().width);
+    //READ_SETTING(cm_per_pixel) = float(SETTING(meta_real_width, float) / _overlayed_video->source.size().width);
 
     printDebugInformation();
 
     /*{
         std::unique_lock guard(_mutex_tracker);
-        _tracker = std::make_unique<Tracker>(Image::Make(bg), Background::meta_encoding(), SETTING(meta_real_width).value<Float2_t>());
+        _tracker = std::make_unique<Tracker>(Image::Make(bg), Background::meta_encoding(), READ_SETTING(meta_real_width, Float2_t));
     }
     static_assert(ObjectDetection<Detection>);*/
     _video_conversion_range = Range<Frame_t>{ 0_f, {} };
@@ -800,8 +800,8 @@ void Segmenter::init_undistort_from_settings() {
     
     _undistort_callbacks = GlobalSettings::register_callbacks({"cam_undistort", "cam_undistort_vector", "cam_matrix"}, [this](auto){
         if(BOOL_SETTING(cam_undistort)) {
-            auto cam_data = SETTING(cam_matrix).value<std::vector<double>>();
-            auto undistort_data = SETTING(cam_undistort_vector).value<std::vector<double>>();
+            auto cam_data = READ_SETTING(cam_matrix, std::vector<double>);
+            auto undistort_data = READ_SETTING(cam_undistort_vector, std::vector<double>);
             _overlayed_video->source()->set_undistortion(std::move(cam_data), std::move(undistort_data));
         } else {
             _overlayed_video->source()->set_undistortion(std::nullopt, std::nullopt);
@@ -837,10 +837,10 @@ void Segmenter::start_recording_ffmpeg() {
     if(BOOL_SETTING(save_raw_movie)) {
         try {
             auto path = output_file_name();
-            if (not SETTING(save_raw_movie_path).value<file::Path>().empty()
-                && SETTING(save_raw_movie_path).value<file::Path>().remove_filename().exists())
+            if (not READ_SETTING(save_raw_movie_path, file::Path).empty()
+                && READ_SETTING(save_raw_movie_path, file::Path).remove_filename().exists())
             {
-                path = SETTING(save_raw_movie_path).value<file::Path>();
+                path = READ_SETTING(save_raw_movie_path, file::Path);
             }
 
             if(path.has_extension())
@@ -1257,7 +1257,7 @@ void Segmenter::serialize_thread() {
     
     double frame_rate = FAST_SETTING(frame_rate);
     if(frame_rate == 0) {
-        frame_rate = static_cast<double>(SETTING(frame_rate).value<Settings::frame_rate_t>());
+        frame_rate = static_cast<double>(READ_SETTING(frame_rate, Settings::frame_rate_t));
         if(frame_rate == 0)
             throw InvalidArgumentException("frame_rate should not be zero: ", FAST_SETTING(frame_rate), " vs. ", SETTING(frame_rate));
     }
@@ -1472,20 +1472,20 @@ void Segmenter::reset(Frame_t frame) {
 
 void Segmenter::setDefaultSettings() {
     //SETTING(detect_only_classes) = track::detect::PredictionFilter{};
-    //SETTING(track_conf_threshold) = SETTING(detect_conf_threshold).value<Float2_t>();
+    //READ_SETTING(track_conf_threshold) = SETTING(detect_conf_threshold, Float2_t);
 }
 
 void Segmenter::printDebugInformation() {
     DebugHeader("Starting tracking of");
     Print("average at: ", average_name());
     using namespace track::detect;
-    Print("model: ", SETTING(detect_model).value<file::Path>());
-    Print("region model: ", SETTING(region_model).value<file::Path>());
-    Print("video: ", no_quotes(utils::ShortenText(SETTING(source).value<file::PathArray>().toStr(), 1000)));
-    Print("model resolution: ", SETTING(detect_resolution).value<DetectResolution>());
+    Print("model: ", READ_SETTING(detect_model, file::Path));
+    Print("region model: ", READ_SETTING(region_model, file::Path));
+    Print("video: ", no_quotes(utils::ShortenText(READ_SETTING(source, file::PathArray).toStr(), 1000)));
+    Print("model resolution: ", READ_SETTING(detect_resolution, DetectResolution));
     Print("output size: ", _output_size);
     Print("output path: ", _output_file_name);
-    Print("color encoding: ", SETTING(meta_encoding).value<meta_encoding_t::Class>());
+    Print("color encoding: ", READ_SETTING(meta_encoding, meta_encoding_t::Class));
 }
 
 std::future<std::optional<std::set<std::string_view>>> Segmenter::video_recovered_error() const {

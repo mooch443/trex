@@ -151,7 +151,7 @@ void HeatmapController::save() {
     std::vector<long_t> frames;
     size_t package_index = 0;
     
-    auto data_prefix = SETTING(data_prefix).value<file::Path>();
+    auto data_prefix = READ_SETTING(data_prefix, file::Path);
     auto fishdata = file::DataLocation::parse("output", data_prefix);
     if(!fishdata.exists())
         if(!fishdata.create_folder())
@@ -169,7 +169,7 @@ void HeatmapController::save() {
             source = source.substr(0, source.find('#'));
         
         file::Path path = fishdata /
-                ((std::string)SETTING(filename).value<file::Path>().filename()
+                ((std::string)READ_SETTING(filename, file::Path).filename()
                 + "_heatmap" 
                 + "_p" + Meta::toStr(package_index) + "_"
                 + Meta::toStr(uniform_grid_cell_size) 
@@ -650,7 +650,7 @@ bool HeatmapController::update_variables() {
         set_content_changed(true);
     }
     
-    const uint32_t res = max(2u, min((uint32_t)(Tracker::average().bounds().size().min() * 0.5),  SETTING(heatmap_resolution).value<uint32_t>()));
+    const uint32_t res = max(2u, min((uint32_t)(Tracker::average().bounds().size().min() * 0.5),  READ_SETTING(heatmap_resolution, uint32_t)));
     
     if(res != uniform_grid_cell_size) {
         uniform_grid_cell_size = res;
@@ -666,20 +666,20 @@ bool HeatmapController::update_variables() {
         has_to_paint = true;
     }
     
-    const Range<double> custom_value_range = SETTING(heatmap_value_range).value<Range<double>>();
+    const Range<double> custom_value_range = READ_SETTING(heatmap_value_range, Range<double>);
     if(custom_value_range != custom_heatmap_value_range) {
         custom_heatmap_value_range = custom_value_range;
         has_to_paint = true;
     }
     
-    const double heatmap_smooth = max(0, min(1, SETTING(heatmap_smooth).value<double>()));
+    const double heatmap_smooth = max(0, min(1, READ_SETTING(heatmap_smooth, double)));
     if(smooth_heatmap_factor != heatmap_smooth) {
         smooth_heatmap_factor = heatmap_smooth;
         has_to_paint = true;
     }
     
     //SETTING(heatmap_resolution) = uniform_grid_cell_size + 1;
-    auto ids = SETTING(heatmap_ids).value<std::vector<Idx_t>>();
+    auto ids = READ_SETTING(heatmap_ids, std::vector<Idx_t>);
     if(ids != _ids) {
         has_to_paint = true;
         
@@ -703,7 +703,7 @@ bool HeatmapController::update_variables() {
         _frame.invalidate();
     }
     
-    auto norm = SETTING(heatmap_normalization).value<default_config::heatmap_normalization_t::Class>();
+    auto norm = READ_SETTING(heatmap_normalization, default_config::heatmap_normalization_t::Class);
     if(norm != _normalization) {
         _normalization = norm;
         has_to_paint = true;
@@ -711,7 +711,7 @@ bool HeatmapController::update_variables() {
     
     Frame_t context;
     if(BOOL_SETTING(heatmap_dynamic)) {
-        context = max(1_f, Frame_t(SETTING(heatmap_frames).value<uint32_t>()));
+        context = max(1_f, Frame_t(READ_SETTING(heatmap_frames, uint32_t)));
         
     } else {
         context.invalidate();
@@ -1400,9 +1400,9 @@ void Grid::fill(const std::vector<DataPoint> &data)
         }
 
 #ifndef __APPLE__
-        static file::Path path("C:/Users/mooch/Desktop/visualization_cells_"+SETTING(filename).value<file::Path>().filename().to_string()+"_"+SETTING(output_prefix).value<std::string>()+".avi");
+        static file::Path path("C:/Users/mooch/Desktop/visualization_cells_"+READ_SETTING(filename, file::Path).filename().to_string()+"_"+READ_SETTING(output_prefix, std::string)+".avi");
 #else
-        static file::Path path("/Users/tristan/Desktop/visualization_cells_"+SETTING(filename).value<file::Path>().filename().to_string() + "_" + SETTING(output_prefix).value<std::string>() +".avi");
+        static file::Path path("/Users/tristan/Desktop/visualization_cells_"+READ_SETTING(filename, file::Path).filename().to_string() + "_" + READ_SETTING(output_prefix, std::string) +".avi");
 #endif
         static cv::VideoWriter writer(path.str(), cv::VideoWriter::fourcc('F','F','V','1'), FAST_SETTING(frame_rate), cv::Size(smaller.cols, smaller.rows), true);
         

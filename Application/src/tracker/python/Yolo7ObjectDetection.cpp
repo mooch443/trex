@@ -10,15 +10,15 @@ namespace track {
 void Yolo7ObjectDetection::reinit(ModuleProxy& proxy) {
     proxy.set_variable("model_type", detect::detection_type().toStr());
     
-    if(SETTING(detect_model).value<file::Path>().empty())
+    if(READ_SETTING(detect_model, file::Path).empty())
         throw U_EXCEPTION("When using yolov7 object detection, please set model using command-line argument -m <path> to set a model (tensorflow saved model).");
-    else if(not SETTING(detect_model).value<file::Path>().exists())
-        throw U_EXCEPTION("Cannot find model file ",SETTING(detect_model).value<file::Path>(),".");
+    else if(not READ_SETTING(detect_model, file::Path).exists())
+        throw U_EXCEPTION("Cannot find model file ",READ_SETTING(detect_model, file::Path),".");
     
-    proxy.set_variable("model_path", SETTING(detect_model).value<file::Path>().str());
-    if(SETTING(segmentation_model).value<file::Path>().exists()) {
-        proxy.set_variable("segmentation_path", SETTING(segmentation_model).value<file::Path>().str());
-        proxy.set_variable("segmentation_resolution", (uint64_t)SETTING(segmentation_resolution).value<uint16_t>());
+    proxy.set_variable("model_path", READ_SETTING(detect_model, file::Path).str());
+    if(READ_SETTING(segmentation_model, file::Path).exists()) {
+        proxy.set_variable("segmentation_path", READ_SETTING(segmentation_model, file::Path).str());
+        proxy.set_variable("segmentation_resolution", (uint64_t)READ_SETTING(segmentation_resolution, uint16_t));
     }
     proxy.set_variable("image_size", detect::get_model_image_size());
     proxy.run("load_model");
@@ -36,12 +36,12 @@ void Yolo7ObjectDetection::init() {
 
 void Yolo7ObjectDetection::receive(SegmentationData& data, Vec2 scale_factor, const std::span<float>& vector) {
     //thread_print("Received seg-data for frame ", data.frame.index());
-    static const auto meta_encoding = SETTING(meta_encoding).value<meta_encoding_t::Class>();
+    static const auto meta_encoding = READ_SETTING(meta_encoding, meta_encoding_t::Class);
     for(size_t i=0; i<vector.size(); i+=4+2) {
         float conf = vector[i];
         float cls = vector[i+1];
         
-        if (SETTING(do_filter).value<bool>() && not contains(SETTING(filter_classes).value<std::vector<uint8_t>>(), cls))
+        if (BOOL_READ_SETTING(do_filter) && not contains(SETTING(filter_classes, std::vector<uint8_t>), cls))
             continue;
         
         Vec2 pos = Vec2(vector[i+2], vector[i+3]);
@@ -62,7 +62,7 @@ void Yolo7ObjectDetection::receive(SegmentationData& data, Vec2 scale_factor, co
                     (coord_t)saturate(int(pos.x + dim.width), int(0), int(min(data.image->cols-1.f, pos.x + dim.width - 1)))
                 };
                 
-                const auto channel = SETTING(color_channel).value<uint8_t>() % 3;
+                const auto channel = READ_SETTING(color_channel, uint8_t) % 3;
                 auto mat = data.image->get();
                 for(int x = line.x0; x <= line.x1; ++x) {
                     if constexpr (mode == ImageMode::R3G3B2) {
@@ -121,8 +121,8 @@ void Yolo7ObjectDetection::apply(std::vector<TileImage>&& tiles) {
         promises.push_back(std::move(*tiled.promise));
         tiled.promise = nullptr;
         
-        scales.push_back( SETTING(output_size).value<Size2>().div(tiled.source_size));
-        //Print("Image scale: ", scale, " with tile source=", tiled.source_size, " image=", data.image->dimensions()," output_size=", SETTING(output_size).value<Size2>(), " original=", tiled.original_size);
+        scales.push_back( READ_SETTING(output_size, Size2).div(tiled.source_size));
+        //Print("Image scale: ", scale, " with tile source=", tiled.source_size, " image=", data.image->dimensions()," output_size=", READ_SETTING(output_size, Size2), " original=", tiled.original_size);
         
         for(auto p : tiled.offsets()) {
             tiled.data.tiles.push_back(Bounds(p.x, p.y, tiled.tile_size.width, tiled.tile_size.height).mul(scales.back()));
@@ -214,7 +214,7 @@ void Yolo7ObjectDetection::apply(std::vector<TileImage>&& tiles) {
             thread_print("Received segNs:", segNs);
 
             std::unordered_map<size_t, std::unique_ptr<cv::Mat>> converted_images;
-            const auto threshold = saturate(float(SETTING(detect_threshold).value<int>()), 0.f, 255.f) / 255.0;
+            const auto threshold = saturate(float(READ_SETTING(detect_threshold, int)), 0.f, 255.f) / 255.0;
             
             //size_t offset = 0;
             for(size_t offset = 0; offset < indexes.size(); ++offset) {
@@ -264,7 +264,7 @@ void Yolo7ObjectDetection::apply(std::vector<TileImage>&& tiles) {
                 //Print("\t->", conf, " ", cls, " ",pos, " ", dim);
                 //Print("\tmeta of object = ", m, " offset=", offsets.at(i));
                 
-                if (SETTING(do_filter).value<bool>() && not contains(SETTING(filter_classes).value<std::vector<uint8_t>>(), cls))
+                if (BOOL_READ_SETTING(do_filter) && not contains(SETTING(filter_classes, std::vector<uint8_t>), cls))
                     continue;
                 if (dim.min() < 1)
                     continue;

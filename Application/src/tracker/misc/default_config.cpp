@@ -353,7 +353,7 @@ std::set<uint8_t> find_user_defined_pose_fields(
     Print("Debug: Entering find_user_defined_pose_fields, number of fields = ", output_fields.size());
 #endif
 
-    auto detect_keypoint_names = SETTING(detect_keypoint_names).value<track::detect::KeypointNames>();
+    auto detect_keypoint_names = READ_SETTING(detect_keypoint_names, track::detect::KeypointNames);
     
     // Always check for numeric style fields.
     for (const auto& [field_name, transforms] : output_fields) {
@@ -418,8 +418,8 @@ std::tuple<std::vector<size_t>, std::vector<std::pair<std::string, std::vector<s
     }
     
     // Retrieve the YOLO classes from a global setting:
-    auto detect_keypoint_format = SETTING(detect_keypoint_format).value<track::detect::KeypointFormat>();
-    auto detect_keypoint_names  = SETTING(detect_keypoint_names).value<track::detect::KeypointNames>();
+    auto detect_keypoint_format = READ_SETTING(detect_keypoint_format, track::detect::KeypointFormat);
+    auto detect_keypoint_names  = READ_SETTING(detect_keypoint_names, track::detect::KeypointNames);
 #ifndef NDEBUG
     Print("Debug: Retrieved detect_keypoint_format=", detect_keypoint_format,
           " detect_keypoint_names=", detect_keypoint_names);
@@ -522,8 +522,8 @@ std::vector<std::pair<std::string, std::vector<std::string>>> add_missing_pose_f
 }
 
 individual_image_normalization_t::Class valid_individual_image_normalization(individual_image_normalization_t::Class base) {
-    const auto n = base != individual_image_normalization_t::none ? base : SETTING(individual_image_normalization).value<individual_image_normalization_t::Class>();
-    const auto normalize = n == individual_image_normalization_t::posture && not SETTING(calculate_posture).value<bool>() ? individual_image_normalization_t::moments :  n;
+    const auto n = base != individual_image_normalization_t::none ? base : READ_SETTING(individual_image_normalization, individual_image_normalization_t::Class);
+    const auto normalize = n == individual_image_normalization_t::posture && not BOOL_SETTING(calculate_posture) ? individual_image_normalization_t::moments :  n;
     return normalize;
 }
 
@@ -539,8 +539,7 @@ file::Path conda_environment_path() {
 #else
     std::string compiled_path = "";
 #endif
-    
-    auto home = SETTING(python_path).value<file::Path>().str();
+    auto home = READ_SETTING_WITH_DEFAULT(python_path, file::Path()).str();
     if(file::Path(home).is_regular())
         home = file::Path(home).remove_filename().str();
 #if defined(__linux__) || defined(__APPLE__)
@@ -558,8 +557,8 @@ file::Path conda_environment_path() {
         if(conda_prefix) {
             // we are inside a conda environment
             home = conda_prefix;
-        } else if(utils::contains(SETTING(wd).value<file::Path>().str(), "envs"+Meta::toStr(file::Path::os_sep()))) {
-            auto folders = utils::split(SETTING(wd).value<file::Path>().str(), file::Path::os_sep());
+        } else if(utils::contains(GlobalSettings::read_value_with_default("wd", file::Path()).str(), "envs"+Meta::toStr(file::Path::os_sep()))) {
+            auto folders = utils::split(GlobalSettings::read_value_with_default("wd", file::Path()).str(), file::Path::os_sep());
             std::string previous = "";
             home = "";
             
@@ -969,7 +968,8 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             {"num_pixels", {}},
             {"ACCELERATION", {"RAW", "PCENTROID"}},
             //{"ACCELERATION", {"SMOOTH", "PCENTROID"}},
-            {"ACCELERATION", {"RAW", "WCENTROID"}}
+            {"ACCELERATION", {"RAW", "WCENTROID"}},
+            {"visual_identification_p", {"RAW"}}
         };
         
         auto output_annotations = std::map<std::string, std::string>
@@ -1085,6 +1085,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("detect_format", track::detect::ObjectDetectionFormat::none, "The type of data returned by the `detect_model`, which can be an instance segmentation", AccessLevelType::INIT);
         CONFIG("detect_keypoint_format", track::detect::KeypointFormat{}, "When a keypoint (pose) type model is loaded, this variable will be set to [n_points,n_dims].", AccessLevelType::SYSTEM);
         CONFIG("detect_keypoint_names", track::detect::KeypointNames{}, "An array of names in the correct keypoint index order for the given model.");
+        CONFIG("detect_point_radii", std::map<int, float>{}, "An array of radii for a given point class in a POLO network.", PUBLIC);
         CONFIG("detect_batch_size", uchar(1), "The batching size for object detection.");
         CONFIG("detect_tile_image", uchar(0), "If > 1, this will tile the input image for Object detection (SAHI method) before passing it to the network. These tiles will be `detect_resolution` pixels high and wide (with zero padding).");
         CONFIG("yolo_tracking_enabled", false, "If set to true, the program will try to use yolov8s internal tracking routine to improve results. This can be significantly slower and disables batching.");
@@ -1249,13 +1250,13 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             "track_background_subtraction"
         };
         
-        if(auto type = SETTING(detect_type).value<track::detect::ObjectDetectionType_t>();
+        if(auto type = READ_SETTING(detect_type, track::detect::ObjectDetectionType_t);
            type == track::detect::ObjectDetectionType::yolo)
         {
             explicitly_include.emplace("detect_classes");
             explicitly_include.emplace("detect_format");
             
-            if(auto format = SETTING(detect_format).value<track::detect::ObjectDetectionFormat_t>();
+            if(auto format = READ_SETTING(detect_format, track::detect::ObjectDetectionFormat_t);
                format != track::detect::ObjectDetectionFormat::poses)
             {
                 exclude_fields.push_back("detect_skeleton");
@@ -1264,7 +1265,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
                 explicitly_include.emplace("detect_skeleton");
             }
             
-            if(SETTING(region_model).value<file::Path>().empty()) {
+            if(READ_SETTING(region_model, file::Path).empty()) {
                 exclude_fields.push_back("region_model");
             }
             
@@ -1283,12 +1284,12 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
          * Exclude some settings based on what would automatically be assigned
          * if they weren't set at all.
          */
-        if(SETTING(cm_per_pixel).value<Float2_t>() == SETTING(meta_real_width).value<Float2_t>() / SETTING(video_size).value<Size2>().width)
+        if(READ_SETTING_WITH_DEFAULT(cm_per_pixel, 1_F) == READ_SETTING_WITH_DEFAULT(meta_real_width, 0_F) / READ_SETTING(video_size, Size2).width)
         {
             exclude_fields.push_back("cm_per_pixel");
         }
         
-        //if(GUI::instance() && SETTING(frame_rate).value<int>() == GUI::instance()->video_source()->framerate())
+        //if(GUI::instance() && READ_SETTING(frame_rate, int) == GUI::instance()->video_source()->framerate())
         //    exclude_fields.push_back("frame_rate");
         
         /**
@@ -1307,7 +1308,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
                     });
                 }
                 /*if(tmp.has("meta_source_path")
-                   //&& tmp.at("meta_source_path").value<std::string>() != SETTING(meta_source_path).value<std::string>()
+                   //&& tmp.at("meta_source_path").value<std::string>() != READ_SETTING(meta_source_path, std::string)
                    )
                 {
                     explicitly_include.insert("meta_source_path");

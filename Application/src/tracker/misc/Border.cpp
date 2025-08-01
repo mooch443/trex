@@ -149,8 +149,8 @@ ENUM_CLASS_DOCS(recognition_border_t,
             return it == grid_cells.end() ? 0 : it->second;
         };
         
-        if(grid_cells.empty() || _recognition_border_size_rescale != SETTING(recognition_border_size_rescale).value<float>()) {
-            _recognition_border_size_rescale = SETTING(recognition_border_size_rescale).value<float>();
+        if(grid_cells.empty() || _recognition_border_size_rescale != READ_SETTING(recognition_border_size_rescale, float)) {
+            _recognition_border_size_rescale = READ_SETTING(recognition_border_size_rescale, float);
             grid_cells.clear();
             
             auto access = [this](const Vec2& pos) -> uint32_t& {
@@ -158,7 +158,7 @@ ENUM_CLASS_DOCS(recognition_border_t,
             };
             
             const Float2_t sqcm = SQR(FAST_SETTING(cm_per_pixel));
-            const Float2_t rescale = 1 - min(0.9, max(0, SETTING(recognition_border_size_rescale).value<float>()));
+            const Float2_t rescale = 1 - min(0.9, max(0, READ_SETTING(recognition_border_size_rescale, float)));
             
             Print("Reading video...");
             pv::Frame frame;
@@ -217,7 +217,7 @@ ENUM_CLASS_DOCS(recognition_border_t,
         }
         
         cv::Mat out;
-        const size_t morph_size = max(1, video.size().width * 0.025), morph_size1 = max(1, morph_size * (1 - SETTING(recognition_border_shrink_percent).value<float>()));
+        const size_t morph_size = max(1, video.size().width * 0.025), morph_size1 = max(1, morph_size * (1 - READ_SETTING(recognition_border_shrink_percent, float)));
         static const cv::Mat element = cv::getStructuringElement( cv::MORPH_ELLIPSE, (cv::Size)Size2( 2*morph_size + 1, 2*morph_size+1 ), Vec2( morph_size, morph_size ) );
         static const cv::Mat element1 = cv::getStructuringElement( cv::MORPH_ELLIPSE, (cv::Size)Size2( 2*morph_size1 + 1, 2*morph_size1+1 ), Vec2( morph_size1, morph_size1 ) );
         
@@ -439,7 +439,7 @@ ENUM_CLASS_DOCS(recognition_border_t,
         
         uint16_t coeff = SETTING(recognition_coeff);
         if(coeff > 0) {
-            auto ptr = smooth_outline(_vertices.front(), SETTING(recognition_smooth_amount).value<uint16_t>(), 1);
+            auto ptr = smooth_outline(_vertices.front(), READ_SETTING(recognition_smooth_amount, uint16_t), 1);
             
             Vec2 middle;
             float samples = 0;
@@ -497,7 +497,7 @@ ENUM_CLASS_DOCS(recognition_border_t,
     
     void Border::update(pv::File& video) {
         using namespace default_config;
-        _type = SETTING(recognition_border).value<recognition_border_t::Class>();
+        _type = READ_SETTING(recognition_border, recognition_border_t::Class);
         
         //LockGuard guard;
         std::lock_guard<std::mutex> guard(mutex);
@@ -507,7 +507,7 @@ ENUM_CLASS_DOCS(recognition_border_t,
                 break;
                 
             case Type::grid: {
-                auto grid_points = SETTING(grid_points).value<Settings::grid_points_t>();
+                auto grid_points = READ_SETTING(grid_points, Settings::grid_points_t);
                 if(grid_points.size() < 2) {
                     FormatError("Cannot calculate average intra-grid for just one grid point.");
                 }
@@ -535,7 +535,7 @@ ENUM_CLASS_DOCS(recognition_border_t,
                     }
                 }
                 
-                _max_distance = _max_distance / (float)samples * 0.5 * SETTING(grid_points_scaling).value<float>();
+                _max_distance = _max_distance / (float)samples * 0.5 * READ_SETTING(grid_points_scaling, float);
                 
                 break;
             }

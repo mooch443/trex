@@ -35,7 +35,7 @@ Detection::Detection() {
         break;
             
     case ObjectDetectionType::precomputed: {
-        auto detect_precomputed_file = SETTING(detect_precomputed_file).value<file::PathArray>();
+        auto detect_precomputed_file = READ_SETTING(detect_precomputed_file, file::PathArray);
         PrecomputedDetection{
             std::move(detect_precomputed_file),
             nullptr,
@@ -111,7 +111,7 @@ std::future<SegmentationData> Detection::apply(TileImage&& tiled) {
     case ObjectDetectionType::yolo: {
         tiled.promise = std::make_unique<std::promise<SegmentationData>>();
         auto f = tiled.promise->get_future();
-        //manager().set_weight_limit(max(1u, SETTING(detect_batch_size).value<uchar>()));
+        //manager().set_weight_limit(max(1u, READ_SETTING(detect_batch_size, uchar)));
         manager().enqueue(std::move(tiled));
         return f;
     }
@@ -119,7 +119,7 @@ std::future<SegmentationData> Detection::apply(TileImage&& tiled) {
     case ObjectDetectionType::background_subtraction: {
         tiled.promise = std::make_unique<std::promise<SegmentationData>>();
         auto f = tiled.promise->get_future();
-        //manager().set_weight_limit(max(1u, SETTING(detect_batch_size).value<uchar>()));
+        //manager().set_weight_limit(max(1u, READ_SETTING(detect_batch_size, uchar)));
         manager().enqueue(std::move(tiled));
         return f;
     }
@@ -224,7 +224,7 @@ PipelineManager<TileImage, true>& Detection::manager() {
     } else if(detection_type() == ObjectDetectionType::precomputed) {
         return PrecomputedDetection::manager();
     } else {
-        static auto instance = PipelineManager<TileImage, true>(max(1u, SETTING(detect_batch_size).value<uchar>()), [](std::vector<TileImage>&& images) {
+        static auto instance = PipelineManager<TileImage, true>(max(1u, READ_SETTING(detect_batch_size, uchar)), [](std::vector<TileImage>&& images) {
             // do what has to be done when the queue is full
             // i.e. py::execute()
 #ifndef NDEBUG
@@ -289,13 +289,13 @@ void BackgroundSubtraction::apply(std::vector<TileImage> &&tiled) {
     gpuMat gpu_buffer;
     TagCache tag;
     CPULabeling::ListCache_t cache;
-    const auto cm_per_pixel = SETTING(cm_per_pixel).value<Settings::cm_per_pixel_t>();
-    const auto detect_size_filter = SETTING(detect_size_filter).value<SizeFilters>();
+    const auto cm_per_pixel = READ_SETTING(cm_per_pixel, Settings::cm_per_pixel_t);
+    const auto detect_size_filter = READ_SETTING(detect_size_filter, SizeFilters);
     const Float2_t sqcm = SQR(cm_per_pixel);
     cv::Mat r3;
     
     static thread_local cv::Mat split_channels[4];
-    const auto color_channel = SETTING(color_channel).value<std::optional<uint8_t>>();
+    const auto color_channel = READ_SETTING(color_channel, std::optional<uint8_t>);
     
     size_t i = 0;
     for(auto && tile : tiled) {

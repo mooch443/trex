@@ -207,7 +207,7 @@ void PrecomputedDetectionCache::buildCache(const file::Path& csv_path, const fil
     
     Size2 default_size;
     if (GlobalSettings::is_type<Size2>("individual_image_size"))
-        default_size = SETTING(individual_image_size).value<Size2>();
+        default_size = READ_SETTING(individual_image_size, Size2);
     else {
         default_size = Size2(80, 80);
         FormatWarning("[precomputed] individual_image_size is not set.");
@@ -578,13 +578,13 @@ void PrecomputedDetection::apply(std::vector<TileImage> &&tiled) {
     Timer timer;
     const auto mode = Background::meta_encoding();
     const bool track_background_subtraction = Background::track_background_subtraction();
-    const auto cm_per_pixel = SETTING(cm_per_pixel).value<Settings::cm_per_pixel_t>();
-    const auto detect_size_filter = SETTING(detect_size_filter).value<SizeFilters>();
+    const auto cm_per_pixel = READ_SETTING(cm_per_pixel, Settings::cm_per_pixel_t);
+    const auto detect_size_filter = READ_SETTING(detect_size_filter, SizeFilters);
     const Float2_t sqcm = SQR(cm_per_pixel);
     
-    const auto color_channel = SETTING(color_channel).value<std::optional<uint8_t>>();
+    const auto color_channel = READ_SETTING(color_channel, std::optional<uint8_t>);
     
-    const auto detect_threshold = SETTING(detect_threshold).value<int>();
+    const auto detect_threshold = READ_SETTING(detect_threshold, int);
     
     cmn::OutputInfo output_format{
         .channels = required_storage_channels(mode),

@@ -38,6 +38,8 @@ class StrippedResults:
 
             obb: Array of oriented bounding boxes, with each row formatted as [class_id, confidence, x_center, y_center, width, height, angle] in original image coordinates. Note: if obb is set, boxes is not required and has to be empty.
 
+            points: Array of point detections, with each row formatted as [class_id, confidence, x, y, radius]
+
             orig_shape: Original image shape tuple (height, width) as reported by the model output.
         """
         self.boxes: Optional[np.ndarray] = None
@@ -47,9 +49,10 @@ class StrippedResults:
         self.scale: np.ndarray = scale
         self.offset: np.ndarray = offset
         self.obb: Optional[np.ndarray] = None
+        self.points: Optional[np.ndarray] = None
 
     def __str__(self) -> str:
-        return f"StrippedResults<boxes={self.boxes}, keypoints={self.keypoints}, orig_shape={self.orig_shape}, scale={self.scale}, offset={self.offset}, obb={self.obb}>"
+        return f"StrippedResults<boxes={self.boxes}, keypoints={self.keypoints}, orig_shape={self.orig_shape}, scale={self.scale}, offset={self.offset}, obb={self.obb}, points={self.points}>"
 
     def __repr__(self) -> str:
         return self.__str__()
@@ -497,6 +500,7 @@ class TRexDetection:
             masks = []
             keypoints = []
             obbs = []
+            points = []
             for j, tile in enumerate(tiles):
                 if True:
                 #try:
@@ -509,6 +513,8 @@ class TRexDetection:
                         keypoints.extend(tile.keypoints)
                     if tile.obb is not None and len(tile.obb) > 0:
                         obbs.extend(tile.obb)
+                    if tile.points is not None and len(tile.points) > 0:
+                        points.extend(tile.points)
 
                     #print("appended keypoints: ", len(keypoints), " at ", index, "with", tile)
 
@@ -528,10 +534,13 @@ class TRexDetection:
             if len(obbs) > 0:
                 obbs = np.concatenate(obbs, axis=0, dtype=np.float32)
                 coords = np.array([], dtype=np.float32)
+            elif len(points) > 0:
+                points = np.concatenate(points, axis=0, dtype=np.float32)
+                coords = np.array([], dtype=np.float32)
             else:
                 coords = np.concatenate(coords, axis=0)
 
-            rexsults.append(TRex.Result(index, TRex.Boxes(coords), masks, TRex.KeypointData(keypoints), TRex.ObbData(obbs)))
+            rexsults.append(TRex.Result(index, TRex.Boxes(coords), masks, TRex.KeypointData(keypoints), TRex.ObbData(obbs), TRex.PointData(points)))
 
         return rexsults
 

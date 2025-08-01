@@ -50,7 +50,7 @@ struct Bowl::Data {
             
         }, [this](auto name) {
             if(name == "gui_zoom_polygon") {
-                auto gui_zoom_polygon = SETTING(gui_zoom_polygon).value<std::vector<Vec2>>();
+                auto gui_zoom_polygon = READ_SETTING(gui_zoom_polygon, std::vector<Vec2>);
                 if(_gui_zoom_polygon != gui_zoom_polygon) {
                     _gui_zoom_polygon = gui_zoom_polygon;
                 }
@@ -236,7 +236,7 @@ bool Bowl::Data::update_shapes() {
         _reduced_zoom_polygon = nullptr;
     }
     
-    auto visual_field_shapes = SETTING(visual_field_shapes).value<std::vector<std::vector<Vec2>>>();
+    auto visual_field_shapes = READ_SETTING(visual_field_shapes, std::vector<std::vector<Vec2>>);
     if(!visual_field_shapes.empty())
     {
         auto keys = extract_keys(_vf_shapes);
@@ -407,7 +407,7 @@ void Bowl::update_goals() {
     if(_cache)
         _max_zoom = GUI_SETTINGS(gui_zoom_limit);
     else
-        _max_zoom = SETTING(gui_zoom_limit).value<Size2>();
+        _max_zoom = READ_SETTING(gui_zoom_limit, Size2);
     
     Bounds bounding_box(Vec2(min_x, min_y), Size2(max_x - min_x + 1, max_y - min_y + 1));
     if(bounding_box.width < _max_zoom.x) {

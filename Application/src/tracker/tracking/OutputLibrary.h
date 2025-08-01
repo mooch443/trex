@@ -23,6 +23,14 @@ namespace Output {
     //  frame | x | y | angle | length(v) | length(a) | ..
     //  .. | neighbor[1...N].rel[x,y,angle,len(v),len(a)]
     bool save_focussed_on(const cmn::file::Path& file, const track::Individual* fish);
+
+    struct LibraryFuncProperties {
+        bool is_global{false};
+        bool posture_only{false};
+        bool centroid_only{false};
+    };
+
+    LibraryFuncProperties properties_for(std::string_view   name);
     
     class Library {
         static std::atomic<cmn::Vec2>& CENTER();

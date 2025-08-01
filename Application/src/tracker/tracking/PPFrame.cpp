@@ -22,10 +22,10 @@ LOGGED_MUTEX_TYPE& PPFrame::log_mutex() {
 
 void PPFrame::UpdateLogs() {
 #if TREX_ENABLE_HISTORY_LOGS
-    if(history_log() == nullptr && !SETTING(history_matching_log).value<file::Path>().empty()) {
+    if(history_log() == nullptr && !READ_SETTING(history_matching_log, file::Path).empty()) {
         history_log() = std::make_shared<std::ofstream>();
         
-        auto path = SETTING(history_matching_log).value<file::Path>();
+        auto path = READ_SETTING(history_matching_log, file::Path);
         if(!path.empty()) {
             path = file::DataLocation::parse("output", path);
             DebugCallback("Opening history_log at ", path, "...");
@@ -873,7 +873,7 @@ bool PPFrame::has_fixed_matches() const {
 void PPFrame::fill_proximity_grid(const Size2& size) {
     ASSUME_NOT_FINALIZED;
     
-    /*if(!SETTING(gui_show_pixel_grid).value<bool>())
+    /*if(!BOOL_SETTING(gui_show_pixel_grid))
     {
         // do not need a blob_grid, so dont waste time here
         return;

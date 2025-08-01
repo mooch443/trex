@@ -47,10 +47,10 @@ void auto_update_parameters(const std::string& text, Float2_t D,  Dialog::Result
         
         if(value > 0) {
             if(auto_change_parameters == Dialog::OKAY) {
-                auto cm_per_pixel = SETTING(cm_per_pixel).value<Float2_t>();
-                auto detect_size_filter = SETTING(detect_size_filter).value<SizeFilters>();
-                auto track_size_filter = SETTING(track_size_filter).value<SizeFilters>();
-                auto track_max_speed = SETTING(track_max_speed).value<Float2_t>();
+                auto cm_per_pixel = READ_SETTING(cm_per_pixel, Float2_t);
+                auto detect_size_filter = READ_SETTING(detect_size_filter, SizeFilters);
+                auto track_size_filter = READ_SETTING(track_size_filter, SizeFilters);
+                auto track_max_speed = READ_SETTING(track_max_speed, Float2_t);
                 
                 const auto new_cm_per_pixel = Float2_t(value / D);
                 
@@ -92,7 +92,7 @@ void auto_update_parameters(const std::string& text, Float2_t D,  Dialog::Result
                     graph.dialog([](auto) {
                         SceneManager::getInstance().set_active(SceneManager::getInstance().last_active());
                         
-                    }, "Successfully set <ref>cm_per_pixel</ref> to <nr>"+Meta::toStr(SETTING(cm_per_pixel).value<Float2_t>())+"</nr> and recalculated <ref>detect_size_filter</ref> from <nr>"+Meta::toStr(detect_size_filter)+"</nr> to <nr>"+Meta::toStr(SETTING(detect_size_filter).value<SizeFilters>())+"</nr>, and <ref>track_size_filter</ref> from <nr>"+Meta::toStr(track_size_filter)+"</nr> to <nr>"+Meta::toStr(SETTING(track_size_filter).value<SizeFilters>())+"</nr> and <ref>track_max_speed</ref> from <nr>"+Meta::toStr(track_max_speed)+"</nr> to <nr>"+Meta::toStr(SETTING(track_max_speed).value<Float2_t>())+"</nr>.", "Calibration successful", "Okay");
+                    }, "Successfully set <ref>cm_per_pixel</ref> to <nr>"+Meta::toStr(READ_SETTING_WITH_DEFAULT(cm_per_pixel, 1_F))+"</nr> and recalculated <ref>detect_size_filter</ref> from <nr>"+Meta::toStr(detect_size_filter)+"</nr> to <nr>"+Meta::toStr(READ_SETTING_WITH_DEFAULT(detect_size_filter, SizeFilters{}))+"</nr>, and <ref>track_size_filter</ref> from <nr>"+Meta::toStr(track_size_filter)+"</nr> to <nr>"+Meta::toStr(READ_SETTING_WITH_DEFAULT(track_size_filter, SizeFilters{}))+"</nr> and <ref>track_max_speed</ref> from <nr>"+Meta::toStr(track_max_speed)+"</nr> to <nr>"+Meta::toStr(READ_SETTING_WITH_DEFAULT(track_max_speed, Float2_t{}))+"</nr>.", "Calibration successful", "Okay");
                 });
                 
             } else {
@@ -101,7 +101,7 @@ void auto_update_parameters(const std::string& text, Float2_t D,  Dialog::Result
                                                     {
                     graph.dialog([](auto){
                         SceneManager::getInstance().set_active(SceneManager::getInstance().last_active());
-                    }, "Successfully set <ref>cm_per_pixel</ref> to <nr>"+Meta::toStr(SETTING(cm_per_pixel).value<Float2_t>())+"</nr>.", "Calibration successful", "Okay");
+                    }, "Successfully set <ref>cm_per_pixel</ref> to <nr>"+Meta::toStr(READ_SETTING(cm_per_pixel, Float2_t))+"</nr>.", "Calibration successful", "Okay");
                 });
             }
         }

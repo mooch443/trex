@@ -81,7 +81,7 @@ std::unique_ptr<PPFrame> GUICache::PPFrameMaker::operator()() const {
         _settings_callback = GlobalSettings::register_callbacks({"gui_fish_label"}, [this](auto)
         {
             std::unique_lock g{label_mutex};
-            _label_text = SETTING(gui_fish_label).value<std::string>();
+            _label_text = READ_SETTING(gui_fish_label, std::string);
             _prepared_label_text.reset();
         });
     }
@@ -610,7 +610,7 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
                 std::unique_lock guard(individuals_mutex);
                 individuals = IndividualManager::copy();
             }
-            selected = SETTING(gui_focus_group).value<std::vector<Idx_t>>();
+            selected = READ_SETTING(gui_focus_group, std::vector<Idx_t>);
             tracked_frames = Range<Frame_t>(_tracker.start_frame(), _tracker.end_frame());
             
             auto delete_callback = [this](Individual* fish) {
@@ -691,7 +691,7 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
                     ++it;
             }
             
-            auto connectivity_map = SETTING(gui_connectivity_matrix).value<std::map<long_t, std::vector<float>>>();
+            auto connectivity_map = READ_SETTING(gui_connectivity_matrix, std::map<long_t, std::vector<float>>);
             if(connectivity_map.count(frameIndex.get()))
                 connectivity_matrix = connectivity_map.at(frameIndex.get());
             else
@@ -1143,8 +1143,8 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
             double gaverage_pixels = 0, gsamples = 0;
             display_blobs.clear();
             
-            const bool gui_show_only_unassigned = SETTING(gui_show_only_unassigned).value<bool>();
-            const bool tags_dont_track = SETTING(tags_dont_track).value<bool>();
+            const bool gui_show_only_unassigned = BOOL_SETTING(gui_show_only_unassigned);
+            const bool tags_dont_track = BOOL_SETTING(tags_dont_track);
             
             distribute_indexes([&](auto, auto start, auto end, auto){
                 std::unordered_map<pv::bid, SimpleBlob*> map;
@@ -1626,12 +1626,12 @@ const track::TrackletInformation* GUICache::_unsafe_tracklet_cache(Idx_t id) con
 }
 
 void GUICache::update_graphs(const Frame_t frameIndex) {
-    if(not SETTING(gui_show_graph).value<bool>()) {
+    if(not BOOL_SETTING(gui_show_graph)) {
         _displayed_graphs.clear();
         return;
     }
     
-    auto output_frame_window = Frame_t(SETTING(output_frame_window).value<uint32_t>());
+    auto output_frame_window = Frame_t(READ_SETTING(output_frame_window, uint32_t));
                     
     /*for(auto id : PD(cache).selected) {
         PD(fish_graphs)[i]->setup_graph(frameNr.get(), Rangel((frameNr.try_sub( window)).get(), (frameNr + window).get()), PD(cache).individuals.at(id), nullptr);

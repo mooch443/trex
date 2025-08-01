@@ -783,7 +783,7 @@ TEST(SettingsBenchmark, RandomizedAccessBenchmark)
 
     benchmarks.push_back(std::unique_ptr<BenchmarkBase>(
         new BenchmarkBase("SETTING(track_max_speed)", []() {
-            return SETTING(track_max_speed).value<Settings::track_max_speed_t>();
+            return READ_SETTING(track_max_speed, Settings::track_max_speed_t);
           })
         ));
     benchmarks.push_back(std::unique_ptr<BenchmarkBase>(
@@ -794,7 +794,7 @@ TEST(SettingsBenchmark, RandomizedAccessBenchmark)
 
     benchmarks.push_back(std::unique_ptr<BenchmarkBase>(
         new BenchmarkBase("SETTING(track_size_filter)", []() {
-            return SETTING(track_size_filter).value<Settings::track_size_filter_t>();
+            return READ_SETTING(track_size_filter, Settings::track_size_filter_t);
         })
     ));
     

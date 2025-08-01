@@ -248,9 +248,9 @@ void RecentItems::add(std::string name, const sprite::Map& options) {
                 }
                 
                 //item._options = options;
-                item.filename = SETTING(filename).value<file::Path>().str();
-                item.output_prefix = SETTING(output_prefix).value<std::string>();
-                item.output_dir = SETTING(output_dir).value<file::Path>().str();
+                item.filename = READ_SETTING(filename, file::Path).str();
+                item.output_prefix = READ_SETTING(output_prefix, std::string);
+                item.output_dir = READ_SETTING(output_dir, file::Path).str();
                 item.modified = timestamp_t::now().get();
                 item.settings = {};
                 for(auto &key : item._options.keys())
@@ -264,9 +264,9 @@ void RecentItems::add(std::string name, const sprite::Map& options) {
 
     RecentItemJSON item{
         .name = name,
-        .output_prefix = SETTING(output_prefix).value<std::string>(),
-        .output_dir = SETTING(output_dir).value<file::Path>().str(),
-        .filename = SETTING(filename).value<file::Path>().str(),
+        .output_prefix = READ_SETTING(output_prefix, std::string),
+        .output_dir = READ_SETTING(output_dir, file::Path).str(),
+        .filename = READ_SETTING(filename, file::Path).str(),
     };
     
     for(auto &key : config.keys()) {

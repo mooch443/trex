@@ -134,7 +134,7 @@ void check_callbacks() {
             "detect_classes"
         }, [](auto) {
             std::unique_lock g(names_mutex);
-            auto detect_classes = SETTING(detect_classes).value<cmn::blob::MaybeObjectClass_t>();
+            auto detect_classes = READ_SETTING(detect_classes, cmn::blob::MaybeObjectClass_t);
             if(not detect_classes) {
                 names_owner = cmn::blob::ObjectClass_t{};
             } else {
@@ -282,15 +282,15 @@ std::string DetectResolution::class_name() {
 }
 
 ObjectDetectionType_t detection_type() {
-    return SETTING(detect_type).value<ObjectDetectionType_t>();
+    return READ_SETTING(detect_type, ObjectDetectionType_t);
 }
 ObjectDetectionFormat_t detection_format() {
-    return SETTING(detect_format).value<ObjectDetectionFormat_t>();
+    return READ_SETTING(detect_format, ObjectDetectionFormat_t);
 }
 
 Size2 get_model_image_size() {
-    const auto detect_resolution = SETTING(detect_resolution).value<track::detect::DetectResolution>();
-    const auto meta_video_size = SETTING(meta_video_size).value<Size2>();
+    const auto detect_resolution = READ_SETTING(detect_resolution, track::detect::DetectResolution);
+    const auto meta_video_size = READ_SETTING(meta_video_size, Size2);
     
     if(detection_type() == ObjectDetectionType::background_subtraction) {
         return meta_video_size;
@@ -298,11 +298,11 @@ Size2 get_model_image_size() {
         return meta_video_size;
         
     } else if (detection_type() == ObjectDetectionType::yolo) {
-        const auto region_resolution = SETTING(region_resolution).value<track::detect::DetectResolution>();
+        const auto region_resolution = READ_SETTING(region_resolution, track::detect::DetectResolution);
         
         Size2 size;
         const float ratio = meta_video_size.height / meta_video_size.width;
-        if (region_resolution.width > 0 && not SETTING(region_model).value<file::Path>().empty()) {
+        if (region_resolution.width > 0 && not READ_SETTING(region_model, file::Path).empty()) {
             const auto max_w = max((float)detect_resolution.width, (float)region_resolution.width * 2);
             size = Size2(max_w, ratio * max_w);
             size = meta_video_size;//.div(4);

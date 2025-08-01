@@ -11,21 +11,21 @@ namespace fg {
                 //cv::CAP_PROP_FOURCC, cv::VideoWriter::fourcc('M', 'J', 'P', 'G')
             };
 
-            if (SETTING(cam_resolution).value<Size2>().width != -1) {
+            if (READ_SETTING(cam_resolution, Size2).width != -1) {
                 parameters.push_back(cv::CAP_PROP_FRAME_WIDTH);
-                parameters.push_back(SETTING(cam_resolution).value<Size2>().width);
+                parameters.push_back(READ_SETTING(cam_resolution, Size2).width);
             }
-            if (SETTING(cam_resolution).value<Size2>().height != -1) {
+            if (READ_SETTING(cam_resolution, Size2).height != -1) {
 				parameters.push_back(cv::CAP_PROP_FRAME_HEIGHT);
-				parameters.push_back(SETTING(cam_resolution).value<Size2>().height);
+				parameters.push_back(READ_SETTING(cam_resolution, Size2).height);
 			}
-            if (SETTING(cam_framerate).value<int>() > 0) {
+            if (READ_SETTING(cam_framerate, int) > 0) {
                 parameters.push_back(cv::CAP_PROP_FPS);
-                parameters.push_back(SETTING(cam_framerate).value<int>());
+                parameters.push_back(READ_SETTING(cam_framerate, int));
             }
 
             if(!_capture.isOpened())
-                if(not _capture.open(SETTING(webcam_index).value<uint8_t>(),
+                if(not _capture.open(READ_SETTING(webcam_index, uint8_t),
                                      cv::CAP_ANY,
                                      parameters))
                     throw U_EXCEPTION("Cannot open webcam.");
@@ -34,7 +34,7 @@ namespace fg {
             throw U_EXCEPTION("OpenCV cannot open the webcam.");
         }
         if(!_capture.isOpened())
-            throw U_EXCEPTION("Cannot open webcam. Please check your system privacy settings to allow camera access for ", no_quotes(SETTING(app_name).value<std::string>()), ".");
+            throw U_EXCEPTION("Cannot open webcam. Please check your system privacy settings to allow camera access for ", no_quotes(READ_SETTING(app_name, std::string)), ".");
             
         Print("Current mode = ", _capture.get(cv::CAP_PROP_FOURCC), " (", _capture.get(cv::CAP_PROP_FPS), " fps)");
 

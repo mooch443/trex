@@ -80,7 +80,7 @@ bool Individual::add_qrcode(Frame_t frame, pv::BlobPtr&& tag) {
         
         auto check_qrcode = [this](Frame_t frame, const std::shared_ptr<TrackletInformation>& tracklet)
         {
-            static const bool tags_recognize = SETTING(tags_recognize).value<bool>();
+            static const bool tags_recognize = BOOL_SETTING(tags_recognize);
             
             const bool tracklet_ended = tracklet && tracklet->start() != _last_requested_tracklet;
             if(tracklet_ended) {
@@ -154,7 +154,7 @@ bool Individual::add_qrcode(Frame_t frame, pv::BlobPtr&& tag) {
                             };
                             
                             auto callback = [&]() {
-                                static const bool tags_save_predictions = SETTING(tags_save_predictions).value<bool>();
+                                static const bool tags_save_predictions = BOOL_SETTING(tags_save_predictions);
                                 if(!tags_save_predictions)
                                     return;
                                 
@@ -163,7 +163,7 @@ bool Individual::add_qrcode(Frame_t frame, pv::BlobPtr&& tag) {
                                    || _last_predicted_frame != tracklet->start())
                                     return;
                                 
-                                static const auto filename = (std::string)SETTING(filename).value<file::Path>().filename();
+                                static const auto filename = (std::string)READ_SETTING(filename, file::Path).filename();
                                 file::Path output = file::DataLocation::parse("output", "tags_"+filename) / Meta::toStr(_last_predicted_id);
                                 
                                 if(!output.exists())
@@ -1662,7 +1662,7 @@ void CacheHints::clear(size_t size) {
         || frame_rate == uint32_t(-1))) 
     {
 #ifndef NDEBUG
-        FormatExcept("Size=", size," frame_rate=", FAST_SETTING(frame_rate)," ", std::numeric_limits<uint32_t>::max(), " local=", SETTING(frame_rate).value<uint32_t>());
+        FormatExcept("Size=", size," frame_rate=", FAST_SETTING(frame_rate)," ", std::numeric_limits<uint32_t>::max(), " local=", READ_SETTING_WITH_DEFAULT(frame_rate, uint32_t(0)));
 #endif
         _last_second.resize(0);
     } else {
@@ -2916,7 +2916,7 @@ const decltype(Individual::average_recognition_tracklet)::mapped_type Individual
         
         const auto && [segment, usable] = (FrameRange)*sit->get();
         
-        if(segment.end >= _endFrame && Tracker::end_frame() + 1_f != Frame_t(narrow_cast<Frame_t::number_t>(SETTING(video_length).value<uint64_t>()))) {
+        if(segment.end >= _endFrame && Tracker::end_frame() + 1_f != Frame_t(narrow_cast<Frame_t::number_t>(READ_SETTING(video_length, uint64_t)))) {
             return {0, {}};
         }
         

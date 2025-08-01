@@ -68,11 +68,11 @@ namespace fg {
         _camera->Width.SetValue(target_res.width);
         _camera->Height.SetValue(target_res.height);
         
-        _camera->ExposureTime.SetValue(SETTING(cam_limit_exposure).value<int>());
+        _camera->ExposureTime.SetValue(READ_SETTING(cam_limit_exposure, int));
         
-        if (SETTING(cam_framerate).value<int>() > 0) {
+        if (READ_SETTING(cam_framerate, int) > 0) {
             _camera->AcquisitionFrameRateEnable.SetValue(true);
-            _camera->AcquisitionFrameRate.SetValue(SETTING(cam_framerate).value<int>());
+            _camera->AcquisitionFrameRate.SetValue(READ_SETTING(cam_framerate, int));
         }
         else {
             _camera->AcquisitionFrameRateEnable.SetValue(false);

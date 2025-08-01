@@ -314,7 +314,7 @@ int main(int argc, char**argv) {
         }
     }
     
-    auto merge_videos = SETTING(merge_videos).value<std::vector<file::Path>>();
+    auto merge_videos = READ_SETTING(merge_videos, std::vector<file::Path>);
     if(!merge_videos.empty()) {
         initiate_merging(merge_videos, argc, argv);
         return 0;
@@ -333,7 +333,7 @@ int main(int argc, char**argv) {
     }
         //GlobalSettings::load_from_file(default_config::deprecations(), settings_file.str(), AccessLevelType::STARTUP, {}, nullptr, &GlobalSettings::map());
     
-    file::Path input = SETTING(filename).value<file::Path>();
+    file::Path input = READ_SETTING(filename, file::Path);
     //if(!input.exists())
     //    throw U_EXCEPTION("Cannot find file ",input.str(),".");
     
@@ -408,7 +408,7 @@ int main(int argc, char**argv) {
             track::Tracker::auto_calculate_parameters(video, be_quiet);
         }
         
-        if(SETTING(frame_rate).value<uint32_t>() == 0) {
+        if(READ_SETTING(frame_rate, uint32_t) == 0) {
             if(!GlobalSettings::is_runtime_quiet())
                 FormatWarning("frame_rate == 0, calculating from frame tdeltas.");
             video.generate_average_tdelta();
@@ -462,9 +462,9 @@ int main(int argc, char**argv) {
             Print("Saved average image to ",file);
         }
         
-        if(!SETTING(replace_background).value<file::Path>().empty()) {
+        if(!READ_SETTING(replace_background, file::Path).empty()) {
             // do replace background image with new one
-            auto mat = cv::imread(SETTING(replace_background).value<file::Path>().str());
+            auto mat = cv::imread(READ_SETTING(replace_background, file::Path).str());
             if(mat.channels() > 1) {
                 std::vector<cv::Mat> split;
                 cv::split(mat, split);
@@ -475,7 +475,7 @@ int main(int argc, char**argv) {
             if(mat.cols != video.header().resolution.width
                || mat.rows != video.header().resolution.height)
             {
-                throw U_EXCEPTION("Image at ",SETTING(replace_background).value<file::Path>()," is not of compatible resolution (",mat.cols,"x",mat.rows," / ",video.header().resolution.width,"x",video.header().resolution.height,")");
+                throw U_EXCEPTION("Image at ",READ_SETTING(replace_background, file::Path)," is not of compatible resolution (",mat.cols,"x",mat.rows," / ",video.header().resolution.width,"x",video.header().resolution.height,")");
             } else {
                 using namespace pv;
                 // close the current file
@@ -685,7 +685,7 @@ int main(int argc, char**argv) {
         }
         
     } else {
-        auto path = SETTING(filename).value<file::Path>();
+        auto path = READ_SETTING(filename, file::Path);
         gpuMat average;
         
         auto header = Output::TrackingResults::load_header(path.add_extension("results"));
@@ -711,12 +711,10 @@ int main(int argc, char**argv) {
             SETTING(video_length) = uint64_t(video.length().get());
         }
         
-        if(SETTING(meta_real_width).value<Float2_t>() == 0)
+        if(READ_SETTING_WITH_DEFAULT(meta_real_width, Float2_t(0)) == 0)
             SETTING(meta_real_width) = Float2_t(30.0);
-        if(!GlobalSettings::has_value("cm_per_pixel")
-           || SETTING(cm_per_pixel).value<Float2_t>() == 0)
-        {
-            SETTING(cm_per_pixel) = Float2_t(SETTING(meta_real_width).value<Float2_t>() / Float2_t(average.cols));
+        if(READ_SETTING_WITH_DEFAULT(cm_per_pixel, Float2_t(0)) == 0) {
+            SETTING(cm_per_pixel) = Float2_t(READ_SETTING(meta_real_width, Float2_t) / Float2_t(average.cols));
         }
         
         path = path.add_extension("results");
@@ -741,7 +739,7 @@ int main(int argc, char**argv) {
         }));
         
         SETTING(quiet) = true;
-        track::Tracker tracker(Image::Make(average), SETTING(meta_encoding).value<meta_encoding_t::Class>(), SETTING(meta_real_width).value<Float2_t>());
+        track::Tracker tracker(Image::Make(average), READ_SETTING(meta_encoding, meta_encoding_t::Class), READ_SETTING(meta_real_width, Float2_t));
         
         if(header.version < Output::ResultsFormat::Versions::V_28) {
             Output::TrackingResults results(tracker);
@@ -752,8 +750,8 @@ int main(int argc, char**argv) {
         }
     }
     
-    auto format = SETTING(parameter_format).value<parameter_format_t::Class>();
-    auto print = SETTING(print_parameters).value<std::vector<std::string>>();
+    auto format = READ_SETTING(parameter_format, parameter_format_t::Class);
+    auto print = READ_SETTING(print_parameters, std::vector<std::string>);
     for(size_t i=0; i<print.size(); ++i) {
         auto name = print.at(i);
         auto str = GlobalSettings::get(name).get().valueString();

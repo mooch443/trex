@@ -104,14 +104,14 @@ const std::string& last_error() {
 }
 
 std::string current_version() {
-    auto v = SETTING(version).value<std::string>();
+    auto v = READ_SETTING(version, std::string);
     if(v.empty() || v[0] != 'v')
         return "0";
     return (std::string)utils::split(utils::split(v, 'v').back(), '-').front();
 }
 
 std::string last_asked_version() {
-    auto v = SETTING(app_last_update_version).value<std::string>();
+    auto v = READ_SETTING(app_last_update_version, std::string);
     return v;
 }
 
@@ -162,12 +162,12 @@ void this_is_a_good_time() {
 
 bool user_has_been_asked() {
     using namespace default_config;
-    return SETTING(app_check_for_updates).value<app_update_check_t::Class>() != app_update_check_t::none;
+    return READ_SETTING(app_check_for_updates, app_update_check_t::Class) != app_update_check_t::none;
 }
 
 bool automatically_check() {
     using namespace default_config;
-    return SETTING(app_check_for_updates).value<app_update_check_t::Class>() == app_update_check_t::automatically;
+    return READ_SETTING(app_check_for_updates, app_update_check_t::Class) == app_update_check_t::automatically;
 }
 
 void display_update_dialog(gui::DrawStructure* graph) {
@@ -221,12 +221,12 @@ void write_version_file() {
 void update_loop(gui::DrawStructure* graph) {
     using namespace default_config;
     
-    if(SETTING(app_check_for_updates).value<app_update_check_t::Class>() == app_update_check_t::automatically)
+    if(READ_SETTING(app_check_for_updates, app_update_check_t::Class) == app_update_check_t::automatically)
     {
         using namespace std::chrono;
         using namespace std::chrono_literals;
         
-        auto timestamp = SETTING(app_last_update_check).value<uint64_t>();
+        auto timestamp = READ_SETTING(app_last_update_check, uint64_t);
         
         auto tp = microseconds(timestamp);
         auto now = system_clock::now();

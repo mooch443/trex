@@ -18,7 +18,7 @@ std::optional<cmn::blob::Pose::Skeleton> get_skeleton(uint8_t clid, const std::o
 namespace track::detect {
 
 ENUM_CLASS(ObjectDetectionType, none, yolo, background_subtraction, precomputed);
-ENUM_CLASS(ObjectDetectionFormat, none, boxes, masks, poses, obb);
+ENUM_CLASS(ObjectDetectionFormat, none, boxes, masks, poses, obb, points);
 
 using ObjectDetectionType_t = ObjectDetectionType::Class;
 using ObjectDetectionFormat_t = ObjectDetectionFormat::Class;

@@ -588,7 +588,7 @@ const AVCodec* FFMPEGQueue::check_and_select_codec(const Size2& _size) {
             tempContext->width = _size.width;
             tempContext->height = _size.height;
 
-            auto crf = Meta::toStr(SETTING(ffmpeg_crf).value<uint32_t>());
+            auto crf = Meta::toStr(READ_SETTING(ffmpeg_crf, uint32_t));
             if(av_opt_set(tempContext, "crf", crf.c_str(), AV_OPT_SEARCH_CHILDREN) != 0) {
                 FormatWarning("Setting CRF was not successful in codec ", codecInfo.name);
             }
@@ -635,7 +635,7 @@ const AVCodec* FFMPEGQueue::check_and_select_codec(const Size2& _size) {
             }
 
             /* frames per second */
-            int frame_rate = SETTING(frame_rate).value<uint32_t>();
+            int frame_rate = READ_SETTING(frame_rate, uint32_t);
             if(frame_rate <= 0 || frame_rate > 256)
                 frame_rate = 25;
             tempContext->time_base = AVRational{1, frame_rate};
@@ -715,7 +715,7 @@ void FFMPEGQueue::open_video() {
     c->width = _size.width;
     c->height = _size.height;
     
-    auto crf = Meta::toStr(SETTING(ffmpeg_crf).value<uint32_t>());
+    auto crf = Meta::toStr(READ_SETTING(ffmpeg_crf, uint32_t));
     if(av_opt_set(c, "crf", crf.c_str(), AV_OPT_SEARCH_CHILDREN) != 0) {
         FormatWarning("Setting CRF was not successful in codec ", codec->name);
     }
@@ -765,7 +765,7 @@ void FFMPEGQueue::open_video() {
         throw U_EXCEPTION("Dimensions must be a multiple of 2. (",c->width,"x",c->height,")");
     
     /* frames per second */
-    int frame_rate = SETTING(frame_rate).value<uint32_t>();
+    int frame_rate = READ_SETTING(frame_rate, uint32_t);
     if(frame_rate == 0 || frame_rate > 256)
         frame_rate = 25;
     c->time_base = AVRational{1, frame_rate};
@@ -953,15 +953,17 @@ void FFMPEGQueue::update_cache_strategy(double needed_ms, double compressed_size
     } else if(not approximate_length.valid()
               && GlobalSettings::has_value("approximate_length_minutes"))
     {
-        approximate_length = Frame_t(SETTING(approximate_length_minutes).value<uint32_t>() * SETTING(frame_rate).value<uint32_t>() * 60);
-        auto stop_after_minutes = SETTING(stop_after_minutes).value<uint32_t>();
+        approximate_length = Frame_t(READ_SETTING(approximate_length_minutes, uint32_t) * READ_SETTING(frame_rate, uint32_t) * 60);
+        auto stop_after_minutes = READ_SETTING_WITH_DEFAULT(stop_after_minutes, uint32_t(0));
         if(stop_after_minutes > 0) {
-            approximate_length = Frame_t(stop_after_minutes * SETTING(frame_rate).value<uint32_t>() * 60);
+            approximate_length = Frame_t(stop_after_minutes * READ_SETTING(frame_rate, uint32_t) * 60);
         }
     }
     
     if(approximate_length.valid() && approximate_length > 0_f) {
-        maximum_memory = SETTING(system_memory_limit).value<uint64_t>() == 0 ? (uint64_t)(getTotalSystemMemory()*0.9) : SETTING(system_memory_limit).value<uint64_t>();
+        maximum_memory = READ_SETTING_WITH_DEFAULT(system_memory_limit, uint64_t(0)) == 0
+                ? uint64_t(getTotalSystemMemory()*0.9)
+                : READ_SETTING(system_memory_limit, uint64_t);
         approximate_ms = approximate_length.get() / FFMPEG_SETTING(frame_rate);
     }
         

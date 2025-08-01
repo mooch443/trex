@@ -36,6 +36,7 @@ private:
     static void process_instance_segmentation(const track::detect::PredictionFilter& detect_only_classes, coord_t w, coord_t h, const cv::Mat& r3, SegmentationData&, track::detect::Result&, const AcceptanceSettings&);
     static void process_boxes_only(const track::detect::PredictionFilter& detect_only_classes, coord_t w, coord_t h, const cv::Mat& r3, SegmentationData&, track::detect::Result&, const AcceptanceSettings&);
     static void process_obbs(const track::detect::PredictionFilter& detect_only_classes, coord_t w, coord_t h, const cv::Mat& r3, SegmentationData&, track::detect::Result&, const AcceptanceSettings&);
+    static void process_points(const track::detect::PredictionFilter& detect_only_classes, coord_t w, coord_t h, const cv::Mat& r3, SegmentationData&, track::detect::Result&, const AcceptanceSettings&);
     static std::optional<std::tuple<SegmentationData::Assignment, blob::Pair>> process_instance(cmn::CPULabeling::DLList&, coord_t w, coord_t h, const cv::Mat& r3, const track::detect::Row& row, const track::detect::MaskData& mask, const AcceptanceSettings&);
     
     static Data& data();

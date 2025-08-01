@@ -197,15 +197,15 @@ int main(int argc, char**argv) {
         }
     }
     
-    if(!SETTING(settings_file).value<Path>().empty()) {
-        if(SETTING(settings_file).value<Path>().exists()) {
-            GlobalSettings::load_from_file(SETTING(settings_file).value<file::Path>().str(), {
+    if(!READ_SETTING(settings_file, Path).empty()) {
+        if(READ_SETTING(settings_file, Path).exists()) {
+            GlobalSettings::load_from_file(READ_SETTING(settings_file, file::Path).str(), {
                 .deprecations = default_config::deprecations(),
                 .access = AccessLevelType::STARTUP
             });
             //GlobalSettings::load_from_file({}, SETTING(settings_file), AccessLevelType::STARTUP);
         } else
-            throw U_EXCEPTION("Cannot find settings file ",SETTING(settings_file).value<Path>().str());
+            throw U_EXCEPTION("Cannot find settings file ",READ_SETTING(settings_file, Path).str());
     }
     
     Path output_dir = SETTING(output_dir);
@@ -221,7 +221,7 @@ int main(int argc, char**argv) {
     
     auto video = pv::File::Read(input);
 
-    if(SETTING(end_frame).value<long_t>() == -1) {
+    if(READ_SETTING(end_frame, long_t) == -1) {
         SETTING(end_frame) = long_t(video.length().get() - 1);
     }
     
@@ -234,7 +234,7 @@ int main(int argc, char**argv) {
         video.processImage(average, average);
     
     long_t frame_index = start_frame;
-    const long_t step = SETTING(step).value<int>();
+    const long_t step = READ_SETTING(step, int);
     
     GifWriter *writer = NULL;
     pv::Frame current_frame;
@@ -265,7 +265,11 @@ int main(int argc, char**argv) {
         writer = new GifWriter();
         video.read_frame(current_frame,
                          Frame_t(frame_index+step));
-        GifBegin(writer, ss.str().c_str(), crop_rect.width * SETTING(scale).value<float>(), crop_rect.height * SETTING(scale).value<float>(), 1);//(current_frame.timestamp()-prev_time)/1000.0);
+        GifBegin(writer, ss.str().c_str(),
+                 crop_rect.width * READ_SETTING_WITH_DEFAULT(scale, float(1)),
+                 crop_rect.height * READ_SETTING_WITH_DEFAULT(scale, float(1)),
+                 1);
+        //(current_frame.timestamp()-prev_time)/1000.0);
     }
     
     bool with_background = !BOOL_SETTING(disable_background);
@@ -282,8 +286,8 @@ int main(int argc, char**argv) {
         
         image = image(crop_rect);
         
-        if(SETTING(scale).value<float>() != 1.0) {
-            resize_image(image, SETTING(scale).value<float>());
+        if(READ_SETTING(scale, float) != 1.0) {
+            resize_image(image, READ_SETTING(scale, float));
         }
         
         if(BOOL_SETTING(as_gif)) {
