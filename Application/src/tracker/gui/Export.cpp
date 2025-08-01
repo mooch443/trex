@@ -803,8 +803,8 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                     items,
                     vi_probabilities.size() / items
                 }, "w");
-                Print("Saved vi predictions at ", use_path,".");
             });
+            Print("Saved vi predictions at ", path,".");
         }
         
         if(BOOL_SETTING(output_heatmaps)) {

@@ -41,11 +41,6 @@ namespace Output {
     default_config::default_options_type _output_defaults;
     cmn::CallbackFuture _callback_id;
 
-    struct LibraryFuncProperties {
-        bool is_global{false};
-        bool posture_only{false};
-        bool centroid_only{false};
-    };
     std::unordered_map<std::string, LibraryFuncProperties, MultiStringHash, MultiStringEqual> func_properties;
     std::mutex properties_mutex;
 
@@ -1430,14 +1425,20 @@ cached_output_fields_t Library::get_cached_fields() {
                 LibInfo info(fish, e.first, cache);
                 auto mod_name = fname;
                 
-                if (info.modifiers.is(Modifiers::SMOOTH))
-                    mod_name += "#smooth";
-                if(info.modifiers.is(Modifiers::CENTROID))
-                    mod_name += "#centroid";
-                else if(info.modifiers.is(Modifiers::POSTURE_CENTROID))
-                    mod_name += "#pcentroid";
-                else if(info.modifiers.is(Modifiers::WEIGHTED_CENTROID))
-                    mod_name += "#wcentroid";
+                if(auto p = properties_for(fname);
+                   not p.centroid_only
+                   && not p.posture_only
+                   && not p.is_global)
+                {
+                    if (info.modifiers.is(Modifiers::SMOOTH))
+                        mod_name += "#smooth";
+                    if(info.modifiers.is(Modifiers::CENTROID))
+                        mod_name += "#centroid";
+                    else if(info.modifiers.is(Modifiers::POSTURE_CENTROID))
+                        mod_name += "#pcentroid";
+                    else if(info.modifiers.is(Modifiers::WEIGHTED_CENTROID))
+                        mod_name += "#wcentroid";
+                }
                 
                 auto func = Graph::Function(mod_name,
                     info.modifiers.is(Modifiers::POINTS) ? Graph::POINTS : Graph::DISCRETE,
