@@ -135,7 +135,10 @@ namespace track {
         //ConfirmedCrossings::remove_frames(frameIndex);
 
         std::lock_guard<std::recursive_mutex> guard(_mutex);
-        for(auto && [type, set] : _frames_of_interest) {
+        for(auto it = _frames_of_interest.begin(); it != _frames_of_interest.end();)
+        {
+            auto type = it->first;
+            auto &set  = it->second;
 #ifndef NDEBUG
             auto before = set.size();
 #endif
@@ -145,6 +148,10 @@ namespace track {
 #ifndef NDEBUG
             Print("Erased ", before - set.size()," FOIs of type ",name," from Tracker.");
 #endif
+            if(set.empty()) {
+                it = _frames_of_interest.erase(it);
+            } else
+                ++it;
         }
         changed();
     }
@@ -153,7 +160,11 @@ namespace track {
         //ConfirmedCrossings::remove_frames(frameIndex, id);
 
         std::lock_guard<std::recursive_mutex> guard(_mutex);
-        for(auto && [type, set] : _frames_of_interest) {
+        for(auto it = _frames_of_interest.begin(); it != _frames_of_interest.end();)
+        {
+            auto type = it->first;
+            auto &set  = it->second;
+            
             if(type == id) {
 #ifndef NDEBUG
                 auto before = set.size();
@@ -169,6 +180,11 @@ namespace track {
                 Print("Erased ", before - set.size()," FOIs of type ",name," from Tracker.");
 #endif
             }
+            
+            if(set.empty()) {
+                it = _frames_of_interest.erase(it);
+            } else
+                ++it;
         }
         changed();
     }

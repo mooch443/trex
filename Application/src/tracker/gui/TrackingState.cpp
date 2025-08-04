@@ -15,6 +15,7 @@
 #include <gui/CheckUpdates.h>
 #include <tracking/DatasetQuality.h>
 #include <tracking/VisualIdentification.h>
+#include <misc/FOI.h>
 
 using namespace track;
 
@@ -151,6 +152,8 @@ TrackingState::~TrackingState() {
     
     pool.force_stop();
     analysis->terminate();
+    
+    track::FOI::clear();
     
     if(_end_task.valid())
         _end_task.get();
