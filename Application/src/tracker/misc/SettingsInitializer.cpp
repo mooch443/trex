@@ -852,10 +852,10 @@ void LoadContext::load_settings_file() {
             
             //auto before = combined.map.print_by_default();
             //combined.map.set_print_by_default(false);
-            Print("// map contains ", map.keys());
+            //Print("// map contains ", map.keys());
             for(auto &key : map.keys()) {
                 if(not set_config_if_different(key, map)) {
-                    Print("// ", key, " was already set to ", no_quotes(map.at(key).get().valueString()));
+                    //Print("// ", key, " was already set to ", no_quotes(map.at(key).get().valueString()));
                 }
                 
                 GlobalSettings::write([&](sprite::Map&, sprite::Map& with_config) {
@@ -865,7 +865,7 @@ void LoadContext::load_settings_file() {
             //combined.map.set_print_by_default(before);
             //exclude_from_pv = exclude_from_pv + map.keys();
             
-            for(auto &[key, value] : rejected) {
+            /*for(auto &[key, value] : rejected) {
                 if(not map.has(key)
                    || not combined.values.has(key)
                    || map.at(key) != combined.values.at(key))
@@ -873,7 +873,7 @@ void LoadContext::load_settings_file() {
                     // has been ignored
                     Print("// not setting ", key, " because it is ", combined.values.at(key));
                 }
-            }
+            }*/
             
         } catch(const std::exception& ex) {
             FormatError("Failed to execute settings file ",settings_file,": ", ex.what());
@@ -890,7 +890,7 @@ void LoadContext::load_gui_settings() {
     /// -------------------------------------
     if(not source_map.empty()) {
         G g("GUI settings", quiet);
-        Print("gui settings contains: ", source_map.keys());
+        //Print("gui settings contains: ", source_map.keys());
         
         for(auto& key : source_map.keys()) {
             if(contains(exclude.toVector(), key))
@@ -1020,7 +1020,7 @@ void LoadContext::finalize() {
             {
                 //if(not contains(copy.toVector(), key))
                 {
-                    Print("Updating ",combined.values.at(key));
+                    //Print("Updating ",combined.values.at(key));
                     if(key == "filename"
                        && (combined.at(key).value<file::Path>() == find_output_name(combined.values, {}, {}, false)
                            || (not combined.at(key).value<file::Path>().is_absolute()
@@ -1079,7 +1079,7 @@ bool LoadContext::set_config_if_different(
                 Print("setting current_defaults ", from.at(key), " != ", GlobalSettings::defaults().at(key));
             }*/
             if(not combined.values.has(key) || combined.at(key) != from.at(key)) {
-                Print("setting combined.map ", key, " to ", from.at(key).get().valueString());
+                //Print("setting combined.map ", key, " to ", from.at(key).get().valueString());
                 from.at(key).get().copy_to(combined.values);
                 was_different = true;
             }
@@ -1087,9 +1087,9 @@ bool LoadContext::set_config_if_different(
             if(key == "detect_type")
                 type = from.at(key).value<decltype(type)>();
         }
-        else {
+        /*else {
             Print("/// ", key, " is already set to ", combined.at(key).get().valueString());
-        }
+        }*/
     }
     
     if(not current_defaults.has(key)
@@ -1102,25 +1102,25 @@ bool LoadContext::set_config_if_different(
             || def != from.at(key))
         {
             from.at(key).get().copy_to(current_defaults);
-            Print("/// [current_defaults] ", current_defaults.at(key).get());
+            //Print("/// [current_defaults] ", current_defaults.at(key).get());
         }
         else if (current_defaults.has(key))
         {
-            Print("/// [current_defaults] REMOVE ", current_defaults.at(key).get());
+            //Print("/// [current_defaults] REMOVE ", current_defaults.at(key).get());
             current_defaults.erase(key);
         }
         else {
             /// we dont have it, but it is default
-            Print("/// [current_defaults] ", key, " is default = ", from.at(key).get().valueString());
+            //Print("/// [current_defaults] ", key, " is default = ", from.at(key).get().valueString());
         }
         
     } //else if(current_defaults.has(key) && current_defaults.at(key) == from.at(key))
     else if(current_defaults.has(key)) {
-        Print("/// [current_defaults] ", key, " is already set to ", current_defaults.at(key).get().valueString());
+        //Print("/// [current_defaults] ", key, " is already set to ", current_defaults.at(key).get().valueString());
         //current_defaults.erase(key);
     }
     else {
-        Print("/// *** WEIRD [current_defaults] ", key, " is default = ", from.at(key).get().valueString());
+        //Print("/// *** WEIRD [current_defaults] ", key, " is default = ", from.at(key).get().valueString());
     }
     
     return was_different;
