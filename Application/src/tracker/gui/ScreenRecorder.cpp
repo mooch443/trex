@@ -153,9 +153,9 @@ struct ScreenRecorder::Data {
         
         static Timer last_print;
         if(last_print.elapsed() > 2) {
-            DurationUS duration{static_cast<uint64_t>((_recording_frame.try_sub(_recording_start.valid() ? _recording_start : 0_f)).get() / float(SETTING(frame_rate).value<uint32_t>()) * 1000) * 1000};
+            DurationUS duration{static_cast<uint64_t>((_recording_frame.try_sub(_recording_start.valid() ? _recording_start : 0_f)).get() / float(READ_SETTING(frame_rate, uint32_t)) * 1000) * 1000};
             auto str = ("frame "+Meta::toStr(_recording_frame)+"/"+Meta::toStr(max_frame)+" length: "+Meta::toStr(duration));
-            auto playback_speed = SETTING(gui_playback_speed).value<float>();
+            auto playback_speed = READ_SETTING(gui_playback_speed, float);
             if(playback_speed > 1) {
                 duration.timestamp = timestamp_t(double(duration.timestamp) / double(playback_speed));
                 str += " (real: "+Meta::toStr(duration)+")";
@@ -209,7 +209,7 @@ struct ScreenRecorder::Data {
     }
     
     file::Path frame_output_dir() {
-        auto filename = SETTING(filename).value<file::Path>();
+        auto filename = READ_SETTING(filename, file::Path);
         if(filename.has_extension("pv"))
             filename = filename.remove_extension();
         return file::DataLocation::parse("output", file::Path("clips") / (std::string)filename.filename());
@@ -236,7 +236,7 @@ struct ScreenRecorder::Data {
         // ---------------------------------------------------------------------
         // pick clip index
         // ---------------------------------------------------------------------
-        std::string clip_prefix = (std::string)SETTING(filename).value<file::Path>().filename() + "_";
+        std::string clip_prefix = (std::string)READ_SETTING(filename, file::Path).filename() + "_";
         size_t max_number = 0;
         try {
             for (auto& file : frames.find_files()) {
@@ -277,11 +277,11 @@ struct ScreenRecorder::Data {
         if (size != original_dims) {
             Print("Trying to record with size ", size.width, "x", size.height, " instead of ",
                 original_dims.width, "x", original_dims.height, " @ ",
-                SETTING(frame_rate).value<uint32_t>());
+                READ_SETTING(frame_rate, uint32_t));
         }
 
         using namespace default_config;
-        auto format = SETTING(gui_recording_format).value<gui_recording_format_t::Class>();
+        auto format = READ_SETTING(gui_recording_format, gui_recording_format_t::Class);
 
         // ---------------------------------------------------------------------
         // VIDEO branch (mp4 / avi) with codec fallback loop
@@ -290,7 +290,7 @@ struct ScreenRecorder::Data {
 
             bool opened = false;
             std::string final_file_path;
-            const uint32_t fps = SETTING(frame_rate).value<uint32_t>();
+            const uint32_t fps = READ_SETTING(frame_rate, uint32_t);
 
             for (const auto& c : codec_candidates(format)) {
                 std::ostringstream out_name;
@@ -382,7 +382,7 @@ void ScreenRecorder::start_recording(Base*base, Frame_t frame) {
     Frame_t video_length;
     if(GlobalSettings::is_type<uint64_t>("video_length"))
     {
-        video_length = Frame_t(SETTING(video_length).value<uint64_t>());
+        video_length = Frame_t(READ_SETTING(video_length, uint64_t));
     }
     
     std::function<Frame_t()> current_frame;
@@ -390,7 +390,7 @@ void ScreenRecorder::start_recording(Base*base, Frame_t frame) {
     if(GlobalSettings::is_type<Frame_t>("gui_displayed_frame"))
     {
         current_frame = [](){
-            return SETTING(gui_displayed_frame).value<Frame_t>();
+            return READ_SETTING(gui_displayed_frame, Frame_t);
         };
     } else {
         current_frame = [](){

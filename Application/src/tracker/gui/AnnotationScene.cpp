@@ -229,7 +229,7 @@ Image::Ptr AnnotationScene::retrieveFrame(Frame_t) {
 void AnnotationScene::activate() {
     Scene::activate();
     // Logic to activate the scene, e.g., initializing framePreloader
-    auto source = SETTING(source).value<file::PathArray>();
+    auto source = READ_SETTING(source, file::PathArray);
     Print("Loading source = ", utils::ShortenText(source.toStr(), 1000));
     
     std::unique_lock guard(_video_mutex);
@@ -239,7 +239,7 @@ void AnnotationScene::activate() {
     video_length = _video->length();
     video_size = _video->size();
     
-    _skeleton = SETTING(detect_skeleton).value<std::optional<blob::Pose::Skeletons>>();
+    _skeleton = READ_SETTING(detect_skeleton, std::optional<blob::Pose::Skeletons>);
     _pose_in_progress = {};
     
     SETTING(frame_rate) = Settings::frame_rate_t(_video->framerate() != short(-1) ? _video->framerate() : 25);

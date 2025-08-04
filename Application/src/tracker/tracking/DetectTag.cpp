@@ -45,7 +45,7 @@ namespace track {
                 else
                     imageFromLines(blob->input_info(), blob->hor_lines(), &mmask, &mgrey, NULL, blob->pixels().get(), 0);//, &average);
 
-                Size2 normal_dimensions = SETTING(tags_image_size).value<Size2>();
+                Size2 normal_dimensions = READ_SETTING(tags_image_size, Size2);
                 cv::Mat padded;
                 Vec2 crop_offset(0);
                 if (normal_dimensions.width > mgrey.cols || normal_dimensions.height > mgrey.rows) {
@@ -160,7 +160,7 @@ namespace track {
                 tf::imshow("qr", qr);
                 
                 cv::Mat tmp, hist;
-                const Size2 normal_dimensions = SETTING(tags_image_size).value<Size2>();
+                const Size2 normal_dimensions = READ_SETTING(tags_image_size, Size2);
                 const Vec2 offset(normal_dimensions);
 
                 if (bounding.width > normal_dimensions.width) {

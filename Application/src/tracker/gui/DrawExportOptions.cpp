@@ -270,6 +270,7 @@ struct DrawExportOptions::Data {
     struct Item {
         std::string _name, _source;
         uint32_t _count = 0;
+        bool _single_source{false};
         Font _font = Font(0.5, Align::Left);
         Color _color = White;
 
@@ -292,7 +293,10 @@ struct DrawExportOptions::Data {
             return append;
         }
         operator std::string() const {
-            return _name + "#" + _source + (_count ? " (" + Meta::toStr(_count) + ")" : "");
+            if(not _single_source)
+                return _name + "#" + _source + (_count ? " (" + Meta::toStr(_count) + ")" : "");
+            else
+                return _name + (_count ? " (" + Meta::toStr(_count) + ")" : "");
         }
         bool operator!=(const Item& other) const{
             return _name != other._name || _font != other._font || _count != other._count || _source != other._source;
@@ -328,7 +332,7 @@ struct DrawExportOptions::Data {
         //parent.set_background(Black.alpha(200), Black.alpha(240));
 
         /*export_options.on_select([&](auto idx, const std::string&) {
-            auto graphs = SETTING(output_fields).value<std::vector<std::pair<std::string, std::vector<std::string>>>>();
+            auto graphs = READ_SETTING(output_fields, std::vector<std::pair<std::string, std::vector<std::string>>>);
             auto& item = export_options.items().at(idx);
             Print("Removing ",item.value()._name);
 
@@ -436,7 +440,7 @@ struct DrawExportOptions::Data {
                             REQUIRE_EXACTLY(1, action);
                             Print("Got action: ", action);
                             auto idx = Meta::fromStr<uint32_t>(action.parameters.front());
-                            auto graphs = SETTING(output_fields).value<std::vector<std::pair<std::string, std::vector<std::string>>>>();
+                            auto graphs = READ_SETTING(output_fields, std::vector<std::pair<std::string, std::vector<std::string>>>);
                             auto &item = this->_filtered_options.at(idx);
                             
                             if(auto subname = item.at("subname").value<std::string>();
@@ -462,7 +466,7 @@ struct DrawExportOptions::Data {
                             REQUIRE_EXACTLY(1, action);
                             Print("Got action: ", action);
                             auto idx = Meta::fromStr<uint32_t>(action.parameters.front());
-                            auto graphs = SETTING(output_fields).value<std::vector<std::pair<std::string, std::vector<std::string>>>>();
+                            auto graphs = READ_SETTING(output_fields, std::vector<std::pair<std::string, std::vector<std::string>>>);
                             auto &item = this->_selected_options.at(idx);
                             auto automatic = this->_auto_variables.at(idx);
                             
@@ -502,7 +506,7 @@ struct DrawExportOptions::Data {
                         ActionFunc("export", [state](auto){
                             Print("Triggered export...");
                             
-                            WorkProgress::add_queue("Saving to "+SETTING(output_format).value<default_config::output_format_t::Class>().str()+" ...", [state]()
+                            WorkProgress::add_queue("Saving to "+READ_SETTING(output_format, default_config::output_format_t::Class).str()+" ...", [state]()
                             {
                                 state->_controller->export_tracks();
                                 /// hide yourself:
@@ -559,7 +563,7 @@ struct DrawExportOptions::Data {
             });
         }
         
-        auto graphs = SETTING(output_fields).value<std::vector<std::pair<std::string, std::vector<std::string>>>>();
+        auto graphs = READ_SETTING(output_fields, std::vector<std::pair<std::string, std::vector<std::string>>>);
         auto graphs_map = [&graphs]() {
             std::unordered_map<std::string, std::set<std::string_view>, MultiStringHash, MultiStringEqual> result;
             for(auto &g : graphs) {
@@ -648,6 +652,8 @@ struct DrawExportOptions::Data {
                 {
                     auto it = graphs_map.find(f);
                     auto sources = Output::Library::possible_sources_for(f);
+                    const auto properties = Output::properties_for(f);
+                    const bool single_source = properties.centroid_only || properties.posture_only || properties.is_global;
                     
                     for(auto source : sources) {
                         auto name = utils::lowercase(source.name());
@@ -663,11 +669,11 @@ struct DrawExportOptions::Data {
                             
                         } else if (it != graphs_map.end()) {
                             //count = narrow_cast<uint32_t>(max(it->second.size(), 1u));
-                            std::set<std::string_view> append;
+                            std::set<std::string> append;
                             for(auto a : it->second) {
-                                a = utils::lowercase(a);
-                                if(not is_in(a, "raw", "smooth", ""))
-                                    append.insert(a);
+                                std::string n = utils::lowercase(a);
+                                if(not is_in(n, "raw", "smooth", ""))
+                                    append.insert(n);
                             }
                             
                             if(append.contains(name)) {
@@ -679,6 +685,7 @@ struct DrawExportOptions::Data {
                             ._name = (std::string)f,
                             ._source = (std::string)name,
                             ._count = count,
+                            ._single_source = single_source,
                             ._font = Font(0.5, count ? Style::Bold : Style::Regular, Align::Left)
                         });
                         
@@ -689,7 +696,7 @@ struct DrawExportOptions::Data {
                             _auto_variables.emplace_back(auto_generated);
                             auto &map = _selected_options.back();
                             map["name"] = (std::string)f;
-                            map["sub"] = Output::Library::is_global_function(f) || sources.size() <= 1 ? "" : (std::string)hash;
+                            map["sub"] = single_source || sources.size() <= 1 ? "" : (std::string)hash;
                             map["subname"] = (std::string)name;
                             map["count"] = count;
                             map["auto"] = auto_generated;
@@ -712,7 +719,7 @@ struct DrawExportOptions::Data {
                             _filtered_options.emplace_back();
                             auto &map = _filtered_options.back();
                             map["name"] = (std::string)f;
-                            map["sub"] = Output::Library::is_global_function(f) || sources.size() <= 1 ? "" : (std::string)hash;
+                            map["sub"] = single_source || sources.size() <= 1 ? "" : (std::string)hash;
                             map["subname"] = (std::string)name;
                             map["count"] = count;
                             map["auto"] = auto_generated;

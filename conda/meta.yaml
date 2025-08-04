@@ -8,16 +8,18 @@
 {% set build_number = (build_time | int - 86400) %}
 
 ####
+{% set number = environ.get('GIT_DESCRIBE_NUMBER', '0') %}
+{% set hash = environ.get('GIT_DESCRIBE_HASH', '0') %}
+
 {% if git_tag != 'main' %}
-{% set version_prefix = '_' + git_tag %}
+{% set version_prefix = '' %}
+{% set hash = git_tag + '_' + hash %}
 {% else %}
 {% set version_prefix = '' %}
 {% endif %}
 
 {% set version = ((latest_tag if latest_tag else '-failed') + version_prefix + version_postfix)[1:] %}
 
-{% set number = environ.get('GIT_DESCRIBE_NUMBER', '0') %}
-{% set hash = environ.get('GIT_DESCRIBE_HASH', '0') %}
 
 package:
   name: trex

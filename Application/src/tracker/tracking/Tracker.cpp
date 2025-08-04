@@ -91,9 +91,9 @@ void Tracker::initialize_slows() {
         DEF_CALLBACK(posture_direction_smoothing);
         
         static const auto update_range = [](){
-            const auto video_length = narrow_cast<long_t>(SETTING(video_length).value<Settings::video_length_t>())-1;
+            const auto video_length = narrow_cast<long_t>(READ_SETTING(video_length, Settings::video_length_t))-1;
             //auto analysis_range = FAST_SETTING(analysis_range);
-            const auto analysis_range = SETTING(analysis_range).value<Settings::analysis_range_t>();
+            const auto analysis_range = READ_SETTING(analysis_range, Settings::analysis_range_t);
             const auto& [start, end] = analysis_range;
             
             _analysis_range = FrameRange(Range<Frame_t>{
@@ -738,8 +738,8 @@ void Tracker::prefilter(
         return false;
     };
     
-    const auto tags_dont_track = SETTING(tags_dont_track).value<bool>();
-    const auto track_only_segmentations = SETTING(track_only_segmentations).value<bool>();
+    const auto tags_dont_track = BOOL_SETTING(tags_dont_track);
+    const auto track_only_segmentations = BOOL_SETTING(track_only_segmentations);
     
     std::optional<const decltype(track_ignore_bdx)::mapped_type*> track_ignore_bdx_c;
     if(auto it = track_ignore_bdx.find(result.frame_index);
@@ -1320,7 +1320,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
                 }
                 
                 try {
-                    auto path = file::DataLocation::parse("output", (std::string)SETTING(filename).value<file::Path>().filename()+"_threading_stats.npz").str();
+                    auto path = file::DataLocation::parse("output", (std::string)READ_SETTING(filename, file::Path).filename()+"_threading_stats.npz").str();
                     npz_save(path, "values", values.data(), std::vector<size_t>{bins.size(), 3});
                     Print("Saved threading stats at ", path,".");
                 } catch(...) {
@@ -2622,7 +2622,7 @@ void Tracker::update_consecutive(const CachedSettings& s, const set_of_individua
         void add_frame(Frame_t frame, long_t id, Image::SPtr image);
     };
     
-    SplitData::SplitData() : _normalized(default_config::valid_individual_image_normalization(SETTING(recognition_normalize_direction).value<default_config::individual_image_normalization_t::Class>())) {
+    SplitData::SplitData() : _normalized(default_config::valid_individual_image_normalization(READ_SETTING(recognition_normalize_direction, default_config::individual_image_normalization_t::Class))) {
         
     }
     
@@ -3502,7 +3502,7 @@ pv::BlobPtr Tracker::find_blob_noisy(const PPFrame& pp, pv::bid bid, pv::bid, co
             
             pv::Frame frame;
             std::multiset<float> values;
-            const uint32_t number_fish = SETTING(track_max_individuals).value<uint32_t>();
+            const uint32_t number_fish = READ_SETTING(track_max_individuals, uint32_t);
             
             std::vector<std::multiset<Float2_t>> blobs;
             
@@ -3523,9 +3523,9 @@ pv::BlobPtr Tracker::find_blob_noisy(const PPFrame& pp, pv::bid bid, pv::bid, co
                                                    ? meta_encoding_t::binary
                                                    : meta_encoding_t::gray))
                     };
-                    auto pair = imageFromLines(info, *frame.mask().at(k), NULL, NULL, NULL, frame.pixels().empty() ? nullptr : frame.pixels().at(k).get(), SETTING(track_threshold).value<int>(), &bg);
+                    auto pair = imageFromLines(info, *frame.mask().at(k), NULL, NULL, NULL, frame.pixels().empty() ? nullptr : frame.pixels().at(k).get(), READ_SETTING(track_threshold, int), &bg);
                     
-                    Float2_t value = pair.second * SQR(SETTING(cm_per_pixel).value<Float2_t>());
+                    Float2_t value = pair.second * SQR(READ_SETTING(cm_per_pixel, Float2_t));
                     if(value > 0) {
                         frame_values.insert(value);
                     }
@@ -3562,7 +3562,7 @@ pv::BlobPtr Tracker::find_blob_noisy(const PPFrame& pp, pv::bid bid, pv::bid, co
             if(BOOL_SETTING(auto_minmax_size))
                 SETTING(track_size_filter) = SizeFilters({Range<double>(ranges[0] * 0.25, ranges[1] * 1.75)});
             
-            auto track_size_filter = SETTING(track_size_filter).value<SizeFilters>();
+            auto track_size_filter = READ_SETTING(track_size_filter, SizeFilters);
             
             std::multiset<size_t> number_individuals;
             

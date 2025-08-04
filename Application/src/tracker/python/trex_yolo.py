@@ -273,6 +273,55 @@ class StrippedYoloResults(StrippedResults):
                 self.masks.append(ssub.cpu().numpy())
                 assert self.masks[-1].flags['C_CONTIGUOUS']
 
+        # If we're dealing with a POLO model here we have point predictions
+        if results.locations is not None:
+            self.points = results.locations.data.cpu().numpy()
+            TRex.log(f"Got data for locations: {self.points.shape} {self.points}")
+
+            # Scale and offset the center coordinates of each prediction
+            # predictions are [N, 4] with values [x_center, y_center, conf, id]
+            # need to transform to [id, conf, x_center, y_center, radius]
+            TRex.log(f"Scaling points with offset {offset} and box_offset {box_offset} and scale {scale}")
+            self.points[:, 0:1] = (self.points[:, 0:1] + offset[0] + box_offset[0]) * scale[0]
+            self.points[:, 1:2] = (self.points[:, 1:2] + offset[1] + box_offset[1]) * scale[1]
+
+            # insert column for class id in the front
+            #ids = results.locations.cls.cpu().numpy()
+            #self.points = np.insert(self.points, 0, ids, axis=1)
+
+            # move conf column from the end to the front
+            confs = self.points[:, -2].copy()
+            self.points = np.delete(self.points, -2, axis=1)
+            self.points = np.insert(self.points, 0, confs, axis=1)
+
+            # move id column from the end to the front
+            ids = self.points[:, -1].copy()
+            self.points = np.delete(self.points, -1, axis=1)
+            self.points = np.insert(self.points, 0, ids, axis=1)
+
+            # Now the points are in the format [id, conf, x_center, y_center]
+            # and we can add a radius column with a default value
+            # (e.g., 20 pixels) for each point
+            detect_point_radii = TRex.setting("detect_point_radii")
+            radii = None
+            if isinstance(detect_point_radii, str):
+                try:
+                    detect_point_radii = eval(detect_point_radii)
+                    if isinstance(detect_point_radii, dict):
+                        # If radii is a dict, convert it to a list of radii
+                        radii = [detect_point_radii.get(int(self.points[i, 0]), float(20)) for i in range(self.points.shape[0])]
+                    else:
+                        raise ValueError("Radii should be a dict.")
+                except ValueError:
+                    TRex.warn(f"Invalid radius value: {detect_point_radii}, using default 20")
+
+            if radii is None:
+                radii = [float(20)] * len(self.points)
+            self.points = np.insert(self.points, 4, radii, axis=1)
+            
+            # Locations are now [class, confidence, x_center, y_center, radius]
+            TRex.log(f"Locations: {self.points}")
+
         # Finally, scale any remaining bounding boxes to the target image space
         if self.boxes is not None:
             # Scale and offset the bounding boxes
@@ -323,6 +372,8 @@ class YOLOModel(DetectionModel):
             self.config.output_format = ObjectDetectionFormat.poses
         elif self.ptr.task == "obb":
             self.config.output_format = ObjectDetectionFormat.obb
+        elif self.ptr.task == "locate":
+            self.config.output_format = ObjectDetectionFormat.points
         else:
             raise Exception(f"Unknown task {self.ptr.task}")
         
@@ -383,6 +434,14 @@ class YOLOModel(DetectionModel):
 
         results = []
 
+        # If radii is not provided in kwargs and the model has class names, generate default radii
+        if self.config.output_format == ObjectDetectionFormat.points:
+            radii = kwargs.get("radii", None)
+            if radii is None and hasattr(self.ptr, "names"):
+                # Assign a default radius (e.g., 20) for each class
+                radii = {i: 20 for i in range(len(self.ptr.names))}
+                kwargs["radii"] = radii
+        
         if self.config.use_tracking:
             for image, scale, offset in zip(images, scales, offsets):
                 results.append((self.ptr.track(image, tracker="bytetrack.yaml", persist=True, device=self.device, **kwargs)[0], scale, offset))

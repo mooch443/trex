@@ -155,7 +155,7 @@ bool ConfirmedCrossings::next(FOIStatus& foi) {
             };
             
             assert(rows.size() == shape[0] * shape[1]);
-            file::Path path = file::DataLocation::parse("output", SETTING(filename).value<file::Path>().str()+"_confirmations.npz");
+            file::Path path = file::DataLocation::parse("output", READ_SETTING(filename, file::Path).str()+"_confirmations.npz");
             try {
                 cmn::npz_save(path.str(), "data", rows.data(), shape);
                 DebugHeader("Saved to ", path, ".");

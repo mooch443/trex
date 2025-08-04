@@ -9,16 +9,16 @@ std::string window_title() {
         version_prefix = "<"+(std::string)compile_mode_name()+"> ";
     }
     
-    auto filename = (std::string)SETTING(filename).value<file::Path>().filename();
-    auto output_prefix = SETTING(output_prefix).value<std::string>();
-    return version_prefix + SETTING(app_name).value<std::string>()
-        + (SETTING(version).value<std::string>().empty() ? "" : (" " + SETTING(version).value<std::string>()))
+    auto filename = (std::string)READ_SETTING(filename, file::Path).filename();
+    auto output_prefix = READ_SETTING(output_prefix, std::string);
+    return version_prefix + READ_SETTING(app_name, std::string)
+        + (READ_SETTING(version, std::string).empty() ? "" : (" " + READ_SETTING(version, std::string)))
         + (not filename.empty() ? " (" + filename + ")" : "")
         + (output_prefix.empty() ? "" : (" [" + output_prefix + "]"));
     
-    //auto output_prefix = SETTING(output_prefix).value<std::string>();
-    /*return SETTING(app_name).value<std::string>()
-        + (SETTING(version).value<std::string>().empty() ? "" : (" " + SETTING(version).value<std::string>()))
+    //auto output_prefix = READ_SETTING(output_prefix, std::string);
+    /*return READ_SETTING(app_name, std::string)
+        + (READ_SETTING(version).value<std::string>().empty() ? "" : (" " + SETTING(version, std::string)))
         + (output_prefix.empty() ? "" : (" [" + output_prefix + "]"));*/
 }
 

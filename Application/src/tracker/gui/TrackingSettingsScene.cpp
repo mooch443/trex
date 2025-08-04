@@ -94,7 +94,7 @@ void TrackingSettingsScene::_draw(DrawStructure& graph) {
                     Print("choose-settings");
                 }),
                 ActionFunc("toggle-background-subtraction", [](auto){
-                    SETTING(track_background_subtraction) = not SETTING(track_background_subtraction).value<bool>();
+                    SETTING(track_background_subtraction) = not BOOL_SETTING(track_background_subtraction);
                 }),
                 VarFunc("settings_summary", [](const VarProps&) -> std::string {
                     return std::string();

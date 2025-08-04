@@ -160,38 +160,38 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
     LockGuard guard(ro_t{}, "GUI::export_tracks");
     
     // save old values and remove all calculation/scaling options from output
-    auto previous_graphs = SETTING(output_fields).value<default_config::graphs_type>();
-    auto previous_options = SETTING(output_default_options).value<default_config::default_options_type>();
+    auto previous_graphs = READ_SETTING(output_fields, default_config::graphs_type);
+    auto previous_options = READ_SETTING(output_default_options, default_config::default_options_type);
     
     Output::Library::remove_calculation_options();
     
-    auto previous_output_frame_window = SETTING(output_frame_window).value<uint32_t>();
-    auto output_tracklet_images = SETTING(output_tracklet_images).value<bool>();
-    auto output_format = SETTING(output_format).value<default_config::output_format_t::Class>();
-    auto output_posture_data = SETTING(output_posture_data).value<bool>();
-    auto output_min_frames = SETTING(output_min_frames).value<uint16_t>();
-    auto no_tracking_data = SETTING(auto_no_tracking_data).value<bool>();
-    auto auto_no_memory_stats = SETTING(auto_no_memory_stats).value<bool>();
+    auto previous_output_frame_window = READ_SETTING(output_frame_window, uint32_t);
+    auto output_tracklet_images = BOOL_SETTING(output_tracklet_images);
+    auto output_format = READ_SETTING(output_format, default_config::output_format_t::Class);
+    auto output_posture_data = BOOL_SETTING(output_posture_data);
+    auto output_min_frames = READ_SETTING(output_min_frames, uint16_t);
+    auto no_tracking_data = BOOL_SETTING(auto_no_tracking_data);
+    auto auto_no_memory_stats = BOOL_SETTING(auto_no_memory_stats);
     
     const auto normalize = default_config::valid_individual_image_normalization();
     
     if(no_tracking_data) {
         FormatWarning("Not saving tracking data because of 'auto_no_tracking_data' flag being set.");
     }
-    //auto calculate_posture = SETTING(calculate_posture).value<bool>();
+    //auto calculate_posture = BOOL_SETTING(calculate_posture);
     
     const Size2 output_size = SETTING(individual_image_size);
-    const bool do_normalize_tracklets = SETTING(tracklet_normalize).value<bool>();
-    const bool do_normalize_output = SETTING(output_normalize_midline_data).value<bool>();
+    const bool do_normalize_tracklets = BOOL_SETTING(tracklet_normalize);
+    const bool do_normalize_output = BOOL_SETTING(output_normalize_midline_data);
     const uint16_t tracklet_max_images = SETTING(tracklet_max_images);
     
-    auto data_prefix = SETTING(data_prefix).value<file::Path>();
+    auto data_prefix = READ_SETTING(data_prefix, file::Path);
     auto fishdata = file::DataLocation::parse("output", data_prefix);
     if(!fishdata.exists())
         if(!fishdata.create_folder())
             throw U_EXCEPTION("Cannot create folder ",fishdata.str()," for saving fishdata.");
     
-    file::Path input = SETTING(filename).value<file::Path>().filename();
+    file::Path input = READ_SETTING(filename, file::Path).filename();
     if(input.has_extension("pv"))
         input = input.remove_extension();
     
@@ -213,14 +213,14 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
     struct ResetOutputFields {
         std::vector<std::pair<std::string, std::vector<std::string>>> original_output_fields;
         ResetOutputFields() {
-            original_output_fields = SETTING(output_fields).value<decltype(original_output_fields)>();
+            original_output_fields = READ_SETTING(output_fields, decltype(original_output_fields));
         }
         ~ResetOutputFields() {
             SETTING(output_fields) = original_output_fields;
         }
     } reset_output_fields;
     
-    if (auto detect_classes = SETTING(detect_classes).value<blob::MaybeObjectClass_t>();
+    if (auto detect_classes = READ_SETTING(detect_classes, blob::MaybeObjectClass_t);
         detect_classes.has_value()
         && not detect_classes->empty())
     {
@@ -398,9 +398,9 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                                 cnpy::npz_save(use_path.str(), "cm_per_pixel", std::vector<double>{FAST_SETTING(cm_per_pixel)}, "a");
                                 cnpy::npz_save(use_path.str(), "id", std::vector<size_t>{fish->identity().ID().get()}, "a");
                                 cnpy::npz_save(use_path.str(), "frame_rate", std::vector<double>{(double)FAST_SETTING(frame_rate)}, "a");
-                                cnpy::npz_save(use_path.str(), "detect_type", std::vector<uint32_t>{(uint32_t)SETTING(detect_type).value<track::detect::ObjectDetectionType_t>()}, "a");
-                                cnpy::npz_save(use_path.str(), "detect_format", std::vector<uint32_t>{(uint32_t)SETTING(detect_format).value<track::detect::ObjectDetectionFormat_t>()}, "a");
-                                auto video_size = SETTING(video_size).value<Size2>();
+                                cnpy::npz_save(use_path.str(), "detect_type", std::vector<uint32_t>{(uint32_t)READ_SETTING(detect_type, track::detect::ObjectDetectionType_t)}, "a");
+                                cnpy::npz_save(use_path.str(), "detect_format", std::vector<uint32_t>{(uint32_t)READ_SETTING(detect_format, track::detect::ObjectDetectionFormat_t)}, "a");
+                                auto video_size = READ_SETTING(video_size, Size2);
                                 cnpy::npz_save(use_path.str(), "video_size", std::vector<double>{
                                     video_size.width,
                                     video_size.height
@@ -710,7 +710,7 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                 }
                 
             } else {
-                FormatWarning("Not exporting individual ",fish->identity().ID()," because it only has ",fish->frame_count(),"/",SETTING(output_min_frames).value<uint16_t>()," frames.");
+                FormatWarning("Not exporting individual ",fish->identity().ID()," because it only has ",fish->frame_count(),"/",READ_SETTING(output_min_frames, uint16_t)," frames.");
             }
         };
         
@@ -803,8 +803,8 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                     items,
                     vi_probabilities.size() / items
                 }, "w");
-                Print("Saved vi predictions at ", use_path,".");
             });
+            Print("Saved vi predictions at ", path,".");
         }
         
         if(BOOL_SETTING(output_heatmaps)) {
@@ -905,7 +905,7 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
             std::vector<uint64_t> frame_segment_indexes;
             std::vector<uint32_t> frame_segment_Nx2;
             std::vector<long_t> all_ranges, single_frames, single_ids, split_frames, split_ids;
-            const bool tracklet_force_normal_color = SETTING(tracklet_force_normal_color).value<bool>();
+            const bool tracklet_force_normal_color = BOOL_SETTING(tracklet_force_normal_color);
             
             const auto encoding = Background::meta_encoding();
             const uint8_t exp_channels = required_storage_channels(encoding);

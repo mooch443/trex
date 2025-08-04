@@ -20,8 +20,8 @@ namespace cmn::settings {
 void initialize_filename_for_tracking() {
     file::Path path;
     
-    if(not SETTING(filename).value<file::Path>().empty()) {
-        path = SETTING(filename).value<file::Path>();
+    if(not READ_SETTING(filename, file::Path).empty()) {
+        path = READ_SETTING(filename, file::Path);
     } else {
         path = GlobalSettings::read([](const Configuration& config){
             return settings::find_output_name(config.values);
@@ -40,7 +40,7 @@ void initialize_filename_for_tracking() {
     if(path.is_regular()) {
         SETTING(filename) = path.remove_extension();
         
-    } else if(auto source = SETTING(source).value<file::PathArray>();
+    } else if(auto source = READ_SETTING(source, file::PathArray);
               source.size() == 1
               && ((source.get_paths().front().is_regular()
                    && source.get_paths().front().has_extension("pv"))
@@ -54,7 +54,7 @@ void initialize_filename_for_tracking() {
         SETTING(filename) = file::Path(path);
         
     } else {
-        throw U_EXCEPTION("Cannot find the file ", path, " and nothing in ", SETTING(source).value<file::PathArray>()," seems to be a .pv file.");
+        throw U_EXCEPTION("Cannot find the file ", path, " and nothing in ", READ_SETTING(source, file::PathArray)," seems to be a .pv file.");
     }
 }
 
@@ -337,7 +337,7 @@ void LoadContext::init_filename() {
             
             /// check whether the directory contains the *output_prefix*
             /// if so then we need to remove it:
-            if(auto output_prefix = SETTING(output_prefix).value<std::string>();
+            if(auto output_prefix = READ_SETTING(output_prefix, std::string);
                not output_prefix.empty()
                && output_dir.filename() == output_prefix)
             {

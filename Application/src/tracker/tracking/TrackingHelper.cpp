@@ -482,7 +482,7 @@ double TrackingHelper::process_postures() {
     static auto _statistics_mutex = LOGGED_MUTEX("TrackingHelper::statistics_mutex");
     
     if(CACHE_SETTING(calculate_posture) && !_manager.need_postures.empty()) {
-        const auto pose_midline_indexes = SETTING(pose_midline_indexes).value<PoseMidlineIndexes>();
+        const auto pose_midline_indexes = READ_SETTING(pose_midline_indexes, PoseMidlineIndexes);
         
         std::vector<std::tuple<Individual*, BasicStuff*, pv::BlobPtr>> posture_store;
         posture_store.reserve(_manager.need_postures.size());
