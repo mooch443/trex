@@ -410,7 +410,7 @@ namespace track {
         //! Rotates the midline so that the angle between the first and 0.2*size
         //  point is zero (horizontal). That's the rigid part (hopefully).
         //static const Midline* normalized_midline();
-        tl::expected<Midline::Ptr, const char*> calculate_midline(const DebugInfo& info);
+        std::expected<Midline::Ptr, const char*> calculate_midline(const DebugInfo& info);
         
         virtual void minimize_memory() override;
         
@@ -435,13 +435,13 @@ namespace track {
         
         //void calculate_slope(size_t index);
         void calculate_curvature(size_t index);
-        tl::expected<std::tuple<long_t, long_t>, const char*> offset_to_middle(const DebugInfo& info);
+        std::expected<std::tuple<long_t, long_t>, const char*> offset_to_middle(const DebugInfo& info);
         
         //! Smooth the curvature array.
         std::vector<Float2_t> smoothed_curvature_array(Float2_t& max_curvature) const;
         
         //! Tries to find the tail by looking at the outline/curvature.
-        tl::expected<long_t, const char*> find_tail(const DebugInfo& info);
+        std::expected<long_t, const char*> find_tail(const DebugInfo& info);
         
         friend Midline::Midline();
         

@@ -141,7 +141,7 @@ void Yolo7InstanceSegmentation::receive(std::vector<Vec2> offsets, SegmentationD
     }
 }
 
-tl::expected<SegmentationData, const char*> Yolo7InstanceSegmentation::apply(TileImage&& tiled) {
+std::expected<SegmentationData, const char*> Yolo7InstanceSegmentation::apply(TileImage&& tiled) {
     namespace py = Python;
     
     Vec2 scale = READ_SETTING(output_size, Size2).div(tiled.source_size);

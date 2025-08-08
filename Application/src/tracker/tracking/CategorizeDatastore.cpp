@@ -311,7 +311,7 @@ Sample::Ptr DataStore::random_sample(std::weak_ptr<pv::File> source, Idx_t fid) 
         const auto min_len = FAST_SETTING(categories_train_min_tracklet_length);
         return sample(source, tracklet, fish, 150u, min_len);
         
-    }).or_else([](auto) -> tl::expected<Sample::Ptr, const char*> {
+    }).or_else([](auto) -> std::expected<Sample::Ptr, const char*> {
         return Sample::Invalid();
     }).value();
 }
@@ -497,7 +497,7 @@ Label::Ptr DataStore::label_averaged(Idx_t fish, Frame_t frame) {
     return IndividualManager::transform_if_exists(fish, [frame](auto fish){
         return label_averaged(fish, frame);
         
-    }).or_else([](auto) -> tl::expected<Label::Ptr, const char*> {
+    }).or_else([](auto) -> std::expected<Label::Ptr, const char*> {
         //Print("Individual ",fish._identity," not found: ", error);
         return nullptr;
         
@@ -656,7 +656,7 @@ Label::Ptr DataStore::label_interpolated(Idx_t fish, Frame_t frame) {
     return IndividualManager::transform_if_exists(fish, [frame](auto fish){
         return label_interpolated(fish, frame);
         
-    }).or_else([](auto) -> tl::expected<Label::Ptr, const char*> {
+    }).or_else([](auto) -> std::expected<Label::Ptr, const char*> {
         //Print("Individual ",fish._identity," not found: ", error);
         return nullptr;
         

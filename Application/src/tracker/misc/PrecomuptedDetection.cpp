@@ -17,7 +17,7 @@ struct PrecomputedDetection::Data {
     gpuMat _float_average;
     std::optional<Background> _background;
     
-    std::optional<std::future<tl::expected<PrecomputedDetectionCache, std::string>>> _frame_data_loader;
+    std::optional<std::future<std::expected<PrecomputedDetectionCache, std::string>>> _frame_data_loader;
     
     
     void set(Image::Ptr&&, meta_encoding_t::Class);
@@ -74,7 +74,7 @@ struct PrecomputedDetection::Data {
         _samples++;
     }
     
-    tl::expected<PrecomputedDetectionCache, std::string> preload_file();
+    std::expected<PrecomputedDetectionCache, std::string> preload_file();
 };
 
 
@@ -745,7 +745,7 @@ void PrecomputedDetection::apply(std::vector<TileImage> &&tiled) {
     }
 }
 
-tl::expected<PrecomputedDetectionCache, std::string> PrecomputedDetection::Data::preload_file() {
+std::expected<PrecomputedDetectionCache, std::string> PrecomputedDetection::Data::preload_file() {
     if(not _filename.has_value())
         throw RuntimeError("No filename has been set for precomputed detection. Please set the `detect_precomputed_file` parameter.");
     
@@ -759,7 +759,7 @@ tl::expected<PrecomputedDetectionCache, std::string> PrecomputedDetection::Data:
         Print("* Done loading ", path,".");
     }
     
-    return tl::unexpected("Was not able to load any detection cache files from "+Meta::toStr(_filename)+".");
+    return std::unexpected("Was not able to load any detection cache files from "+Meta::toStr(_filename)+".");
 }
 
 

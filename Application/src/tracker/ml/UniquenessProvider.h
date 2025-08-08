@@ -52,17 +52,17 @@ public:
     [[nodiscard]] const std::optional<std::string>& last_error() const noexcept;
 
     /** Summary of the last run: `std::nullopt` while busy / before first run.
-     *  • `tl::expected<VIWeights,std::string>{weights}`  on success
-     *  • `tl::unexpected<std::string>{msg}`              on error
+     *  • `std::expected<VIWeights,std::string>{weights}`  on success
+     *  • `std::unexpected<std::string>{msg}`              on error
      */
-    [[nodiscard]] const std::optional<tl::expected<track::vi::VIWeights,
+    [[nodiscard]] const std::optional<std::expected<track::vi::VIWeights,
                                                    std::string>>&
     uniqueness_origin() const noexcept;
 
     /**
      * @brief Convenience: fetch point vector only if a *valid* result is ready.
      *
-     * @return `tl::expected<const std::vector<Vec2>&, std::string>`
+     * @return `std::expected<const std::vector<Vec2>&, std::string>`
      *         • **value**   – reference to internal `_points` when a result is present,
      *                          the provider is *not* busy, and no error occurred.
      *         • **error**   – explanatory message otherwise.
@@ -70,7 +70,7 @@ public:
      * Thread‑safe and zero‑copy; the caller must *not* modify the returned vector.
      */
     [[nodiscard]]
-    tl::expected<std::vector<cmn::Vec2>, std::string>
+    std::expected<std::vector<cmn::Vec2>, std::string>
     points_if_ready() const noexcept;
 
     /** Forget everything – next call to `request_update()` recomputes.       */
@@ -100,7 +100,7 @@ private:
     std::mutex                     _samples_mutex;
     std::optional<Samples>         _samples;
 
-    std::optional<tl::expected<track::vi::VIWeights, std::string>> _uniqueness_origin;
+    std::optional<std::expected<track::vi::VIWeights, std::string>> _uniqueness_origin;
     
     
     /** @return `true` while the worker thread is still crunching numbers.    */

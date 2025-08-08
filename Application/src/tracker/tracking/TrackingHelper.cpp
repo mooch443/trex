@@ -150,7 +150,7 @@ void TrackingHelper::apply_manual_matches()
         }, std::move(actually_assign), [frameIndex](pv::bid, Idx_t, Individual* fish) {
             fish->add_manual_match(frameIndex);
             
-        }, [frameIndex](pv::bid bdx, Idx_t fdx, Individual*, const char* error) {
+        }, [frameIndex](pv::bid bdx, Idx_t fdx, Individual*, std::string_view error) {
             FormatExcept("Cannot assign ", fdx, " to ", bdx, " in frame ", frameIndex, " reporting: ", error);
         });
     }
@@ -259,8 +259,8 @@ void TrackingHelper::apply_manual_matches()
             fish->add_manual_match(frameIndex);
             identities.insert(FOI::fdx_t(fdx));
             
-        }, [frameIndex](pv::bid bdx, Idx_t fdx, Individual*, const char* error) {
-            FormatExcept("Cannot assign ", fdx, " to ", bdx, " in frame ", frameIndex, " reporting: ", error);
+        }, [frameIndex](pv::bid bdx, Idx_t fdx, Individual*, auto error) {
+            FormatExcept("Cannot assign ", fdx, " to ", bdx, " in frame ", frameIndex, " reporting: ", no_quotes(error));
         });
         
         FOI::add(FOI(frameIndex, identities, "failed matches"));
@@ -314,9 +314,9 @@ void TrackingHelper::apply_automatic_matches() {
         fish->add_automatic_match(frameIndex);
     }
 #ifndef NDEBUG
-    , [frameIndex, this](pv::bid bdx, Idx_t fdx, Individual*, const char* error) {
+    , [frameIndex, this](pv::bid bdx, Idx_t fdx, Individual*, auto error) {
 
-            FormatError("frame ",frameIndex,": Automatic assignment cannot be executed with fdx ",fdx,"(", _manager.fish_assigned(fdx) ? "assigned" : "unassigned",") and bdx ",bdx,"(",bdx.valid() ? (_manager.blob_assigned(bdx) ? "assigned" : "unassigned") : "no blob","): ", error);
+            FormatError("frame ",frameIndex,": Automatic assignment cannot be executed with fdx ",fdx,"(", _manager.fish_assigned(fdx) ? "assigned" : "unassigned",") and bdx ",bdx,"(",bdx.valid() ? (_manager.blob_assigned(bdx) ? "assigned" : "unassigned") : "no blob","): ", no_quotes(error));
       }
 #endif
     );
@@ -420,7 +420,7 @@ void TrackingHelper::apply_matching() {
                 }
             }
 #endif
-        }, [frameIndex](pv::bid bdx, Idx_t fdx, Individual*, const char* error) {
+        }, [frameIndex](pv::bid bdx, Idx_t fdx, Individual*, auto error) {
             FormatExcept("Cannot assign ", fdx, " to ", bdx, " in frame ", frameIndex, " reporting: ", error);
         });
         
@@ -461,8 +461,8 @@ void TrackingHelper::apply_matching() {
         }, std::move(optimal.pairings), [&](pv::bid, Idx_t, Individual*)
         {
             
-        }, [frameIndex](pv::bid bdx, Idx_t fdx, Individual*, const char* error) {
-            FormatExcept("Cannot assign ", fdx, " to ", bdx, " in frame ", frameIndex, " reporting: ", error);
+        }, [frameIndex](pv::bid bdx, Idx_t fdx, Individual*, auto error) {
+            FormatExcept("Cannot assign ", fdx, " to ", bdx, " in frame ", frameIndex, " reporting: ", no_quotes(error));
         });
         
         _approximative_enabled_in_frame = frameIndex;

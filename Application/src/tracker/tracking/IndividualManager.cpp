@@ -174,7 +174,7 @@ IndividualManager::expected_individual_t IndividualManager::individual_by_id(Idx
     //std::shared_lock guard(individual_mutex);
     auto it = _individuals.find(fdx);
     if(it == _individuals.end())
-        return tl::unexpected("Cannot find individual in global map.");
+        return std::unexpected("Cannot find individual in global map.");
     return it->second.get();
 }
 
@@ -344,7 +344,7 @@ IndividualManager::expected_individual_t IndividualManager::retrieve_globally(Id
         _current.insert(fish);
         return fish;
         
-    }).or_else([this, fdx](const char*)
+    }).or_else([this, fdx](auto)
         -> expected_individual_t
     {
         if(SLOW_SETTING(track_max_individuals) > 0
@@ -356,7 +356,7 @@ IndividualManager::expected_individual_t IndividualManager::retrieve_globally(Id
             return fish;
             
         } else
-            return tl::unexpected("Cannot find the individual in the global map.");
+            return std::unexpected("Cannot find the individual in the global map.");
         
     });
     
@@ -375,7 +375,7 @@ IndividualManager::expected_individual_t IndividualManager::retrieve_inactive(Id
         if(track_max_individuals != 0
            && num_individuals() >= track_max_individuals)
         {
-            return tl::unexpected("Cannot create more individuals than `track_max_individuals` allows.");
+            return std::unexpected("Cannot create more individuals than `track_max_individuals` allows.");
         }
         
         fish = make_individual(ID);
@@ -393,7 +393,7 @@ IndividualManager::expected_individual_t IndividualManager::retrieve_inactive(Id
         );*/
         
         if(result == track::inactive_individuals.end())
-            return tl::unexpected("Specified ID cannot be found in inactive_individuals.");
+            return std::unexpected("Specified ID cannot be found in inactive_individuals.");
         
         fish = result->second;
         track::inactive_individuals.erase(result);
@@ -411,16 +411,16 @@ IndividualManager::expected_individual_t IndividualManager::retrieve_inactive(Id
     return fish;
 }
 
-tl::expected<set_of_individuals_t*, const char*> IndividualManager::active_individuals(Frame_t frame) noexcept
+std::expected<set_of_individuals_t*, const char*> IndividualManager::active_individuals(Frame_t frame) noexcept
 {
     if(not frame.valid())
-        return tl::unexpected("Given frame is invalid.");
+        return std::unexpected("Given frame is invalid.");
     //std::scoped_lock scoped(global_mutex);
     //assert(LockGuard::owns_read());
     auto it = track::all_frames.find(frame);
     if(it != track::all_frames.end())
         return it->second.get();
-    return tl::unexpected("Cannot find the given frame in all_frames.");
+    return std::unexpected("Cannot find the given frame in all_frames.");
 }
 
 bool IndividualManager::is_active(Individual * fish) const noexcept {

@@ -15,7 +15,7 @@ PVVideoSource::~PVVideoSource() {
     quit();
 }
 
-tl::expected<std::tuple<Frame_t, useMatPtr_t>, std::string> PVVideoSource::fetch_next() {
+std::expected<std::tuple<Frame_t, useMatPtr_t>, std::string> PVVideoSource::fetch_next() {
     try {
         if(not i.valid())
             i = 0_f;
@@ -23,7 +23,7 @@ tl::expected<std::tuple<Frame_t, useMatPtr_t>, std::string> PVVideoSource::fetch
             if(_loop.load() && i > 0_f)
                 i = 0_f;
             else
-                return tl::unexpected("EOF");
+                return std::unexpected("EOF");
         }
 
         auto index = i++;
@@ -48,7 +48,7 @@ tl::expected<std::tuple<Frame_t, useMatPtr_t>, std::string> PVVideoSource::fetch
         catch (const std::exception &ex) {
             static thread_local std::string err_message;
             err_message = ex.what();
-            return tl::unexpected(err_message.c_str());
+            return std::unexpected(err_message.c_str());
         }
 
         //if (detection_type() != ObjectDetectionType::yolo)
@@ -60,7 +60,7 @@ tl::expected<std::tuple<Frame_t, useMatPtr_t>, std::string> PVVideoSource::fetch
         return std::make_tuple(index, std::move(buffer));
     }
     catch (const std::exception& e) {
-        return tl::unexpected(e.what());
+        return std::unexpected(e.what());
     }
 }
 

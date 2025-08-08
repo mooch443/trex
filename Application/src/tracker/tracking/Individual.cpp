@@ -2491,7 +2491,7 @@ void Individual::save_posture(const BasicStuff& basic,
     auto direction = c->v();
     direction /= ::length(direction);*/
     
-    tl::expected<posture::Result, const char*> result = tl::unexpected("Unknown state, cannot calculate posture.");
+    std::expected<posture::Result, const char*> result = std::unexpected("Unknown state, cannot calculate posture.");
     
     assert(pixels);
     if(not pixels->prediction().pose.empty()) {

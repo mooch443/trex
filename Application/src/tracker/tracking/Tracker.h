@@ -81,7 +81,7 @@ public:
     
     void set_vi_data(const decltype(_vi_predictions)& predictions);
     void predicted(Frame_t, pv::bid, std::span<float>);
-    tl::expected<ska::bytell_hash_map<pv::bid, std::vector<float>>, const char*> get_prediction(Frame_t) const;
+    std::expected<ska::bytell_hash_map<pv::bid, std::vector<float>>, const char*> get_prediction(Frame_t) const;
     const std::vector<float>& get_prediction(Frame_t, pv::bid) const;
     const std::vector<float>* find_prediction(Frame_t, pv::bid) const;
     

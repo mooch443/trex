@@ -15,7 +15,7 @@ WebcamVideoSource::~WebcamVideoSource() {
     quit();
 }
 
-tl::expected<std::tuple<Frame_t, useMatPtr_t>, UnexpectedError_t> WebcamVideoSource::fetch_next() {
+std::expected<std::tuple<Frame_t, useMatPtr_t>, UnexpectedError_t> WebcamVideoSource::fetch_next() {
     try {
         if (not i.valid()) {
             i = 0_f;
@@ -54,7 +54,7 @@ tl::expected<std::tuple<Frame_t, useMatPtr_t>, UnexpectedError_t> WebcamVideoSou
         
         if(not result) {
             move_back(std::move(buffer));
-            return tl::unexpected("Cannot retrieve webcam frame after several tries.");
+            return std::unexpected("Cannot retrieve webcam frame after several tries.");
         }
         
         {
@@ -66,10 +66,10 @@ tl::expected<std::tuple<Frame_t, useMatPtr_t>, UnexpectedError_t> WebcamVideoSou
         return std::make_tuple(index, std::move(buffer));
     }
     catch (const std::exception& e) {
-        return tl::unexpected(e.what());
+        return std::unexpected(e.what());
     }
     
-    return tl::unexpected("Cannot retrieve webcam frame.");
+    return std::unexpected("Cannot retrieve webcam frame.");
 }
 
 std::string WebcamVideoSource::toStr() const {

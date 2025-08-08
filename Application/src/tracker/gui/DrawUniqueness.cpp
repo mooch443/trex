@@ -29,7 +29,7 @@ struct DrawUniqueness::Data {
     std::vector<Vec2> uniquenesses;
     std::optional<std::future<void>> running;
     std::optional<track::vi::VIWeights> last_origin;
-    std::optional<tl::expected<track::vi::VIWeights, std::string>> uniqueness_origin;
+    std::optional<std::expected<track::vi::VIWeights, std::string>> uniqueness_origin;
     Frame_t frameNr;
 
     std::map<long_t, float> smooth_points;

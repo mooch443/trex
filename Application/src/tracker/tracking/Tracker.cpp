@@ -252,14 +252,14 @@ const std::vector<float>& Tracker::get_prediction(Frame_t frame, pv::bid bdx) co
     return *ptr;
 }
 
-tl::expected<ska::bytell_hash_map<pv::bid, std::vector<float>>, const char*> Tracker::get_prediction(Frame_t frame) const {
+std::expected<ska::bytell_hash_map<pv::bid, std::vector<float>>, const char*> Tracker::get_prediction(Frame_t frame) const {
     if(not frame.valid())
-        return tl::unexpected("Frame is invalid in get_prediction.");
+        return std::unexpected("Frame is invalid in get_prediction.");
     
     std::shared_lock g(_vi_mutex);
     auto it = _vi_predictions.find(frame);
     if(it == _vi_predictions.end())
-        return tl::unexpected("Cannot find frame.");
+        return std::unexpected("Cannot find frame.");
     
     return it->second;
 }
@@ -1643,9 +1643,9 @@ void Tracker::collect_matching_cliques(TrackingHelper& s, GenericThreadPool& thr
                         .settings = &s.cache()
                     }, std::move(optimal.pairings), [](pv::bid, Idx_t, Individual*)
                     {},
-                    [frameIndex](pv::bid bdx, Idx_t fdx, Individual*, const char* error)
+                    [frameIndex](pv::bid bdx, Idx_t fdx, Individual*, auto error)
                     {
-                        FormatExcept("Cannot assign ", fdx, " to ", bdx, " in frame ", frameIndex, " reporting: ", error);
+                        FormatExcept("Cannot assign ", fdx, " to ", bdx, " in frame ", frameIndex, " reporting: ", no_quotes(error));
                     });
                 }
                 catch (...) {
@@ -1816,11 +1816,11 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
         }, unassigned_blobs, [](pv::bid, Individual*) {
             // nothing
             //Print("Assigned inactive ", bdx, " to ", fish);
-        }, [frameIndex](pv::bid bdx, Individual* fish, const char* error) {
+        }, [frameIndex](pv::bid bdx, Individual* fish, auto error) {
             if(!fish)
-                throw U_EXCEPTION(frameIndex, ": Cannot create individual for blob ", bdx, ". Reason: ", error);
+                throw U_EXCEPTION(frameIndex, ": Cannot create individual for blob ", bdx, ". Reason: ", no_quotes(error));
             else {
-                FormatWarning(frameIndex, ": Cannot assign individual ", fish," with blob ", bdx," because ", error);
+                FormatWarning(frameIndex, ": Cannot assign individual ", fish," with blob ", bdx," because ", no_quotes(error));
             }
         });
         
@@ -1942,8 +1942,8 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
                 
                 PPFrame::Log("\t *accepting ", bdx, " -> ", fdx);
                 
-            }, [frameIndex](pv::bid bdx, Idx_t fdx, Individual*, const char* error) {
-                throw U_EXCEPTION(frameIndex, ": Cannot assign individual ", fdx," to blob ", bdx, ". Reason: ", error);
+            }, [frameIndex](pv::bid bdx, Idx_t fdx, Individual*, auto error) {
+                throw U_EXCEPTION(frameIndex, ": Cannot assign individual ", fdx," to blob ", bdx, ". Reason: ", no_quotes(error));
             });
 
             pairs = std::move(g.paired());
@@ -3256,8 +3256,9 @@ void Tracker::set_vi_data(const decltype(_vi_predictions)& predictions) {
                             manual_splits[tracklet.start()].insert(blob->parent_id);
                     }
                     
-                }).or_else([tid](auto message){
-                    FormatWarning("Cannot find individual with ID ", tid, ": ", message);
+                }).transform_error([tid](auto message){
+                    FormatWarning("Cannot find individual with ID ", tid, ": ", no_quotes(message));
+                    return message;
                 });
             }
             
@@ -3327,8 +3328,9 @@ void Tracker::set_vi_data(const decltype(_vi_predictions)& predictions) {
                     assert(Frame_t(blob_ids.size()) == tracklet.range.end - tracklet.range.start + 1_f);
                     AutoAssign::add_assigned_range(tmp_assigned_ranges, fdx, tracklet.range, std::move(blob_ids));
                     
-                }).or_else([tid](auto message) {
-                    FormatWarning("Cannot find individual with ID ", tid, ": ", message);
+                }).transform_error([tid](auto message) {
+                    FormatWarning("Cannot find individual with ID ", tid, ": ", no_quotes(message));
+                    return message;
                 });
             }
         }

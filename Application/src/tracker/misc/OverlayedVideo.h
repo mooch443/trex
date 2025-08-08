@@ -16,7 +16,7 @@ class BasicProcessor {
     GETTER(std::unique_ptr<AbstractBaseVideoSource>, source);  // Video source
 public:
     // Type alias for the result of an asynchronous network call
-    using AsyncResult = tl::expected<std::tuple<Frame_t, std::future<SegmentationData>>, UnexpectedError_t>;
+    using AsyncResult = std::expected<std::tuple<Frame_t, std::future<SegmentationData>>, UnexpectedError_t>;
 
     BasicProcessor() = default;
     BasicProcessor(const BasicProcessor&) = delete;
@@ -103,7 +103,7 @@ public:
         std::scoped_lock guard(_index_mutex);
         Frame_t loaded_frame;
         if(not _source)
-            return tl::unexpected("Video source is null.");
+            return std::unexpected("Video source is null.");
         
         try {
             Timer timer_;
@@ -113,7 +113,7 @@ public:
             // => here (ApplyProcessor)
             auto maybe_image = _source->next();
             if(not maybe_image)
-                return tl::unexpected(maybe_image.error());
+                return std::unexpected(maybe_image.error());
 
             auto& [nix, buffer, image] = maybe_image.value();
             loaded_frame = nix + 1_f;
@@ -173,7 +173,7 @@ public:
                 error_msg = error_msg.substr(0u, max_len / 2u) + "[...]" + error_msg.substr(error_msg.length() - max_len / 2u - 1u);
             }
             static std::string error = "Error loading frame " + Meta::toStr(loaded_frame) + " from video " + Meta::toStr(*_source) + ": " + error_msg;
-            return tl::unexpected(error.c_str());
+            return std::unexpected(error.c_str());
         }
     }
 
@@ -189,7 +189,7 @@ public:
     // Generates the next frame and applies the processing function on it
     AsyncResult generate() noexcept override {
         //if (eof())
-        //    return tl::unexpected("End of file reached.");
+        //    return std::unexpected("End of file reached.");
         return _async_queue.next();
     }
 

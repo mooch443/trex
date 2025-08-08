@@ -57,7 +57,7 @@ public:
              typename F, typename ErrorF>
         requires is_container<Vector<Args...>>::value
               && AnyTransformer<F, pv::bid, Individual*>
-              && AnyTransformer<ErrorF, pv::bid, Individual*, const char*>
+              && AnyTransformer<ErrorF, pv::bid, Individual*, std::string_view>
     void assign_to_inactive(AssignInfo&& info,
                 Vector<pv::bid, Args...>& map,
                 F&& apply,
@@ -104,13 +104,13 @@ public:
                 Map&& map,
                 F&& apply)
     {
-        assign(std::move(info), std::move(map), std::move(apply), [](pv::bid, Idx_t, Individual*, const char*){});
+        assign(std::move(info), std::move(map), std::move(apply), [](pv::bid, Idx_t, Individual*, std::string_view){});
     }
     
     template<bool safe = true, class Map,
              typename F, typename ErrorF>
         requires AnyTransformer<F, pv::bid, Idx_t, Individual*>
-              && VoidTransformer<ErrorF, pv::bid, Idx_t, Individual*, const char*>
+              && VoidTransformer<ErrorF, pv::bid, Idx_t, Individual*, std::string_view>
               && is_map<std::remove_cvref_t<Map>>::value
     void assign(AssignInfo&& info,
                 Map&& map,
@@ -204,7 +204,7 @@ public:
     
     template<class Vector, typename F, typename ErrorF, typename Tuple_t = typename std::remove_cvref_t<Vector>::value_type>
         requires AnyTransformer<F, pv::bid, Idx_t>
-              && VoidTransformer<ErrorF, pv::bid, Idx_t, const char*>
+              && VoidTransformer<ErrorF, pv::bid, Idx_t, std::string_view>
               && is_container<std::remove_cvref_t<Vector>>::value
               && is_tuple_v<Tuple_t>
     void assign(AssignInfo&& info,
@@ -267,7 +267,7 @@ public:
     }
     
 public:
-    using expected_individual_t = tl::expected<Individual*, const char*>;
+    using expected_individual_t = std::expected<Individual*, std::string_view>;
     
     IndividualManager(const PPFrame&);
     ~IndividualManager();
@@ -299,7 +299,7 @@ protected:
     void become_active(Individual*);
     
 public:
-    [[nodiscard]] static tl::expected<set_of_individuals_t*, const char*> active_individuals(Frame_t) noexcept;
+    [[nodiscard]] static std::expected<set_of_individuals_t*, const char*> active_individuals(Frame_t) noexcept;
     
     //! delete callback is called for each deleted individual, right before it is deleted
     static void remove_frames(Frame_t from, std::function<void(Individual*)>&& delete_callback = nullptr);
@@ -348,11 +348,11 @@ public:
     
     template<typename F, typename R = std::invoke_result_t<F, Individual*>>
         requires AnyTransformer<F, Individual*>
-    static auto transform_if_exists(Idx_t fdx, F&& fn) -> tl::expected<R, const char*> {
+    static auto transform_if_exists(Idx_t fdx, F&& fn) -> std::expected<R, std::string_view> {
         //std::scoped_lock slock(_global_mutex(), _individual_mutex());
         auto it = individuals().find(fdx);
         if(it == individuals().end()) {
-            return tl::unexpected("Cannot find individual ID.");
+            return std::unexpected("Cannot find individual ID.");
         }
         
         if constexpr(_clean_same<R, void>) {
@@ -390,8 +390,9 @@ public:
         }, pool, individuals().begin(), individuals().end());
     }
     
-    template<typename Key, typename Value, typename F, typename ErrorF, typename Map>   requires Transformer<F, Key, Value, Individual*>
-               && VoidTransformer<ErrorF, Key, Value>
+    template<typename Key, typename Value, typename F, typename ErrorF, typename Map>
+        requires Transformer<F, Key, Value, Individual*>
+                 && VoidTransformer<ErrorF, Key, Value>
     static void _transform_ids_with_error(Map&& ids, F&& fn, ErrorF&& error) {
         for(const auto &[id, value] : ids) {
             //std::scoped_lock slock(_global_mutex(), _individual_mutex());

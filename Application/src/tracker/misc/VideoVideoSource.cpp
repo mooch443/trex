@@ -13,7 +13,7 @@ VideoSourceVideoSource::~VideoSourceVideoSource() {
     quit();
 }
 
-tl::expected<std::tuple<Frame_t, useMatPtr_t>, UnexpectedError_t> VideoSourceVideoSource::fetch_next() {
+std::expected<std::tuple<Frame_t, useMatPtr_t>, UnexpectedError_t> VideoSourceVideoSource::fetch_next() {
     try {
         if(not i.valid())
             i = 0_f;
@@ -21,7 +21,7 @@ tl::expected<std::tuple<Frame_t, useMatPtr_t>, UnexpectedError_t> VideoSourceVid
             if(_loop.load() && i > 0_f)
                 i = 0_f;
             else
-                return tl::unexpected("EOF");
+                return std::unexpected("EOF");
         }
 
         auto index = i++;
@@ -44,7 +44,7 @@ tl::expected<std::tuple<Frame_t, useMatPtr_t>, UnexpectedError_t> VideoSourceVid
             source.frame(index, *buffer);
         }
         catch (const std::exception& ex) {
-            return tl::unexpected(ex.what());
+            return std::unexpected(ex.what());
         }
 
         //if (detection_type() != ObjectDetectionType::yolo) 
@@ -54,12 +54,12 @@ tl::expected<std::tuple<Frame_t, useMatPtr_t>, UnexpectedError_t> VideoSourceVid
         }*/
 
         if (not buffer || buffer->empty())
-            throw tl::unexpected("Failed to read frame");
+            throw std::unexpected("Failed to read frame");
         
         return std::make_tuple(index, std::move(buffer));
     }
     catch (const std::exception& e) {
-        return tl::unexpected(e.what());
+        return std::unexpected(e.what());
     }
 }
 

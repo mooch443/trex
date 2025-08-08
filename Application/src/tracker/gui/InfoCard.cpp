@@ -522,8 +522,9 @@ void InfoCard::update() {
                 _shadow->qrcode = tags::find(_shadow->frame, _shadow->blob.blob_id());
                     
                 
-            }).or_else([&](auto){
+            }).transform_error([&](auto message){
                 _shadow->fdx = Idx_t{};
+                return message;
             });
             
         }

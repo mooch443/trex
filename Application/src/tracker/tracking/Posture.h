@@ -36,9 +36,9 @@ struct Result {
     Midline::Ptr normalized_midline;
 };
 
-tl::expected<Result, const char*> calculate_posture(Frame_t, pv::BlobWeakPtr);
-tl::expected<Result, const char*> calculate_posture(Frame_t, const BasicStuff&, const blob::Pose &, const PoseMidlineIndexes &);
-tl::expected<Result, const char*> calculate_posture(Frame_t, const BasicStuff &, const blob::SegmentedOutlines&);
+std::expected<Result, const char*> calculate_posture(Frame_t, pv::BlobWeakPtr);
+std::expected<Result, const char*> calculate_posture(Frame_t, const BasicStuff&, const blob::Pose &, const PoseMidlineIndexes &);
+std::expected<Result, const char*> calculate_posture(Frame_t, const BasicStuff &, const blob::SegmentedOutlines&);
 
 }
 

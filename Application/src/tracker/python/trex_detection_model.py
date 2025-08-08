@@ -50,6 +50,7 @@ class StrippedResults:
         self.offset: np.ndarray = offset
         self.obb: Optional[np.ndarray] = None
         self.points: Optional[np.ndarray] = None
+        self.locations: Optional[np.ndarray] = None
 
     def __str__(self) -> str:
         return f"StrippedResults<boxes={self.boxes}, keypoints={self.keypoints}, orig_shape={self.orig_shape}, scale={self.scale}, offset={self.offset}, obb={self.obb}, points={self.points}>"

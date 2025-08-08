@@ -56,15 +56,15 @@ void AbstractBaseVideoSource::move_back(Image::Ptr&& ptr) {
     image_buffers.move_back(std::move(ptr));
 }
 
-tl::expected<std::tuple<Frame_t, useMatPtr_t, Image::Ptr>, UnexpectedError_t> AbstractBaseVideoSource::next() {
+std::expected<std::tuple<Frame_t, useMatPtr_t, Image::Ptr>, UnexpectedError_t> AbstractBaseVideoSource::next() {
     auto result = _resize_cvt.next();
     if (!result)
-        return tl::unexpected(result.error());
+        return std::unexpected(result.error());
     
     return std::move(result.value());
 }
 
-tl::expected<std::tuple<Frame_t, useMatPtr_t, Image::Ptr>, UnexpectedError_t> AbstractBaseVideoSource::fetch_next_process() {
+std::expected<std::tuple<Frame_t, useMatPtr_t, Image::Ptr>, UnexpectedError_t> AbstractBaseVideoSource::fetch_next_process() {
     try {
         Timer timer;
         // get image from 1. step (source.frame) => here (resize+cvtColor)
@@ -105,13 +105,13 @@ tl::expected<std::tuple<Frame_t, useMatPtr_t, Image::Ptr>, UnexpectedError_t> Ab
             return std::make_tuple(index, std::move(buffer), std::move(image));
             
         } else
-            return tl::unexpected(result.error());
+            return std::unexpected(result.error());
         //throw U_EXCEPTION("Unable to load frame: ", result.error());
         
     } catch(const std::exception& e) {
         auto desc = toStr();
         FormatExcept("Unable to load frame ", i, " from video source ", desc.c_str(), " because: ", e.what());
-        return tl::unexpected(e.what());
+        return std::unexpected(e.what());
     }
 }
 

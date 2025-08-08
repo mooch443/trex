@@ -451,11 +451,11 @@ inline std::tuple<bool, periodic::scalar_t> is_in_periodic_range(size_t period, 
     return {range.contains(x), x};
 }
 
-tl::expected<std::tuple<long_t, long_t>, const char*> Outline::offset_to_middle(const DebugInfo& info) {
+std::expected<std::tuple<long_t, long_t>, const char*> Outline::offset_to_middle(const DebugInfo& info) {
     assert(_concluded);
     static constexpr bool use_old_method = false;
     if(!_points || _points->empty()) {
-        return tl::unexpected("[offset_to_middle] Points were empty.");
+        return std::unexpected("[offset_to_middle] Points were empty.");
     }
     
     if(use_old_method) {
@@ -464,7 +464,7 @@ tl::expected<std::tuple<long_t, long_t>, const char*> Outline::offset_to_middle(
         // did not find a curvature to use as indication
         // of where the tail is
         if(not idx)
-            return tl::unexpected(idx.error());
+            return std::unexpected(idx.error());
         
         //assert(!_curvature.empty());
         //assert(_slope.empty());
@@ -516,7 +516,7 @@ tl::expected<std::tuple<long_t, long_t>, const char*> Outline::offset_to_middle(
         diffs = periodic::differentiate(*curv, 2);
            
         if(!curv) {
-            return tl::unexpected("Cannot calculate the curvature of the points array.");
+            return std::unexpected("Cannot calculate the curvature of the points array.");
         }
            
         
@@ -528,7 +528,7 @@ tl::expected<std::tuple<long_t, long_t>, const char*> Outline::offset_to_middle(
         auto && [maxima_ptr, minima_ptr] = periodic::find_peaks(curv, 0, diffs, mode);
         
         if(!maxima_ptr || !minima_ptr) {
-            return tl::unexpected("Cannot find both a minimum and a maximum peak");
+            return std::unexpected("Cannot find both a minimum and a maximum peak");
         }
         
         std::vector<Vec2> maxi;
@@ -714,7 +714,7 @@ tl::expected<std::tuple<long_t, long_t>, const char*> Outline::offset_to_middle(
         return std::make_tuple(_tail_index, _head_index);
     }
     
-    return tl::unexpected("Unknown error.");
+    return std::unexpected("Unknown error.");
 }
 
 int Outline::calculate_curvature_range(size_t number_points) {
@@ -765,7 +765,7 @@ void Outline::resample(const Float2_t resampling_distance) {
     *_points = resampled;
 }
 
-tl::expected<Midline::Ptr, const char*> Outline::calculate_midline(const DebugInfo& info) {
+std::expected<Midline::Ptr, const char*> Outline::calculate_midline(const DebugInfo& info) {
     if(OUTLINE_SETTING(outline_smooth_samples) > 0)
         smooth();
     
@@ -774,7 +774,7 @@ tl::expected<Midline::Ptr, const char*> Outline::calculate_midline(const DebugIn
     // offset all points so that the first point is the one with the highest curvature
     auto offset = offset_to_middle(info);
     if(not offset) {
-        return tl::unexpected(offset.error());
+        return std::unexpected(offset.error());
     }
     
     auto midline = std::make_unique<Midline>();
@@ -785,7 +785,7 @@ tl::expected<Midline::Ptr, const char*> Outline::calculate_midline(const DebugIn
     
     if(size() <= 1) {
         //Print("Empty outline (",frameIndex,").");
-        return tl::unexpected("Empty outline was given, cannot calculate midline.");
+        return std::unexpected("Empty outline was given, cannot calculate midline.");
     }
     
     // now find pairs for all the points
@@ -861,7 +861,7 @@ tl::expected<Midline::Ptr, const char*> Outline::calculate_midline(const DebugIn
     
     if(midline->segments().size() <= 2) {
         //_confidence = 0;
-        return tl::unexpected("Too few midline segments calculated.");
+        return std::unexpected("Too few midline segments calculated.");
     }
     
     return midline;
@@ -1511,7 +1511,7 @@ namespace Smaller {
 
 #include <misc/CircularGraph.h>
 
-tl::expected<long_t, const char*> Outline::find_tail(const DebugInfo&) {
+std::expected<long_t, const char*> Outline::find_tail(const DebugInfo&) {
     //static Timing timing("find_tail", 0.001);
     //TakeTiming take(timing);
     
@@ -1519,7 +1519,7 @@ tl::expected<long_t, const char*> Outline::find_tail(const DebugInfo&) {
     
     //if(!FAST_SETTING(midline_invert)) {
     if(not _points || _points->empty() || size() <= 3)
-        return tl::unexpected("The number of points is too small (<=3) to calculate a tail position.");
+        return std::unexpected("The number of points is too small (<=3) to calculate a tail position.");
     
     assert(_concluded);
     assert(!_curvature.empty());
@@ -1619,7 +1619,7 @@ tl::expected<long_t, const char*> Outline::find_tail(const DebugInfo&) {
    // idx = 0;
     
     if(idx == FLT_MAX) {
-        return tl::unexpected("Cannot find the tail since we cannot find a distinct curvature peak, given current settings.");
+        return std::unexpected("Cannot find the tail since we cannot find a distinct curvature peak, given current settings.");
     }
     
     return idx;

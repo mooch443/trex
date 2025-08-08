@@ -163,22 +163,24 @@ class StrippedYoloResults(StrippedResults):
         super().__init__(scale, offset)
 
         # Extract raw bounding boxes from the model output
-        if results.boxes is not None:
-            self.boxes = results.boxes.data.cpu().numpy()
+        boxes_attr = getattr(results, 'boxes', None)
+        if boxes_attr is not None:
+            self.boxes = boxes_attr.data.cpu().numpy()
             # Store original boxes array for later scaling
-        self.orig_shape = results.orig_shape
+        self.orig_shape = getattr(results, 'orig_shape', None)
 
         box = np.array([box[0], box[1]])
         box_offset = np.array([box[0], box[1]])
 
         # Process keypoints: scale valid keypoint coordinates
-        if results.keypoints is not None:
+        keypoints_attr = getattr(results, 'keypoints', None)
+        if keypoints_attr is not None:
             # keypoints: list of arrays of shape [num_objects, num_keypoints, 2]
             self.keypoints: List[np.ndarray] = []
-            #print(f"keypoints={results.keypoints}")
+            #print(f"keypoints={keypoints_attr}")
 
-            keys = results.keypoints.cpu().data[..., :2].numpy()
-            #print("keys=",keys.shape, results.keypoints.cpu())
+            keys = keypoints_attr.cpu().data[..., :2].numpy()
+            #print("keys=",keys.shape, keypoints_attr.cpu())
             if len(keys) > 0 and len(keys[0]):
                 # Scale and offset the keypoints, but leave out
                 # the ones where both X and Y are zero (invalid)
@@ -197,27 +199,29 @@ class StrippedYoloResults(StrippedResults):
 
         # Process oriented bounding boxes (OBB): 
         # extract, scale, and annotate with class and confidence
-        if results.obb is not None:
+        obb_attr = getattr(results, 'obb', None)
+        if obb_attr is not None:
             # obb: array of shape [num_obb, 7] after adding class and confidence
-            self.obb: np.ndarray = results.obb.data[:, :5].cpu().numpy()
+            self.obb: np.ndarray = obb_attr.data[:, :5].cpu().numpy()
             
             # Scale and offset the center coordinates of each OBB
             self.obb[:, :2] = (self.obb[:, :2] + offset + box_offset) * scale[0]
             self.obb[:, 2:4] = (self.obb[:, 2:4] + offset + box_offset) * scale[1]
 
             # insert column for confidence in the front
-            confs = results.obb.conf.cpu().numpy()
+            confs = obb_attr.conf.cpu().numpy()
             self.obb = np.insert(self.obb, 0, confs, axis=1)
 
             # insert column for class id in the front
-            ids = results.obb.cls.cpu().numpy()
+            ids = obb_attr.cls.cpu().numpy()
             self.obb = np.insert(self.obb, 0, ids, axis=1)
 
             # OBBs are now [class, confidence, x_center, y_center, width, height, angle]
             #TRex.log(f"OBB after scaling: {self.obb.shape} {self.obb.dtype} {self.obb}")
 
         # Process segmentation masks: crop, validate, resize, and store for each box
-        if results.masks is not None:
+        masks_attr = getattr(results, 'masks', None)
+        if masks_attr is not None:
             # masks: list of 2D numpy arrays corresponding to each box
             self.masks: List[np.ndarray] = []
 
@@ -234,24 +238,25 @@ class StrippedYoloResults(StrippedResults):
 
             # Unscale coordinates back to original image resolution
             # scale xy first and then wh:
-            new_size : np.ndarray = results.orig_shape * scale
-            unscaled[..., :2] = unscale_coords(results.masks.data.shape[1:], 
-                                               unscaled[..., :2], 
+            orig_shape_local = self.orig_shape if self.orig_shape is not None else np.array(masks_attr.data.shape[1:])
+            new_size: np.ndarray = orig_shape_local * scale
+            unscaled[..., :2] = unscale_coords(masks_attr.data.shape[1:],
+                                               unscaled[..., :2],
                                                new_size)
-            unscaled[..., 2:4] = unscale_coords(results.masks.data.shape[1:], 
-                                                unscaled[..., 2:4], 
+            unscaled[..., 2:4] = unscale_coords(masks_attr.data.shape[1:],
+                                                unscaled[..., 2:4],
                                                 new_size)
 
             # Ensure each box has a corresponding mask
-            assert len(coords) == len(results.masks.data)
+            assert len(coords) == len(masks_attr.data)
             index :int = 0
 
             # For each box-mask pair: crop mask, validate, resize, and store
             # convert coords to int for indexing pixels properly (no float needed)
             # convert the returned masks data to uint8 as well, since its image data
-            for orig, unscale, k in zip(coords.round().astype(int), 
-                                        unscaled, 
-                                        (results.masks.data * 255).byte()):
+            for orig, unscale, k in zip(coords.round().astype(int),
+                                        unscaled,
+                                        (masks_attr.data * 255).byte()):
                 # Crop mask within its bounding box
                 sub = k[max(0, int(unscale[1])):max(0, int(unscale[3])), max(0,int(unscale[0])):max(0, int(unscale[2]))]
 
@@ -274,8 +279,9 @@ class StrippedYoloResults(StrippedResults):
                 assert self.masks[-1].flags['C_CONTIGUOUS']
 
         # If we're dealing with a POLO model here we have point predictions
-        if results.locations is not None:
-            self.points = results.locations.data.cpu().numpy()
+        locs = getattr(results, 'locations', None)
+        if locs is not None:
+            self.points = locs.data.cpu().numpy()
             TRex.log(f"Got data for locations: {self.points.shape} {self.points}")
 
             # Scale and offset the center coordinates of each prediction
@@ -286,7 +292,7 @@ class StrippedYoloResults(StrippedResults):
             self.points[:, 1:2] = (self.points[:, 1:2] + offset[1] + box_offset[1]) * scale[1]
 
             # insert column for class id in the front
-            #ids = results.locations.cls.cpu().numpy()
+            #ids = locs.cls.cpu().numpy()
             #self.points = np.insert(self.points, 0, ids, axis=1)
 
             # move conf column from the end to the front

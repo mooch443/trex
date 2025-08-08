@@ -51,7 +51,7 @@ UniquenessProvider::last_error() const noexcept
     return _last_error;
 }
 
-const std::optional<tl::expected<track::vi::VIWeights, std::string>>&
+const std::optional<std::expected<track::vi::VIWeights, std::string>>&
 UniquenessProvider::uniqueness_origin() const noexcept
 {
     std::lock_guard lg{_mutex};
@@ -61,17 +61,17 @@ UniquenessProvider::uniqueness_origin() const noexcept
 // --------------------------------------------------------------------------
 // consolidated safe accessor
 // --------------------------------------------------------------------------
-tl::expected<std::vector<cmn::Vec2>, std::string>
+std::expected<std::vector<cmn::Vec2>, std::string>
 UniquenessProvider::points_if_ready() const noexcept
 {
     std::lock_guard lg{_mutex};
 
     if (_busy())
-        return tl::unexpected<std::string>("busy");
+        return std::unexpected<std::string>("busy");
     if (_last_error)
-        return tl::unexpected<std::string>(*_last_error);
+        return std::unexpected<std::string>(*_last_error);
     if (!_result_origin)
-        return tl::unexpected<std::string>("not ready");
+        return std::unexpected<std::string>("not ready");
 
     return _points;   // OK
 }
@@ -141,7 +141,7 @@ void UniquenessProvider::launch_worker_locked_()
             if (std::lock_guard lg{_mutex};
                 !w.loaded())
             {
-                _uniqueness_origin = tl::unexpected<std::string>("No weights are loaded.");
+                _uniqueness_origin = std::unexpected<std::string>("No weights are loaded.");
                 _last_origin = w;
                 return;
             } else {
@@ -184,7 +184,7 @@ void UniquenessProvider::launch_worker_locked_()
 
                 _result_origin = w;
                 _last_error.reset();
-                _uniqueness_origin = tl::expected<track::vi::VIWeights, std::string>(w);
+                _uniqueness_origin = std::expected<track::vi::VIWeights, std::string>(w);
             }
         }
         catch (const SoftExceptionImpl& e)
@@ -193,7 +193,7 @@ void UniquenessProvider::launch_worker_locked_()
             _map.clear(); _points.clear();
             _result_origin.reset();
             _last_error        = e.what();
-            _uniqueness_origin = tl::unexpected<std::string>(e.what());
+            _uniqueness_origin = std::unexpected<std::string>(e.what());
         }
     });
 }

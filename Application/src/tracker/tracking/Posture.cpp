@@ -223,13 +223,13 @@ std::vector<Vec2> generateOutline(const Pose& pose, const PoseMidlineIndexes& mi
 
 namespace posture {
 
-tl::expected<Result, const char*> calculate_midline(Result&& result) {
+std::expected<Result, const char*> calculate_midline(Result&& result) {
     if(result.outline.empty())
-        return tl::unexpected("Outline was empty.");
+        return std::unexpected("Outline was empty.");
     
     auto r = result.outline.calculate_midline({});
     if(not r) {
-        return tl::unexpected(r.error());
+        return std::unexpected(r.error());
     }
     
     result.midline = std::move(r.value());
@@ -239,13 +239,13 @@ tl::expected<Result, const char*> calculate_midline(Result&& result) {
     //result.normalized_midline = result.midline->normalize();
     
     /*if(not result.normalized_midline || result.normalized_midline->size() != FAST_SETTING(midline_resolution)) {
-        return tl::unexpected("Unexpected number of points in normalized midline.");
+        return std::unexpected("Unexpected number of points in normalized midline.");
     }*/
     
     return result;
 }
 
-tl::expected<Result, const char*> calculate_posture(Frame_t, const BasicStuff& basic, const blob::Pose &pose, const PoseMidlineIndexes &indexes)
+std::expected<Result, const char*> calculate_posture(Frame_t, const BasicStuff& basic, const blob::Pose &pose, const PoseMidlineIndexes &indexes)
 {
     Outline::check_constants();
     
@@ -274,7 +274,7 @@ tl::expected<Result, const char*> calculate_posture(Frame_t, const BasicStuff& b
     return calculate_midline(std::move(result));
 }
 
-tl::expected<Result, const char*> calculate_posture(Frame_t, const BasicStuff &basic, const blob::SegmentedOutlines& outlines) {
+std::expected<Result, const char*> calculate_posture(Frame_t, const BasicStuff &basic, const blob::SegmentedOutlines& outlines) {
     Outline::check_constants();
     
     Result result;
@@ -302,7 +302,7 @@ tl::expected<Result, const char*> calculate_posture(Frame_t, const BasicStuff &b
     return calculate_midline(std::move(result));
 }
 
-tl::expected<Result, const char*> calculate_posture(Frame_t, pv::BlobWeakPtr blob)
+std::expected<Result, const char*> calculate_posture(Frame_t, pv::BlobWeakPtr blob)
 {
     Outline::check_constants();
     
@@ -395,7 +395,7 @@ tl::expected<Result, const char*> calculate_posture(Frame_t, pv::BlobWeakPtr blo
         return result;
     }
     
-    return tl::unexpected("Cannot find valid posture.");
+    return std::unexpected("Cannot find valid posture.");
 }
 
 /*float Posture::calculate_midline(bool debug) {
