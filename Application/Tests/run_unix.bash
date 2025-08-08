@@ -223,6 +223,13 @@ for MODE in ${MODES}; do
         fi
     fi
 
+    if [ $exit_code -ne 0 ]; then
+        echo "TRex (${MODE}) failed."
+        cat "${PWD}/trex.log"
+    else
+        echo "TRex (${MODE}) completed successfully."
+    fi
+
     rm -rf ${PWD}/corrected/data
     rm -f ${PWD}/corrected/test.settings
 done
