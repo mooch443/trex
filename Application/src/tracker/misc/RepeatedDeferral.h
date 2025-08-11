@@ -13,7 +13,7 @@ struct RepeatedDeferral {
     size_t _threads{ 1 }, _minimal_fill { 0 };
     uint32_t _index;
     ThreadGroupId _group_id;
-    std::vector<std::tuple<std::string, R>> _next;
+    std::deque<std::tuple<std::string, R>> _next;
     //std::future<R> _next_image;
     F _fn;
     std::string name;
@@ -197,7 +197,8 @@ struct RepeatedDeferral {
         }
         
         auto [from, f] = std::move(_next.front());
-        _next.erase(_next.begin());
+        //_next.erase(_next.begin());
+        _next.pop_front();
         
         //thread_print("TM got item<",type_name<R>(),">/", _next.size(), " from ", from);
         if(_next.size() <= _minimal_fill) {
