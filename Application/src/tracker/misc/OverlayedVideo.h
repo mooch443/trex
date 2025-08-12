@@ -16,7 +16,7 @@ class BasicProcessor {
     GETTER(std::unique_ptr<AbstractBaseVideoSource>, source);  // Video source
 public:
     // Type alias for the result of an asynchronous network call
-    using AsyncResult = std::expected<std::tuple<Frame_t, std::future<SegmentationData>>, UnexpectedError_t>;
+    using AsyncResult = Expected<std::tuple<Frame_t, std::future<SegmentationData>>>;
 
     BasicProcessor() = default;
     BasicProcessor(const BasicProcessor&) = delete;
