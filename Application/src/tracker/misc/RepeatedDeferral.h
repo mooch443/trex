@@ -168,7 +168,15 @@ struct RepeatedDeferral {
     
     bool has_next() const {
         std::unique_lock guard(_mutex);
+#if defined(__linux__) && defined(__GNUC__) && (__GNUC__ == 15) && (__GNUC_MINOR__ == 1)
+        /// Workaround for GCC/libstdc++ PR119714: constraint recursion in std::expected::operator==
+        /// Fixed upstream by r15-9660 (commit 91bc8169edd9, 2025-05-12). Remove once GCC ≥ 15.2 is required.
+        /// Bug: https://gcc.gnu.org/bugzilla/show_bug.cgi?id=119714
+        /// https://repo.or.cz/official-gcc.git/commit/91bc8169edd9038d78f38bd813287d72e6345c26
+        return _next.size() > 0;
+#else
         return not _next.empty();
+#endif
     }
     
     R get_next() {
@@ -180,8 +188,14 @@ struct RepeatedDeferral {
             ThreadManager::getInstance().startGroup(_group_id);
         }
         
+#if defined(__linux__) && defined(__GNUC__) && (__GNUC__ == 15) && (__GNUC_MINOR__ == 1)
+    // Special handling for GCC 15.1 on Linux
+        if(_next.size() == 0)
+            _new_item.wait(guard, [this]() {return _next.size() > 0 or _terminate; });
+#else
         if(_next.empty())
             _new_item.wait(guard, [this]() {return not _next.empty() or _terminate; });
+#endif
 
         if(_terminate)
             throw U_EXCEPTION(name, " already terminated.");
@@ -217,3 +231,4 @@ struct RepeatedDeferral {
 };
 
 }
+
