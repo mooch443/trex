@@ -210,7 +210,11 @@ struct RepeatedDeferral {
             ++_as;
         }
         
+#if defined(__linux__) && defined(__GNUC__) && (__GNUC__ == 15) && (__GNUC_MINOR__ == 1)
+        auto [from, f] = std::move(*_next.begin());
+#else
         auto [from, f] = std::move(_next.front());
+#endif
         //_next.erase(_next.begin());
         _next.pop_front();
         
