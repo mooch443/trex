@@ -1,6 +1,7 @@
 #include "AbstractVideoSource.h"
 
-    
+using AVS = AbstractBaseVideoSource;
+
 AbstractBaseVideoSource::AbstractBaseVideoSource(VideoInfo info)
   : _info(info),
     mat_buffers("mat_buffers", _info.size),
@@ -56,7 +57,7 @@ void AbstractBaseVideoSource::move_back(Image::Ptr&& ptr) {
     image_buffers.move_back(std::move(ptr));
 }
 
-std::expected<std::tuple<Frame_t, useMatPtr_t, Image::Ptr>, UnexpectedError_t> AbstractBaseVideoSource::next() {
+AVS::PreprocessResult_t AbstractBaseVideoSource::next() {
     auto result = _resize_cvt.next();
     if (!result)
         return std::unexpected(result.error());
@@ -64,7 +65,7 @@ std::expected<std::tuple<Frame_t, useMatPtr_t, Image::Ptr>, UnexpectedError_t> A
     return std::move(result.value());
 }
 
-std::expected<std::tuple<Frame_t, useMatPtr_t, Image::Ptr>, UnexpectedError_t> AbstractBaseVideoSource::fetch_next_process() {
+AVS::PreprocessResult_t AbstractBaseVideoSource::fetch_next_process() {
     try {
         Timer timer;
         // get image from 1. step (source.frame) => here (resize+cvtColor)
@@ -102,7 +103,11 @@ std::expected<std::tuple<Frame_t, useMatPtr_t, Image::Ptr>, UnexpectedError_t> A
             _video_fps = _video_fps.load() + (1.0 / timer.elapsed());
             _video_samples = _video_samples.load() + 1;
             
-            return std::make_tuple(index, std::move(buffer), std::move(image));
+            return PreprocessedFrame{
+                .index = index,
+                .buffer = std::move(buffer),
+                .ptr = std::move(image)
+            };
             
         } else
             return std::unexpected(result.error());
@@ -111,7 +116,7 @@ std::expected<std::tuple<Frame_t, useMatPtr_t, Image::Ptr>, UnexpectedError_t> A
     } catch(const std::exception& e) {
         auto desc = toStr();
         FormatExcept("Unable to load frame ", i, " from video source ", desc.c_str(), " because: ", e.what());
-        return std::unexpected(e.what());
+        return std::unexpected(std::string(e.what()));
     }
 }
 

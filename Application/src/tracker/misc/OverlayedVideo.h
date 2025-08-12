@@ -115,8 +115,8 @@ public:
             if(not maybe_image)
                 return std::unexpected(maybe_image.error());
 
-            auto& [nix, buffer, image] = maybe_image.value();
-            loaded_frame = nix + 1_f;
+            auto& image = maybe_image.value();
+            loaded_frame = image.index + 1_f;
             
 #ifndef NDEBUG
             static double average_time = 0, sample_count = 0;
@@ -129,8 +129,8 @@ public:
             }
 #endif
 
-            useMat_t* current_use{ buffer.get() };
-            image->set_index(nix.get());
+            useMat_t* current_use{ image.buffer.get() };
+            image.ptr->set_index(image.index.get());
             
             // could use image here
             Size2 original_size(current_use->cols, current_use->rows);
@@ -158,11 +158,11 @@ public:
 
             // tileimage barely uses the current_use / could probably use image here as well
             // but have to check - it is a const reference
-            TileImage tiled(*current_use, std::move(image), resized_size, original_size);
+            TileImage tiled(*current_use, std::move(image.ptr), resized_size, original_size);
             tiled.callback = callback;
-            _source->move_back(std::move(buffer));
+            _source->move_back(std::move(image.buffer));
             
-            return std::make_tuple(nix, _processor_fn.apply(std::move(tiled)));
+            return std::make_tuple(image.index, _processor_fn.apply(std::move(tiled)));
             
         } catch(const std::exception& e) {
             FormatExcept("Error loading frame ", loaded_frame, " from video ", *_source, ": ", e.what());

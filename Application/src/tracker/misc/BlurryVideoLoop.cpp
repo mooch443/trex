@@ -116,9 +116,9 @@ void BlurryVideoLoop::preloader_thread(const ThreadGroupId& gid) {
         auto e = _source->next();
         
         if(e.has_value()) {
-            auto &&[index, mat, image] = e.value();
+            auto &image = e.value();
             if(_source->is_finite()
-               && index + 1_f >= _source->length())
+               && image.index + 1_f >= _source->length())
             {
                 if(_next_frame != 0_f) {
                     _next_frame = 0_f;
@@ -127,15 +127,15 @@ void BlurryVideoLoop::preloader_thread(const ThreadGroupId& gid) {
                 }
             }
             
-            if(not _next_frame.valid() || index == _next_frame) {
+            if(not _next_frame.valid() || image.index == _next_frame) {
                 //Print("index = ", index);
                 _last_blur = -1;
                 _last_resolution = {};
                 
                 if(intermediate)
                     _source->move_back(std::move(intermediate));
-                intermediate = std::move(mat);
-                _source->move_back(std::move(image));
+                intermediate = std::move(image.buffer);
+                _source->move_back(std::move(image.ptr));
                 _last_image_timer.reset();
                 if(_next_frame.valid())
                     _next_frame ++;

@@ -13,6 +13,113 @@ using namespace cmn;
 
 using UnexpectedError_t = std::string;
 
+struct PreprocessedFrame {
+    Frame_t index;
+    useMatPtr_t buffer;
+    Image::Ptr ptr;
+};
+
+struct VideoFrame {
+    Frame_t index;
+    useMatPtr_t buffer;
+};
+
+template<typename T>
+struct Expected {
+    bool _has{false};
+    union Storage {
+        std::string error;
+        T val;
+        constexpr Storage() noexcept {}
+        ~Storage() {}
+    } _value; // no default initializer; we construct explicitly
+
+    Expected() noexcept : _has(false) {
+        std::construct_at(&_value.error);
+    }
+
+    Expected(T&& v) noexcept : _has(true) {
+        std::construct_at(&_value.val, std::move(v));
+    }
+
+    Expected(std::unexpected<std::string>&& e) noexcept : _has(false) {
+        std::construct_at(&_value.error, std::move(e.error()));
+    }
+
+    Expected(std::unexpected<const char*>&& e) noexcept : _has(false) {
+        std::construct_at(&_value.error, e.error());
+    }
+
+    Expected(const Expected&) = delete;
+    Expected& operator=(const Expected&) = delete;
+
+    Expected(Expected&& other) noexcept : _has(other._has) {
+        if (_has) {
+            std::construct_at(&_value.val, std::move(other._value.val));
+        } else {
+            std::construct_at(&_value.error, std::move(other._value.error));
+        }
+    }
+
+    Expected& operator=(Expected&& other) noexcept {
+        if (this != &other) {
+            destroy();
+            _has = other._has;
+            if (_has) {
+                std::construct_at(&_value.val, std::move(other._value.val));
+            } else {
+                std::construct_at(&_value.error, std::move(other._value.error));
+            }
+        }
+        return *this;
+    }
+
+    Expected& operator=(T&& v) {
+        destroy();
+        _has = true;
+        std::construct_at(&_value.val, std::move(v));
+        return *this;
+    }
+
+    Expected& operator=(std::unexpected<std::string>&& e) {
+        destroy();
+        _has = false;
+        std::construct_at(&_value.error, std::move(e.error()));
+        return *this;
+    }
+
+    ~Expected() { destroy(); }
+
+    void destroy() noexcept {
+        if (_has) {
+            std::destroy_at(&_value.val);
+        } else {
+            std::destroy_at(&_value.error);
+        }
+    }
+    
+    auto& error() {
+        assert(not _has);
+        return _value.error;
+    }
+    const auto& error() const {
+        assert(not _has);
+        return _value.error;
+    }
+    T& value() {
+        assert(_has);
+        return _value.val;
+    }
+    const T& value() const {
+        assert(_has);
+        return _value.val;
+    }
+    
+    bool has_value() const { return _has; }
+    
+    explicit operator bool() const { return _has; }
+};
+
 class AbstractBaseVideoSource {
 public:
     static inline std::atomic<float> _fps{0}, _samples{ 0 };
@@ -41,8 +148,11 @@ protected:
     ImageBuffers< useMatPtr_t, MatMaker > mat_buffers;
     ImageBuffers< Image::Ptr, ImageMaker > image_buffers;
 
-    using PreprocessFunction = RepeatedDeferral<std::function<std::expected<std::tuple<Frame_t, useMatPtr_t, Image::Ptr>, UnexpectedError_t>()>>;
-    using VideoFunction = RepeatedDeferral<std::function<std::expected<std::tuple<Frame_t, useMatPtr_t>, UnexpectedError_t>()>>;
+    using PreprocessResult_t = Expected<PreprocessedFrame>;
+    using PreprocessFunction = RepeatedDeferral<std::function<PreprocessResult_t()>>;
+    
+    using VideoFrame_t = Expected<VideoFrame>;
+    using VideoFunction = RepeatedDeferral<std::function<VideoFrame_t()>>;
     
     GETTER(VideoFunction, source_frame);
     GETTER(PreprocessFunction, resize_cvt);
@@ -65,11 +175,9 @@ public:
     void move_back(useMatPtr_t&& ptr);
     void move_back(Image::Ptr&& ptr);
 
-    std::expected<std::tuple<Frame_t, useMatPtr_t, Image::Ptr>, UnexpectedError_t> next();
-    
-    virtual std::expected<std::tuple<Frame_t, useMatPtr_t>, UnexpectedError_t> fetch_next() = 0;
-    
-    std::expected<std::tuple<Frame_t, useMatPtr_t, Image::Ptr>, UnexpectedError_t> fetch_next_process();
+    PreprocessResult_t next();
+    virtual VideoFrame_t fetch_next() = 0;
+    PreprocessResult_t fetch_next_process();
     
     bool is_finite() const;
     

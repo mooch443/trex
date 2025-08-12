@@ -15,7 +15,7 @@ PVVideoSource::~PVVideoSource() {
     quit();
 }
 
-std::expected<std::tuple<Frame_t, useMatPtr_t>, std::string> PVVideoSource::fetch_next() {
+AbstractBaseVideoSource::VideoFrame_t PVVideoSource::fetch_next() {
     try {
         if(not i.valid())
             i = 0_f;
@@ -57,7 +57,10 @@ std::expected<std::tuple<Frame_t, useMatPtr_t>, std::string> PVVideoSource::fetc
             std::swap(buffer, tmp);
         }*/
         
-        return std::make_tuple(index, std::move(buffer));
+        return VideoFrame{
+            .index = index,
+            .buffer = std::move(buffer)
+        };
     }
     catch (const std::exception& e) {
         return std::unexpected(e.what());
