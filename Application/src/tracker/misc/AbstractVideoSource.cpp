@@ -67,6 +67,11 @@ AVS::PreprocessResult_t AbstractBaseVideoSource::next() {
 
 AVS::PreprocessResult_t AbstractBaseVideoSource::fetch_next_process() {
     try {
+        /// Pipeline step:
+        ///  1) Pull raw frame from `_source_frame`.
+        ///  2) Validate index and run undistortion if maps exist.
+        ///  3) Optionally resize according to `_video_scale` (GPU).
+        ///  4) Wrap in pooled `Image` and update decode FPS counters.
         Timer timer;
         // get image from 1. step (source.frame) => here (resize+cvtColor)
         auto result = _source_frame.next();
@@ -100,6 +105,7 @@ AVS::PreprocessResult_t AbstractBaseVideoSource::fetch_next_process() {
             if (_video_samples.load() > 1000) {
                 _video_samples = _video_fps = 0;
             }
+            // Accumulate running-average components for GUI `vid_fps` display.
             _video_fps = _video_fps.load() + (1.0 / timer.elapsed());
             _video_samples = _video_samples.load() + 1;
             

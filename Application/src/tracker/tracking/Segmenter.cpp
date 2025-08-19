@@ -6,6 +6,7 @@
 #include <tracking/Output.h>
 #include <misc/CommandLine.h>
 #include <python/YOLO.h>
+#include <python/BackgroundSubtraction.h>
 #include <misc/SettingsInitializer.h>
 #include <tracking/Tracker.h>
 #include <gui/Export.h>

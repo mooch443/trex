@@ -11,6 +11,8 @@
 
 namespace track {
 
+static_assert(ObjectDetection<YOLO>);
+
 using namespace cmn;
 
 struct AcceptanceSettings {

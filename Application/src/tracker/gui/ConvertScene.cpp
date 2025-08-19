@@ -483,7 +483,7 @@ void ConvertScene::activate()  {
     }
     catch (const std::exception& ex) {
         FormatExcept(ex.what());
-		_scene_promise.set_exception(std::current_exception());
+        _scene_promise.set_exception(std::current_exception());
         _scene_promise = {};
         segmenter().error_stop(ex.what());
         throw;
@@ -743,7 +743,7 @@ void ConvertScene::Data::drawBlobs(
         (*tmp)["tracked"] = tracked_id.valid() ? true : false;
         (*tmp)["color"] = tracked_color;
         (*tmp)["fdx"] = tracked_id;
-		(*tmp)["visible"] = true;
+        (*tmp)["visible"] = true;
         (*tmp)["size"] = Size2(bds.size());
         (*tmp)["radius"] = bds.size().length() * 0.5;
         (*tmp)["type"] = std::string(cname);
@@ -838,8 +838,8 @@ void ConvertScene::Data::drawBlobs(
             _zoom_targets.push_back(bds.pos() + bds.size().mul(1, 0));
 
             if(frameIndex.try_sub(frame) > 10_f) {
-				_last_bounds.erase(it);
-			}
+                _last_bounds.erase(it);
+            }
         }
     }
 
@@ -930,11 +930,13 @@ dyn::DynamicGUI ConvertScene::Data::init_gui(Base* window) {
                 return 0;
             return _segmenter->overlayed_video()->source()->source_frame().average_fps.load();
         }),
+        // End-to-end pipeline FPS (computed from `_fps/_samples`).
         VarFunc("fps", [](const VarProps&) {
             auto fps = AbstractBaseVideoSource::_fps.load();
             auto samples = AbstractBaseVideoSource::_samples.load();
             return samples > 0 ? fps / samples : 0;
         }),
+        // Inference/model FPS, reported by the overlayed video (`network_fps()`).
         VarFunc("net_fps", [this](const VarProps&) -> double {
             if (not _segmenter || not _segmenter->overlayed_video())
                 return 0;//throw U_EXCEPTION("No source available.");
@@ -953,6 +955,7 @@ dyn::DynamicGUI ConvertScene::Data::init_gui(Base* window) {
         VarFunc("time", [this](const VarProps&) -> float {
             return (_time.load() * 4);
         }),
+        // Decode/grab FPS (computed from `_video_fps/_video_samples`).
         VarFunc("vid_fps", [](const VarProps&) {
             auto fps = AbstractBaseVideoSource::_video_fps.load();
             auto samples = AbstractBaseVideoSource::_video_samples.load();
@@ -1331,6 +1334,8 @@ void ConvertScene::Data::draw_scene(DrawStructure& graph, const detect::yolo::na
     });
     
     graph.section("menus", [&](auto&, Section*) {
+        // GUI exports: current *pipeline* frame, the *source* decode index used for IO,
+        // and the *pipeline* index again for convenience.
         _video_info["frame"] = _current_data.frame.index();
         _actual_frame = _current_data.frame.source_index();
         _video_frame = _current_data.frame.index();

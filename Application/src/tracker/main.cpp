@@ -59,7 +59,7 @@ static void (*windowsEarlyEnvSetup)(void) = []() {
 #include <tracking/OutputLibrary.h>
 #include <tracking/Output.h>
 
-#include <python/YOLO.h>
+//#include <python/YOLO.h>
 //#include <python/Yolo7InstanceSegmentation.h>
 //#include <python/Yolo7ObjectDetection.h>
 
@@ -78,8 +78,6 @@ static void (*windowsEarlyEnvSetup)(void) = []() {
 #include <gui/CalibrateScene.h>
 
 using namespace gui;
-static_assert(ObjectDetection<YOLO>);
-static_assert(ObjectDetection<BackgroundSubtraction>);
 
 namespace ind = indicators;
 using namespace default_config;
