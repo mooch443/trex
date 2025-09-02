@@ -540,7 +540,17 @@ std::future<void> deinit() {
         if(!python_init_error().empty())
             throw SoftException("Calling on an already erroneous python thread.");
         
-        Data::add_task(std::move(task));
+        auto fn = [task = std::move(task), init_future = std::move(init_future)]() mutable
+        {
+            try {
+                init_future.get();
+                Data::add_task(std::move(task));
+            } catch(...) {
+                task._task.promise.set_exception(std::current_exception());
+            }
+        };
+        
+        std::jthread{std::move(fn)}.detach();
     }
     
     return future;

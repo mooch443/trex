@@ -391,7 +391,11 @@ void launch_gui(std::future<void>& f) {
         if(f.valid()
            && f.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready)
         {
-            f.get();
+            try {
+                f.get();
+            } catch(const std::exception& ex) {
+                SceneManager::set_switching_error(ex.what());
+            }
         }
         manager.update(&base, *base.graph());
         
@@ -799,7 +803,7 @@ int main(int argc, char**argv) {
     
     std::future<void> f;
     try {
-        py::init();
+        //py::init().get();
         f = py::schedule([](){
             //Print("Python = ", py::get_instance());
             track::PythonIntegration::set_settings(GlobalSettings::instance(), file::DataLocation::instance(), Python::get_instance());
