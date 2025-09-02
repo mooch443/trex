@@ -115,10 +115,9 @@ jobs:
       with:
         name: macos-arm64-failure-artifacts
         path: |
-          videos/corrected/data/*.csv
-          videos/history_matching_*.html
-          videos/tgrabs.log
-          videos/trex.log
-          videos/**/*.npz
+          ${{ github.workspace }}/videos/corrected/data/*.csv
+          ${{ github.workspace }}/videos/**/*.html
+          ${{ github.workspace }}/videos/**/*.log
+          ${{ github.workspace }}/videos/**/*.npz
         if-no-files-found: ignore
         retention-days: 7
