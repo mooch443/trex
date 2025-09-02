@@ -362,6 +362,9 @@ void update(std::promise<void>&& init_promise) {
         py_guard = std::make_unique<Data::Guard>();
     } catch(...) {
         init_promise.set_exception(std::current_exception());
+        // Ensure any partially initialized Python state is torn down to
+        // avoid crashes during static/global finalization at shutdown.
+        try { py::deinit(); } catch(...) { /* best effort */ }
         return;
     }
     
