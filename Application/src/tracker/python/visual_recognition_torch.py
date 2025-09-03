@@ -17,7 +17,8 @@ import datetime
 # Local imports
 import TRex
 from visual_identification_network_torch import ModelFetcher
-from trex_utils import load_checkpoint_from_file, check_checkpoint_compatibility, save_pytorch_model_as_jit, ConfigurationError
+import trex_utils
+from trex_utils import _first_shape, _as_batched_np, load_checkpoint_from_file, check_checkpoint_compatibility, save_pytorch_model_as_jit, ConfigurationError
 
 static_inputs : torch.Tensor = None
 static_targets : torch.Tensor = None
@@ -307,21 +308,29 @@ class CustomDataLoader:
             raise StopIteration
         elif not self.shuffle:
             if self.transform is None:
-                x = torch.tensor(self.X[self.index:self.index+self.batch_size], dtype=torch.float32, device=self.device)
+                batch_np = _as_batched_np(self.X, slice(self.index, self.index+self.batch_size))
+                x = torch.from_numpy(batch_np).to(self.device, dtype=torch.float32)
                 y = self.Y[self.index:self.index+self.batch_size]
             else:
-                x = self.transform(torch.tensor(self.X[self.index:self.index+self.batch_size], dtype=torch.float32, device=self.device).permute(0, 3, 1, 2) / 255).permute(0, 2, 3, 1) * 255
+                batch_np = _as_batched_np(self.X, slice(self.index, self.index+self.batch_size))
+                x = self.transform(
+                        torch.from_numpy(batch_np).to(self.device, dtype=torch.float32).permute(0, 3, 1, 2) / 255.0
+                    ).permute(0, 2, 3, 1) * 255.0
                 y = self.Y[self.index:self.index+self.batch_size]
             self.index += self.batch_size
             return (x, y)
         else:
             indexes = self.indexes[self.index:self.index+self.batch_size]
             if self.transform is not None:
-                x = self.transform(torch.tensor(self.X[indexes], dtype=torch.float32, device=self.device).permute(0, 3, 1, 2) / 255).permute(0, 2, 3, 1) * 255
-                y = self.Y[indexes]
+                batch_np = _as_batched_np(self.X, indexes)
+                x = self.transform(
+                        torch.from_numpy(batch_np).to(self.device, dtype=torch.float32).permute(0, 3, 1, 2) / 255.0
+                    ).permute(0, 2, 3, 1) * 255.0
+                y = self.Y[indexes] if isinstance(self.Y, np.ndarray) else np.array([self.Y[k] for k in indexes])
             else:
-                x = torch.tensor(self.X[indexes], dtype=torch.float32, device=self.device)
-                y = self.Y[indexes]
+                batch_np = _as_batched_np(self.X, indexes)
+                x = torch.from_numpy(batch_np).to(self.device, dtype=torch.float32)
+                y = self.Y[indexes] if isinstance(self.Y, np.ndarray) else np.array([self.Y[k] for k in indexes])
             self.index += self.batch_size
             return (x, y)
 
@@ -367,12 +376,15 @@ def predict_numpy(model, images, batch_size, device):
     assert device is not None, "No device provided"
     assert model is not None, "No model provided"
     assert images is not None, "No images provided"
-    assert len(images) > 0, "No images provided"
     assert batch_size > 0, "Invalid batch size"
-    assert len(images.shape) == 4, "Invalid image shape"
-    assert images.shape[1] == image_height, f"Invalid image height: {images.shape[1]} vs. {image_height}"
-    assert images.shape[2] == image_width, f"Invalid image width: {images.shape[2]} vs. {image_width}"
-    assert images.shape[3] == image_channels, f"Invalid image channels: {images.shape[3]} vs. {image_channels}"
+
+    N = len(images)
+    assert N > 0, "No images provided"
+
+    H, W, C = _first_shape(images)
+    assert H == image_height, f"Invalid image height: {H} vs. {image_height}"
+    assert W == image_width,  f"Invalid image width: {W} vs. {image_width}"
+    assert C == image_channels, f"Invalid image channels: {C} vs. {image_channels}"
 
     # check if the model is also on the same device
     check_device_equivalence(device, model)
@@ -394,7 +406,12 @@ def predict_numpy(model, images, batch_size, device):
         if p_softmax is None:
             p_softmax = nn.Softmax(dim=1).to(device)
         for i in range(0, len(images), batch_size):
-            x = torch.tensor(images[i:i+batch_size], dtype=torch.float32, requires_grad=False, device=device).detach()
+            j = min(i + batch_size, N)
+
+            #x = torch.tensor(images[i:i+batch_size], dtype=torch.float32, requires_grad=False, device=device)
+            batch_np = _as_batched_np(images, slice(i, j))   # ndarray (B,H,W,C). One host copy iff list
+            # Ensure float32 for MPS compatibility
+            x = torch.from_numpy(batch_np).to(device, dtype=torch.float32) # Tensor (B,H,W,C)
 
             # check if the model ends on a softmax layer
             if has_softmax:
@@ -424,10 +441,14 @@ class ValidationCallback:
         X = []
         Y = []
         if len(X_test) > 0:
+            labels = Y_test.argmax(axis=1)
             for c in classes:
-                #mask = Y_test.argmax(axis=1).eq(c)
-                mask = Y_test.argmax(axis=1) == c
-                a = X_test[mask]
+                mask = (labels == c)
+                if isinstance(X_test, np.ndarray):
+                    a = X_test[mask]
+                else:
+                    idxs = np.nonzero(mask)[0]
+                    a = [X_test[k] for k in idxs]
                 X.append(a)
                 Y.append(Y_test[mask])
         
@@ -1005,34 +1026,43 @@ def predict():
     assert model is not None, "No model available for prediction."
     assert images is not None, "No images available for prediction."
 
-    images = np.array(images, copy=False)
-    assert len(images.shape) == 4, f"error with the shape {images.shape} < len 4"
-    assert images.shape[3] == image_channels, f"error with the shape {images.shape} < channels {image_channels}"
-    assert images.shape[1] == image_width and images.shape[2] == image_height, f"error with the shape {images.shape} < width {image_width} height {image_height}"
+    # Normalize to a Python list of per-image ndarrays
+    #images = images if isinstance(images, list) else list(images)
+    assert isinstance(images, list), "Images must be provided as a list of NumPy arrays."
 
-    TRex.log(f"Predicting {len(images)} images with shape {images.shape}")
-    
-    if len(images.shape) != 4:
-        TRex.warn(f"error with the shape {images.shape} < len 4")
-    if images.shape[3] != image_channels:
-        TRex.warn(f"error with the shape {images.shape} < channels {image_channels}")
-    if images.shape[1] != image_width or images.shape[2] != image_height:
-        TRex.warn(f"error with the shape {images.shape} < width {image_width} height {image_height}")
-    #elif train_X.shape[1] != model.input.shape[1] or train_X.shape[2] != model.input.shape[2]:
-    #    raise Exception("Wrong image dimensions for model ("+str(train_X.shape[1:3])+" vs. "+str(model.input.shape[1:3])+").")
-        
-    indexes = np.array(np.arange(len(images)), dtype=np.float32)
-    #output = model.predict(tf.cast(train_X, dtype=np.float32), verbose=0)
+    N = len(images)
+    assert N > 0, "No images available for prediction."
 
-    output = predict_numpy(model, images, batch_size, device=device).astype(np.float32)#.cpu().numpy()
+    # Validate a representative sample (first + up to 7 more) for shape consistency
+    first = images[0]
+    assert isinstance(first, np.ndarray), "Each image must be a NumPy array"
+    assert first.ndim == 3, f"Each image must be HxWxC, got ndim={first.ndim}"
+    H, W, C = first.shape
+    assert C == image_channels, f"Channel mismatch: {C} vs expected {image_channels}"
+    assert (W, H) == (image_width, image_height), (
+        f"Size mismatch: {(W, H)} vs expected {(image_width, image_height)}"
+    )
+
+    for k in range(1, min(8, N)):
+        imk = images[k]
+        if not isinstance(imk, np.ndarray) or imk.shape != (H, W, C):
+            raise AssertionError(
+                f"Inconsistent image at index {k}: got {None if not isinstance(imk, np.ndarray) else imk.shape}, expected {(H, W, C)}"
+            )
+
+    TRex.log(f"Predicting {N} images with shape ({N}, {H}, {W}, {C})")
+
+    # Build indexes and run prediction; predict_numpy handles list-of-arrays by stacking per batch
+    indexes = np.arange(N, dtype=np.float32)
+    output = predict_numpy(model, images, batch_size, device=device).astype(np.float32, copy=False)
     TRex.log(f"Predicted images with shape {output.shape}")
-    
+
     receive(output, indexes)
 
+    # Cleanup
     del output
     del indexes
     del images
-
     gc.collect()
 
 def train(model, train_loader, val_loader, criterion, optimizer : torch.optim.Adam, callback : ValidationCallback, scheduler, transform, settings, device):
@@ -1302,10 +1332,19 @@ def start_learning():
         #transforms.RandomResizedCrop((image_height, image_width), scale=(0.95, 1.05)),
     ])
 
-    X_train : np.ndarray = np.array(X, copy=False)
-    Y_train : np.ndarray = np.array(Y, dtype=int)
-    X_test : np.ndarray = np.array(X_val, copy=False)
-    Y_test : np.ndarray = np.array(Y_val, dtype=int)
+    # Accept batched ndarray or list/tuple of per-image ndarrays (HxWxC)
+    #if isinstance(X, (list, tuple)) and len(X) and isinstance(X[0], np.ndarray):
+    X_train = list(X)  # keep as sequence; batching happens per step
+    print([type(x) for x in X_train[:5]])
+    #else:
+    #    X_train = trex_utils.asarray(X, copy=False)
+    Y_train = trex_utils.asarray(Y, dtype=int)
+
+    #if isinstance(X_val, (list, tuple)) and len(X_val) and isinstance(X_val[0], np.ndarray):
+    X_test = list(X_val)
+    #else:
+    #    X_test = trex_utils.asarray(X_val, copy=False)
+    Y_test = trex_utils.asarray(Y_val, dtype=int)
 
     # Convert Y values to one-hot encoding+
     TRex.log(f"Y_test: {Y_test.shape}")
@@ -1325,27 +1364,38 @@ def start_learning():
     #X_train : torch.Tensor = torch.tensor(X, dtype=torch.FloatTensor.dtype, requires_grad=False)
     #Y_train : np.ndarray = Y_train_one_hot
 
-    # only print this if the shape is not empty:
-    if X_train.shape[0] > 0:
-        TRex.log(f"X_train: {X_train.shape}, Y_train: {Y_train.shape} pixel min: {X_train.min()} max: {X_train.max()} median pixel: {np.median(X_train)}")
+    def _len_images(arr):
+        return len(arr) if not isinstance(arr, np.ndarray) else arr.shape[0]
+
+    def _shape_str(arr):
+        return str(arr.shape) if isinstance(arr, np.ndarray) else f"({len(arr)}, {image_height}, {image_width}, {image_channels})"
+
+    def _min_max_median(arr):
+        if isinstance(arr, np.ndarray):
+            return float(arr.min()), float(arr.max()), float(np.median(arr))
+        # sequence path: compute per-image extrema; approximate median from a sample
+        mins = [float(im.min()) for im in arr]
+        maxs = [float(im.max()) for im in arr]
+        sample = arr[:min(64, len(arr))]
+        med = float(np.median(np.concatenate([im.ravel() for im in sample]))) if sample else 0.0
+        return float(np.min(mins)), float(np.max(maxs)), med
+
+    # only print this if there is at least one image
+    if _len_images(X_train) > 0:
+        mn, mx, med = _min_max_median(X_train)
+        TRex.log(f"X_train: {_shape_str(X_train)}, Y_train: {Y_train.shape} pixel min: {mn} max: {mx} median pixel: {med}")
     else:
         # generate some dummy data
         X_train = np.random.rand(1, image_height, image_width, image_channels)
         Y_train = np.random.rand(1, len(classes))
-        #X_train = torch.rand(1, image_height, image_width, image_channels)
-        #Y_train = torch.rand(1, len(classes))
-
         TRex.log(f"Generated dummy data: X_train: {X_train.shape}, Y_train: {Y_train.shape} pixel min: {X_train.min()} max: {X_train.max()} median pixel: {np.median(X_train)}")
 
-    if X_test.shape[0] > 0:
-        TRex.log(f"X_test: {X_test.shape}, Y_test: {Y_test.shape} pixel min: {X_test.min()} max: {X_test.max()} median pixel: {np.median(X_test)}")
+    if _len_images(X_test) > 0:
+        mn, mx, med = _min_max_median(X_test)
+        TRex.log(f"X_test: {_shape_str(X_test)}, Y_test: {Y_test.shape} pixel min: {mn} max: {mx} median pixel: {med}")
     else:
-        # generate some dummy data
-        #X_test = torch.rand(1, image_height, image_width, image_channels)
-        #Y_test = torch.rand(1, len(classes))
         X_test = np.random.rand(1, image_height, image_width, image_channels)
         Y_test = np.random.rand(1, len(classes))
-
         TRex.log(f"Generated dummy data: X_test: {X_test.shape}, Y_test: {Y_test.shape} pixel min: {X_test.min()} max: {X_test.max()} median pixel: {np.median(X_test)}")
 
     #train_data = TensorDataset(X_train, Y_train)
@@ -1401,10 +1451,14 @@ def start_learning():
         callback = ValidationCallback(model, classes, X_test, Y_test, max_epochs, filename, output_prefix, output_path, best_accuracy_worst_class, settings, device)
 
         TRex.log(f"# [init] weights per class {per_class}")
-        TRex.log(f"# [training] data shapes: train={X_train.shape} {Y_train.shape} val={X_test.shape} {Y_test.shape} classes={classes}")
+        TRex.log(f"# [training] data shapes: train={_shape_str(X_train)} {Y_train.shape} val={_shape_str(X_test)} {Y_test.shape} classes={classes}")
 
-        min_pixel_value = np.min(X_train)
-        max_pixel_value = np.max(X_train)
+        if isinstance(X_train, np.ndarray):
+            min_pixel_value = float(np.min(X_train))
+            max_pixel_value = float(np.max(X_train))
+        else:
+            min_pixel_value = float(min(im.min() for im in X_train))
+            max_pixel_value = float(max(im.max() for im in X_train))
 
         TRex.log(f"# [values] pixel values: min={min_pixel_value} max={max_pixel_value}")
         TRex.log(f"# [values] class values: min={np.min(Y_train)} max={np.max(Y_train)}")
@@ -1412,9 +1466,9 @@ def start_learning():
         if do_save_training_images():
             TRex.log(f"# [training] saving training images to {output_path}_train_images.npz")
             try:
-                np.savez(output_path+"_train_images.npz", 
-                        X_train=X_train,
-                        Y_train=Y_train, 
+                np.savez(output_path+"_train_images.npz",
+                        X_train=(X_train if isinstance(X_train, np.ndarray) else np.stack(X_train, axis=0)),
+                        Y_train=Y_train,
                         classes=classes)
             except Exception as e:
                 TRex.warn("Error saving training images: " + str(e))
@@ -1446,14 +1500,14 @@ def start_learning():
             except Exception as e:
                 TRex.warn(str(e))
                 raise Exception("Failed to load weights. This is likely because either the individual_image_size is different, or because existing weights might have been generated by a different version of TRex (see visual_identification_version).")
-            
-            np.savez(history_path, #history=np.array(history.history, dtype="object"), 
+
+            np.savez(history_path, #history=np.array(history.history, dtype="object"),
                      uniquenesses=callback.uniquenesses, better_values=callback.better_values, much_better_values=callback.much_better_values, worst_values=callback.worst_values, mean_values=callback.mean_values, settings=np.array(settings, dtype="object"), per_class_accuracy=np.array(callback.per_class_accuracy),
                 samples_per_class=np.array(per_class, dtype="object"))
 
             if save_weights_after:
                 save_model_files(model=model, output_path=output_path, accuracy=callback.best_result["unique"])
-        
+
             try:
                 #for i, layer in zip(range(len(model.layers)), model.layers):
                 #    if i in weights:
@@ -1465,7 +1519,7 @@ def start_learning():
                     TRex.log(f"Best uniqueness of step {accumulation_step}: {best_accuracy_worst_class}")
             except:
                 TRex.warn("loading weights failed")
-            
+
         elif settings["accumulation_step"] == -2:
             TRex.warn("could not improve upon previous steps.")
         else:
@@ -1478,7 +1532,7 @@ def start_learning():
         # just run the test
         if update_work_percent is not None:
             update_work_percent(1.0)
-        
+
         callback = ValidationCallback(model, classes, X_test, Y_test, max_epochs, filename, output_prefix, output_path, best_accuracy_worst_class, settings, device)
         if len(X_train) > 0:
             callback.evaluate(0, False)
