@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 from torchvision import transforms
+import os
 
 # Define Normalize Layer
 class Normalize(nn.Module):
@@ -76,7 +77,8 @@ class V200(nn.Module):
             x = self.dropout3(x)
 
             x = self.global_avg_pool(x)
-            x = x.view(x.size(0), -1)  # Flatten
+            # Use reshape to handle potential non-contiguous inputs safely
+            x = x.reshape(x.size(0), -1)  # Flatten
 
             x = self.relu6(self.bn6(self.fc1(x)))
             x = self.dropout4(x)
@@ -503,7 +505,15 @@ class ModelFetcher:
             else:
                 model = self.versions[model_name](num_classes, channels, image_width, image_height)
             model.to(device)
-            return PermuteAxesWrapper(model, device=device)
+            wrapper = PermuteAxesWrapper(model, device=device)
+            # Optional: compile the model for speed if enabled and supported.
+            try:
+                if hasattr(torch, 'compile') and callable(getattr(torch, 'compile')) and (str(device) != 'mps'):
+                    wrapper = torch.compile(wrapper, mode='max-autotune')
+            except Exception as e:
+                # Fall back without compilation if unsupported
+                pass
+            return wrapper
         else:
             raise ValueError(f"Model {model_name} not found. Available models are: {list(self.versions.keys())}")
 
@@ -525,7 +535,7 @@ class PermuteAxesWrapper(nn.Module):
 
     def forward(self, x):
         # Permute to channels first (N, H, W, C) -> (N, C, H, W)
-        x = x.permute(0, 3, 1, 2).contiguous()                   
+        x = x.permute(0, 3, 1, 2).contiguous()
         x = self.normalize(x)
         return self.model(x)
 

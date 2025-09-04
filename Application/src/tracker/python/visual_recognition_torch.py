@@ -1074,10 +1074,25 @@ def train(model, train_loader, val_loader, criterion, optimizer : torch.optim.Ad
     recall = torchmetrics.Recall(task='multiclass', num_classes=num_classes, average='macro').to(device)
 
     best_val_acc = 0.0
-    softmax = nn.Softmax(dim=1).to(device)
+    # No softmax for training metrics; argmax on logits is identical.
 
     static_inputs = None
     static_targets = None
+    
+    # Enable kernel autotuning / TF32 where applicable
+    try:
+        if device == 'cuda':
+            torch.backends.cudnn.benchmark = True
+            torch.backends.cuda.matmul.allow_tf32 = True
+            torch.backends.cudnn.allow_tf32 = True
+    except Exception:
+        pass
+
+    # AMP (CUDA only)
+    from contextlib import nullcontext
+    use_amp = (device == 'cuda' and torch.cuda.is_available())
+    amp_ctx = torch.cuda.amp.autocast if use_amp else nullcontext
+    scaler = torch.cuda.amp.GradScaler(enabled=use_amp)
     
     #import tracemalloc;
     #tracemalloc.start(50)
@@ -1095,14 +1110,15 @@ def train(model, train_loader, val_loader, criterion, optimizer : torch.optim.Ad
         for batch, (inputs, targets) in tqdm(enumerate(train_loader), total=len(train_loader)):
             #inputs = transform(inputs.permute(0, 3, 1, 2) / 255).permute(0, 2, 3, 1) * 255
             if isinstance(inputs, np.ndarray):
-                static_inputs = torch.from_numpy(inputs).to(device, dtype=torch.float32).contiguous()
+                static_inputs = torch.from_numpy(inputs).to(device, dtype=torch.float32, non_blocking=True).contiguous()
             else:
-                static_inputs = inputs.to(device).contiguous()
+                static_inputs = inputs.to(device, non_blocking=True).contiguous()
 
             if isinstance(targets, np.ndarray):
-                static_targets = torch.from_numpy(targets).to(device, dtype=torch.float32).contiguous()
+                # CrossEntropyLoss expects integer class indices (Long)
+                static_targets = torch.from_numpy(targets).to(device, dtype=torch.long, non_blocking=True).contiguous()
             else:
-                static_targets = targets.to(device).contiguous()
+                static_targets = targets.to(device, non_blocking=True).long().contiguous()
             
             #inputs = torch.tensor(inputs, dtype=torch.float32, device=device)
             #targets = torch.tensor(targets, dtype=torch.float32)#, device=device)
@@ -1139,15 +1155,24 @@ def train(model, train_loader, val_loader, criterion, optimizer : torch.optim.Ad
             #print(f"Device: {static_inputs.device} vs. {device} vs. {inputs.device}")
             #assert static_inputs.device == device
         
-            outputs = model(static_inputs)
-            loss = criterion(outputs, static_targets)
-            loss.backward()
-            optimizer.step()
-            optimizer.zero_grad(set_to_none=True)
+            with amp_ctx():
+                outputs = model(static_inputs)
+                loss = criterion(outputs, static_targets)
+
+            if use_amp:
+                scaler.scale(loss).backward()
+                scaler.step(optimizer)
+                scaler.update()
+                optimizer.zero_grad(set_to_none=True)
+            else:
+                loss.backward()
+                optimizer.step()
+                optimizer.zero_grad(set_to_none=True)
 
             with torch.no_grad():
-                outputs = softmax(outputs).detach()
-                acc = torch.mean((outputs.argmax(dim=1) == static_targets.argmax(dim=1)).float())
+                # Compute accuracy from logits directly (no softmax needed)
+                pred = outputs.argmax(dim=1)
+                acc = torch.mean((pred == static_targets).float())
             
             running_acc += acc
             running_loss += loss.item()
@@ -1190,28 +1215,26 @@ def train(model, train_loader, val_loader, criterion, optimizer : torch.optim.Ad
                         static_inputs = inputs.to(device).contiguous()
     
                     if isinstance(targets, np.ndarray):
-                        static_targets = torch.from_numpy(targets).to(device, dtype=torch.float32).contiguous()
+                        static_targets = torch.from_numpy(targets).to(device, dtype=torch.long).contiguous()
                     else:
-                        static_targets = targets.to(device).contiguous()
+                        static_targets = targets.to(device).long().contiguous()
 
                     #inputs = inputs.to(device)
                     #targets = targets.to(device)
 
-                    #outputs = model(inputs)
-                    outputs = model(static_inputs)
+                    # Validation forward pass
+                    with amp_ctx():
+                        outputs = model(static_inputs)
 
                     #TRex.log(f"outputs on device {outputs.device} vs. {static_targets.device} vs. {device}")
                     loss = criterion(outputs, static_targets)
                     val_loss += loss.item()
 
-                    outputs = softmax(outputs.detach())
-
-                    # Calculate the accuracy of the model on the validation set
-                    # by counting the number of correct predictions.
-                    _, predicted = outputs.max(1)
+                    # Calculate the accuracy using logits
+                    predicted = outputs.detach().argmax(1)
 
                     total += static_targets.size(0)
-                    correct += predicted.eq(static_targets.argmax(dim=1)).sum().item()
+                    correct += predicted.eq(static_targets).sum().item()
 
                     # Update precision and recall
                     #precision.update(predicted, static_targets.argmax(dim=1))
@@ -1346,14 +1369,10 @@ def start_learning():
     #    X_test = trex_utils.asarray(X_val, copy=False)
     Y_test = trex_utils.asarray(Y_val, dtype=int)
 
-    # Convert Y values to one-hot encoding+
+    # Keep integer class indices for training; build one-hot only for validation callback
     TRex.log(f"Y_test: {Y_test.shape}")
-
     onehot_encoder = OneHotEncoder(sparse_output=False)
-    #Y_val_one_hot : np.ndarray = onehot_encoder.fit_transform(Y_test.reshape(-1, 1))
-    #Y_train_one_hot : np.ndarray = onehot_encoder.fit_transform(Y_train.reshape(-1, 1))
-    Y_train = onehot_encoder.fit_transform(Y_train.reshape(-1, 1))
-    Y_test = onehot_encoder.fit_transform(Y_test.reshape(-1, 1))
+    Y_test_one_hot = onehot_encoder.fit_transform(Y_test.reshape(-1, 1))
 
     #Y_val_one_hot : torch.Tensor = torch.tensor(Y_val_one_hot, dtype=torch.float32, requires_grad=False)
     #Y_train_one_hot : torch.Tensor = torch.tensor(Y_train_one_hot, dtype=torch.float32, requires_grad=False)
@@ -1425,8 +1444,8 @@ def start_learning():
 
     mi = 0
     for i, c in zip(np.arange(len(classes)), classes):
-        #mi = max(mi, Y_train.argmax(dim=1).eq(c).sum().item())
-        mi = max(mi, len(Y_train[np.argmax(Y_train, axis=1) == c]))
+        # Count max samples per class from integer labels
+        mi = max(mi, int(np.sum(Y_train == c)))
 
     per_epoch = int(len(X_train) / batch_size + 0.5)
     settings["per_epoch"] = per_epoch
@@ -1441,14 +1460,15 @@ def start_learning():
         #print(Y_train.argmax(dim=1).eq(c))
         #per_class[i] = Y_train.argmax(dim=1).eq(c).sum().item()
         #print(per_class[i])
-        per_class[i] = len(Y_test[np.argmax(Y_test, axis=1) == c])
+        per_class[i] = int(np.sum(Y_test == c))
 
         cvalues.append(per_class[i])
         if per_class[i] > m:
             m = per_class[i]
 
     if run_training:
-        callback = ValidationCallback(model, classes, X_test, Y_test, max_epochs, filename, output_prefix, output_path, best_accuracy_worst_class, settings, device)
+        # Pass one-hot labels to callback; training uses integer labels
+        callback = ValidationCallback(model, classes, X_test, Y_test_one_hot, max_epochs, filename, output_prefix, output_path, best_accuracy_worst_class, settings, device)
 
         TRex.log(f"# [init] weights per class {per_class}")
         TRex.log(f"# [training] data shapes: train={_shape_str(X_train)} {Y_train.shape} val={_shape_str(X_test)} {Y_test.shape} classes={classes}")
@@ -1533,7 +1553,7 @@ def start_learning():
         if update_work_percent is not None:
             update_work_percent(1.0)
 
-        callback = ValidationCallback(model, classes, X_test, Y_test, max_epochs, filename, output_prefix, output_path, best_accuracy_worst_class, settings, device)
+        callback = ValidationCallback(model, classes, X_test, Y_test_one_hot, max_epochs, filename, output_prefix, output_path, best_accuracy_worst_class, settings, device)
         if len(X_train) > 0:
             callback.evaluate(0, False)
 
