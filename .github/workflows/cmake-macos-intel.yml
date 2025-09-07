@@ -109,3 +109,11 @@ jobs:
         cd $GITHUB_WORKSPACE/Application/Tests
         ./run_unix.bash
         echo "::endgroup::"
+    - name: Upload failure artifacts (.results, .pv)
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: macos-intel-failure-artifacts
+        path: |
+          videos/*.results
+          videos/*.pv
