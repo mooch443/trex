@@ -98,11 +98,15 @@ jobs:
         cd $GITHUB_WORKSPACE/Application/Tests
         ./run_unix.bash
         echo "::endgroup::"
-    - name: Upload failure artifacts (.results, .pv)
+    - name: Upload failure artifacts (.csv, .npz, logs, html)
       if: failure()
       uses: actions/upload-artifact@v4
       with:
         name: windows-failure-artifacts
         path: |
-          videos/*.results
-          videos/*.pv
+          ${{ github.workspace }}/videos/corrected/data/*.csv
+          ${{ github.workspace }}/videos/**/*.html
+          ${{ github.workspace }}/videos/**/*.log
+          ${{ github.workspace }}/videos/**/*.npz
+        if-no-files-found: ignore
+        retention-days: 7

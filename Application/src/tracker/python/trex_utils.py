@@ -197,3 +197,41 @@ def clear_caches():
         TRex.log(f"No cache to clear {device}")
 
     gc.collect()
+
+def asarray(obj, copy=None, dtype=None):
+    if np.lib.NumpyVersion(np.__version__) >= '2.0.0b1':
+        return np.asarray(obj, copy=copy, dtype=dtype)
+    else:
+        return np.array(obj, copy=copy if copy is not None else True, dtype=dtype)  # Default copy=True for older numpy versions
+    
+# ---- helpers to support ndarray or list-of-ndarrays -----------------
+def _as_batched_np(X, idx):
+    """Return a (B,H,W,C) ndarray given either a big ndarray or a list/tuple of ndarrays.
+    If X is an ndarray, this uses NumPy slicing (usually a view, no host copy).
+    If X is a sequence of ndarrays, we gather and stack once (one host copy for that batch).
+    """
+    if isinstance(X, np.ndarray):
+        return X[idx]
+    # sequence path
+    if isinstance(idx, slice):
+        # Some pybind-backed sequences may not support slice objects; fall back to gather
+        try:
+            imgs = X[idx]
+        except Exception:
+            start, stop, step = idx.indices(len(X))
+            imgs = [X[i] for i in range(start, stop, step)]
+    else:
+        if isinstance(idx, np.ndarray):
+            idx = idx.tolist()
+        imgs = [X[i] for i in idx]
+    return np.stack(imgs, axis=0)
+
+def _first_shape(X):
+    """Return (H,W,C) from either (N,H,W,C) ndarray or list of (H,W,C) ndarrays."""
+    if isinstance(X, np.ndarray):
+        assert X.ndim == 4, "Invalid image shape"
+        return X.shape[1], X.shape[2], X.shape[3]
+    else:
+        first = X[0]
+        assert isinstance(first, np.ndarray) and first.ndim == 3, "Expect list/tuple of HxWxC ndarrays"
+        return first.shape

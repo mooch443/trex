@@ -557,7 +557,7 @@ std::future<void> deinit() {
             fn(std::move(task), std::move(init_future));
             
         } else {
-            std::jthread{std::move(fn), std::move(task), std::move(init_future)}.detach();
+            std::thread{std::move(fn), std::move(task), std::move(init_future)}.detach();
         }
     }
     
