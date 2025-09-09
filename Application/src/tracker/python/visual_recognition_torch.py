@@ -1,8 +1,24 @@
+"""Visual recognition training/inference utilities for TRex.
+
+This module provides:
+- Dataset/wrapper utilities that operate on NHWC images in [0,255]
+- Thread-backed prefetching for DataLoader iteration
+- Training loop with AMP, validation callback, and early stopping via a
+  project-specific "uniqueness" metric
+- Checkpoint save/load helpers supporting both state_dict and TorchScript
+
+External callers generally pass images as NumPy arrays (HxWxC), while models
+internally consume NCHW tensors via a wrapper defined in
+`visual_identification_network_torch`.
+"""
+
 # Standard library imports
 import gc
 import torch
 import json
 import os
+import threading
+from queue import Queue
 
 # Third-party imports
 import numpy as np
@@ -10,230 +26,79 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torchvision import transforms
+from torch.utils.data import Dataset, DataLoader
 import torchmetrics
 from tqdm import tqdm
-import datetime
+from typing import Optional
+
+from trex_utils import UserCancelException, UserSkipException, save_pytorch_model_as_jit
 
 # Local imports
-import TRex
+import os
+try:
+    import TRex  # embedded module from the host app
+except Exception:
+    # Worker processes (spawn) can’t see the embedded module. Use a stub.
+    class _TRexStub:
+        @staticmethod
+        def log(*args, **kwargs): pass  # or print("[TRex]", *args)
+        @staticmethod
+        def warn(*args, **kwargs): pass
+        @staticmethod
+        def choose_device(): return os.environ.get("TREX_DEFAULT_DEVICE", "cpu")
+        @staticmethod
+        def setting(_name, _default=None): return _default
+    TRex = _TRexStub()
+
 from visual_identification_network_torch import ModelFetcher
-from trex_utils import load_checkpoint_from_file, check_checkpoint_compatibility, save_pytorch_model_as_jit, ConfigurationError
+import trex_utils
+from trex_utils import _first_shape, _as_batched_np, load_checkpoint_from_file, check_checkpoint_compatibility, ConfigurationError
 
 static_inputs : torch.Tensor = None
 static_targets : torch.Tensor = None
 loaded_checkpoint : dict = None
 loaded_weights : TRex.VIWeights = None
+p_softmax = None
+output_path : Optional[str] = None
+X : Optional[list[np.ndarray]] = None
+Y : Optional[list[int]] = None
+X_val : Optional[list[np.ndarray]] = None
+Y_val : Optional[list[int]] = None
 
-class UserCancelException(Exception):
-    """Raised when user clicks cancel"""
-    pass
+def _dbg_enabled() -> bool:
+    """Return True if verbose debug logging is enabled via TREX_DEBUG_TRAIN=1."""
+    return os.environ.get("TREX_DEBUG_TRAIN", "0") == "1"
 
-class UserSkipException(Exception):
-    """Raised when user clicks cancel"""
-    pass
+def _dbg_tensor(name: str, t: torch.Tensor | None):
+    """Log basic properties of a tensor when debug is enabled."""
+    if not _dbg_enabled() or t is None:
+        return
+    try:
+        TRex.log(f"[DBG] {name}: shape={tuple(t.shape)} dtype={t.dtype} device={t.device} contiguous={t.is_contiguous()} stride={t.stride()} req_grad={t.requires_grad}")
+    except Exception as e:
+        TRex.warn(f"[DBG] failed to inspect {name}: {e}")
 
-'''
-
-# Mock implementations for the C++ functions
-def update_work_description(description):
-    print(f"Updating work description: {description}")
-
-def set_stop_reason(reason):
-    print(f"Setting stop reason: {reason}")
-
-def set_per_class_accuracy(accuracy):
-    print(f"Setting per class accuracy: {accuracy}")
-
-def set_uniqueness_history(uniquenesses):
-    print(f"Setting uniqueness history: {uniquenesses}")
-
-def update_work_percent(percent):
-    #print(f"Updating work percent: {percent * 100}%")
-    pass
-
-def acceptable_uniqueness():
-    return 0.9
-
-def accepted_uniqueness():
-    return 0.95
-
-def get_abort_training():
-    return False
-
-def get_skip_step():
-    return False
-
-def estimate_uniqueness():
-    return np.random.rand()
-
-class TRex:
-    @staticmethod
-    def log(message):
-        print(f"TRex log: {message}")
-
-    @staticmethod
-    def warn(message):
-        print(f"TRex warn: {message}")
-'''
-'''
-def load_mnist_data(N = 5000):
-    # Load MNIST dataset
-    mnist_transform = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Lambda(lambda x: x.permute(1, 2, 0) * 255)  # Convert to channels last
-    ])
-
-    train_dataset = datasets.MNIST(root='mnist_data', train=True, download=True, transform=mnist_transform)
-    val_dataset = datasets.MNIST(root='mnist_data', train=False, download=True, transform=mnist_transform)
-
-    indexes = np.arange(len(train_dataset))
-    np.random.shuffle(indexes)
-
-    # Extract a fixed set of training samples
-    X_train = []
-    Y_train = []
-    for i in range(N):  # Taking 500 samples from MNIST training data
-        X_train.append(train_dataset[indexes[i]][0].numpy())
-        Y_train.append(train_dataset[indexes[i]][1])
-
-    print(Y_train)
-    import matplotlib.pyplot as plt
-    plt.imshow(X_train[0].reshape(28, 28), vmin=0, vmax=255, cmap='gray')
-    plt.show()
-
-    X_train = np.array(X_train)
-    Y_train = np.array(Y_train)
-
-    # Extract a fixed set of validation samples
-    indexes = np.arange(len(val_dataset))
-    np.random.shuffle(indexes)
-
-    X_val = []
-    Y_val = []
-    for i in range(N // 4):  # Taking 100 samples from MNIST validation data
-        X_val.append(val_dataset[indexes[i]][0].numpy())
-        Y_val.append(val_dataset[indexes[i]][1])
-    
-    X_val = np.array(X_val)
-    Y_val = np.array(Y_val)
-
-    plt.imshow(X_val[0].reshape(28, 28), vmin=0, vmax=255, cmap='gray')
-    plt.show()
-
-    return X_train, Y_train, X_val, Y_val
-
-#X, Y, X_val, Y_val = load_mnist_data()
-
-def load_cifar10_data(N = 50000):
-    # Load CIFAR-10 dataset
-    cifar_transform = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Lambda(lambda x: x.permute(1, 2, 0) * 255)  # Convert to channels last
-    ])
-
-    train_dataset = datasets.CIFAR10(root='cifar10_data', train=True, download=True, transform=cifar_transform)
-    val_dataset = datasets.CIFAR10(root='cifar10_data', train=False, download=True, transform=cifar_transform)
-
-    indexes = np.arange(len(train_dataset))
-    np.random.shuffle(indexes)
-
-    N = min(N, len(train_dataset))
-
-    # Extract a fixed set of training samples
-    X_train = []
-    Y_train = []
-    for i in range(N):  # Taking 500 samples from CIFAR-10 training data
-        X_train.append(train_dataset[indexes[i]][0].numpy())
-        Y_train.append(train_dataset[indexes[i]][1])
-
-    X_train = np.array(X_train)
-    Y_train = np.array(Y_train)
-
-    # Extract a fixed set of validation samples
-    indexes = np.arange(len(val_dataset))
-    np.random.shuffle(indexes)
-
-    X_val = []
-    Y_val = []
-    for i in range(min(N // 4, len(val_dataset))):  # Taking 100 samples from CIFAR-10 validation data
-        X_val.append(val_dataset[indexes[i]][0].numpy())
-        Y_val.append(val_dataset[indexes[i]][1])
-    
-    X_val = np.array(X_val)
-    Y_val = np.array(Y_val)
-
-    return X_train, Y_train, X_val, Y_val
-
-X, Y, X_val, Y_val = load_cifar10_data(N=150000)
-
-image_channels = X.shape[3]
-image_width = X.shape[1]
-image_height = X.shape[2]
-#image_channels = X.shape[1]
-#image_width = X.shape[2]
-#image_height = X.shape[3]
-
-best_accuracy_worst_class = 0.8
-max_epochs = 150
-output_path = "output"
-classes = np.unique(Y)
-#classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
-learning_rate = 0.001
-accumulation_step = 1
-global_tracklet = list(range(5))
-verbosity = 1
-batch_size = 128
-
-TRex.log(f"Loaded MNIST data with shape: {image_width}x{image_height}x{image_channels}")
-TRex.log(f"Classes: {classes}")
-
-#X_val = np.random.rand(100, image_height, image_width, 1)
-#Y_val = np.random.randint(0, 10, 100)
-#X = np.random.rand(500, image_height, image_width, 1)
-#Y = np.random.randint(0, 10, 500)
-run_training = True
-save_weights_after = True
-do_save_training_images = lambda: False
-min_iterations = 10
-filename = "model"
-output_prefix = "output"
-
-#batch_size = 16#int(max(batch_size, 64))
-epochs = max_epochs
-'''
-
-'''run_training = None
-image_channels = None
-image_width : int = None
-image_height : int = None
-output_path = None
-classes = None
-learning_rate = None
-accumulation_step = None
-global_tracklet = None
-verbosity = None
-best_accuracy_worst_class = None
-do_save_training_images = None
-output_prefix = None
-filename = None
-
-save_weights_after = None
-
-X = None
-Y = None
-X_val = None
-Y_val = None
-
-model = None
-device = 'mps'
-
-min_iterations = None
-max_epochs = None
-batch_size = None
-
-network_version = None'''
+def _dbg_model(name: str, model: nn.Module | None):
+    """Log model name, parameter counts, and device when debug is enabled."""
+    if not _dbg_enabled() or model is None:
+        return
+    try:
+        num_params = sum(p.numel() for p in model.parameters())
+        num_trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
+        model_device = str(next(model.parameters()).device) if any(True for _ in model.parameters()) else "cpu"
+        TRex.log(f"[DBG] {name}: {model.__class__.__name__} with {num_params} params ({num_trainable} trainable) on {model_device}")
+    except Exception as e:
+        TRex.warn(f"[DBG] failed to inspect {name}: {e}")
 
 def save_model_files(model, output_path, accuracy, suffix='', epoch=None):
+    """Persist the model in two forms and attach training metadata.
+
+    - Writes `<output_path><suffix>_dict.pth`: Python checkpoint with `state_dict` and `metadata`.
+    - Writes `<output_path><suffix>_model.pth`: TorchScript export via `save_pytorch_model_as_jit`.
+
+    Metadata includes input_shape (W,H,C), num_classes, video_name, epoch,
+    uniqueness (float), and model_type.
+    """
     checkpoint = {
         'model': None,
         'state_dict': None,
@@ -243,12 +108,13 @@ def save_model_files(model, output_path, accuracy, suffix='', epoch=None):
             'video_name': TRex.setting("source"),
             'epoch': epoch,
             'uniqueness': accuracy,
+            'model_type': str(network_version),
         }
     }
-    TRex.log(f"# [saving] saving model state dict to {output_path+suffix}.pth")
+    TRex.log(f"# [saving] saving model state dict to {output_path+suffix}_dict.pth")
     try:
         checkpoint['state_dict'] = model.state_dict()
-        torch.save(checkpoint, output_path+suffix+".pth")
+        torch.save(checkpoint, output_path+suffix+"_dict.pth")
     except Exception as e:
         TRex.warn("Error saving model: " + str(e))
 
@@ -258,22 +124,24 @@ def save_model_files(model, output_path, accuracy, suffix='', epoch=None):
         #checkpoint['state_dict'] = model.state_dict()
         # save as a jit model
         save_pytorch_model_as_jit(model, output_path+suffix+"_model.pth", checkpoint['metadata'])
-        #torch.save(checkpoint, output_path+suffix+"_model.pth")
     except Exception as e:
-        TRex.warn("Error saving model: " + str(e))
+        TRex.warn("Error saving complete model: " + str(e))
         
     TRex.log("# [saving] saved states to "+output_path+suffix+" with accuracy of "+str(accuracy))
 
 # alternative for onehotencoder from sklearn:
 class OneHotEncoder:
+    """Minimal OneHotEncoder replacement for integer labels (no sklearn dependency)."""
     def __init__(self, sparse_output = False):
         self.categories_ = None
 
     def fit(self, y):
+        """Discover sorted unique categories from `y` and return self."""
         self.categories_ = np.unique(y).tolist()
         return self
 
     def transform(self, y : np.ndarray):
+        """Convert labels in `y` to a dense one-hot ndarray using discovered categories."""
         if self.categories_ is None:
             raise RuntimeError("You must fit the encoder before transforming data.")
 
@@ -284,51 +152,107 @@ class OneHotEncoder:
         return one_hot
 
     def fit_transform(self, y : np.ndarray):
+        """Fit on `y` then return its one-hot encoding."""
         return self.fit(y).transform(y)
 
-class CustomDataLoader:
-    def __init__(self, X : np.ndarray, Y : np.ndarray, batch_size : int, shuffle : bool = False, transform : transforms.Compose = None, device : str = 'cpu'):
+class TRexImageDataset(Dataset):
+    """Torch Dataset that yields NHWC float32 images in [0,255] and int64 labels.
+
+    - Accepts X as np.ndarray (N,H,W,C) or list of HxWxC ndarrays
+    - Applies transforms on CHW float in [0,1], then converts back to NHWC [0,255]
+    """
+    def __init__(self, X, Y, transform: transforms.Compose | None = None, device = None):
         self.X = X
-        self.Y = Y
-        self.batch_size = batch_size
-        self.shuffle = shuffle
+        self.Y = Y if isinstance(Y, np.ndarray) else np.asarray(Y, dtype=np.int64)
         self.transform = transform
         self.device = device
 
-    def __iter__(self):
-        self.index = 0
-        if self.shuffle:
-            self.indexes = np.arange(len(self.X))
-            np.random.shuffle(self.indexes)
-        return self
+    def __len__(self):
+        """Return N derived from `X` (len(X) for sequences; X.shape[0] for ndarrays)."""
+        return len(self.X) if not isinstance(self.X, np.ndarray) else self.X.shape[0]
 
-    def __next__(self) -> tuple[torch.Tensor, np.ndarray]:
-        if self.index >= len(self.X):
-            raise StopIteration
-        elif not self.shuffle:
-            if self.transform is None:
-                x = torch.tensor(self.X[self.index:self.index+self.batch_size], dtype=torch.float32, device=self.device)
-                y = self.Y[self.index:self.index+self.batch_size]
-            else:
-                x = self.transform(torch.tensor(self.X[self.index:self.index+self.batch_size], dtype=torch.float32, device=self.device).permute(0, 3, 1, 2) / 255).permute(0, 2, 3, 1) * 255
-                y = self.Y[self.index:self.index+self.batch_size]
-            self.index += self.batch_size
-            return (x, y)
+    def __getitem__(self, idx):
+        """Return a tuple `(x, y)` where:
+        - `x` is an NHWC float32 tensor in [0,255] (transforms applied on CHW [0,1])
+        - `y` is an int class index
+        """
+        if isinstance(self.X, np.ndarray):
+            im = self.X[idx]
         else:
-            indexes = self.indexes[self.index:self.index+self.batch_size]
-            if self.transform is not None:
-                x = self.transform(torch.tensor(self.X[indexes], dtype=torch.float32, device=self.device).permute(0, 3, 1, 2) / 255).permute(0, 2, 3, 1) * 255
-                y = self.Y[indexes]
-            else:
-                x = torch.tensor(self.X[indexes], dtype=torch.float32, device=self.device)
-                y = self.Y[indexes]
-            self.index += self.batch_size
-            return (x, y)
+            im = self.X[idx]
+        # im: HWC uint8/float; convert to CHW float in [0,1] for transforms
+        x = torch.from_numpy(im).to(dtype=torch.float32)
+        x = x.permute(2, 0, 1).contiguous().clone()  # CHW contiguous
+        x = x.div(255.0)
+        if self.transform is not None:
+            x = self.transform(x)
+        # Convert back to NHWC in [0,255] to preserve existing model path
+        x = (x.clamp(0.0, 1.0) * 255.0).permute(1, 2, 0).contiguous().clone()  # HWC contiguous
+        #TRex.log(f"Dataset idx {idx}: transformed image shape {self.Y.shape} dtype {self.Y.dtype} device {self.Y.device if isinstance(self.Y, torch.Tensor) else 'cpu'}")
+        y = int(self.Y[idx])
+        # Return a Tensor (not NumPy) to keep strides and contiguity under control
+        return x, y
+
+# --- ThreadedLoader: thread-backed prefetcher for any iterable loader ---
+class ThreadedLoader:
+    """A light-weight, thread-backed prefetcher for any Python iterable loader.
+
+    Purpose:
+      - Avoids multiprocessing (safe with embedded/pybind11 modules)
+      - Overlaps data preparation with GPU compute via a background thread
+      - Preserves the original loader's batching/collation
+
+    Usage:
+      wrapped = ThreadedLoader(train_loader, max_prefetch=2)
+      for batch in wrapped: ...
+    """
+    def __init__(self, loader, max_prefetch: int = 2):
+        self.loader = loader
+        self.max_prefetch = max(1, int(max_prefetch))
+        self._queue: Queue | None = None
+        self._thread: threading.Thread | None = None
+        self._sentinel = object()
+        self._exc: BaseException | None = None
 
     def __len__(self):
-        return len(self.X) // self.batch_size
+        return len(self.loader)
+
+    def _producer(self, it):
+        try:
+            for item in it:
+                self._queue.put(item)
+            # normal end
+            self._queue.put(self._sentinel)
+        except BaseException as e:
+            # store exception and signal end; will be re-raised on consumer side
+            self._exc = e
+            self._queue.put(self._sentinel)
+
+    def __iter__(self):
+        it = iter(self.loader)
+        self._queue = Queue(self.max_prefetch)
+        self._exc = None
+        self._thread = threading.Thread(target=self._producer, args=(it,), daemon=True)
+        self._thread.start()
+        return self
+
+    def __next__(self):
+        item = self._queue.get()
+        if item is self._sentinel:
+            # join the thread quickly and propagate producer error if any
+            t = self._thread
+            self._thread = None
+            if t is not None and t.is_alive():
+                t.join(timeout=0.1)
+            if self._exc is not None:
+                e = self._exc
+                self._exc = None
+                raise e
+            raise StopIteration
+        return item
 
 def clear_caches():
+    """Free device-specific caches (CUDA/MPS) and run Python GC."""
     device = TRex.choose_device()
     TRex.log(f"Clearing caches for {device}...")
     #if device == 'cuda':
@@ -347,9 +271,11 @@ def clear_caches():
 
     gc.collect()
 
-p_softmax = None
-
 def check_device_equivalence(device, model):
+    """Ensure `model` parameters live on the same device string as `device`.
+
+    Normalizes optional `:idx` suffix differences before comparing.
+    """
     model_device = str(next(model.parameters()).device)
     if model_device != device:
         # check if one of them has a : specifier and the other not
@@ -362,17 +288,26 @@ def check_device_equivalence(device, model):
             raise RuntimeError(f"Model device {model_device} and input device {device} are not the same")
 
 def predict_numpy(model, images, batch_size, device):
+    """Run batched inference and return class probabilities as np.ndarray (N,C).
+
+    - Accepts list/array of NHWC images in [0,255]; validates against configured W,H,C.
+    - Ensures model/device match; uses model's terminal Softmax if present,
+      otherwise applies a cached `nn.Softmax(dim=1)` to logits.
+    """
     global p_softmax
 
     assert device is not None, "No device provided"
     assert model is not None, "No model provided"
     assert images is not None, "No images provided"
-    assert len(images) > 0, "No images provided"
     assert batch_size > 0, "Invalid batch size"
-    assert len(images.shape) == 4, "Invalid image shape"
-    assert images.shape[1] == image_height, f"Invalid image height: {images.shape[1]} vs. {image_height}"
-    assert images.shape[2] == image_width, f"Invalid image width: {images.shape[2]} vs. {image_width}"
-    assert images.shape[3] == image_channels, f"Invalid image channels: {images.shape[3]} vs. {image_channels}"
+
+    N = len(images)
+    assert N > 0, "No images provided"
+
+    H, W, C = _first_shape(images)
+    assert H == image_height, f"Invalid image height: {H} vs. {image_height}"
+    assert W == image_width,  f"Invalid image width: {W} vs. {image_width}"
+    assert C == image_channels, f"Invalid image channels: {C} vs. {image_channels}"
 
     # check if the model is also on the same device
     check_device_equivalence(device, model)
@@ -394,7 +329,12 @@ def predict_numpy(model, images, batch_size, device):
         if p_softmax is None:
             p_softmax = nn.Softmax(dim=1).to(device)
         for i in range(0, len(images), batch_size):
-            x = torch.tensor(images[i:i+batch_size], dtype=torch.float32, requires_grad=False, device=device).detach()
+            j = min(i + batch_size, N)
+
+            #x = torch.tensor(images[i:i+batch_size], dtype=torch.float32, requires_grad=False, device=device)
+            batch_np = _as_batched_np(images, slice(i, j))   # ndarray (B,H,W,C). One host copy iff list
+            # Ensure float32 for MPS compatibility
+            x = torch.from_numpy(batch_np).to(device, dtype=torch.float32) # Tensor (B,H,W,C)
 
             # check if the model ends on a softmax layer
             if has_softmax:
@@ -413,6 +353,13 @@ def predict_numpy(model, images, batch_size, device):
 
 
 class ValidationCallback:
+    """Validation and early-stopping orchestrator using per-class accuracy and a 'uniqueness' score.
+
+    - Evaluates X_test/Y_test (one-hot) grouped by class; records worst/mean accuracy history.
+    - Saves interim weights when uniqueness improves and exposes a stop flag.
+    - Stops when uniqueness passes acceptance thresholds, worst-class accuracy
+      saturates, or loss trends indicate overfitting (relative to `patience` and `compare_acc`).
+    """
     def __init__(self, model : nn.Module, classes : list, X_test : np.ndarray, Y_test : np.ndarray, epochs : int, filename : str, prefix : str, output_path : str, compare_acc : float, settings : object, device : str):
         self.classes = classes
         self.model = model
@@ -424,10 +371,15 @@ class ValidationCallback:
         X = []
         Y = []
         if len(X_test) > 0:
+            #TRex.log(f"Y_test shape: {Y_test.shape} dtype: {Y_test.dtype} device: {Y_test.device if isinstance(Y_test, torch.Tensor) else 'cpu'}")
+            labels = Y_test.argmax(axis=1) if len(Y_test) > 0 else np.zeros((0,), dtype=np.int64)
             for c in classes:
-                #mask = Y_test.argmax(axis=1).eq(c)
-                mask = Y_test.argmax(axis=1) == c
-                a = X_test[mask]
+                mask = (labels == c)
+                if isinstance(X_test, np.ndarray):
+                    a = X_test[mask]
+                else:
+                    idxs = np.nonzero(mask)[0]
+                    a = [X_test[k] for k in idxs]
                 X.append(a)
                 Y.append(Y_test[mask])
         
@@ -473,7 +425,7 @@ class ValidationCallback:
             #TRex.log(f"Y: {y} - should: {should}")
             #TRex.log(f"{y - should}")
 
-            # shape of y: (1, num_classes)
+            # shape of y: (N, num_classes)
             #TRex.log(f"y.shape = {y.shape}, should.shape = {should.shape}")
             #distance : torch.Tensor = torch.abs(y - should).sum(dim=1)
             distance : np.ndarray = np.abs(y - should).sum(axis=1)
@@ -508,6 +460,7 @@ class ValidationCallback:
         return result
     
     def update_status(self, print_out=False, logs={}, patience=5):
+        """Format and push an epoch status line (best/prev. uniqueness and coarse loss change) to the TRex UI."""
         global update_work_description
 
         description = f"Epoch <c><nr>{min(self.epoch+1, self.epochs)}</nr></c>/<c><nr>{self.epochs}</nr></c>"
@@ -538,6 +491,11 @@ class ValidationCallback:
             TRex.log(f"{description} {str(logs)}")
 
     def evaluate(self, epoch, save=True, logs={}):
+        """Evaluate on the validation split, update metrics/history, and maybe save.
+
+        Returns the current uniqueness estimate. When `save` is True, updates
+        early-stopping state and may persist a progress checkpoint.
+        """
         global update_work_percent, set_stop_reason, set_per_class_accuracy, set_uniqueness_history, estimate_uniqueness, acceptable_uniqueness, accepted_uniqueness
 
         classes = self.classes
@@ -694,6 +652,7 @@ class ValidationCallback:
         return unique
     
     def on_epoch_end(self, epoch, logs={}):
+        """Hook called after each epoch to run evaluation and handle user abort/skip."""
         TRex.log(f"Epoch {epoch}/{self.epochs} ended: {logs}")
         worst_value = self.evaluate(epoch, True, logs)
 
@@ -708,6 +667,7 @@ class ValidationCallback:
             raise UserSkipException()
 
     def on_batch_end(self, batch, logs={}):
+        """Hook called after a training batch to update progress and check abort/skip."""
         #TRex.log(f"Batch {batch} ended")
         global get_abort_training, get_skip_step
         if get_abort_training():
@@ -729,6 +689,7 @@ class ValidationCallback:
         update_work_percent(epoch / self.epochs)
 
 def get_default_network():
+    """Instantiate and return the selected model via ModelFetcher on the active device."""
     global image_channels
     global image_width, image_height, classes, learning_rate, network_version
 
@@ -744,12 +705,14 @@ def get_default_network():
     return loaded_model
 
 def reinitialize_network():
+    """Reset the global `model` to a fresh architecture and clear loaded weights."""
     global model, loaded_checkpoint, loaded_weights
     model = get_default_network()
     loaded_checkpoint = None
     loaded_weights = None
 
 def get_loaded_weights():
+    """Return the serialized string representation of the currently loaded weights."""
     global loaded_weights
     return loaded_weights.to_string()
 
@@ -760,16 +723,11 @@ def apply_checkpoint_to_model(target_model: torch.nn.Module, checkpoint):
     checking compatibility based on metadata if available.
 
     The checkpoint can be:
-      - A dict with a "model" field (a complete model) that is not None,
-      - A dict with a "state_dict" field (with optional "metadata"),
-      - Or a plain state dict.
+      - A dict with a "state_dict" field (preferred)
+      - A dict with a "model" field (TorchScript or nn.Module); we will extract its state_dict
 
-    Compatibility is verified by comparing checkpoint metadata against attributes
-    of the target_model (if they exist, e.g. target_model.input_shape and target_model.num_classes).
-
-    Raises:
-        ConfigurationError: If the checkpoint metadata is incompatible with the target model.
-        Exception: If loading the weights fails.
+    Compatibility is verified against the current training configuration
+    (image size, channels, classes) using checkpoint metadata when available.
     """
     global image_width, image_height, image_channels, classes
 
@@ -786,16 +744,16 @@ def apply_checkpoint_to_model(target_model: torch.nn.Module, checkpoint):
                 metadata=metadata,
                 context="target model"
             )
-        # Prefer a complete model if available.
-        if "model" in checkpoint and checkpoint["model"] is not None:
-            TRex.log("The checkpoint has a complete model...")
+        # Prefer an explicit state_dict over a serialized model
+        if "state_dict" in checkpoint and checkpoint["state_dict"] is not None:
+            TRex.log("The checkpoint has a state_dict...")
+            state_dict = checkpoint["state_dict"]
+        elif "model" in checkpoint and checkpoint["model"] is not None:
+            TRex.log("Extracting state_dict from checkpoint model...")
             try:
                 state_dict = checkpoint["model"].state_dict()
             except Exception as e:
-                raise Exception("Failed to extract state dict from complete model in checkpoint: " + str(e))
-        elif "state_dict" in checkpoint:
-            TRex.log("The checkpoint has a state_dict...")
-            state_dict = checkpoint["state_dict"]
+                raise Exception("Failed to extract state dict from model in checkpoint: " + str(e))
         else:
             state_dict = checkpoint
             TRex.warn("Invalid checkpoint format: missing both 'model' and 'state_dict' keys. Assuming this is only a state_dict.")
@@ -805,65 +763,72 @@ def apply_checkpoint_to_model(target_model: torch.nn.Module, checkpoint):
     try:
         if target_model is None:
             target_model = get_default_network()
-        target_model.load_state_dict(state_dict)
+        
+        # Load in relaxed mode to tolerate BN↔GN or minor head changes
+        missing, unexpected = target_model.load_state_dict(state_dict, strict=False)
+        if missing or unexpected:
+            TRex.warn(f"load_state_dict(strict=False): missing={missing}, unexpected={unexpected}")
         TRex.log("Checkpoint weights applied successfully to target model.")
         return target_model
     except Exception as e:
-        if "model" not in checkpoint:
-            raise e
-
-        TRex.warn("Failed to apply checkpoint weights to target model. Trying to load the model directly: " + str(e))
-        target_model = checkpoint["model"]
-        TRex.log("Loaded complete model from checkpoint: " + str(target_model))
-        return target_model
+        raise Exception("Failed to load state dict into target model: " + str(e))
 
 def load_model_from_file(file_path: str, device: str, new_model: torch.nn.Module = None) -> tuple[torch.nn.Module, dict]:
-    """
-    Loads a model from the specified checkpoint file and returns a fully initialized PyTorch model.
-    
-    The function first loads the checkpoint using load_checkpoint_from_file(). If the checkpoint
-    contains a complete model in the "model" field (and it passes metadata checks via check_checkpoint_compatibility()),
-    that model is returned.
-    Otherwise, it instantiates a new model using get_default_network(), applies the checkpoint weights
-    to it via apply_checkpoint_to_model(), and returns the updated model.
+    """Load a checkpoint and return a trainable model when possible.
+
+    Preferred path: instantiate the current-code model and apply the checkpoint's
+    `state_dict` (after compatibility checks). Fallback: use a serialized model
+    from the checkpoint or sibling `*_model.pth` (may be inference-only).
+
+    Returns: (model, checkpoint_dict).
     """
     global image_width, image_height, image_channels, classes
 
     cp = load_checkpoint_from_file(file_path, device=device)
-    
-    # If a complete model is available, try using it.
-    if isinstance(cp, dict) and ("model" in cp and cp["model"] is not None):
-        try:
-            if "metadata" in cp:
-                check_checkpoint_compatibility(
-                    image_width=image_width,
-                    image_height=image_height,
-                    image_channels=image_channels,
-                    classes=classes,
-                    metadata=cp["metadata"]
-                )
-            TRex.log("Loaded complete model from checkpoint.")
-            return cp["model"], cp
-        except ConfigurationError as e:
-            TRex.warn("Complete model from checkpoint failed compatibility checks: " + str(e) + ". Falling back to state_dict loading")
-        except Exception as e:
-            TRex.warn("Failed to load complete model from checkpoint: " + str(e))
-    
-    # Otherwise, load the state_dict into a new model.
+
+    # Preferred path: apply state_dict into a fresh model (trainable)
     try:
         if new_model is None:
             TRex.log("Instantiating new model...")
             new_model = get_default_network()
-        TRex.log(f"Applying checkpoint weights to new model...")
+        TRex.log("Applying checkpoint weights to new model (state_dict-first)...")
         new_model = apply_checkpoint_to_model(new_model, cp)
         TRex.log("Loaded model from checkpoint state dict.")
         return new_model, cp
     except ConfigurationError as e:
-        raise ConfigurationError("Loaded model from checkpoint failed compatibility checks: " + str(e))
+        TRex.warn("Compatibility check failed for state_dict path: " + str(e))
     except Exception as e:
-        raise Exception("Failed to load model from checkpoint state dict: " + str(e))
+        TRex.warn("State_dict application failed: " + str(e))
+
+    # Fallback path: use serialized model if available
+    ts_cp = None
+    if isinstance(cp, dict) and cp.get("model", None) is not None:
+        ts_cp = cp
+    else:
+        # Try sibling "*_model.pth" path if provided file was weights-only
+        try:
+            if file_path.endswith(".pth") and not file_path.endswith("_model.pth"):
+                ts_path = file_path[:-4] + "_model.pth"
+                TRex.log(f"Trying serialized-model fallback from {ts_path}...")
+                ts_cp = load_checkpoint_from_file(ts_path, device=device)
+        except Exception as e2:
+            TRex.warn("Serialized-model fallback load failed: " + str(e2))
+
+    if isinstance(ts_cp, dict) and ts_cp.get("model", None) is not None:
+        ts_model = ts_cp["model"]
+        try:
+            # Ensure correct device; jit.load already mapped via device, but `.to` is safe.
+            ts_model = ts_model.to(device)
+        except Exception:
+            pass
+        TRex.warn("Using serialized model fallback (may be untrainable).")
+        return ts_model, ts_cp
+
+    # No viable fallback
+    raise Exception("Failed to load model: state_dict path failed and no serialized-model fallback available.")
 
 def unload_weights():
+    """Clear the current model/weights and free caches."""
     global model, loaded_checkpoint, loaded_weights
 
     TRex.log("Unloading model weights...")
@@ -873,12 +838,13 @@ def unload_weights():
 
     clear_caches()
 
-def load_weights(path: str = None) -> str:
+def load_weights(path: Optional[str] = None) -> str:
     """
-    Loads model weights from the specified checkpoint file and applies them to the current global model.
-    
-    The file is expected to contain either a complete model (in a "model" field) or a "state_dict".
-    This function loads the checkpoint and then applies it using apply_checkpoint_to_current_model().
+    Load weights with a simple ordered fallback:
+      1) <base>_dict.pth (preferred weights-only)
+      2) <base>.pth (legacy weights-only)
+      3) <base>_model.pth (serialized full model)
+    Tries to apply state_dict to a fresh Python model; otherwise adopts the serialized model.
     """
     global output_path, model, loaded_checkpoint, loaded_weights
 
@@ -888,62 +854,79 @@ def load_weights(path: str = None) -> str:
     model = None
     loaded_checkpoint = None
     loaded_weights = None
-    modified = None
     device = TRex.choose_device()
 
+    # Build candidate list
+    candidates: list[str]
     if path.endswith(".pth"):
-        saved_path = path
-        cp = load_checkpoint_from_file(saved_path, device=device)
-
+        candidates = [path]
     else:
-        saved_path = path + "_model.pth"
+        candidates = [path + "_dict.pth", path + ".pth", path + "_model.pth"]
+
+    chosen_cp = None
+    chosen_path = None
+    last_error = None
+
+    for cand in candidates:
         try:
-            cp = load_checkpoint_from_file(saved_path, device=device)
-        except ConfigurationError as e:
-            raise ConfigurationError(f"Loaded model from {path}_model.pth failed compatibility checks: {str(e)}")
+            cp = load_checkpoint_from_file(cand, device=device)
         except Exception as e:
-            saved_path = path+".pth"
-            TRex.log(f"Failed to load model from {path}_model.pth ({e}). Trying {saved_path}")
-            cp = load_checkpoint_from_file(saved_path, device=device)
+            TRex.log(f"Failed to load from {cand}: {e}")
+            last_error = e
+            continue
 
-    metadata = cp["metadata"] if "metadata" in cp else None
-
-    TRex.log("Loaded checkpoint with metadata: " + str(cp["metadata"] if "metadata" in cp else None))
-    model = apply_checkpoint_to_model(model, cp)
-    #print("Loaded model weights from checkpoint: ", model)
-
-    if "metadata" in cp and cp["metadata"] is not None and "modified" in cp["metadata"]:
-        modified = cp["metadata"]["modified"]
-    else:
+        # Try state_dict application first
         try:
-            # get modified time as a unix timestamp
-            modified = int(os.path.getmtime(saved_path))
-        except Exception as e:
-            TRex.warn(f"Failed to get modified time for {saved_path}: {str(e)}")
+            model_candidate = apply_checkpoint_to_model(model, cp)
+            model = model_candidate
+            chosen_cp = cp
+            chosen_path = cand
+            break
+        except Exception as e_apply:
+            TRex.warn(f"State_dict application failed for {cand}: {e_apply}")
+            # If cp has a serialized model, adopt it as inference-only fallback
+            if isinstance(cp, dict) and cp.get("model", None) is not None:
+                try:
+                    model = cp["model"].to(device)
+                except Exception:
+                    model = cp["model"]
+                chosen_cp = cp
+                chosen_path = cand
+                TRex.warn("Using serialized model (inference-only).")
+                break
+            # else continue to next candidate
 
-    loaded_checkpoint = cp
+    if chosen_cp is None or chosen_path is None or model is None:
+        raise Exception(f"No usable checkpoint found. Last error: {last_error}")
+
+    metadata = chosen_cp.get("metadata", None) if isinstance(chosen_cp, dict) else None
+
+    # Determine modified time
+    try:
+        modified = metadata.get("modified") if (metadata and "modified" in metadata) else int(os.path.getmtime(chosen_path))
+    except Exception:
+        modified = None
+
+    loaded_checkpoint = chosen_cp
     loaded_weights = TRex.VIWeights(
-        path = saved_path,
-        uniqueness = metadata["uniqueness"] if metadata is not None and "uniqueness" in metadata else None,
-        status = "FINISHED",
-        modified = modified,
-        loaded = True,
-        resolution = TRex.DetectResolution(metadata["input_shape"][:2]) if metadata is not None and "input_shape" in metadata else None,
-        classes = metadata["num_classes"] if metadata is not None and "num_classes" in metadata else None
+        path=chosen_path,
+        uniqueness=metadata["uniqueness"] if metadata is not None and "uniqueness" in metadata else None,
+        status="FINISHED",
+        modified=modified,
+        loaded=True,
+        resolution=TRex.DetectResolution(metadata["input_shape"][:2]) if metadata is not None and "input_shape" in metadata else None,
+        classes=metadata["num_classes"] if metadata is not None and "num_classes" in metadata else None
     )
 
     return loaded_weights.to_string()
 
 
 def find_available_weights(path: str = None) -> str:
-    """
-    Searches for available model weights in the specified directory and returns a JSON array of serialized TRex.VIWeights strings.
-    
-    Only files matching the allowed pattern are processed. In this implementation, only files with names exactly matching
-    either <path>_model.pth or <path>.pth are allowed.
-    
-    Returns:
-        A JSON-encoded array (string) of serialized TRex.VIWeights objects. If no valid weight files are found, an empty JSON array ("[]") is returned.
+    """List sibling weight files for a base path and return a JSON array of serialized TRex.VIWeights strings.
+
+    Recognized (priority order): `<path>_dict.pth`, `<path>_model.pth`, `<path>.pth`.
+    Each array element is itself a JSON string; the `loaded` field is true for the currently loaded path.
+    Returns "[]" if nothing valid is found.
     """
     global output_path
     device = TRex.choose_device()
@@ -956,9 +939,10 @@ def find_available_weights(path: str = None) -> str:
         candidate_files = [path]
     else:
         candidate_files = [
+            path + "_dict.pth",
             path + "_model.pth",
             path + ".pth"
-        ] #glob.glob(pattern)
+        ]
     
     serialized_weights = []
     
@@ -998,6 +982,11 @@ def find_available_weights(path: str = None) -> str:
     return json.dumps(serialized_weights)
 
 def predict():
+    """Predict class probabilities for global `images` and pass to `receive`.
+
+    Validates NHWC shape against configured (W,H,C), runs `predict_numpy`, and
+    emits indexes [0..N-1]. Side effect: calls `receive(output, indexes)`.
+    """
     global receive, images, model, image_channels, batch_size, image_width, image_height
 
     device = TRex.choose_device()
@@ -1005,49 +994,91 @@ def predict():
     assert model is not None, "No model available for prediction."
     assert images is not None, "No images available for prediction."
 
-    images = np.array(images, copy=False)
-    assert len(images.shape) == 4, f"error with the shape {images.shape} < len 4"
-    assert images.shape[3] == image_channels, f"error with the shape {images.shape} < channels {image_channels}"
-    assert images.shape[1] == image_width and images.shape[2] == image_height, f"error with the shape {images.shape} < width {image_width} height {image_height}"
+    # Normalize to a Python list of per-image ndarrays
+    #images = images if isinstance(images, list) else list(images)
+    assert isinstance(images, list), "Images must be provided as a list of NumPy arrays."
 
-    TRex.log(f"Predicting {len(images)} images with shape {images.shape}")
-    
-    if len(images.shape) != 4:
-        TRex.warn(f"error with the shape {images.shape} < len 4")
-    if images.shape[3] != image_channels:
-        TRex.warn(f"error with the shape {images.shape} < channels {image_channels}")
-    if images.shape[1] != image_width or images.shape[2] != image_height:
-        TRex.warn(f"error with the shape {images.shape} < width {image_width} height {image_height}")
-    #elif train_X.shape[1] != model.input.shape[1] or train_X.shape[2] != model.input.shape[2]:
-    #    raise Exception("Wrong image dimensions for model ("+str(train_X.shape[1:3])+" vs. "+str(model.input.shape[1:3])+").")
-        
-    indexes = np.array(np.arange(len(images)), dtype=np.float32)
-    #output = model.predict(tf.cast(train_X, dtype=np.float32), verbose=0)
+    N = len(images)
+    assert N > 0, "No images available for prediction."
 
-    output = predict_numpy(model, images, batch_size, device=device).astype(np.float32)#.cpu().numpy()
+    # Validate a representative sample (first + up to 7 more) for shape consistency
+    first = images[0]
+    assert isinstance(first, np.ndarray), "Each image must be a NumPy array"
+    assert first.ndim == 3, f"Each image must be HxWxC, got ndim={first.ndim}"
+    H, W, C = first.shape
+    assert C == image_channels, f"Channel mismatch: {C} vs expected {image_channels}"
+    assert (W, H) == (image_width, image_height), (
+        f"Size mismatch: {(W, H)} vs expected {(image_width, image_height)}"
+    )
+
+    for k in range(1, min(8, N)):
+        imk = images[k]
+        if not isinstance(imk, np.ndarray) or imk.shape != (H, W, C):
+            raise AssertionError(
+                f"Inconsistent image at index {k}: got {None if not isinstance(imk, np.ndarray) else imk.shape}, expected {(H, W, C)}"
+            )
+
+    TRex.log(f"Predicting {N} images with shape ({N}, {H}, {W}, {C})")
+
+    # Build indexes and run prediction; predict_numpy handles list-of-arrays by stacking per batch
+    indexes = np.arange(N, dtype=np.float32)
+    output = predict_numpy(model, images, batch_size, device=device).astype(np.float32, copy=False)
     TRex.log(f"Predicted images with shape {output.shape}")
-    
+
     receive(output, indexes)
 
+    # Cleanup
     del output
     del indexes
     del images
-
     gc.collect()
 
-def train(model, train_loader, val_loader, criterion, optimizer : torch.optim.Adam, callback : ValidationCallback, scheduler, transform, settings, device):
+def train(model, train_loader, val_loader, criterion, optimizer : torch.optim.Adam, callback : ValidationCallback, scheduler, settings, device):
+    """Mini-batch training loop with AMP and threaded prefetch.
+
+    Consumes NHWC float inputs in [0,255] with integer labels; trains with
+    CrossEntropy over logits; periodically evaluates on `val_loader`; reports
+    progress via `callback` and respects its early-stopping signal.
+    """
     global get_abort_training
     num_classes = len(settings["classes"])
 
-    # Initialize metrics
+    # Initialize metric placeholders (precision/recall currently disabled)
     precision = torchmetrics.Precision(task='multiclass', num_classes=num_classes, average='macro').to(device)
     recall = torchmetrics.Recall(task='multiclass', num_classes=num_classes, average='macro').to(device)
 
     best_val_acc = 0.0
-    softmax = nn.Softmax(dim=1).to(device)
+    # No softmax for training metrics; argmax on logits is identical.
 
     static_inputs = None
     static_targets = None
+    
+    # Enable kernel autotuning / TF32 where applicable
+    try:
+        if device == 'cuda':
+            torch.backends.cudnn.benchmark = True
+            torch.backends.cuda.matmul.allow_tf32 = True
+            torch.backends.cudnn.allow_tf32 = True
+    except Exception:
+        pass
+
+    # AMP (CUDA only)
+    from contextlib import nullcontext
+    use_amp = (device == 'cuda' and torch.cuda.is_available())
+    amp_ctx = torch.cuda.amp.autocast if use_amp else nullcontext
+    try:
+        # Prefer new torch.amp API where available
+        scaler = torch.amp.GradScaler('cuda', enabled=use_amp)
+    except Exception:
+        scaler = torch.cuda.amp.GradScaler(enabled=use_amp)
+    
+    # Optional anomaly detection for better error traces
+    if os.environ.get("TREX_TORCH_ANOMALY", "0") == "1":
+        try:
+            torch.autograd.set_detect_anomaly(True)
+            TRex.log("[DBG] Enabled torch.autograd.set_detect_anomaly(True)")
+        except Exception as e:
+            TRex.warn(f"[DBG] Failed to enable anomaly detection: {e}")
     
     #import tracemalloc;
     #tracemalloc.start(50)
@@ -1061,32 +1092,23 @@ def train(model, train_loader, val_loader, criterion, optimizer : torch.optim.Ad
         #import torch.autograd.profiler as profiler
 
         #with profiler.profile(with_stack=True, profile_memory=True) as prof:
-        # dont use train_loader, manually iterate over the dataset
-        for batch, (inputs, targets) in tqdm(enumerate(train_loader), total=len(train_loader)):
+        # Wrap DataLoader with ThreadedLoader to prefetch in background
+        it_loader = ThreadedLoader(train_loader, max_prefetch=int(os.environ.get("TREX_PREFETCH", "2")))
+        
+        for batch, (inputs, targets) in tqdm(enumerate(it_loader), total=len(it_loader)):
             #inputs = transform(inputs.permute(0, 3, 1, 2) / 255).permute(0, 2, 3, 1) * 255
-            if isinstance(inputs, np.ndarray):
-                static_inputs = torch.from_numpy(inputs).to(device, dtype=torch.float32).contiguous()
-            else:
-                static_inputs = inputs.to(device).contiguous()
-
-            if isinstance(targets, np.ndarray):
-                static_targets = torch.from_numpy(targets).to(device, dtype=torch.float32).contiguous()
-            else:
-                static_targets = targets.to(device).contiguous()
+            assert isinstance(inputs, torch.Tensor), f"Expected inputs to be a torch.Tensor, got {type(inputs)}"
+            assert isinstance(targets, torch.Tensor), f"Expected targets to be a torch.Tensor, got {type(targets)}"
+            assert inputs.ndim == 4, f"Expected inputs to be 4D (N,H,W,C), got {inputs.ndim}D"
+            assert targets.ndim == 1, f"Expected targets to be 1D (N,), got {targets.ndim}D"
+            assert inputs.shape[0] == targets.shape[0], f"Batch size mismatch: {inputs.shape[0]} vs {targets.shape[0]}"
+            assert inputs.shape[1] == settings["image_height"] and inputs.shape[2] == settings["image_width"], f"Input size mismatch: {(inputs.shape[1], inputs.shape[2])} vs {(settings['image_height'], settings['image_width'])}"
+            assert inputs.shape[3] == settings["image_channels"], f"Input channels mismatch: {inputs.shape[3]} vs {settings['image_channels']}"
+            assert targets.dtype in (torch.int64, torch.int32), f"Expected targets to be integer class indices, got {targets.dtype}"
+            assert targets.min() >= 0 and targets.max() < num_classes, f"Target class indices out of range: min {targets.min().item()} max {targets.max().item()} vs num_classes {num_classes}"
             
-            #inputs = torch.tensor(inputs, dtype=torch.float32, device=device)
-            #targets = torch.tensor(targets, dtype=torch.float32)#, device=device)
-
-            #for i in range(0, len(X), settings["batch_size"]):
-            #batch = i // settings["batch_size"]
-
-            #inputs = torch.tensor(X[i:i+settings["batch_size"]], dtype=torch.float32, device=device)
-            #targets = torch.tensor(callback.Y_one_hot[i:i+settings["batch_size"]], dtype=torch.float32, device=device)
-
-            #TRex.log(f"Batch {batch}/{len(X)} - inputs: {inputs.shape} targets: {targets.shape}")
-            
-            #for batch, (inputs, targets) in tqdm(enumerate(train_loader), total=len(train_loader)):
-            
+            static_inputs = inputs.to(device, non_blocking=True).contiguous()
+            static_targets = targets.to(device, non_blocking=True).long().contiguous()
 
             '''if batch == 0 and epoch == 0:
                 print(f"Batch {batch}/{len(train_loader)} - inputs: {inputs.shape} targets: {targets.shape}")
@@ -1098,26 +1120,50 @@ def train(model, train_loader, val_loader, criterion, optimizer : torch.optim.Ad
                 TRex.log(f"Image shape: {image.shape}")
                 TRex.imshow("batch0", image)
                 #plt.imshow(grid.permute(1, 2, 0).numpy().astype(int))
-                #plt.show()
+                #plt.show()'''
 
-                #return'''
-            #print(f"Batch {batch}/{len(train_loader)} - inputs: {inputs.shape} targets: {targets.shape} - {torch.argmax(targets, dim=1)[0]}")
+            if _dbg_enabled():
+                _dbg_tensor("batch.inputs", static_inputs)
+                _dbg_tensor("batch.targets", static_targets)
 
+                # print model information
+                _dbg_model("batch.model", model)
+            
             assert static_inputs.is_contiguous()
             assert static_targets.is_contiguous()
 
-            #print(f"Device: {static_inputs.device} vs. {device} vs. {inputs.device}")
-            #assert static_inputs.device == device
-        
-            outputs = model(static_inputs)
-            loss = criterion(outputs, static_targets)
-            loss.backward()
-            optimizer.step()
-            optimizer.zero_grad(set_to_none=True)
+            try:
+                with amp_ctx():
+                    outputs = model(static_inputs)
+                    if _dbg_enabled():
+                        _dbg_tensor("batch.outputs", outputs)
+                    
+                    loss = criterion(outputs.contiguous(), static_targets)
+            except Exception as e:
+                # Print diagnostics and re-raise
+                _dbg_tensor("EX.inputs", static_inputs)
+                TRex.warn(f"[DBG] Exception during forward/loss: {e}")
+                raise
+
+            try:
+                if use_amp:
+                    scaler.scale(loss).backward()
+                    scaler.step(optimizer)
+                    scaler.update()
+                    optimizer.zero_grad(set_to_none=True)
+                else:
+                    loss.backward()
+                    optimizer.step()
+                    optimizer.zero_grad(set_to_none=True)
+            except Exception as e:
+                _dbg_tensor("EX.outputs", outputs)
+                TRex.warn(f"[DBG] Exception during backward/step: {e}")
+                raise
 
             with torch.no_grad():
-                outputs = softmax(outputs).detach()
-                acc = torch.mean((outputs.argmax(dim=1) == static_targets.argmax(dim=1)).float())
+                # Compute accuracy from logits directly (no softmax needed)
+                pred = outputs.argmax(dim=1)
+                acc = torch.mean((pred == static_targets).float())
             
             running_acc += acc
             running_loss += loss.item()
@@ -1148,40 +1194,22 @@ def train(model, train_loader, val_loader, criterion, optimizer : torch.optim.Ad
         total = 0
         if len(val_loader) > 0:
             with torch.no_grad():
-                #for inputs, targets in val_loader:
-                #for batch, i in enumerate(range(0, len(X_val), settings["batch_size"])):
-                #    inputs = torch.tensor(X_val[i:i+settings["batch_size"]], dtype=torch.float32, device=device).detach()
-                #    targets = callback.Y_val_one_hot[i:i+settings["batch_size"]].clone().detach().to(device=device)
-
                 for batch, (inputs, targets) in enumerate(val_loader):
-                    if isinstance(inputs, np.ndarray):
-                        static_inputs = torch.from_numpy(inputs).to(device, dtype=torch.float32).contiguous()
-                    else:
-                        static_inputs = inputs.to(device).contiguous()
-    
-                    if isinstance(targets, np.ndarray):
-                        static_targets = torch.from_numpy(targets).to(device, dtype=torch.float32).contiguous()
-                    else:
-                        static_targets = targets.to(device).contiguous()
+                    static_inputs = inputs.to(device).contiguous()
+                    static_targets = targets.to(device).long().contiguous()
 
-                    #inputs = inputs.to(device)
-                    #targets = targets.to(device)
+                    # Validation forward pass
+                    with amp_ctx():
+                        outputs = model(static_inputs)
 
-                    #outputs = model(inputs)
-                    outputs = model(static_inputs)
-
-                    #TRex.log(f"outputs on device {outputs.device} vs. {static_targets.device} vs. {device}")
-                    loss = criterion(outputs, static_targets)
+                    loss = criterion(outputs.contiguous(), static_targets)
                     val_loss += loss.item()
 
-                    outputs = softmax(outputs.detach())
-
-                    # Calculate the accuracy of the model on the validation set
-                    # by counting the number of correct predictions.
-                    _, predicted = outputs.max(1)
+                    # Calculate the accuracy using logits
+                    predicted = outputs.detach().argmax(1)
 
                     total += static_targets.size(0)
-                    correct += predicted.eq(static_targets.argmax(dim=1)).sum().item()
+                    correct += predicted.eq(static_targets).sum().item()
 
                     # Update precision and recall
                     #precision.update(predicted, static_targets.argmax(dim=1))
@@ -1198,7 +1226,7 @@ def train(model, train_loader, val_loader, criterion, optimizer : torch.optim.Ad
             val_loss /= len(val_loader)
             val_acc = correct / total
             
-            # Compute precision and recall
+            # Precision/recall placeholders (computation disabled)
             val_precision = 0#precision.compute().item()
             val_recall = 0#recall.compute().item()
 
@@ -1254,10 +1282,16 @@ def train(model, train_loader, val_loader, criterion, optimizer : torch.optim.Ad
     
 
 def start_learning():
+    """Prepare datasets/loaders, configure augmentation/scheduler, and run training or evaluation.
+
+    Uses globals (X/Y/X_val/Y_val, classes, image size, etc.), optionally saves
+    training images, persists progress/history, and returns the serialized
+    `loaded_weights` string. Raises if training is required but fails to improve.
+    """
     global image_channels, output_prefix, filename
     global best_accuracy_worst_class, max_epochs, image_width, image_height, update_work_percent
     global output_path, classes, learning_rate, accumulation_step, global_tracklet, verbosity
-    global batch_size, X_val, Y_val, X, Y, run_training, save_weights_after, do_save_training_images, min_iterations
+    global batch_size, X_val, Y_val, X, Y, run_training, do_save_training_images, min_iterations
     global get_abort_training, model, train, network_version, loaded_checkpoint, loaded_weights
 
     device = TRex.choose_device()
@@ -1284,85 +1318,101 @@ def start_learning():
         "per_epoch": -1,
         "min_iterations": min_iterations,
         "verbosity": verbosity,
-        "save_weights_after": save_weights_after
         #"min_acceptable_value": 0.98
     }
 
     # Data augmentation setup
     transform = transforms.Compose([
-        #transforms.RandomRotation(degrees=180),
-        #transforms.RandomAffine(degrees=0, translate=(move_range, move_range)),
+        #transforms.RandomRotation(degrees=5),
+        transforms.RandomAffine(degrees=5, translate=(move_range, move_range)),
         transforms.ColorJitter(brightness=(0.85, 1.15),
-                            contrast=(0.85, 1.15),
-                            saturation=(0.85, 1.15),
-                            hue=(-0.05, 0.05),
-                            ),
+                                contrast=(0.85, 1.15),
+                                saturation=(0.85, 1.15),
+                                hue=(-0.05, 0.05),
+                               ),
         #transforms.RandomHorizontalFlip(),
         #transforms.RandomVerticalFlip(),
         #transforms.RandomResizedCrop((image_height, image_width), scale=(0.95, 1.05)),
     ])
 
-    X_train : np.ndarray = np.array(X, copy=False)
-    Y_train : np.ndarray = np.array(Y, dtype=int)
-    X_test : np.ndarray = np.array(X_val, copy=False)
-    Y_test : np.ndarray = np.array(Y_val, dtype=int)
+    # Expect a list of per-image ndarrays (HxWxC)
+    assert isinstance(X, list)
+    X_train = X  # keep as sequence; batching happens per step
+    Y_train = trex_utils.asarray(Y, dtype=int)
 
-    # Convert Y values to one-hot encoding+
+    assert isinstance(X_val, list)
+    X_test = X_val
+    Y_test = trex_utils.asarray(Y_val, dtype=int)
+
+    # Keep integer class indices for training; build one-hot only for validation callback
     TRex.log(f"Y_test: {Y_test.shape}")
-
     onehot_encoder = OneHotEncoder(sparse_output=False)
-    #Y_val_one_hot : np.ndarray = onehot_encoder.fit_transform(Y_test.reshape(-1, 1))
-    #Y_train_one_hot : np.ndarray = onehot_encoder.fit_transform(Y_train.reshape(-1, 1))
-    Y_train = onehot_encoder.fit_transform(Y_train.reshape(-1, 1))
-    Y_test = onehot_encoder.fit_transform(Y_test.reshape(-1, 1))
+    Y_test_one_hot = onehot_encoder.fit_transform(Y_test.reshape(-1, 1).astype(np.float32))
 
-    #Y_val_one_hot : torch.Tensor = torch.tensor(Y_val_one_hot, dtype=torch.float32, requires_grad=False)
-    #Y_train_one_hot : torch.Tensor = torch.tensor(Y_train_one_hot, dtype=torch.float32, requires_grad=False)
+    def _len_images(arr):
+        return len(arr) if not isinstance(arr, np.ndarray) else arr.shape[0]
 
-    # Convert numpy arrays to torch tensors
-    #X_test : torch.Tensor = torch.tensor(X_val, dtype=torch.float32, requires_grad=False)
-    #Y_test : torch.Tensor = Y_val_one_hot
-    #X_train : torch.Tensor = torch.tensor(X, dtype=torch.FloatTensor.dtype, requires_grad=False)
-    #Y_train : np.ndarray = Y_train_one_hot
+    def _shape_str(arr):
+        return str(arr.shape) if isinstance(arr, np.ndarray) else f"({len(arr)}, {image_height}, {image_width}, {image_channels})"
 
-    # only print this if the shape is not empty:
-    if X_train.shape[0] > 0:
-        TRex.log(f"X_train: {X_train.shape}, Y_train: {Y_train.shape} pixel min: {X_train.min()} max: {X_train.max()} median pixel: {np.median(X_train)}")
+    def _min_max_median(arr):
+        if isinstance(arr, np.ndarray):
+            return float(arr.min()), float(arr.max()), float(np.median(arr))
+        # sequence path: compute per-image extrema; approximate median from a sample
+        mins = [float(im.min()) for im in arr]
+        maxs = [float(im.max()) for im in arr]
+        sample = arr[:min(64, len(arr))]
+        med = float(np.median(np.concatenate([im.ravel() for im in sample]))) if sample else 0.0
+        return float(np.min(mins)), float(np.max(maxs)), med
+
+    # only print this if there is at least one image
+    if _len_images(X_train) > 0:
+        mn, mx, med = _min_max_median(X_train)
+        TRex.log(f"X_train: {_shape_str(X_train)}, Y_train: {Y_train.shape} pixel min: {mn} max: {mx} median pixel: {med}")
     else:
         # generate some dummy data
         X_train = np.random.rand(1, image_height, image_width, image_channels)
-        Y_train = np.random.rand(1, len(classes))
-        #X_train = torch.rand(1, image_height, image_width, image_channels)
-        #Y_train = torch.rand(1, len(classes))
-
+        Y_train = np.random.randint(0, len(classes), size=(1,), dtype=int)
         TRex.log(f"Generated dummy data: X_train: {X_train.shape}, Y_train: {Y_train.shape} pixel min: {X_train.min()} max: {X_train.max()} median pixel: {np.median(X_train)}")
 
-    if X_test.shape[0] > 0:
-        TRex.log(f"X_test: {X_test.shape}, Y_test: {Y_test.shape} pixel min: {X_test.min()} max: {X_test.max()} median pixel: {np.median(X_test)}")
+    if _len_images(X_test) > 0:
+        mn, mx, med = _min_max_median(X_test)
+        TRex.log(f"X_test: {_shape_str(X_test)}, Y_test: {Y_test.shape} pixel min: {mn} max: {mx} median pixel: {med}")
     else:
-        # generate some dummy data
-        #X_test = torch.rand(1, image_height, image_width, image_channels)
-        #Y_test = torch.rand(1, len(classes))
         X_test = np.random.rand(1, image_height, image_width, image_channels)
-        Y_test = np.random.rand(1, len(classes))
-
+        Y_test = np.random.randint(0, len(classes), size=(1,), dtype=int)
         TRex.log(f"Generated dummy data: X_test: {X_test.shape}, Y_test: {Y_test.shape} pixel min: {X_test.min()} max: {X_test.max()} median pixel: {np.median(X_test)}")
 
     #train_data = TensorDataset(X_train, Y_train)
     #val_data = TensorDataset(X_test, Y_test)
 
-    #train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True, pin_memory=True, num_workers=0)
-    #val_loader = DataLoader(val_data, batch_size=batch_size, shuffle=False, pin_memory=True, num_workers=0)
+    # Use TRexImageDataset + DataLoader (single-process) for stable threading behavior
+    train_dataset = TRexImageDataset(X_train, Y_train, transform=transform, device=device)
+    val_dataset = TRexImageDataset(X_test, Y_test, transform=None)
 
-    train_loader = CustomDataLoader(X_train, Y_train, batch_size=batch_size, shuffle=True, transform=transform, device=device)
-    val_loader = CustomDataLoader(X_test, Y_test, batch_size=batch_size, device='cpu')
+    pin_mem = (str(device) == 'cuda')
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=batch_size,
+        shuffle=True,
+        drop_last=False,
+        num_workers=0,
+        pin_memory=pin_mem
+    )
+    val_loader = DataLoader(
+        val_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        drop_last=False,
+        num_workers=0,
+        pin_memory=pin_mem
+    )
+
+    #train_loader = CustomDataLoader(X_train, Y_train, batch_size=batch_size, shuffle=True, transform=transform, device=device)
+    #val_loader = CustomDataLoader(X_test, Y_test, batch_size=batch_size, device='cpu')
 
     settings["model"] = network_version
     settings["device"] = str(device)
-
-    #if model is None:
-    #    TRex.log(f"# [init] loading model {model_name} with {num_classes} classes and {image_channels} channels ({image_width}x{image_height})")
-    #    model = model_fetcher.get_model(model_name, num_classes, image_channels, image_width, image_height, device=device)
 
     assert model is not None, "Model is not initialized."
 
@@ -1375,9 +1425,10 @@ def start_learning():
 
     mi = 0
     for i, c in zip(np.arange(len(classes)), classes):
-        #mi = max(mi, Y_train.argmax(dim=1).eq(c).sum().item())
-        mi = max(mi, len(Y_train[np.argmax(Y_train, axis=1) == c]))
+        # Count max samples per class from integer labels
+        mi = max(mi, int(np.sum(Y_train == c)))
 
+    # Use DataLoader length (number of batches) for progress accounting
     per_epoch = int(len(X_train) / batch_size + 0.5)
     settings["per_epoch"] = per_epoch
     TRex.log(str(settings))
@@ -1391,20 +1442,25 @@ def start_learning():
         #print(Y_train.argmax(dim=1).eq(c))
         #per_class[i] = Y_train.argmax(dim=1).eq(c).sum().item()
         #print(per_class[i])
-        per_class[i] = len(Y_test[np.argmax(Y_test, axis=1) == c])
+        per_class[i] = int(np.sum(Y_test == c))
 
         cvalues.append(per_class[i])
         if per_class[i] > m:
             m = per_class[i]
 
     if run_training:
-        callback = ValidationCallback(model, classes, X_test, Y_test, max_epochs, filename, output_prefix, output_path, best_accuracy_worst_class, settings, device)
+        # Pass one-hot labels to callback; training uses integer labels
+        callback = ValidationCallback(model, classes, X_test, Y_test_one_hot, max_epochs, filename, output_prefix, output_path, best_accuracy_worst_class, settings, device)
 
         TRex.log(f"# [init] weights per class {per_class}")
-        TRex.log(f"# [training] data shapes: train={X_train.shape} {Y_train.shape} val={X_test.shape} {Y_test.shape} classes={classes}")
+        TRex.log(f"# [training] data shapes: train={_shape_str(X_train)} {Y_train.shape} val={_shape_str(X_test)} {Y_test.shape} classes={classes}")
 
-        min_pixel_value = np.min(X_train)
-        max_pixel_value = np.max(X_train)
+        if isinstance(X_train, np.ndarray):
+            min_pixel_value = float(np.min(X_train))
+            max_pixel_value = float(np.max(X_train))
+        else:
+            min_pixel_value = float(min(im.min() for im in X_train))
+            max_pixel_value = float(max(im.max() for im in X_train))
 
         TRex.log(f"# [values] pixel values: min={min_pixel_value} max={max_pixel_value}")
         TRex.log(f"# [values] class values: min={np.min(Y_train)} max={np.max(Y_train)}")
@@ -1412,16 +1468,20 @@ def start_learning():
         if do_save_training_images():
             TRex.log(f"# [training] saving training images to {output_path}_train_images.npz")
             try:
-                np.savez(output_path+"_train_images.npz", 
-                        X_train=X_train,
-                        Y_train=Y_train, 
+                np.savez(output_path+"_train_images.npz",
+                        X_train=(X_train if isinstance(X_train, np.ndarray) else np.stack(X_train, axis=0)),
+                        Y_train=Y_train,
                         classes=classes)
             except Exception as e:
                 TRex.warn("Error saving training images: " + str(e))
 
         # Example training call
-        #try:
-        train(model, train_loader, val_loader, criterion, optimizer, callback, scheduler=scheduler, device=device, transform=transform, settings=settings)
+        try:
+            train(model, train_loader, val_loader, criterion, optimizer, callback, scheduler=scheduler, device=device, settings=settings)
+        except UserCancelException:
+            print("Training cancelled by the user.")
+        except UserSkipException:
+            print("Training skipped by the user.")
 
         if callback.best_result["unique"] != -1:
             weights = callback.best_result["weights"]
@@ -1430,11 +1490,17 @@ def start_learning():
 
             # load best results from the current run
             try:
-                TRex.log(f"Loading weights from {output_path+'_progress.pth'} in step {accumulation_step}")
-                model, cp = load_model_from_file(output_path+'_progress.pth', device=device, new_model = model)
+                # Prefer new _dict.pth name; fall back to legacy .pth
+                try:
+                    TRex.log(f"Loading weights from {output_path+'_progress_dict.pth'} in step {accumulation_step}")
+                    model, cp = load_model_from_file(output_path+'_progress_dict.pth', device=device, new_model = model)
+                except Exception as e_load_new:
+                    TRex.warn(f"Failed to load _progress_dict.pth: {e_load_new}; trying legacy _progress.pth")
+                    TRex.log(f"Loading weights from {output_path+'_progress.pth'} in step {accumulation_step}")
+                    model, cp = load_model_from_file(output_path+'_progress.pth', device=device, new_model = model)
                 loaded_checkpoint = cp
                 loaded_weights = TRex.VIWeights(
-                    path = output_path+'_progress.pth',
+                    path = output_path+'_progress_dict.pth' if os.path.exists(output_path+'_progress_dict.pth') else output_path+'_progress.pth',
                     uniqueness = cp["metadata"]["uniqueness"] if "uniqueness" in cp["metadata"] else None,
                     status = "FINISHED",
                     modified = cp["metadata"]["modified"] if "modified" in cp["metadata"] else None,
@@ -1446,14 +1512,11 @@ def start_learning():
             except Exception as e:
                 TRex.warn(str(e))
                 raise Exception("Failed to load weights. This is likely because either the individual_image_size is different, or because existing weights might have been generated by a different version of TRex (see visual_identification_version).")
-            
-            np.savez(history_path, #history=np.array(history.history, dtype="object"), 
+
+            np.savez(history_path, #history=np.array(history.history, dtype="object"),
                      uniquenesses=callback.uniquenesses, better_values=callback.better_values, much_better_values=callback.much_better_values, worst_values=callback.worst_values, mean_values=callback.mean_values, settings=np.array(settings, dtype="object"), per_class_accuracy=np.array(callback.per_class_accuracy),
                 samples_per_class=np.array(per_class, dtype="object"))
-
-            if save_weights_after:
-                save_model_files(model=model, output_path=output_path, accuracy=callback.best_result["unique"])
-        
+            
             try:
                 #for i, layer in zip(range(len(model.layers)), model.layers):
                 #    if i in weights:
@@ -1465,7 +1528,7 @@ def start_learning():
                     TRex.log(f"Best uniqueness of step {accumulation_step}: {best_accuracy_worst_class}")
             except:
                 TRex.warn("loading weights failed")
-            
+
         elif settings["accumulation_step"] == -2:
             TRex.warn("could not improve upon previous steps.")
         else:
@@ -1478,21 +1541,13 @@ def start_learning():
         # just run the test
         if update_work_percent is not None:
             update_work_percent(1.0)
-        
-        callback = ValidationCallback(model, classes, X_test, Y_test, max_epochs, filename, output_prefix, output_path, best_accuracy_worst_class, settings, device)
+
+        callback = ValidationCallback(model, classes, X_test, Y_test_one_hot, max_epochs, filename, output_prefix, output_path, best_accuracy_worst_class, settings, device)
         if len(X_train) > 0:
             callback.evaluate(0, False)
 
         del callback
     
-    '''except UserCancelException:
-        print("Training cancelled by the user.")
-    except UserSkipException:
-        print("Training skipped by the user.")
-    except Exception as e:
-        print("Error during training: " + str(e))
-        raise e'''
-
     del X_train
     del Y_train
     del X_test

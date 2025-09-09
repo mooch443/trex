@@ -1,5 +1,3 @@
-import shutil
-
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras.layers import Dense, Dropout, Activation, Cropping2D, Flatten, Convolution1D, Convolution2D, MaxPooling1D, MaxPooling2D

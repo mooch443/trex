@@ -119,11 +119,10 @@ requirements:
     - {{ pin_compatible('numpy', min_pin='x.x', max_pin='x.x') }}
     - {{ pin_compatible('openblas', min_pin='x.x', max_pin='x.x') }} # [arm64]
     - {{ pin_compatible('icu', min_pin='x.x', max_pin='x.x') }}
-    - seaborn
-    - matplotlib [osx and not arm64]
     - scikit-learn
     - pip
     - requests
+    - psutil
 
 about:
   home: https://trex.run

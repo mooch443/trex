@@ -328,8 +328,17 @@ VIWeights VINetwork::load_weights(VIWeights&& weights) {
 
 
 bool VINetwork::weights_available() {
-    auto filename = network_path();
-    return filename.add_extension("pth").exists();
+    auto base = network_path();
+    // New canonical weights file
+    if (file::Path(base.str() + "_dict.pth").exists())
+        return true;
+    // Legacy weights file
+    if (base.add_extension("pth").exists())
+        return true;
+    // Serialized model bundle (less ideal, but indicates presence of a checkpoint)
+    if (file::Path(base.str() + "_model.pth").exists())
+        return true;
+    return false;
 }
 
 std::optional<std::set<track::vi::VIWeights>> VINetwork::get_available_weights()
@@ -605,7 +614,7 @@ bool VINetwork::train(std::shared_ptr<TrainingData> data,
                     global_range.empty() ? -1 : (long_t)global_range.end().get() }, module_name);
                 py::set_variable("accumulation_step", (long_t)accumulation_step, module_name);
                 py::set_variable("classes", classes, module_name);
-                py::set_variable("save_weights_after", false, module_name);
+                //py::set_variable("save_weights_after", false, module_name);
                 //load_results != TrainingMode::Accumulate, module_name);
                 
                 Print("Pushing ", (joined_data.validation_images.size() + joined_data.training_images.size())," images (",FileSize((joined_data.validation_images.size() + joined_data.training_images.size()) * PSetting(individual_image_size).width * PSetting(individual_image_size).height * 4),") to python...");

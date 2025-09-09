@@ -226,15 +226,18 @@ for MODE in ${MODES}; do
     if [ $exit_code -ne 0 ]; then
         echo "TRex (${MODE}) failed."
         cat "${PWD}/trex.log"
+        # Keep outputs for artifact collection on failure.
     else
         echo "TRex (${MODE}) completed successfully."
+        # Clean outputs on success to keep workspace tidy.
+        rm -rf ${PWD}/corrected/data
+        rm -f ${PWD}/corrected/test.settings
     fi
-
-    rm -rf ${PWD}/corrected/data
-    rm -f ${PWD}/corrected/test.settings
 done
 
-rm -f ${PWD}/average_test.png
-rm -f ${PWD}/corrected/test.results.meta
+if [ "${exit_code}" = "0" ]; then
+  rm -f ${PWD}/average_test.png
+  rm -f ${PWD}/corrected/test.results.meta
+fi
 
 exit ${exit_code}

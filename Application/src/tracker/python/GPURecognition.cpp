@@ -146,6 +146,10 @@ namespace pybind11 {
             //Conversion part 2 (C++ -> Python)
             static py::handle cast(const cmn::Image::SPtr& src, py::return_value_policy, py::handle)
             {
+                // keep the C++ shared_ptr alive as long as the array exists
+                auto base = py::capsule(new cmn::Image::SPtr(src), [](void* p){
+                    delete static_cast<cmn::Image::SPtr*>(p); // drops refcount
+                });
 
                 std::vector<size_t> shape{ src->rows, src->cols, src->dims };
                 std::vector<size_t> strides{
@@ -154,7 +158,13 @@ namespace pybind11 {
                     sizeof(uint8_t)
                 };
 
-                py::array a(std::move(shape), std::move(strides), src->data());
+                py::array_t<uint8_t> a{
+                    shape,
+                    strides,
+                    src->data(),
+                    base
+                };
+                
                 return a.release();
             }
         };
@@ -648,7 +658,7 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
     });
     m.def("log", [](std::string filename, int line, std::string text) {
         Print(fmt::clr<FormatColor::DARK_GRAY>("[" + (std::string)file::Path(filename).filename() + ":"+Meta::toStr(line) + "] "), text.c_str());
-     });
+    });
 
     auto choose_backend = []() -> std::string {
         using namespace default_config;

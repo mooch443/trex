@@ -6,8 +6,8 @@ env:
   # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
   BUILD_TYPE: Release
   MACOSX_DEPLOYMENT_TARGET: 11.0
-  CONDA_BUILD_SYSROOT: /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.5.sdk
-  SDKROOT: /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.5.sdk
+  CONDA_BUILD_SYSROOT: /Applications/Xcode_26.0.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.0.sdk
+  SDKROOT: /Applications/Xcode_26.0.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.0.sdk
   GITHUB_WORKFLOW: CondaBuildMacOS
 
 jobs:
@@ -109,3 +109,17 @@ jobs:
         cd $GITHUB_WORKSPACE/Application/Tests
         ./run_unix.bash
         echo "::endgroup::"
+    - name: Upload failure artifacts (.csv, .npz, .results, .pv, logs, html)
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: macos-arm64-failure-artifacts
+        path: |
+          ${{ github.workspace }}/videos/corrected/data/*.csv
+          ${{ github.workspace }}/videos/**/*.html
+          ${{ github.workspace }}/videos/**/*.log
+          ${{ github.workspace }}/videos/**/*.npz
+          ${{ github.workspace }}/videos/**/*.results
+          ${{ github.workspace }}/videos/**/*.pv
+        if-no-files-found: ignore
+        retention-days: 7
