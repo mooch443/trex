@@ -5,17 +5,18 @@ import os
 
 # Define Normalize Layer
 class Normalize(nn.Module):
-    def __init__(self, device):
+    def __init__(self, device, channels):
         super(Normalize, self).__init__()
         self.norm = None
         self.device = device
+        self.norm = transforms.Normalize(mean=[0.485, 0.456, 0.406][:channels], std=[0.229, 0.224, 0.225][:channels])
         
     def forward(self, x):
-        if self.norm is None:
-            channels = x.size(1)
-            self.norm = transforms.Normalize(mean=[0.485, 0.456, 0.406][:channels], std=[0.229, 0.224, 0.225][:channels])
+        #if self.norm is None:
+        #    channels = x.size(1)
+        #    self.norm = transforms.Normalize(mean=[0.485, 0.456, 0.406][:channels], std=[0.229, 0.224, 0.225][:channels])
         #print(f'x: {x.size()} output shape: {self.norm.output_shape}')
-        return self.norm(x / 255.0)
+        return x#self.norm(x / 255.0)
         #return (x / 127.5) - 1.0
         #return x
 
@@ -60,6 +61,11 @@ class V200(nn.Module):
         self.fc2 = nn.Linear(1024, num_classes)
         
     def forward(self, x):
+        if x.dim() == 4:
+            try:
+                x = x.contiguous(memory_format=torch.channels_last)
+            except Exception:
+                x = x.contiguous()
         #from torch.mps import profiler
 
         #with profiler.profile() as prof:
@@ -122,6 +128,11 @@ class V119(nn.Module):
         self.fc2 = nn.Linear(1024, num_classes)
 
     def forward(self, x):
+        if x.dim() == 4:
+            try:
+                x = x.contiguous(memory_format=torch.channels_last)
+            except Exception:
+                x = x.contiguous()
         # Permute to channels first (N, H, W, C) -> (N, C, H, W)
         #x = x.permute(0, 3, 1, 2)
         x = self.conv1(x)
@@ -172,43 +183,59 @@ class V118_3(nn.Module):
         self.pool2 = nn.MaxPool2d(kernel_size=2)
         self.dropout2 = nn.Dropout2d(0.05)
 
-        self.conv3 = nn.Conv2d(64, 100, kernel_size=5, padding='same')
-        self.bn3 = nn.BatchNorm2d(100)
+        self.conv3 = nn.Conv2d(64, 128, kernel_size=5, padding='same')
+        self.bn3 = nn.BatchNorm2d(128)
         self.relu3 = nn.ReLU()
         self.pool3 = nn.MaxPool2d(kernel_size=2)
         self.dropout3 = nn.Dropout2d(0.05)
 
-        self.flatten = nn.Flatten()
-        self.fc1 = nn.Linear(100 * (image_width // 8) * (image_height // 8), 100)
+        # self.flatten = nn.Flatten()
+        self.fc1 = nn.Linear(128 * (image_width // 8) * (image_height // 8), 100)
         self.bn4 = nn.LayerNorm(100)
         self.relu4 = nn.ReLU()
         self.dropout4 = nn.Dropout(0.05)
         self.fc2 = nn.Linear(100, num_classes)
 
     def forward(self, x):
-        x = self.relu1(self.bn1(self.conv1(x)))
+        # Keep channels-last end-to-end on MPS; avoid default contiguous flips
+        if x.dim() == 4:
+            x = x.contiguous(memory_format=torch.channels_last)
+
+        # Block 1
+        #print("CF1:", x.is_contiguous(), "CL:", x.is_contiguous(memory_format=torch.channels_last), "stride:", x.stride())
+        x = self.conv1(x)
+        #print("CF2:", x.is_contiguous(), "CL:", x.is_contiguous(memory_format=torch.channels_last), "stride:", x.stride())
+        x = self.bn1(x.contiguous())  # keep channels_last; conv output is already contiguous
+        #print("CF3:", x.is_contiguous(), "CL:", x.is_contiguous(memory_format=torch.channels_last), "stride:", x.stride())
+        x = self.relu1(x)
         x = self.pool1(x)
         x = self.dropout1(x)
 
+        # Block 2
         x = self.conv2(x)
+        #print("CF4:", x.is_contiguous(), "CL:", x.is_contiguous(memory_format=torch.channels_last), "stride:", x.stride())
         x = self.bn2(x)
+        #print("CF5:", x.is_contiguous(), "CL:", x.is_contiguous(memory_format=torch.channels_last), "stride:", x.stride())
         x = self.relu2(x)
-        #x = self.relu2(self.bn2(self.conv2(x)))
         x = self.pool2(x)
         x = self.dropout2(x)
 
+        # Block 3
         x = self.conv3(x)
+        #print("CF6:", x.is_contiguous(), "CL:", x.is_contiguous(memory_format=torch.channels_last), "stride:", x.stride())
         x = self.bn3(x)
+        #print("CF7:", x.is_contiguous(), "CL:", x.is_contiguous(memory_format=torch.channels_last), "stride:", x.stride())
         x = self.relu3(x)
-        #x = self.relu3(self.bn3(self.conv3(x)))
         x = self.pool3(x)
         x = self.dropout3(x)
 
-        x = self.flatten(x)
+        # Flatten safely (no view())
+        x = x.reshape(x.size(0), -1)
+
+        # Head
         x = self.fc1(x)
         x = self.bn4(x)
         x = self.relu4(x)
-        #x = self.relu4(self.bn4(self.fc1(x)))
         x = self.dropout4(x)
         x = self.fc2(x)
         return x
@@ -244,6 +271,11 @@ class V110(nn.Module):
         self.fc2 = nn.Linear(100, num_classes)
 
     def forward(self, x):
+        if x.dim() == 4:
+            try:
+                x = x.contiguous(memory_format=torch.channels_last)
+            except Exception:
+                x = x.contiguous()
         x = self.conv1(x)
         x = self.pool1(x)
         x = self.bn1(x)
@@ -297,6 +329,11 @@ class V100(nn.Module):
         self.fc2 = nn.Linear(100, num_classes)
 
     def forward(self, x):
+        if x.dim() == 4:
+            try:
+                x = x.contiguous(memory_format=torch.channels_last)
+            except Exception:
+                x = x.contiguous()
         x = self.conv1(x)
         x = self.relu1(x)
         x = self.pool1(x)
@@ -504,14 +541,30 @@ class ModelFetcher:
                 model = self.versions[model_name](num_classes, channels)
             else:
                 model = self.versions[model_name](num_classes, channels, image_width, image_height)
-            model.to(device)
-            wrapper = PermuteAxesWrapper(model, device=device)
-            # Optional: compile the model for speed if enabled and supported.
+            
+            # Always keep BatchNorm2d; avoid GroupNorm.
+            # Move to device and prefer channels_last activations on MPS so compiled convs
+            # see consistent NHWC (channels_last) layout during forward/backward.
             try:
-                if hasattr(torch, 'compile') and callable(getattr(torch, 'compile')) and (str(device) != 'mps'):
-                    wrapper = torch.compile(wrapper, mode='max-autotune')
-            except Exception as e:
-                # Fall back without compilation if unsupported
+                if str(device).startswith('mps'):
+                    #model = replace_batchnorm2d_with_groupnorm(model)
+                    model = model.to(device, memory_format=torch.channels_last)
+                else:
+                    model = model.to(device)
+            except Exception:
+                pass
+            
+            wrapper = PermuteAxesWrapper(channels, model, device=device)
+            # Optional: compile for speed. On MPS, skip Inductor to avoid stride-guard issues.
+            try:
+                if hasattr(torch, 'compile') and callable(getattr(torch, 'compile')):
+                    if not str(device).startswith('mps'):
+                        # CUDA/CPU: enable inductor with autotune
+                        wrapper = torch.compile(wrapper, mode='max-autotune')
+                    else:
+                        wrapper = torch.compile(wrapper, backend='aot_eager', dynamic=True)
+            except Exception:
+                # Fall back without compilation if unsupported or fails
                 pass
             return wrapper
         else:
@@ -528,16 +581,54 @@ class ModelFetcher:
         return model
 
 class PermuteAxesWrapper(nn.Module):
-    def __init__(self, model, device):
+    def __init__(self, channels, model, device):
         super(PermuteAxesWrapper, self).__init__()
         self.model = model
-        self.normalize = Normalize(device=device)
+        self.normalize = Normalize(device=device, channels=channels)
+        self._is_mps = str(device).startswith('mps')
 
     def forward(self, x):
         # Permute to channels first (N, H, W, C) -> (N, C, H, W)
-        x = x.permute(0, 3, 1, 2).contiguous()
-        x = self.normalize(x)
+        #if self._is_mps:
+        #    x = x.permute(0, 3, 1, 2).contiguous(memory_format=torch.channels_last)
+        #else:
+        #    x = x.permute(0, 3, 1, 2).contiguous()
+        x = x.permute(0, 3, 1, 2).contiguous(memory_format=torch.channels_last)
+        #x = self.normalize(x)
+        #if self._is_mps:
+        #     Ensure Normalize doesn't reintroduce default layout
+        #     try:
+        #         x = x.contiguous(memory_format=torch.channels_last)
+        #     except Exception:
+        #         x = x.contiguous()
         return self.model(x)
+
+# Utilities
+def _largest_divisor_leq(n: int, cap: int = 32) -> int:
+    g = 1
+    for k in range(1, min(n, cap) + 1):
+        if n % k == 0:
+            g = k
+    return g
+
+def replace_batchnorm2d_with_groupnorm(module: nn.Module) -> nn.Module:
+    """Recursively replace nn.BatchNorm2d with nn.GroupNorm using a sensible group count.
+
+    Keeps affine behavior. Only applied on MPS to avoid BN backward issues.
+    """
+    for name, child in module.named_children():
+        if isinstance(child, nn.BatchNorm2d):
+            num_channels = child.num_features
+            num_groups = _largest_divisor_leq(num_channels, cap=32)
+            if num_groups < 1:
+                num_groups = 1
+            gn = nn.GroupNorm(num_groups=num_groups, num_channels=num_channels, eps=child.eps, affine=child.affine)
+            # Back-compat for code that expects BatchNorm2d.num_features
+            gn.num_features = num_channels
+            setattr(module, name, gn)
+        else:
+            replace_batchnorm2d_with_groupnorm(child)
+    return module
 
 '''
     # Example usage

@@ -3,6 +3,8 @@ import gc
 import torch
 import json
 import os
+import threading
+from queue import Queue
 
 # Third-party imports
 import numpy as np
@@ -10,12 +12,29 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torchvision import transforms
+from torch.utils.data import Dataset, DataLoader
 import torchmetrics
 from tqdm import tqdm
-import datetime
+
+from trex_utils import UserCancelException, UserSkipException
 
 # Local imports
-import TRex
+import os
+try:
+    import TRex  # embedded module from the host app
+except Exception:
+    # Worker processes (spawn) can’t see the embedded module. Use a stub.
+    class _TRexStub:
+        @staticmethod
+        def log(*args, **kwargs): pass  # or print("[TRex]", *args)
+        @staticmethod
+        def warn(*args, **kwargs): pass
+        @staticmethod
+        def choose_device(): return os.environ.get("TREX_DEFAULT_DEVICE", "cpu")
+        @staticmethod
+        def setting(_name, _default=None): return _default
+    TRex = _TRexStub()
+
 from visual_identification_network_torch import ModelFetcher
 import trex_utils
 from trex_utils import _first_shape, _as_batched_np, load_checkpoint_from_file, check_checkpoint_compatibility, save_pytorch_model_as_jit, ConfigurationError
@@ -24,215 +43,29 @@ static_inputs : torch.Tensor = None
 static_targets : torch.Tensor = None
 loaded_checkpoint : dict = None
 loaded_weights : TRex.VIWeights = None
+p_softmax = None
 
-class UserCancelException(Exception):
-    """Raised when user clicks cancel"""
-    pass
+def _dbg_enabled() -> bool:
+    return os.environ.get("TREX_DEBUG_TRAIN", "0") == "1"
 
-class UserSkipException(Exception):
-    """Raised when user clicks cancel"""
-    pass
+def _dbg_tensor(name: str, t: torch.Tensor | None):
+    if not _dbg_enabled() or t is None:
+        return
+    try:
+        TRex.log(f"[DBG] {name}: shape={tuple(t.shape)} dtype={t.dtype} device={t.device} contiguous={t.is_contiguous()} stride={t.stride()} req_grad={t.requires_grad}")
+    except Exception as e:
+        TRex.warn(f"[DBG] failed to inspect {name}: {e}")
 
-'''
-
-# Mock implementations for the C++ functions
-def update_work_description(description):
-    print(f"Updating work description: {description}")
-
-def set_stop_reason(reason):
-    print(f"Setting stop reason: {reason}")
-
-def set_per_class_accuracy(accuracy):
-    print(f"Setting per class accuracy: {accuracy}")
-
-def set_uniqueness_history(uniquenesses):
-    print(f"Setting uniqueness history: {uniquenesses}")
-
-def update_work_percent(percent):
-    #print(f"Updating work percent: {percent * 100}%")
-    pass
-
-def acceptable_uniqueness():
-    return 0.9
-
-def accepted_uniqueness():
-    return 0.95
-
-def get_abort_training():
-    return False
-
-def get_skip_step():
-    return False
-
-def estimate_uniqueness():
-    return np.random.rand()
-
-class TRex:
-    @staticmethod
-    def log(message):
-        print(f"TRex log: {message}")
-
-    @staticmethod
-    def warn(message):
-        print(f"TRex warn: {message}")
-'''
-'''
-def load_mnist_data(N = 5000):
-    # Load MNIST dataset
-    mnist_transform = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Lambda(lambda x: x.permute(1, 2, 0) * 255)  # Convert to channels last
-    ])
-
-    train_dataset = datasets.MNIST(root='mnist_data', train=True, download=True, transform=mnist_transform)
-    val_dataset = datasets.MNIST(root='mnist_data', train=False, download=True, transform=mnist_transform)
-
-    indexes = np.arange(len(train_dataset))
-    np.random.shuffle(indexes)
-
-    # Extract a fixed set of training samples
-    X_train = []
-    Y_train = []
-    for i in range(N):  # Taking 500 samples from MNIST training data
-        X_train.append(train_dataset[indexes[i]][0].numpy())
-        Y_train.append(train_dataset[indexes[i]][1])
-
-    print(Y_train)
-    import matplotlib.pyplot as plt
-    plt.imshow(X_train[0].reshape(28, 28), vmin=0, vmax=255, cmap='gray')
-    plt.show()
-
-    X_train = np.array(X_train)
-    Y_train = np.array(Y_train)
-
-    # Extract a fixed set of validation samples
-    indexes = np.arange(len(val_dataset))
-    np.random.shuffle(indexes)
-
-    X_val = []
-    Y_val = []
-    for i in range(N // 4):  # Taking 100 samples from MNIST validation data
-        X_val.append(val_dataset[indexes[i]][0].numpy())
-        Y_val.append(val_dataset[indexes[i]][1])
-    
-    X_val = np.array(X_val)
-    Y_val = np.array(Y_val)
-
-    plt.imshow(X_val[0].reshape(28, 28), vmin=0, vmax=255, cmap='gray')
-    plt.show()
-
-    return X_train, Y_train, X_val, Y_val
-
-#X, Y, X_val, Y_val = load_mnist_data()
-
-def load_cifar10_data(N = 50000):
-    # Load CIFAR-10 dataset
-    cifar_transform = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Lambda(lambda x: x.permute(1, 2, 0) * 255)  # Convert to channels last
-    ])
-
-    train_dataset = datasets.CIFAR10(root='cifar10_data', train=True, download=True, transform=cifar_transform)
-    val_dataset = datasets.CIFAR10(root='cifar10_data', train=False, download=True, transform=cifar_transform)
-
-    indexes = np.arange(len(train_dataset))
-    np.random.shuffle(indexes)
-
-    N = min(N, len(train_dataset))
-
-    # Extract a fixed set of training samples
-    X_train = []
-    Y_train = []
-    for i in range(N):  # Taking 500 samples from CIFAR-10 training data
-        X_train.append(train_dataset[indexes[i]][0].numpy())
-        Y_train.append(train_dataset[indexes[i]][1])
-
-    X_train = np.array(X_train)
-    Y_train = np.array(Y_train)
-
-    # Extract a fixed set of validation samples
-    indexes = np.arange(len(val_dataset))
-    np.random.shuffle(indexes)
-
-    X_val = []
-    Y_val = []
-    for i in range(min(N // 4, len(val_dataset))):  # Taking 100 samples from CIFAR-10 validation data
-        X_val.append(val_dataset[indexes[i]][0].numpy())
-        Y_val.append(val_dataset[indexes[i]][1])
-    
-    X_val = np.array(X_val)
-    Y_val = np.array(Y_val)
-
-    return X_train, Y_train, X_val, Y_val
-
-X, Y, X_val, Y_val = load_cifar10_data(N=150000)
-
-image_channels = X.shape[3]
-image_width = X.shape[1]
-image_height = X.shape[2]
-#image_channels = X.shape[1]
-#image_width = X.shape[2]
-#image_height = X.shape[3]
-
-best_accuracy_worst_class = 0.8
-max_epochs = 150
-output_path = "output"
-classes = np.unique(Y)
-#classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
-learning_rate = 0.001
-accumulation_step = 1
-global_tracklet = list(range(5))
-verbosity = 1
-batch_size = 128
-
-TRex.log(f"Loaded MNIST data with shape: {image_width}x{image_height}x{image_channels}")
-TRex.log(f"Classes: {classes}")
-
-#X_val = np.random.rand(100, image_height, image_width, 1)
-#Y_val = np.random.randint(0, 10, 100)
-#X = np.random.rand(500, image_height, image_width, 1)
-#Y = np.random.randint(0, 10, 500)
-run_training = True
-save_weights_after = True
-do_save_training_images = lambda: False
-min_iterations = 10
-filename = "model"
-output_prefix = "output"
-
-#batch_size = 16#int(max(batch_size, 64))
-epochs = max_epochs
-'''
-
-'''run_training = None
-image_channels = None
-image_width : int = None
-image_height : int = None
-output_path = None
-classes = None
-learning_rate = None
-accumulation_step = None
-global_tracklet = None
-verbosity = None
-best_accuracy_worst_class = None
-do_save_training_images = None
-output_prefix = None
-filename = None
-
-save_weights_after = None
-
-X = None
-Y = None
-X_val = None
-Y_val = None
-
-model = None
-device = 'mps'
-
-min_iterations = None
-max_epochs = None
-batch_size = None
-
-network_version = None'''
+def _dbg_model(name: str, model: nn.Module | None):
+    if not _dbg_enabled() or model is None:
+        return
+    try:
+        num_params = sum(p.numel() for p in model.parameters())
+        num_trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
+        model_device = str(next(model.parameters()).device) if any(True for _ in model.parameters()) else "cpu"
+        TRex.log(f"[DBG] {name}: {model.__class__.__name__} with {num_params} params ({num_trainable} trainable) on {model_device}")
+    except Exception as e:
+        TRex.warn(f"[DBG] failed to inspect {name}: {e}")
 
 def save_model_files(model, output_path, accuracy, suffix='', epoch=None):
     checkpoint = {
@@ -287,55 +120,95 @@ class OneHotEncoder:
     def fit_transform(self, y : np.ndarray):
         return self.fit(y).transform(y)
 
-class CustomDataLoader:
-    def __init__(self, X : np.ndarray, Y : np.ndarray, batch_size : int, shuffle : bool = False, transform : transforms.Compose = None, device : str = 'cpu'):
+class TRexImageDataset(Dataset):
+    """Torch Dataset that yields NHWC float32 images in [0,255] and int64 labels.
+
+    - Accepts X as np.ndarray (N,H,W,C) or list of HxWxC ndarrays
+    - Applies transforms on CHW float in [0,1], then converts back to NHWC [0,255]
+    """
+    def __init__(self, X, Y, transform: transforms.Compose | None = None, device = None):
         self.X = X
-        self.Y = Y
-        self.batch_size = batch_size
-        self.shuffle = shuffle
+        self.Y = Y if isinstance(Y, np.ndarray) else np.asarray(Y, dtype=np.int64)
         self.transform = transform
         self.device = device
 
-    def __iter__(self):
-        self.index = 0
-        if self.shuffle:
-            self.indexes = np.arange(len(self.X))
-            np.random.shuffle(self.indexes)
-        return self
+    def __len__(self):
+        return len(self.X) if not isinstance(self.X, np.ndarray) else self.X.shape[0]
 
-    def __next__(self) -> tuple[torch.Tensor, np.ndarray]:
-        if self.index >= len(self.X):
-            raise StopIteration
-        elif not self.shuffle:
-            if self.transform is None:
-                batch_np = _as_batched_np(self.X, slice(self.index, self.index+self.batch_size))
-                x = torch.from_numpy(batch_np).to(self.device, dtype=torch.float32)
-                y = self.Y[self.index:self.index+self.batch_size]
-            else:
-                batch_np = _as_batched_np(self.X, slice(self.index, self.index+self.batch_size))
-                x = self.transform(
-                        torch.from_numpy(batch_np).to(self.device, dtype=torch.float32).permute(0, 3, 1, 2) / 255.0
-                    ).permute(0, 2, 3, 1) * 255.0
-                y = self.Y[self.index:self.index+self.batch_size]
-            self.index += self.batch_size
-            return (x, y)
+    def __getitem__(self, idx):
+        if isinstance(self.X, np.ndarray):
+            im = self.X[idx]
         else:
-            indexes = self.indexes[self.index:self.index+self.batch_size]
-            if self.transform is not None:
-                batch_np = _as_batched_np(self.X, indexes)
-                x = self.transform(
-                        torch.from_numpy(batch_np).to(self.device, dtype=torch.float32).permute(0, 3, 1, 2) / 255.0
-                    ).permute(0, 2, 3, 1) * 255.0
-                y = self.Y[indexes] if isinstance(self.Y, np.ndarray) else np.array([self.Y[k] for k in indexes])
-            else:
-                batch_np = _as_batched_np(self.X, indexes)
-                x = torch.from_numpy(batch_np).to(self.device, dtype=torch.float32)
-                y = self.Y[indexes] if isinstance(self.Y, np.ndarray) else np.array([self.Y[k] for k in indexes])
-            self.index += self.batch_size
-            return (x, y)
+            im = self.X[idx]
+        # im: HWC uint8/float; convert to CHW float in [0,1] for transforms
+        x = torch.from_numpy(im).to(dtype=torch.float32)
+        x = x.permute(2, 0, 1).contiguous().clone()  # CHW contiguous
+        x = x.div(255.0)
+        if self.transform is not None:
+            x = self.transform(x)
+        # Convert back to NHWC in [0,255] to preserve existing model path
+        x = (x.clamp(0.0, 1.0) * 255.0).permute(1, 2, 0).contiguous().clone()  # HWC contiguous
+        y = int(self.Y[idx])
+        # Return a Tensor (not NumPy) to keep strides and contiguity under control
+        return x, y
+
+# --- ThreadedLoader: thread-backed prefetcher for any iterable loader ---
+class ThreadedLoader:
+    """A light-weight, thread-backed prefetcher for any Python iterable loader.
+
+    Purpose:
+      - Avoids multiprocessing (safe with embedded/pybind11 modules)
+      - Overlaps data preparation with GPU compute via a background thread
+      - Preserves the original loader's batching/collation
+
+    Usage:
+      wrapped = ThreadedLoader(train_loader, max_prefetch=2)
+      for batch in wrapped: ...
+    """
+    def __init__(self, loader, max_prefetch: int = 2):
+        self.loader = loader
+        self.max_prefetch = max(1, int(max_prefetch))
+        self._queue: Queue | None = None
+        self._thread: threading.Thread | None = None
+        self._sentinel = object()
+        self._exc: BaseException | None = None
 
     def __len__(self):
-        return len(self.X) // self.batch_size
+        return len(self.loader)
+
+    def _producer(self, it):
+        try:
+            for item in it:
+                self._queue.put(item)
+            # normal end
+            self._queue.put(self._sentinel)
+        except BaseException as e:
+            # store exception and signal end; will be re-raised on consumer side
+            self._exc = e
+            self._queue.put(self._sentinel)
+
+    def __iter__(self):
+        it = iter(self.loader)
+        self._queue = Queue(self.max_prefetch)
+        self._exc = None
+        self._thread = threading.Thread(target=self._producer, args=(it,), daemon=True)
+        self._thread.start()
+        return self
+
+    def __next__(self):
+        item = self._queue.get()
+        if item is self._sentinel:
+            # join the thread quickly and propagate producer error if any
+            t = self._thread
+            self._thread = None
+            if t is not None and t.is_alive():
+                t.join(timeout=0.1)
+            if self._exc is not None:
+                e = self._exc
+                self._exc = None
+                raise e
+            raise StopIteration
+        return item
 
 def clear_caches():
     device = TRex.choose_device()
@@ -355,8 +228,6 @@ def clear_caches():
         TRex.log(f"No cache to clear {device}")
 
     gc.collect()
-
-p_softmax = None
 
 def check_device_equivalence(device, model):
     model_device = str(next(model.parameters()).device)
@@ -1065,7 +936,7 @@ def predict():
     del images
     gc.collect()
 
-def train(model, train_loader, val_loader, criterion, optimizer : torch.optim.Adam, callback : ValidationCallback, scheduler, transform, settings, device):
+def train(model, train_loader, val_loader, criterion, optimizer : torch.optim.Adam, callback : ValidationCallback, scheduler, settings, device):
     global get_abort_training
     num_classes = len(settings["classes"])
 
@@ -1092,7 +963,19 @@ def train(model, train_loader, val_loader, criterion, optimizer : torch.optim.Ad
     from contextlib import nullcontext
     use_amp = (device == 'cuda' and torch.cuda.is_available())
     amp_ctx = torch.cuda.amp.autocast if use_amp else nullcontext
-    scaler = torch.cuda.amp.GradScaler(enabled=use_amp)
+    try:
+        # Prefer new torch.amp API where available
+        scaler = torch.amp.GradScaler('cuda', enabled=use_amp)
+    except Exception:
+        scaler = torch.cuda.amp.GradScaler(enabled=use_amp)
+    
+    # Optional anomaly detection for better error traces
+    if os.environ.get("TREX_TORCH_ANOMALY", "0") == "1":
+        try:
+            torch.autograd.set_detect_anomaly(True)
+            TRex.log("[DBG] Enabled torch.autograd.set_detect_anomaly(True)")
+        except Exception as e:
+            TRex.warn(f"[DBG] Failed to enable anomaly detection: {e}")
     
     #import tracemalloc;
     #tracemalloc.start(50)
@@ -1107,32 +990,21 @@ def train(model, train_loader, val_loader, criterion, optimizer : torch.optim.Ad
 
         #with profiler.profile(with_stack=True, profile_memory=True) as prof:
         # dont use train_loader, manually iterate over the dataset
-        for batch, (inputs, targets) in tqdm(enumerate(train_loader), total=len(train_loader)):
+        it_loader = ThreadedLoader(train_loader, max_prefetch=int(os.environ.get("TREX_PREFETCH", "2")))
+        for batch, (inputs, targets) in tqdm(enumerate(it_loader), total=len(it_loader)):
             #inputs = transform(inputs.permute(0, 3, 1, 2) / 255).permute(0, 2, 3, 1) * 255
-            if isinstance(inputs, np.ndarray):
-                static_inputs = torch.from_numpy(inputs).to(device, dtype=torch.float32, non_blocking=True).contiguous()
-            else:
-                static_inputs = inputs.to(device, non_blocking=True).contiguous()
-
-            if isinstance(targets, np.ndarray):
-                # CrossEntropyLoss expects integer class indices (Long)
-                static_targets = torch.from_numpy(targets).to(device, dtype=torch.long, non_blocking=True).contiguous()
-            else:
-                static_targets = targets.to(device, non_blocking=True).long().contiguous()
+            assert isinstance(inputs, torch.Tensor), f"Expected inputs to be a torch.Tensor, got {type(inputs)}"
+            assert isinstance(targets, torch.Tensor), f"Expected targets to be a torch.Tensor, got {type(targets)}"
+            assert inputs.ndim == 4, f"Expected inputs to be 4D (N,H,W,C), got {inputs.ndim}D"
+            assert targets.ndim == 1, f"Expected targets to be 1D (N,), got {targets.ndim}D"
+            assert inputs.shape[0] == targets.shape[0], f"Batch size mismatch: {inputs.shape[0]} vs {targets.shape[0]}"
+            assert inputs.shape[1] == settings["image_height"] and inputs.shape[2] == settings["image_width"], f"Input size mismatch: {(inputs.shape[1], inputs.shape[2])} vs {(settings['image_height'], settings['image_width'])}"
+            assert inputs.shape[3] == settings["image_channels"], f"Input channels mismatch: {inputs.shape[3]} vs {settings['image_channels']}"
+            assert targets.dtype in (torch.int64, torch.int32), f"Expected targets to be integer class indices, got {targets.dtype}"
+            assert targets.min() >= 0 and targets.max() < num_classes, f"Target class indices out of range: min {targets.min().item()} max {targets.max().item()} vs num_classes {num_classes}"
             
-            #inputs = torch.tensor(inputs, dtype=torch.float32, device=device)
-            #targets = torch.tensor(targets, dtype=torch.float32)#, device=device)
-
-            #for i in range(0, len(X), settings["batch_size"]):
-            #batch = i // settings["batch_size"]
-
-            #inputs = torch.tensor(X[i:i+settings["batch_size"]], dtype=torch.float32, device=device)
-            #targets = torch.tensor(callback.Y_one_hot[i:i+settings["batch_size"]], dtype=torch.float32, device=device)
-
-            #TRex.log(f"Batch {batch}/{len(X)} - inputs: {inputs.shape} targets: {targets.shape}")
-            
-            #for batch, (inputs, targets) in tqdm(enumerate(train_loader), total=len(train_loader)):
-            
+            static_inputs = inputs.to(device, non_blocking=True).contiguous()
+            static_targets = targets.to(device, non_blocking=True).long().contiguous()
 
             '''if batch == 0 and epoch == 0:
                 print(f"Batch {batch}/{len(train_loader)} - inputs: {inputs.shape} targets: {targets.shape}")
@@ -1149,25 +1021,48 @@ def train(model, train_loader, val_loader, criterion, optimizer : torch.optim.Ad
                 #return'''
             #print(f"Batch {batch}/{len(train_loader)} - inputs: {inputs.shape} targets: {targets.shape} - {torch.argmax(targets, dim=1)[0]}")
 
+            if _dbg_enabled():
+                _dbg_tensor("batch.inputs", static_inputs)
+                _dbg_tensor("batch.targets", static_targets)
+
+                # print model information
+                _dbg_model("batch.model", model)
             assert static_inputs.is_contiguous()
             assert static_targets.is_contiguous()
 
             #print(f"Device: {static_inputs.device} vs. {device} vs. {inputs.device}")
             #assert static_inputs.device == device
         
-            with amp_ctx():
-                outputs = model(static_inputs)
-                loss = criterion(outputs, static_targets)
+            try:
+                with amp_ctx():
+                    outputs = model(static_inputs)
+                    if _dbg_enabled():
+                        _dbg_tensor("batch.outputs", outputs)
+                    # Work around MPS view/backward issues by choosing a stable loss path
+                    #if str(device).startswith('mps'):
+                    #    loss = torch.nn.functional.nll_loss(torch.log_softmax(outputs.contiguous().clone(), dim=1), static_targets)
+                    #else:
+                    loss = criterion(outputs.contiguous(), static_targets)
+            except Exception as e:
+                # Print diagnostics and re-raise
+                _dbg_tensor("EX.inputs", static_inputs)
+                TRex.warn(f"[DBG] Exception during forward/loss: {e}")
+                raise
 
-            if use_amp:
-                scaler.scale(loss).backward()
-                scaler.step(optimizer)
-                scaler.update()
-                optimizer.zero_grad(set_to_none=True)
-            else:
-                loss.backward()
-                optimizer.step()
-                optimizer.zero_grad(set_to_none=True)
+            try:
+                if use_amp:
+                    scaler.scale(loss).backward()
+                    scaler.step(optimizer)
+                    scaler.update()
+                    optimizer.zero_grad(set_to_none=True)
+                else:
+                    loss.backward()
+                    optimizer.step()
+                    optimizer.zero_grad(set_to_none=True)
+            except Exception as e:
+                _dbg_tensor("EX.outputs", outputs)
+                TRex.warn(f"[DBG] Exception during backward/step: {e}")
+                raise
 
             with torch.no_grad():
                 # Compute accuracy from logits directly (no softmax needed)
@@ -1203,31 +1098,15 @@ def train(model, train_loader, val_loader, criterion, optimizer : torch.optim.Ad
         total = 0
         if len(val_loader) > 0:
             with torch.no_grad():
-                #for inputs, targets in val_loader:
-                #for batch, i in enumerate(range(0, len(X_val), settings["batch_size"])):
-                #    inputs = torch.tensor(X_val[i:i+settings["batch_size"]], dtype=torch.float32, device=device).detach()
-                #    targets = callback.Y_val_one_hot[i:i+settings["batch_size"]].clone().detach().to(device=device)
-
                 for batch, (inputs, targets) in enumerate(val_loader):
-                    if isinstance(inputs, np.ndarray):
-                        static_inputs = torch.from_numpy(inputs).to(device, dtype=torch.float32).contiguous()
-                    else:
-                        static_inputs = inputs.to(device).contiguous()
-    
-                    if isinstance(targets, np.ndarray):
-                        static_targets = torch.from_numpy(targets).to(device, dtype=torch.long).contiguous()
-                    else:
-                        static_targets = targets.to(device).long().contiguous()
-
-                    #inputs = inputs.to(device)
-                    #targets = targets.to(device)
+                    static_inputs = inputs.to(device).contiguous()
+                    static_targets = targets.to(device).long().contiguous()
 
                     # Validation forward pass
                     with amp_ctx():
                         outputs = model(static_inputs)
 
-                    #TRex.log(f"outputs on device {outputs.device} vs. {static_targets.device} vs. {device}")
-                    loss = criterion(outputs, static_targets)
+                    loss = criterion(outputs.contiguous(), static_targets)
                     val_loss += loss.item()
 
                     # Calculate the accuracy using logits
@@ -1343,45 +1222,32 @@ def start_learning():
 
     # Data augmentation setup
     transform = transforms.Compose([
-        #transforms.RandomRotation(degrees=180),
-        #transforms.RandomAffine(degrees=0, translate=(move_range, move_range)),
+        #transforms.RandomRotation(degrees=5),
+        transforms.RandomAffine(degrees=5, translate=(move_range, move_range)),
         transforms.ColorJitter(brightness=(0.85, 1.15),
-                            contrast=(0.85, 1.15),
-                            saturation=(0.85, 1.15),
-                            hue=(-0.05, 0.05),
-                            ),
+                                contrast=(0.85, 1.15),
+                                saturation=(0.85, 1.15),
+                                hue=(-0.05, 0.05),
+                               ),
         #transforms.RandomHorizontalFlip(),
         #transforms.RandomVerticalFlip(),
         #transforms.RandomResizedCrop((image_height, image_width), scale=(0.95, 1.05)),
     ])
 
     # Accept batched ndarray or list/tuple of per-image ndarrays (HxWxC)
-    #if isinstance(X, (list, tuple)) and len(X) and isinstance(X[0], np.ndarray):
+    assert isinstance(X, list)
     X_train = list(X)  # keep as sequence; batching happens per step
     print([type(x) for x in X_train[:5]])
-    #else:
-    #    X_train = trex_utils.asarray(X, copy=False)
     Y_train = trex_utils.asarray(Y, dtype=int)
 
-    #if isinstance(X_val, (list, tuple)) and len(X_val) and isinstance(X_val[0], np.ndarray):
+    assert isinstance(X_val, list)
     X_test = list(X_val)
-    #else:
-    #    X_test = trex_utils.asarray(X_val, copy=False)
     Y_test = trex_utils.asarray(Y_val, dtype=int)
 
     # Keep integer class indices for training; build one-hot only for validation callback
     TRex.log(f"Y_test: {Y_test.shape}")
     onehot_encoder = OneHotEncoder(sparse_output=False)
-    Y_test_one_hot = onehot_encoder.fit_transform(Y_test.reshape(-1, 1))
-
-    #Y_val_one_hot : torch.Tensor = torch.tensor(Y_val_one_hot, dtype=torch.float32, requires_grad=False)
-    #Y_train_one_hot : torch.Tensor = torch.tensor(Y_train_one_hot, dtype=torch.float32, requires_grad=False)
-
-    # Convert numpy arrays to torch tensors
-    #X_test : torch.Tensor = torch.tensor(X_val, dtype=torch.float32, requires_grad=False)
-    #Y_test : torch.Tensor = Y_val_one_hot
-    #X_train : torch.Tensor = torch.tensor(X, dtype=torch.FloatTensor.dtype, requires_grad=False)
-    #Y_train : np.ndarray = Y_train_one_hot
+    Y_test_one_hot = onehot_encoder.fit_transform(Y_test.reshape(-1, 1).astype(np.float32))
 
     def _len_images(arr):
         return len(arr) if not isinstance(arr, np.ndarray) else arr.shape[0]
@@ -1420,11 +1286,30 @@ def start_learning():
     #train_data = TensorDataset(X_train, Y_train)
     #val_data = TensorDataset(X_test, Y_test)
 
-    #train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True, pin_memory=True, num_workers=0)
-    #val_loader = DataLoader(val_data, batch_size=batch_size, shuffle=False, pin_memory=True, num_workers=0)
+    # Use TRexImageDataset + DataLoader (single-process) for stable threading behavior
+    train_dataset = TRexImageDataset(X_train, Y_train, transform=transform, device=device)
+    val_dataset = TRexImageDataset(X_test, Y_test, transform=None)
 
-    train_loader = CustomDataLoader(X_train, Y_train, batch_size=batch_size, shuffle=True, transform=transform, device=device)
-    val_loader = CustomDataLoader(X_test, Y_test, batch_size=batch_size, device='cpu')
+    pin_mem = (str(device) == 'cuda')
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=batch_size,
+        shuffle=True,
+        drop_last=False,
+        num_workers=0,
+        pin_memory=pin_mem
+    )
+    val_loader = DataLoader(
+        val_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        drop_last=False,
+        num_workers=0,
+        pin_memory=pin_mem
+    )
+
+    #train_loader = CustomDataLoader(X_train, Y_train, batch_size=batch_size, shuffle=True, transform=transform, device=device)
+    #val_loader = CustomDataLoader(X_test, Y_test, batch_size=batch_size, device='cpu')
 
     settings["model"] = network_version
     settings["device"] = str(device)
@@ -1447,6 +1332,7 @@ def start_learning():
         # Count max samples per class from integer labels
         mi = max(mi, int(np.sum(Y_train == c)))
 
+    # Use DataLoader length (number of batches) for progress accounting
     per_epoch = int(len(X_train) / batch_size + 0.5)
     settings["per_epoch"] = per_epoch
     TRex.log(str(settings))
@@ -1494,8 +1380,12 @@ def start_learning():
                 TRex.warn("Error saving training images: " + str(e))
 
         # Example training call
-        #try:
-        train(model, train_loader, val_loader, criterion, optimizer, callback, scheduler=scheduler, device=device, transform=transform, settings=settings)
+        try:
+            train(model, train_loader, val_loader, criterion, optimizer, callback, scheduler=scheduler, device=device, settings=settings)
+        except UserCancelException:
+            print("Training cancelled by the user.")
+        except UserSkipException:
+            print("Training skipped by the user.")
 
         if callback.best_result["unique"] != -1:
             weights = callback.best_result["weights"]

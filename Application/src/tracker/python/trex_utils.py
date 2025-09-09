@@ -235,3 +235,11 @@ def _first_shape(X):
         first = X[0]
         assert isinstance(first, np.ndarray) and first.ndim == 3, "Expect list/tuple of HxWxC ndarrays"
         return first.shape
+
+class UserCancelException(Exception):
+    """Raised when user clicks cancel"""
+    pass
+
+class UserSkipException(Exception):
+    """Raised when user clicks cancel"""
+    pass
