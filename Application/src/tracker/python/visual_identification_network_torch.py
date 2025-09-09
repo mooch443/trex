@@ -3,8 +3,13 @@ import torch.nn as nn
 from torchvision import transforms
 import os
 
-# Define Normalize Layer
+# Normalize layer (currently a no-op passthrough)
 class Normalize(nn.Module):
+    """Optional input normalization module (disabled passthrough by default).
+
+    Present to allow easy re-enabling of standard imagenet normalization; the
+    current pipeline feeds raw inputs without normalization.
+    """
     def __init__(self, device, channels):
         super(Normalize, self).__init__()
         self.norm = None
@@ -16,13 +21,17 @@ class Normalize(nn.Module):
         #    channels = x.size(1)
         #    self.norm = transforms.Normalize(mean=[0.485, 0.456, 0.406][:channels], std=[0.229, 0.224, 0.225][:channels])
         #print(f'x: {x.size()} output shape: {self.norm.output_shape}')
-        return x#self.norm(x / 255.0)
+        return x  # passthrough; normalization disabled
         #return (x / 127.5) - 1.0
         #return x
 
 # %%
 # Define v200 model
 class V200(nn.Module):
+    """Custom CNN (V200) expecting NCHW inputs; head outputs class logits.
+
+    Typically wrapped by PermuteAxesWrapper so external callers can pass NHWC.
+    """
     def __init__(self, image_width, image_height, num_classes, channels):
         super(V200, self).__init__()
         self.conv1 = nn.Conv2d(channels, 64, kernel_size=3, padding='same')
@@ -95,6 +104,10 @@ class V200(nn.Module):
 # %%
 # Define v119 model
 class V119(nn.Module):
+    """Custom CNN (V119) expecting NCHW inputs; head outputs class logits.
+
+    Typically wrapped by PermuteAxesWrapper so external callers can pass NHWC.
+    """
     def __init__(self, image_width, image_height, num_classes, channels):
         super(V119, self).__init__()
         self.conv1 = nn.Conv2d(channels, 256, kernel_size=5, padding='same')
@@ -133,7 +146,7 @@ class V119(nn.Module):
                 x = x.contiguous(memory_format=torch.channels_last)
             except Exception:
                 x = x.contiguous()
-        # Permute to channels first (N, H, W, C) -> (N, C, H, W)
+        # Input is NCHW; NHWC->NCHW permutation happens in PermuteAxesWrapper
         #x = x.permute(0, 3, 1, 2)
         x = self.conv1(x)
         x = self.bn1(x)
@@ -169,6 +182,10 @@ class V119(nn.Module):
 # %%
 # Define v118_3 model
 class V118_3(nn.Module):
+    """Compact CNN (V118_3) expecting NCHW inputs; head outputs class logits.
+
+    Typically wrapped by PermuteAxesWrapper so external callers can pass NHWC.
+    """
     def __init__(self, image_width, image_height, num_classes, channels):
         super(V118_3, self).__init__()
         self.conv1 = nn.Conv2d(channels, 16, kernel_size=5, padding='same')
@@ -197,7 +214,7 @@ class V118_3(nn.Module):
         self.fc2 = nn.Linear(100, num_classes)
 
     def forward(self, x):
-        # Keep channels-last end-to-end on MPS; avoid default contiguous flips
+        # Keep channels-last contiguous to minimize layout flips
         if x.dim() == 4:
             x = x.contiguous(memory_format=torch.channels_last)
 
@@ -234,7 +251,7 @@ class V118_3(nn.Module):
 
         # Head
         x = self.fc1(x)
-        x = self.bn4(x)
+        x = self.bn4(x.contiguous())
         x = self.relu4(x)
         x = self.dropout4(x)
         x = self.fc2(x)
@@ -243,6 +260,10 @@ class V118_3(nn.Module):
 # %%
 # Define v110 model
 class V110(nn.Module):
+    """Shallow CNN (V110) expecting NCHW inputs; head outputs class logits.
+
+    Typically wrapped by PermuteAxesWrapper so external callers can pass NHWC.
+    """
     def __init__(self, image_width, image_height, num_classes, channels):
         super(V110, self).__init__()
         self.conv1 = nn.Conv2d(channels, 16, kernel_size=5, padding='same')
@@ -305,6 +326,10 @@ class V110(nn.Module):
 # %%
 # Define v100 model
 class V100(nn.Module):
+    """Baseline CNN (V100) expecting NCHW inputs; head outputs class logits.
+
+    Typically wrapped by PermuteAxesWrapper so external callers can pass NHWC.
+    """
     def __init__(self, image_width, image_height, num_classes, channels):
         super(V100, self).__init__()
         self.conv1 = nn.Conv2d(channels, 16, kernel_size=5, padding='same')
@@ -362,6 +387,12 @@ import torch.nn as nn
 import torchvision.models as models
 
 class ModelFetcher:
+    """Factory/registry for official and custom backbones, wrapped for NHWC input.
+
+    - Official torchvision models have their first conv adapted to input channels.
+    - All returned models are wrapped in PermuteAxesWrapper (NHWC -> NCHW) and
+      moved to the requested device. Optional torch.compile may be applied.
+    """
     def __init__(self):
         self.versions = {}
         self.add_official_models()
@@ -536,6 +567,10 @@ class ModelFetcher:
         ]
 
     def get_model(self, model_name, num_classes, channels, image_width=None, image_height=None, device=None):
+        """Return a configured model by name, moved to `device` and wrapped for NHWC.
+
+        Custom models use `image_width`/`image_height`; official models ignore them.
+        """
         if model_name in self.versions:
             if model_name in self.array_of_all_official_models:
                 model = self.versions[model_name](num_classes, channels)
@@ -561,8 +596,8 @@ class ModelFetcher:
                     if not str(device).startswith('mps'):
                         # CUDA/CPU: enable inductor with autotune
                         wrapper = torch.compile(wrapper, mode='max-autotune')
-                    else:
-                        wrapper = torch.compile(wrapper, backend='aot_eager', dynamic=True)
+                    #else:
+                    #    wrapper = torch.compile(wrapper, backend='aot_eager', dynamic=True)
             except Exception:
                 # Fall back without compilation if unsupported or fails
                 pass
@@ -581,6 +616,11 @@ class ModelFetcher:
         return model
 
 class PermuteAxesWrapper(nn.Module):
+    """Adapter that converts NHWC inputs to NCHW and preserves channels_last layout.
+
+    Also hosts an optional Normalize layer (currently disabled) to avoid clutter
+    in the underlying model definitions.
+    """
     def __init__(self, channels, model, device):
         super(PermuteAxesWrapper, self).__init__()
         self.model = model
@@ -594,7 +634,7 @@ class PermuteAxesWrapper(nn.Module):
         #else:
         #    x = x.permute(0, 3, 1, 2).contiguous()
         x = x.permute(0, 3, 1, 2).contiguous(memory_format=torch.channels_last)
-        #x = self.normalize(x)
+        x = self.normalize(x)
         #if self._is_mps:
         #     Ensure Normalize doesn't reintroduce default layout
         #     try:

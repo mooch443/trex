@@ -613,24 +613,26 @@ std::tuple<bool, std::map<Idx_t, Idx_t>> Accumulation::check_additional_range(co
 void Accumulation::confirm_weights() {
     Print("Confirming weights.");
     auto path = py::VINetwork::network_path();
-    auto progress_path = file::Path(path.str() + "_progress.pth");
-    auto final_path = path.add_extension("pth");
-    
-    if(progress_path.exists()) {
-        Print("Moving weights from ",progress_path.str()," to ",final_path.str(),".");
-        if(!progress_path.move_to(final_path))
-            FormatExcept("Cannot move ",progress_path," to ",final_path,". Are your file permissions in order?");
+    std::string progress_base = path.str() + "_progress";
+
+    if(auto progress_dict = file::Path(progress_base + "_dict.pth"),
+            final_path = file::Path(path.str() + "_dict.pth");
+       progress_dict.exists()) 
+    {
+        Print("Moving weights from ",progress_dict," to ",final_path,".");
+        if(not progress_dict.move_to(final_path))
+            FormatExcept("Cannot move ",progress_dict," to ",final_path,". Are your file permissions in order?");
         
     } else
         FormatExcept("Cannot find weights! No successful training so far? :(");
-    
-    progress_path = file::Path(path.str() + "_progress_model.pth");
-    final_path = path.str() + "_model.pth";
-    
-    if(progress_path.exists()) {
-        Print("Moving model state from ",progress_path.str()," to ",final_path.str(),".");
-        if(!progress_path.move_to(final_path))
-            FormatExcept("Cannot move ",progress_path," to ",final_path,". Are your file permissions in order?");
+
+    if(auto progress_model = file::Path(progress_base + "_model.pth"),
+            final_path = file::Path(path.str() + "_model.pth");
+       progress_model.exists()) 
+    {
+        Print("Moving model state from ",progress_model.str()," to ",final_path.str(),".");
+        if(not progress_model.move_to(final_path))
+            FormatExcept("Cannot move ",progress_model," to ",final_path,". Are your file permissions in order?");
     }
 }
 
@@ -1148,6 +1150,9 @@ bool Accumulation::start() {
         
         _added_ranges.push_back(_initial_range);
         end_a_step(MakeResult<AccumulationStatus::Added, AccumulationReason::None>(_initial_range, uniqueness_after, str));
+
+        /// confirm initial step weights...
+        confirm_weights();
     }
     
     // we can skip each step after the first
@@ -2277,4 +2282,3 @@ float Accumulation::best_uniqueness() const {
 }
 
 #endif
-
