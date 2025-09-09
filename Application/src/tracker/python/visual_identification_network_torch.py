@@ -591,7 +591,7 @@ class ModelFetcher:
             
             wrapper = PermuteAxesWrapper(channels, model, device=device)
             # Optional: compile for speed. On MPS, skip Inductor to avoid stride-guard issues.
-            try:
+            '''try:
                 if hasattr(torch, 'compile') and callable(getattr(torch, 'compile')):
                     if not str(device).startswith('mps'):
                         # CUDA/CPU: enable inductor with autotune
@@ -600,7 +600,7 @@ class ModelFetcher:
                     #    wrapper = torch.compile(wrapper, backend='aot_eager', dynamic=True)
             except Exception:
                 # Fall back without compilation if unsupported or fails
-                pass
+                pass'''
             return wrapper
         else:
             raise ValueError(f"Model {model_name} not found. Available models are: {list(self.versions.keys())}")
