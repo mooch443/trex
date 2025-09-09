@@ -1110,7 +1110,7 @@ def train(model, train_loader, val_loader, criterion, optimizer : torch.optim.Ad
             static_inputs = inputs.to(device, non_blocking=True).contiguous()
             static_targets = targets.to(device, non_blocking=True).long().contiguous()
 
-            if batch == 0 and epoch == 0:
+            '''if batch == 0 and epoch == 0:
                 print(f"Batch {batch}/{len(train_loader)} - inputs: {inputs.shape} targets: {targets.shape}")
 
                 import torchvision
@@ -1120,7 +1120,7 @@ def train(model, train_loader, val_loader, criterion, optimizer : torch.optim.Ad
                 TRex.log(f"Image shape: {image.shape}")
                 TRex.imshow("batch0", image)
                 #plt.imshow(grid.permute(1, 2, 0).numpy().astype(int))
-                #plt.show()
+                #plt.show()'''
 
             if _dbg_enabled():
                 _dbg_tensor("batch.inputs", static_inputs)
