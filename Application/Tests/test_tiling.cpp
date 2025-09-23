@@ -271,7 +271,7 @@ TEST(YoloReceiveTest, KeepsDetectionsWithDifferentClasses) {
     YOLO::receive(data, std::move(result));
 
     EXPECT_EQ(data.predictions.size(), 2u);
-    EXPECT_EQ(data.frame.size(), 2u);
+    EXPECT_EQ(data.frame.n(), 2u);
 }
 
 TEST(YoloReceiveTest, KeepsDetectionsBelowIoUThreshold) {
@@ -304,7 +304,7 @@ TEST(YoloReceiveTest, KeepsDetectionsBelowIoUThreshold) {
     YOLO::receive(data, std::move(result));
 
     EXPECT_EQ(data.predictions.size(), 2u);
-    EXPECT_EQ(data.frame.size(), 2u);
+    EXPECT_EQ(data.frame.n(), 2u);
 }
 #include <misc/DetectionTypes.h>
 using namespace default_config;

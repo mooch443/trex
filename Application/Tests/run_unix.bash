@@ -9,6 +9,7 @@ PWD="$(cd $(dirname $PWD); pwd)/$(basename $PWD)"
 WPWD=${PWD}
 TGRABS=trex
 TREX=trex
+exit_code=0
 
 if ! which git; then
     GIT="C:/Users/tristan/miniconda3/envs/trex/Library/bin/git.exe"
@@ -223,7 +224,7 @@ for MODE in ${MODES}; do
         fi
     fi
 
-    if [ $exit_code -ne 0 ]; then
+    if [ "${exit_code}" -ne 0 ]; then
         echo "TRex (${MODE}) failed."
         cat "${PWD}/trex.log"
         # Keep outputs for artifact collection on failure.
