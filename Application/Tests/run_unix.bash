@@ -11,8 +11,6 @@ TGRABS=trex
 TREX=trex
 exit_code=0
 
-exit_code=0
-
 if ! which git; then
     GIT="C:/Users/tristan/miniconda3/envs/trex/Library/bin/git.exe"
 else
