@@ -7,6 +7,7 @@
 #include <tracker/misc/default_config.h>
 #include <grabber/misc/default_config.h>
 #include <python/YOLO.h>
+#include <tracker/misc/OverlayedVideo.h>
 
 #include <opencv2/core.hpp>
 
@@ -114,6 +115,36 @@ TEST(TileImageTest, GeneratesExpectedOffsetsWithoutOverlap) {
     EXPECT_EQ(tile.images.size(), offsets.size());
 }
 
+TEST(OverlayedVideoTiling, NoTilingKeepsDetectorSize) {
+    Size2 frame_size(640, 480);
+    Size2 detector_size(640, 640);
+
+    auto [new_size, tile_size] = compute_tiling_dimensions(frame_size, detector_size, 0, 1);
+
+    EXPECT_EQ(new_size, detector_size);
+    EXPECT_EQ(tile_size, detector_size);
+}
+
+TEST(OverlayedVideoTiling, TargetWidthGeneratesExpectedTiles) {
+    Size2 frame_size(960, 640);
+    Size2 detector_size(640, 640);
+
+    auto [new_size, tile_size] = compute_tiling_dimensions(frame_size, detector_size, 320, 1);
+
+    EXPECT_EQ(tile_size, Size2(320, 320));
+    EXPECT_EQ(new_size, Size2(960, 640));
+}
+
+TEST(OverlayedVideoTiling, LegacyMultiplierExtendsFrame) {
+    Size2 frame_size(800, 600);
+    Size2 detector_size(640, 640);
+
+    auto [new_size, tile_size] = compute_tiling_dimensions(frame_size, detector_size, 0, 3);
+
+    EXPECT_EQ(tile_size, Size2(640, 640));
+    EXPECT_EQ(new_size, Size2(640 * 3, 640 * 3));
+}
+
 TEST(TileImageTest, HandlesIncompleteTilesAndOverlap) {
     resetGlobalSettings();
     const int width = 500;
@@ -199,6 +230,56 @@ TEST(TileImageTest, HighOverlapStillProgressesAcrossFrame) {
     // Ensure stride is at least one pixel to prevent infinite loops.
     for(size_t i = 1; i < offsets.size(); ++i) {
         EXPECT_NE(offsets[i], offsets[i - 1]) << "Overlap produced identical consecutive offsets";
+    }
+}
+
+TEST(TileImageTest, TargetWidthProducesExpectedTileCountAndSize) {
+    resetGlobalSettings();
+    const Size2 frame_size(960, 640);
+    const Size2 detector_size(640, 640);
+    const uint16_t target_width = 320;
+
+    auto [resized_size, tile_size] = compute_tiling_dimensions(frame_size, detector_size, target_width, 1);
+    ASSERT_EQ(resized_size, Size2(960, 640));
+    ASSERT_EQ(tile_size, Size2(320, 320));
+
+    cv::Mat resized(resized_size.height, resized_size.width, CV_8UC3, cv::Scalar(0));
+    auto original = makeImage(frame_size.width, frame_size.height);
+
+    TileImage tile(resized, std::move(original), tile_size, frame_size, 0.0f);
+
+    const size_t expected_tiles = (resized_size.width / tile_size.width) * (resized_size.height / tile_size.height);
+    ASSERT_EQ(tile.images.size(), expected_tiles);
+
+    for(const auto& img : tile.images) {
+        ASSERT_TRUE(img);
+        EXPECT_EQ(img->cols, tile_size.width);
+        EXPECT_EQ(img->rows, tile_size.height);
+    }
+}
+
+TEST(TileImageTest, LegacyMultiplierGeneratesGrid) {
+    resetGlobalSettings();
+    const Size2 frame_size(640, 480);
+    const Size2 detector_size(640, 640);
+    const size_t multiplier = 2;
+
+    auto [resized_size, tile_size] = compute_tiling_dimensions(frame_size, detector_size, 0, multiplier);
+    ASSERT_EQ(tile_size, Size2(640, 640));
+    const int expected_width = static_cast<int>(640 * multiplier);
+    const int expected_height = static_cast<int>(640 * multiplier);
+    ASSERT_EQ(resized_size, Size2(expected_width, expected_height));
+
+    cv::Mat resized(resized_size.height, resized_size.width, CV_8UC3, cv::Scalar(0));
+    auto original = makeImage(frame_size.width, frame_size.height);
+
+    TileImage tile(resized, std::move(original), tile_size, frame_size, 0.0f);
+
+    ASSERT_EQ(tile.images.size(), (resized_size.width / tile_size.width) * (resized_size.height / tile_size.height));
+    for(const auto& img : tile.images) {
+        ASSERT_TRUE(img);
+        EXPECT_EQ(img->cols, tile_size.width);
+        EXPECT_EQ(img->rows, tile_size.height);
     }
 }
 
