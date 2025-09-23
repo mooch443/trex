@@ -11,6 +11,8 @@ TGRABS=trex
 TREX=trex
 exit_code=0
 
+exit_code=0
+
 if ! which git; then
     GIT="C:/Users/tristan/miniconda3/envs/trex/Library/bin/git.exe"
 else
@@ -236,9 +238,9 @@ for MODE in ${MODES}; do
     fi
 done
 
-if [ "${exit_code}" = "0" ]; then
+if [ "${exit_code:-0}" = "0" ]; then
   rm -f ${PWD}/average_test.png
   rm -f ${PWD}/corrected/test.results.meta
 fi
 
-exit ${exit_code}
+exit "${exit_code:-0}"
