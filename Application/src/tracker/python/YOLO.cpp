@@ -794,13 +794,23 @@ void YOLO::process_boxes_only(
         cmn::PixelArray_t pixels;
         std::vector<HorizontalLine> lines;
 
-        for (int y = bounds.y; y < bounds.y + bounds.height; ++y) {
-            HorizontalLine line{
-                saturate(coord_t(y), coord_t(0), coord_t(h)),
-                saturate(coord_t(bounds.x), coord_t(0), coord_t(w)),
-                saturate(coord_t(bounds.x + bounds.width), coord_t(0), coord_t(w))
-            };
-            pixels.insert(pixels.end(), r3.ptr<uchar>(line.y, line.x0), r3.ptr<uchar>(line.y, line.x1 + 1));
+        const int y_start = std::max(0, static_cast<int>(std::floor(bounds.y)));
+        const int y_end = std::min(static_cast<int>(h), static_cast<int>(std::ceil(bounds.y + bounds.height)));
+        const int x_start = std::max(0, static_cast<int>(std::floor(bounds.x)));
+        const int x_end = std::min(static_cast<int>(w), static_cast<int>(std::ceil(bounds.x + bounds.width)));
+
+        if(x_start >= x_end || y_start >= y_end) {
+            return;
+        }
+
+        for(int y = y_start; y < y_end; ++y) {
+            const coord_t line_y = static_cast<coord_t>(y);
+            const coord_t line_x0 = static_cast<coord_t>(x_start);
+            const coord_t line_x1 = static_cast<coord_t>(x_end - 1);
+
+            HorizontalLine line{ line_y, line_x0, line_x1 };
+            const uchar* row_ptr = r3.ptr<uchar>(y);
+            pixels.insert(pixels.end(), row_ptr + x_start, row_ptr + x_end);
             lines.emplace_back(std::move(line));
         }
 
@@ -1365,3 +1375,5 @@ void YOLO::apply(std::vector<TileImage>&& tiles) {
 }
 
 }
+
+
