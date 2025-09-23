@@ -8,6 +8,8 @@
 #include <grabber/misc/default_config.h>
 #include <python/YOLO.h>
 #include <tracker/misc/OverlayedVideo.h>
+#include <misc/PythonWrapper.h>
+#include <file/DataLocation.h>
 
 #include <opencv2/core.hpp>
 
@@ -20,6 +22,8 @@ using namespace track;
 namespace {
 
 void resetGlobalSettings() {
+    PythonIntegration::set_settings(GlobalSettings::instance(), file::DataLocation::instance(), Python::get_instance());
+
     GlobalSettings::write([&](Configuration& config) {
         grab::default_config::get(config);
         ::default_config::get(config);
@@ -30,6 +34,7 @@ void resetGlobalSettings() {
     SETTING(detect_tile_image) = uchar{0};
     SETTING(detect_tile_merge_iou) = Float2_t{0.55f};
     SETTING(meta_encoding) = meta_encoding_t::gray;
+    SETTING(detect_only_classes) = track::detect::PredictionFilter{};
 }
 
 struct DetectTileOverlapGuard {
