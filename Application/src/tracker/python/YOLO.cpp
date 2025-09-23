@@ -404,7 +404,7 @@ void YOLO::receive(SegmentationData& data, track::detect::Result&& result) {
     } else
         throw U_EXCEPTION("Invalid image mode ", mode);
 
-    const auto detect_only_classes = READ_SETTING(detect_only_classes, track::detect::PredictionFilter);
+    const auto detect_only_classes = READ_SETTING_WITH_DEFAULT(detect_only_classes, track::detect::PredictionFilter{});
     const coord_t w = max(0, r3.cols - 1);
     const coord_t h = max(0, r3.rows - 1);
     
