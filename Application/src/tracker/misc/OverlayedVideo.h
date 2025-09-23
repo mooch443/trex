@@ -133,23 +133,39 @@ public:
             image.ptr->set_index(image.index.get());
             
             // could use image here
-            Size2 original_size(current_use->cols, current_use->rows);
-            Size2 resized_size = track::detect::get_model_image_size();
-
-            Size2 new_size(resized_size);
-            size_t tiles = READ_SETTING(detect_tile_image, uchar);
-            if(tiles > 1) {
-                float ratio = current_use->rows / float(current_use->cols);
-                new_size = Size2(resized_size.width * tiles, resized_size.width * tiles * ratio).map(roundf);
-                while(current_use->cols < new_size.width
-                      && current_use->rows < new_size.height
-                      && tiles > 0)
-                {
-                    new_size = Size2(resized_size.width * tiles, resized_size.width * tiles * ratio).map(roundf);
-                    tiles--;
-                }
-            }
+            const Size2 original_size(current_use->cols, current_use->rows);
+            Size2 detector_size = track::detect::get_model_image_size();
+            Size2 new_size(detector_size);
             
+            const uint16_t detect_tile_target_width = READ_SETTING(detect_tile_target_width, uint16_t);
+            const size_t detect_tile_image = READ_SETTING(detect_tile_image, uchar);
+            const float detect_tile_overlap = READ_SETTING(detect_tile_overlap, float);
+
+            if(detect_tile_image > 0
+               || detect_tile_target_width > 0)
+            {
+                const uint16_t base_edge = std::max<uint16_t>(detector_size.width, detector_size.height);
+                uint16_t tile_edge = base_edge == 0 ? uint16_t(320) : base_edge;
+                
+                size_t tiles_x = 1;
+                if(detect_tile_target_width > 0) {
+                    tiles_x = std::max<size_t>(tiles_x, static_cast<size_t>(std::ceil(static_cast<float>(detect_tile_target_width) / static_cast<float>(tile_edge))));
+                }
+                if(detect_tile_image > 0)
+                    tiles_x = std::max<size_t>(tiles_x, detect_tile_image);
+                
+                while(tiles_x > 1 && current_use->cols < int(tile_edge * tiles_x))
+                    --tiles_x;
+                
+                const float frame_ratio = current_use->rows > 0 ? current_use->rows / float(current_use->cols) : 1.f;
+                size_t tiles_y = std::max<size_t>(1, static_cast<size_t>(std::ceil(frame_ratio * tiles_x)));
+                while(tiles_y > 1 && current_use->rows < int(tile_edge * tiles_y))
+                    --tiles_y;
+                
+                new_size = Size2(tile_edge * tiles_x, tile_edge * tiles_y);
+                detector_size = Size2(tile_edge, tile_edge);
+            }
+
             // could also use image here
             if (current_use->cols != new_size.width || current_use->rows != new_size.height) {
                 cv::resize(*current_use, _resized_buffer, new_size);
@@ -158,7 +174,7 @@ public:
 
             // tileimage barely uses the current_use / could probably use image here as well
             // but have to check - it is a const reference
-            TileImage tiled(*current_use, std::move(image.ptr), resized_size, original_size);
+            TileImage tiled(*current_use, std::move(image.ptr), detector_size, original_size, detect_tile_overlap);
             tiled.callback = callback;
             _source->move_back(std::move(image.buffer));
             

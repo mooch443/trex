@@ -194,7 +194,7 @@
                                             "var":"track_threshold",
                                             "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
                                             "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
-                                            "size":"[{max:50:{*:{textfield_w}:0.1}},40]",
+                                            "size":"[{+:25:{max:50:{*:{textfield_w}:0.1}}},40]",
                                             "desc":""
                                         }
                                     ],
@@ -228,10 +228,12 @@
                                                 "corners":["none"],
                                                 "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,50]}",
                                                 "fill":"{if:{||:{selected}:{hovered}}:[10,80,110,240]:[10,50,80,240]}",
-                                                "font":{"size":0.65}
+                                                "font":{"size":0.65},
+                                                "size":[250,40]
                                             },
+                                            "auto_limit_size": false,
                                             "var":"track_do_history_split",
-                                            "size":"[{max:50:{*:{textfield_w}:0.1}},40]",
+                                            "size":"[{+:25:{max:50:{*:{textfield_w}:0.1}}},40]",
                                             "desc":""
                                         }
                                     ],
@@ -266,16 +268,16 @@
                                                 "var":"cm_per_pixel",
                                                 "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
                                                 "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
-                                                "size":"[{max:50:{*:{textfield_w}:0.08}},40]",
+                                                "size":"[{max:50:{*:{textfield_w}:0.05}},40]",
                                                 "desc":""
                                             },
                                             {
                                                 "type":"button",
-                                                "corners":["right"],
+                                                "corners":["bottomright"],
                                                 "text":"Calibrate",
                                                 "fill":[50,90,50],
-                                                "pos":"[{max:50:{*:{textfield_w}:0.08}},0]",
-                                                "size":"[{max:80:{*:{textfield_w}:0.08}},40]",
+                                                "pos":"[{max:50:{*:{textfield_w}:0.05}},0]",
+                                                "size":"[{max:50:{*:{textfield_w}:0.073}},40]",
                                                 "action":"change_scene:'calibrate-scene'"
                                             }
                                         ]

@@ -12,6 +12,8 @@ from itertools import groupby
 import numpy as np
 import cv2
 
+import trex_utils
+
 BBox = np.ndarray
 Image = np.ndarray
 
@@ -390,7 +392,7 @@ class TRexDetection:
         Returns:
         list: A list of preprocessed images
         """
-        return [cv2.cvtColor(np.array(i, copy=False), cv2.COLOR_BGR2RGB) for i in images]
+        return [cv2.cvtColor(trex_utils.asarray(i, copy=False), cv2.COLOR_BGR2RGB) for i in images]
 
     def inference(self, input, max_det = 1000, conf_threshold=0.1, iou_threshold=0.7) -> list[TRex.Result]:
         """
@@ -416,7 +418,7 @@ class TRexDetection:
         offsets = np.reshape(offsets, (-1, 2))
         scales = np.reshape(scales, (-1, 2)).astype(np.float32)
 
-        orig_id = np.array(input.orig_id(), copy=False, dtype=np.uint64)
+        orig_id = trex_utils.asarray(input.orig_id(), copy=True, dtype=np.uint64)
         #print(f"Received orig_id = {orig_id}")
 
         im = input.images()

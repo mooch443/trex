@@ -26,7 +26,7 @@ struct TileImage {
     TileImage& operator=(TileImage&&) = default;
     TileImage& operator=(const TileImage&) = delete;
     
-    TileImage(const useMat_t& source, Image::Ptr&& original, Size2 tile_size, Size2 original_size);
+    TileImage(const useMat_t& source, Image::Ptr&& original, Size2 tile_size, Size2 original_size, float overlap_ratio = 0.f);
     
     ~TileImage();
     

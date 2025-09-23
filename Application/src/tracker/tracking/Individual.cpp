@@ -1715,6 +1715,7 @@ std::expected<IndividualCache, const char*> Individual::cache_for_frame(const Fr
     //! collect samples from previous segments
     //bool manually_matched_segment = false;
     bool last_frame_manual = false;
+    Frame_t last_seen_frame;
     cache.last_seen_px = Vec2(-FLT_MAX);
     cache.current_category = std::nullopt;
     const auto cm_per_pixel = SLOW_SETTING(cm_per_pixel);
@@ -1746,14 +1747,17 @@ std::expected<IndividualCache, const char*> Individual::cache_for_frame(const Fr
             bdx = (*copy)->basic_stuff((*copy)->end());
         }
         
-        if(bdx != -1)
+        if(bdx != -1) {
             cache.last_seen_px = _basic_stuff.at(bdx)->centroid.pos<Units::PX_AND_SECONDS>();
+            last_seen_frame = _basic_stuff.at(bdx)->frame;
+        }
         
     } else if(!_tracklets.empty()) {
         assert(frameIndex > (*_tracklets.rbegin())->end());
         auto bdx = (*_tracklets.rbegin())->basic_stuff((*_tracklets.rbegin())->end());
         assert(bdx != -1);
         cache.last_seen_px = _basic_stuff.at(bdx)->centroid.pos<Units::PX_AND_SECONDS>();
+        last_seen_frame = _basic_stuff.at(bdx)->frame;
     }
     
 #ifndef NDEBUG
@@ -1785,7 +1789,7 @@ std::expected<IndividualCache, const char*> Individual::cache_for_frame(const Fr
                     valid_frame_streak = (*it)->length();
                     
                     /// go backwards through the array and add up the lengths
-                    auto cp = it;
+                    /*auto cp = it;
                     const Frame_t min_frame = frameIndex.try_sub(Frame_t((uint32_t)max(0.0, reassign_frame_limit)));
                     while(cp != _tracklets.begin()
 #ifdef NDEBUG
@@ -1801,10 +1805,17 @@ std::expected<IndividualCache, const char*> Individual::cache_for_frame(const Fr
                             valid_frame_streak += (*cp)->end().try_sub(min_frame);
                             break;
                         } else {
-                            valid_frame_streak += (*cp)->length();
+                            auto bidx = (*cp)->basic_index.back();
+                            if(bidx != -1) {
+                                auto &b = _basic_stuff.at(bidx);
+                                auto bds = b->blob.calculate_bounds();
+                                auto d = euclidean_distance(bds.center(), cache.last_seen_px);
+                                Print("Distance ", identity(), " from ", bds.center(), " in frame ",b->frame, " to ", cache.last_seen_px, " in frame ", last_seen_frame, ": ", d / float(last_seen_frame.try_sub(b->frame).get()), " / ", track_max_speed_px / frame_rate, " (", last_seen_frame.try_sub(b->frame), " frames apart)");
+                                valid_frame_streak += (*cp)->length();
+                            }
                             continue;
                         }
-                    }
+                    }*/
                     
 #ifndef NDEBUG
                     /*if(valid_frame_streak != (*it)->length())

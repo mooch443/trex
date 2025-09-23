@@ -37,8 +37,11 @@ target_compile_definitions(test_outlines PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CUR
 add_executable(test_threadpool test_threadpool.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
 target_compile_definitions(test_threadpool PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
 
+add_executable(test_tiling test_tiling.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
+target_compile_definitions(test_tiling PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
+
 # always compile in debug mode
-set(TARGETS test_matching test_strings test_pixels test_patharray test_dyngui test_outlines test_threadpool)
+set(TARGETS test_matching test_strings test_pixels test_patharray test_dyngui test_outlines test_threadpool test_tiling)
 if(WIN32)
         foreach(target ${TARGETS})
                 target_compile_options(${target} PRIVATE /W4 /EHsc /Zi /Od)
@@ -61,6 +64,7 @@ target_link_libraries(test_patharray PUBLIC gtest gmock gtest_main)
 target_link_libraries(test_dyngui PUBLIC gtest gmock gtest_main)
 target_link_libraries(test_outlines PUBLIC gtest gmock gtest_main)
 target_link_libraries(test_threadpool PUBLIC gtest gtest_main)
+target_link_libraries(test_tiling PUBLIC gtest gmock gtest_main)
 
 # Extra linking for the project.
 target_link_libraries(test_matching PUBLIC
@@ -118,6 +122,12 @@ target_link_libraries(test_threadpool PUBLIC
         commons
         pv)
 
+target_link_libraries(test_tiling PUBLIC
+        tracker_python
+        tracker_misc
+        commons
+        pv)
+
 set_target_properties(test_matching PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 set_target_properties(test_strings PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 set_target_properties(test_pixels PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
@@ -125,6 +135,7 @@ set_target_properties(test_patharray PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH
 set_target_properties(test_dyngui PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 set_target_properties(test_outlines PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 set_target_properties(test_threadpool PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
+set_target_properties(test_tiling PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 
 # This is so you can do 'make test' to see all your tests run, instead of
 # manually running the executable runUnitTests to see those specific tests.
@@ -135,6 +146,7 @@ add_test(NAME test-patharray COMMAND test_patharray)
 add_test(NAME test-dyngui COMMAND test_dyngui)
 add_test(NAME test-outlines COMMAND test_outlines)
 add_test(NAME test-threadpool COMMAND test_threadpool)
+add_test(NAME test-tiling COMMAND test_tiling)
 
 # Add a custom target to build and run all tests
 add_custom_target(runAllTests

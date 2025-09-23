@@ -1087,7 +1087,10 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("detect_keypoint_names", track::detect::KeypointNames{}, "An array of names in the correct keypoint index order for the given model.");
         CONFIG("detect_point_radii", std::map<int, float>{}, "An array of radii for a given point class in a POLO network.", PUBLIC);
         CONFIG("detect_batch_size", uchar(1), "The batching size for object detection.");
-        CONFIG("detect_tile_image", uchar(0), "If > 1, this will tile the input image for Object detection (SAHI method) before passing it to the network. These tiles will be `detect_resolution` pixels high and wide (with zero padding).");
+        CONFIG("detect_tile_image", uchar(0), "Legacy tile multiplier for SAHI detection. If > 1, this will tile the input image into that many multiples of `detect_resolution`. Retained for backwards compatibility; prefer `detect_tile_target_width`.");
+        CONFIG("detect_tile_target_width", uint16_t(0), "Desired horizontal resolution (in pixels) used when preparing tiles for SAHI detection. We derive the number of tiles from this width; set to 0 to disable or fall back to `detect_tile_image`.");
+        CONFIG("detect_tile_overlap", float(0.f), "Relative overlap (0-0.95) between adjacent tiles when tiling detection inputs. Enables SAHI-style inference without losing objects on tile borders.");
+        CONFIG("detect_tile_merge_iou", Float2_t(0.55f), "IoU threshold used when merging tile predictions on the C++ side after SAHI tiling.");
         CONFIG("yolo_tracking_enabled", false, "If set to true, the program will try to use yolov8s internal tracking routine to improve results. This can be significantly slower and disables batching.");
         CONFIG("yolo_region_tracking_enabled", false, "If set to true, the program will try to use yolov8s internal tracking routine to improve results for region tracking. This can be significantly slower and disables batching.");
         CONFIG("detect_model", file::Path(), "The path to a .pt file that contains a valid PyTorch object detection model (currently only YOLO networks are supported).");

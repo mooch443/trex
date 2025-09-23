@@ -1,0 +1,314 @@
+#include <gtest/gtest.h>
+
+#include <misc/TileImage.h>
+#include <misc/TaskPipeline.h>
+#include <misc/TrackingSettings.h>
+#include <misc/GlobalSettings.h>
+#include <tracker/misc/default_config.h>
+#include <grabber/misc/default_config.h>
+#include <python/YOLO.h>
+
+#include <opencv2/core.hpp>
+
+#include <algorithm>
+#include <set>
+
+using namespace cmn;
+using namespace track;
+
+namespace {
+
+void resetGlobalSettings() {
+    GlobalSettings::write([&](Configuration& config) {
+        grab::default_config::get(config);
+        ::default_config::get(config);
+    });
+
+    SETTING(detect_tile_overlap) = 0.f;
+    SETTING(detect_tile_target_width) = uint16_t{0};
+    SETTING(detect_tile_image) = uchar{0};
+    SETTING(detect_tile_merge_iou) = Float2_t{0.55f};
+    SETTING(meta_encoding) = meta_encoding_t::gray;
+}
+
+struct DetectTileOverlapGuard {
+    float previous;
+    explicit DetectTileOverlapGuard(float value) {
+        previous = READ_SETTING(detect_tile_overlap, float);
+        SETTING(detect_tile_overlap) = value;
+    }
+    ~DetectTileOverlapGuard() {
+        SETTING(detect_tile_overlap) = previous;
+    }
+};
+
+cmn::Image::Ptr makeImage(int width, int height, int channels = 3) {
+    auto img = cmn::Image::Make(height, width, channels);
+    img->set_index(0);
+    return img;
+}
+
+void expectOffsetsWithinBounds(const std::vector<Vec2>& offsets,
+                               Size2 tile_size,
+                               Size2 frame_size)
+{
+    ASSERT_FALSE(offsets.empty());
+
+    std::set<std::pair<int,int>> seen;
+    for(const auto& off : offsets) {
+        EXPECT_GE(off.x, 0);
+        EXPECT_GE(off.y, 0);
+        EXPECT_LT(off.x, frame_size.width);
+        EXPECT_LT(off.y, frame_size.height);
+        EXPECT_LE(off.x + tile_size.width, frame_size.width + tile_size.width);
+        EXPECT_LE(off.y + tile_size.height, frame_size.height + tile_size.height);
+
+        auto inserted = seen.emplace(static_cast<int>(off.x), static_cast<int>(off.y));
+        EXPECT_TRUE(inserted.second) << "Duplicate offset " << off.toStr();
+    }
+
+    EXPECT_EQ(offsets.front(), Vec2(0, 0));
+
+    if(frame_size.width > tile_size.width) {
+        bool found_last = std::any_of(offsets.begin(), offsets.end(), [&](const Vec2& v){
+            return static_cast<int>(v.x) == frame_size.width - tile_size.width;
+        });
+        EXPECT_TRUE(found_last) << "Missing right-most tile";
+    }
+
+    if(frame_size.height > tile_size.height) {
+        bool found_last = std::any_of(offsets.begin(), offsets.end(), [&](const Vec2& v){
+            return static_cast<int>(v.y) == frame_size.height - tile_size.height;
+        });
+        EXPECT_TRUE(found_last) << "Missing bottom-most tile";
+    }
+}
+
+std::vector<Vec2> expected_offsets(const std::vector<Vec2>& input) {
+    return input;
+}
+
+} // namespace
+
+TEST(TileImageTest, GeneratesExpectedOffsetsWithoutOverlap) {
+    resetGlobalSettings();
+    const int width = 640;
+    const int height = 640;
+    const int tile_edge = 320;
+
+    cv::Mat source(height, width, CV_8UC3, cv::Scalar(0));
+    auto original = makeImage(width, height);
+
+    TileImage tile(source, std::move(original), Size2(tile_edge, tile_edge), Size2(width, height), 0.0f);
+
+    auto offsets = tile.offsets();
+    ASSERT_EQ(offsets.size(), 4u);
+    std::vector<Vec2> expected{
+        Vec2(0, 0), Vec2(tile_edge, 0),
+        Vec2(0, tile_edge), Vec2(tile_edge, tile_edge)
+    };
+
+    for(size_t idx = 0; idx < offsets.size(); ++idx) {
+        if(offsets[idx] != expected[idx]) {
+            ADD_FAILURE() << "Tile " << idx
+                           << " mismatch: got " << offsets[idx].toStr()
+                           << " expected " << expected[idx].toStr();
+        }
+    }
+    EXPECT_EQ(tile.images.size(), offsets.size());
+}
+
+TEST(TileImageTest, HandlesIncompleteTilesAndOverlap) {
+    resetGlobalSettings();
+    const int width = 500;
+    const int height = 380;
+    const int tile_edge = 320;
+    const float overlap = 0.15f;
+
+    cv::Mat source(height, width, CV_8UC3, cv::Scalar(0));
+    auto original = makeImage(width, height);
+
+    TileImage tile(source, std::move(original), Size2(tile_edge, tile_edge), Size2(width, height), overlap);
+
+    auto offsets = tile.offsets();
+    // With this frame size and overlap we expect four tiles after clamping.
+    ASSERT_EQ(offsets.size(), 4u);
+
+    std::vector<Vec2> expected{
+        Vec2(0, 0), Vec2(180, 0),
+        Vec2(0, 60), Vec2(180, 60)
+    };
+
+    ASSERT_EQ(offsets.size(), expected.size());
+    for (size_t idx = 0; idx < offsets.size(); ++idx) {
+        if(offsets[idx] != expected[idx]) {
+            ADD_FAILURE() << "Tile " << idx
+                           << " mismatch: got " << offsets[idx].toStr()
+                           << " expected " << expected[idx].toStr();
+        }
+    }
+    EXPECT_EQ(tile.images.size(), offsets.size());
+    expectOffsetsWithinBounds(offsets, Size2(tile_edge, tile_edge), Size2(width, height));
+}
+
+TEST(TileImageTest, FrameSmallerThanTileProducesSingleTile) {
+    resetGlobalSettings();
+    const int width = 200;
+    const int height = 150;
+    const int tile_edge = 320;
+
+    cv::Mat source(height, width, CV_8UC3, cv::Scalar(0));
+    auto original = makeImage(width, height);
+
+    TileImage tile(source, std::move(original), Size2(tile_edge, tile_edge), Size2(width, height), 0.3f);
+    auto offsets = tile.offsets();
+    ASSERT_EQ(offsets.size(), 1u);
+    EXPECT_EQ(offsets.front(), Vec2(0, 0));
+    expectOffsetsWithinBounds(offsets, Size2(tile_edge, tile_edge), Size2(width, height));
+}
+
+TEST(TileImageTest, ExactMultiplesWithoutOverlap) {
+    resetGlobalSettings();
+    const int width = 640;
+    const int height = 320;
+    const int tile_edge = 320;
+
+    cv::Mat source(height, width, CV_8UC3, cv::Scalar(0));
+    auto original = makeImage(width, height);
+
+    TileImage tile(source, std::move(original), Size2(tile_edge, tile_edge), Size2(width, height), 0.0f);
+    auto offsets = tile.offsets();
+    ASSERT_EQ(offsets.size(), 2u);
+    std::vector<Vec2> expected{Vec2(0, 0), Vec2(320, 0)};
+    EXPECT_EQ(offsets, expected);
+    expectOffsetsWithinBounds(offsets, Size2(tile_edge, tile_edge), Size2(width, height));
+}
+
+TEST(TileImageTest, HighOverlapStillProgressesAcrossFrame) {
+    resetGlobalSettings();
+    const int width = 640;
+    const int height = 640;
+    const int tile_edge = 320;
+    const float overlap = 0.9f;
+
+    cv::Mat source(height, width, CV_8UC3, cv::Scalar(0));
+    auto original = makeImage(width, height);
+
+    TileImage tile(source, std::move(original), Size2(tile_edge, tile_edge), Size2(width, height), overlap);
+    auto offsets = tile.offsets();
+
+    ASSERT_GE(offsets.size(), 3u);
+    expectOffsetsWithinBounds(offsets, Size2(tile_edge, tile_edge), Size2(width, height));
+
+    // Ensure stride is at least one pixel to prevent infinite loops.
+    for(size_t i = 1; i < offsets.size(); ++i) {
+        EXPECT_NE(offsets[i], offsets[i - 1]) << "Overlap produced identical consecutive offsets";
+    }
+}
+
+TEST(YoloReceiveTest, SuppressesDuplicatesAcrossOverlappingTiles) {
+    resetGlobalSettings();
+    DetectTileOverlapGuard guard(0.15f);
+
+    const int width = 640;
+    const int height = 640;
+
+    SegmentationData data(cmn::Image::Zeros(height, width, 3));
+    data.tiles.emplace_back(0, 0, 320, 320);
+    data.tiles.emplace_back(320, 0, 320, 320);
+
+    // Two overlapping detections of the same class.
+    std::vector<float> raw_boxes{
+        0.f, 0.f, 140.f, 140.f, 0.9f, 1.f,
+        20.f, 20.f, 160.f, 160.f, 0.8f, 1.f
+    };
+    track::detect::Boxes boxes(std::move(raw_boxes), 12u);
+
+    track::detect::Result result(
+        0,
+        std::move(boxes),
+        std::vector<track::detect::MaskData>{},
+        track::detect::KeypointData{},
+        track::detect::ObbData{},
+        track::detect::PointData{}
+    );
+
+    // Provide backing image so YOLO::receive can convert it.
+    data.image->set_index(0);
+
+    YOLO::receive(data, std::move(result));
+
+    EXPECT_EQ(data.predictions.size(), 1u);
+    EXPECT_EQ(data.frame.n(), 1u);
+    ASSERT_FALSE(data.predictions.empty());
+    EXPECT_FLOAT_EQ(data.predictions.front().p, 0.9f);
+    EXPECT_EQ(data.predictions.front().clid, 1u);
+}
+
+TEST(YoloReceiveTest, KeepsDetectionsWithDifferentClasses) {
+    resetGlobalSettings();
+    DetectTileOverlapGuard guard(0.15f);
+
+    const int width = 640;
+    const int height = 320;
+
+    SegmentationData data(cmn::Image::Zeros(height, width, 3));
+    data.tiles.emplace_back(0, 0, 320, 320);
+    data.tiles.emplace_back(320, 0, 320, 320);
+    data.image->set_index(0);
+
+    std::vector<float> raw_boxes{
+        0.f, 0.f, 140.f, 140.f, 0.9f, 1.f,
+        200.f, 20.f, 360.f, 160.f, 0.85f, 2.f
+    };
+    track::detect::Boxes boxes(std::move(raw_boxes), 12u);
+
+    track::detect::Result result(
+        0,
+        std::move(boxes),
+        std::vector<track::detect::MaskData>{},
+        track::detect::KeypointData{},
+        track::detect::ObbData{},
+        track::detect::PointData{}
+    );
+
+    YOLO::receive(data, std::move(result));
+
+    EXPECT_EQ(data.predictions.size(), 2u);
+    EXPECT_EQ(data.frame.size(), 2u);
+}
+
+TEST(YoloReceiveTest, KeepsDetectionsBelowIoUThreshold) {
+    resetGlobalSettings();
+    DetectTileOverlapGuard guard(0.15f);
+
+    const int width = 640;
+    const int height = 320;
+
+    SegmentationData data(cmn::Image::Zeros(height, width, 3));
+    data.tiles.emplace_back(0, 0, 320, 320);
+    data.tiles.emplace_back(320, 0, 320, 320);
+    data.image->set_index(0);
+
+    std::vector<float> raw_boxes{
+        0.f, 0.f, 140.f, 140.f, 0.9f, 1.f,
+        200.f, 20.f, 320.f, 140.f, 0.7f, 1.f
+    };
+    track::detect::Boxes boxes(std::move(raw_boxes), 12u);
+
+    track::detect::Result result(
+        0,
+        std::move(boxes),
+        std::vector<track::detect::MaskData>{},
+        track::detect::KeypointData{},
+        track::detect::ObbData{},
+        track::detect::PointData{}
+    );
+
+    YOLO::receive(data, std::move(result));
+
+    EXPECT_EQ(data.predictions.size(), 2u);
+    EXPECT_EQ(data.frame.size(), 2u);
+}
+#include <misc/DetectionTypes.h>
+using namespace default_config;
