@@ -84,10 +84,6 @@ void expectOffsetsWithinBounds(const std::vector<Vec2>& offsets,
     }
 }
 
-std::vector<Vec2> expected_offsets(const std::vector<Vec2>& input) {
-    return input;
-}
-
 } // namespace
 
 TEST(TileImageTest, GeneratesExpectedOffsetsWithoutOverlap) {

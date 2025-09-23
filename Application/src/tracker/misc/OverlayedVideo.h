@@ -157,7 +157,9 @@ public:
                 while(tiles_x > 1 && current_use->cols < int(tile_edge * tiles_x))
                     --tiles_x;
                 
-                const float frame_ratio = current_use->rows > 0 ? current_use->rows / float(current_use->cols) : 1.f;
+                const float frame_ratio = (current_use->cols > 0 && current_use->rows > 0)
+                                            ? (current_use->rows / float(current_use->cols))
+                                            : 1.f;
                 size_t tiles_y = std::max<size_t>(1, static_cast<size_t>(std::ceil(frame_ratio * tiles_x)));
                 while(tiles_y > 1 && current_use->rows < int(tile_edge * tiles_y))
                     --tiles_y;
