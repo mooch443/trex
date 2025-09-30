@@ -53,7 +53,7 @@ if defined NUMPY_VERSION (
 call :log "Windows detected; checking CUDA availability to document channel choice."
 
 set "GPU_CHECK=False"
-for /f "usebackq delims=" %%i in (`python -c "import sys; available = False; exec(\"try:\n    import torch\n    available = torch.cuda.is_available()\nexcept Exception:\n    available = False\n\", globals()); sys.stdout.write('True' if available else 'False')"`) do (
+for /f "usebackq delims=" %%i in (`python -c "import sys; available = False; exec('try:\n    import torch\n    available = torch.cuda.is_available()\nexcept Exception:\n    available = False\n', globals()); sys.stdout.write('True' if available else 'False')"`) do (
     set "GPU_CHECK=%%i"
 )
 
@@ -107,27 +107,45 @@ exit /b 0
 
 :log_command
 setlocal EnableDelayedExpansion
-set "cmd=%*"
+set "cmd="
+:log_command_args
+if "%~1"=="" goto log_command_emit
+if defined cmd (
+    set "cmd=!cmd! %~1"
+) else (
+    set "cmd=%~1"
+)
+shift
+goto log_command_args
+:log_command_emit
 if not defined cmd set "cmd="
-call :log "[post-link] Running: !cmd!"
+set "log_line=!cmd!"
+if defined log_line (
+    set "log_line=!log_line:^>=^>!"
+    set "log_line=!log_line:^<=^<!"
+    set "log_line=!log_line:&=^&!"
+    set "log_line=!log_line:|=^|!"
+)
+call :log "[post-link] Running: !log_line!"
 endlocal
 exit /b 0
-
 :add_package
 rem Helper to accumulate quoted pip package arguments.
+set "__PIP_PACKAGE=%~1"
+set "__PIP_PACKAGE="!__PIP_PACKAGE!""
 if defined PIP_ARGS (
-    set "PIP_ARGS=%PIP_ARGS% \"%~1\""
+    set "PIP_ARGS=!PIP_ARGS! !__PIP_PACKAGE!"
 ) else (
-    set "PIP_ARGS=\"%~1\""
+    set "PIP_ARGS=!__PIP_PACKAGE!"
 )
+set "__PIP_PACKAGE="
 exit /b 0
 
 :check_nvidia_support
-rem Summarise CUDA availability and NVIDIA GPUs after the pip install succeeds.
 call :log "[post-link] Checking NVIDIA GPU support after install..."
 
 set "CUDA_RESULT="
-for /f "usebackq delims=" %%i in (`python -c "exec(\"try:\\n import torch\\n available = torch.cuda.is_available()\\nexcept Exception:\\n available = None\\nprint('True' if available else ('False' if available is not None else 'Unavailable'))\")"`) do (
+for /f "usebackq delims=" %%i in (`python -c "exec('try:\n import torch\n available = torch.cuda.is_available()\nexcept Exception:\n available = None\nprint(True if available else (False if available is not None else None))')"` ) do (
     set "CUDA_RESULT=%%i"
 )
 if defined CUDA_RESULT (
