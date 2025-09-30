@@ -53,12 +53,7 @@ if defined NUMPY_VERSION (
 call :log "Windows detected; checking CUDA availability to document channel choice."
 
 set "GPU_CHECK=False"
-for /f "usebackq delims=" %%i in (`python -c "import sys; available = False; exec('try:
-    import torch
-    available = torch.cuda.is_available()
-except Exception:
-    available = False
-', globals()); sys.stdout.write('True' if available else 'False')"`) do (
+for /f "usebackq delims=" %%i in (`python -c "import sys; available = False; exec('try:\n    import torch\n    available = torch.cuda.is_available()\nexcept Exception:\n    available = False\n', globals()); sys.stdout.write('True' if available else 'False')"`) do (
     set "GPU_CHECK=%%i"
 )
 
@@ -163,12 +158,7 @@ exit /b 0
 call :log "[post-link] Checking NVIDIA GPU support after install..."
 
 set "CUDA_RESULT="
-for /f "usebackq delims=" %%i in (`python -c "exec('try:
- import torch
- available = torch.cuda.is_available()
-except Exception:
- available = None
-print(True if available else (False if available is not None else None))')"` ) do (
+for /f "usebackq delims=" %%i in (`python -c "exec('try:\n import torch\n available = torch.cuda.is_available()\nexcept Exception:\n available = None\nprint(True if available else (False if available is not None else None))')"` ) do (
     set "CUDA_RESULT=%%i"
 )
 if defined CUDA_RESULT (
