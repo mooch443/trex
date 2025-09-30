@@ -1,6 +1,20 @@
 @echo off
 setlocal EnableDelayedExpansion
 
+chcp 65001 >nul 2>&1
+set "PYTHONUTF8=1"
+set "PYTHONIOENCODING=utf-8"
+set "PIP_DISABLE_PIP_VERSION_CHECK=1"
+set "PIP_PROGRESS_BAR=off"
+set "PIP_NO_INPUT=1"
+set "PIP_INSTALL_FLAGS=--disable-pip-version-check --no-input --progress-bar off --no-color --quiet"
+set "ULTRALYTICS_HUB_NO_PROGRESS=1"
+set "HF_HUB_DISABLE_PROGRESS_BAR=1"
+set "DISABLE_TQDM=1"
+set "RICH_NO_COLOR=1"
+set "RICH_FORCE_TERMINAL=0"
+set "FORCE_COLOR=0"
+
 echo PREFIX=%PREFIX%
 
 rem Decide where to stream post-link log messages.
@@ -53,7 +67,7 @@ if defined NUMPY_VERSION (
 call :log "Windows detected; checking CUDA availability to document channel choice."
 
 set "GPU_CHECK=False"
-for /f "usebackq delims=" %%i in (`python -c "import sys; available = False; exec('try:\n    import torch\n    available = torch.cuda.is_available()\nexcept Exception:\n    available = False\n', globals()); sys.stdout.write('True' if available else 'False')"`) do (
+for /f "usebackq delims=" %%i in (`python -X utf8 -c "import sys; available = False; exec('try:\n    import torch\n    available = torch.cuda.is_available()\nexcept Exception:\n    available = False\n', globals()); sys.stdout.write('True' if available else 'False')"`) do (
     set "GPU_CHECK=%%i"
 )
 
@@ -70,8 +84,8 @@ for %%C in (!CUDA_CHANNELS!) do (
     set "CUDA_CHANNEL_SUFFIX=%%C"
     set "PIP_INDEX_URL=https://download.pytorch.org/whl/%%C"
     call :log "[post-link] Trying PyTorch install with CUDA channel %%C (!PIP_INDEX_URL!)."
-    call :log_command python -m pip install --index-url !PIP_INDEX_URL! --extra-index-url https://pypi.org/simple !PIP_ARGS!
-    call :run_with_reporting python -m pip install --index-url !PIP_INDEX_URL! --extra-index-url https://pypi.org/simple !PIP_ARGS!
+    call :log_command python -X utf8 -m pip install !PIP_INSTALL_FLAGS! --index-url !PIP_INDEX_URL! --extra-index-url https://pypi.org/simple !PIP_ARGS!
+    call :run_with_reporting python -X utf8 -m pip install !PIP_INSTALL_FLAGS! --index-url !PIP_INDEX_URL! --extra-index-url https://pypi.org/simple !PIP_ARGS!
     if not errorlevel 1 (
         call :log "[post-link] pip install succeeded using CUDA channel %%C."
         call :check_nvidia_support
@@ -85,8 +99,8 @@ call :record_failure "[post-link] pip package installation failed for all CUDA c
 :pip_install_after
 
 call :log "Testing installation..."
-call :log_command python -c "from ultralytics import YOLO; import numpy as np; YOLO('yolo11n.pt').to('cpu').predict(np.zeros((640, 480, 3), dtype=np.uint8))"
-call :run_with_reporting python -c "from ultralytics import YOLO; import numpy as np; YOLO('yolo11n.pt').to('cpu').predict(np.zeros((640, 480, 3), dtype=np.uint8))"
+call :log_command python -X utf8 -c "from ultralytics import YOLO; import numpy as np; YOLO('yolo11n.yaml').to('cpu').predict(np.zeros((640, 480, 3), dtype=np.uint8))"
+call :run_with_reporting python -X utf8 -c "from ultralytics import YOLO; import numpy as np; YOLO('yolo11n.yaml').to('cpu').predict(np.zeros((640, 480, 3), dtype=np.uint8))"
 if errorlevel 1 (
     call :record_failure "[post-link] YOLO smoke test failed (exit !LAST_COMMAND_STATUS!)."
 )
@@ -104,6 +118,20 @@ exit /b 0
 
 :log
 setlocal EnableDelayedExpansion
+
+chcp 65001 >nul 2>&1
+set "PYTHONUTF8=1"
+set "PYTHONIOENCODING=utf-8"
+set "PIP_DISABLE_PIP_VERSION_CHECK=1"
+set "PIP_PROGRESS_BAR=off"
+set "PIP_NO_INPUT=1"
+set "PIP_INSTALL_FLAGS=--disable-pip-version-check --no-input --progress-bar off --no-color --quiet"
+set "ULTRALYTICS_HUB_NO_PROGRESS=1"
+set "HF_HUB_DISABLE_PROGRESS_BAR=1"
+set "DISABLE_TQDM=1"
+set "RICH_NO_COLOR=1"
+set "RICH_FORCE_TERMINAL=0"
+set "FORCE_COLOR=0"
 set "message=%~1"
 if defined OUT_STREAM (
     >>"%OUT_STREAM%" echo(!message!
@@ -120,6 +148,20 @@ exit /b 0
 
 :log_command
 setlocal EnableDelayedExpansion
+
+chcp 65001 >nul 2>&1
+set "PYTHONUTF8=1"
+set "PYTHONIOENCODING=utf-8"
+set "PIP_DISABLE_PIP_VERSION_CHECK=1"
+set "PIP_PROGRESS_BAR=off"
+set "PIP_NO_INPUT=1"
+set "PIP_INSTALL_FLAGS=--disable-pip-version-check --no-input --progress-bar off --no-color --quiet"
+set "ULTRALYTICS_HUB_NO_PROGRESS=1"
+set "HF_HUB_DISABLE_PROGRESS_BAR=1"
+set "DISABLE_TQDM=1"
+set "RICH_NO_COLOR=1"
+set "RICH_FORCE_TERMINAL=0"
+set "FORCE_COLOR=0"
 set "cmd="
 :log_command_args
 if "%~1"=="" goto log_command_emit
@@ -158,7 +200,7 @@ exit /b 0
 call :log "[post-link] Checking NVIDIA GPU support after install..."
 
 set "CUDA_RESULT="
-for /f "usebackq delims=" %%i in (`python -c "exec('try:\n import torch\n available = torch.cuda.is_available()\nexcept Exception:\n available = None\nprint(True if available else (False if available is not None else None))')"` ) do (
+for /f "usebackq delims=" %%i in (`python -X utf8 -c "exec('try:\n import torch\n available = torch.cuda.is_available()\nexcept Exception:\n available = None\nprint(True if available else (False if available is not None else None))')"` ) do (
     set "CUDA_RESULT=%%i"
 )
 if defined CUDA_RESULT (
@@ -214,6 +256,20 @@ exit /b 0
 
 :run_with_reporting
 setlocal EnableDelayedExpansion
+
+chcp 65001 >nul 2>&1
+set "PYTHONUTF8=1"
+set "PYTHONIOENCODING=utf-8"
+set "PIP_DISABLE_PIP_VERSION_CHECK=1"
+set "PIP_PROGRESS_BAR=off"
+set "PIP_NO_INPUT=1"
+set "PIP_INSTALL_FLAGS=--disable-pip-version-check --no-input --progress-bar off --no-color --quiet"
+set "ULTRALYTICS_HUB_NO_PROGRESS=1"
+set "HF_HUB_DISABLE_PROGRESS_BAR=1"
+set "DISABLE_TQDM=1"
+set "RICH_NO_COLOR=1"
+set "RICH_FORCE_TERMINAL=0"
+set "FORCE_COLOR=0"
 if defined OUT_STREAM (
     >>"%OUT_STREAM%" 2>&1 cmd /c %*
 ) else (
