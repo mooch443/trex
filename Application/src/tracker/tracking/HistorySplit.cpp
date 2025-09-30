@@ -1,5 +1,4 @@
 #include "HistorySplit.h"
-#include <tracking/SplitBlob.h>
 #include <tracking/Tracker.h>
 #include <tracking/BlobReceiver.h>
 #include <tracking/IndividualManager.h>

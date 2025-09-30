@@ -298,26 +298,8 @@ std::string BlobView::label_for_blob(const DisplayParameters& parm, const pv::Bl
         }
     }
     
-    static const std::unordered_map<FilterReason, const char*> reasons {
-        { FilterReason::Unknown, "unkown" },
-        { FilterReason::Category, "Category" },
-        { FilterReason::Label, "Label" },
-        { FilterReason::LabelConfidenceThreshold, "Confidence" },
-        { FilterReason::OutsideRange, "Inacceptable size" },
-        { FilterReason::SecondThreshold, "Outside range after track_threshold_2" },
-        { FilterReason::OutsideInclude, "Outside track_include shape" },
-        { FilterReason::InsideIgnore, "Inside ignored shape (track_ignore)" },
-        { FilterReason::DontTrackTags, "Tags are not tracked" },
-        { FilterReason::OnlySegmentations, "Only segmentations are tracked" },
-        { FilterReason::SplitFailed, "Split failed" },
-        { FilterReason::BdxIgnored, "Inside track_ignore_bdx" }
-    };
-    
     if(blob.reason() != FilterReason::Unknown) {
-        if(not contains(reasons, blob.reason()))
-            _blob_info.filter_reason = reasons.at(FilterReason::Unknown);
-        else
-            _blob_info.filter_reason = reasons.at(blob.reason());
+        _blob_info.filter_reason = filter_reason_to_str(blob.reason());
     } else {
         _blob_info.filter_reason.clear();
     }
@@ -359,27 +341,7 @@ std::string BlobView::label_for_blob(const DisplayParameters& parm, const pv::Bl
         ss << " <gray>instance</gray>";
     
     if(register_label && blob.reason() != FilterReason::Unknown) {
-        static const std::unordered_map<FilterReason, const char*> reasons {
-            { FilterReason::Unknown, "unkown" },
-            { FilterReason::Category, "Category" },
-            { FilterReason::Label, "Label" },
-            { FilterReason::LabelConfidenceThreshold, "Confidence" },
-            { FilterReason::OutsideRange, "Inacceptable size" },
-            { FilterReason::SecondThreshold, "Outside range after track_threshold_2" },
-            { FilterReason::OutsideInclude, "Outside track_include shape" },
-            { FilterReason::InsideIgnore, "Inside ignored shape (track_ignore)" },
-            { FilterReason::DontTrackTags, "Tags are not tracked" },
-            { FilterReason::OnlySegmentations, "Only segmentations are tracked" },
-            { FilterReason::SplitFailed, "Split failed" },
-            { FilterReason::BdxIgnored, "Inside track_ignore_bdx" }
-        };
-        
-        const char * text;
-        if(not contains(reasons, blob.reason()))
-            text = reasons.at(FilterReason::Unknown);
-        else
-            text = reasons.at(blob.reason());
-        
+        const char * text = filter_reason_to_str(blob.reason());
         ss << " [<gray>" << text << "</gray>]";
     }
     

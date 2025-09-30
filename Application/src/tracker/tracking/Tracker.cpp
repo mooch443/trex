@@ -1,6 +1,5 @@
 #include "Tracker.h"
 #include <misc/GlobalSettings.h>
-#include <tracking/SplitBlob.h>
 #include <misc/Timer.h>
 #include "PairingGraph.h"
 #include <tracking/OutputLibrary.h>
@@ -891,7 +890,7 @@ void Tracker::prefilter(
                     }
                 }
 #endif
-                //! TODO: translate track_only_classes to IDs and check those...
+                //! translate track_only_classes to IDs and check those
                 if(not track_only_classes.empty()) {
                     if(ptr->prediction().valid()) {
                         auto clid = ptr->prediction().clid;
@@ -907,8 +906,7 @@ void Tracker::prefilter(
                 
                 if(ptr->prediction().valid()) {
                     if(Float2_t(ptr->prediction().p) / 255_F < track_conf_threshold) {
-                        //! TODO: use own filter reason
-                        result.filter_out(std::move(ptr), FilterReason::LabelConfidenceThreshold);
+                        result.filter_out(std::move(ptr), FilterReason::TrackConfidenceThreshold);
                         continue;
                     }
                 }
