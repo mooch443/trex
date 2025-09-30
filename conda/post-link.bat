@@ -53,23 +53,41 @@ if defined NUMPY_VERSION (
 call :log "Windows detected; checking CUDA availability to document channel choice."
 
 set "GPU_CHECK=False"
-for /f "usebackq delims=" %%i in (`python -c "import sys; available = False; exec('try:\n    import torch\n    available = torch.cuda.is_available()\nexcept Exception:\n    available = False\n', globals()); sys.stdout.write('True' if available else 'False')"`) do (
+for /f "usebackq delims=" %%i in (`python -c "import sys; available = False; exec('try:
+    import torch
+    available = torch.cuda.is_available()
+except Exception:
+    available = False
+', globals()); sys.stdout.write('True' if available else 'False')"`) do (
     set "GPU_CHECK=%%i"
 )
 
 if /i "!GPU_CHECK!"=="True" (
-    call :log "[post-link] torch.cuda.is_available() -> True; installing from default pip channels to let torch pick CUDA wheels."
+    call :log "[post-link] torch.cuda.is_available() -> True; selecting PyTorch CUDA wheel channel accordingly."
 ) else (
-    call :log "[post-link] torch.cuda.is_available() -> !GPU_CHECK!; installing from default pip channels."
+    call :log "[post-link] torch.cuda.is_available() -> !GPU_CHECK!; still selecting a PyTorch CUDA wheel channel for Windows."
 )
 
-call :log_command python -m pip install !PIP_ARGS!
-call :run_with_reporting python -m pip install !PIP_ARGS!
-if errorlevel 1 (
-    call :record_failure "[post-link] pip package installation failed on Windows (exit !LAST_COMMAND_STATUS!)."
-) else (
-    call :check_nvidia_support
+set "CUDA_CHANNEL_SUFFIX="
+set "CUDA_CHANNELS=cu128 cu126 cu124 cu122 cu121 cu118"
+
+for %%C in (!CUDA_CHANNELS!) do (
+    set "CUDA_CHANNEL_SUFFIX=%%C"
+    set "PIP_INDEX_URL=https://download.pytorch.org/whl/%%C"
+    call :log "[post-link] Trying PyTorch install with CUDA channel %%C (!PIP_INDEX_URL!)."
+    call :log_command python -m pip install --index-url !PIP_INDEX_URL! --extra-index-url https://pypi.org/simple !PIP_ARGS!
+    call :run_with_reporting python -m pip install --index-url !PIP_INDEX_URL! --extra-index-url https://pypi.org/simple !PIP_ARGS!
+    if not errorlevel 1 (
+        call :log "[post-link] pip install succeeded using CUDA channel %%C."
+        call :check_nvidia_support
+        goto pip_install_after
+    )
+    call :log "[post-link] pip install failed for CUDA channel %%C (exit !LAST_COMMAND_STATUS!); trying next option."
 )
+
+call :record_failure "[post-link] pip package installation failed for all CUDA channels (last exit !LAST_COMMAND_STATUS!)."
+
+:pip_install_after
 
 call :log "Testing installation..."
 call :log_command python -c "from ultralytics import YOLO; import numpy as np; YOLO('yolo11n.pt').to('cpu').predict(np.zeros((640, 480, 3), dtype=np.uint8))"
@@ -145,7 +163,12 @@ exit /b 0
 call :log "[post-link] Checking NVIDIA GPU support after install..."
 
 set "CUDA_RESULT="
-for /f "usebackq delims=" %%i in (`python -c "exec('try:\n import torch\n available = torch.cuda.is_available()\nexcept Exception:\n available = None\nprint(True if available else (False if available is not None else None))')"` ) do (
+for /f "usebackq delims=" %%i in (`python -c "exec('try:
+ import torch
+ available = torch.cuda.is_available()
+except Exception:
+ available = None
+print(True if available else (False if available is not None else None))')"` ) do (
     set "CUDA_RESULT=%%i"
 )
 if defined CUDA_RESULT (
