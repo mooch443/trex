@@ -918,6 +918,37 @@ void LoadContext::load_gui_settings() {
 }
 
 void LoadContext::estimate_meta_variables() {
+    if(auto value = combined.values.at("meta_source_path");
+       value.valid())
+    {
+        auto meta_source_path = value.value<std::string>();
+        std::array tests {
+            meta_source_path,
+            file::DataLocation::parse("input", meta_source_path, &combined.values).str(),
+            file::DataLocation::parse("output", meta_source_path, &combined.values).str()
+        };
+        
+        bool success = [&] {
+            for(auto test : tests) {
+                file::PathArray input(test);
+                try {
+                    VideoSource source(input);
+                    combined.values["meta_source_path"] = test;
+                    return true;
+                } catch (...) {
+                    FormatWarning("meta_source_path(", test,") cannot be opened.");
+                }
+            }
+            return false;
+        }();
+        
+        if(success) {
+            Print("// Successfully found meta_source_path at ", combined.values["meta_source_path"].value<std::string>());
+        } else {
+            FormatWarning("Was unable to find meta_source_path video, tried ", tests);
+        }
+    }
+    
     if(source.empty()
        && (not combined.values.has("meta_video_size")
            || combined.values.at("meta_video_size").value<Size2>().empty()))

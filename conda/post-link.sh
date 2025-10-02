@@ -172,13 +172,17 @@ PY
 fi
 
 log "Testing installation..."
-if ! run_with_reporting python -c "from ultralytics import YOLO; import numpy as np; YOLO('yolo11n.pt').to('cpu').predict(np.zeros((640, 480, 3), dtype=np.uint8))"; then
+if ! run_with_reporting python -c "from ultralytics import YOLO; import numpy as np; YOLO('yolo11n.yaml').to('cpu').predict(np.zeros((640, 480, 3), dtype=np.uint8))"; then
     record_failure "[post-link] YOLO smoke test failed (exit ${LAST_COMMAND_STATUS})."
 fi
 
 if [ "${POST_LINK_FAILED}" -ne 0 ]; then
-    echo "post-link.sh completed with issues; see ${OUT_STREAM} for details." >&2
     log "[post-link] Completed with issues; conda installation will continue."
+    echo "post-link.sh completed with issues; see ${OUT_STREAM} for details." >&2
+    if [ -n "${OUT_STREAM}" ] && [ "${OUT_STREAM}" != "/dev/stdout" ] && [ -f "${OUT_STREAM}" ]; then
+        echo "[post-link] Dumping post-link log due to failures:" >&2
+        cat "${OUT_STREAM}" >&2
+    fi
 fi
 
 exit 0

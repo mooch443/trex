@@ -106,12 +106,16 @@ if errorlevel 1 (
 )
 
 if not "!POST_LINK_FAILED!"=="0" (
+    call :log "[post-link] Completed with issues; conda installation will continue."
     if defined OUT_STREAM (
         >&2 echo post-link.bat completed with issues; see "%OUT_STREAM%" for details.
+        if exist "%OUT_STREAM%" (
+            >&2 echo [post-link] Dumping post-link log due to failures:
+            type "%OUT_STREAM%" 1>&2
+        )
     ) else (
         >&2 echo post-link.bat completed with issues; see stdout for details.
     )
-    call :log "[post-link] Completed with issues; conda installation will continue."
 )
 
 exit /b 0

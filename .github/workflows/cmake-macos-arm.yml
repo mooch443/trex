@@ -109,7 +109,7 @@ jobs:
         cd $GITHUB_WORKSPACE/Application/Tests
         ./run_unix.bash
         echo "::endgroup::"
-    - name: Upload failure artifacts (.csv, .npz, .results, .pv, logs, html)
+    - name: Upload failure artifacts (.csv, .npz, .results, .pv, logs, html, post-link logs)
       if: failure()
       uses: actions/upload-artifact@v4
       with:
@@ -121,5 +121,8 @@ jobs:
           ${{ github.workspace }}/videos/**/*.npz
           ${{ github.workspace }}/videos/**/*.results
           ${{ github.workspace }}/videos/**/*.pv
+          ${{ github.workspace }}/**/.messages.txt
+          ${{ runner.workspace }}/**/.messages.txt
         if-no-files-found: ignore
         retention-days: 7
+        compression-level: 9
