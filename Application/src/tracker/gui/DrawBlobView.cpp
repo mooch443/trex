@@ -341,7 +341,7 @@ std::string BlobView::label_for_blob(const DisplayParameters& parm, const pv::Bl
         ss << " <gray>instance</gray>";
     
     if(register_label && blob.reason() != FilterReason::Unknown) {
-        const char * text = filter_reason_to_str(blob.reason());
+        auto text = filter_reason_to_str(blob.reason());
         ss << " [<gray>" << text << "</gray>]";
     }
     

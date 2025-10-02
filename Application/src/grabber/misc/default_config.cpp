@@ -208,6 +208,8 @@ namespace default_config {
             "detect_type",
             "detect_iou_threshold",
             "detect_conf_threshold",
+            "detect_keypoint_format",
+            "detect_keypoint_names",
             "video_conversion_range",
             "detect_batch_size",
             "detect_threshold",

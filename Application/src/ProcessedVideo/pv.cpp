@@ -1198,29 +1198,6 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const PixelArray
         
         Print("Updated number of frames with ",this->num_frames,", index offset ",this->index_offset,", timestamp ",this->timestamp,", ", _meta_offset);
     }
-    
-    /*std::string Header::generate_metadata() const {
-        std::stringstream ss;
-        
-        std::vector<std::string> write_these = GlobalSettings::map().has("meta_write_these") ? SETTING(meta_write_these) : std::vector<std::string>();
-        for (uint64_t i=0; i<write_these.size(); i++) {
-            auto &name = write_these.at(i);
-            auto val = GlobalSettings::get(name).get().valueString();
-            ss << "\""<< name <<"\": "<<val;
-            if(i<write_these.size()-1)
-                ss << ", ";
-        }
-        
-        std::string ret = ss.str();
-        if(ret.empty()) {
-            Print("Metadata empty.");
-        } else {
-            ret = "{"+ret+"}";
-            Print("Metadata: ", no_quotes(ret));
-        }
-        
-        return ret;
-    }*/
 
 const cv::Size& File::size() const {
     std::unique_lock lock(_lock);
