@@ -44,7 +44,7 @@ jobs:
         auto-update-conda: true
     - name: Build
       shell: bash -l {0}
-      working-directory: ${{runner.workspace}}
+      working-directory: ${{github.workspace}}
       run: |
         echo "::group::Info"
         conda info
@@ -65,7 +65,7 @@ jobs:
         echo $CONDA_PREFIX
     - name: Test
       shell: bash -l {0}
-      working-directory: ${{runner.workspace}}
+      working-directory: ${{github.workspace}}
       run: |
         echo "::group::Test"
         echo $CONDA_PREFIX
@@ -92,7 +92,6 @@ jobs:
           ${{ github.workspace }}/videos/**/*.results
           ${{ github.workspace }}/videos/**/*.pv
           ${{ github.workspace }}/**/.messages.txt
-          ${{ runner.workspace }}/**/.messages.txt
         if-no-files-found: ignore
         retention-days: 7
         compression-level: 9
