@@ -1736,7 +1736,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                 if(not start.valid()
                    || not end.valid())
                 {
-                    throw InvalidArgumentException("Requires both start and end to be adequately set to valid values.");
+                    throw InvalidArgumentException("The selected tracklet is empty/invalid. Ignoring an entire tracklets requires valid start and end frames.");
                 }
                 
                 auto fishes = _data->_cache->lock_individuals();
@@ -1802,8 +1802,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
             }),
             
             VarFunc("is_segment", [this](const VarProps& props) -> bool {
-                if(props.parameters.size() != 1)
-                    throw InvalidArgumentException("Need exactly one argument for ", props);
+                REQUIRE_EXACTLY(1, props);
                 
                 auto frame = Meta::fromStr<Frame_t>(props.parameters.front());
                 for(auto &seg : _data->_cache->global_tracklet_order()) {
