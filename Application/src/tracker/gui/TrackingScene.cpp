@@ -1736,7 +1736,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                 if(not start.valid()
                    || not end.valid())
                 {
-                    throw InvalidArgumentException("The selected tracklet is empty/invalid. Ignoring an entire tracklets requires valid start and end frames.");
+                    throw InvalidArgumentException("The selected tracklet is empty/invalid. Ignoring an entire tracklet requires valid start and end frames.");
                 }
                 
                 auto fishes = _data->_cache->lock_individuals();

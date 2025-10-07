@@ -25,8 +25,20 @@ record_failure() {
 
 # Run a command while teeing stdout/stderr into the log file and retain exit status.
 run_with_reporting() {
-    "$@" >>"${OUT_STREAM}" 2>&1
-    LAST_COMMAND_STATUS=$?
+    if [ -z "${OUT_STREAM}" ] || [ "${OUT_STREAM}" = "/dev/stdout" ]; then
+        "$@"
+        LAST_COMMAND_STATUS=$?
+        return "${LAST_COMMAND_STATUS}"
+    fi
+
+    if command -v tee >/dev/null 2>&1; then
+        "$@" 2>&1 | tee -a "${OUT_STREAM}"
+        LAST_COMMAND_STATUS=${PIPESTATUS[0]}
+    else
+        "$@" >>"${OUT_STREAM}" 2>&1
+        LAST_COMMAND_STATUS=$?
+    fi
+
     return "${LAST_COMMAND_STATUS}"
 }
 
@@ -172,7 +184,9 @@ PY
 fi
 
 log "Testing installation..."
-if ! run_with_reporting python -c "from ultralytics import YOLO; import numpy as np; YOLO('yolo11n.yaml').to('cpu').predict(np.zeros((640, 480, 3), dtype=np.uint8))"; then
+if run_with_reporting python -c "from ultralytics import YOLO; import numpy as np; YOLO('yolo11n.yaml').to('cpu').predict(np.zeros((640, 480, 3), dtype=np.uint8))"; then
+    log "[post-link] YOLO smoke test succeeded."
+else
     record_failure "[post-link] YOLO smoke test failed (exit ${LAST_COMMAND_STATUS})."
 fi
 
