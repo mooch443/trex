@@ -108,9 +108,9 @@ requirements:
     - python =3.11 # [win]
     - python =3.11 # [linux]
     - openblas # [arm64]
-    - ffmpeg >=3,<=7
+    - ffmpeg >=3,<9=*lgpl*
     - openh264 # [osx]
-    - numpy =1.26
+    - numpy >=1.26,<3
 
   run:
     - {{ pin_compatible('python', min_pin='x.x', max_pin='x.x') }}
@@ -129,6 +129,8 @@ about:
   license: GPL3
   license_file:
       - LICENSE
+      - licenses/ffmpeg/COPYING.LGPL-2.1
+      - licenses/ffmpeg/COPYING.LGPL-3.0
       - Application/build/_deps/pybind11-src/LICENSE
       - Application/build/opencv/src/CustomOpenCV/LICENSE
       - Application/build/opencv_install/share/licenses/opencv4/ade-LICENSE  # [not win]
