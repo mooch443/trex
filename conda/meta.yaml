@@ -108,7 +108,7 @@ requirements:
     - python =3.11 # [win]
     - python =3.11 # [linux]
     - openblas # [arm64]
-    - ffmpeg >=3,<9=*lgpl*
+    - ffmpeg >=3,<8=*lgpl*
     - openh264 # [osx]
     - numpy >=1.26,<3
 
