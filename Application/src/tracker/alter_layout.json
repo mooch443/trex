@@ -78,7 +78,7 @@
 		"var":"untracked",
 		"do": {
 			"type":"condition",
-			"var":"{&&:{>:{i.num_pixels}:1}:{i.visible}}",
+			"var":"{&&:{i.visible}:{>:{dec:2:{i.px}}:0}}",
 			"then":{
 				"type":"collection",
 				"children":[

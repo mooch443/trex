@@ -2,6 +2,7 @@
 
 #include <misc/SoftException.h>
 #include <misc/GlobalSettings.h>
+#include <misc/CropOffsets.h>
 
 using namespace cmn;
 
@@ -289,8 +290,9 @@ ObjectDetectionFormat_t detection_format() {
 }
 
 Size2 get_model_image_size() {
+    const auto crop_offsets = READ_SETTING_WITH_DEFAULT(crop_offsets, CropOffsets{});
     const auto detect_resolution = READ_SETTING(detect_resolution, track::detect::DetectResolution);
-    const auto meta_video_size = READ_SETTING(meta_video_size, Size2);
+    const auto meta_video_size = crop_offsets.toPixels(READ_SETTING(meta_video_size, Size2)).size();
     
     if(detection_type() == ObjectDetectionType::background_subtraction) {
         return meta_video_size;

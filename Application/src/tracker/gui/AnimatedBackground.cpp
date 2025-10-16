@@ -165,20 +165,26 @@ Image::Ptr AnimatedBackground::preload(Frame_t index) {
         //    throw InvalidArgumentException("Invalid image mode: ", _source->colors());
 
         auto image = buffers.get(source_location::current());
-
+        
         auto scale = _source_scale.load();
-        if ((scale > 0 && scale != 1))
+        auto offsets = _crop_offsets.get();
+        
+        auto source_size = _source->size();
+        auto image_size = offsets.toPixels(source_size).size().mul(scale).map(roundf);
+        
+        if(not offsets.empty()
+           || (scale > 0 && scale != 1))
         {
             if (_buffer.dims != channels
-                || _buffer.cols != _source->size().width
-                || _buffer.rows != _source->size().height)
+                || _buffer.cols != source_size.width
+                || _buffer.rows != source_size.height)
             {
-                _buffer.create(_source->size().height, _source->size().width, CV_8UC(channels));
+                _buffer.create(source_size.height, source_size.width, CV_8UC(channels));
             }
-
+            
             _source->frame(index, _buffer);
             _source->undistort(_buffer, _buffer);
-
+            
             const gpuMat* output = &_buffer;
             if (scale > 0 && scale != 1) {
                 cv::resize(*output, _resized,
@@ -187,27 +193,39 @@ Image::Ptr AnimatedBackground::preload(Frame_t index) {
                 output = &_resized;
             }
 
-            if (   image->cols != (uint)output->cols
-                || image->rows != (uint)output->rows
+            if (   image->cols != (uint)image_size.width
+                || image->rows != (uint)image_size.height
                 || image->dims != channels)
             {
-                image->create(output->rows, output->cols, channels);
+                image->create(image_size.height, image_size.width, channels);
             }
 
-            if (output->channels() == 3) {
-                cv::cvtColor(*output, image->get(), cv::COLOR_BGR2RGBA);
+            if(not offsets.empty()) {
+                auto bds = offsets.toPixels(Size2(output->cols, output->rows));
+                if (output->channels() == 3) {
+                    cv::cvtColor((*output)(bds), image->get(), cv::COLOR_BGR2RGBA);
+                }
+                else {
+                    assert(output->channels() == image->dims);
+                    (*output)(bds).copyTo(image->get());
+                }
+                
+            } else {
+                if (output->channels() == 3) {
+                    cv::cvtColor(*output, image->get(), cv::COLOR_BGR2RGBA);
+                }
+                else {
+                    assert(output->channels() == image->dims);
+                    output->copyTo(image->get());
+                }
             }
-            else {
-                assert(output->channels() == image->dims);
-                output->copyTo(image->get());
-            }
-        }
-        else {
+            
+        } else {
             if (image->dims != channels
-                || image->cols != sign_cast<uint>(_source->size().width)
-                || image->rows != sign_cast<uint>(_source->size().height))
+                || image->cols != sign_cast<uint>(source_size.width)
+                || image->rows != sign_cast<uint>(source_size.height))
             {
-                image->create(_source->size().height, _source->size().width, channels);
+                image->create(source_size.height, source_size.width, channels);
             }
 
             _source->frame(index, *image);
@@ -215,8 +233,8 @@ Image::Ptr AnimatedBackground::preload(Frame_t index) {
             _source->undistort(mat, mat);
             
             assert(channels == image->dims);
-            assert(image->cols == _source->size().width);
-            assert(image->rows == _source->size().height);
+            assert(image->cols == image_size.width);
+            assert(image->rows == image_size.height);
         }
         
         image->set_index(index.get());

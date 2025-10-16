@@ -32,6 +32,7 @@ class AnimatedBackground : public Entangled {
     std::unique_ptr<VideoSource> _source;
     std::atomic<bool> _file_opened{false};
     std::atomic<float> _source_scale{1.f};
+    ProtectedProperty<CropOffsets> _crop_offsets;
     bool _is_greyscale{false};
     
     Image::Ptr _average;
@@ -75,6 +76,7 @@ public:
     void set_strict(bool v) { _strict = v; }
     void set_video_scale(float);
     void set_enable_fade(bool v) { _enable_fade = v; }
+    void set_crop_offsets(CropOffsets offsets) { _crop_offsets.set(offsets); }
     
     void set_undistortion(std::optional<std::vector<double>> &&cam_matrix,
                           std::optional<std::vector<double>> &&undistort_vector);

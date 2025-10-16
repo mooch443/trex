@@ -102,6 +102,8 @@ class Segmenter {
     
     // Size of output and start time for timing operations
     GETTER(Size2, output_size);
+    GETTER(Size2, output_size_before_crop);
+    GETTER(CropOffsets, crop_offsets);
     std::chrono::time_point<std::chrono::system_clock> _start_time;
     
     // Progress and current data for tracking

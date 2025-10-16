@@ -1352,6 +1352,8 @@ void TrackingScene::_draw(DrawStructure& graph) {
     _data->_background->set_scale(_data->_bowl->scale());
     _data->_background->set_pos(_data->_bowl->pos());
     _data->_background->set_video_scale(READ_SETTING(meta_video_scale, float));
+    _data->_background->set_crop_offsets(READ_SETTING_WITH_DEFAULT(crop_offsets, CropOffsets{}));
+    //_data->_background->set_crop_offsets(READ_SETTING_WITH_DEFAULTS(crop_offsets, CropOffsets{}));
     
     if (alpha > 0) {
         /*if(PD(gui_mask)) {

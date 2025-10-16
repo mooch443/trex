@@ -344,30 +344,37 @@ Image::Ptr Segmenter::finalize_bg_image(const cv::Mat& bg) {
     const auto meta_encoding = Background::meta_encoding();
     const uint8_t channels = required_storage_channels(meta_encoding);
 
+    cv::Mat input = bg;
     Image::Ptr ptr = Image::Make(_output_size.height, _output_size.width, channels);
-    if(bg.channels() == 3
-        && bg.cols == _output_size.width
-        && bg.rows == _output_size.height
+    _crop_offsets.apply_copy(bg, input);
+    
+    if(input.channels() == 3
+        && input.cols == _output_size.width
+        && input.rows == _output_size.height
     ) {
         if(meta_encoding == meta_encoding_t::r3g3b2) {
             assert(channels == 1);
             auto tmp = ptr->get();
-            convert_to_r3g3b2<3>(bg, tmp);
+            convert_to_r3g3b2<3>(input, tmp);
             
         } else if(channels == 1) {
             assert(meta_encoding == meta_encoding_t::gray);
-            cv::cvtColor(bg, ptr->get(), cv::COLOR_BGR2GRAY);
+            cv::cvtColor(input, ptr->get(), cv::COLOR_BGR2GRAY);
 
         } else if(meta_encoding == meta_encoding_t::rgb8) {
             assert(channels == 3);
-            bg.copyTo(ptr->get());
+            input.copyTo(ptr->get());
+            
+        } else if(meta_encoding == meta_encoding_t::binary) {
+            assert(channels == 0);
+            /// we do not need to store any data then...
 
         } else {
             throw InvalidArgumentException("Invalid meta_encoding: ", meta_encoding, " to convert the background image.");
         }
 
     } else {
-        FormatWarning("Background has wrong format: ", bg.cols, "x", bg.rows, "x", bg.channels(), " vs. ", _output_size.width, "x", _output_size.height, "x", channels);
+        FormatWarning("Background has wrong format: ", input.cols, "x", input.rows, "x", input.channels(), " vs. ", _output_size.width, "x", _output_size.height, "x", channels);
     }
 
     return ptr;
@@ -375,7 +382,7 @@ Image::Ptr Segmenter::finalize_bg_image(const cv::Mat& bg) {
 
 std::tuple<bool, cv::Mat> Segmenter::get_preliminary_background(Size2 size) {
     const uint8_t channels = required_storage_channels(Background::meta_encoding());
-    cv::Mat bg = cv::Mat::zeros(_output_size.height, _output_size.width, CV_8UC(channels));
+    cv::Mat bg = cv::Mat::zeros(_output_size_before_crop.height, _output_size_before_crop.width, CV_8UC(channels));
     bg.setTo(255);
 
     bool do_generate_average { BOOL_SETTING(reset_average) };
@@ -391,8 +398,8 @@ std::tuple<bool, cv::Mat> Segmenter::get_preliminary_background(Size2 size) {
             Print("Background image is valid ", size, " with RGB channels.");
             
         } else {
-            FormatWarning("Background has wrong format: ", bg.cols, "x", bg.rows, "x", bg.channels(), " vs. ", _output_size.width, "x", _output_size.height, "x", channels);
-            bg = cv::Mat::zeros(_output_size.height, _output_size.width, CV_8UC(channels));
+            FormatWarning("Background has wrong format: ", bg.cols, "x", bg.rows, "x", bg.channels(), " vs. ", _output_size_before_crop.width, "x", _output_size_before_crop.height, "x", channels);
+            bg = cv::Mat::zeros(_output_size_before_crop.height, _output_size_before_crop.width, CV_8UC(channels));
             do_generate_average = true;
         }
     }
@@ -461,7 +468,7 @@ void Segmenter::trigger_average_generator(bool do_generate_average, cv::Mat& bg)
     // otherwise the GUI stops responding...
     if(do_generate_average) {
         std::unique_lock guard(average_generator_mutex);
-        average_generator = std::async(std::launch::async, [this, size = _output_size, channels]()
+        average_generator = std::async(std::launch::async, [this, size = _output_size_before_crop, channels]()
         {
             // Define a simple RAII helper:
             struct NotifyGuard {
@@ -552,7 +559,7 @@ void Segmenter::trigger_average_generator(bool do_generate_average, cv::Mat& bg)
         if(not BOOL_SETTING(track_background_subtraction)) {
             {
                 std::unique_lock guard(_mutex_tracker);
-                auto image_size = _output_size;
+                auto image_size = _output_size_before_crop;
                 _tracker = std::make_unique<Tracker>(Image::Make(image_size.height, image_size.width, channels), Background::meta_encoding(), READ_SETTING(meta_real_width, Float2_t));
             }
 
@@ -597,6 +604,8 @@ void Segmenter::trigger_average_generator(bool do_generate_average, cv::Mat& bg)
 void Segmenter::open_video() {
     VideoSource video_base(READ_SETTING(source, file::PathArray));
     video_base.set_colors(ImageMode::RGB);
+    
+    _crop_offsets = READ_SETTING_WITH_DEFAULT(crop_offsets, CropOffsets{});
 
     if(READ_SETTING(frame_rate, uint32_t) <= 0)
         SETTING(frame_rate) = Settings::frame_rate_t(video_base.framerate() != short(-1) ? video_base.framerate() : 25);
@@ -620,7 +629,8 @@ void Segmenter::open_video() {
     setDefaultSettings();
     
     const auto meta_video_scale = READ_SETTING(meta_video_scale, float);
-    _output_size = (Size2(video_base.size()) * meta_video_scale).map(roundf);
+    _output_size_before_crop = (Size2(video_base.size()) * meta_video_scale).map(roundf);
+    _output_size = _crop_offsets.toPixels(_output_size_before_crop).size();
     SETTING(meta_video_size) = Size2(video_base.size());
     //SETTING(output_size) = _output_size;
     
@@ -639,6 +649,7 @@ void Segmenter::open_video() {
     }
     
     _overlayed_video->source()->set_video_scale(meta_video_scale);
+    _overlayed_video->source()->set_crop_offsets( _crop_offsets);
     
     SETTING(video_length) = uint64_t(video_length().get());
     //SETTING(cm_per_pixel) = Settings::cm_per_pixel_t(0.01);
@@ -681,6 +692,8 @@ void Segmenter::open_camera() {
     using namespace grab;
     fg::Webcam camera;
     camera.set_color_mode(ImageMode::RGB);
+    
+    _crop_offsets = READ_SETTING_WITH_DEFAULT(crop_offsets, CropOffsets{});
     
     /// find out which number of channels we are interested in:
     //const auto encoding = Background::meta_encoding();
@@ -733,7 +746,8 @@ void Segmenter::open_camera() {
         SETTING(meta_video_scale) = 1.f;
     }
     
-    _output_size = (Size2(camera.size()) * READ_SETTING(meta_video_scale, float)).map(roundf);
+    _output_size_before_crop = (Size2(camera.size()) * READ_SETTING(meta_video_scale, float)).map(roundf);
+    _output_size = _crop_offsets.toPixels(_output_size_before_crop).size().map(roundf);
     SETTING(video_conversion_range) = Range<long_t>(-1,-1);
     
     auto detect_type = READ_SETTING(detect_type, ObjectDetectionType_t);
@@ -764,6 +778,7 @@ void Segmenter::open_camera() {
     }
     
     _overlayed_video->source()->set_video_scale(READ_SETTING(meta_video_scale, float));
+    _overlayed_video->source()->set_crop_offsets( _crop_offsets);
     _overlayed_video->source()->notify();
     
     SETTING(video_length) = uint64_t(video_length().get());
@@ -782,7 +797,7 @@ void Segmenter::open_camera() {
     _video_conversion_range = Range<Frame_t>{ 0_f, {} };
     init_undistort_from_settings();
     
-    auto [do_generate_average, bg] = get_preliminary_background(_output_size);
+    auto [do_generate_average, bg] = get_preliminary_background(_output_size_before_crop);
     static_assert(ObjectDetection<Detection>);
     
     trigger_average_generator(do_generate_average, bg);
@@ -1276,6 +1291,7 @@ void Segmenter::serialize_thread() {
             if (not _output_file->is_open()) {
                 _output_file->set_start_time(_start_time);
                 _output_file->set_resolution(_output_size);
+                _output_file->set_offsets(_crop_offsets);
             }
             
             // copy the frame to the file:

@@ -158,6 +158,7 @@ void BackgroundSubtraction::apply(std::vector<TileImage> &&tiled) {
                             if(image->dims == 3) {
                                 cv::cvtColor(image->get(), r3, cv::COLOR_BGR2GRAY);
                             } else /*if(image->dims == 4)*/ {
+                                assert(image->dims == 4);
                                 cv::cvtColor(image->get(), r3, cv::COLOR_BGRA2GRAY);
                             }
                             

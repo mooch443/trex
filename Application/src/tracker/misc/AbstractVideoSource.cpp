@@ -36,14 +36,16 @@ void AbstractBaseVideoSource::notify() {
 Size2 AbstractBaseVideoSource::size() const { return _info.size; }
 
 void AbstractBaseVideoSource::move_back(useMatPtr_t&& ptr) {
-    /*
-       if(not ptr
-       || ptr->rows != info.size.height
-       || ptr->cols != info.size.width) 
+    if(not ptr
+       || ptr->rows != _info.size.height
+       || ptr->cols != _info.size.width)
     {
+#ifndef NDEBUG
+        FormatWarning("Incompatible dimensions: ", Size2(*ptr), " vs ", _info.size);
+#endif
         return;
     }
-    */
+    
     mat_buffers.move_back(std::move(ptr));
 }
 
@@ -82,17 +84,36 @@ AVS::PreprocessResult_t AbstractBaseVideoSource::fetch_next_process() {
             
             undistort(*buffer, *buffer);
             
+            bool created{false};
+            
             //! resize according to settings
             //! (e.g. multiple tiled image size)
             if (_video_scale != 1) {
                 Size2 new_size = Size2(buffer->cols, buffer->rows) * _video_scale.load();
                 //FormatWarning("Resize ", Size2(buffer.cols, buffer.rows), " -> ", new_size);
                 
+                if (not tmp) {
+                    tmp = MAKE_GPU_MAT;
+                    created = true;
+                }
+                
+                cv::resize(*buffer, *tmp, new_size);
+                
+                move_back(std::move(buffer));
+                std::swap(buffer, tmp);
+            }
+            
+            if(auto crop_offsets = _crop_offsets.get();
+               not crop_offsets.empty())
+            {
+                auto bds = crop_offsets.toPixels(Size2(*buffer));
+                
                 if (not tmp)
                     tmp = MAKE_GPU_MAT;
-                cv::resize(*buffer, *tmp, new_size);
-                move_back(std::move(buffer));
+                (*buffer)(bds).copyTo(*tmp);
                 
+                if(not created)
+                    move_back(std::move(buffer));
                 std::swap(buffer, tmp);
             }
             
@@ -128,6 +149,10 @@ AVS::PreprocessResult_t AbstractBaseVideoSource::fetch_next_process() {
 
 void AbstractBaseVideoSource::set_video_scale(float scale) {
     _video_scale = scale;
+}
+
+void AbstractBaseVideoSource::set_crop_offsets(CropOffsets offsets) {
+    _crop_offsets.set(std::move(offsets));
 }
 
 bool AbstractBaseVideoSource::is_finite() const {

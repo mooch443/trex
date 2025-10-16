@@ -742,6 +742,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("meta_misc", std::string(""), "Other information.");
         CONFIG("meta_cmd", std::string(""), "Command-line of the framegrabber when conversion was started.", SYSTEM);
         CONFIG("meta_build", std::string(""), "The current commit hash. The video is branded with this information for later inspection of errors that might have occured.", SYSTEM);
+        CONFIG("crop_offsets", CropOffsets(), "Percentage offsets [left, top, right, bottom] that will be cut off the input images (e.g. [0.1,0.1,0.5,0.5] will remove 10%% from the left and top and 50%% from the right and bottom and the video will be 60%% smaller in X and Y).");
         CONFIG("meta_video_size", Size2(), "Resolution of the original video.", LOAD);
         CONFIG("meta_video_scale", float(1), "Scale applied to the original video / footage.", LOAD);
         CONFIG("meta_conversion_time", std::string(""), "This contains the time of when this video was converted / recorded as a string.", LOAD);

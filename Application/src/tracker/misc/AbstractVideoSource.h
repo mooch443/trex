@@ -8,6 +8,7 @@
 #include <misc/RepeatedDeferral.h>
 #include <misc/Buffers.h>
 #include <misc/VideoInfo.h>
+#include <misc/ProtectedProperty.h>
 
 using namespace cmn;
 
@@ -185,6 +186,7 @@ protected:
     /// User-configurable scale applied in preprocessing (e.g., to match tiling).
     /// Values other than 1.0 trigger a GPU resize in `fetch_next_process()`.
     std::atomic<float> _video_scale{1.f};
+    ProtectedProperty<CropOffsets> _crop_offsets{CropOffsets()};
     useMatPtr_t tmp;
     GETTER(VideoInfo, info);
 
@@ -263,6 +265,7 @@ public:
     void set_frame(Frame_t frame);
     void set_loop(bool);
     void set_video_scale(float);
+    void set_crop_offsets(CropOffsets);
     
     /// Total number of frames if the source is finite; for live/streaming inputs
     /// this may be invalid/unspecified (check `is_finite()` before relying on it).
