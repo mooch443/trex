@@ -40,6 +40,7 @@ struct UpdateSettings {
     bool gui_show_probabilities;
     bool gui_show_shadows;
     bool gui_show_texts;
+    bool gui_show_centroid;
     bool gui_show_selections;
     bool gui_show_boundary_crossings;
     bool gui_show_paths;

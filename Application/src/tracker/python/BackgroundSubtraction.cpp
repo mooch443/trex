@@ -5,6 +5,7 @@
 #include <misc/TrackingSettings.h>
 #include <python/TileBuffers.h>
 #include <python/Detection.h>
+#include <processing/DLList.h>
 
 using namespace cmn;
 
@@ -123,13 +124,15 @@ void BackgroundSubtraction::apply(std::vector<TileImage> &&tiled) {
     
     std::shared_lock guard(data()._gpu_mutex);
     RawProcessing raw(data()._gpu, &data()._float_average, nullptr);
-    gpuMat gpu_buffer;
+    static thread_local gpuMat gpu_buffer;
     TagCache tag;
-    CPULabeling::ListCache_t cache;
+    static thread_local CPULabeling::ListCache_t cache;
+    cache.obj->clear();
+    
     const auto cm_per_pixel = READ_SETTING(cm_per_pixel, Settings::cm_per_pixel_t);
     const auto detect_size_filter = READ_SETTING(detect_size_filter, SizeFilters);
     const Float2_t sqcm = SQR(cm_per_pixel);
-    cv::Mat r3;
+    static thread_local cv::Mat r3;
     
     static thread_local cv::Mat split_channels[4];
     const auto color_channel = READ_SETTING(color_channel, std::optional<uint8_t>);

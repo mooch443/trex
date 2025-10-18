@@ -7,6 +7,8 @@
 #include <misc/indicators.h>
 #include <indicators/indeterminate_progress_bar.hpp>
 #include <indicators/cursor_control.hpp>
+#include <file/DataLocation.h>
+#include <misc/ProtectedProperty.h>
 
 namespace ind = indicators;
 
@@ -54,6 +56,7 @@ struct PrecomputedDetection::Data {
             
             _frame_data_loader = std::async(std::launch::async, [this]()
             {
+                set_thread_name("precomputed::buildCache");
                 return preload_file();
             });
         }
@@ -80,22 +83,38 @@ struct PrecomputedDetection::Data {
 
 
 PrecomputedDetectionCache::PrecomputedDetectionCache(const file::Path& csv_path)
-  : _cache_path(csv_path.replace_extension("pdcache")), _df(_cache_path)
+  : _cache_path(file::DataLocation::parse("output", csv_path.replace_extension("pdcache"))), _df(_cache_path)
 {
     uint64_t csv_hash = computeFileHash(csv_path);
 
     bool needs_rebuild = true;
     if (_cache_path.exists()) {
         // open header to check hash
+        const auto individual_image_size = READ_SETTING(individual_image_size, Size2);
         try {
             cmn::DataFormat tmp(_cache_path);
             tmp.start_reading();
+            
             Header hdr;
-            tmp.read(hdr);
+            tmp.read(hdr.magic);
+            tmp.read(hdr.file_hash);
+            tmp.read(hdr.index_count);
+            
+            if(hdr.magic.parts.ver >= 2) {
+                tmp.read(hdr.crop_width);
+                tmp.read(hdr.crop_height);
+            } else {
+                hdr.crop_width = individual_image_size.width;
+                hdr.crop_height = individual_image_size.height;
+            }
+            
             tmp.close();
-            if (std::memcmp(hdr.magic.parts.tag,"PDC",3)==0 &&
-                hdr.magic.parts.ver==1 &&
-                hdr.file_hash==csv_hash) {
+            if (std::memcmp(hdr.magic.parts.tag,"PDC",3)==0
+                //&& hdr.magic.parts.ver == current_version
+                && hdr.file_hash==csv_hash
+                && hdr.crop_width == individual_image_size.width
+                && hdr.crop_height == individual_image_size.height)
+            {
                 needs_rebuild = false;
             }
         } catch(...) {
@@ -113,8 +132,9 @@ PrecomputedDetectionCache::PrecomputedDetectionCache(const file::Path& csv_path)
     assert(_df.supports_fast());
 
     const Header* hdr = reinterpret_cast<const Header*>(_map_ptr);
-    if (std::memcmp(hdr->magic.parts.tag, "PDC", 3) != 0 ||
-        hdr->magic.parts.ver != 1) {
+    if (std::memcmp(hdr->magic.parts.tag, "PDC", 3) != 0
+        || hdr->magic.parts.ver > current_version)
+    {
         throw RuntimeError("Invalid cache file format");
     }
     
@@ -216,7 +236,7 @@ void PrecomputedDetectionCache::buildCache(const file::Path& csv_path, const fil
     ind::show_console_cursor(false);
     ind::IndeterminateProgressBar prog{
         ind::option::ForegroundColor{ind::Color::white},
-        ind::option::PostfixText{"Reading CSV header..."},
+        ind::option::PostfixText{"Counting CSV rows..."},
         indicators::option::Start{"["},
         indicators::option::Fill{"."},
         indicators::option::Lead{"<==>"},
@@ -249,6 +269,7 @@ void PrecomputedDetectionCache::buildCache(const file::Path& csv_path, const fil
         counts[frame]++;
         
         if (timer.elapsed() >= 0.1) {
+            prog.set_option(ind::option::PostfixText{"Counting CSV rows ("+Meta::toStr(num_rows)+")..."});
             prog.tick();
 			timer.reset();
         }
@@ -341,9 +362,11 @@ void PrecomputedDetectionCache::buildCache(const file::Path& csv_path, const fil
     hdr.magic.parts.tag[0] = 'P';
     hdr.magic.parts.tag[1] = 'D';
     hdr.magic.parts.tag[2] = 'C';
-    hdr.magic.parts.ver    = 1;
+    hdr.magic.parts.ver    = current_version;
     hdr.file_hash     = csv_hash;
     hdr.index_count   = index_count;
+    hdr.crop_width = default_size.width;
+    hdr.crop_height = default_size.height;
     
     df.write(hdr);
 
@@ -577,10 +600,8 @@ void convert_tile_to_rgb_or_gray(const Image::Ptr& image, cv::Mat& r3, meta_enco
 void PrecomputedDetection::apply(std::vector<TileImage> &&tiled) {
     Timer timer;
     const auto mode = Background::meta_encoding();
-    const bool track_background_subtraction = Background::track_background_subtraction();
     const auto cm_per_pixel = READ_SETTING(cm_per_pixel, Settings::cm_per_pixel_t);
     const auto detect_size_filter = READ_SETTING(detect_size_filter, SizeFilters);
-    const Float2_t sqcm = SQR(cm_per_pixel);
     
     const auto color_channel = READ_SETTING(color_channel, std::optional<uint8_t>);
     
@@ -672,7 +693,8 @@ void PrecomputedDetection::apply(std::vector<TileImage> &&tiled) {
                         | (mode == meta_encoding_t::r3g3b2 ? pv::Blob::flag(pv::Blob::Flags::is_r3g3b2) : 0)
                         | (mode == meta_encoding_t::binary ? pv::Blob::flag(pv::Blob::Flags::is_binary) : 0);
                     
-                    if(detect_threshold > 0)
+                    if(detect_threshold > 0
+                       && mode != meta_encoding_t::binary)
                     {
                         pv::Blob blob(std::move(lines), flags);
                         /// TODO: implement some version of RawProcessing here

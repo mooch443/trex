@@ -727,6 +727,7 @@ void TrackingScene::activate() {
         "track_ignore_bdx",
         
         "gui_show_texts",
+        "gui_show_centroid",
         "gui_show_probabilities",
         "gui_show_visualfield",
         "gui_show_outline",

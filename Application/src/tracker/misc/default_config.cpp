@@ -813,6 +813,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("gui_show_shadows", true, "Showing or hiding individual shadows in tracking view.");
         CONFIG("gui_outline_thickness", uint8_t(1), "The thickness of outline / midlines in the GUI.");
         CONFIG("gui_show_texts", true, "Showing or hiding individual identity (and related) texts in tracking view.");
+        CONFIG("gui_show_centroid", true, "Showing or hiding the centroid of tracked objects.");
         CONFIG("gui_show_matching_info", true, "Showing or hiding probabilities for relevant blobs in the info card if an individual is selected.");
         CONFIG("gui_show_misc_metrics", true, "Showing or hiding some metrics for a selected individual in the info card.");
         CONFIG("gui_show_autoident_controls", false, "Showing or hiding controls for removing forced auto-ident in the info card if an individual is selected.");

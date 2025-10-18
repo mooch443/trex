@@ -1498,7 +1498,9 @@ void Fish::selection_clicked(Event) {
                 angle = -head->angle();
             }
         
-            if(OPTION(gui_show_texts)) {
+            //if(OPTION(gui_show_texts))
+            if(OPTION(gui_show_centroid))
+            {
                 if(_next_frame_cache.has_value()) {
                     auto estimated = _next_frame_cache->estimated_px + offset;
                     

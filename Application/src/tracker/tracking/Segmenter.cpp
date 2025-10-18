@@ -345,7 +345,7 @@ Image::Ptr Segmenter::finalize_bg_image(const cv::Mat& bg) {
     const uint8_t channels = required_storage_channels(meta_encoding);
 
     cv::Mat input = bg;
-    Image::Ptr ptr = Image::Make(_output_size.height, _output_size.width, channels);
+    Image::Ptr ptr = Image::Make(_output_size.height, _output_size.width, max(1u, channels));
     _crop_offsets.apply_copy(bg, input);
     
     if(input.channels() == 3
@@ -368,6 +368,7 @@ Image::Ptr Segmenter::finalize_bg_image(const cv::Mat& bg) {
         } else if(meta_encoding == meta_encoding_t::binary) {
             assert(channels == 0);
             /// we do not need to store any data then...
+            ptr->set_to(0u);
 
         } else {
             throw InvalidArgumentException("Invalid meta_encoding: ", meta_encoding, " to convert the background image.");
@@ -1102,7 +1103,11 @@ void Segmenter::perform_tracking(SegmentationData&& progress_data) {
             auto it = progress_bdx.find(blob.blob_id());
             if(it != progress_bdx.end()) {
                 if(not blob.pixels()) {
-                    blob.set_pixels( *progress_bdx.at(blob.blob_id())->pixels());
+                    if(auto& pixels = progress_bdx.at(blob.blob_id())->pixels();
+                       pixels)
+                    {
+                        blob.set_pixels( *pixels );
+                    }
                 }
                 progress_bdx.erase(it);
                 

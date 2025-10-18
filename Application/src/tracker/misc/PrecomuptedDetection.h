@@ -84,6 +84,8 @@ public:
 private:
     static void buildCache(const file::Path& csv_path, const file::Path& cache_path);
 
+    static constexpr uint8_t current_version = 2;
+
 #pragma pack(push, 1)
     struct Header {
         union {
@@ -92,6 +94,8 @@ private:
         } magic;
         uint64_t file_hash;
         uint32_t index_count;
+        uint16_t crop_width;
+        uint16_t crop_height;
     };
 
     struct IndexEntry {
