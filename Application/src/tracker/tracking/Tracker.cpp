@@ -75,6 +75,7 @@ void Tracker::initialize_slows() {
         DEF_CALLBACK(track_time_probability_enabled);
         DEF_CALLBACK(track_speed_decay);
         DEF_CALLBACK(match_min_probability);
+        DEF_CALLBACK(match_topk);
         
         DEF_CALLBACK(track_include);
         DEF_CALLBACK(track_ignore);
@@ -1172,6 +1173,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
         const auto N_blobs = unassigned_blobs.size();
         const auto N_fish  = unassigned_individuals.size();
         const auto match_min_probability = FAST_SETTING(match_min_probability);
+        const auto match_topk = FAST_SETTING(match_topk);
         
         auto work = [&](auto, auto start, auto end, auto){
             size_t pid = 0;
@@ -1200,6 +1202,34 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
 #ifndef NDEBUG
                     FormatWarning("Cannot retrieve cache for ", fish->identity(), " and frame=",frameIndex);
 #endif
+                }
+                
+                /// limit to top-k matches, in case this is enabled.
+                /// this means we have to sort them by probability first, then
+                /// keep only the top-k ones.
+                if(match_topk
+                   && probs.size() > *match_topk)
+                {
+                    std::vector<std::tuple<prob_t, Blob_t>> resorted;
+                    resorted.reserve(probs.size());
+
+                    for(auto& [blob, p] : probs) {
+                        resorted.emplace_back(p, blob);
+                    }
+                    
+                    /// top results land at the top of the list
+                    std::sort(resorted.begin(), resorted.end(), std::greater{});
+                    
+                    //Print("* have too many probabilities for ", (*it)->identity(), ": ", resorted);
+                    resorted.erase(resorted.begin() + (*match_topk), resorted.end());
+                    
+                    probs.clear();
+                    for(auto &[p, blob] : resorted) {
+                        probs[blob] = p;
+                    }
+                    
+                    //Print("\tpruned to: ", probs);
+                    assert(probs.size() <= *match_topk);
                 }
             }
             

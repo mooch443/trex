@@ -963,6 +963,7 @@ public:
          default_config::get(config);
      });
      SETTING(match_min_probability) = float(0.1);
+     SETTING(match_topk) = std::optional<uint8_t>{};
      SETTING(match_mode) = table_->match_mode;
      SETTING(frame_rate) = Settings::frame_rate_t{ 25 };
      SETTING(cm_per_pixel) = Settings::cm_per_pixel_t{ 1 };

@@ -103,6 +103,7 @@ CREATE_STRUCT(Settings,
   (inames_t, individual_names),
   (float, midline_stiff_percentage),
   (float, match_min_probability),
+  (std::optional<uint8_t>, match_topk),
   (uint16_t, posture_direction_smoothing),
   (file::Path, tags_path),
   (std::vector<Vec2>, grid_points),
@@ -175,6 +176,7 @@ struct slow {
     DEF_SLOW_SETTINGS(track_time_probability_enabled);
     DEF_SLOW_SETTINGS(track_speed_decay);
     DEF_SLOW_SETTINGS(match_min_probability);
+    DEF_SLOW_SETTINGS(match_topk);
     
     DEF_SLOW_SETTINGS(track_include);
     DEF_SLOW_SETTINGS(track_ignore);
