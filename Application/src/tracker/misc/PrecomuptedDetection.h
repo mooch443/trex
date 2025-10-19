@@ -85,7 +85,7 @@ private:
     static void buildCache(const file::Path& csv_path, const file::Path& cache_path);
 
     static constexpr uint8_t current_version = 2;
-
+    
 #pragma pack(push, 1)
     struct Header {
         union {
