@@ -69,7 +69,10 @@ Significant contributions by:
 
 # License
 
-Released under the GPLv3 License (see [LICENSE](https://github.com/mooch443/trex/blob/main/LICENSE)).
+Released under the GNU Affero General Public License v3.0 or later (see
+[LICENSE](https://github.com/mooch443/trex/blob/main/LICENSE)). The
+`Application/src/commons` subtree continues to ship under the GNU General
+Public License v3.0 (see `Application/src/commons/LICENSE` for details).
 
 # Reference
 

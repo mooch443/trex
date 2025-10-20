@@ -126,7 +126,7 @@ requirements:
 
 about:
   home: https://trex.run
-  license: GPL3
+  license: AGPL-3.0-or-later
   license_file:
       - LICENSE
       - licenses/ffmpeg/COPYING.LGPL-2.1
