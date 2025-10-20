@@ -777,6 +777,28 @@
                                                         "desc":""
                                                     }
                                                 ]
+                                            },
+                                            {
+                                                "type":"hlayout",
+                                                "line":[150,150,150,255],
+                                                "pad":[10,5,5,5],
+                                                "fill":[30,30,30,150],
+                                                "children":[
+                                                    {
+                                                        "type":"stext",
+                                                        "text":"<b>Tile merge containment</b>\n<gray>Drop smaller boxes when their overlap with a neighbour exceeds this fraction (0-1).</gray>",
+                                                        "font":{"size":0.6},
+                                                        "max_size":"[{-:{inside_label_w}:20},0]"
+                                                    },
+                                                    {
+                                                        "type":"settings",
+                                                        "var":"detect_tile_merge_containment",
+                                                        "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                                                        "size":[50,40],
+                                                        "desc":""
+                                                    }
+                                                ]
                                             }
                                         ]
                                     ]

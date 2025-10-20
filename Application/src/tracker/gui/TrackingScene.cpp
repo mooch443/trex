@@ -2212,7 +2212,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
     };
     
     g.context.custom_elements["image_generator"] = std::unique_ptr<CustomElement>(
-            new ImageDisplayElement(&ImageGeneratorRegistry::instance())
+        new ImageDisplayElement(&ImageGeneratorRegistry::instance())
     );
     
     ImageGeneratorRegistry::instance().register_generator("fois",

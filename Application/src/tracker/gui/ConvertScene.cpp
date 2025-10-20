@@ -1033,14 +1033,17 @@ dyn::DynamicGUI ConvertScene::Data::init_gui(Base* window) {
         VarFunc("active_ids", [this](const VarProps&) {
             return _active_ids;
         }),
-        VarFunc("fishes", [this](const VarProps&) -> std::vector<std::shared_ptr<VarBase_t>>&{
+        VarFunc("fishes", [this](const VarProps&) -> std::vector<std::shared_ptr<VarBase_t>>& {
             return _tracked_gui;
         }),
-        VarFunc("untracked", [this](const VarProps&) -> std::vector<std::shared_ptr<VarBase_t>>&{
+        VarFunc("untracked", [this](const VarProps&) -> std::vector<std::shared_ptr<VarBase_t>>& {
             return _untracked_gui;
         }),
         VarFunc("primary_selection", [this](const VarProps&) -> sprite::Map& {
             return _primary_selection;
+        }),
+        VarFunc("tiles", [this](const VarProps&) -> std::vector<Bounds> {
+            return _current_data.tiles;
         }),
         VarFunc("video_error", [this](const VarProps&) -> std::string {
             if(_recovered_error.empty())

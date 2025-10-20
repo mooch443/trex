@@ -33,6 +33,7 @@ void resetGlobalSettings() {
     SETTING(detect_tile_target_width) = uint16_t{0};
     SETTING(detect_tile_image) = uchar{0};
     SETTING(detect_tile_merge_iou) = Float2_t{0.55f};
+    SETTING(detect_tile_merge_containment) = Float2_t{0.9f};
     SETTING(meta_encoding) = meta_encoding_t::gray;
     SETTING(detect_only_classes) = track::detect::PredictionFilter{};
 }
@@ -298,6 +299,7 @@ TEST(YoloReceiveTest, SuppressesDuplicatesAcrossOverlappingTiles) {
     SegmentationData data(cmn::Image::Zeros(height, width, 3));
     data.tiles.emplace_back(0, 0, 320, 320);
     data.tiles.emplace_back(320, 0, 320, 320);
+    data.image->set_index(0);
 
     // Two overlapping detections of the same class.
     std::vector<float> raw_boxes{
@@ -316,7 +318,41 @@ TEST(YoloReceiveTest, SuppressesDuplicatesAcrossOverlappingTiles) {
     );
 
     // Provide backing image so YOLO::receive can convert it.
+    YOLO::receive(data, std::move(result));
+
+    EXPECT_EQ(data.predictions.size(), 1u);
+    EXPECT_EQ(data.frame.n(), 1u);
+    ASSERT_FALSE(data.predictions.empty());
+    EXPECT_FLOAT_EQ(data.predictions.front().p, 0.9f);
+}
+
+TEST(YoloReceiveTest, SuppressesContainedBoxesAcrossTiles) {
+    resetGlobalSettings();
+    DetectTileOverlapGuard guard(0.15f);
+    SETTING(detect_tile_merge_containment) = Float2_t{0.9f};
+
+    const int width = 640;
+    const int height = 320;
+
+    SegmentationData data(cmn::Image::Zeros(height, width, 3));
+    data.tiles.emplace_back(0, 0, 320, 320);
+    data.tiles.emplace_back(320, 0, 320, 320);
     data.image->set_index(0);
+
+    std::vector<float> raw_boxes{
+        0.f, 0.f, 220.f, 220.f, 0.9f, 1.f,
+        20.f, 20.f, 80.f, 80.f, 0.7f, 1.f
+    };
+    track::detect::Boxes boxes(std::move(raw_boxes), 12u);
+
+    track::detect::Result result(
+        0,
+        std::move(boxes),
+        std::vector<track::detect::MaskData>{},
+        track::detect::KeypointData{},
+        track::detect::ObbData{},
+        track::detect::PointData{}
+    );
 
     YOLO::receive(data, std::move(result));
 
@@ -392,5 +428,3 @@ TEST(YoloReceiveTest, KeepsDetectionsBelowIoUThreshold) {
     EXPECT_EQ(data.predictions.size(), 2u);
     EXPECT_EQ(data.frame.n(), 2u);
 }
-#include <misc/DetectionTypes.h>
-using namespace default_config;
