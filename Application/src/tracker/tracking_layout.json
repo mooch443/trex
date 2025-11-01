@@ -918,6 +918,7 @@
                 {
                     "type":"collection",
                     "name":"timeline",
+                    "size":"[{width},20]",
                     "clickable":true,
                     "children":[
                         {

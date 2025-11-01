@@ -475,7 +475,7 @@ struct SettingsScene::Data {
                                 .source = SETTING(source),
                                 .filename = filename,
                                 .task = default_config::TRexTask_t::convert,
-                                .type = SETTING(detect_type),
+                                .type = SETTING(detect_type).value<track::detect::ObjectDetectionType_t>(),
                                 .source_map = copy
                             });
                             

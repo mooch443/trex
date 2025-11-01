@@ -51,16 +51,16 @@ struct PredictionFilter {
 
 namespace EnumMeta {
 /// add a tag checker for whether a customparser is available for a given enum class
-template<> struct HasCustomParser<track::detect::ObjectDetectionType_t> : std::true_type {
-    static const track::detect::ObjectDetectionType_t& fromStr(cmn::StringLike auto&& str);
+template<> struct HasCustomParser<track::detect::ObjectDetectionType::Class> : std::true_type {
+    static const track::detect::ObjectDetectionType::Class& fromStr(cmn::StringLike auto&& str);
 };
 
 }
 
 namespace EnumMeta {
 
-const track::detect::ObjectDetectionType_t&
-HasCustomParser<track::detect::ObjectDetectionType_t>::fromStr(cmn::StringLike auto&& str) {
+const track::detect::ObjectDetectionType::Class&
+HasCustomParser<track::detect::ObjectDetectionType::Class>::fromStr(cmn::StringLike auto&& str) {
     using namespace track::detect;
     if(str == "yolo" || str == "yolo8") {
         return ObjectDetectionType::yolo;

@@ -325,7 +325,7 @@ void launch_gui(std::future<void>& f) {
             .source = READ_SETTING(source, file::PathArray),
             .filename = READ_SETTING(filename, file::Path),
             .task = taskType,
-            .type = SETTING(detect_type),
+            .type = READ_SETTING(detect_type, track::detect::ObjectDetectionType_t),
             .quiet = false
         });
         manager.set_active(task_scenes[taskType]);
@@ -343,7 +343,7 @@ void launch_gui(std::future<void>& f) {
                     .source = READ_SETTING(source, file::PathArray),
                     .filename = READ_SETTING(filename, file::Path),
                     .task = TRexTask_t::convert,
-                    .type = SETTING(detect_type),
+                    .type = READ_SETTING(detect_type, track::detect::ObjectDetectionType_t),
                     .source_map = cmd_options
                 });
                 
@@ -352,14 +352,14 @@ void launch_gui(std::future<void>& f) {
                     .source = READ_SETTING(source, file::PathArray),
                     .filename = READ_SETTING(filename, file::Path),
                     .task = TRexTask_t::track,
-                    .type = SETTING(detect_type),
+                    .type = READ_SETTING(detect_type, track::detect::ObjectDetectionType_t),
                     .source_map = cmd_options
                 });
                 
             } else {
                 settings::load(settings::LoadContext{
                     .task = TRexTask_t::none,
-                    .type = SETTING(detect_type),
+                    .type = READ_SETTING(detect_type, track::detect::ObjectDetectionType_t),
                     .quiet = true
                 });
             }
@@ -369,7 +369,7 @@ void launch_gui(std::future<void>& f) {
         else {
             settings::load(settings::LoadContext{
                 .task = TRexTask_t::none,
-                .type = SETTING(detect_type),
+                .type = READ_SETTING(detect_type, track::detect::ObjectDetectionType_t),
                 .quiet = true
             });
             manager.set_active(&start);
@@ -870,7 +870,7 @@ int main(int argc, char**argv) {
             .source = READ_SETTING(source, file::PathArray),
             .filename = READ_SETTING(filename, file::Path),
             .task = task,
-            .type = SETTING(detect_type),
+            .type = READ_SETTING(detect_type, track::detect::ObjectDetectionType_t),
             .source_map = cmd_options,
             .quiet = false
         });

@@ -176,7 +176,7 @@ void YOLO::set_background(const Image::Ptr &image) {
 }
 
 void YOLO::reinit(ModuleProxy& proxy) {
-    proxy.set_variable("model_type", detect::detection_type().toStr());
+    proxy.set_variable("model_type", Meta::toStr(detect::detection_type()));
     
     if(READ_SETTING(detect_model, file::Path).empty()) {
         Print("You can provide a model for object detection using the command-line argument -m <path>. Otherwise, we will assume YOLOv8n-pose");
