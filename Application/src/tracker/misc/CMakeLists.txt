@@ -13,6 +13,8 @@ if(UNIX)
   add_library(tracker_misc STATIC ${SRCS} ${HDRS} ${GIT_SOURCES})
 elseif(WIN32)
   add_library(tracker_misc STATIC ${SRCS} ${HDRS} ${GIT_SOURCES})
+  # add /bigobj flag for windows to avoid "too many sections" error
+  target_compile_options(tracker_misc PRIVATE "/bigobj")
 endif()
 
 if(WITH_FFMPEG)
