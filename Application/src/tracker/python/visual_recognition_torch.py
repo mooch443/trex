@@ -1268,6 +1268,7 @@ def train(model, train_loader, val_loader, criterion, optimizer : torch.optim.Ad
         if callback.stop_training:
             break
         if get_abort_training():
+            TRex.log("Abort requested, stopping training...")
             break
             #raise UserCancelException()
         

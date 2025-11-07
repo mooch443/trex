@@ -45,6 +45,7 @@
 #include <gui/DrawSegmentsElement.h>
 #include <gui/DrawGraph.h>
 #include <gui/ImageDisplayElement.h>
+#include <gui/GraphElement.h>
 #include <ml/UniquenessProvider.h>
 #include <misc/SampleInterpolator.h>
 #include <tracking/PPFrame.h>
@@ -2213,6 +2214,12 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
     
     g.context.custom_elements["image_generator"] = std::unique_ptr<CustomElement>(
         new ImageDisplayElement(&ImageGeneratorRegistry::instance())
+    );
+    
+    g.context.custom_elements["graph"] = std::unique_ptr<CustomElement>(
+        new GraphElement{
+            
+        }
     );
     
     ImageGeneratorRegistry::instance().register_generator("fois",

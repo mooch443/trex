@@ -65,8 +65,8 @@ set_defaults_for(detect::ObjectDetectionType_t detect_type,
                  Float2_t cm_per_pixel)
 {
     std::unordered_set<std::string_view> changed_keys;
-        
-    if(detect_type == detect::ObjectDetectionType::none)
+
+    if(not detect_type)
         detect_type = detect::ObjectDetectionType::yolo;
     
     /// set or default the *detect_type*
@@ -174,9 +174,9 @@ Configuration reset(const cmn::sprite::Map& extra_map, cmn::sprite::Map& output)
     
     if(auto detect_type = combined.at("detect_type");
        not detect_type.valid()
-       || detect_type.value<detect::ObjectDetectionType_t>() == detect::ObjectDetectionType::none)
+       || not detect_type.value<detect::ObjectDetectionType_t>().has_value())
     {
-        combined.values["detect_type"] = detect::ObjectDetectionType::yolo;
+        combined.values["detect_type"] = detect::ObjectDetectionType_t{ detect::ObjectDetectionType::yolo };
     }
     
     set_defaults_for(combined.at("detect_type"), combined.values, {}, combined.at("cm_per_pixel").value<Settings::cm_per_pixel_t>());
@@ -393,7 +393,7 @@ void LoadContext::init_filename() {
         set_config_if_different("output_prefix", source_map);
     }
     
-    if(type != track::detect::ObjectDetectionType::none) {
+    if(type.has_value()) {
         combined.values["detect_type"] = type;
         set_config_if_different("detect_type", combined.values);
     }
@@ -593,7 +593,7 @@ void LoadContext::load_settings_from_source() {
                         /// since there was no other `detect_type` before
                         /// **V_10** and there also was no type parameter to
                         /// query, we set bg subtraction:
-                        tmp["detect_type"] = detect::ObjectDetectionType::background_subtraction;
+                        tmp["detect_type"] = detect::ObjectDetectionType_t{ detect::ObjectDetectionType::background_subtraction };
                         tmp["meta_encoding"] = f.header().encoding;
                     }
                     
@@ -615,7 +615,7 @@ void LoadContext::load_settings_from_source() {
                     /// if we are running a tracking task, we need to use the stuff from the pv file
                     /// if we are in fact running one. otherwise, just set it if we dont have a detect_type
                     /// set anywhere yet.
-                    if(type == track::detect::ObjectDetectionType::none
+                    if(not type.has_value()
                         || task == TRexTask_t::track)
                     {
                         combined.values["detect_type"] = type = tmp.at("detect_type").value<detect::ObjectDetectionType_t>();
@@ -646,7 +646,7 @@ void LoadContext::load_settings_from_source() {
                         /// since there was no other `detect_type` before
                         /// **V_10** and there also was no type parameter to
                         /// query, we set bg subtraction:
-                        tmp["detect_type"] = detect::ObjectDetectionType::background_subtraction;
+                        tmp["detect_type"] = detect::ObjectDetectionType_t{ detect::ObjectDetectionType::background_subtraction };
                         tmp["meta_encoding"] = f.header().encoding;
                     }
                     
@@ -696,7 +696,7 @@ void LoadContext::load_settings_from_source() {
                         }},
                         {"detect_type", [&](auto& map) -> const sprite::PropertyType* {
                             if (tmp.has("detect_type")
-                                && (task == TRexTask_t::track || type == track::detect::ObjectDetectionType::none))
+                                && (task == TRexTask_t::track || not type.has_value()))
                             {
                                 tmp.at("detect_type").get().copy_to(map);
                                 return &map.at("detect_type").get();
@@ -779,7 +779,7 @@ void LoadContext::load_task_defaults() {
     }
     
     {
-        G g(type.toStr() + "-defaults", quiet);
+        G g(Meta::toStr(type) + "-defaults", quiet);
         const sprite::Map values {
             [this](){
                 sprite::Map values;
@@ -1279,7 +1279,7 @@ void load(LoadContext ctx) {
     ctx.estimate_meta_variables();
 
     // Step 12: Ensure a valid 'detect_type'; default to YOLO if still unset.
-    if(ctx.type == detect::ObjectDetectionType::none)
+    if(not ctx.type.has_value())
     {
         /// we need to have some kind of default.
         /// use the new technology first:

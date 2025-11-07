@@ -119,11 +119,6 @@ struct glz::meta<dyn::Align> {
    );
 };
 
-template <>
-struct glz::meta<Vec2> {
-    static constexpr auto value = object(&Vec2::x, &Vec2::y);
-};
-
 struct StructTest {
     uint64_t number;
     std::string text;

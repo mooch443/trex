@@ -11,21 +11,17 @@
 #include <python/TileBuffers.h>
 #include <misc/PrecomuptedDetection.h>
 #include <python/BackgroundSubtraction.h>
+#include <python/NoDetection.h>
 
 namespace track {
 using namespace detect;
 
 Detection::Detection() {
-    switch (detection_type()) {
-    /*case ObjectDetectionType::yolo7:
-        Yolo7ObjectDetection::init();
-        break;
-
-    case ObjectDetectionType::customseg:
-    case ObjectDetectionType::yolo7seg:
-        Yolo7InstanceSegmentation::init();
-        break;*/
-
+    auto detect_type = detection_type();
+    if(not detect_type)
+        return;
+    
+    switch (*detect_type) {
     case ObjectDetectionType::yolo:
         YOLO::init();
         break;
@@ -43,6 +39,9 @@ Detection::Detection() {
         };
         break;
     }
+            
+    case ObjectDetectionType::none:
+        break;
 
     default:
         throw U_EXCEPTION("Unknown detection type: ", detection_type());
@@ -85,29 +84,11 @@ std::future<SegmentationData> Detection::apply(TileImage&& tiled) {
     if(tiled.promise)
         throw U_EXCEPTION("Promise was already created.");
     
-    switch (detection_type()) {
-    /*case ObjectDetectionType::yolo7: {
-        if(tiled.promise)
-            throw U_EXCEPTION("Promise was already created.");
-        tiled.promise = std::make_unique<std::promise<SegmentationData>>();
-        auto f = tiled.promise->get_future();
-        manager().enqueue(std::move(tiled));
-        return f;
-    }
-
-    case ObjectDetectionType::customseg:
-    case ObjectDetectionType::yolo7seg: {
-        std::promise<SegmentationData> p;
-        auto e = Yolo7InstanceSegmentation::apply(std::move(tiled));
-        try {
-            p.set_value(std::move(e.value()));
-        }
-        catch (...) {
-            p.set_exception(std::current_exception());
-        }
-        return p.get_future();
-    }*/
-
+    auto detect_type = detection_type();
+    if(not detect_type)
+        throw RuntimeError("No detect_type was set before Detection::apply.");
+    
+    switch (*detect_type) {
     case ObjectDetectionType::yolo: {
         tiled.promise = std::make_unique<std::promise<SegmentationData>>();
         auto f = tiled.promise->get_future();
@@ -125,6 +106,13 @@ std::future<SegmentationData> Detection::apply(TileImage&& tiled) {
     }
             
     case ObjectDetectionType::precomputed: {
+        tiled.promise = std::make_unique<std::promise<SegmentationData>>();
+        auto f = tiled.promise->get_future();
+        manager().enqueue(std::move(tiled));
+        return f;
+    }
+            
+    case ObjectDetectionType::none: {
         tiled.promise = std::make_unique<std::promise<SegmentationData>>();
         auto f = tiled.promise->get_future();
         manager().enqueue(std::move(tiled));
@@ -151,6 +139,9 @@ void Detection::apply(std::vector<TileImage>&& tiled) {
     } else if(detection_type() == ObjectDetectionType::precomputed) {
         PrecomputedDetection::apply(std::move(tiled));
         return;
+    } else if(detection_type() == ObjectDetectionType::none) {
+        NoDetection::apply(std::move(tiled));
+        return;
     }
 
     throw U_EXCEPTION("Unknown detection type: ", detection_type());
@@ -161,6 +152,7 @@ PipelineManager<TileImage, true>& Detection::manager() {
         return BackgroundSubtraction::manager();
     } else if(detection_type() == ObjectDetectionType::precomputed) {
         return PrecomputedDetection::manager();
+        
     } else {
         static auto instance = PipelineManager<TileImage, true>(max(1u, READ_SETTING(detect_batch_size, uchar)), [](std::vector<TileImage>&& images) {
             // do what has to be done when the queue is full

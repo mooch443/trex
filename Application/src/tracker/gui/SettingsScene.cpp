@@ -485,7 +485,8 @@ struct SettingsScene::Data {
                                 defaults_with_config = std::move(defaults_with_config)
                             ] (auto,DrawStructure& graph) {
                                 using namespace track;
-                                if (READ_SETTING(detect_type, detect::ObjectDetectionType_t) == detect::ObjectDetectionType::yolo) 
+                                if (auto detect_type = READ_SETTING(detect_type, detect::ObjectDetectionType_t);
+                                    detect_type && *detect_type == detect::ObjectDetectionType::yolo)
                                 {
                                     auto path = READ_SETTING(detect_model, file::Path);
                                     if (track::detect::yolo::valid_model(path))
@@ -607,7 +608,7 @@ struct SettingsScene::Data {
                                 .source = array,
                                 .filename = SETTING(filename),
                                 .task = default_config::TRexTask_t::track,
-                                .type = track::detect::ObjectDetectionType::none,
+                                .type = {},
                                 .source_map = copy,
                                 .quiet = true
                             });
@@ -1028,7 +1029,7 @@ void SettingsScene::Data::load_video_settings(const file::PathArray& source) {
                 .source = source,
                 .filename = *filename,
                 .task = default_config::TRexTask_t::convert,
-                .type = track::detect::ObjectDetectionType::none,
+                .type = {},
                 .exclude_parameters = exclude
             });
         }
@@ -1064,7 +1065,7 @@ void SettingsScene::Data::load_video_settings(const file::PathArray& source) {
             }
             
             promote["filename"] = source_path;
-            auto detect_type = track::detect::ObjectDetectionType::none;
+            track::detect::ObjectDetectionType_t detect_type;
             if(map.has("detect_type")) {
                 map.at("detect_type").get().copy_to(promote);
                 detect_type = map.at("detect_type").value<track::detect::ObjectDetectionType_t>();

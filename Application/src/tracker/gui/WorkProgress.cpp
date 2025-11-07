@@ -277,6 +277,7 @@ std::future<void> WorkProgress::add_queue(const std::string& message, const std:
 
 void WorkProgress::abort_item() {
     work::check([&](){
+        Print("Work item abort requested.");
         _item_aborted = true;
     });
 }

@@ -398,7 +398,10 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                                 cnpy::npz_save(use_path.str(), "cm_per_pixel", std::vector<double>{FAST_SETTING(cm_per_pixel)}, "a");
                                 cnpy::npz_save(use_path.str(), "id", std::vector<size_t>{fish->identity().ID().get()}, "a");
                                 cnpy::npz_save(use_path.str(), "frame_rate", std::vector<double>{(double)FAST_SETTING(frame_rate)}, "a");
-                                cnpy::npz_save(use_path.str(), "detect_type", std::vector<uint32_t>{(uint32_t)READ_SETTING(detect_type, track::detect::ObjectDetectionType_t)}, "a");
+                                auto detect_type = READ_SETTING(detect_type, track::detect::ObjectDetectionType_t);
+                                
+                                uint32_t detect_type_index = detect_type.has_value() ? (uint32_t)*detect_type : 0u;
+                                cnpy::npz_save(use_path.str(), "detect_type", std::vector<uint32_t>{detect_type_index}, "a");
                                 cnpy::npz_save(use_path.str(), "detect_format", std::vector<uint32_t>{(uint32_t)READ_SETTING(detect_format, track::detect::ObjectDetectionFormat_t)}, "a");
                                 auto video_size = READ_SETTING(video_size, Size2);
                                 cnpy::npz_save(use_path.str(), "video_size", std::vector<double>{

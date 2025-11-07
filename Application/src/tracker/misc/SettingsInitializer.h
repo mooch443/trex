@@ -19,7 +19,7 @@ struct LoadContext {
     file::PathArray source;
     file::Path filename;
     default_config::TRexTask task{default_config::TRexTask_t::none};
-    track::detect::ObjectDetectionType_t type{track::detect::ObjectDetectionType::none};
+    track::detect::ObjectDetectionType_t type;
     ExtendableVector exclude_parameters;
     cmn::sprite::Map source_map;
     bool quiet{false};

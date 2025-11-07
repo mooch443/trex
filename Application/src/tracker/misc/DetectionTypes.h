@@ -20,7 +20,7 @@ namespace track::detect {
 ENUM_CLASS(ObjectDetectionType, none, yolo, background_subtraction, precomputed);
 ENUM_CLASS(ObjectDetectionFormat, none, boxes, masks, poses, obb, points);
 
-using ObjectDetectionType_t = ObjectDetectionType::Class;
+using ObjectDetectionType_t = std::optional<ObjectDetectionType::Class>;
 using ObjectDetectionFormat_t = ObjectDetectionFormat::Class;
 
 struct PredictionFilter {

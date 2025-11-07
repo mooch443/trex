@@ -18,6 +18,7 @@ struct PrecomputedDetection::Data {
     gpuMat _gpu;
     gpuMat _float_average;
     std::optional<Background> _background;
+    ProtectedProperty<std::optional<float>> _precompute_percent;
     
     std::optional<std::future<std::expected<PrecomputedDetectionCache, std::string>>> _frame_data_loader;
     
@@ -196,6 +197,8 @@ void PrecomputedDetectionCache::buildCache(const file::Path& csv_path, const fil
     auto header1 = reader1.header();
     std::optional<size_t> x_idx, y_idx, w_idx, h_idx, frame_idx;
     std::optional<std::string_view> x_name, y_name, w_name, h_name, frame_name;
+    
+    PrecomputedDetection::data()._precompute_percent.set(float(0));
     
     for(size_t i=0; i < header1.size(); ++i) {
         auto &name = header1[i];
@@ -428,6 +431,7 @@ void PrecomputedDetectionCache::buildCache(const file::Path& csv_path, const fil
 
         if (--remaining[f] == 0) {
             remaining.erase(f);
+            PrecomputedDetection::data()._precompute_percent.set( float(double(i) / double(num_rows) * 100));
             bar.set_progress(double(i) / double(num_rows) * 100);
         }
     }
@@ -436,6 +440,7 @@ void PrecomputedDetectionCache::buildCache(const file::Path& csv_path, const fil
     bar.set_progress(100);
     bar.mark_as_completed();
     ind::show_console_cursor(true);
+    PrecomputedDetection::data()._precompute_percent.set(std::optional<float>{});
 }
 
 PipelineManager<TileImage, true>& PrecomputedDetection::manager() {
@@ -512,6 +517,10 @@ void PrecomputedDetection::set_background(Image::Ptr && average, meta_encoding_t
     data().set(std::move(average), meta_encoding);
     if(data().has_background())
         manager().set_paused(false);
+}
+
+std::optional<float> PrecomputedDetection::precomputing() {
+    return {};
 }
 
 void PrecomputedDetection::Data::set(Image::Ptr&& average, meta_encoding_t::Class meta_encoding) {
