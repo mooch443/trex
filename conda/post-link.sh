@@ -194,7 +194,11 @@ PY
 fi
 
 log "Testing installation..."
-if run_with_reporting python -c "from ultralytics import YOLO; import numpy as np; YOLO('yolo11n.yaml').to('cpu').predict(np.zeros((640, 480, 3), dtype=np.uint8))"; then
+
+CMD_STRING="from ultralytics import YOLO; import numpy as np; YOLO('yolo11n.yaml').to('cpu').predict(np.zeros((640, 480, 3), dtype=np.uint8))"
+log_command python -c "${CMD_STRING}"
+
+if run_with_reporting python -c "${CMD_STRING}"; then
     log "[post-link] YOLO smoke test succeeded."
 else
     record_failure "[post-link] YOLO smoke test failed (exit ${LAST_COMMAND_STATUS})."
