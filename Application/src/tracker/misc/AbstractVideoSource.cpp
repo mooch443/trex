@@ -41,7 +41,10 @@ void AbstractBaseVideoSource::move_back(useMatPtr_t&& ptr) {
        || ptr->cols != _info.size.width)
     {
 #ifndef NDEBUG
-        FormatWarning("Incompatible dimensions: ", Size2(*ptr), " vs ", _info.size);
+        if(ptr)
+            FormatWarning("Incompatible dimensions: ", Size2(*ptr), " vs ", _info.size);
+        else
+            FormatWarning("Incompatible dimensions: null ptr vs ", _info.size);
 #endif
         return;
     }

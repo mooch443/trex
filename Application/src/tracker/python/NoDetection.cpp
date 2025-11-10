@@ -23,8 +23,10 @@ void NoDetection::apply(std::vector<TileImage> &&tiled)
         SegmentationData data = std::move(tile.data);
         data.frame.set_encoding(encoding);
         
-        tile.promise->set_value(std::move(data));
-        tile.promise = nullptr;
+        if (tile.promise) {
+            tile.promise->set_value(std::move(data));
+            tile.promise = nullptr;
+        }
         
         try {
             if(tile.callback)

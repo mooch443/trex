@@ -91,7 +91,7 @@ PrecomputedDetectionCache::PrecomputedDetectionCache(const file::Path& csv_path)
     bool needs_rebuild = true;
     if (_cache_path.exists()) {
         // open header to check hash
-        const auto individual_image_size = READ_SETTING(individual_image_size, Size2);
+        const auto individual_image_size = READ_SETTING_WITH_DEFAULT(individual_image_size, Size2(80,80));
         try {
             cmn::DataFormat tmp(_cache_path);
             tmp.start_reading();
@@ -110,7 +110,11 @@ PrecomputedDetectionCache::PrecomputedDetectionCache(const file::Path& csv_path)
             }
             
             tmp.close();
-            if (std::memcmp(hdr.magic.parts.tag,"PDC",3)==0
+            
+            // Reject newer cache versions here to force rebuild rather than crash later.
+            if (hdr.magic.parts.ver > current_version) {
+                needs_rebuild = true;
+            } else if (std::memcmp(hdr.magic.parts.tag,"PDC",3)==0
                 //&& hdr.magic.parts.ver == current_version
                 && hdr.file_hash==csv_hash
                 && hdr.crop_width == individual_image_size.width

@@ -10,6 +10,7 @@
 #include <misc/Border.h>
 #include <misc/TrackingSettings.h>
 #include <pv.h>
+#include <misc/CropOffsets.h>
 
 #ifndef WIN32
 #include <unistd.h>
