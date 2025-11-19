@@ -438,7 +438,7 @@ void draw(const Background* average, const PPFrame& pp,Frame_t frame, DrawStruct
            && f->representative()->hovered())
         {
             preview_data().tooltip.set_other(f->representative());
-            preview_data().tooltip.set_parameter(k);
+            preview_data().tooltip.set_parameter(TooltipData{std::string(k)});
             graph.wrap_object(preview_data().tooltip);
             break;
         }
