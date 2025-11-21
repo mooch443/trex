@@ -185,7 +185,7 @@ for MODE in ${MODES}; do
 
     if ! { ${CMD} 2>&1; } > "${PWD}/trex.log"; then
         cat "${PWD}/trex.log"
-        echo "TRex could not be executed."
+        echo -e "\n\nTRex could not be executed."
         exit_code=1
     else
         echo "  Scanning files..."

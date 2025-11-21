@@ -94,10 +94,62 @@ jobs:
         pvinfo -opencv_ffmpeg_support
         pvinfo -opencv_opencl_support
         echo "::endgroup::"
+    - name: TestFunctions
+      continue-on-error: true
+      shell: bash -l {0}
+      working-directory: ${{github.workspace}}
+      run: |
         echo "::group::TestFunctions"
         cd $GITHUB_WORKSPACE/Application/Tests
         ./run_unix.bash
+        TEST_EC=$?
+        echo "TEST_EXIT_CODE=$TEST_EC" >> $GITHUB_ENV
         echo "::endgroup::"
+        exit 0
+    - name: DLL dependency diagnostics (Dependencies.exe)
+      if: env.TEST_EXIT_CODE != '0'
+      shell: bash -l {0}
+      working-directory: ${{github.workspace}}
+      run: |
+        echo "::group::DLL diagnostics"
+
+        # grab portable Dependencies tool
+        curl -L -o deps.zip \
+          https://github.com/lucasg/Dependencies/releases/download/v1.11.1/Dependencies_x64_Release.zip
+        unzip -q deps.zip -d deps
+        DEPS="$PWD/deps/Dependencies.exe"
+
+        echo "CONDA_PREFIX=$CONDA_PREFIX"
+
+        # find likely binaries from the test env
+        EXES=()
+        if command -v pvinfo >/dev/null 2>&1; then EXES+=("$(which pvinfo)"); fi
+        if command -v trex   >/dev/null 2>&1; then EXES+=("$(which trex)"); fi
+
+        # scan each exe
+        for exe in "${EXES[@]}"; do
+          echo "=== Dependencies scan for: $exe ==="
+          "$DEPS" -modules "$exe" || true
+          echo ""
+        done
+
+        # also scan any .pyd in site-packages (DLL-load failures on import)
+        PYD_DIR="$CONDA_PREFIX/Lib/site-packages"
+        if [ -d "$PYD_DIR" ]; then
+          echo "=== Scanning .pyd files under $PYD_DIR ==="
+          find "$PYD_DIR" -name "*.pyd" -maxdepth 3 2>/dev/null | head -n 20 | while read -r pyd; do
+            echo "--- $pyd ---"
+            "$DEPS" -modules "$pyd" || true
+          done
+        fi
+
+        echo "::endgroup::"
+    - name: Fail if tests failed
+      if: env.TEST_EXIT_CODE != '0'
+      shell: bash -l {0}
+      run: |
+        echo "Tests failed with exit code $TEST_EXIT_CODE"
+        exit $TEST_EXIT_CODE
     - name: Upload failure artifacts (.csv, .npz, .results, .pv, logs, html, post-link logs)
       if: failure()
       uses: actions/upload-artifact@v4
@@ -111,6 +163,7 @@ jobs:
           ${{ github.workspace }}/videos/**/*.results
           ${{ github.workspace }}/videos/**/*.pv
           ${{ github.workspace }}/**/.messages.txt
+          ${{ github.workspace }}/**/deps-scan.txt
         if-no-files-found: ignore
         retention-days: 7
         compression-level: 9
