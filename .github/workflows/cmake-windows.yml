@@ -101,6 +101,7 @@ jobs:
       run: |
         echo "::group::TestFunctions"
         cd $GITHUB_WORKSPACE/Application/Tests
+        conda activate test
         ./run_unix.bash
         TEST_EC=$?
         echo "TEST_EXIT_CODE=$TEST_EC" >> $GITHUB_ENV
@@ -112,7 +113,8 @@ jobs:
       working-directory: ${{github.workspace}}
       run: |
         echo "::group::DLL diagnostics"
-
+        conda activate test
+        
         # grab portable Dependencies tool
         curl -L -o deps.zip \
           https://github.com/lucasg/Dependencies/releases/download/v1.11.1/Dependencies_x64_Release.zip
