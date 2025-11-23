@@ -32,6 +32,12 @@ jobs:
         sudo xcode-select -s $(dirname $(dirname $(dirname $(dirname $(dirname $SDKROOT)))))
         echo "Xcode version selected:"
         xcodebuild -version
+    - name: Compute env file hash (workaround for macos hashFiles bug)
+      id: envhash
+      shell: bash
+      run: |
+        h=$(shasum -a 256 .github/macos-environment-arm64.yml | awk '{print $1}')
+        echo "hash=$h" >> "$GITHUB_OUTPUT"
     - name: Cache conda
       uses: actions/cache@v4
       env:
@@ -39,11 +45,11 @@ jobs:
         CACHE_NUMBER: 1
       with:
         path: ~/conda_pkgs_dir
-        key: ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{ hashFiles('.github/macos-environment-arm64.yml') }}
+        key: ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{ steps.envhash.outputs.hash }}
     - uses: conda-incubator/setup-miniconda@v3
       with:
         miniforge-version: latest
-        environment-file: .github/macos-environment.yml
+        environment-file: .github/macos-environment-arm64.yml
         activate-environment: tracking
         python-version: ${{ matrix.python-version }}
         channels: conda-forge
