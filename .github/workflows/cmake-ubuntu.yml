@@ -60,6 +60,8 @@ jobs:
         echo "::endgroup::"
         echo "::group::Build"
         conda update --all --override-channels -c conda-forge -y
+        conda clean -a -y
+        pip cache purge -v --no-input
         conda build . --override-channels -c conda-forge
         echo "::endgroup::"
         echo $CONDA_PREFIX
@@ -70,6 +72,7 @@ jobs:
         echo "::group::Test"
         echo $CONDA_PREFIX
         conda create -y -n test --override-channels -c $CONDA_PREFIX/conda-bld/ -c conda-forge trex
+        pip cache purge -v --no-input
         conda activate test
         pvinfo -opencv_ffmpeg_support
         pvinfo -opencv_opencl_support
