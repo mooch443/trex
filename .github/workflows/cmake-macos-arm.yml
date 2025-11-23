@@ -20,7 +20,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ["macos-15"]
+        os: ["macos-26"]
         python-version: ["3.11"]
     steps:
     - uses: actions/checkout@v4
@@ -39,7 +39,7 @@ jobs:
         CACHE_NUMBER: 1
       with:
         path: ~/conda_pkgs_dir
-        key: ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{ hashFiles('/.github/macos-environment-arm64.yml') }}
+        key: ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{ hashFiles('.github/macos-environment-arm64.yml') }}
     - uses: conda-incubator/setup-miniconda@v3
       with:
         miniforge-version: latest
