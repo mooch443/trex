@@ -123,10 +123,10 @@ target_link_libraries(test_threadpool PUBLIC
         pv)
 
 target_link_libraries(test_tiling PUBLIC
-        tracker_python
         tracker_misc
         commons
-        pv)
+        pv
+        tracker_python)
 
 set_target_properties(test_matching PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 set_target_properties(test_strings PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
