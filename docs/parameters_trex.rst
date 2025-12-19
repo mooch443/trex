@@ -665,6 +665,14 @@ TRex parameters
 	Intersection-over-union threshold used when merging predictions created on overlapping tiles. Lower values keep more duplicates; higher values collapse more boxes into a single detection.
 
 
+.. function:: detect_tile_merge_containment(float)
+
+	**default value:** 0.9
+
+
+	Containment threshold that drops smaller boxes largely overlapped by a neighbouring tile (ratio of intersection area to the smaller box). Helps remove cut-in-half detections right on tile seams.
+
+
 .. function:: detect_type(ObjectDetectionType)
 
 	**default value:** none
@@ -3258,4 +3266,3 @@ TRex parameters
 
 
 	If set to true, the program will try to use yolov8s internal tracking routine to improve results. This can be significantly slower and disables batching.
-

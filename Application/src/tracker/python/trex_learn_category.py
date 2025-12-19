@@ -9,6 +9,7 @@ import numpy as np
 import cv2
 import TRex
 import psutil
+from contextlib import nullcontext
 
 from trex_utils import clear_caches
 
@@ -58,6 +59,7 @@ class Categorize:
         self.samples = []
         self.labels = []
         self.validation_indexes = np.array([], dtype=int)
+        self.eval_batch_size = 32
 
         TRex.log("# image dimensions: "+str(self.width)+"x"+str(self.height))
         TRex.log("# initializing categories "+str(categories))
@@ -123,12 +125,27 @@ class Categorize:
         self.model = PyTorchModel(input_shape, len(self.categories))
         self.model = self.model.float()  # Ensure model is using float
         self.device = TRex.choose_device()
+        self.device_type = str(self.device).split(":")[0]
         self.model = self.model.to(self.device)
         TRex.log("Using device: " + str(self.device))
         self.optimizer = optim.Adam(self.model.parameters(), lr=0.0001)
         self.criterion = nn.CrossEntropyLoss()
+        self.scaler = None
+        if self.device_type == "cuda":
+            try:
+                self.scaler = torch.cuda.amp.GradScaler()
+            except AttributeError:
+                self.scaler = None
 
         TRex.log(str(self.model))
+
+    def _autocast(self):
+        if self.device_type in ("cuda", "mps"):
+            try:
+                return torch.autocast(device_type=self.device_type, dtype=torch.float16)
+            except (AttributeError, TypeError, RuntimeError, ValueError):
+                return nullcontext()
+        return nullcontext()
 
     def send_samples(self):
         TRex.log("# sending "+str(len(self.samples))+" samples")
@@ -184,10 +201,10 @@ class Categorize:
             npz = torch.load(self.output_file, weights_only=False)
             if "samples" in npz:
                 # Handle reshaping if data is in a different shape
-                if len(np.array(npz["samples"]).shape) == 3:
-                    shape = np.shape(npz["samples"])
-                    npz["samples"] = np.array(npz["samples"]).reshape((shape[0], shape[1], shape[2], 1))
                 shape = np.shape(npz["samples"])
+                if len(shape) == 3:
+                    npz["samples"] = np.asarray(npz["samples"]).reshape((shape[0], shape[1], shape[2], 1))
+                    shape = np.shape(npz["samples"])
 
                 if shape[1] != self.height or shape[2] != self.width or shape[3] != self.channels:
                     TRex.warn("# loading of weights failed since resolutions differed: " +
@@ -246,15 +263,10 @@ class Categorize:
                 X_test = torch.tensor(X[self.validation_indexes], dtype=torch.float32) / 127.5 - 1
                 Y_test = torch.tensor(Y[self.validation_indexes], dtype=torch.long)
                 X_test = X_test.permute(0, 3, 1, 2)  # Change to (batch_size, channels, height, width)
-                X_test = X_test.to(self.device)
-                Y_test = Y_test.to(self.device)
 
                 self.model.eval()
-                with torch.no_grad():
-                    outputs = self.model(X_test)
-                    loss = self.criterion(outputs, Y_test)
-                    TRex.log(f"# Evaluation loss: {loss.item()}")
-                    self.update_best_accuracy(X_test, Y_test)
+                loss = self.update_best_accuracy(X_test, Y_test, self.eval_batch_size)
+                TRex.log(f"# Evaluation loss: {loss}")
             else:
                 TRex.log("# no data available for evaluation")
 
@@ -308,23 +320,24 @@ class Categorize:
                 inputs, labels = inputs.float(), labels.long()
 
                 self.optimizer.zero_grad()
-                outputs = self.model(inputs)
-                loss = self.criterion(outputs, labels)
-                loss.backward()
-                self.optimizer.step()
+                with self._autocast():
+                    outputs = self.model(inputs)
+                    loss = self.criterion(outputs, labels)
+                if self.scaler:
+                    self.scaler.scale(loss).backward()
+                    self.scaler.step(self.optimizer)
+                    self.scaler.update()
+                else:
+                    loss.backward()
+                    self.optimizer.step()
 
                 running_loss += loss.item()
 
             TRex.log(f"Epoch {epoch+1}, Loss: {running_loss/len(train_loader)}")
 
         self.model.eval()
-        with torch.no_grad():
-            X_test = X_test.to(self.device)
-            Y_test = Y_test.to(self.device)
-            outputs = self.model(X_test)
-            loss = self.criterion(outputs, Y_test)
-            TRex.log(f"# Final validation loss: {loss.item()}")
-            self.update_best_accuracy(X_test, Y_test)
+        loss = self.update_best_accuracy(X_test, Y_test, self.eval_batch_size)
+        TRex.log(f"# Final validation loss: {loss}")
 
         try:
             torch.save({
@@ -340,25 +353,42 @@ class Categorize:
         except Exception as e:
             TRex.log("Saving weights and samples failed: "+str(e))
 
-    def update_best_accuracy(self, X_test, Y_test):
+    def _predict_labels_and_loss(self, X_test, Y_test, batch_size):
+        total_loss = 0.0
+        total_count = 0
+        preds = []
         with torch.no_grad():
-            TRex.log("# evaluating model...")
-            TRex.log("# X_test: "+str(X_test.shape)+" Y_test: "+str(Y_test.shape))
-            TRex.log("#ytest/class: "+str(np.unique(Y_test.cpu().numpy(), return_counts=True)))
+            for i in range(0, len(X_test), batch_size):
+                batch_x = X_test[i:i + batch_size].to(self.device)
+                batch_y = Y_test[i:i + batch_size].to(self.device)
+                with self._autocast():
+                    logits = self.model(batch_x)
+                    loss = self.criterion(logits, batch_y)
+                total_loss += loss.item() * batch_x.size(0)
+                total_count += batch_x.size(0)
+                batch_preds = torch.softmax(logits, dim=1).argmax(dim=1)
+                preds.append(batch_preds.cpu())
+        avg_loss = total_loss / max(total_count, 1)
+        y_pred = torch.cat(preds, dim=0) if preds else torch.tensor([], dtype=torch.long)
+        return y_pred, avg_loss
 
-            y_pred = self.model(X_test)
-            softmax = nn.Softmax(dim=1)
-            y_pred = softmax(self.model(X_test)).argmax(dim=1)
+    def update_best_accuracy(self, X_test, Y_test, batch_size):
+        TRex.log("# evaluating model...")
+        TRex.log("# X_test: "+str(X_test.shape)+" Y_test: "+str(Y_test.shape))
+        TRex.log("#ytest/class: "+str(np.unique(Y_test.cpu().numpy(), return_counts=True)))
 
-            #TRex.log("# y_pred: "+str(y_pred.shape)+" y_pred:"+str(y_pred))
-            TRex.log("#ypred/class: "+str(np.unique(y_pred.cpu().numpy(), return_counts=True)))
+        y_pred, avg_loss = self._predict_labels_and_loss(X_test, Y_test, batch_size)
 
-            report = classification_report(Y_test.cpu().numpy(), y_pred.cpu().numpy(), output_dict=True, zero_division=0)
+        #TRex.log("# y_pred: "+str(y_pred.shape)+" y_pred:"+str(y_pred))
+        TRex.log("#ypred/class: "+str(np.unique(y_pred.cpu().numpy(), return_counts=True)))
+
+        report = classification_report(Y_test.cpu().numpy(), y_pred.cpu().numpy(), output_dict=True, zero_division=0)
 
         for key in report:
             TRex.log("report: "+str(key)+" "+str(report[key]))
         TRex.log(str(report))
         set_best_accuracy(float(report["accuracy"]))
+        return avg_loss
 
     def update(self):
         if self.update_required:
@@ -367,15 +397,15 @@ class Categorize:
 
     def predict(self, images):
         assert self.model
-        images = torch.tensor(np.array(images), dtype=torch.float32) / 127.5 - 1
-        images = images.permute(0, 3, 1, 2)  # Change to (batch_size, channels, height, width)
+        if len(images) == 0:
+            return []
 
         # these images might be too big for the gpu.
         # we need to find the maximum number of images that fit into the gpu memory at the same time (or let's say 50% of gpu memory)
         # and then split the images into batches:
 
         gpu_mem = 0.0
-        device = self.device.split(":")[0]
+        device = self.device_type
         if device == 'cuda':
             gpu_mem = torch.cuda.get_device_properties(self.device).total_memory
         elif device == 'mps' or device == 'cpu':
@@ -391,24 +421,26 @@ class Categorize:
         max_images = int(gpu_mem / (self.width * self.height * 3 * 8))
         TRex.log(f"# maximum images that can be processed at the same time on {device}: {max_images} in {gpu_mem} memory")
 
+        if max_images < 1:
+            max_images = 1
+
         if max_images > 1 and len(images) > max_images:
             TRex.log(f"# splitting images into batches of {max_images} images")
-            results = []
-            for i in range(0, len(images), max_images):
-                batch_images = images[i:i + max_images]
-                batch_images = batch_images.to(self.device)
-                with torch.no_grad():
-                    y = self.model(batch_images)
-                    y = nn.Softmax(dim=1)(y).argmax(dim=1).cpu().numpy().tolist()
-                    results.extend(y)
-            return results
         else:
             TRex.log(f"# processing all {len(images)} images")
-            images = images.to(self.device)
+            max_images = len(images)
+
+        results = []
+        for i in range(0, len(images), max_images):
+            batch_images = torch.tensor(np.array(images[i:i + max_images]), dtype=torch.float32) / 127.5 - 1
+            batch_images = batch_images.permute(0, 3, 1, 2)  # Change to (batch_size, channels, height, width)
+            batch_images = batch_images.to(self.device)
             with torch.no_grad():
-                y = self.model(images)
-                y = nn.Softmax(dim=1)(y).argmax(dim=1).cpu().numpy().tolist()
-            return y
+                with self._autocast():
+                    y = self.model(batch_images)
+                y = torch.softmax(y, dim=1).argmax(dim=1).cpu().numpy().tolist()
+                results.extend(y)
+        return results
 
 
 def start():
