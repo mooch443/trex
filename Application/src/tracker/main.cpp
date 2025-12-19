@@ -491,7 +491,11 @@ void init_signals() {
 #if !defined(WIN32) && !defined(__EMSCRIPTEN__)
     sigact.sa_handler = signal_handler;
     sigemptyset(&sigact.sa_mask);
+#if defined(SV_INTERRUPT)
     sigact.sa_flags = SV_INTERRUPT;
+#else
+    sigact.sa_flags = 0; // fallback when no portable flag exists
+#endif
     sigaction(SIGINT, &sigact, (struct sigaction *)NULL);
     
     sigaddset(&sigact.sa_mask, SIGSEGV);

@@ -17,7 +17,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ["ubuntu-22.04"]
+        os: ["ubuntu-24.04"]
         solver: ["classic"]
         python-version: ["3.11"]
     steps:
@@ -42,6 +42,10 @@ jobs:
         channels: conda-forge
         auto-activate-base: true
         auto-update-conda: true
+    - name: Free up disk space
+      run: |
+        sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc || true
+        sudo apt-get clean
     - name: Build
       shell: bash -l {0}
       working-directory: ${{github.workspace}}
@@ -60,6 +64,8 @@ jobs:
         echo "::endgroup::"
         echo "::group::Build"
         conda update --all --override-channels -c conda-forge -y
+        conda clean -a -y
+        pip cache purge -v --no-input
         conda build . --override-channels -c conda-forge
         echo "::endgroup::"
         echo $CONDA_PREFIX
@@ -70,6 +76,7 @@ jobs:
         echo "::group::Test"
         echo $CONDA_PREFIX
         conda create -y -n test --override-channels -c $CONDA_PREFIX/conda-bld/ -c conda-forge trex
+        pip cache purge -v --no-input
         conda activate test
         pvinfo -opencv_ffmpeg_support
         pvinfo -opencv_opencl_support

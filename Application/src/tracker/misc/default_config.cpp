@@ -714,7 +714,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         
         CONFIG("meta_encoding", meta_encoding_t::rgb8, "The encoding used for the given .pv video.");
         CONFIG("detect_classes", cmn::blob::MaybeObjectClass_t{}, "Class names for object classification in video during conversion.");
-        CONFIG("detect_skeleton", std::optional<blob::Pose::Skeletons>{}, "Skeleton to be used when displaying pose data. This is an optional map from classnames to ", PUBLIC, std::optional<std::optional<blob::Pose::Skeletons>>{std::optional<blob::Pose::Skeletons>{
+        CONFIG("detect_skeleton", std::optional<blob::Pose::Skeletons>{}, "Skeletons to be used when displaying pose data. It maps class names (from `detect_classes`) to skeletons (e.g. `{'shark':[[1,2]], ...}`). Each skeleton is an array of pairs `[<joint_id_1>,<joint_id_2>]`.", PUBLIC, std::optional<std::optional<blob::Pose::Skeletons>>{std::optional<blob::Pose::Skeletons>{
             blob::Pose::Skeletons{
                 ._skeletons = {{"human", std::vector<blob::Pose::Skeleton::Connection>{
                     {0, 1, "Nose to Left Eye"},
