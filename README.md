@@ -12,13 +12,7 @@
 
 *Documentation: https://trex.run/docs*
 *YouTube: https://youtube.com/@TRexTracker*
-
-# Licensing (Free + Commercial)
-
-TRex is free to use under the GNU AGPL v3+.
-**Companies:** Company use requires a paid commercial license.
-Contact us to discuss pricing: a&#64;trex.run.
-More details in `LICENSING.md`.
+*License: AGPL v3+ (free). Companies: paid commercial license. Contact: a&#64;trex.run. Details: `LICENSING.md`.*
 
 # Hey there
 
