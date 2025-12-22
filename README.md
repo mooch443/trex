@@ -13,6 +13,13 @@
 *Documentation: https://trex.run/docs*
 *YouTube: https://youtube.com/@TRexTracker*
 
+# Licensing (Free + Commercial)
+
+TRex is free to use under the GNU AGPL v3+.
+**Companies:** Company use requires a paid commercial license.
+Contact us to discuss pricing: a&#64;trex.run.
+More details in `LICENSING.md`.
+
 # Hey there
 
 Welcome to the git repository of **TRex** (https://trex.run) -- a software designed to track and identify individuals and other moving entities using computer vision and machine learning.
@@ -70,8 +77,8 @@ Significant contributions by:
 # License
 
 Released under the GNU Affero General Public License v3.0 or later (see
-[LICENSE](https://github.com/mooch443/trex/blob/main/LICENSE)). The
-`Application/src/commons` subtree continues to ship under the GNU General
+[LICENSE](https://github.com/mooch443/trex/blob/main/LICENSE) and `LICENSING.md`).
+The `Application/src/commons` subtree continues to ship under the GNU General
 Public License v3.0 (see `Application/src/commons/LICENSE` for details).
 
 # Reference
