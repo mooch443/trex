@@ -5,8 +5,8 @@
 [![CondaBuildMacOSARM64](https://github.com/mooch443/trex/actions/workflows/cmake-macos-arm.yml/badge.svg?branch=main)](https://github.com/mooch443/trex/actions/workflows/cmake-macos-arm.yml)
 [![CondaBuildWindows](https://github.com/mooch443/trex/actions/workflows/cmake-windows.yml/badge.svg?branch=main)](https://github.com/mooch443/trex/actions/workflows/cmake-windows.yml)
 
-:book: [Docs](https://trex.run/docs) | :tv: [YouTube](https://youtube.com/@TRexTracker) | :scroll: [License](LICENSING.md)
-AGPL v3+ (free). :office: Company use: paid commercial license. :envelope: a&#64;trex.run.
+:book: [Docs](https://trex.run/docs) | :tv: [YouTube](https://youtube.com/@TRexTracker) | :envelope: a&#64;trex.run | :scroll: [License](LICENSING.md)
+AGPL v3+ (free). :office: Companies: paid commercial license.
 
 # Hey there
 
