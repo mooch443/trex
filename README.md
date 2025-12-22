@@ -10,9 +10,8 @@
 [![CondaBuildMacOS](https://github.com/mooch443/trex/actions/workflows/cmake-macos.yml/badge.svg?branch=dev)](https://github.com/mooch443/trex/actions/workflows/cmake-macos.yml)
 [![CondaBuildWindows](https://github.com/mooch443/trex/actions/workflows/cmake-windows.yml/badge.svg?branch=dev)](https://github.com/mooch443/trex/actions/workflows/cmake-windows.yml)
 
-*Documentation: https://trex.run/docs*
-*YouTube: https://youtube.com/@TRexTracker*
-*License: AGPL v3+ (free). Companies: paid commercial license. Contact: a&#64;trex.run. Details: `LICENSING.md`.*
+:book: [Docs](https://trex.run/docs) | :tv: [YouTube](https://youtube.com/@TRexTracker) | :scroll: [License](LICENSING.md)
+AGPL v3+ (free). Company use: paid commercial license. Contact: a&#64;trex.run.
 
 # Hey there
 
@@ -71,7 +70,8 @@ Significant contributions by:
 # License
 
 Released under the GNU Affero General Public License v3.0 or later (see
-[LICENSE](https://github.com/mooch443/trex/blob/main/LICENSE) and `LICENSING.md`).
+[LICENSE](https://github.com/mooch443/trex/blob/main/LICENSE) and
+[LICENSING.md](LICENSING.md)).
 The `Application/src/commons` subtree continues to ship under the GNU General
 Public License v3.0 (see `Application/src/commons/LICENSE` for details).
 
