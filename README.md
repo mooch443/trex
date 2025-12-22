@@ -2,16 +2,11 @@
 
 `main`
 [![CondaBuildLinux](https://github.com/mooch443/trex/actions/workflows/cmake-ubuntu.yml/badge.svg?branch=main)](https://github.com/mooch443/trex/actions/workflows/cmake-ubuntu.yml)
-[![CondaBuildMacOS](https://github.com/mooch443/trex/actions/workflows/cmake-macos.yml/badge.svg?branch=main)](https://github.com/mooch443/trex/actions/workflows/cmake-macos.yml)
+[![CondaBuildMacOSARM64](https://github.com/mooch443/trex/actions/workflows/cmake-macos-arm#.yml/badge.svg?branch=main)](https://github.com/mooch443/trex/actions/workflows/cmake-macos-arm.yml)
 [![CondaBuildWindows](https://github.com/mooch443/trex/actions/workflows/cmake-windows.yml/badge.svg?branch=main)](https://github.com/mooch443/trex/actions/workflows/cmake-windows.yml)
 
-`dev`
-[![CondaBuildLinux](https://github.com/mooch443/trex/actions/workflows/cmake-ubuntu.yml/badge.svg?branch=dev)](https://github.com/mooch443/trex/actions/workflows/cmake-ubuntu.yml)
-[![CondaBuildMacOS](https://github.com/mooch443/trex/actions/workflows/cmake-macos.yml/badge.svg?branch=dev)](https://github.com/mooch443/trex/actions/workflows/cmake-macos.yml)
-[![CondaBuildWindows](https://github.com/mooch443/trex/actions/workflows/cmake-windows.yml/badge.svg?branch=dev)](https://github.com/mooch443/trex/actions/workflows/cmake-windows.yml)
-
 :book: [Docs](https://trex.run/docs) | :tv: [YouTube](https://youtube.com/@TRexTracker) | :scroll: [License](LICENSING.md)
-AGPL v3+ (free). Company use: paid commercial license. Contact: a&#64;trex.run.
+AGPL v3+ (free). :office: Company use: paid commercial license. :envelope: a&#64;trex.run.
 
 # Hey there
 
