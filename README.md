@@ -2,7 +2,7 @@
 
 `main`
 [![CondaBuildLinux](https://github.com/mooch443/trex/actions/workflows/cmake-ubuntu.yml/badge.svg?branch=main)](https://github.com/mooch443/trex/actions/workflows/cmake-ubuntu.yml)
-[![CondaBuildMacOSARM64](https://github.com/mooch443/trex/actions/workflows/cmake-macos-arm#.yml/badge.svg?branch=main)](https://github.com/mooch443/trex/actions/workflows/cmake-macos-arm.yml)
+[![CondaBuildMacOSARM64](https://github.com/mooch443/trex/actions/workflows/cmake-macos-arm.yml/badge.svg?branch=main)](https://github.com/mooch443/trex/actions/workflows/cmake-macos-arm.yml)
 [![CondaBuildWindows](https://github.com/mooch443/trex/actions/workflows/cmake-windows.yml/badge.svg?branch=main)](https://github.com/mooch443/trex/actions/workflows/cmake-windows.yml)
 
 :book: [Docs](https://trex.run/docs) | :tv: [YouTube](https://youtube.com/@TRexTracker) | :scroll: [License](LICENSING.md)
