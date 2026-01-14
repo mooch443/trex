@@ -21,6 +21,7 @@ endif()
 
 target_link_libraries(tracker_gui PUBLIC
     tracker_tracking
+    tracker_ml
     tracker_misc
     commons
 )

@@ -10,7 +10,10 @@ elseif(WIN32)
   add_library(tracker_ml STATIC ${SRCS} ${HDRS})
 endif()
 
-target_link_libraries(tracker_ml PUBLIC commons)
+target_link_libraries(tracker_ml PUBLIC
+    tracker_misc
+    commons
+)
 add_dependencies(tracker_ml tracker_misc commons)
 
 if(WITH_FFMPEG)
@@ -20,9 +23,11 @@ endif()
 if(WIN32)
   if(NOT COMMONS_NO_PYTHON)
      target_link_libraries(tracker_ml PUBLIC tracker_python)
-	   set_target_properties(tracker_ml PROPERTIES LINK_FLAGS "/DELAYLOAD:tracker_python.dll /DELAYLOAD:tracker_python-d.dll")
+     set_target_properties(tracker_ml PROPERTIES LINK_FLAGS "/DELAYLOAD:tracker_python.dll /DELAYLOAD:tracker_python-d.dll")
   endif()
 endif()
 
-target_link_libraries(tracker_ml PUBLIC tracker_gui tracker_tracking)
+if(APPLE AND TREX_TRACKER_SHARED)
+  target_link_options(tracker_ml PRIVATE "-undefined" "dynamic_lookup")
+endif()
 #target_precompile_headers(tracker_tracking REUSE_FROM commons)

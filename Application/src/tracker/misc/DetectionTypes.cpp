@@ -298,6 +298,9 @@ Size2 get_model_image_size() {
         return meta_video_size;
     } else if(detection_type() == ObjectDetectionType::precomputed) {
         return meta_video_size;
+    } else if(detection_type() == ObjectDetectionType::sam3) {
+        const float ratio = meta_video_size.height / meta_video_size.width;
+        return Size2(detect_resolution.width, ratio * detect_resolution.height);
         
     } else if (detection_type() == ObjectDetectionType::yolo) {
         const auto region_resolution = READ_SETTING(region_resolution, track::detect::DetectResolution);

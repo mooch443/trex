@@ -3,14 +3,19 @@ file(GLOB SRCS *.cpp)
 
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
-# add actual library
-if(UNIX)
-  add_library(tracker_tracking STATIC ${SRCS} ${HDRS})
-elseif(WIN32)
-  add_library(tracker_tracking STATIC ${SRCS} ${HDRS})
+set(_tracker_lib_type ${TREX_TRACKER_LIBRARY_TYPE})
+if(NOT _tracker_lib_type)
+  set(_tracker_lib_type STATIC)
 endif()
 
-target_link_libraries(tracker_tracking PUBLIC tracker_ml commons)
+# add actual library
+add_library(tracker_tracking ${_tracker_lib_type} ${SRCS} ${HDRS})
+
+target_link_libraries(tracker_tracking PUBLIC
+    tracker_ml
+    tracker_misc
+    commons
+)
 add_dependencies(tracker_tracking tracker_misc commons)
 
 if(WITH_HTTPD)
@@ -26,6 +31,10 @@ if(WIN32)
      target_link_libraries(tracker_tracking PUBLIC tracker_python)
 	   set_target_properties(tracker_tracking PROPERTIES LINK_FLAGS "/DELAYLOAD:tracker_python.dll /DELAYLOAD:tracker_python-d.dll")
   endif()
+endif()
+
+if(APPLE AND TREX_TRACKER_SHARED)
+  target_link_options(tracker_tracking PRIVATE "-undefined" "dynamic_lookup")
 endif()
 
 #target_precompile_headers(tracker_tracking REUSE_FROM commons)

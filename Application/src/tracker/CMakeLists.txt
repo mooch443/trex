@@ -127,12 +127,56 @@ target_link_libraries(${TREXA_EXEC_NAME} PUBLIC
     #commons
 )
 
-set_target_properties(${TREXA_EXEC_NAME} PROPERTIES
-  XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES"
-)
+set(TREX_APP_TARGETS ${TREXA_EXEC_NAME})
+
+if(TREX_ENABLE_PROTOTYPES)
+    set(INTERACTIVE_SEGMENTATION_EXEC_NAME interactive_segmentation_prototype)
+    set(INTERACTIVE_SEGMENTATION_SRCS
+        interactive_segmentation_prototype/main.cpp
+        "${CMAKE_CURRENT_BINARY_DIR}/../GitSHA1.cpp" ../GitSHA1.h
+        gfx/TRex_16.png
+        gfx/TRex_32.png
+        gfx/TRex_64.png
+        gfx/TRex_128.png
+        gfx/TRex_256.png
+        gfx/TRex_512.png
+        gfx/TRex_1024.png
+    )
+
+    if(APPLE)
+        set(INTERACTIVE_SEGMENTATION_SRCS ${INTERACTIVE_SEGMENTATION_SRCS} ${CMAKE_CURRENT_SOURCE_DIR}/gfx/AlterIcons.icns)
+    endif()
+    if(WIN32 OR UNIX AND NOT APPLE)
+        set(INTERACTIVE_SEGMENTATION_SRCS ${INTERACTIVE_SEGMENTATION_SRCS} trexa.rc)
+    endif()
+
+    add_executable(${INTERACTIVE_SEGMENTATION_EXEC_NAME} ${INTERACTIVE_SEGMENTATION_SRCS})
+    target_link_libraries(${INTERACTIVE_SEGMENTATION_EXEC_NAME} PUBLIC
+        tracker_gui
+        tracker_ml
+        tracker_tracking
+        tracker_misc
+        tracker_python
+        framegrabber_misc
+        pv
+        commons
+    )
+    list(APPEND TREX_APP_TARGETS ${INTERACTIVE_SEGMENTATION_EXEC_NAME})
+endif()
+
+# macOS ld already errors on undefined symbols and no longer accepts the explicit flag.
+foreach(app_target ${TREX_APP_TARGETS})
+    if(UNIX AND NOT APPLE AND NOT "${CMAKE_SYSTEM_NAME}" STREQUAL "Emscripten")
+        target_link_options(${app_target} PRIVATE "-Wl,--no-undefined")
+    elseif(WIN32 AND NOT MSVC)
+        target_link_options(${app_target} PRIVATE "-Wl,--no-undefined")
+    endif()
+endforeach()
 
 if(WITH_FFMPEG)
-    target_compile_definitions(${TREXA_EXEC_NAME} PRIVATE WITH_FFMPEG=true)
+    foreach(app_target ${TREX_APP_TARGETS})
+        target_compile_definitions(${app_target} PRIVATE WITH_FFMPEG=true)
+    endforeach()
 endif()
 
 if(BUILD_LEGACY_TREX)
@@ -152,7 +196,19 @@ set_target_properties(${TREXA_EXEC_NAME} PROPERTIES
   MACOSX_BUNDLE_BUNDLE_NAME ${TREXA_EXEC_NAME}
   MACOSX_BUNDLE_INFO_STRING "Multi-species interactive video-based tracking"
   MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/AlterInfo.plist
+  XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES"
 )
+
+if(TREX_ENABLE_PROTOTYPES)
+    set_target_properties(${INTERACTIVE_SEGMENTATION_EXEC_NAME} PROPERTIES
+      MACOSX_BUNDLE TRUE
+      MACOSX_BUNDLE_GUI_IDENTIFIER "app.trex.interactive_segmentation_prototype"
+      MACOSX_BUNDLE_BUNDLE_NAME ${INTERACTIVE_SEGMENTATION_EXEC_NAME}
+      MACOSX_BUNDLE_INFO_STRING "Interactive segmentation prototype"
+      MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/AlterInfo.plist
+      XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES"
+    )
+endif()
 
 message("TRACKER PATH ${TRACKER_PATH}")
 
@@ -201,83 +257,92 @@ if(NOT TREX_CONDA_PACKAGE_INSTALL)
 
     IF("${CMAKE_SYSTEM}" MATCHES "Linux")
         message(STATUS "Copying files ${RESOURCE_COPY_SINGLE_FILES}")
-        foreach(comp ${RESOURCE_COPY_SINGLE_FILES})
-            get_filename_component(comp_s ${comp} NAME)
+        foreach(app_target ${TREX_APP_TARGETS})
+            foreach(comp ${RESOURCE_COPY_SINGLE_FILES})
+                get_filename_component(comp_s ${comp} NAME)
 
-            add_custom_command(TARGET ${TREXA_EXEC_NAME} POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy
+                add_custom_command(TARGET ${app_target} POST_BUILD
+                    COMMAND ${CMAKE_COMMAND} -E copy
+                        "${comp}"
+                        "$<TARGET_FILE_DIR:${app_target}>/${comp_s}")
+                add_custom_command(TARGET ${app_target} POST_BUILD
+                    COMMAND ${CMAKE_COMMAND} -E create_symlink
+                        "${comp}"
+                        "$<TARGET_FILE_DIR:${app_target}>/${comp_s}")
+                message(STATUS ${CMAKE_COMMAND} -E copy
                     "${comp}"
-                    "$<TARGET_FILE_DIR:${TREXA_EXEC_NAME}>/${comp_s}")
-            add_custom_command(TARGET ${TREXA_EXEC_NAME} POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E create_symlink
-                    "${comp}"
-                    "$<TARGET_FILE_DIR:${TREXA_EXEC_NAME}>/${comp_s}")
-            message(STATUS ${CMAKE_COMMAND} -E copy
-                "${comp}"
-                "$<TARGET_FILE_DIR:${TREXA_EXEC_NAME}>/${comp_s}")
-        endforeach()
+                    "$<TARGET_FILE_DIR:${app_target}>/${comp_s}")
+            endforeach()
 
-        foreach(comp ${RESOURCE_COPY_FILES})
-            get_filename_component(comp_s ${comp} NAME)
+            foreach(comp ${RESOURCE_COPY_FILES})
+                get_filename_component(comp_s ${comp} NAME)
 
-            add_custom_command(TARGET ${TREXA_EXEC_NAME} POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy_directory
-                    "${comp}"
-                    "$<TARGET_FILE_DIR:${TREXA_EXEC_NAME}>/${comp_s}")
+                add_custom_command(TARGET ${app_target} POST_BUILD
+                    COMMAND ${CMAKE_COMMAND} -E copy_directory
+                        "${comp}"
+                        "$<TARGET_FILE_DIR:${app_target}>/${comp_s}")
+            endforeach()
         endforeach()
         
     elseif(WIN32)
         message(STATUS "(windows) Copying files ${RESOURCE_COPY_SINGLE_FILES}")
         message(STATUS "(install_prefix) :${CMAKE_INSTALL_PREFIX} :${CMAKE_BINARY_DIR}")
         
-        foreach(comp ${RESOURCE_COPY_SINGLE_FILES})
-            get_filename_component(comp_s ${comp} NAME)
+        foreach(app_target ${TREX_APP_TARGETS})
+            foreach(comp ${RESOURCE_COPY_SINGLE_FILES})
+                get_filename_component(comp_s ${comp} NAME)
 
-            message(STATUS "Creating symlink for $<TARGET_FILE_DIR:${TREXA_EXEC_NAME}>/${comp_s} ")
-            add_custom_command(TARGET ${TREXA_EXEC_NAME} POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy
+                message(STATUS "Creating symlink for $<TARGET_FILE_DIR:${app_target}>/${comp_s} ")
+                add_custom_command(TARGET ${app_target} POST_BUILD
+                    COMMAND ${CMAKE_COMMAND} -E copy
+                        "${comp}"
+                        "$<TARGET_FILE_DIR:${app_target}>/${comp_s}")
+                add_custom_command(TARGET ${app_target} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E create_symlink
                     "${comp}"
-                    "$<TARGET_FILE_DIR:${TREXA_EXEC_NAME}>/${comp_s}")
-            add_custom_command(TARGET ${TREXA_EXEC_NAME} POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E create_symlink
-                "${comp}"
-                "$<TARGET_FILE_DIR:${TREXA_EXEC_NAME}>/${comp_s}")
-        endforeach()
+                    "$<TARGET_FILE_DIR:${app_target}>/${comp_s}")
+            endforeach()
 
-        message(STATUS "(windows) Copying folders ${RESOURCE_COPY_FILES}")
-        foreach(comp ${RESOURCE_COPY_FILES})
-            get_filename_component(comp_s ${comp} NAME)
+            message(STATUS "(windows) Copying folders ${RESOURCE_COPY_FILES}")
+            foreach(comp ${RESOURCE_COPY_FILES})
+                get_filename_component(comp_s ${comp} NAME)
 
-            add_custom_command(TARGET ${TREXA_EXEC_NAME} POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy_directory
-                    "${comp}"
-                    "$<TARGET_FILE_DIR:${TREXA_EXEC_NAME}>/${comp_s}")
+                add_custom_command(TARGET ${app_target} POST_BUILD
+                    COMMAND ${CMAKE_COMMAND} -E copy_directory
+                        "${comp}"
+                        "$<TARGET_FILE_DIR:${app_target}>/${comp_s}")
+            endforeach()
         endforeach()
         
     elseif(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         message(STATUS "Copying files ${RESOURCE_COPY_SINGLE_FILES}")
-        foreach(comp ${RESOURCE_COPY_SINGLE_FILES})
-            get_filename_component(comp_s ${comp} NAME)
+        foreach(app_target ${TREX_APP_TARGETS})
+            foreach(comp ${RESOURCE_COPY_SINGLE_FILES})
+                get_filename_component(comp_s ${comp} NAME)
 
-            message(STATUS "Creating symlink for $<TARGET_FILE_DIR:${TREXA_EXEC_NAME}>/../Resources/${comp_s} ")
-            add_custom_command(TARGET ${TREXA_EXEC_NAME} POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy
-                    "${comp}"
-                    "$<TARGET_FILE_DIR:${TREXA_EXEC_NAME}>/../Resources/${comp_s}")
-            add_custom_command(TARGET ${TREXA_EXEC_NAME} POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E create_symlink
-                    "${comp}"
-                    "$<TARGET_FILE_DIR:${TREXA_EXEC_NAME}>/../Resources/${comp_s}")
-            install(FILES ${comp} DESTINATION bin)
+                message(STATUS "Creating symlink for $<TARGET_FILE_DIR:${app_target}>/../Resources/${comp_s} ")
+                add_custom_command(TARGET ${app_target} POST_BUILD
+                    COMMAND ${CMAKE_COMMAND} -E copy
+                        "${comp}"
+                        "$<TARGET_FILE_DIR:${app_target}>/../Resources/${comp_s}")
+                add_custom_command(TARGET ${app_target} POST_BUILD
+                    COMMAND ${CMAKE_COMMAND} -E create_symlink
+                        "${comp}"
+                        "$<TARGET_FILE_DIR:${app_target}>/../Resources/${comp_s}")
+            endforeach()
+
+            foreach(comp ${RESOURCE_COPY_FILES})
+                get_filename_component(comp_s ${comp} NAME)
+
+                add_custom_command(TARGET ${app_target} POST_BUILD
+                    COMMAND ${CMAKE_COMMAND} -E copy_directory
+                        "${comp}"
+                        "$<TARGET_FILE_DIR:${app_target}>/../Resources/${comp_s}")
+            endforeach()
         endforeach()
 
-        foreach(comp ${RESOURCE_COPY_FILES})
-            get_filename_component(comp_s ${comp} NAME)
-
-            add_custom_command(TARGET ${TREXA_EXEC_NAME} POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy_directory
-                    "${comp}"
-                    "$<TARGET_FILE_DIR:${TREXA_EXEC_NAME}>/../Resources/${comp_s}")
+        foreach(comp ${RESOURCE_COPY_SINGLE_FILES})
+            install(FILES ${comp} DESTINATION bin)
         endforeach()
     endif()
 else()
@@ -288,18 +353,20 @@ else()
     if(APPLE AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         message(STATUS "Copying files ${RESOURCE_COPY_FILES}")
 
-        foreach(comp ${RESOURCE_COPY_FILES})
-            get_filename_component(comp_s ${comp} NAME)
+        foreach(app_target ${TREX_APP_TARGETS})
+            foreach(comp ${RESOURCE_COPY_FILES})
+                get_filename_component(comp_s ${comp} NAME)
 
-            add_custom_command(TARGET ${TREXA_EXEC_NAME} POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy_directory
-                    "${comp}"
-                    "$<TARGET_FILE_DIR:${TREXA_EXEC_NAME}>/../Resources/${comp_s}")
+                add_custom_command(TARGET ${app_target} POST_BUILD
+                    COMMAND ${CMAKE_COMMAND} -E copy_directory
+                        "${comp}"
+                        "$<TARGET_FILE_DIR:${app_target}>/../Resources/${comp_s}")
+            endforeach()
         endforeach()
     endif()
 endif()
 
-set(targets ${TREXA_EXEC_NAME})
+set(targets ${TREX_APP_TARGETS})
 
 if(BUILD_LEGACY_TREX)
     set(targets ${targets} ${TREX_EXEC_NAME})
@@ -321,12 +388,14 @@ if(APPLE)
 endif()
 
 if(APPLE)
-    target_sources(${TREXA_EXEC_NAME} PRIVATE gfx/AlterIcons.xcassets)
-    set_source_files_properties(gfx/AlterIcons.icns PROPERTIES
-        MACOSX_PACKAGE_LOCATION Resources
-    )
-    set_target_properties(${TREXA_EXEC_NAME} PROPERTIES
-        XCODE_ATTRIBUTE_ASSETCATALOG_COMPILER_APPICON_NAME "AlterIcons")
+    foreach(app_target ${TREX_APP_TARGETS})
+        target_sources(${app_target} PRIVATE gfx/AlterIcons.xcassets)
+        set_source_files_properties(gfx/AlterIcons.icns PROPERTIES
+            MACOSX_PACKAGE_LOCATION Resources
+        )
+        set_target_properties(${app_target} PROPERTIES
+            XCODE_ATTRIBUTE_ASSETCATALOG_COMPILER_APPICON_NAME "AlterIcons")
+    endforeach()
 endif()
 
 #target_precompile_headers(properties REUSE_FROM commons)

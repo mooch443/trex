@@ -539,6 +539,8 @@ void Segmenter::trigger_average_generator(bool do_generate_average, cv::Mat& bg)
                     PrecomputedDetection::set_background(std::move(ptr), Background::meta_encoding());
                 else if(detection_type() == ObjectDetectionType::yolo)
                     YOLO::set_background(ptr);
+                else if(detection_type() == ObjectDetectionType::sam3)
+                    SAM3::set_background(ptr);
                 
             } catch(const std::exception& ex) {
                 FormatExcept("Exception when finalizing the average image: ", ex.what());
@@ -581,6 +583,8 @@ void Segmenter::trigger_average_generator(bool do_generate_average, cv::Mat& bg)
                 PrecomputedDetection::set_background(Image::Make(*ptr), Background::meta_encoding());
             else if(detection_type() == ObjectDetectionType::yolo)
                 YOLO::set_background(Image::Make(*ptr));
+            else if(detection_type() == ObjectDetectionType::sam3)
+                SAM3::set_background(ptr);
             else
                 throw RuntimeError("Unknown detection_type of ", detection_type(), " when setting average image.");
             

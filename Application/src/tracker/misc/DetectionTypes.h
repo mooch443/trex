@@ -17,7 +17,7 @@ std::optional<cmn::blob::Pose::Skeleton> get_skeleton(uint8_t clid, const std::o
 
 namespace track::detect {
 
-ENUM_CLASS(ObjectDetectionType, none, yolo, background_subtraction, precomputed);
+ENUM_CLASS(ObjectDetectionType, none, yolo, sam3, background_subtraction, precomputed);
 ENUM_CLASS(ObjectDetectionFormat, none, boxes, masks, poses, obb, points);
 
 using ObjectDetectionType_t = std::optional<ObjectDetectionType::Class>;
@@ -64,6 +64,8 @@ HasCustomParser<track::detect::ObjectDetectionType::Class>::fromStr(cmn::StringL
     using namespace track::detect;
     if(str == "yolo" || str == "yolo8") {
         return ObjectDetectionType::yolo;
+    } else if(str == "sam3") {
+        return ObjectDetectionType::sam3;
     } else if(str == "background_subtraction") {
         return ObjectDetectionType::background_subtraction;
     } else if(str == "precomputed") {

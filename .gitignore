@@ -36,3 +36,7 @@ videos/tgrabs.log
 videos/trex.log
 docs/_build/
 Application/.vs/
+docs/notebooks/training_eval/
+docs/notebooks/identities/*/
+Application/src/tracker/gfx/_*.mov
+*.settings.backup

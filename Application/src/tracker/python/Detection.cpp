@@ -12,6 +12,7 @@
 #include <misc/PrecomuptedDetection.h>
 #include <python/BackgroundSubtraction.h>
 #include <python/NoDetection.h>
+#include <python/SAM3.h>
 
 namespace track {
 using namespace detect;
@@ -24,6 +25,10 @@ Detection::Detection() {
     switch (*detect_type) {
     case ObjectDetectionType::yolo:
         YOLO::init();
+        break;
+
+    case ObjectDetectionType::sam3:
+        SAM3::init();
         break;
             
     case ObjectDetectionType::background_subtraction:
@@ -49,13 +54,18 @@ Detection::Detection() {
 }
 
 void Detection::deinit() {
-    if(detection_type() == ObjectDetectionType::yolo) {
+    const auto type = detection_type();
+    if(type == ObjectDetectionType::yolo) {
         YOLO::deinit();
         manager().clean_up();
-    } else if(detection_type() == ObjectDetectionType::background_subtraction) {
+    } else if(type == ObjectDetectionType::sam3) {
+        SAM3::deinit();
+        manager().clean_up();
+
+    } else if(type == ObjectDetectionType::background_subtraction) {
         manager().clean_up();
         BackgroundSubtraction::deinit();
-    } else if(detection_type() == ObjectDetectionType::precomputed) {
+    } else if(type == ObjectDetectionType::precomputed) {
         manager().clean_up();
         PrecomputedDetection::deinit();
     } else {
@@ -66,12 +76,16 @@ void Detection::deinit() {
 bool Detection::is_initializing() {
     if(detection_type() == ObjectDetectionType::yolo)
         return YOLO::is_initializing();
+    if(detection_type() == ObjectDetectionType::sam3)
+        return SAM3::is_initializing();
     return false;
 }
 
 double Detection::fps() {
     if(detection_type() == ObjectDetectionType::yolo)
         return YOLO::fps();
+    else if(detection_type() == ObjectDetectionType::sam3)
+        return SAM3::fps();
     else if(detection_type() == ObjectDetectionType::background_subtraction)
         return BackgroundSubtraction::fps();
     else if(detection_type() == ObjectDetectionType::precomputed)
@@ -89,38 +103,19 @@ std::future<SegmentationData> Detection::apply(TileImage&& tiled) {
         throw RuntimeError("No detect_type was set before Detection::apply.");
     
     switch (*detect_type) {
-    case ObjectDetectionType::yolo: {
-        tiled.promise = std::make_unique<std::promise<SegmentationData>>();
-        auto f = tiled.promise->get_future();
-        //manager().set_weight_limit(max(1u, READ_SETTING(detect_batch_size, uchar)));
-        manager().enqueue(std::move(tiled));
-        return f;
-    }
-
-    case ObjectDetectionType::background_subtraction: {
-        tiled.promise = std::make_unique<std::promise<SegmentationData>>();
-        auto f = tiled.promise->get_future();
-        //manager().set_weight_limit(max(1u, READ_SETTING(detect_batch_size, uchar)));
-        manager().enqueue(std::move(tiled));
-        return f;
-    }
-            
-    case ObjectDetectionType::precomputed: {
-        tiled.promise = std::make_unique<std::promise<SegmentationData>>();
-        auto f = tiled.promise->get_future();
-        manager().enqueue(std::move(tiled));
-        return f;
-    }
-            
-    case ObjectDetectionType::none: {
-        tiled.promise = std::make_unique<std::promise<SegmentationData>>();
-        auto f = tiled.promise->get_future();
-        manager().enqueue(std::move(tiled));
-        return f;
-    }
-            
-    default:
-        throw U_EXCEPTION("Unknown detection type: ", detection_type());
+        case ObjectDetectionType::yolo:
+        case ObjectDetectionType::sam3:
+        case ObjectDetectionType::background_subtraction:
+        case ObjectDetectionType::precomputed:
+        case ObjectDetectionType::none: {
+            tiled.promise = std::make_unique<std::promise<SegmentationData>>();
+            auto f = tiled.promise->get_future();
+            manager().enqueue(std::move(tiled));
+            return f;
+        }
+                
+        default:
+            throw U_EXCEPTION("Unknown detection type: ", detection_type());
     }
 }
 
@@ -132,6 +127,9 @@ void Detection::apply(std::vector<TileImage>&& tiled) {
     }
     else*/ if (detection_type() == ObjectDetectionType::yolo) {
         YOLO::apply(std::move(tiled));
+        return;
+    } else if(detection_type() == ObjectDetectionType::sam3) {
+        SAM3::apply(std::move(tiled));
         return;
     } else if(detection_type() == ObjectDetectionType::background_subtraction) {
         BackgroundSubtraction::apply(std::move(tiled));

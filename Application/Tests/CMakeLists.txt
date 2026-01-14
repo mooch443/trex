@@ -4,7 +4,7 @@ FetchContent_Declare(
   googletest
   DOWNLOAD_EXTRACT_TIMESTAMP true
   GIT_REPOSITORY https://github.com/google/googletest
-  GIT_TAG 58d77fa8070e8cec2dc1ed015d66b454c8d78850
+  GIT_TAG v1.17.0
 )
 # For Windows: Prevent overriding the parent project's compiler/linker settings
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
