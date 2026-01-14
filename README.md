@@ -7,7 +7,8 @@
 
 :book: [Docs](https://trex.run/docs) | :tv: [YouTube](https://youtube.com/@TRexTracker) | :scroll: [License](LICENSING.md)
 AGPL v3+ (free). 
-:office: Company use requires a paid commercial license — contact us at :envelope: a&#64;trex.run
+
+:office: Company use requires a paid commercial license — contact us at a&#64;trex.run
 
 # Hey there
 
