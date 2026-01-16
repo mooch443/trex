@@ -12,6 +12,7 @@
 #include <gui/Export.h>
 #include <misc/SettingsInitializer.h>
 #include <misc/PrecomuptedDetection.h>
+#include <python/SAM3.h>
 
 //#define DEBUG_TM_ITEMS
 
@@ -540,7 +541,7 @@ void Segmenter::trigger_average_generator(bool do_generate_average, cv::Mat& bg)
                 else if(detection_type() == ObjectDetectionType::yolo)
                     YOLO::set_background(ptr);
                 else if(detection_type() == ObjectDetectionType::sam3)
-                    SAM3::set_background(ptr);
+                    SAM3::set_background(std::move(ptr));
                 
             } catch(const std::exception& ex) {
                 FormatExcept("Exception when finalizing the average image: ", ex.what());
@@ -584,7 +585,7 @@ void Segmenter::trigger_average_generator(bool do_generate_average, cv::Mat& bg)
             else if(detection_type() == ObjectDetectionType::yolo)
                 YOLO::set_background(Image::Make(*ptr));
             else if(detection_type() == ObjectDetectionType::sam3)
-                SAM3::set_background(ptr);
+                SAM3::set_background(std::move(ptr));
             else
                 throw RuntimeError("Unknown detection_type of ", detection_type(), " when setting average image.");
             

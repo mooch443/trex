@@ -28,6 +28,6 @@ if(WIN32)
 endif()
 
 if(APPLE AND TREX_TRACKER_SHARED)
-  target_link_options(tracker_ml PRIVATE "-undefined" "dynamic_lookup")
+  target_link_options(tracker_ml PRIVATE "-Wl,-undefined,error")
 endif()
 #target_precompile_headers(tracker_tracking REUSE_FROM commons)
