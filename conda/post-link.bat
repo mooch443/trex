@@ -99,8 +99,8 @@ call :record_failure "[post-link] pip package installation failed for all CUDA c
 :pip_install_after
 
 call :log "Testing installation..."
-call :log_command python -X utf8 -c "from ultralytics import YOLO; import numpy as np; YOLO('yolo11n.yaml').to('cpu').predict(np.zeros((640, 480, 3), dtype=np.uint8))"
-call :run_with_reporting python -X utf8 -c "from ultralytics import YOLO; import numpy as np; YOLO('yolo11n.yaml').to('cpu').predict(np.zeros((640, 480, 3), dtype=np.uint8))"
+call :log_command python -X utf8 -c "from ultralytics import YOLO; import numpy as np; YOLO('yolo26n.yaml').to('cpu').predict(np.zeros((640, 480, 3), dtype=np.uint8))"
+call :run_with_reporting python -X utf8 -c "from ultralytics import YOLO; import numpy as np; YOLO('yolo26n.yaml').to('cpu').predict(np.zeros((640, 480, 3), dtype=np.uint8))"
 if errorlevel 1 (
     call :record_failure "[post-link] YOLO smoke test failed (exit !LAST_COMMAND_STATUS!)."
 )

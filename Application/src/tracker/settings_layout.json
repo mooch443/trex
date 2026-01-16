@@ -505,8 +505,8 @@
                                                     [
                                                         {
                                                             "type":"button",
-                                                            "text":"<sym>⮞</sym> yolo11n",
-                                                            "click":"set:detect_model:'yolo11n'",
+                                                            "text":"<sym>⮞</sym> yolo26n",
+                                                            "click":"set:detect_model:'yolo26n'",
                                                             "fill":[50,90,50],
                     
                                                             "size":[90,30],
@@ -514,8 +514,8 @@
                                                         },
                                                         {
                                                             "type":"button",
-                                                            "text":"<sym>⮞</sym> yolo11n-seg",
-                                                            "click":"set:detect_model:'yolo11n-seg'",
+                                                            "text":"<sym>⮞</sym> yolo26n-seg",
+                                                            "click":"set:detect_model:'yolo26n-seg'",
                                                             "fill":[50,90,50],
                     
                                                             "size":[120,30],
@@ -523,16 +523,16 @@
                                                         },
                                                         {
                                                             "type":"button",
-                                                            "text":"<sym>⮞</sym> yolo11n-pose",
-                                                            "click":"set:detect_model:'yolo11n-pose'",
+                                                            "text":"<sym>⮞</sym> yolo26n-pose",
+                                                            "click":"set:detect_model:'yolo26n-pose'",
                                                             "fill":[50,90,50],
                                                             "size":[120,30],
                                                             "font":{"size":0.5}
                                                         },
                                                         {
                                                             "type":"button",
-                                                            "text":"<sym>⮞</sym> yolo11s-pose",
-                                                            "click":"set:detect_model:'yolo11s-pose'",
+                                                            "text":"<sym>⮞</sym> yolo26s-pose",
+                                                            "click":"set:detect_model:'yolo26s-pose'",
                                                             "fill":[50,90,50],
                                                             "size":[120,30],
                                                             "font":{"size":0.5}

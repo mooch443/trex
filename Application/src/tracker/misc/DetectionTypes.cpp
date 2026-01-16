@@ -251,7 +251,7 @@ bool is_valid_default_model(const std::string& filename) {
 }
 
 std::string default_model() {
-    return "yolo11n.pt";
+    return "yolo26n.pt";
 }
 
 bool valid_model(const file::Path& path, const file::FilesystemInterface& fs) {

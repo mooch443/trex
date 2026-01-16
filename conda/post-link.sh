@@ -195,7 +195,7 @@ fi
 
 log "Testing installation..."
 
-CMD_STRING="from ultralytics import YOLO; import numpy as np; YOLO('yolo11n.yaml').to('cpu').predict(np.zeros((640, 480, 3), dtype=np.uint8))"
+CMD_STRING="from ultralytics import YOLO; import numpy as np; YOLO('yolo26n.yaml').to('cpu').predict(np.zeros((640, 480, 3), dtype=np.uint8))"
 log_command python -c "${CMD_STRING}"
 
 if run_with_reporting python -c "${CMD_STRING}"; then
