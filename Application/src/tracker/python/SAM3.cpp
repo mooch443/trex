@@ -72,6 +72,10 @@ PipelineManager<TileImage, true>& SAM3::manager() {
     return instance;
 }
 
+void SAM3::apply(std::vector<TileImage>&& tiled) {
+    // Apply implementation (if needed)
+}
+
 SAM3::Data& SAM3::data() {
     static Data instance;
     return instance;
