@@ -364,6 +364,99 @@ TEST(PreparseTest, ForLoop) {
     Print(no_quotes(realized));
 }
 
+TEST(PreparseTest, ForLoopUsesNumericIdx) {
+    using namespace cmn::pattern;
+    std::string str = "{for:{points}:{+:{index}:1}}";
+    auto result = UnresolvedStringPattern::prepare(str);
+    
+    using namespace gui::dyn;
+    Context context{
+        VarFunc("points", [](const VarProps&) -> std::vector<int> {
+            return {10, 20, 30};
+        })
+    };
+    State state;
+    
+    std::string realized;
+    EXPECT_NO_THROW((realized = result.realize(context, state)));
+    ASSERT_EQ(realized, "[1,2,3]");
+}
+
+TEST(PreparseTest, NestedForRestoresLoopScope) {
+    using namespace cmn::pattern;
+    std::string str = "{for:i:{outer}:{for:i:{inner}:{i}}-{i}-{index}}";
+    auto result = UnresolvedStringPattern::prepare(str);
+    
+    using namespace gui::dyn;
+    Context context{
+        VarFunc("outer", [](const VarProps&) -> std::vector<int> {
+            return {10, 20};
+        }),
+        VarFunc("inner", [](const VarProps&) -> std::vector<int> {
+            return {1, 2};
+        })
+    };
+    State state;
+    
+    std::string realized;
+    EXPECT_NO_THROW((realized = result.realize(context, state)));
+    ASSERT_EQ(realized, "[[1,2]-10-0,[1,2]-20-1]");
+}
+
+TEST(PreparseTest, NestedForPublishesCounters) {
+    using namespace cmn::pattern;
+    std::string str = "{merge:{for:k:[0,1]:{for:j:[2,3]:[{k},{j}]}}}";
+    auto result = UnresolvedStringPattern::prepare(str);
+    
+    using namespace gui::dyn;
+    Context context{};
+    State state;
+    
+    std::string realized;
+    EXPECT_NO_THROW((realized = result.realize(context, state)));
+    ASSERT_EQ(realized, "[[0,2],[0,3],[1,2],[1,3]]");
+}
+
+TEST(PreparseTest, ForLoopRestoresPreexistingScopedVariables) {
+    using namespace cmn::pattern;
+    std::string str = "{for:i:[10,20]:{i}}|{i}|{index}";
+    auto result = UnresolvedStringPattern::prepare(str);
+    
+    using namespace gui::dyn;
+    Context context{};
+    State state;
+    auto handler = std::make_shared<CurrentObjectHandler>();
+    handler->set_variable_value("i", "outer_i");
+    handler->set_variable_value("index", "outer_idx");
+    state._current_object_handler = std::weak_ptr(handler);
+    
+    std::string realized;
+    EXPECT_NO_THROW((realized = result.realize(context, state)));
+    ASSERT_EQ(realized, "[10,20]|outer_i|outer_idx");
+}
+
+TEST(PreparseTest, CachedLoopVariablesRefreshAfterMutation) {
+    using namespace gui::dyn;
+    
+    Context context{};
+    State state;
+    auto handler = std::make_shared<CurrentObjectHandler>();
+    state._current_object_handler = std::weak_ptr(handler);
+    
+    std::string realized;
+    
+    handler->set_variable_value("i", "10");
+    handler->set_variable_value("index", "0");
+    EXPECT_NO_THROW((realized = parse_text("{i}:{index}", context, state)));
+    ASSERT_EQ(realized, "10:0");
+    
+    // Must not reuse stale cached values from the previous evaluation.
+    handler->set_variable_value("i", "20");
+    handler->set_variable_value("index", "1");
+    EXPECT_NO_THROW((realized = parse_text("{i}:{index}", context, state)));
+    ASSERT_EQ(realized, "20:1");
+}
+
 TEST(PreparseTest, ExtendedForLoop) {
     using namespace cmn::pattern;
     std::string str = "{for:{points}:{addVector:{screen_center}:{mulVector:{i}:{bg_scale}}:[1,1]}}";
@@ -566,7 +659,7 @@ void benchmark_parse_fn(const std::string& label, ParseFn parse_fn,
         auto handler = state._current_object_handler.lock();
         auto start = std::chrono::high_resolution_clock::now();
         for (size_t i = 0; i < samples; ++i) {
-            handler->_variable_values.clear();
+            handler->clear_variable_values();
             //for(size_t j = 0; j < 100; ++j) {
                 out = parse_fn(pattern, context, state);
             //}

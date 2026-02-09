@@ -1,0 +1,41 @@
+{
+    "objects":[
+        {
+            "type":"text",
+            "text":"Hello World!",
+            "color":[255,255,255]
+        },
+
+        {
+            "type":"circle",
+            "radius": 10,
+            "fill":[255,0,0,125],
+            "origin":[0.5,0.5],
+            "pos": "{2hud:[0,0]}"
+        },
+        {
+            "type":"circle",
+            "radius": 10,
+            "fill":[255,0,0,125],
+            "origin":[0.5,0.5],
+            "pos": "{2hud:{video_size}}"
+        },
+        {
+            "type":"button",
+            "action":"set_frame:0",
+            "text":"reset",
+            "pos":[100,100]
+        },
+        {
+            "type":"each",
+            "var":"{merge:{for:i:{range:0:{video_size.w}:500}:{for:j:{range:0:{video_size.h}:500}:[{i},{j}]}}}",
+            "do": {
+                "type":"circle",
+                "radius": 3,
+                "origin":[0.5,0.5],
+                "fill":[255,255,0],
+                "pos": "{2hud:{i}}"
+            }
+        }
+    ]
+}

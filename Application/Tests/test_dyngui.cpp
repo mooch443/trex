@@ -16,6 +16,23 @@ using namespace cmn;
 using namespace cmn::gui;
 using namespace dyn;
 
+static void collect_static_text_strings(const Layout::Ptr& node, std::vector<std::string>& out) {
+    if(not node) {
+        return;
+    }
+    
+    if(node.is<StaticText>()) {
+        out.push_back(node.to<StaticText>()->text());
+        return;
+    }
+    
+    if(node.is<Layout>()) {
+        for(const auto& child : node.to<Layout>()->objects()) {
+            collect_static_text_strings(child, out);
+        }
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Helper tags + overloads so failed typed‑tests show a *readable* type name
 // (“ParseTextTag” or “ResolveTag”) instead of std::true_type / std::false_type.
@@ -191,6 +208,14 @@ TYPED_TEST(ParseAndResolveTest, ExceptionHandling)
     ASSERT_EQ(result, "null");
 }
 
+TYPED_TEST(ParseAndResolveTest, NestedForKeepsOuterState)
+{
+    State   state;
+    Context ctx;
+    auto result = run_parser<TypeParam>("{for:k:[10,20]:{for:j:[1,2]:[{k},{j}]}}", ctx, state);
+    ASSERT_EQ(result, "[[[10,1],[10,2]],[[20,1],[20,2]]]");
+}
+
 TYPED_TEST(ParseAndResolveTest, ArithmeticAddVector)
 {
     State   state;
@@ -361,6 +386,81 @@ TYPED_TEST(ParseAndResolveTest, EmptyBracesThrows)
     State   state;
     Context ctx;
     ASSERT_THROW(run_parser<TypeParam>("{}", ctx, state), std::runtime_error);
+}
+
+TEST(EachElementTest, NestedEachRestoresOuterScope) {
+    constexpr std::string_view json = R"json(
+{
+  "type": "each",
+  "var": "outer",
+  "do": {
+    "type": "collection",
+    "children": [
+      {
+        "type": "each",
+        "var": "i.inner",
+        "do": {
+          "type": "stext",
+          "text": "inner:{i}-{index}"
+        }
+      },
+      {
+        "type": "stext",
+        "text": "outer:{i.label}"
+      }
+    ]
+  }
+}
+)json";
+
+    glz::json_t obj;
+    auto parse_error = glz::read_json(obj, json);
+    ASSERT_EQ(parse_error, glz::error_code::none) << glz::format_error(parse_error, json);
+    ASSERT_TRUE(obj.is_object());
+
+    std::vector<sprite::Map> outer_data(2);
+    outer_data[0]["label"] = 10;
+    outer_data[0]["inner"] = std::vector<int>{1, 2};
+    outer_data[1]["label"] = 20;
+    outer_data[1]["inner"] = std::vector<int>{3, 4};
+    
+    std::vector<std::shared_ptr<VarBase_t>> outer_entries;
+    outer_entries.reserve(outer_data.size());
+    for(size_t idx = 0; idx < outer_data.size(); ++idx) {
+        outer_entries.emplace_back(std::shared_ptr<VarBase_t>(new Variable([idx, &outer_data](const VarProps&) -> sprite::Map& {
+            return outer_data[idx];
+        })));
+    }
+    
+    Context context{
+        VarFunc("outer", [&outer_entries](const VarProps&) -> std::vector<std::shared_ptr<VarBase_t>>& {
+            return outer_entries;
+        })
+    };
+
+    State state;
+    auto handler = std::make_shared<CurrentObjectHandler>();
+    state._current_object_handler = handler;
+
+    DrawStructure graph(640, 480);
+    auto root = parse_object(nullptr, obj.get_object(), context, state, context.defaults);
+    ASSERT_TRUE(root);
+    ASSERT_TRUE(root.is<Layout>());
+
+    ASSERT_NO_THROW((void)DynamicGUI::update_objects(nullptr, graph, root, context, state));
+    ASSERT_NO_THROW((void)DynamicGUI::update_objects(nullptr, graph, root, context, state));
+
+    std::vector<std::string> texts;
+    collect_static_text_strings(root, texts);
+
+    ASSERT_THAT(texts, ::testing::ElementsAre(
+        "inner:1-0",
+        "inner:2-1",
+        "outer:10",
+        "inner:3-0",
+        "inner:4-1",
+        "outer:20"
+    ));
 }
 
 

@@ -132,7 +132,7 @@ set(TREX_APP_TARGETS ${TREXA_EXEC_NAME})
 if(TREX_ENABLE_PROTOTYPES)
     set(INTERACTIVE_SEGMENTATION_EXEC_NAME interactive_segmentation_prototype)
     set(INTERACTIVE_SEGMENTATION_SRCS
-        interactive_segmentation_prototype/main.cpp
+        interactive_segmentation_prototype/main.cpp interactive_segmentation_prototype/LiveSegmentation.cpp interactive_segmentation_prototype/LiveSegmentation.h 
         "${CMAKE_CURRENT_BINARY_DIR}/../GitSHA1.cpp" ../GitSHA1.h
         gfx/TRex_16.png
         gfx/TRex_32.png
@@ -144,7 +144,7 @@ if(TREX_ENABLE_PROTOTYPES)
     )
 
     if(APPLE)
-        set(INTERACTIVE_SEGMENTATION_SRCS ${INTERACTIVE_SEGMENTATION_SRCS} ${CMAKE_CURRENT_SOURCE_DIR}/gfx/AlterIcons.icns)
+        set(INTERACTIVE_SEGMENTATION_SRCS ${INTERACTIVE_SEGMENTATION_SRCS} ${CMAKE_CURRENT_SOURCE_DIR}/gfx/AlterIcons.icns  )
     endif()
     if(WIN32 OR UNIX AND NOT APPLE)
         set(INTERACTIVE_SEGMENTATION_SRCS ${INTERACTIVE_SEGMENTATION_SRCS} trexa.rc)
@@ -253,6 +253,7 @@ if(NOT TREX_CONDA_PACKAGE_INSTALL)
         ${CMAKE_CURRENT_SOURCE_DIR}/tracking_settings_layout.json
         ${CMAKE_CURRENT_SOURCE_DIR}/tracking_layout.json
         ${CMAKE_CURRENT_SOURCE_DIR}/export_options_layout.json
+        ${CMAKE_CURRENT_SOURCE_DIR}/interactive_segmentation_prototype/live_segmentation_layout.json
     )
 
     IF("${CMAKE_SYSTEM}" MATCHES "Linux")

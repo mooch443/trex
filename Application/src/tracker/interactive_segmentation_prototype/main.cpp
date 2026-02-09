@@ -28,24 +28,33 @@ static void (*windowsEarlyEnvSetup)(void) = []() {
 #include <file/DataLocation.h>
 #include <gui/IMGUIBase.h>
 #include <misc/GlobalSettings.h>
+#include <gui/DynamicGUI.h>
+#include <gui/Scene.h>
+#include <gui/AnnotationScene.h>
+#include <gui/Bowl.h>
+#include "LiveSegmentation.h"
 
 int main(int argc, char** argv) {
+    GlobalSettings::write([](Configuration& config){
+        default_config::get(config);
+    });
+    
+    default_config::register_default_locations();
+    
     cmn::CommandLine::init(argc, argv);
     auto& cmd = cmn::CommandLine::instance();
     cmd.cd_home();
     cmd.load_settings();
 
+    SETTING(app_name) = std::string("TRex");
+    
     Print("interactive_segmentation_prototype",
           "git:", std::string_view(g_GIT_DESCRIBE_TAG),
           "sha:", std::string_view(g_GIT_SHA1),
           "build:", std::string_view(g_TREX_BUILD_TYPE));
-
-    if (Python::python_available()) {
-        Python::fix_paths(false);
-    } else {
-        Print("Python runtime not detected; continuing without embedded python.");
-    }
-
+    
+    auto f = Python::init();
+    
     // Touch core types to ensure the prototype links against the main tracking stack.
     (void)sizeof(track::Tracker);
     (void)sizeof(track::Segmenter);
@@ -53,10 +62,12 @@ int main(int argc, char** argv) {
     
     using namespace gui;
     
+    auto& manager = SceneManager::getInstance();
+    
     static constexpr auto window_title = "InteractiveSegmentationPrototype";
-    IMGUIBase base(window_title, {1024,850}, [&, ptr = &base](DrawStructure&)->bool {
+    IMGUIBase base(window_title, {1024,850}, [&, ptr = &base](DrawStructure& graph)->bool {
         UNUSED(ptr);
-        //graph.draw_log_messages(Bounds(Vec2(0, 80), graph.dialog_window_size()));
+        graph.draw_log_messages(Bounds(Vec2(0, 80), graph.dialog_window_size()));
         return true;
     }, [ptr = &base](DrawStructure&g, Event e) {
         if(not SceneManager::getInstance().on_global_event(e)) {
@@ -87,23 +98,42 @@ int main(int argc, char** argv) {
     });
     
     file::cd(file::DataLocation::parse("app"));
-    auto& manager = SceneManager::getInstance();
+    
+    SETTING(source) = file::PathArray{"/Users/tristan/Downloads/test_videos/cam1/GX010004.MP4"};
+    
+    LiveSegmentation live_scene(base);
+    AnnotationScene annotation_scene(base);
+    manager.register_scene(&annotation_scene);
+    manager.register_scene(&live_scene);
+    //manager.set_active(&annotation_scene);
+    manager.set_active(&live_scene);
     
     gui::SFLoop loop(*base.graph(), &base, [&](gui::SFLoop&, LoopStatus) {
-        /*if(f.valid()
+        if(f.valid()
            && f.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready)
         {
             try {
                 f.get();
+                f = {};
             } catch(const std::exception& ex) {
                 SceneManager::set_switching_error(ex.what());
             }
-        }*/
+        }
         
         manager.update(&base, *base.graph());
     });
     
     manager.clear();
+    
+    if(f.valid()) {
+        try {
+            f.get();
+        } catch(const std::exception& ex) {
+            FormatExcept(ex.what());
+        }
+    }
+    
+    Python::deinit();
     
     return 0;
 }
