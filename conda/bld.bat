@@ -57,17 +57,25 @@ echo GENERATOR %GENERATOR%
 
 rem --------------------------------------------------------------------------
 rem Ensure git is in PATH for CMake's FetchContent PATCH_COMMAND operations.
-rem Git is installed as a build dependency and available via LIBRARY_BIN.
+rem Git is a build dependency installed in BUILD_PREFIX or available via system.
+rem On Windows, conda-build typically sets up PATH, but we ensure it explicitly.
 rem --------------------------------------------------------------------------
+echo Current PATH (first 200 chars): %PATH:~0,200%
+if defined BUILD_PREFIX (
+    echo BUILD_PREFIX defined: %BUILD_PREFIX%
+    set "PATH=%BUILD_PREFIX%\Library\bin;%BUILD_PREFIX%\Scripts;%BUILD_PREFIX%;%PATH%"
+)
 if defined LIBRARY_BIN (
-    echo Adding LIBRARY_BIN to PATH: %LIBRARY_BIN%
+    echo LIBRARY_BIN defined: %LIBRARY_BIN%
     set "PATH=%LIBRARY_BIN%;%PATH%"
 )
 rem Verify git is accessible
 where git
 if errorlevel 1 (
-    echo Warning: git not found in PATH
+    echo ERROR: git not found in PATH - build will likely fail
+    echo Please ensure git is listed as a build dependency in meta.yaml
 ) else (
+    echo Git found successfully:
     git --version
 )
 rem --------------------------------------------------------------------------
