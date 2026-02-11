@@ -69,7 +69,7 @@ if defined LIBRARY_BIN (
     set "PATH=%LIBRARY_BIN%;%PATH%"
 )
 rem Verify git is accessible
-where git
+where git >nul 2>&1
 if errorlevel 1 (
     echo ERROR: git not found in PATH
     echo CMake FetchContent operations that use git will fail.
@@ -77,6 +77,7 @@ if errorlevel 1 (
     exit /b 1
 ) else (
     echo Git found successfully:
+    where git
     git --version
 )
 rem --------------------------------------------------------------------------
