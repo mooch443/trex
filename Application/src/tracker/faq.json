@@ -1,0 +1,13 @@
+[
+    {
+        "title": "Why is my mum so fat?",
+        "text": "<b>Bold</b> question you asked there. <i>If you ask me</i>, I think it's because she eats too much. <key>Key</key> to a healthy diet is moderation!",
+        "video": "funny_video.mp4",
+        "tags": ["humor", "family", "diet"]
+    },
+    {
+        "title": "What is the meaning of life?",
+        "text": "The meaning of life is a philosophical question that has been debated for centuries. Some believe it is to seek happiness, others think it is to fulfill a purpose or destiny.",
+        "tags": ["philosophy", "life", "existentialism"]
+    }
+]
