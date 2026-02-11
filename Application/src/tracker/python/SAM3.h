@@ -3,6 +3,7 @@
 #include <commons.pc.h>
 #include <misc/Image.h>
 #include <misc/TileImage.h>
+#include <python/ModuleProxy.h>
 
 namespace track {
 
@@ -23,7 +24,7 @@ struct TREX_EXPORT SAM3 {
     static bool is_initializing();
     static double fps();
 
-    static PipelineManager<TileImage, true>& manager();
+    static PipelineManager<TileImage, false>& manager();
     
 private:
     static void apply(std::vector<TileImage>&& tiled);
@@ -36,4 +37,3 @@ private:
 
 
 }
-

@@ -33,6 +33,7 @@ static void (*windowsEarlyEnvSetup)(void) = []() {
 #include <gui/AnnotationScene.h>
 #include <gui/Bowl.h>
 #include "LiveSegmentation.h"
+#include <python/GPURecognition.h>
 
 int main(int argc, char** argv) {
     GlobalSettings::write([](Configuration& config){
@@ -53,7 +54,24 @@ int main(int argc, char** argv) {
           "sha:", std::string_view(g_GIT_SHA1),
           "build:", std::string_view(g_TREX_BUILD_TYPE));
     
-    auto f = Python::init();
+    namespace py = Python;
+    std::future<void> f;
+    try {
+        py::init().get();
+        f = py::schedule([](){
+            //Print("Python = ", py::get_instance());
+            track::PythonIntegration::set_settings(GlobalSettings::instance(), file::DataLocation::instance(), Python::get_instance());
+            track::PythonIntegration::set_display_function([](auto& name, auto& mat) {
+                tf::imshow(name, mat);
+            },
+            []() {
+                tf::destroyAllWindows();
+            });
+        });
+    } catch(const std::exception& e) {
+        FormatError("Cannot initialize python. Please refer to the above error messages prefixed with [py] to estimate the cause of this issue: ", e.what());
+        exit(1);
+    }
     
     // Touch core types to ensure the prototype links against the main tracking stack.
     (void)sizeof(track::Tracker);
@@ -91,15 +109,16 @@ int main(int argc, char** argv) {
                 auto scale = max(0.9_F, sqrt(min_width / w));
                 auto yscale = max(0.9_F, sqrt(min_height / h));
                 
+                //Print("scale=",scale, " yscale=",yscale, " w=",w," h=",h, " dpi=", dpi, " (", ptr->dpi_scale(), ") interface=", gui::interface_scale());
                 SETTING(gui_interface_scale) = Float2_t(yscale > scale ? yscale : yscale);
-                //Print("scale=",scale, " yscale=",yscale, " w=",w," h=",h, " dpi=", dpi, " (", ptr->dpi_scale(), ")");
+                g.set_scale(gui::interface_scale());
             }
         }
     });
     
     file::cd(file::DataLocation::parse("app"));
     
-    SETTING(source) = file::PathArray{"/Users/tristan/Downloads/test_videos/cam1/GX010004.MP4"};
+    SETTING(source) = file::PathArray{"/Users/tristan/Downloads/test_videos/cam1/GX010004_recut.MP4"};
     
     LiveSegmentation live_scene(base);
     AnnotationScene annotation_scene(base);

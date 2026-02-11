@@ -653,6 +653,59 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
         .def("scales", &track::detect::YoloInput::scales)
         .def("orig_id", &track::detect::YoloInput::orig_id);
 
+    py::enum_<track::detect::Sam3PromptType>(m, "Sam3PromptType")
+        .value("text", track::detect::Sam3PromptType::text)
+        .value("box", track::detect::Sam3PromptType::box)
+        .value("boxes", track::detect::Sam3PromptType::boxes)
+        .value("points", track::detect::Sam3PromptType::points)
+        .value("mask", track::detect::Sam3PromptType::mask)
+        .value("remove_object", track::detect::Sam3PromptType::remove_object);
+
+    py::class_<track::detect::Sam3PromptPayload>(m, "Sam3PromptPayload")
+        .def(py::init<>())
+        .def("__repr__", [](const track::detect::Sam3PromptPayload& v) -> std::string {
+            return v.toStr();
+        })
+        .def_readwrite("type", &track::detect::Sam3PromptPayload::type)
+        .def_readwrite("frame_index", &track::detect::Sam3PromptPayload::frame_index)
+        .def_readwrite("text", &track::detect::Sam3PromptPayload::text)
+        .def_readwrite("obj_id", &track::detect::Sam3PromptPayload::obj_id)
+        .def_readwrite("points", &track::detect::Sam3PromptPayload::points)
+        .def_readwrite("point_labels", &track::detect::Sam3PromptPayload::point_labels)
+        .def_readwrite("boxes", &track::detect::Sam3PromptPayload::boxes)
+        .def_readwrite("labels", &track::detect::Sam3PromptPayload::labels)
+        .def_readwrite("mask", &track::detect::Sam3PromptPayload::mask)
+        .def_readwrite("mask_size", &track::detect::Sam3PromptPayload::mask_size)
+        .def_readwrite("text_session_scope", &track::detect::Sam3PromptPayload::text_session_scope)
+        .def_readwrite("text_skip_if_unchanged", &track::detect::Sam3PromptPayload::text_skip_if_unchanged);
+
+    py::class_<track::detect::Sam3Input>(m, "Sam3Input")
+        .def(py::init([](std::vector<cmn::Image::Ptr>&& images,
+                         std::vector<cmn::Vec2>&& offsets,
+                         std::vector<cmn::Vec2>&& scales,
+                         std::vector<size_t>&& orig_id,
+                         std::vector<std::vector<track::detect::Sam3PromptPayload>> prompts_per_item) {
+            return track::detect::Sam3Input{
+                track::detect::YoloInput{
+                    std::move(images),
+                    std::move(offsets),
+                    std::move(scales),
+                    std::move(orig_id)
+                },
+                std::move(prompts_per_item)
+            };
+        }),
+        py::arg("images"),
+        py::arg("offsets"),
+        py::arg("scales"),
+        py::arg("orig_id"),
+        py::arg("prompts_per_item") = std::vector<std::vector<track::detect::Sam3PromptPayload>>{})
+        .def("__repr__", [](const track::detect::Sam3Input& v) -> std::string {
+            return v.toStr();
+        })
+        .def("base", &track::detect::Sam3Input::base, py::return_value_policy::reference_internal)
+        .def("prompts_per_item", &track::detect::Sam3Input::prompts_per_item);
+
     m.def("log", [](std::string text) {
         Print(fmt::clr<FormatColor::DARK_GRAY>("[py] "), text.c_str());
     });
@@ -1148,11 +1201,8 @@ std::optional<glz::json_t> result_to_json(py::handle&& result) {
     if(CHECK_NONE(result)) {
         return std::nullopt;
     }
-    
-    std::string str;
-    try {
-        str = result.cast<std::string>();
-        
+
+    auto parse_json_string = [](const std::string& str) -> glz::json_t {
         glz::json_t json;
         auto error = glz::read_json(json, str);
         if(error != glz::error_code::none) {
@@ -1160,12 +1210,47 @@ std::optional<glz::json_t> result_to_json(py::handle&& result) {
             throw SoftException("Error loading JSON response:\n", no_quotes(descriptive_error));
         }
         return json;
-        
-    } catch([[maybe_unused]] const py::cast_error& error) {
+    };
+
+    try {
+        if(result.is_none())
+            return std::nullopt;
+
+        if(py::isinstance<py::dict>(result)
+           || py::isinstance<py::list>(result)
+           || py::isinstance<py::bool_>(result)
+           || py::isinstance<py::int_>(result)
+           || py::isinstance<py::float_>(result))
+        {
+            auto json_mod = py::module::import("json");
+            std::string dumped = py::cast<std::string>(json_mod.attr("dumps")(result));
+            return parse_json_string(dumped);
+        }
+
+        if(py::isinstance<py::str>(result)) {
+            std::string str = result.cast<std::string>();
+            try {
+                return parse_json_string(str);
+            } catch(...) {
+                glz::json_t json = str;
+                return json;
+            }
+        }
+
+        auto json_mod = py::module::import("json");
+        std::string dumped = py::cast<std::string>(json_mod.attr("dumps")(result));
+        return parse_json_string(dumped);
+
+    } catch(const py::error_already_set& e) {
 #ifndef NDEBUG
-        FormatError("Cannot convert result to string: ", error.what());
+        FormatError("Cannot convert python result to JSON: ", e.what());
+#endif
+    } catch(const std::exception& e) {
+#ifndef NDEBUG
+        FormatError("Cannot convert python result to JSON: ", e.what());
 #endif
     }
+
     return std::nullopt;
 }
 
@@ -1479,6 +1564,24 @@ std::vector<ModelConfig> PythonIntegration::set_models(const std::vector<ModelCo
 }
 
 std::vector<track::detect::Result> PythonIntegration::predict(track::detect::YoloInput&& input, const std::string& m) {
+    PythonIntegration::check_correct_thread_id();
+
+    if (m.empty()) {
+        return _main.attr("predict")(std::move(input)).cast<std::vector<track::detect::Result>>();
+    }
+    else {
+        if (_modules.count(m)) {
+            auto& mod = _modules[m];
+            if (!CHECK_NONE(mod)) {
+                return mod.attr("predict")(std::move(input)).cast<std::vector<track::detect::Result>>();
+            }
+        }
+
+        throw SoftException("Cannot call function ", fmt::clr<FormatColor::DARK_CYAN>(m.c_str()), "::", fmt::clr<FormatColor::CYAN>("predict"), " because the module ", fmt::clr<FormatColor::DARK_CYAN>(m.c_str()), " does not exist (you should probably have a look at previous error messages).");
+    }
+}
+
+std::vector<track::detect::Result> PythonIntegration::predict(track::detect::Sam3Input&& input, const std::string& m) {
     PythonIntegration::check_correct_thread_id();
 
     if (m.empty()) {

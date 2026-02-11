@@ -40,3 +40,5 @@ docs/notebooks/training_eval/
 docs/notebooks/identities/*/
 Application/src/tracker/gfx/_*.mov
 *.settings.backup
+build/
+runs/

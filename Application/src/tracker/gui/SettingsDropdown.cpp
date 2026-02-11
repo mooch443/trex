@@ -1,6 +1,7 @@
 #include "SettingsDropdown.h"
 #include <gui/types/List.h>
 #include <gui/IMGUIBase.h>
+#include <misc/DisplayValue.h>
 
 namespace cmn::gui {
 void SettingsDropdown::selected_setting(long_t index, const std::string& name, Textfield& textfield) {
@@ -39,13 +40,7 @@ void SettingsDropdown::selected_setting(long_t index, const std::string& name, T
             
         } else {
             _settings_choice = nullptr;
-            
-            if(val.is_type<std::string>()) {
-                textfield.set_text(val.value<std::string>());
-            } else if(val.is_type<file::Path>()) {
-                textfield.set_text(val.value<file::Path>().str());
-            } else
-                textfield.set_text(val.get().valueString());
+            textfield.set_text(sprite::display_property(val.get()));
         }
         
         if(!_settings_choice)
@@ -87,4 +82,3 @@ void SettingsDropdown::draw(IMGUIBase& base, DrawStructure& g) {
 }
 
 }
-

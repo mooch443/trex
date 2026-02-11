@@ -49,6 +49,7 @@
 #include <ml/UniquenessProvider.h>
 #include <misc/SampleInterpolator.h>
 #include <tracking/PPFrame.h>
+#include <misc/DisplayValue.h>
 
 using namespace track;
 
@@ -2136,11 +2137,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                     throw InvalidArgumentException("Need to provide a variable to retrieve in ", props);
                 
                 auto& prop = map.at(props.subs.front()).get();
-                if(prop.is_type<std::string>())
-                    return prop.value<std::string>();
-                else if(prop.is_type<file::Path>())
-                    return prop.value<file::Path>().str();
-                return prop.valueString();
+                return sprite::display_property(prop);
             }),
             
             VarFunc("tracker", [this](const VarProps&) -> Range<Frame_t> {

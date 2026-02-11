@@ -11,6 +11,7 @@
 #include <grabber/misc/default_config.h>
 #include <opencv2/core/ocl.hpp>
 #include <video/AveragingAccumulator.h>
+#include <misc/DisplayValue.h>
 
 #define TEMP_SETTING(NAME) (gui::temp_settings[#NAME])
 
@@ -88,10 +89,7 @@ VideoOpener::LabeledTextField::LabeledTextField(const std::string& name)
 }
 
 void VideoOpener::LabeledTextField::update() {
-    auto str = _ref.get().valueString();
-    if(str.length() >= 2 && str.front() == '"' && str.back() == '"') {
-        str = str.substr(1,str.length()-2);
-    }
+    auto str = sprite::display_property(_ref.get());
     _text_field->set_text(str);
 }
 
@@ -944,11 +942,7 @@ void VideoOpener::select_file(const file::Path &p) {
     constexpr double settings_width = 240;
     
     for(auto &name : _settings_to_show) {
-        std::string start;
-        if(tmp[name].is_type<std::string>())
-            start = tmp[name].value<std::string>();
-        else
-            start = tmp[name].get().valueString();
+        std::string start = sprite::display_property(tmp[name].get());
         
         if(tmp[name].is_type<bool>()) {
             children.push_back( Layout::Ptr(std::make_shared<Checkbox>(attr::Loc(), Str(name), attr::Checked(tmp[name].get().value<bool>()), gui::Font(0.7f))) );

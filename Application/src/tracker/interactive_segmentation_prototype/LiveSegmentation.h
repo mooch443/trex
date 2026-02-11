@@ -7,6 +7,7 @@
 #include <gui/types/Entangled.h>
 #include <gui/dyn/VarProps.h>
 #include <misc/Timer.h>
+#include <misc/TaskPipeline.h>
 
 namespace cmn {
 class VideoSource;
@@ -32,7 +33,7 @@ struct VideoFrame {
 
 class LiveSegmentation : public Scene {
 private:
-    std::mutex _next_frame_mutex;
+    std::mutex _next_frame_mutex, _generate_mutex;
     std::unique_ptr<VideoSource> _video;
     std::condition_variable _condition;
     std::atomic<bool> _terminated{false};
@@ -41,12 +42,16 @@ private:
     Size2 video_size;
     std::unique_ptr<Bowl> _bowl;
     
+    std::atomic<bool> _playback{false};
+    
     std::optional<Frame_t> _requested_frame;
     std::optional<VideoFrame> _next_frame;
     std::optional<VideoFrame> _previous_frame;
+    std::optional<SegmentationData> _next_data;
     
     VideoFrame _current_frame;
     std::unique_ptr<ExternalImage> _current_image;
+    std::optional<SegmentationData> _current_data;
     std::unique_ptr<dyn::DynamicGUI> _gui;
     
     Timer _timer;

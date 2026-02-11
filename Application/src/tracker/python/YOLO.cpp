@@ -826,7 +826,7 @@ void YOLO::process_instance_segmentation(
         }
     };
 
-    if(indices->size() > 1) {
+    if(indices->size() > 1 && _pool) {
         distribute_indexes(fn, *_pool, size_t(0), indices->size());
     } else {
         fn(0, size_t(0), indices->size(), 0);

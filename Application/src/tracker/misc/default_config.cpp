@@ -686,7 +686,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("app_name", std::string("TRex"), "Name of the application.", SYSTEM);
         CONFIG("app_check_for_updates", app_update_check_t::none, "If enabled, the application will regularly check for updates online (`https://api.github.com/repos/mooch443/trex/releases`).");
         CONFIG("app_last_update_check", uint64_t(0), "Time-point of when the application has last checked for an update.", SYSTEM);
-        CONFIG("app_last_update_version", std::string(), "");
+        CONFIG("app_last_update_version", std::string(), "Last release tag observed during the most recent update check.", SYSTEM);
         CONFIG("version", std::string(g_GIT_DESCRIBE_TAG)+(std::string(g_GIT_CURRENT_BRANCH) != "main" ? "_"+std::string(g_GIT_CURRENT_BRANCH) : ""), "Current application version.", SYSTEM);
         CONFIG("build_architecture", std::string(g_TREX_BUILD_ARCHITECTURE), "The architecture this executable was built for.", SYSTEM);
         CONFIG("build_type", std::string(g_TREX_BUILD_TYPE), "The mode the application was built in.", SYSTEM);
@@ -697,8 +697,6 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("wd", file::Path(), "Working directory that the software was started from (defaults to the user directory).", SYSTEM);
         CONFIG("ffmpeg_path", file::Path(), "Path to an ffmpeg executable file. This is used for converting videos after recording them (from the GUI). It is not a critical component of the software, but mostly for convenience.");
         CONFIG("blobs_per_thread", 150.f, "Number of blobs for which properties will be calculated per thread.");
-        CONFIG("individuals_per_thread", 1.f, "Number of individuals for which positions will be estimated per thread.");
-        CONFIG("postures_per_thread", 1.f, "Number of individuals for which postures will be estimated per thread.");
         CONFIG("history_matching_log", file::Path(), "If this is set to a valid html file path, a detailed matching history log will be written to the given file for each frame.");
         CONFIG("filename", Path(""), "The converted video file (.pv file) or target for video conversion. Typically it would have the same basename as the video source (i.e. an MP4 file), but a different extension: pv.", LOAD);
         CONFIG("source", file::PathArray(), "This is the (video) source for the current session. Typically this would point to the original video source of `filename`.", LOAD);
@@ -713,7 +711,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("calculate_posture", true, "Enables or disables posture calculation. Can only be set before the video is analysed (e.g. in a settings file or as a startup parameter).");
         
         CONFIG("meta_encoding", meta_encoding_t::rgb8, "The encoding used for the given .pv video.");
-        CONFIG("detect_classes", cmn::blob::MaybeObjectClass_t{}, "Class names for object classification in video during conversion.");
+        CONFIG("detect_classes", cmn::blob::MaybeObjectClass_t{}, "Class names for object classification in video during conversion.", PUBLIC, {cmn::blob::MaybeObjectClass_t{cmn::blob::ObjectClass_t{{0, "fish"}, {1, "debris"}}}});
         CONFIG("detect_skeleton", std::optional<blob::Pose::Skeletons>{}, "Skeletons to be used when displaying pose data. It maps class names (from `detect_classes`) to skeletons (e.g. `{'shark':[[1,2]], ...}`). Each skeleton is an array of pairs `[<joint_id_1>,<joint_id_2>]`.", PUBLIC, std::optional<std::optional<blob::Pose::Skeletons>>{std::optional<blob::Pose::Skeletons>{
             blob::Pose::Skeletons{
                 ._skeletons = {{"human", std::vector<blob::Pose::Skeleton::Connection>{
@@ -766,10 +764,10 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         //config["debug_probabilities"] = false;
         CONFIG("track_pause", false, "Halts the analysis.");
         CONFIG("limit", 0.09f, "Limit for tailbeat event detection.");
-        CONFIG("event_min_peak_offset", 0.15f, "");
+        CONFIG("event_min_peak_offset", 0.15f, "Minimum peak offset used by tailbeat event detection.");
         CONFIG("exec", file::Path(), "This can be set to the path of an additional settings file that is executed after the normal settings file.", STARTUP);
         CONFIG("log_file", file::Path(), "Set this to a path you want to save the log file to.", STARTUP);
-        CONFIG("error_terminate", false, "", SYSTEM);
+        CONFIG("error_terminate", false, "Internal error flag. If set, the application exits with a non-zero status code.", SYSTEM);
         CONFIG("terminate", false, "If set to true, the application terminates.", SYSTEM);
         
         //CONFIG("gui_transparent_background", false, "If enabled, fonts might look weird but you can record movies (and images) with transparent background (if gui_background_color.alpha is < 255).");
@@ -852,9 +850,9 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("gui_pose_smoothing", Frame_t(0), "Blending between the current and previous / future frames for displaying smoother poses in the graphical user-interface. This does not affect data output.");
         CONFIG("gui_timeline_alpha", uchar(200), "Determines the Alpha value for the timeline / tracklets display.");
         CONFIG("gui_background_color", gui::Color(0,0,0,255), "Values < 255 will make the background (or video background) more transparent in standard view. This might be useful with very bright backgrounds.");
-        CONFIG("gui_fish_color", std::string("identity"), "");
+        CONFIG("gui_fish_color", std::string("identity"), "Color source for individuals in tracking view. Use `identity` for ID colors, `viridis` for difference-image coloring, or an output field name (for example `SPEED`, `X`, `Y`).");
         CONFIG("gui_single_identity_color", gui::Transparent, "If set to something else than transparent, all individuals will be displayed with this color.");
-        CONFIG("gui_zoom_limit", Size2(300, 300), "");
+        CONFIG("gui_zoom_limit", Size2(300, 300), "Minimum zoom-box size in pixels `[width,height]` used by auto zoom and polygon zoom.");
         CONFIG("gui_zoom_polygon", std::vector<Vec2>{}, "If this is non-empty, the view will be zoomed in on the center of the polygon with approximately the dimensions of the polygon.");
 
 #ifdef __APPLE__
@@ -888,7 +886,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("track_ignore_bdx", std::map<Frame_t, std::set<pv::bid>>{}, "This is a map of frame -> [bdx0, bdx1, ...] of blob ids that are specifically set to be ignored in the given frame. Can be reached using the GUI by clicking on a blob in raw mode.");
         CONFIG("match_mode", matching_mode_t::automatic, "Changes the default algorithm to be used for matching blobs in one frame with blobs in the next frame. The accurate algorithm performs best, but also scales less well for more individuals than the approximate one. However, if it is too slow (temporarily) in a few frames, the program falls back to using the approximate one that doesnt slow down.");
         CONFIG("match_min_probability", float(0.1), "The probability below which a possible connection between blob and identity is considered too low. The probability depends largely upon settings like `track_max_speed`.");
-        CONFIG("match_topk", std::optional<uint8_t>(), "If not null, the matching algorithm will consider only the top k elements with the highest probability.");
+        CONFIG("match_topk", std::optional<uint8_t>(), "If not null, the matching algorithm will consider only the top k elements with the highest probability.", PUBLIC, {std::optional<uint8_t>{5}});
         CONFIG("track_do_history_split", true, "If disabled, blobs will not be split automatically in order to separate overlapping individuals. This usually happens based on their history.");
         CONFIG("track_history_split_threshold", Frame_t(), "If this is greater than 0, then individuals with tracklets < this threshold will not be considered for the splitting algorithm. That means that objects have to be detected for at least `N` frames in a row to play a role in history splitting.");
         CONFIG("tracklet_punish_speeding", true, "Sometimes individuals might be assigned to blobs that are far away from the previous position. This could indicate wrong assignments, but not necessarily. If this variable is set to true, tracklets will end whenever high speeds are reached, just to be on the safe side. For scenarios with lots of individuals (and no recognition) this might spam yellow bars in the timeline and may be disabled.");
@@ -912,14 +910,12 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("track_speed_decay", float(1.0), "The amount the expected speed is reduced over time when an individual is lost. When individuals collide, depending on the expected behavior for the given species, one should choose different values for this variable. If the individuals usually stop when they collide, this should be set to 1. If the individuals are expected to move over one another, the value should be set to `0.7 > value > 0`.");
         CONFIG("track_max_speed", Float2_t(0), "The maximum speed an individual can have (=> the maximum distance an individual can travel within one second) in cm/s. Uses and is influenced by `meta_real_width` and `cm_per_pixel` as follows: `speed(px/s) * cm_per_pixel(cm/px) -> cm/s`.");
         CONFIG("posture_direction_smoothing", uint16_t(0), "Enables or disables smoothing of the posture orientation based on previous frames (not good for fast turns).");
-        CONFIG("speed_extrapolation", float(3), "Used for matching when estimating the next position of an individual. Smaller values are appropriate for lower frame rates. The higher this value is, the more previous frames will have significant weight in estimating the next position (with an exponential decay).");
-        CONFIG("track_intensity_range", Rangel(-1, -1), "When set to valid values, objects will be filtered to have an average pixel intensity within the given range.");
         CONFIG("track_threshold", int(0), "Constant used in background subtraction. Pixels with grey values above this threshold will be interpreted as potential individuals, while pixels below this threshold will be ignored.");
         CONFIG("threshold_ratio_range", Rangef(0.5, 1.0), "If `track_threshold_2` is not equal to zero, this ratio will be multiplied by the number of pixels present before the second threshold. If the resulting size falls within the given range, the blob is deemed okay.");
         CONFIG("track_threshold_2", int(0), "If not zero, a second threshold will be applied to all objects after they have been deemed do be theoretically large enough. Then they are compared to #before_pixels * `threshold_ratio_range` to see how much they have been shrunk).");
         CONFIG("track_posture_threshold", int(0), "Same as `track_threshold`, but for posture estimation.");
-        CONFIG("track_threshold_is_absolute", true, "If enabled, uses absolute difference values and disregards any pixel |p| < `threshold` during conversion. Otherwise the equation is p < `threshold`, meaning that e.g. bright spots may not be considered trackable when dark spots would. Same as `detect_threshold_is_absolute`, but during tracking instead of converting.");
-        CONFIG("track_time_probability_enabled", bool(true), "");
+        CONFIG("track_threshold_is_absolute", true, "If enabled, tracking uses absolute pixel differences and disregards any pixel |p| < `track_threshold`. Otherwise, tracking uses signed differences (p < `track_threshold`). This is the tracking-stage equivalent of `detect_threshold_is_absolute`.");
+        CONFIG("track_time_probability_enabled", bool(true), "If enabled, the tracker incorporates elapsed time into matching probabilities.");
         CONFIG("track_max_reassign_time", float(0.5), "Distance in time (seconds) where the matcher will stop trying to reassign an individual based on previous position. After this time runs out, depending on the settings, the tracker will try to find it based on other criteria, or generate a new individual.");
         
         CONFIG("gui_highlight_categories", false, "If enabled, categories (if applied in the video) will be highlighted in the tracking view.");
@@ -933,7 +929,6 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("track_only_classes", std::vector<std::string>{}, "If this is a non-empty list, only objects that have any of the given labels (assigned by a ML network during video conversion) will be tracked.");
         CONFIG("track_conf_threshold", 0.1_F, "During tracking, detections with confidence levels below the given fraction (0-1) for labels (assigned by an ML network during video conversion) will be discarded. These objects will not be assigned to any individual.");
         
-        CONFIG("web_quality", int(75), "JPEG quality of images transferred over the web interface.");
         CONFIG("web_time_threshold", float(0.050), "Maximum refresh rate in seconds for the web interface.");
         
         CONFIG("correct_illegal_lines", false, "In older versions of the software, blobs can be constructed in 'illegal' ways, meaning the lines might be overlapping. If the software is printing warnings about it, this should probably be enabled (makes it slower).");
@@ -1047,7 +1042,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("output_origin", Vec2(0), "When exporting the data, positions will be relative to this point - unless `output_centered` is set, which takes precedence.");
         CONFIG("output_default_options", output_default_options, "Default scaling and smoothing options for output functions, which are applied to functions in `output_fields` during export.");
         CONFIG("output_annotations", output_annotations, "Units (as a string) of output functions to be annotated in various places like graphs.");
-        CONFIG("output_frame_window", uint32_t(100), "If an individual is selected during CSV output, use these number of frames around it (or -1 for all frames).");
+        CONFIG("output_frame_window", uint32_t(100), "Half-window size (in frames) used for per-selection graph/output context around the current frame.");
         CONFIG("smooth_window", uint32_t(2), "Smoothing window used for exported data with the #smooth tag.");
         
         CONFIG("tags_path", file::Path(""), "If this path is set, the program will try to find tags and save them at the specified location.");
@@ -1071,7 +1066,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("pose_midline_indexes", track::PoseMidlineIndexes{.indexes = {}}, "This is an array of joint indexes (in the order as predicted by a YOLO-pose model), which are used to determine the joints making up the midline of an object. The first index is the head, the last the tail. This is used to generate a posture when using YOLO-pose models with `calculate_posture` enabled.");
         CONFIG("individual_image_size", Size2(80, 80), "Size of each image generated for network training.");
         CONFIG("individual_image_scale", float(1), "Scaling applied to the images before passing them to the network.");
-        CONFIG("visual_identification_model_path", std::optional<file::Path>{}, "If this is set to a path, visual identification 'load weights' or 'apply' will try to load this path first if it exists. This way you can facilitate transfer learning (taking a model file from one video and applying it to a different video of the same individuals).");
+        CONFIG("visual_identification_model_path", std::optional<file::Path>{}, "If this is set to a path, visual identification 'load weights' or 'apply' will try to load this path first if it exists. This way you can facilitate transfer learning (taking a model file from one video and applying it to a different video of the same individuals).", PUBLIC, {std::optional<file::Path>{file::Path("models/visual_identification_weights.pt")}});
         CONFIG("visual_identification_save_images", false, "If set to true, the program will save the images used for a successful training of the visual identification to `output_dir`.");
         CONFIG("visual_identification_version", visual_identification_version_t::v118_3, "Newer versions of TRex sometimes change the network layout for (e.g.) visual identification, which will make them incompatible with older trained models. This parameter allows you to change the expected version back, to ensure backwards compatibility. It also features many public network layouts available from the Keras package. In case training results do not match expectations, please first check the quality of your trajectories before trying out different network layouts.");
         CONFIG("accumulation_enable", true, "Enables or disables the idtrackerai-esque accumulation protocol cascade. It is usually a good thing to enable this (especially in more complicated videos), but can be disabled as a fallback (e.g. if computation time is a major constraint).");
@@ -1084,32 +1079,32 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("gpu_torch_device", gpu_torch_device_t::automatic, "If specified, indicate something like 'cuda:0' to use the first cuda device when doing machine learning using pytorch (e.g. TRexA). Other options can be looked up at `https://pytorch.org/docs/stable/generated/torch.cuda.device.html#torch.cuda.device`.");
         CONFIG("gpu_torch_device_index", int(-1), "Index of the GPU used by torch (or -1 for automatic selection).");
         CONFIG("gpu_torch_no_fixes", true, "Disable the fix for PyTorch on MPS devices that will automatically switch to CPU specifically for Ultralytics segmentation models.");
-        CONFIG("detect_type", track::detect::ObjectDetectionType_t{}, "The method used to separate background from foreground when converting videos.", AccessLevelType::INIT);
+        CONFIG("detect_type", track::detect::ObjectDetectionType_t{}, "The method used to separate background from foreground when converting videos.", AccessLevelType::INIT, {track::detect::ObjectDetectionType_t{track::detect::ObjectDetectionType::yolo}});
         CONFIG("outline_compression", float(0.f), "Applies a *lossy* compression to the outlines generated by segmentation models. Walking around the outline, it removes line segments that do not introduce any noticable change in direction. The factor specified here controls how much proportional difference in radians/angle is allowed. The value isnt in real radians, as the true downsampling depends on the size of the object (smaller objects = smaller differences allowed).");
         CONFIG("detect_format", track::detect::ObjectDetectionFormat::none, "The type of data returned by the `detect_model`, which can be an instance segmentation", AccessLevelType::INIT);
-        CONFIG("detect_keypoint_format", track::detect::KeypointFormat{}, "When a keypoint (pose) type model is loaded, this variable will be set to [n_points,n_dims].", AccessLevelType::INIT);
-        CONFIG("detect_keypoint_names", track::detect::KeypointNames{}, "An array of names in the correct keypoint index order for the given model.", AccessLevelType::INIT);
-        CONFIG("detect_point_radii", std::map<int, float>{}, "An array of radii for a given point class in a POLO network.", PUBLIC);
+        CONFIG("detect_keypoint_format", track::detect::KeypointFormat{}, "When a keypoint (pose) type model is loaded, this variable will be set to [n_points,n_dims].", AccessLevelType::INIT, {track::detect::KeypointFormat{.n_points = 17, .n_dims = 2}});
+        CONFIG("detect_keypoint_names", track::detect::KeypointNames{}, "An array of names in the correct keypoint index order for the given model.", AccessLevelType::INIT, {track::detect::KeypointNames{.names = std::vector<std::string>{"nose", "left_eye", "right_eye", "left_ear", "right_ear"}}});
+        CONFIG("detect_point_radii", std::map<int, float>{}, "An array of radii for a given point class in a POLO network.", PUBLIC, {std::map<int, float>{{0, 3.f}, {1, 2.5f}}});
         CONFIG("detect_batch_size", uchar(1), "The batching size for object detection.");
         CONFIG("detect_tile_image", uchar(0), "Legacy tile multiplier for SAHI detection. If > 1, this will tile the input image into that many multiples of `detect_resolution`. Retained for backwards compatibility; prefer `detect_tile_target_width`.");
         CONFIG("detect_tile_target_width", uint16_t(0), "Desired horizontal resolution (in pixels) used when preparing tiles for SAHI detection. We derive the number of tiles from this width; set to 0 to disable or fall back to `detect_tile_image`.");
         CONFIG("detect_tile_overlap", float(0.f), "Relative overlap (0-0.95) between adjacent tiles when tiling detection inputs. Enables SAHI-style inference without losing objects on tile borders.");
         CONFIG("detect_tile_merge_iou", Float2_t(0.55f), "IoU threshold used when merging tile predictions on the C++ side after SAHI tiling.");
         CONFIG("detect_tile_merge_containment", Float2_t(0.9f), "Containment threshold (fraction of the smaller box overlapped) used to drop partial detections at tile seams.");
+        CONFIG("detect_sam3_prompt", std::optional<std::string>{}, "Set to a text to prompt SAM3 segmentation with it for every image. This is different from point / box prompts, which are applied per-image (because objects are in different places each time).", PUBLIC, {std::optional<std::string>{"fish"}});
         CONFIG("yolo_tracking_enabled", false, "If set to true, the program will try to use yolov8s internal tracking routine to improve results. This can be significantly slower and disables batching.");
         CONFIG("yolo_region_tracking_enabled", false, "If set to true, the program will try to use yolov8s internal tracking routine to improve results for region tracking. This can be significantly slower and disables batching.");
         CONFIG("detect_model", file::Path(), "The path to a .pt file that contains a valid PyTorch object detection model (currently only YOLO networks are supported).");
         CONFIG("detect_precomputed_file", file::PathArray{}, "If `detect_type` is set to `precomputed`, this should point to a csv file (or npz files) containing the necessary tracking data for the given `source` video.");
-        CONFIG("detect_only_classes", track::detect::PredictionFilter{}, "An array of class ids that you would like to detect (as returned from the model). If left empty, no class will be filtered out.");
+        CONFIG("detect_only_classes", track::detect::PredictionFilter{}, "An array of class ids that you would like to detect (as returned from the model). If left empty, no class will be filtered out.", PUBLIC, {track::detect::PredictionFilter{.detect_only = {0, 1}, ._inverted_from = std::nullopt}});
         CONFIG("region_model", file::Path(), "The path to a .pt file that contains a valid PyTorch object detection model used for region proposal (currently only YOLO networks are supported).");
-        CONFIG("region_resolution", track::detect::DetectResolution{}, "The resolution of the region proposal network (`region_model`).", SYSTEM);
-        CONFIG("detect_resolution", track::detect::DetectResolution{}, "The input resolution of the object detection model (`detect_model`).", SYSTEM);
+        CONFIG("region_resolution", track::detect::DetectResolution{}, "The resolution of the region proposal network (`region_model`).", SYSTEM, {track::detect::DetectResolution{640, 640}});
+        CONFIG("detect_resolution", track::detect::DetectResolution{}, "The input resolution of the object detection model (`detect_model`).", SYSTEM, {track::detect::DetectResolution{640, 640}});
         CONFIG("detect_iou_threshold", Float2_t(0.5), "Higher (==1) indicates that all overlaps are allowed, while lower values (>0) will filter out more of the overlaps. This depends strongly on the situation, but values between 0.25 and 0.7 are common.");
         CONFIG("detect_conf_threshold", Float2_t(0.1), "Confidence threshold (`0<=value<1`) for object detection / segmentation networks. Confidence is higher if the network is more *sure* about the object. Anything with a confidence level below `detect_conf_threshold` will not be considered an object and not saved to the PV file during conversion.");
         CONFIG("gpu_min_iterations", uchar(100), "Minimum number of iterations per epoch for training a recognition network.");
         CONFIG("gpu_max_cache", float(2), "Size of the image cache (transferring to GPU) in GigaBytes when applying the network.");
         CONFIG("gpu_max_sample_gb", float(2), "Maximum size of per-individual sample images in GigaBytes. If the collected images are too many, they will be sub-sampled in regular intervals.");
-        CONFIG("gpu_min_elements", uint32_t(25000), "Minimum number of images being collected, before sending them to the GPU.");
         CONFIG("accumulation_max_tracklets", uint32_t(15), "If there are more than `accumulation_max_tracklets` global tracklets to be trained on, they will be filtered according to their quality until said limit is reached.");
         CONFIG("terminate_training", bool(false), "Setting this to true aborts the training in progress.");
         
@@ -1121,7 +1116,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         
         CONFIG("tracklet_punish_timedelta", true, "If enabled, a huge timestamp difference will end the current trajectory tracklet and will be displayed as a reason in the tracklet overview at the top of the selected individual info card.");
         CONFIG("track_trusted_probability", 0.25_F, "If the (purely kinematic-based) probability that is used to assign an individual to an object is smaller than this value, the current tracklet ends and a new one starts. Even if the individual may still be assigned to the object, TRex will be *unsure* and no longer assume that it is definitely the same individual.");
-        CONFIG("huge_timestamp_seconds", 0.2, "Defaults to 0.5s (500ms), can be set to any value that should be recognized as being huge.");
+        CONFIG("huge_timestamp_seconds", 0.2, "Time delta threshold in seconds that is considered huge and can force tracklet splitting.");
         CONFIG("gui_foi_name", std::string("correcting"), "If not empty, the gui will display the given FOI type in the timeline and allow to navigate between them via M/N.");
         CONFIG("gui_foi_types", std::vector<std::string>{"none"}, "A list of all the foi types registered.", SYSTEM);
         
@@ -1140,7 +1135,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("use_closing", false, "Toggles the attempt to close weird blobs using dilation/erosion with `closing_size` sized filters.");
         CONFIG("closing_size", int(3), "Size of the dilation/erosion filters for if `use_closing` is enabled.");
         
-        CONFIG("track_threshold_is_absolute", true, "If enabled, uses absolute difference values and disregards any pixel |p| < `threshold` during conversion. Otherwise the equation is p < `threshold`, meaning that e.g. bright spots may not be considered trackable when dark spots would. Same as `detect_threshold_is_absolute`, but during tracking instead of converting.");
+        CONFIG("track_threshold_is_absolute", true, "If enabled, tracking uses absolute pixel differences and disregards any pixel |p| < `track_threshold`. Otherwise, tracking uses signed differences (p < `track_threshold`). This is the tracking-stage equivalent of `detect_threshold_is_absolute`.");
         CONFIG("detect_threshold_is_absolute", true, "If enabled, uses absolute difference values and disregards any pixel |p| < `threshold` during conversion. Otherwise the equation is p < `threshold`, meaning that e.g. bright spots may not be considered trackable when dark spots would. Same as `track_threshold_is_absolute`, but during conversion instead of tracking.");
         
 #if !CMN_WITH_IMGUI_INSTALLED

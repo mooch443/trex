@@ -369,6 +369,92 @@ public:
     }
 };
 
+/// SAM3 prompt operation kind.
+/// - text: classify/track by text concept (e.g. "fish").
+/// - box: one XYXY box on a frame.
+/// - boxes: multiple XYXY boxes on a frame.
+/// - points: positive/negative points on a frame.
+/// - mask: binary mask prompt (model-dependent support).
+/// - remove_object: suppress/remove one tracked object id.
+enum class TREX_EXPORT Sam3PromptType : uint8_t {
+    text,
+    box,
+    boxes,
+    points,
+    mask,
+    remove_object
+};
+
+/// Typed SAM3 prompt payload accompanying one input image.
+/// Only a subset of fields is used depending on `type`.
+struct TREX_EXPORT Sam3PromptPayload {
+    /// Prompt discriminator.
+    Sam3PromptType type = Sam3PromptType::text;
+
+    /// Target frame index in the SAM3 timeline.
+    /// For per-image prompts this usually matches the associated orig_id / frame.
+    int64_t frame_index = 0;
+
+    /// Text concept(s) for `type == text`.
+    /// If set repeatedly with a new value, the previous session text prompt is replaced.
+    std::optional<std::string> text;
+
+    /// Target tracked object id for object-scoped operations.
+    /// Used by e.g. `remove_object`, object-scoped point/mask updates.
+    std::optional<int64_t> obj_id;
+
+    /// Point coordinates in pixel space for `type == points`.
+    std::vector<Vec2> points;
+
+    /// One label per point (typically 1=positive, 0=negative).
+    std::vector<int32_t> point_labels;
+
+    /// One or more XYXY boxes in pixel coordinates for `type == box/boxes`.
+    std::vector<std::array<float, 4>> boxes;
+
+    /// Optional class/object labels associated with `boxes`.
+    std::vector<int32_t> labels;
+
+    /// Optional binary mask payload for `type == mask` (row-major, uint8).
+    std::vector<uint8_t> mask;
+
+    /// Width/height for `mask` payload.
+    Size2 mask_size{};
+
+    /// Text prompt behavior:
+    /// - false: apply text at `frame_index` only.
+    /// - true: set/replace session-global text prompt.
+    bool text_session_scope = false;
+
+    /// If true and text prompt value is unchanged, skip invalidation/recompute.
+    bool text_skip_if_unchanged = true;
+
+    std::string toStr() const {
+        return "Sam3PromptPayload<type=" + Meta::toStr(static_cast<int>(type))
+            + " frame=" + Meta::toStr(frame_index)
+            + " text=" + Meta::toStr(text)
+            + " obj_id=" + Meta::toStr(obj_id)
+            + " points=" + Meta::toStr(points.size())
+            + " boxes=" + Meta::toStr(boxes.size())
+            + ">";
+    }
+};
+
+class TREX_EXPORT Sam3Input {
+    GETTER(YoloInput, base);
+    /// Prompts aligned with `base.images()`:
+    /// `prompts_per_item[i]` applies to `base.images()[i]`.
+    GETTER(std::vector<std::vector<Sam3PromptPayload>>, prompts_per_item);
+public:
+    Sam3Input(YoloInput&& base, std::vector<std::vector<Sam3PromptPayload>> prompts_per_item = {})
+        : _base(std::move(base)), _prompts_per_item(std::move(prompts_per_item))
+    {}
+
+    std::string toStr() const {
+        return "Sam3Input<base=" + _base.toStr() + " prompts=" + Meta::toStr(_prompts_per_item.size()) + ">";
+    }
+};
+
 }
 
 TREX_EXPORT std::atomic_bool& initialized();
@@ -431,6 +517,7 @@ public:
     static std::optional<std::string> variable_to_string(const std::string &name, const std::string &mod);
 
     static std::vector<track::detect::Result> predict(track::detect::YoloInput&&, const std::string &m = "");
+    static std::vector<track::detect::Result> predict(track::detect::Sam3Input&&, const std::string &m = "");
     static std::vector<track::detect::ModelConfig> set_models(const std::vector<track::detect::ModelConfig>&, const std::string& m = "");
 
     static void set_function(const char* name_, std::function<bool(void)> f, const std::string &m = "");

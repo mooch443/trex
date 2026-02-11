@@ -457,6 +457,52 @@ TEST(PreparseTest, CachedLoopVariablesRefreshAfterMutation) {
     ASSERT_EQ(realized, "20:1");
 }
 
+TEST(PreparseTest, CachedLoopVariablesRefreshAcrossScopes) {
+    using namespace gui::dyn;
+    
+    Context context{};
+    State state;
+    auto handler = std::make_shared<CurrentObjectHandler>();
+    state._current_object_handler = std::weak_ptr(handler);
+    handler->set_variable_value("i", "global");
+    
+    std::string realized;
+    
+    {
+        auto scope = handler->scope();
+        scope.set("i", "10");
+        EXPECT_NO_THROW((realized = parse_text("{i}", context, state)));
+        ASSERT_EQ(realized, "10");
+    }
+    
+    EXPECT_NO_THROW((realized = parse_text("{i}", context, state)));
+    ASSERT_EQ(realized, "global");
+    
+    {
+        auto scope = handler->scope();
+        scope.set("i", "20");
+        EXPECT_NO_THROW((realized = parse_text("{i}", context, state)));
+        ASSERT_EQ(realized, "20");
+    }
+}
+
+TEST(PreparseTest, ScopedLoopVariablesDoNotBumpGlobalVersion) {
+    using namespace gui::dyn;
+    
+    auto handler = std::make_shared<CurrentObjectHandler>();
+    handler->set_variable_value("stable", "1");
+    const auto global_before = handler->variable_values_version();
+    
+    {
+        auto scope = handler->scope();
+        scope.set("i", "10");
+        scope.set("index", "0");
+    }
+    
+    ASSERT_EQ(handler->variable_values_version(), global_before);
+    ASSERT_GT(handler->scoped_variable_values_version(), 1u);
+}
+
 TEST(PreparseTest, ExtendedForLoop) {
     using namespace cmn::pattern;
     std::string str = "{for:{points}:{addVector:{screen_center}:{mulVector:{i}:{bg_scale}}:[1,1]}}";
@@ -3265,6 +3311,44 @@ TEST(ContainsTest, EmptyStrings) {
     ASSERT_FALSE(contains(s, ""));
     ASSERT_FALSE(contains("", s));
     ASSERT_FALSE(contains("", ""));
+}
+
+TEST(StringLikeViewTest, CharArrayUsesArrayExtent) {
+    constexpr char value[] = "abc";
+    constexpr char empty[] = "";
+
+    const auto view = string_like_view(value);
+    const auto empty_view = string_like_view(empty);
+
+    ASSERT_EQ(view, "abc");
+    ASSERT_EQ(view.size(), 3u);
+    ASSERT_TRUE(empty_view.empty());
+}
+
+TEST(StringLikeViewTest, NonNullTerminatedCharArrayUsesFullExtent) {
+    const char value[] = {'a', 'b', 'c'};
+    const char needle[] = {'b', 'c'};
+
+    const auto value_view = string_like_view(value);
+    const auto needle_view = string_like_view(needle);
+
+    ASSERT_EQ(value_view, "abc");
+    ASSERT_EQ(value_view.size(), 3u);
+    ASSERT_EQ(needle_view, "bc");
+    ASSERT_EQ(needle_view.size(), 2u);
+    ASSERT_TRUE(contains(value, needle));
+}
+
+TEST(StringLikeViewTest, NullCStringIsEmpty) {
+    const char* null_str = nullptr;
+    ASSERT_TRUE(string_like_view(null_str).empty());
+}
+
+TEST(ContainsTest, NullCStringHandledAsEmpty) {
+    const char* null_str = nullptr;
+    ASSERT_FALSE(contains(null_str, 'a'));
+    ASSERT_FALSE(contains(null_str, "a"));
+    ASSERT_FALSE(contains("abc", null_str));
 }
 
 template<typename T>

@@ -46,7 +46,6 @@ void async_main(void*) {
 		"gpu_max_sample_gb = 1\n"
 		"midline_stiff_percentage = 0.07\n"
 		"outline_resample = 0.75\n"
-		"speed_extrapolation = 10\n"
 		//"track_max_individuals = 8\n"
 		"track_max_individuals = 10\n"
 		"track_max_reassign_time = 0.25\n"
@@ -440,4 +439,3 @@ int main(int argc, char**argv) {
 	async_main(nullptr);
     return 0;
 }
-

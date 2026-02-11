@@ -5,6 +5,7 @@
             "text":"Hello World!",
             "color":[255,255,255]
         },
+        
 
         {
             "type":"circle",
@@ -35,6 +36,26 @@
                 "origin":[0.5,0.5],
                 "fill":[255,255,0],
                 "pos": "{2hud:{i}}"
+            }
+        },
+
+
+
+        {
+            "type":"settings",
+            "var":"",
+            "pos":"[10,{-:{window_size.y}:10}]",
+            "size":"[{-:{window_size.x}:20},30]",
+            "origin":[0,1],
+            "fill":[30,30,30,255],
+            "cleartext":"<sym>⮾</sym>",
+            "label":{
+                "size":[500,30],
+                "line":[200,0,0,255],
+                "color":[255,255,255] 
+            },
+            "list":{
+                "size":[300,100]
             }
         }
     ]

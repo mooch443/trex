@@ -2,6 +2,7 @@
 
 namespace cmn {
 namespace OverlayBuffers {
+static constexpr size_t kMaxOverlayBuffers = 8;
 
 static auto& buffer_mutex() {
     static auto mutex = new LOGGED_MUTEX("OverlayBuffers::buffer_mutex");
@@ -29,6 +30,8 @@ void put_back(Image::Ptr&& ptr) {
     if (not ptr)
         return;
     auto guard = LOGGED_LOCK(OverlayBuffers::buffer_mutex());
+    if(OverlayBuffers::buffers().size() >= kMaxOverlayBuffers)
+        return;
     //Print("Pushed back buffer ", ptr->bounds());
     OverlayBuffers::buffers().push_back(std::move(ptr));
 }
