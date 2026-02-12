@@ -2,6 +2,7 @@
 {% set latest_tag = environ.get('TREX_DESCRIBE_TAG', (GIT_DESCRIBE_TAG
  or 'vuntagged')) %}
 {% set git_tag = "main" %}
+{% set git_tag_sanitized = "main" %}
 {% set version_postfix = "" %}
 #{% set version_postfix = "i" %} # for installer packages
 {% set build_time = time.time() %}
@@ -13,7 +14,7 @@
 
 {% if git_tag != 'main' %}
 {% set version_prefix = '' %}
-{% set hash = git_tag + '_' + hash %}
+{% set hash = git_tag_sanitized + '_' + hash %}
 {% else %}
 {% set version_prefix = '' %}
 {% endif %}
