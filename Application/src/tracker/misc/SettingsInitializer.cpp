@@ -179,7 +179,10 @@ Configuration reset(const cmn::sprite::Map& extra_map, cmn::sprite::Map& output)
         combined.values["detect_type"] = detect::ObjectDetectionType_t{ detect::ObjectDetectionType::yolo };
     }
     
-    set_defaults_for(combined.at("detect_type"), combined.values, {}, combined.at("cm_per_pixel").value<Settings::cm_per_pixel_t>());
+    set_defaults_for(combined.at("detect_type").value<detect::ObjectDetectionType_t>(),
+                     combined.values,
+                     {},
+                     combined.at("cm_per_pixel").value<Settings::cm_per_pixel_t>());
     
     for(auto &key : extra_map.keys()) {
         try {
