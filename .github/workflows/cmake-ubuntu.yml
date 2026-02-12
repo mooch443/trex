@@ -56,7 +56,7 @@ jobs:
         echo "::endgroup::"
         echo "::group::Fix Meta"
         cd $GITHUB_WORKSPACE/conda
-        p=${GITHUB_REF##*/}
+        p=${GITHUB_REF#refs/heads/}
         sed -i -e '/^{% set git_tag =/ s+main+'$p'+g' meta.yaml
         sed -i -e 's/_cuda[0-9.]*/\*/g' -e 's/_cudnn/\*/g' -e 's/_cu[0-9.]*/\*/g' meta.yaml
         sed -i.bak 's|--index-url https://download.pytorch.org/whl/cu118||g' post-link.sh
