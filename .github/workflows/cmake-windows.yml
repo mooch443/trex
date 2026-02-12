@@ -73,6 +73,7 @@ jobs:
         cd $GITHUB_WORKSPACE/conda
         p=${GITHUB_REF#refs/heads/}
         p=${p//\//_}
+        p=${p//-/_}
         sed -i -e '/^{% set git_tag =/ s+main+'$p'+g' meta.yaml
         cat meta.yaml
         sed -i.bak 's|--index-url https://download.pytorch.org/whl/cu118||g' post-link.bat
