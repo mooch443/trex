@@ -375,8 +375,16 @@ class YOLOModel(DetectionModel):
         This method should handle the loading of the model parameters and any necessary setup.
         """
         # Load the model from the specified path
-        self.ptr = YOLO(self.config.model_path).to('cpu')
-        print(f"Loading model {self} on device {self.device}")
+        try:
+            self.ptr = YOLO(self.config.model_path).to("cpu")
+            print(f"Loaded model {self} onto the CPU first.")
+        except Exception as e:
+            if "LocalizationModel" in str(e):
+                # user is trying to load a POLO model in a version of ultralytics that does not support it
+                # i.e. the user didnt install POLO, but ultralytics default version
+                raise Exception(f"Failed to load model {self}. This model may be a POLO model which requires a version of ultralytics that supports it. Please install ultralytics with POLO support or use a non-POLO model. Original error: {e}")
+            else:
+                raise Exception(f"Failed to load model {self}. Original error: {e}")
 
         # initialize the torch device in case this has been broken
         # or the device has changed
@@ -423,6 +431,7 @@ class YOLOModel(DetectionModel):
         self.ptr.fuse()
         self.ptr.half()
         self.ptr.to(self.device)
+        TRex.log(f"Moved model {self} to device {self.device}.")
 
         super().load()
 
