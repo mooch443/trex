@@ -43,3 +43,4 @@ Application/src/tracker/gfx/_*.mov
 build/
 runs/
 build-bug/
+build-bug-lite/
