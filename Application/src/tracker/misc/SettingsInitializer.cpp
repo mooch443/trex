@@ -9,6 +9,7 @@
 #include <gui/DrawStructure.h>
 #include <pv.h>
 #include <video/VideoSource.h>
+#include <file/ask_for_permission.h>
 
 using namespace track;
 using namespace default_config;
@@ -641,6 +642,10 @@ void LoadContext::load_settings_from_source() {
                 G g(path.str(), quiet);
                 try {
                     sprite::Map tmp;
+                    if(not file::request_access(path.str())) {
+                        throw RuntimeError("Cannot open ", path,". Reason: no permission");
+                    }
+                    
                     auto f = pv::File::Read(path);
                     if(f.header().version < pv::Version::V_10) {
                         /// we need to have a `detect_type` in order to set the

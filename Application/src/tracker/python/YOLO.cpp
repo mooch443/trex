@@ -713,11 +713,11 @@ void YOLO::process_boxes_only(
         cmn::PixelArray_t pixels;
         std::vector<HorizontalLine> lines;
 
-        for (int y = bounds.y; y < bounds.y + bounds.height; ++y) {
+        for (int y = bounds.y; y < saturate(bounds.y + bounds.height, Float2_t(0), Float2_t(h)); ++y) {
             HorizontalLine line{
-                saturate(coord_t(y), coord_t(0), coord_t(h)),
-                saturate(coord_t(bounds.x), coord_t(0), coord_t(w)),
-                saturate(coord_t(bounds.x + bounds.width), coord_t(0), coord_t(w))
+                saturate(coord_t(y), coord_t(0), coord_t(h-1)),
+                saturate(coord_t(bounds.x), coord_t(0), coord_t(w-1)),
+                saturate(coord_t(bounds.x + bounds.width), coord_t(0), coord_t(w-1))
             };
             pixels.insert(pixels.end(), r3.ptr<uchar>(line.y, line.x0), r3.ptr<uchar>(line.y, line.x1 + 1));
             lines.emplace_back(std::move(line));

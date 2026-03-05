@@ -35,16 +35,10 @@ public:
     void set_data(Frame_t frame, const std::string& text, const Bounds& source, const Vec2& center);
     float update_positions(Vec2 text_pos, bool animate, double dt);
     void set_line_color(const Color& c) {
-		if(c == line_color())
-			return;
-		_line_color = c;
-        set_content_changed(true);
+        set(attr::LineClr{c});
 	}
     void set_fill_color(const Color& c) {
-        if (c == fill_color())
-            return;
-        _fill_color = c;
-        set_content_changed(true);
+        set(attr::FillClr{c});
     }
 
     using Entangled::set;

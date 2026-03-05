@@ -428,8 +428,35 @@ class YOLOModel(DetectionModel):
             TRex.warn("Could not determine trained resolution from model, using " + str(self.config.trained_resolution)+ " ("+ str(e) + ")")
             pass
 
-        self.ptr.fuse()
-        self.ptr.half()
+        # --- Ensure end2end mode is decided BEFORE fusing ---
+        # Ultralytics end2end Detect.fuse() prunes the one2many head (cv2/cv3=None).
+        # If we later run with end2end=False, the forward path expects cv2/cv3 and will crash.
+        # So: force Detect.end2end=False before calling fuse(), then fuse conv/bn as usual.
+        try:
+            if hasattr(self.ptr, "model") and self.ptr.model is not None:
+                for m in self.ptr.model.modules():
+                    if hasattr(m, "end2end"):
+                        if m.end2end:
+                            TRex.log(f"Setting end2end=False for model {self.config.model_path} module {type(m)} to ensure compatibility with fused inference.")
+                        else:
+                            TRex.log(f"Model {self.config.model_path} for module {type(m)} already has end2end=False.")
+                        m.end2end = False
+        except Exception as e:
+            TRex.warn(f"Could not force end2end=False before fuse: {e}")
+
+        # Fuse (safe now that end2end pruning is disabled).
+        try:
+            self.ptr.fuse()
+        except Exception as e:
+            TRex.warn(f"Model fuse() failed, continuing unfused: {e}")
+
+        # half() is generally only beneficial/valid on CUDA; keep it disabled by default.
+        if self.device.type == "cuda":
+            try:
+                self.ptr.half()
+            except Exception as e:
+                TRex.warn(f"Model half() failed: {e}")
+
         self.ptr.to(self.device)
         TRex.log(f"Moved model {self} to device {self.device}.")
 

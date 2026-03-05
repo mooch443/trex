@@ -27,6 +27,13 @@ public:
     
     Label* label() const;
     
+    void set_pos(const Vec2&) override {}
+    void set_size(const Size2&) override {}
+    void set_bounds(const Bounds&) override {}
+    void set(attr::FillClr) override {}
+    void set(attr::LineClr) override {}
+    void set(CornerFlags_t) override {}
+    
     ~LabelWrapper();
 };
 
