@@ -44,3 +44,4 @@ build/
 runs/
 build-bug/
 build-bug-lite/
+.vs/
