@@ -22,6 +22,10 @@ target_compile_definitions(test_matching PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CUR
 add_executable(test_strings test_strings.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
 target_compile_definitions(test_strings PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
 
+if(WIN32)
+  target_compile_options(test_strings PRIVATE /bigobj)
+endif()
+
 add_executable(test_pixels test_pixels.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
 target_compile_definitions(test_pixels PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
 
