@@ -16,7 +16,7 @@ struct VarProps; // forward
 /// Each generator produces an Image::Ptr given the current VarProps.
 struct ImageGeneratorRegistry {
     struct Generator {
-        std::function<Image::Ptr(const dyn::VarProps&)> generate;
+        std::function<Image::SPtr(const dyn::VarProps&)> generate;
         std::function<void()> reset;
     };
 

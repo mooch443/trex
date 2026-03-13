@@ -232,22 +232,36 @@ public:
             throw U_EXCEPTION("PythonWrapper was not started when deinit() was called.");
 
         auto future = _data->_exit_promise.get_future();
+        auto prev = _data;
+        auto thread = std::move(_data->_thread);
+        
         _data->_terminate = true;
         _data->_queue_update.notify();
-
-        auto prev = _data;
-
-        std::unique_lock t(_termination_mutex);
+        
         guard.unlock();
-        _data->_thread->join();
+        
+        {
+            if(thread)
+                thread->join();
+            thread = nullptr;
+        }
+        
         guard.lock();
-        t.unlock();
-
-        if(_data && _data == prev)
-            _data->_thread = nullptr;
-
-        delete _data;
-        _data = nullptr;
+        
+        // Only delete the instance if it's the same one we started tearing down.
+        // Rationale: While we released _data_mutex to join the worker thread, a new
+        // Data instance may have been created by another init() call. Deleting here
+        // when the pointer changed would free the new instance and cause UAF/double free.
+        if (prev != _data) {
+            // We intentionally skip deletion in this case. The new owner is responsible
+            // for the lifetime of the new instance. Log a warning to help diagnose
+            // unexpected reinitialization during teardown.
+            FormatWarning("[py] Data pointer changed during deinit; skipping delete of stale instance. A new Data may have been created while joining the thread.");
+        } else {
+            delete _data;
+            _data = nullptr;
+        }
+        
         return future;
     }
     static void last_python_try(int val) {

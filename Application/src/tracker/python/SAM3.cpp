@@ -185,10 +185,11 @@ void SAM3::apply(std::vector<TileImage>&& tiled) {
                     offsets.reserve(tile_image_count);
                     scales.reserve(tile_image_count);
                     orig_id.reserve(tile_image_count);
-
+                    
                     for(size_t k = 0; k < tile_image_count; ++k) {
                         offsets.emplace_back(0.f, 0.f);
-                        scales.emplace_back(1.f, 1.f);
+                        scales.push_back(tile.original_size.div(tile.source_size));
+                        //scales.emplace_back(1.f, 1.f);
                         // Use real frame id for all tiles; do not encode tile index in frame id.
                         orig_id.emplace_back(static_cast<size_t>(uint64_t(frame_index)));
                     }

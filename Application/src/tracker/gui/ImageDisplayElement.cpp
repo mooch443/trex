@@ -13,6 +13,7 @@ Layout::Ptr ImageDisplayElement::_create(dyn::LayoutContext& context) {
     }
     auto scale = context.get(Vec2(1), "scale");
     auto color = context.get(Color(255,255,255,255), "color");
+    auto parm = context.get(std::string(), "parm");
     return Layout::Make<ExternalImage>(Image::Make(1,1,4), Vec2(0,0), scale, color);
 }
 
@@ -34,7 +35,16 @@ bool ImageDisplayElement::_update(Layout::Ptr& o,
         _generator = _registry->get_generator(genName);
     }
     
-    dyn::VarProps props{/* you may need to construct appropriate VarProps */};
+    std::optional<std::string> parm;
+    if(auto it = patterns.find("parm");
+       it != patterns.end())
+    {
+        parm = it->second.realize(context, state);
+    }
+    
+    dyn::VarProps props{};
+    if(parm)
+        props.parameters.push_back(parm.value());
     // e.g. props.parameters = { ... };
     // here we pass only the context/state if needed
     
@@ -42,7 +52,7 @@ bool ImageDisplayElement::_update(Layout::Ptr& o,
     auto widget = o.to<ExternalImage>();
     if(imgPtr) {
         // Replace the ExternalImage inside our layout
-        widget->update_with(std::move(imgPtr));
+        widget->update_with(*imgPtr);
     }
     
     if (auto it = patterns.find("color");

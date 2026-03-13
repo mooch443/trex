@@ -2,7 +2,7 @@
     "objects":[
         {
             "type":"text",
-            "text":"Hello World!",
+            "text":"Hello World! {frame} {mouse}",
             "color":[255,255,255]
         },
         
@@ -40,11 +40,55 @@
         },
 
 
+        {
+            "type": "each",
+            "var": "{data}",
+            "do": {
+                "type": "text",
+                "text": "{i} {2hud:[{i.x},{i.y}]} {size2hud:[{i.w},{i.h}]}",
+                "color": [255, 255, 255],
+                "pos": "[0,{+:100:{*:{index}:20}}]"
+            }
+        },
+
+        {
+            "type": "each",
+            "var": "{data}",
+            "do": {
+                "type": "collection",
+                "pos":"{2hud:[{i.x},{i.y}]}",
+                "children": [
+                    {
+                        "type":"image_generator",
+                        "generator":"blob_image",
+                        "parm":"{index}", 
+                        "scale":"{size2hud:[1,1]}",
+                        "color":[255,0,0,125]
+                    },
+                    {
+                        "type":"rect",
+                        "size":"{size2hud:[{i.w},{i.h}]}",
+                        "line":[200,200,200,255]
+                    },
+                    {
+                        "type":"label",
+                        "text":"<c><key>{index}</key>: [<nr>{i.x}</nr>,<nr>{i.y}</nr>] <nr>{round:{*:100:{i.conf}}:0}</nr>%</c>",
+                        "length":25,
+                        "color":[200,200,200,255],
+                        "line":[200,200,200,255],
+                        "fill":[50,50,50,150],
+                        "center":[0,0],
+                        "size":"{size2hud:[{i.w},{i.h}]}",
+                        "font":{"size":0.35,"align":"middle"}
+                    }
+                ]
+            }
+        },
 
         {
             "type":"settings",
             "var":"",
-            "pos":"[10,{-:{window_size.y}:10}]",
+            "pos":"[10,{-:{window_size.y}:20}]",
             "size":"[{-:{window_size.x}:20},30]",
             "origin":[0,1],
             "fill":[30,30,30,255],

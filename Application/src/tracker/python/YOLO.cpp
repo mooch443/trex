@@ -844,6 +844,9 @@ std::optional<std::tuple<SegmentationData::Assignment, blob::Pair>> YOLO::proces
 {
     // Extract bounding box from the detection row
     Bounds bounds = row.box;
+    assert(bounds.x < mask.mat.cols && bounds.y < mask.mat.rows);
+    assert(bounds.x + bounds.width <= mask.mat.cols);
+    assert(bounds.y + bounds.height <= mask.mat.rows);
 
     // Perform CPU-based connected-component labeling on the mask
     auto blobs = CPULabeling::run(list, mask.mat);
@@ -865,10 +868,18 @@ std::optional<std::tuple<SegmentationData::Assignment, blob::Pair>> YOLO::proces
     //size_t num_pixels{ 0u };
     // Adjust each horizontal line by bounding-box offset and clamp to image dimensions
     for (auto& line : *pair.lines) {
+        auto oline = line;
+        
         line.x0 = saturate(coord_t(line.x0 + bounds.x), coord_t(0), w);
         line.x1 = saturate(coord_t(line.x1 + bounds.x), line.x0, w);
         line.y = saturate(coord_t(line.y + bounds.y), coord_t(0), h);
         //num_pixels += ptr_safe_t(line.x1) - ptr_safe_t(line.x0) + ptr_safe_t(1);
+        
+        if(oline.x0 > oline.x1 || oline.x1 + bounds.x - 1 > w
+           || oline.y + bounds.y - 1 > h)
+        {
+            FormatWarning("Illegal line: ", oline, " => ", line, " offset:", bounds.pos());
+        }
         
         if (line.x0 >= r3.cols
             || line.x1 >= r3.cols

@@ -35,6 +35,9 @@ target_compile_definitions(test_patharray PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CU
 add_executable(test_dyngui test_dyngui.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
 target_compile_definitions(test_dyngui PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
 
+add_executable(bench_dyngui_parser bench_dyngui_parser.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
+target_compile_definitions(bench_dyngui_parser PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
+
 add_executable(test_outlines test_outlines.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
 target_compile_definitions(test_outlines PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
 
@@ -122,6 +125,10 @@ target_link_libraries(test_dyngui PUBLIC
         commons
         pv)
 
+target_link_libraries(bench_dyngui_parser PUBLIC
+        commons
+        pv)
+
 target_link_libraries(test_threadpool PUBLIC
         commons
         pv)
@@ -137,9 +144,17 @@ set_target_properties(test_strings PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "
 set_target_properties(test_pixels PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 set_target_properties(test_patharray PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 set_target_properties(test_dyngui PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
+set_target_properties(bench_dyngui_parser PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 set_target_properties(test_outlines PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 set_target_properties(test_threadpool PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 set_target_properties(test_tiling PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
+
+#if(WIN32)
+  #target_compile_options(bench_dyngui_parser PRIVATE /O2)
+#else()
+  #target_compile_options(bench_dyngui_parser PRIVATE -O3)
+#endif()
+#target_compile_definitions(bench_dyngui_parser PRIVATE NDEBUG)
 
 # This is so you can do 'make test' to see all your tests run, instead of
 # manually running the executable runUnitTests to see those specific tests.

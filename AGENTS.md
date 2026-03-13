@@ -215,3 +215,10 @@ conda build -c conda-forge .
 ## Deprecated note
 - The `Application/src/grabber/` subtree is deprecated. Do not treat it as a
   reference implementation for GUI structure or best practices.
+
+## Agent execution constraints
+- Do not run `cmake`, `cmake --build`, or other compile/build commands yourself.
+- If build or verification is needed, provide the exact commands for the user to
+  run instead of executing them.
+- Only use the Conda environment `trex` for environment-specific commands or
+  instructions. Do not access or assume any other environment.

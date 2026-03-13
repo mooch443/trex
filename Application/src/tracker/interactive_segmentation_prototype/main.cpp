@@ -48,6 +48,7 @@ int main(int argc, char** argv) {
     cmd.load_settings();
 
     SETTING(app_name) = std::string("TRex");
+    SETTING(detect_sam3_prompt) = std::string("floor");
     
     Print("interactive_segmentation_prototype",
           "git:", std::string_view(g_GIT_DESCRIBE_TAG),
