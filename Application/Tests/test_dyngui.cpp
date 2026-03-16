@@ -256,6 +256,39 @@ TYPED_TEST(ParseAndResolveTest, JsonObjectNestedSubfieldReplacement)
     EXPECT_EQ(run_parser<TypeParam>("{object.value.value}", ctx, state), "123");
 }
 
+TYPED_TEST(ParseAndResolveTest, NullableSpriteMaps)
+{
+    State state;
+    Context ctx{
+        VarFunc("object", [](const VarProps&) -> sprite::Map { return {}; })
+    };
+
+    EXPECT_EQ(run_parser<TypeParam>("{object}", ctx, state), "{}");
+    EXPECT_EQ(run_parser<TypeParam>("{if:{object}:true:false}", ctx, state), "false");
+}
+
+TYPED_TEST(ParseAndResolveTest, NullableObjects)
+{
+    State state;
+    Context ctx{
+        VarFunc("object", [](const VarProps&) -> glz::json_t { return glz::json_t{}; })
+    };
+
+    EXPECT_EQ(run_parser<TypeParam>("{object}", ctx, state), "null");
+    EXPECT_EQ(run_parser<TypeParam>("{if:{object}:true:false}", ctx, state), "false");
+}
+
+TYPED_TEST(ParseAndResolveTest, EmptyObjects)
+{
+    State state;
+    Context ctx{
+        VarFunc("object", [](const VarProps&) -> glz::json_t { return glz::json_t::object_t{}; })
+    };
+
+    EXPECT_EQ(run_parser<TypeParam>("{object}", ctx, state), "{}");
+    EXPECT_EQ(run_parser<TypeParam>("{if:{object}:true:false}", ctx, state), "false");
+}
+
 TYPED_TEST(ParseAndResolveTest, CustomStructJsonSubfieldReplacement)
 {
     State state;
