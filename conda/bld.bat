@@ -55,6 +55,14 @@ if "%CMAKE_GENERATOR%" == "Visual Studio 17 2022 Win64" set CMAKE_GENERATOR=Visu
 if "%GITHUB_WORKFLOW%" == "" set GENERATOR=-G "%CMAKE_GENERATOR%"
 echo GENERATOR %GENERATOR%
 
+rem --------------------------------------------------------------------------
+rem Add git to PATH for CMake's FetchContent PATCH_COMMAND operations.
+rem Git is a build dependency. Add common conda locations to PATH.
+rem --------------------------------------------------------------------------
+if defined BUILD_PREFIX set "PATH=%BUILD_PREFIX%\Library\bin;%BUILD_PREFIX%\Scripts;%PATH%"
+if defined LIBRARY_BIN set "PATH=%LIBRARY_BIN%;%PATH%"
+rem --------------------------------------------------------------------------
+
 cmake .. %GENERATOR% -DWITH_GITSHA1=ON -DCONDA_PREFIX:FILEPATH=%PREFIX% -DPYTHON_INCLUDE_DIR:FILEPATH=%pythoninclude% -DPYTHON_LIBRARY:FILEPATH=%findlib% -DPYTHON_EXECUTABLE:FILEPATH=%PREFIX%\python -DWITH_PYLON=OFF -DCOMMONS_BUILD_OPENCV=ON -DCMAKE_INSTALL_PREFIX=%PREFIX% -DCMAKE_SKIP_RPATH=ON -DCOMMONS_BUILD_PNG=ON -DCOMMONS_BUILD_ZIP=ON -DTREX_CONDA_PACKAGE_INSTALL=ON -DCMAKE_INSTALL_RPATH_USE_LINK_PATH:BOOL=TRUE -DTREX_WITH_TESTS:BOOL=ON -DCOMMONS_BUILD_GLFW=ON -DCOMMONS_BUILD_ZLIB=ON -DCMAKE_BUILD_TYPE=Release -DBUILD_LEGACY_TREX:BOOL=OFF -DBUILD_LEGACY_TGRABS:BOOL=OFF -DCOMMONS_BUILD_EXAMPLES:BOOL=OFF
 
 cmake --build . --target Z_LIB --config Release
