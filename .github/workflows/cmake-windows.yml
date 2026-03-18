@@ -35,11 +35,10 @@ jobs:
     - uses: conda-incubator/setup-miniconda@v3
       with:
         miniforge-version: latest
-        environment-file: .github/environment.yml
-        activate-environment: tracking
+        activate-environment: ""
         python-version: ${{ matrix.python-version }}
         channels: conda-forge
-        auto-activate: true
+        auto-activate: false
         auto-update-conda: true
         use-only-tar-bz2: true
         conda-remove-defaults: true
@@ -61,11 +60,23 @@ jobs:
         reg add "HKLM\SYSTEM\CurrentControlSet\Control\FileSystem" /v LongPathsEnabled /t REG_DWORD /d 1 /f
         git config --system core.longpaths true
         echo "::endgroup::"
+    - name: Create tracking env
+      shell: bash -el {0}
+      working-directory: ${{github.workspace}}
+      run: |
+        echo "::group::Create tracking env"
+        mamba env create -f .github/environment.yml
+        mamba install -y -n tracking python=${{ matrix.python-version }}
+        conda activate tracking
+        conda info
+        conda list
+        echo "::endgroup::"
     - name: Build
       shell: bash -l {0}
       working-directory: ${{github.workspace}}
       run: |
         echo "::group::Info"
+        conda activate tracking
         conda info
         conda list
         conda search numpy
@@ -88,6 +99,7 @@ jobs:
       working-directory: ${{github.workspace}}
       run: |
         echo "::group::Test"
+        conda activate tracking
         echo $CONDA_PREFIX
         conda search numpy
         conda create -y -n test --override-channels -c $CONDA_PREFIX/conda-bld/ -c conda-forge trex
