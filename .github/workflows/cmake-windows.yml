@@ -15,10 +15,10 @@ jobs:
     # See: https://docs.github.com/en/actions/configuring-and-managing-workflows/configuring-a-workflow#configuring-a-build-matrix
     runs-on: ${{ matrix.os }}
     strategy:
-      fail-fast: false
+      fail-fast: true
       matrix:
-        os: ["windows-2022"]
-        python-version: ["3.11"]
+        os: ["windows-2025"]
+        python-version: ["3.12"]
     steps:
     - uses: actions/checkout@v4
       with:
