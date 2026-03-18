@@ -242,7 +242,7 @@ Layout::Ptr GraphElement::_create(LayoutContext& context) {
         size_t i = 0;
         for(auto &point : points) {
             if(point.is_pattern()) {
-                auto pattern = context.state.register_pattern(context.hash, "points_pts"+Meta::toStr(i), Pattern::prepare(std::get<std::string>(point.pts)));
+                auto pattern = context.state.pattern().set(context.hash, "points_pts"+Meta::toStr(i), Pattern::prepare(std::get<std::string>(point.pts)));
                 point.pts = Meta::fromStr<std::vector<Vec2>>(pattern.realize(context.context, context.state));
             }
             
@@ -265,7 +265,7 @@ Layout::Ptr GraphElement::_create(LayoutContext& context) {
         size_t i = 0;
         for(auto &line : lines) {
             if(line.is_pattern()) {
-                auto pattern = context.state.register_pattern(context.hash, "lines_pts"+Meta::toStr(i), Pattern::prepare(line.get_pattern()));
+                auto pattern = context.state.pattern().set(context.hash, "lines_pts"+Meta::toStr(i), Pattern::prepare(line.get_pattern()));
                 line.pts = Meta::fromStr<std::vector<Vec2>>(pattern.realize(context.context, context.state));
             }
             

@@ -42,6 +42,39 @@ namespace cmn::gui {
 using namespace dyn;
 using Skeleton = blob::Pose::Skeleton;
 
+template<typename T>
+    requires has_to_json_method<std::remove_cvref_t<T>>
+glz::json_t to_json(T&& obj) {
+    if constexpr (_clean_same<Vec2, T>) {
+        glz::json_t p;
+        p["x"] = obj.x;
+        p["y"] = obj.y;
+        return p;
+    } else if constexpr (_clean_same<Size2, T>) {
+        glz::json_t p;
+        p["x"] = obj.width;
+        p["y"] = obj.height;
+        return p;
+    } else if constexpr(_clean_same<Bounds, T>) {
+        glz::json_t p;
+        p["x"] = obj.x;
+        p["y"] = obj.y;
+        p["w"] = obj.width;
+        p["h"] = obj.height;
+        return p;
+    } else if constexpr(_clean_same<cmn::blob::Pose, T>) {
+        std::vector<glz::json_t> j;
+        for(size_t i = 0; i < obj.points.size(); ++i) {
+            glz::json_t p;
+            p["x"] = obj.points[i].x;
+            p["y"] = obj.points[i].y;
+            j.push_back(p);
+        }
+        return j;
+    } else
+        return obj.to_json();
+}
+
 uint64_t interleaveBits(const Vec2& pos) {
     uint32_t x(pos.x), y(pos.y);
     uint64_t z = 0;
@@ -75,12 +108,12 @@ struct ConvertScene::Data {
     glz::json_t _current_json;
 
     // Individual properties for each object
-    sprite::Map _primary_selection;
+    glz::json_t _primary_selection;
     std::vector<Vec2> _zoom_targets;
     std::vector<std::shared_ptr<VarBase_t>> _untracked_gui, _tracked_gui;
-    std::map<Idx_t, sprite::Map> _individual_properties;
-    std::vector<sprite::Map> _untracked_properties;
-    std::vector<sprite::Map*> _tracked_properties;
+    std::map<Idx_t, glz::json_t> _individual_properties;
+    std::vector<glz::json_t> _untracked_properties;
+    std::vector<glz::json_t*> _tracked_properties;
     std::unordered_map<pv::bid, Identity> _visible_bdx;
     std::vector<std::vector<Vertex>> _trajectories;
     std::vector<std::tuple<Color, std::vector<Vec2>>> _postures;
@@ -150,15 +183,16 @@ struct ConvertScene::Data {
     }
     
     void reset_properties() {
-        _primary_selection["color"] = Transparent;
-        _primary_selection["bdx"] = pv::bid();
-        _primary_selection["fdx"] = Idx_t();
+        _primary_selection["color"] = to_json(Transparent);
+        _primary_selection["bdx"] = to_json(pv::bid());
+        _primary_selection["fdx"] = to_json(Idx_t());
         _primary_selection["visible"] = false;
         _primary_selection["tracked"] = false;
         _primary_selection["speed"] = 0.f;
         _primary_selection["has_neighbor"] = false;
         _primary_selection["p"] = 0.0f;
-        _primary_selection["ps"] = std::vector<std::tuple<double, double, double>>{};
+        _primary_selection["pos"] = to_json(Vec2());
+        _primary_selection["ps"] = cvt2json(std::vector<std::tuple<double, double, double>>{});
         
         for (auto& [id, map] : _individual_properties) {
             map["visible"] = false;
@@ -233,22 +267,15 @@ Segmenter& ConvertScene::segmenter() const {
     return *_data->_segmenter;
 }
 
-sprite::Map ConvertScene::fish = []() {
-    sprite::Map fish;
-    fish.set_print_by_default(false);
+glz::json_t ConvertScene::fish = []() {
+    glz::json_t fish;
     fish["name"] = std::string("fish0");
-    fish["color"] = Red;
-    fish["pos"] = Vec2(100, 150);
+    fish["color"] = to_json(Red);
+    fish["pos"] = to_json(Vec2(100, 150));
     return fish;
 }();
 
-sprite::Map ConvertScene::_video_info = []() {
-    sprite::Map fish;
-    fish.set_print_by_default(false);
-    fish["frame"] = Frame_t();
-    fish["resolution"] = Size2();
-    return fish;
-}();
+IMPLEMENT(ConvertScene::_video_info);
 
 //Size2 ConvertScene::output_size() const {
 //    return segmenter().output_size();
@@ -420,8 +447,8 @@ void ConvertScene::open_video() {
     _data->bar.set_option(ind::option::ShowPercentage{true});
     segmenter().open_video();
     
-    _video_info["resolution"] = segmenter().size();
-    _video_info["length"] = segmenter().video_length();
+    _video_info.resolution = segmenter().size();
+    _video_info.length = segmenter().video_length();
     _video_length = segmenter().video_length();
 }
 
@@ -441,8 +468,8 @@ void ConvertScene::open_camera() {
     
     segmenter().open_camera();
     
-    _video_info["resolution"] = segmenter().size();
-    _video_info["length"] = segmenter().video_length();
+    _video_info.resolution = segmenter().size();
+    _video_info.length = segmenter().video_length();
     _video_length = segmenter().video_length();
 }
 
@@ -502,7 +529,7 @@ void ConvertScene::activate()  {
         });
     });
 
-    _data->video_size = _video_info["resolution"].value<Size2>();
+    _data->video_size = _video_info.resolution;
     if(_data->video_size.empty()) {
         _data->video_size = Size2(640,480);
         FormatError("Cannot determine size of the video input. Defaulting to ", _data->video_size, ".");
@@ -712,7 +739,7 @@ void ConvertScene::Data::drawBlobs(
             }
         }();
 
-        sprite::Map* tmp = nullptr;
+        glz::json_t* tmp = nullptr;
 
         if (tracked_id.valid()) {
             tmp = &_individual_properties[tracked_id];
@@ -724,7 +751,7 @@ void ConvertScene::Data::drawBlobs(
             }
 
             if (untracked >= _untracked_gui.size())
-                _untracked_gui.emplace_back(new Variable([&, i = untracked](const VarProps&) -> sprite::Map& {
+                _untracked_gui.emplace_back(new Variable([&, i = untracked](const VarProps&) -> const glz::json_t& {
                     //Print("for ", props, " returning value of ", i, " / ", _individual_properties.size());
                     return _untracked_properties.at(i);
                 }));
@@ -733,18 +760,18 @@ void ConvertScene::Data::drawBlobs(
         }
         
         bool selected = contains(selected_ids, tracked_id);
-        (*tmp)["pose"] = pose;
-        (*tmp)["box"] = blob->bounds();
-        (*tmp)["pos"] = bds.pos();
+        (*tmp)["pose"] = to_json(pose);
+        (*tmp)["box"] = to_json(blob->bounds());
+        (*tmp)["pos"] = to_json(bds.pos());
         (*tmp)["selected"] = selected;
         (*tmp)["num_pixels"] = blob->num_pixels();
-        (*tmp)["bdx"] = blob->blob_id();
-        (*tmp)["center"] = first_pose;
+        (*tmp)["bdx"] = to_json(blob->blob_id());
+        (*tmp)["center"] = to_json(first_pose);
         (*tmp)["tracked"] = tracked_id.valid() ? true : false;
-        (*tmp)["color"] = tracked_color;
-        (*tmp)["fdx"] = tracked_id;
+        (*tmp)["color"] = to_json(tracked_color);
+        (*tmp)["fdx"] = to_json(tracked_id);
         (*tmp)["visible"] = true;
-        (*tmp)["size"] = Size2(bds.size());
+        (*tmp)["size"] = to_json(Size2(bds.size()));
         (*tmp)["radius"] = bds.size().length() * 0.5;
         (*tmp)["type"] = std::string(cname);
         (*tmp)["speed"] = 0.f;
@@ -755,7 +782,7 @@ void ConvertScene::Data::drawBlobs(
             (*tmp)["px"] = blob->recount(-1);
 
         (*tmp)["p"] = assign.p;
-        (*tmp)["ps"] = std::vector<std::tuple<double, double, double>>{};
+        (*tmp)["ps"] = cvt2json(std::vector<std::tuple<double, double, double>>{});
         
         if(tracked_id.valid()
            && selected)
@@ -766,10 +793,10 @@ void ConvertScene::Data::drawBlobs(
                 const BdxAndPred& blob = it->second;
                 if(blob.basic_stuff)
                     (*tmp)["speed"] = blob.basic_stuff->centroid.speed<Units::CM_AND_SECONDS>(false);
-                (*tmp)["tracklet"] = blob.tracklet;
+                (*tmp)["tracklet"] = to_json(blob.tracklet);
                 (*tmp)["is_automatic"] = blob.automatic_match;
                 (*tmp)["thresholded_size"] = Float2_t(blob.basic_stuff.has_value() ? blob.basic_stuff->thresholded_size : uint64_t(0)) * SQR(FAST_SETTING(cm_per_pixel));
-                (*tmp)["px"].toProperty<Float2_t>() = blob.basic_stuff.has_value() ? blob.basic_stuff->thresholded_size : uint64_t(0);
+                (*tmp)["px"] = Float2_t(blob.basic_stuff.has_value() ? blob.basic_stuff->thresholded_size : uint64_t(0));
             }
         }
         
@@ -781,7 +808,7 @@ void ConvertScene::Data::drawBlobs(
         
         /// save for closed loop
         if(_closed_loop)
-            acc_json.push_back(sprite_map_to_json(*tmp));
+            acc_json.push_back(*tmp);
 
         if (tracked_id.valid() 
             && selected) 
@@ -809,7 +836,7 @@ void ConvertScene::Data::drawBlobs(
             _tracked_properties[tracked] = &_individual_properties[id];
 
         if (tracked >= _tracked_gui.size())
-            _tracked_gui.emplace_back(new Variable([&, i = tracked](const VarProps&) -> sprite::Map& {
+            _tracked_gui.emplace_back(new Variable([&, i = tracked](const VarProps&) -> const glz::json_t& {
                 //Print("for ", props, " returning value of ", i, " / ", _individual_properties.size());
                 return *_tracked_properties.at(i);
             }));
@@ -1002,8 +1029,21 @@ dyn::DynamicGUI ConvertScene::Data::init_gui(Base* window) {
         VarFunc("detect_format", [](const VarProps&) {
             return READ_SETTING(detect_format, detect::ObjectDetectionFormat_t);
         }),
-        VarFunc("fish", [](const VarProps&) -> sprite::Map& {
+        VarFunc("fish", [](const VarProps&) -> const glz::json_t& {
             return fish;
+        }),
+        VarFunc("precomputed_is_caching", [this](const VarProps&) {
+            return _segmenter->is_average_generating();
+        }),
+        VarFunc("2hud", [](const VarProps& props) {
+            auto coords = FindCoord::get();
+            auto p = Meta::fromStr<Vec2>(props.parameters.front());
+            return coords.convert(BowlCoord(p));
+        }),
+        VarFunc("2bowl", [](const VarProps& props) {
+            auto coords = FindCoord::get();
+            auto p = Meta::fromStr<Vec2>(props.parameters.front());
+            return coords.convert(HUDCoord(p));
         }),
         VarFunc("average_is_generating", [this](const VarProps&) {
             return _segmenter->is_average_generating();
@@ -1014,15 +1054,15 @@ dyn::DynamicGUI ConvertScene::Data::init_gui(Base* window) {
         VarFunc("actual_frame", [this](const VarProps&) {
             return _actual_frame.load();
         }),
-        VarFunc("video", [](const VarProps&) -> sprite::Map& {
+        VarFunc("video", [](const VarProps&) -> const gui::VideoInfo& {
             return _video_info;
         }),
         VarFunc("num_tracked", [this](const VarProps&) -> size_t {
             size_t count{0u};
             for(auto &v : _tracked_properties) {
-                if(not v || not v->has("visible") || not v->has("tracked"))
+                if(not v || not v->contains("visible") || not v->contains("tracked"))
                     continue;
-                if(v->at("tracked").value<bool>() && v->at("visible").value<bool>())
+                if(v->at("tracked").get_boolean() && v->at("visible").get_boolean())
                     ++count;
             }
             return count;
@@ -1039,7 +1079,7 @@ dyn::DynamicGUI ConvertScene::Data::init_gui(Base* window) {
         VarFunc("untracked", [this](const VarProps&) -> std::vector<std::shared_ptr<VarBase_t>>& {
             return _untracked_gui;
         }),
-        VarFunc("primary_selection", [this](const VarProps&) -> sprite::Map& {
+        VarFunc("primary_selection", [this](const VarProps&) -> const glz::json_t& {
             return _primary_selection;
         }),
         VarFunc("tiles", [this](const VarProps&) -> std::vector<Bounds> {
@@ -1339,7 +1379,7 @@ void ConvertScene::Data::draw_scene(DrawStructure& graph, const detect::yolo::na
     graph.section("menus", [&](auto&, Section*) {
         // GUI exports: current *pipeline* frame, the *source* decode index used for IO,
         // and the *pipeline* index again for convenience.
-        _video_info["frame"] = _current_data.frame.index();
+        _video_info.frame = _current_data.frame.index();
         _actual_frame = _current_data.frame.source_index();
         _video_frame = _current_data.frame.index();
     });

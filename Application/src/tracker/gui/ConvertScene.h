@@ -21,6 +21,34 @@ class Segmenter;
 
 namespace cmn::gui {
 
+struct VideoInfo {
+    Frame_t frame;
+    Frame_t length;
+    Size2 resolution;
+    
+    glz::json_t to_json() const {
+        glz::json_t r;
+        r["frame"] = frame.to_json();
+        r["length"] = length.to_json();
+        r["resolution"] = resolution.to_json();
+        return r;
+    }
+};
+
+}
+
+template <>
+struct glz::meta<cmn::gui::VideoInfo> {
+    using T = cmn::gui::VideoInfo;
+    static constexpr auto value = glz::object(
+        "frame", &T::frame,
+        "length", &T::length,
+        "resolution", &T::resolution
+    );
+};
+
+namespace cmn::gui {
+
 namespace ind = indicators;
 using namespace track;
 
@@ -28,8 +56,8 @@ class Label;
 class ExternalImage;
 
 class ConvertScene : public Scene {
-    static sprite::Map fish;
-    static sprite::Map _video_info;
+    static glz::json_t fish;
+    static VideoInfo _video_info;
     std::atomic<Frame_t> _video_length;
     
     Timer last_tick;

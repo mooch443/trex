@@ -1223,6 +1223,9 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                         // export the current meta_encoding as a string to the npz file:
                         const std::string meta_encoding = Meta::toStr(Background::meta_encoding());
                         cmn::npz_save(path.str(), "encoding", meta_encoding, "a");
+
+                        const std::string normalization = Meta::toStr(normalize);
+                        cmn::npz_save(path.str(), "normalization", normalization, "a");
                     });
                     
                     single_frames.clear();
