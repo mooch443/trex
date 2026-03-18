@@ -57,7 +57,11 @@ struct Idx_t {
             return Idx_t();
         return Idx_t(cmn::Meta::fromStr<uint32_t>(str));
     }
-    glz::json_t to_json() const;
+    glz::json_t to_json() const {
+        if(not valid())
+            return {};
+        return get();
+    }
     std::string toStr() const { return !valid() ? "-1" : std::to_string((uint32_t)_identity); }
 };
 
