@@ -36,7 +36,6 @@ jobs:
       with:
         miniforge-version: latest
         activate-environment: ""
-        python-version: ${{ matrix.python-version }}
         channels: conda-forge
         auto-activate: false
         auto-update-conda: true
