@@ -534,15 +534,6 @@ void Segmenter::trigger_average_generator(bool do_generate_average, cv::Mat& bg)
             try {
                 ptr = finalize_bg_image(bg);
                 mat = ptr->get();
-                if(detection_type() == ObjectDetectionType::background_subtraction)
-                    BackgroundSubtraction::set_background(std::move(ptr));
-                else if(detection_type() == ObjectDetectionType::precomputed)
-                    PrecomputedDetection::set_background(std::move(ptr), Background::meta_encoding());
-                else if(detection_type() == ObjectDetectionType::yolo)
-                    YOLO::set_background(ptr);
-                else if(detection_type() == ObjectDetectionType::sam3)
-                    SAM3::set_background(std::move(ptr));
-                
             } catch(const std::exception& ex) {
                 FormatExcept("Exception when finalizing the average image: ", ex.what());
             } catch(...) {
@@ -555,6 +546,21 @@ void Segmenter::trigger_average_generator(bool do_generate_average, cv::Mat& bg)
                 FormatExcept("Exception in callback: ", ex.what());
             } catch(...) {
                 FormatExcept("Unknown exception in callback.");
+            }
+
+            try {
+                if(detection_type() == ObjectDetectionType::background_subtraction)
+                    BackgroundSubtraction::set_background(std::move(ptr));
+                else if(detection_type() == ObjectDetectionType::precomputed)
+                    PrecomputedDetection::set_background(std::move(ptr), Background::meta_encoding());
+                else if(detection_type() == ObjectDetectionType::yolo)
+                    YOLO::set_background(ptr);
+                else if(detection_type() == ObjectDetectionType::sam3)
+                    SAM3::set_background(std::move(ptr));
+            } catch(const std::exception& ex) {
+                FormatExcept("Exception when setting the background image: ", ex.what());
+            } catch(...) {
+                FormatExcept("Unknown exception when setting the background image.");
             }
         });
         
@@ -577,18 +583,6 @@ void Segmenter::trigger_average_generator(bool do_generate_average, cv::Mat& bg)
         
         try {
             ptr = finalize_bg_image(bg);
-            
-            if(detection_type() == ObjectDetectionType::background_subtraction)
-                BackgroundSubtraction::set_background(Image::Make(*ptr));
-            else if(detection_type() == ObjectDetectionType::precomputed)
-                PrecomputedDetection::set_background(Image::Make(*ptr), Background::meta_encoding());
-            else if(detection_type() == ObjectDetectionType::yolo)
-                YOLO::set_background(Image::Make(*ptr));
-            else if(detection_type() == ObjectDetectionType::sam3)
-                SAM3::set_background(std::move(ptr));
-            else
-                throw RuntimeError("Unknown detection_type of ", detection_type(), " when setting average image.");
-            
         } catch(const std::exception& ex) {
             FormatExcept("Exception when finalizing the average image: ", ex.what());
         } catch(...) {
@@ -603,6 +597,23 @@ void Segmenter::trigger_average_generator(bool do_generate_average, cv::Mat& bg)
             FormatExcept("Exception in callback: ", ex.what());
         } catch(...) {
             FormatExcept("Unknown exception in callback.");
+        }
+
+        try {
+            if(detection_type() == ObjectDetectionType::background_subtraction)
+                BackgroundSubtraction::set_background(Image::Make(*ptr));
+            else if(detection_type() == ObjectDetectionType::precomputed)
+                PrecomputedDetection::set_background(Image::Make(*ptr), Background::meta_encoding());
+            else if(detection_type() == ObjectDetectionType::yolo)
+                YOLO::set_background(Image::Make(*ptr));
+            else if(detection_type() == ObjectDetectionType::sam3)
+                SAM3::set_background(std::move(ptr));
+            else
+                throw RuntimeError("Unknown detection_type of ", detection_type(), " when setting average image.");
+        } catch(const std::exception& ex) {
+            FormatExcept("Exception when setting the background image: ", ex.what());
+        } catch(...) {
+            FormatExcept("Unknown exception when setting the background image.");
         }
     }
 }
@@ -846,6 +857,7 @@ std::string date_time() {
 
 void Segmenter::start() {
     SETTING(meta_conversion_time) = std::string(date_time());
+    running_id = 0_f;
     
     start_recording_ffmpeg();
 
