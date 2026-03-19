@@ -309,7 +309,7 @@ TYPED_TEST(ParseAndResolveTest, CustomStructJsonSubfieldReplacement)
     };
 
     EXPECT_EQ(run_parser<TypeParam>("{custom.x}", ctx, state), "7");
-    EXPECT_EQ(run_parser<TypeParam>("{custom.name}", ctx, state), "/file/to/raptor");
+    EXPECT_EQ(run_parser<TypeParam>("{custom.name}", ctx, state), file::Path("/file/to/raptor").str());
     EXPECT_EQ(run_parser<TypeParam>("{custom.enabled}", ctx, state), "false");
 }
 
