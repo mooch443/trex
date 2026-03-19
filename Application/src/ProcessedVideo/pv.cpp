@@ -1388,7 +1388,20 @@ Frame_t File::length() const {
         
         assert(_open_for_writing);
         assert(_header.timestamp != 0); // start time has to be set
+
+        if(_header.index_table.empty()
+            && _header.conversion_range.start.has_value()
+            && frame.source_index() != Frame_t(_header.conversion_range.start.value()))
+        {
+            throw RuntimeError("First frame index (", frame.index(), ") does not match the specified conversion range start (", _header.conversion_range.start.value(), ").");
+        }
         
+        if(_header.index_table.empty()
+           && frame.index() != 0_f)
+        {
+            throw RuntimeError("Expected the video to start with a virtual frame index of 0 instead of ", frame.index());
+        }
+    
 #ifndef NDEBUG
         const auto channels = required_storage_channels(frame.encoding());
         if(channels > 0) {

@@ -5,7 +5,6 @@
 #include <misc/Image.h>
 #include <file/Path.h>
 #include <lzo/minilzo.h>
-#include "gpuImage.h"
 #include <misc/Timer.h>
 #include <misc/create_struct.h>
 #include <misc/frame_t.h>

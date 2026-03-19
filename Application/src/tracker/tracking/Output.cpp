@@ -685,8 +685,13 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
                 continue;
             }
             
-            assert(frameIndex <= analysis_range.end().get()
-                   && frameIndex >= analysis_range.start().get());
+#ifndef NDEBUG
+            if(frameIndex > analysis_range.end().get()
+               || frameIndex < analysis_range.start().get())
+            {
+                FormatWarning("Frame ", frameIndex, " is outside of range ", analysis_range, " while loading ", filename(),".");
+            }
+#endif
             
             data.prev_frame = prev_frame;
             prev_frame = Frame_t(frameIndex);

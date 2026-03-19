@@ -1079,7 +1079,7 @@ void TrackingScene::update_run_loop() {
                 
                 /// Only advance if both the GUI and background are synchronized.
                 if (not background_displayed_frame.valid()
-                    || background_displayed_frame != index)
+                    || background_displayed_frame != READ_SETTING_WITH_DEFAULT(gui_source_video_frame, Frame_t()))
                 {
                     rounded_advances = {};
                 } else {
