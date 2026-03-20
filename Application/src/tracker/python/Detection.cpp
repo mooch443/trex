@@ -150,8 +150,10 @@ PipelineManager<TileImage, true>& Detection::manager() {
         return BackgroundSubtraction::manager();
     } else if(detection_type() == ObjectDetectionType::precomputed) {
         return PrecomputedDetection::manager();
+    } /*else if(detection_type() == ObjectDetectionType::yolo) {
+        return YOLO::manager();
         
-    } else {
+    }*/ else {
         static auto instance = PipelineManager<TileImage, true>(max(1u, READ_SETTING(detect_batch_size, uchar)), [](std::vector<TileImage>&& images) {
             // do what has to be done when the queue is full
             // i.e. py::execute()

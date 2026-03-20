@@ -135,7 +135,7 @@ bool PreviewAdapterElement::_update(Layout::Ptr& o,
         pv::BlobWeakPtr blob_ptr{nullptr};
         
         if(bdxnpred.has_value()) {
-            ppframe->transform_blobs_by_bid(std::array{bdxnpred->bdx}, [&blob_ptr](pv::Blob& blob) {
+            ppframe->transform_all_by_bid(std::array{bdxnpred->bdx}, [&blob_ptr](pv::Blob& blob) {
                 blob_ptr = &blob;
             });
             

@@ -168,7 +168,6 @@ void PPFrame::init_cache(GenericThreadPool* pool, NeedGrid need)
 {
     ASSUME_NOT_FINALIZED;
     
-    Settings::manual_matches_t::mapped_type current_fixed_matches;
     {
         auto manual_matches = Settings::get<Settings::manual_matches>();
         auto it = manual_matches->find(index());

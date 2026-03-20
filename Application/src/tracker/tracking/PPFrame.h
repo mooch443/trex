@@ -609,6 +609,50 @@ public:
         }
     }
     
+    template<typename F, typename Container>
+        requires Transformer<F, pv::Blob>
+    void transform_all_by_bid(const Container& c, F&& fn) const {
+        size_t i = 0;
+        for(auto const& idx : c) {
+            auto it = _blob_map.find(idx);
+            if(it != _blob_map.end()) {
+                if(auto own = it->second;
+                   own)
+                {
+                    if constexpr(VoidTransformer<F, pv::Blob>) {
+                        fn(*own);
+                    } else if constexpr(Predicate<F, pv::Blob>) {
+                        if(!fn(*own))
+                            break;
+                    } else if constexpr(IndexedTransformer<F, pv::Blob>) {
+                        fn(i++, *own);
+                    } else {
+                        static_assert(sizeof(F) == 0, "Transformer type not implemented.");
+                    }
+                }
+                continue;
+            }
+            
+            it = _noise_map.find(idx);
+            if(it != _noise_map.end()) {
+                if(auto own = it->second;
+                   own)
+                {
+                    if constexpr(VoidTransformer<F, pv::Blob>) {
+                        fn(*own);
+                    } else if constexpr(Predicate<F, pv::Blob>) {
+                        if(!fn(*own))
+                            break;
+                    } else if constexpr(IndexedTransformer<F, pv::Blob>) {
+                        fn(i++, *own);
+                    } else {
+                        static_assert(sizeof(F) == 0, "Transformer type not implemented.");
+                    }
+                }
+            }
+        }
+    }
+    
     template<typename F>
         requires Predicate<F, pv::Blob>
     void move_to_noise_if(F && fn) {

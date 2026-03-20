@@ -768,10 +768,19 @@ void BlobView::draw(const DisplayParameters& parm)
                     WorkProgress::add_queue("", [copy](){
                         SETTING(manual_splits) = copy;
                     });
-                } else if(item_id == 1) /* IGNORE */ {
+                } else if(item_id == 1) /* TRACK_IGNORE */ {
                     auto copy = FAST_SETTING(track_ignore_bdx);
                     auto frame = GUI_SETTINGS(gui_frame);
-                    if(auto [_, added] =
+                    
+                    if(copy.contains(frame)
+                       && copy.at(frame).contains(clicked_blob_id))
+                    {
+                        /// toggle off again
+                        copy[frame].erase(clicked_blob_id);
+                        WorkProgress::add_queue("", [copy](){
+                            SETTING(track_ignore_bdx) = copy;
+                        });
+                    } else if(auto [_, added] =
                        copy[frame].insert(clicked_blob_id);
                        added)
                     {
@@ -857,7 +866,19 @@ void BlobView::draw(const DisplayParameters& parm)
             
             std::vector<Dropdown::TextItem> sorted_items;
             sorted_items.push_back(Dropdown::TextItem("<b>Split</b>", 0, "", (void*)uint64_t(_clicked_blob_id.load())));
-            sorted_items.push_back(Dropdown::TextItem("<b>Ignore</b>", 1, "", (void*)uint64_t((uint64_t)_clicked_blob_id.load() | ((uint64_t)0x1 << 32u) )));
+            
+            {
+                auto copy = FAST_SETTING(track_ignore_bdx);
+                auto frame = GUI_SETTINGS(gui_frame);
+                if(copy.contains(frame)
+                   && copy.at(frame).contains(_clicked_blob_id.load()))
+                {
+                    sorted_items.push_back(Dropdown::TextItem("<b>Un-Ignore</b>", 1, "", (void*)uint64_t((uint64_t)_clicked_blob_id.load() | ((uint64_t)0x1 << 32u) )));
+                } else {
+                    
+                    sorted_items.push_back(Dropdown::TextItem("<b>Ignore</b>", 1, "", (void*)uint64_t((uint64_t)_clicked_blob_id.load() | ((uint64_t)0x1 << 32u) )));
+                }
+            }
             
             for(auto && [d, item] : items)
                 sorted_items.push_back(item);

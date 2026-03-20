@@ -250,7 +250,7 @@ TrackingScene::Data::Data(Image::Ptr&& average, pv::File& video)
     _background = std::make_unique<AnimatedBackground>(std::move(average), &video);
     
     _background->add_event_handler(EventType::MBUTTON, [this](Event e){
-        if(e.mbutton.pressed) {
+        if(e.mbutton.pressed && e.mbutton.started_here) {
             if(_clicked_background)
                 _clicked_background(Vec2(e.mbutton.x, e.mbutton.y).map<round>(), e.mbutton.button == 1, "");
             else

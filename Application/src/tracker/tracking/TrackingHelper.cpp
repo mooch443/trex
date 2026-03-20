@@ -141,7 +141,7 @@ void TrackingHelper::apply_manual_matches()
             cannot_find[bdx].insert(fdxs.begin(), fdxs.end());
         }
         
-        _manager.assign(AssignInfo{
+        _manager.assign<true, true>(AssignInfo{
             .frame = &frame,
             .f_prop = props,
             .f_prev_prop = prev_props,

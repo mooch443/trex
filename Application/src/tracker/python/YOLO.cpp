@@ -273,6 +273,9 @@ void YOLO::init() {
             };
         }).get();
         
+        if(data().has_background())
+            manager().set_paused(false);
+        
         //! this will block everything + the GUI
         //! unfortunately currently this is the lazy solution
         //! to the model resolution not being up-to-date with
