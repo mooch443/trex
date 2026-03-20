@@ -299,8 +299,6 @@ set(TRACKER_PYTHON_PUBLIC_HEADERS
     ${CMAKE_CURRENT_LIST_DIR}/python/SAM3.h
     ${CMAKE_CURRENT_LIST_DIR}/python/TileBuffers.h
     ${CMAKE_CURRENT_LIST_DIR}/python/YOLO.h
-    ${CMAKE_CURRENT_LIST_DIR}/python/Yolo7InstanceSegmentation.h
-    ${CMAKE_CURRENT_LIST_DIR}/python/Yolo7ObjectDetection.h
 )
 
 set(TRACKER_PYTHON_PRIVATE_HEADERS
@@ -317,6 +315,4 @@ set(TRACKER_PYTHON_SOURCES
     ${CMAKE_CURRENT_LIST_DIR}/python/SAM3.cpp
     ${CMAKE_CURRENT_LIST_DIR}/python/TileBuffers.cpp
     ${CMAKE_CURRENT_LIST_DIR}/python/YOLO.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/python/Yolo7InstanceSegmentation.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/python/Yolo7ObjectDetection.cpp
 )
