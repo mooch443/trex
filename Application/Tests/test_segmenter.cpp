@@ -19,6 +19,9 @@
 #include <sstream>
 #include <thread>
 
+#include <misc/PythonWrapper.h>
+#include <python/GPURecognition.h>
+
 using namespace cmn;
 using namespace cmn::file;
 using namespace track;
@@ -57,6 +60,7 @@ void reset_global_settings() {
         grab::default_config::get(config);
         ::default_config::get(config);
     });
+    PythonIntegration::set_settings(GlobalSettings::instance(), file::DataLocation::instance(), Python::get_instance());
 }
 
 void register_data_locations_once() {
