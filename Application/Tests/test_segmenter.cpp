@@ -119,6 +119,12 @@ void run_headless_segmenter_case(size_t frame_count, std::optional<long_t> conve
     register_data_locations_once();
     reset_global_settings();
 
+    SETTING(quiet) = false;
+
+    GlobalSettings::write([](Configuration& config) {
+        config.values.set_print_by_default(true);
+    });
+
     const TempWorkspace ws = make_workspace();
     const auto source_paths = create_synthetic_sequence(ws.root / "source", frame_count);
     const auto output_dir = ws.root / "output";
