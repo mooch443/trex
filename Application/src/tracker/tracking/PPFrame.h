@@ -4,11 +4,11 @@
 
 #include <pv.h>
 #include <misc/bid.h>
-#include <misc/idx_t.h>
-#include <tracking/IndividualCache.h>
+#include <core/idx_t.h>
+#include <data/IndividualCache.h>
 #include <misc/ProximityGrid.h>
-#include <misc/TrackingSettings.h>
-#include <tracking/MotionRecord.h>
+#include <core/TrackingSettings.h>
+#include <data/MotionRecord.h>
 
 #ifndef NDEBUG
 #define TREX_ENABLE_HISTORY_LOGS true

@@ -1,8 +1,8 @@
 #include "InteractiveCamera.h"
 #include <misc/GlobalSettings.h>
-#include <grabber/gui.h>
-#include <misc/GlobalSettings.h>
 #include <misc/SpriteMap.h>
+#include <misc/ranges.h>
+#include <misc/Timer.h>
 
 namespace fg {
 constexpr bool use_dynamic = true;

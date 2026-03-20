@@ -1,11 +1,11 @@
 #include "YOLO.h"
 #include <misc/PixelTree.h>
-#include <misc/PythonWrapper.h>
+#include <core/PythonWrapper.h>
 #include <grabber/misc/default_config.h>
 #include <video/Video.h>
 #include <misc/Timer.h>
 #include <misc/ThreadPool.h>
-#include <misc/TrackingSettings.h>
+#include <core/TrackingSettings.h>
 #include <python/GPURecognition.h>
 #include <gui/GuiTypes.h>
 
@@ -167,6 +167,11 @@ struct YOLO::Data {
 YOLO::Data& YOLO::data() {
     static Data _data;
     return _data;
+}
+
+PipelineManager<TileImage, true>& YOLO::manager()
+{
+    return Detection::manager();
 }
 
 void YOLO::set_background(const Image::Ptr &image) {

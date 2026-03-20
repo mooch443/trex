@@ -1,7 +1,7 @@
 /*#include <python/Yolo7InstanceSegmentation.h>
-#include <misc/PythonWrapper.h>
+#include <core/PythonWrapper.h>
 #include <processing/CPULabeling.h>
-#include <misc/AbstractVideoSource.h>
+#include <core/AbstractVideoSource.h>
 #include <misc/PixelTree.h>
 #include <python/ModuleProxy.h>
 

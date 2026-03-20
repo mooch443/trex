@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 #include <commons.pc.h>
 #include <tracking/Posture.h>
-#include <misc/TrackingSettings.h>
+#include <core/TrackingSettings.h>
 
 using namespace track;
 using namespace cmn;

@@ -1,13 +1,10 @@
 #include "DatasetQuality.h"
 #include <tracking/Individual.h>
-#include <tracking/VisualIdentification.h>
-#include <tracking/FilterCache.h>
+#include <data/FilterCache.h>
 #include <tracking/IndividualManager.h>
 
 namespace track {
 namespace DatasetQuality {
-
-namespace py = Python;
 
 Range<Frame_t> _manually_selected{{},{}};
 std::map<Range<Frame_t>, std::map<Idx_t, Single>> _cache;
@@ -410,7 +407,7 @@ Single evaluate_single(Idx_t id, Individual* fish, const Range<Frame_t> &_consec
     
     fish->iterate_frames(consec.range, [&](Frame_t i, const auto&, const BasicStuff* basic, auto posture) -> bool
     {
-        if(!py::VINetwork::is_good(basic, posture))
+        if(!can_use_visual_identification(basic, posture))
             return true;
         
         // go through all frames within the segment

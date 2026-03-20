@@ -1,27 +1,33 @@
-file(GLOB HDRS *.h ${CMAKE_SOURCE_DIR}/*.py)
-file(GLOB SRCS *.cpp)
+set(TRACKER_PYTHON_HEADERS
+    ${TRACKER_PYTHON_PUBLIC_HEADERS}
+    ${TRACKER_PYTHON_PRIVATE_HEADERS}
+)
 
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
 # add actual library
 if(UNIX)
-    add_library(tracker_python STATIC ${SRCS} ${HDRS} 
+    add_library(tracker_python STATIC ${TRACKER_PYTHON_SOURCES} ${TRACKER_PYTHON_HEADERS}
         ${CMAKE_CURRENT_SOURCE_DIR}/trex_init.py
         ${CMAKE_CURRENT_SOURCE_DIR}/closed_loop_beta.py
         ${CMAKE_CURRENT_SOURCE_DIR}/trex_learn_category.py)
 elseif(WIN32)
-    add_library(tracker_python SHARED ${SRCS} ${HDRS} "${CMAKE_CURRENT_BINARY_DIR}/../../GitSHA1.cpp" ../../GitSHA1.h)
+    add_library(tracker_python SHARED ${TRACKER_PYTHON_SOURCES} ${TRACKER_PYTHON_HEADERS} "${CMAKE_CURRENT_BINARY_DIR}/../../GitSHA1.cpp" ../../GitSHA1.h)
 endif()
 
 if(WIN32)
     target_compile_definitions(tracker_python PRIVATE TREX_EXPORTS)
+    target_compile_options(tracker_python PRIVATE /bigobj)
     target_link_libraries(tracker_python PRIVATE
-        tracker_misc
+        trex_ui
+        trex_tracking
+        trex_data
+        trex_core
         pv
         commons
     )
 else()
-    target_link_libraries(tracker_python PUBLIC tracker_misc pv commons)
+    target_link_libraries(tracker_python PUBLIC trex_ui trex_tracking trex_data trex_core pv commons)
 endif()
 
 if(NOT pybind11_external)

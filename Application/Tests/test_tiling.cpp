@@ -1,14 +1,14 @@
 #include <gtest/gtest.h>
 
-#include <misc/TileImage.h>
-#include <misc/TaskPipeline.h>
-#include <misc/TrackingSettings.h>
+#include <core/TileImage.h>
+#include <core/TaskPipeline.h>
+#include <core/TrackingSettings.h>
 #include <misc/GlobalSettings.h>
-#include <tracker/misc/default_config.h>
+#include <core/default_config.h>
 #include <grabber/misc/default_config.h>
 #include <python/YOLO.h>
-#include <tracker/misc/OverlayedVideo.h>
-#include <misc/PythonWrapper.h>
+#include <tracking/OverlayedVideo.h>
+#include <core/PythonWrapper.h>
 #include <file/DataLocation.h>
 
 #include <opencv2/core.hpp>

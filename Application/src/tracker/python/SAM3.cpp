@@ -1,8 +1,8 @@
 #include "SAM3.h"
 
-#include <misc/PythonWrapper.h>
+#include <core/PythonWrapper.h>
 #include <misc/Timer.h>
-#include <misc/TrackingSettings.h>
+#include <core/TrackingSettings.h>
 #include <python/Detection.h>
 #include <python/YOLO.h>
 #include <python/ModuleProxy.h>

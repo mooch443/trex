@@ -2,7 +2,7 @@
 
 #include <commons.pc.h>
 #include <misc/Image.h>
-#include <misc/TileImage.h>
+#include <core/TileImage.h>
 
 namespace track {
 

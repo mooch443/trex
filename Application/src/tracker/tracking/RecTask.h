@@ -2,7 +2,7 @@
 
 #include <commons.pc.h>
 #include <misc/frame_t.h>
-#include <misc/idx_t.h>
+#include <core/idx_t.h>
 #include <misc/Image.h>
 
 namespace track {

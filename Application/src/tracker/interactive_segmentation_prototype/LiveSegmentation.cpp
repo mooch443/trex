@@ -2,16 +2,16 @@
 #include <gui/dyn/ParseText.h>
 #include <gui/dyn/Action.h>
 #include <gui/DynamicGUI.h>
-#include <gui/Bowl.h>
+#include <ui/Bowl.h>
 #include <gui/DrawStructure.h>
 #include <video/VideoSource.h>
 #include <processing/encoding.h>
 #include <python/SAM3.h>
-#include <misc/PythonWrapper.h>
-#include <gui/ImageDisplayElement.h>
-#include <gui/LabelElement.h>
+#include <core/PythonWrapper.h>
+#include <ui/ImageDisplayElement.h>
+#include <ui/LabelElement.h>
 #include <processing/Background.h>
-#include <misc/idx_t.h>
+#include <core/idx_t.h>
 
 struct DetectionMeta {
     pv::bid bdx;

@@ -6,7 +6,7 @@
 #include <file/PathArray.h>
 #include <grabber/misc/default_config.h>
 #include <misc/GlobalSettings.h>
-#include <tracker/misc/default_config.h>
+#include <core/default_config.h>
 #include <tracking/Segmenter.h>
 
 #include <filesystem>

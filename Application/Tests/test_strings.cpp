@@ -5,9 +5,9 @@
 #include <file/Path.h>
 #include <misc/default_settings.h>
 #include <gui/types/StaticText.h>
-#include <tracking/IndividualCache.h>
+#include <data/IndividualCache.h>
 #include <misc/detail.h>
-#include <misc/RecentItems.h>
+#include <ui/RecentItems.h>
 #include <gui/dyn/ParseText.h>
 #include <gui/dyn/VarProps.h>
 #include <gui/dyn/Context.h>
@@ -16,7 +16,7 @@
 #include <gui/dyn/Action.h>
 #include <gui/dyn/ResolveVariable.h>
 #include <gui/DynamicGUI.h>
-#include <misc/idx_t.h>
+#include <core/idx_t.h>
 #include <gui/dyn/UnresolvedStringPattern.h>
 #include <misc/Median.h>
 

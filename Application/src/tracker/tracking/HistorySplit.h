@@ -1,7 +1,7 @@
 #pragma once
 
 #include <commons.pc.h>
-#include <misc/TrackingSettings.h>
+#include <core/TrackingSettings.h>
 #include <tracking/PPFrame.h>
 #include <tracking/PrefilterBlobs.h>
 #include <misc/ThreadPool.h>

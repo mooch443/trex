@@ -4,7 +4,7 @@
 #include <processing/Background.h>
 #include <misc/PVBlob.h>
 #include <misc/PixelTree.h>
-#include <misc/TrackingSettings.h>
+#include <core/TrackingSettings.h>
 #include <tracking/Posture.h>
 #include <processing/LuminanceGrid.h>
 #include <processing/HLine.h>

@@ -3,13 +3,13 @@
 #include <python/YOLO.h>
 //#include <python/Yolo7ObjectDetection.h>
 #include <grabber/misc/default_config.h>
-#include <misc/TrackingSettings.h>
+#include <core/TrackingSettings.h>
 #include <video/Video.h>
 #include <processing/CPULabeling.h>
 #include <misc/Timer.h>
-#include <misc/AbstractVideoSource.h>
+#include <core/AbstractVideoSource.h>
 #include <python/TileBuffers.h>
-#include <misc/PrecomuptedDetection.h>
+#include <core/PrecomuptedDetection.h>
 #include <python/BackgroundSubtraction.h>
 #include <python/NoDetection.h>
 #include <python/SAM3.h>

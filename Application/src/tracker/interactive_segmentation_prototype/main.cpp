@@ -17,23 +17,25 @@ static void (*windowsEarlyEnvSetup)(void) = []() {
 #endif
 
 #include <misc/CommandLine.h>
-#include <misc/PythonWrapper.h>
+#include <core/PythonWrapper.h>
 #include <tracking/Tracker.h>
 #include <tracking/Segmenter.h>
 #include <pv.h>
 #include <GitSHA1.h>
-#include <gui/Scene.h>
+#include <ui/Scene.h>
 #include <gui/SFLoop.h>
 #include <gui/DrawStructure.h>
 #include <file/DataLocation.h>
 #include <gui/IMGUIBase.h>
 #include <misc/GlobalSettings.h>
 #include <gui/DynamicGUI.h>
-#include <gui/Scene.h>
-#include <gui/AnnotationScene.h>
-#include <gui/Bowl.h>
+#include <ui/Scene.h>
+#include <ui/AnnotationScene.h>
+#include <ui/Bowl.h>
 #include "LiveSegmentation.h"
 #include <python/GPURecognition.h>
+
+using namespace cmn;
 
 int main(int argc, char** argv) {
     GlobalSettings::write([](Configuration& config){

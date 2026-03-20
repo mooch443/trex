@@ -22,12 +22,12 @@
 #include <misc/SpriteMap.h>
 
 #include <misc/default_settings.h>
-#include <misc/default_config.h>
+#include <core/default_config.h>
 #include <misc/GlobalSettings.h>
 #include <file/DataLocation.h>
-#include <misc/PythonWrapper.h>
+#include <core/PythonWrapper.h>
 
-#include <misc/DetectionTypes.h>
+#include <core/DetectionTypes.h>
 
 #include <signal.h>
 typedef void (*sighandler_t)(int);
@@ -200,8 +200,8 @@ std::function<void()> _destroy_all_windows = []() {};
 
 #include "GPURecognition.h"
 #include <pybind11/stl.h>
-#include <gui/WorkProgress.h>
-#include <misc/SoftException.h>
+#include <ui/WorkProgress.h>
+#include <core/SoftException.h>
 
 #include <misc/Timer.h>
 #include <file/DataLocation.h>

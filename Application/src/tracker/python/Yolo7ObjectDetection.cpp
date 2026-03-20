@@ -1,8 +1,8 @@
 /*#include "Yolo7ObjectDetection.h"
-#include <misc/PythonWrapper.h>
+#include <core/PythonWrapper.h>
 #include <video/Video.h>
 #include <grabber/misc/default_config.h>
-#include <misc/AbstractVideoSource.h>
+#include <core/AbstractVideoSource.h>
 #include <misc/PixelTree.h>
 
 namespace track {

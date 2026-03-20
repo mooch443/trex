@@ -12,16 +12,16 @@
 #include <misc/cnpy_wrapper.h>
 #include <misc/CircularGraph.h>
 
-#include <misc/SoftException.h>
+#include <core/SoftException.h>
 #include <gui/Graph.h>
-#include <tracking/CategorizeDatastore.h>
+#include <data/CategorizeDatastore.h>
 #include <file/DataLocation.h>
 #include <tracking/TrackingHelper.h>
 #include <tracking/IndividualManager.h>
-#include <misc/FOI.h>
+#include <core/FOI.h>
 
 #if !COMMONS_NO_PYTHON
-#include <misc/PythonWrapper.h>
+#include <core/PythonWrapper.h>
 #include <tracking/RecTask.h>
 #endif
 

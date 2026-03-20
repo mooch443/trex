@@ -4,14 +4,15 @@
 #include <file/PathArray.h>
 #include <tracking/IndividualManager.h>
 #include <tracking/Output.h>
+#include <tracking/OverlayedVideo.h>
 #include <misc/CommandLine.h>
 #include <python/YOLO.h>
 #include <python/BackgroundSubtraction.h>
-#include <misc/SettingsInitializer.h>
+#include <ui/SettingsInitializer.h>
 #include <tracking/Tracker.h>
-#include <gui/Export.h>
-#include <misc/SettingsInitializer.h>
-#include <misc/PrecomuptedDetection.h>
+#include <ui/Export.h>
+#include <ui/SettingsInitializer.h>
+#include <core/PrecomuptedDetection.h>
 #include <python/SAM3.h>
 
 //#define DEBUG_TM_ITEMS

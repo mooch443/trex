@@ -44,7 +44,6 @@ option(TREX_BUILD_TOOLS OFF)
 option(TREX_CONDA_PACKAGE_INSTALL OFF)
 option(WITH_GITSHA1 "include git hash" ON)
 option(BUILD_LEGACY_TREX "Build the TRex (legacy) target" OFF)
-option(BUILD_LEGACY_TGRABS "Build the TGrabs (legacy) target" OFF)
 
 if(APPLE)
     option(BUILD_FOR_ARM64 "Build for arm64 architecture" ON)
@@ -398,7 +397,6 @@ if(NOT WIN32 AND ${TREX_BUILD_DOCS})
         add_custom_target(
           doc ALL
           COMMAND $<TARGET_FILE:TRex> -d "${CMAKE_SOURCE_DIR}/../docs" -h rst
-          COMMAND $<TARGET_FILE:TGrabs> -d "${CMAKE_SOURCE_DIR}/../docs" -h rst
           COMMAND export PATH="$ENV{PATH}:${SPHINX_DIR}"
           COMMAND echo "CONDA_PREFIX=${CONDA_PREFIX} PATH=${PATH}"
           COMMAND make html
@@ -417,13 +415,12 @@ elseif(${TREX_BUILD_DOCS})
     else()
         get_filename_component(SPHINX_DIR ${SPHINX_EXECUTABLE} DIRECTORY)
         message(STATUS "Found sphinx at ${SPHINX_EXECUTABLE} (dir: ${SPHINX_DIR}).")
-        message(STATUS "$<TARGET_FILE:tgrabs> -d \"${CMAKE_SOURCE_DIR}/../docs\" -h rst")
         add_custom_target(
             #C:\Users\tristan\Videos\f9_f10_f11_emptytank_20180220_120156.pv
           doc ALL #-i Z:\work\f9_f10_f11_emptytank_20180220_120156\%256d.mp4 -averaging_method mode -threshold 30 -use_closing -closing_size 5 -correct_luminance
-          COMMAND ${CMAKE_SOURCE_DIR}/../docs/make.bat html "${SPHINX_DIR}" "${CMAKE_SOURCE_DIR}/../docs" "$<TARGET_FILE:trex>" "$<TARGET_FILE:tgrabs>"
+          COMMAND ${CMAKE_SOURCE_DIR}/../docs/make.bat html "${SPHINX_DIR}" "${CMAKE_SOURCE_DIR}/../docs" "$<TARGET_FILE:trex>"
           DEPENDS
-            trex tgrabs
+            trex
           WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/../docs
           COMMENT "Generating API documentation with Doxygen PATH=$ENV{PATH}:${SPHINX_DIR} ${CMAKE_SOURCE_DIR}/../docs/make.bat"
           VERBATIM
@@ -443,5 +440,3 @@ message(STATUS "CMAKE_CXX_FLAGS = ${CMAKE_CXX_FLAGS}")
 message(STATUS "CMAKE_CXX_FLAGS_RELEASE = ${CMAKE_CXX_FLAGS_RELEASE}")
 message(STATUS "CMAKE_CXX_STANDARD_LIBRARIES = ${CMAKE_CXX_STANDARD_LIBRARIES}")
 message(STATUS "CMAKE_CXX_IMPLICIT_LINK_DIRECTORIES = ${CMAKE_CXX_IMPLICIT_LINK_DIRECTORIES}")
-
-

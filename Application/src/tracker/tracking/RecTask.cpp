@@ -3,11 +3,11 @@
 #include <commons.pc.h>
 #include <misc/Timer.h>
 #include <misc/frame_t.h>
-#include <misc/idx_t.h>
+#include <core/idx_t.h>
 #include <misc/Image.h>
 #include <misc/GlobalSettings.h>
 #include <python/GPURecognition.h>
-#include <misc/PythonWrapper.h>
+#include <core/PythonWrapper.h>
 #include <file/DataLocation.h>
 
 namespace py = Python;

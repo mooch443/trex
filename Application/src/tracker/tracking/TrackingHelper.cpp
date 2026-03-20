@@ -1,10 +1,10 @@
 #include "TrackingHelper.h"
 #include <tracking/Tracker.h>
-#include <tracker/misc/default_config.h>
+#include <core/default_config.h>
 #include <misc/pretty.h>
 #include <tracking/AutomaticMatches.h>
 #include <tracking/IndividualManager.h>
-#include <misc/FOI.h>
+#include <core/FOI.h>
 
 namespace track {
 

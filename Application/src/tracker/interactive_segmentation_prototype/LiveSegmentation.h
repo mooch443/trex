@@ -1,13 +1,13 @@
 #pragma once
 #include <commons.pc.h>
 
-#include <gui/Scene.h>
+#include <ui/Scene.h>
 #include <misc/Image.h>
 #include <misc/ObjectManager.h>
 #include <gui/types/Entangled.h>
 #include <gui/dyn/VarProps.h>
 #include <misc/Timer.h>
-#include <misc/TaskPipeline.h>
+#include <core/TaskPipeline.h>
 
 namespace cmn {
 class VideoSource;

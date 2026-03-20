@@ -1,4 +1,4 @@
-#include "Network.h"
+#include <core/Network.h>
 
 namespace Python {
 

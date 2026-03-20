@@ -1,14 +1,14 @@
 #pragma once
 
 #include <commons.pc.h>
-#include <misc/idx_t.h>
+#include <core/idx_t.h>
 #include <misc/frame_t.h>
 #include <misc/bid.h>
-#include <tracking/Stuffs.h>
-#include <tracker/misc/default_config.h>
+#include <data/Stuffs.h>
+#include <core/default_config.h>
 #include <pv.h>
 #include <misc/PackLambda.h>
-#include <tracking/TrackletInformation.h>
+#include <data/TrackletInformation.h>
 
 
 using namespace track;

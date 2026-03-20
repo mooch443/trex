@@ -1,8 +1,8 @@
 #include "UniquenessProvider.h"
-#include <tracking/VisualIdentification.h>
-#include <gui/WorkProgress.h>
-#include <ml/Accumulation.h>
-#include <tracking/VisualIdentification.h>
+#include <ml/VisualIdentification.h>
+#include <ui/WorkProgress.h>
+#include <ui/Accumulation.h>
+#include <ml/VisualIdentification.h>
 
 using namespace cmn;
 

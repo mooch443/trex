@@ -1,8 +1,8 @@
 #pragma once
 #include <commons.pc.h>
-#include <misc/TileImage.h>
-#include <misc/TaskPipeline.h>
-#include <misc/DetectionTypes.h>
+#include <core/TileImage.h>
+#include <core/TaskPipeline.h>
+#include <core/DetectionTypes.h>
 
 namespace track {
 

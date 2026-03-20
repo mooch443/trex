@@ -13,22 +13,22 @@
 #include <misc/PixelTree.h>
 #include <misc/CircularGraph.h>
 #include <tracking/MemoryStats.h>
-#include <tracking/CategorizeDatastore.h>
+#include <data/CategorizeDatastore.h>
 #include <tracking/VisualField.h>
 #include <file/DataLocation.h>
-#include <misc/FOI.h>
+#include <core/FOI.h>
 #include <misc/PVBlob.h>
 
 #include <tracking/TrackingHelper.h>
 #include <tracking/AutomaticMatches.h>
 #include <tracking/HistorySplit.h>
 #include <tracking/IndividualManager.h>
-#include <misc/SettingsInitializer.h>
+#include <ui/SettingsInitializer.h>
 
 #if !COMMONS_NO_PYTHON
-#include <misc/PythonWrapper.h>
+#include <core/PythonWrapper.h>
 #include <tracking/RecTask.h>
-#include <ml/Accumulation.h>
+#include <ui/Accumulation.h>
 namespace py = Python;
 #endif
 

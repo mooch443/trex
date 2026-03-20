@@ -5,7 +5,7 @@
 #include <video/GenericVideo.h>
 #include <video/AveragingAccumulator.h>
 #include <misc/ranges.h>
-#include <misc/idx_t.h>
+#include <core/idx_t.h>
 #include <processing/Background.h>
 
 #ifndef WIN32

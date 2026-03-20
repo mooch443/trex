@@ -2,10 +2,10 @@
 
 #include <commons.pc.h>
 #include <misc/Image.h>
-#include <misc/SoftException.h>
-#include <misc/idx_t.h>
+#include <core/SoftException.h>
+#include <core/idx_t.h>
 #include <misc/PackLambda.h>
-#include <misc/DetectionTypes.h>
+#include <core/DetectionTypes.h>
 
 namespace cmn::file {
 class DataLocation;

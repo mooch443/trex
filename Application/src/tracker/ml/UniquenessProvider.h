@@ -4,8 +4,8 @@
 #include <misc/frame_t.h>
 #include <misc/vec2.h>
 #include <pv.h>
-#include <misc/DetectionTypes.h>
-#include <tracking/TrainingData.h>
+#include <core/DetectionTypes.h>
+#include <data/TrainingData.h>
 
 namespace track {
 

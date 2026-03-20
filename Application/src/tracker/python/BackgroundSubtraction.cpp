@@ -2,7 +2,7 @@
 #include <misc/Timer.h>
 #include <processing/RawProcessing.h>
 #include <processing/CPULabeling.h>
-#include <misc/TrackingSettings.h>
+#include <core/TrackingSettings.h>
 #include <python/TileBuffers.h>
 #include <python/Detection.h>
 #include <processing/DLList.h>

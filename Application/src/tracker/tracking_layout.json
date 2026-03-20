@@ -1174,6 +1174,29 @@
                 "row_height":30,
                 "line":"{if:{hovered}:[100,175,250,230]:[100,100,100,50]}"
             }
+        },
+
+        {
+            "type":"graph",
+            "size":[800,300],
+            "xrange":[0,15],
+            "yrange":[0,10],
+            "draggable":true,
+            "points": [{
+                "name": "graph",
+                "pts": "[[1,2],[5,5],[3,4],{mulVector:{mouse_in_bowl}:[0.0025,0.0025]}]"
+
+            }],
+            "lines": [{
+                "name": "line",
+                "pts": [[0.5,5],[3,6],[4,7]]
+            },
+            {
+                "name": "mouse_line",
+                "extrapolate": false,
+                "display_points": true,
+                "pts": "[[2,5],[3,2],[5,3],[8,4],{mulVector:{mouse_in_bowl}:[0.0025,0.0025]}]"
+            }]
         }
     ]
 }

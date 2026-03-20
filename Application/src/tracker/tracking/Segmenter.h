@@ -1,15 +1,16 @@
 #pragma once
 
 #include <commons.pc.h>
-#include <misc/OverlayedVideo.h>
 #include <misc/frame_t.h>
-#include <misc/TaskPipeline.h>
+#include <core/TaskPipeline.h>
 #include <pv.h>
 #include <misc/ranges.h>
 #if WITH_FFMPEG
-#include <misc/tomp4.h>
+#include <core/tomp4.h>
 #endif
 #include <tracking/PPFrame.h>
+
+class BasicProcessor;
 
 namespace track {
 

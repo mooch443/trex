@@ -1,10 +1,117 @@
-add_subdirectory(gui)
+include(${CMAKE_CURRENT_SOURCE_DIR}/TrackerSources.cmake)
+
+function(trex_add_semantic_library target)
+    set(options)
+    set(one_value_args TYPE)
+    set(multi_value_args SOURCES PUBLIC_HEADERS PRIVATE_HEADERS)
+    cmake_parse_arguments(TREX_LIB "${options}" "${one_value_args}" "${multi_value_args}" ${ARGN})
+
+    set(_trex_lib_type ${TREX_LIB_TYPE})
+    if(NOT _trex_lib_type)
+        set(_trex_lib_type STATIC)
+    endif()
+
+    add_library(${target} ${_trex_lib_type}
+        ${TREX_LIB_SOURCES}
+        ${TREX_LIB_PUBLIC_HEADERS}
+        ${TREX_LIB_PRIVATE_HEADERS}
+    )
+
+    target_include_directories(${target} PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+
+    if(WIN32)
+        target_compile_options(${target} PRIVATE /bigobj)
+    endif()
+
+    if(WITH_FFMPEG)
+        target_compile_definitions(${target} PUBLIC WITH_FFMPEG=true)
+    endif()
+endfunction()
+
+trex_add_semantic_library(trex_core
+    SOURCES ${TREX_CORE_SOURCES} "${CMAKE_CURRENT_BINARY_DIR}/../GitSHA1.cpp"
+    PUBLIC_HEADERS ${TREX_CORE_PUBLIC_HEADERS}
+    PRIVATE_HEADERS ${TREX_CORE_PRIVATE_HEADERS}
+)
+target_link_libraries(trex_core PUBLIC
+    framegrabber_misc
+    pv
+    commons
+    lzo
+)
+
+trex_add_semantic_library(trex_data
+    SOURCES ${TREX_DATA_SOURCES}
+    PUBLIC_HEADERS ${TREX_DATA_PUBLIC_HEADERS}
+    PRIVATE_HEADERS ${TREX_DATA_PRIVATE_HEADERS}
+)
+target_link_libraries(trex_data PUBLIC trex_core)
+
+trex_add_semantic_library(trex_tracking
+    TYPE ${TREX_TRACKER_LIBRARY_TYPE}
+    SOURCES ${TREX_TRACKING_SOURCES}
+    PUBLIC_HEADERS ${TREX_TRACKING_PUBLIC_HEADERS}
+    PRIVATE_HEADERS ${TREX_TRACKING_PRIVATE_HEADERS}
+)
+target_link_libraries(trex_tracking PUBLIC
+    trex_data
+    trex_core
+)
+add_dependencies(trex_tracking commons)
+if(WITH_HTTPD)
+    add_dependencies(trex_tracking LibMicroHttpd)
+endif()
+if(APPLE AND TREX_TRACKER_SHARED)
+    target_link_options(trex_tracking PRIVATE "-Wl,-undefined,error")
+endif()
+
+trex_add_semantic_library(trex_ml
+    SOURCES ${TREX_ML_SOURCES}
+    PUBLIC_HEADERS ${TREX_ML_PUBLIC_HEADERS}
+    PRIVATE_HEADERS ${TREX_ML_PRIVATE_HEADERS}
+)
+target_link_libraries(trex_ml PUBLIC
+    trex_tracking
+    trex_data
+    trex_core
+)
+add_dependencies(trex_ml commons)
+if(APPLE AND TREX_TRACKER_SHARED)
+    target_link_options(trex_ml PRIVATE "-Wl,-undefined,error")
+endif()
+
+trex_add_semantic_library(trex_ui
+    SOURCES ${TREX_UI_SOURCES}
+    PUBLIC_HEADERS ${TREX_UI_PUBLIC_HEADERS}
+    PRIVATE_HEADERS ${TREX_UI_PRIVATE_HEADERS}
+)
+target_link_libraries(trex_ui PUBLIC
+    trex_ml
+    trex_tracking
+    trex_data
+    trex_core
+)
+if(CMAKE_COMPILER_IS_GNUCXX)
+    target_link_libraries(trex_ui PUBLIC atomic)
+endif()
+
+add_library(tracker_misc INTERFACE)
+target_link_libraries(tracker_misc INTERFACE trex_core trex_data)
+
+add_library(tracker_tracking INTERFACE)
+target_link_libraries(tracker_tracking INTERFACE trex_tracking trex_data trex_core)
+
+add_library(tracker_ml INTERFACE)
+target_link_libraries(tracker_ml INTERFACE trex_ml trex_tracking trex_data trex_core)
+
+add_library(tracker_gui INTERFACE)
+target_link_libraries(tracker_gui INTERFACE trex_ui trex_ml trex_tracking trex_data trex_core)
+
 if(NOT COMMONS_NO_PYTHON)
     add_subdirectory(python)
 endif()
-add_subdirectory(tracking)
-add_subdirectory(misc)
-add_subdirectory(ml)
 
 include_directories(${CMAKE_SOURCE_DIR}/src/ProcessedVideo)
 
@@ -177,10 +284,6 @@ if(WITH_FFMPEG)
     foreach(app_target ${TREX_APP_TARGETS})
         target_compile_definitions(${app_target} PRIVATE WITH_FFMPEG=true)
     endforeach()
-endif()
-
-if(BUILD_LEGACY_TREX)
-    add_subdirectory(legacy)
 endif()
 
 set(TRACKER_PATH "$<TARGET_FILE_DIR:${TREXA_EXEC_NAME}>")

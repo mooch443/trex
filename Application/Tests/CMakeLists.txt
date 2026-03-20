@@ -54,8 +54,16 @@ target_compile_definitions(test_tiling PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRE
 add_executable(test_segmenter test_segmenter.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
 target_compile_definitions(test_segmenter PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
 
+if(COMMONS_ENABLE_MODULES AND NOT CMAKE_VERSION VERSION_LESS "3.28.0")
+add_executable(test_commons_modules test_commons_modules.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
+target_compile_definitions(test_commons_modules PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
+endif()
+
 # always compile in debug mode
 set(TARGETS test_matching test_commandline test_strings test_pixels test_patharray test_dyngui test_outlines test_threadpool test_tiling test_segmenter)
+if(COMMONS_ENABLE_MODULES AND NOT CMAKE_VERSION VERSION_LESS "3.28.0")
+    list(APPEND TARGETS test_commons_modules)
+endif()
 if(WIN32)
         foreach(target ${TARGETS})
                 target_compile_options(${target} PRIVATE /W4 /EHsc /Zi /Od)
@@ -160,6 +168,14 @@ target_link_libraries(test_segmenter PUBLIC
     commons
 )
 
+if(COMMONS_ENABLE_MODULES AND NOT CMAKE_VERSION VERSION_LESS "3.28.0")
+target_link_libraries(test_commons_modules PUBLIC
+    gtest
+    gtest_main
+    commons
+)
+endif()
+
 set_target_properties(test_matching PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 set_target_properties(test_commandline PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 set_target_properties(test_strings PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
@@ -171,6 +187,9 @@ set_target_properties(test_outlines PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH 
 set_target_properties(test_threadpool PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 set_target_properties(test_tiling PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 set_target_properties(test_segmenter PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
+if(COMMONS_ENABLE_MODULES AND NOT CMAKE_VERSION VERSION_LESS "3.28.0")
+set_target_properties(test_commons_modules PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
+endif()
 
 #if(WIN32)
   #target_compile_options(bench_dyngui_parser PRIVATE /O2)
@@ -191,6 +210,9 @@ add_test(NAME test-outlines COMMAND test_outlines)
 add_test(NAME test-threadpool COMMAND test_threadpool)
 add_test(NAME test-tiling COMMAND test_tiling)
 add_test(NAME test-segmenter COMMAND test_segmenter)
+if(COMMONS_ENABLE_MODULES AND NOT CMAKE_VERSION VERSION_LESS "3.28.0")
+add_test(NAME test-commons-modules COMMAND test_commons_modules)
+endif()
 
 # Add a custom target to build and run all tests
 add_custom_target(runAllTests
