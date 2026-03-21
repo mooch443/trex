@@ -49,3 +49,5 @@ Application/tmp-modules/
 Application/tmp/
 Application/tmp-modules-osx/
 Application/tmp-modules-clean/
+Application/tmp-modules-osx-tests-nolto/
+Application/tmp-modules-osx-tests/

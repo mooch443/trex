@@ -31,8 +31,8 @@
             ],
             "defines": [],
             "compilerPath": "/usr/bin/clang",
-            "cStandard": "c17",
-            "cppStandard": "c++14",
+            "cStandard": "c23",
+            "cppStandard": "c++23",
             "intelliSenseMode": "macos-clang-arm64"
         }
     ],

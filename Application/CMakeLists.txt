@@ -46,6 +46,7 @@ option(TREX_WITH_TESTS OFF)
 option(TREX_BUILD_TOOLS OFF)
 option(TREX_CONDA_PACKAGE_INSTALL OFF)
 option(TREX_ENABLE_SHARED_INTERNAL_LIBS "Build TRex internal libraries as shared libraries on macOS for dependency hardening." OFF)
+option(TREX_ENABLE_MODULES "Build TRex semantic libraries with C++ named module interfaces." OFF)
 option(WITH_GITSHA1 "include git hash" ON)
 option(BUILD_LEGACY_TREX "Build the TRex (legacy) target" OFF)
 
@@ -54,6 +55,26 @@ if(TREX_ENABLE_SHARED_INTERNAL_LIBS AND NOT APPLE)
         "TREX_ENABLE_SHARED_INTERNAL_LIBS is currently supported only on macOS. "
         "Disable it or configure on Apple platforms."
     )
+endif()
+
+if(TREX_ENABLE_MODULES)
+    if(NOT COMMONS_ENABLE_MODULES)
+        message(FATAL_ERROR
+            "TREX_ENABLE_MODULES requires COMMONS_ENABLE_MODULES=ON because the TRex semantic modules build on top of the commons module graph."
+        )
+    endif()
+
+    if(${CMAKE_VERSION} VERSION_LESS "3.28.0")
+        message(FATAL_ERROR "TREX_ENABLE_MODULES requires CMake 3.28 or newer.")
+    endif()
+
+    if(NOT CMAKE_GENERATOR MATCHES "^(Ninja|Ninja Multi-Config|Visual Studio 17 2022)$")
+        message(FATAL_ERROR
+            "TREX_ENABLE_MODULES is not supported with the '${CMAKE_GENERATOR}' generator. "
+            "Current CMake C++ module support requires Ninja, Ninja Multi-Config, or Visual Studio 17 2022. "
+            "Use -G Ninja (or disable TREX_ENABLE_MODULES)."
+        )
+    endif()
 endif()
 
 if(APPLE)
@@ -252,15 +273,20 @@ elseif(CMAKE_CXX_COMPILER_ID MATCHES "^(Apple)?Clang$")
 
     set(TREX_WARNING_FLAGS "-Wmove -Werror=return-stack-address") #-Wthread-safety")
 
+    set(TREX_RELEASE_LTO_FLAG "-flto")
+    if(APPLE AND TREX_ENABLE_MODULES)
+        set(TREX_RELEASE_LTO_FLAG "-fno-lto")
+    endif()
+
     set(C_SANITIZE_OPTIONS "")
     set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0 -g ${C_SANITIZE_OPTIONS} -fno-lto")
-    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} ${M1OPTIONS} -O3 -flto -ffunction-sections -fdata-sections ${TREX_WARNING_FLAGS}")
+    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} ${M1OPTIONS} -O3 ${TREX_RELEASE_LTO_FLAG} -ffunction-sections -fdata-sections ${TREX_WARNING_FLAGS}")
     set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} ${M1OPTIONS} -O3 -g3 -gdwarf-5 -fno-omit-frame-pointer -fno-inline -fno-inline-functions -fno-lto ${TREX_WARNING_FLAGS}")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-c++98-compat-pedantic -Wall -Wextra -pedantic ${TREX_WARNING_FLAGS}")
     
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Werror=return-stack-address")
     set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -O0 -g")
-    set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} ${M1OPTIONS} -O3 -flto -ffunction-sections -fdata-sections ${TREX_WARNING_FLAGS}")
+    set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} ${M1OPTIONS} -O3 ${TREX_RELEASE_LTO_FLAG} -ffunction-sections -fdata-sections ${TREX_WARNING_FLAGS}")
     set(CMAKE_C_FLAGS_RELWITHDEBINFO "${CMAKE_C_FLAGS_RELWITHDEBINFO} ${M1OPTIONS} -O3 -g ${C_SANITIZE_OPTIONS} -fno-omit-frame-pointer")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-c++98-compat-pedantic")
     message(STATUS "Apple Silicon: ${CMAKE_SYSTEM_PROCESSOR} -> ${M1OPTIONS}")

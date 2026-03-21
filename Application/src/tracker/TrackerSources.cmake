@@ -317,6 +317,30 @@ set(TREX_UI_SOURCES
     ${CMAKE_CURRENT_LIST_DIR}/ui/CategorizeInterface.cpp
 )
 
+set(TREX_CORE_MODULE_INTERFACE_UNITS
+    ${CMAKE_CURRENT_LIST_DIR}/modules/trex.core.cppm
+)
+
+set(TREX_DATA_MODULE_INTERFACE_UNITS
+    ${CMAKE_CURRENT_LIST_DIR}/modules/trex.data.cppm
+)
+
+set(TREX_DETECT_MODULE_INTERFACE_UNITS
+    ${CMAKE_CURRENT_LIST_DIR}/modules/trex.detect.cppm
+)
+
+set(TREX_TRACKING_MODULE_INTERFACE_UNITS
+    ${CMAKE_CURRENT_LIST_DIR}/modules/trex.tracking.cppm
+)
+
+set(TREX_ML_MODULE_INTERFACE_UNITS
+    ${CMAKE_CURRENT_LIST_DIR}/modules/trex.ml.cppm
+)
+
+set(TREX_UI_MODULE_INTERFACE_UNITS
+    ${CMAKE_CURRENT_LIST_DIR}/modules/trex.ui.cppm
+)
+
 set(TRACKER_PYTHON_PUBLIC_HEADERS
     ${CMAKE_CURRENT_LIST_DIR}/python/GPURecognition.h
     ${CMAKE_CURRENT_LIST_DIR}/python/ModuleProxy.h

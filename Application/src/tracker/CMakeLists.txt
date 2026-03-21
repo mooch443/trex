@@ -21,7 +21,7 @@ endfunction()
 function(trex_add_semantic_library target)
     set(options)
     set(one_value_args TYPE)
-    set(multi_value_args SOURCES PUBLIC_HEADERS PRIVATE_HEADERS)
+    set(multi_value_args SOURCES PUBLIC_HEADERS PRIVATE_HEADERS MODULE_INTERFACES)
     cmake_parse_arguments(TREX_LIB "${options}" "${one_value_args}" "${multi_value_args}" ${ARGN})
 
     set(_trex_lib_type ${TREX_LIB_TYPE})
@@ -34,6 +34,15 @@ function(trex_add_semantic_library target)
         ${TREX_LIB_PUBLIC_HEADERS}
         ${TREX_LIB_PRIVATE_HEADERS}
     )
+
+    if(TREX_ENABLE_MODULES AND TREX_LIB_MODULE_INTERFACES)
+        target_sources(${target}
+            PUBLIC
+                FILE_SET ${target}_modules TYPE CXX_MODULES
+                BASE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}
+                FILES ${TREX_LIB_MODULE_INTERFACES}
+        )
+    endif()
 
     if(_trex_lib_type STREQUAL "SHARED")
         target_compile_definitions(${target} PRIVATE TREX_EXPORTS)
@@ -57,6 +66,7 @@ trex_add_semantic_library(trex_core
     SOURCES ${TREX_CORE_SOURCES} "${CMAKE_CURRENT_BINARY_DIR}/../GitSHA1.cpp"
     PUBLIC_HEADERS ${TREX_CORE_PUBLIC_HEADERS}
     PRIVATE_HEADERS ${TREX_CORE_PRIVATE_HEADERS}
+    MODULE_INTERFACES ${TREX_CORE_MODULE_INTERFACE_UNITS}
 )
 trex_harden_internal_library(trex_core)
 target_link_libraries(trex_core PUBLIC
@@ -71,6 +81,7 @@ trex_add_semantic_library(trex_data
     SOURCES ${TREX_DATA_SOURCES}
     PUBLIC_HEADERS ${TREX_DATA_PUBLIC_HEADERS}
     PRIVATE_HEADERS ${TREX_DATA_PRIVATE_HEADERS}
+    MODULE_INTERFACES ${TREX_DATA_MODULE_INTERFACE_UNITS}
 )
 trex_harden_internal_library(trex_data)
 target_link_libraries(trex_data PUBLIC trex_core)
@@ -80,6 +91,7 @@ trex_add_semantic_library(trex_detect
     SOURCES ${TREX_DETECT_SOURCES}
     PUBLIC_HEADERS ${TREX_DETECT_PUBLIC_HEADERS}
     PRIVATE_HEADERS ${TREX_DETECT_PRIVATE_HEADERS}
+    MODULE_INTERFACES ${TREX_DETECT_MODULE_INTERFACE_UNITS}
 )
 trex_harden_internal_library(trex_detect)
 target_link_libraries(trex_detect PUBLIC
@@ -92,6 +104,7 @@ trex_add_semantic_library(trex_tracking
     SOURCES ${TREX_TRACKING_SOURCES}
     PUBLIC_HEADERS ${TREX_TRACKING_PUBLIC_HEADERS}
     PRIVATE_HEADERS ${TREX_TRACKING_PRIVATE_HEADERS}
+    MODULE_INTERFACES ${TREX_TRACKING_MODULE_INTERFACE_UNITS}
 )
 trex_harden_internal_library(trex_tracking)
 target_link_libraries(trex_tracking PUBLIC
@@ -109,6 +122,7 @@ trex_add_semantic_library(trex_ml
     SOURCES ${TREX_ML_SOURCES}
     PUBLIC_HEADERS ${TREX_ML_PUBLIC_HEADERS}
     PRIVATE_HEADERS ${TREX_ML_PRIVATE_HEADERS}
+    MODULE_INTERFACES ${TREX_ML_MODULE_INTERFACE_UNITS}
 )
 trex_harden_internal_library(trex_ml)
 target_link_libraries(trex_ml PUBLIC
@@ -127,6 +141,7 @@ trex_add_semantic_library(trex_ui
     SOURCES ${TREX_UI_SOURCES}
     PUBLIC_HEADERS ${TREX_UI_PUBLIC_HEADERS}
     PRIVATE_HEADERS ${TREX_UI_PRIVATE_HEADERS}
+    MODULE_INTERFACES ${TREX_UI_MODULE_INTERFACE_UNITS}
 )
 trex_harden_internal_library(trex_ui)
 target_link_libraries(trex_ui PUBLIC

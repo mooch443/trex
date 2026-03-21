@@ -57,12 +57,30 @@ target_compile_definitions(test_segmenter PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CU
 if(COMMONS_ENABLE_MODULES AND NOT CMAKE_VERSION VERSION_LESS "3.28.0")
 add_executable(test_commons_modules test_commons_modules.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
 target_compile_definitions(test_commons_modules PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
+set_target_properties(test_commons_modules PROPERTIES
+        CXX_STANDARD 23
+        CXX_STANDARD_REQUIRED YES
+        CXX_SCAN_FOR_MODULES ON
+)
+endif()
+
+if(TREX_ENABLE_MODULES AND NOT CMAKE_VERSION VERSION_LESS "3.28.0")
+add_executable(test_trex_modules test_trex_modules.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
+target_compile_definitions(test_trex_modules PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
+set_target_properties(test_trex_modules PROPERTIES
+        CXX_STANDARD 23
+        CXX_STANDARD_REQUIRED YES
+        CXX_SCAN_FOR_MODULES ON
+)
 endif()
 
 # always compile in debug mode
 set(TARGETS test_matching test_commandline test_strings test_pixels test_patharray test_dyngui test_outlines test_threadpool test_tiling test_segmenter)
 if(COMMONS_ENABLE_MODULES AND NOT CMAKE_VERSION VERSION_LESS "3.28.0")
     list(APPEND TARGETS test_commons_modules)
+endif()
+if(TREX_ENABLE_MODULES AND NOT CMAKE_VERSION VERSION_LESS "3.28.0")
+        list(APPEND TARGETS test_trex_modules)
 endif()
 if(WIN32)
         foreach(target ${TARGETS})
@@ -176,6 +194,20 @@ target_link_libraries(test_commons_modules PUBLIC
 )
 endif()
 
+if(TREX_ENABLE_MODULES AND NOT CMAKE_VERSION VERSION_LESS "3.28.0")
+target_link_libraries(test_trex_modules PUBLIC
+        gtest
+        gtest_main
+        trex_ui
+        trex_ml
+        trex_tracking
+        trex_detect
+        trex_data
+        trex_core
+        commons
+)
+endif()
+
 set_target_properties(test_matching PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 set_target_properties(test_commandline PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 set_target_properties(test_strings PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
@@ -189,6 +221,9 @@ set_target_properties(test_tiling PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "Y
 set_target_properties(test_segmenter PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 if(COMMONS_ENABLE_MODULES AND NOT CMAKE_VERSION VERSION_LESS "3.28.0")
 set_target_properties(test_commons_modules PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
+endif()
+if(TREX_ENABLE_MODULES AND NOT CMAKE_VERSION VERSION_LESS "3.28.0")
+set_target_properties(test_trex_modules PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 endif()
 
 #if(WIN32)
@@ -212,6 +247,9 @@ add_test(NAME test-tiling COMMAND test_tiling)
 add_test(NAME test-segmenter COMMAND test_segmenter)
 if(COMMONS_ENABLE_MODULES AND NOT CMAKE_VERSION VERSION_LESS "3.28.0")
 add_test(NAME test-commons-modules COMMAND test_commons_modules)
+endif()
+if(TREX_ENABLE_MODULES AND NOT CMAKE_VERSION VERSION_LESS "3.28.0")
+add_test(NAME test-trex-modules COMMAND test_trex_modules)
 endif()
 
 # Add a custom target to build and run all tests
