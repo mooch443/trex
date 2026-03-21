@@ -1,6 +1,6 @@
 #include "YOLO.h"
 #include <misc/PixelTree.h>
-#include <core/PythonWrapper.h>
+#include <python/PythonWrapper.h>
 #include <grabber/misc/default_config.h>
 #include <video/Video.h>
 #include <misc/Timer.h>
@@ -1302,4 +1302,18 @@ void YOLO::apply(std::vector<TileImage>&& tiles) {
     }
 }
 
+} // namespace track
+
+namespace track {
+
+void register_yolo_backend() {
+    detect::register_backend(detect::ObjectDetectionType::yolo, detect::BackendHooks{
+        .init = []() { YOLO::init(); },
+        .deinit = []() { YOLO::deinit(); },
+        .is_initializing = []() { return YOLO::is_initializing(); },
+        .fps = []() { return YOLO::fps(); },
+        .apply = [](std::vector<TileImage>&& tiles) { YOLO::apply(std::move(tiles)); }
+    });
 }
+
+} // namespace track

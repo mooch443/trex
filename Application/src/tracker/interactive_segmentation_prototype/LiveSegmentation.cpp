@@ -7,7 +7,7 @@
 #include <video/VideoSource.h>
 #include <processing/encoding.h>
 #include <python/SAM3.h>
-#include <core/PythonWrapper.h>
+#include <python/PythonWrapper.h>
 #include <ui/ImageDisplayElement.h>
 #include <ui/LabelElement.h>
 #include <processing/Background.h>

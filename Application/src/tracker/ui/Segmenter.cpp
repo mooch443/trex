@@ -4,14 +4,14 @@
 #include <file/PathArray.h>
 #include <tracking/IndividualManager.h>
 #include <tracking/Output.h>
-#include <tracking/OverlayedVideo.h>
+#include <detect/OverlayedVideo.h>
 #include <misc/CommandLine.h>
+#include <core/SettingsPaths.h>
+#include <core/SettingsInitializer.h>
 #include <python/YOLO.h>
-#include <python/BackgroundSubtraction.h>
-#include <ui/SettingsInitializer.h>
+#include <detect/BackgroundSubtraction.h>
 #include <tracking/Tracker.h>
 #include <ui/Export.h>
-#include <ui/SettingsInitializer.h>
 #include <core/PrecomuptedDetection.h>
 #include <python/SAM3.h>
 
@@ -82,7 +82,7 @@ Segmenter::Segmenter(std::function<void()> eof_callback, std::function<void(std:
                             suffix = "new";
                         }
                     }
-                    settings::write_config(_output_file.get(), false, nullptr, suffix);
+                    settings::write_config(_output_file.get(), false, suffix);
                 } catch(const std::exception&e) {
                     FormatWarning("Cannot write settings file: ", e.what());
                 }

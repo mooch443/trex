@@ -3,14 +3,14 @@
 #include <core/FOI.h>
 #include <core/default_config.h>
 #include <lzo/minilzo.h>
-#include <data/CategorizeDatastore.h>
+#include <tracking/CategorizeDatastore.h>
 #include <misc/frame_t.h>
 #include <core/IdentifiedTag.h>
 #include <tracking/Tracker.h>
 #include <file/DataLocation.h>
 #include <tracking/IndividualManager.h>
 #include <tracking/DatasetQuality.h>
-#include <ui/SettingsInitializer.h>
+#include <core/SettingsPaths.h>
 #include <tracking/TrackingHelper.h>
 #include <tracking/AutomaticMatches.h>
 

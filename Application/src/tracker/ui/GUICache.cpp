@@ -9,7 +9,7 @@
 #include <core/default_config.h>
 #include <grabber/misc/default_config.h>
 #include <ui/DrawPosture.h>
-#include <data/FilterCache.h>
+#include <tracking/FilterCache.h>
 #include <core/TimingStatsCollector.h>
 #include <ui/Scene.h>
 #include <ui/DrawGraph.h>

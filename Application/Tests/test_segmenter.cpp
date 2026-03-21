@@ -7,7 +7,7 @@
 #include <grabber/misc/default_config.h>
 #include <misc/GlobalSettings.h>
 #include <core/default_config.h>
-#include <tracking/Segmenter.h>
+#include <ui/Segmenter.h>
 
 #include <filesystem>
 #include <atomic>

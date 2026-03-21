@@ -1,8 +1,8 @@
 #include "VisualIdentDialog.h"
-#include <core/PythonWrapper.h>
+#include <python/PythonWrapper.h>
 #include <core/TrackingSettings.h>
 #include <ui/WorkProgress.h>
-#include <data/TrainingData.h>
+#include <tracking/TrainingData.h>
 #include <ui/Accumulation.h>
 #include <tracking/Output.h>
 #include <tracking/Tracker.h>

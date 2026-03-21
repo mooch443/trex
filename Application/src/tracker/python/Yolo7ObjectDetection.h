@@ -1,6 +1,6 @@
 /*#pragma once
 
-#include <python/Detection.h>
+#include <detect/Detection.h>
 #include <python/ModuleProxy.h>
 
 namespace track {

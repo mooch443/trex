@@ -9,7 +9,7 @@
 #include <misc/default_settings.h>
 #include <processing/Background.h>
 
-#include <core/PythonWrapper.h>
+#include <python/PythonWrapper.h>
 
 #include <ui/CategorizeInterface.h>
 #include <tracking/ImageExtractor.h>

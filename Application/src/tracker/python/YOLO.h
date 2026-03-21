@@ -1,6 +1,7 @@
 #pragma once
 
-#include <python/Detection.h>
+#include <detect/Detection.h>
+#include <detect/GPURecognitionTypes.h>
 #include <python/ModuleProxy.h>
 #include <core/SizeFilters.h>
 #include <processing/DLList.h>

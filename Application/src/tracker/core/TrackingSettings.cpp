@@ -1,7 +1,4 @@
 #include "TrackingSettings.h"
-#if defined(DEBUG_TRACKING_THREADS)
-#include <tracking/LockGuard.h>
-#endif
 
 namespace track {
 
@@ -14,16 +11,8 @@ TrackingThreadG::~TrackingThreadG() {
 }
 
 void assert_tracking_thread() {
-    /*std::unique_lock guard(tracking_thread_mutex);
-    if(tracking_thread_ids.empty()) {
-        FormatWarning("Tracking thread id not set!");
-        return;
-    }
-    assert(tracking_thread_ids.contains(std::this_thread::get_id()) && "SLOW_SETTING called from wrong thread");*/
     std::shared_lock guard(tracking_thread_mutex);
-    if(   not LockGuard::owns_read()
-       || not tracking_thread_ids.contains(std::this_thread::get_id()))
-    {
+    if(!tracking_thread_ids.contains(std::this_thread::get_id())) {
         FormatWarning("Wrong thread ", get_thread_name(), " to read from settings.");
     }
 }

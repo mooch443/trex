@@ -2,7 +2,7 @@
 #include <gui/Transform.h>
 #include <tracking/Tracker.h>
 #include <tracking/IndividualManager.h>
-#include <data/FilterCache.h>
+#include <tracking/FilterCache.h>
 #ifndef NDEBUG
 #include <file/DataLocation.h>
 #endif

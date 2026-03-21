@@ -2,8 +2,8 @@
 
 #include <misc/Image.h>
 #include <tracking/Individual.h>
+#include <tracking/CategorizeDatastore.h>
 #include <file/DataFormat.h>
-#include <data/CategorizeDatastore.h>
 
 namespace cmn::gui {
 class IMGUIBase;

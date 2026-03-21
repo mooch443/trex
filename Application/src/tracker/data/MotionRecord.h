@@ -69,20 +69,6 @@ public:
     static std::string class_name() { return "FrameProperties"; }
 };
 
-struct CacheHints {
-    Frame_t current;
-    std::vector<const FrameProperties *> _last_second;
-        
-    CacheHints(size_t size = 0);
-    void push(Frame_t index, const FrameProperties* ptr);
-    //void push_front(Frame_t index, const FrameProperties* ptr);
-    void clear(size_t size = 0);
-    size_t size() const;
-    bool full() const;
-    void remove_after(Frame_t);
-    const FrameProperties* properties(Frame_t) const;
-};
-
 enum class Units {
     //PX_AND_FRAMES,
     PX_AND_SECONDS,
@@ -267,4 +253,3 @@ protected:
 };
 
 }
-

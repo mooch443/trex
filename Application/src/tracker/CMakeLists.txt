@@ -1,5 +1,23 @@
 include(${CMAKE_CURRENT_SOURCE_DIR}/TrackerSources.cmake)
 
+if(TREX_ENABLE_SHARED_INTERNAL_LIBS)
+    set(TREX_INTERNAL_LIBRARY_TYPE SHARED)
+else()
+    set(TREX_INTERNAL_LIBRARY_TYPE STATIC)
+endif()
+
+function(trex_harden_internal_library target)
+    if(APPLE AND TREX_ENABLE_SHARED_INTERNAL_LIBS)
+        set_target_properties(${target} PROPERTIES
+            CXX_VISIBILITY_PRESET default
+            C_VISIBILITY_PRESET default
+            VISIBILITY_INLINES_HIDDEN OFF
+        )
+        target_compile_options(${target} PRIVATE -fvisibility=default)
+        target_link_options(${target} PRIVATE "-Wl,-undefined,error")
+    endif()
+endfunction()
+
 function(trex_add_semantic_library target)
     set(options)
     set(one_value_args TYPE)
@@ -17,6 +35,10 @@ function(trex_add_semantic_library target)
         ${TREX_LIB_PRIVATE_HEADERS}
     )
 
+    if(_trex_lib_type STREQUAL "SHARED")
+        target_compile_definitions(${target} PRIVATE TREX_EXPORTS)
+    endif()
+
     target_include_directories(${target} PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}
     )
@@ -31,10 +53,12 @@ function(trex_add_semantic_library target)
 endfunction()
 
 trex_add_semantic_library(trex_core
+    TYPE ${TREX_INTERNAL_LIBRARY_TYPE}
     SOURCES ${TREX_CORE_SOURCES} "${CMAKE_CURRENT_BINARY_DIR}/../GitSHA1.cpp"
     PUBLIC_HEADERS ${TREX_CORE_PUBLIC_HEADERS}
     PRIVATE_HEADERS ${TREX_CORE_PRIVATE_HEADERS}
 )
+trex_harden_internal_library(trex_core)
 target_link_libraries(trex_core PUBLIC
     framegrabber_misc
     pv
@@ -43,19 +67,35 @@ target_link_libraries(trex_core PUBLIC
 )
 
 trex_add_semantic_library(trex_data
+    TYPE ${TREX_INTERNAL_LIBRARY_TYPE}
     SOURCES ${TREX_DATA_SOURCES}
     PUBLIC_HEADERS ${TREX_DATA_PUBLIC_HEADERS}
     PRIVATE_HEADERS ${TREX_DATA_PRIVATE_HEADERS}
 )
+trex_harden_internal_library(trex_data)
 target_link_libraries(trex_data PUBLIC trex_core)
 
+trex_add_semantic_library(trex_detect
+    TYPE ${TREX_INTERNAL_LIBRARY_TYPE}
+    SOURCES ${TREX_DETECT_SOURCES}
+    PUBLIC_HEADERS ${TREX_DETECT_PUBLIC_HEADERS}
+    PRIVATE_HEADERS ${TREX_DETECT_PRIVATE_HEADERS}
+)
+trex_harden_internal_library(trex_detect)
+target_link_libraries(trex_detect PUBLIC
+    trex_data
+    trex_core
+)
+
 trex_add_semantic_library(trex_tracking
-    TYPE ${TREX_TRACKER_LIBRARY_TYPE}
+    TYPE ${TREX_INTERNAL_LIBRARY_TYPE}
     SOURCES ${TREX_TRACKING_SOURCES}
     PUBLIC_HEADERS ${TREX_TRACKING_PUBLIC_HEADERS}
     PRIVATE_HEADERS ${TREX_TRACKING_PRIVATE_HEADERS}
 )
+trex_harden_internal_library(trex_tracking)
 target_link_libraries(trex_tracking PUBLIC
+    trex_detect
     trex_data
     trex_core
 )
@@ -63,35 +103,39 @@ add_dependencies(trex_tracking commons)
 if(WITH_HTTPD)
     add_dependencies(trex_tracking LibMicroHttpd)
 endif()
-if(APPLE AND TREX_TRACKER_SHARED)
-    target_link_options(trex_tracking PRIVATE "-Wl,-undefined,error")
-endif()
 
 trex_add_semantic_library(trex_ml
+    TYPE ${TREX_INTERNAL_LIBRARY_TYPE}
     SOURCES ${TREX_ML_SOURCES}
     PUBLIC_HEADERS ${TREX_ML_PUBLIC_HEADERS}
     PRIVATE_HEADERS ${TREX_ML_PRIVATE_HEADERS}
 )
+trex_harden_internal_library(trex_ml)
 target_link_libraries(trex_ml PUBLIC
     trex_tracking
+    trex_detect
     trex_data
     trex_core
 )
+target_link_libraries(trex_ml PRIVATE
+    tracker_python
+)
 add_dependencies(trex_ml commons)
-if(APPLE AND TREX_TRACKER_SHARED)
-    target_link_options(trex_ml PRIVATE "-Wl,-undefined,error")
-endif()
 
 trex_add_semantic_library(trex_ui
+    TYPE ${TREX_INTERNAL_LIBRARY_TYPE}
     SOURCES ${TREX_UI_SOURCES}
     PUBLIC_HEADERS ${TREX_UI_PUBLIC_HEADERS}
     PRIVATE_HEADERS ${TREX_UI_PRIVATE_HEADERS}
 )
+trex_harden_internal_library(trex_ui)
 target_link_libraries(trex_ui PUBLIC
     trex_ml
+    trex_detect
     trex_tracking
     trex_data
     trex_core
+    tracker_python
 )
 if(CMAKE_COMPILER_IS_GNUCXX)
     target_link_libraries(trex_ui PUBLIC atomic)
@@ -101,13 +145,13 @@ add_library(tracker_misc INTERFACE)
 target_link_libraries(tracker_misc INTERFACE trex_core trex_data)
 
 add_library(tracker_tracking INTERFACE)
-target_link_libraries(tracker_tracking INTERFACE trex_tracking trex_data trex_core)
+target_link_libraries(tracker_tracking INTERFACE trex_tracking trex_detect trex_data trex_core)
 
 add_library(tracker_ml INTERFACE)
-target_link_libraries(tracker_ml INTERFACE trex_ml trex_tracking trex_data trex_core)
+target_link_libraries(tracker_ml INTERFACE trex_ml trex_tracking trex_detect trex_data trex_core)
 
 add_library(tracker_gui INTERFACE)
-target_link_libraries(tracker_gui INTERFACE trex_ui trex_ml trex_tracking trex_data trex_core)
+target_link_libraries(tracker_gui INTERFACE trex_ui trex_ml trex_tracking trex_detect trex_data trex_core)
 
 if(NOT COMMONS_NO_PYTHON)
     add_subdirectory(python)

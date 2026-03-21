@@ -8,6 +8,7 @@
 namespace track {
 
 struct Detection;
+void register_sam3_backend();
 
 struct TREX_EXPORT SAM3 {
     SAM3(cmn::Image::Ptr&& = nullptr);
@@ -29,6 +30,7 @@ struct TREX_EXPORT SAM3 {
 private:
     static void apply(std::vector<TileImage>&& tiled);
     friend struct Detection;
+    friend void register_sam3_backend();
     
     struct Data;
     

@@ -1,7 +1,7 @@
 #pragma once
 
 #include <tracking/Individual.h>
-#include <data/Stuffs.h>
+#include <tracking/Stuffs.h>
 #include <misc/PVBlob.h>
 #include <core/default_config.h>
 #include <core/TrackingSettings.h>

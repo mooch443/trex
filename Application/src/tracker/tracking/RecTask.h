@@ -4,12 +4,22 @@
 #include <misc/frame_t.h>
 #include <core/idx_t.h>
 #include <misc/Image.h>
+#include <misc/PackLambda.h>
 
 namespace track {
 
 using namespace cmn;
 
 #if !COMMONS_NO_PYTHON
+struct RecTaskBackend {
+    std::function<void()> init;
+    std::function<void()> deinit;
+    std::function<void(std::vector<Image::Ptr>&&, cmn::package::F<void(std::vector<int64_t>)>&&)> predict;
+};
+
+TREX_EXPORT void install_rec_task_backend(RecTaskBackend backend);
+TREX_EXPORT bool has_rec_task_backend();
+
 struct Predictions {
     Frame_t  _tracklet_start;
     Idx_t individual;

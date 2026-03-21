@@ -5,6 +5,7 @@
 #include <file/DataFormat.h>
 #include <pv.h>
 #include <tracking/Individual.h>
+#include <tracking/CacheHints.h>
 #include <data/MotionRecord.h>
 #include <misc/ThreadPool.h>
 #include <file/Path.h>

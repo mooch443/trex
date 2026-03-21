@@ -22,7 +22,7 @@ static void (*windowsEarlyEnvSetup)(void) = []() {
 #include <video/VideoSource.h>
 #include <pv.h>
 #include <python/GPURecognition.h>
-#include <core/PythonWrapper.h>
+#include <python/PythonWrapper.h>
 #include <misc/CommandLine.h>
 #include <file/DataLocation.h>
 #include <core/default_config.h>
@@ -55,7 +55,8 @@ static void (*windowsEarlyEnvSetup)(void) = []() {
 #include <ui/AnnotationScene.h>
 #include <ui/TrackingState.h>
 #include <ui/WorkProgress.h>
-#include <tracking/Segmenter.h>
+#include <ui/Accumulation.h>
+#include <ui/Segmenter.h>
 #include <tracking/OutputLibrary.h>
 #include <tracking/Output.h>
 
@@ -901,6 +902,7 @@ int main(int argc, char**argv) {
                         f.get();
 
                     Detection::deinit();
+                    Accumulation::on_terminate();
                     WorkProgress::stop();
                     
                 } catch(const std::exception& e) {
@@ -933,6 +935,7 @@ int main(int argc, char**argv) {
             f.get();
 
         Detection::deinit();
+        Accumulation::on_terminate();
         py::deinit();
     } catch(const std::exception& e) {
         FormatExcept("Unknown deinit() error, quitting normally anyways. ", e.what());

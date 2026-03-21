@@ -4,11 +4,11 @@
 #include <core/Network.h>
 #include <core/default_config.h>
 #include <misc/Image.h>
-#include <core/PythonWrapper.h>
+#include <misc/PackLambda.h>
 #include <core/idx_t.h>
 #include <file/Path.h>
-#include <data/TrainingData.h>
-#include <data/Stuffs.h>
+#include <tracking/TrainingData.h>
+#include <tracking/Stuffs.h>
 #include <core/DetectionTypes.h>
 
 namespace Python {
@@ -186,25 +186,29 @@ public:
     //! @param images the images to be identified
     //! @param callback is a callable that takes void(vector<vector<float>>&&, vector<float>&&)
     //! @throws SoftException if no weights have been loaded yet / trained
-    [[nodiscard]] std::future<void> probabilities(auto&& images, auto&& callback) {
-        return Python::schedule(PackagedTask{
-            ._network = &_network,
-            ._task = PromisedTask([callback = std::move(callback),
-                      images = std::move(images)]()
-                mutable
-            {
-                callback_t pc([callback = std::move(callback)](
-                    std::vector<std::vector<float>>&& ps,
-                    std::vector<float>&& indexes)
-                   mutable
-                {
-                    callback(std::move(ps), std::move(indexes));
-                });
-                
-                set_variables(std::move(images), std::move(pc));
-            }),
-            ._can_run_before_init = false
+    [[nodiscard]] std::future<void> probabilities(std::vector<cmn::Image::Ptr>&& images, callback_t&& callback);
+    [[nodiscard]] std::future<void> probabilities(std::vector<cmn::Image::SPtr>&& images, callback_t&& callback);
+
+    template<typename TCallback>
+    [[nodiscard]] std::future<void> probabilities(std::vector<cmn::Image::Ptr>&& images, TCallback&& callback) {
+        callback_t wrapped([callback = std::forward<TCallback>(callback)](
+            std::vector<std::vector<float>>&& values,
+            std::vector<float>&& indexes) mutable
+        {
+            callback(std::move(values), std::move(indexes));
         });
+        return probabilities(std::move(images), std::move(wrapped));
+    }
+
+    template<typename TCallback>
+    [[nodiscard]] std::future<void> probabilities(std::vector<cmn::Image::SPtr>&& images, TCallback&& callback) {
+        callback_t wrapped([callback = std::forward<TCallback>(callback)](
+            std::vector<std::vector<float>>&& values,
+            std::vector<float>&& indexes) mutable
+        {
+            callback(std::move(values), std::move(indexes));
+        });
+        return probabilities(std::move(images), std::move(wrapped));
     }
     
     static std::future<void> clear_caches();

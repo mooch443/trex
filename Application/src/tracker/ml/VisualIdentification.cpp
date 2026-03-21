@@ -1,10 +1,10 @@
 #include "VisualIdentification.h"
-#include <core/PythonWrapper.h>
+#include <ml/AccumulationRuntime.h>
+#include <python/PythonWrapper.h>
 #include <python/GPURecognition.h>
 #include <misc/frame_t.h>
 #include <misc/PVBlob.h>
 #include <tracking/Tracker.h>
-#include <ui/Accumulation.h>
 #include <misc/create_struct.h>
 #include <misc/cnpy_wrapper.h>
 #include <file/DataLocation.h>
@@ -184,22 +184,22 @@ void VINetwork::set_work_variables(bool force) {
         }, module_name);
         
         py::set_function("estimate_uniqueness", (std::function<float(void)>)[](void) -> float {
-            if(Accumulation::current())
-                return Accumulation::current()->step_calculate_uniqueness();
+            if (auto* session = accumulation_runtime::current())
+                return session->estimate_uniqueness();
             FormatWarning("There is currently no accumulation in progress.");
             return 0;
             
         }, module_name);
         py::set_function("acceptable_uniqueness", (std::function<float(void)>)[](void) -> float {
-            if(Accumulation::current())
+            if(accumulation_runtime::current())
                 return READ_SETTING(accumulation_sufficient_uniqueness, float);
             FormatWarning("There is currently no accumulation in progress.");
             return -1;
             
         }, module_name);
         py::set_function("accepted_uniqueness", (std::function<float(void)>)[](void) -> float {
-            if(Accumulation::current())
-                return Accumulation::current()->accepted_uniqueness();
+            if (auto* session = accumulation_runtime::current())
+                return session->accepted_uniqueness_threshold();
             FormatWarning("There is currently no accumulation in progress.");
             return -1;
             
@@ -214,20 +214,20 @@ void VINetwork::set_work_variables(bool force) {
             
         }, module_name);
         py::set_function("set_stop_reason", [](std::string x) {
-            if(Accumulation::current()) {
-                Accumulation::current()->set_last_stop_reason(x);
+            if (auto* session = accumulation_runtime::current()) {
+                session->update_last_stop_reason(x);
             } else
                 FormatWarning("No accumulation object set.");
         }, module_name);
         py::set_function("set_per_class_accuracy", [](std::vector<float> x) {
-            if(Accumulation::current()) {
-                Accumulation::current()->set_per_class_accuracy(x);
+            if (auto* session = accumulation_runtime::current()) {
+                session->update_per_class_accuracy(x);
             } else
                 FormatWarning("No accumulation object set.");
         }, module_name);
         py::set_function("set_uniqueness_history", [](std::vector<float> x) {
-            if(Accumulation::current()) {
-                Accumulation::current()->set_uniqueness_history(x);
+            if (auto* session = accumulation_runtime::current()) {
+                session->update_uniqueness_history(x);
             } else
                 FormatWarning("No accumulation object set.");
         }, module_name);
@@ -443,6 +443,26 @@ std::optional<std::set<track::vi::VIWeights>> VINetwork::get_available_weights()
     }
     
     return std::nullopt;
+}
+
+std::future<void> VINetwork::probabilities(std::vector<cmn::Image::Ptr>&& images, callback_t&& callback) {
+    return Python::schedule(PackagedTask{
+        ._network = &_network,
+        ._task = PromisedTask([images = std::move(images), callback = std::move(callback)]() mutable {
+            set_variables(std::move(images), std::move(callback));
+        }),
+        ._can_run_before_init = false
+    });
+}
+
+std::future<void> VINetwork::probabilities(std::vector<cmn::Image::SPtr>&& images, callback_t&& callback) {
+    return Python::schedule(PackagedTask{
+        ._network = &_network,
+        ._task = PromisedTask([images = std::move(images), callback = std::move(callback)]() mutable {
+            set_variables(std::move(images), std::move(callback));
+        }),
+        ._can_run_before_init = false
+    });
 }
 
 void VINetwork::set_variables_internal(auto && images, callback_t && callback)

@@ -11,7 +11,7 @@
 #include <tracking/Outline.h>
 #include <gui/Graph.h>
 #include <data/IndividualCache.h>
-#include <data/TrackletInformation.h>
+#include <tracking/TrackletInformation.h>
 #include <core/Identity.h>
 #include <core/idx_t.h>
 #include <misc/Timer.h>

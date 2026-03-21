@@ -1,8 +1,9 @@
 #include "Accumulation.h"
 
 #if !COMMONS_NO_PYTHON
+#include <ml/AccumulationRuntime.h>
 #include <tracking/DatasetQuality.h>
-#include <data/TrainingData.h>
+#include <tracking/TrainingData.h>
 #include <ui/WorkProgress.h>
 #include <misc/cnpy_wrapper.h>
 #include <file/Path.h>
@@ -15,9 +16,8 @@
 #include <gui/types/StaticText.h>
 #include <gui/DrawBase.h>
 #include <gui/Transform.h>
-#include <data/FilterCache.h>
-#include <core/PythonWrapper.h>
-#include <data/FilterCache.h>
+#include <tracking/FilterCache.h>
+#include <python/PythonWrapper.h>
 #include <ml/VisualIdentification.h>
 #include <tracking/ImageExtractor.h>
 #include <python/GPURecognition.h>
@@ -50,7 +50,35 @@ inline static std::mutex _elevator_mutex;
 inline static std::unique_ptr<std::thread> _elevator;
 inline static std::future<void> _elevator_future;
 
+namespace {
+
+const bool accumulation_runtime_registered = []() {
+    accumulation_runtime::register_setup([]() {
+        Accumulation::setup();
+    });
+    accumulation_runtime::register_unsetup([]() {
+        Accumulation::unsetup();
+    });
+    accumulation_runtime::register_generate_discrimination_data(
+        [](pv::File& video, const std::shared_ptr<TrainingData>& source) {
+            return Accumulation::generate_discrimination_data(video, source);
+        }
+    );
+    accumulation_runtime::register_calculate_uniqueness(
+        [](bool internal,
+           const std::vector<Image::SPtr>& images,
+           const std::map<Frame_t, Range<size_t>>& map_indexes,
+           const std::unique_lock<std::mutex>* guard) {
+            return Accumulation::calculate_uniqueness(internal, images, map_indexes, guard);
+        }
+    );
+    return true;
+}();
+
+}
+
 void Accumulation::on_terminate() {
+    UNUSED(accumulation_runtime_registered);
     std::unique_lock guard(_elevator_mutex);
     if(_elevator_future.valid()) {
         try {
@@ -249,6 +277,7 @@ AccumulationLock::AccumulationLock(Accumulation* ptr) : _ptr(ptr) {
     std::lock_guard<std::mutex> g(_current_assignment_lock);
     _guard = std::make_shared<std::lock_guard<std::mutex>>(_current_lock);
     _current_accumulation = ptr;
+    accumulation_runtime::set_current(ptr);
 }
 AccumulationLock::~AccumulationLock() {
     auto mode = _current_accumulation ? _current_accumulation->mode() : TrainingMode::None;
@@ -256,9 +285,10 @@ AccumulationLock::~AccumulationLock() {
         std::lock_guard<std::mutex> g(_current_assignment_lock);
         _current_accumulation = nullptr;
     }
+    accumulation_runtime::set_current(nullptr);
     
     try {
-        Accumulation::unsetup();
+        accumulation_runtime::unsetup();
     } catch(const SoftExceptionImpl& ) {
         //! do nothing
 #ifndef NDEBUG

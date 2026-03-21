@@ -1,6 +1,6 @@
 #include "DatasetQuality.h"
 #include <tracking/Individual.h>
-#include <data/FilterCache.h>
+#include <tracking/FilterCache.h>
 #include <tracking/IndividualManager.h>
 
 namespace track {

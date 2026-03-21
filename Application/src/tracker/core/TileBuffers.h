@@ -1,7 +1,8 @@
 #pragma once
+
 #include <commons.pc.h>
-#include <misc/Image.h>
 #include <misc/Buffers.h>
+#include <misc/Image.h>
 
 namespace buffers {
 

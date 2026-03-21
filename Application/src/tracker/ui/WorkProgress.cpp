@@ -1,4 +1,5 @@
 #include "WorkProgress.h"
+#include <core/BackgroundTask.h>
 #include <gui/GuiTypes.h>
 #include <gui/types/StaticText.h>
 #include <gui/types/Entangled.h>
@@ -76,6 +77,22 @@ auto check(F&& fn) -> std::invoke_result_t<F> {
 }
 
 using namespace work;
+
+namespace {
+
+[[maybe_unused]] const bool background_task_runner_registered = []() {
+    ::track::background_task::register_queue_runner(
+        [](const std::string& message,
+           ::track::background_task::Task fn,
+           const std::string& description,
+           bool abortable) {
+            return WorkProgress::add_queue(message, fn, description, abortable);
+        }
+    );
+    return true;
+}();
+
+}
 
 struct WorkProgress::WorkGUIObjects {
     Rect static_background{

@@ -7,7 +7,7 @@
 #include <ui/WorkProgress.h>
 #include <core/default_config.h>
 #include <ui/GUICache.h>
-#include <core/PythonWrapper.h>
+#include <python/PythonWrapper.h>
 
 #if WIN32
 #include <shellapi.h>

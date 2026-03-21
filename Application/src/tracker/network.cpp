@@ -5,7 +5,7 @@
 #include <tracking/Tracker.h>
 #include <core/default_config.h>
 #include <tracking/Output.h>
-#include <core/PythonWrapper.h>
+#include <python/PythonWrapper.h>
 #include <misc/CommandLine.h>
 #include <tracking/ImageExtractor.h>
 #include <ml/VisualIdentification.h>

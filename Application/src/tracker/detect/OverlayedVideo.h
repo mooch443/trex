@@ -2,7 +2,7 @@
 #include <commons.pc.h>
 #include <core/AbstractVideoSource.h>
 #include <core/TileImage.h>
-#include <python/Detection.h>
+#include <detect/Detection.h>
 #include <core/VideoVideoSource.h>
 #include <core/WebcamVideoSource.h>
 

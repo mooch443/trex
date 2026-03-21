@@ -17,9 +17,10 @@
 #include <tracking/PairingGraph.h>
 #include <data/IndividualCache.h>
 #include <tracking/PPFrame.h>
+#include <tracking/CacheHints.h>
 #include <misc/ranges.h>
-#include <data/Stuffs.h>
-#include <data/TrackletInformation.h>
+#include <tracking/Stuffs.h>
+#include <tracking/TrackletInformation.h>
 
 #include <core/Identity.h>
 

@@ -5,7 +5,7 @@
 #include <misc/vec2.h>
 #include <pv.h>
 #include <core/DetectionTypes.h>
-#include <data/TrainingData.h>
+#include <tracking/TrainingData.h>
 
 namespace track {
 

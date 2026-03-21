@@ -5,7 +5,8 @@
 #include <tracking/Tracker.h>
 #include <tracking/DatasetQuality.h>
 #include <gui/types/Layout.h>
-#include <data/TrainingData.h>
+#include <ml/AccumulationRuntime.h>
+#include <tracking/TrainingData.h>
 #include <ml/VisualIdentification.h>
 #include <pv.h>
 #include <gui/GUITaskQueue.h>
@@ -49,7 +50,7 @@ struct AccumulationLock {
     ~AccumulationLock();
 };
 
-class Accumulation {
+class Accumulation : public AccumulationSession {
 public:
 
 protected:
@@ -193,6 +194,11 @@ private:
     float best_uniqueness() const;
     float accepted_uniqueness(float base = -1) const;
     float step_calculate_uniqueness();
+    float estimate_uniqueness() override { return step_calculate_uniqueness(); }
+    float accepted_uniqueness_threshold() const override { return accepted_uniqueness(); }
+    void update_last_stop_reason(const std::string& value) override { set_last_stop_reason(value); }
+    void update_per_class_accuracy(const std::vector<float>& values) override { set_per_class_accuracy(values); }
+    void update_uniqueness_history(const std::vector<float>& values) override { set_uniqueness_history(values); }
 
     friend class Recognition;
     friend class Python::VINetwork;
@@ -205,4 +211,3 @@ private:
 
 }
 #endif
-

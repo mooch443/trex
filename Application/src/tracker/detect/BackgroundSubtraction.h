@@ -1,12 +1,11 @@
 #pragma once
 
 #include <commons.pc.h>
+#include <detect/Detection.h>
 #include <misc/Image.h>
 #include <core/TileImage.h>
 
 namespace track {
-
-struct Detection;
 
 struct TREX_EXPORT BackgroundSubtraction {
     BackgroundSubtraction(cmn::Image::Ptr&& = nullptr);

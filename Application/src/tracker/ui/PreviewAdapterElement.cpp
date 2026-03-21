@@ -2,7 +2,7 @@
 #include <gui/dyn/ParseText.h>
 #include <gui/ParseLayoutTypes.h>
 #include <core/idx_t.h>
-#include <data/FilterCache.h>
+#include <tracking/FilterCache.h>
 #include <tracking/Outline.h>
 #include <ui/DrawPreviewImage.h>
 #include <tracking/PPFrame.h>
@@ -177,4 +177,3 @@ bool PreviewAdapterElement::_update(Layout::Ptr& o,
 }
 
 }
-

@@ -1,9 +1,9 @@
 #include "SAM3.h"
 
-#include <core/PythonWrapper.h>
+#include <python/PythonWrapper.h>
 #include <misc/Timer.h>
 #include <core/TrackingSettings.h>
-#include <python/Detection.h>
+#include <detect/Detection.h>
 #include <python/YOLO.h>
 #include <python/ModuleProxy.h>
 #include <python/ResponseValidation.h>
@@ -273,6 +273,20 @@ void SAM3::apply(std::vector<TileImage>&& tiled) {
 
     data().fps = data().fps.load() + timer.elapsed();
     data().samples = data().samples.load() + 1;
+}
+
+} // namespace track
+
+namespace track {
+
+void register_sam3_backend() {
+    detect::register_backend(detect::ObjectDetectionType::sam3, detect::BackendHooks{
+        .init = []() { SAM3::init(); },
+        .deinit = []() { SAM3::deinit(); },
+        .is_initializing = []() { return SAM3::is_initializing(); },
+        .fps = []() { return SAM3::fps(); },
+        .apply = [](std::vector<TileImage>&& tiles) { SAM3::apply(std::move(tiles)); }
+    });
 }
 
 } // namespace track

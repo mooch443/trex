@@ -1,7 +1,6 @@
 #include "UniquenessProvider.h"
-#include <ml/VisualIdentification.h>
-#include <ui/WorkProgress.h>
-#include <ui/Accumulation.h>
+#include <core/BackgroundTask.h>
+#include <ml/AccumulationRuntime.h>
 #include <ml/VisualIdentification.h>
 
 using namespace cmn;
@@ -132,9 +131,9 @@ void UniquenessProvider::request_update()
 
 void UniquenessProvider::launch_worker_locked_()
 {
-    _running = cmn::gui::WorkProgress::add_queue("uniqueness calc", [this]() {
+    _running = background_task::add_queue("uniqueness calc", [this]() {
         try {
-            Accumulation::setup();
+            accumulation_runtime::setup();
             auto w = Python::VINetwork::status().weights;
             
             // 1.  make sure weights are valid
@@ -156,7 +155,7 @@ void UniquenessProvider::launch_worker_locked_()
                     if (auto vs = _video_source.lock())
                     {
                         auto && [data, images, map]
-                            = Accumulation::generate_discrimination_data(*vs);
+                            = accumulation_runtime::generate_discrimination_data(*vs);
                         _samples = Samples{ std::move(data),
                                             std::move(images),
                                             std::move(map) };
@@ -166,9 +165,9 @@ void UniquenessProvider::launch_worker_locked_()
 
             // 3.  heavy lifting
             auto [u, umap, uq]
-                = Accumulation::calculate_uniqueness(false,
-                                                     _samples->images,
-                                                     _samples->map);
+                = accumulation_runtime::calculate_uniqueness(false,
+                                                             _samples->images,
+                                                             _samples->map);
 
             // 4.  commit results
             {

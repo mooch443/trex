@@ -26,7 +26,7 @@
 #include <ui/DrawPreviewImage.h>
 #include <ui/DrawPosture.h>
 #include <ui/SettingsInitializer.h>
-#include <data/FilterCache.h>
+#include <tracking/FilterCache.h>
 #include <core/FOI.h>
 #include <gui/dyn/ParseText.h>
 #include <gui/ParseLayoutTypes.h>
@@ -34,7 +34,7 @@
 #include <tracking/AutomaticMatches.h>
 #include <ui/DrawDataset.h>
 #include <ui/DrawExportOptions.h>
-#include <core/PythonWrapper.h>
+#include <python/PythonWrapper.h>
 #include <python/GPURecognition.h>
 #include <tracking/MemoryStats.h>
 #include <grabber/misc/default_config.h>

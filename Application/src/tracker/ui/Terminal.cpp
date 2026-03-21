@@ -1,6 +1,6 @@
 #include "Terminal.h"
 #include <tracking/LockGuard.h>
-#include <core/PythonWrapper.h>
+#include <python/PythonWrapper.h>
 #include <python/GPURecognition.h>
 #include <core/default_config.h>
 #include <ui/Scene.h>

@@ -17,6 +17,7 @@ class Transform;
 
 namespace track {
 class Individual;
+struct PostureStuff;
 
 namespace image {
 

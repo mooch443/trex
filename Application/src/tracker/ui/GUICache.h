@@ -12,7 +12,7 @@
 #include <data/MotionRecord.h>
 #include <processing/Background.h>
 #include <core/Border.h>
-#include <data/Stuffs.h>
+#include <tracking/Stuffs.h>
 #include <gui/Event.h>
 #include <ui/ShadowTracklet.h>
 #include <data/IndividualCache.h>
@@ -362,4 +362,3 @@ namespace globals {
 }
 
 STRUCT_META_EXTENSIONS(cmn::gui::globals::Cache)
-

@@ -25,6 +25,9 @@ include(FetchContent)
 
 enable_testing()
 
+set(CMAKE_CXX_VISIBILITY_PRESET default)
+set(CMAKE_VISIBILITY_INLINES_HIDDEN OFF)
+
 set(MACOSX_BUNDLE_GUI_IDENTIFIER "com.trexing.trex")
 set(CMAKE_XCODE_ATTRIBUTE_DEVELOPMENT_TEAM "tristan")
 set(CMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_REQUIRED "NO")
@@ -42,8 +45,16 @@ option(TREX_BUILD_DOCS OFF)
 option(TREX_WITH_TESTS OFF)
 option(TREX_BUILD_TOOLS OFF)
 option(TREX_CONDA_PACKAGE_INSTALL OFF)
+option(TREX_ENABLE_SHARED_INTERNAL_LIBS "Build TRex internal libraries as shared libraries on macOS for dependency hardening." OFF)
 option(WITH_GITSHA1 "include git hash" ON)
 option(BUILD_LEGACY_TREX "Build the TRex (legacy) target" OFF)
+
+if(TREX_ENABLE_SHARED_INTERNAL_LIBS AND NOT APPLE)
+    message(FATAL_ERROR
+        "TREX_ENABLE_SHARED_INTERNAL_LIBS is currently supported only on macOS. "
+        "Disable it or configure on Apple platforms."
+    )
+endif()
 
 if(APPLE)
     option(BUILD_FOR_ARM64 "Build for arm64 architecture" ON)
@@ -130,9 +141,14 @@ set_property(GLOBAL PROPERTY DEBUG_CONFIGURATIONS "Debug;DEBUG;")
 set(CMAKE_DEBUG_POSTFIX -d)
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "^(Apple)?Clang$")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fvisibility-inlines-hidden -fvisibility=hidden -fstrict-aliasing")
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fvisibility-inlines-hidden -fvisibility=hidden -fstrict-aliasing")
+    if(NOT ${TREX_ENABLE_SHARED_INTERNAL_LIBS})
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fvisibility-inlines-hidden -fvisibility=hidden -fstrict-aliasing")
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fvisibility-inlines-hidden -fvisibility=hidden -fstrict-aliasing")
+        message(STATUS "Using hidden visibility for non-shared TRex build on Apple Clang.")
+    endif()
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-undefined,error")
+    set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,-undefined,error")
+    set(CMAKE_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS} -Wl,-undefined,error")
 endif()
 
 set(ORIGINAL_CXX_FLAGS ${CMAKE_CXX_FLAGS})
@@ -247,7 +263,6 @@ elseif(CMAKE_CXX_COMPILER_ID MATCHES "^(Apple)?Clang$")
     set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} ${M1OPTIONS} -O3 -flto -ffunction-sections -fdata-sections ${TREX_WARNING_FLAGS}")
     set(CMAKE_C_FLAGS_RELWITHDEBINFO "${CMAKE_C_FLAGS_RELWITHDEBINFO} ${M1OPTIONS} -O3 -g ${C_SANITIZE_OPTIONS} -fno-omit-frame-pointer")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-c++98-compat-pedantic")
-    message(STATUS "hidden visibility in main project ${CMAKE_CXX_FLAGS}")
     message(STATUS "Apple Silicon: ${CMAKE_SYSTEM_PROCESSOR} -> ${M1OPTIONS}")
     
     set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Wno-nullability-extension")

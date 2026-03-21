@@ -217,8 +217,7 @@ conda build -c conda-forge .
   reference implementation for GUI structure or best practices.
 
 ## Agent execution constraints
-- Do not run `cmake`, `cmake --build`, or other compile/build commands yourself.
-- If build or verification is needed, provide the exact commands for the user to
-  run instead of executing them.
+- do not run commands in the build directory and dont delete the existing project files there
+- do not run commands outside the root directory of the project, or commands that affect the outside
 - Only use the Conda environment `trex` for environment-specific commands or
   instructions. Do not access or assume any other environment.

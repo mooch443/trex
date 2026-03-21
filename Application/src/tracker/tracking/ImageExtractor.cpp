@@ -1,7 +1,7 @@
 #include "ImageExtractor.h"
 #include <gui/Transform.h>
 #include <tracking/Tracker.h>
-#include <data/FilterCache.h>
+#include <tracking/FilterCache.h>
 #include <tracking/IndividualManager.h>
 
 

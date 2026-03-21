@@ -1,5 +1,6 @@
 set(TREX_CORE_PUBLIC_HEADERS
     ${CMAKE_CURRENT_LIST_DIR}/core/AbstractVideoSource.h
+    ${CMAKE_CURRENT_LIST_DIR}/core/BackgroundTask.h
     ${CMAKE_CURRENT_LIST_DIR}/core/BlurryVideoLoop.h
     ${CMAKE_CURRENT_LIST_DIR}/core/Border.h
     ${CMAKE_CURRENT_LIST_DIR}/core/default_config.h
@@ -13,12 +14,14 @@ set(TREX_CORE_PUBLIC_HEADERS
     ${CMAKE_CURRENT_LIST_DIR}/core/NetworkStats.h
     ${CMAKE_CURRENT_LIST_DIR}/core/PrecomuptedDetection.h
     ${CMAKE_CURRENT_LIST_DIR}/core/PVVideoSource.h
-    ${CMAKE_CURRENT_LIST_DIR}/core/PythonWrapper.h
     ${CMAKE_CURRENT_LIST_DIR}/core/RepeatedDeferral.h
     ${CMAKE_CURRENT_LIST_DIR}/core/SizeFilters.h
     ${CMAKE_CURRENT_LIST_DIR}/core/SoftException.h
     ${CMAKE_CURRENT_LIST_DIR}/core/TaskPipeline.h
+    ${CMAKE_CURRENT_LIST_DIR}/core/SettingsPaths.h
+    ${CMAKE_CURRENT_LIST_DIR}/core/SettingsInitializer.h
     ${CMAKE_CURRENT_LIST_DIR}/core/TileImage.h
+    ${CMAKE_CURRENT_LIST_DIR}/core/TileBuffers.h
     ${CMAKE_CURRENT_LIST_DIR}/core/TimingStatsCollector.h
     ${CMAKE_CURRENT_LIST_DIR}/core/tomp4.h
     ${CMAKE_CURRENT_LIST_DIR}/core/TrackingSettings.h
@@ -34,6 +37,7 @@ set(TREX_CORE_PRIVATE_HEADERS
 
 set(TREX_CORE_SOURCES
     ${CMAKE_CURRENT_LIST_DIR}/core/AbstractVideoSource.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/core/BackgroundTask.cpp
     ${CMAKE_CURRENT_LIST_DIR}/core/BlurryVideoLoop.cpp
     ${CMAKE_CURRENT_LIST_DIR}/core/Border.cpp
     ${CMAKE_CURRENT_LIST_DIR}/core/default_config.cpp
@@ -46,9 +50,12 @@ set(TREX_CORE_SOURCES
     ${CMAKE_CURRENT_LIST_DIR}/core/PrecomuptedDetection.cpp
     ${CMAKE_CURRENT_LIST_DIR}/core/PVVideoSource.cpp
     ${CMAKE_CURRENT_LIST_DIR}/core/RepeatedDeferral.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/core/SettingsPaths.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/core/SettingsInitializer.cpp
     ${CMAKE_CURRENT_LIST_DIR}/core/SizeFilters.cpp
     ${CMAKE_CURRENT_LIST_DIR}/core/SoftException.cpp
     ${CMAKE_CURRENT_LIST_DIR}/core/TaskPipeline.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/core/TileBuffers.cpp
     ${CMAKE_CURRENT_LIST_DIR}/core/TileImage.cpp
     ${CMAKE_CURRENT_LIST_DIR}/core/TimingStatsCollector.cpp
     ${CMAKE_CURRENT_LIST_DIR}/core/tomp4.cpp
@@ -58,27 +65,33 @@ set(TREX_CORE_SOURCES
 )
 
 set(TREX_DATA_PUBLIC_HEADERS
-    ${CMAKE_CURRENT_LIST_DIR}/data/FilterCache.h
     ${CMAKE_CURRENT_LIST_DIR}/data/IndividualCache.h
     ${CMAKE_CURRENT_LIST_DIR}/data/MotionRecord.h
-    ${CMAKE_CURRENT_LIST_DIR}/data/Results.h
-    ${CMAKE_CURRENT_LIST_DIR}/data/Stuffs.h
-    ${CMAKE_CURRENT_LIST_DIR}/data/TrackletInformation.h
-    ${CMAKE_CURRENT_LIST_DIR}/data/TrainingData.h
 )
 
 set(TREX_DATA_PRIVATE_HEADERS
-    ${CMAKE_CURRENT_LIST_DIR}/data/CategorizeDatastore.h
 )
 
 set(TREX_DATA_SOURCES
-    ${CMAKE_CURRENT_LIST_DIR}/data/CategorizeDatastore.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/data/FilterCache.cpp
     ${CMAKE_CURRENT_LIST_DIR}/data/MotionRecord.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/data/Results.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/data/Stuffs.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/data/TrackletInformation.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/data/TrainingData.cpp
+)
+
+set(TREX_DETECT_PUBLIC_HEADERS
+    ${CMAKE_CURRENT_LIST_DIR}/detect/BackgroundSubtraction.h
+    ${CMAKE_CURRENT_LIST_DIR}/detect/Detection.h
+    ${CMAKE_CURRENT_LIST_DIR}/detect/GPURecognitionTypes.h
+    ${CMAKE_CURRENT_LIST_DIR}/detect/NoDetection.h
+    ${CMAKE_CURRENT_LIST_DIR}/detect/OverlayedVideo.h
+)
+
+set(TREX_DETECT_PRIVATE_HEADERS
+)
+
+set(TREX_DETECT_SOURCES
+    ${CMAKE_CURRENT_LIST_DIR}/detect/BackgroundSubtraction.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/detect/Detection.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/detect/GPURecognitionTypes.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/detect/NoDetection.cpp
 )
 
 set(TREX_TRACKING_PUBLIC_HEADERS
@@ -87,11 +100,17 @@ set(TREX_TRACKING_PUBLIC_HEADERS
     ${CMAKE_CURRENT_LIST_DIR}/tracking/ConnectedTasks.h
     ${CMAKE_CURRENT_LIST_DIR}/tracking/DebugDrawing.h
     ${CMAKE_CURRENT_LIST_DIR}/tracking/DetectTag.h
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/CacheHints.h
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/CategorizeDatastore.h
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/FilterCache.h
     ${CMAKE_CURRENT_LIST_DIR}/tracking/EventAnalysis.h
     ${CMAKE_CURRENT_LIST_DIR}/tracking/HistorySplit.h
     ${CMAKE_CURRENT_LIST_DIR}/tracking/Hungarian.h
     ${CMAKE_CURRENT_LIST_DIR}/tracking/ImageExtractor.h
     ${CMAKE_CURRENT_LIST_DIR}/tracking/IndividualManager.h
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/Results.h
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/TrackletInformation.h
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/TrainingData.h
     ${CMAKE_CURRENT_LIST_DIR}/tracking/OutputLibrary.h
     ${CMAKE_CURRENT_LIST_DIR}/tracking/OutputLibraryTypes.h
     ${CMAKE_CURRENT_LIST_DIR}/tracking/PairingGraph.h
@@ -99,6 +118,7 @@ set(TREX_TRACKING_PUBLIC_HEADERS
     ${CMAKE_CURRENT_LIST_DIR}/tracking/PrefilterBlobs.h
     ${CMAKE_CURRENT_LIST_DIR}/tracking/RecTask.h
     ${CMAKE_CURRENT_LIST_DIR}/tracking/SplitBlob.h
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/Stuffs.h
 )
 
 set(TREX_TRACKING_PRIVATE_HEADERS
@@ -106,11 +126,9 @@ set(TREX_TRACKING_PRIVATE_HEADERS
     ${CMAKE_CURRENT_LIST_DIR}/tracking/Individual.h
     ${CMAKE_CURRENT_LIST_DIR}/tracking/LockGuard.h
     ${CMAKE_CURRENT_LIST_DIR}/tracking/MemoryStats.h
-    ${CMAKE_CURRENT_LIST_DIR}/tracking/OverlayedVideo.h
     ${CMAKE_CURRENT_LIST_DIR}/tracking/Outline.h
     ${CMAKE_CURRENT_LIST_DIR}/tracking/Output.h
     ${CMAKE_CURRENT_LIST_DIR}/tracking/Posture.h
-    ${CMAKE_CURRENT_LIST_DIR}/tracking/Segmenter.h
     ${CMAKE_CURRENT_LIST_DIR}/tracking/Tracker.h
     ${CMAKE_CURRENT_LIST_DIR}/tracking/TrackingHelper.h
     ${CMAKE_CURRENT_LIST_DIR}/tracking/VisualField.h
@@ -120,9 +138,12 @@ set(TREX_TRACKING_SOURCES
     ${CMAKE_CURRENT_LIST_DIR}/tracking/AutomaticMatches.cpp
     ${CMAKE_CURRENT_LIST_DIR}/tracking/BlobReceiver.cpp
     ${CMAKE_CURRENT_LIST_DIR}/tracking/ConnectedTasks.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/CacheHints.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/CategorizeDatastore.cpp
     ${CMAKE_CURRENT_LIST_DIR}/tracking/DatasetQuality.cpp
     ${CMAKE_CURRENT_LIST_DIR}/tracking/DebugDrawing.cpp
     ${CMAKE_CURRENT_LIST_DIR}/tracking/DetectTag.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/FilterCache.cpp
     ${CMAKE_CURRENT_LIST_DIR}/tracking/EventAnalysis.cpp
     ${CMAKE_CURRENT_LIST_DIR}/tracking/HistorySplit.cpp
     ${CMAKE_CURRENT_LIST_DIR}/tracking/Hungarian.cpp
@@ -134,19 +155,23 @@ set(TREX_TRACKING_SOURCES
     ${CMAKE_CURRENT_LIST_DIR}/tracking/Outline.cpp
     ${CMAKE_CURRENT_LIST_DIR}/tracking/Output.cpp
     ${CMAKE_CURRENT_LIST_DIR}/tracking/OutputLibrary.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/Results.cpp
     ${CMAKE_CURRENT_LIST_DIR}/tracking/PairingGraph.cpp
     ${CMAKE_CURRENT_LIST_DIR}/tracking/Posture.cpp
     ${CMAKE_CURRENT_LIST_DIR}/tracking/PPFrame.cpp
     ${CMAKE_CURRENT_LIST_DIR}/tracking/PrefilterBlobs.cpp
     ${CMAKE_CURRENT_LIST_DIR}/tracking/RecTask.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/tracking/Segmenter.cpp
     ${CMAKE_CURRENT_LIST_DIR}/tracking/SplitBlob.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/Stuffs.cpp
     ${CMAKE_CURRENT_LIST_DIR}/tracking/Tracker.cpp
     ${CMAKE_CURRENT_LIST_DIR}/tracking/TrackingHelper.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/TrainingData.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/TrackletInformation.cpp
     ${CMAKE_CURRENT_LIST_DIR}/tracking/VisualField.cpp
 )
 
 set(TREX_ML_PUBLIC_HEADERS
+    ${CMAKE_CURRENT_LIST_DIR}/ml/AccumulationRuntime.h
     ${CMAKE_CURRENT_LIST_DIR}/ml/ClosedLoop.h
     ${CMAKE_CURRENT_LIST_DIR}/ml/UniquenessProvider.h
     ${CMAKE_CURRENT_LIST_DIR}/ml/VisualIdentification.h
@@ -155,6 +180,7 @@ set(TREX_ML_PUBLIC_HEADERS
 set(TREX_ML_PRIVATE_HEADERS)
 
 set(TREX_ML_SOURCES
+    ${CMAKE_CURRENT_LIST_DIR}/ml/AccumulationRuntime.cpp
     ${CMAKE_CURRENT_LIST_DIR}/ml/ClosedLoop.cpp
     ${CMAKE_CURRENT_LIST_DIR}/ml/UniquenessProvider.cpp
     ${CMAKE_CURRENT_LIST_DIR}/ml/VisualIdentification.cpp
@@ -225,6 +251,7 @@ set(TREX_UI_PUBLIC_HEADERS
 set(TREX_UI_PRIVATE_HEADERS
     ${CMAKE_CURRENT_LIST_DIR}/ui/BdxAndPred.h
     ${CMAKE_CURRENT_LIST_DIR}/ui/ShadowTracklet.h
+    ${CMAKE_CURRENT_LIST_DIR}/ui/Segmenter.h
 )
 
 set(TREX_UI_SOURCES
@@ -271,6 +298,7 @@ set(TREX_UI_SOURCES
     ${CMAKE_CURRENT_LIST_DIR}/ui/Scene.cpp
     ${CMAKE_CURRENT_LIST_DIR}/ui/ScreenRecorder.cpp
     ${CMAKE_CURRENT_LIST_DIR}/ui/SettingsInitializer.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/ui/Segmenter.cpp
     ${CMAKE_CURRENT_LIST_DIR}/ui/SettingsDropdown.cpp
     ${CMAKE_CURRENT_LIST_DIR}/ui/SettingsScene.cpp
     ${CMAKE_CURRENT_LIST_DIR}/ui/Skelett.cpp
@@ -290,29 +318,24 @@ set(TREX_UI_SOURCES
 )
 
 set(TRACKER_PYTHON_PUBLIC_HEADERS
-    ${CMAKE_CURRENT_LIST_DIR}/python/BackgroundSubtraction.h
-    ${CMAKE_CURRENT_LIST_DIR}/python/Detection.h
     ${CMAKE_CURRENT_LIST_DIR}/python/GPURecognition.h
     ${CMAKE_CURRENT_LIST_DIR}/python/ModuleProxy.h
-    ${CMAKE_CURRENT_LIST_DIR}/python/NoDetection.h
+    ${CMAKE_CURRENT_LIST_DIR}/python/PythonWrapper.h
     ${CMAKE_CURRENT_LIST_DIR}/python/ResponseValidation.h
     ${CMAKE_CURRENT_LIST_DIR}/python/SAM3.h
-    ${CMAKE_CURRENT_LIST_DIR}/python/TileBuffers.h
     ${CMAKE_CURRENT_LIST_DIR}/python/YOLO.h
 )
 
 set(TRACKER_PYTHON_PRIVATE_HEADERS
+    ${CMAKE_CURRENT_LIST_DIR}/python/BackendRegistration.h
 )
 
 set(TRACKER_PYTHON_SOURCES
-    ${CMAKE_CURRENT_LIST_DIR}/python/BackgroundSubtraction.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/python/Detection.cpp
     ${CMAKE_CURRENT_LIST_DIR}/python/GPURecognition.cpp
     ${CMAKE_CURRENT_LIST_DIR}/python/ModuleProxy.cpp
     ${CMAKE_CURRENT_LIST_DIR}/python/Network.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/python/NoDetection.cpp
     ${CMAKE_CURRENT_LIST_DIR}/python/PythonWrapper.cpp
     ${CMAKE_CURRENT_LIST_DIR}/python/SAM3.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/python/TileBuffers.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/python/TrackingPythonServices.cpp
     ${CMAKE_CURRENT_LIST_DIR}/python/YOLO.cpp
 )

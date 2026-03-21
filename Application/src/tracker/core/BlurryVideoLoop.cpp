@@ -1,9 +1,9 @@
 #include "BlurryVideoLoop.h"
 #include <core/AbstractVideoSource.h>
+#include <core/SettingsPaths.h>
 #include <core/WebcamVideoSource.h>
 #include <core/VideoVideoSource.h>
 #include <core/PVVideoSource.h>
-#include <ui/SettingsInitializer.h>
 
 namespace cmn {
 

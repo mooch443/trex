@@ -8,6 +8,7 @@
 #include <data/IndividualCache.h>
 #include <misc/ProximityGrid.h>
 #include <core/TrackingSettings.h>
+#include <tracking/CacheHints.h>
 #include <data/MotionRecord.h>
 
 #ifndef NDEBUG

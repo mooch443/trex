@@ -4,6 +4,7 @@
 #include <misc/Image.h>
 #include <misc/PVBlob.h>
 #include <tracking/Individual.h>
+#include <tracking/TrackletInformation.h>
 #include <misc/frame_t.h>
 
 namespace track::Categorize {
@@ -251,4 +252,3 @@ struct BlobLabel {
     }
 };
 }
-

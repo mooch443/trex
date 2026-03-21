@@ -45,3 +45,7 @@ runs/
 build-bug/
 build-bug-lite/
 .vs/
+Application/tmp-modules/
+Application/tmp/
+Application/tmp-modules-osx/
+Application/tmp-modules-clean/

@@ -4,7 +4,7 @@
 #include <file/CSVExport.h>
 #include <misc/cnpy_wrapper.h>
 #include <core/default_config.h>
-#include <data/CategorizeDatastore.h>
+#include <tracking/CategorizeDatastore.h>
 #include <core/IdentifiedTag.h>
 #include <tracking/IndividualManager.h>
 #include <tracking/Individual.h>

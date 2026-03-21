@@ -13,6 +13,7 @@
 #include <misc/create_struct.h>
 #include <core/default_config.h>
 #include <core/TrackingSettings.h>
+#include <tracking/CacheHints.h>
 #include <tracking/BlobReceiver.h>
 #include <tracking/LockGuard.h>
 

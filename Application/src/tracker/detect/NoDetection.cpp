@@ -1,6 +1,5 @@
 #include "NoDetection.h"
-#include <python/Detection.h>
-#include <python/TileBuffers.h>
+#include <core/TileBuffers.h>
 
 namespace track {
 

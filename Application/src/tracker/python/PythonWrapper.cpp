@@ -1,4 +1,5 @@
-#include <core/PythonWrapper.h>
+#include <python/PythonWrapper.h>
+#include <python/BackendRegistration.h>
 #include <core/Network.h>
 #include <python/GPURecognition.h>
 #include <core/default_config.h>
@@ -389,6 +390,7 @@ void update(std::promise<void>&& init_promise) {
 
 std::shared_future<void> init() {
     Data::create();
+    track::register_python_backends();
 
     fix_paths(false);
 

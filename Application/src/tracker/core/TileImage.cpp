@@ -1,5 +1,5 @@
 #include "TileImage.h"
-#include <python/TileBuffers.h>
+#include <core/TileBuffers.h>
 
 useMat_t& TileImage::resized_image() {
     static useMat_t resized;

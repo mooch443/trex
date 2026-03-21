@@ -8,6 +8,7 @@
 #include <misc/PVBlob.h>
 #include <misc/ranges.h>
 #include <misc/Timer.h>
+#include <tracking/Stuffs.h>
 #include <tracking/Tracker.h>
 #include <processing/Background.h>
 

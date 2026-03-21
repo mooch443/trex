@@ -3,8 +3,7 @@
 #include <processing/RawProcessing.h>
 #include <processing/CPULabeling.h>
 #include <core/TrackingSettings.h>
-#include <python/TileBuffers.h>
-#include <python/Detection.h>
+#include <core/TileBuffers.h>
 #include <processing/DLList.h>
 
 using namespace cmn;

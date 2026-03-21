@@ -20,7 +20,7 @@
 #include <ui/Coordinates.h>
 #include <python/YOLO.h>
 #include <tracking/Output.h>
-#include <core/PythonWrapper.h>
+#include <python/PythonWrapper.h>
 
 #include <ui/TrackingScene.h>
 
@@ -1166,4 +1166,3 @@ bool SettingsScene::on_global_event(Event e) {
 }
 
 }
-

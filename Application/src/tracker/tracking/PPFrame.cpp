@@ -1,6 +1,6 @@
 #include "PPFrame.h"
 #include <tracking/Tracker.h>
-#include <data/CategorizeDatastore.h>
+#include <tracking/CategorizeDatastore.h>
 #include <misc/default_settings.h>
 #include <file/DataLocation.h>
 #include <misc/ThreadPool.h>

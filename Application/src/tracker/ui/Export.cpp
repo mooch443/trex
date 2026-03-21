@@ -7,7 +7,7 @@
 #include <file/DataLocation.h>
 #include <ui/IdentityHeatmap.h>
 #include <gui/Transform.h>
-#include <data/FilterCache.h>
+#include <tracking/FilterCache.h>
 #include <ml/VisualIdentification.h>
 #include <tracking/IndividualManager.h>
 #include <processing/PadImage.h>

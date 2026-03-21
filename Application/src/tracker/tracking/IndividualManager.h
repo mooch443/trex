@@ -5,7 +5,7 @@
 #include <misc/frame_t.h>
 #include <core/TrackingSettings.h>
 #include <tracking/PPFrame.h>
-#include <data/Stuffs.h>
+#include <tracking/Stuffs.h>
 
 namespace Output {
 class TrackingResults;

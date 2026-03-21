@@ -17,9 +17,9 @@ static void (*windowsEarlyEnvSetup)(void) = []() {
 #endif
 
 #include <misc/CommandLine.h>
-#include <core/PythonWrapper.h>
+#include <python/PythonWrapper.h>
 #include <tracking/Tracker.h>
-#include <tracking/Segmenter.h>
+#include <ui/Segmenter.h>
 #include <pv.h>
 #include <GitSHA1.h>
 #include <ui/Scene.h>

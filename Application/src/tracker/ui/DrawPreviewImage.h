@@ -4,7 +4,7 @@
 #include <misc/frame_t.h>
 #include <tracking/PPFrame.h>
 #include <tracking/Outline.h>
-#include <data/FilterCache.h>
+#include <tracking/FilterCache.h>
 
 /**
  * This command previews all selected individuals the way they would be shown,
