@@ -1,4 +1,5 @@
 #include "RecentItems.h"
+#include <file/PathArray.h>
 #include <ui/Scene.h>
 #include <misc/GlobalSettings.h>
 #include <file/DataLocation.h>

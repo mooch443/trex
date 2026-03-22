@@ -1,4 +1,5 @@
 #include "LiveSegmentation.h"
+#include <file/PathArray.h>
 #include <gui/dyn/ParseText.h>
 #include <gui/dyn/Action.h>
 #include <gui/DynamicGUI.h>

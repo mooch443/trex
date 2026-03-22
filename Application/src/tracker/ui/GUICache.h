@@ -11,6 +11,7 @@
 #include <misc/ThreadPool.h>
 #include <data/MotionRecord.h>
 #include <processing/Background.h>
+#include <processing/BlobWeakPtr.h>
 #include <core/Border.h>
 #include <tracking/Stuffs.h>
 #include <gui/Event.h>

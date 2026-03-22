@@ -2,7 +2,7 @@
 
 #include <tracking/Individual.h>
 #include <tracking/Stuffs.h>
-#include <misc/PVBlob.h>
+#include <processing/PVBlob.h>
 #include <core/default_config.h>
 #include <core/TrackingSettings.h>
 #include <tracking/IndividualManager.h>

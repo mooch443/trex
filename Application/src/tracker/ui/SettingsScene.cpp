@@ -1,4 +1,5 @@
 #include "SettingsScene.h"
+#include <file/PathArray.h>
 #include <misc/GlobalSettings.h>
 #include <file/DataLocation.h>
 #include <gui/IMGUIBase.h>

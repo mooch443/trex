@@ -5,7 +5,7 @@
 #include <sstream>
 #include <misc/GlobalSettings.h>
 #include <misc/create_struct.h>
-#include <file/Path.h>
+#include <misc/Path.h>
 
 #if WIN32
 #define OS_SEP '\\'

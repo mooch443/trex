@@ -2,7 +2,7 @@
 
 #include <commons.pc.h>
 #include <misc/GlobalSettings.h>
-#include <file/Path.h>
+#include <misc/Path.h>
 
 namespace pv {
 class File;

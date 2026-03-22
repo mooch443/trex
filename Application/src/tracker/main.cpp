@@ -28,7 +28,7 @@ static void (*windowsEarlyEnvSetup)(void) = []() {
 #include <core/default_config.h>
 #include <tracking/Tracker.h>
 #include <tracking/IndividualManager.h>
-#include <misc/PixelTree.h>
+#include <processing/PixelTree.h>
 #include <ui/GUICache.h>
 #include <gui/types/Dropdown.h>
 #include <gui/types/Textfield.h>

@@ -5,7 +5,7 @@
 #include <misc/frame_t.h>
 #include <core/default_config.h>
 #include <grabber/misc/default_config.h>
-#include <misc/PVBlob.h>
+#include <processing/PVBlob.h>
 #include <misc/ranges.h>
 #include <misc/Timer.h>
 #include <tracking/Stuffs.h>

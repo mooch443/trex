@@ -1,11 +1,8 @@
 module;
 
-#define IN_MODULE_INTERFACE 1
-#include <core/idx_t.h>
+#include <commons.pc.h>
+#include "generated/trex.includes.core.inc"
 
 export module trex.core;
-export import commons;
 
-export namespace track {
-using ::track::Idx_t;
-}
+#include "generated/trex.exports.core.inc"

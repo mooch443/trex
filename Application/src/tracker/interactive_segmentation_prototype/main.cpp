@@ -1,4 +1,5 @@
 #include <commons.pc.h>
+#include <file/PathArray.h>
 
 #ifndef WIN32
 __attribute__((constructor))

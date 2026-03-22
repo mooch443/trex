@@ -2,7 +2,7 @@
 #include <gui/IMGUIBase.h>
 #include <video/VideoSource.h>
 #include <file/DataLocation.h>
-#include <file/Path.h>
+#include <misc/Path.h>
 #include <grabber/misc/Camera.h>
 #include <grabber/misc/Webcam.h>
 #include <grabber/misc/PylonCamera.h>

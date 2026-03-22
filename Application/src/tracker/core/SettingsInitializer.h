@@ -1,4 +1,5 @@
 #pragma once
+#include <file/PathArray.h>
 #include <commons.pc.h>
 #include <core/default_config.h>
 #include <core/SettingsPaths.h>

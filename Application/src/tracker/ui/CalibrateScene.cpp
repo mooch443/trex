@@ -1,4 +1,5 @@
 #include "CalibrateScene.h"
+#include <file/PathArray.h>
 #include <gui/DynamicGUI.h>
 #include <ui/Coordinates.h>
 #include <gui/dyn/Action.h>

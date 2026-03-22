@@ -4,9 +4,10 @@
 
 #include <pv.h>
 #include <misc/bid.h>
+#include <processing/BlobWeakPtr.h>
 #include <core/idx_t.h>
 #include <data/IndividualCache.h>
-#include <misc/ProximityGrid.h>
+#include <processing/ProximityGrid.h>
 #include <core/TrackingSettings.h>
 #include <tracking/CacheHints.h>
 #include <data/MotionRecord.h>

@@ -338,6 +338,7 @@ set(TREX_ML_MODULE_INTERFACE_UNITS
 )
 
 set(TREX_UI_MODULE_INTERFACE_UNITS
+    ${CMAKE_CURRENT_LIST_DIR}/modules/trex.cppm
     ${CMAKE_CURRENT_LIST_DIR}/modules/trex.ui.cppm
 )
 

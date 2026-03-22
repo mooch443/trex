@@ -2,7 +2,7 @@
 #include <gui/Transform.h>
 #include <misc/GlobalSettings.h>
 #include <tracking/Tracker.h>
-#include <misc/PixelTree.h>
+#include <processing/PixelTree.h>
 #include <tracking/FilterCache.h>
 #include <tracking/IndividualManager.h>
 

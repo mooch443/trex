@@ -3,7 +3,7 @@
 #include <python/PythonWrapper.h>
 #include <python/GPURecognition.h>
 #include <misc/frame_t.h>
-#include <misc/PVBlob.h>
+#include <processing/PVBlob.h>
 #include <tracking/Tracker.h>
 #include <misc/create_struct.h>
 #include <misc/cnpy_wrapper.h>

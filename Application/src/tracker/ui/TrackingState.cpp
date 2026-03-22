@@ -1,4 +1,5 @@
 #include "TrackingState.h"
+#include <file/PathArray.h>
 #include <tracking/Tracker.h>
 #include <file/DataLocation.h>
 #include <gui/GUITaskQueue.h>

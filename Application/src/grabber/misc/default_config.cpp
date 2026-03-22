@@ -1,6 +1,6 @@
 #include "default_config.h"
 #include <misc/SpriteMap.h>
-#include <file/Path.h>
+#include <misc/Path.h>
 #include <misc/CropOffsets.h>
 #include <video/GenericVideo.h>
 #include <video/AveragingAccumulator.h>

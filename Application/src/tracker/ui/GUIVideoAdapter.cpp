@@ -1,4 +1,5 @@
 #include "GUIVideoAdapter.h"
+#include <file/PathArray.h>
 #include <gui/IMGUIBase.h>
 
 namespace cmn::gui {

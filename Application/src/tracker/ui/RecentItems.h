@@ -4,7 +4,7 @@
 #include <misc/SpriteMap.h>
 #include <gui/types/ListItemTypes.h>
 #include <file/PathArray.h>
-#include <file/Path.h>
+#include <misc/Path.h>
 
 /// JSON representations of the recent items data
 struct RecentItemJSON {

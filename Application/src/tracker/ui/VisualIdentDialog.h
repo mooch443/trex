@@ -1,7 +1,7 @@
 #pragma once
 
 #include <gui/GUITaskQueue.h>
-#include <file/Path.h>
+#include <misc/Path.h>
 #include <core/TrackingSettings.h>
 #include <pv.h>
 

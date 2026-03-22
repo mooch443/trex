@@ -1,7 +1,7 @@
 #pragma once
 
 #include <misc/frame_t.h>
-#include <misc/PVBlob.h>
+#include <processing/PVBlob.h>
 #include <data/MotionRecord.h>
 #include <tracking/Outline.h>
 

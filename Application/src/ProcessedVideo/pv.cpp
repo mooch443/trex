@@ -3,7 +3,7 @@
 #include <sys/stat.h>
 #include <misc/GlobalSettings.h>
 #include <misc/Timer.h>
-#include <misc/PVBlob.h>
+#include <processing/PVBlob.h>
 #include <misc/ranges.h>
 #include <misc/SpriteMap.h>
 #include <file/DataLocation.h>

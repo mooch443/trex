@@ -1,5 +1,6 @@
 #include "GuiSettings.h"
 #include <misc/GlobalSettings.h>
+#include <misc/Path.h>
 
 namespace cmn::gui {
 

@@ -10,14 +10,14 @@
 #include <misc/default_settings.h>
 #include <misc/pretty.h>
 #include <tracking/DatasetQuality.h>
-#include <misc/PixelTree.h>
+#include <processing/PixelTree.h>
 #include <misc/CircularGraph.h>
 #include <tracking/MemoryStats.h>
 #include <tracking/CategorizeDatastore.h>
 #include <tracking/VisualField.h>
 #include <file/DataLocation.h>
 #include <core/FOI.h>
-#include <misc/PVBlob.h>
+#include <processing/PVBlob.h>
 #include <tracking/FilterCache.h>
 #include <core/DetectionTypes.h>
 #include <tracking/TrainingData.h>

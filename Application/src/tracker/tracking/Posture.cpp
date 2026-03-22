@@ -6,12 +6,12 @@
 #include <tracking/DebugDrawing.h>
 #include <thread>
 #include "Tracker.h"
-#include <misc/PixelTree.h>
+#include <processing/PixelTree.h>
 #include <misc/CircularGraph.h>
 #include <gui/DrawSFBase.h>
 
 #include <processing/CPULabeling.h>
-#include <misc/PVBlob.h>
+#include <processing/PVBlob.h>
 #include <processing/DLList.h>
 #include <misc/ObjectCache.h>
 #include <gui/GuiTypes.h>

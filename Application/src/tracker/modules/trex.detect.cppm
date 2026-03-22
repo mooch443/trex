@@ -1,15 +1,8 @@
 module;
 
-#define IN_MODULE_INTERFACE 1
-#include <detect/Detection.h>
+#include <commons.pc.h>
+#include "generated/trex.includes.detect.inc"
 
 export module trex.detect;
-export import trex.data;
 
-export namespace track::detect {
-using ::track::detect::BackendHooks;
-}
-
-export namespace track {
-using ::track::Detection;
-}
+#include "generated/trex.exports.detect.inc"

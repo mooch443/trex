@@ -1,4 +1,5 @@
 #include "AnnotationScene.h"
+#include <file/PathArray.h>
 #include <gui/DrawStructure.h>
 #include <video/VideoSource.h>
 #include <core/TrackingSettings.h>

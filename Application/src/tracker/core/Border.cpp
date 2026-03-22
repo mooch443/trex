@@ -1,7 +1,7 @@
 #include "Border.h"
 #include <pv.h>
 #include <misc/CircularGraph.h>
-#include <misc/PixelTree.h>
+#include <processing/PixelTree.h>
 #include <misc/Timer.h>
 #include <core/default_config.h>
 #include <gui/GuiTypes.h>

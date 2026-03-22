@@ -1,13 +1,8 @@
 module;
 
-#define IN_MODULE_INTERFACE 1
-#include <ui/TrackingState.h>
+#include <commons.pc.h>
+#include "generated/trex.includes.ui.inc"
 
 export module trex.ui;
-export import trex.ml;
-export import commons.gui;
 
-export namespace cmn::gui {
-using ::cmn::gui::TrackingState;
-using ::cmn::gui::VIControllerImpl;
-}
+#include "generated/trex.exports.ui.inc"

@@ -3,6 +3,7 @@
 #include <commons.pc.h>
 #include <misc/Image.h>
 #include <misc/bid.h>
+#include <processing/BlobWeakPtr.h>
 #include <core/default_config.h>
 #include <misc/frame_t.h>
 #include <misc/ranges.h>

@@ -1,7 +1,7 @@
 #pragma once
 
 #include <commons.pc.h>
-#include <file/Path.h>
+#include <misc/Path.h>
 
 ENUM_CLASS(merge_mode_t, centered, scaled)
 

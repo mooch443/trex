@@ -1,6 +1,7 @@
 #include "default_config.h"
+#include <file/PathArray.h>
 #include <misc/SpriteMap.h>
-#include <file/Path.h>
+#include <misc/Path.h>
 #include <core/SizeFilters.h>
 #include <core/idx_t.h>
 #include "GitSHA1.h"
