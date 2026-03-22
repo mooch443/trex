@@ -1,0 +1,6412 @@
+{
+  "headers": [
+    {
+      "excluded": [
+        {
+          "header": "misc/types.h",
+          "kind": "symbol",
+          "name": "cmn::CV_MAX_THICKNESS",
+          "reason": "internal_linkage_constant"
+        }
+      ],
+      "module": "commons.types",
+      "path": "misc/types.h",
+      "sha256": "714e473ce509b4dca032655b1b2b4faab01383135b9e062355f91cdbd824721e",
+      "symbols": [
+        {
+          "kind": "function",
+          "name": "commons_is_shared_library",
+          "namespace": "cmn",
+          "qualified": "cmn::commons_is_shared_library",
+          "smoke": "using"
+        },
+        {
+          "kind": "class_template",
+          "name": "NoInitializeAllocator",
+          "namespace": "cmn",
+          "qualified": "cmn::NoInitializeAllocator",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "operator==",
+          "namespace": "cmn",
+          "qualified": "cmn::operator==",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "operator!=",
+          "namespace": "cmn",
+          "qualified": "cmn::operator!=",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "PixelArray_t",
+          "namespace": "cmn",
+          "qualified": "cmn::PixelArray_t",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "FilePtr",
+          "namespace": "cmn::file",
+          "qualified": "cmn::file::FilePtr",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "lines_t",
+          "namespace": "cmn::blob",
+          "qualified": "cmn::blob::lines_t",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "line_ptr_t",
+          "namespace": "cmn::blob",
+          "qualified": "cmn::blob::line_ptr_t",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "pixel_ptr_t",
+          "namespace": "cmn::blob",
+          "qualified": "cmn::blob::pixel_ptr_t",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "ObjectClass_t",
+          "namespace": "cmn::blob",
+          "qualified": "cmn::blob::ObjectClass_t",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "MaybeObjectClass_t",
+          "namespace": "cmn::blob",
+          "qualified": "cmn::blob::MaybeObjectClass_t",
+          "smoke": "using"
+        },
+        {
+          "kind": "enum_class",
+          "name": "Focus",
+          "namespace": "cmn::blob",
+          "qualified": "cmn::blob::Focus",
+          "smoke": "using"
+        },
+        {
+          "kind": "class_template",
+          "name": "LinearTemporalWeighting",
+          "namespace": "cmn::blob",
+          "qualified": "cmn::blob::LinearTemporalWeighting",
+          "smoke": "using"
+        },
+        {
+          "kind": "class_template",
+          "name": "ExponentialTemporalWeighting",
+          "namespace": "cmn::blob",
+          "qualified": "cmn::blob::ExponentialTemporalWeighting",
+          "smoke": "using"
+        },
+        {
+          "kind": "class_template",
+          "name": "GaussianTemporalWeighting",
+          "namespace": "cmn::blob",
+          "qualified": "cmn::blob::GaussianTemporalWeighting",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "Pose",
+          "namespace": "cmn::blob",
+          "qualified": "cmn::blob::Pose",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "SegmentedOutlines",
+          "namespace": "cmn::blob",
+          "qualified": "cmn::blob::SegmentedOutlines",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "Prediction",
+          "namespace": "cmn::blob",
+          "qualified": "cmn::blob::Prediction",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "Pair",
+          "namespace": "cmn::blob",
+          "qualified": "cmn::blob::Pair",
+          "smoke": "using"
+        },
+        {
+          "kind": "typedef",
+          "name": "blobs_t",
+          "namespace": "cmn",
+          "qualified": "cmn::blobs_t",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "imshow",
+          "namespace": "cmn::tf",
+          "qualified": "cmn::tf::imshow",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "destroyAllWindows",
+          "namespace": "cmn::tf",
+          "qualified": "cmn::tf::destroyAllWindows",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "show",
+          "namespace": "cmn::tf",
+          "qualified": "cmn::tf::show",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "waitKey",
+          "namespace": "cmn::tf",
+          "qualified": "cmn::tf::waitKey",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.misc",
+      "path": "misc/Base64.h",
+      "sha256": "f9ede6a1eb1e35d37043f41ee26a882662e16a7fe047593c84391614473b75bd",
+      "symbols": []
+    },
+    {
+      "excluded": [],
+      "module": "commons.misc",
+      "path": "misc/Blob.h",
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+      "symbols": []
+    },
+    {
+      "excluded": [],
+      "module": "commons.misc",
+      "path": "misc/Buffers.h",
+      "sha256": "ddcce9279caf1044e5d3c823ea922fdf232704c7c14b9114391eb39602a013c5",
+      "symbols": [
+        {
+          "kind": "concept",
+          "name": "CallableWith",
+          "namespace": "cmn",
+          "qualified": "cmn::CallableWith",
+          "reason": "requires_witness_type",
+          "smoke": "excluded"
+        },
+        {
+          "kind": "class_template",
+          "name": "FixedCapacityVector",
+          "namespace": "cmn",
+          "qualified": "cmn::FixedCapacityVector",
+          "smoke": "using"
+        },
+        {
+          "kind": "class_template",
+          "name": "Buffers",
+          "namespace": "cmn",
+          "qualified": "cmn::Buffers",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "ImageSource",
+          "namespace": "cmn",
+          "qualified": "cmn::ImageSource",
+          "smoke": "using"
+        },
+        {
+          "kind": "class_template",
+          "name": "ImageBuffers",
+          "namespace": "cmn",
+          "qualified": "cmn::ImageBuffers",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.misc",
+      "path": "misc/CTCollection.h",
+      "sha256": "9a9fb1b3be1f500e4375a3ca24e0db0bd286ac96013fb57cf5b73dfb635966ee",
+      "symbols": [
+        {
+          "kind": "class_template",
+          "name": "VariedPairCollection",
+          "namespace": "cmn::ct",
+          "qualified": "cmn::ct::VariedPairCollection",
+          "smoke": "using"
+        },
+        {
+          "kind": "class_template",
+          "name": "Key",
+          "namespace": "cmn::ct",
+          "qualified": "cmn::ct::Key",
+          "smoke": "using"
+        },
+        {
+          "kind": "class_template",
+          "name": "VarPart",
+          "namespace": "cmn::ct",
+          "qualified": "cmn::ct::VarPart",
+          "smoke": "using"
+        },
+        {
+          "kind": "class_template",
+          "name": "CTCollection",
+          "namespace": "cmn::ct",
+          "qualified": "cmn::ct::CTCollection",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.misc",
+      "path": "misc/CallbackManager.h",
+      "sha256": "7f7d334eb7d5383d5a0b203beaf98e53e26c728d2c5c1703417644f811b97b44",
+      "symbols": [
+        {
+          "kind": "class_template",
+          "name": "Fn",
+          "namespace": "cmn::callback",
+          "qualified": "cmn::callback::Fn",
+          "smoke": "using"
+        },
+        {
+          "kind": "class_template",
+          "name": "CallbackManagerImpl",
+          "namespace": "cmn",
+          "qualified": "cmn::CallbackManagerImpl",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "CallbackManager",
+          "namespace": "cmn",
+          "qualified": "cmn::CallbackManager",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [
+        {
+          "header": "misc/CircularGraph.h",
+          "kind": "symbol",
+          "name": "cmn::periodic::make_clockwise",
+          "reason": "member_function_parser_artifact"
+        }
+      ],
+      "module": "commons.misc",
+      "path": "misc/CircularGraph.h",
+      "sha256": "0bef69beea4fa2096920414f6eb14950720362e3ac346bfb5f4b2fff36e5c25b",
+      "symbols": [
+        {
+          "kind": "typedef",
+          "name": "scalar_t",
+          "namespace": "cmn::periodic",
+          "qualified": "cmn::periodic::scalar_t",
+          "smoke": "using"
+        },
+        {
+          "kind": "typedef",
+          "name": "point_t",
+          "namespace": "cmn::periodic",
+          "qualified": "cmn::periodic::point_t",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "Vec4",
+          "namespace": "cmn::periodic",
+          "qualified": "cmn::periodic::Vec4",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.misc",
+      "path": "misc/CommandLine.h",
+      "sha256": "2f41aa0a1ef482967068571b6fe297c105d30dfab5beaff13ad6a71636dba0de",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "CommandLine",
+          "namespace": "cmn",
+          "qualified": "cmn::CommandLine",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.misc",
+      "path": "misc/CropOffsets.h",
+      "sha256": "569543bf2dd6337c3f827562823a848abe72f75cedcabe15b754412671d616c1",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "CropOffsets",
+          "namespace": "cmn",
+          "qualified": "cmn::CropOffsets",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.misc",
+      "path": "misc/Deprecations.h",
+      "sha256": "a33f00831316918e8de45d002d1ac98925175b2971ecd45c4834c10f91f7a659",
+      "symbols": [
+        {
+          "kind": "struct",
+          "name": "Deprecation",
+          "namespace": "cmn",
+          "qualified": "cmn::Deprecation",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "Deprecations",
+          "namespace": "cmn",
+          "qualified": "cmn::Deprecations",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.misc",
+      "path": "misc/DisplayValue.h",
+      "sha256": "a4338467dfd92cd01628b3c9a5c9c44c9f4e332fcee02411a6d1645b979f7556",
+      "symbols": []
+    },
+    {
+      "excluded": [],
+      "module": "commons.misc",
+      "path": "misc/EnumClass.h",
+      "sha256": "363d7fa282ce35e1308ba32214b92fd5bc21a19c7be5ee9569418ed48b630405",
+      "symbols": [
+        {
+          "kind": "class_template",
+          "name": "HasCustomParser",
+          "namespace": "EnumMeta",
+          "qualified": "EnumMeta::HasCustomParser",
+          "smoke": "using"
+        },
+        {
+          "kind": "class_template",
+          "name": "is_enum",
+          "namespace": "cmn",
+          "qualified": "cmn::is_enum",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.misc",
+      "path": "misc/FormatColor.h",
+      "sha256": "dddd1f95a7b7c950e34b35d0b07d7b8cad37bfd8f3d0b3eb7ab31c502af86cdb",
+      "symbols": [
+        {
+          "kind": "enum_class",
+          "name": "FormatColorNames",
+          "namespace": "cmn",
+          "qualified": "cmn::FormatColorNames",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "FormatColor_t",
+          "namespace": "cmn",
+          "qualified": "cmn::FormatColor_t",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "FormatColor",
+          "namespace": "cmn",
+          "qualified": "cmn::FormatColor",
+          "smoke": "using"
+        },
+        {
+          "kind": "enum_class",
+          "name": "FormatterType",
+          "namespace": "cmn",
+          "qualified": "cmn::FormatterType",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [
+        {
+          "header": "misc/GlobalSettings.h",
+          "kind": "group",
+          "line": "24",
+          "name": "cmn::AccessLevelType::helpers",
+          "reason": "internal_linkage_enum_helpers"
+        },
+        {
+          "header": "misc/GlobalSettings.h",
+          "kind": "group",
+          "line": "32",
+          "name": "cmn::SeasonType::helpers",
+          "reason": "internal_linkage_enum_helpers"
+        }
+      ],
+      "module": "commons.misc",
+      "path": "misc/GlobalSettings.h",
+      "sha256": "a82d8ada3eba4db9d2f5a84a5919703e133d3e4af980390fcb4fca4d80617853",
+      "symbols": [
+        {
+          "kind": "enum_class",
+          "name": "Class",
+          "namespace": "cmn::AccessLevelType",
+          "qualified": "cmn::AccessLevelType::Class",
+          "smoke": "using"
+        },
+        {
+          "kind": "enum_class",
+          "name": "Class",
+          "namespace": "cmn::SeasonType",
+          "qualified": "cmn::SeasonType::Class",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "docs_map_t",
+          "namespace": "cmn",
+          "qualified": "cmn::docs_map_t",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "user_access_map_t",
+          "namespace": "cmn",
+          "qualified": "cmn::user_access_map_t",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "NoType",
+          "namespace": "cmn",
+          "qualified": "cmn::NoType",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "Configuration",
+          "namespace": "cmn",
+          "qualified": "cmn::Configuration",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "GlobalSettings",
+          "namespace": "cmn",
+          "qualified": "cmn::GlobalSettings",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "setting_config",
+          "namespace": "cmn",
+          "qualified": "cmn::setting_config",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "bool_setting_config",
+          "namespace": "cmn",
+          "qualified": "cmn::bool_setting_config",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "optional_setting_config",
+          "namespace": "cmn",
+          "qualified": "cmn::optional_setting_config",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "read_setting_config",
+          "namespace": "cmn",
+          "qualified": "cmn::read_setting_config",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "read_setting_with_default_config",
+          "namespace": "cmn",
+          "qualified": "cmn::read_setting_with_default_config",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "setting",
+          "namespace": "cmn",
+          "qualified": "cmn::setting",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "bool_setting",
+          "namespace": "cmn",
+          "qualified": "cmn::bool_setting",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "optional_setting",
+          "namespace": "cmn",
+          "qualified": "cmn::optional_setting",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "read_setting",
+          "namespace": "cmn",
+          "qualified": "cmn::read_setting",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "read_setting_with_default",
+          "namespace": "cmn",
+          "qualified": "cmn::read_setting_with_default",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.misc",
+      "path": "misc/Grid.h",
+      "sha256": "35a5d645ca2d28e3c92632344bcc5708574c60c56cd86e61d155b1a80a4a0703",
+      "symbols": [
+        {
+          "kind": "class_template",
+          "name": "pixel",
+          "namespace": "cmn::grid",
+          "qualified": "cmn::grid::pixel",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.misc",
+      "path": "misc/IllegalVector.h",
+      "sha256": "36384692565d02e62bb03f715243a7d4a122873047bcb67747ec7ffac46f422e",
+      "symbols": [
+        {
+          "kind": "class_template",
+          "name": "IllegalArray",
+          "namespace": "cmn",
+          "qualified": "cmn::IllegalArray",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.misc",
+      "path": "misc/Image.h",
+      "sha256": "fbedf642f998f2123517fad7117e5bfb6d3c23c36de3211e85f06c41674c4007",
+      "symbols": [
+        {
+          "kind": "concept",
+          "name": "CallableWithArgs",
+          "namespace": "cmn",
+          "qualified": "cmn::CallableWithArgs",
+          "reason": "requires_witness_type",
+          "smoke": "excluded"
+        },
+        {
+          "kind": "function_template",
+          "name": "check_callable_with_n_args_impl",
+          "namespace": "cmn",
+          "qualified": "cmn::check_callable_with_n_args_impl",
+          "smoke": "using"
+        },
+        {
+          "kind": "concept",
+          "name": "CallableWithNArgs",
+          "namespace": "cmn",
+          "qualified": "cmn::CallableWithNArgs",
+          "reason": "requires_witness_type",
+          "smoke": "excluded"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.misc",
+      "path": "misc/Median.h",
+      "sha256": "184db8b7b5f30437748067db59dd537282eb5e789ba2144936aea2aa024d80be",
+      "symbols": []
+    },
+    {
+      "excluded": [],
+      "module": "commons.misc",
+      "path": "misc/MetaObject.h",
+      "sha256": "1117f1ef5cd73236808e3b3f1974d6253163931784fc5cde03ca6d8f373b62a8",
+      "symbols": []
+    },
+    {
+      "excluded": [],
+      "module": "commons.misc",
+      "path": "misc/ObjectCache.h",
+      "sha256": "28906b820185211c6423f9687238153632943d8c560ddcc1b8a7388559c82dea",
+      "symbols": [
+        {
+          "kind": "struct",
+          "name": "ThreadSafePolicy",
+          "namespace": "cmn",
+          "qualified": "cmn::ThreadSafePolicy",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "NonThreadSafePolicy",
+          "namespace": "cmn",
+          "qualified": "cmn::NonThreadSafePolicy",
+          "smoke": "using"
+        },
+        {
+          "kind": "class_template",
+          "name": "ObjectCache",
+          "namespace": "cmn",
+          "qualified": "cmn::ObjectCache",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.misc",
+      "path": "misc/ObjectManager.h",
+      "sha256": "24cc685e16f554a69995b7879fdea8b2fe44dd98b59090d3c13ea05b1c183267",
+      "symbols": [
+        {
+          "kind": "class_template",
+          "name": "ObjectManager",
+          "namespace": "cmn",
+          "qualified": "cmn::ObjectManager",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.misc",
+      "path": "misc/OptionsList.h",
+      "sha256": "dfc7bb0c82a77f4bbd6ed80a193510a516d1eeaadd0f93fa320123246874cbc2",
+      "symbols": []
+    },
+    {
+      "excluded": [],
+      "module": "commons.misc",
+      "path": "misc/PBSettingsMacros.h",
+      "sha256": "59c8c86b396f47234f25ce525b4fca1b26372096efbd2d225472ae448519bcab",
+      "symbols": []
+    },
+    {
+      "excluded": [],
+      "module": "commons.misc",
+      "path": "misc/Path.h",
+      "sha256": "f20cf00e383bf200cfa5a5b018e8f918502faf6aed5396c9102e9adbc393bde0",
+      "symbols": [
+        {
+          "kind": "function_template",
+          "name": "enumerate",
+          "namespace": "cmn::file",
+          "qualified": "cmn::file::enumerate",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "Path",
+          "namespace": "cmn::file",
+          "qualified": "cmn::file::Path",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "operator/",
+          "namespace": "cmn::file",
+          "qualified": "cmn::file::operator/",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "exec",
+          "namespace": "cmn::file",
+          "qualified": "cmn::file::exec",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "valid_extension",
+          "namespace": "cmn::file",
+          "qualified": "cmn::file::valid_extension",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "cwd",
+          "namespace": "cmn::file",
+          "qualified": "cmn::file::cwd",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "cd",
+          "namespace": "cmn::file",
+          "qualified": "cmn::file::cd",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "UseNotOsSep",
+          "namespace": "cmn::file",
+          "qualified": "cmn::file::UseNotOsSep",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "make_path",
+          "namespace": "cmn::file",
+          "qualified": "cmn::file::make_path",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.misc",
+      "path": "misc/bid.h",
+      "sha256": "ad05aecb39b730b34ba7370ada1bcd0222528607f413ff6b463e68492a4213ee",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "Blob",
+          "namespace": "pv",
+          "qualified": "pv::Blob",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "CompressedBlob",
+          "namespace": "pv",
+          "qualified": "pv::CompressedBlob",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "BlobPtr",
+          "namespace": "pv",
+          "qualified": "pv::BlobPtr",
+          "smoke": "using"
+        },
+        {
+          "kind": "enum_class",
+          "name": "FilterReason",
+          "namespace": "pv",
+          "qualified": "pv::FilterReason",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "filter_reason_to_str",
+          "namespace": "pv",
+          "qualified": "pv::filter_reason_to_str",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "bid",
+          "namespace": "pv",
+          "qualified": "pv::bid",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.processing",
+      "path": "processing/PVBlob.h",
+      "sha256": "b952e9ea6efde992d4d5fd51e6032f01ff7b8e0a581aa7c8a0435e3f934c0899",
+      "symbols": [
+        {
+          "kind": "struct",
+          "name": "LineMaker",
+          "namespace": "pv",
+          "qualified": "pv::LineMaker",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "buffers_t",
+          "namespace": "pv",
+          "qualified": "pv::buffers_t",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "buffers",
+          "namespace": "pv",
+          "qualified": "pv::buffers",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "Moments",
+          "namespace": "pv",
+          "qualified": "pv::Moments",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "Blob",
+          "namespace": "pv",
+          "qualified": "pv::Blob",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "operator==",
+          "namespace": "pv",
+          "qualified": "pv::operator==",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "ShortHorizontalLine",
+          "namespace": "pv",
+          "qualified": "pv::ShortHorizontalLine",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "CompressedBlob",
+          "namespace": "pv",
+          "qualified": "pv::CompressedBlob",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.misc",
+      "path": "misc/PackLambda.h",
+      "sha256": "de2aad22b25ddf97437797a74a39b677a23171e2749cac876d24a1f024275208",
+      "symbols": [
+        {
+          "kind": "class_template",
+          "name": "_F_base",
+          "namespace": "cmn::package",
+          "qualified": "cmn::package::_F_base",
+          "smoke": "using"
+        },
+        {
+          "kind": "class_template",
+          "name": "_F_func",
+          "namespace": "cmn::package",
+          "qualified": "cmn::package::_F_func",
+          "smoke": "using"
+        },
+        {
+          "kind": "class_template",
+          "name": "F",
+          "namespace": "cmn::package",
+          "qualified": "cmn::package::F",
+          "smoke": "using"
+        },
+        {
+          "kind": "class_template",
+          "name": "promised",
+          "namespace": "cmn::package",
+          "qualified": "cmn::package::promised",
+          "smoke": "using"
+        },
+        {
+          "kind": "class_template",
+          "name": "packaged_func",
+          "namespace": "cmn::package",
+          "qualified": "cmn::package::packaged_func",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "pack",
+          "namespace": "cmn",
+          "qualified": "cmn::pack",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.processing",
+      "path": "processing/PixelTree.h",
+      "sha256": "229884200962276087cae2a63df61a4f6b1d9525dc383f741e636b127656b640",
+      "symbols": [
+        {
+          "kind": "enum",
+          "name": "Direction",
+          "namespace": "cmn::pixel",
+          "qualified": "cmn::pixel::Direction",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "Node",
+          "namespace": "cmn::pixel",
+          "qualified": "cmn::pixel::Node",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "Edge",
+          "namespace": "cmn::pixel",
+          "qualified": "cmn::pixel::Edge",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "Subnode",
+          "namespace": "cmn::pixel",
+          "qualified": "cmn::pixel::Subnode",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "Subtree",
+          "namespace": "cmn::pixel",
+          "qualified": "cmn::pixel::Subtree",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "Tree",
+          "namespace": "cmn::pixel",
+          "qualified": "cmn::pixel::Tree",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "find_outer_points",
+          "namespace": "cmn::pixel",
+          "qualified": "cmn::pixel::find_outer_points",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.misc",
+      "path": "misc/ProtectedProperty.h",
+      "sha256": "794f9d9efdf23aa0331d95960a907fdb805f36aef3371f76e151a415c1b72c6b",
+      "symbols": [
+        {
+          "kind": "concept",
+          "name": "UseAtomic",
+          "namespace": "cmn",
+          "qualified": "cmn::UseAtomic",
+          "reason": "requires_witness_type",
+          "smoke": "excluded"
+        },
+        {
+          "kind": "class_template",
+          "name": "_ProtectedProperty",
+          "namespace": "cmn",
+          "qualified": "cmn::_ProtectedProperty",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias_template",
+          "name": "ProtectedProperty",
+          "namespace": "cmn",
+          "qualified": "cmn::ProtectedProperty",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.processing",
+      "path": "processing/ProximityGrid.h",
+      "sha256": "55dd208b7ba6fc3e8f59a438192d18c99fb4af865a6d823e938ee59d3cfe17f2",
+      "symbols": []
+    },
+    {
+      "excluded": [
+        {
+          "header": "misc/RBSettings.h",
+          "kind": "header",
+          "name": "misc/RBSettings.h",
+          "reason": "tracker_dependent_public_header"
+        }
+      ],
+      "module": "commons.misc",
+      "path": "misc/RBSettings.h",
+      "sha256": "ce225cc829ae36427020fed9cf506c004ec3df40be352e31db37fb568b1852d6",
+      "symbols": []
+    },
+    {
+      "excluded": [],
+      "module": "commons.misc",
+      "path": "misc/ReverseAdapter.h",
+      "sha256": "b5e2bef4bb714ba9187442b8fdf9defdb1ec4bbc2520e93372c3c785892a1bdf",
+      "symbols": []
+    },
+    {
+      "excluded": [],
+      "module": "commons.misc",
+      "path": "misc/SampleInterpolator.h",
+      "sha256": "317e0ebd89d2a58f179a50270e1aa4aecc6748c18796017ca3714a239d3a7015",
+      "symbols": []
+    },
+    {
+      "excluded": [
+        {
+          "header": "misc/SpriteMap.h",
+          "kind": "symbol",
+          "name": "cmn::Map",
+          "reason": "wrong_namespace_parser_artifact"
+        }
+      ],
+      "module": "commons.misc",
+      "path": "misc/SpriteMap.h",
+      "sha256": "d53a89f88c7ae4ac5dce441c25565c969ac0bd59b910a2bafde672f27746d4ca",
+      "symbols": [
+        {
+          "kind": "concept",
+          "name": "ParserAvailable",
+          "namespace": "cmn",
+          "qualified": "cmn::ParserAvailable",
+          "reason": "requires_witness_type",
+          "smoke": "excluded"
+        },
+        {
+          "kind": "enum_class",
+          "name": "RegisterInit",
+          "namespace": "cmn::sprite",
+          "qualified": "cmn::sprite::RegisterInit",
+          "smoke": "using"
+        },
+        {
+          "kind": "concept",
+          "name": "Iterable",
+          "namespace": "cmn::sprite",
+          "qualified": "cmn::sprite::Iterable",
+          "reason": "requires_witness_type",
+          "smoke": "excluded"
+        },
+        {
+          "kind": "class",
+          "name": "Map",
+          "namespace": "cmn::sprite",
+          "qualified": "cmn::sprite::Map",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [
+        {
+          "header": "misc/SpriteProperty.h",
+          "kind": "symbol",
+          "name": "cmn::Property",
+          "reason": "deduction_guide_parser_artifact"
+        }
+      ],
+      "module": "commons.misc",
+      "path": "misc/SpriteProperty.h",
+      "sha256": "1e485c87c242ca6068d32e025f1c9504a04067bb4fa546473f3ed9452a1af3e8",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "PropertyException",
+          "namespace": "cmn::sprite",
+          "qualified": "cmn::sprite::PropertyException",
+          "smoke": "using"
+        },
+        {
+          "kind": "class_template",
+          "name": "Property",
+          "namespace": "cmn::sprite",
+          "qualified": "cmn::sprite::Property",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "Map",
+          "namespace": "cmn::sprite",
+          "qualified": "cmn::sprite::Map",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "PropertyType",
+          "namespace": "cmn::sprite",
+          "qualified": "cmn::sprite::PropertyType",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "Reference",
+          "namespace": "cmn::sprite",
+          "qualified": "cmn::sprite::Reference",
+          "smoke": "using"
+        },
+        {
+          "kind": "concept",
+          "name": "has_equals",
+          "namespace": "cmn::sprite",
+          "qualified": "cmn::sprite::has_equals",
+          "reason": "requires_witness_type",
+          "smoke": "excluded"
+        },
+        {
+          "kind": "class",
+          "name": "Property",
+          "namespace": "cmn::sprite",
+          "qualified": "cmn::sprite::Property",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.misc",
+      "path": "misc/TaskQueue.h",
+      "sha256": "1e798c37cf9cb4487b67e2c5f221681323e4cbc7f8d414d76ddccf46e42446ea",
+      "symbols": [
+        {
+          "kind": "class_template",
+          "name": "TaskQueue",
+          "namespace": "cmn",
+          "qualified": "cmn::TaskQueue",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.misc",
+      "path": "misc/ThreadManager.h",
+      "sha256": "003e6318e23ff8942a84b011966f4974fd80a1ede9c89b6f7d0eef248314b313",
+      "symbols": [
+        {
+          "kind": "concept",
+          "name": "ManagedThreadConcept",
+          "namespace": "cmn",
+          "qualified": "cmn::ManagedThreadConcept",
+          "reason": "requires_witness_type",
+          "smoke": "excluded"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.misc",
+      "path": "misc/ThreadPool.h",
+      "sha256": "28239aeaedfa4de710c51fa9e5424b3dad53f727beb4ab8de00737e0dc8bb617",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "GenericThreadPool",
+          "namespace": "cmn",
+          "qualified": "cmn::GenericThreadPool",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "check_invocability_with_void_ptr_impl",
+          "namespace": "cmn",
+          "qualified": "cmn::check_invocability_with_void_ptr_impl",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "is_generic_lambda",
+          "namespace": "cmn",
+          "qualified": "cmn::is_generic_lambda",
+          "smoke": "using"
+        },
+        {
+          "kind": "class_template",
+          "name": "conditional_conversion",
+          "namespace": "cmn",
+          "qualified": "cmn::conditional_conversion",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "distribute_indexes",
+          "namespace": "cmn",
+          "qualified": "cmn::distribute_indexes",
+          "smoke": "using"
+        },
+        {
+          "kind": "class_template",
+          "name": "QueueThreadPool",
+          "namespace": "cmn",
+          "qualified": "cmn::QueueThreadPool",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "SimpleThreadPool",
+          "namespace": "cmn",
+          "qualified": "cmn::SimpleThreadPool",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "ThreadPool",
+          "namespace": "cmn",
+          "qualified": "cmn::ThreadPool",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "ThreadPool",
+          "namespace": "cmn",
+          "qualified": "cmn::ThreadPool",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.misc",
+      "path": "misc/ThreadedAnalysis.h",
+      "sha256": "79b1be5c6872d4b979b8880f25f9e910972a743a04502c6e50fc608c30b11bac",
+      "symbols": [
+        {
+          "kind": "enum",
+          "name": "Code",
+          "namespace": "cmn::Queue",
+          "qualified": "cmn::Queue::Code",
+          "smoke": "using"
+        },
+        {
+          "kind": "enum",
+          "name": "Type",
+          "namespace": "cmn::ElementLoading",
+          "qualified": "cmn::ElementLoading::Type",
+          "smoke": "using"
+        },
+        {
+          "kind": "class_template",
+          "name": "ThreadedAnalysis",
+          "namespace": "cmn",
+          "qualified": "cmn::ThreadedAnalysis",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [
+        {
+          "header": "misc/ThreadedAnalysis_impl.h",
+          "kind": "header",
+          "name": "misc/ThreadedAnalysis_impl.h",
+          "reason": "implementation_header_included_by_public_header"
+        }
+      ],
+      "module": "commons.misc",
+      "path": "misc/ThreadedAnalysis_impl.h",
+      "sha256": "936be9e45846f9b4b956bc072824331f5fc11637f0d881c0bd8c2baacea79fbb",
+      "symbols": []
+    },
+    {
+      "excluded": [],
+      "module": "commons.misc",
+      "path": "misc/Timer.h",
+      "sha256": "a0329724491f1b4e1e0e05f7a2acc1c13f2c911a26b7a3c99aa6e6f921dd72bf",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "MetaObject",
+          "namespace": "cmn",
+          "qualified": "cmn::MetaObject",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.misc",
+      "path": "misc/TooltipData.h",
+      "sha256": "a5773e9c8bfbe04bf33503f2316590e60fef2b2be71109adb492d32c571cb77b",
+      "symbols": [
+        {
+          "kind": "struct",
+          "name": "TooltipData",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::TooltipData",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.misc",
+      "path": "misc/UnorderedVectorSet.h",
+      "sha256": "f42f16c4e055e6d389644500d08d1698c2ed93218b0e2de48fc3114a441b36cc",
+      "symbols": [
+        {
+          "kind": "class_template",
+          "name": "UnorderedVectorSet",
+          "namespace": "cmn",
+          "qualified": "cmn::UnorderedVectorSet",
+          "smoke": "using"
+        },
+        {
+          "kind": "class_template",
+          "name": "is_set",
+          "namespace": "cmn",
+          "qualified": "cmn::is_set",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.misc",
+      "path": "misc/checked_casts.h",
+      "sha256": "b45929d78613375218a8bfdeb2c645a9ae0972319f807f84a4234b6b993746b3",
+      "symbols": [
+        {
+          "kind": "struct",
+          "name": "warn_on_error",
+          "namespace": "cmn::tag",
+          "qualified": "cmn::tag::warn_on_error",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "fail_on_error",
+          "namespace": "cmn::tag",
+          "qualified": "cmn::tag::fail_on_error",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "checked_cast_warning",
+          "namespace": "cmn::detail",
+          "qualified": "cmn::detail::checked_cast_warning",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias_template",
+          "name": "try_make_unsigned",
+          "namespace": "cmn",
+          "qualified": "cmn::try_make_unsigned",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias_template",
+          "name": "try_make_signed",
+          "namespace": "cmn",
+          "qualified": "cmn::try_make_signed",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "fail_type",
+          "namespace": "cmn",
+          "qualified": "cmn::fail_type",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "sign_cast",
+          "namespace": "cmn",
+          "qualified": "cmn::sign_cast",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "check_narrow_cast",
+          "namespace": "cmn",
+          "qualified": "cmn::check_narrow_cast",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "narrow_cast",
+          "namespace": "cmn",
+          "qualified": "cmn::narrow_cast",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.misc",
+      "path": "misc/cnpy_wrapper.h",
+      "sha256": "2c400b5fe812664aaf924fcf1b14842861a90088065142367c2115bf47695910",
+      "symbols": [
+        {
+          "kind": "function_template",
+          "name": "npz_save",
+          "namespace": "cmn",
+          "qualified": "cmn::npz_save",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "npz_save",
+          "namespace": "cmn",
+          "qualified": "cmn::npz_save",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [
+        {
+          "header": "misc/colors.h",
+          "kind": "group",
+          "line": "651",
+          "name": "cmn::cmap::CMaps::helpers",
+          "reason": "internal_linkage_enum_helpers"
+        },
+        {
+          "header": "misc/colors.h",
+          "kind": "symbol",
+          "name": "cmn::gui::cmn::cmap::Viridis",
+          "reason": "wrong_namespace_parser_artifact"
+        },
+        {
+          "header": "misc/colors.h",
+          "kind": "symbol",
+          "name": "cmn::gui::cmn::cmap::BlackToPink",
+          "reason": "wrong_namespace_parser_artifact"
+        },
+        {
+          "header": "misc/colors.h",
+          "kind": "symbol",
+          "name": "cmn::gui::cmn::cmap::BlueToRed",
+          "reason": "wrong_namespace_parser_artifact"
+        },
+        {
+          "header": "misc/colors.h",
+          "kind": "symbol",
+          "name": "cmn::gui::cmn::cmap::PinkFoam",
+          "reason": "wrong_namespace_parser_artifact"
+        },
+        {
+          "header": "misc/colors.h",
+          "kind": "symbol",
+          "name": "cmn::gui::cmn::cmap::BlueToYellow",
+          "reason": "wrong_namespace_parser_artifact"
+        },
+        {
+          "header": "misc/colors.h",
+          "kind": "symbol",
+          "name": "cmn::gui::cmn::cmap::BlackToWhite",
+          "reason": "wrong_namespace_parser_artifact"
+        },
+        {
+          "header": "misc/colors.h",
+          "kind": "symbol",
+          "name": "cmn::gui::cmn::cmap::BlackToCyan",
+          "reason": "wrong_namespace_parser_artifact"
+        },
+        {
+          "header": "misc/colors.h",
+          "kind": "symbol",
+          "name": "cmn::gui::cmn::cmap::BlueToCyan",
+          "reason": "wrong_namespace_parser_artifact"
+        },
+        {
+          "header": "misc/colors.h",
+          "kind": "symbol",
+          "name": "cmn::gui::cmn::cmap::BlackToGreen",
+          "reason": "wrong_namespace_parser_artifact"
+        },
+        {
+          "header": "misc/colors.h",
+          "kind": "symbol",
+          "name": "cmn::gui::cmn::cmap::ColorMap",
+          "reason": "wrong_namespace_parser_artifact"
+        }
+      ],
+      "module": "commons.misc",
+      "path": "misc/colors.h",
+      "sha256": "100100f693e1901ab055cbb5c169f6a141e90af1a3b41dd05feadcbafc01990c",
+      "symbols": [
+        {
+          "kind": "enum_class",
+          "name": "Class",
+          "namespace": "cmn::cmap::CMaps",
+          "qualified": "cmn::cmap::CMaps::Class",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "floor",
+          "namespace": "cmn::gui::const_funcs",
+          "qualified": "cmn::gui::const_funcs::floor",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "Color",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::Color",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "Viridis",
+          "namespace": "cmn::cmap",
+          "qualified": "cmn::cmap::Viridis",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "BlackToPink",
+          "namespace": "cmn::cmap",
+          "qualified": "cmn::cmap::BlackToPink",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "BlueToRed",
+          "namespace": "cmn::cmap",
+          "qualified": "cmn::cmap::BlueToRed",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "PinkFoam",
+          "namespace": "cmn::cmap",
+          "qualified": "cmn::cmap::PinkFoam",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "BlueToYellow",
+          "namespace": "cmn::cmap",
+          "qualified": "cmn::cmap::BlueToYellow",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "BlackToWhite",
+          "namespace": "cmn::cmap",
+          "qualified": "cmn::cmap::BlackToWhite",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "BlackToCyan",
+          "namespace": "cmn::cmap",
+          "qualified": "cmn::cmap::BlackToCyan",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "BlueToCyan",
+          "namespace": "cmn::cmap",
+          "qualified": "cmn::cmap::BlueToCyan",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "BlackToGreen",
+          "namespace": "cmn::cmap",
+          "qualified": "cmn::cmap::BlackToGreen",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "ColorMap",
+          "namespace": "cmn::cmap",
+          "qualified": "cmn::cmap::ColorMap",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.misc",
+      "path": "misc/create_struct.h",
+      "sha256": "03ac349f729bb33722d78a1d3a31fb061220edfb22c4efaa9411127a8a397735",
+      "symbols": []
+    },
+    {
+      "excluded": [],
+      "module": "commons.misc",
+      "path": "misc/curve_discussion.h",
+      "sha256": "35ff0e3686d9c87506684e0febea653a654f4c4d02ba03661b5b8059129e2f55",
+      "symbols": [
+        {
+          "kind": "struct",
+          "name": "Extrema",
+          "namespace": "cmn::curves",
+          "qualified": "cmn::curves::Extrema",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "derive",
+          "namespace": "cmn::curves",
+          "qualified": "cmn::curves::derive",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "find_extreme_points",
+          "namespace": "cmn::curves",
+          "qualified": "cmn::curves::find_extreme_points",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "area_under_minima",
+          "namespace": "cmn::curves",
+          "qualified": "cmn::curves::area_under_minima",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "area_under_maxima",
+          "namespace": "cmn::curves",
+          "qualified": "cmn::curves::area_under_maxima",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "interpolate",
+          "namespace": "cmn::curves",
+          "qualified": "cmn::curves::interpolate",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.misc",
+      "path": "misc/custom_exceptions.h",
+      "sha256": "7121d33a0c129c33d440146ecc34f009468f7793f833035813edb5a697ec04b0",
+      "symbols": []
+    },
+    {
+      "excluded": [],
+      "module": "commons.misc",
+      "path": "misc/date.h",
+      "sha256": "262832c70a4c1eb37f167555c1a672ccef63ae281c9f536ff0775ba981bb1d14",
+      "symbols": []
+    },
+    {
+      "excluded": [
+        {
+          "header": "misc/default_settings.h",
+          "kind": "group",
+          "line": "8",
+          "name": "cmn::settings::ParameterCategoryType::helpers",
+          "reason": "internal_linkage_enum_helpers"
+        }
+      ],
+      "module": "commons.misc",
+      "path": "misc/default_settings.h",
+      "sha256": "05b5e4cd0bb19aeb07882bb4d2c46b5d3ff065ba26569e23c1a98cb74697974f",
+      "symbols": [
+        {
+          "kind": "enum_class",
+          "name": "Class",
+          "namespace": "cmn::settings::ParameterCategoryType",
+          "qualified": "cmn::settings::ParameterCategoryType::Class",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "Adding",
+          "namespace": "cmn::settings",
+          "qualified": "cmn::settings::Adding",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "print_help",
+          "namespace": "cmn::settings",
+          "qualified": "cmn::settings::print_help",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "help_html",
+          "namespace": "cmn::settings",
+          "qualified": "cmn::settings::help_html",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "help_restructured_text",
+          "namespace": "cmn::settings",
+          "qualified": "cmn::settings::help_restructured_text",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "htmlify",
+          "namespace": "cmn::settings",
+          "qualified": "cmn::settings::htmlify",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.misc",
+      "path": "misc/defines.h",
+      "sha256": "b3adf106d95b8934f690943f2921308b90be5b766c4c8ba250c792de56400201",
+      "symbols": []
+    },
+    {
+      "excluded": [],
+      "module": "commons.misc",
+      "path": "misc/derived_ptr.h",
+      "sha256": "14a9333bd95ba520640c3ffd8e56e867ab816f65ff6dff8a564f67fa03436dd3",
+      "symbols": [
+        {
+          "kind": "struct",
+          "name": "DebugPointers",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::DebugPointers",
+          "smoke": "using"
+        },
+        {
+          "kind": "class_template",
+          "name": "derived_ptr",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::derived_ptr",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "derived_ptr",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::derived_ptr",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.misc",
+      "path": "misc/detail.h",
+      "sha256": "f909d1aba9363657c463a987342cf3ad8d68a26b5193e6458473550c9868b240",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "Color",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::Color",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "Image",
+          "namespace": "cmn",
+          "qualified": "cmn::Image",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "CrashProgram",
+          "namespace": "cmn",
+          "qualified": "cmn::CrashProgram",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "coord_t",
+          "namespace": "cmn",
+          "qualified": "cmn::coord_t",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "ptr_safe_t",
+          "namespace": "cmn",
+          "qualified": "cmn::ptr_safe_t",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "HorizontalLine",
+          "namespace": "cmn",
+          "qualified": "cmn::HorizontalLine",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "dilate",
+          "namespace": "cmn",
+          "qualified": "cmn::dilate",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "lines_dimensions",
+          "namespace": "cmn",
+          "qualified": "cmn::lines_dimensions",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "normalize_angle",
+          "namespace": "cmn",
+          "qualified": "cmn::normalize_angle",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "angle_difference",
+          "namespace": "cmn",
+          "qualified": "cmn::angle_difference",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "BGR2HSV",
+          "namespace": "cmn",
+          "qualified": "cmn::BGR2HSV",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "HSV2RGB",
+          "namespace": "cmn",
+          "qualified": "cmn::HSV2RGB",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "ggt",
+          "namespace": "cmn",
+          "qualified": "cmn::ggt",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "isPowerOfTwo",
+          "namespace": "cmn",
+          "qualified": "cmn::isPowerOfTwo",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "gt",
+          "namespace": "cmn",
+          "qualified": "cmn::gt",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "lerp",
+          "namespace": "cmn",
+          "qualified": "cmn::lerp",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "identity",
+          "namespace": "cmn",
+          "qualified": "cmn::identity",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "zeros",
+          "namespace": "cmn",
+          "qualified": "cmn::zeros",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "ones",
+          "namespace": "cmn",
+          "qualified": "cmn::ones",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "fill",
+          "namespace": "cmn",
+          "qualified": "cmn::fill",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "print_mat",
+          "namespace": "cmn",
+          "qualified": "cmn::print_mat",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "getImgType",
+          "namespace": "cmn",
+          "qualified": "cmn::getImgType",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "print_mat",
+          "namespace": "cmn",
+          "qualified": "cmn::print_mat",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.misc",
+      "path": "misc/fixed_string.h",
+      "sha256": "3296e539f8345b744a045482e77b0f84d646db60ad988b638157fab78e7b403b",
+      "symbols": [
+        {
+          "kind": "alias",
+          "name": "Char_t",
+          "namespace": "cmn::ct::utils",
+          "qualified": "cmn::ct::utils::Char_t",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "construct_from_pointer_t",
+          "namespace": "cmn::ct::utils",
+          "qualified": "cmn::ct::utils::construct_from_pointer_t",
+          "smoke": "using"
+        },
+        {
+          "kind": "class_template",
+          "name": "fixed_string",
+          "namespace": "cmn::ct::utils",
+          "qualified": "cmn::ct::utils::fixed_string",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "fixed_string",
+          "namespace": "cmn::ct::utils",
+          "qualified": "cmn::ct::utils::fixed_string",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.misc",
+      "path": "misc/format.h",
+      "sha256": "aaded91eda85623fc557c4f3c1ad46668f11720cd5ec743cf4a1b32158f756a6",
+      "symbols": [
+        {
+          "kind": "enum",
+          "name": "Prefix",
+          "namespace": "cmn::PrefixLiterals",
+          "qualified": "cmn::PrefixLiterals::Prefix",
+          "smoke": "using"
+        },
+        {
+          "kind": "class_template",
+          "name": "no_quotes_t",
+          "namespace": "cmn",
+          "qualified": "cmn::no_quotes_t",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "no_quotes",
+          "namespace": "cmn",
+          "qualified": "cmn::no_quotes",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.misc",
+      "path": "misc/frame_t.h",
+      "sha256": "c177fca0f044a45faeecc74c062cedd25512e6a9a356aa34019c2550d885633a",
+      "symbols": [
+        {
+          "kind": "class_template",
+          "name": "BFrame_t",
+          "namespace": "cmn",
+          "qualified": "cmn::BFrame_t",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "Frame_t",
+          "namespace": "cmn",
+          "qualified": "cmn::Frame_t",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.misc",
+      "path": "misc/math.h",
+      "sha256": "6a6182d227b24250d79d4e24e39590eae8ab8d47ee120f35ae98e5cdea3c143a",
+      "symbols": [
+        {
+          "kind": "function_template",
+          "name": "cos",
+          "namespace": "cmn",
+          "qualified": "cmn::cos",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "sin",
+          "namespace": "cmn",
+          "qualified": "cmn::sin",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "sqrt",
+          "namespace": "cmn",
+          "qualified": "cmn::sqrt",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "fast_atan",
+          "namespace": "cmn",
+          "qualified": "cmn::fast_atan",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "fast_atan2",
+          "namespace": "cmn",
+          "qualified": "cmn::fast_atan2",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "isnan",
+          "namespace": "cmn",
+          "qualified": "cmn::isnan",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "isinf",
+          "namespace": "cmn",
+          "qualified": "cmn::isinf",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "sqrt_helper",
+          "namespace": "cmn::Detail",
+          "qualified": "cmn::Detail::sqrt_helper",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "sqrtNewtonRaphson",
+          "namespace": "cmn::Detail",
+          "qualified": "cmn::Detail::sqrtNewtonRaphson",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "ct_int_sqrt",
+          "namespace": "cmn",
+          "qualified": "cmn::ct_int_sqrt",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "ct_sqrt",
+          "namespace": "cmn",
+          "qualified": "cmn::ct_sqrt",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "csqrt",
+          "namespace": "cmn",
+          "qualified": "cmn::csqrt",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "atan2",
+          "namespace": "cmn",
+          "qualified": "cmn::atan2",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "abs",
+          "namespace": "cmn",
+          "qualified": "cmn::abs",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "dot",
+          "namespace": "cmn",
+          "qualified": "cmn::dot",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "length",
+          "namespace": "cmn",
+          "qualified": "cmn::length",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "sqlength",
+          "namespace": "cmn",
+          "qualified": "cmn::sqlength",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "cross",
+          "namespace": "cmn",
+          "qualified": "cmn::cross",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "sqdistance",
+          "namespace": "cmn",
+          "qualified": "cmn::sqdistance",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "euclidean_distance",
+          "namespace": "cmn",
+          "qualified": "cmn::euclidean_distance",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "manhattan_distance",
+          "namespace": "cmn",
+          "qualified": "cmn::manhattan_distance",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "distance_to_line",
+          "namespace": "cmn",
+          "qualified": "cmn::distance_to_line",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "t_circle_line",
+          "namespace": "cmn",
+          "qualified": "cmn::t_circle_line",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "minimum_distance_to_line",
+          "namespace": "cmn",
+          "qualified": "cmn::minimum_distance_to_line",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "operator*",
+          "namespace": "cmn",
+          "qualified": "cmn::operator*",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "slope",
+          "namespace": "cmn",
+          "qualified": "cmn::slope",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "line_crosses_height",
+          "namespace": "cmn",
+          "qualified": "cmn::line_crosses_height",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "crosses_zero",
+          "namespace": "cmn",
+          "qualified": "cmn::crosses_zero",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "crosses_abs_height",
+          "namespace": "cmn",
+          "qualified": "cmn::crosses_abs_height",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "infinity",
+          "namespace": "cmn",
+          "qualified": "cmn::infinity",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "builtin_clz",
+          "namespace": "cmn",
+          "qualified": "cmn::builtin_clz",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "next_pow2",
+          "namespace": "cmn",
+          "qualified": "cmn::next_pow2",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.misc",
+      "path": "misc/matharray.h",
+      "sha256": "da05b8c8146357b15a4ad51c6b6b0e2527c5a4000d7c278c1fd73af1b883cfbc",
+      "symbols": [
+        {
+          "kind": "function_template",
+          "name": "clamp",
+          "namespace": "cmn",
+          "qualified": "cmn::clamp",
+          "smoke": "using"
+        },
+        {
+          "kind": "class_template",
+          "name": "MathArray",
+          "namespace": "cmn",
+          "qualified": "cmn::MathArray",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "RGBArray",
+          "namespace": "cmn",
+          "qualified": "cmn::RGBArray",
+          "smoke": "using"
+        },
+        {
+          "kind": "class_template",
+          "name": "is_rgb_array",
+          "namespace": "cmn",
+          "qualified": "cmn::is_rgb_array",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [
+        {
+          "header": "misc/metastring.h",
+          "kind": "symbol",
+          "name": "cmn::utils::Rt",
+          "reason": "template_parameter_parser_artifact"
+        }
+      ],
+      "module": "commons.misc",
+      "path": "misc/metastring.h",
+      "sha256": "6733d6d579062af19629748110addba778ed36f43b7846388e26d46e278011a5",
+      "symbols": []
+    },
+    {
+      "excluded": [],
+      "module": "commons.misc",
+      "path": "misc/ocl.h",
+      "sha256": "281293781cd7913e73107cb30dc811e02161891253d9271b43563400615b77c1",
+      "symbols": []
+    },
+    {
+      "excluded": [],
+      "module": "commons.misc",
+      "path": "misc/parse_parameter_lists.h",
+      "sha256": "6fa7ec41d1535a19ff872182f389a932f805b20f24d77b80fd3c85705609bf97",
+      "symbols": []
+    },
+    {
+      "excluded": [],
+      "module": "commons.misc",
+      "path": "misc/pretty.h",
+      "sha256": "c50e4750fdf8621e0e9205b7e165680f1a4ddec737c3598aa3d0f4782ce22475",
+      "symbols": [
+        {
+          "kind": "function",
+          "name": "prettify_array",
+          "namespace": "cmn",
+          "qualified": "cmn::prettify_array",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.misc",
+      "path": "misc/ranges.h",
+      "sha256": "7c07941c3b13da750338447a6fd34ffddc48f3e977cc2c7ff18568954bf33f41",
+      "symbols": [
+        {
+          "kind": "concept",
+          "name": "range_type_needs_get_method",
+          "namespace": "cmn",
+          "qualified": "cmn::range_type_needs_get_method",
+          "reason": "requires_witness_type",
+          "smoke": "excluded"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.misc",
+      "path": "misc/stacktrace.h",
+      "sha256": "70376dc7d6b915c1a34b3a5e7ec7e252fc370ce71bb796a649a519868c040122",
+      "symbols": []
+    },
+    {
+      "excluded": [],
+      "module": "commons.misc",
+      "path": "misc/stringutils.h",
+      "sha256": "278aa15c756d5926b4115571eb77a11c1140c64da7d2e312c9bf9ff84f2cde5f",
+      "symbols": [
+        {
+          "kind": "concept",
+          "name": "NeedleLike",
+          "namespace": "cmn::utils",
+          "qualified": "cmn::utils::NeedleLike",
+          "reason": "requires_witness_type",
+          "smoke": "excluded"
+        },
+        {
+          "kind": "class_template",
+          "name": "is_const_lvalue_ref",
+          "namespace": "cmn::utils",
+          "qualified": "cmn::utils::is_const_lvalue_ref",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "string_like_view",
+          "namespace": "cmn::utils",
+          "qualified": "cmn::utils::string_like_view",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "beginsWith",
+          "namespace": "cmn::utils",
+          "qualified": "cmn::utils::beginsWith",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "endsWith",
+          "namespace": "cmn::utils",
+          "qualified": "cmn::utils::endsWith",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "contains",
+          "namespace": "cmn::utils",
+          "qualified": "cmn::utils::contains",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "find_replace",
+          "namespace": "cmn::utils",
+          "qualified": "cmn::utils::find_replace",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.misc",
+      "path": "misc/useful_concepts.h",
+      "sha256": "5bab0014e2a8ac07037d4204344793a20d851f920064a8d868e469a9003b55f5",
+      "symbols": [
+        {
+          "kind": "concept",
+          "name": "convertible_to",
+          "namespace": "cmn",
+          "qualified": "cmn::convertible_to",
+          "reason": "requires_witness_type",
+          "smoke": "excluded"
+        },
+        {
+          "kind": "concept",
+          "name": "floating_point",
+          "namespace": "cmn",
+          "qualified": "cmn::floating_point",
+          "reason": "requires_witness_type",
+          "smoke": "excluded"
+        },
+        {
+          "kind": "concept",
+          "name": "integral",
+          "namespace": "cmn",
+          "qualified": "cmn::integral",
+          "reason": "requires_witness_type",
+          "smoke": "excluded"
+        },
+        {
+          "kind": "concept",
+          "name": "signed_integral",
+          "namespace": "cmn",
+          "qualified": "cmn::signed_integral",
+          "reason": "requires_witness_type",
+          "smoke": "excluded"
+        },
+        {
+          "kind": "concept",
+          "name": "unsigned_integral",
+          "namespace": "cmn",
+          "qualified": "cmn::unsigned_integral",
+          "reason": "requires_witness_type",
+          "smoke": "excluded"
+        },
+        {
+          "kind": "concept",
+          "name": "StringLike",
+          "namespace": "cmn",
+          "qualified": "cmn::StringLike",
+          "reason": "requires_witness_type",
+          "smoke": "excluded"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.misc",
+      "path": "misc/utilsexception.h",
+      "sha256": "8e9dde4d137d9b82b3cb0ee6755a0ea1db520b9f902f686a476b485edad74b92",
+      "symbols": []
+    },
+    {
+      "excluded": [],
+      "module": "commons.misc",
+      "path": "misc/vec2.h",
+      "sha256": "b0c5b3d8a9a401ff60cb6e2a23f72ebfe0165e91deaf5f91103d2a915f4c22cd",
+      "symbols": [
+        {
+          "kind": "alias",
+          "name": "Float2_t",
+          "namespace": "cmn",
+          "qualified": "cmn::Float2_t",
+          "smoke": "using"
+        },
+        {
+          "kind": "class_template",
+          "name": "Vector2D",
+          "namespace": "cmn",
+          "qualified": "cmn::Vector2D",
+          "smoke": "using"
+        },
+        {
+          "kind": "typedef",
+          "name": "Vec2",
+          "namespace": "cmn",
+          "qualified": "cmn::Vec2",
+          "smoke": "using"
+        },
+        {
+          "kind": "typedef",
+          "name": "Size2",
+          "namespace": "cmn",
+          "qualified": "cmn::Size2",
+          "smoke": "using"
+        },
+        {
+          "kind": "concept",
+          "name": "number_type",
+          "namespace": "cmn",
+          "qualified": "cmn::number_type",
+          "reason": "requires_witness_type",
+          "smoke": "excluded"
+        },
+        {
+          "kind": "function_template",
+          "name": "operator-",
+          "namespace": "cmn",
+          "qualified": "cmn::operator-",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "operator<<",
+          "namespace": "cmn",
+          "qualified": "cmn::operator<<",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "atan2",
+          "namespace": "cmn",
+          "qualified": "cmn::atan2",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "length",
+          "namespace": "cmn",
+          "qualified": "cmn::length",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "sqdistance",
+          "namespace": "cmn",
+          "qualified": "cmn::sqdistance",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "euclidean_distance",
+          "namespace": "cmn",
+          "qualified": "cmn::euclidean_distance",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "Bounds",
+          "namespace": "cmn",
+          "qualified": "cmn::Bounds",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "angle_between_vectors",
+          "namespace": "cmn",
+          "qualified": "cmn::angle_between_vectors",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "pnpoly",
+          "namespace": "cmn",
+          "qualified": "cmn::pnpoly",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "poly_convex_hull",
+          "namespace": "cmn",
+          "qualified": "cmn::poly_convex_hull",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "Vec2",
+          "namespace": "cmn",
+          "qualified": "cmn::Vec2",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.misc",
+      "path": "misc/zipper.h",
+      "sha256": "5a117dad7111bd661288deda79a8ad6b837f178af53be77cf5c26da6934471e7",
+      "symbols": []
+    },
+    {
+      "excluded": [],
+      "module": "commons.file",
+      "path": "file/CSVExport.h",
+      "sha256": "10d0e63b0544c88821727499eac93bb924318d067c535babf6f43430f7c0cd67",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "CSVExport",
+          "namespace": "cmn::file",
+          "qualified": "cmn::file::CSVExport",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.file",
+      "path": "file/CSVReader.h",
+      "sha256": "13daafa1df413f2fecdb18abf6ebffa684bf4383ce74c31d4f6645701757d0ec",
+      "symbols": [
+        {
+          "kind": "class_template",
+          "name": "Table",
+          "namespace": "cmn",
+          "qualified": "cmn::Table",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "StringTable",
+          "namespace": "cmn",
+          "qualified": "cmn::StringTable",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "parseNumeric",
+          "namespace": "cmn::detail",
+          "qualified": "cmn::detail::parseNumeric",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "convertToOptionalNumeric",
+          "namespace": "cmn",
+          "qualified": "cmn::convertToOptionalNumeric",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [
+        {
+          "header": "file/DataFormat.h",
+          "kind": "symbol",
+          "name": "cmn::mappedRegion",
+          "reason": "platform_build_gated"
+        },
+        {
+          "header": "file/DataFormat.h",
+          "kind": "symbol",
+          "name": "cmn::mappedRegionS",
+          "reason": "platform_build_gated"
+        }
+      ],
+      "module": "commons.file",
+      "path": "file/DataFormat.h",
+      "sha256": "65a76d46f3c713fae0ec69738765f1381e5b781165e49471bdb450429f834c0e",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "Data",
+          "namespace": "cmn",
+          "qualified": "cmn::Data",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "ReadonlyMemoryWrapper",
+          "namespace": "cmn",
+          "qualified": "cmn::ReadonlyMemoryWrapper",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "DataPackage",
+          "namespace": "cmn",
+          "qualified": "cmn::DataPackage",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "DataFormat",
+          "namespace": "cmn",
+          "qualified": "cmn::DataFormat",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.file",
+      "path": "file/DataLocation.h",
+      "sha256": "087e0efb5aaafb3c25ba67257cc5d51b8403476dfee611d21eda61b4ca6be3b7",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "DataLocation",
+          "namespace": "cmn::file",
+          "qualified": "cmn::file::DataLocation",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.file",
+      "path": "file/Export.h",
+      "sha256": "af720b8daf36bc332021e3988792ea5863e62da84ce73c1d59ba41a732a15f85",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "Table",
+          "namespace": "cmn::file",
+          "qualified": "cmn::file::Table",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "Row",
+          "namespace": "cmn::file",
+          "qualified": "cmn::file::Row",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "ExportType",
+          "namespace": "cmn::file",
+          "qualified": "cmn::file::ExportType",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.file",
+      "path": "file/ImageIO.h",
+      "sha256": "8b0aafbd047e357c1bb25b809bfd35e8e6867504837f7664621a83a9277d2ecd",
+      "symbols": [
+        {
+          "kind": "function",
+          "name": "to_png",
+          "namespace": "cmn::file",
+          "qualified": "cmn::file::to_png",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "from_png",
+          "namespace": "cmn::file",
+          "qualified": "cmn::file::from_png",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.file",
+      "path": "file/PathArray.h",
+      "sha256": "c07d99c11708c74a19b3d8620ef29322709c5eca2eeee8eb4094e0d1077c3eee",
+      "symbols": [
+        {
+          "kind": "class_template",
+          "name": "_PathArray",
+          "namespace": "cmn::file",
+          "qualified": "cmn::file::_PathArray",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "PathArray",
+          "namespace": "cmn::file",
+          "qualified": "cmn::file::PathArray",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "is_ascii_alnum",
+          "namespace": "cmn::file::detail",
+          "qualified": "cmn::file::detail::is_ascii_alnum",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "is_allowed",
+          "namespace": "cmn::file::detail",
+          "qualified": "cmn::file::detail::is_allowed",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "sanitize_filename",
+          "namespace": "cmn::file",
+          "qualified": "cmn::file::sanitize_filename",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "find_basename",
+          "namespace": "cmn::file",
+          "qualified": "cmn::file::find_basename",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "find_parent",
+          "namespace": "cmn::file",
+          "qualified": "cmn::file::find_parent",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.file",
+      "path": "file/ask_for_permission.h",
+      "sha256": "1ad27147c1728dbe95b9651b42022d8637189e5436de9928e5e6e9f4e37a1348",
+      "symbols": [
+        {
+          "kind": "function",
+          "name": "request_access",
+          "namespace": "cmn::file",
+          "qualified": "cmn::file::request_access",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.processing",
+      "path": "processing/Background.h",
+      "sha256": "d9e30fff3d32ce2f6d0e482d315b06cf8c71f57e3b83d9eb04edb7679b855173",
+      "symbols": [
+        {
+          "kind": "concept",
+          "name": "explicitly_convertible_to",
+          "namespace": "cmn",
+          "qualified": "cmn::explicitly_convertible_to",
+          "reason": "requires_witness_type",
+          "smoke": "excluded"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.processing",
+      "path": "processing/Brototype.h",
+      "sha256": "60b44d16f997509268478c158731ef057b835c5b6240bda7ae50613f30553e89",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "DLList",
+          "namespace": "cmn::CPULabeling",
+          "qualified": "cmn::CPULabeling::DLList",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "_emplace_back",
+          "namespace": "cmn::CPULabeling",
+          "qualified": "cmn::CPULabeling::_emplace_back",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "Brototype",
+          "namespace": "cmn::CPULabeling",
+          "qualified": "cmn::CPULabeling::Brototype",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.processing",
+      "path": "processing/CPULabeling.h",
+      "sha256": "8bb04f1f2e155924087e81cf0d06752685b4513fff37cb3e6f427bfb4400d1ad",
+      "symbols": [
+        {
+          "kind": "function",
+          "name": "run",
+          "namespace": "cmn::CPULabeling",
+          "qualified": "cmn::CPULabeling::run",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.processing",
+      "path": "processing/DLList.h",
+      "sha256": "860f17f36b461a580a487c99f42a535c1644c70fab8f1fea76da63574939a325",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "DLList",
+          "namespace": "cmn::CPULabeling",
+          "qualified": "cmn::CPULabeling::DLList",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.processing",
+      "path": "processing/HLine.h",
+      "sha256": "ce793e3c53bb8d6168c10dcfd2b6a6841adb3dc2b8262f82789b398cda4fbfcb",
+      "symbols": [
+        {
+          "kind": "class_template",
+          "name": "HLine",
+          "namespace": "cmn::CPULabeling",
+          "qualified": "cmn::CPULabeling::HLine",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "Pixel",
+          "namespace": "cmn::CPULabeling",
+          "qualified": "cmn::CPULabeling::Pixel",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "Line32",
+          "namespace": "cmn::CPULabeling",
+          "qualified": "cmn::CPULabeling::Line32",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "Line64",
+          "namespace": "cmn::CPULabeling",
+          "qualified": "cmn::CPULabeling::Line64",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "Line_t",
+          "namespace": "cmn::CPULabeling",
+          "qualified": "cmn::CPULabeling::Line_t",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.processing",
+      "path": "processing/ListCache.h",
+      "sha256": "fd0fd77e48ac68e4502ca44231b9066ec357e809b3c3ba706675885499263e6d",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "DLList",
+          "namespace": "cmn::CPULabeling",
+          "qualified": "cmn::CPULabeling::DLList",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "ListCache_t",
+          "namespace": "cmn::CPULabeling",
+          "qualified": "cmn::CPULabeling::ListCache_t",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.processing",
+      "path": "processing/LuminanceGrid.h",
+      "sha256": "47b81160946f9bb5a135419e09d260e4fb93e82c798aa612e59241d19a47eebb",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "LuminanceGrid",
+          "namespace": "cmn",
+          "qualified": "cmn::LuminanceGrid",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.processing",
+      "path": "processing/Node.h",
+      "sha256": "864fe607f6c18a6336ed02502b5509fdc05a7b59bf34fb44de8b5a99e0a99ed7",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "Brototype",
+          "namespace": "cmn::CPULabeling",
+          "qualified": "cmn::CPULabeling::Brototype",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "DLList",
+          "namespace": "cmn::CPULabeling",
+          "qualified": "cmn::CPULabeling::DLList",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "Node",
+          "namespace": "cmn::CPULabeling",
+          "qualified": "cmn::CPULabeling::Node",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "List_t",
+          "namespace": "cmn::CPULabeling",
+          "qualified": "cmn::CPULabeling::List_t",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "Node_t",
+          "namespace": "cmn::CPULabeling",
+          "qualified": "cmn::CPULabeling::Node_t",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.processing",
+      "path": "processing/PadImage.h",
+      "sha256": "7a2c8375ecfe0e90214509cb5c1e11d333becb118333ef1b524691a920e8b90b",
+      "symbols": [
+        {
+          "kind": "function",
+          "name": "pad_image",
+          "namespace": "cmn",
+          "qualified": "cmn::pad_image",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "legacy_pad_image",
+          "namespace": "cmn",
+          "qualified": "cmn::legacy_pad_image",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.processing",
+      "path": "processing/RawProcessing.h",
+      "sha256": "d2d433f8ebbdccd5a9fde76c9e341775b00e5f58bdcae0e6db78286d9154ab00",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "RawProcessing",
+          "namespace": "cmn",
+          "qualified": "cmn::RawProcessing",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "LuminanceGrid",
+          "namespace": "cmn",
+          "qualified": "cmn::LuminanceGrid",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.processing",
+      "path": "processing/Source.h",
+      "sha256": "f10f44e2b9385873c96042f8f9d35c85169ce3ceb76a92e8a1fb951d903e0742",
+      "symbols": [
+        {
+          "kind": "struct",
+          "name": "Source",
+          "namespace": "cmn::CPULabeling",
+          "qualified": "cmn::CPULabeling::Source",
+          "smoke": "using"
+        },
+        {
+          "kind": "class_template",
+          "name": "AdaptiveSource",
+          "namespace": "cmn::CPULabeling",
+          "qualified": "cmn::CPULabeling::AdaptiveSource",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [
+        {
+          "header": "processing/encoding.h",
+          "kind": "group",
+          "line": "6",
+          "name": "cmn::DifferenceMethod_t::helpers",
+          "reason": "internal_linkage_enum_helpers"
+        },
+        {
+          "header": "processing/encoding.h",
+          "kind": "group",
+          "line": "14",
+          "name": "cmn::meta_encoding_t::helpers",
+          "reason": "internal_linkage_enum_helpers"
+        }
+      ],
+      "module": "commons.processing",
+      "path": "processing/encoding.h",
+      "sha256": "78bdf0088ea7ff747b5f7a9178f8e3449d9a5698d3f2f738833267bb69c27ceb",
+      "symbols": [
+        {
+          "kind": "enum_class",
+          "name": "Class",
+          "namespace": "cmn::DifferenceMethod_t",
+          "qualified": "cmn::DifferenceMethod_t::Class",
+          "smoke": "using"
+        },
+        {
+          "kind": "enum_class",
+          "name": "Class",
+          "namespace": "cmn::meta_encoding_t",
+          "qualified": "cmn::meta_encoding_t::Class",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "DifferenceMethod",
+          "namespace": "cmn",
+          "qualified": "cmn::DifferenceMethod",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "required_storage_channels",
+          "namespace": "cmn",
+          "qualified": "cmn::required_storage_channels",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "required_image_channels",
+          "namespace": "cmn",
+          "qualified": "cmn::required_image_channels",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "required_storage_channels",
+          "namespace": "cmn",
+          "qualified": "cmn::required_storage_channels",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "required_image_channels",
+          "namespace": "cmn",
+          "qualified": "cmn::required_image_channels",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [
+        {
+          "header": "video/AveragingAccumulator.h",
+          "kind": "group",
+          "line": "6",
+          "name": "cmn::averaging_method_t::helpers",
+          "reason": "internal_linkage_enum_helpers"
+        }
+      ],
+      "module": "commons.video",
+      "path": "video/AveragingAccumulator.h",
+      "sha256": "e4359865d001196ffda6bf20d547f8d03df7ac8c5319b0f410bad9397954fa46",
+      "symbols": [
+        {
+          "kind": "enum_class",
+          "name": "Class",
+          "namespace": "cmn::averaging_method_t",
+          "qualified": "cmn::averaging_method_t::Class",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.video",
+      "path": "video/FFmpegVideoCapture.h",
+      "sha256": "51faff8d92e9e7ed38cec97295147a45ae4d3e61421d2cf1052b7e21ee4e77ef",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "FfmpegVideoCapture",
+          "namespace": "cmn",
+          "qualified": "cmn::FfmpegVideoCapture",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.video",
+      "path": "video/GenericVideo.h",
+      "sha256": "93f2b639bd9f43a1e46620b962b3dc16acaebd0120e9bb6e984ef847609ea51b",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "GenericVideo",
+          "namespace": "cmn",
+          "qualified": "cmn::GenericVideo",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.video",
+      "path": "video/Video.h",
+      "sha256": "fde48249d5baae2e7f85c42450a97864a99e3ea031177d7143ca917ba46128b3",
+      "symbols": []
+    },
+    {
+      "excluded": [],
+      "module": "commons.video",
+      "path": "video/VideoSource.h",
+      "sha256": "e7e26b16fbc18c3d96e1513dbea54a216adaf3b9f04e123b3320b53f37fb5bf4",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "Video",
+          "namespace": "cmn",
+          "qualified": "cmn::Video",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "VideoSource",
+          "namespace": "cmn",
+          "qualified": "cmn::VideoSource",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.gui",
+      "path": "gui/ControlsAttributes.h",
+      "sha256": "11eb7e877491962a197944487741ba99bda3bf2ac0bed57f7c74b4e0196277aa",
+      "symbols": [
+        {
+          "kind": "alias",
+          "name": "Loc",
+          "namespace": "cmn::gui::attr",
+          "qualified": "cmn::gui::attr::Loc",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "LocTag",
+          "namespace": "cmn::gui::attr",
+          "qualified": "cmn::gui::attr::LocTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "Size",
+          "namespace": "cmn::gui::attr",
+          "qualified": "cmn::gui::attr::Size",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "SizeTag",
+          "namespace": "cmn::gui::attr",
+          "qualified": "cmn::gui::attr::SizeTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "SizeLimit",
+          "namespace": "cmn::gui::attr",
+          "qualified": "cmn::gui::attr::SizeLimit",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "SizeLimitTag",
+          "namespace": "cmn::gui::attr",
+          "qualified": "cmn::gui::attr::SizeLimitTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "Origin",
+          "namespace": "cmn::gui::attr",
+          "qualified": "cmn::gui::attr::Origin",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "OriginTag",
+          "namespace": "cmn::gui::attr",
+          "qualified": "cmn::gui::attr::OriginTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "Scale",
+          "namespace": "cmn::gui::attr",
+          "qualified": "cmn::gui::attr::Scale",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "ScaleTag",
+          "namespace": "cmn::gui::attr",
+          "qualified": "cmn::gui::attr::ScaleTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "Margins",
+          "namespace": "cmn::gui::attr",
+          "qualified": "cmn::gui::attr::Margins",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "MarginsTag",
+          "namespace": "cmn::gui::attr",
+          "qualified": "cmn::gui::attr::MarginsTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "Box",
+          "namespace": "cmn::gui::attr",
+          "qualified": "cmn::gui::attr::Box",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "BoxTag",
+          "namespace": "cmn::gui::attr",
+          "qualified": "cmn::gui::attr::BoxTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "FillClr",
+          "namespace": "cmn::gui::attr",
+          "qualified": "cmn::gui::attr::FillClr",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "FillClrTag",
+          "namespace": "cmn::gui::attr",
+          "qualified": "cmn::gui::attr::FillClrTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "LineClr",
+          "namespace": "cmn::gui::attr",
+          "qualified": "cmn::gui::attr::LineClr",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "LineClrTag",
+          "namespace": "cmn::gui::attr",
+          "qualified": "cmn::gui::attr::LineClrTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "TextClr",
+          "namespace": "cmn::gui::attr",
+          "qualified": "cmn::gui::attr::TextClr",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "TextClrTag",
+          "namespace": "cmn::gui::attr",
+          "qualified": "cmn::gui::attr::TextClrTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "HighlightClr",
+          "namespace": "cmn::gui::attr",
+          "qualified": "cmn::gui::attr::HighlightClr",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "HighlightClrTag",
+          "namespace": "cmn::gui::attr",
+          "qualified": "cmn::gui::attr::HighlightClrTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "VerticalClr",
+          "namespace": "cmn::gui::attr",
+          "qualified": "cmn::gui::attr::VerticalClr",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "VerticalClrTag",
+          "namespace": "cmn::gui::attr",
+          "qualified": "cmn::gui::attr::VerticalClrTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "HorizontalClr",
+          "namespace": "cmn::gui::attr",
+          "qualified": "cmn::gui::attr::HorizontalClr",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "HorizontalClrTag",
+          "namespace": "cmn::gui::attr",
+          "qualified": "cmn::gui::attr::HorizontalClrTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "CellFillClr",
+          "namespace": "cmn::gui::attr",
+          "qualified": "cmn::gui::attr::CellFillClr",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "CellFillClrTag",
+          "namespace": "cmn::gui::attr",
+          "qualified": "cmn::gui::attr::CellFillClrTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "CellLineClr",
+          "namespace": "cmn::gui::attr",
+          "qualified": "cmn::gui::attr::CellLineClr",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "CellLineClrTag",
+          "namespace": "cmn::gui::attr",
+          "qualified": "cmn::gui::attr::CellLineClrTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "Str",
+          "namespace": "cmn::gui::attr",
+          "qualified": "cmn::gui::attr::Str",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "StrTag",
+          "namespace": "cmn::gui::attr",
+          "qualified": "cmn::gui::attr::StrTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "Postfix",
+          "namespace": "cmn::gui::attr",
+          "qualified": "cmn::gui::attr::Postfix",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "PostfixTag",
+          "namespace": "cmn::gui::attr",
+          "qualified": "cmn::gui::attr::PostfixTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "Prefix",
+          "namespace": "cmn::gui::attr",
+          "qualified": "cmn::gui::attr::Prefix",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "PrefixTag",
+          "namespace": "cmn::gui::attr",
+          "qualified": "cmn::gui::attr::PrefixTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "ParmName",
+          "namespace": "cmn::gui::attr",
+          "qualified": "cmn::gui::attr::ParmName",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "ParmNameTag",
+          "namespace": "cmn::gui::attr",
+          "qualified": "cmn::gui::attr::ParmNameTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "Name",
+          "namespace": "cmn::gui::attr",
+          "qualified": "cmn::gui::attr::Name",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "NameTag",
+          "namespace": "cmn::gui::attr",
+          "qualified": "cmn::gui::attr::NameTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "CornerFlags_t",
+          "namespace": "cmn::gui::attr",
+          "qualified": "cmn::gui::attr::CornerFlags_t",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "CornerFlags_tTag",
+          "namespace": "cmn::gui::attr",
+          "qualified": "cmn::gui::attr::CornerFlags_tTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "Placeholder_t",
+          "namespace": "cmn::gui::attr",
+          "qualified": "cmn::gui::attr::Placeholder_t",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "Placeholder_tTag",
+          "namespace": "cmn::gui::attr",
+          "qualified": "cmn::gui::attr::Placeholder_tTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "Radius",
+          "namespace": "cmn::gui::attr",
+          "qualified": "cmn::gui::attr::Radius",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "RadiusTag",
+          "namespace": "cmn::gui::attr",
+          "qualified": "cmn::gui::attr::RadiusTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "Rotation",
+          "namespace": "cmn::gui::attr",
+          "qualified": "cmn::gui::attr::Rotation",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "RotationTag",
+          "namespace": "cmn::gui::attr",
+          "qualified": "cmn::gui::attr::RotationTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "Alpha",
+          "namespace": "cmn::gui::attr",
+          "qualified": "cmn::gui::attr::Alpha",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "AlphaTag",
+          "namespace": "cmn::gui::attr",
+          "qualified": "cmn::gui::attr::AlphaTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "Checked",
+          "namespace": "cmn::gui::attr",
+          "qualified": "cmn::gui::attr::Checked",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "CheckedTag",
+          "namespace": "cmn::gui::attr",
+          "qualified": "cmn::gui::attr::CheckedTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "Folded_t",
+          "namespace": "cmn::gui::attr",
+          "qualified": "cmn::gui::attr::Folded_t",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "Folded_tTag",
+          "namespace": "cmn::gui::attr",
+          "qualified": "cmn::gui::attr::Folded_tTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "Clickable",
+          "namespace": "cmn::gui::attr",
+          "qualified": "cmn::gui::attr::Clickable",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "ClickableTag",
+          "namespace": "cmn::gui::attr",
+          "qualified": "cmn::gui::attr::ClickableTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "ZIndex",
+          "namespace": "cmn::gui::attr",
+          "qualified": "cmn::gui::attr::ZIndex",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "ZIndexTag",
+          "namespace": "cmn::gui::attr",
+          "qualified": "cmn::gui::attr::ZIndexTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "pack_contains",
+          "namespace": "cmn::gui::attr",
+          "qualified": "cmn::gui::attr::pack_contains",
+          "smoke": "using"
+        },
+        {
+          "kind": "concept",
+          "name": "IsVec2OrSize2",
+          "namespace": "cmn::gui::attr",
+          "qualified": "cmn::gui::attr::IsVec2OrSize2",
+          "reason": "requires_witness_type",
+          "smoke": "excluded"
+        },
+        {
+          "kind": "class_template",
+          "name": "AttributeAlias",
+          "namespace": "cmn::gui::attr",
+          "qualified": "cmn::gui::attr::AttributeAlias",
+          "smoke": "using"
+        },
+        {
+          "kind": "class_template",
+          "name": "_IsNumberAlias",
+          "namespace": "cmn::gui::attr",
+          "qualified": "cmn::gui::attr::_IsNumberAlias",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.gui",
+      "path": "gui/CornerFlags.h",
+      "sha256": "e3cbc91b4065dc43280c14f077e9fe6edae35179138660fd38d3bf54dd269a5f",
+      "symbols": [
+        {
+          "kind": "struct",
+          "name": "CornerFlags",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::CornerFlags",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.gui",
+      "path": "gui/CrossPlatform.h",
+      "sha256": "68f23c7e790ffaf42b57547461c48fecb047b2dc163bb982febc62afab09e188",
+      "symbols": [
+        {
+          "kind": "struct",
+          "name": "PlatformTexture",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::PlatformTexture",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "TexturePtr",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::TexturePtr",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "CrossPlatform",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::CrossPlatform",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.gui",
+      "path": "gui/Dispatcher.h",
+      "sha256": "aab98ea6bf6e6bde633de8fb8187fee0b67ec6fe4efd0b4440750cce79ec08f1",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "Dispatcher",
+          "namespace": "cmn::gui::attr",
+          "qualified": "cmn::gui::attr::Dispatcher",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.gui",
+      "path": "gui/DrawBase.h",
+      "sha256": "9d0937e3aceaeb30261f90e230a2bb42a8115f992643d207b9a702d96f373af9",
+      "symbols": [
+        {
+          "kind": "typedef",
+          "name": "uint",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::uint",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "Drawable",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::Drawable",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "Text",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::Text",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "DrawStructure",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::DrawStructure",
+          "smoke": "using"
+        },
+        {
+          "kind": "enum_class",
+          "name": "LoopStatus",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::LoopStatus",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "Base",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::Base",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.gui",
+      "path": "gui/DrawCVBase.h",
+      "sha256": "e79cabc0d34218238713503ccc3c02686905bd2d9706fc37449634b8eab9ba34",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "CVBase",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::CVBase",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.gui",
+      "path": "gui/DrawHTMLBase.h",
+      "sha256": "b830fd3b2feb4f2a899603f193ed40ae5fcbdb664ebbeb88dba86e29eacdac1a",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "HTMLCache",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::HTMLCache",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "HTMLBase",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::HTMLBase",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.gui",
+      "path": "gui/DrawObject.h",
+      "sha256": "8a0910f0c42d4e25214d14a956cf1ca2900026b59294c488980a4a285216d238",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "Object",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::Object",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [
+        {
+          "header": "gui/DrawSFBase.h",
+          "kind": "symbol",
+          "name": "cmn::gui::Path",
+          "reason": "sfml_build_gated"
+        },
+        {
+          "header": "gui/DrawSFBase.h",
+          "kind": "symbol",
+          "name": "cmn::gui::SpriteWithTexture",
+          "reason": "sfml_build_gated"
+        },
+        {
+          "header": "gui/DrawSFBase.h",
+          "kind": "symbol",
+          "name": "cmn::gui::SpriteWithRenderTexture",
+          "reason": "sfml_build_gated"
+        },
+        {
+          "header": "gui/DrawSFBase.h",
+          "kind": "symbol",
+          "name": "cmn::gui::SFBase",
+          "reason": "sfml_build_gated"
+        }
+      ],
+      "module": "commons.gui",
+      "path": "gui/DrawSFBase.h",
+      "sha256": "be6f0e6a1ec65cea09c8ebd799495831b19c2cee157b7a3656a39a034f167e84",
+      "symbols": []
+    },
+    {
+      "excluded": [],
+      "module": "commons.gui",
+      "path": "gui/DrawStructure.h",
+      "sha256": "73afc9b051355a748363265bee1ae71e0e08383b596549f917154e2c26d03f2c",
+      "symbols": [
+        {
+          "kind": "function",
+          "name": "init_errorlog",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::init_errorlog",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "deinit_errorlog",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::deinit_errorlog",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "StaticText",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::StaticText",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "Button",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::Button",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "Dialog",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::Dialog",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "DrawStructure",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::DrawStructure",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.gui",
+      "path": "gui/DrawableCollection.h",
+      "sha256": "5929751a98f3eb65a741f66ff52389f9b826e4c2140e8ec6e622b10aa9b5f7d5",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "DrawableCollection",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::DrawableCollection",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [
+        {
+          "header": "gui/DynamicGUI.h",
+          "kind": "group",
+          "line": "28",
+          "name": "cmn::gui::dyn::LayoutType::helpers",
+          "reason": "internal_linkage_enum_helpers"
+        }
+      ],
+      "module": "commons.gui",
+      "path": "gui/DynamicGUI.h",
+      "sha256": "0c828bdc76499dba91b024c2ecb93d5fad9775cc1c9209ca1c018cefec4f0e70",
+      "symbols": [
+        {
+          "kind": "enum_class",
+          "name": "Class",
+          "namespace": "cmn::gui::dyn::LayoutType",
+          "qualified": "cmn::gui::dyn::LayoutType::Class",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "LabeledField",
+          "namespace": "cmn::gui::dyn",
+          "qualified": "cmn::gui::dyn::LabeledField",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "Context",
+          "namespace": "cmn::gui::dyn",
+          "qualified": "cmn::gui::dyn::Context",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "State",
+          "namespace": "cmn::gui::dyn",
+          "qualified": "cmn::gui::dyn::State",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "Action",
+          "namespace": "cmn::gui::dyn",
+          "qualified": "cmn::gui::dyn::Action",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "ActionFunc",
+          "namespace": "cmn::gui::dyn",
+          "qualified": "cmn::gui::dyn::ActionFunc",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "VarFunc",
+          "namespace": "cmn::gui::dyn",
+          "qualified": "cmn::gui::dyn::VarFunc",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "LayoutContext",
+          "namespace": "cmn::gui::dyn",
+          "qualified": "cmn::gui::dyn::LayoutContext",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "Module",
+          "namespace": "cmn::gui::dyn::Modules",
+          "qualified": "cmn::gui::dyn::Modules::Module",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "add",
+          "namespace": "cmn::gui::dyn::Modules",
+          "qualified": "cmn::gui::dyn::Modules::add",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "remove",
+          "namespace": "cmn::gui::dyn::Modules",
+          "qualified": "cmn::gui::dyn::Modules::remove",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "exists",
+          "namespace": "cmn::gui::dyn::Modules",
+          "qualified": "cmn::gui::dyn::Modules::exists",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "parse_object",
+          "namespace": "cmn::gui::dyn",
+          "qualified": "cmn::gui::dyn::parse_object",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "load",
+          "namespace": "cmn::gui::dyn",
+          "qualified": "cmn::gui::dyn::load",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "DynamicGUI",
+          "namespace": "cmn::gui::dyn",
+          "qualified": "cmn::gui::dyn::DynamicGUI",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "update_tooltips",
+          "namespace": "cmn::gui::dyn",
+          "qualified": "cmn::gui::dyn::update_tooltips",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.gui",
+      "path": "gui/DynamicVariable.h",
+      "sha256": "d6f61004bc8beb19dc2bd3877a9185263e6496590bc0ec86943365684a0cb723",
+      "symbols": [
+        {
+          "kind": "class_template",
+          "name": "VarBase",
+          "namespace": "cmn::gui::dyn",
+          "qualified": "cmn::gui::dyn::VarBase",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "type_info_t",
+          "namespace": "cmn::gui::dyn",
+          "qualified": "cmn::gui::dyn::type_info_t",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.gui",
+      "path": "gui/Event.h",
+      "sha256": "a710abdbf5991f97c7a3e0f956c4a55de8e791b7afcd70d98410e5f1e0bf0cb9",
+      "symbols": [
+        {
+          "kind": "enum",
+          "name": "Codes",
+          "namespace": "cmn::gui::Keyboard",
+          "qualified": "cmn::gui::Keyboard::Codes",
+          "smoke": "using"
+        },
+        {
+          "kind": "enum",
+          "name": "EventType",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::EventType",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "WindowResizedEvent",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::WindowResizedEvent",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "MouseMoveEvent",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::MouseMoveEvent",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "MouseButtonEvent",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::MouseButtonEvent",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "SelectEvent",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::SelectEvent",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "HoverEvent",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::HoverEvent",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "KeyEvent",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::KeyEvent",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "TextEvent",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::TextEvent",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "ScrollEvent",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::ScrollEvent",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "DragEvent",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::DragEvent",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "Event",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::Event",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.gui",
+      "path": "gui/FileChooser.h",
+      "sha256": "c0887687f552104b54c66f88da4e9aa4e9bf2e7ee9c0da0762b1d67fb35a2019",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "FileChooser",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::FileChooser",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.gui",
+      "path": "gui/GLImpl.h",
+      "sha256": "08cd36b2a25844f719070bd1cf524de3ba427ff9ffa11555eb43ff7bdc2ae1ef",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "GLImpl",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::GLImpl",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.gui",
+      "path": "gui/GUITaskQueue.h",
+      "sha256": "cf1bfdb771dafa28e6d120f4fcf72533f8115e15ff95faf797d0e0aef69bbbd6",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "IMGUIBase",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::IMGUIBase",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "DrawStructure",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::DrawStructure",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "GUITaskQueue_t",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::GUITaskQueue_t",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.gui",
+      "path": "gui/Graph.h",
+      "sha256": "d2e3c301ea19d7673e14f51204c75e3eef3bd9c31913c20be9334a58571e5e73",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "Graph",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::Graph",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.gui",
+      "path": "gui/GuiTypes.h",
+      "sha256": "32ffea39387b5b2725b5291a75bef02afc683b681baf50cd94892f9cf23e413b",
+      "symbols": [
+        {
+          "kind": "alias",
+          "name": "Point_t",
+          "namespace": "cmn::gui::Line",
+          "qualified": "cmn::gui::Line::Point_t",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "Point_tTag",
+          "namespace": "cmn::gui::Line",
+          "qualified": "cmn::gui::Line::Point_tTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "Points_t",
+          "namespace": "cmn::gui::Line",
+          "qualified": "cmn::gui::Line::Points_t",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "Points_tTag",
+          "namespace": "cmn::gui::Line",
+          "qualified": "cmn::gui::Line::Points_tTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "Vertices_t",
+          "namespace": "cmn::gui::Line",
+          "qualified": "cmn::gui::Line::Vertices_t",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "Vertices_tTag",
+          "namespace": "cmn::gui::Line",
+          "qualified": "cmn::gui::Line::Vertices_tTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "Thickness_t",
+          "namespace": "cmn::gui::Line",
+          "qualified": "cmn::gui::Line::Thickness_t",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "Thickness_tTag",
+          "namespace": "cmn::gui::Line",
+          "qualified": "cmn::gui::Line::Thickness_tTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "Shadow_t",
+          "namespace": "cmn::gui::Text",
+          "qualified": "cmn::gui::Text::Shadow_t",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "Shadow_tTag",
+          "namespace": "cmn::gui::Text",
+          "qualified": "cmn::gui::Text::Shadow_tTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "enum_class",
+          "name": "PrimitiveType",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::PrimitiveType",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "VertexArray",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::VertexArray",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "Vertices",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::Vertices",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "Line",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::Line",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "Polygon",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::Polygon",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "Rect",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::Rect",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "Circle",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::Circle",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "Text",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::Text",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "ExternalImage",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::ExternalImage",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [
+        {
+          "header": "gui/HttpClient.h",
+          "kind": "symbol",
+          "name": "cmn::gui::HttpClient",
+          "reason": "http_build_gated"
+        }
+      ],
+      "module": "commons.gui",
+      "path": "gui/HttpClient.h",
+      "sha256": "d9d9cde42557aba7f307793e0a523e9489cc1e63be3fcfda7c7edd9180ddab3b",
+      "symbols": []
+    },
+    {
+      "excluded": [
+        {
+          "header": "gui/IMGUIBase.h",
+          "kind": "group",
+          "line": "42",
+          "name": "cmn::gui::Effects::helpers",
+          "reason": "internal_linkage_enum_helpers"
+        }
+      ],
+      "module": "commons.gui",
+      "path": "gui/IMGUIBase.h",
+      "sha256": "4d6ccbd91f98792ca7bc97cacbdf1fa4cc343174309561b5d56180ee85ddf12e",
+      "symbols": [
+        {
+          "kind": "enum_class",
+          "name": "Class",
+          "namespace": "cmn::gui::Effects",
+          "qualified": "cmn::gui::Effects::Class",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.gui",
+      "path": "gui/IatHook.h",
+      "sha256": "a20fb9d475243e2319e7893fa3205762b021d6f2aa0cd1e6dcc675f058680c21",
+      "symbols": []
+    },
+    {
+      "excluded": [
+        {
+          "header": "gui/LabeledField.h",
+          "kind": "symbol",
+          "name": "cmn::gui::has_set",
+          "reason": "wrong_namespace_parser_artifact"
+        }
+      ],
+      "module": "commons.gui",
+      "path": "gui/LabeledField.h",
+      "sha256": "b0f39fba45ddbf76a60b656006a7a9a0d29d2dd0c054ef7d0d47aa90f6ff5a4a",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "LayoutContext",
+          "namespace": "cmn::gui::dyn",
+          "qualified": "cmn::gui::dyn::LayoutContext",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "State",
+          "namespace": "cmn::gui::dyn",
+          "qualified": "cmn::gui::dyn::State",
+          "smoke": "using"
+        },
+        {
+          "kind": "concept",
+          "name": "takes_attribute",
+          "namespace": "cmn::gui::dyn",
+          "qualified": "cmn::gui::dyn::takes_attribute",
+          "reason": "requires_witness_type",
+          "smoke": "excluded"
+        },
+        {
+          "kind": "class_template",
+          "name": "has_set",
+          "namespace": "cmn::gui::dyn",
+          "qualified": "cmn::gui::dyn::has_set",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.gui",
+      "path": "gui/ListAttributes.h",
+      "sha256": "9abcad373e41014e873fae6f0685897dfaaf9cb46a3aafff2c1dd9a2c028dab5",
+      "symbols": [
+        {
+          "kind": "alias",
+          "name": "OnHover_t",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::OnHover_t",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "OnHover_tTag",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::OnHover_tTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "Foldable_t",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::Foldable_t",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "Foldable_tTag",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::Foldable_tTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "Alternating_t",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::Alternating_t",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "Alternating_tTag",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::Alternating_tTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "ItemFont_t",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::ItemFont_t",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "ItemFont_tTag",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::ItemFont_tTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "DetailFont_t",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::DetailFont_t",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "DetailFont_tTag",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::DetailFont_tTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "ItemPadding_t",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::ItemPadding_t",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "ItemPadding_tTag",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::ItemPadding_tTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "ListDims_t",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::ListDims_t",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "ListDims_tTag",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::ListDims_tTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "LabelDims_t",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::LabelDims_t",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "LabelDims_tTag",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::LabelDims_tTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "LabelAutoSize_t",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::LabelAutoSize_t",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "LabelAutoSize_tTag",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::LabelAutoSize_tTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "LabelFont_t",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::LabelFont_t",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "LabelFont_tTag",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::LabelFont_tTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "DetailColor_t",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::DetailColor_t",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "DetailColor_tTag",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::DetailColor_tTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "ListFillClr_t",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::ListFillClr_t",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "ListFillClr_tTag",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::ListFillClr_tTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "ListLineClr_t",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::ListLineClr_t",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "ListLineClr_tTag",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::ListLineClr_tTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "LabelFillClr_t",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::LabelFillClr_t",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "LabelFillClr_tTag",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::LabelFillClr_tTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "LabelColor_t",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::LabelColor_t",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "LabelColor_tTag",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::LabelColor_tTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "LabelCornerFlags",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::LabelCornerFlags",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "LabelCornerFlagsTag",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::LabelCornerFlagsTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "LabelLineColor_t",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::LabelLineColor_t",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "LabelLineColor_tTag",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::LabelLineColor_tTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "ItemColor_t",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::ItemColor_t",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "ItemColor_tTag",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::ItemColor_tTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "ItemBorderColor_t",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::ItemBorderColor_t",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "ItemBorderColor_tTag",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::ItemBorderColor_tTag",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.gui",
+      "path": "gui/MacProgressBar.h",
+      "sha256": "b153b34e3b6c91d88c8cfea0f875ee876485f5c16a2cf7bcccee65abb6ae1753",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "MacProgressBar",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::MacProgressBar",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.gui",
+      "path": "gui/MetalImpl.h",
+      "sha256": "e94be51ae894efe57532b8fc0b1a335360676a3dcbd1b7a1ce4bb7cdd1f77fec",
+      "symbols": [
+        {
+          "kind": "struct",
+          "name": "MetalData",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::MetalData",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "MetalImpl",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::MetalImpl",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.gui",
+      "path": "gui/ParseLayoutTypes.h",
+      "sha256": "4c9b2feea49ba820354029f64d8cbfd42181fc0f0e226900a6d3dcf92c5be666",
+      "symbols": [
+        {
+          "kind": "function",
+          "name": "parse_font",
+          "namespace": "cmn::gui::dyn",
+          "qualified": "cmn::gui::dyn::parse_font",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "NumberParser",
+          "namespace": "cmn::gui::dyn",
+          "qualified": "cmn::gui::dyn::NumberParser",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "parse_color",
+          "namespace": "cmn::gui::dyn",
+          "qualified": "cmn::gui::dyn::parse_color",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "get",
+          "namespace": "cmn::gui::dyn",
+          "qualified": "cmn::gui::dyn::get",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "LayoutContext",
+          "namespace": "cmn::gui::dyn",
+          "qualified": "cmn::gui::dyn::LayoutContext",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "load_image",
+          "namespace": "cmn::gui::dyn",
+          "qualified": "cmn::gui::dyn::load_image",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.gui",
+      "path": "gui/Passthrough.h",
+      "sha256": "74bfb7141016c7b2f1dc56910b561eba6b1aa07b3f933ddb214392ec9ad10ea3",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "Fallthrough",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::Fallthrough",
+          "smoke": "using"
+        },
+        {
+          "kind": "class_template",
+          "name": "retrieve_ptr_type",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::retrieve_ptr_type",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.gui",
+      "path": "gui/SFLoop.h",
+      "sha256": "adc1bc1c60b4c5b551bb3771fc6dd2ed693154b1a6547c5787dce4ac3c4e4c03",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "SFLoop",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::SFLoop",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.gui",
+      "path": "gui/SVG.h",
+      "sha256": "285a229522ae4a7685ca116b9ec52e60e500f11189965a940c2e05dc78aae240",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "SVG",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::SVG",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.gui",
+      "path": "gui/Section.h",
+      "sha256": "69a8bb4a6bf4f2b783536f0b306c9c7371ecd0412c0459b0833d250406c2a138",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "DrawableCollection",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::DrawableCollection",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "Section",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::Section",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.gui",
+      "path": "gui/Transform.h",
+      "sha256": "9c5c22006c7fb17c0cf476f0eb54c298dc6d82034263bc657d2faf0883ed7a9f",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "Transform",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::Transform",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "operator*",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::operator*",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "operator*=",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::operator*=",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.gui",
+      "path": "gui/darkmode.h",
+      "sha256": "d4dd6f0af590b6201c1d688f40a42a08c3a4e817b81d4276982d407623949f89",
+      "symbols": []
+    },
+    {
+      "excluded": [],
+      "module": "commons.gui.dyn",
+      "path": "gui/dyn/Action.h",
+      "sha256": "4d83c5e18452e71d9866ab8071bff5457641c0e03b8e19d3c98ecbc5c3fb8e8c",
+      "symbols": [
+        {
+          "kind": "struct",
+          "name": "Context",
+          "namespace": "cmn::gui::dyn",
+          "qualified": "cmn::gui::dyn::Context",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "State",
+          "namespace": "cmn::gui::dyn",
+          "qualified": "cmn::gui::dyn::State",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "require_exactly",
+          "namespace": "cmn::gui::dyn",
+          "qualified": "cmn::gui::dyn::require_exactly",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "require_at_least",
+          "namespace": "cmn::gui::dyn",
+          "qualified": "cmn::gui::dyn::require_at_least",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "Action",
+          "namespace": "cmn::gui::dyn",
+          "qualified": "cmn::gui::dyn::Action",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "PreAction",
+          "namespace": "cmn::gui::dyn",
+          "qualified": "cmn::gui::dyn::PreAction",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.gui.dyn",
+      "path": "gui/dyn/CTimer.h",
+      "sha256": "c596417096c96fbfd84b0d6788b5e86c681b14dba21f70cfd18e82f1d38334cf",
+      "symbols": []
+    },
+    {
+      "excluded": [],
+      "module": "commons.gui.dyn",
+      "path": "gui/dyn/Context.h",
+      "sha256": "e463244753dcbff08951e95532ff96dfdc8aaff5d80ab4c8eb1decb2db42a197",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "LabeledField",
+          "namespace": "cmn::gui::dyn",
+          "qualified": "cmn::gui::dyn::LabeledField",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "Action",
+          "namespace": "cmn::gui::dyn",
+          "qualified": "cmn::gui::dyn::Action",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "CustomElement",
+          "namespace": "cmn::gui::dyn",
+          "qualified": "cmn::gui::dyn::CustomElement",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "DefaultSettings",
+          "namespace": "cmn::gui::dyn",
+          "qualified": "cmn::gui::dyn::DefaultSettings",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "CurrentObjectHandler",
+          "namespace": "cmn::gui::dyn",
+          "qualified": "cmn::gui::dyn::CurrentObjectHandler",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "Context",
+          "namespace": "cmn::gui::dyn",
+          "qualified": "cmn::gui::dyn::Context",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.gui.dyn",
+      "path": "gui/dyn/ParseText.h",
+      "sha256": "347174c3779758e0e70c418f6fdb4ac3912e10a8b7cd7fbd580ae18c4b51d3dc",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "Drawable",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::Drawable",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "UnresolvedStringPattern",
+          "namespace": "cmn::pattern",
+          "qualified": "cmn::pattern::UnresolvedStringPattern",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "Context",
+          "namespace": "cmn::gui::dyn",
+          "qualified": "cmn::gui::dyn::Context",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "State",
+          "namespace": "cmn::gui::dyn",
+          "qualified": "cmn::gui::dyn::State",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "PreVarProps",
+          "namespace": "cmn::gui::dyn",
+          "qualified": "cmn::gui::dyn::PreVarProps",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "Pattern",
+          "namespace": "cmn::gui::dyn",
+          "qualified": "cmn::gui::dyn::Pattern",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "Action",
+          "namespace": "cmn::gui::dyn",
+          "qualified": "cmn::gui::dyn::Action",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "parse_text",
+          "namespace": "cmn::gui::dyn",
+          "qualified": "cmn::gui::dyn::parse_text",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "apply_modifier_to_object",
+          "namespace": "cmn::gui::dyn",
+          "qualified": "cmn::gui::dyn::apply_modifier_to_object",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "skipNested",
+          "namespace": "cmn::gui::dyn",
+          "qualified": "cmn::gui::dyn::skipNested",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "create_parse_result",
+          "namespace": "cmn::gui::dyn",
+          "qualified": "cmn::gui::dyn::create_parse_result",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "extractControls",
+          "namespace": "cmn::gui::dyn",
+          "qualified": "cmn::gui::dyn::extractControls",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "convert_to_bool",
+          "namespace": "cmn::gui::dyn",
+          "qualified": "cmn::gui::dyn::convert_to_bool",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "parse_value",
+          "namespace": "cmn::gui::dyn",
+          "qualified": "cmn::gui::dyn::parse_value",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.gui.dyn",
+      "path": "gui/dyn/ResolveVariable.h",
+      "sha256": "f1fb834a5856dcd5d235e2203652f53c892823649155d432f79eac9ba25c0b48",
+      "symbols": [
+        {
+          "kind": "function",
+          "name": "get_modifier_from_object",
+          "namespace": "cmn::gui::dyn",
+          "qualified": "cmn::gui::dyn::get_modifier_from_object",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "resolve_variable",
+          "namespace": "cmn::gui::dyn",
+          "qualified": "cmn::gui::dyn::resolve_variable",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.gui.dyn",
+      "path": "gui/dyn/State.h",
+      "sha256": "789e801864e773bed676ac8aaddcc3ce8c350b443bbef9aa361586b9014b588d",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "IMGUIBase",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::IMGUIBase",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "State",
+          "namespace": "cmn::gui::dyn",
+          "qualified": "cmn::gui::dyn::State",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "LayoutContext",
+          "namespace": "cmn::gui::dyn",
+          "qualified": "cmn::gui::dyn::LayoutContext",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "CurrentObjectHandler",
+          "namespace": "cmn::gui::dyn",
+          "qualified": "cmn::gui::dyn::CurrentObjectHandler",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "Pattern",
+          "namespace": "cmn::gui::dyn",
+          "qualified": "cmn::gui::dyn::Pattern",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "PatternMapType",
+          "namespace": "cmn::gui::dyn",
+          "qualified": "cmn::gui::dyn::PatternMapType",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "HashedObject",
+          "namespace": "cmn::gui::dyn",
+          "qualified": "cmn::gui::dyn::HashedObject",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "Collectors",
+          "namespace": "cmn::gui::dyn",
+          "qualified": "cmn::gui::dyn::Collectors",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "PatternStore",
+          "namespace": "cmn::gui::dyn",
+          "qualified": "cmn::gui::dyn::PatternStore",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "is_one_of",
+          "namespace": "cmn::gui::dyn",
+          "qualified": "cmn::gui::dyn::is_one_of",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.gui.dyn",
+      "path": "gui/dyn/UnresolvedStringPattern.h",
+      "sha256": "f169f107b19508c2b85b576405b2972aacde4d44839411fb8432316993a1ea6a",
+      "symbols": [
+        {
+          "kind": "struct",
+          "name": "Context",
+          "namespace": "cmn::gui::dyn",
+          "qualified": "cmn::gui::dyn::Context",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "State",
+          "namespace": "cmn::gui::dyn",
+          "qualified": "cmn::gui::dyn::State",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "Prepared",
+          "namespace": "cmn::pattern",
+          "qualified": "cmn::pattern::Prepared",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "Unprepared",
+          "namespace": "cmn::pattern",
+          "qualified": "cmn::pattern::Unprepared",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "PreparedPattern",
+          "namespace": "cmn::pattern",
+          "qualified": "cmn::pattern::PreparedPattern",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "PreparedPatterns",
+          "namespace": "cmn::pattern",
+          "qualified": "cmn::pattern::PreparedPatterns",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "UnpreparedPattern",
+          "namespace": "cmn::pattern",
+          "qualified": "cmn::pattern::UnpreparedPattern",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "UnpreparedPatterns",
+          "namespace": "cmn::pattern",
+          "qualified": "cmn::pattern::UnpreparedPatterns",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "UnresolvedStringPattern",
+          "namespace": "cmn::pattern",
+          "qualified": "cmn::pattern::UnresolvedStringPattern",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.gui.dyn",
+      "path": "gui/dyn/VarProps.h",
+      "sha256": "4ea7ad4ffdd8cd32d7e95f8c48c2c9072acb2be537d4cb55d637d6ebb32f5ca4",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "Reference",
+          "namespace": "cmn::sprite",
+          "qualified": "cmn::sprite::Reference",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "Context",
+          "namespace": "cmn::gui::dyn",
+          "qualified": "cmn::gui::dyn::Context",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "State",
+          "namespace": "cmn::gui::dyn",
+          "qualified": "cmn::gui::dyn::State",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "VarProps",
+          "namespace": "cmn::gui::dyn",
+          "qualified": "cmn::gui::dyn::VarProps",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "PreVarProps",
+          "namespace": "cmn::gui::dyn",
+          "qualified": "cmn::gui::dyn::PreVarProps",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "VarBase_t",
+          "namespace": "cmn::gui::dyn",
+          "qualified": "cmn::gui::dyn::VarBase_t",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "VarReturn_t",
+          "namespace": "cmn::gui::dyn",
+          "qualified": "cmn::gui::dyn::VarReturn_t",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.gui.dyn",
+      "path": "gui/dyn/binders.h",
+      "sha256": "56aac32cb147ec9a5db30e0fb1073169bb410df9d1f223aed1c18ae2f4321b5c",
+      "symbols": [
+        {
+          "kind": "function_template",
+          "name": "bind_with_state",
+          "namespace": "cmn::gui::dyn",
+          "qualified": "cmn::gui::dyn::bind_with_state",
+          "smoke": "using"
+        },
+        {
+          "kind": "function_template",
+          "name": "bind_event_with_state",
+          "namespace": "cmn::gui::dyn",
+          "qualified": "cmn::gui::dyn::bind_event_with_state",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.gui",
+      "path": "gui/types/Basic.h",
+      "sha256": "0e88ee9da021791e740cd7605aa7e7641253df31761a9898586f4695cdd9ac0f",
+      "symbols": [
+        {
+          "kind": "function",
+          "name": "operator<<",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::operator<<",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "Vertex",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::Vertex",
+          "smoke": "using"
+        },
+        {
+          "kind": "enum",
+          "name": "Style",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::Style",
+          "smoke": "using"
+        },
+        {
+          "kind": "enum",
+          "name": "Align",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::Align",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "Font",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::Font",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.gui",
+      "path": "gui/types/Button.h",
+      "sha256": "ae3ba484f2c76a656e15f1abd858fc2eb9f8f735ff1d9453cdeba45a031fe60c",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "Button",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::Button",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.gui",
+      "path": "gui/types/Checkbox.h",
+      "sha256": "3fccfc79d521fad88a58e3e47a0d3ac126b05d6179729d7914b488afe08b14de",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "Checkbox",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::Checkbox",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.gui",
+      "path": "gui/types/Combobox.h",
+      "sha256": "c82ed99aa60cb70ee048fe909f8a150f0e0f8cad6b391e14bdbd4145c03bb277",
+      "symbols": [
+        {
+          "kind": "alias",
+          "name": "OnSelect_t",
+          "namespace": "cmn::gui::Combobox",
+          "qualified": "cmn::gui::Combobox::OnSelect_t",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "OnSelect_tTag",
+          "namespace": "cmn::gui::Combobox",
+          "qualified": "cmn::gui::Combobox::OnSelect_tTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "LabeledField",
+          "namespace": "cmn::gui::dyn",
+          "qualified": "cmn::gui::dyn::LabeledField",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "Combobox",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::Combobox",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [
+        {
+          "header": "gui/types/Drawable.h",
+          "kind": "group",
+          "line": "41",
+          "name": "cmn::gui::Type::helpers",
+          "reason": "internal_linkage_enum_helpers"
+        },
+        {
+          "header": "gui/types/Drawable.h",
+          "kind": "symbol",
+          "name": "cmn::gui::Handler",
+          "reason": "internal_forward_decl_only"
+        }
+      ],
+      "module": "commons.gui",
+      "path": "gui/types/Drawable.h",
+      "sha256": "c2fdae3a099c6ae14f5cfe1e78f6b1f8932ce83eb861cf14a62791196c904f41",
+      "symbols": [
+        {
+          "kind": "enum_class",
+          "name": "Class",
+          "namespace": "cmn::gui::Type",
+          "qualified": "cmn::gui::Type::Class",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "Base",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::Base",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "SectionInterface",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::SectionInterface",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "DrawableCollection",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::DrawableCollection",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "DrawStructure",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::DrawStructure",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "CacheObject",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::CacheObject",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "Global",
+          "namespace": "cmn::gui::hidden",
+          "qualified": "cmn::gui::hidden::Global",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "TopLeft",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::TopLeft",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "TopRight",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::TopRight",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "BottomRight",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::BottomRight",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "BottomLeft",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::BottomLeft",
+          "smoke": "using"
+        },
+        {
+          "kind": "concept",
+          "name": "_has_origin",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::_has_origin",
+          "reason": "requires_witness_type",
+          "smoke": "excluded"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.gui",
+      "path": "gui/types/Dropdown.h",
+      "sha256": "8e3233e6fa7e6503a92764a669df4aceafa1f48464b8bae9fde40ee0af053de5",
+      "symbols": [
+        {
+          "kind": "struct",
+          "name": "ClosesAfterSelect",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::ClosesAfterSelect",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "Dropdown",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::Dropdown",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [
+        {
+          "header": "gui/types/Entangled.h",
+          "kind": "symbol",
+          "name": "cmn::gui::detail::set",
+          "reason": "requires_expression_parser_artifact"
+        }
+      ],
+      "module": "commons.gui",
+      "path": "gui/types/Entangled.h",
+      "sha256": "33fd3670a9c9721e1e40d9218b1bfe28121aa2e223743ad7c5619fe59b5f9a71",
+      "symbols": [
+        {
+          "kind": "struct",
+          "name": "Margin",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::Margin",
+          "smoke": "using"
+        },
+        {
+          "kind": "concept",
+          "name": "HasSet",
+          "namespace": "cmn::gui::detail",
+          "qualified": "cmn::gui::detail::HasSet",
+          "reason": "requires_witness_type",
+          "smoke": "excluded"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.gui",
+      "path": "gui/types/ErrorElement.h",
+      "sha256": "9c3e14a3b815de30f732f75f76b189081aa790ea5e3e3b2c4faccf846518ead6",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "StaticText",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::StaticText",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "ErrorElement",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::ErrorElement",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.gui",
+      "path": "gui/types/HistOptions.h",
+      "sha256": "562f6460cbb692c9b04f7c420c62bf93a2837e58a7047b967a8a1ddaecb0df1a",
+      "symbols": [
+        {
+          "kind": "enum",
+          "name": "Options",
+          "namespace": "cmn::gui::Hist",
+          "qualified": "cmn::gui::Hist::Options",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "Filter",
+          "namespace": "cmn::gui::Hist",
+          "qualified": "cmn::gui::Hist::Filter",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "Display",
+          "namespace": "cmn::gui::Hist",
+          "qualified": "cmn::gui::Hist::Display",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.gui",
+      "path": "gui/types/Histogram.h",
+      "sha256": "d512e642885a8175ccb313fcf4339a2f38defba5c7edb31116e8b35c8dc4c3f1",
+      "symbols": []
+    },
+    {
+      "excluded": [],
+      "module": "commons.gui",
+      "path": "gui/types/Layout.h",
+      "sha256": "272838d79aa27a5c52580b87a9b031b74f5bc28c4c469ec47f1509860480b301",
+      "symbols": [
+        {
+          "kind": "alias",
+          "name": "MinSize",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::MinSize",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "MinSizeTag",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::MinSizeTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "CellFillInterval",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::CellFillInterval",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "CellFillIntervalTag",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::CellFillIntervalTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "MinCellSize",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::MinCellSize",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "MinCellSizeTag",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::MinCellSizeTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "Layout",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::Layout",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "PlaceinLayout",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::PlaceinLayout",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "HorizontalLayout",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::HorizontalLayout",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "VerticalLayout",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::VerticalLayout",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "GridInfo",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::GridInfo",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "GridLayout",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::GridLayout",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.gui",
+      "path": "gui/types/List.h",
+      "sha256": "1dbe09c8f15f6c854952f5d598aaae62d17ee57e2efc5b251b8ef25786bcf8df",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "List",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::List",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [
+        {
+          "header": "gui/types/ListItemTypes.h",
+          "kind": "symbol",
+          "name": "cmn::gui::TREX_TYPE_EXPORT",
+          "reason": "macro_parser_artifact"
+        }
+      ],
+      "module": "commons.gui",
+      "path": "gui/types/ListItemTypes.h",
+      "sha256": "bcf87de52087c9726ab9dd333ede102e91604f3740e0d8988ac94707900f0243",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "List",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::List",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "Rect",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::Rect",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "Item",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::Item",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "TextItem",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::TextItem",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "DetailItem",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::DetailItem",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "DetailTooltipItem",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::DetailTooltipItem",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.gui",
+      "path": "gui/types/MiscShapes.h",
+      "sha256": "6bb15a45ce9fc8e393088fbab5d8a00bb291ed5613e8811cd9e202230014a114",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "Triangle",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::Triangle",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.gui",
+      "path": "gui/types/PieChart.h",
+      "sha256": "c571af630fe2002436e6f844e415bbd53f31f1e53fc34b510455370625dc37e3",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "PieChart",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::PieChart",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.gui",
+      "path": "gui/types/ScrollableList.h",
+      "sha256": "7294ac16dd82f03f8d1c231615f4576ca7944012f469a38eedf3c0ad8dbed22b",
+      "symbols": [
+        {
+          "kind": "concept",
+          "name": "has_font_function",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::has_font_function",
+          "reason": "requires_witness_type",
+          "smoke": "excluded"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.gui",
+      "path": "gui/types/Serializable.h",
+      "sha256": "4371ccceaed1024a0915d68cbfef3fa8c8ed54174a1ed86a8d65109ad34de6fc",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "Serializable",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::Serializable",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "operator<<",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::operator<<",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.gui",
+      "path": "gui/types/SettingsTooltip.h",
+      "sha256": "61353666bad382643b84743b6da52cbb839a5a9134d5ef20a82bf20f081e2d28",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "SettingsTooltip",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::SettingsTooltip",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.gui",
+      "path": "gui/types/SingletonObject.h",
+      "sha256": "56e6b3769fd11c40b228e49709d199ab6942c5bb06b387b5267ac718591812eb",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "Section",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::Section",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "SingletonObject",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::SingletonObject",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.gui",
+      "path": "gui/types/StaticText.h",
+      "sha256": "415dd1e33733fb2526664e06a3dc7a0bb93880a17c845e854f268844e51abdd4",
+      "symbols": [
+        {
+          "kind": "alias",
+          "name": "FadeOut_t",
+          "namespace": "cmn::gui::StaticText",
+          "qualified": "cmn::gui::StaticText::FadeOut_t",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "FadeOut_tTag",
+          "namespace": "cmn::gui::StaticText",
+          "qualified": "cmn::gui::StaticText::FadeOut_tTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "Shadow_t",
+          "namespace": "cmn::gui::StaticText",
+          "qualified": "cmn::gui::StaticText::Shadow_t",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "Shadow_tTag",
+          "namespace": "cmn::gui::StaticText",
+          "qualified": "cmn::gui::StaticText::Shadow_tTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "calculate_bounds",
+          "namespace": "cmn::utils",
+          "qualified": "cmn::utils::calculate_bounds",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "calculate_width",
+          "namespace": "cmn::utils",
+          "qualified": "cmn::utils::calculate_width",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "find_splitting_point",
+          "namespace": "cmn::utils",
+          "qualified": "cmn::utils::find_splitting_point",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "TRange",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::TRange",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "StaticText",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::StaticText",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.gui",
+      "path": "gui/types/Table.h",
+      "sha256": "714a4f7d99c12fb12b0348d3c153eed5c53549334a4d2d00fb7961e87ed31e99",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "Table",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::Table",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.gui",
+      "path": "gui/types/Textfield.h",
+      "sha256": "832720fa99e80449268545ae7a2fbccffdd3de4f098e6f3cdd99c2f6d48ecc1d",
+      "symbols": [
+        {
+          "kind": "alias",
+          "name": "ClearText_t",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::ClearText_t",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "ClearText_tTag",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::ClearText_tTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "CheckText_t",
+          "namespace": "cmn::gui::Textfield",
+          "qualified": "cmn::gui::Textfield::CheckText_t",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "CheckText_tTag",
+          "namespace": "cmn::gui::Textfield",
+          "qualified": "cmn::gui::Textfield::CheckText_tTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "OnEnter_t",
+          "namespace": "cmn::gui::Textfield",
+          "qualified": "cmn::gui::Textfield::OnEnter_t",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "OnEnter_tTag",
+          "namespace": "cmn::gui::Textfield",
+          "qualified": "cmn::gui::Textfield::OnEnter_tTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "OnTextChanged_t",
+          "namespace": "cmn::gui::Textfield",
+          "qualified": "cmn::gui::Textfield::OnTextChanged_t",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "OnTextChanged_tTag",
+          "namespace": "cmn::gui::Textfield",
+          "qualified": "cmn::gui::Textfield::OnTextChanged_tTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "OnTab_t",
+          "namespace": "cmn::gui::Textfield",
+          "qualified": "cmn::gui::Textfield::OnTab_t",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "OnTab_tTag",
+          "namespace": "cmn::gui::Textfield",
+          "qualified": "cmn::gui::Textfield::OnTab_tTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "OnClearText_t",
+          "namespace": "cmn::gui::Textfield",
+          "qualified": "cmn::gui::Textfield::OnClearText_t",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "OnClearText_tTag",
+          "namespace": "cmn::gui::Textfield",
+          "qualified": "cmn::gui::Textfield::OnClearText_tTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "class_template",
+          "name": "NumericTextfield",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::NumericTextfield",
+          "smoke": "using"
+        },
+        {
+          "kind": "class_template",
+          "name": "MetaTextfield",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::MetaTextfield",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "StaticText",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::StaticText",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "Textfield",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::Textfield",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "set_clipboard",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::set_clipboard",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "get_clipboard",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::get_clipboard",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.gui",
+      "path": "gui/types/Tooltip.h",
+      "sha256": "08ae5a2b000836883fcd2b9259f27b853a6b6a15fd3743a185acfe31825d8bd3",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "Tooltip",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::Tooltip",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.http",
+      "path": "http/httpd.h",
+      "sha256": "e6c1076c5c26bc01dbb140dfa1f254c72d2a2280a23bf8e975214be39807e0f9",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "Httpd",
+          "namespace": "cmn",
+          "qualified": "cmn::Httpd",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [
+        {
+          "header": "modules/commons.exports.hpp",
+          "kind": "header",
+          "name": "modules/commons.exports.hpp",
+          "reason": "aggregator_header"
+        }
+      ],
+      "module": "commons.types",
+      "path": "modules/commons.exports.hpp",
+      "sha256": "33dada99587f92b18f9b640321f2c6bb154a8fd3742b673f747d04c7d57fe293",
+      "symbols": []
+    }
+  ],
+  "macros": [
+    {
+      "header": "misc/EnumClass.h",
+      "kind": "macro",
+      "module": "commons.misc",
+      "name": "ENUM_CLASS",
+      "smoke": "macro_section"
+    },
+    {
+      "header": "misc/EnumClass.h",
+      "kind": "macro",
+      "module": "commons.misc",
+      "name": "ENUM_CLASS_HAS_DOCS",
+      "smoke": "macro_section"
+    },
+    {
+      "header": "misc/EnumClass.h",
+      "kind": "macro",
+      "module": "commons.misc",
+      "name": "ENUM_CLASS_DOCS",
+      "smoke": "macro_section"
+    },
+    {
+      "header": "misc/create_struct.h",
+      "kind": "macro",
+      "module": "commons.misc",
+      "name": "CREATE_STRUCT",
+      "smoke": "macro_section"
+    },
+    {
+      "header": "gui/ControlsAttributes.h",
+      "kind": "macro",
+      "module": "commons.gui",
+      "name": "ATTRIBUTE_ALIAS",
+      "smoke": "macro_section"
+    },
+    {
+      "header": "gui/ControlsAttributes.h",
+      "kind": "macro",
+      "module": "commons.gui",
+      "name": "NUMBER_ALIAS",
+      "smoke": "macro_section"
+    }
+  ],
+  "source": "COMMONS_PUBLIC_HEADERS",
+  "summary": {
+    "excluded": 39,
+    "headers": 162,
+    "symbols": 686
+  },
+  "version": 1
+}
