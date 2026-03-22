@@ -57,10 +57,10 @@ if(WIN32)
         trex_data
         trex_core
         pv
-        commons
+        Commons::All
     )
 else()
-    target_link_libraries(tracker_python PUBLIC trex_detect trex_tracking trex_data trex_core pv commons)
+    target_link_libraries(tracker_python PUBLIC trex_detect trex_tracking trex_data trex_core pv Commons::All)
 endif()
 
 if(NOT pybind11_external)
@@ -71,7 +71,7 @@ else()
 endif()
 
 add_executable(trex_check_python check_python.cpp)
-target_link_libraries(trex_check_python PUBLIC commons)
+target_link_libraries(trex_check_python PUBLIC Commons::All)
 
 if(NOT pybind11_external)
     target_link_libraries(trex_check_python PUBLIC pybind11::pybind11 pybind11::embed pybind11::module)

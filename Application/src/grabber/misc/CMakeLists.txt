@@ -15,7 +15,7 @@ endif()
 #target_precompile_headers(framegrabber_misc REUSE_FROM commons)
 
 target_link_libraries(framegrabber_misc
-	PRIVATE commons
+	PRIVATE Commons::Video
 )
 
 if(APPLE AND PYLON_FOUND AND WITH_PYLON)

@@ -68,14 +68,6 @@ set_target_properties(pv
 
 add_subdirectory(lzo)
 target_link_libraries(pv PUBLIC lzo)
-target_include_directories(pv PUBLIC ${COMMONS_PUBLIC_INCLUDE_DIRS})
-
-if(COMMONS_SPLIT_SHARED_LIBS AND TREX_ENABLE_SHARED_INTERNAL_LIBS)
-    target_link_libraries(pv PUBLIC commons)
-elseif(COMMONS_ENABLE_MODULES)
-    target_link_libraries(pv PUBLIC commons)
-else()
-    target_link_libraries(pv PUBLIC commons)
-endif()
+target_link_libraries(pv PUBLIC Commons::Video)
 
 #target_precompile_headers(pv REUSE_FROM commons)

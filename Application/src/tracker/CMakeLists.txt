@@ -87,12 +87,8 @@ target_link_libraries(trex_core PUBLIC
     framegrabber_misc
     pv
     lzo
+    Commons::Gui
 )
-if(COMMONS_SPLIT_SHARED_LIBS AND TREX_ENABLE_SHARED_INTERNAL_LIBS AND NOT COMMONS_ENABLE_MODULES)
-    target_link_libraries(trex_core PUBLIC commons_gui)
-else()
-    target_link_libraries(trex_core PUBLIC commons)
-endif()
 
 trex_add_semantic_library(trex_data
     TYPE ${TREX_INTERNAL_LIBRARY_TYPE}
@@ -597,7 +593,7 @@ endif()
 
 if(APPLE)
     add_executable(trex_starter trex.cpp)
-    target_link_libraries(trex_starter PRIVATE commons)
+    target_link_libraries(trex_starter PRIVATE Commons::All)
     set_target_properties(trex_starter PROPERTIES OUTPUT_NAME trex)
     set(targets ${targets} trex_starter)
 
