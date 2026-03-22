@@ -69,12 +69,21 @@ trex_add_semantic_library(trex_core
     MODULE_INTERFACES ${TREX_CORE_MODULE_INTERFACE_UNITS}
 )
 trex_harden_internal_library(trex_core)
-target_link_libraries(trex_core PUBLIC
-    framegrabber_misc
-    pv
-    commons
-    lzo
-)
+if(COMMONS_SPLIT_SHARED_LIBS AND TREX_ENABLE_SHARED_INTERNAL_LIBS)
+    target_link_libraries(trex_core PUBLIC
+        framegrabber_misc
+        pv
+        commons_gui
+        lzo
+    )
+else()
+    target_link_libraries(trex_core PUBLIC
+        framegrabber_misc
+        pv
+        commons
+        lzo
+    )
+endif()
 
 trex_add_semantic_library(trex_data
     TYPE ${TREX_INTERNAL_LIBRARY_TYPE}
@@ -112,7 +121,6 @@ target_link_libraries(trex_tracking PUBLIC
     trex_data
     trex_core
 )
-add_dependencies(trex_tracking commons)
 if(WITH_HTTPD)
     add_dependencies(trex_tracking LibMicroHttpd)
 endif()
@@ -134,7 +142,6 @@ target_link_libraries(trex_ml PUBLIC
 target_link_libraries(trex_ml PRIVATE
     tracker_python
 )
-add_dependencies(trex_ml commons)
 
 trex_add_semantic_library(trex_ui
     TYPE ${TREX_INTERNAL_LIBRARY_TYPE}
@@ -242,7 +249,6 @@ if(NOT WIN32 AND TREX_WITH_TESTS)
         commons
     )
     #target_precompile_headers(test_imgui REUSE_FROM commons)
-    add_dependencies(test_imgui commons) #Commons::LibZIP Commons::GLFW Commons::OpenCV)
 endif()
 
 #add_executable(properties properties.cpp

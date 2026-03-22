@@ -54,3 +54,5 @@ Application/tmp-modules-osx-tests/
 Application/tmp-modules-osx-compilecheck/
 Application/tmp-modules-osx-compilecheck-gitfix/
 Application/tmp-modules-osx-compilecheck-reuseopencv/
+Application/tmp-shared-split-osx-tests-nolto/
+tmp-shared-split-osx-tests-nolto/

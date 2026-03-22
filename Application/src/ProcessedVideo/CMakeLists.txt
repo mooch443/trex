@@ -67,7 +67,10 @@ set_target_properties(pv
 )
 
 add_subdirectory(lzo)
-target_link_libraries(pv PUBLIC lzo cnpy commons)
-add_dependencies(pv commons)
+if(COMMONS_SPLIT_SHARED_LIBS AND TREX_ENABLE_SHARED_INTERNAL_LIBS)
+    target_link_libraries(pv PUBLIC lzo cnpy commons_video)
+else()
+    target_link_libraries(pv PUBLIC lzo cnpy commons)
+endif()
 
 #target_precompile_headers(pv REUSE_FROM commons)
