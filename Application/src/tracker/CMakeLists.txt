@@ -69,20 +69,15 @@ trex_add_semantic_library(trex_core
     MODULE_INTERFACES ${TREX_CORE_MODULE_INTERFACE_UNITS}
 )
 trex_harden_internal_library(trex_core)
-if(COMMONS_SPLIT_SHARED_LIBS AND TREX_ENABLE_SHARED_INTERNAL_LIBS)
-    target_link_libraries(trex_core PUBLIC
-        framegrabber_misc
-        pv
-        commons_gui
-        lzo
-    )
+target_link_libraries(trex_core PUBLIC
+    framegrabber_misc
+    pv
+    lzo
+)
+if(COMMONS_SPLIT_SHARED_LIBS AND TREX_ENABLE_SHARED_INTERNAL_LIBS AND NOT COMMONS_ENABLE_MODULES)
+    target_link_libraries(trex_core PUBLIC commons_gui)
 else()
-    target_link_libraries(trex_core PUBLIC
-        framegrabber_misc
-        pv
-        commons
-        lzo
-    )
+    target_link_libraries(trex_core PUBLIC commons)
 endif()
 
 trex_add_semantic_library(trex_data
