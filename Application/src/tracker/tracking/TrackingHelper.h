@@ -2,9 +2,9 @@
 
 #include <tracking/Individual.h>
 #include <tracking/Stuffs.h>
-#include <misc/PVBlob.h>
-#include <tracker/misc/default_config.h>
-#include <misc/TrackingSettings.h>
+#include <processing/PVBlob.h>
+#include <core/default_config.h>
+#include <core/TrackingSettings.h>
 #include <tracking/IndividualManager.h>
 
 namespace track {

@@ -1,13 +1,13 @@
-#include <types.h>
+#include <misc/types.h>
 #include <gui/IMGUIBase.h>
-#include <tracking/MotionRecord.h>
+#include <data/MotionRecord.h>
 #include <tracking/Tracker.h>
-#include <tracker/misc/default_config.h>
-#include <gui/GUICache.h>
+#include <core/default_config.h>
+#include <ui/GUICache.h>
 #include <misc/CommandLine.h>
 #include <gui/Timeline.h>
-#include <gui/DrawFish.h>
-#include <gui/InfoCard.h>
+#include <ui/DrawFish.h>
+#include <ui/InfoCard.h>
 #include <video/VideoSource.h>
 #include <file/DataLocation.h>
 

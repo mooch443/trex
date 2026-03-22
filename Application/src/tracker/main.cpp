@@ -22,14 +22,14 @@ static void (*windowsEarlyEnvSetup)(void) = []() {
 #include <video/VideoSource.h>
 #include <pv.h>
 #include <python/GPURecognition.h>
-#include <misc/PythonWrapper.h>
+#include <python/PythonWrapper.h>
 #include <misc/CommandLine.h>
 #include <file/DataLocation.h>
-#include <misc/default_config.h>
+#include <core/default_config.h>
 #include <tracking/Tracker.h>
 #include <tracking/IndividualManager.h>
-#include <misc/PixelTree.h>
-#include <gui/GUICache.h>
+#include <processing/PixelTree.h>
+#include <ui/GUICache.h>
 #include <gui/types/Dropdown.h>
 #include <gui/types/Textfield.h>
 #include <gui/types/List.h>
@@ -39,23 +39,24 @@ static void (*windowsEarlyEnvSetup)(void) = []() {
 #include <grabber/misc/Webcam.h>
 #include <opencv2/core/utils/logger.hpp>
 
-#include <misc/TaskPipeline.h>
-#include <gui/Scene.h>
+#include <core/TaskPipeline.h>
+#include <ui/Scene.h>
 
-#include <misc/AbstractVideoSource.h>
-#include <misc/VideoVideoSource.h>
-#include <misc/WebcamVideoSource.h>
+#include <core/AbstractVideoSource.h>
+#include <core/VideoVideoSource.h>
+#include <core/WebcamVideoSource.h>
 
-#include <gui/LoadingScene.h>
-#include <gui/ConvertScene.h>
-#include <gui/StartingScene.h>
-#include <gui/SettingsScene.h>
-#include <gui/TrackingSettingsScene.h>
-#include <gui/TrackingScene.h>
-#include <gui/AnnotationScene.h>
-#include <gui/TrackingState.h>
-#include <gui/WorkProgress.h>
-#include <tracking/Segmenter.h>
+#include <ui/LoadingScene.h>
+#include <ui/ConvertScene.h>
+#include <ui/StartingScene.h>
+#include <ui/SettingsScene.h>
+#include <ui/TrackingSettingsScene.h>
+#include <ui/TrackingScene.h>
+#include <ui/AnnotationScene.h>
+#include <ui/TrackingState.h>
+#include <ui/WorkProgress.h>
+#include <ui/Accumulation.h>
+#include <ui/Segmenter.h>
 #include <tracking/OutputLibrary.h>
 #include <tracking/Output.h>
 
@@ -64,18 +65,18 @@ static void (*windowsEarlyEnvSetup)(void) = []() {
 //#include <python/Yolo7ObjectDetection.h>
 
 #include <file/PathArray.h>
-#include <misc/SettingsInitializer.h>
+#include <ui/SettingsInitializer.h>
 
 #include <signal.h>
 #include <misc/default_settings.h>
 
 #if !COMMONS_NO_PYTHON
-#include <gui/CheckUpdates.h>
+#include <ui/CheckUpdates.h>
 #endif
 
-#include <gui/GuiSettings.h>
-#include <gui/Terminal.h>
-#include <gui/CalibrateScene.h>
+#include <ui/GuiSettings.h>
+#include <ui/Terminal.h>
+#include <ui/CalibrateScene.h>
 
 using namespace gui;
 
@@ -901,6 +902,7 @@ int main(int argc, char**argv) {
                         f.get();
 
                     Detection::deinit();
+                    Accumulation::on_terminate();
                     WorkProgress::stop();
                     
                 } catch(const std::exception& e) {
@@ -933,6 +935,7 @@ int main(int argc, char**argv) {
             f.get();
 
         Detection::deinit();
+        Accumulation::on_terminate();
         py::deinit();
     } catch(const std::exception& e) {
         FormatExcept("Unknown deinit() error, quitting normally anyways. ", e.what());
@@ -948,4 +951,3 @@ int main(int argc, char**argv) {
     Print("Returning 0.");
     return 0;
 }
-

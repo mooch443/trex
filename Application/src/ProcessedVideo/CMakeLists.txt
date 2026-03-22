@@ -21,10 +21,9 @@ elseif(WIN32)
 endif()
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "^(Apple)?Clang$")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fvisibility=hidden")
+  #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fvisibility=hidden")
 endif()
 
-include_directories(commons/common)
 include_directories(lzo)
 
 message(STATUS "CXX FLAGS: ${CMAKE_CXX_FLAGS_RELEASE}")
@@ -67,7 +66,7 @@ set_target_properties(pv
 )
 
 add_subdirectory(lzo)
-target_link_libraries(pv PUBLIC lzo cnpy commons)
-add_dependencies(pv commons)
+target_link_libraries(pv PUBLIC lzo)
+target_link_libraries(pv PUBLIC Commons::Video)
 
 #target_precompile_headers(pv REUSE_FROM commons)

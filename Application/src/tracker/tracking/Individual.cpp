@@ -12,16 +12,15 @@
 #include <misc/cnpy_wrapper.h>
 #include <misc/CircularGraph.h>
 
-#include <misc/SoftException.h>
+#include <core/SoftException.h>
 #include <gui/Graph.h>
 #include <tracking/CategorizeDatastore.h>
 #include <file/DataLocation.h>
 #include <tracking/TrackingHelper.h>
 #include <tracking/IndividualManager.h>
-#include <misc/FOI.h>
+#include <core/FOI.h>
 
 #if !COMMONS_NO_PYTHON
-#include <misc/PythonWrapper.h>
 #include <tracking/RecTask.h>
 #endif
 
@@ -1562,140 +1561,9 @@ T static_median(RandAccessIter begin, RandAccessIter end) {
   }
 }
 
-CacheHints::CacheHints(size_t size) {
-    clear(size);
-}
-
 template<class T>
 auto insert_at(std::vector<T>& vector, T&& element) {
     return vector.insert(std::upper_bound(vector.begin(), vector.end(), element), std::move(element));
-}
-
-struct CompareByFrame {
-    constexpr bool operator()(const FrameProperties* A, const FrameProperties* B) {
-        return (!A && B) || (A && B && A->frame() < B->frame());
-    }
-    constexpr bool operator()(const FrameProperties* A, const Frame_t& B) {
-        return !A || A->frame() < B;
-    }
-    constexpr bool operator()(const Frame_t& A, const FrameProperties* B) {
-        return B && A < B->frame();
-    }
-};
-
-void CacheHints::remove_after(Frame_t index) {
-    auto here = std::lower_bound(_last_second.begin(), _last_second.end(), index, CompareByFrame{});
-    if(here == _last_second.end())
-        return;
-    std::fill(here, _last_second.end(), nullptr);
-    std::rotate(_last_second.begin(), here, _last_second.end());
-}
-
-void CacheHints::push(Frame_t index, const FrameProperties* ptr) {
-    auto here = std::upper_bound(_last_second.begin(), _last_second.end(), index, CompareByFrame{});
-    if (_last_second.size() > 1) {
-        if (here == _last_second.end() || !*here || (*here)->frame() < index) {
-            // have to insert past the end -> rotate
-            here = std::rotate(_last_second.begin(), ++_last_second.begin(), _last_second.end());
-
-        }
-        else {
-            if (here == _last_second.begin()) {
-                if (*here != nullptr)
-                    return; // the vector is already full and this is older (so dont add it)
-            }
-            else if (*(here - 1) != nullptr) {
-                // rotate everything thats right of our element to the end
-                here = std::rotate(_last_second.begin(), ++_last_second.begin(), here + 1);
-            }
-            else
-                --here;
-        }
-
-        *here = ptr;
-    }
-    else if (!_last_second.empty())
-        _last_second.back() = ptr;
-    else
-        _last_second.push_back(ptr);
-}
-
-/*void CacheHints::push_front(Frame_t index, const FrameProperties* ptr) {
-    //assert(current == -1 || current - (long_t)_last_second.size() == index + 1);
-    assert(!ptr || ptr->frame == index);
-    assert(!_last_second.empty());
-    
-    if(_last_second.front() == nullptr) {
-        auto front = std::upper_bound(_last_second.begin(), _last_second.end(), (const track::FrameProperties*)0);
-        assert(front != _last_second.begin());
-        --front;
-        
-        assert(front != _last_second.end());
-        *front = ptr;
-        
-    } else {
-        --current;
-        
-        if(_last_second.size() > 1)
-            std::rotate(_last_second.rbegin(), ++_last_second.rbegin(), _last_second.rend());
-        
-        _last_second.front() = ptr;
-    }
-    
-    if(_last_second.back())
-        current = _last_second.back()->frame;
-    else current.invalidate();
-}*/
-
-size_t CacheHints::size() const {
-    return _last_second.size();
-}
-
-bool CacheHints::full() const {
-    return _last_second.empty() || (_last_second.front() != nullptr && _last_second.back() != nullptr);
-}
-
-void CacheHints::clear(size_t size) {
-    const uint32_t frame_rate = min(1000u, FAST_SETTING(frame_rate));//SETTING(frame_rate).value<uint32_t>();
-    if (size == 0 && (frame_rate < 0 
-        || frame_rate == std::numeric_limits<uint32_t>::max() 
-        || frame_rate == uint32_t(-1))) 
-    {
-#ifndef NDEBUG
-        FormatExcept("Size=", size," frame_rate=", FAST_SETTING(frame_rate)," ", std::numeric_limits<uint32_t>::max(), " local=", READ_SETTING_WITH_DEFAULT(frame_rate, uint32_t(0)));
-#endif
-        _last_second.resize(0);
-    } else {
-        //FormatExcept("Size=", size, " frame_rate=", FAST_SETTING(frame_rate), " ", std::numeric_limits<uint32_t>::max(), " local=", frame_rate);
-        _last_second.resize(size > 0 ? size : frame_rate);
-    }
-    std::fill(_last_second.begin(), _last_second.end(), nullptr);
-    current.invalidate();
-}
-
-template<class T, class U>
-typename std::vector<T>::const_iterator find_in_sorted(const std::vector<T>& vector, const U& v) {
-    auto it = std::lower_bound(vector.begin(),
-                               vector.end(),
-                               v,
-                [](auto& l, auto& r){ return !l || l->frame() < r; });
-    return it == vector.end() || (*it)->frame() == v ? it : vector.end();
-}
-
-const FrameProperties* CacheHints::properties(Frame_t index) const {
-    if(!index.valid() || _last_second.empty() || !_last_second.back() || index > _last_second.back()->frame()) //|| (idx = size_t((current - index).get())) >= size())
-        return nullptr;
-    
-    if(_last_second.back()->frame() == index)
-        return _last_second.back();
-    
-    auto it = find_in_sorted(_last_second, index);
-    if(it == _last_second.end())
-        return nullptr;
-    else if((*it)->frame() == index)
-        return *it;
-    
-    return nullptr;
 }
 
 std::expected<IndividualCache, const char*> Individual::cache_for_frame(const FrameProperties* previous, Frame_t frameIndex, double time, const CacheHints* hints) const {

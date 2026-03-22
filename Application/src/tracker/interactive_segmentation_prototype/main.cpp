@@ -1,4 +1,5 @@
 #include <commons.pc.h>
+#include <file/PathArray.h>
 
 #ifndef WIN32
 __attribute__((constructor))
@@ -17,23 +18,25 @@ static void (*windowsEarlyEnvSetup)(void) = []() {
 #endif
 
 #include <misc/CommandLine.h>
-#include <misc/PythonWrapper.h>
+#include <python/PythonWrapper.h>
 #include <tracking/Tracker.h>
-#include <tracking/Segmenter.h>
+#include <ui/Segmenter.h>
 #include <pv.h>
 #include <GitSHA1.h>
-#include <gui/Scene.h>
+#include <ui/Scene.h>
 #include <gui/SFLoop.h>
 #include <gui/DrawStructure.h>
 #include <file/DataLocation.h>
 #include <gui/IMGUIBase.h>
 #include <misc/GlobalSettings.h>
 #include <gui/DynamicGUI.h>
-#include <gui/Scene.h>
-#include <gui/AnnotationScene.h>
-#include <gui/Bowl.h>
+#include <ui/Scene.h>
+#include <ui/AnnotationScene.h>
+#include <ui/Bowl.h>
 #include "LiveSegmentation.h"
 #include <python/GPURecognition.h>
+
+using namespace cmn;
 
 int main(int argc, char** argv) {
     GlobalSettings::write([](Configuration& config){
@@ -48,6 +51,7 @@ int main(int argc, char** argv) {
     cmd.load_settings();
 
     SETTING(app_name) = std::string("TRex");
+    SETTING(detect_sam3_prompt) = std::string("floor");
     
     Print("interactive_segmentation_prototype",
           "git:", std::string_view(g_GIT_DESCRIBE_TAG),

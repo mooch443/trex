@@ -1,10 +1,188 @@
-add_subdirectory(gui)
+include(${CMAKE_CURRENT_SOURCE_DIR}/TrackerSources.cmake)
+
+if(TREX_ENABLE_SHARED_INTERNAL_LIBS)
+    set(TREX_INTERNAL_LIBRARY_TYPE SHARED)
+else()
+    set(TREX_INTERNAL_LIBRARY_TYPE STATIC)
+endif()
+
+function(trex_harden_internal_library target)
+    if(APPLE AND TREX_ENABLE_SHARED_INTERNAL_LIBS)
+        set_target_properties(${target} PROPERTIES
+            CXX_VISIBILITY_PRESET default
+            C_VISIBILITY_PRESET default
+            VISIBILITY_INLINES_HIDDEN OFF
+        )
+        target_compile_options(${target} PRIVATE -fvisibility=default)
+        target_link_options(${target} PRIVATE "-Wl,-undefined,error")
+    endif()
+endfunction()
+
+function(trex_add_semantic_library target)
+    set(options)
+    set(one_value_args TYPE)
+    set(multi_value_args SOURCES PUBLIC_HEADERS PRIVATE_HEADERS MODULE_INTERFACES)
+    cmake_parse_arguments(TREX_LIB "${options}" "${one_value_args}" "${multi_value_args}" ${ARGN})
+
+    set(_trex_lib_type ${TREX_LIB_TYPE})
+    if(NOT _trex_lib_type)
+        set(_trex_lib_type STATIC)
+    endif()
+
+    add_library(${target} ${_trex_lib_type}
+        ${TREX_LIB_SOURCES}
+        ${TREX_LIB_PUBLIC_HEADERS}
+        ${TREX_LIB_PRIVATE_HEADERS}
+    )
+
+    if(TREX_ENABLE_MODULES AND TREX_LIB_MODULE_INTERFACES)
+        target_sources(${target}
+            PUBLIC
+                FILE_SET ${target}_modules TYPE CXX_MODULES
+                BASE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}
+                FILES ${TREX_LIB_MODULE_INTERFACES}
+        )
+    endif()
+
+    if(_trex_lib_type STREQUAL "SHARED")
+        if(WIN32)
+            target_compile_definitions(${target}
+                PRIVATE "TREX_EXPORT=__declspec(dllexport)" "TREX_TYPE_EXPORT=__declspec(dllexport)"
+                INTERFACE "TREX_EXPORT=" "TREX_TYPE_EXPORT="
+            )
+        else()
+            target_compile_definitions(${target}
+                PRIVATE "TREX_EXPORT=__attribute__((visibility(\"default\")))" "TREX_TYPE_EXPORT=__attribute__((visibility(\"default\"),type_visibility(\"default\")))"
+                INTERFACE "TREX_EXPORT=" "TREX_TYPE_EXPORT="
+            )
+        endif()
+    else()
+        # Keep TREX export macros local for static libs so they do not override
+        # explicit dllexport on downstream shared targets (e.g. tracker_python).
+        target_compile_definitions(${target} PRIVATE "TREX_EXPORT=" "TREX_TYPE_EXPORT=")
+    endif()
+
+    target_include_directories(${target} PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+
+    if(WIN32)
+        target_compile_options(${target} PRIVATE /bigobj)
+    endif()
+
+    if(WITH_FFMPEG)
+        target_compile_definitions(${target} PUBLIC WITH_FFMPEG=true)
+    endif()
+endfunction()
+
+trex_add_semantic_library(trex_core
+    TYPE ${TREX_INTERNAL_LIBRARY_TYPE}
+    SOURCES ${TREX_CORE_SOURCES} "${CMAKE_CURRENT_BINARY_DIR}/../GitSHA1.cpp"
+    PUBLIC_HEADERS ${TREX_CORE_PUBLIC_HEADERS}
+    PRIVATE_HEADERS ${TREX_CORE_PRIVATE_HEADERS}
+    MODULE_INTERFACES ${TREX_CORE_MODULE_INTERFACE_UNITS}
+)
+trex_harden_internal_library(trex_core)
+target_link_libraries(trex_core PUBLIC
+    framegrabber_misc
+    pv
+    lzo
+    Commons::Gui
+)
+
+trex_add_semantic_library(trex_data
+    TYPE ${TREX_INTERNAL_LIBRARY_TYPE}
+    SOURCES ${TREX_DATA_SOURCES}
+    PUBLIC_HEADERS ${TREX_DATA_PUBLIC_HEADERS}
+    PRIVATE_HEADERS ${TREX_DATA_PRIVATE_HEADERS}
+    MODULE_INTERFACES ${TREX_DATA_MODULE_INTERFACE_UNITS}
+)
+trex_harden_internal_library(trex_data)
+target_link_libraries(trex_data PUBLIC trex_core)
+
+trex_add_semantic_library(trex_detect
+    TYPE ${TREX_INTERNAL_LIBRARY_TYPE}
+    SOURCES ${TREX_DETECT_SOURCES}
+    PUBLIC_HEADERS ${TREX_DETECT_PUBLIC_HEADERS}
+    PRIVATE_HEADERS ${TREX_DETECT_PRIVATE_HEADERS}
+    MODULE_INTERFACES ${TREX_DETECT_MODULE_INTERFACE_UNITS}
+)
+trex_harden_internal_library(trex_detect)
+target_link_libraries(trex_detect PUBLIC
+    trex_data
+    trex_core
+)
+
+trex_add_semantic_library(trex_tracking
+    TYPE ${TREX_INTERNAL_LIBRARY_TYPE}
+    SOURCES ${TREX_TRACKING_SOURCES}
+    PUBLIC_HEADERS ${TREX_TRACKING_PUBLIC_HEADERS}
+    PRIVATE_HEADERS ${TREX_TRACKING_PRIVATE_HEADERS}
+    MODULE_INTERFACES ${TREX_TRACKING_MODULE_INTERFACE_UNITS}
+)
+trex_harden_internal_library(trex_tracking)
+target_link_libraries(trex_tracking PUBLIC
+    trex_detect
+    trex_data
+    trex_core
+)
+if(WITH_HTTPD)
+    add_dependencies(trex_tracking LibMicroHttpd)
+endif()
+
+trex_add_semantic_library(trex_ml
+    TYPE ${TREX_INTERNAL_LIBRARY_TYPE}
+    SOURCES ${TREX_ML_SOURCES}
+    PUBLIC_HEADERS ${TREX_ML_PUBLIC_HEADERS}
+    PRIVATE_HEADERS ${TREX_ML_PRIVATE_HEADERS}
+    MODULE_INTERFACES ${TREX_ML_MODULE_INTERFACE_UNITS}
+)
+trex_harden_internal_library(trex_ml)
+target_link_libraries(trex_ml PUBLIC
+    trex_tracking
+    trex_detect
+    trex_data
+    trex_core
+)
+target_link_libraries(trex_ml PRIVATE
+    tracker_python
+)
+
+trex_add_semantic_library(trex_ui
+    TYPE ${TREX_INTERNAL_LIBRARY_TYPE}
+    SOURCES ${TREX_UI_SOURCES}
+    PUBLIC_HEADERS ${TREX_UI_PUBLIC_HEADERS}
+    PRIVATE_HEADERS ${TREX_UI_PRIVATE_HEADERS}
+    MODULE_INTERFACES ${TREX_UI_MODULE_INTERFACE_UNITS}
+)
+trex_harden_internal_library(trex_ui)
+target_link_libraries(trex_ui PUBLIC
+    trex_ml
+    trex_detect
+    trex_tracking
+    trex_data
+    trex_core
+    tracker_python
+)
+if(CMAKE_COMPILER_IS_GNUCXX)
+    target_link_libraries(trex_ui PUBLIC atomic)
+endif()
+
+add_library(tracker_misc INTERFACE)
+target_link_libraries(tracker_misc INTERFACE trex_core trex_data)
+
+add_library(tracker_tracking INTERFACE)
+target_link_libraries(tracker_tracking INTERFACE trex_tracking trex_detect trex_data trex_core)
+
+add_library(tracker_ml INTERFACE)
+target_link_libraries(tracker_ml INTERFACE trex_ml trex_tracking trex_detect trex_data trex_core)
+
+add_library(tracker_gui INTERFACE)
+target_link_libraries(tracker_gui INTERFACE trex_ui trex_ml trex_tracking trex_detect trex_data trex_core)
+
 if(NOT COMMONS_NO_PYTHON)
     add_subdirectory(python)
 endif()
-add_subdirectory(tracking)
-add_subdirectory(misc)
-add_subdirectory(ml)
 
 include_directories(${CMAKE_SOURCE_DIR}/src/ProcessedVideo)
 
@@ -73,10 +251,9 @@ if(NOT WIN32 AND TREX_WITH_TESTS)
     target_link_libraries(test_imgui PUBLIC
         framegrabber_misc
         tracker_tracking
-        commons
+        Commons::Gui
     )
     #target_precompile_headers(test_imgui REUSE_FROM commons)
-    add_dependencies(test_imgui commons) #Commons::LibZIP Commons::GLFW Commons::OpenCV)
 endif()
 
 #add_executable(properties properties.cpp
@@ -128,6 +305,30 @@ target_link_libraries(${TREXA_EXEC_NAME} PUBLIC
 )
 
 set(TREX_APP_TARGETS ${TREXA_EXEC_NAME})
+set(TREX_TOOL_TARGETS)
+
+add_executable(pvinfo
+    pvinfo.cpp
+    pvinfo_merge.cpp
+    pvinfo_merge.h
+    "${CMAKE_CURRENT_BINARY_DIR}/../GitSHA1.cpp"
+    ../GitSHA1.h
+)
+target_link_libraries(pvinfo PRIVATE
+    tracker_tracking
+    tracker_gui
+    tracker_misc
+    framegrabber_misc
+    Commons::All
+    pv
+)
+if(TARGET tracker_python)
+    target_link_libraries(pvinfo PRIVATE tracker_python)
+    if(WIN32)
+        set_target_properties(pvinfo PROPERTIES LINK_FLAGS "/DELAYLOAD:tracker_python.dll /DELAYLOAD:tracker_python-d.dll")
+    endif()
+endif()
+list(APPEND TREX_TOOL_TARGETS pvinfo)
 
 if(TREX_ENABLE_PROTOTYPES)
     set(INTERACTIVE_SEGMENTATION_EXEC_NAME interactive_segmentation_prototype)
@@ -159,7 +360,7 @@ if(TREX_ENABLE_PROTOTYPES)
         tracker_python
         framegrabber_misc
         pv
-        commons
+        Commons::All
     )
     list(APPEND TREX_APP_TARGETS ${INTERACTIVE_SEGMENTATION_EXEC_NAME})
 endif()
@@ -172,18 +373,29 @@ foreach(app_target ${TREX_APP_TARGETS})
         target_link_options(${app_target} PRIVATE "-Wl,--no-undefined")
     endif()
 endforeach()
+foreach(tool_target ${TREX_TOOL_TARGETS})
+    if(UNIX AND NOT APPLE AND NOT "${CMAKE_SYSTEM_NAME}" STREQUAL "Emscripten")
+        target_link_options(${tool_target} PRIVATE "-Wl,--no-undefined")
+    elseif(WIN32 AND NOT MSVC)
+        target_link_options(${tool_target} PRIVATE "-Wl,--no-undefined")
+    endif()
+endforeach()
 
 if(WITH_FFMPEG)
     foreach(app_target ${TREX_APP_TARGETS})
         target_compile_definitions(${app_target} PRIVATE WITH_FFMPEG=true)
     endforeach()
-endif()
-
-if(BUILD_LEGACY_TREX)
-    add_subdirectory(legacy)
+    foreach(tool_target ${TREX_TOOL_TARGETS})
+        target_compile_definitions(${tool_target} PRIVATE WITH_FFMPEG=true)
+    endforeach()
 endif()
 
 set(TRACKER_PATH "$<TARGET_FILE_DIR:${TREXA_EXEC_NAME}>")
+foreach(tool_target ${TREX_TOOL_TARGETS})
+    if(NOT APPLE)
+        set_target_properties(${tool_target} PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${TRACKER_PATH}")
+    endif()
+endforeach()
 
 #if(NOT ${COMMONS_NO_PYTHON} AND NOT ${TREX_NO_PYTHON})
     target_link_libraries(${TREXA_EXEC_NAME} PUBLIC tracker_python)
@@ -259,7 +471,7 @@ if(NOT TREX_CONDA_PACKAGE_INSTALL)
 
     IF("${CMAKE_SYSTEM}" MATCHES "Linux")
         message(STATUS "Copying files ${RESOURCE_COPY_SINGLE_FILES}")
-        foreach(app_target ${TREX_APP_TARGETS})
+        foreach(app_target ${TREX_APP_TARGETS} ${TREX_TOOL_TARGETS})
             foreach(comp ${RESOURCE_COPY_SINGLE_FILES})
                 get_filename_component(comp_s ${comp} NAME)
 
@@ -290,7 +502,7 @@ if(NOT TREX_CONDA_PACKAGE_INSTALL)
         message(STATUS "(windows) Copying files ${RESOURCE_COPY_SINGLE_FILES}")
         message(STATUS "(install_prefix) :${CMAKE_INSTALL_PREFIX} :${CMAKE_BINARY_DIR}")
         
-        foreach(app_target ${TREX_APP_TARGETS})
+        foreach(app_target ${TREX_APP_TARGETS} ${TREX_TOOL_TARGETS})
             foreach(comp ${RESOURCE_COPY_SINGLE_FILES})
                 get_filename_component(comp_s ${comp} NAME)
 
@@ -318,7 +530,7 @@ if(NOT TREX_CONDA_PACKAGE_INSTALL)
         
     elseif(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         message(STATUS "Copying files ${RESOURCE_COPY_SINGLE_FILES}")
-        foreach(app_target ${TREX_APP_TARGETS})
+        foreach(app_target ${TREX_APP_TARGETS} ${TREX_TOOL_TARGETS})
             foreach(comp ${RESOURCE_COPY_SINGLE_FILES})
                 get_filename_component(comp_s ${comp} NAME)
 
@@ -355,7 +567,7 @@ else()
     if(APPLE AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         message(STATUS "Copying files ${RESOURCE_COPY_FILES}")
 
-        foreach(app_target ${TREX_APP_TARGETS})
+        foreach(app_target ${TREX_APP_TARGETS} ${TREX_TOOL_TARGETS})
             foreach(comp ${RESOURCE_COPY_FILES})
                 get_filename_component(comp_s ${comp} NAME)
 
@@ -368,7 +580,7 @@ else()
     endif()
 endif()
 
-set(targets ${TREX_APP_TARGETS})
+set(targets ${TREX_APP_TARGETS} ${TREX_TOOL_TARGETS})
 
 if(BUILD_LEGACY_TREX)
     set(targets ${targets} ${TREX_EXEC_NAME})
@@ -380,7 +592,7 @@ endif()
 
 if(APPLE)
     add_executable(trex_starter trex.cpp)
-    target_link_libraries(trex_starter PRIVATE commons)
+    target_link_libraries(trex_starter PRIVATE Commons::All)
     set_target_properties(trex_starter PROPERTIES OUTPUT_NAME trex)
     set(targets ${targets} trex_starter)
 

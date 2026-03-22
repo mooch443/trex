@@ -1,10 +1,10 @@
 #include "TrackingHelper.h"
 #include <tracking/Tracker.h>
-#include <tracker/misc/default_config.h>
+#include <core/default_config.h>
 #include <misc/pretty.h>
 #include <tracking/AutomaticMatches.h>
 #include <tracking/IndividualManager.h>
-#include <misc/FOI.h>
+#include <core/FOI.h>
 
 namespace track {
 
@@ -141,7 +141,7 @@ void TrackingHelper::apply_manual_matches()
             cannot_find[bdx].insert(fdxs.begin(), fdxs.end());
         }
         
-        _manager.assign(AssignInfo{
+        _manager.assign<true, true>(AssignInfo{
             .frame = &frame,
             .f_prop = props,
             .f_prev_prop = prev_props,

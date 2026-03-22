@@ -375,8 +375,16 @@ class YOLOModel(DetectionModel):
         This method should handle the loading of the model parameters and any necessary setup.
         """
         # Load the model from the specified path
-        self.ptr = YOLO(self.config.model_path).to('cpu')
-        print(f"Loading model {self} on device {self.device}")
+        try:
+            self.ptr = YOLO(self.config.model_path).to("cpu")
+            print(f"Loaded model {self} onto the CPU first.")
+        except Exception as e:
+            if "LocalizationModel" in str(e):
+                # user is trying to load a POLO model in a version of ultralytics that does not support it
+                # i.e. the user didnt install POLO, but ultralytics default version
+                raise Exception(f"Failed to load model {self}. This model may be a POLO model which requires a version of ultralytics that supports it. Please install ultralytics with POLO support or use a non-POLO model. Original error: {e}")
+            else:
+                raise Exception(f"Failed to load model {self}. Original error: {e}")
 
         # initialize the torch device in case this has been broken
         # or the device has changed
@@ -420,9 +428,37 @@ class YOLOModel(DetectionModel):
             TRex.warn("Could not determine trained resolution from model, using " + str(self.config.trained_resolution)+ " ("+ str(e) + ")")
             pass
 
-        self.ptr.fuse()
-        self.ptr.half()
+        # --- Ensure end2end mode is decided BEFORE fusing ---
+        # Ultralytics end2end Detect.fuse() prunes the one2many head (cv2/cv3=None).
+        # If we later run with end2end=False, the forward path expects cv2/cv3 and will crash.
+        # So: force Detect.end2end=False before calling fuse(), then fuse conv/bn as usual.
+        try:
+            if hasattr(self.ptr, "model") and self.ptr.model is not None:
+                for m in self.ptr.model.modules():
+                    if hasattr(m, "end2end"):
+                        if m.end2end:
+                            TRex.log(f"Setting end2end=False for model {self.config.model_path} module {type(m)} to ensure compatibility with fused inference.")
+                        else:
+                            TRex.log(f"Model {self.config.model_path} for module {type(m)} already has end2end=False.")
+                        m.end2end = False
+        except Exception as e:
+            TRex.warn(f"Could not force end2end=False before fuse: {e}")
+
+        # Fuse (safe now that end2end pruning is disabled).
+        try:
+            self.ptr.fuse()
+        except Exception as e:
+            TRex.warn(f"Model fuse() failed, continuing unfused: {e}")
+
+        # half() is generally only beneficial/valid on CUDA; keep it disabled by default.
+        if self.device.type == "cuda":
+            try:
+                self.ptr.half()
+            except Exception as e:
+                TRex.warn(f"Model half() failed: {e}")
+
         self.ptr.to(self.device)
+        TRex.log(f"Moved model {self} to device {self.device}.")
 
         super().load()
 

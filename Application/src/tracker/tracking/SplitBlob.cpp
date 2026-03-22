@@ -3,9 +3,9 @@
 #include <tracking/Tracker.h>
 #include <misc/Timer.h>
 
-#include <misc/PixelTree.h>
+#include <processing/PixelTree.h>
 #include <misc/cnpy_wrapper.h>
-#include <tracker/misc/default_config.h>
+#include <core/default_config.h>
 
 //#define TREX_SPLIT_DEBUG
 //#define TREX_SPLIT_DEBUG_TIMINGS

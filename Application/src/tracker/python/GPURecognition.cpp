@@ -22,12 +22,12 @@
 #include <misc/SpriteMap.h>
 
 #include <misc/default_settings.h>
-#include <misc/default_config.h>
+#include <core/default_config.h>
 #include <misc/GlobalSettings.h>
 #include <file/DataLocation.h>
-#include <misc/PythonWrapper.h>
+#include <python/PythonWrapper.h>
 
-#include <misc/DetectionTypes.h>
+#include <core/DetectionTypes.h>
 
 #include <signal.h>
 typedef void (*sighandler_t)(int);
@@ -200,8 +200,7 @@ std::function<void()> _destroy_all_windows = []() {};
 
 #include "GPURecognition.h"
 #include <pybind11/stl.h>
-#include <gui/WorkProgress.h>
-#include <misc/SoftException.h>
+#include <core/SoftException.h>
 
 #include <misc/Timer.h>
 #include <file/DataLocation.h>
@@ -305,126 +304,6 @@ std::vector<KeypointData> transfer_keypoints(py::list keypoints) {
         result.emplace_back(std::move(KeypointArray(keypoint).data));
     }
     return result;
-}
-
-KeypointData::KeypointData(std::vector<float>&& data, size_t bones)
-    : _num_bones(bones), _xy_conf(std::move(data))
-{
-    if (data.size() % (sizeof(Bone) / sizeof(decltype(Bone::x))) != 0u)
-        throw InvalidArgumentException("Invalid size for KeypointData constructor. Please use a size that is divisible by ", sizeof(Bone) / sizeof(decltype(Bone::x)), " and is a flat ", Meta::name<decltype(Bone::x)>(), " array.");
-    // expecting 3 floats per row, 2 for xy, 1 for conf
-    assert(data.size() % (sizeof(Bone) / sizeof(decltype(Bone::x))) == 0u);
-    assert(data.size() % _num_bones == 0);
-}
-    
-Keypoint KeypointData::operator[](size_t index) const {
-    if (index * num_bones() * 2u >= xy_conf().size())
-        throw OutOfRangeException("The index ", index, " is outside the keypoints arrays dimensions of ", size());
-    return Keypoint{
-        .bones = std::vector<Bone>{
-            reinterpret_cast<const Bone*>(xy_conf().data()) + num_bones() * index,
-            reinterpret_cast<const Bone*>(xy_conf().data()) + num_bones() * (index + 1)
-        }
-    };
-}
-
-ICXYWHR ObbData::operator[](size_t index) const {
-    if (index * 7u >= icxywhr().size())
-        throw OutOfRangeException("The index ", index, " is outside the OBB arrays dimensions of ", size());
-    return reinterpret_cast<const ICXYWHR*>(icxywhr().data())[index];
-}
-
-ObbData::ObbData(std::vector<float>&& data)
-    : _icxywhr(std::move(data))
-{
-    if (not _icxywhr.empty() && _icxywhr.size() % 7u != 0u)
-        throw InvalidArgumentException("Invalid size for ObbData constructor. Please use a size that is divisible by 7 and is a flat ICXYWHR array.");
-    // expecting 7 floats per row, 1 for id, 1 for confidence, 2 for xy, 2 for wh, 1 for r
-    assert(_icxywhr.size() % 7u == 0u);
-}
-
-
-std::array<cmn::Vec2, 4> ICXYWHR::corners() const {
-    float cos_r = std::cos(r);
-    float sin_r = std::sin(r);
-    float dx = w / 2.f;
-    float dy = h / 2.f;
-    std::array<cmn::Vec2, 4> out;
-    // bottom-left
-    {
-        float x_local = -dx;
-        float y_local = -dy;
-        out[0] = {x + x_local * cos_r - y_local * sin_r, y + x_local * sin_r + y_local * cos_r};
-    }
-    // bottom-right
-    {
-        float x_local = dx;
-        float y_local = -dy;
-        out[1] = {x + x_local * cos_r - y_local * sin_r, y + x_local * sin_r + y_local * cos_r};
-    }
-    // top-right
-    {
-        float x_local = dx;
-        float y_local = dy;
-        out[2] = {x + x_local * cos_r - y_local * sin_r, y + x_local * sin_r + y_local * cos_r};
-    }
-    // top-left
-    {
-        float x_local = -dx;
-        float y_local = dy;
-        out[3] = {x + x_local * cos_r - y_local * sin_r, y + x_local * sin_r + y_local * cos_r};
-    }
-    return out;
-}
-
-Bounds ICXYWHR::bounding_box() const {
-    return bounding_box(corners());
-}
-
-Bounds ICXYWHR::bounding_box(const std::array<cmn::Vec2, 4>& pts) {
-    float min_x = pts[0].x;
-    float min_y = pts[0].y;
-    float max_x = pts[0].x;
-    float max_y = pts[0].y;
-    for (int i = 1; i < 4; ++i) {
-        min_x = std::min(min_x, pts[i].x);
-        min_y = std::min(min_y, pts[i].y);
-        max_x = std::max(max_x, pts[i].x);
-        max_y = std::max(max_y, pts[i].y);
-    }
-    return Bounds(min_x, min_y, max_x - min_x, max_y - min_y);
-}
-
-std::array<cmn::Vec2, 4> ICXYR::corners() const {
-    return std::array{
-        Vec2(x - r, y - r),
-        Vec2(x + r, y - r),
-        Vec2(x + r, y + r),
-        Vec2(x - r, y + r)
-    };
-}
-
-Bounds ICXYR::bounding_box() const {
-    return bounding_box(corners());
-}
-
-Bounds ICXYR::bounding_box(const std::array<cmn::Vec2, 4>& pts) {
-    return ICXYWHR::bounding_box(pts);
-}
-
-ICXYR PointData::operator[](size_t index) const {
-    if (index * 5u >= icxyr().size())
-        throw OutOfRangeException("The index ", index, " is outside the PointData arrays dimensions of ", size());
-    return reinterpret_cast<const ICXYR*>(icxyr().data())[index];
-}
-
-PointData::PointData(std::vector<float>&& data)
-    : _icxyr(std::move(data))
-{
-    if (not _icxyr.empty() && _icxyr.size() % 5u != 0u)
-        throw InvalidArgumentException("Invalid size for PointData constructor. Please use a size that is divisible by 5 and is a flat ICXYR array.");
-    // expecting 5 floats per row, 1 for id, 1 for confidence, 2 for xy, 1 for radius
-    assert(_icxyr.size() % 5u == 0u);
 }
 
 }

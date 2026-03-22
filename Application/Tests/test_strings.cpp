@@ -2,12 +2,12 @@
 #include <commons.pc.h>
 #include <misc/parse_parameter_lists.h>
 #include <misc/Timer.h>
-#include <file/Path.h>
+#include <misc/Path.h>
 #include <misc/default_settings.h>
 #include <gui/types/StaticText.h>
-#include <tracking/IndividualCache.h>
+#include <data/IndividualCache.h>
 #include <misc/detail.h>
-#include <misc/RecentItems.h>
+#include <ui/RecentItems.h>
 #include <gui/dyn/ParseText.h>
 #include <gui/dyn/VarProps.h>
 #include <gui/dyn/Context.h>
@@ -16,7 +16,7 @@
 #include <gui/dyn/Action.h>
 #include <gui/dyn/ResolveVariable.h>
 #include <gui/DynamicGUI.h>
-#include <misc/idx_t.h>
+#include <core/idx_t.h>
 #include <gui/dyn/UnresolvedStringPattern.h>
 #include <misc/Median.h>
 
@@ -501,6 +501,69 @@ TEST(PreparseTest, ScopedLoopVariablesDoNotBumpGlobalVersion) {
     
     ASSERT_EQ(handler->variable_values_version(), global_before);
     ASSERT_GT(handler->scoped_variable_values_version(), 1u);
+}
+
+TEST(PreparseTest, ScopedVariableSnapshotsRestoreIntoAnotherHandler) {
+    using namespace gui::dyn;
+
+    Context context{};
+    State source_state;
+    auto source_handler = std::make_shared<CurrentObjectHandler>();
+    source_state._current_object_handler = std::weak_ptr(source_handler);
+
+    CurrentObjectHandler::ScopedVariableSnapshot snapshot;
+    {
+        auto outer = source_handler->scope();
+        outer.set("item", "outer");
+
+        auto inner = source_handler->scope();
+        inner.set("item", "inner");
+        inner.set("index", "7");
+
+        snapshot = source_handler->capture_scoped_variable_values();
+        EXPECT_EQ(parse_text("{item}:{index}", context, source_state), "inner:7");
+    }
+
+    State restored_state;
+    auto restored_handler = std::make_shared<CurrentObjectHandler>();
+    restored_handler->set_variable_value("stable", "kept");
+    restored_handler->restore_scoped_variable_values(snapshot);
+    restored_state._current_object_handler = std::weak_ptr(restored_handler);
+
+    EXPECT_EQ(parse_text("{item}:{index}", context, restored_state), "inner:7");
+    EXPECT_EQ(parse_text("{stable}", context, restored_state), "kept");
+}
+
+TEST(PreparseTest, RestoringScopedVariableSnapshotsInvalidatesPreparedCache) {
+    using namespace gui::dyn;
+
+    Context context{};
+    State state;
+    auto handler = std::make_shared<CurrentObjectHandler>();
+    state._current_object_handler = std::weak_ptr(handler);
+    auto pattern = cmn::pattern::UnresolvedStringPattern::prepare("{item}");
+
+    CurrentObjectHandler::ScopedVariableSnapshot first_snapshot;
+    {
+        auto scope = handler->scope();
+        scope.set("item", "alpha");
+        first_snapshot = handler->capture_scoped_variable_values();
+    }
+
+    CurrentObjectHandler::ScopedVariableSnapshot second_snapshot;
+    {
+        auto scope = handler->scope();
+        scope.set("item", "beta");
+        second_snapshot = handler->capture_scoped_variable_values();
+    }
+
+    handler->restore_scoped_variable_values(first_snapshot);
+    EXPECT_EQ(pattern.realize(context, state), "alpha");
+
+    const auto version_after_first = handler->scoped_variable_values_version();
+    handler->restore_scoped_variable_values(second_snapshot);
+    EXPECT_GT(handler->scoped_variable_values_version(), version_after_first);
+    EXPECT_EQ(pattern.realize(context, state), "beta");
 }
 
 TEST(PreparseTest, ExtendedForLoop) {

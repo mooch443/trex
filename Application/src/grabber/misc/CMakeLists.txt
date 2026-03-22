@@ -15,16 +15,13 @@ endif()
 #target_precompile_headers(framegrabber_misc REUSE_FROM commons)
 
 target_link_libraries(framegrabber_misc
-	PRIVATE commons
+	PUBLIC Commons::Video
 )
 
 if(APPLE AND PYLON_FOUND AND WITH_PYLON)
     message(STATUS "linking with pylon")
     target_link_libraries( framegrabber_misc PUBLIC ${PYLON_LIBRARIES} )
 endif()
-
-add_dependencies(framegrabber_misc commons) #Commons::OpenCV)
-
 
 if(WITH_FFMPEG)
     target_compile_definitions(framegrabber_misc PRIVATE WITH_FFMPEG=true)

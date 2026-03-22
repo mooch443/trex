@@ -1,9 +1,9 @@
 #pragma once
 
 #include <commons.pc.h>
-#include <misc/PVBlob.h>
+#include <processing/PVBlob.h>
 #include <misc/frame_t.h>
-#include <misc/SizeFilters.h>
+#include <core/SizeFilters.h>
 #include <processing/CPULabeling.h>
 
 namespace cmn {

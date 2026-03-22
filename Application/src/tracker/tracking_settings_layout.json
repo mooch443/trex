@@ -229,6 +229,7 @@
                                                 "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,50]}",
                                                 "fill":"{if:{||:{selected}:{hovered}}:[10,80,110,240]:[10,50,80,240]}",
                                                 "font":{"size":0.65},
+                                                "color":[255,255,255],
                                                 "size":[250,40]
                                             },
                                             "auto_limit_size": false,
@@ -339,7 +340,8 @@
                                             "corners":["right"],
                                             "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,150]}",
                                             "fill":"{if:{||:{selected}:{hovered}}:[10,80,110,240]:[10,50,80,240]}",
-                                            "font":{"size":0.65}
+                                            "font":{"size":0.65},
+                                            "color":[255,255,255]
                                         },
                                         "size":"[{*:{textfield_w}:0.16},40]",
                                         "desc":""
@@ -455,7 +457,8 @@
                                                     "corners":["bottomright"],
                                                     "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,50]}",
                                                     "fill":"{if:{||:{selected}:{hovered}}:[10,80,110,240]:[10,50,80,240]}",
-                                                    "font":{"size":0.65}
+                                                    "font":{"size":0.65},
+                                                    "color":[255,255,255]
                                                 },
                                                 "var":"midline_invert",
                                                 "size":"[{max:50:{*:{textfield_w}:0.1}},40]",
@@ -530,7 +533,8 @@
                                                 "corners":["right"],
                                                 "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,250]}",
                                                 "fill":"{if:{||:{selected}:{hovered}}:[10,80,110,240]:[10,50,80,240]}",
-                                                "font":{"size":0.65}
+                                                "font":{"size":0.65},
+                                                "color":[255,255,255]
                                             },
                                             "size":"[{max:50:{*:{textfield_w}:0.1}},40]",
                                             "desc":""

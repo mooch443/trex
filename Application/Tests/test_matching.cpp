@@ -1,16 +1,17 @@
 #include "gtest/gtest.h"
 #include <tracking/PairingGraph.h>
 #include <tracking/Individual.h>
-#include <tracker/misc/default_config.h>
+#include <core/default_config.h>
 #include <tracking/Tracker.h>
 #include <misc/frame_t.h>
 #include <tracking/IndividualManager.h>
-#include <misc/PixelTree.h>
+#include <processing/BlobWeakPtr.h>
+#include <processing/PixelTree.h>
 #include <filesystem>
 #include <misc/Image.h>
-#include <misc/DetectionTypes.h>
+#include <core/DetectionTypes.h>
 #include <misc/RBSettings.h>
-#include <tracker/misc/PrecomuptedDetection.h>
+#include <core/PrecomuptedDetection.h>
 #include <tracking/SplitBlob.h>
 #include <grabber/misc/default_config.h>
 

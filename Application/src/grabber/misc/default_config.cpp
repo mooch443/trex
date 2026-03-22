@@ -1,11 +1,11 @@
 #include "default_config.h"
 #include <misc/SpriteMap.h>
-#include <file/Path.h>
+#include <misc/Path.h>
 #include <misc/CropOffsets.h>
 #include <video/GenericVideo.h>
 #include <video/AveragingAccumulator.h>
 #include <misc/ranges.h>
-#include <misc/idx_t.h>
+#include <core/idx_t.h>
 #include <processing/Background.h>
 
 #ifndef WIN32
@@ -224,7 +224,7 @@ namespace default_config {
         CONFIG("grabber_force_settings", false, "If set to true, live tracking will always overwrite a settings file with `filename`.settings in the output folder.");
         
 #if !CMN_WITH_IMGUI_INSTALLED
-        config["nowindow"] = true;
+        config.values["nowindow"] = true;
 #endif
     }
 }

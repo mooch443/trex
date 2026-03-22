@@ -17,6 +17,24 @@ if not defined TREX_DESCRIBE_TAG set "TREX_DESCRIBE_TAG=vuntagged"
 echo TREX_DESCRIBE_TAG=%TREX_DESCRIBE_TAG%
 rem --------------------------------------------------------------------------
 
+rem --------------------------------------------------------------------------
+rem FetchContent patch steps in nested MSBuild projects can lose access to bare
+rem "git" on PATH. Create a wrapper in the build directory that forwards to the
+rem resolved git executable so downstream "git apply" commands remain stable.
+rem --------------------------------------------------------------------------
+set "TREX_GIT_EXE="
+for /f "delims=" %%i in ('where git 2^>NUL') do if not defined TREX_GIT_EXE set "TREX_GIT_EXE=%%i"
+if not defined TREX_GIT_EXE (
+    echo Could not resolve git.exe on PATH.
+    exit /b 1
+)
+set "TREX_GIT_WRAPPER_DIR=%CD%\git-wrapper"
+if not exist "%TREX_GIT_WRAPPER_DIR%" mkdir "%TREX_GIT_WRAPPER_DIR%"
+>"%TREX_GIT_WRAPPER_DIR%\git.bat" echo @call "%TREX_GIT_EXE%" %%*
+set "PATH=%TREX_GIT_WRAPPER_DIR%;%PATH%"
+echo TREX_GIT_EXE=%TREX_GIT_EXE%
+rem --------------------------------------------------------------------------
+
 
 set MENU_DIR=%PREFIX%\Menu
 mkdir %MENU_DIR%

@@ -1,7 +1,7 @@
 #include "PrefilterBlobs.h"
 #include <processing/Background.h>
 #include <misc/ThreadPool.h>
-#include <misc/TrackingSettings.h>
+#include <core/TrackingSettings.h>
 #include <tracking/SplitBlob.h>
 #include <tracking/Tracker.h>
 #include <tracking/PPFrame.h>

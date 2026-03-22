@@ -6,9 +6,9 @@
 #include <gui/types/Checkbox.h>
 #include <misc/Timer.h>
 #include <gui/Graph.h>
-#include <misc/PixelTree.h>
+#include <processing/PixelTree.h>
 #include <processing/CPULabeling.h>
-#include <misc/PVBlob.h>
+#include <processing/PVBlob.h>
 #include <processing/DLList.h>
 
 int main() {

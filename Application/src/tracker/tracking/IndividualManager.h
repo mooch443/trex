@@ -1,9 +1,9 @@
 #pragma once
 
 #include <commons.pc.h>
-#include <misc/idx_t.h>
+#include <core/idx_t.h>
 #include <misc/frame_t.h>
-#include <misc/TrackingSettings.h>
+#include <core/TrackingSettings.h>
 #include <tracking/PPFrame.h>
 #include <tracking/Stuffs.h>
 
@@ -107,7 +107,7 @@ public:
         assign(std::move(info), std::move(map), std::move(apply), [](pv::bid, Idx_t, Individual*, std::string_view){});
     }
     
-    template<bool safe = true, class Map,
+    template<bool safe = true, bool can_come_from_everywhere = false, class Map,
              typename F, typename ErrorF>
         requires AnyTransformer<F, pv::bid, Idx_t, Individual*>
               && VoidTransformer<ErrorF, pv::bid, Idx_t, Individual*, std::string_view>
@@ -179,10 +179,18 @@ public:
             ptrs = info.frame->extract_from_blobs<PPFrame::VectorHandling::OneToOne>(std::move(blobs));
         else
             ptrs = info.frame->extract_from_blobs_unsafe<PPFrame::VectorHandling::OneToOne>(std::move(blobs));*/
-        if constexpr(safe)
-            ptrs = info.frame->extract_from_blobs<PPFrame::VectorHandling::Compress, PPFrame::RemoveHandling::Leave>(blob_map);
-        else
-            ptrs = info.frame->extract_from_blobs_unsafe(blob_map);
+        if constexpr(can_come_from_everywhere) {
+            if constexpr(safe)
+                ptrs = info.frame->extract_from_all<PPFrame::VectorHandling::Compress, PPFrame::RemoveHandling::Leave, PPFrame::GridHandling::Remove>(blob_map);
+            else
+                ptrs = info.frame->extract_from_all<PPFrame::VectorHandling::Compress, PPFrame::RemoveHandling::Leave, PPFrame::GridHandling::Leave>(blob_map);
+        } else {
+            if constexpr(safe)
+                ptrs = info.frame->extract_from_blobs<PPFrame::VectorHandling::Compress, PPFrame::RemoveHandling::Leave, PPFrame::GridHandling::Remove>(blob_map);
+            else
+                ptrs = info.frame->extract_from_blobs<PPFrame::VectorHandling::Compress, PPFrame::RemoveHandling::Leave, PPFrame::GridHandling::Leave>(blob_map);
+        }
+        
         
         /*if(ptrs.size() != individuals.size()) {
             Print("Got pointers: ", ptrs, " for map: ", blob_map, " with individuals: ", individuals, " and blobs: ", blobs);

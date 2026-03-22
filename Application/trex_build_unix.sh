@@ -26,15 +26,19 @@ if [ "$(uname)" == "Linux" ]; then
     echo "Setting up for Linux."
     echo ""
     
-    CC=$(which gcc)
-    CXX=$(which g++)
-
     if [ $(printenv CC) ]; then
         CC=$(printenv CC)
+    else
+        CC=$(which gcc)
     fi
     if [ $(printenv CXX) ]; then
         CXX=$(printenv CXX)
+    else
+        CXX=$(which g++)
     fi
+
+    echo "Using CC=$CC and CXX=$CXX"
+
     
     if [ ! $CC ]; then
         echo "No gcc compiler found. Please provide it in PATH or as a CC environment variable."

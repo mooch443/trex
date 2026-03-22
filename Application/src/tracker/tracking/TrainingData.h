@@ -4,8 +4,8 @@
 
 #include <misc/Image.h>
 #include <pv.h>
-#include <tracker/misc/default_config.h>
-#include <tracker/misc/idx_t.h>
+#include <core/default_config.h>
+#include <core/idx_t.h>
 #include <misc/ranges.h>
 #include <tracking/FilterCache.h>
 

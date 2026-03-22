@@ -3,9 +3,9 @@
 #include <tracking/EventAnalysis.h>
 #include <file/CSVExport.h>
 #include <misc/cnpy_wrapper.h>
-#include <tracker/misc/default_config.h>
+#include <core/default_config.h>
 #include <tracking/CategorizeDatastore.h>
-#include <misc/IdentifiedTag.h>
+#include <core/IdentifiedTag.h>
 #include <tracking/IndividualManager.h>
 #include <tracking/Individual.h>
 #include <gui/Graph.h>

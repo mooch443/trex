@@ -5,7 +5,7 @@
 #include <misc/Timer.h>
 #include <file/PathArray.h>
 #include <gmock/gmock.h>
-#include <file/Path.h>
+#include <misc/Path.h>
 #include <misc/SpriteMap.h>
 
 using namespace cmn;

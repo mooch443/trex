@@ -1,13 +1,13 @@
 #pragma once
 #include <commons.pc.h>
 
-#include <gui/Scene.h>
+#include <ui/Scene.h>
 #include <misc/Image.h>
 #include <misc/ObjectManager.h>
 #include <gui/types/Entangled.h>
 #include <gui/dyn/VarProps.h>
 #include <misc/Timer.h>
-#include <misc/TaskPipeline.h>
+#include <core/TaskPipeline.h>
 
 namespace cmn {
 class VideoSource;
@@ -32,6 +32,8 @@ struct VideoFrame {
 };
 
 class LiveSegmentation : public Scene {
+    struct Data;
+    
 private:
     std::mutex _next_frame_mutex, _generate_mutex;
     std::unique_ptr<VideoSource> _video;
@@ -60,6 +62,7 @@ private:
 public:
     // Constructor
     LiveSegmentation(Base& window);
+    ~LiveSegmentation();
 
     // Activation and deactivation
     virtual void activate() override;
@@ -71,6 +74,8 @@ public:
 private:
     // Custom drawing
     void _draw(DrawStructure&);
+    
+    std::unique_ptr<Data> _data;
 };
 
 } // namespace gui

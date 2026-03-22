@@ -8,13 +8,30 @@
 #include <gui/DynamicVariable.h>
 #include <gui/dyn/ParseText.h>
 #include <gui/dyn/ResolveVariable.h>
+#include <gui/types/ListItemTypes.h>
+#include <gui/types/ScrollableList.h>
 #include <gui/types/StaticText.h>
 #include <gui/dyn/UnresolvedStringPattern.h>   // for ResolveStringPattern tests
 #include <type_traits>
+#include <gui/dyn/Action.h>
 
 using namespace cmn;
 using namespace cmn::gui;
 using namespace dyn;
+
+struct JsonBackedSample {
+    int x;
+    file::Path name;
+    bool enabled;
+
+    glz::json_t to_json() const {
+        glz::json_t json;
+        json["x"] = x;
+        json["name"] = cvt2json(name);
+        json["enabled"] = enabled;
+        return json;
+    }
+};
 
 static void collect_static_text_strings(const Layout::Ptr& node, std::vector<std::string>& out) {
     if(not node) {
@@ -31,6 +48,11 @@ static void collect_static_text_strings(const Layout::Ptr& node, std::vector<std
             collect_static_text_strings(child, out);
         }
     }
+}
+
+static Vec2 center_of(Drawable& drawable) {
+    const auto bounds = drawable.global_bounds();
+    return Vec2(bounds.x + bounds.width * 0.5, bounds.y + bounds.height * 0.5);
 }
 
 // ---------------------------------------------------------------------------
@@ -182,6 +204,193 @@ TYPED_TEST(ParseAndResolveTest, SpecialTypeVec2)
     };
     auto result = run_parser<TypeParam>("{vec2_var.x}", ctx, state);
     ASSERT_EQ(result, "10");
+}
+
+TYPED_TEST(ParseAndResolveTest, SpriteMapFieldAccess)
+{
+    State state;
+    sprite::Map map;
+    glz::json_t test;
+    test["value"] = 42;
+    
+    map["x"] = 42;
+    map["name"] = std::string("trex");
+    map["enabled"] = true;
+    map["json"] = test;
+
+    Context ctx{
+        VarFunc("object", [&map](const VarProps&) -> sprite::Map& { return map; })
+    };
+
+    EXPECT_EQ(run_parser<TypeParam>("{object.x}", ctx, state), "42");
+    EXPECT_EQ(run_parser<TypeParam>("{object.name}", ctx, state), "trex");
+    EXPECT_EQ(run_parser<TypeParam>("{object.enabled}", ctx, state), "true");
+    EXPECT_EQ(run_parser<TypeParam>("{object.json}", ctx, state), "{\"value\":42}");
+    EXPECT_EQ(run_parser<TypeParam>("{object.json.value}", ctx, state), "42");
+}
+
+TYPED_TEST(ParseAndResolveTest, JsonObjectSubfieldReplacement)
+{
+    State state;
+    glz::json_t object;
+    object["x"] = 42;
+    object["name"] = std::string("trex");
+    object["enabled"] = true;
+
+    Context ctx{
+        VarFunc("object", [&object](const VarProps&) -> glz::json_t { return object; })
+    };
+
+    EXPECT_EQ(run_parser<TypeParam>("{object.x}", ctx, state), "42");
+    EXPECT_EQ(run_parser<TypeParam>("{object.name}", ctx, state), "trex");
+    EXPECT_EQ(run_parser<TypeParam>("{object.enabled}", ctx, state), "true");
+}
+
+TYPED_TEST(ParseAndResolveTest, JsonObjectNestedSubfieldReplacement)
+{
+    State state;
+    glz::json_t nested;
+    nested["value"] = 123;
+
+    glz::json_t object;
+    object["value"] = nested;
+
+    Context ctx{
+        VarFunc("object", [&object](const VarProps&) -> glz::json_t { return object; })
+    };
+
+    EXPECT_EQ(run_parser<TypeParam>("{object.value.value}", ctx, state), "123");
+}
+
+TYPED_TEST(ParseAndResolveTest, NullableSpriteMaps)
+{
+    State state;
+    Context ctx{
+        VarFunc("object", [](const VarProps&) -> sprite::Map { return {}; })
+    };
+
+    EXPECT_EQ(run_parser<TypeParam>("{object}", ctx, state), "{}");
+    EXPECT_EQ(run_parser<TypeParam>("{if:{object}:true:false}", ctx, state), "false");
+}
+
+TYPED_TEST(ParseAndResolveTest, NullableObjects)
+{
+    State state;
+    Context ctx{
+        VarFunc("object", [](const VarProps&) -> glz::json_t { return glz::json_t{}; })
+    };
+
+    EXPECT_EQ(run_parser<TypeParam>("{object}", ctx, state), "null");
+    EXPECT_EQ(run_parser<TypeParam>("{if:{object}:true:false}", ctx, state), "false");
+}
+
+TYPED_TEST(ParseAndResolveTest, EmptyObjects)
+{
+    State state;
+    Context ctx{
+        VarFunc("object", [](const VarProps&) -> glz::json_t { return glz::json_t::object_t{}; })
+    };
+
+    EXPECT_EQ(run_parser<TypeParam>("{object}", ctx, state), "{}");
+    EXPECT_EQ(run_parser<TypeParam>("{if:{object}:true:false}", ctx, state), "false");
+}
+
+TYPED_TEST(ParseAndResolveTest, CustomStructJsonSubfieldReplacement)
+{
+    State state;
+    JsonBackedSample sample{
+        .x = 7,
+        .name = file::Path("/file/to/raptor"),
+        .enabled = false
+    };
+
+    Context ctx{
+        VarFunc("custom", [sample](const VarProps&) -> glz::json_t { return cvt2json(sample); })
+    };
+
+    EXPECT_EQ(run_parser<TypeParam>("{custom.x}", ctx, state), "7");
+    EXPECT_EQ(run_parser<TypeParam>("{custom.name}", ctx, state), file::Path("/file/to/raptor").str());
+    EXPECT_EQ(run_parser<TypeParam>("{custom.enabled}", ctx, state), "false");
+}
+
+TEST(ScopedVariableTest, DynamicScopedJsonVariableInvalidatesPreparedPatternCache)
+{
+    State state;
+    auto handler = std::make_shared<CurrentObjectHandler>();
+    state._current_object_handler = handler;
+
+    Context ctx;
+    auto pattern = cmn::pattern::UnresolvedStringPattern::prepare("{i.name}");
+
+    {
+        glz::json_t first;
+        first["name"] = std::string("alpha");
+
+        auto scope = handler->scope();
+        scope.set("i", VarFunc("i", [first](const VarProps&) -> glz::json_t {
+            return first;
+        }).second);
+
+        EXPECT_EQ(pattern.realize(ctx, state), "alpha");
+    }
+
+    {
+        glz::json_t second;
+        second["name"] = std::string("beta");
+
+        auto scope = handler->scope();
+        scope.set("i", VarFunc("i", [second](const VarProps&) -> glz::json_t {
+            return second;
+        }).second);
+
+        EXPECT_EQ(pattern.realize(ctx, state), "beta");
+    }
+}
+
+TEST(ScopedVariableTest, StringAndDynamicConflictsShadowGracefully)
+{
+    State state;
+    auto handler = std::make_shared<CurrentObjectHandler>();
+    state._current_object_handler = handler;
+
+    Context ctx{
+        VarFunc("item", [](const VarProps&) -> glz::json_t {
+            glz::json_t value;
+            value["name"] = std::string("global");
+            return value;
+        })
+    };
+
+    {
+        auto outer = handler->scope();
+        outer.set("item", VarFunc("item", [](const VarProps&) -> glz::json_t {
+            glz::json_t value;
+            value["name"] = std::string("outer");
+            return value;
+        }).second);
+
+        EXPECT_EQ(parse_text("{item.name}", ctx, state), "outer");
+        EXPECT_TRUE(ctx.has("item", state));
+
+        auto inner = handler->scope();
+        inner.set("item", "shadow");
+
+        EXPECT_EQ(parse_text("{item}", ctx, state), "shadow");
+        EXPECT_EQ(parse_text("{.item.name}", ctx, state), "");
+        EXPECT_FALSE(ctx.has("item", state));
+
+        inner.set("item", VarFunc("item", [](const VarProps&) -> glz::json_t {
+            glz::json_t value;
+            value["name"] = std::string("inner");
+            return value;
+        }).second);
+
+        EXPECT_EQ(parse_text("{item.name}", ctx, state), "inner");
+        EXPECT_TRUE(ctx.has("item", state));
+    }
+
+    EXPECT_EQ(parse_text("{item.name}", ctx, state), "global");
+    EXPECT_TRUE(ctx.has("item", state));
 }
 
 TYPED_TEST(ParseAndResolveTest, HtmlifySyntax)
@@ -406,7 +615,7 @@ TEST(EachElementTest, NestedEachRestoresOuterScope) {
       },
       {
         "type": "stext",
-        "text": "outer:{i.label}"
+        "text": "outer:{i.label}-{index}"
       }
     ]
   }
@@ -456,11 +665,603 @@ TEST(EachElementTest, NestedEachRestoresOuterScope) {
     ASSERT_THAT(texts, ::testing::ElementsAre(
         "inner:1-0",
         "inner:2-1",
-        "outer:10",
+        "outer:10-0",
         "inner:3-0",
         "inner:4-1",
-        "outer:20"
+        "outer:20-1"
     ));
+}
+
+TEST(EachElementTest, GenericVectorLoopUpdatesStringifiedValues) {
+    constexpr std::string_view json = R"json(
+{
+  "type": "each",
+  "var": "items",
+  "do": {
+    "type": "stext",
+    "text": "item:{i}-{index}"
+  }
+}
+)json";
+
+    glz::json_t obj;
+    auto parse_error = glz::read_json(obj, json);
+    ASSERT_EQ(parse_error, glz::error_code::none) << glz::format_error(parse_error, json);
+    ASSERT_TRUE(obj.is_object());
+
+    std::vector<int> items{10, 20};
+
+    Context context{
+        VarFunc("items", [&items](const VarProps&) -> std::vector<int> { return items; })
+    };
+
+    State state;
+    auto handler = std::make_shared<CurrentObjectHandler>();
+    state._current_object_handler = handler;
+
+    DrawStructure graph(640, 480);
+    auto root = parse_object(nullptr, obj.get_object(), context, state, context.defaults);
+    ASSERT_TRUE(root);
+    ASSERT_TRUE(root.is<Layout>());
+
+    ASSERT_NO_THROW((void)DynamicGUI::update_objects(nullptr, graph, root, context, state));
+
+    std::vector<std::string> texts;
+    collect_static_text_strings(root, texts);
+    ASSERT_THAT(texts, ::testing::ElementsAre(
+        "item:10-0",
+        "item:20-1"
+    ));
+
+    items = {30, 40, 50};
+
+    ASSERT_NO_THROW((void)DynamicGUI::update_objects(nullptr, graph, root, context, state));
+
+    texts.clear();
+    collect_static_text_strings(root, texts);
+    ASSERT_THAT(texts, ::testing::ElementsAre(
+        "item:30-0",
+        "item:40-1",
+        "item:50-2"
+    ));
+}
+
+TEST(EachElementTest, SpriteMapSubfieldArrayLoopUpdatesValues) {
+    constexpr std::string_view json = R"json(
+{
+  "type": "each",
+  "var": "items.values",
+  "do": {
+    "type": "stext",
+    "text": "value:{i}-{index}"
+  }
+}
+)json";
+
+    glz::json_t obj;
+    auto parse_error = glz::read_json(obj, json);
+    ASSERT_EQ(parse_error, glz::error_code::none) << glz::format_error(parse_error, json);
+    ASSERT_TRUE(obj.is_object());
+
+    sprite::Map items;
+    items["values"] = std::vector<int>{1, 2};
+
+    Context context{
+        VarFunc("items", [&items](const VarProps&) -> sprite::Map& { return items; })
+    };
+
+    State state;
+    auto handler = std::make_shared<CurrentObjectHandler>();
+    state._current_object_handler = handler;
+
+    DrawStructure graph(640, 480);
+    auto root = parse_object(nullptr, obj.get_object(), context, state, context.defaults);
+    ASSERT_TRUE(root);
+    ASSERT_TRUE(root.is<Layout>());
+
+    ASSERT_NO_THROW((void)DynamicGUI::update_objects(nullptr, graph, root, context, state));
+
+    std::vector<std::string> texts;
+    collect_static_text_strings(root, texts);
+    ASSERT_THAT(texts, ::testing::ElementsAre(
+        "value:1-0",
+        "value:2-1"
+    ));
+
+    items["values"] = std::vector<int>{7, 8, 9};
+
+    ASSERT_NO_THROW((void)DynamicGUI::update_objects(nullptr, graph, root, context, state));
+
+    texts.clear();
+    collect_static_text_strings(root, texts);
+    ASSERT_THAT(texts, ::testing::ElementsAre(
+        "value:7-0",
+        "value:8-1",
+        "value:9-2"
+    ));
+}
+
+TEST(EachElementTest, VectorOfJsonObjectsExpandsObjectFields) {
+    constexpr std::string_view json = R"json(
+{
+  "type": "each",
+  "var": "items",
+  "do": {
+    "type": "collection",
+    "children": [
+      {
+        "type": "stext",
+        "text": "x:{i.x}"
+      },
+      {
+        "type": "stext",
+        "text": "name:{i.name}"
+      },
+      {
+        "type": "stext",
+        "text": "index:{index}"
+      }
+    ]
+  }
+}
+)json";
+
+    glz::json_t obj;
+    auto parse_error = glz::read_json(obj, json);
+    ASSERT_EQ(parse_error, glz::error_code::none) << glz::format_error(parse_error, json);
+    ASSERT_TRUE(obj.is_object());
+
+    std::vector<glz::json_t> items;
+    {
+        glz::json_t first;
+        first["x"] = 42;
+        first["name"] = std::string("trex");
+        items.push_back(first);
+    }
+    {
+        glz::json_t second;
+        second["x"] = 7;
+        second["name"] = std::string("raptor");
+        items.push_back(second);
+    }
+
+    Context context{
+        VarFunc("items", [&items](const VarProps&) -> std::vector<glz::json_t> { return items; })
+    };
+
+    State state;
+    auto handler = std::make_shared<CurrentObjectHandler>();
+    state._current_object_handler = handler;
+
+    DrawStructure graph(640, 480);
+    auto root = parse_object(nullptr, obj.get_object(), context, state, context.defaults);
+    ASSERT_TRUE(root);
+    ASSERT_TRUE(root.is<Layout>());
+
+    ASSERT_NO_THROW((void)DynamicGUI::update_objects(nullptr, graph, root, context, state));
+    ASSERT_NO_THROW((void)DynamicGUI::update_objects(nullptr, graph, root, context, state));
+
+    std::vector<std::string> texts;
+    collect_static_text_strings(root, texts);
+
+    ASSERT_THAT(texts, ::testing::ElementsAre(
+        "x:42",
+        "name:trex",
+        "index:0",
+        "x:7",
+        "name:raptor",
+        "index:1"
+    ));
+}
+
+TEST(EachElementTest, ConditionBranchNewlyParsedKeepsOuterScopedVariables) {
+        constexpr std::string_view json = R"json(
+{
+    "type": "each",
+    "var": "outer",
+    "do": {
+        "type": "condition",
+        "var": "{i.enabled}",
+        "then": {
+            "type": "collection",
+            "children": [
+                {
+                    "type": "stext",
+                    "text": "outer:{i.label}-{index}"
+                },
+                {
+                    "type": "each",
+                    "var": "i.inner",
+                    "do": {
+                        "type": "stext",
+                        "text": "inner:{i}-{index}"
+                    }
+                }
+            ]
+        },
+        "else": {
+            "type": "stext",
+            "text": "disabled:{i.label}-{index}"
+        }
+    }
+}
+)json";
+
+        glz::json_t obj;
+        auto parse_error = glz::read_json(obj, json);
+        ASSERT_EQ(parse_error, glz::error_code::none) << glz::format_error(parse_error, json);
+        ASSERT_TRUE(obj.is_object());
+
+        std::vector<sprite::Map> outer_data(2);
+        outer_data[0]["label"] = 10;
+        outer_data[0]["enabled"] = false;
+        outer_data[0]["inner"] = std::vector<int>{7};
+        outer_data[1]["label"] = 20;
+        outer_data[1]["enabled"] = false;
+        outer_data[1]["inner"] = std::vector<int>{8, 9};
+
+        std::vector<std::shared_ptr<VarBase_t>> outer_entries;
+        outer_entries.reserve(outer_data.size());
+        for(size_t idx = 0; idx < outer_data.size(); ++idx) {
+                outer_entries.emplace_back(std::shared_ptr<VarBase_t>(new Variable([idx, &outer_data](const VarProps&) -> sprite::Map& {
+                        return outer_data[idx];
+                })));
+        }
+
+        Context context{
+                VarFunc("outer", [&outer_entries](const VarProps&) -> std::vector<std::shared_ptr<VarBase_t>>& {
+                        return outer_entries;
+                })
+        };
+
+        State state;
+        auto handler = std::make_shared<CurrentObjectHandler>();
+        state._current_object_handler = handler;
+
+        DrawStructure graph(640, 480);
+        auto root = parse_object(nullptr, obj.get_object(), context, state, context.defaults);
+        ASSERT_TRUE(root);
+        ASSERT_TRUE(root.is<Layout>());
+
+        ASSERT_NO_THROW((void)DynamicGUI::update_objects(nullptr, graph, root, context, state));
+
+        std::vector<std::string> texts;
+        collect_static_text_strings(root, texts);
+        ASSERT_THAT(texts, ::testing::ElementsAre(
+                "disabled:10-0",
+                "disabled:20-1"
+        ));
+
+        outer_data[0]["enabled"] = true;
+        outer_data[1]["enabled"] = true;
+
+        ASSERT_NO_THROW((void)DynamicGUI::update_objects(nullptr, graph, root, context, state));
+
+        texts.clear();
+        collect_static_text_strings(root, texts);
+        ASSERT_THAT(texts, ::testing::ElementsAre(
+                "outer:10-0",
+                "inner:7-0",
+                "outer:20-1",
+                "inner:8-0",
+                "inner:9-1"
+        ));
+}
+
+TEST(EachElementTest, ConditionBranchNestedEachUpdatesWithoutOuterLoopCacheMiss) {
+        constexpr std::string_view json = R"json(
+{
+    "type": "each",
+    "var": "outer",
+    "do": {
+        "type": "condition",
+        "var": "{i.enabled}",
+        "then": {
+            "type": "collection",
+            "children": [
+                {
+                    "type": "stext",
+                    "text": "outer:{i.label}-{index}"
+                },
+                {
+                    "type": "each",
+                    "var": "i.inner",
+                    "do": {
+                        "type": "stext",
+                        "text": "inner:{i}-{index}"
+                    }
+                }
+            ]
+        },
+        "else": {
+            "type": "stext",
+            "text": "disabled:{i.label}-{index}"
+        }
+    }
+}
+)json";
+
+        glz::json_t obj;
+        auto parse_error = glz::read_json(obj, json);
+        ASSERT_EQ(parse_error, glz::error_code::none) << glz::format_error(parse_error, json);
+        ASSERT_TRUE(obj.is_object());
+
+        std::vector<sprite::Map> outer_data(2);
+        outer_data[0]["label"] = 10;
+        outer_data[0]["enabled"] = true;
+        outer_data[0]["inner"] = std::vector<int>{1, 2};
+        outer_data[1]["label"] = 20;
+        outer_data[1]["enabled"] = false;
+        outer_data[1]["inner"] = std::vector<int>{3, 4};
+
+        std::vector<std::shared_ptr<VarBase_t>> outer_entries;
+        outer_entries.reserve(outer_data.size());
+        for(size_t idx = 0; idx < outer_data.size(); ++idx) {
+                outer_entries.emplace_back(std::shared_ptr<VarBase_t>(new Variable([idx, &outer_data](const VarProps&) -> sprite::Map& {
+                        return outer_data[idx];
+                })));
+        }
+
+        Context context{
+                VarFunc("outer", [&outer_entries](const VarProps&) -> std::vector<std::shared_ptr<VarBase_t>>& {
+                        return outer_entries;
+                })
+        };
+
+        State state;
+        auto handler = std::make_shared<CurrentObjectHandler>();
+        state._current_object_handler = handler;
+
+        DrawStructure graph(640, 480);
+        auto root = parse_object(nullptr, obj.get_object(), context, state, context.defaults);
+        ASSERT_TRUE(root);
+        ASSERT_TRUE(root.is<Layout>());
+
+        ASSERT_NO_THROW((void)DynamicGUI::update_objects(nullptr, graph, root, context, state));
+
+        std::vector<std::string> texts;
+        collect_static_text_strings(root, texts);
+        ASSERT_THAT(texts, ::testing::ElementsAre(
+                "outer:10-0",
+                "inner:1-0",
+                "inner:2-1",
+                "disabled:20-1"
+        ));
+
+        outer_data[0]["inner"] = std::vector<int>{7};
+
+        ASSERT_NO_THROW((void)DynamicGUI::update_objects(nullptr, graph, root, context, state));
+
+        texts.clear();
+        collect_static_text_strings(root, texts);
+        ASSERT_THAT(texts, ::testing::ElementsAre(
+                "outer:10-0",
+                "inner:7-0",
+                "disabled:20-1"
+        ));
+}
+
+TEST(ListElementTest, DynamicListTemplateRendersAndUpdatesItems) {
+    constexpr std::string_view json = R"json(
+{
+  "type": "list",
+  "var": "items",
+  "template": {
+    "text": "{i.name}",
+    "detail": "{i.detail}",
+    "tooltip": "{i.tooltip}",
+    "disabled": "{i.disabled}"
+  }
+}
+)json";
+
+    glz::json_t obj;
+    auto parse_error = glz::read_json(obj, json);
+    ASSERT_EQ(parse_error, glz::error_code::none) << glz::format_error(parse_error, json);
+    ASSERT_TRUE(obj.is_object());
+
+    std::vector<sprite::Map> item_data(2);
+    item_data[0]["name"] = std::string("alpha");
+    item_data[0]["detail"] = std::string("first detail");
+    item_data[0]["tooltip"] = std::string("first tooltip");
+    item_data[0]["disabled"] = false;
+    item_data[1]["name"] = std::string("beta");
+    item_data[1]["detail"] = std::string("second detail");
+    item_data[1]["tooltip"] = std::string("second tooltip");
+    item_data[1]["disabled"] = true;
+
+    std::vector<std::shared_ptr<VarBase_t>> items;
+    items.reserve(item_data.size());
+    for(size_t idx = 0; idx < item_data.size(); ++idx) {
+        items.emplace_back(std::shared_ptr<VarBase_t>(new Variable([idx, &item_data](const VarProps&) -> sprite::Map& {
+            return item_data[idx];
+        })));
+    }
+
+    Context context{
+        VarFunc("items", [&items](const VarProps&) -> std::vector<std::shared_ptr<VarBase_t>>& {
+            return items;
+        })
+    };
+
+    State state;
+    auto handler = std::make_shared<CurrentObjectHandler>();
+    state._current_object_handler = handler;
+
+    DrawStructure graph(640, 480);
+    auto root = parse_object(nullptr, obj.get_object(), context, state, context.defaults);
+    ASSERT_TRUE(root);
+    ASSERT_TRUE(root.is<ScrollableList<DetailTooltipItem>>());
+
+    auto list = root.to<ScrollableList<DetailTooltipItem>>();
+
+    ASSERT_NO_THROW((void)DynamicGUI::update_objects(nullptr, graph, root, context, state));
+    ASSERT_EQ(list->items().size(), 2u);
+    EXPECT_EQ(list->items().at(0).value().name(), "alpha");
+    EXPECT_EQ(list->items().at(0).value().detail(), "first detail");
+    EXPECT_EQ(list->items().at(0).value().tooltip(), "first tooltip");
+    EXPECT_FALSE(list->items().at(0).value().disabled());
+    EXPECT_EQ(list->items().at(1).value().name(), "beta");
+    EXPECT_EQ(list->items().at(1).value().detail(), "second detail");
+    EXPECT_EQ(list->items().at(1).value().tooltip(), "second tooltip");
+    EXPECT_TRUE(list->items().at(1).value().disabled());
+
+    item_data[0]["name"] = std::string("alpha-updated");
+    item_data[1]["detail"] = std::string("second detail updated");
+    item_data[1]["disabled"] = false;
+
+    ASSERT_NO_THROW((void)DynamicGUI::update_objects(nullptr, graph, root, context, state));
+    ASSERT_EQ(list->items().size(), 2u);
+    EXPECT_EQ(list->items().at(0).value().name(), "alpha-updated");
+    EXPECT_EQ(list->items().at(0).value().detail(), "first detail");
+    EXPECT_EQ(list->items().at(1).value().name(), "beta");
+    EXPECT_EQ(list->items().at(1).value().detail(), "second detail updated");
+    EXPECT_FALSE(list->items().at(1).value().disabled());
+}
+
+TEST(ListElementTest, DynamicListTemplateDispatchesActionsOnSelection) {
+    glz::json_t obj = glz::json_t::object_t{
+        {"type", "list"},
+        {"var", "items"},
+        {"template", glz::json_t::object_t{
+            {"text", "{i.name}"},
+            {"action", "select:{i.name}:{index}"},
+            {"disabled", "{i.disabled}"}
+        }}
+    };
+
+    std::vector<sprite::Map> item_data(2);
+    item_data[0]["name"] = std::string("alpha");
+    item_data[0]["disabled"] = false;
+    item_data[1]["name"] = std::string("beta");
+    item_data[1]["disabled"] = true;
+
+    std::vector<std::shared_ptr<VarBase_t>> items;
+    items.reserve(item_data.size());
+    for(size_t idx = 0; idx < item_data.size(); ++idx) {
+        items.emplace_back(std::shared_ptr<VarBase_t>(new Variable([idx, &item_data](const VarProps&) -> sprite::Map& {
+            return item_data[idx];
+        })));
+    }
+
+    std::vector<Action> received_actions;
+    Context context{
+        VarFunc("items", [&items](const VarProps&) -> std::vector<std::shared_ptr<VarBase_t>>& {
+            return items;
+        })
+    };
+    context.actions["select"] = [&received_actions](Action action) {
+        received_actions.push_back(std::move(action));
+    };
+
+    State state;
+    auto handler = std::make_shared<CurrentObjectHandler>();
+    state._current_object_handler = handler;
+
+    DrawStructure graph(640, 480);
+    auto root = parse_object(nullptr, obj.get_object(), context, state, context.defaults);
+    ASSERT_TRUE(root);
+    ASSERT_TRUE(root.is<ScrollableList<DetailTooltipItem>>());
+
+    auto list = root.to<ScrollableList<DetailTooltipItem>>();
+
+    ASSERT_NO_THROW((void)DynamicGUI::update_objects(nullptr, graph, root, context, state));
+    ASSERT_EQ(list->items().size(), 2u);
+
+    ASSERT_NO_THROW(list->select_item(0));
+    ASSERT_EQ(received_actions.size(), 1u);
+    EXPECT_EQ(received_actions.at(0).name, "select");
+    ASSERT_EQ(received_actions.at(0).parameters.size(), 2u);
+    EXPECT_EQ(received_actions.at(0).parameters.at(0), "alpha");
+    EXPECT_EQ(received_actions.at(0).parameters.at(1), "0");
+
+    ASSERT_NO_THROW(list->select_item(1));
+    ASSERT_EQ(received_actions.size(), 1u);
+
+    item_data[1]["disabled"] = false;
+    ASSERT_NO_THROW((void)DynamicGUI::update_objects(nullptr, graph, root, context, state));
+
+    ASSERT_NO_THROW(list->select_item(1));
+    ASSERT_EQ(received_actions.size(), 2u);
+    EXPECT_EQ(received_actions.at(1).name, "select");
+    ASSERT_EQ(received_actions.at(1).parameters.size(), 2u);
+    EXPECT_EQ(received_actions.at(1).parameters.at(0), "beta");
+    EXPECT_EQ(received_actions.at(1).parameters.at(1), "1");
+}
+
+TEST(EventBindingTest, ClickActionsOnlyFireOnMouseButtonWithScopedContext) {
+    constexpr std::string_view json = R"json(
+{
+  "type": "each",
+  "var": "items",
+  "do": {
+    "type": "rect",
+    "name": "item-{i.name}",
+    "pos": "[{*:40:{index}},0]",
+    "size": [30, 30],
+    "origin": [0, 0],
+    "clickable": true,
+    "click": "select:{i.name}:{index}"
+  }
+}
+)json";
+
+    glz::json_t obj;
+    auto parse_error = glz::read_json(obj, json);
+    ASSERT_EQ(parse_error, glz::error_code::none) << glz::format_error(parse_error, json);
+    ASSERT_TRUE(obj.is_object());
+
+    std::vector<sprite::Map> item_data(2);
+    item_data[0]["name"] = std::string("alpha");
+    item_data[1]["name"] = std::string("beta");
+
+    std::vector<std::shared_ptr<VarBase_t>> items;
+    items.reserve(item_data.size());
+    for(size_t idx = 0; idx < item_data.size(); ++idx) {
+        items.emplace_back(std::shared_ptr<VarBase_t>(new Variable([idx, &item_data](const VarProps&) -> sprite::Map& {
+            return item_data[idx];
+        })));
+    }
+
+    std::vector<Action> received_actions;
+    Context context{
+        VarFunc("items", [&items](const VarProps&) -> std::vector<std::shared_ptr<VarBase_t>>& {
+            return items;
+        })
+    };
+    context.actions["select"] = [&received_actions](Action action) {
+        received_actions.push_back(std::move(action));
+    };
+
+    State state;
+    auto handler = std::make_shared<CurrentObjectHandler>();
+    state._current_object_handler = handler;
+
+    DrawStructure graph(640, 480);
+    auto root = parse_object(nullptr, obj.get_object(), context, state, context.defaults);
+    ASSERT_TRUE(root);
+    ASSERT_TRUE(root.is<Layout>());
+
+    ASSERT_NO_THROW((void)DynamicGUI::update_objects(nullptr, graph, root, context, state));
+    graph.wrap_object(*root);
+
+    auto* target = graph.find("item-beta");
+    ASSERT_NE(target, (Drawable*)NULL);
+
+    const auto target_center = center_of(*target);
+
+    ASSERT_NO_THROW(graph.mouse_move(target_center.x, target_center.y));
+    ASSERT_EQ(received_actions.size(), 0u);
+
+    ASSERT_NO_THROW(graph.mouse_down(true));
+    ASSERT_EQ(received_actions.size(), 1u);
+    EXPECT_EQ(received_actions.at(0).name, "select");
+    ASSERT_EQ(received_actions.at(0).parameters.size(), 2u);
+    EXPECT_EQ(received_actions.at(0).parameters.at(0), "beta");
+    EXPECT_EQ(received_actions.at(0).parameters.at(1), "1");
+
+    ASSERT_NO_THROW(graph.mouse_up(true));
+    ASSERT_EQ(received_actions.size(), 1u);
 }
 
 
@@ -593,6 +1394,72 @@ TEST_F(StaticTextTest, LargeMaxWidth) {
 
     // Verify that all characters are in the correct order
     checkCharactersInOrder(input, strings);
+}
+
+TEST(ConditionElementTest, IfInsideEachKeepsScopedVariables)
+{
+    constexpr std::string_view json = R"json(
+{
+  "type": "each",
+  "var": "items",
+  "do": {
+    "type": "condition",
+    "var": "{i.enabled}",
+    "then": {
+      "type": "stext",
+      "text": "enabled:{i.name}-{index}"
+    },
+    "else": {
+      "type": "stext",
+      "text": "disabled:{i.name}-{index}"
+    }
+  }
+}
+)json";
+
+    glz::json_t obj;
+    auto parse_error = glz::read_json(obj, json);
+    ASSERT_EQ(parse_error, glz::error_code::none) << glz::format_error(parse_error, json);
+    ASSERT_TRUE(obj.is_object());
+
+    std::vector<sprite::Map> item_data(2);
+    item_data[0]["name"] = std::string("alpha");
+    item_data[0]["enabled"] = true;
+    item_data[1]["name"] = std::string("beta");
+    item_data[1]["enabled"] = false;
+
+    std::vector<std::shared_ptr<VarBase_t>> items;
+    items.reserve(item_data.size());
+    for(size_t idx = 0; idx < item_data.size(); ++idx) {
+        items.emplace_back(std::shared_ptr<VarBase_t>(new Variable([idx, &item_data](const VarProps&) -> sprite::Map& {
+            return item_data[idx];
+        })));
+    }
+
+    Context context{
+        VarFunc("items", [&items](const VarProps&) -> std::vector<std::shared_ptr<VarBase_t>>& {
+            return items;
+        })
+    };
+
+    State state;
+    auto handler = std::make_shared<CurrentObjectHandler>();
+    state._current_object_handler = handler;
+
+    DrawStructure graph(640, 480);
+    auto root = parse_object(nullptr, obj.get_object(), context, state, context.defaults);
+    ASSERT_TRUE(root);
+    ASSERT_TRUE(root.is<Layout>());
+
+    ASSERT_NO_THROW((void)DynamicGUI::update_objects(nullptr, graph, root, context, state));
+
+    std::vector<std::string> texts;
+    collect_static_text_strings(root, texts);
+
+    ASSERT_THAT(texts, ::testing::ElementsAre(
+        "enabled:alpha-0",
+        "disabled:beta-1"
+    ));
 }
 
 int main(int argc, char **argv) {

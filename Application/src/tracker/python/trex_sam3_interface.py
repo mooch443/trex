@@ -25,7 +25,7 @@ from typing import Dict, NotRequired, Tuple, TypedDict, cast, Any
 import numpy as np
 import numpy.typing as npt
 import torch
-import torch.nn.functional as F
+from torch.nn import functional as F
 from ultralytics.utils.checks import check_imgsz
 
 try:
@@ -986,8 +986,16 @@ def predict(input: object) -> list[object]:
 
     # Accept both TRex.YoloInput and TRex.Sam3Input.
     base = input.base() if hasattr(input, "base") else input
+    TRex.log(f"Received predict(...) call with input type {type(input).__name__} => base type {type(base).__name__}")
     images = list(base.images())
     orig_ids = list(base.orig_id())
+    scales = list(base.scales())
+
+    if not hasattr(base, "scales"):
+        raise ValueError("Input missing scales(). Scales are required to map orig_id() to frame indices.")
+    
+    TRex.log(f"Scales: {scales}")
+
     if len(images) != len(orig_ids):
         raise ValueError("YoloInput.images() and YoloInput.orig_id() size mismatch.")
 
@@ -998,9 +1006,9 @@ def predict(input: object) -> list[object]:
             raise ValueError("Sam3Input.prompts_per_item must match number of images.")
 
     results: list[object] = []
-    for item_idx, (idx, image) in enumerate(zip(orig_ids, images)):
+    for item_idx, (idx, image, scale) in enumerate(zip(orig_ids, images, scales)):
         frame_index = int(idx)
-        TRex.log(f"Processing frame_index={frame_index} with SAM3 predictor ({image.shape})...")
+        TRex.log(f"Processing frame_index={frame_index} with SAM3 predictor ({image.shape}) scale={scale}...")
 
         # Apply typed prompts if provided by Sam3Input.
         if typed_prompts:
@@ -1060,6 +1068,26 @@ def predict(input: object) -> list[object]:
             if fg.size > 0:
                 mask[fg] = 255
             mask = np.ascontiguousarray(mask.reshape((h, w)))
+
+            orig = [0, 0, int(round(w * scale.x)), int(round(h * scale.y))]
+
+            assert w == 640 and h == 640, f"Expected SAM3 output masks to be 640x640, got {w}x{h}. Check predictor output and scaling logic."
+
+            #TRex.imshow(f"SAM3 Mask {i}", mask)
+
+            # Resize valid mask to box's size
+            import torch
+            tensor = torch.from_numpy(mask).unsqueeze(0).unsqueeze(0)
+            
+            ssub = F.interpolate(
+                tensor, 
+                size=(orig[3], orig[2]),
+                mode="nearest",
+            ).squeeze(0).squeeze(0)
+
+            TRex.log(f"ssub = {ssub.shape}")
+            mask = ssub.cpu().numpy().astype(np.uint8)
+
             masks.append(mask)
 
             ys, xs = np.where(mask > 0)
@@ -1071,12 +1099,14 @@ def predict(input: object) -> list[object]:
             else:
                 x0 = y0 = x1 = y1 = 0.0
 
-            boxes[i, 0] = x0
-            boxes[i, 1] = y0
-            boxes[i, 2] = x1
-            boxes[i, 3] = y1
+            boxes[i, 0] = 0#x0 #* float(scale.x)
+            boxes[i, 1] = 0#y0 #* float(scale.y)
+            boxes[i, 2] = mask.shape[1] #x1 #* float(scale.x)
+            boxes[i, 3] = mask.shape[0] #y1 #* float(scale.y)
             boxes[i, 4] = float(obj.get("score", 0.0))
             boxes[i, 5] = float(obj.get("class_id", 0))
+
+            TRex.log(f"Adding box for object {i}: [{boxes[i, 0]}, {boxes[i, 1]}, {boxes[i, 2]}, {boxes[i, 3]}] conf={boxes[i, 4]:.4f} cls={boxes[i, 5]}")
 
         if len(masks) != n:
             raise RuntimeError("SAM3 predict produced inconsistent boxes/masks counts.")

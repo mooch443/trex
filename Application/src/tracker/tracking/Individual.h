@@ -2,13 +2,12 @@
 #define _FISHP_H
 
 #include <commons.pc.h>
-#include <tracker/misc/idx_t.h>
+#include <core/idx_t.h>
 #include <misc/colors.h>
 #include <misc/Blob.h>
 #include "Posture.h"
-#include "MotionRecord.h"
+#include <data/MotionRecord.h>
 #include <misc/Median.h>
-#include <gui/types/Basic.h>
 #include <misc/Image.h>
 #include <pv.h>
 
@@ -16,13 +15,14 @@
 #include <misc/Timer.h>
 
 #include <tracking/PairingGraph.h>
-#include <tracking/IndividualCache.h>
+#include <data/IndividualCache.h>
 #include <tracking/PPFrame.h>
+#include <tracking/CacheHints.h>
 #include <misc/ranges.h>
 #include <tracking/Stuffs.h>
 #include <tracking/TrackletInformation.h>
 
-#include <misc/Identity.h>
+#include <core/Identity.h>
 
 #define DEBUG_ORIENTATION false
 

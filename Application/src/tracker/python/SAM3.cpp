@@ -1,9 +1,9 @@
 #include "SAM3.h"
 
-#include <misc/PythonWrapper.h>
+#include <python/PythonWrapper.h>
 #include <misc/Timer.h>
-#include <misc/TrackingSettings.h>
-#include <python/Detection.h>
+#include <core/TrackingSettings.h>
+#include <detect/Detection.h>
 #include <python/YOLO.h>
 #include <python/ModuleProxy.h>
 #include <python/ResponseValidation.h>
@@ -185,10 +185,11 @@ void SAM3::apply(std::vector<TileImage>&& tiled) {
                     offsets.reserve(tile_image_count);
                     scales.reserve(tile_image_count);
                     orig_id.reserve(tile_image_count);
-
+                    
                     for(size_t k = 0; k < tile_image_count; ++k) {
                         offsets.emplace_back(0.f, 0.f);
-                        scales.emplace_back(1.f, 1.f);
+                        scales.push_back(tile.original_size.div(tile.source_size));
+                        //scales.emplace_back(1.f, 1.f);
                         // Use real frame id for all tiles; do not encode tile index in frame id.
                         orig_id.emplace_back(static_cast<size_t>(uint64_t(frame_index)));
                     }
@@ -272,6 +273,20 @@ void SAM3::apply(std::vector<TileImage>&& tiled) {
 
     data().fps = data().fps.load() + timer.elapsed();
     data().samples = data().samples.load() + 1;
+}
+
+} // namespace track
+
+namespace track {
+
+void register_sam3_backend() {
+    detect::register_backend(detect::ObjectDetectionType::sam3, detect::BackendHooks{
+        .init = []() { SAM3::init(); },
+        .deinit = []() { SAM3::deinit(); },
+        .is_initializing = []() { return SAM3::is_initializing(); },
+        .fps = []() { return SAM3::fps(); },
+        .apply = [](std::vector<TileImage>&& tiles) { SAM3::apply(std::move(tiles)); }
+    });
 }
 
 } // namespace track

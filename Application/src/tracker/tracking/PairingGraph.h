@@ -2,12 +2,12 @@
 #define _PAIRING_GRAPH_H
 
 #include <commons.pc.h>
-#include <misc/PVBlob.h>
-#include <tracker/misc/default_config.h>
+#include <processing/PVBlob.h>
+#include <core/default_config.h>
 #include <misc/ranges.h>
-#include <tracking/MotionRecord.h>
-#include <misc/idx_t.h>
-#include <misc/TrackingSettings.h>
+#include <data/MotionRecord.h>
+#include <core/idx_t.h>
+#include <core/TrackingSettings.h>
 
 //! Can transport Individual/Blob
 namespace track {

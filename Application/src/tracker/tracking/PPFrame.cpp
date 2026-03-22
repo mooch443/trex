@@ -168,7 +168,6 @@ void PPFrame::init_cache(GenericThreadPool* pool, NeedGrid need)
 {
     ASSUME_NOT_FINALIZED;
     
-    Settings::manual_matches_t::mapped_type current_fixed_matches;
     {
         auto manual_matches = Settings::get<Settings::manual_matches>();
         auto it = manual_matches->find(index());
@@ -465,8 +464,8 @@ pv::bid PPFrame::_add_ownership(bool regular, pv::BlobPtr && blob) {
         
         Print("Blob1 ", uint32_t(blob1->bounds().x) & 0x00000FFF," << 24 = ", (uint32_t(blob1->bounds().x) & 0x00000FFF) << 20," (mask ", (uint32_t(blob1->lines()->front().y) & 0x00000FFF) << 8,", max=", std::numeric_limits<uint32_t>::max(),")");
         
-        auto bid0 = pv::bid::from_blob(*blob);
-        auto bid1 = pv::bid::from_blob(*bdx_to_ptr(blob->blob_id()));
+        auto bid0 = pv::blob_bid(*blob);
+        auto bid1 = pv::blob_bid(*bdx_to_ptr(blob->blob_id()));
         
         FormatExcept("Frame ", _index,": Blob ", blob->blob_id()," already in map (", blob.get() == bdx_to_ptr(blob->blob_id()),"), at ",blob->bounds().pos()," bid=", bid0," vs. ", bdx_to_ptr(blob->blob_id())->bounds().pos()," bid=", bid1);
 #endif
@@ -746,8 +745,8 @@ void PPFrame::add_blobs(std::vector<pv::BlobPtr>&& blobs,
                 
                 Print("Blob1 ", uint32_t(blob1->bounds().x) & 0x00000FFF," << 24 = ", (uint32_t(blob1->bounds().x) & 0x00000FFF) << 20," (mask ", (uint32_t(blob1->lines()->front().y) & 0x00000FFF) << 8,", max=", std::numeric_limits<uint32_t>::max(),")");
                 
-                auto bid0 = pv::bid::from_blob(blob);
-                auto bid1 = pv::bid::from_blob(*bdx_to_ptr(blob->blob_id()));
+                auto bid0 = pv::blob_bid(blob);
+                auto bid1 = pv::blob_bid(*bdx_to_ptr(blob->blob_id()));
                 
                 FormatExcept("Frame ", _index,": Blob ", blob->blob_id()," already in map (", blob.get() == bdx_to_ptr(blob->blob_id()),"), at ",blob->bounds().pos()," bid=", bid0," vs. ", bdx_to_ptr(blob->blob_id())->bounds().pos()," bid=", bid1);
         #endif

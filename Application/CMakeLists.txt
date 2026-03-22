@@ -25,6 +25,9 @@ include(FetchContent)
 
 enable_testing()
 
+set(CMAKE_CXX_VISIBILITY_PRESET default)
+set(CMAKE_VISIBILITY_INLINES_HIDDEN OFF)
+
 set(MACOSX_BUNDLE_GUI_IDENTIFIER "com.trexing.trex")
 set(CMAKE_XCODE_ATTRIBUTE_DEVELOPMENT_TEAM "tristan")
 set(CMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_REQUIRED "NO")
@@ -42,9 +45,37 @@ option(TREX_BUILD_DOCS OFF)
 option(TREX_WITH_TESTS OFF)
 option(TREX_BUILD_TOOLS OFF)
 option(TREX_CONDA_PACKAGE_INSTALL OFF)
+option(TREX_ENABLE_SHARED_INTERNAL_LIBS "Build TRex internal libraries as shared libraries on macOS for dependency hardening." OFF)
+option(TREX_ENABLE_MODULES "Build TRex semantic libraries with C++ named module interfaces." OFF)
 option(WITH_GITSHA1 "include git hash" ON)
 option(BUILD_LEGACY_TREX "Build the TRex (legacy) target" OFF)
-option(BUILD_LEGACY_TGRABS "Build the TGrabs (legacy) target" OFF)
+
+if(TREX_ENABLE_SHARED_INTERNAL_LIBS AND NOT APPLE)
+    message(FATAL_ERROR
+        "TREX_ENABLE_SHARED_INTERNAL_LIBS is currently supported only on macOS. "
+        "Disable it or configure on Apple platforms."
+    )
+endif()
+
+if(TREX_ENABLE_MODULES)
+    if(NOT COMMONS_ENABLE_MODULES)
+        message(FATAL_ERROR
+            "TREX_ENABLE_MODULES requires COMMONS_ENABLE_MODULES=ON because the TRex semantic modules build on top of the commons module graph."
+        )
+    endif()
+
+    if(${CMAKE_VERSION} VERSION_LESS "3.28.0")
+        message(FATAL_ERROR "TREX_ENABLE_MODULES requires CMake 3.28 or newer.")
+    endif()
+
+    if(NOT CMAKE_GENERATOR MATCHES "^(Ninja|Ninja Multi-Config|Visual Studio 17 2022)$")
+        message(FATAL_ERROR
+            "TREX_ENABLE_MODULES is not supported with the '${CMAKE_GENERATOR}' generator. "
+            "Current CMake C++ module support requires Ninja, Ninja Multi-Config, or Visual Studio 17 2022. "
+            "Use -G Ninja (or disable TREX_ENABLE_MODULES)."
+        )
+    endif()
+endif()
 
 if(APPLE)
     option(BUILD_FOR_ARM64 "Build for arm64 architecture" ON)
@@ -72,6 +103,37 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "^(Apple)?Clang$")
     set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -DNDEBUG")
     set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -DNDEBUG")
     set(CMAKE_C_FLAGS_RELWITHDEBINFO "${CMAKE_C_FLAGS_RELWITHDEBINFO} -DNDEBUG")
+endif()
+
+message(STATUS "[TREX ENV] Generator='${CMAKE_GENERATOR}' WIN32='${WIN32}'")
+message(STATUS "[TREX ENV] Incoming ENV{CONDA_PREFIX}='$ENV{CONDA_PREFIX}'")
+
+set(_trex_vs_debugger_env "")
+
+if(WIN32 AND DEFINED ENV{CONDA_PREFIX} AND NOT "$ENV{CONDA_PREFIX}" STREQUAL "")
+    set(_trex_conda_prefix "$ENV{CONDA_PREFIX}")
+    get_filename_component(_trex_conda_root "${_trex_conda_prefix}" DIRECTORY)
+
+    # If CMake is launched from an activated conda env, ensure configure-time
+    # lookups (find_package/find_program/custom steps) resolve against that env.
+    set(_trex_conda_path_prefix
+        "${_trex_conda_prefix};${_trex_conda_prefix}/Library/mingw64/bin;${_trex_conda_prefix}/Library/mingw-w64/bin;${_trex_conda_prefix}/Library/usr/bin;${_trex_conda_prefix}/Library/bin;${_trex_conda_prefix}/Scripts;${_trex_conda_prefix}/bin;${_trex_conda_root}/condabin")
+    set(ENV{PATH} "${_trex_conda_path_prefix};$ENV{PATH}")
+    set(ENV{CONDA_PREFIX} "${_trex_conda_prefix}")
+
+    # This is used for generated Visual Studio target debugging properties.
+    set(_trex_vs_debugger_env
+        "CONDA_PREFIX=${_trex_conda_prefix}\nPATH=${_trex_conda_path_prefix};%PATH%")
+    set(CMAKE_VS_DEBUGGER_ENVIRONMENT "${_trex_vs_debugger_env}")
+
+    string(FIND "$ENV{PATH}" "${_trex_conda_prefix}" _trex_conda_in_path)
+    message(STATUS "[TREX ENV] Applied CONDA_PREFIX='$ENV{CONDA_PREFIX}'")
+    message(STATUS "[TREX ENV] PATH now contains CONDA_PREFIX at index ${_trex_conda_in_path}")
+    message(STATUS "[TREX ENV] CMAKE_VS_DEBUGGER_ENVIRONMENT has been set for new targets")
+else()
+    if(WIN32)
+        message(WARNING "[TREX ENV] ENV{CONDA_PREFIX} is empty during configure. Conda PATH injection was skipped.")
+    endif()
 endif()
 
 set(CONDA_PREFIX $ENV{CONDA_PREFIX} CACHE PATH "CONDA_PREFIX if set during cmake")
@@ -131,9 +193,14 @@ set_property(GLOBAL PROPERTY DEBUG_CONFIGURATIONS "Debug;DEBUG;")
 set(CMAKE_DEBUG_POSTFIX -d)
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "^(Apple)?Clang$")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fvisibility-inlines-hidden -fvisibility=hidden -fstrict-aliasing")
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fvisibility-inlines-hidden -fvisibility=hidden -fstrict-aliasing")
+    if(NOT ${TREX_ENABLE_SHARED_INTERNAL_LIBS})
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fvisibility-inlines-hidden -fvisibility=hidden -fstrict-aliasing")
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fvisibility-inlines-hidden -fvisibility=hidden -fstrict-aliasing")
+        message(STATUS "Using hidden visibility for non-shared TRex build on Apple Clang.")
+    endif()
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-undefined,error")
+    set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,-undefined,error")
+    set(CMAKE_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS} -Wl,-undefined,error")
 endif()
 
 set(ORIGINAL_CXX_FLAGS ${CMAKE_CXX_FLAGS})
@@ -237,18 +304,22 @@ elseif(CMAKE_CXX_COMPILER_ID MATCHES "^(Apple)?Clang$")
 
     set(TREX_WARNING_FLAGS "-Wmove -Werror=return-stack-address") #-Wthread-safety")
 
+    set(TREX_RELEASE_LTO_FLAG "-flto")
+    if(APPLE AND TREX_ENABLE_MODULES)
+        set(TREX_RELEASE_LTO_FLAG "-fno-lto")
+    endif()
+
     set(C_SANITIZE_OPTIONS "")
     set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0 -g ${C_SANITIZE_OPTIONS} -fno-lto")
-    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} ${M1OPTIONS} -O3 -flto -ffunction-sections -fdata-sections ${TREX_WARNING_FLAGS}")
-    set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} ${M1OPTIONS} -O1 -g3 -gdwarf-5 -fno-omit-frame-pointer -fno-inline -fno-inline-functions -fno-lto ${TREX_WARNING_FLAGS}")
+    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} ${M1OPTIONS} -O3 ${TREX_RELEASE_LTO_FLAG} -ffunction-sections -fdata-sections ${TREX_WARNING_FLAGS}")
+    set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} ${M1OPTIONS} -O3 -g3 -gdwarf-5 -fno-omit-frame-pointer -fno-inline -fno-inline-functions -fno-lto ${TREX_WARNING_FLAGS}")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-c++98-compat-pedantic -Wall -Wextra -pedantic ${TREX_WARNING_FLAGS}")
     
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Werror=return-stack-address")
     set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -O0 -g")
-    set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} ${M1OPTIONS} -O3 -flto -ffunction-sections -fdata-sections ${TREX_WARNING_FLAGS}")
-    set(CMAKE_C_FLAGS_RELWITHDEBINFO "${CMAKE_C_FLAGS_RELWITHDEBINFO} ${M1OPTIONS} -O2 -g ${C_SANITIZE_OPTIONS} -fno-omit-frame-pointer")
+    set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} ${M1OPTIONS} -O3 ${TREX_RELEASE_LTO_FLAG} -ffunction-sections -fdata-sections ${TREX_WARNING_FLAGS}")
+    set(CMAKE_C_FLAGS_RELWITHDEBINFO "${CMAKE_C_FLAGS_RELWITHDEBINFO} ${M1OPTIONS} -O3 -g ${C_SANITIZE_OPTIONS} -fno-omit-frame-pointer")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-c++98-compat-pedantic")
-    message(STATUS "hidden visibility in main project ${CMAKE_CXX_FLAGS}")
     message(STATUS "Apple Silicon: ${CMAKE_SYSTEM_PROCESSOR} -> ${M1OPTIONS}")
     
     set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Wno-nullability-extension")
@@ -398,7 +469,6 @@ if(NOT WIN32 AND ${TREX_BUILD_DOCS})
         add_custom_target(
           doc ALL
           COMMAND $<TARGET_FILE:TRex> -d "${CMAKE_SOURCE_DIR}/../docs" -h rst
-          COMMAND $<TARGET_FILE:TGrabs> -d "${CMAKE_SOURCE_DIR}/../docs" -h rst
           COMMAND export PATH="$ENV{PATH}:${SPHINX_DIR}"
           COMMAND echo "CONDA_PREFIX=${CONDA_PREFIX} PATH=${PATH}"
           COMMAND make html
@@ -417,13 +487,12 @@ elseif(${TREX_BUILD_DOCS})
     else()
         get_filename_component(SPHINX_DIR ${SPHINX_EXECUTABLE} DIRECTORY)
         message(STATUS "Found sphinx at ${SPHINX_EXECUTABLE} (dir: ${SPHINX_DIR}).")
-        message(STATUS "$<TARGET_FILE:tgrabs> -d \"${CMAKE_SOURCE_DIR}/../docs\" -h rst")
         add_custom_target(
             #C:\Users\tristan\Videos\f9_f10_f11_emptytank_20180220_120156.pv
           doc ALL #-i Z:\work\f9_f10_f11_emptytank_20180220_120156\%256d.mp4 -averaging_method mode -threshold 30 -use_closing -closing_size 5 -correct_luminance
-          COMMAND ${CMAKE_SOURCE_DIR}/../docs/make.bat html "${SPHINX_DIR}" "${CMAKE_SOURCE_DIR}/../docs" "$<TARGET_FILE:trex>" "$<TARGET_FILE:tgrabs>"
+          COMMAND ${CMAKE_SOURCE_DIR}/../docs/make.bat html "${SPHINX_DIR}" "${CMAKE_SOURCE_DIR}/../docs" "$<TARGET_FILE:trex>"
           DEPENDS
-            trex tgrabs
+            trex
           WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/../docs
           COMMENT "Generating API documentation with Doxygen PATH=$ENV{PATH}:${SPHINX_DIR} ${CMAKE_SOURCE_DIR}/../docs/make.bat"
           VERBATIM
@@ -432,6 +501,24 @@ elseif(${TREX_BUILD_DOCS})
 endif()
 
 add_subdirectory(Tests)
+
+if(WIN32 AND NOT "${_trex_vs_debugger_env}" STREQUAL "")
+    # Ensure existing executable targets also get debugger env entries in the
+    # generated .vcxproj Debugging properties.
+    get_property(_trex_all_targets GLOBAL PROPERTY TARGETS)
+    foreach(_trex_tgt ${_trex_all_targets})
+        get_target_property(_trex_is_imported ${_trex_tgt} IMPORTED)
+        if(_trex_is_imported)
+            continue()
+        endif()
+
+        get_target_property(_trex_type ${_trex_tgt} TYPE)
+        if(_trex_type STREQUAL "EXECUTABLE")
+            set_property(TARGET ${_trex_tgt} PROPERTY VS_DEBUGGER_ENVIRONMENT "${_trex_vs_debugger_env}")
+        endif()
+    endforeach()
+    message(STATUS "[TREX ENV] Applied VS debugger environment to executable targets")
+endif()
 
 if(POLICY CMP0114)
   cmake_policy(POP)
@@ -443,5 +530,3 @@ message(STATUS "CMAKE_CXX_FLAGS = ${CMAKE_CXX_FLAGS}")
 message(STATUS "CMAKE_CXX_FLAGS_RELEASE = ${CMAKE_CXX_FLAGS_RELEASE}")
 message(STATUS "CMAKE_CXX_STANDARD_LIBRARIES = ${CMAKE_CXX_STANDARD_LIBRARIES}")
 message(STATUS "CMAKE_CXX_IMPLICIT_LINK_DIRECTORIES = ${CMAKE_CXX_IMPLICIT_LINK_DIRECTORIES}")
-
-

@@ -1,8 +1,9 @@
 #pragma once
 
-#include <python/Detection.h>
+#include <detect/Detection.h>
+#include <detect/GPURecognitionTypes.h>
 #include <python/ModuleProxy.h>
-#include <misc/SizeFilters.h>
+#include <core/SizeFilters.h>
 #include <processing/DLList.h>
 
 namespace track {
@@ -27,6 +28,9 @@ struct TREX_EXPORT YOLO {
     
     static bool is_initializing();
     static double fps();
+    
+    static PipelineManager<TileImage, true>& manager();
+    
 private:
     struct TransferData;
     struct Data;

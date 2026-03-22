@@ -169,7 +169,8 @@
                                         "label":{
                                             "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,250]}",
                                             "fill":"{if:{||:{selected}:{hovered}}:[10,80,110,240]:[10,50,80,240]}",
-                                            "font":{"size":0.65}
+                                            "font":{"size":0.65},
+                                            "color":[255,255,255]
                                         },
                                         "size":"[{min:350:{max:100:{-:{element_w}:195}}},45]",
                                         "pad":[0,0,10,0],
@@ -202,7 +203,8 @@
                                                                 "corners":["right"],
                                                                 "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,250]}",
                                                                 "fill":"{if:{||:{selected}:{hovered}}:[10,80,110,240]:[10,50,80,240]}",
-                                                                "font":{"size":0.65}
+                                                                "font":{"size":0.65},
+                                                                "color":[255,255,255]
                                                             },
                                                             "size":"[{min:200:{max:120:{element_w}}},45]",
                                                             "desc":""
@@ -218,6 +220,8 @@
                                                         "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
                                                         "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
                                                         "size":"[{min:50:{max:120:{element_w}}},45]",
+                                                        "corners":["right"],
+                                                        "color":[255,255,0],
                                                         "desc":""
                                                     },
                                                     "else":{
@@ -294,7 +298,8 @@
                                                     "line":[220,220,220,200],
                                                     "fill":[25,25,25,220],
                                                     "size":"[{element_w},200]",
-                                                    "font":{"size":0.6}
+                                                    "font":{"size":0.6},
+                                                    "color":[255,255,255]
                                                 },
                                                 "size":"[{max:50:{*:{textfield_w}:0.1}},45]",
                                                 "desc":""
@@ -315,7 +320,8 @@
                                                     "line":[220,220,220,200],
                                                     "fill":[25,25,25,220],
                                                     "size":"[{element_w},200]",
-                                                    "font":{"size":0.6}
+                                                    "font":{"size":0.6},
+                                                    "color":[255,255,255]
                                                 },
                                                 "size":"[{max:50:{*:{textfield_w}:0.1}},45]",
                                                 "desc":""
@@ -405,7 +411,7 @@
                                     "children":[
                                         {
                                             "type":"settings",
-                                            "label":{ "corners":["left"] },
+                                            "label":{ "corners":["left"], "color":[255,255,255] },
                                             "var":"detect_model",
                                             "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
                                             "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
@@ -560,7 +566,8 @@
                                     "label":{
                                         "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,250]}",
                                         "fill":"{if:{||:{selected}:{hovered}}:[10,80,110,240]:[10,50,80,240]}",
-                                        "font":{"size":0.65}
+                                        "font":{"size":0.65},
+                                        "color":[255,255,255]
                                     },
                                     "list":{
                                         "line":[220,220,220,200],
@@ -607,7 +614,7 @@
                                 "children":[
                                     {
                                         "type":"settings",
-                                        "label":{ "corners":["left"] },
+                                        "label":{ "corners":["left"], "color":[255,255,255] },
                                         "name":"conditional_region_model",
                                         "var":"{if:{machine_learning}:'region_model':'detect_threshold'}",
                                         "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",

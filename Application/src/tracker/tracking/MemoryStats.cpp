@@ -2,7 +2,7 @@
 #include <misc/pretty.h>
 #include <tracking/Tracker.h>
 #include <tracking/OutputLibrary.h>
-#include <misc/FOI.h>
+#include <core/FOI.h>
 
 namespace mem {
 
