@@ -30,15 +30,15 @@ auto pack(auto&& f, Network* net = nullptr) {
     };
 }
 
-std::shared_future<void> init();
-std::future<void> deinit();
-[[nodiscard]] std::future<void> schedule(PackagedTask&&, Flag = Flag::DEFAULT);
-bool python_available();
-bool python_initialized();
-bool python_initializing();
-void fix_paths(bool force_init, cmn::source_location loc = cmn::source_location::current());
-void set_instance(void*);
-void* get_instance();
+TREX_EXPORT std::shared_future<void> init();
+TREX_EXPORT std::future<void> deinit();
+[[nodiscard]] TREX_EXPORT std::future<void> schedule(PackagedTask&&, Flag = Flag::DEFAULT);
+TREX_EXPORT bool python_available();
+TREX_EXPORT bool python_initialized();
+TREX_EXPORT bool python_initializing();
+TREX_EXPORT void fix_paths(bool force_init, cmn::source_location loc = cmn::source_location::current());
+TREX_EXPORT void set_instance(void*);
+TREX_EXPORT void* get_instance();
 
 template<typename T>
 concept not_a_task = !cmn::_clean_same<PackagedTask, T>;
