@@ -300,6 +300,31 @@ target_link_libraries(${TREXA_EXEC_NAME} PUBLIC
 )
 
 set(TREX_APP_TARGETS ${TREXA_EXEC_NAME})
+set(TREX_TOOL_TARGETS)
+
+add_executable(pvinfo
+    pvinfo.cpp
+    pvinfo_merge.cpp
+    pvinfo_merge.h
+    "${CMAKE_CURRENT_BINARY_DIR}/../GitSHA1.cpp"
+    ../GitSHA1.h
+)
+target_link_libraries(pvinfo PRIVATE
+    tracker_tracking
+    tracker_gui
+    tracker_misc
+    framegrabber_misc
+    commons
+    pv
+)
+if(TARGET tracker_python)
+    target_link_libraries(pvinfo PRIVATE tracker_python)
+    if(WIN32)
+        set_target_properties(pvinfo PROPERTIES LINK_FLAGS "/DELAYLOAD:tracker_python.dll /DELAYLOAD:tracker_python-d.dll")
+    endif()
+endif()
+add_dependencies(pvinfo commons)
+list(APPEND TREX_TOOL_TARGETS pvinfo)
 
 if(TREX_ENABLE_PROTOTYPES)
     set(INTERACTIVE_SEGMENTATION_EXEC_NAME interactive_segmentation_prototype)
@@ -344,14 +369,29 @@ foreach(app_target ${TREX_APP_TARGETS})
         target_link_options(${app_target} PRIVATE "-Wl,--no-undefined")
     endif()
 endforeach()
+foreach(tool_target ${TREX_TOOL_TARGETS})
+    if(UNIX AND NOT APPLE AND NOT "${CMAKE_SYSTEM_NAME}" STREQUAL "Emscripten")
+        target_link_options(${tool_target} PRIVATE "-Wl,--no-undefined")
+    elseif(WIN32 AND NOT MSVC)
+        target_link_options(${tool_target} PRIVATE "-Wl,--no-undefined")
+    endif()
+endforeach()
 
 if(WITH_FFMPEG)
     foreach(app_target ${TREX_APP_TARGETS})
         target_compile_definitions(${app_target} PRIVATE WITH_FFMPEG=true)
     endforeach()
+    foreach(tool_target ${TREX_TOOL_TARGETS})
+        target_compile_definitions(${tool_target} PRIVATE WITH_FFMPEG=true)
+    endforeach()
 endif()
 
 set(TRACKER_PATH "$<TARGET_FILE_DIR:${TREXA_EXEC_NAME}>")
+foreach(tool_target ${TREX_TOOL_TARGETS})
+    if(NOT APPLE)
+        set_target_properties(${tool_target} PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${TRACKER_PATH}")
+    endif()
+endforeach()
 
 #if(NOT ${COMMONS_NO_PYTHON} AND NOT ${TREX_NO_PYTHON})
     target_link_libraries(${TREXA_EXEC_NAME} PUBLIC tracker_python)
@@ -427,7 +467,7 @@ if(NOT TREX_CONDA_PACKAGE_INSTALL)
 
     IF("${CMAKE_SYSTEM}" MATCHES "Linux")
         message(STATUS "Copying files ${RESOURCE_COPY_SINGLE_FILES}")
-        foreach(app_target ${TREX_APP_TARGETS})
+        foreach(app_target ${TREX_APP_TARGETS} ${TREX_TOOL_TARGETS})
             foreach(comp ${RESOURCE_COPY_SINGLE_FILES})
                 get_filename_component(comp_s ${comp} NAME)
 
@@ -458,7 +498,7 @@ if(NOT TREX_CONDA_PACKAGE_INSTALL)
         message(STATUS "(windows) Copying files ${RESOURCE_COPY_SINGLE_FILES}")
         message(STATUS "(install_prefix) :${CMAKE_INSTALL_PREFIX} :${CMAKE_BINARY_DIR}")
         
-        foreach(app_target ${TREX_APP_TARGETS})
+        foreach(app_target ${TREX_APP_TARGETS} ${TREX_TOOL_TARGETS})
             foreach(comp ${RESOURCE_COPY_SINGLE_FILES})
                 get_filename_component(comp_s ${comp} NAME)
 
@@ -486,7 +526,7 @@ if(NOT TREX_CONDA_PACKAGE_INSTALL)
         
     elseif(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         message(STATUS "Copying files ${RESOURCE_COPY_SINGLE_FILES}")
-        foreach(app_target ${TREX_APP_TARGETS})
+        foreach(app_target ${TREX_APP_TARGETS} ${TREX_TOOL_TARGETS})
             foreach(comp ${RESOURCE_COPY_SINGLE_FILES})
                 get_filename_component(comp_s ${comp} NAME)
 
@@ -523,7 +563,7 @@ else()
     if(APPLE AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         message(STATUS "Copying files ${RESOURCE_COPY_FILES}")
 
-        foreach(app_target ${TREX_APP_TARGETS})
+        foreach(app_target ${TREX_APP_TARGETS} ${TREX_TOOL_TARGETS})
             foreach(comp ${RESOURCE_COPY_FILES})
                 get_filename_component(comp_s ${comp} NAME)
 
@@ -536,7 +576,7 @@ else()
     endif()
 endif()
 
-set(targets ${TREX_APP_TARGETS})
+set(targets ${TREX_APP_TARGETS} ${TREX_TOOL_TARGETS})
 
 if(BUILD_LEGACY_TREX)
     set(targets ${targets} ${TREX_EXEC_NAME})

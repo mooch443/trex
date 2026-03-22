@@ -1629,31 +1629,71 @@ Frame_t File::length() const {
         Frame_t last_reset_idx;
         uint64_t last_difference = 0;
         
-        for (Frame_t idx = 0_f; idx < Frame_t(file.length()); ++idx) {
-            pv::Frame frame;
-            file.read_frame(frame, idx);
-            
-            //frame.set_timestamp(file.header().timestamp + frame.timestamp());
-            
-            if (raw_prev_timestamp.valid() && frame.timestamp() < raw_prev_timestamp) {
-                last_reset = raw_prev_timestamp.get() + last_difference;
-                last_reset_idx = idx;
+        if(file.length() == 0_f) {
+            for(Frame_t idx = 0_f;;++idx) {
+                pv::Frame frame;
+                try {
+                    frame.read_from(file, idx, file.header().encoding);
+                } catch(...) {
+                    Print("Could not read past ", idx,".");
+                    break;
+                }
                 
-                FormatWarning("Fixing frame ",idx," because timestamp ",frame.timestamp()," < ",last_reset," -> ",last_reset + frame.timestamp().get());
-            } else {
-            	last_difference = frame.timestamp().get() - raw_prev_timestamp.get();
+                Print(frame);
+                
+                if (raw_prev_timestamp.valid()
+                    && frame.timestamp() < raw_prev_timestamp)
+                {
+                    last_reset = raw_prev_timestamp.get() + last_difference;
+                    last_reset_idx = idx;
+                    
+                    FormatWarning("Fixing frame ",idx," because timestamp ",frame.timestamp()," < ",last_reset," -> ",last_reset + frame.timestamp().get());
+                } else if(raw_prev_timestamp.valid()) {
+                    last_difference = frame.timestamp().get() - raw_prev_timestamp.get();
+                } else {
+                    last_difference = 0;
+                }
+                
+                raw_prev_timestamp = frame.timestamp();
+                
+                if(last_reset_idx.valid()) {
+                    frame.set_timestamp(last_reset + frame.timestamp());
+                }
+                
+                copy.add_individual(std::move(frame));
+                
+                if (idx.get() % 1000 == 0) {
+                    Print("Frame ", idx," / ", file.length()," (",copy.compression_ratio() * 100,"% compression ratio)...");
+                }
             }
             
-            raw_prev_timestamp = frame.timestamp();
-            
-            if(last_reset_idx.valid()) {
-                frame.set_timestamp(last_reset + frame.timestamp());
-            }
-            
-            copy.add_individual(std::move(frame));
-            
-            if (idx.get() % 1000 == 0) {
-                Print("Frame ", idx," / ", file.length()," (",copy.compression_ratio() * 100,"% compression ratio)...");
+        } else {
+            for (Frame_t idx = 0_f; idx < Frame_t(file.length()); ++idx) {
+                pv::Frame frame;
+                file.read_frame(frame, idx);
+                
+                //frame.set_timestamp(file.header().timestamp + frame.timestamp());
+                
+                if (raw_prev_timestamp.valid() && frame.timestamp() < raw_prev_timestamp) {
+                    last_reset = raw_prev_timestamp.get() + last_difference;
+                    last_reset_idx = idx;
+                    
+                    FormatWarning("Fixing frame ",idx," because timestamp ",frame.timestamp()," < ",last_reset," -> ",last_reset + frame.timestamp().get());
+                } else {
+                    last_difference = frame.timestamp().get() - raw_prev_timestamp.get();
+                }
+                
+                raw_prev_timestamp = frame.timestamp();
+                
+                if(last_reset_idx.valid()) {
+                    frame.set_timestamp(last_reset + frame.timestamp());
+                }
+                
+                copy.add_individual(std::move(frame));
+                
+                if (idx.get() % 1000 == 0) {
+                    Print("Frame ", idx," / ", file.length()," (",copy.compression_ratio() * 100,"% compression ratio)...");
+                }
             }
         }
         
