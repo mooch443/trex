@@ -9,6 +9,7 @@
 #include <misc/create_struct.h>
 #include <misc/frame_t.h>
 #include <video/Video.h>
+#include <misc/format.h>
 
 struct AVCodec;
 

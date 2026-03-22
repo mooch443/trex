@@ -51,3 +51,6 @@ Application/tmp-modules-osx/
 Application/tmp-modules-clean/
 Application/tmp-modules-osx-tests-nolto/
 Application/tmp-modules-osx-tests/
+Application/tmp-modules-osx-compilecheck/
+Application/tmp-modules-osx-compilecheck-gitfix/
+Application/tmp-modules-osx-compilecheck-reuseopencv/

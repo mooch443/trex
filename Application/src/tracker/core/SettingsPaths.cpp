@@ -11,13 +11,19 @@ file::Path find_output_name(const sprite::Map& map,
                             file::Path filename,
                             bool respect_user_choice)
 {
+    const auto source_ref = map.at("source");
     const auto _source = source.empty()
-        ? map.at("source").value<file::PathArray>()
+        ? (source_ref.valid() ? source_ref.value<file::PathArray>() : file::PathArray{})
         : source;
 
-    auto name = respect_user_choice
-        ? map.at("filename").value<file::Path>()
-        : file::Path{};
+    auto name = file::Path{};
+    if(respect_user_choice) {
+        if(auto filename_ref = map.at("filename");
+           filename_ref.valid())
+        {
+            name = filename_ref.value<file::Path>();
+        }
+    }
 
     filename = name.empty()
         ? file::Path()
@@ -27,6 +33,10 @@ file::Path find_output_name(const sprite::Map& map,
         if(filename.has_extension("pv")) {
             filename = filename.remove_extension();
         }
+        return filename;
+    }
+
+    if(_source.get_paths().empty()) {
         return filename;
     }
 

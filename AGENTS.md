@@ -219,5 +219,4 @@ conda build -c conda-forge .
 ## Agent execution constraints
 - do not run commands in the build directory and dont delete the existing project files there
 - do not run commands outside the root directory of the project, or commands that affect the outside
-- Only use the Conda environment `trex` for environment-specific commands or
-  instructions. Do not access or assume any other environment.
+- Only use the Conda environment `trex` for environment-specific commands or instructions, or the `trex-modules` environment. Do not access or assume any other environment.

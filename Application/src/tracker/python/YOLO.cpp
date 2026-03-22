@@ -19,17 +19,19 @@ struct AcceptanceSettings {
     Float2_t sqcm;
     SizeFilters min_max;
     
-    bool is_acceptable(const pv::Blob& blob) const {
+    bool is_acceptable(uint64_t pixel_count) const {
         if(min_max.empty())
             return true;
-        return min_max.in_range_of_one(blob.num_pixels() * sqcm);
+        return min_max.in_range_of_one(pixel_count * sqcm);
     }
     
     static AcceptanceSettings Make() {
-        const auto cm_per_pixel = READ_SETTING(cm_per_pixel, Settings::cm_per_pixel_t);
+        auto cm_per_pixel = READ_SETTING_WITH_DEFAULT(cm_per_pixel, Settings::cm_per_pixel_t{1_F});
+        if(cm_per_pixel <= 0_F)
+            cm_per_pixel = 1_F;
         return AcceptanceSettings{
             .sqcm = SQR(cm_per_pixel),
-            .min_max = READ_SETTING(detect_size_filter, SizeFilters)
+            .min_max = READ_SETTING_WITH_DEFAULT(detect_size_filter, SizeFilters{})
         };
     }
 };
@@ -483,6 +485,7 @@ void YOLO::process_points(
         
         cmn::PixelArray_t pixels;
         std::vector<HorizontalLine> lines;
+        uint64_t pixel_count = 0;
         
         int ymin = bounds.y;
         int ymax = bounds.y + bounds.height;
@@ -511,21 +514,20 @@ void YOLO::process_points(
             };
 
             pixels.insert(pixels.end(), r3.ptr<uchar>(line.y, line.x0), r3.ptr<uchar>(line.y, line.x1 + 1));
+            pixel_count += uint64_t(line.x1 - line.x0 + 1);
             lines.emplace_back(std::move(line));
         }
 
         if (lines.empty())
             return;
 
+        if(not settings.is_acceptable(pixel_count))
+            return;
+
         uint8_t flags{0};
         pv::Blob::set_flag(flags, pv::Blob::Flags::is_rgb, r3.channels() == 3);
         pv::Blob::set_flag(flags, pv::Blob::Flags::is_r3g3b2, Background::meta_encoding() == meta_encoding_t::r3g3b2);
         pv::Blob::set_flag(flags, pv::Blob::Flags::is_binary, Background::meta_encoding() == meta_encoding_t::binary);
-
-        pv::Blob blob(lines, flags);
-
-        if(not settings.is_acceptable(blob))
-            return;
 
         data.predictions.push_back({
             .clid = size_t(row.clid),
@@ -575,6 +577,7 @@ void YOLO::process_obbs(
         
         cmn::PixelArray_t pixels;
         std::vector<HorizontalLine> lines;
+        uint64_t pixel_count = 0;
         
         int ymin = bounds.y;
         int ymax = bounds.y + bounds.height;
@@ -643,6 +646,7 @@ void YOLO::process_obbs(
             };
 
             pixels.insert(pixels.end(), r3.ptr<uchar>(line.y, line.x0), r3.ptr<uchar>(line.y, line.x1 + 1));
+            pixel_count += uint64_t(line.x1 - line.x0 + 1);
             lines.emplace_back(std::move(line));
         }
 
@@ -652,16 +656,14 @@ void YOLO::process_obbs(
             return;
         }
 
+        if(not settings.is_acceptable(pixel_count)) {
+            return;
+        }
+
         uint8_t flags{0};
         pv::Blob::set_flag(flags, pv::Blob::Flags::is_rgb, r3.channels() == 3);
         pv::Blob::set_flag(flags, pv::Blob::Flags::is_r3g3b2, Background::meta_encoding() == meta_encoding_t::r3g3b2);
         pv::Blob::set_flag(flags, pv::Blob::Flags::is_binary, Background::meta_encoding() == meta_encoding_t::binary);
-
-        pv::Blob blob(lines, flags);
-
-        if(not settings.is_acceptable(blob)) {
-            return;
-        }
 
         data.predictions.push_back({
             .clid = size_t(row.clid),
@@ -720,6 +722,7 @@ void YOLO::process_boxes_only(
 
         cmn::PixelArray_t pixels;
         std::vector<HorizontalLine> lines;
+        uint64_t pixel_count = 0;
 
         for (int y = bounds.y; y < saturate(bounds.y + bounds.height, Float2_t(0), Float2_t(h)); ++y) {
             HorizontalLine line{
@@ -728,6 +731,7 @@ void YOLO::process_boxes_only(
                 saturate(coord_t(bounds.x + bounds.width), coord_t(0), coord_t(w-1))
             };
             pixels.insert(pixels.end(), r3.ptr<uchar>(line.y, line.x0), r3.ptr<uchar>(line.y, line.x1 + 1));
+            pixel_count += uint64_t(line.x1 - line.x0 + 1);
             lines.emplace_back(std::move(line));
         }
 
@@ -735,15 +739,14 @@ void YOLO::process_boxes_only(
             return;
         }
 
+        if(not settings.is_acceptable(pixel_count)) {
+            return;
+        }
+
         uint8_t flags{0};
         pv::Blob::set_flag(flags, pv::Blob::Flags::is_rgb, r3.channels() == 3);
         pv::Blob::set_flag(flags, pv::Blob::Flags::is_r3g3b2, Background::meta_encoding() == meta_encoding_t::r3g3b2);
         pv::Blob::set_flag(flags, pv::Blob::Flags::is_binary, Background::meta_encoding() == meta_encoding_t::binary);
-
-        pv::Blob blob(lines, flags);
-        if(not settings.is_acceptable(blob)) {
-            return;
-        }
 
         data.predictions.push_back({
             .clid = size_t(row.clid),
@@ -873,7 +876,7 @@ std::optional<std::tuple<SegmentationData::Assignment, blob::Pair>> YOLO::proces
 
     // Select the blob with the maximum pixel count for further processing
     auto&& pair = blobs.at(midx);
-    //size_t num_pixels{ 0u };
+    uint64_t pixel_count = 0;
     // Adjust each horizontal line by bounding-box offset and clamp to image dimensions
     for (auto& line : *pair.lines) {
         auto oline = line;
@@ -881,7 +884,7 @@ std::optional<std::tuple<SegmentationData::Assignment, blob::Pair>> YOLO::proces
         line.x0 = saturate(coord_t(line.x0 + bounds.x), coord_t(0), w);
         line.x1 = saturate(coord_t(line.x1 + bounds.x), line.x0, w);
         line.y = saturate(coord_t(line.y + bounds.y), coord_t(0), h);
-        //num_pixels += ptr_safe_t(line.x1) - ptr_safe_t(line.x0) + ptr_safe_t(1);
+        pixel_count += uint64_t(line.x1 - line.x0 + 1);
         
         if(oline.x0 > oline.x1 || oline.x1 + bounds.x - 1 > w
            || oline.y + bounds.y - 1 > h)
@@ -913,14 +916,14 @@ std::optional<std::tuple<SegmentationData::Assignment, blob::Pair>> YOLO::proces
     pv::Blob::set_flag(pair.extra_flags, pv::Blob::Flags::is_binary, meta_encoding == meta_encoding_t::binary);
     assert(pv::Blob::is_flag(pair.extra_flags, pv::Blob::Flags::is_rgb) == (meta_encoding == meta_encoding_t::rgb8));
 
-    // Build a Blob object from the labeled lines for acceptance testing and pixel extraction
-    pv::Blob blob(std::make_unique<std::vector<HorizontalLine>>(*pair.lines), nullptr, uint8_t(pair.extra_flags), blob::Prediction{pair.pred});
-    
     /// Check whether the given object is acceptable regarding the current
     /// segmentation settings or not:
-    if(not settings.is_acceptable(blob)) {
+    if(not settings.is_acceptable(pixel_count)) {
         return std::nullopt;
     }
+
+    // Build a Blob object for pixel extraction and outline generation.
+    pv::Blob blob(std::make_unique<std::vector<HorizontalLine>>(*pair.lines), nullptr, uint8_t(pair.extra_flags), blob::Prediction{pair.pred});
     
     //pv::Blob blob(*pair.lines, *pair.pixels, pair.extra_flags, pair.pred);
     // Convert the blob outline into actual pixel values from the image

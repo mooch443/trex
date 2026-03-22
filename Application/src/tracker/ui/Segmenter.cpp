@@ -622,6 +622,7 @@ void Segmenter::trigger_average_generator(bool do_generate_average, cv::Mat& bg)
 void Segmenter::open_video() {
     VideoSource video_base(READ_SETTING(source, file::PathArray));
     video_base.set_colors(ImageMode::RGB);
+    const auto video_base_length = video_base.length();
     
     _crop_offsets = READ_SETTING_WITH_DEFAULT(crop_offsets, CropOffsets{});
 
@@ -668,8 +669,11 @@ void Segmenter::open_video() {
     
     _overlayed_video->source()->set_video_scale(meta_video_scale);
     _overlayed_video->source()->set_crop_offsets( _crop_offsets);
-    
-    SETTING(video_length) = uint64_t(video_length().get());
+
+    auto source_length = video_length();
+    if(not source_length.valid())
+        source_length = video_base_length;
+    SETTING(video_length) = uint64_t(source_length.valid() ? source_length.get() : 0u);
     //SETTING(cm_per_pixel) = Settings::cm_per_pixel_t(0.01);
     //SETTING(meta_real_width) = Float2_t(_output_size.width);
 
@@ -694,13 +698,15 @@ void Segmenter::open_video() {
     trigger_average_generator(do_generate_average, bg);
 
     auto range = READ_SETTING(video_conversion_range, Range<long_t>);
+    if(not source_length.valid())
+        source_length = 0_f;
     _video_conversion_range = Range<Frame_t>{
         range.start == -1
             ? 0_f
             : Frame_t(range.start),
         range.end == -1
-            ? _overlayed_video->source()->length()
-            : min(_overlayed_video->source()->length(), Frame_t(range.end))
+            ? source_length
+            : min(source_length, Frame_t(range.end))
     };
 
     _overlayed_video->reset_to_frame(_video_conversion_range.start);
@@ -799,7 +805,8 @@ void Segmenter::open_camera() {
     _overlayed_video->source()->set_crop_offsets( _crop_offsets);
     _overlayed_video->source()->notify();
     
-    SETTING(video_length) = uint64_t(video_length().get());
+    auto source_length = video_length();
+    SETTING(video_length) = uint64_t(source_length.valid() ? source_length.get() : 0u);
     //SETTING(cm_per_pixel) = Settings::cm_per_pixel_t(0.01);
     //SETTING(meta_real_width) = Float2_t(_output_size.width);
 
