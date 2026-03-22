@@ -251,7 +251,7 @@ if(NOT WIN32 AND TREX_WITH_TESTS)
     target_link_libraries(test_imgui PUBLIC
         framegrabber_misc
         tracker_tracking
-        commons
+        Commons::Gui
     )
     #target_precompile_headers(test_imgui REUSE_FROM commons)
 endif()
@@ -319,7 +319,7 @@ target_link_libraries(pvinfo PRIVATE
     tracker_gui
     tracker_misc
     framegrabber_misc
-    commons
+    Commons::All
     pv
 )
 if(TARGET tracker_python)
@@ -328,7 +328,6 @@ if(TARGET tracker_python)
         set_target_properties(pvinfo PROPERTIES LINK_FLAGS "/DELAYLOAD:tracker_python.dll /DELAYLOAD:tracker_python-d.dll")
     endif()
 endif()
-add_dependencies(pvinfo commons)
 list(APPEND TREX_TOOL_TARGETS pvinfo)
 
 if(TREX_ENABLE_PROTOTYPES)
@@ -361,7 +360,7 @@ if(TREX_ENABLE_PROTOTYPES)
         tracker_python
         framegrabber_misc
         pv
-        commons
+        Commons::All
     )
     list(APPEND TREX_APP_TARGETS ${INTERACTIVE_SEGMENTATION_EXEC_NAME})
 endif()
