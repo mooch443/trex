@@ -105,6 +105,37 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "^(Apple)?Clang$")
     set(CMAKE_C_FLAGS_RELWITHDEBINFO "${CMAKE_C_FLAGS_RELWITHDEBINFO} -DNDEBUG")
 endif()
 
+message(STATUS "[TREX ENV] Generator='${CMAKE_GENERATOR}' WIN32='${WIN32}'")
+message(STATUS "[TREX ENV] Incoming ENV{CONDA_PREFIX}='$ENV{CONDA_PREFIX}'")
+
+set(_trex_vs_debugger_env "")
+
+if(WIN32 AND DEFINED ENV{CONDA_PREFIX} AND NOT "$ENV{CONDA_PREFIX}" STREQUAL "")
+    set(_trex_conda_prefix "$ENV{CONDA_PREFIX}")
+    get_filename_component(_trex_conda_root "${_trex_conda_prefix}" DIRECTORY)
+
+    # If CMake is launched from an activated conda env, ensure configure-time
+    # lookups (find_package/find_program/custom steps) resolve against that env.
+    set(_trex_conda_path_prefix
+        "${_trex_conda_prefix};${_trex_conda_prefix}/Library/mingw64/bin;${_trex_conda_prefix}/Library/mingw-w64/bin;${_trex_conda_prefix}/Library/usr/bin;${_trex_conda_prefix}/Library/bin;${_trex_conda_prefix}/Scripts;${_trex_conda_prefix}/bin;${_trex_conda_root}/condabin")
+    set(ENV{PATH} "${_trex_conda_path_prefix};$ENV{PATH}")
+    set(ENV{CONDA_PREFIX} "${_trex_conda_prefix}")
+
+    # This is used for generated Visual Studio target debugging properties.
+    set(_trex_vs_debugger_env
+        "CONDA_PREFIX=${_trex_conda_prefix}\nPATH=${_trex_conda_path_prefix};%PATH%")
+    set(CMAKE_VS_DEBUGGER_ENVIRONMENT "${_trex_vs_debugger_env}")
+
+    string(FIND "$ENV{PATH}" "${_trex_conda_prefix}" _trex_conda_in_path)
+    message(STATUS "[TREX ENV] Applied CONDA_PREFIX='$ENV{CONDA_PREFIX}'")
+    message(STATUS "[TREX ENV] PATH now contains CONDA_PREFIX at index ${_trex_conda_in_path}")
+    message(STATUS "[TREX ENV] CMAKE_VS_DEBUGGER_ENVIRONMENT has been set for new targets")
+else()
+    if(WIN32)
+        message(WARNING "[TREX ENV] ENV{CONDA_PREFIX} is empty during configure. Conda PATH injection was skipped.")
+    endif()
+endif()
+
 set(CONDA_PREFIX $ENV{CONDA_PREFIX} CACHE PATH "CONDA_PREFIX if set during cmake")
 if(CONDA_PREFIX)
     message(STATUS "CONDA_PREFIX=${CONDA_PREFIX}")
@@ -470,6 +501,24 @@ elseif(${TREX_BUILD_DOCS})
 endif()
 
 add_subdirectory(Tests)
+
+if(WIN32 AND NOT "${_trex_vs_debugger_env}" STREQUAL "")
+    # Ensure existing executable targets also get debugger env entries in the
+    # generated .vcxproj Debugging properties.
+    get_property(_trex_all_targets GLOBAL PROPERTY TARGETS)
+    foreach(_trex_tgt ${_trex_all_targets})
+        get_target_property(_trex_is_imported ${_trex_tgt} IMPORTED)
+        if(_trex_is_imported)
+            continue()
+        endif()
+
+        get_target_property(_trex_type ${_trex_tgt} TYPE)
+        if(_trex_type STREQUAL "EXECUTABLE")
+            set_property(TARGET ${_trex_tgt} PROPERTY VS_DEBUGGER_ENVIRONMENT "${_trex_vs_debugger_env}")
+        endif()
+    endforeach()
+    message(STATUS "[TREX ENV] Applied VS debugger environment to executable targets")
+endif()
 
 if(POLICY CMP0114)
   cmake_policy(POP)
