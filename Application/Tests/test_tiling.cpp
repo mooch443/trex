@@ -22,8 +22,6 @@ using namespace track;
 namespace {
 
 void resetGlobalSettings() {
-    PythonIntegration::set_settings(GlobalSettings::instance(), file::DataLocation::instance(), Python::get_instance());
-
     GlobalSettings::write([&](Configuration& config) {
         grab::default_config::get(config);
         ::default_config::get(config);
