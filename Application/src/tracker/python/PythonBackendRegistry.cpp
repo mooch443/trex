@@ -2,7 +2,7 @@
 
 #include <file/DataLocation.h>
 #include <misc/GlobalSettings.h>
-#include <python/BackendRegistration.h>
+#include <python/PythonBackendRegistry.h>
 #include <python/GPURecognition.h>
 #include <python/PythonWrapper.h>
 
@@ -59,7 +59,7 @@ void register_tracking_services() {
 
 } // namespace
 
-void register_python_backends() {
+void register_all_python_backends() {
     static std::once_flag once;
     std::call_once(once, []() {
         register_yolo_backend();

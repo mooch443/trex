@@ -18,9 +18,9 @@ class Network;
 using PromisedTask = cmn::package::promised<void>;
 
 struct PackagedTask {
-    Network * _network;
+    Network * _network{nullptr};
     PromisedTask _task;
-    bool _can_run_before_init;
+    bool _can_run_before_init{false};
 };
 
 enum Flag {
@@ -32,7 +32,8 @@ enum Flag {
 auto pack(auto&& f, Network* net = nullptr) {
     return PackagedTask{
         ._network = net,
-        ._task = PromisedTask(std::move(f))
+        ._task = PromisedTask(std::move(f)),
+        ._can_run_before_init = false
     };
 }
 

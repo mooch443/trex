@@ -137,24 +137,37 @@ void prepare_python_environment() {
         python_environment_variable().wait_for(guard, std::chrono::seconds(1));
 }
 
-std::vector<file::Path> python_library_candidates() {
+std::vector<file::Path> python_library_names() {
 #ifdef WIN32
-    const auto library_name = file::Path("trex_python").add_extension("dll");
+    return {
+        file::Path("trex_python").add_extension("dll"),
+        file::Path("trex_python-d").add_extension("dll")
+    };
 #elif __APPLE__
-    const auto library_name = file::Path("libtrex_python").add_extension("dylib");
+    return {
+        file::Path("libtrex_python").add_extension("dylib"),
+        file::Path("libtrex_python-d").add_extension("dylib")
+    };
 #else
-    const auto library_name = file::Path("libtrex_python").add_extension("so");
+    return {
+        file::Path("libtrex_python").add_extension("so"),
+        file::Path("libtrex_python-d").add_extension("so")
+    };
 #endif
+}
 
+std::vector<file::Path> python_library_candidates() {
     std::vector<file::Path> candidates;
     auto wd = READ_SETTING(wd, file::Path);
-    if (!wd.empty()) {
-        candidates.emplace_back((wd / library_name).absolute());
+    for (const auto& library_name : python_library_names()) {
+        if (!wd.empty()) {
+            candidates.emplace_back((wd / library_name).absolute());
 #ifdef __APPLE__
-        candidates.emplace_back((wd / ".." / "Frameworks" / library_name).absolute());
+            candidates.emplace_back((wd / ".." / "Frameworks" / library_name).absolute());
 #endif
+        }
+        candidates.emplace_back(library_name);
     }
-    candidates.emplace_back(library_name);
     return candidates;
 }
 

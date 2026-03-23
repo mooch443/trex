@@ -1854,7 +1854,7 @@ Frame_t File::length() const {
 void File::set_average(const cv::Mat& average) {
     //tf::imshow("average", average);
     const auto required_channels = _header.encoding == meta_encoding_t::binary ? 1u : required_storage_channels(_header.encoding);
-    if(required_channels != average.channels()) /// just basic compatibility
+    if(int64_t(required_channels) != int64_t(average.channels())) /// just basic compatibility
     {
         throw InvalidArgumentException("Number of channels ",average.channels()," must match the encoding format ", _header.encoding," for the average image provided.");
     }

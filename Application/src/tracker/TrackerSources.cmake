@@ -350,6 +350,8 @@ set(TREX_PYTHON_STAGING_PUBLIC_HEADERS
 set(TREX_PYTHON_IMPL_PUBLIC_HEADERS
     ${CMAKE_CURRENT_LIST_DIR}/python/GPURecognition.h
     ${CMAKE_CURRENT_LIST_DIR}/python/ModuleProxy.h
+    ${CMAKE_CURRENT_LIST_DIR}/python/PythonEntryPoint.h
+    ${CMAKE_CURRENT_LIST_DIR}/python/PythonBackendRegistry.h
     ${CMAKE_CURRENT_LIST_DIR}/python/PythonWrapper.h
     ${CMAKE_CURRENT_LIST_DIR}/python/ResponseValidation.h
     ${CMAKE_CURRENT_LIST_DIR}/python/SAM3.h
@@ -357,7 +359,6 @@ set(TREX_PYTHON_IMPL_PUBLIC_HEADERS
 )
 
 set(TREX_PYTHON_IMPL_PRIVATE_HEADERS
-    ${CMAKE_CURRENT_LIST_DIR}/python/BackendRegistration.h
 )
 
 set(TREX_PYTHON_STAGING_SOURCES
@@ -369,8 +370,8 @@ set(TREX_PYTHON_STAGING_SOURCES
 set(TREX_PYTHON_IMPL_SOURCES
     ${CMAKE_CURRENT_LIST_DIR}/python/GPURecognition.cpp
     ${CMAKE_CURRENT_LIST_DIR}/python/Network.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/python/PythonBackendRegistry.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/python/PythonEntryPoint.cpp
     ${CMAKE_CURRENT_LIST_DIR}/python/SAM3.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/python/TrackingPythonServices.cpp
     ${CMAKE_CURRENT_LIST_DIR}/python/YOLO.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/python/trex_python_entry.cpp
 )

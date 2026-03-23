@@ -41,12 +41,10 @@ if(TREX_PYTHON_LIBRARY_TYPE STREQUAL "SHARED")
     if(WIN32)
         target_compile_definitions(trex_python_staging
             PRIVATE "TREX_EXPORT=__declspec(dllexport)" "TREX_TYPE_EXPORT=__declspec(dllexport)"
-            INTERFACE "TREX_EXPORT=" "TREX_TYPE_EXPORT="
         )
     else()
         target_compile_definitions(trex_python_staging
             PRIVATE "TREX_EXPORT=__attribute__((visibility(\"default\")))" "TREX_TYPE_EXPORT=__attribute__((visibility(\"default\"),type_visibility(\"default\")))"
-            INTERFACE "TREX_EXPORT=" "TREX_TYPE_EXPORT="
         )
     endif()
 else()
@@ -93,12 +91,10 @@ if(TREX_PYTHON_IMPL_LIBRARY_TYPE STREQUAL "SHARED")
     if(WIN32)
         target_compile_definitions(trex_python
             PRIVATE "TREX_EXPORT=__declspec(dllexport)" "TREX_TYPE_EXPORT=__declspec(dllexport)"
-            INTERFACE "TREX_EXPORT=" "TREX_TYPE_EXPORT="
         )
     else()
         target_compile_definitions(trex_python
             PRIVATE "TREX_EXPORT=__attribute__((visibility(\"default\")))" "TREX_TYPE_EXPORT=__attribute__((visibility(\"default\"),type_visibility(\"default\")))"
-            INTERFACE "TREX_EXPORT=" "TREX_TYPE_EXPORT="
         )
     endif()
 else()

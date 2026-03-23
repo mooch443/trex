@@ -199,12 +199,12 @@ struct VIWeights {
     };
     
     cmn::file::Path _path;
-    std::optional<double> _uniqueness;
+    std::optional<double> _uniqueness{};
     bool _loaded{false};
     Status _status{NONE};
-    std::optional<uint64_t> _modified;
-    std::optional<detect::DetectResolution> _resolution;
-    std::optional<uint8_t> _num_classes;
+    std::optional<uint64_t> _modified{};
+    std::optional<detect::DetectResolution> _resolution{};
+    std::optional<uint8_t> _num_classes{};
     
     auto operator<=>(const VIWeights& other) const = default;
     constexpr bool valid() const { return loaded() && status() != NONE; }

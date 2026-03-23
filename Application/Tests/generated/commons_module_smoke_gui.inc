@@ -180,13 +180,13 @@ namespace commons_module_smoke::commons_gui::cmn::gui {
 using ::cmn::gui::FileChooser;
 }
 
-// gui/GLImpl.h
 #ifndef __APPLE__
+// gui/GLImpl.h
 namespace commons_module_smoke::commons_gui::cmn::gui {
 using ::cmn::gui::GLImpl;
 }
-#endif
 
+#endif
 // gui/GUITaskQueue.h
 namespace commons_module_smoke::commons_gui::cmn::gui {
 using ::cmn::gui::DrawStructure;
@@ -287,14 +287,14 @@ namespace commons_module_smoke::commons_gui::cmn::gui {
 using ::cmn::gui::MacProgressBar;
 }
 
-// gui/MetalImpl.h
 #ifdef __APPLE__
+// gui/MetalImpl.h
 namespace commons_module_smoke::commons_gui::cmn::gui {
 using ::cmn::gui::MetalData;
 using ::cmn::gui::MetalImpl;
 }
-#endif
 
+#endif
 // gui/ParseLayoutTypes.h
 namespace commons_module_smoke::commons_gui::cmn::gui::dyn {
 using ::cmn::gui::dyn::LayoutContext;

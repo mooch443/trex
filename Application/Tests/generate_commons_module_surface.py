@@ -69,6 +69,11 @@ MODULE_HEADER_EXCLUSIONS = {
     "modules/commons.exports.hpp": "aggregator_header",
 }
 
+PLATFORM_HEADER_GUARDS = {
+    "gui/GLImpl.h": ("#ifndef __APPLE__", "#endif"),
+    "gui/MetalImpl.h": ("#ifdef __APPLE__", "#endif"),
+}
+
 MANUAL_MACROS = [
     {
         "header": "misc/EnumClass.h",
@@ -871,6 +876,7 @@ def generate_smoke_file(module_name: str, inventory: dict) -> str:
         lines.append("#if WITH_MHD")
         lines.append("")
     namespace_name = module_name.replace(".", "_")
+    current_guard: tuple[str, str] | None = None
     for header in inventory["headers"]:
         if header["module"] != module_name:
             continue
@@ -881,7 +887,13 @@ def generate_smoke_file(module_name: str, inventory: dict) -> str:
             symbols_by_namespace[symbol["namespace"]].append(symbol)
         if not symbols_by_namespace:
             continue
+        next_guard = PLATFORM_HEADER_GUARDS.get(header["path"])
+        if current_guard is not None and next_guard != current_guard:
+            lines.append(current_guard[1])
+        if next_guard is not None and next_guard != current_guard:
+            lines.append(next_guard[0])
         lines.append(f"// {header['path']}")
+        current_guard = next_guard
         for namespace in sorted(symbols_by_namespace):
             if not namespace:
                 continue
@@ -906,6 +918,8 @@ def generate_smoke_file(module_name: str, inventory: dict) -> str:
                 lines.append(f"using ::{namespace}::{symbol['name']};")
             lines.append("}")
             lines.append("")
+    if current_guard is not None:
+        lines.append(current_guard[1])
     if module_name == "commons.http":
         lines.append("#endif")
     return "\n".join(lines).rstrip() + "\n"
@@ -937,15 +951,24 @@ def generate_exports(module_name: str, inventory: dict) -> str:
             continue
         lines.append(f"export namespace {namespace} {{")
         current_header = None
+        current_guard = None
         seen_names: set[str] = set()
         for name, header in sorted(set(symbols_by_namespace[namespace]), key=lambda item: (item[1], item[0])):
             if name in seen_names:
                 continue
             seen_names.add(name)
             if header != current_header:
+                next_guard = PLATFORM_HEADER_GUARDS.get(header)
+                if current_guard is not None and next_guard != current_guard:
+                    lines.append(current_guard[1])
+                if next_guard is not None and next_guard != current_guard:
+                    lines.append(next_guard[0])
                 lines.append(f"// {header}")
                 current_header = header
+                current_guard = next_guard
             lines.append(f"using ::{namespace}::{name};")
+        if current_guard is not None:
+            lines.append(current_guard[1])
         lines.append("}")
         lines.append("")
     return "\n".join(lines).rstrip() + "\n"
@@ -962,12 +985,15 @@ def generate_include_file(module_name: str, inventory: dict) -> str:
             continue
         if any(excluded["kind"] == "header" and excluded["reason"] == MODULE_HEADER_EXCLUSIONS.get(header["path"]) for excluded in header["excluded"]):
             continue
+        include_lines = [f"#include <{header['path']}>"]
         if header["path"] == "http/httpd.h":
-            lines.append("#if WITH_MHD")
-            lines.append(f"#include <{header['path']}>")
-            lines.append("#endif")
-        else:
-            lines.append(f"#include <{header['path']}>")
+            include_lines = ["#if WITH_MHD", *include_lines, "#endif"]
+
+        guard = PLATFORM_HEADER_GUARDS.get(header["path"])
+        if guard is not None:
+            include_lines = [guard[0], *include_lines, guard[1]]
+
+        lines.extend(include_lines)
     return "\n".join(lines).rstrip() + "\n"
 
 

@@ -18,6 +18,19 @@ function(trex_harden_internal_library target)
     endif()
 endfunction()
 
+function(trex_bundle_lazy_python target)
+    if(APPLE AND TREX_ENABLE_SHARED_INTERNAL_LIBS AND TARGET trex_python)
+        add_dependencies(${target} trex_python)
+        add_custom_command(TARGET ${target} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${target}>/../Frameworks"
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "$<TARGET_FILE:trex_python>"
+                "$<TARGET_FILE_DIR:${target}>/../Frameworks/$<TARGET_FILE_NAME:trex_python>"
+            VERBATIM
+        )
+    endif()
+endfunction()
+
 function(trex_add_semantic_library target)
     set(options)
     set(one_value_args TYPE)
@@ -48,12 +61,10 @@ function(trex_add_semantic_library target)
         if(WIN32)
             target_compile_definitions(${target}
                 PRIVATE "TREX_EXPORT=__declspec(dllexport)" "TREX_TYPE_EXPORT=__declspec(dllexport)"
-                INTERFACE "TREX_EXPORT=" "TREX_TYPE_EXPORT="
             )
         else()
             target_compile_definitions(${target}
                 PRIVATE "TREX_EXPORT=__attribute__((visibility(\"default\")))" "TREX_TYPE_EXPORT=__attribute__((visibility(\"default\"),type_visibility(\"default\")))"
-                INTERFACE "TREX_EXPORT=" "TREX_TYPE_EXPORT="
             )
         endif()
     else()
@@ -304,6 +315,7 @@ target_link_libraries(${TREXA_EXEC_NAME} PUBLIC
     #pv
     #commons
 )
+trex_bundle_lazy_python(${TREXA_EXEC_NAME})
 
 set(TREX_APP_TARGETS ${TREXA_EXEC_NAME})
 set(TREX_TOOL_TARGETS)
@@ -360,6 +372,7 @@ if(TREX_ENABLE_PROTOTYPES)
         pv
         Commons::All
     )
+    trex_bundle_lazy_python(${INTERACTIVE_SEGMENTATION_EXEC_NAME})
     list(APPEND TREX_APP_TARGETS ${INTERACTIVE_SEGMENTATION_EXEC_NAME})
 endif()
 

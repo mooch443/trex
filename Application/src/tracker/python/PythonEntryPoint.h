@@ -2,6 +2,6 @@
 
 namespace track {
 
-void register_python_backends();
+extern "C" void trex_python_register();
 
 } // namespace track

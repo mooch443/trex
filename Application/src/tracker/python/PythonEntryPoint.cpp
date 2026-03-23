@@ -1,5 +1,6 @@
 #include <python/PythonWrapper.h>
-#include <python/BackendRegistration.h>
+#include <python/PythonBackendRegistry.h>
+#include <python/PythonEntryPoint.h>
 #include <python/GPURecognition.h>
 
 namespace track {
@@ -175,7 +176,7 @@ extern "C" TREX_EXPORT void trex_python_register() {
     });
     
     // Register all the Python backends (YOLO, SAM3, etc)
-    register_python_backends();
+    register_all_python_backends();
 }
 
 } // namespace track

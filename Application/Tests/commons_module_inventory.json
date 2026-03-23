@@ -398,7 +398,7 @@
       "excluded": [],
       "module": "commons.misc",
       "path": "misc/DisplayValue.h",
-      "sha256": "a4338467dfd92cd01628b3c9a5c9c44c9f4e332fcee02411a6d1645b979f7556",
+      "sha256": "ffc7edbe67e11591ceacb17312bca275ca77d1750343a53449ab009e58192a39",
       "symbols": []
     },
     {
@@ -620,7 +620,7 @@
       "excluded": [],
       "module": "commons.misc",
       "path": "misc/IllegalVector.h",
-      "sha256": "36384692565d02e62bb03f715243a7d4a122873047bcb67747ec7ffac46f422e",
+      "sha256": "33da14adb96edbe804d82312df1e4d08fbdffb61e68f092c6d1e8863eb771352",
       "symbols": [
         {
           "kind": "class_template",
@@ -973,7 +973,7 @@
       "excluded": [],
       "module": "commons.processing",
       "path": "processing/PixelTree.h",
-      "sha256": "229884200962276087cae2a63df61a4f6b1d9525dc383f741e636b127656b640",
+      "sha256": "7726cea546b19f0987a5d9ab3614bb8e4d6acba65335f14ce5232844d6f9aefe",
       "symbols": [
         {
           "kind": "enum",
@@ -3263,7 +3263,7 @@
       "excluded": [],
       "module": "commons.video",
       "path": "video/FFmpegVideoCapture.h",
-      "sha256": "51faff8d92e9e7ed38cec97295147a45ae4d3e61421d2cf1052b7e21ee4e77ef",
+      "sha256": "377b5dd37485da332d370e4024f7f0796851e821da8252b4fd730021c89edddb",
       "symbols": [
         {
           "kind": "class",
@@ -3780,7 +3780,7 @@
       "excluded": [],
       "module": "commons.gui",
       "path": "gui/CrossPlatform.h",
-      "sha256": "68f23c7e790ffaf42b57547461c48fecb047b2dc163bb982febc62afab09e188",
+      "sha256": "acd707cc424fcbebc284dd2ac7f55130938bb548c816f6a286b68e77110986fa",
       "symbols": [
         {
           "kind": "struct",
@@ -3809,7 +3809,7 @@
       "excluded": [],
       "module": "commons.gui",
       "path": "gui/Dispatcher.h",
-      "sha256": "aab98ea6bf6e6bde633de8fb8187fee0b67ec6fe4efd0b4440750cce79ec08f1",
+      "sha256": "be97ccc59e4de6b286ddd6de3423bdd049c7832a67883eebb641c755a47641bc",
       "symbols": [
         {
           "kind": "class",
@@ -4280,7 +4280,7 @@
       "excluded": [],
       "module": "commons.gui",
       "path": "gui/GLImpl.h",
-      "sha256": "08cd36b2a25844f719070bd1cf524de3ba427ff9ffa11555eb43ff7bdc2ae1ef",
+      "sha256": "dba820c29651566ff2c1b9bf865236779b378cd67dcc31cb1f07a10f669777b7",
       "symbols": [
         {
           "kind": "class",
@@ -4495,14 +4495,14 @@
         {
           "header": "gui/IMGUIBase.h",
           "kind": "group",
-          "line": "42",
+          "line": "43",
           "name": "cmn::gui::Effects::helpers",
           "reason": "internal_linkage_enum_helpers"
         }
       ],
       "module": "commons.gui",
       "path": "gui/IMGUIBase.h",
-      "sha256": "4d6ccbd91f98792ca7bc97cacbdf1fa4cc343174309561b5d56180ee85ddf12e",
+      "sha256": "f7cb69010a28a61456638cfc0d85af147373f28eae3b2f5928e313cac0d60815",
       "symbols": [
         {
           "kind": "enum_class",
@@ -4857,7 +4857,7 @@
       "excluded": [],
       "module": "commons.gui",
       "path": "gui/MetalImpl.h",
-      "sha256": "e94be51ae894efe57532b8fc0b1a335360676a3dcbd1b7a1ce4bb7cdd1f77fec",
+      "sha256": "8857a78fadfd58719d14ea38a09f26939f46cd480f75ef4a407effa399b66def",
       "symbols": [
         {
           "kind": "struct",
@@ -5274,7 +5274,7 @@
       "excluded": [],
       "module": "commons.gui.dyn",
       "path": "gui/dyn/State.h",
-      "sha256": "789e801864e773bed676ac8aaddcc3ce8c350b443bbef9aa361586b9014b588d",
+      "sha256": "931e27c26d3e81e0d1608dd31a1e0779918f3e5fbc0ff746e083386c43ec0410",
       "symbols": [
         {
           "kind": "class",
@@ -6022,7 +6022,7 @@
       "excluded": [],
       "module": "commons.gui",
       "path": "gui/types/ScrollableList.h",
-      "sha256": "7294ac16dd82f03f8d1c231615f4576ca7944012f469a38eedf3c0ad8dbed22b",
+      "sha256": "88eebd291cd42535650fc068717146b18e8cc0c3510b183e5329194df6cbe814",
       "symbols": [
         {
           "kind": "concept",
