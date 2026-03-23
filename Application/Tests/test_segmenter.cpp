@@ -1,6 +1,7 @@
+#include <commons.pc.h>
+
 #include "gtest/gtest.h"
 
-#include <commons.pc.h>
 #include <file/DataLocation.h>
 #include <misc/Path.h>
 #include <file/PathArray.h>
@@ -8,6 +9,7 @@
 #include <misc/GlobalSettings.h>
 #include <core/default_config.h>
 #include <ui/Segmenter.h>
+#include <python/PythonWrapper.h>
 
 #include <filesystem>
 #include <atomic>
@@ -57,6 +59,18 @@ void reset_global_settings() {
         grab::default_config::get(config);
         ::default_config::get(config);
     });
+
+    Python::configure_runtime(
+        GlobalSettings::instance(),
+        file::DataLocation::instance(),
+        Python::get_instance(),
+        [](auto& name, auto& mat) {
+          tf::imshow(name, mat);
+        },
+        []() {
+          tf::destroyAllWindows();
+        }
+    );
 }
 
 void register_data_locations_once() {
