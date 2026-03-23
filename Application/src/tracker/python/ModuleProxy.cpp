@@ -1,16 +1,18 @@
 #include "ModuleProxy.h"
 
 namespace track {
+using namespace cmn;
+
 ModuleProxy::ModuleProxy(const std::string& name,
             std::function<void(ModuleProxy&)> reinit,
             bool unset,
             std::function<void(ModuleProxy&)> unloader)
     : _unset(unset), m(name)
 {
-    auto had_loaded_module = PythonIntegration::has_loaded_module(name);
+    auto had_loaded_module = Python::has_loaded_module(name);
     
     try {
-        if(PythonIntegration::check_module(name, [this, unloader]() mutable {
+        if(Python::check_module(name, [this, unloader]() mutable {
             if(unloader)
                 unloader(*this);
         }))
@@ -36,7 +38,7 @@ ModuleProxy::ModuleProxy(ThrowAlways,
     : _unset(unset), m(name)
 {
     try {
-        if(PythonIntegration::check_module(name, [this, unloader]() mutable {
+        if(Python::check_module(name, [this, unloader]() mutable {
             if(unloader)
                 unloader(*this);
         }))
@@ -63,15 +65,15 @@ ModuleProxy::~ModuleProxy() {
     }
 }
 std::optional<glz::json_t> ModuleProxy::run(const char* name) {
-    return PythonIntegration::run(m, name);
+    return Python::run(m, name);
 }
 std::optional<glz::json_t> ModuleProxy::run(const char* name, const std::string& parm) {
-    return PythonIntegration::run(m, name, parm);
+    return Python::run(m, name, parm);
 }
 std::optional<glz::json_t> ModuleProxy::run(const char* name, const glz::json_t& parm) {
-    return PythonIntegration::run(m, name, std::move(parm));
+    return Python::run(m, name, parm);
 }
 void ModuleProxy::unset_function(const char*name) {
-    PythonIntegration::unset_function(name, m);
+    Python::unset_function(name, m);
 }
 }

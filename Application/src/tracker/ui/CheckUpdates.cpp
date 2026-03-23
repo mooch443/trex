@@ -3,7 +3,6 @@
 #if !COMMONS_NO_PYTHON
 #include <misc/GlobalSettings.h>
 
-#include <python/GPURecognition.h>
 #include <ui/WorkProgress.h>
 #include <core/default_config.h>
 #include <ui/GUICache.h>
@@ -313,7 +312,6 @@ std::future<VersionStatus> perform(bool manually_triggered) {
     
     (void)py::schedule(py::PackagedTask{
         ._task = py::PromisedTask([fn, promise]() {
-            using py = PythonIntegration;
             try {
                 py::set_function("retrieve_version", fn);
                 

@@ -6,7 +6,7 @@
 #include <gui/DrawStructure.h>
 #include <video/VideoSource.h>
 #include <processing/encoding.h>
-#include <python/SAM3.h>
+#include <detect/Detection.h>
 #include <python/PythonWrapper.h>
 #include <ui/ImageDisplayElement.h>
 #include <ui/LabelElement.h>
@@ -100,7 +100,11 @@ void LiveSegmentation::activate() {
     
     namespace py = Python;
     py::schedule([](){
-        track::SAM3::init();
+        if(const auto* hooks = track::detect::ensure_backend(track::detect::ObjectDetectionType::sam3); hooks && hooks->init) {
+            hooks->init();
+        } else {
+            throw U_EXCEPTION("SAM3 backend is unavailable.");
+        }
     });
     static const Size2 tile_size(640,640);
     
@@ -139,7 +143,7 @@ void LiveSegmentation::activate() {
                             Print("Fun is done!");
                         };
                         
-                        result = track::SAM3::apply(std::move(tiled));
+                        result = track::Detection::apply(std::move(tiled));
                         
                         guard.lock();
                     } catch(...) {
@@ -247,7 +251,9 @@ void LiveSegmentation::deactivate() {
 
     namespace py = Python;
     py::schedule([]() {
-        track::SAM3::deinit();
+        if(const auto* hooks = track::detect::ensure_backend(track::detect::ObjectDetectionType::sam3); hooks && hooks->deinit) {
+            hooks->deinit();
+        }
     });
 }
 

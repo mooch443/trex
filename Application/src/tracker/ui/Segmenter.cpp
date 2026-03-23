@@ -4,16 +4,15 @@
 #include <file/PathArray.h>
 #include <tracking/IndividualManager.h>
 #include <tracking/Output.h>
+#include <detect/Detection.h>
 #include <detect/OverlayedVideo.h>
 #include <misc/CommandLine.h>
 #include <core/SettingsPaths.h>
 #include <core/SettingsInitializer.h>
-#include <python/YOLO.h>
 #include <detect/BackgroundSubtraction.h>
 #include <tracking/Tracker.h>
 #include <ui/Export.h>
 #include <core/PrecomuptedDetection.h>
-#include <python/SAM3.h>
 
 //#define DEBUG_TM_ITEMS
 
@@ -554,10 +553,9 @@ void Segmenter::trigger_average_generator(bool do_generate_average, cv::Mat& bg)
                     BackgroundSubtraction::set_background(std::move(ptr));
                 else if(detection_type() == ObjectDetectionType::precomputed)
                     PrecomputedDetection::set_background(std::move(ptr), Background::meta_encoding());
-                else if(detection_type() == ObjectDetectionType::yolo)
-                    YOLO::set_background(ptr);
-                else if(detection_type() == ObjectDetectionType::sam3)
-                    SAM3::set_background(std::move(ptr));
+                else if(detection_type() == ObjectDetectionType::yolo
+                        || detection_type() == ObjectDetectionType::sam3)
+                    Detection::set_background(ptr);
             } catch(const std::exception& ex) {
                 FormatExcept("Exception when setting the background image: ", ex.what());
             } catch(...) {
@@ -605,10 +603,9 @@ void Segmenter::trigger_average_generator(bool do_generate_average, cv::Mat& bg)
                 BackgroundSubtraction::set_background(Image::Make(*ptr));
             else if(detection_type() == ObjectDetectionType::precomputed)
                 PrecomputedDetection::set_background(Image::Make(*ptr), Background::meta_encoding());
-            else if(detection_type() == ObjectDetectionType::yolo)
-                YOLO::set_background(Image::Make(*ptr));
-            else if(detection_type() == ObjectDetectionType::sam3)
-                SAM3::set_background(std::move(ptr));
+            else if(detection_type() == ObjectDetectionType::yolo
+                    || detection_type() == ObjectDetectionType::sam3)
+                Detection::set_background(Image::Make(*ptr));
             else
                 throw RuntimeError("Unknown detection_type of ", detection_type(), " when setting average image.");
         } catch(const std::exception& ex) {

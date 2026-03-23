@@ -58,7 +58,7 @@ function(trex_add_semantic_library target)
         endif()
     else()
         # Keep TREX export macros local for static libs so they do not override
-        # explicit dllexport on downstream shared targets (e.g. tracker_python).
+        # explicit dllexport on downstream shared targets (e.g. trex_python).
         target_compile_definitions(${target} PRIVATE "TREX_EXPORT=" "TREX_TYPE_EXPORT=")
     endif()
 
@@ -145,7 +145,7 @@ target_link_libraries(trex_ml PUBLIC
     trex_core
 )
 target_link_libraries(trex_ml PRIVATE
-    tracker_python
+    trex_python_staging
 )
 
 trex_add_semantic_library(trex_ui
@@ -162,7 +162,7 @@ target_link_libraries(trex_ui PUBLIC
     trex_tracking
     trex_data
     trex_core
-    tracker_python
+    trex_python_staging
 )
 if(CMAKE_COMPILER_IS_GNUCXX)
     target_link_libraries(trex_ui PUBLIC atomic)
@@ -189,7 +189,7 @@ include_directories(${CMAKE_SOURCE_DIR}/src/ProcessedVideo)
 if(TREX_WITH_TESTS)
 #add_executable(test_network network.cpp
 #    "${CMAKE_CURRENT_BINARY_DIR}/../GitSHA1.cpp" ../GitSHA1.h)
-#target_link_libraries(test_network tracker_gui tracker_ml tracker_python #tracker_tracking tracker_misc framegrabber_misc pv commons ${PYTHON_LIBRARIES})
+#target_link_libraries(test_network tracker_gui tracker_ml trex_python #tracker_tracking tracker_misc framegrabber_misc pv commons ${PYTHON_LIBRARIES})
 #message(STATUS "pylib=${PYTHON_LIBRARY}")
 
 #if(NOT pybind11_external)
@@ -263,7 +263,7 @@ endif()
 #    PUBLIC 
 #        tracker_gui
 #        tracker_tracking
-#        tracker_python
+#        trex_python
 #        tracker_misc
 #        framegrabber_misc
 #        commons 
@@ -271,7 +271,7 @@ endif()
 
 #if(NOT COMMONS_NO_PYTHON AND NOT TREX_NO_PYTHON)
 #    target_link_libraries(properties 
-#        PUBLIC tracker_python)
+#        PUBLIC trex_python)
 #endif()
 
 # add actual executable
@@ -322,11 +322,8 @@ target_link_libraries(pvinfo PRIVATE
     Commons::All
     pv
 )
-if(TARGET tracker_python)
-    target_link_libraries(pvinfo PRIVATE tracker_python)
-    if(WIN32)
-        set_target_properties(pvinfo PROPERTIES LINK_FLAGS "/DELAYLOAD:tracker_python.dll /DELAYLOAD:tracker_python-d.dll")
-    endif()
+if(TARGET trex_python_staging)
+    target_link_libraries(pvinfo PRIVATE trex_python_staging)
 endif()
 list(APPEND TREX_TOOL_TARGETS pvinfo)
 
@@ -357,7 +354,7 @@ if(TREX_ENABLE_PROTOTYPES)
         tracker_ml
         tracker_tracking
         tracker_misc
-        tracker_python
+        trex_python_staging
         framegrabber_misc
         pv
         Commons::All
@@ -398,8 +395,8 @@ foreach(tool_target ${TREX_TOOL_TARGETS})
 endforeach()
 
 #if(NOT ${COMMONS_NO_PYTHON} AND NOT ${TREX_NO_PYTHON})
-    target_link_libraries(${TREXA_EXEC_NAME} PUBLIC tracker_python)
-    message(STATUS "Linking tracker_python")
+    target_link_libraries(${TREXA_EXEC_NAME} PUBLIC trex_python_staging)
+    message(STATUS "Linking trex_python_staging")
 #endif()
 
 set_target_properties(${TREXA_EXEC_NAME} PROPERTIES
@@ -587,7 +584,7 @@ if(BUILD_LEGACY_TREX)
 endif()
 
 if(WIN32)# AND NOT COMMONS_NO_PYTHON)
-    set(targets ${targets} tracker_python)
+    set(targets ${targets} trex_python_staging trex_python)
 endif()
 
 if(APPLE)

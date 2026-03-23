@@ -18,7 +18,7 @@
 #include <ui/GUIVideoAdapter.h>
 #include <ui/WorkProgress.h>
 #include <ui/Coordinates.h>
-#include <python/YOLO.h>
+#include <detect/Detection.h>
 #include <tracking/Output.h>
 #include <python/PythonWrapper.h>
 
@@ -177,7 +177,11 @@ struct SettingsScene::Data {
                                 SETTING(detect_classes) = blob::MaybeObjectClass_t{};
                                 
                                 /// populate the settings fields we need
-                                track::YOLO::init();
+                                if(const auto* hooks = track::detect::ensure_backend(track::detect::ObjectDetectionType::yolo); hooks && hooks->init) {
+                                    hooks->init();
+                                } else {
+                                    throw U_EXCEPTION("YOLO backend is unavailable.");
+                                }
                                 /// -----
                                 
                                 auto detect_classes = READ_SETTING(detect_classes, blob::MaybeObjectClass_t);
@@ -203,7 +207,9 @@ struct SettingsScene::Data {
                                 }
                                 
                                 /// dont need to keep it
-                                track::YOLO::deinit();
+                                if(const auto* hooks = track::detect::ensure_backend(track::detect::ObjectDetectionType::yolo); hooks && hooks->deinit) {
+                                    hooks->deinit();
+                                }
                                 
                             } catch(...) {
                                 SETTING(detect_resolution) = track::detect::DetectResolution{};

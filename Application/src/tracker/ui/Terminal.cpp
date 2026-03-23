@@ -1,7 +1,6 @@
 #include "Terminal.h"
 #include <tracking/LockGuard.h>
 #include <python/PythonWrapper.h>
-#include <python/GPURecognition.h>
 #include <core/default_config.h>
 #include <ui/Scene.h>
 
@@ -60,14 +59,12 @@ void open_terminal() {
             
                 copy = utils::find_replace(copy, "\\n", "\n");
                 copy = utils::find_replace(copy, "\\t", "\t");
-                
+                 
                 namespace py = Python;
                 py::schedule([copy]() {
-                    using py = track::PythonIntegration;
-                    
                     Print("Executing ",copy);
                     try {
-                        py::execute(copy);
+                        Python::execute(copy);
                     } catch(const SoftExceptionImpl& e) {
                         FormatWarning("Runtime error: ", e.what());
                     }

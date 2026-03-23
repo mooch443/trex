@@ -1,6 +1,7 @@
 #include "SAM3.h"
 
 #include <python/PythonWrapper.h>
+#include <python/GPURecognition.h>
 #include <misc/Timer.h>
 #include <core/TrackingSettings.h>
 #include <detect/Detection.h>
@@ -285,7 +286,8 @@ void register_sam3_backend() {
         .deinit = []() { SAM3::deinit(); },
         .is_initializing = []() { return SAM3::is_initializing(); },
         .fps = []() { return SAM3::fps(); },
-        .apply = [](std::vector<TileImage>&& tiles) { SAM3::apply(std::move(tiles)); }
+        .apply = [](std::vector<TileImage>&& tiles) { SAM3::apply(std::move(tiles)); },
+        .set_background = [](const cmn::Image::Ptr&) {}
     });
 }
 

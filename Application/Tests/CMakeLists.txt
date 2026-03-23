@@ -96,6 +96,16 @@ if(WIN32)
 target_compile_options(test_matching PRIVATE /bigobj)
 endif()
 
+function(trex_enable_python_delayload target)
+    if(WIN32)
+        target_link_libraries(${target} PRIVATE delayimp)
+        target_link_options(${target} PRIVATE
+            "/DELAYLOAD:trex_python.dll"
+            "/DELAYLOAD:trex_python-d.dll"
+        )
+    endif()
+endfunction()
+
 # Standard linking to gtest stuff.
 target_link_libraries(test_matching PUBLIC gtest gtest_main)
 target_link_libraries(test_commandline PUBLIC gtest gtest_main)
@@ -112,20 +122,13 @@ target_link_libraries(test_segmenter PUBLIC gtest gtest_main)
 target_link_libraries(test_matching PUBLIC
     tracker_tracking
     tracker_ml
-    tracker_python
     tracker_gui
     tracker_misc
     framegrabber_misc
     pv
     commons
 )
-
-target_link_libraries(test_matching PUBLIC tracker_python)
 target_link_libraries(test_commandline PUBLIC commons)
-
-if(WIN32)
-    set_target_properties(test_matching PROPERTIES LINK_FLAGS "/DELAYLOAD:tracker_python.dll /DELAYLOAD:tracker_python-d.dll")
-endif()
 
 target_link_libraries(test_outlines PUBLIC
     tracker_tracking
@@ -136,12 +139,6 @@ target_link_libraries(test_outlines PUBLIC
     pv
     commons
 )
-
-target_link_libraries(test_outlines PUBLIC tracker_python)
-
-if(WIN32)
-    set_target_properties(test_outlines PROPERTIES LINK_FLAGS "/DELAYLOAD:tracker_python.dll /DELAYLOAD:tracker_python-d.dll")
-endif()
 
 # Extra linking for the project.
 target_link_libraries(test_strings PUBLIC
@@ -173,12 +170,12 @@ target_link_libraries(test_tiling PUBLIC
         tracker_misc
         commons
         pv
-        tracker_python)
+        trex_python)
+trex_enable_python_delayload(test_tiling)
 
 target_link_libraries(test_segmenter PUBLIC
     tracker_tracking
     tracker_ml
-    tracker_python
     tracker_gui
     tracker_misc
     framegrabber_misc

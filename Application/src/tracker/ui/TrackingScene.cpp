@@ -35,7 +35,6 @@
 #include <ui/DrawDataset.h>
 #include <ui/DrawExportOptions.h>
 #include <python/PythonWrapper.h>
-#include <python/GPURecognition.h>
 #include <tracking/MemoryStats.h>
 #include <grabber/misc/default_config.h>
 #include <ui/GuiSettings.h>
@@ -1634,9 +1633,8 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                     ._task = Python::PromisedTask(
                         [action](){
                             try {
-                                using py = PythonIntegration;
                                 Print("Executing: ", action.first());
-                                py::execute(action.first());
+                                Python::execute(action.first());
                             } catch(...) {
                                 /// ignore exceptions
 #ifndef NDEBUG

@@ -365,14 +365,14 @@ void training_data_dialog(GUITaskQueue_t* gui, bool force_load, std::function<vo
                 text = "Initializing Python failed. Most likely one of the required libraries is missing from the current python environment (check for keras and tensorflow).";
 #endif
                 
-                auto message = text + "Python says: "+python_init_error()+".";
+                auto message = text + "Python says: " + Python::init_error() + ".";
                 FormatExcept(message.c_str());
                 
                 if(!SETTING(nowindow)) {
 #if defined(__APPLE__) && defined(__aarch64__)
                     std::string command = "pip install --upgrade --force --no-dependencies https://github.com/apple/tensorflow_macos/releases/download/v0.1alpha3/tensorflow_macos-0.1a3-cp38-cp38-macosx_11_0_arm64.whl https://github.com/apple/tensorflow_macos/releases/download/v0.1alpha3/tensorflow_addons_macos-0.1a3-cp38-cp38-macosx_11_0_arm64.whl";
                     
-                    text += "\n<i>"+escape_html(python_init_error())+"</i>";
+                    text += "\n<i>" + escape_html(Python::init_error()) + "</i>";
                     text += "\n\nYou can run <i>"+command+"</i> automatically in the current environment by clicking the button below.";
                     
                     PD(gui).dialog([command](Dialog::Result r) {

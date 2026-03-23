@@ -21,7 +21,6 @@ static void (*windowsEarlyEnvSetup)(void) = []() {
 #include <gui/types/Button.h>
 #include <video/VideoSource.h>
 #include <pv.h>
-#include <python/GPURecognition.h>
 #include <python/PythonWrapper.h>
 #include <misc/CommandLine.h>
 #include <file/DataLocation.h>
@@ -811,13 +810,17 @@ int main(int argc, char**argv) {
         //py::init().get();
         f = py::schedule([](){
             //Print("Python = ", py::get_instance());
-            track::PythonIntegration::set_settings(GlobalSettings::instance(), file::DataLocation::instance(), Python::get_instance());
-            track::PythonIntegration::set_display_function([](auto& name, auto& mat) {
-                tf::imshow(name, mat);
-            },
-            []() {
-                tf::destroyAllWindows();
-            });
+            py::configure_runtime(
+                GlobalSettings::instance(),
+                file::DataLocation::instance(),
+                Python::get_instance(),
+                [](auto& name, auto& mat) {
+                    tf::imshow(name, mat);
+                },
+                []() {
+                    tf::destroyAllWindows();
+                }
+            );
         });
     } catch(const std::exception& e) {
         FormatError("Cannot initialize python. Please refer to the above error messages prefixed with [py] to estimate the cause of this issue: ", e.what());

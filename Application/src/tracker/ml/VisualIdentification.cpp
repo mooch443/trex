@@ -1,7 +1,6 @@
 #include "VisualIdentification.h"
 #include <ml/AccumulationRuntime.h>
 #include <python/PythonWrapper.h>
-#include <python/GPURecognition.h>
 #include <misc/frame_t.h>
 #include <misc/PVBlob.h>
 #include <tracking/Tracker.h>
@@ -52,7 +51,7 @@ VINetwork::VINetwork()
     Settings::init();
     
     _network.setup = [this](){
-        PythonIntegration::check_correct_thread_id();
+        py::check_correct_thread_id();
         //py::schedule([this]() {
             setup(false);
         //}).get();
@@ -98,8 +97,6 @@ void VINetwork::add_percent_callback(
 }
 
 void VINetwork::setup(bool force) {
-    using py = PythonIntegration;
-    
     prefixed_print("VINetwork", "Checking reload (",force,")...");
     auto result = py::check_module(module_name);
     if(result || force || py::is_none("classes", module_name)) {
@@ -170,8 +167,6 @@ void VINetwork::set_skip_button(std::function<bool ()> skip_function) {
 }
 
 void VINetwork::set_work_variables(bool force) {
-    using py = track::PythonIntegration;
-    
     if(force || py::is_none("update_work_percent", module_name))
     {
         //prefixed_print("VINetwork", "Need to reload with variables: \nupdate_work_percent = ", no_quotes(Meta::toStr(py::variable_to_string("update_work_percent", module_name))), "\nupdate_work_description = ", no_quotes(Meta::toStr(py::variable_to_string("update_work_description", module_name))), "\nset_stop_reason = ", no_quotes(Meta::toStr(py::variable_to_string("set_stop_reason", module_name))), "\nset_per_class_accuracy = ", no_quotes(Meta::toStr(py::variable_to_string("set_per_class_accuracy", module_name))), "\nset_uniqueness_history = ", no_quotes(Meta::toStr(py::variable_to_string("set_uniqueness_history", module_name))), "\nget_abort_training = ", no_quotes(Meta::toStr(py::variable_to_string("get_abort_training", module_name))), "\nget_skip_step = ", no_quotes(Meta::toStr(py::variable_to_string("get_skip_step", module_name))), "\nmodel = ", no_quotes(utils::ShortenText(Meta::toStr(py::variable_to_string("model", module_name)), 25)));
@@ -239,7 +234,6 @@ void VINetwork::set_work_variables(bool force) {
 void VINetwork::unset_work_variables() {
     try {
         py::schedule([](){
-            using py = track::PythonIntegration;
             try {
                 py::unset_function("update_work_percent", module_name);
                 py::unset_function("update_work_description", module_name);
@@ -260,7 +254,6 @@ void VINetwork::unset_work_variables() {
 }
 
 void VINetwork::reinitialize_internal() {
-    using py = PythonIntegration;
     py::check_correct_thread_id();
     setup(true);
     py::run(module_name, "reinitialize_network");
@@ -275,7 +268,6 @@ void VINetwork::reinitialize_internal() {
 }
 
 std::optional<VIWeights> VINetwork::load_weights_internal(VIWeights&& weights) {
-    using py = track::PythonIntegration;
     //reinitialize_internal();
     
     if(weights.path().empty()) {
@@ -467,7 +459,6 @@ std::future<void> VINetwork::probabilities(std::vector<cmn::Image::SPtr>&& image
 
 void VINetwork::set_variables_internal(auto && images, callback_t && callback)
 {
-    using py = PythonIntegration;
     py::check_correct_thread_id();
     
     try {
@@ -481,7 +472,7 @@ void VINetwork::set_variables_internal(auto && images, callback_t && callback)
             return;
         }
         
-        m.set_variable("images", images);
+        m.set_variable("images", std::move(images));
         m.set_function("receive", std::move(callback));
         m.run("predict");
         m.unset_function("receive");
@@ -584,7 +575,6 @@ bool VINetwork::train(std::shared_ptr<TrainingData> data,
                 &global_range, this]() mutable
          {
             try {
-                using py = PythonIntegration;
                 //check_learning_module();
                 
                 std::vector<Idx_t> classes(data->all_classes().begin(), data->all_classes().end());

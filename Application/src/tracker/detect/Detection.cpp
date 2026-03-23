@@ -6,6 +6,7 @@
 #include <core/AbstractVideoSource.h>
 #include <core/PrecomuptedDetection.h>
 #include <core/TrackingSettings.h>
+#include <python/PythonWrapper.h>
 
 namespace track::detect {
 
@@ -14,6 +15,11 @@ namespace {
 auto& backend_registry() {
     static std::unordered_map<ObjectDetectionType::Class, BackendHooks> registry;
     return registry;
+}
+
+bool is_python_backend_type(ObjectDetectionType::Class type) {
+    return type == ObjectDetectionType::yolo
+        || type == ObjectDetectionType::sam3;
 }
 
 }
@@ -31,6 +37,19 @@ const BackendHooks* backend(ObjectDetectionType::Class type) {
     if(it == backend_registry().end())
         return nullptr;
     return &it->second;
+}
+
+const BackendHooks* ensure_backend(ObjectDetectionType::Class type) {
+    if(const auto* hooks = backend(type)) {
+        return hooks;
+    }
+
+    if(is_python_backend_type(type)) {
+        Python::ensure_python_impl_loaded();
+        return backend(type);
+    }
+
+    return nullptr;
 }
 
 } // namespace track::detect
@@ -63,7 +82,7 @@ Detection::Detection() {
         break;
     }
 
-    if(const auto* hooks = detect::backend(*type); hooks && hooks->init) {
+    if(const auto* hooks = detect::ensure_backend(*type); hooks && hooks->init) {
         hooks->init();
         return;
     }
@@ -89,7 +108,7 @@ void Detection::deinit() {
     }
 
     if(type) {
-        if(const auto* hooks = detect::backend(*type); hooks && hooks->deinit) {
+        if(const auto* hooks = detect::ensure_backend(*type); hooks && hooks->deinit) {
             hooks->deinit();
             manager().clean_up();
             return;
@@ -104,7 +123,7 @@ bool Detection::is_initializing() {
     if(!type)
         return false;
 
-    if(const auto* hooks = detect::backend(*type); hooks && hooks->is_initializing) {
+    if(const auto* hooks = detect::ensure_backend(*type); hooks && hooks->is_initializing) {
         return hooks->is_initializing();
     }
     return false;
@@ -120,7 +139,7 @@ double Detection::fps() {
         return AbstractBaseVideoSource::_network_fps.load();
 
     if(type) {
-        if(const auto* hooks = detect::backend(*type); hooks && hooks->fps) {
+        if(const auto* hooks = detect::ensure_backend(*type); hooks && hooks->fps) {
             return hooks->fps();
         }
     }
@@ -171,13 +190,24 @@ void Detection::apply(std::vector<TileImage>&& tiled) {
     }
 
     if(type) {
-        if(const auto* hooks = detect::backend(*type); hooks && hooks->apply) {
+        if(const auto* hooks = detect::ensure_backend(*type); hooks && hooks->apply) {
             hooks->apply(std::move(tiled));
             return;
         }
     }
 
     throw U_EXCEPTION("Unknown detection type: ", detection_type());
+}
+
+void Detection::set_background(const cmn::Image::Ptr& image) {
+    const auto type = detection_type();
+    if(!type) {
+        return;
+    }
+
+    if(const auto* hooks = detect::ensure_backend(*type); hooks && hooks->set_background) {
+        hooks->set_background(image);
+    }
 }
 
 PipelineManager<TileImage, true>& Detection::manager() {

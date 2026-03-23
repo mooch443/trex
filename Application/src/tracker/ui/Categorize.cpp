@@ -5,7 +5,6 @@
 #include <gui/DrawStructure.h>
 #include <ui/Accumulation.h>
 
-#include <python/GPURecognition.h>
 #include <misc/default_settings.h>
 #include <processing/Background.h>
 
@@ -22,6 +21,7 @@ namespace track {
 namespace Categorize {
 
 using namespace constraints;
+namespace py = Python;
 
 std::function<void()> _auto_quit_fn;
 std::function<void(std::string, double)> _set_status_fn;
@@ -321,8 +321,6 @@ void start_applying(std::weak_ptr<pv::File> video_source) {
             return;
         
         Python::schedule([results = std::move(results)]() mutable {
-            using py = PythonIntegration;
-            
             // single out the images
             std::vector<Image::Ptr> images;
             images.reserve(results.size());
@@ -358,7 +356,7 @@ void start_applying(std::weak_ptr<pv::File> video_source) {
                     py::run(module, "load");
                 }
                 
-                py::set_variable("images", images, module);
+                py::set_variable("images", std::move(images), module);
                 py::set_function("receive", package::F<void(std::vector<float>)>([results = std::move(results), module](std::vector<float> r) mutable
                  {
                     // received
@@ -503,7 +501,6 @@ void Work::start_learning(std::weak_ptr<pv::File> video_source) {
         Work::status() = "Initializing...";
         Work::initialized() = false;
         
-        using py = PythonIntegration;
         static const std::string module = "trex_learn_category";
         
         //py::import_module(module);

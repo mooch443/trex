@@ -1315,7 +1315,8 @@ void register_yolo_backend() {
         .deinit = []() { YOLO::deinit(); },
         .is_initializing = []() { return YOLO::is_initializing(); },
         .fps = []() { return YOLO::fps(); },
-        .apply = [](std::vector<TileImage>&& tiles) { YOLO::apply(std::move(tiles)); }
+        .apply = [](std::vector<TileImage>&& tiles) { YOLO::apply(std::move(tiles)); },
+        .set_background = [](const cmn::Image::Ptr& image) { YOLO::set_background(image); }
     });
 }
 

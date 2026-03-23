@@ -20,7 +20,6 @@
 #include <python/PythonWrapper.h>
 #include <ml/VisualIdentification.h>
 #include <tracking/ImageExtractor.h>
-#include <python/GPURecognition.h>
 #include <file/DataLocation.h>
 #include <tracking/IndividualManager.h>
 #include <gui/IMGUIBase.h>
@@ -372,9 +371,9 @@ void Accumulation::setup() {
     } catch(const std::future_error& error) {
         FormatExcept("Checking learning module failed ", std::string(error.what()),".");
 #if defined(__APPLE__) && defined(__aarch64__)
-        throw SoftException("Checking the learning module failed. Most likely one of the required libraries is missing from the current python environment (check for keras and tensorflow). Since you are using an ARM Mac, you may need to install additional libraries. Python says: ",python_init_error(),".");
+        throw SoftException("Checking the learning module failed. Most likely one of the required libraries is missing from the current python environment (check for keras and tensorflow). Since you are using an ARM Mac, you may need to install additional libraries. Python says: ", Python::init_error(), ".");
 #else
-        throw SoftException("Checking the learning module failed. Most likely one of the required libraries is missing from the current python environment (check for keras and tensorflow). Python says: ",python_init_error(),".");
+        throw SoftException("Checking the learning module failed. Most likely one of the required libraries is missing from the current python environment (check for keras and tensorflow). Python says: ", Python::init_error(), ".");
 #endif
     }
 }

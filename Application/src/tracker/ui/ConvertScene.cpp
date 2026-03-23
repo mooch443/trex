@@ -12,10 +12,8 @@
 #include <ui/RecentItems.h>
 #include <file/PathArray.h>
 #include <ui/Coordinates.h>
-#include <python/GPURecognition.h>
 #include <ui/Label.h>
 #include <gui/ParseLayoutTypes.h>
-#include <python/YOLO.h>
 #include <misc/CommandLine.h>
 #include <gui/dyn/Action.h>
 #include <gui/dyn/ParseText.h>
@@ -933,12 +931,11 @@ dyn::DynamicGUI ConvertScene::Data::init_gui(Base* window) {
                 Python::schedule(Python::PackagedTask{
                     ._network = nullptr,
                     ._task = Python::PromisedTask(
-                                                  [action](){
-                                                      using py = PythonIntegration;
-                                                      Print("Executing: ", no_quotes(util::unescape(action.first())));
-                                                      py::execute(action.first());
-                                                  }
-                                                  ),
+                            [action](){
+                                Print("Executing: ", no_quotes(util::unescape(action.first())));
+                                Python::execute(action.first());
+                            }
+                        ),
                         ._can_run_before_init = false
                 }).get();
                 
@@ -1017,15 +1014,15 @@ dyn::DynamicGUI ConvertScene::Data::init_gui(Base* window) {
             using namespace default_config;
             auto gpu_torch_device = READ_SETTING(gpu_torch_device, gpu_torch_device_t::Class);
             if (gpu_torch_device == gpu_torch_device_t::cpu) {
-                if (utils::contains(utils::lowercase(python_gpu_name()), "metal")
-                    || utils::contains(utils::lowercase(python_gpu_name()), "cuda")
-                    || utils::contains(utils::lowercase(python_gpu_name()), "nvidia"))
+                if (utils::contains(utils::lowercase(Python::gpu_name()), "metal")
+                    || utils::contains(utils::lowercase(Python::gpu_name()), "cuda")
+                    || utils::contains(utils::lowercase(Python::gpu_name()), "nvidia"))
                 {
-                    return "CPU ("+python_gpu_name()+")";
+                    return "CPU (" + Python::gpu_name() + ")";
                 }
                 return "CPU";
             }
-            return python_gpu_name();
+            return Python::gpu_name();
         }),
         VarFunc("detect_format", [](const VarProps&) {
             return READ_SETTING(detect_format, detect::ObjectDetectionFormat_t);

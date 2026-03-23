@@ -341,7 +341,12 @@ set(TREX_UI_MODULE_INTERFACE_UNITS
     ${CMAKE_CURRENT_LIST_DIR}/modules/trex.ui.cppm
 )
 
-set(TRACKER_PYTHON_PUBLIC_HEADERS
+set(TREX_PYTHON_STAGING_PUBLIC_HEADERS
+    ${CMAKE_CURRENT_LIST_DIR}/python/ModuleProxy.h
+    ${CMAKE_CURRENT_LIST_DIR}/python/PythonWrapper.h
+)
+
+set(TREX_PYTHON_IMPL_PUBLIC_HEADERS
     ${CMAKE_CURRENT_LIST_DIR}/python/GPURecognition.h
     ${CMAKE_CURRENT_LIST_DIR}/python/ModuleProxy.h
     ${CMAKE_CURRENT_LIST_DIR}/python/PythonWrapper.h
@@ -350,16 +355,21 @@ set(TRACKER_PYTHON_PUBLIC_HEADERS
     ${CMAKE_CURRENT_LIST_DIR}/python/YOLO.h
 )
 
-set(TRACKER_PYTHON_PRIVATE_HEADERS
+set(TREX_PYTHON_IMPL_PRIVATE_HEADERS
     ${CMAKE_CURRENT_LIST_DIR}/python/BackendRegistration.h
 )
 
-set(TRACKER_PYTHON_SOURCES
-    ${CMAKE_CURRENT_LIST_DIR}/python/GPURecognition.cpp
+set(TREX_PYTHON_STAGING_SOURCES
     ${CMAKE_CURRENT_LIST_DIR}/python/ModuleProxy.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/python/Network.cpp
     ${CMAKE_CURRENT_LIST_DIR}/python/PythonWrapper.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/python/Network.cpp
+)
+
+set(TREX_PYTHON_IMPL_SOURCES
+    ${CMAKE_CURRENT_LIST_DIR}/python/GPURecognition.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/python/Network.cpp
     ${CMAKE_CURRENT_LIST_DIR}/python/SAM3.cpp
     ${CMAKE_CURRENT_LIST_DIR}/python/TrackingPythonServices.cpp
     ${CMAKE_CURRENT_LIST_DIR}/python/YOLO.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/python/trex_python_entry.cpp
 )
