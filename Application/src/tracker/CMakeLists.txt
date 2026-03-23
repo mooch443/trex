@@ -182,6 +182,7 @@ target_link_libraries(tracker_gui INTERFACE trex_ui trex_ml trex_tracking trex_d
 
 if(NOT COMMONS_NO_PYTHON)
     add_subdirectory(python)
+    target_link_libraries(trex_detect PUBLIC trex_python_staging)
 endif()
 
 include_directories(${CMAKE_SOURCE_DIR}/src/ProcessedVideo)

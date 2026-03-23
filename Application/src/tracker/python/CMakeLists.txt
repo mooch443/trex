@@ -56,15 +56,13 @@ endif()
 if(WIN32)
     target_compile_options(trex_python_staging PRIVATE /bigobj)
     target_link_libraries(trex_python_staging PRIVATE
-        trex_detect
-        trex_tracking
         trex_data
         trex_core
         pv
         Commons::All
     )
 else()
-    target_link_libraries(trex_python_staging PUBLIC trex_detect trex_tracking trex_data trex_core pv Commons::All)
+    target_link_libraries(trex_python_staging PUBLIC trex_data trex_core pv Commons::All)
 endif()
 
 # ==============================================================================

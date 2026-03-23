@@ -7,7 +7,9 @@
 #include <core/AbstractVideoSource.h>
 #include <core/PrecomuptedDetection.h>
 #include <core/TrackingSettings.h>
+#if !COMMONS_NO_PYTHON
 #include <python/PythonWrapper.h>
+#endif
 
 namespace track::detect {
 
@@ -46,7 +48,9 @@ const BackendHooks* ensure_backend(ObjectDetectionType::Class type) {
     }
 
     if(is_python_backend_type(type)) {
+#if !COMMONS_NO_PYTHON
         Python::ensure_python_impl_loaded();
+#endif
         return backend(type);
     }
 

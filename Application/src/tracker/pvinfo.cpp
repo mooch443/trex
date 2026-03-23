@@ -440,7 +440,7 @@ int main(int argc, char** argv) {
         }
 
         if(print_plain) {
-            printf("version %d\nframes %llu\n", (int)video.header().version, video.length());
+            std::cout << "version " << int(video.header().version) << "\nframes " << video.length().get() << "\n";
         }
 
         if(save_background) {
