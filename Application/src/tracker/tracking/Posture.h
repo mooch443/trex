@@ -4,7 +4,7 @@
 #include <commons.pc.h>
 
 #include "Outline.h"
-#include <misc/bid.h>
+#include <processing/BlobWeakPtr.h>
 #include <core/idx_t.h>
 
 //#define POSTURE_DEBUG

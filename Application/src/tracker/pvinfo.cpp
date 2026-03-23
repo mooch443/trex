@@ -3,7 +3,7 @@
 #include <iomanip>
 #include <misc/CommandLine.h>
 #include <misc/Timer.h>
-#include <misc/PVBlob.h>
+#include <processing/PVBlob.h>
 #include <misc/GlobalSettings.h>
 #include <misc/Median.h>
 #include <tracking/Tracker.h>

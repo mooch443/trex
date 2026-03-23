@@ -1,5 +1,6 @@
 #include "Detection.h"
 
+#include <file/PathArray.h>
 #include <detect/BackgroundSubtraction.h>
 #include <detect/NoDetection.h>
 #include <grabber/misc/default_config.h>

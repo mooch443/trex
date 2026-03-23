@@ -2,7 +2,7 @@
 #include <ml/AccumulationRuntime.h>
 #include <python/PythonWrapper.h>
 #include <misc/frame_t.h>
-#include <misc/PVBlob.h>
+#include <processing/PVBlob.h>
 #include <tracking/Tracker.h>
 #include <misc/create_struct.h>
 #include <misc/cnpy_wrapper.h>

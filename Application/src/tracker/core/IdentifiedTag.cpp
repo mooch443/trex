@@ -1,5 +1,5 @@
 #include "IdentifiedTag.h"
-#include <misc/ProximityGrid.h>
+#include <processing/ProximityGrid.h>
 #include <misc/ranges.h>
 
 namespace track {

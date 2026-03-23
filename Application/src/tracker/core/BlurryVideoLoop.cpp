@@ -1,4 +1,5 @@
 #include "BlurryVideoLoop.h"
+#include <file/PathArray.h>
 #include <core/AbstractVideoSource.h>
 #include <core/SettingsPaths.h>
 #include <core/WebcamVideoSource.h>

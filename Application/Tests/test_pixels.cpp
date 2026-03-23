@@ -2,8 +2,8 @@
 #include <gtest/gtest.h>
 #include <misc/Image.h>
 #include <processing/Background.h>
-#include <misc/PVBlob.h>
-#include <misc/PixelTree.h>
+#include <processing/PVBlob.h>
+#include <processing/PixelTree.h>
 #include <core/TrackingSettings.h>
 #include <tracking/Posture.h>
 #include <processing/LuminanceGrid.h>

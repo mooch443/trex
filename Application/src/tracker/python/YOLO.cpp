@@ -1,5 +1,5 @@
 #include "YOLO.h"
-#include <misc/PixelTree.h>
+#include <processing/PixelTree.h>
 #include <python/PythonWrapper.h>
 #include <grabber/misc/default_config.h>
 #include <video/Video.h>

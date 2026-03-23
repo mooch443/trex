@@ -1,4 +1,5 @@
 #pragma once
+#include <file/PathArray.h>
 #include <commons.pc.h>
 #include <gui/ParseLayoutTypes.h>
 #include <gui/dyn/State.h>

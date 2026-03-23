@@ -3,7 +3,7 @@
 #include <tracking/Tracker.h>
 #include <misc/Timer.h>
 
-#include <misc/PixelTree.h>
+#include <processing/PixelTree.h>
 #include <misc/cnpy_wrapper.h>
 #include <core/default_config.h>
 

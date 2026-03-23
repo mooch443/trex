@@ -8,7 +8,7 @@
 #include <tracking/CacheHints.h>
 #include <data/MotionRecord.h>
 #include <misc/ThreadPool.h>
-#include <file/Path.h>
+#include <misc/Path.h>
 
 namespace track {
 class Tracker;

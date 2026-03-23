@@ -1,4 +1,5 @@
 #include "SettingsPaths.h"
+#include <file/PathArray.h>
 #include <core/TrackingSettings.h>
 #include <file/DataLocation.h>
 #include <misc/GlobalSettings.h>

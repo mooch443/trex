@@ -1,7 +1,8 @@
 #include "ScreenRecorder.h"
 
 #include <commons.pc.h>
-#include <file/Path.h>
+#include <file/ImageIO.h>
+#include <misc/Path.h>
 #include <misc/Timer.h>
 #include <core/default_config.h>
 #include <gui/DrawBase.h>
@@ -137,7 +138,7 @@ struct ScreenRecorder::Data {
                 cv::Mat output = image.get();
                 cv::cvtColor(mat, output, cv::COLOR_BGRA2RGBA);
                 
-                to_png(image, binary);
+                file::to_png(image, binary);
                 
                 FILE *f = fopen(filename.str().c_str(), "wb");
                 if(f) {

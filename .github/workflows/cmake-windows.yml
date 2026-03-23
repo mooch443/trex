@@ -15,7 +15,7 @@ jobs:
     # See: https://docs.github.com/en/actions/configuring-and-managing-workflows/configuring-a-workflow#configuring-a-build-matrix
     runs-on: ${{ matrix.os }}
     strategy:
-      fail-fast: false
+      fail-fast: true
       matrix:
         os: ["windows-latest"]
         python-version: ["3.12"]
@@ -82,8 +82,11 @@ jobs:
         echo "::endgroup::"
         echo "::group::Fix Meta"
         cd $GITHUB_WORKSPACE/conda
-        p=${GITHUB_REF##*/}
+        p=${GITHUB_REF#refs/heads/}
+        p_sanitized=${p//\//_}
+        p_sanitized=${p_sanitized//-/_}
         sed -i -e '/^{% set git_tag =/ s+main+'$p'+g' meta.yaml
+        sed -i -e '/^{% set git_tag_sanitized =/ s+main+'$p_sanitized'+g' meta.yaml
         cat meta.yaml
         sed -i.bak 's|--index-url https://download.pytorch.org/whl/cu118||g' post-link.bat
         cat post-link.sh

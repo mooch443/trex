@@ -1,11 +1,8 @@
 module;
 
-#define IN_MODULE_INTERFACE 1
-#include <tracking/Results.h>
+#include <commons.pc.h>
+#include "generated/trex.includes.tracking.inc"
 
 export module trex.tracking;
-export import trex.detect;
 
-export namespace track {
-using ::track::Results;
-}
+#include "generated/trex.exports.tracking.inc"

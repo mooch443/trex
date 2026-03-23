@@ -4,7 +4,7 @@
 #include <core/TaskPipeline.h>
 #include <core/DetectionImageTypes.h>
 #include <misc/Timer.h>
-#include <file/Path.h>
+#include <misc/Path.h>
 #include <core/RepeatedDeferral.h>
 #include <misc/Buffers.h>
 #include <core/VideoInfo.h>

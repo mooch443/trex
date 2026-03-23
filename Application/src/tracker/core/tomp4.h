@@ -3,7 +3,7 @@
 
 #include <commons.pc.h>
 #include <misc/Image.h>
-#include <file/Path.h>
+#include <misc/Path.h>
 #include <lzo/minilzo.h>
 #include <misc/Timer.h>
 #include <misc/create_struct.h>

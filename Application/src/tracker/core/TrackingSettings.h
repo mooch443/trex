@@ -2,7 +2,7 @@
 
 #include <commons.pc.h>
 #include <misc/GlobalSettings.h>
-#include <file/Path.h>
+#include <misc/Path.h>
 #include <core/default_config.h>
 #include <core/idx_t.h>
 #include <misc/bid.h>

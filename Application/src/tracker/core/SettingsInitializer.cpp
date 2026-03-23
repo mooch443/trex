@@ -1,4 +1,5 @@
 #include "SettingsInitializer.h"
+#include <file/PathArray.h>
 #include <misc/GlobalSettings.h>
 #include <misc/SpriteMap.h>
 #include <misc/CommandLine.h>

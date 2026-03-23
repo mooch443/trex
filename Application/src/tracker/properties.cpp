@@ -1,4 +1,4 @@
-#include <types.h>
+#include <misc/types.h>
 #include <gui/IMGUIBase.h>
 #include <data/MotionRecord.h>
 #include <tracking/Tracker.h>

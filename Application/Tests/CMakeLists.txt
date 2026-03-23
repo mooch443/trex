@@ -55,6 +55,11 @@ add_executable(test_segmenter test_segmenter.cpp "${CMAKE_BINARY_DIR}/src/GitSHA
 target_compile_definitions(test_segmenter PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
 
 if(COMMONS_ENABLE_MODULES AND NOT CMAKE_VERSION VERSION_LESS "3.28.0")
+add_custom_target(commons_module_surface_check
+    COMMAND "${PYTHON_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/generate_commons_module_surface.py" --check
+    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+    COMMENT "Checking checked-in commons module inventory and smoke surface."
+)
 add_executable(test_commons_modules test_commons_modules.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
 target_compile_definitions(test_commons_modules PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
 set_target_properties(test_commons_modules PROPERTIES
@@ -62,9 +67,15 @@ set_target_properties(test_commons_modules PROPERTIES
         CXX_STANDARD_REQUIRED YES
         CXX_SCAN_FOR_MODULES ON
 )
+add_dependencies(test_commons_modules commons_module_surface_check)
 endif()
 
 if(TREX_ENABLE_MODULES AND NOT CMAKE_VERSION VERSION_LESS "3.28.0")
+add_custom_target(tracker_module_surface_check
+    COMMAND "${PYTHON_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/generate_tracker_module_surface.py" --check
+    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+    COMMENT "Checking checked-in tracker module inventory and smoke surface."
+)
 add_executable(test_trex_modules test_trex_modules.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
 target_compile_definitions(test_trex_modules PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
 set_target_properties(test_trex_modules PROPERTIES
@@ -72,6 +83,7 @@ set_target_properties(test_trex_modules PROPERTIES
         CXX_STANDARD_REQUIRED YES
         CXX_SCAN_FOR_MODULES ON
 )
+add_dependencies(test_trex_modules tracker_module_surface_check)
 endif()
 
 # always compile in debug mode

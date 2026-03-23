@@ -1,4 +1,5 @@
 #pragma once
+#include <file/PathArray.h>
 #include <commons.pc.h>
 #include <core/DetectionTypes.h>
 #include <core/TileImage.h>

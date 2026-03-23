@@ -2,7 +2,7 @@
 
 #include <commons.pc.h>
 #include <file/DataLocation.h>
-#include <file/Path.h>
+#include <misc/Path.h>
 #include <file/PathArray.h>
 #include <grabber/misc/default_config.h>
 #include <misc/GlobalSettings.h>

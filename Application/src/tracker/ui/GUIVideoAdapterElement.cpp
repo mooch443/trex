@@ -1,5 +1,6 @@
 #include "GUIVideoAdapterElement.h"
 
+#include <file/PathArray.h>
 #include <gui/IMGUIBase.h>
 #include <gui/dyn/ParseText.h>
 #include <gui/ParseLayoutTypes.h>

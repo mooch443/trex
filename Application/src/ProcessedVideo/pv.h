@@ -4,9 +4,9 @@
 #include <commons.pc.h>
 #include <file/DataFormat.h>
 #include <video/GenericVideo.h>
-#include <file/Path.h>
+#include <misc/Path.h>
 #include <misc/Image.h>
-#include <misc/PVBlob.h>
+#include <processing/PVBlob.h>
 #include <misc/frame_t.h>
 
 namespace pv {
@@ -558,4 +558,3 @@ namespace pv {
 }
 
 #endif
-

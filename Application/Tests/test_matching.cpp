@@ -5,7 +5,8 @@
 #include <tracking/Tracker.h>
 #include <misc/frame_t.h>
 #include <tracking/IndividualManager.h>
-#include <misc/PixelTree.h>
+#include <processing/BlobWeakPtr.h>
+#include <processing/PixelTree.h>
 #include <filesystem>
 #include <misc/Image.h>
 #include <core/DetectionTypes.h>

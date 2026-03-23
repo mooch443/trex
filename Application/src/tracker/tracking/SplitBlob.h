@@ -3,7 +3,8 @@
 
 #include <commons.pc.h>
 #include <misc/GlobalSettings.h>
-#include <misc/PVBlob.h>
+#include <processing/BlobWeakPtr.h>
+#include <processing/PVBlob.h>
 
 namespace track { class SplitBlob; }
 

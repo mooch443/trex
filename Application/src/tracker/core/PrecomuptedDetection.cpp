@@ -1,4 +1,5 @@
 #include "PrecomuptedDetection.h"
+#include <file/PathArray.h>
 #include <core/TileBuffers.h>
 #include <misc/Timer.h>
 #include <core/SizeFilters.h>

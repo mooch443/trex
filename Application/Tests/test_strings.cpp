@@ -2,7 +2,7 @@
 #include <commons.pc.h>
 #include <misc/parse_parameter_lists.h>
 #include <misc/Timer.h>
-#include <file/Path.h>
+#include <misc/Path.h>
 #include <misc/default_settings.h>
 #include <gui/types/StaticText.h>
 #include <data/IndividualCache.h>

@@ -6,7 +6,7 @@
 #include <misc/Image.h>
 #include <misc/PackLambda.h>
 #include <core/idx_t.h>
-#include <file/Path.h>
+#include <misc/Path.h>
 #include <tracking/TrainingData.h>
 #include <tracking/Stuffs.h>
 #include <core/DetectionTypes.h>
