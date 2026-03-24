@@ -40,9 +40,9 @@ jobs:
         conda-remove-defaults: true
 
     - name: Create .condarc file
-      shell: bash {0}
+      shell: bash --noprofile --norc -eo pipefail {0}
       run: |
-        source "$CONDA/etc/profile.d/conda.sh"
+        source "$(cygpath "$CONDA")/etc/profile.d/conda.sh"
         cat > ~/.condarc <<'EOF'
         channels:
           - conda-forge
@@ -53,7 +53,7 @@ jobs:
         conda config --show channels
 
     - name: Verify .condarc content
-      shell: bash {0}
+      shell: bash --noprofile --norc -eo pipefail {0}
       run: |
         cat ~/.condarc
 
@@ -71,29 +71,27 @@ jobs:
         Write-Host "SHORT_WORKSPACE=W:\"
 
     - name: Create tracking env
-      shell: bash {0}
+      shell: bash --noprofile --norc -eo pipefail {0}
       working-directory: ${{ env.SHORT_WORKSPACE }}
       run: |
-        source "$CONDA/etc/profile.d/conda.sh"
+        source "$(cygpath "$CONDA")/etc/profile.d/conda.sh"
         echo "::group::Create tracking env"
         mamba env create -f .github/environment.yml
         mamba install -y -n tracking python=${{ matrix.python-version }}
-        conda activate tracking
-        conda info
-        conda list
+        conda run -n tracking conda info
+        conda run -n tracking conda list
         echo "::endgroup::"
 
     - name: Build
-      shell: bash {0}
+      shell: bash --noprofile --norc -eo pipefail {0}
       working-directory: ${{ env.SHORT_WORKSPACE }}
       run: |
-        source "$CONDA/etc/profile.d/conda.sh"
+        source "$(cygpath "$CONDA")/etc/profile.d/conda.sh"
 
         echo "::group::Info"
-        conda activate tracking
-        conda info
-        conda list
-        conda search numpy
+        conda run -n tracking conda info
+        conda run -n tracking conda list
+        conda run -n tracking conda search numpy
         echo "::endgroup::"
 
         echo "::group::Fix Meta"
@@ -110,37 +108,34 @@ jobs:
         echo "::endgroup::"
 
         echo "::group::Build"
-        export PATH="/c/Windows/system32:/c/Windows:/c/Program Files/Git/cmd:/c/Program Files/Git/usr/bin:/c/Program Files/CMake/bin:$CONDA_PREFIX/Scripts:$CONDA_PREFIX/Library/bin:$CONDA_PREFIX/bin"
-        conda update --all --override-channels -c conda-forge -y
-        conda build . --override-channels -c conda-forge
+        export PATH="/c/Windows/system32:/c/Windows:/c/Program Files/Git/cmd:/c/Program Files/Git/usr/bin:/c/Program Files/CMake/bin"
+        conda run -n tracking conda update --all --override-channels -c conda-forge -y
+        conda run -n tracking conda build . --override-channels -c conda-forge
         echo "::endgroup::"
-        echo "$CONDA_PREFIX"
 
     - name: Test
-      shell: bash {0}
+      shell: bash --noprofile --norc -eo pipefail {0}
       working-directory: ${{ env.SHORT_WORKSPACE }}
       run: |
-        source "$CONDA/etc/profile.d/conda.sh"
+        source "$(cygpath "$CONDA")/etc/profile.d/conda.sh"
         echo "::group::Test"
-        conda activate tracking
-        echo "$CONDA_PREFIX"
-        conda search numpy
-        conda create -y -n test --override-channels -c "$CONDA_PREFIX/conda-bld/" -c conda-forge trex
-        conda activate test
-        pvinfo -opencv_ffmpeg_support
-        pvinfo -opencv_opencl_support
+        TRACKING_PREFIX=$(conda run -n tracking python -c "import os; print(os.environ['CONDA_PREFIX'])" | tail -n 1 | tr -d '\r')
+        echo "$TRACKING_PREFIX"
+        conda run -n tracking conda search numpy
+        conda run -n tracking conda create -y -n test --override-channels -c "$TRACKING_PREFIX/conda-bld/" -c conda-forge trex
+        conda run -n test pvinfo -opencv_ffmpeg_support
+        conda run -n test pvinfo -opencv_opencl_support
         echo "::endgroup::"
 
     - name: TestFunctions
       continue-on-error: true
-      shell: bash {0}
+      shell: bash --noprofile --norc -eo pipefail {0}
       working-directory: ${{ env.SHORT_WORKSPACE }}
       run: |
-        source "$CONDA/etc/profile.d/conda.sh"
+        source "$(cygpath "$CONDA")/etc/profile.d/conda.sh"
         echo "::group::TestFunctions"
         cd "$SHORT_WORKSPACE/Application/Tests"
-        conda activate test
-        ./run_unix.bash
+        conda run -n test bash ./run_unix.bash
         TEST_EC=$?
         echo "TEST_EXIT_CODE=$TEST_EC" >> "$GITHUB_ENV"
         echo "::endgroup::"
@@ -148,23 +143,25 @@ jobs:
 
     - name: DLL dependency diagnostics (Dependencies.exe)
       if: env.TEST_EXIT_CODE != '0'
-      shell: bash {0}
+      shell: bash --noprofile --norc -eo pipefail {0}
       working-directory: ${{ env.SHORT_WORKSPACE }}
       run: |
-        source "$CONDA/etc/profile.d/conda.sh"
+        source "$(cygpath "$CONDA")/etc/profile.d/conda.sh"
         echo "::group::DLL diagnostics"
-        conda activate test
 
         curl -L -o deps.zip \
           https://github.com/lucasg/Dependencies/releases/download/v1.11.1/Dependencies_x64_Release.zip
         unzip -q deps.zip -d deps
         DEPS="$PWD/deps/Dependencies.exe"
 
-        echo "CONDA_PREFIX=$CONDA_PREFIX"
+        TEST_PREFIX=$(conda run -n test python -c "import os; print(os.environ['CONDA_PREFIX'])" | tail -n 1 | tr -d '\r')
+        echo "CONDA_PREFIX=$TEST_PREFIX"
 
         EXES=()
-        if command -v pvinfo >/dev/null 2>&1; then EXES+=("$(which pvinfo)"); fi
-        if command -v trex >/dev/null 2>&1; then EXES+=("$(which trex)"); fi
+        if [ -x "$TEST_PREFIX/Library/bin/pvinfo.exe" ]; then EXES+=("$TEST_PREFIX/Library/bin/pvinfo.exe"); fi
+        if [ -x "$TEST_PREFIX/Library/bin/trex.exe" ]; then EXES+=("$TEST_PREFIX/Library/bin/trex.exe"); fi
+        if [ -x "$TEST_PREFIX/Scripts/pvinfo.exe" ]; then EXES+=("$TEST_PREFIX/Scripts/pvinfo.exe"); fi
+        if [ -x "$TEST_PREFIX/Scripts/trex.exe" ]; then EXES+=("$TEST_PREFIX/Scripts/trex.exe"); fi
 
         for exe in "${EXES[@]}"; do
           echo "=== Dependencies scan for: $exe ==="
@@ -172,7 +169,7 @@ jobs:
           echo ""
         done
 
-        PYD_DIR="$CONDA_PREFIX/Lib/site-packages"
+        PYD_DIR="$TEST_PREFIX/Lib/site-packages"
         if [ -d "$PYD_DIR" ]; then
           echo "=== Scanning .pyd files under $PYD_DIR ==="
           find "$PYD_DIR" -maxdepth 3 -name "*.pyd" 2>/dev/null | head -n 20 | while read -r pyd; do
@@ -185,7 +182,7 @@ jobs:
 
     - name: Fail if tests failed
       if: env.TEST_EXIT_CODE != '0'
-      shell: bash {0}
+      shell: bash --noprofile --norc -eo pipefail {0}
       run: |
         echo "Tests failed with exit code $TEST_EXIT_CODE"
         exit "$TEST_EXIT_CODE"
