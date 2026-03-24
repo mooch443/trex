@@ -2,6 +2,6 @@
 
 namespace track {
 
-extern "C" void trex_python_register();
+extern "C" TREX_EXPORT void trex_python_register();
 
 } // namespace track

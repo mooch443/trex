@@ -808,7 +808,7 @@ int main(int argc, char**argv) {
     std::future<void> f;
     try {
         //py::init().get();
-        f = py::schedule([](){
+        //f = py::schedule([](){
             //Print("Python = ", py::get_instance());
             py::configure_runtime(
                 GlobalSettings::instance(),
@@ -821,7 +821,7 @@ int main(int argc, char**argv) {
                     tf::destroyAllWindows();
                 }
             );
-        });
+        //});
     } catch(const std::exception& e) {
         FormatError("Cannot initialize python. Please refer to the above error messages prefixed with [py] to estimate the cause of this issue: ", e.what());
         exit(1);

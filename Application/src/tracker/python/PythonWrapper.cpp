@@ -64,6 +64,7 @@ std::condition_variable& python_environment_variable() {
 }
 
 bool should_manage_python_environment() {
+    return true;
     const auto app_name = READ_SETTING(app_name, std::string);
     return app_name.empty()
         || utils::contains(app_name, "TRex")
@@ -306,6 +307,9 @@ void configure_runtime(
     std::function<void(const std::string&, const cv::Mat&)> show_fn,
     std::function<void()> close_fn
 ) {
+    GlobalSettings::instance(settings);
+    file::DataLocation::set_instance(data_location);
+
     auto& impl = active_python_impl();
     if (!impl.set_settings || !impl.set_display_function)
         throw SoftException("trex_python did not register runtime configuration callbacks.");
