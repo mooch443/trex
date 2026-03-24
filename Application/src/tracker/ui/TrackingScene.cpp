@@ -281,80 +281,99 @@ TrackingScene::Data::Data(Image::Ptr&& average, pv::File& video)
 }
 
 void TrackingScene::Data::handle_zooming(Event e) {
-    auto video_size = READ_SETTING(meta_video_size, Size2);
-    auto mp = _cache->previous_mouse_position;
-    mp = FindCoord::get().convert(HUDCoord{mp});
-    
+    auto video_size = READ_SETTING(video_size, Size2);
+    auto coords = FindCoord::get();
+    auto mouse_position = _cache ? _cache->previous_mouse_position : _last_mouse;
+    if(_background && _background->stage()) {
+        mouse_position = _background->stage()->mouse_position();
+    } else {
+        mouse_position = _last_mouse;
+    }
+
+    auto mp = coords.convert(HUDCoord{mouse_position});
+
+    auto zoom_polygon_bounds = [](const std::vector<Vec2>& polygon) {
+        assert(!polygon.empty());
+
+        Bounds bounds(polygon.front(), Size2{});
+        Float2_t min_x = polygon.front().x;
+        Float2_t max_x = polygon.front().x;
+        Float2_t min_y = polygon.front().y;
+        Float2_t max_y = polygon.front().y;
+
+        for(const auto& point : polygon) {
+            min_x = std::min(min_x, point.x);
+            max_x = std::max(max_x, point.x);
+            min_y = std::min(min_y, point.y);
+            max_y = std::max(max_y, point.y);
+        }
+
+        bounds.x = min_x;
+        bounds.y = min_y;
+        bounds.width = max_x - min_x;
+        bounds.height = max_y - min_y;
+        return bounds;
+    };
+
+    auto rect_from_bounds = [](const Bounds& bounds) {
+        return std::vector<Vec2>{
+            Vec2(bounds.x, bounds.y),
+            Vec2(bounds.x + bounds.width, bounds.y),
+            Vec2(bounds.x + bounds.width, bounds.y + bounds.height),
+            Vec2(bounds.x, bounds.y + bounds.height),
+        };
+    };
+
+    auto initial_zoom_bounds = [&](const Size2& visible_size) {
+        const auto dominant_size = visible_size.max();
+        const auto padding = dominant_size / 6_F;
+
+        Bounds bounds(Vec2(0_F, 0_F), visible_size);
+        if(visible_size.width > dominant_size / 3_F
+           && visible_size.height > dominant_size / 3_F)
+        {
+            bounds.x += padding;
+            bounds.y += padding;
+            bounds.width -= padding * 2_F;
+            bounds.height -= padding * 2_F;
+        }
+        return bounds;
+    };
+
+    auto scale_zoom_polygon = [&](std::vector<Vec2>& polygon, Float2_t scale_factor) {
+        auto scaled_polygon = polygon;
+        for(auto& point : scaled_polygon) {
+            point = mp + (point - mp) * scale_factor;
+        }
+
+        auto dims = zoom_polygon_bounds(scaled_polygon).size();
+        if (dims.width < video_size.width * 2
+            && dims.height < video_size.height * 2
+            && dims.width > 10
+            && dims.height > 10)
+        {
+            polygon = std::move(scaled_polygon);
+        }
+    };
+
     if(READ_SETTING(gui_focus_group, std::vector<track::Idx_t>).empty()) {
         auto gui_zoom_polygon = READ_SETTING(gui_zoom_polygon, std::vector<Vec2>);
         if(gui_zoom_polygon.empty() || gui_zoom_polygon.size() != 4)
         {
-            gui_zoom_polygon = {
-                Vec2(0_F, 0_F),
-                Vec2(video_size.width, 0_F),
-                Vec2(video_size.width, video_size.height),
-                Vec2(0_F, video_size.height),
-            };
-            
-            // Calculate the scaling factor
-            auto scale_factor = e.scroll.dy > 0 ? 0.95_F : 1.05_F;
-
-            // Scale the polygon around the mouse position
-            auto new_gui_zoom_polygon = gui_zoom_polygon;
-            for (auto& v : new_gui_zoom_polygon) {
-                v = mp + (v - mp) * scale_factor;
-            }
-            
-            // Calculate new dimensions
-            Size2 dims = new_gui_zoom_polygon.at(2) - new_gui_zoom_polygon.front();
-
-            // Enforce zoom limits
-            if (dims.width < video_size.width * 2
-                && dims.height < video_size.height * 2
-                && dims.width > 10
-                && dims.height > 10)
-            {
-                gui_zoom_polygon = new_gui_zoom_polygon;
-            }
-
-            // Apply existing transformations if necessary
-            // gui_zoom_polygon = apply_existing_transformations(gui_zoom_polygon);
-
-            //SETTING(gui_zoom_polygon) = gui_zoom_polygon;
-            
+            gui_zoom_polygon = rect_from_bounds(initial_zoom_bounds(video_size));
         }
-        
-        //else
-        {
-            assert(gui_zoom_polygon.size() == 4);
 
-            // Calculate the scaling factor
-            auto scale_factor = e.scroll.dy > 0 ? 0.95_F : 1.05_F;
+        assert(gui_zoom_polygon.size() == 4);
 
-            // Scale the polygon around the mouse position
-            auto new_gui_zoom_polygon = gui_zoom_polygon;
-            for (auto& v : new_gui_zoom_polygon) {
-                v = mp + (v - mp) * scale_factor;
-            }
-
-            // Calculate new dimensions
-            Size2 dims = new_gui_zoom_polygon.at(2) - new_gui_zoom_polygon.front();
-
-            // Enforce zoom limits
-            if (dims.width < video_size.width * 2
-                && dims.height < video_size.height * 2
-                && dims.width > 10
-                && dims.height > 10)
-            {
-                gui_zoom_polygon = new_gui_zoom_polygon;
-            }
-        }
+        // Calculate the scaling factor once and apply it once.
+        auto scale_factor = e.scroll.dy > 0 ? 0.95_F : 1.05_F;
+        scale_zoom_polygon(gui_zoom_polygon, scale_factor);
 
         GlobalSettings::do_print("gui_zoom_polygon", false);
         GlobalSettings::do_print("gui_zoom_limit", false);
         SETTING(gui_zoom_polygon) = gui_zoom_polygon;
         
-        Size2 dims = gui_zoom_polygon.at(2) - gui_zoom_polygon.front();
+        Size2 dims = zoom_polygon_bounds(gui_zoom_polygon).size();
         auto zoom_limit = READ_SETTING(gui_zoom_limit, Size2);
         if(zoom_limit.width > dims.width) {
             zoom_limit = dims;
@@ -432,7 +451,7 @@ Idx_t find_wrapped_id(const Set& ids, track::Idx_t current_id, Comparator comp) 
 }
 
 bool TrackingScene::on_global_event(Event event) {
-    if(event.type == EventType::MBUTTON) {
+    if(event.type == EventType::MBUTTON || event.type == EventType::SCROLL) {
         _data->_zoom_dirty = true;
     }
     if(event.type == EventType::WINDOW_RESIZED) {

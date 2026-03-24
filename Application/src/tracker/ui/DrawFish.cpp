@@ -34,9 +34,9 @@ using namespace track;
 namespace cmn::gui {
 
 struct Fish::Data {
-    dyn::Context context;
-    std::string label_text;
-    pattern::UnresolvedStringPattern prepared_label;
+    dyn::Context context{};
+    std::string label_text{};
+    pattern::UnresolvedStringPattern prepared_label{};
 };
 
 void Fish::set_label_text(const pattern::UnresolvedStringPattern& pattern)
@@ -1089,16 +1089,45 @@ bool Fish::setup_rotated_bbx(const FindCoord& coords, const Vec2& offset, const 
     
     //Print(_id, ": corners_changed = ", corners_changed);
     
+    std::vector<Vec2> hud_corners{_current_corners};
+    for(auto &v : hud_corners)
+        v = coords.convert(BowlRect{Bounds(Vec2(), Size2(v))}).size();
+    
+    auto hud_area = polygon_area(hud_corners);
+    
+    static constexpr double minimum_visible_area = 200;
+    auto ratio = sqrt(hud_area / minimum_visible_area);
+    if(ratio > 1) {
+        ratio = 1;
+    }
+    
     /// upsample points if we have them
-    if(corners_changed || _frame_change.elapsed() < 0.4_F) {
+    if(_hud_ratio != ratio
+       || corners_changed
+       || _frame_change.elapsed() < 0.4_F)
+    {
+        if(_hud_ratio != ratio)
+            corners_changed = true;
+        
         auto corners = _current_corners;
+        Vec2 top_left = corners[0];
+        for(auto &v : corners) {
+            if(top_left.x > v.x) top_left.x = v.x;
+            if(top_left.y > v.y) top_left.y = v.y;
+        }
+        for(auto &v : corners) {
+            v = (v - top_left) / ratio + top_left;
+        }
+        auto copy_corners = corners; // without inserted unipoints
         insertUniformPoints(corners, 50);
         
-        //Print("Calculating area for ", _current_corners, " of ", _id);
         auto poly_area = polygon_area(_current_corners);
+        _hud_ratio = ratio;
+        
+        //Print("Calculating area for ", _current_corners, " / ", hud_corners," of ", _id, " ", poly_area, "px² (vs. ", hud_area,"²px) ", FindCoord::get().screen_size());
         //auto radius = (slow::calculate_posture && _ML != GlobalSettings::invalid() ? _ML : _blob_bounds.size().max()) * 0.5;
         if(corners_changed) {
-            _tight_selection.set_vertices(_current_corners);
+            _tight_selection.set_vertices(copy_corners);
             _tight_selection.set_origin(Vec2{0.5_F});
             _tight_selection.set_fill_clr(Transparent);
             _cached_circle.clear();
@@ -1129,7 +1158,8 @@ bool Fish::setup_rotated_bbx(const FindCoord& coords, const Vec2& offset, const 
         
         if(_frame_change.elapsed() >= 0.15_F
            && not GUI_SETTINGS(gui_run)
-           && (poly_area < circle_area * 0.75 || not _basic_stuff.has_value() || _basic_stuff->frame != _frame ))
+           && (poly_area < circle_area * 0.75 || not _basic_stuff.has_value() || _basic_stuff->frame != _frame )
+           && (ratio >= 1))
         {
             // ok
         } else {

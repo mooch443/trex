@@ -360,6 +360,12 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
         auto& _gui = *_graph;
         _equalize_histograms = GUI_SETTINGS(gui_equalize_blob_histograms);
         
+        
+        if(not previous_mouse_position.Equals(_gui.mouse_position())) {
+            previous_mouse_position = _gui.mouse_position();
+            //Print("Updating mouse position to ", previous_mouse_position);
+        }
+        
         /*std::vector<std::string> reasons;
         if(last_threshold != threshold)
             reasons.emplace_back("detect_threshold");
@@ -879,7 +885,6 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
                     }
                 }
             }
-            
         }
         
         if(not something_important_changed(frameIndex))
@@ -937,7 +942,6 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
         _global_tracklet_order = _tracker.unsafe_global_tracklet_order();
         previous_active_fish = selected;
         previous_active_blobs = active_blobs;
-        previous_mouse_position = _gui.mouse_position();
         
         //set_blobs_dirty();
         

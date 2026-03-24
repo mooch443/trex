@@ -198,7 +198,7 @@ struct ScreenRecorder::Data {
             
         } else {
             auto clip_name = std::string(_recording_path.filename());
-            printf("ffmpeg -start_number %d -i \"%s/%%06d.%s\" -vcodec h264 -crf 13 -vf 'scale=trunc(iw/2)*2:trunc(ih/2)*2' -profile:v main -pix_fmt yuv420p \"%s.mp4\"\n", _recording_start.get(), _recording_path.str().c_str(), _recording_format.name(), clip_name.c_str());
+            printf("ffmpeg -start_number %" PRIu32 " -i \"%s/%%06d.%s\" -vcodec h264 -crf 13 -vf 'scale=trunc(iw/2)*2:trunc(ih/2)*2' -profile:v main -pix_fmt yuv420p \"%s.mp4\"\n", _recording_start.get(), _recording_path.str().c_str(), _recording_format.name(), clip_name.c_str());
         }
         
         _recording = false;

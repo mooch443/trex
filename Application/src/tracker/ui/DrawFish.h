@@ -79,6 +79,7 @@ struct UpdateSettings {
         double _radius{0};
         Timer _frame_change;
         std::vector<Vec2> _current_points, _current_corners, _cached_points, _cached_circle;
+        double _hud_ratio = 0;
         //std::unique_ptr<Line> _lines;
 
         std::vector<Vertex> _vertices;

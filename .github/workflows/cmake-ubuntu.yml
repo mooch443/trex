@@ -35,12 +35,23 @@ jobs:
     - uses: conda-incubator/setup-miniconda@v3
       with:
         miniforge-version: latest
-        environment-file: .github/environment.yml
-        activate-environment: tracking
-        python-version: ${{ matrix.python-version }}
+        activate-environment: base
         channels: conda-forge
-        auto-activate-base: true
+        auto-activate: false
         auto-update-conda: true
+        use-only-tar-bz2: true
+        conda-remove-defaults: true
+    - name: Create tracking env
+      shell: bash -el {0}
+      working-directory: ${{github.workspace}}
+      run: |
+        echo "::group::Create tracking env"
+        mamba env create -f .github/environment.yml
+        mamba install -y -n tracking python=${{ matrix.python-version }}
+        conda activate tracking
+        conda info
+        conda list
+        echo "::endgroup::"
     - name: Free up disk space
       run: |
         sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc || true
@@ -52,6 +63,7 @@ jobs:
         echo "::group::Info"
         conda info
         conda list
+        conda activate tracking
         echo "::endgroup::"
         echo "::group::Fix Meta"
         cd $GITHUB_WORKSPACE/conda
