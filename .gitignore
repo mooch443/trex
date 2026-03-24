@@ -58,3 +58,4 @@ Application/tmp-shared-split-osx-tests-nolto/
 tmp-shared-split-osx-tests-nolto/
 /Resources/
 Application/Resources/
+__pycache__

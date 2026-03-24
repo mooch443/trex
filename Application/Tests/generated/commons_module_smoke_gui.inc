@@ -282,12 +282,12 @@ using ::cmn::gui::OnHover_t;
 using ::cmn::gui::OnHover_tTag;
 }
 
+#ifdef __APPLE__
 // gui/MacProgressBar.h
 namespace commons_module_smoke::commons_gui::cmn::gui {
 using ::cmn::gui::MacProgressBar;
 }
 
-#ifdef __APPLE__
 // gui/MetalImpl.h
 namespace commons_module_smoke::commons_gui::cmn::gui {
 using ::cmn::gui::MetalData;

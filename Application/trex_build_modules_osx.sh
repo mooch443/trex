@@ -18,6 +18,7 @@ REPO_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 ENV_NAME="${TREX_MODULES_ENV_NAME:-trex-modules}"
 BUILD_DIR="${TREX_MODULES_BUILD_DIR:-${SCRIPT_DIR}/tmp-modules-osx}"
 DEPLOY_TARGET="${MACOSX_DEPLOYMENT_TARGET:-26.0}"
+export MACOSX_DEPLOYMENT_TARGET="${DEPLOY_TARGET}"
 
 CREATE_ENV_CMD="conda create -y -n ${ENV_NAME} --clone trex"
 INSTALL_TOOLS_CMD="conda install -y -n ${ENV_NAME} -c conda-forge clang_osx-arm64=19.1.7 clangxx_osx-arm64=19.1.7 clang-tools=19.1.7"

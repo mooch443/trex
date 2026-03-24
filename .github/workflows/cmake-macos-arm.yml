@@ -6,8 +6,8 @@ env:
   # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
   BUILD_TYPE: Release
   MACOSX_DEPLOYMENT_TARGET: 11.0
-  CONDA_BUILD_SYSROOT: /Applications/Xcode_26.0.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.0.sdk
-  SDKROOT: /Applications/Xcode_26.0.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.0.sdk
+  CONDA_BUILD_SYSROOT: /Applications/Xcode_26.3.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk
+  SDKROOT: /Applications/Xcode_26.3.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk
   GITHUB_WORKFLOW: CondaBuildMacOS
 
 jobs:
@@ -21,7 +21,7 @@ jobs:
       fail-fast: false
       matrix:
         os: ["macos-26"]
-        python-version: ["3.11"]
+        python-version: ["3.12"]
     steps:
     - uses: actions/checkout@v4
       with:

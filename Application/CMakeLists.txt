@@ -39,6 +39,39 @@ set(CMAKE_XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 #set(CMAKE_XCODE_ATTRIBUTE_DEBUG_INFORMATION_FORMAT "dwarf-with-dsym")
 set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
 
+function(trex_log_option option_name)
+    if(DEFINED ${option_name})
+        message(STATUS "[TREX CONFIG]   ${option_name}=${${option_name}}")
+    else()
+        message(STATUS "[TREX CONFIG]   ${option_name}=<UNDEFINED>")
+    endif()
+endfunction()
+
+function(trex_log_selected_options)
+    message(STATUS "[TREX CONFIG] Selected options:")
+    foreach(option_name IN ITEMS
+        TREX_NO_PYTHON
+        TREX_BUILD_DOCS
+        TREX_WITH_TESTS
+        TREX_BUILD_TOOLS
+        TREX_CONDA_PACKAGE_INSTALL
+        TREX_ENABLE_SHARED_INTERNAL_LIBS
+        TREX_ENABLE_MODULES
+        WITH_GITSHA1
+        BUILD_LEGACY_TREX
+    )
+        trex_log_option(${option_name})
+    endforeach()
+
+    if(APPLE)
+        trex_log_option(BUILD_FOR_ARM64)
+    endif()
+
+    if(DEFINED COMMONS_NO_PYTHON)
+        trex_log_option(COMMONS_NO_PYTHON)
+    endif()
+endfunction()
+
 #set(CMAKE_CXX_VISIBILITY_PRESET hidden)
 option(TREX_NO_PYTHON OFF)
 option(TREX_BUILD_DOCS OFF)
@@ -97,6 +130,8 @@ endif()
 if(COMMONS_NO_PYTHON)
     set(TREX_NO_PYTHON ON)
 endif()
+
+trex_log_selected_options()
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "^(Apple)?Clang$")
     set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -DNDEBUG")
