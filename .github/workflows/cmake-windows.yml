@@ -40,8 +40,9 @@ jobs:
         conda-remove-defaults: true
 
     - name: Create .condarc file
-      shell: bash -el {0}
+      shell: bash {0}
       run: |
+        source "$CONDA/etc/profile.d/conda.sh"
         cat > ~/.condarc <<'EOF'
         channels:
           - conda-forge
@@ -50,7 +51,9 @@ jobs:
         EOF
         cat ~/.condarc
         conda config --show channels
+
     - name: Verify .condarc content
+      shell: bash {0}
       run: |
         cat ~/.condarc
 
@@ -68,9 +71,10 @@ jobs:
         Write-Host "SHORT_WORKSPACE=W:\"
 
     - name: Create tracking env
-      shell: bash -el {0}
+      shell: bash {0}
       working-directory: ${{ env.SHORT_WORKSPACE }}
       run: |
+        source "$CONDA/etc/profile.d/conda.sh"
         echo "::group::Create tracking env"
         mamba env create -f .github/environment.yml
         mamba install -y -n tracking python=${{ matrix.python-version }}
@@ -80,9 +84,11 @@ jobs:
         echo "::endgroup::"
 
     - name: Build
-      shell: bash -el {0}
+      shell: bash {0}
       working-directory: ${{ env.SHORT_WORKSPACE }}
       run: |
+        source "$CONDA/etc/profile.d/conda.sh"
+
         echo "::group::Info"
         conda activate tracking
         conda info
@@ -95,29 +101,26 @@ jobs:
         p=${GITHUB_REF#refs/heads/}
         p_sanitized=${p//\//_}
         p_sanitized=${p_sanitized//-/_}
-        
-        sed -i -e '/^{% set git_tag =/ s+main+'$p'+g' meta.yaml
-        sed -i -e '/^{% set git_tag_sanitized =/ s+main+'$p_sanitized'+g' meta.yaml
+
+        sed -i -e '/^{% set git_tag =/ s+main+'"$p"'+g' meta.yaml
+        sed -i -e '/^{% set git_tag_sanitized =/ s+main+'"$p_sanitized"'+g' meta.yaml
         cat meta.yaml
         sed -i.bak 's|--index-url https://download.pytorch.org/whl/cu118||g' post-link.bat
         cat post-link.sh
         echo "::endgroup::"
 
         echo "::group::Build"
-
-        # Keep PATH short before conda-build expands it again inside cmd.exe
-        export PATH="/c/Windows/system32:/c/Windows:/c/Program Files/Git/cmd:/c/Program Files/CMake/bin:$CONDA_PREFIX/Scripts:$CONDA_PREFIX/Library/bin:$CONDA_PREFIX/bin"
-
+        export PATH="/c/Windows/system32:/c/Windows:/c/Program Files/Git/cmd:/c/Program Files/Git/usr/bin:/c/Program Files/CMake/bin:$CONDA_PREFIX/Scripts:$CONDA_PREFIX/Library/bin:$CONDA_PREFIX/bin"
         conda update --all --override-channels -c conda-forge -y
         conda build . --override-channels -c conda-forge
-
         echo "::endgroup::"
         echo "$CONDA_PREFIX"
 
     - name: Test
-      shell: bash -el {0}
+      shell: bash {0}
       working-directory: ${{ env.SHORT_WORKSPACE }}
       run: |
+        source "$CONDA/etc/profile.d/conda.sh"
         echo "::group::Test"
         conda activate tracking
         echo "$CONDA_PREFIX"
@@ -130,9 +133,10 @@ jobs:
 
     - name: TestFunctions
       continue-on-error: true
-      shell: bash -el {0}
+      shell: bash {0}
       working-directory: ${{ env.SHORT_WORKSPACE }}
       run: |
+        source "$CONDA/etc/profile.d/conda.sh"
         echo "::group::TestFunctions"
         cd "$SHORT_WORKSPACE/Application/Tests"
         conda activate test
@@ -144,9 +148,10 @@ jobs:
 
     - name: DLL dependency diagnostics (Dependencies.exe)
       if: env.TEST_EXIT_CODE != '0'
-      shell: bash -el {0}
+      shell: bash {0}
       working-directory: ${{ env.SHORT_WORKSPACE }}
       run: |
+        source "$CONDA/etc/profile.d/conda.sh"
         echo "::group::DLL diagnostics"
         conda activate test
 
@@ -157,19 +162,16 @@ jobs:
 
         echo "CONDA_PREFIX=$CONDA_PREFIX"
 
-        # find likely binaries from the test env
         EXES=()
         if command -v pvinfo >/dev/null 2>&1; then EXES+=("$(which pvinfo)"); fi
         if command -v trex >/dev/null 2>&1; then EXES+=("$(which trex)"); fi
 
-        # scan each exe
         for exe in "${EXES[@]}"; do
           echo "=== Dependencies scan for: $exe ==="
           "$DEPS" -modules "$exe" || true
           echo ""
         done
 
-        # also scan any .pyd in site-packages (DLL-load failures on import)
         PYD_DIR="$CONDA_PREFIX/Lib/site-packages"
         if [ -d "$PYD_DIR" ]; then
           echo "=== Scanning .pyd files under $PYD_DIR ==="
@@ -183,7 +185,7 @@ jobs:
 
     - name: Fail if tests failed
       if: env.TEST_EXIT_CODE != '0'
-      shell: bash -el {0}
+      shell: bash {0}
       run: |
         echo "Tests failed with exit code $TEST_EXIT_CODE"
         exit "$TEST_EXIT_CODE"
