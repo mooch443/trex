@@ -520,22 +520,35 @@ MaybeLabel PPFrame::label(const pv::bid& bdx) const {
     return {};
 }
 
-void PPFrame::add_noise(pv::BlobPtr && blob) {
+void PPFrame::add_noise(pv::BlobPtr && blob, pv::FilterReason reason) {
     ASSUME_NOT_FINALIZED;
     //Print("Frame ",index()," has added 1 noise blobs.");
+    if(reason != pv::FilterReason::Unknown
+       && blob)
+    {
+        blob->set_reason(reason);
+    }
     _add_ownership(false, std::move(blob));
 }
 
-void PPFrame::add_noise(std::vector<pv::BlobPtr>&& v) {
+void PPFrame::add_noise(std::vector<pv::BlobPtr>&& v, pv::FilterReason reason) {
     ASSUME_NOT_FINALIZED;
     
     //Print("Frame ",index()," has added ", v.size(), " noise blobs.");
     _noise_owner.reserve(_noise_owner.size() + v.size());
     
+    if(reason != pv::FilterReason::Unknown) {
+        for(auto &b : v) {
+            if(b)
+                b->set_reason(reason);
+        }
+    }
+    
     for(auto it = std::make_move_iterator(v.begin());
         it.base() != v.end(); ++it)
     {
-        _add_ownership(false, std::move(*it));
+        if(*it != nullptr)
+            _add_ownership(false, std::move(*it));
     }
     
     //_pixel_samples += v.size();
@@ -543,7 +556,7 @@ void PPFrame::add_noise(std::vector<pv::BlobPtr>&& v) {
     //_noise.insert(_noise.end(), std::make_move_iterator( v.begin() ), std::make_move_iterator( v.end() ));
 }
 
-void PPFrame::move_to_noise(size_t blob_index) {
+void PPFrame::move_to_noise(size_t blob_index, pv::FilterReason reason) {
     ASSUME_NOT_FINALIZED;
     assert(blob_index < _blob_owner.size());
     
@@ -553,6 +566,12 @@ void PPFrame::move_to_noise(size_t blob_index) {
     auto ptr = _blob_owner.at(blob_index).get();
     _blob_map.erase(ptr->blob_id());
     _noise_map[ptr->blob_id()] = ptr;
+    
+    if(reason != pv::FilterReason::Unknown
+       && ptr)
+    {
+        ptr->set_reason(reason);
+    }
     
     _noise_owner.insert(_noise_owner.end(), std::make_move_iterator(_blob_owner.begin() + blob_index), std::make_move_iterator(_blob_owner.begin() + blob_index + 1));
     _blob_owner.erase(_blob_owner.begin() + blob_index);

@@ -10,8 +10,8 @@ BlobReceiver::BlobReceiver(PPFrame& frame, PPFrameType type, FilterReason reason
     : _type(type), _frame(&frame), _reason(reason)
 { }
 
-BlobReceiver::BlobReceiver(std::vector<pv::BlobPtr>& base)
-    : _base(&base)
+BlobReceiver::BlobReceiver(std::vector<pv::BlobPtr>& base, PPFrameType type, FilterReason reason)
+    : _type(type), _base(&base), _reason(reason)
 { }
 
 bool BlobReceiver::_check_callbacks(pv::BlobPtr & blob) const {
@@ -46,7 +46,7 @@ void BlobReceiver::operator()(std::vector<pv::BlobPtr>&& v) const {
     } else {
         switch(_type) {
             case noise:
-                _frame->add_noise(std::move(v));
+                _frame->add_noise(std::move(v), _reason);
                 break;
             case regular:
                 _frame->add_regular(std::move(v));
@@ -78,7 +78,7 @@ void BlobReceiver::operator()(pv::BlobPtr&& b) const {
     } else {
         switch(_type) {
             case noise:
-                _frame->add_noise(std::move(b));
+                _frame->add_noise(std::move(b), _reason);
                 break;
             case regular:
                 _frame->add_regular(std::move(b));
