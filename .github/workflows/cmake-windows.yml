@@ -60,18 +60,12 @@ jobs:
         reg add "HKLM\SYSTEM\CurrentControlSet\Control\FileSystem" /v LongPathsEnabled /t REG_DWORD /d 1 /f
         git config --system core.longpaths true
 
-    - name: Prepare short workspace
+    - name: Create short workspace alias
       shell: pwsh
       run: |
-        $shortRoot = "C:\w"
-        $shortRepo = "C:\w\t"
-        New-Item -ItemType Directory -Force -Path $shortRoot | Out-Null
-        if (Test-Path $shortRepo) { Remove-Item -Recurse -Force $shortRepo }
-        New-Item -ItemType Directory -Force -Path $shortRepo | Out-Null
-        robocopy "${{ github.workspace }}" $shortRepo /MIR /NFL /NDL /NJH /NJS /NC /NS
-        if ($LASTEXITCODE -ge 8) { exit $LASTEXITCODE }
-        "SHORT_WORKSPACE=$shortRepo" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-        Write-Host "SHORT_WORKSPACE=$shortRepo"
+        subst W: "${{ github.workspace }}"
+        "SHORT_WORKSPACE=W:\" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+        Write-Host "SHORT_WORKSPACE=W:\"
 
     - name: Create tracking env
       shell: bash -el {0}
@@ -211,3 +205,9 @@ jobs:
         if-no-files-found: ignore
         retention-days: 7
         compression-level: 9
+
+    - name: Remove short workspace alias
+      if: always()
+      shell: pwsh
+      run: |
+        subst W: /D

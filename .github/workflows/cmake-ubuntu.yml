@@ -18,7 +18,6 @@ jobs:
       fail-fast: false
       matrix:
         os: ["ubuntu-24.04"]
-        solver: ["classic"]
         python-version: ["3.11"]
     steps:
     - uses: actions/checkout@v4
@@ -46,8 +45,6 @@ jobs:
       working-directory: ${{github.workspace}}
       run: |
         echo "::group::Create tracking env"
-        conda config --set solver ${{ matrix.solver }}
-        conda config --show solver
         conda env create -f .github/environment.yml
         conda install -y -n tracking python=${{ matrix.python-version }}
         conda activate tracking
