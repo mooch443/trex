@@ -118,6 +118,12 @@ function(trex_enable_python_delayload target)
     endif()
 endfunction()
 
+function(trex_link_static_python_impl target)
+    if(TARGET trex_python AND UNIX AND NOT WIN32 AND NOT TREX_ENABLE_SHARED_INTERNAL_LIBS)
+        target_link_libraries(${target} PUBLIC trex_python)
+    endif()
+endfunction()
+
 # Standard linking to gtest stuff.
 target_link_libraries(test_matching PUBLIC gtest gtest_main)
 target_link_libraries(test_commandline PUBLIC gtest gtest_main)
@@ -184,6 +190,10 @@ target_link_libraries(test_tiling PUBLIC
         pv
         trex_python)
 trex_enable_python_delayload(test_tiling)
+trex_link_static_python_impl(test_matching)
+trex_link_static_python_impl(test_outlines)
+trex_link_static_python_impl(test_tiling)
+trex_link_static_python_impl(test_segmenter)
 
 target_link_libraries(test_segmenter PUBLIC
     tracker_tracking
@@ -215,6 +225,7 @@ target_link_libraries(test_trex_modules PUBLIC
         trex_core
         commons
 )
+trex_link_static_python_impl(test_trex_modules)
 endif()
 
 set_target_properties(test_matching PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")

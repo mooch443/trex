@@ -583,7 +583,7 @@ void convert_tile_to_rgb_or_gray(const Image::Ptr& image, cv::Mat& r3, meta_enco
     else if (mode == meta_encoding_t::gray
              || mode == meta_encoding_t::binary)
     {
-        if(is_in(image->dims, 3, 4)) {
+        if(is_in(image->dims, 3u, 4u)) {
             if(not color_channel.has_value()
                || color_channel.value() >= 4)
             {
@@ -614,7 +614,7 @@ void convert_tile_to_rgb_or_gray(const Image::Ptr& image, cv::Mat& r3, meta_enco
 void PrecomputedDetection::apply(std::vector<TileImage> &&tiled) {
     Timer timer;
     const auto mode = Background::meta_encoding();
-    const auto cm_per_pixel = READ_SETTING(cm_per_pixel, Settings::cm_per_pixel_t);
+    //const auto cm_per_pixel = READ_SETTING(cm_per_pixel, Settings::cm_per_pixel_t);
     const auto detect_size_filter = READ_SETTING(detect_size_filter, SizeFilters);
     
     const auto color_channel = READ_SETTING(color_channel, std::optional<uint8_t>);

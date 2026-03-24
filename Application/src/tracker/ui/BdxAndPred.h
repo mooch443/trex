@@ -10,10 +10,10 @@ namespace cmn::gui {
 struct BdxAndPred {
     pv::bid bdx;
     std::optional<track::BasicStuff> basic_stuff;
-    std::optional<track::PostureStuff> posture_stuff;
-    std::optional<std::vector<float>> pred;
-    track::Midline::Ptr midline;
-    bool automatic_match;
+    std::optional<track::PostureStuff> posture_stuff{};
+    std::optional<std::vector<float>> pred{};
+    track::Midline::Ptr midline{};
+    bool automatic_match{false};
     Range<Frame_t> tracklet;
     
     BdxAndPred clone() const {

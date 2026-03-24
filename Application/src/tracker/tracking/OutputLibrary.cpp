@@ -151,9 +151,10 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
             if(info.modifiers.is(Modifiers::POSTURE_CENTROID)) {
                 ptr0 = pair.first->centroid_posture.get();
                 ptr1 = pair.second->centroid_posture.get();
-            } else
+            } else {
                 ptr0 = pair.first->head.get();
                 ptr1 = pair.second->head.get();
+            }
         }
     }
     

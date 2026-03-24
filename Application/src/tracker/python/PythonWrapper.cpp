@@ -1,8 +1,13 @@
 #include <python/PythonWrapper.h>
+#include <python/PythonEntryPoint.h>
 #include <core/Network.h>
 #include <core/default_config.h>
 #include <file/DataLocation.h>
 #include <misc/ThreadManager.h>
+
+#ifndef TREX_PYTHON_IMPL_IS_DYNAMIC
+#define TREX_PYTHON_IMPL_IS_DYNAMIC 1
+#endif
 
 #ifndef WIN32
 #include <dlfcn.h>
@@ -186,6 +191,17 @@ void load_python_impl_library() {
 
     python_impl_load_error().clear();
 
+#if !TREX_PYTHON_IMPL_IS_DYNAMIC
+    guard.unlock();
+    track::trex_python_register();
+    guard.lock();
+    if (python_impl_interface_storage().interpreter_init) {
+        return;
+    }
+
+    python_impl_load_error() = "Failed to register statically linked trex_python implementation.";
+    throw SoftException(python_impl_load_error());
+#else
     std::string errors;
     for (const auto& candidate : python_library_candidates()) {
         const auto candidate_str = candidate.str();
@@ -251,6 +267,7 @@ void load_python_impl_library() {
         ? "Failed to load trex_python lazily."
         : "Failed to load trex_python lazily. Tried:\n" + errors;
     throw SoftException(python_impl_load_error());
+#endif
 }
 
 PythonImplInterface& active_python_impl() {

@@ -287,7 +287,7 @@ std::unique_ptr<PPFrame> GUICache::PPFrameMaker::operator()() const {
         return false;
     }
 
-void GUICache::request_frame_change_to(Frame_t frame) {
+void GUICache::request_frame_change_to([[maybe_unused]] Frame_t frame) {
     //_preloader.announce(frame);
 }
 
@@ -1535,9 +1535,11 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
                     
                     auto p = Individual::probability(settings, processed_frame().label(blob.blob_id()), *c, frame_idx, blob);
                     if(p/*.p*/ > 0.1) { //FAST_SETTING(match_min_probability))
-                        probabilities[fdx][blob.blob_id()] = {
+                        probabilities[fdx][blob.blob_id()] = track::DetailProbability{
                             .p = p,
-                            .p_time = c->time_probability
+                            .p_time = c->time_probability,
+                            .p_pos = 0,
+                            .p_angle = 0
                         };
                     }
                 });

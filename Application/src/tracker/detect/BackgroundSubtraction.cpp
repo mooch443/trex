@@ -153,7 +153,7 @@ void BackgroundSubtraction::apply(std::vector<TileImage> &&tiled) {
                 else if (mode == meta_encoding_t::gray
                          || mode == meta_encoding_t::binary)
                 {
-                    if(is_in(image->dims, 3, 4)) {
+                    if(is_in(image->dims, 3u, 4u)) {
                         if(not color_channel.has_value()
                            || color_channel.value() >= 4)
                         {

@@ -194,6 +194,9 @@ target_link_libraries(tracker_gui INTERFACE trex_ui trex_ml trex_tracking trex_d
 if(NOT COMMONS_NO_PYTHON)
     add_subdirectory(python)
     target_link_libraries(trex_detect PUBLIC trex_python_staging)
+    if(UNIX AND NOT WIN32 AND NOT TREX_ENABLE_SHARED_INTERNAL_LIBS)
+        target_link_libraries(tracker_gui INTERFACE trex_python)
+    endif()
 endif()
 
 include_directories(${CMAKE_SOURCE_DIR}/src/ProcessedVideo)
@@ -265,6 +268,9 @@ if(NOT WIN32 AND TREX_WITH_TESTS)
         tracker_tracking
         Commons::Gui
     )
+    if(TARGET trex_python AND UNIX AND NOT WIN32 AND NOT TREX_ENABLE_SHARED_INTERNAL_LIBS)
+        target_link_libraries(test_imgui PRIVATE trex_python)
+    endif()
     #target_precompile_headers(test_imgui REUSE_FROM commons)
 endif()
 

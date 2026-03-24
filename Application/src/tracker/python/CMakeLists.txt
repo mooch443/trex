@@ -16,6 +16,17 @@ else()
     set(TREX_PYTHON_IMPL_LIBRARY_TYPE STATIC)
 endif()
 
+if(TREX_PYTHON_IMPL_LIBRARY_TYPE STREQUAL "SHARED")
+    set(TREX_PYTHON_IMPL_IS_DYNAMIC 1)
+else()
+    set(TREX_PYTHON_IMPL_IS_DYNAMIC 0)
+endif()
+
+message(STATUS
+    "[TREX PYTHON] staging=${TREX_PYTHON_LIBRARY_TYPE} impl=${TREX_PYTHON_IMPL_LIBRARY_TYPE} "
+    "dynamic_impl=${TREX_PYTHON_IMPL_IS_DYNAMIC}"
+)
+
 # ==============================================================================
 # trex_python_staging: pure C++ lifecycle and path management
 # No pybind11 dependencies. This is what consumers link to.
@@ -50,6 +61,7 @@ if(TREX_PYTHON_LIBRARY_TYPE STREQUAL "SHARED")
 else()
     target_compile_definitions(trex_python_staging PRIVATE "TREX_EXPORT=" "TREX_TYPE_EXPORT=")
 endif()
+target_compile_definitions(trex_python_staging PRIVATE TREX_PYTHON_IMPL_IS_DYNAMIC=${TREX_PYTHON_IMPL_IS_DYNAMIC})
 
 if(WIN32)
     target_compile_options(trex_python_staging PRIVATE /bigobj)

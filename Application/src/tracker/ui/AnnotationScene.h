@@ -33,9 +33,9 @@ enum class AnnotationType {
 };
 
 struct Annotation {
-    uint8_t clid;
-    AnnotationType type;
-    std::vector<blob::Pose::Point> points;
+    uint8_t clid{};
+    AnnotationType type{};
+    std::vector<blob::Pose::Point> points{};
 };
 
 class AnnotationView : public Entangled {

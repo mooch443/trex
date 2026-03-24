@@ -1859,7 +1859,7 @@ void File::set_average(const cv::Mat& average) {
         throw InvalidArgumentException("Number of channels ",average.channels()," must match the encoding format ", _header.encoding," for the average image provided.");
     }
     
-    if(average.type() != CV_8UC(required_channels))
+    if(average.type() != CV_8UC((int)required_channels))
     {
         auto str = getImgType(average.type());
         throw InvalidArgumentException("Average image is of type ",str," != 'CV_8UC",required_channels,"'.");

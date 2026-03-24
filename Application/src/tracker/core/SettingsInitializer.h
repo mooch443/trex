@@ -18,7 +18,7 @@ void initialize_filename_for_tracking();
 
 struct LoadContext {
     file::PathArray source{};
-    file::Path filename;
+    file::Path filename{};
     default_config::TRexTask task{default_config::TRexTask_t::none};
     track::detect::ObjectDetectionType_t type{};
     ExtendableVector exclude_parameters{};

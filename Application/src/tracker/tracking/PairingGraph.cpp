@@ -995,368 +995,367 @@ PairingGraph::Stack* PairingGraph::work_single(queue_t& stack, Stack &current, c
         
         if(_optimal_pairing)
             delete _optimal_pairing;
-        //if (!_optimal_pairing) {
-            _optimal_pairing = new Result;
+        _optimal_pairing = new Result;
+        
+        using namespace default_config;
+        struct Benchmark_t {
+            double time_acc;
+            long_t samples;
+            Result *ptr;
             
-            using namespace default_config;
-            struct Benchmark_t {
-                double time_acc;
-                long_t samples;
-                Result *ptr;
+            bool operator!= (const Benchmark_t& other) const {
+                return time_acc != other.time_acc || samples != other.samples;
+            }
+            bool operator== (const Benchmark_t& other) const {
+                return time_acc == other.time_acc && samples == other.samples;
+            }
+        };
+        
+        static auto mutex = LOGGED_MUTEX("PairingGraph::mutex");
+        static ska::bytell_hash_map<matching_mode_t::Class, Benchmark_t> benchmarks;
+        
+        if(is_in(match_mode, matching_mode_t::automatic, matching_mode_t::hungarian, matching_mode_t::benchmark))
+        {
+            Timer timer;
+            //HungarianAlgorithm alg;
+            std::vector<std::tuple<Fish_t, fish_index_t>> individual_index;
+            std::vector<std::tuple<Blob_t, blob_index_t>> blob_index;
+            
+            size_t num = 0;
+            //std::set<std::tuple<Fish_t, fish_index_t>> individual_index;
+            for (fish_index_t i{ 0 }; i < _paired.n_rows(); ++i) {
+                individual_index.emplace_back(_paired.row(i), i);
+                ++num;
+            }
+            
+            for(blob_index_t i{0}; i<_paired.n_cols(); ++i) {
+                blob_index.emplace_back(_paired.col(i), i);
+            }
+            
+            std::sort(blob_index.begin(), blob_index.end(), std::less{});
+            std::sort(individual_index.begin(), individual_index.end(), std::greater{});
+            assert(individual_index.size() == (size_t)int(_paired.n_rows()));
+            
+            PPFrame::Log("* individual_index = ", individual_index);
+            PPFrame::Log("* blob_index = ", blob_index);
+            
+            std::map<blob_index_t, size_t> bdi_to_i;
+            std::map<size_t, blob_index_t> i_to_bdi;
+            
+            for(size_t i=0; i<blob_index.size(); ++i) {
+                auto &[bdx, bdi] = blob_index.at(i);
+                bdi_to_i[bdi] = i;
+                i_to_bdi[i] = bdi;
+            }
+            
+            /*for(auto [id, ] : _paired.row_indexes()) {
                 
-                bool operator!= (const Benchmark_t& other) const {
-                    return time_acc != other.time_acc || samples != other.samples;
-                }
-                bool operator== (const Benchmark_t& other) const {
-                    return time_acc == other.time_acc && samples == other.samples;
-                }
-            };
-            
-            static auto mutex = LOGGED_MUTEX("PairingGraph::mutex");
-            static ska::bytell_hash_map<matching_mode_t::Class, Benchmark_t> benchmarks;
-            
-            if(is_in(match_mode, matching_mode_t::automatic, matching_mode_t::hungarian, matching_mode_t::benchmark))
-            {
-                Timer timer;
-                //HungarianAlgorithm alg;
-                std::vector<std::tuple<Fish_t, fish_index_t>> individual_index;
-                std::vector<std::tuple<Blob_t, blob_index_t>> blob_index;
-                
-                size_t num = 0;
-                //std::set<std::tuple<Fish_t, fish_index_t>> individual_index;
-                for (fish_index_t i{ 0 }; i < _paired.n_rows(); ++i) {
-                    individual_index.emplace_back(_paired.row(i), i);
+            }
+            for (fish_index_t i{ 0 }; i < _paired.n_rows(); ++i) {
+                individual_index[_paired.row(i)] = i;
+                //if(_paired.degree(i) > 0)
+                {
                     ++num;
                 }
-                
-                for(blob_index_t i{0}; i<_paired.n_cols(); ++i) {
-                    blob_index.emplace_back(_paired.col(i), i);
-                }
-                
-                std::sort(blob_index.begin(), blob_index.end(), std::less{});
-                std::sort(individual_index.begin(), individual_index.end(), std::greater{});
-                assert(individual_index.size() == (size_t)int(_paired.n_rows()));
-                
-                PPFrame::Log("* individual_index = ", individual_index);
-                PPFrame::Log("* blob_index = ", blob_index);
-                
-                std::map<blob_index_t, size_t> bdi_to_i;
-                std::map<size_t, blob_index_t> i_to_bdi;
-                
-                for(size_t i=0; i<blob_index.size(); ++i) {
-                    auto &[bdx, bdi] = blob_index.at(i);
-                    bdi_to_i[bdi] = i;
-                    i_to_bdi[i] = bdi;
-                }
-                
-               /*for(auto [id, ] : _paired.row_indexes()) {
-                    
-                }
-                for (fish_index_t i{ 0 }; i < _paired.n_rows(); ++i) {
-                    individual_index[_paired.row(i)] = i;
-                    //if(_paired.degree(i) > 0)
-                    {
-                        ++num;
-                    }
-                }*/
-                
-                //! the number of individuals with edges
-                size_t n = num;
-                
-                //! the number of columns in the distance matrix.
-                /// additional n columns representing NULL values
-                size_t m = n + (index_t)_paired.n_cols();
-                
+            }*/
+            
+            //! the number of individuals with edges
+            size_t n = num;
+            
+            //! the number of columns in the distance matrix.
+            /// additional n columns representing NULL values
+            size_t m = n + (index_t)_paired.n_cols();
+            
 #ifndef NDEBUG
-                if(debug) {
-                    cmn::Print("frame ",frame()," -- individuals: ",num," blobs: ",_paired.n_cols()," resulting in ",n,"x",m);
-                }
+            if(debug) {
+                cmn::Print("frame ",frame()," -- individuals: ",num," blobs: ",_paired.n_cols()," resulting in ",n,"x",m);
+            }
 #endif
+            
+            static constexpr prob_t scaling = 10000000.0;
+            static_assert(((size_t(scaling) * 2) << 6L) < size_t(std::numeric_limits<Hungarian_t>::max()), "Scaling must be within range.");
+            Hungarian_t** dist_matrix = (Hungarian_t**)malloc(n * sizeof(Hungarian_t*));
+            
+            for(size_t i=0; i<n; ++i) {
+                dist_matrix[i] = (Hungarian_t*)malloc(m * sizeof(Hungarian_t));
                 
-                static constexpr prob_t scaling = 10000000.0;
-                static_assert(((size_t(scaling) * 2) << 6L) < size_t(std::numeric_limits<Hungarian_t>::max()), "Scaling must be within range.");
-                Hungarian_t** dist_matrix = (Hungarian_t**)malloc(n * sizeof(Hungarian_t*));
-                
-                for(size_t i=0; i<n; ++i) {
-                    dist_matrix[i] = (Hungarian_t*)malloc(m * sizeof(Hungarian_t));
-                    
-                    //! achieving a symmetric matrix by adding additional nodes / edges
-                    /// so that the assignment problem is balanced
-                    std::fill(dist_matrix[i], dist_matrix[i] + m, Hungarian_t(1));
-                    //! each individual gets another object (null) that it can be assigned to, so a perfect matching is guaranteed
-                    dist_matrix[i][i + (index_t)_paired.n_cols()] = Hungarian_t(0);
-                }
-                
-                size_t j = 0;
-                for(auto &&[row, i] : individual_index) {
-                    for (auto &e : _paired.edges_for_row(i)) {
-                        assert(e.cdx.valid());
-                        //auto blob_edges = _blob_edges.at(_blobs[b.blob_index]);
-                        if(e.p >= FAST_SETTING(match_min_probability)) {
-                            assert(j < n);
-                            assert(e.cdx < _paired.n_cols());
-                            dist_matrix[(index_t)j][(index_t)bdi_to_i.at(e.cdx)] = Hungarian_t(-(scaling * e.p + 0.5)); //! + 0.5 to ensure proper rounding
-                        }
-                    }
-                    
-                    ++j;
-                }
-                
-                if(!_paired.empty()) {
-                    //std::vector<int> assignment;
-                    ssize_t** assignment = kuhn_match(dist_matrix, n, m);
-                    //alg.Solve(dist_matrix, assignment);
-                    //auto str = Meta::toStr(assignment);
-                    
-                    _optimal_pairing->path.clear();
-                    //for(size_t i=0; i<assignment.size(); ++i) {
-                    for(size_t i=0; i<n; ++i) {
-                        auto j = assignment[i][0];
-                        fish_index_t fdi{std::get<1>(individual_index.at(j))};
-                        auto b = assignment[i][1];
-                        blob_index_t bdi{b != -1 && static_cast<index_t>(b) < (index_t)_paired.n_cols() ? i_to_bdi.at(b) : blob_index_t{blob_index_t::invalid()}};
-                        assert(fdi < _paired.n_rows());
-                        if(bdi.valid() && bdi < _paired.n_cols())
-                            _optimal_pairing->pairings[_paired.col(bdi)] = _paired.row(fdi);
-                        free(assignment[i]);
-                    }
-                    free(assignment);
-                    
-                    if(match_mode == matching_mode_t::benchmark) {
-                        auto hs = timer.elapsed();
-                        auto guard = LOGGED_LOCK(mutex);
-                        auto &val = benchmarks[matching_mode_t::hungarian];
-                        val.ptr = _optimal_pairing;
-                        _optimal_pairing = new Result;
-                        ++val.samples;
-                        val.time_acc += hs;
-                    }
-                }
-                
-                for(size_t i=0; i<n; ++i) {
-                    free(dist_matrix[i]);
-                }
-                free(dist_matrix);
+                //! achieving a symmetric matrix by adding additional nodes / edges
+                /// so that the assignment problem is balanced
+                std::fill(dist_matrix[i], dist_matrix[i] + m, Hungarian_t(1));
+                //! each individual gets another object (null) that it can be assigned to, so a perfect matching is guaranteed
+                dist_matrix[i][i + (index_t)_paired.n_cols()] = Hungarian_t(0);
             }
             
-            if(is_in(match_mode, matching_mode_t::approximate, matching_mode_t::benchmark))
-            {
-                //! approximate matching
-                using namespace Match;
-                Result *ptr;
-                
-                if(match_mode == matching_mode_t::approximate)
-                    ptr = _optimal_pairing;
-                else {
-                    auto guard = LOGGED_LOCK(mutex);
-                    auto &val = benchmarks[matching_mode_t::approximate];
-                    val.ptr = new Result;
-                    ptr = val.ptr;
-                }
-                
-                Timer timer;
-                robin_hood::unordered_flat_set<Fish_t> used_blobs;
-                std::map<Blob_t, std::vector<fish_index_t>> sorted_col_edges;
-                for(auto && [blob, edges] : _paired.col_edges()) {
-                    sorted_col_edges[blob] = edges;
-                    std::sort(sorted_col_edges[blob].begin(), sorted_col_edges[blob].end());
-                }
-                
-                PPFrame::Log("sorted_col_edges = ", prettify_array(Meta::toStr(sorted_col_edges)));
-                
-                for(auto && [blob, edges] : sorted_col_edges) {
-                    prob_t max_p = 0;
-                    Fish_t max_fish{};
-                    
-                    for(auto & fish : edges) {
-                        if(used_blobs.find(_paired.row(fish)) == used_blobs.end()) {
-                            auto p = _paired.probability(fish, _paired.index(blob));
-                            if(p > max_p) {
-                                max_p = p;
-                                max_fish = _paired.row(fish);
-                            }
-                        }
-                    }
-                    
-                    if(max_fish.valid()) {
-                        used_blobs.insert(max_fish);
-                        ptr->pairings[blob] = max_fish;
+            size_t j = 0;
+            for(auto &&[row, i] : individual_index) {
+                for (auto &e : _paired.edges_for_row(i)) {
+                    assert(e.cdx.valid());
+                    //auto blob_edges = _blob_edges.at(_blobs[b.blob_index]);
+                    if(e.p >= FAST_SETTING(match_min_probability)) {
+                        assert(j < n);
+                        assert(e.cdx < _paired.n_cols());
+                        dist_matrix[(index_t)j][(index_t)bdi_to_i.at(e.cdx)] = Hungarian_t(-(scaling * e.p + 0.5)); //! + 0.5 to ensure proper rounding
                     }
                 }
                 
-                if(match_mode == matching_mode_t::benchmark) {
-                    auto guard = LOGGED_LOCK(mutex);
-                    auto &val = benchmarks[matching_mode_t::approximate];
-                    auto s = timer.elapsed();
-                    val.time_acc += s;
-                    ++val.samples;
-                }
+                ++j;
             }
             
-            //! Compares the degree of two nodes
-            if(is_in(match_mode, matching_mode_t::tree, matching_mode_t::benchmark))
-            {
-                Timer timer;
-                _optimal_pairing->calculations = 0;
+            if(!_paired.empty()) {
+                //std::vector<int> assignment;
+                ssize_t** assignment = kuhn_match(dist_matrix, n, m);
+                //alg.Solve(dist_matrix, assignment);
+                //auto str = Meta::toStr(assignment);
                 
-                //! save all node indices to a set ordered by the nodes degree
-                //! and then by the nodes maximum probability (decreasing), to reduce branching
-                for(auto row : _paired.rows()) {
-                    auto rdx = _paired.index(row);
-                    auto degree = _paired.degree(rdx);
-                    
-                    if(degree > 0)
-                        _optimal_pairing->set.insert(Node{row, degree, _paired.max_prob(rdx)});
-#ifndef NDEBUG
-                    else
-                        cmn::Print("Individual ",row," is empty");
-#endif
+                _optimal_pairing->path.clear();
+                //for(size_t i=0; i<assignment.size(); ++i) {
+                for(size_t i=0; i<n; ++i) {
+                    auto j = assignment[i][0];
+                    fish_index_t fdi{std::get<1>(individual_index.at(j))};
+                    auto b = assignment[i][1];
+                    blob_index_t bdi{b != -1 && static_cast<index_t>(b) < (index_t)_paired.n_cols() ? i_to_bdi.at(b) : blob_index_t{blob_index_t::invalid()}};
+                    assert(fdi < _paired.n_rows());
+                    if(bdi.valid() && bdi < _paired.n_cols())
+                        _optimal_pairing->pairings[_paired.col(bdi)] = _paired.row(fdi);
+                    free(assignment[i]);
                 }
-                
-#ifndef NDEBUG
-                if(debug)
-                    cmn::Print("[Graph] Generating edge / probability set for ", _optimal_pairing->set.size()," nodes...");
-#endif
-                
-                //! Ordered max probs is an array containing the maximum achievable probability after a given step (index). In this case, we can generate this array by accumulating the maximum probability for each individual (step by step) as an accum-sum. We start from the back (where the value added is 0) and walk towards the front.
-                _ordered_max_probs.clear();
-                prob_t p = 0;
-                //_ordered_max_probs = {0};
-                
-                //! psets contains a vector of multisets per individual (index), each multiset is a sorted list of all edges that need to be explored in the given order, including one for the NULL case
-                size_t current_set = _optimal_pairing->set.size() - 1;
-                _optimal_pairing->psets.resize(_optimal_pairing->set.size());
-                
-                for(auto it = _optimal_pairing->set.rbegin(); it != _optimal_pairing->set.rend(); ++it, --current_set)
-                {
-                    _ordered_max_probs.push_back(p);
-                    
-                    //! Find maximum probability for all edges of the current individual
-                    prob_t max_prob = 0;
-                    for(auto &k : _paired.edges_for_row(_paired.index(it->fish))) {
-                        max_prob = max(max_prob, k.p);
-                        
-                        //! also collect all edges
-                        _optimal_pairing->psets[current_set].insert(k);
-                    }
-                    
-                    //! add the NULL case
-                    _optimal_pairing->psets[current_set].insert(PairedProbabilities::Edge(blob_index_t::invalid(), 0));
-                    
-                    //! save maximum probability also in a map for easy access
-                    //_max_probs[it->fish] = max_prob;
-                    
-                    //! accumulate for next _ordered_max_probs
-                    p += max_prob;
-                }
-                
-                //! Reverse order because we walked backwards
-                std::reverse(_ordered_max_probs.begin(), _ordered_max_probs.end());
-                
-                /* ======================================== */
-                /** Run the algorithm / traverse the graph  */
-                /* ======================================== */
-                _optimal_pairing->objects_looked_at = traverse(debug);
-                
-                //! Collect assignments and save them as pairings:
-                for (auto &node : _optimal_pairing->path) {
-                    if (node.blob.valid()) {
-                        _optimal_pairing->pairings[node.blob] = node.fish;
-                    }
-                }
+                free(assignment);
                 
                 if(match_mode == matching_mode_t::benchmark) {
-                    auto s = timer.elapsed();
+                    auto hs = timer.elapsed();
                     auto guard = LOGGED_LOCK(mutex);
-                    auto &val = benchmarks[matching_mode_t::tree];
-                    ++val.samples;
-                    val.time_acc += s;
+                    auto &val = benchmarks[matching_mode_t::hungarian];
                     val.ptr = _optimal_pairing;
+                    _optimal_pairing = new Result;
+                    ++val.samples;
+                    val.time_acc += hs;
+                }
+            }
+            
+            for(size_t i=0; i<n; ++i) {
+                free(dist_matrix[i]);
+            }
+            free(dist_matrix);
+        }
+        
+        if(is_in(match_mode, matching_mode_t::approximate, matching_mode_t::benchmark))
+        {
+            //! approximate matching
+            using namespace Match;
+            Result *ptr;
+            
+            if(match_mode == matching_mode_t::approximate)
+                ptr = _optimal_pairing;
+            else {
+                auto guard = LOGGED_LOCK(mutex);
+                auto &val = benchmarks[matching_mode_t::approximate];
+                val.ptr = new Result;
+                ptr = val.ptr;
+            }
+            
+            Timer timer;
+            robin_hood::unordered_flat_set<Fish_t> used_blobs;
+            std::map<Blob_t, std::vector<fish_index_t>> sorted_col_edges;
+            for(auto && [blob, edges] : _paired.col_edges()) {
+                sorted_col_edges[blob] = edges;
+                std::sort(sorted_col_edges[blob].begin(), sorted_col_edges[blob].end());
+            }
+            
+            PPFrame::Log("sorted_col_edges = ", prettify_array(Meta::toStr(sorted_col_edges)));
+            
+            for(auto && [blob, edges] : sorted_col_edges) {
+                prob_t max_p = 0;
+                Fish_t max_fish{};
+                
+                for(auto & fish : edges) {
+                    if(used_blobs.find(_paired.row(fish)) == used_blobs.end()) {
+                        auto p = _paired.probability(fish, _paired.index(blob));
+                        if(p > max_p) {
+                            max_p = p;
+                            max_fish = _paired.row(fish);
+                        }
+                    }
+                }
+                
+                if(max_fish.valid()) {
+                    used_blobs.insert(max_fish);
+                    ptr->pairings[blob] = max_fish;
                 }
             }
             
             if(match_mode == matching_mode_t::benchmark) {
                 auto guard = LOGGED_LOCK(mutex);
-                static size_t print_counter = 0;
-                decltype(benchmarks) previous_benchmarks;
+                auto &val = benchmarks[matching_mode_t::approximate];
+                auto s = timer.elapsed();
+                val.time_acc += s;
+                ++val.samples;
+            }
+        }
+        
+        //! Compares the degree of two nodes
+        if(is_in(match_mode, matching_mode_t::tree, matching_mode_t::benchmark))
+        {
+            Timer timer;
+            _optimal_pairing->calculations = 0;
+            
+            //! save all node indices to a set ordered by the nodes degree
+            //! and then by the nodes maximum probability (decreasing), to reduce branching
+            for(auto row : _paired.rows()) {
+                auto rdx = _paired.index(row);
+                auto degree = _paired.degree(rdx);
                 
-                if((++print_counter) % 100 == 0 && benchmarks != previous_benchmarks) {
-                    previous_benchmarks = benchmarks;
+                if(degree > 0)
+                    _optimal_pairing->set.insert(Node{row, degree, _paired.max_prob(rdx)});
+#ifndef NDEBUG
+                else
+                    cmn::Print("Individual ",row," is empty");
+#endif
+            }
+            
+#ifndef NDEBUG
+            if(debug)
+                cmn::Print("[Graph] Generating edge / probability set for ", _optimal_pairing->set.size()," nodes...");
+#endif
+            
+            //! Ordered max probs is an array containing the maximum achievable probability after a given step (index). In this case, we can generate this array by accumulating the maximum probability for each individual (step by step) as an accum-sum. We start from the back (where the value added is 0) and walk towards the front.
+            _ordered_max_probs.clear();
+            prob_t p = 0;
+            //_ordered_max_probs = {0};
+            
+            //! psets contains a vector of multisets per individual (index), each multiset is a sorted list of all edges that need to be explored in the given order, including one for the NULL case
+            size_t current_set = _optimal_pairing->set.size() - 1;
+            _optimal_pairing->psets.resize(_optimal_pairing->set.size());
+            
+            for(auto it = _optimal_pairing->set.rbegin(); it != _optimal_pairing->set.rend(); ++it, --current_set)
+            {
+                _ordered_max_probs.push_back(p);
+                
+                //! Find maximum probability for all edges of the current individual
+                prob_t max_prob = 0;
+                for(auto &k : _paired.edges_for_row(_paired.index(it->fish))) {
+                    max_prob = max(max_prob, k.p);
                     
-                    for(auto && [key, values] : benchmarks) {
-                        cmn::Print(key.name(),": ",values.time_acc / double(values.samples) * 1000,"ms (",values.samples," samples)");
-                    }
+                    //! also collect all edges
+                    _optimal_pairing->psets[current_set].insert(k);
                 }
                 
-                ska::bytell_hash_map<matching_mode_t::Class, ska::bytell_hash_map<Fish_t, Blob_t>> assignments;
-                for(auto &fish : _paired.rows()) {
-                    for(auto && [key, values] : benchmarks)
-                        assignments[key][fish] = pv::bid::invalid;
+                //! add the NULL case
+                _optimal_pairing->psets[current_set].insert(PairedProbabilities::Edge(blob_index_t::invalid(), 0));
+                
+                //! save maximum probability also in a map for easy access
+                //_max_probs[it->fish] = max_prob;
+                
+                //! accumulate for next _ordered_max_probs
+                p += max_prob;
+            }
+            
+            //! Reverse order because we walked backwards
+            std::reverse(_ordered_max_probs.begin(), _ordered_max_probs.end());
+            
+            /* ======================================== */
+            /** Run the algorithm / traverse the graph  */
+            /* ======================================== */
+            _optimal_pairing->objects_looked_at = traverse(debug);
+            
+            //! Collect assignments and save them as pairings:
+            for (auto &node : _optimal_pairing->path) {
+                if (node.blob.valid()) {
+                    _optimal_pairing->pairings[node.blob] = node.fish;
                 }
+            }
+            
+            if(match_mode == matching_mode_t::benchmark) {
+                auto s = timer.elapsed();
+                auto guard = LOGGED_LOCK(mutex);
+                auto &val = benchmarks[matching_mode_t::tree];
+                ++val.samples;
+                val.time_acc += s;
+                val.ptr = _optimal_pairing;
+            }
+        }
+        
+        if(match_mode == matching_mode_t::benchmark) {
+            auto guard = LOGGED_LOCK(mutex);
+            static size_t print_counter = 0;
+            decltype(benchmarks) previous_benchmarks;
+            
+            if((++print_counter) % 100 == 0 && benchmarks != previous_benchmarks) {
+                previous_benchmarks = benchmarks;
                 
                 for(auto && [key, values] : benchmarks) {
-                    if (values.ptr) {
-                        for (auto&& [blob, fish] : values.ptr->pairings)
-                            assignments[key][fish] = blob;
-                    }
+                    cmn::Print(key.name(),": ",values.time_acc / double(values.samples) * 1000,"ms (",values.samples," samples)");
                 }
-                
-                std::set<matching_mode_t::Class> different, agree;
-                for(auto && [key, assignment] : assignments) {
-                    for(auto && [other, o_assignment] : assignments) {
-                        if(key == other)
-                            continue;
-                        if(assignment != o_assignment)
-                            different.insert(other);
-                        else
-                            agree.insert(other);
-                    }
+            }
+            
+            ska::bytell_hash_map<matching_mode_t::Class, ska::bytell_hash_map<Fish_t, Blob_t>> assignments;
+            for(auto &fish : _paired.rows()) {
+                for(auto && [key, values] : benchmarks)
+                    assignments[key][fish] = pv::bid::invalid;
+            }
+            
+            for(auto && [key, values] : benchmarks) {
+                if (values.ptr) {
+                    for (auto&& [blob, fish] : values.ptr->pairings)
+                        assignments[key][fish] = blob;
                 }
-                
-                if(!different.empty() && ((agree.find(matching_mode_t::hungarian) != agree.end()) ^ (agree.find(matching_mode_t::tree) != agree.end()))) {
-                    FormatWarning("Assignments in frame ", frame()," are not identical (", different,") these agree (",agree,"):");
-                    for(auto fish : _paired.rows()) {
-                        std::set<matching_mode_t::Class> printed;
-                        if(!agree.empty()) {
-                            assert(agree.size() > 1);
-                            printed.insert(*agree.begin());
-                        }
+            }
+            
+            std::set<matching_mode_t::Class> different, agree;
+            for(auto && [key, assignment] : assignments) {
+                for(auto && [other, o_assignment] : assignments) {
+                    if(key == other)
+                        continue;
+                    if(assignment != o_assignment)
+                        different.insert(other);
+                    else
+                        agree.insert(other);
+                }
+            }
+            
+            if(!different.empty() && ((agree.find(matching_mode_t::hungarian) != agree.end()) ^ (agree.find(matching_mode_t::tree) != agree.end()))) {
+                FormatWarning("Assignments in frame ", frame()," are not identical (", different,") these agree (",agree,"):");
+                for(auto fish : _paired.rows()) {
+                    std::set<matching_mode_t::Class> printed;
+                    if(!agree.empty()) {
+                        assert(agree.size() > 1);
+                        printed.insert(*agree.begin());
+                    }
+                    
+                    for(auto &key_0 : different) {
+                        printed.insert(key_0);
                         
-                        for(auto &key_0 : different) {
-                            printed.insert(key_0);
+                        for(auto &key_1 : different) {
+                            if(printed.find(key_1) != printed.end())
+                                continue;
                             
-                            for(auto &key_1 : different) {
-                                if(printed.find(key_1) != printed.end())
-                                    continue;
-                                
-                                if(assignments[key_0][fish] != assignments[key_1][fish])
-                                {
-                                    auto p0 = _paired.probability(fish, assignments[key_0][fish]);
-                                    auto p1 = _paired.probability(fish, assignments[key_1][fish]);
-                                    FormatWarning("\tindividual ",fish,":",
-                                        "(", key_0.name(), ")",
-                                        assignments[key_0][fish].valid() ?
-                                            (assignments[key_0][fish]) : pv::bid::invalid,
-                                        " (", p0, ") != "
-                                        "(", key_1.name(), ")",
-                                        assignments[key_1][fish].valid() ?
-                                            (assignments[key_1][fish]) : pv::bid::invalid,
-                                        " (",p1,")");
-                                }
+                            if(assignments[key_0][fish] != assignments[key_1][fish])
+                            {
+                                auto p0 = _paired.probability(fish, assignments[key_0][fish]);
+                                auto p1 = _paired.probability(fish, assignments[key_1][fish]);
+                                FormatWarning("\tindividual ",fish,":",
+                                    "(", key_0.name(), ")",
+                                    assignments[key_0][fish].valid() ?
+                                        (assignments[key_0][fish]) : pv::bid::invalid,
+                                    " (", p0, ") != "
+                                    "(", key_1.name(), ")",
+                                    assignments[key_1][fish].valid() ?
+                                        (assignments[key_1][fish]) : pv::bid::invalid,
+                                    " (",p1,")");
                             }
                         }
                     }
                 }
-                
-                for(auto && [key, values] : benchmarks) {
-                    if(values.ptr) {
-                        if(values.ptr != _optimal_pairing) {
-                            delete values.ptr;
-                            values.ptr = nullptr;
-                        }
+            }
+            
+            for(auto && [key, values] : benchmarks) {
+                if(values.ptr) {
+                    if(values.ptr != _optimal_pairing) {
+                        delete values.ptr;
+                        values.ptr = nullptr;
                     }
                 }
             }
+        }
         //}
         
         /*Idx_t previous;
