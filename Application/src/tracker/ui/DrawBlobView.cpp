@@ -73,6 +73,7 @@ struct BlobView {
         cmn::blob::Prediction prediction;
         float real_size;
         float d;
+        float p_for_primary;
         
         constexpr bool operator==(const BlobInfo&) const noexcept = default;
     } _blob_info;
@@ -144,6 +145,9 @@ struct BlobView {
                 }),
                 VarFunc("d", [this](const VarProps&) {
                     return _blob_info.d;
+                }),
+                VarFunc("p_for_primary", [this](const VarProps&) {
+                    return _blob_info.p_for_primary;
                 })
             };
 
@@ -279,6 +283,17 @@ std::string BlobView::label_for_blob(const DisplayParameters& parm, const pv::Bl
     _blob_info.dock = register_label || d==1;
     _blob_info.real_size = real_size;
     _blob_info.d = d;
+    _blob_info.p_for_primary = 0;
+
+    auto primary_id = parm.cache.primary_selected_id();
+    auto all_probs = parm.cache.probs_for(blob.blob_id());
+    
+    for(auto &[fdx, prob] : all_probs) {
+        if(fdx == primary_id) {
+            _blob_info.p_for_primary = prob;
+            break;
+        }
+    }
     
     if(saved_info.label_text.has_value()
        && std::get<0>(saved_info.label_text.value()) == _blob_info)

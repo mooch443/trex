@@ -1088,7 +1088,7 @@
       "excluded": [],
       "module": "commons.misc",
       "path": "misc/SampleInterpolator.h",
-      "sha256": "317e0ebd89d2a58f179a50270e1aa4aecc6748c18796017ca3714a239d3a7015",
+      "sha256": "50f0a40df30338f4e5c39df69d944c9d67b1f3357c441813fa8e2310c2e76e75",
       "symbols": []
     },
     {
@@ -1662,7 +1662,7 @@
       "excluded": [],
       "module": "commons.misc",
       "path": "misc/create_struct.h",
-      "sha256": "03ac349f729bb33722d78a1d3a31fb061220edfb22c4efaa9411127a8a397735",
+      "sha256": "472b0f5183f79038d51f4ecaebeba9299ed4ef9c4662363a732c0073f377bc89",
       "symbols": []
     },
     {
@@ -4031,7 +4031,7 @@
       ],
       "module": "commons.gui",
       "path": "gui/DynamicGUI.h",
-      "sha256": "0c828bdc76499dba91b024c2ecb93d5fad9775cc1c9209ca1c018cefec4f0e70",
+      "sha256": "ce2e3c9e724e62b878e9294a98bc0f30fea84e652e379c23fa3b80e656fd6764",
       "symbols": [
         {
           "kind": "enum_class",
@@ -5352,7 +5352,7 @@
       "excluded": [],
       "module": "commons.gui.dyn",
       "path": "gui/dyn/UnresolvedStringPattern.h",
-      "sha256": "f169f107b19508c2b85b576405b2972aacde4d44839411fb8432316993a1ea6a",
+      "sha256": "2d381cbe97f063face44ec95945f1bc0793a5475ebd56ad98586027d00d81549",
       "symbols": [
         {
           "kind": "struct",
@@ -5423,7 +5423,7 @@
       "excluded": [],
       "module": "commons.gui.dyn",
       "path": "gui/dyn/VarProps.h",
-      "sha256": "4ea7ad4ffdd8cd32d7e95f8c48c2c9072acb2be537d4cb55d637d6ebb32f5ca4",
+      "sha256": "3352fd1afacfbb0c2add2ccf95840ea7cc50e45e478deedc4759f134d6c871c4",
       "symbols": [
         {
           "kind": "class",

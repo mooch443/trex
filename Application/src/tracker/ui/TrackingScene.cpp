@@ -2143,6 +2143,27 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                 auto& prop = map.at(props.subs.front()).get();
                 return sprite::display_property(prop);
             }),
+
+            VarFunc("primary_selection_p_for", [this](const VarProps& props) -> std::optional<double> {
+                REQUIRE_EXACTLY(1, props);
+
+                if(not _data)
+                    throw InvalidArgumentException("_data not set.");
+                
+                auto & map = _data->_primary_selection;
+                Idx_t fdx = _data->_cache->primary_selected_id();
+                if(fdx.valid()) {
+                    auto probs = _data->_cache->probs(fdx);
+                    if(probs) {
+                        auto it = probs->find(map["bdx"].value<pv::bid>());
+                        if(it != probs->end()) {
+                            return it->second.p;
+                        }
+                    }
+                }
+                
+                return std::nullopt;
+            }),
             
             VarFunc("tracker", [this](const VarProps&) -> Range<Frame_t> {
                 if(not _state->tracker->start_frame().valid())

@@ -309,6 +309,7 @@ namespace globals {
         
         const ska::bytell_hash_map<pv::bid, DetailProbability>* probs(Idx_t fdx);
         bool has_probs(Idx_t fdx);
+        std::map<Idx_t, float> probs_for(pv::bid );
         
         void set_tracking_dirty();
         void set_blobs_dirty();

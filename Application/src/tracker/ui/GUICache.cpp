@@ -1493,6 +1493,19 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
         return probs(fdx) != nullptr;
     }
 
+    std::map<Idx_t, float> GUICache::probs_for(pv::bid bdx) {
+        std::map<Idx_t, float> result;
+        for(auto fdx : active_ids) {
+            auto ps = probs(fdx);
+            if(not ps)
+                continue;
+            auto it = ps->find(bdx);
+            if(it != ps->end())
+                result[fdx] = it->second.p;
+        }
+        return result;
+    }
+
     const ska::bytell_hash_map<pv::bid, DetailProbability>* GUICache::probs(Idx_t fdx) {
         if(checked_probs.find(fdx) != checked_probs.end()) {
             auto it = probabilities.find(fdx);

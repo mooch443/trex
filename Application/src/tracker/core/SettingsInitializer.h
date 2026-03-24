@@ -17,19 +17,19 @@ namespace cmn::settings {
 void initialize_filename_for_tracking();
 
 struct LoadContext {
-    file::PathArray source;
+    file::PathArray source{};
     file::Path filename;
     default_config::TRexTask task{default_config::TRexTask_t::none};
-    track::detect::ObjectDetectionType_t type;
-    ExtendableVector exclude_parameters;
-    cmn::sprite::Map source_map;
+    track::detect::ObjectDetectionType_t type{};
+    ExtendableVector exclude_parameters{};
+    cmn::sprite::Map source_map{};
     bool quiet{false};
 
-    Configuration combined;
-    sprite::Map current_defaults;
+    Configuration combined{};
+    sprite::Map current_defaults{};
     bool did_set_calculate_posture_to_false{false};
 
-    ExtendableVector exclude, exclude_from_default;
+    ExtendableVector exclude{}, exclude_from_default{};
     std::vector<std::string> system_variables = [](){
         std::vector<std::string> system_variables;
         for (auto& key : GlobalSettings::keys()) {

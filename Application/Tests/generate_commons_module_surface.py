@@ -71,6 +71,7 @@ MODULE_HEADER_EXCLUSIONS = {
 
 PLATFORM_HEADER_GUARDS = {
     "gui/GLImpl.h": ("#ifndef __APPLE__", "#endif"),
+    "gui/MacProgressBar.h": ("#ifdef __APPLE__", "#endif"),
     "gui/MetalImpl.h": ("#ifdef __APPLE__", "#endif"),
 }
 
