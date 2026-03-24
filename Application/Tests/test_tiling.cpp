@@ -27,6 +27,18 @@ void resetGlobalSettings() {
         ::default_config::get(config);
     });
 
+    Python::configure_runtime(
+        GlobalSettings::instance(),
+        file::DataLocation::instance(),
+        Python::get_instance(),
+        [](auto& name, auto& mat) {
+            tf::imshow(name, mat);
+        },
+        []() {
+            tf::destroyAllWindows();
+        }
+    );
+
     SETTING(detect_tile_overlap) = 0.f;
     SETTING(detect_tile_target_width) = uint16_t{0};
     SETTING(detect_tile_image) = uchar{0};

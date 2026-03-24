@@ -87,7 +87,18 @@ add_dependencies(test_trex_modules tracker_module_surface_check)
 endif()
 
 # always compile in debug mode
-set(TARGETS test_matching test_commandline test_strings test_pixels test_patharray test_dyngui test_outlines test_threadpool test_tiling test_segmenter)
+set(TARGETS 
+    test_matching 
+    test_commandline 
+    test_strings 
+    test_pixels 
+    test_patharray 
+    test_dyngui 
+    test_outlines 
+    test_threadpool 
+    test_tiling 
+    test_segmenter
+)
 if(COMMONS_ENABLE_MODULES AND NOT CMAKE_VERSION VERSION_LESS "3.28.0")
     list(APPEND TARGETS test_commons_modules)
 endif()
@@ -115,15 +126,6 @@ function(trex_enable_python_delayload target)
             "/DELAYLOAD:trex_python.dll"
             "/DELAYLOAD:trex_python-d.dll"
         )
-    endif()
-endfunction()
-
-function(trex_link_static_python_impl target)
-    if(TARGET trex_python AND UNIX AND NOT WIN32 AND NOT TREX_ENABLE_SHARED_INTERNAL_LIBS)
-        # Match tracker executables: append both static Python archives so the
-        # linker sees staging before the implementation archive that provides
-        # trex_python_register.
-        target_link_libraries(${target} PUBLIC trex_python_staging trex_python)
     endif()
 endfunction()
 
@@ -188,11 +190,12 @@ target_link_libraries(test_threadpool PUBLIC
         pv)
 
 target_link_libraries(test_tiling PUBLIC
+        tracker_ml
+        tracker_tracking
         tracker_misc
         commons
-        pv
-        trex_python)
-trex_enable_python_delayload(test_tiling)
+        pv)
+trex_link_static_python_impl(test_tiling)
 
 target_link_libraries(test_segmenter PUBLIC
     tracker_tracking
@@ -225,10 +228,6 @@ target_link_libraries(test_trex_modules PUBLIC
         commons
 )
 endif()
-
-foreach(target ${TARGETS})
-    trex_link_static_python_impl(${target})
-endforeach()
 
 set_target_properties(test_matching PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 set_target_properties(test_commandline PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
