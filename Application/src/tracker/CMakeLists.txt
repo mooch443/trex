@@ -33,7 +33,12 @@ endfunction()
 
 function(trex_link_static_python_impl target)
     if(TARGET trex_python AND UNIX AND NOT WIN32 AND NOT TREX_ENABLE_SHARED_INTERNAL_LIBS)
-        target_link_libraries(${target} PUBLIC trex_python)
+        # Static Unix builds create a link cycle:
+        # trex_python_staging references trex_python_register from trex_python,
+        # while trex_python itself depends on staging symbols. Re-append both
+        # archives at final link sites in dependency order so GNU ld can resolve
+        # the cycle without relying on transitive archive ordering.
+        target_link_libraries(${target} PUBLIC trex_python_staging trex_python)
     endif()
 endfunction()
 

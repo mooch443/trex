@@ -120,7 +120,10 @@ endfunction()
 
 function(trex_link_static_python_impl target)
     if(TARGET trex_python AND UNIX AND NOT WIN32 AND NOT TREX_ENABLE_SHARED_INTERNAL_LIBS)
-        target_link_libraries(${target} PUBLIC trex_python)
+        # Match tracker executables: append both static Python archives so the
+        # linker sees staging before the implementation archive that provides
+        # trex_python_register.
+        target_link_libraries(${target} PUBLIC trex_python_staging trex_python)
     endif()
 endfunction()
 
