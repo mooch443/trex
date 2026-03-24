@@ -31,6 +31,12 @@ function(trex_bundle_lazy_python target)
     endif()
 endfunction()
 
+function(trex_link_static_python_impl target)
+    if(TARGET trex_python AND UNIX AND NOT WIN32 AND NOT TREX_ENABLE_SHARED_INTERNAL_LIBS)
+        target_link_libraries(${target} PUBLIC trex_python)
+    endif()
+endfunction()
+
 function(trex_add_semantic_library target)
     set(options)
     set(one_value_args TYPE)
@@ -194,8 +200,11 @@ target_link_libraries(tracker_gui INTERFACE trex_ui trex_ml trex_tracking trex_d
 if(NOT COMMONS_NO_PYTHON)
     add_subdirectory(python)
     target_link_libraries(trex_detect PUBLIC trex_python_staging)
-    if(UNIX AND NOT WIN32 AND NOT TREX_ENABLE_SHARED_INTERNAL_LIBS)
-        target_link_libraries(tracker_gui INTERFACE trex_python)
+    # In static Unix builds, trex_python_staging can reach final link steps
+    # through tracker_* interface libraries. Make the implementation library
+    # part of the propagated runtime link set at the interface layer.
+    if(TARGET trex_python AND UNIX AND NOT WIN32 AND NOT TREX_ENABLE_SHARED_INTERNAL_LIBS)
+        target_link_libraries(tracker_tracking INTERFACE trex_python)
     endif()
 endif()
 
@@ -268,9 +277,7 @@ if(NOT WIN32 AND TREX_WITH_TESTS)
         tracker_tracking
         Commons::Gui
     )
-    if(TARGET trex_python AND UNIX AND NOT WIN32 AND NOT TREX_ENABLE_SHARED_INTERNAL_LIBS)
-        target_link_libraries(test_imgui PRIVATE trex_python)
-    endif()
+    trex_link_static_python_impl(test_imgui)
     #target_precompile_headers(test_imgui REUSE_FROM commons)
 endif()
 
@@ -412,6 +419,13 @@ foreach(tool_target ${TREX_TOOL_TARGETS})
     if(NOT APPLE)
         set_target_properties(${tool_target} PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${TRACKER_PATH}")
     endif()
+endforeach()
+
+foreach(app_target ${TREX_APP_TARGETS})
+    trex_link_static_python_impl(${app_target})
+endforeach()
+foreach(tool_target ${TREX_TOOL_TARGETS})
+    trex_link_static_python_impl(${tool_target})
 endforeach()
 
 #if(NOT ${COMMONS_NO_PYTHON} AND NOT ${TREX_NO_PYTHON})

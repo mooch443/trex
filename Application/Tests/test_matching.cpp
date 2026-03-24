@@ -1777,8 +1777,9 @@ TEST_F(TestSystemTracker, MissingManualMatchOutsideTrackMaxSpeedDoesNotLoseObjec
     auto fish = IndividualManager::individual_by_id(fish_id);
     ASSERT_TRUE(fish);
     auto assigned_blob = fish.value()->blob(1_f);
-    if(assigned_blob)
+    if(assigned_blob) {
         ASSERT_NE(assigned_blob->blob_id(), fake_bdx);
+    }
 }
 
 TEST_F(TestSystemTracker, ManualMatchSplitFallbackPreservesConcreteInventory) {

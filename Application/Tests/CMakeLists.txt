@@ -190,10 +190,6 @@ target_link_libraries(test_tiling PUBLIC
         pv
         trex_python)
 trex_enable_python_delayload(test_tiling)
-trex_link_static_python_impl(test_matching)
-trex_link_static_python_impl(test_outlines)
-trex_link_static_python_impl(test_tiling)
-trex_link_static_python_impl(test_segmenter)
 
 target_link_libraries(test_segmenter PUBLIC
     tracker_tracking
@@ -225,8 +221,11 @@ target_link_libraries(test_trex_modules PUBLIC
         trex_core
         commons
 )
-trex_link_static_python_impl(test_trex_modules)
 endif()
+
+foreach(target ${TARGETS})
+    trex_link_static_python_impl(${target})
+endforeach()
 
 set_target_properties(test_matching PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 set_target_properties(test_commandline PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
