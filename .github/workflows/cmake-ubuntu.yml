@@ -40,15 +40,16 @@ jobs:
         channels: conda-forge
         auto-activate: false
         auto-update-conda: true
-        use-only-tar-bz2: true
         conda-remove-defaults: true
     - name: Create tracking env
       shell: bash -el {0}
       working-directory: ${{github.workspace}}
       run: |
         echo "::group::Create tracking env"
-        mamba env create -f .github/environment.yml
-        mamba install -y -n tracking python=${{ matrix.python-version }}
+        conda config --set solver ${{ matrix.solver }}
+        conda config --show solver
+        conda env create -f .github/environment.yml
+        conda install -y -n tracking python=${{ matrix.python-version }}
         conda activate tracking
         conda info
         conda list

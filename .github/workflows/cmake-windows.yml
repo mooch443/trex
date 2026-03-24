@@ -32,6 +32,10 @@ jobs:
       with:
         path: ~/conda_pkgs_dir
         key: ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{ hashFiles('.github/environment.yml') }}
+    - name: Add msbuild to PATH
+      uses: microsoft/setup-msbuild@v3
+      with:
+        vs-version: '2022'
     - uses: conda-incubator/setup-miniconda@v3
       with:
         miniforge-version: latest
