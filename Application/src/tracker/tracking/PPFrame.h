@@ -166,16 +166,16 @@ public:
     //! Adds one blob to _blobs.
     void add_regular(pv::BlobPtr&&);
     //! Adds one blob to _noise.
-    void add_noise(pv::BlobPtr&&);
+    void add_noise(pv::BlobPtr&&, pv::FilterReason);
     
     //! Adds a vector of blobs to _blobs.
     void add_regular(std::vector<pv::BlobPtr>&& v);
     //! Adds a vector of blobs to _noise.
-    void add_noise(std::vector<pv::BlobPtr>&& v);
+    void add_noise(std::vector<pv::BlobPtr>&& v, pv::FilterReason);
     
     //! Simply moves one blob from _blobs to _noise.
     /// Has the advantage of not requiring recalculate of num_pixels.
-    void move_to_noise(size_t blob_index);
+    void move_to_noise(size_t blob_index, pv::FilterReason);
     
     //! Tries to find the given blob in any of the arrays and removes it.
     //bool erase_anywhere(pv::bid bdx);
@@ -657,7 +657,7 @@ public:
     
     template<typename F>
         requires Predicate<F, pv::Blob>
-    void move_to_noise_if(F && fn) {
+    void move_to_noise_if(F && fn, pv::FilterReason reason) {
         for(auto it = _blob_owner.begin(); it != _blob_owner.end(); ) {
             auto &&own = *it;
             if(!own) {
@@ -666,6 +666,8 @@ public:
             }
             
             if(fn(*own)) {
+                if(reason != pv::FilterReason::Unknown)
+                    own->set_reason(reason);
                 _noise_map[own->blob_id()] = own.get();
                 _blob_map.erase(own->blob_id());
                 

@@ -4,7 +4,8 @@
 #include <misc/pretty.h>
 #include <tracking/AutomaticMatches.h>
 #include <tracking/IndividualManager.h>
-#include <core/FOI.h>
+#include <misc/FOI.h>
+#include <ranges>
 
 namespace track {
 
@@ -198,18 +199,47 @@ void TrackingHelper::apply_manual_matches()
             robin_hood::unordered_map<pv::bid, split_expectation> expect;
             expect[bdx] = split_expectation(clique.size() == 1 ? 2 : clique.size(), false);
             //! TODO: this is broken right now (manual_matches)
-            std::vector<pv::BlobPtr> big_filtered, single;
+            std::vector<pv::BlobPtr> big_filtered, single, noise;
             single.emplace_back(frame.extract(bdx));
             
             PrefilterBlobs::split_big(
                       frameIndex,
                       std::move(single),
-                      BlobReceiver(frame,  BlobReceiver::noise, FilterReason::SplitFailed),
-                      BlobReceiver(big_filtered),
+                      BlobReceiver(noise, BlobReceiver::noise, FilterReason::SplitFailed),
+                      //BlobReceiver(frame,  BlobReceiver::noise, FilterReason::SplitFailed),
+                      BlobReceiver(big_filtered, BlobReceiver::regular),
                       expect);
             //split_objects++;
             
-            if(!big_filtered.empty()) {
+            auto fail_reset = [&](){
+                auto joined = std::array{
+                    std::span(big_filtered),
+                    std::span(noise)
+                } | std::views::join;
+                
+                bool found_original = false;
+                
+                for(auto &&b : joined) {
+                    if(b /// find the original blob again and put it back
+                       && bdx == b->blob_id())
+                    {
+                        frame.add_regular(std::move(b));
+                        found_original=true;
+                        break;
+                    }
+                }
+                
+                /// we did perform some kind of split
+                /// and we didnt find our original blob.
+                if(not found_original) {
+                    FormatWarning("Frame ", frame.index(), ": we tried to split (for assigning manual matches), but failed and are unable to recover original blobs. We go with what we have (regular:", big_filtered.size(), " and noise:", noise.size(), ")");
+                    frame.add_noise(std::move(noise), FilterReason::SplitFailed);
+                    frame.add_regular(std::move(big_filtered));
+                }
+            };
+            
+            if(not big_filtered.empty()) {
+                /// we found some blobs worth looking into.
                 size_t found_perfect = 0;
                 for(auto & [fdx, pos, original_bdx] : clique) {
                     for(auto &b : big_filtered) {
@@ -226,10 +256,14 @@ void TrackingHelper::apply_manual_matches()
                     }
                 }
                 
+                /// we did find a perfect match for all in our clique
                 if(found_perfect) {
                     frame.add_regular(std::move(big_filtered));
+                    frame.add_noise(std::move(noise), FilterReason::SplitFailed);
                     // remove the blob thats to be split from all arrays
                     //frame.erase_anywhere(bdx);
+                } else {
+                    fail_reset();
                 }
                 
                 if(found_perfect == clique.size()) {
@@ -239,6 +273,10 @@ void TrackingHelper::apply_manual_matches()
                 } else {
                     FormatError("frame ",frame.index(),": Missing some matches (",found_perfect,"/",clique.size(),") for blob ",bdx," (identities ", clique,"). big_filtered=", big_filtered);
                 }
+            }
+            else {
+                FormatWarning("Frame ",frame.index(), ": Could not find proper matches for ", bdx, " and ",clique," from manual_matches.");
+                fail_reset();
             }
         }
         

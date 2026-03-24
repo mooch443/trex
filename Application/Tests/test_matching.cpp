@@ -13,7 +13,11 @@
 #include <misc/RBSettings.h>
 #include <core/PrecomuptedDetection.h>
 #include <tracking/SplitBlob.h>
+#include <tracking/HistorySplit.h>
 #include <grabber/misc/default_config.h>
+#include <algorithm>
+#include <sstream>
+#include <stdexcept>
 
 using ::testing::TestWithParam;
 using ::testing::Values;
@@ -50,6 +54,8 @@ static void resetGlobalSettings()
     
     SETTING(track_max_speed) = Settings::track_max_speed_t{10};
     SETTING(track_size_filter) = Settings::track_size_filter_t{};
+    SETTING(manual_matches) = Settings::manual_matches_t{};
+    SETTING(manual_splits) = Settings::manual_splits_t{};
 
     SETTING(individual_image_size) = Size2(48, 48);
     SETTING(blob_split_algorithm) = blob_split_algorithm_t::threshold;
@@ -59,6 +65,399 @@ static void resetGlobalSettings()
     if(track::Tracker::instance())
         track::Tracker::instance()->initialize_slows();
 }
+
+namespace {
+
+enum class ObservedBucket {
+    Regular,
+    Noise,
+    Assigned
+};
+
+const char* bucket_name(ObservedBucket bucket) {
+    switch(bucket) {
+        case ObservedBucket::Regular:
+            return "regular";
+        case ObservedBucket::Noise:
+            return "noise";
+        case ObservedBucket::Assigned:
+            return "assigned";
+    }
+    
+    return "unknown";
+}
+
+pv::bid root_id_of(const pv::Blob& blob) {
+    return blob.parent_id().valid() ? blob.parent_id() : blob.blob_id();
+}
+
+struct ObservedBlobInfo {
+    pv::bid blob_id;
+    pv::bid parent_id;
+    pv::bid root_id;
+    pv::FilterReason reason;
+    ObservedBucket bucket;
+};
+
+struct ObservedState {
+    std::vector<ObservedBlobInfo> blobs;
+    
+    std::set<pv::bid> roots() const {
+        std::set<pv::bid> out;
+        for(const auto& blob : blobs)
+            out.insert(blob.root_id);
+        return out;
+    }
+};
+
+std::set<pv::bid> collect_raw_root_ids(const pv::Frame& frame) {
+    std::set<pv::bid> roots;
+    for(const auto& blob : frame.get_blobs()) {
+        if(blob)
+            roots.insert(blob->blob_id());
+    }
+    return roots;
+}
+
+void append_blob(ObservedState& state, const pv::Blob& blob, ObservedBucket bucket) {
+    state.blobs.push_back(ObservedBlobInfo{
+        .blob_id = blob.blob_id(),
+        .parent_id = blob.parent_id(),
+        .root_id = root_id_of(blob),
+        .reason = blob.reason(),
+        .bucket = bucket
+    });
+}
+
+ObservedState observe_ppframe(const PPFrame& frame) {
+    ObservedState state;
+    frame.transform_blobs([&state](const pv::Blob& blob) {
+        append_blob(state, blob, ObservedBucket::Regular);
+    });
+    frame.transform_noise([&state](const pv::Blob& blob) {
+        append_blob(state, blob, ObservedBucket::Noise);
+    });
+    return state;
+}
+
+ObservedState observe_tracking_state(const PPFrame& frame, Frame_t frame_index) {
+    ObservedState state = observe_ppframe(frame);
+    auto active = IndividualManager::active_individuals(frame_index);
+    if(!active)
+        throw std::runtime_error(std::string("Cannot inspect active individuals for frame ")
+                                 + Meta::toStr(frame_index)
+                                 + ": "
+                                 + active.error());
+    
+    for(auto fish : *active.value()) {
+        if(!fish)
+            continue;
+        
+        auto blob = fish->blob(frame_index);
+        if(blob)
+            append_blob(state, *blob, ObservedBucket::Assigned);
+    }
+    
+    return state;
+}
+
+std::string render_observed_state(const ObservedState& state) {
+    std::ostringstream out;
+    out << "Observed blobs (" << state.blobs.size() << "):";
+    
+    for(const auto& blob : state.blobs) {
+        out << "\n - bucket=" << bucket_name(blob.bucket)
+            << " blob=" << Meta::toStr(blob.blob_id)
+            << " parent=" << Meta::toStr(blob.parent_id)
+            << " root=" << Meta::toStr(blob.root_id)
+            << " reason=" << pv::filter_reason_to_str(blob.reason);
+    }
+    
+    if(state.blobs.empty())
+        out << "\n - <none>";
+    
+    return out.str();
+}
+
+std::vector<std::tuple<uint32_t, uint32_t, uint32_t>> canonicalize_concrete_inventory(const ObservedState& state) {
+    std::vector<std::tuple<uint32_t, uint32_t, uint32_t>> entries;
+    entries.reserve(state.blobs.size());
+    
+    for(const auto& blob : state.blobs) {
+        entries.emplace_back(
+            uint32_t(blob.blob_id),
+            uint32_t(blob.parent_id),
+            uint32_t(blob.root_id)
+        );
+    }
+    
+    std::sort(entries.begin(), entries.end());
+    return entries;
+}
+
+::testing::AssertionResult verify_same_concrete_inventory(
+    const ObservedState& before,
+    const ObservedState& after,
+    std::string_view stage)
+{
+    const auto lhs = canonicalize_concrete_inventory(before);
+    const auto rhs = canonicalize_concrete_inventory(after);
+    
+    if(lhs == rhs)
+        return ::testing::AssertionSuccess();
+    
+    std::ostringstream out;
+    out << stage << " changed the concrete blob inventory unexpectedly."
+        << "\nBefore:\n" << render_observed_state(before)
+        << "\nAfter:\n" << render_observed_state(after);
+    return ::testing::AssertionFailure() << out.str();
+}
+
+::testing::AssertionResult verify_root_conservation(
+    const std::set<pv::bid>& expected_roots,
+    const ObservedState& state,
+    std::string_view stage)
+{
+    const auto represented_roots = state.roots();
+    
+    std::set<pv::bid> missing_roots;
+    std::set_difference(expected_roots.begin(), expected_roots.end(),
+                        represented_roots.begin(), represented_roots.end(),
+                        std::inserter(missing_roots, missing_roots.end()));
+    
+    std::set<pv::bid> unexpected_roots;
+    std::set_difference(represented_roots.begin(), represented_roots.end(),
+                        expected_roots.begin(), expected_roots.end(),
+                        std::inserter(unexpected_roots, unexpected_roots.end()));
+    
+    std::map<pv::bid, size_t> root_counts;
+    std::map<pv::bid, std::vector<ObservedBucket>> blob_locations;
+    for(const auto& blob : state.blobs) {
+        root_counts[blob.root_id]++;
+        blob_locations[blob.blob_id].push_back(blob.bucket);
+    }
+    
+    std::vector<pv::bid> duplicated_blob_ids;
+    for(const auto& [blob_id, locations] : blob_locations) {
+        if(locations.size() != 1)
+            duplicated_blob_ids.push_back(blob_id);
+    }
+    
+    if(missing_roots.empty()
+       && unexpected_roots.empty()
+       && duplicated_blob_ids.empty())
+    {
+        return ::testing::AssertionSuccess();
+    }
+    
+    std::ostringstream out;
+    out << stage << " conservation failed."
+        << "\nExpected roots: " << Meta::toStr(expected_roots)
+        << "\nRepresented roots: " << Meta::toStr(represented_roots)
+        << "\nMissing roots: " << Meta::toStr(missing_roots)
+        << "\nUnexpected roots: " << Meta::toStr(unexpected_roots)
+        << "\nDuplicated concrete blob ids: " << Meta::toStr(duplicated_blob_ids)
+        << "\nRoot representative counts:";
+    
+    for(const auto& [root_id, count] : root_counts)
+        out << "\n - " << Meta::toStr(root_id) << ": " << count;
+    
+    out << "\n" << render_observed_state(state);
+    return ::testing::AssertionFailure() << out.str();
+}
+
+::testing::AssertionResult verify_unique_partition(
+    const ObservedState& state,
+    std::string_view stage)
+{
+    std::map<pv::bid, std::vector<ObservedBucket>> blob_locations;
+    for(const auto& blob : state.blobs)
+        blob_locations[blob.blob_id].push_back(blob.bucket);
+    
+    std::vector<pv::bid> duplicated_blob_ids;
+    for(const auto& [blob_id, locations] : blob_locations) {
+        if(locations.size() != 1)
+            duplicated_blob_ids.push_back(blob_id);
+    }
+    
+    if(duplicated_blob_ids.empty())
+        return ::testing::AssertionSuccess();
+    
+    std::ostringstream out;
+    out << stage << " partition failed."
+        << "\nDuplicated concrete blob ids: " << Meta::toStr(duplicated_blob_ids)
+        << "\n" << render_observed_state(state);
+    return ::testing::AssertionFailure() << out.str();
+}
+
+std::string termites_image_path() {
+    return std::string(TREX_TEST_FOLDER) + "/../../images/termites_three.png";
+}
+
+struct SyntheticSplitFrame {
+    PPFrame frame;
+    pv::bid original_root;
+    Size2 resolution;
+};
+
+SyntheticSplitFrame make_synthetic_split_frame(Frame_t frame_index = 0_f) {
+    cv::Mat termites = cv::imread(termites_image_path());
+    if(termites.empty())
+        throw std::runtime_error("Failed to load termites_three.png.");
+    
+    cmn::CPULabeling::ListCache_t cache;
+    auto blobs = CPULabeling::run(termites, cache);
+    if(blobs.empty())
+        throw std::runtime_error("No blobs found in termites_three.png.");
+    
+    auto& pair = blobs.front();
+    auto blob = pv::Blob::Make(std::move(pair.lines), std::move(pair.pixels), pair.extra_flags, std::move(pair.pred));
+    if(!blob)
+        throw std::runtime_error("Failed to create synthetic blob.");
+    
+    SyntheticSplitFrame data{
+        .frame = PPFrame{},
+        .original_root = blob->blob_id(),
+        .resolution = Size2(termites.cols, termites.rows)
+    };
+    
+    data.frame.timestamp = timestamp_t{uint64_t(frame_index.get())};
+    data.frame.time = double(frame_index.get());
+    data.frame.set_index(frame_index);
+    data.frame.set_source_index(frame_index);
+    data.frame.set_resolution(data.resolution);
+    data.frame.add_regular(std::move(blob));
+    
+    return data;
+}
+
+std::unique_ptr<Tracker> make_gray_tracker(const Size2& resolution) {
+    cv::Mat background = cv::Mat::zeros(int(resolution.height), int(resolution.width), CV_8UC1);
+    return std::make_unique<Tracker>(Image::Make(background), meta_encoding_t::gray, 1.f);
+}
+
+void configure_system_tracking_settings() {
+    SETTING(match_mode) = Settings::match_mode_t(default_config::matching_mode_t::automatic);
+    SETTING(track_max_individuals) = Settings::track_max_individuals_t(8);
+    SETTING(track_size_filter) = Settings::track_size_filter_t({Ranged{80, 400}});
+}
+
+void seed_tracker_with_first_frame(pv::File& video, Tracker& tracker) {
+    configure_system_tracking_settings();
+    PPFrame pp;
+    pv::Frame frame;
+    video.read_frame(frame, 0_f);
+    Tracker::preprocess_frame(std::move(frame), pp, nullptr, track::PPFrame::NeedGrid::NoNeed, video.header().resolution, false);
+    tracker.add(pp);
+}
+
+pv::bid first_regular_blob_id(const PPFrame& frame) {
+    pv::bid chosen;
+    frame.transform_blobs([&chosen](const pv::Blob& blob) {
+        if(!chosen.valid())
+            chosen = blob.blob_id();
+    });
+    return chosen;
+}
+
+Idx_t first_individual_id() {
+    const auto ids = IndividualManager::all_ids();
+    if(ids.empty())
+        throw std::runtime_error("No individuals available.");
+    return *ids.begin();
+}
+
+pv::bid make_fake_bid_outside_radius(const PPFrame& frame, const pv::Blob& anchor, float radius_px) {
+    std::vector<Vec2> centers;
+    frame.transform_all([&centers](const pv::Blob& blob) {
+        centers.push_back(blob.center());
+    });
+    
+    const auto within_radius = [&centers, radius_sq = radius_px * radius_px](const Vec2& candidate) {
+        for(const auto& center : centers) {
+            const auto dx = candidate.x - center.x;
+            const auto dy = candidate.y - center.y;
+            if(dx * dx + dy * dy <= radius_sq)
+                return true;
+        }
+        return false;
+    };
+    
+    const auto center = anchor.center();
+    const float delta = radius_px + 5.f;
+    const auto res = frame.resolution();
+    
+    std::vector<Vec2> candidates = {
+        {std::min<float>(center.x + delta, std::max(0.f, res.width - 1.f)), center.y},
+        {std::max<float>(center.x - delta, 0.f), center.y},
+        {center.x, std::min<float>(center.y + delta, std::max(0.f, res.height - 1.f))},
+        {center.x, std::max<float>(center.y - delta, 0.f)}
+    };
+    
+    Vec2 selected = candidates.front();
+    for(const auto& candidate : candidates) {
+        if(!within_radius(candidate)) {
+            selected = candidate;
+            break;
+        }
+    }
+    if(within_radius(selected))
+        throw std::runtime_error("Failed to place fake blob id outside track_max_speed radius.");
+    
+    const auto x = narrow_cast<uint16_t>(std::clamp<int>(int(selected.x), 0, 8191));
+    const auto y = narrow_cast<uint16_t>(std::clamp<int>(int(selected.y), 0, 8191));
+    const auto n = narrow_cast<uint8_t>(std::clamp<int>(int(anchor.hor_lines().size()), 1, 63));
+    auto fake = pv::bid{pv::bid::from_data(x, x, y, n)};
+    
+    if(fake == anchor.blob_id() || frame.has_bdx(fake))
+        throw std::runtime_error("Failed to create a fake blob id outside track_max_speed.");
+    
+    return fake;
+}
+
+pv::bid make_fake_bid_inside_radius(const PPFrame& frame, const pv::Blob& anchor, float radius_px) {
+    std::vector<Vec2> centers;
+    frame.transform_all([&centers](const pv::Blob& blob) {
+        centers.push_back(blob.center());
+    });
+    
+    const auto within_radius = [&centers, radius_sq = radius_px * radius_px](const Vec2& candidate) {
+        for(const auto& center : centers) {
+            const auto dx = candidate.x - center.x;
+            const auto dy = candidate.y - center.y;
+            if(dx * dx + dy * dy <= radius_sq)
+                return true;
+        }
+        return false;
+    };
+    
+    const auto center = anchor.center();
+    const auto res = frame.resolution();
+    const float delta = std::max(1.f, std::min(radius_px * 0.5f, 3.f));
+    
+    std::vector<Vec2> candidates = {
+        {std::min<float>(center.x + delta, std::max(0.f, res.width - 1.f)), center.y},
+        {std::max<float>(center.x - delta, 0.f), center.y},
+        {center.x, std::min<float>(center.y + delta, std::max(0.f, res.height - 1.f))},
+        {center.x, std::max<float>(center.y - delta, 0.f)}
+    };
+    
+    for(const auto& candidate : candidates) {
+        if(!within_radius(candidate))
+            continue;
+        
+        const auto x = narrow_cast<uint16_t>(std::clamp<int>(int(candidate.x), 0, 8191));
+        const auto y = narrow_cast<uint16_t>(std::clamp<int>(int(candidate.y), 0, 8191));
+        const auto n = narrow_cast<uint8_t>(std::clamp<int>(int(anchor.hor_lines().size()), 1, 63));
+        auto fake = pv::bid{pv::bid::from_data(x, x, y, n)};
+        if(fake != anchor.blob_id() && !frame.has_bdx(fake))
+            return fake;
+    }
+    
+    throw std::runtime_error("Failed to create a fake blob id inside track_max_speed radius.");
+}
+
+} // namespace
 
 TEST(PrecomputeTest, LoadTable)
 {
@@ -1262,9 +1661,7 @@ protected:
     TrackerAndVideo* data;
 public:
     void SetUp() override {
-        GlobalSettings::write([&](Configuration& config) {
-            default_config::get(config);
-        });
+        resetGlobalSettings();
         data = new TrackerAndVideo;
     }
     
@@ -1287,6 +1684,182 @@ TEST_F(TestSystemTracker, TrackingTest) {
     
     ASSERT_EQ(data->tracker.number_frames(), 1u);
     ASSERT_EQ(IndividualManager::num_individuals(), 8u);
+}
+
+TEST_F(TestSystemTracker, PreprocessFramePreservesAndPartitionsAllRoots) {
+    configure_system_tracking_settings();
+    
+    pv::Frame frame;
+    data->video.read_frame(frame, 0_f);
+    const auto expected_roots = collect_raw_root_ids(frame);
+    ASSERT_FALSE(expected_roots.empty());
+    
+    PPFrame pp;
+    Tracker::preprocess_frame(std::move(frame), pp, nullptr, track::PPFrame::NeedGrid::NoNeed, data->video.header().resolution, false);
+    
+    const auto observed = observe_ppframe(pp);
+    ASSERT_TRUE(verify_unique_partition(observed, "preprocess_frame partition"));
+    ASSERT_TRUE(verify_root_conservation(expected_roots, observed, "preprocess_frame"));
+}
+
+TEST(TrackingInvariant, ForcedHistorySplitStillRepresentsOriginalRoots) {
+    resetGlobalSettings();
+    SETTING(track_do_history_split) = true;
+    SETTING(track_size_filter) = Settings::track_size_filter_t{};
+    
+    auto synthetic = make_synthetic_split_frame();
+    auto tracker = make_gray_tracker(synthetic.resolution);
+    
+    auto manual_splits = Settings::manual_splits_t{};
+    manual_splits[synthetic.frame.index()].insert(synthetic.original_root);
+    SETTING(manual_splits) = manual_splits;
+    
+    HistorySplit{synthetic.frame, PPFrame::NeedGrid::NoNeed, nullptr};
+    
+    const auto observed = observe_ppframe(synthetic.frame);
+    ASSERT_TRUE(verify_unique_partition(observed, "forced HistorySplit partition"));
+    ASSERT_TRUE(verify_root_conservation({synthetic.original_root}, observed, "forced HistorySplit"));
+}
+
+TEST(TrackingInvariant, TrackerAddWithForcedSplitStillRepresentsOriginalRoots) {
+    resetGlobalSettings();
+    SETTING(track_do_history_split) = true;
+    SETTING(track_size_filter) = Settings::track_size_filter_t{};
+    
+    auto synthetic = make_synthetic_split_frame();
+    auto tracker = make_gray_tracker(synthetic.resolution);
+    
+    auto manual_splits = Settings::manual_splits_t{};
+    manual_splits[synthetic.frame.index()].insert(synthetic.original_root);
+    SETTING(manual_splits) = manual_splits;
+    
+    tracker->add(synthetic.frame);
+    
+    ASSERT_TRUE(verify_unique_partition(observe_ppframe(synthetic.frame), "Tracker::add forced split remaining PPFrame partition"));
+    const auto observed = observe_tracking_state(synthetic.frame, synthetic.frame.index());
+    ASSERT_TRUE(verify_root_conservation({synthetic.original_root}, observed, "Tracker::add forced split"));
+    ASSERT_EQ(tracker->number_frames(), 1u);
+}
+
+TEST_F(TestSystemTracker, MissingManualMatchOutsideTrackMaxSpeedDoesNotLoseObjects) {
+    seed_tracker_with_first_frame(data->video, data->tracker);
+    ASSERT_EQ(data->tracker.number_frames(), 1u);
+    
+    SETTING(track_max_speed) = Settings::track_max_speed_t(50);
+    auto fish_id = first_individual_id();
+    
+    PPFrame pp;
+    pv::Frame frame;
+    data->video.read_frame(frame, 1_f);
+    Tracker::preprocess_frame(std::move(frame), pp, nullptr, track::PPFrame::NeedGrid::NoNeed, data->video.header().resolution, false);
+    
+    const auto expected_roots = observe_ppframe(pp).roots();
+    ASSERT_FALSE(expected_roots.empty());
+    
+    const auto chosen_blob_id = first_regular_blob_id(pp);
+    ASSERT_TRUE(chosen_blob_id.valid());
+    auto anchor = pp.bdx_to_ptr(chosen_blob_id);
+    ASSERT_TRUE(anchor != nullptr);
+    
+    const auto radius_px = float(FAST_SETTING(track_max_speed) / FAST_SETTING(cm_per_pixel));
+    const auto fake_bdx = make_fake_bid_outside_radius(pp, *anchor, radius_px);
+    
+    auto manual_matches = Settings::manual_matches_t{};
+    manual_matches[pp.index()][fish_id] = fake_bdx;
+    SETTING(manual_matches) = manual_matches;
+    
+    data->tracker.add(pp);
+    
+    ASSERT_TRUE(verify_unique_partition(observe_ppframe(pp), "Tracker::add missing manual match remaining PPFrame partition"));
+    const auto observed = observe_tracking_state(pp, 1_f);
+    ASSERT_TRUE(verify_root_conservation(expected_roots, observed, "Tracker::add with missing manual match"));
+    
+    auto fish = IndividualManager::individual_by_id(fish_id);
+    ASSERT_TRUE(fish);
+    auto assigned_blob = fish.value()->blob(1_f);
+    if(assigned_blob)
+        ASSERT_NE(assigned_blob->blob_id(), fake_bdx);
+}
+
+TEST_F(TestSystemTracker, ManualMatchSplitFallbackPreservesConcreteInventory) {
+    seed_tracker_with_first_frame(data->video, data->tracker);
+    ASSERT_EQ(data->tracker.number_frames(), 1u);
+    
+    SETTING(track_do_history_split) = false;
+    SETTING(track_max_speed) = Settings::track_max_speed_t(50);
+    const auto fish_id = first_individual_id();
+    
+    PPFrame pp;
+    pv::Frame frame;
+    data->video.read_frame(frame, 1_f);
+    Tracker::preprocess_frame(std::move(frame), pp, nullptr, track::PPFrame::NeedGrid::NoNeed, data->video.header().resolution, false);
+    
+    const auto chosen_blob_id = first_regular_blob_id(pp);
+    ASSERT_TRUE(chosen_blob_id.valid());
+    auto anchor = pp.bdx_to_ptr(chosen_blob_id);
+    ASSERT_TRUE(anchor != nullptr);
+    
+    const auto radius_px = float(FAST_SETTING(track_max_speed) / FAST_SETTING(cm_per_pixel));
+    const auto fake_bdx = make_fake_bid_inside_radius(pp, *anchor, radius_px);
+    
+    const auto before = observe_ppframe(pp);
+    auto manual_matches = Settings::manual_matches_t{};
+    manual_matches[pp.index()][fish_id] = fake_bdx;
+    SETTING(manual_matches) = manual_matches;
+    
+    data->tracker.add(pp);
+    
+    const auto after = observe_tracking_state(pp, 1_f);
+    ASSERT_TRUE(verify_same_concrete_inventory(before, after, "manual-match split fallback"));
+    for(const auto& blob : after.blobs)
+        ASSERT_NE(blob.blob_id, fake_bdx);
+    ASSERT_TRUE(verify_unique_partition(after, "manual-match split fallback resulting partition"));
+}
+
+TEST_F(TestSystemTracker, ExistingManualMatchAssignsRequestedBlobToRequestedFish) {
+    seed_tracker_with_first_frame(data->video, data->tracker);
+    ASSERT_EQ(data->tracker.number_frames(), 1u);
+    
+    SETTING(track_max_speed) = Settings::track_max_speed_t(50);
+    auto fish_id = first_individual_id();
+    
+    PPFrame pp;
+    pv::Frame frame;
+    data->video.read_frame(frame, 1_f);
+    Tracker::preprocess_frame(std::move(frame), pp, nullptr, track::PPFrame::NeedGrid::NoNeed, data->video.header().resolution, false);
+    
+    const auto expected_roots = observe_ppframe(pp).roots();
+    ASSERT_FALSE(expected_roots.empty());
+    
+    const auto chosen_blob_id = first_regular_blob_id(pp);
+    ASSERT_TRUE(chosen_blob_id.valid());
+    
+    auto manual_matches = Settings::manual_matches_t{};
+    manual_matches[pp.index()][fish_id] = chosen_blob_id;
+    SETTING(manual_matches) = manual_matches;
+    
+    data->tracker.add(pp);
+    
+    ASSERT_TRUE(verify_unique_partition(observe_ppframe(pp), "Tracker::add direct manual match remaining PPFrame partition"));
+    const auto observed = observe_tracking_state(pp, 1_f);
+    ASSERT_TRUE(verify_root_conservation(expected_roots, observed, "Tracker::add with direct manual match"));
+    
+    auto fish = IndividualManager::individual_by_id(fish_id);
+    ASSERT_TRUE(fish);
+    
+    auto assigned_blob = fish.value()->blob(1_f);
+    ASSERT_TRUE(assigned_blob != nullptr);
+    ASSERT_EQ(assigned_blob->blob_id(), chosen_blob_id);
+    
+    size_t owners = 0;
+    for(auto id : IndividualManager::all_ids()) {
+        auto individual = IndividualManager::individual_by_id(id);
+        ASSERT_TRUE(individual);
+        auto blob = individual.value()->blob(1_f);
+        if(blob && blob->blob_id() == chosen_blob_id)
+            ++owners;
+    }
+    ASSERT_EQ(owners, 1u);
 }
 
 template<typename _Number_t>
