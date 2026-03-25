@@ -151,6 +151,8 @@ target_link_libraries(test_matching PUBLIC
     pv
     commons
 )
+trex_link_static_python_impl(test_matching)
+
 target_link_libraries(test_commandline PUBLIC commons)
 
 target_link_libraries(test_outlines PUBLIC
