@@ -48,14 +48,17 @@ function(trex_link_static_python_impl target)
     target_link_libraries(${target} PUBLIC trex_python_staging trex_python)
     
     if(WIN32)
-        # Static Unix builds create a link cycle:
-        # trex_python_staging references trex_python_register from trex_python,
-        # while trex_python itself depends on staging symbols. Re-append both
-        # archives at final link sites in dependency order so GNU ld can resolve
-        # the cycle without relying on transitive archive ordering.
         target_link_options(${target} PRIVATE
             "/DELAYLOAD:trex_python.dll"
             "/DELAYLOAD:trex_python-d.dll"
+        )
+    elseif(UNIX AND NOT APPLE AND NOT TREX_ENABLE_SHARED_INTERNAL_LIBS)
+        # Static Unix builds create a link cycle:
+        # trex_python_staging references trex_python_register from trex_python,
+        # while trex_python itself depends on staging symbols. Force inclusion of
+        # all trex_python symbols with --whole-archive so the cycle resolves.
+        target_link_options(${target} PRIVATE
+            "-Wl,--whole-archive" "$<TARGET_FILE:trex_python>" "-Wl,--no-whole-archive"
         )
     endif()
 endfunction()
