@@ -202,11 +202,6 @@ RecentItems RecentItems::read() {
 
                 items._file.entries.push_back(std::move(entry));
             }
-
-            for(size_t i=0; i<100; ++i) {
-                RecentItemJSON entry{.name=Meta::toStr(i), .filename=Meta::toStr(i)};
-                items._file.entries.push_back(std::move(entry));
-            }
             
         }
         catch (const std::exception& e) {
