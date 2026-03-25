@@ -208,6 +208,7 @@ target_link_libraries(test_segmenter PUBLIC
     pv
     commons
 )
+trex_link_static_python_impl(test_segmenter)
 
 if(COMMONS_ENABLE_MODULES AND NOT CMAKE_VERSION VERSION_LESS "3.28.0")
 target_link_libraries(test_commons_modules PUBLIC
