@@ -13,6 +13,7 @@
 #include <tracking/Tracker.h>
 #include <ui/Export.h>
 #include <core/PrecomuptedDetection.h>
+#include <grabber/misc/PylonCamera.h>
 
 //#define DEBUG_TM_ITEMS
 
@@ -711,8 +712,8 @@ void Segmenter::open_video() {
 
 void Segmenter::open_camera() {
     using namespace grab;
-    fg::Webcam camera;
-    camera.set_color_mode(ImageMode::RGB);
+    auto source = READ_SETTING(source, file::PathArray);
+    const bool use_basler = (source == file::PathArray("basler"));
     
     _crop_offsets = READ_SETTING_WITH_DEFAULT(crop_offsets, CropOffsets{});
     
@@ -720,13 +721,10 @@ void Segmenter::open_camera() {
     //const auto encoding = Background::meta_encoding();
     //const uint8_t channels = required_image_channels(encoding);
 
-    SETTING(frame_rate) = Settings::frame_rate_t(camera.frame_rate() == -1
-                                                 ? 25
-                                                 : camera.frame_rate());
     if (READ_SETTING(filename, file::Path).empty())
         SETTING(filename) = file::DataLocation::parse("output", file::Path(file::find_basename(READ_SETTING(source, file::PathArray))));
     
-    if(READ_SETTING(source, file::PathArray) == file::PathArray("webcam")) {
+    if(source == file::PathArray("webcam") || use_basler) {
         //if(not CommandLine::instance().settings_keys().contains("detect_model"))
         //    SETTING(detect_model) = file::Path(Yolo::default_model());
         //if(not CommandLine::instance().settings_keys().contains("save_raw_movie"))
@@ -746,56 +744,81 @@ void Segmenter::open_camera() {
         path.create_folder();
     }
     
-    //SETTING(output_size) = _output_size;
-    SETTING(meta_video_size) = camera.size();
-    
-    if(BOOL_SETTING(save_raw_movie)) {
-        auto path = output_file_name();
-        if (not READ_SETTING(save_raw_movie_path, file::Path).empty()
-            && READ_SETTING(save_raw_movie_path, file::Path).remove_filename().exists())
-        {
-            path = READ_SETTING(save_raw_movie_path, file::Path);
+    auto init_camera_pipeline = [&](auto&& camera) {
+        //SETTING(output_size) = _output_size;
+        SETTING(meta_video_size) = camera.size();
+        
+        if(BOOL_SETTING(save_raw_movie)) {
+            auto path = output_file_name();
+            if (not READ_SETTING(save_raw_movie_path, file::Path).empty()
+                && READ_SETTING(save_raw_movie_path, file::Path).remove_filename().exists())
+            {
+                path = READ_SETTING(save_raw_movie_path, file::Path);
+            }
+            
+            if(path.has_extension())
+                path = path.replace_extension("mp4");
+            else
+                path = path.add_extension("mp4");
+            
+            SETTING(save_raw_movie_path) = path.absolute();
+            SETTING(meta_source_path) = path.absolute().str();
+            SETTING(meta_video_scale) = 1.f;
         }
         
-        if(path.has_extension())
-            path = path.replace_extension("mp4");
-        else
-            path = path.add_extension("mp4");
+        _output_size_before_crop = (Size2(camera.size()) * READ_SETTING(meta_video_scale, float)).map(roundf);
+        _output_size = _crop_offsets.toPixels(_output_size_before_crop).size().map(roundf);
+        SETTING(video_conversion_range) = Range<long_t>(-1,-1);
         
-        SETTING(save_raw_movie_path) = path.absolute();
-        SETTING(meta_source_path) = path.absolute().str();
-        SETTING(meta_video_scale) = 1.f;
-    }
-    
-    _output_size_before_crop = (Size2(camera.size()) * READ_SETTING(meta_video_scale, float)).map(roundf);
-    _output_size = _crop_offsets.toPixels(_output_size_before_crop).size().map(roundf);
-    SETTING(video_conversion_range) = Range<long_t>(-1,-1);
-    
-    auto detect_type = READ_SETTING(detect_type, ObjectDetectionType_t);
-    if(std::unique_lock vlock(_mutex_video);
-       detect_type == ObjectDetectionType::background_subtraction)
-    {
-        _overlayed_video = std::make_unique<VideoProcessor<BackgroundSubtraction>>(
-           BackgroundSubtraction{},
-           std::move(camera),
-           [this]() {
-               _generating_step.notify();
-               //_cv_messages.notify_one();
-           }
-        );
-        
-    } else if(detect_type == ObjectDetectionType::precomputed) {
-        throw InvalidArgumentException("Cannot use precomputed data for camera recordings.");
-        
+        auto detect_type = READ_SETTING(detect_type, ObjectDetectionType_t);
+        if(std::unique_lock vlock(_mutex_video);
+           detect_type == ObjectDetectionType::background_subtraction)
+        {
+            _overlayed_video = std::make_unique<VideoProcessor<BackgroundSubtraction>>(
+               BackgroundSubtraction{},
+               std::move(camera),
+               [this]() {
+                   _generating_step.notify();
+                   //_cv_messages.notify_one();
+               }
+            );
+            
+        } else if(detect_type == ObjectDetectionType::precomputed) {
+            throw InvalidArgumentException("Cannot use precomputed data for camera recordings.");
+            
+        } else {
+            _overlayed_video = std::make_unique<VideoProcessor<Detection>>(
+               Detection{},
+               std::move(camera),
+               [this]() {
+                   _generating_step.notify();
+                   //_cv_messages.notify_one();
+               }
+            );
+        }
+    };
+
+    if(use_basler) {
+#if WITH_PYLON
+        auto camera_result = fg::PylonCamera::create();
+        if(!camera_result) {
+            throw InvalidArgumentException(
+                "Cannot open Basler camera: " + camera_result.error().user_message
+                + "\n" + camera_result.error().diagnostic);
+        }
+        const auto rate = READ_SETTING(cam_framerate, int);
+        SETTING(frame_rate) = Settings::frame_rate_t(rate > 0 ? rate : 25);
+        init_camera_pipeline(std::move(*camera_result));
+#else
+        throw InvalidArgumentException("Basler support is not compiled in this build.");
+#endif
     } else {
-        _overlayed_video = std::make_unique<VideoProcessor<Detection>>(
-           Detection{},
-           std::move(camera),
-           [this]() {
-               _generating_step.notify();
-               //_cv_messages.notify_one();
-           }
-        );
+        fg::Webcam camera;
+        camera.set_color_mode(ImageMode::RGB);
+        SETTING(frame_rate) = Settings::frame_rate_t(camera.frame_rate() == -1
+                                                     ? 25
+                                                     : camera.frame_rate());
+        init_camera_pipeline(std::move(camera));
     }
     
     _overlayed_video->source()->set_video_scale(READ_SETTING(meta_video_scale, float));

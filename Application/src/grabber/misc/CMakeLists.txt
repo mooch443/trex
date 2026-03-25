@@ -1,27 +1,20 @@
 file(GLOB HDRS *.h)
 file(GLOB SRCS *.cpp)
+list(REMOVE_ITEM SRCS "${CMAKE_CURRENT_SOURCE_DIR}/BaslerPylonBridge.cpp")
+list(FILTER SRCS EXCLUDE REGEX "(^|.*/)BaslerPylonBridge\\.cpp$")
 
-# automatic moc file generation by Qt MOC
 set(CMAKE_AUTOMOC OFF)
-# to include generated moc headers, since they are generated in binary dir
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
-# add actual library
 if(UNIX)
   add_library(framegrabber_misc STATIC ${SRCS} ${HDRS})
 elseif(WIN32)
   add_library(framegrabber_misc STATIC ${SRCS} ${HDRS})
 endif()
-#target_precompile_headers(framegrabber_misc REUSE_FROM commons)
 
 target_link_libraries(framegrabber_misc
-	PUBLIC Commons::Video
+    PUBLIC Commons::Video
 )
-
-if(APPLE AND PYLON_FOUND AND WITH_PYLON)
-    message(STATUS "linking with pylon")
-    target_link_libraries( framegrabber_misc PUBLIC ${PYLON_LIBRARIES} )
-endif()
 
 if(WITH_FFMPEG)
     target_compile_definitions(framegrabber_misc PRIVATE WITH_FFMPEG=true)
@@ -29,35 +22,48 @@ endif()
 
 option(WITH_PYLON "use pylon support" OFF)
 
-if(APPLE AND WITH_PYLON)
-    FIND_LIBRARY(PYLON_LIBRARIES Pylon)
-    if(PYLON_LIBRARIES STREQUAL "PYLON_LIBRARIES-NOTFOUND" OR NOT ${WITH_PYLON})
-        set(PYLON_FOUND false)
-        target_compile_definitions(framegrabber_misc PUBLIC WITH_PYLON=false)
-    else()
-        set(PYLON_FOUND true)
-        target_compile_definitions(framegrabber_misc PUBLIC WITH_PYLON=true)
-        message(STATUS "Pylon found. ${PYLON_LIBRARIES} lol")
-        target_include_directories(framegrabber_misc PUBLIC /Library/Frameworks/pylon.framework/Headers/GenICam)
-    endif()
-    
-elseif(WITH_PYLON)
+if(WITH_PYLON)
     find_package(BaslerPylon)
-    if(${PYLON_FOUND})
+    if(BaslerPylon_FOUND)
+        message(STATUS "Basler pylon headers found; enabling lazy runtime loading.")
         target_include_directories(framegrabber_misc PUBLIC ${PYLON_INCLUDE_DIRS})
-        target_compile_definitions(framegrabber_misc PUBLIC WITH_PYLON=true)
-        message(STATUS "Pylon found.")
+        target_compile_definitions(framegrabber_misc PUBLIC ${PYLON_COMPILE_DEFINITIONS})
+
+        if(APPLE)
+            add_library(trex_basler_bridge SHARED
+                BaslerPylonBridge.cpp
+                BaslerPylonBridgeAPI.h
+            )
+
+            target_include_directories(trex_basler_bridge PRIVATE ${PYLON_INCLUDE_DIRS})
+
+            if(PYLON_FRAMEWORK_DIR)
+                target_compile_options(trex_basler_bridge PRIVATE "-F${PYLON_FRAMEWORK_DIR}")
+                target_link_options(trex_basler_bridge PRIVATE "-F${PYLON_FRAMEWORK_DIR}")
+            endif()
+
+            target_link_options(trex_basler_bridge PRIVATE
+                "-Wl,-framework,pylon"
+                "-Wl,-rpath,/Library/Frameworks"
+            )
+
+            if(PYLON_FRAMEWORK_DIR)
+                target_link_options(trex_basler_bridge PRIVATE
+                    "-Wl,-rpath,${PYLON_FRAMEWORK_DIR}"
+                )
+            endif()
+
+            set_target_properties(trex_basler_bridge PROPERTIES
+                OUTPUT_NAME "trex_basler_bridge"
+                PREFIX ""
+                BUILD_RPATH "/Library/Frameworks"
+                INSTALL_RPATH "/Library/Frameworks"
+            )
+        endif()
     else()
-        target_compile_definitions(framegrabber_misc PUBLIC WITH_PYLON=false)
+        message(STATUS "Basler pylon headers not found; disabling Basler support.")
+        target_compile_definitions(framegrabber_misc PUBLIC WITH_PYLON=0)
     endif()
 else()
-    target_compile_definitions(framegrabber_misc PUBLIC WITH_PYLON=false)
-endif()
-
-
-
-if(PYLON_FOUND AND WITH_PYLON)
-    message(STATUS "linking with pylon")
-    target_link_libraries( framegrabber_misc PUBLIC ${PYLON_LIBRARIES} )
-    target_include_directories(framegrabber_misc PUBLIC ${PYLON_INCLUDE_DIRS})
+    target_compile_definitions(framegrabber_misc PUBLIC WITH_PYLON=0)
 endif()

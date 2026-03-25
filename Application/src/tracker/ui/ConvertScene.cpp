@@ -5,7 +5,6 @@
 #include <misc/Path.h>
 #include <grabber/misc/Camera.h>
 #include <grabber/misc/Webcam.h>
-#include <grabber/misc/PylonCamera.h>
 #include <grabber/misc/default_config.h>
 #include <tracking/IndividualManager.h>
 #include <misc/ThreadManager.h>
@@ -502,7 +501,8 @@ void ConvertScene::activate()  {
     Print("Loading source = ", no_quotes(utils::ShortenText(source.toStr(), 1000)));
     SETTING(meta_source_path) = source.source();
     try {
-        if (source == file::PathArray("webcam"))
+        if (source == file::PathArray("webcam")
+            || source == file::PathArray("basler"))
             open_camera();
         else
             open_video();

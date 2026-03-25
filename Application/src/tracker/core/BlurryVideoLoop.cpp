@@ -5,6 +5,10 @@
 #include <core/WebcamVideoSource.h>
 #include <core/VideoVideoSource.h>
 #include <core/PVVideoSource.h>
+#if WITH_PYLON
+#include <core/BaslerVideoSource.h>
+#endif
+#include <misc/PylonCamera.h>
 
 namespace cmn {
 
@@ -53,6 +57,24 @@ void BlurryVideoLoop::preloader_thread(const ThreadGroupId& gid) {
                     _intial_resolution_promise.set_value({});
                     _intial_resolution_promise = {};
                 }
+                
+            } else if(path == file::PathArray{"basler"}) {
+#if WITH_PYLON
+                auto created = fg::PylonCamera::create();
+                if(created.has_value()) {
+                    tmp = std::unique_ptr<AbstractBaseVideoSource>(new BaslerVideoSource{std::move(*created)});
+                    _next_frame = {};
+                    _last_image_timer.reset();
+                } else {
+                    FormatWarning("[blurry] Failed to create Basler camera: ", created.error().user_message, " / ", created.error().diagnostic);
+                    _intial_resolution_promise.set_value({});
+                    _intial_resolution_promise = {};
+                }
+#else
+                FormatWarning("[blurry] Basler source requested, but WITH_PYLON is disabled in this build.");
+                _intial_resolution_promise.set_value({});
+                _intial_resolution_promise = {};
+#endif
                 
             } else if(path.empty()) {
                 // we cant do anything

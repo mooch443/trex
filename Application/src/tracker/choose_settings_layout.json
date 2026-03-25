@@ -258,6 +258,18 @@
                                             "fill":[50,90,50],
                                             "size":[120,30],
                                             "font":{"size":0.5}
+                                        },
+                                        {
+                                            "type":"condition",
+                                            "var":"{basler_support_compiled}",
+                                            "then": {
+                                                "type":"button",
+                                                "text":"<sym>⮞</sym> basler",
+                                                "click":"set:source:basler",
+                                                "fill":[50,90,50],
+                                                "size":[120,30],
+                                                "font":{"size":0.5}
+                                            }
                                         }
                                     ]
                                 ]

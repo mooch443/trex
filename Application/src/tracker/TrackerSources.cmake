@@ -1,5 +1,6 @@
 set(TREX_CORE_PUBLIC_HEADERS
     ${CMAKE_CURRENT_LIST_DIR}/core/AbstractVideoSource.h
+    ${CMAKE_CURRENT_LIST_DIR}/core/BaslerVideoSource.h
     ${CMAKE_CURRENT_LIST_DIR}/core/BackgroundTask.h
     ${CMAKE_CURRENT_LIST_DIR}/core/BlurryVideoLoop.h
     ${CMAKE_CURRENT_LIST_DIR}/core/Border.h
@@ -37,6 +38,7 @@ set(TREX_CORE_PRIVATE_HEADERS
 
 set(TREX_CORE_SOURCES
     ${CMAKE_CURRENT_LIST_DIR}/core/AbstractVideoSource.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/core/BaslerVideoSource.cpp
     ${CMAKE_CURRENT_LIST_DIR}/core/BackgroundTask.cpp
     ${CMAKE_CURRENT_LIST_DIR}/core/BlurryVideoLoop.cpp
     ${CMAKE_CURRENT_LIST_DIR}/core/Border.cpp

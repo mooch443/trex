@@ -31,6 +31,19 @@ function(trex_bundle_lazy_python target)
     endif()
 endfunction()
 
+function(trex_bundle_basler_bridge target)
+    if(APPLE AND TARGET trex_basler_bridge)
+        add_dependencies(${target} trex_basler_bridge)
+        add_custom_command(TARGET ${target} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${target}>/../Frameworks"
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "$<TARGET_FILE:trex_basler_bridge>"
+                "$<TARGET_FILE_DIR:${target}>/../Frameworks/$<TARGET_FILE_NAME:trex_basler_bridge>"
+            VERBATIM
+        )
+    endif()
+endfunction()
+
 function(trex_link_static_python_impl target)
     target_link_libraries(${target} PUBLIC trex_python_staging trex_python)
     
@@ -339,6 +352,7 @@ target_link_libraries(${TREXA_EXEC_NAME} PUBLIC
     #commons
 )
 trex_bundle_lazy_python(${TREXA_EXEC_NAME})
+trex_bundle_basler_bridge(${TREXA_EXEC_NAME})
 
 set(TREX_APP_TARGETS ${TREXA_EXEC_NAME})
 set(TREX_TOOL_TARGETS)
@@ -396,6 +410,7 @@ if(TREX_ENABLE_PROTOTYPES)
         Commons::All
     )
     trex_bundle_lazy_python(${INTERACTIVE_SEGMENTATION_EXEC_NAME})
+    trex_bundle_basler_bridge(${INTERACTIVE_SEGMENTATION_EXEC_NAME})
     list(APPEND TREX_APP_TARGETS ${INTERACTIVE_SEGMENTATION_EXEC_NAME})
 endif()
 

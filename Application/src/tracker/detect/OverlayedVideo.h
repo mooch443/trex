@@ -1,6 +1,7 @@
 #pragma once
 #include <commons.pc.h>
 #include <core/AbstractVideoSource.h>
+#include <core/BaslerVideoSource.h>
 #include <core/TileImage.h>
 #include <detect/Detection.h>
 #include <core/VideoVideoSource.h>
@@ -147,6 +148,21 @@ public:
     {
         _async_queue.notify();
     }
+
+    // Constructor for Basler camera source
+#if WITH_PYLON
+    template<typename SourceType, typename Callback>
+        requires _clean_same<SourceType, fg::PylonCamera>
+    VideoProcessor(F&& fn, SourceType&& src, Callback&& callback)
+        : BasicProcessor(std::make_unique<BaslerVideoSource>(std::move(src))),
+          _processor_fn(std::move(fn)),
+          _async_queue(10u, 5u, "ApplyProcessor", [this, callback = std::move(callback)]() {
+              return retrieve_and_process_next(callback);
+          })
+    {
+        _async_queue.notify();
+    }
+#endif
 
     // Checks if EOF has been reached for finite video sources
     bool eof() const noexcept override {

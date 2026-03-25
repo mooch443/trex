@@ -762,6 +762,13 @@ struct SettingsScene::Data {
                     VarFunc("selected_source_exists", [this](const VarProps&) -> bool {
                         return _selected_source_exists.load();
                     }),
+                    VarFunc("basler_support_compiled", [](const VarProps&) -> bool {
+#if WITH_PYLON
+                        return true;
+#else
+                        return false;
+#endif
+                    }),
                     VarFunc("settings_summary", [](const VarProps&) -> std::string {
                         static Timer last_update;
                         static std::string last_update_text;
@@ -970,7 +977,8 @@ void SettingsScene::Data::check_video_source(file::PathArray source) {
                 }
             }*/
             
-        } else if(source == file::PathArray("webcam")) {
+        } else if(source == file::PathArray("webcam")
+                  || source == file::PathArray("basler")) {
             /// should be okay
             
         } else if(source != _initial_source) {

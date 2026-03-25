@@ -85,6 +85,7 @@ namespace default_config {
         
 #if WITH_PYLON
         CONFIG("cam_serial_number", std::string(), "Serial number of a Basler camera you want to choose, if multiple are present.");
+        CONFIG("basler_runtime_root", file::Path(), "Optional explicit runtime root for Basler pylon discovery. If empty, TRex searches environment, conda, and bundled paths at use time.");
 #endif
         
 #if WITH_FFMPEG
