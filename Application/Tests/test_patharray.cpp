@@ -1303,8 +1303,3 @@ void PrintTo(const MakePathTestParams& params, std::ostream* os) {
     *os << "PathTestParams{ path: " << Meta::toStr(params.parts)
         << ", expectedStr: \"" << params.expected<< "\" }";
 }
-
-int main(int argc, char **argv) {
-    ::testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
-}

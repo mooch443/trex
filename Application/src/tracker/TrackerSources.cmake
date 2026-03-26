@@ -345,6 +345,7 @@ set(TREX_UI_MODULE_INTERFACE_UNITS
 )
 
 set(TREX_PYTHON_STAGING_PUBLIC_HEADERS
+    ${CMAKE_CURRENT_LIST_DIR}/python/BackendRegistry.h
     ${CMAKE_CURRENT_LIST_DIR}/python/ModuleProxy.h
     ${CMAKE_CURRENT_LIST_DIR}/python/PythonWrapper.h
 )
@@ -364,6 +365,7 @@ set(TREX_PYTHON_IMPL_PRIVATE_HEADERS
 )
 
 set(TREX_PYTHON_STAGING_SOURCES
+    ${CMAKE_CURRENT_LIST_DIR}/python/BackendRegistry.cpp
     ${CMAKE_CURRENT_LIST_DIR}/python/ModuleProxy.cpp
     ${CMAKE_CURRENT_LIST_DIR}/python/PythonWrapper.cpp
     ${CMAKE_CURRENT_LIST_DIR}/python/Network.cpp

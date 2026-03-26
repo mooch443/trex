@@ -26,6 +26,19 @@ PythonImplInterface& python_impl_interface_storage() {
     return iface;
 }
 
+// Holds the arguments last passed to configure_runtime so that a lazily-loaded
+// trex_python impl can receive the same settings when it registers later.
+struct StoredRuntimeConfig {
+    GlobalSettings*      settings      = nullptr;
+    file::DataLocation*  data_location = nullptr;
+    void*                instance      = nullptr;
+};
+
+StoredRuntimeConfig& stored_runtime_config() {
+    static StoredRuntimeConfig cfg;
+    return cfg;
+}
+
 std::mutex& python_impl_mutex() {
     static std::mutex mutex;
     return mutex;
@@ -196,6 +209,10 @@ void load_python_impl_library() {
     track::trex_python_register();
     guard.lock();
     if (python_impl_interface_storage().interpreter_init) {
+        auto& cfg = stored_runtime_config();
+        auto& impl = python_impl_interface_storage();
+        if (cfg.settings && impl.set_settings)
+            impl.set_settings(cfg.settings, cfg.data_location, cfg.instance);
         return;
     }
 
@@ -248,6 +265,10 @@ void load_python_impl_library() {
         register_fn();
         guard.lock();
         if (python_impl_interface_storage().interpreter_init) {
+            auto& cfg = stored_runtime_config();
+            auto& impl = python_impl_interface_storage();
+            if (cfg.settings && impl.set_settings)
+                impl.set_settings(cfg.settings, cfg.data_location, cfg.instance);
             return;
         }
 
@@ -326,6 +347,9 @@ void configure_runtime(
 ) {
     GlobalSettings::instance(settings);
     file::DataLocation::set_instance(data_location);
+
+    // Persist so lazily-loaded impls receive the same settings (see load_python_impl_library).
+    stored_runtime_config() = {settings, data_location, instance};
 
     auto& impl = active_python_impl();
     if (!impl.set_settings || !impl.set_display_function)

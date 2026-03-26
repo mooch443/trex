@@ -16,13 +16,13 @@ FetchContent_MakeAvailable(googletest)
 include_directories(../src/tracker)
 include_directories(../src/ProcessedVideo)
 
-add_executable(test_matching test_matching.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
+add_executable(test_matching test_matching.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
 target_compile_definitions(test_matching PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
 
-add_executable(test_commandline test_commandline.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
+add_executable(test_commandline test_commandline.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
 target_compile_definitions(test_commandline PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
 
-add_executable(test_strings test_strings.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
+add_executable(test_strings test_strings.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
 target_compile_definitions(test_strings PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
 
 if(WIN32)
@@ -30,28 +30,28 @@ if(WIN32)
   target_compile_options(test_strings PRIVATE /bigobj)
 endif()
 
-add_executable(test_pixels test_pixels.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
+add_executable(test_pixels test_pixels.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
 target_compile_definitions(test_pixels PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
 
-add_executable(test_patharray test_patharray.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
+add_executable(test_patharray test_patharray.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
 target_compile_definitions(test_patharray PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
 
-add_executable(test_dyngui test_dyngui.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
+add_executable(test_dyngui test_dyngui.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
 target_compile_definitions(test_dyngui PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
 
 add_executable(bench_dyngui_parser bench_dyngui_parser.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
 target_compile_definitions(bench_dyngui_parser PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
 
-add_executable(test_outlines test_outlines.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
+add_executable(test_outlines test_outlines.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
 target_compile_definitions(test_outlines PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
 
-add_executable(test_threadpool test_threadpool.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
+add_executable(test_threadpool test_threadpool.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
 target_compile_definitions(test_threadpool PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
 
-add_executable(test_tiling test_tiling.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
+add_executable(test_tiling test_tiling.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
 target_compile_definitions(test_tiling PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
 
-add_executable(test_segmenter test_segmenter.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
+add_executable(test_segmenter test_segmenter.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
 target_compile_definitions(test_segmenter PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
 
 if(COMMONS_ENABLE_MODULES AND NOT CMAKE_VERSION VERSION_LESS "3.28.0")
@@ -60,7 +60,7 @@ add_custom_target(commons_module_surface_check
     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
     COMMENT "Checking checked-in commons module inventory and smoke surface."
 )
-add_executable(test_commons_modules test_commons_modules.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
+add_executable(test_commons_modules test_commons_modules.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
 target_compile_definitions(test_commons_modules PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
 set_target_properties(test_commons_modules PROPERTIES
         CXX_STANDARD 23
@@ -76,7 +76,7 @@ add_custom_target(tracker_module_surface_check
     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
     COMMENT "Checking checked-in tracker module inventory and smoke surface."
 )
-add_executable(test_trex_modules test_trex_modules.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
+add_executable(test_trex_modules test_trex_modules.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
 target_compile_definitions(test_trex_modules PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
 set_target_properties(test_trex_modules PROPERTIES
         CXX_STANDARD 23
@@ -130,16 +130,16 @@ function(trex_enable_python_delayload target)
 endfunction()
 
 # Standard linking to gtest stuff.
-target_link_libraries(test_matching PUBLIC gtest gtest_main)
-target_link_libraries(test_commandline PUBLIC gtest gtest_main)
-target_link_libraries(test_strings PUBLIC gtest gtest_main)
-target_link_libraries(test_pixels PUBLIC gtest gtest_main)
-target_link_libraries(test_patharray PUBLIC gtest gmock gtest_main)
-target_link_libraries(test_dyngui PUBLIC gtest gmock gtest_main)
-target_link_libraries(test_outlines PUBLIC gtest gmock gtest_main)
-target_link_libraries(test_threadpool PUBLIC gtest gtest_main)
-target_link_libraries(test_tiling PUBLIC gtest gmock gtest_main)
-target_link_libraries(test_segmenter PUBLIC gtest gtest_main)
+target_link_libraries(test_matching PUBLIC gtest)
+target_link_libraries(test_commandline PUBLIC gtest)
+target_link_libraries(test_strings PUBLIC gtest)
+target_link_libraries(test_pixels PUBLIC gtest)
+target_link_libraries(test_patharray PUBLIC gtest gmock)
+target_link_libraries(test_dyngui PUBLIC gtest gmock)
+target_link_libraries(test_outlines PUBLIC gtest gmock)
+target_link_libraries(test_threadpool PUBLIC gtest)
+target_link_libraries(test_tiling PUBLIC gtest gmock)
+target_link_libraries(test_segmenter PUBLIC gtest)
 
 # Extra linking for the project.
 target_link_libraries(test_matching PUBLIC
@@ -213,7 +213,6 @@ trex_link_static_python_impl(test_segmenter)
 if(COMMONS_ENABLE_MODULES AND NOT CMAKE_VERSION VERSION_LESS "3.28.0")
 target_link_libraries(test_commons_modules PUBLIC
     gtest
-    gtest_main
     commons
 )
 endif()
@@ -221,7 +220,6 @@ endif()
 if(TREX_ENABLE_MODULES AND NOT CMAKE_VERSION VERSION_LESS "3.28.0")
 target_link_libraries(test_trex_modules PUBLIC
         gtest
-        gtest_main
         trex_ui
         trex_ml
         trex_tracking

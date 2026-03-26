@@ -146,6 +146,8 @@ int main(int argc, char** argv) {
         Print("OS_ACTIVITY_DT_MODE: ", OS_ACTIVITY_DT_MODE);
     }
 #endif
+    file::DataLocation::create();
+    GlobalSettings::create();
     ::default_config::register_default_locations();
 
     if(argc < 2)

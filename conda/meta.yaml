@@ -55,6 +55,7 @@ build:
         - {{ pin_compatible('libstdcxx-ng', min_pin='x.x.x', max_pin='x.x.x') }} # [linux]
     ignore_run_exports:
         - {{ pin_compatible('libstdcxx-ng', min_pin='x.x.x', max_pin='x.x.x') }} # [linux]
+        - numpy # [win]
     detect_binary_files_with_prefix: False # [win]
     detect_binary_files_with_prefix: True # [not win]
     files_with_prefix:
@@ -117,10 +118,10 @@ requirements:
     - {{ pin_compatible('python', min_pin='x.x', max_pin='x.x') }}
     - {{ pin_compatible('ffmpeg', min_pin='x.x', max_pin='x.x') }}
     - {{ pin_compatible('openh264', min_pin='x.x', max_pin='x.x') }} # [osx]
-    - {{ pin_compatible('numpy', min_pin='x.x', max_pin='x.x') }}
+    - {{ pin_compatible('numpy', min_pin='x.x', max_pin='x.x') }} # [not win]
     - {{ pin_compatible('openblas', min_pin='x.x', max_pin='x.x') }} # [arm64]
     - {{ pin_compatible('icu', min_pin='x.x', max_pin='x.x') }}
-    - scikit-learn
+    - scikit-learn # [not win]
     - pip
     - requests
     - psutil

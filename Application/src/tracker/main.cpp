@@ -697,8 +697,10 @@ int main(int argc, char**argv) {
 #ifdef WIN32
     SetConsoleOutputCP( 65001 );
 #endif
+    file::DataLocation::create();
+    GlobalSettings::create();
     default_config::register_default_locations();
-    
+
     GlobalSettings::write([](Configuration& config){
         grab::default_config::get(config);
         ::default_config::get(config);

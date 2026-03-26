@@ -38,6 +38,8 @@ static void (*windowsEarlyEnvSetup)(void) = []() {
 using namespace cmn;
 
 int main(int argc, char** argv) {
+    file::DataLocation::create();
+    GlobalSettings::create();
     GlobalSettings::write([](Configuration& config){
         default_config::get(config);
     });

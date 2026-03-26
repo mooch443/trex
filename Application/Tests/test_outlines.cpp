@@ -93,9 +93,3 @@ TEST(OutlineResampleTest, SinglePointOutline) {
     std::vector<Vec2> expectedPoints = {{0, 0}};
     ASSERT_TRUE(compareOutlines(outline.points(), expectedPoints));
 }
-
-
-int main(int argc, char **argv) {
-    ::testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
-}

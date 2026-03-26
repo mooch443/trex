@@ -14,22 +14,25 @@ struct LocalSettings {
     std::atomic<Settings::cm_per_pixel_t> cm_per_pixel;
 };
 
-static const auto local_settings = []() -> std::unique_ptr<LocalSettings> {
-    auto ptr = std::make_unique<LocalSettings>();
-    GlobalSettings::register_callbacks({
-        "frame_rate",
-        "track_enforce_frame_rate",
-        "cm_per_pixel"
-    }, [ptr = ptr.get()](auto name) {
-        if(name == "frame_rate")
-            ptr->frame_rate = READ_SETTING(frame_rate, Settings::frame_rate_t);
-        else if(name == "cm_per_pixel")
-            ptr->cm_per_pixel = READ_SETTING(cm_per_pixel, Settings::cm_per_pixel_t);
-        else
-            ptr->track_enforce_frame_rate = READ_SETTING(track_enforce_frame_rate, Settings::track_enforce_frame_rate_t);
-    });
-    return ptr;
-}();
+std::unique_ptr<LocalSettings>& local_settings() {
+    static auto settings = []() {
+		auto ptr = std::make_unique<LocalSettings>();
+        GlobalSettings::register_callbacks({
+            "frame_rate",
+            "track_enforce_frame_rate",
+            "cm_per_pixel"
+        }, [ptr = ptr.get()](auto name) {
+            if (name == "frame_rate")
+                ptr->frame_rate = READ_SETTING(frame_rate, Settings::frame_rate_t);
+            else if (name == "cm_per_pixel")
+                ptr->cm_per_pixel = READ_SETTING(cm_per_pixel, Settings::cm_per_pixel_t);
+            else
+                ptr->track_enforce_frame_rate = READ_SETTING(track_enforce_frame_rate, Settings::track_enforce_frame_rate_t);
+        });
+        return ptr;
+    }();
+    return settings;
+};
 
 template<class T, class U>
 typename std::vector<T>::const_iterator find_in_sorted(const std::vector<T>& vector, const U& v) {
@@ -55,7 +58,7 @@ struct CompareByFrame {
 }
 
 #define LOCAL_SETTING(NAME) []() -> Settings:: NAME ## _t { \
-    return local_settings -> NAME .load(); \
+    return local_settings() -> NAME .load(); \
 }()
 
 CacheHints::CacheHints(size_t size) {

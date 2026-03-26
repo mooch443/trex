@@ -882,20 +882,6 @@ TEST(TestValidModels, Invalid) {
     ASSERT_FALSE(yolo::valid_model("yolo8x-pose.pt", mockfs));
 }
 
-static auto _ = [](){
-    Print("Initializing global maps.");
-    
-    GlobalSettings::write([&](Configuration& config) {
-        default_config::get(config);
-    });
-    Settings::init();
-    
-    for(auto name : Settings::names()) {
-        Settings::variable_changed(sprite::Map::Signal::NONE, name, GlobalSettings::get(name).get());
-    }
-    
-    return 0;
-}();
 
 TEST(TestLocalSettings, Init) {
     using RB_t = RBSettings<true, true>;

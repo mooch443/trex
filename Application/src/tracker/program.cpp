@@ -2,6 +2,7 @@
 #include <gui/IMGUIBase.h>
 #include <gui/DrawStructure.h>
 #include <misc/GlobalSettings.h>
+#include <file/DataLocation.h>
 #include <gui/types/Button.h>
 #include <gui/types/Checkbox.h>
 #include <misc/Timer.h>
@@ -14,7 +15,8 @@
 int main() {
     using namespace cmn;
     using namespace cmn::gui;
-    
+    file::DataLocation::create();
+    GlobalSettings::create();
     SETTING(terminate) = false;
     
     Image image(300, 300, 1);
