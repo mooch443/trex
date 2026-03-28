@@ -228,8 +228,9 @@ Segmenter::~Segmenter() {
     if(_undistort_callbacks)
         GlobalSettings::unregister_callbacks(std::move(_undistort_callbacks));
     
-    Detection::manager().set_weight_limit(1);
-    
+    if(auto* mgr = detect::try_current_pipeline_manager())
+        mgr->set_weight_limit(1);
+
     /// 1. step: stop generating new frames
     _generating_step.terminate_wait_blocking(_writing_step);
     _generating_step = {};

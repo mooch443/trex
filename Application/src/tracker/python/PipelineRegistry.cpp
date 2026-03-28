@@ -47,11 +47,26 @@ PipelineManager<TileImage>& pipeline_manager(ObjectDetectionType::Class type) {
     return *it->second.manager;
 }
 
+PipelineManager<TileImage>* try_pipeline_manager(ObjectDetectionType::Class type) {
+    auto& reg = pipeline_registry();
+    auto it = reg.find(type);
+    if(it == reg.end() || not it->second.manager)
+        return nullptr;
+    return it->second.manager.get();
+}
+
 PipelineManager<TileImage>& current_pipeline_manager() {
     auto type = detection_type();
     if(!type)
         throw U_EXCEPTION("No detection type set when calling current_pipeline_manager().");
     return pipeline_manager(*type);
+}
+
+PipelineManager<TileImage>* try_current_pipeline_manager() {
+    auto type = detection_type();
+    if(!type)
+        return nullptr;
+    return try_pipeline_manager(*type);
 }
 
 } // namespace track::detect

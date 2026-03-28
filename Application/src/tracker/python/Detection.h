@@ -24,8 +24,9 @@ template<typename T>
 concept ObjectDetection = MultiObjectDetection<T> || SingleObjectDetection<T>;
 
 struct TREX_EXPORT Detection {
-    Detection();
+    Detection() { init(); }
 
+    static void init();
     static std::future<SegmentationData> apply(TileImage&& tiled);
     static void deinit();
     static bool is_initializing();

@@ -12,7 +12,7 @@ namespace track {
 
 using namespace detect;
 
-Detection::Detection() {
+void Detection::init() {
     auto type = detection_type();
     if(!type)
         return;
@@ -58,18 +58,20 @@ Detection::Detection() {
 
 void Detection::deinit() {
     const auto type = detection_type();
+    auto* mgr = type ? detect::try_pipeline_manager(*type) : nullptr;
+
     if(type == ObjectDetectionType::background_subtraction) {
-        manager().clean_up();
+        if(mgr) mgr->clean_up();
         BackgroundSubtraction::deinit();
         return;
     }
     if(type == ObjectDetectionType::precomputed) {
-        manager().clean_up();
+        if(mgr) mgr->clean_up();
         PrecomputedDetection::deinit();
         return;
     }
     if(type == ObjectDetectionType::none) {
-        manager().clean_up();
+        if(mgr) mgr->clean_up();
         detect::unregister_pipeline(detect::ObjectDetectionType::none);
         return;
     }
@@ -83,9 +85,7 @@ void Detection::deinit() {
     }
 
     // Fallback: type has no deinit hook; clean up its pipeline if registered.
-    if(type) {
-        try { manager().clean_up(); } catch(...) {}
-    }
+    if(mgr) mgr->clean_up();
 }
 
 bool Detection::is_initializing() {

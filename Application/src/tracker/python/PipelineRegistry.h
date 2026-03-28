@@ -21,7 +21,13 @@ TREX_EXPORT void unregister_pipeline(ObjectDetectionType::Class type);
 /// Retrieve the manager for the given type. Throws if not registered.
 TREX_EXPORT PipelineManager<TileImage>& pipeline_manager(ObjectDetectionType::Class type);
 
+/// Retrieve the manager for the given type, or nullptr if not registered.
+TREX_EXPORT PipelineManager<TileImage>* try_pipeline_manager(ObjectDetectionType::Class type);
+
 /// Retrieve the manager for the current detection_type(). Throws if not set or not registered.
 TREX_EXPORT PipelineManager<TileImage>& current_pipeline_manager();
+
+/// Retrieve the manager for the current detection_type(), or nullptr if not set or not registered.
+TREX_EXPORT PipelineManager<TileImage>* try_current_pipeline_manager();
 
 } // namespace track::detect
