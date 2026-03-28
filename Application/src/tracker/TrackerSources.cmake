@@ -12,8 +12,8 @@ set(TREX_CORE_PUBLIC_HEADERS
     ${CMAKE_CURRENT_LIST_DIR}/core/Identity.h
     ${CMAKE_CURRENT_LIST_DIR}/core/idx_t.h
     ${CMAKE_CURRENT_LIST_DIR}/core/indicators.h
+    ${CMAKE_CURRENT_LIST_DIR}/core/GPURecognitionTypes.h
     ${CMAKE_CURRENT_LIST_DIR}/core/NetworkStats.h
-    ${CMAKE_CURRENT_LIST_DIR}/core/PrecomuptedDetection.h
     ${CMAKE_CURRENT_LIST_DIR}/core/PVVideoSource.h
     ${CMAKE_CURRENT_LIST_DIR}/core/RepeatedDeferral.h
     ${CMAKE_CURRENT_LIST_DIR}/core/SizeFilters.h
@@ -48,8 +48,8 @@ set(TREX_CORE_SOURCES
     ${CMAKE_CURRENT_LIST_DIR}/core/IdentifiedTag.cpp
     ${CMAKE_CURRENT_LIST_DIR}/core/Identity.cpp
     ${CMAKE_CURRENT_LIST_DIR}/core/idx_t.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/core/GPURecognitionTypes.cpp
     ${CMAKE_CURRENT_LIST_DIR}/core/NetworkStats.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/core/PrecomuptedDetection.cpp
     ${CMAKE_CURRENT_LIST_DIR}/core/PVVideoSource.cpp
     ${CMAKE_CURRENT_LIST_DIR}/core/RepeatedDeferral.cpp
     ${CMAKE_CURRENT_LIST_DIR}/core/SettingsPaths.cpp
@@ -76,24 +76,6 @@ set(TREX_DATA_PRIVATE_HEADERS
 
 set(TREX_DATA_SOURCES
     ${CMAKE_CURRENT_LIST_DIR}/data/MotionRecord.cpp
-)
-
-set(TREX_DETECT_PUBLIC_HEADERS
-    ${CMAKE_CURRENT_LIST_DIR}/detect/BackgroundSubtraction.h
-    ${CMAKE_CURRENT_LIST_DIR}/detect/Detection.h
-    ${CMAKE_CURRENT_LIST_DIR}/detect/GPURecognitionTypes.h
-    ${CMAKE_CURRENT_LIST_DIR}/detect/NoDetection.h
-    ${CMAKE_CURRENT_LIST_DIR}/detect/OverlayedVideo.h
-)
-
-set(TREX_DETECT_PRIVATE_HEADERS
-)
-
-set(TREX_DETECT_SOURCES
-    ${CMAKE_CURRENT_LIST_DIR}/detect/BackgroundSubtraction.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/detect/Detection.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/detect/GPURecognitionTypes.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/detect/NoDetection.cpp
 )
 
 set(TREX_TRACKING_PUBLIC_HEADERS
@@ -225,7 +207,6 @@ set(TREX_UI_PUBLIC_HEADERS
     ${CMAKE_CURRENT_LIST_DIR}/ui/LabelWrapper.h
     ${CMAKE_CURRENT_LIST_DIR}/ui/LoadingScene.h
     ${CMAKE_CURRENT_LIST_DIR}/ui/MouseDock.h
-    ${CMAKE_CURRENT_LIST_DIR}/ui/Overlay.h
     ${CMAKE_CURRENT_LIST_DIR}/ui/PreviewAdapterElement.h
     ${CMAKE_CURRENT_LIST_DIR}/ui/RecognitionSummary.h
     ${CMAKE_CURRENT_LIST_DIR}/ui/RecentItems.h
@@ -293,7 +274,6 @@ set(TREX_UI_SOURCES
     ${CMAKE_CURRENT_LIST_DIR}/ui/LabelWrapper.cpp
     ${CMAKE_CURRENT_LIST_DIR}/ui/LoadingScene.cpp
     ${CMAKE_CURRENT_LIST_DIR}/ui/MouseDock.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/ui/Overlay.cpp
     ${CMAKE_CURRENT_LIST_DIR}/ui/PreviewAdapterElement.cpp
     ${CMAKE_CURRENT_LIST_DIR}/ui/RecognitionSummary.cpp
     ${CMAKE_CURRENT_LIST_DIR}/ui/RecentItems.cpp
@@ -327,10 +307,6 @@ set(TREX_DATA_MODULE_INTERFACE_UNITS
     ${CMAKE_CURRENT_LIST_DIR}/modules/trex.data.cppm
 )
 
-set(TREX_DETECT_MODULE_INTERFACE_UNITS
-    ${CMAKE_CURRENT_LIST_DIR}/modules/trex.detect.cppm
-)
-
 set(TREX_TRACKING_MODULE_INTERFACE_UNITS
     ${CMAKE_CURRENT_LIST_DIR}/modules/trex.tracking.cppm
 )
@@ -346,7 +322,13 @@ set(TREX_UI_MODULE_INTERFACE_UNITS
 
 set(TREX_PYTHON_STAGING_PUBLIC_HEADERS
     ${CMAKE_CURRENT_LIST_DIR}/python/BackendRegistry.h
+    ${CMAKE_CURRENT_LIST_DIR}/python/BackgroundSubtraction.h
+    ${CMAKE_CURRENT_LIST_DIR}/python/Detection.h
     ${CMAKE_CURRENT_LIST_DIR}/python/ModuleProxy.h
+    ${CMAKE_CURRENT_LIST_DIR}/python/NoDetection.h
+    ${CMAKE_CURRENT_LIST_DIR}/python/OverlayedVideo.h
+    ${CMAKE_CURRENT_LIST_DIR}/python/PipelineRegistry.h
+    ${CMAKE_CURRENT_LIST_DIR}/python/PrecomuptedDetection.h
     ${CMAKE_CURRENT_LIST_DIR}/python/PythonWrapper.h
 )
 
@@ -366,7 +348,12 @@ set(TREX_PYTHON_IMPL_PRIVATE_HEADERS
 
 set(TREX_PYTHON_STAGING_SOURCES
     ${CMAKE_CURRENT_LIST_DIR}/python/BackendRegistry.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/python/BackgroundSubtraction.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/python/Detection.cpp
     ${CMAKE_CURRENT_LIST_DIR}/python/ModuleProxy.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/python/NoDetection.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/python/PipelineRegistry.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/python/PrecomuptedDetection.cpp
     ${CMAKE_CURRENT_LIST_DIR}/python/PythonWrapper.cpp
     ${CMAKE_CURRENT_LIST_DIR}/python/Network.cpp
 )

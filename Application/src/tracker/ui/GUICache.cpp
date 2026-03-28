@@ -37,11 +37,12 @@ std::unique_ptr<PPFrame> GUICache::PPFrameMaker::operator()() const {
         return cache() != nullptr;
     }
 
-    GUICache::GUICache(DrawStructure* graph, std::weak_ptr<pv::File> video)
+    GUICache::GUICache(DrawStructure* graph, std::weak_ptr<pv::File> video, std::shared_ptr<TimingStatsCollector> timing_stats)
         : _pool(saturate(cmn::hardware_concurrency(), 1u, 5u), "GUICache::_pool"),
             _current_processed_frame(std::make_unique<PPFrame>()),
             _video(video), _graph(graph),
-            _preloader([this](Frame_t frameIndex) -> FramePtr {
+            _timing_stats(std::move(timing_stats)),
+            _preloader(_timing_stats, [this](Frame_t frameIndex) -> FramePtr {
                 FramePtr ptr;
                 auto video = _video.lock();
                 if(not video)
@@ -499,10 +500,10 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
         if(not guard.locked())
             return {};
         
-        auto stats = TimingStatsCollector::getInstance();
-        auto handle = stats->startEvent(TimingMetric_t::FrameRender, frameIndex);
-        
-        TimingStatsCollector::HandleGuard _handleguard(stats, handle);
+        std::optional<TimingStatsCollector::HandleGuard> handle_guard;
+        if (_timing_stats) {
+            handle_guard.emplace(_timing_stats, _timing_stats->startEvent(TimingMetric_t::FrameRender, frameIndex));
+        }
         
         auto& _tracker = *Tracker::instance();
         frame_idx = frameIndex;

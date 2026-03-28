@@ -23,6 +23,7 @@ class Label : public Entangled {
     GETTER(Frame_t, frame);
     GETTER_I(bool, position_override, false);
     GETTER_SETTER(Vec2, override_position);
+    GETTER(Float2_t, last_distance){0_F};
     
     bool _initialized{false};
     

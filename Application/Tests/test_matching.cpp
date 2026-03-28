@@ -11,7 +11,7 @@
 #include <misc/Image.h>
 #include <core/DetectionTypes.h>
 #include <misc/RBSettings.h>
-#include <core/PrecomuptedDetection.h>
+#include <python/PrecomuptedDetection.h>
 #include <tracking/SplitBlob.h>
 #include <tracking/HistorySplit.h>
 #include <grabber/misc/default_config.h>

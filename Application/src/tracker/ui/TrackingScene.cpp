@@ -57,6 +57,8 @@ namespace cmn::gui {
 std::atomic<bool> _load_requested{false};
 
 struct TrackingScene::Data {
+    std::shared_ptr<TimingStatsCollector> _timing_stats{std::make_shared<TimingStatsCollector>()};
+    ImageGeneratorRegistry _image_generators;
     std::unique_ptr<GUICache> _cache;
     std::unique_ptr<DrawDataset> _dataset;
     std::unique_ptr<DrawExportOptions> _export_options;
@@ -246,7 +248,7 @@ TrackingScene::Data::Data(Image::Ptr&& average, pv::File& video)
         average = std::move(rgba);
     }
     
-    _background = std::make_unique<AnimatedBackground>(std::move(average), &video);
+    _background = std::make_unique<AnimatedBackground>(std::move(average), &video, _timing_stats);
     
     _background->add_event_handler(EventType::MBUTTON, [this](Event e){
         if(e.mbutton.pressed && e.mbutton.started_here) {
@@ -608,7 +610,7 @@ bool TrackingScene::on_global_event(Event event) {
 
 void TrackingScene::settings_callback(std::string_view key) {
     /*if(key == "gui_frame") {
-        auto stats = TimingStatsCollector::getInstance();
+        auto stats = _data->_timing_stats;
         _data->_waiting_handle = std::make_unique<TimingStatsCollector::HandleGuard>(stats, stats->startEvent(TimingMetric_t::FrameWaiting, READ_SETTING(gui_frame, Frame_t)));
     }*/
     if(key == "gui_foi_name") {
@@ -1169,7 +1171,7 @@ void TrackingScene::_draw(DrawStructure& graph) {
     auto coords = FindCoord::get();
     
     if(not _data->_cache) {
-        _data->_cache = std::make_unique<GUICache>(&graph, _state->video);
+        _data->_cache = std::make_unique<GUICache>(&graph, _state->video, _data->_timing_stats);
         _data->_bowl = std::make_unique<Bowl>(_data->_cache.get());
         _data->_bowl->set_video_aspect_ratio(_state->video->size().width, _state->video->size().height);
         _data->_bowl->fit_to_screen(coords.screen_size());
@@ -1223,7 +1225,7 @@ void TrackingScene::_draw(DrawStructure& graph) {
                 SETTING(gui_displayed_frame) = loaded;
                 
                 _data->_waiting_handle = nullptr;
-                auto stats = TimingStatsCollector::getInstance();
+                auto stats = _data->_timing_stats;
                 _data->_display_handle = std::make_unique<TimingStatsCollector::HandleGuard>(stats, stats->startEvent(TimingMetric_t::FrameDisplay, loaded));
                 
                 if(_data->_manually_requested_frame.valid()) {
@@ -2250,11 +2252,11 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
     );
     
     g.context.custom_elements["timingstats"] = std::unique_ptr<TimingStatsElement>{
-        new TimingStatsElement(TimingStatsCollector::getInstance())
+        new TimingStatsElement(_data->_timing_stats)
     };
     
     g.context.custom_elements["image_generator"] = std::unique_ptr<CustomElement>(
-        new ImageDisplayElement(&ImageGeneratorRegistry::instance())
+        new ImageDisplayElement(&_data->_image_generators)
     );
     
     g.context.custom_elements["graph"] = std::unique_ptr<CustomElement>(
@@ -2263,7 +2265,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
         }
     );
     
-    ImageGeneratorRegistry::instance().register_generator("fois",
+    _data->_image_generators.register_generator("fois",
       ImageGeneratorRegistry::Generator {
         .generate = [this](auto&) -> Image::Ptr
         {

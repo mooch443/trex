@@ -1,4 +1,5 @@
 #include "BackgroundSubtraction.h"
+#include <python/PipelineRegistry.h>
 #include <misc/Timer.h>
 #include <processing/RawProcessing.h>
 #include <processing/CPULabeling.h>
@@ -43,38 +44,42 @@ struct BackgroundSubtraction::Data {
     }
 };
 
-PipelineManager<TileImage, true>& BackgroundSubtraction::manager() {
-    static auto instance = PipelineManager<TileImage, true>(1u, [](std::vector<TileImage>&& images)
-    {
-        /// in background subtraction case, we have to wait until the background
-        /// image has been generated and hang in the meantime.
-        auto start_time = std::chrono::steady_clock::now();
-        auto message_time = start_time;
-        while(not data().has_background()
-              && not manager().is_terminated())
-        {
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-
-            auto elapsed = std::chrono::steady_clock::now() - message_time;
-            if(std::chrono::duration_cast<std::chrono::seconds>(elapsed).count() > 30) {
-                FormatExcept("Background image not set in ",
-                             std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - start_time).count(),
-                             " seconds. Waiting for background image...");
-                message_time = std::chrono::steady_clock::now();
-            }
-        }
-        
-        if(not manager().is_terminated()) {
-            if(images.empty())
-                FormatExcept("Images is empty :(");
-            
-            BackgroundSubtraction::apply(std::move(images));
-        }
-    });
-    return instance;
+static PipelineManager<TileImage>& manager() {
+    return detect::pipeline_manager(detect::ObjectDetectionType::background_subtraction);
 }
 
 BackgroundSubtraction::BackgroundSubtraction(Image::Ptr&& average) {
+    detect::register_pipeline(
+        detect::ObjectDetectionType::background_subtraction,
+        1u,
+        /*start_paused=*/true,
+        [](std::vector<TileImage>&& images)
+        {
+            /// Wait until the background image has been generated.
+            auto start_time = std::chrono::steady_clock::now();
+            auto message_time = start_time;
+            while(not data().has_background()
+                  && not manager().is_terminated())
+            {
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+                auto elapsed = std::chrono::steady_clock::now() - message_time;
+                if(std::chrono::duration_cast<std::chrono::seconds>(elapsed).count() > 30) {
+                    FormatExcept("Background image not set in ",
+                                 std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - start_time).count(),
+                                 " seconds. Waiting for background image...");
+                    message_time = std::chrono::steady_clock::now();
+                }
+            }
+
+            if(not manager().is_terminated()) {
+                if(images.empty())
+                    FormatExcept("Images is empty :(");
+
+                BackgroundSubtraction::apply(std::move(images));
+            }
+        });
+
     data().set(std::move(average));
 }
 
@@ -111,6 +116,7 @@ std::future<SegmentationData> BackgroundSubtraction::apply(TileImage &&tiled) {
 }
 
 void BackgroundSubtraction::deinit() {
+    detect::unregister_pipeline(detect::ObjectDetectionType::background_subtraction);
 }
 
 double BackgroundSubtraction::fps() {

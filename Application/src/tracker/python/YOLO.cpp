@@ -6,6 +6,7 @@
 #include <misc/Timer.h>
 #include <misc/ThreadPool.h>
 #include <core/TrackingSettings.h>
+#include <python/PipelineRegistry.h>
 #include <python/GPURecognition.h>
 #include <gui/GuiTypes.h>
 
@@ -171,15 +172,10 @@ YOLO::Data& YOLO::data() {
     return _data;
 }
 
-PipelineManager<TileImage, true>& YOLO::manager()
-{
-    return Detection::manager();
-}
-
 void YOLO::set_background(const Image::Ptr &image) {
     data().set_background(image);
     if(data().has_background())
-        Detection::manager().set_paused(false);
+        detect::pipeline_manager(detect::ObjectDetectionType::yolo).set_paused(false);
 }
 
 void YOLO::reinit(ModuleProxy& proxy) {
@@ -264,14 +260,26 @@ void YOLO::init() {
     bool expected = false;
     if(yolo_initialized.compare_exchange_strong(expected, true)) {
         data().reset();
-        
+
         _network_fps = _network_samples = 0;
         _pool = std::make_unique<GenericThreadPool>(3, "Yolo");
+
+        detect::register_pipeline(
+            detect::ObjectDetectionType::yolo,
+            max(1u, READ_SETTING(detect_batch_size, uchar)),
+            /*start_paused=*/true,
+            [](std::vector<TileImage>&& images) {
+#ifndef NDEBUG
+                if(images.empty())
+                    FormatExcept("Images is empty :(");
+#endif
+                YOLO::apply(std::move(images));
+            });
 
         std::unique_lock guard(init_mutex);
         if(init_future.valid())
             init_future.get();
-        
+
         Python::schedule([](){
             ModuleProxy proxy{
                 ThrowAlways{},
@@ -279,9 +287,9 @@ void YOLO::init() {
                 YOLO::reinit
             };
         }).get();
-        
+
         if(data().has_background())
-            Detection::manager().set_paused(false);
+            detect::pipeline_manager(detect::ObjectDetectionType::yolo).set_paused(false);
         
         //! this will block everything + the GUI
         //! unfortunately currently this is the lazy solution
@@ -322,6 +330,8 @@ void YOLO::deinit() {
         }).get();
         
         data().reset();
+        detect::pipeline_manager(detect::ObjectDetectionType::yolo).clean_up();
+        detect::unregister_pipeline(detect::ObjectDetectionType::yolo);
     }
 }
 

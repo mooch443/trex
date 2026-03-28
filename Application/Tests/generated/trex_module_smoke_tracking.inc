@@ -85,10 +85,6 @@ using ::track::image::calculate_normalized_image;
 }
 
 // tracking/EventAnalysis.h
-namespace trex_module_smoke::trex_tracking::track {
-using ::track::Individual;
-}
-
 namespace trex_module_smoke::trex_tracking::track::EventAnalysis {
 using ::track::EventAnalysis::Event;
 using ::track::EventAnalysis::EventMap;
@@ -115,7 +111,6 @@ using ::track::kuhn_match;
 
 // tracking/IndividualManager.h
 namespace trex_module_smoke::trex_tracking::track {
-using ::track::Individual;
 using ::track::IndividualManager;
 }
 
@@ -141,15 +136,10 @@ using ::cmn::gui::Graph;
 
 // tracking/OutputLibraryTypes.h
 namespace trex_module_smoke::trex_tracking::track {
-using ::track::Individual;
 using ::track::MotionRecord;
 }
 
 // tracking/PairingGraph.h
-namespace trex_module_smoke::trex_tracking::track {
-using ::track::Individual;
-}
-
 namespace trex_module_smoke::trex_tracking::track::Match {
 using ::track::Match::PairedProbabilities;
 using ::track::Match::PairingGraph;
@@ -164,20 +154,9 @@ namespace trex_module_smoke::trex_tracking::cmn {
 using ::cmn::GenericThreadPool;
 }
 
-namespace trex_module_smoke::trex_tracking::track {
-using ::track::PPFrame;
-}
-
 // tracking/PrefilterBlobs.h
-namespace trex_module_smoke::trex_tracking::cmn {
-using ::cmn::Background;
-using ::cmn::GenericThreadPool;
-}
-
 namespace trex_module_smoke::trex_tracking::track {
-using ::track::BlobReceiver;
 using ::track::FilterReason;
-using ::track::PPFrame;
 using ::track::PrefilterBlobs;
 using ::track::split_expectation;
 }
@@ -207,6 +186,5 @@ using ::track::split::Action::Class;
 // tracking/Stuffs.h
 namespace trex_module_smoke::trex_tracking::track {
 using ::track::BasicStuff;
-using ::track::PostureStuff;
 using ::track::can_use_visual_identification;
 }

@@ -7,7 +7,7 @@
 #include <core/default_config.h>
 #include <grabber/misc/default_config.h>
 #include <python/YOLO.h>
-#include <detect/OverlayedVideo.h>
+#include <python/OverlayedVideo.h>
 #include <python/PythonWrapper.h>
 #include <file/DataLocation.h>
 

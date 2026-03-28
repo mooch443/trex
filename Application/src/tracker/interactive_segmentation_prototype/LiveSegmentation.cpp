@@ -7,7 +7,7 @@
 #include <gui/DrawStructure.h>
 #include <video/VideoSource.h>
 #include <processing/encoding.h>
-#include <detect/Detection.h>
+#include <python/Detection.h>
 #include <python/PythonWrapper.h>
 #include <ui/ImageDisplayElement.h>
 #include <ui/LabelElement.h>
@@ -345,7 +345,7 @@ void LiveSegmentation::_draw(DrawStructure& graph) {
                     new LabelElement(&_data->unassigned_labels, &_data->labels, &_data->dt)
                 );
                 context.custom_elements["image_generator"] = std::unique_ptr<CustomElement>(
-                    new ImageDisplayElement(&ImageGeneratorRegistry::instance())
+                    new ImageDisplayElement(&_image_generators)
                 );
                 
                 ImageGeneratorRegistry::Generator generator{
@@ -387,7 +387,7 @@ void LiveSegmentation::_draw(DrawStructure& graph) {
                         }
                     }
                 };
-                ImageGeneratorRegistry::instance().register_generator("blob_image", std::move(generator));
+                _image_generators.register_generator("blob_image", std::move(generator));
                 return context;
             }(),
             .base = window()
@@ -405,7 +405,7 @@ void LiveSegmentation::_draw(DrawStructure& graph) {
             _current_data = std::move(_next_data);
             _next_data.reset();
             _next_frame.reset();
-            ImageGeneratorRegistry::instance().reset_generator("blob_image");
+            _image_generators.reset_generator("blob_image");
         }
         _condition.notify_one();
     }

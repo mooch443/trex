@@ -1,7 +1,7 @@
 #pragma once
 
-#include <detect/Detection.h>
-#include <detect/GPURecognitionTypes.h>
+#include <python/Detection.h>
+#include <core/GPURecognitionTypes.h>
 #include <python/ModuleProxy.h>
 #include <core/SizeFilters.h>
 #include <processing/DLList.h>
@@ -29,7 +29,6 @@ struct TREX_EXPORT YOLO {
     static bool is_initializing();
     static double fps();
     
-    static PipelineManager<TileImage, true>& manager();
     
 private:
     struct TransferData;

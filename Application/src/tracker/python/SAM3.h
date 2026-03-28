@@ -25,7 +25,6 @@ struct TREX_EXPORT SAM3 {
     static bool is_initializing();
     static double fps();
 
-    static PipelineManager<TileImage, false>& manager();
     
 private:
     static void apply(std::vector<TileImage>&& tiled);

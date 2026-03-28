@@ -194,7 +194,8 @@ float Label::update(const FindCoord& coord, float alpha, float, bool disabled, d
     else
         _text->set_text_color(White);
 
-    return update_positions(text_pos, _initialized && dis <= 0.2, dt);
+    _last_distance = update_positions(text_pos, _initialized && dis <= 0.2, dt);
+    return _last_distance;
 }
 
 void Label::set_uninitialized() {
@@ -203,6 +204,15 @@ void Label::set_uninitialized() {
 
 float Label::update_positions(Vec2 text_pos, bool do_animate, double dt) {
     _initialized = true;
+    
+    auto global = global_transform().getInverse();
+    auto viewport = global.transformRect(FindCoord::get().viewport());
+    
+    if(auto final_bottom_right = text_pos + (Vec2(1) - _text->origin()).mul(_text->size());
+       final_bottom_right.x + viewport.x >= viewport.width)
+    {
+        Print("* ", _text->text(), " => ", final_bottom_right, " vs. screen at ", viewport);
+    }
     
     if (not do_animate) {
         _text->set_pos(text_pos);

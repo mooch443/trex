@@ -18,6 +18,7 @@ static void (*windowsEarlyEnvSetup)(void) = []() {
 #endif
 
 #include <misc/CommandLine.h>
+#include <gui/Dispatcher.h>
 #include <python/PythonWrapper.h>
 #include <tracking/Tracker.h>
 #include <ui/Segmenter.h>
@@ -40,6 +41,10 @@ using namespace cmn;
 int main(int argc, char** argv) {
     file::DataLocation::create();
     GlobalSettings::create();
+#if COMMONS_DISPATCHER_REQUIRE_EXPLICIT_INSTANCE
+    static gui::attr::Dispatcher dispatcher;
+    gui::SceneManager::install_dispatcher_instance(&dispatcher);
+#endif
     GlobalSettings::write([](Configuration& config){
         default_config::get(config);
     });

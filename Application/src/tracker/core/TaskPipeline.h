@@ -269,17 +269,17 @@ public:
     }
 };
 
-template<typename Data, bool init_paused = false>
+template<typename Data>
 class PipelineManager : public BasicManager<Data> {
     bool _paused{false};
     std::mutex _pause_mutex;
     PersistentCondition _pause_variable;
-    
+
 public:
     template<typename... Args>
-    PipelineManager(double weight_limit, Args... args)
+    PipelineManager(double weight_limit, bool start_paused, Args... args)
         : BasicManager<Data>(weight_limit, std::forward<Args>(args)...),
-          _paused(init_paused)
+          _paused(start_paused)
     { }
     
     void enqueue(Data&& data) override {

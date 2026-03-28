@@ -1,4 +1,5 @@
 #include "Scene.h"
+#include <gui/Dispatcher.h>
 #include <misc/default_settings.h>
 #include <gui/types/Layout.h>
 #include <gui/DrawStructure.h>
@@ -46,6 +47,11 @@ bool Scene::on_global_event(Event) {
 SceneManager& SceneManager::getInstance() {
     static SceneManager* instance = new SceneManager;  // Singleton instance
     return *instance;
+}
+
+void SceneManager::install_dispatcher_instance(attr::Dispatcher* dispatcher) {
+    attr::Dispatcher::set_instance(dispatcher);
+    attr::install_dispatcher_instance(dispatcher);
 }
 
 SceneManager::SceneManager()

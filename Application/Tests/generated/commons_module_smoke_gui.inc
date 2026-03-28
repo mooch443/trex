@@ -81,6 +81,7 @@ using ::cmn::gui::TexturePtr;
 // gui/Dispatcher.h
 namespace commons_module_smoke::commons_gui::cmn::gui::attr {
 using ::cmn::gui::attr::Dispatcher;
+using ::cmn::gui::attr::install_dispatcher_instance;
 }
 
 // gui/DrawBase.h

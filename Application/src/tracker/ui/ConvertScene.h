@@ -2,7 +2,7 @@
 
 #include <commons.pc.h>
 #include <ui/Scene.h>
-#include <detect/Detection.h>
+#include <python/Detection.h>
 #include <core/indicators.h>
 
 //#include <tracking/Segmenter.h>

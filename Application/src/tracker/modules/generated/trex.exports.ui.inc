@@ -152,6 +152,11 @@ using ::cmn::gui::DrawPreviewImage::draw;
 using ::cmn::gui::DrawPreviewImage::make_image;
 }
 
+export namespace cmn::gui::attr {
+// ui/Scene.h
+using ::cmn::gui::attr::Dispatcher;
+}
+
 export namespace cmn::gui::dyn {
 // ui/AnnotationScene.h
 using ::cmn::gui::dyn::DynamicGUI;

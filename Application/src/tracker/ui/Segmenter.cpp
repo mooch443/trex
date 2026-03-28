@@ -4,15 +4,15 @@
 #include <file/PathArray.h>
 #include <tracking/IndividualManager.h>
 #include <tracking/Output.h>
-#include <detect/Detection.h>
-#include <detect/OverlayedVideo.h>
+#include <python/Detection.h>
+#include <python/OverlayedVideo.h>
 #include <misc/CommandLine.h>
 #include <core/SettingsPaths.h>
 #include <core/SettingsInitializer.h>
-#include <detect/BackgroundSubtraction.h>
+#include <python/BackgroundSubtraction.h>
 #include <tracking/Tracker.h>
 #include <ui/Export.h>
-#include <core/PrecomuptedDetection.h>
+#include <python/PrecomuptedDetection.h>
 #include <grabber/misc/PylonCamera.h>
 
 //#define DEBUG_TM_ITEMS

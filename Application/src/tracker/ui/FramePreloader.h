@@ -21,18 +21,20 @@ CREATE_STRUCT(PreloadCache,
 
 template<typename FrameType>
 class FramePreloader {
-    std::shared_ptr<TimingStatsCollector> stats{TimingStatsCollector::getInstance()};
+    std::shared_ptr<TimingStatsCollector> stats;
     std::atomic<bool> shutdown_requested{false};
     
 public:
     FramePreloader(
+           std::shared_ptr<TimingStatsCollector> timing_stats,
            std::function<FrameType(Frame_t)> retrieve,
            std::function<void(FrameType&&)> discard = nullptr,
            TimingMetric announceMetric = TimingMetric_t::None,
            TimingMetric loadMetric = TimingMetric_t::None,
            TimingMetric waitMetric = TimingMetric_t::None,
            TimingMetric notifyMetric = TimingMetric_t::None)
-        : retrieve_next(retrieve),
+        : stats(std::move(timing_stats)),
+          retrieve_next(retrieve),
           discard(discard),
           _announceMetric(announceMetric),
           _loadMetric(loadMetric),
@@ -92,7 +94,7 @@ public:
         if (old == target_index)
             return;                    // nothing changed → nothing to do
 
-        if (_announceMetric != TimingMetric_t::None) {
+        if (stats && _announceMetric != TimingMetric_t::None) {
             [[maybe_unused]] TimingStatsCollector::HandleGuard guard{stats, stats->startEvent(_announceMetric, target_index)};
         }
 
@@ -316,7 +318,9 @@ void FramePreloader<FrameType>::preload_frames() {
     if(is_in)
         return;
     
-    auto handleGuard = _waitMetric != TimingMetric_t::None ? std::make_shared<TimingStatsCollector::HandleGuard>(stats, stats->startEvent(_waitMetric, current)) : nullptr;
+    auto handleGuard = (stats && _waitMetric != TimingMetric_t::None)
+                    ? std::make_shared<TimingStatsCollector::HandleGuard>(stats, stats->startEvent(_waitMetric, current))
+                    : nullptr;
     //thread_print("*** [jump] loading ", current);
     
     std::promise<std::tuple<Frame_t, FrameType>> promise;
@@ -332,7 +336,7 @@ void FramePreloader<FrameType>::preload_frames() {
     time_to_frame.reset();
     
     /// we are done with waiting...
-    handleGuard = (_loadMetric != TimingMetric_t::None)
+    handleGuard = (stats && _loadMetric != TimingMetric_t::None)
                     ? std::make_shared<TimingStatsCollector::HandleGuard>(stats, stats->startEvent(_loadMetric, current))
                     : nullptr;
     

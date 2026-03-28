@@ -48,8 +48,6 @@ export namespace track {
 using ::track::FOI;
 // core/Identity.h
 using ::track::Identity;
-// core/PrecomuptedDetection.h
-using ::track::match_name;
 // core/TrackingSettings.h
 using ::track::Individual;
 using ::track::Settings;

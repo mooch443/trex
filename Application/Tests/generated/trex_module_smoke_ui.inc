@@ -30,7 +30,6 @@ using ::cmn::gui::dyn::DynamicGUI;
 
 // ui/Bowl.h
 namespace trex_module_smoke::trex_ui::cmn::gui {
-using ::cmn::gui::Bowl;
 using ::cmn::gui::GUICache;
 }
 
@@ -57,10 +56,6 @@ using ::track::CheckUpdates::write_version_file;
 }
 
 // ui/ConfirmedCrossings.h
-namespace trex_module_smoke::trex_ui::cmn::gui {
-using ::cmn::gui::DrawStructure;
-}
-
 namespace trex_module_smoke::trex_ui::track {
 using ::track::ConfirmedCrossings;
 using ::track::DecisionStatus;
@@ -83,7 +78,6 @@ namespace trex_module_smoke::trex_ui::cmn::gui {
 using ::cmn::gui::Base;
 using ::cmn::gui::BowlCoord;
 using ::cmn::gui::BowlRect;
-using ::cmn::gui::DrawStructure;
 using ::cmn::gui::FindCoord;
 using ::cmn::gui::HUDCoord;
 using ::cmn::gui::HUDRect;
@@ -91,10 +85,7 @@ using ::cmn::gui::HUDRect;
 
 // ui/DrawBlobView.h
 namespace trex_module_smoke::trex_ui::cmn::gui {
-using ::cmn::gui::Base;
-using ::cmn::gui::DrawStructure;
 using ::cmn::gui::Dropdown;
-using ::cmn::gui::GUICache;
 using ::cmn::gui::SectionInterface;
 using ::cmn::gui::Textfield;
 }
@@ -112,21 +103,18 @@ using ::cmn::gui::tracker::set_clicked_blob_id;
 // ui/DrawBorder.h
 namespace trex_module_smoke::trex_ui::cmn::gui {
 using ::cmn::gui::DrawBorder;
-using ::cmn::gui::DrawStructure;
 using ::cmn::gui::Drawable;
 }
 
 // ui/DrawDataset.h
 namespace trex_module_smoke::trex_ui::cmn::gui {
 using ::cmn::gui::DrawDataset;
-using ::cmn::gui::GUICache;
 using ::cmn::gui::StaticText;
 }
 
 // ui/DrawExportOptions.h
 namespace trex_module_smoke::trex_ui::cmn::gui {
 using ::cmn::gui::DrawExportOptions;
-using ::cmn::gui::DrawStructure;
 using ::cmn::gui::TrackingState;
 }
 
@@ -149,24 +137,16 @@ using ::track::Individual;
 // ui/DrawGraph.h
 namespace trex_module_smoke::trex_ui::cmn::gui {
 using ::cmn::gui::Button;
-using ::cmn::gui::DrawStructure;
 using ::cmn::gui::PropertiesGraph;
 }
 
 namespace trex_module_smoke::trex_ui::track {
-using ::track::Individual;
 using ::track::Tracker;
 }
 
 // ui/DrawPosture.h
 namespace trex_module_smoke::trex_ui::cmn::gui {
-using ::cmn::gui::Button;
 using ::cmn::gui::Posture;
-using ::cmn::gui::StaticText;
-}
-
-namespace trex_module_smoke::trex_ui::track {
-using ::track::Individual;
 }
 
 // ui/DrawPreviewImage.h
@@ -179,19 +159,16 @@ using ::cmn::gui::DrawPreviewImage::make_image;
 namespace trex_module_smoke::trex_ui::cmn::gui {
 using ::cmn::gui::DrawSegments;
 using ::cmn::gui::DrawSegmentsElement;
-using ::cmn::gui::GUICache;
 using ::cmn::gui::ShadowTracklet;
 }
 
 // ui/DrawUniqueness.h
 namespace trex_module_smoke::trex_ui::cmn::gui {
 using ::cmn::gui::DrawUniqueness;
-using ::cmn::gui::GUICache;
 }
 
 // ui/Export.h
 namespace trex_module_smoke::trex_ui::track {
-using ::track::Tracker;
 using ::track::export_data;
 using ::track::temporary_save;
 }
@@ -213,21 +190,12 @@ using ::cmn::gui::GraphElement;
 }
 
 // ui/GUICache.h
-namespace trex_module_smoke::trex_ui::cmn::gui {
-using ::cmn::gui::Circle;
-using ::cmn::gui::DrawStructure;
-using ::cmn::gui::Drawable;
-using ::cmn::gui::ExternalImage;
-using ::cmn::gui::PropertiesGraph;
-}
-
 namespace trex_module_smoke::trex_ui::cmn::gui::globals {
 using ::cmn::gui::globals::Cache;
 using ::cmn::gui::globals::CachedGUIOptions;
 }
 
 namespace trex_module_smoke::trex_ui::track {
-using ::track::Individual;
 using ::track::PPFrame;
 using ::track::TrackletInformation;
 }
@@ -254,21 +222,11 @@ using ::cmn::gui::IMGUIBase;
 // ui/GUIVideoAdapterElement.h
 namespace trex_module_smoke::trex_ui::cmn::gui {
 using ::cmn::gui::GUIVideoAdapterElement;
-using ::cmn::gui::IMGUIBase;
 }
 
 // ui/IdentityHeatmap.h
-namespace trex_module_smoke::trex_ui::cmn::gui {
-using ::cmn::gui::ExternalImage;
-}
-
 namespace trex_module_smoke::trex_ui::cmn::gui::heatmap {
 using ::cmn::gui::heatmap::grid_t;
-}
-
-namespace trex_module_smoke::trex_ui::track {
-using ::track::Individual;
-using ::track::TrackletInformation;
 }
 
 // ui/ImageDisplayElement.h
@@ -287,23 +245,10 @@ using ::cmn::gui::dyn::VarProps;
 
 // ui/InfoCard.h
 namespace trex_module_smoke::trex_ui::cmn::gui {
-using ::cmn::gui::Button;
-using ::cmn::gui::DrawSegments;
-using ::cmn::gui::DrawStructure;
 using ::cmn::gui::HorizontalLayout;
 using ::cmn::gui::InfoCard;
-using ::cmn::gui::Rect;
 using ::cmn::gui::Text;
 using ::cmn::gui::Tooltip;
-}
-
-namespace trex_module_smoke::trex_ui::track {
-using ::track::Individual;
-}
-
-// ui/Label.h
-namespace trex_module_smoke::trex_ui::cmn::gui {
-using ::cmn::gui::Label;
 }
 
 // ui/LabelElement.h
@@ -335,14 +280,6 @@ namespace trex_module_smoke::trex_ui::cmn::gui {
 using ::cmn::gui::PreviewAdapterElement;
 }
 
-namespace trex_module_smoke::trex_ui::track {
-using ::track::PPFrame;
-}
-
-namespace trex_module_smoke::trex_ui::track::constraints {
-using ::track::constraints::FilterCache;
-}
-
 // ui/RecognitionSummary.h
 namespace trex_module_smoke::trex_ui::cmn::gui {
 using ::cmn::gui::RecognitionSummary;
@@ -350,25 +287,22 @@ using ::cmn::gui::RecognitionSummary;
 
 // ui/Scene.h
 namespace trex_module_smoke::trex_ui::cmn::gui {
-using ::cmn::gui::Base;
-using ::cmn::gui::DrawStructure;
-using ::cmn::gui::Drawable;
-using ::cmn::gui::IMGUIBase;
 using ::cmn::gui::Scene;
 using ::cmn::gui::SceneManager;
 }
 
+namespace trex_module_smoke::trex_ui::cmn::gui::attr {
+using ::cmn::gui::attr::Dispatcher;
+}
+
 // ui/ScreenRecorder.h
 namespace trex_module_smoke::trex_ui::cmn::gui {
-using ::cmn::gui::Base;
-using ::cmn::gui::DrawStructure;
 using ::cmn::gui::ScreenRecorder;
 using ::cmn::gui::WorkProgress;
 }
 
 // ui/SettingsDropdown.h
 namespace trex_module_smoke::trex_ui::cmn::gui {
-using ::cmn::gui::IMGUIBase;
 using ::cmn::gui::List;
 using ::cmn::gui::SettingsDropdown;
 }
@@ -381,12 +315,6 @@ using ::cmn::gui::SettingsScene;
 // ui/SettingsInitializer.h
 namespace trex_module_smoke::trex_ui::cmn::settings {
 using ::cmn::settings::write_config;
-}
-
-// ui/Skelett.h
-namespace trex_module_smoke::trex_ui::cmn::gui {
-using ::cmn::gui::Circle;
-using ::cmn::gui::Skelett;
 }
 
 // ui/StartingScene.h
@@ -416,13 +344,7 @@ using cmn_gui_TimingStatsWidget_RowHeight_tTag = ::cmn::gui::TimingStatsWidget::
 
 // ui/TrackingScene.h
 namespace trex_module_smoke::trex_ui::cmn::gui {
-using ::cmn::gui::IMGUIBase;
 using ::cmn::gui::TrackingScene;
-using ::cmn::gui::TrackingState;
-}
-
-namespace trex_module_smoke::trex_ui::cmn::gui::dyn {
-using ::cmn::gui::dyn::DynamicGUI;
 }
 
 // ui/TrackingSettingsScene.h
@@ -432,22 +354,15 @@ using ::cmn::gui::TrackingSettingsScene;
 
 // ui/TrackingState.h
 namespace trex_module_smoke::trex_ui::cmn::gui {
-using ::cmn::gui::TrackingState;
 using ::cmn::gui::VIControllerImpl;
-}
-
-namespace trex_module_smoke::trex_ui::track {
-using ::track::Tracker;
 }
 
 // ui/VisualFieldWidget.h
 namespace trex_module_smoke::trex_ui::cmn::gui {
-using ::cmn::gui::FindCoord;
 using ::cmn::gui::VisualFieldWidget;
 }
 
 namespace trex_module_smoke::trex_ui::track {
-using ::track::Individual;
 using ::track::VisualField;
 }
 
@@ -462,16 +377,10 @@ using ::cmn::gui::vident::generate_training_data;
 using ::cmn::gui::vident::training_data_dialog;
 }
 
-namespace trex_module_smoke::trex_ui::track {
-using ::track::Tracker;
-}
-
 // ui/WorkProgress.h
 namespace trex_module_smoke::trex_ui::cmn::gui {
-using ::cmn::gui::IMGUIBase;
 using ::cmn::gui::WorkInstance;
 using ::cmn::gui::WorkItem;
-using ::cmn::gui::WorkProgress;
 }
 
 // ui/Accumulation.h
@@ -480,11 +389,7 @@ using ::Python::VINetwork;
 }
 
 namespace trex_module_smoke::trex_ui::cmn::gui {
-using ::cmn::gui::ExternalImage;
 using ::cmn::gui::Graph;
-using ::cmn::gui::HorizontalLayout;
-using ::cmn::gui::IMGUIBase;
-using ::cmn::gui::StaticText;
 }
 
 namespace trex_module_smoke::trex_ui::track {
@@ -504,11 +409,6 @@ using ::track::CallbackType_t::Class;
 }
 
 // ui/Categorize.h
-namespace trex_module_smoke::trex_ui::cmn::gui {
-using ::cmn::gui::DrawStructure;
-using ::cmn::gui::IMGUIBase;
-}
-
 namespace trex_module_smoke::trex_ui::track::Categorize {
 using ::track::Categorize::LearningTask;
 using ::track::Categorize::clear_labels;
@@ -542,10 +442,6 @@ using ::track::Categorize::Work::terminate_prediction;
 }
 
 // ui/CategorizeInterface.h
-namespace trex_module_smoke::trex_ui::cmn::gui {
-using ::cmn::gui::IMGUIBase;
-}
-
 namespace trex_module_smoke::trex_ui::track::Categorize {
 using ::track::Categorize::Cell;
 using ::track::Categorize::Interface;

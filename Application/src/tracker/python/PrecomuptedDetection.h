@@ -19,7 +19,6 @@ struct TREX_EXPORT PrecomputedDetection {
     static double fps();
     static std::optional<float> precomputing();
     
-    static PipelineManager<TileImage, true>& manager();
     
 private:
     static void apply(std::vector<TileImage>&& tiled);

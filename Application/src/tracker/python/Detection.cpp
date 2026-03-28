@@ -1,11 +1,12 @@
 #include "Detection.h"
 
 #include <file/PathArray.h>
-#include <detect/BackgroundSubtraction.h>
-#include <detect/NoDetection.h>
+#include <python/BackgroundSubtraction.h>
+#include <python/NoDetection.h>
+#include <python/PipelineRegistry.h>
 #include <grabber/misc/default_config.h>
 #include <core/AbstractVideoSource.h>
-#include <core/PrecomuptedDetection.h>
+#include <python/PrecomuptedDetection.h>
 #include <core/TrackingSettings.h>
 namespace track {
 
@@ -37,6 +38,13 @@ Detection::Detection() {
         return;
     }
     case ObjectDetectionType::none:
+        detect::register_pipeline(
+            detect::ObjectDetectionType::none,
+            max(1u, READ_SETTING(detect_batch_size, uchar)),
+            /*start_paused=*/false,
+            [](std::vector<TileImage>&& images) {
+                Detection::apply(std::move(images));
+            });
         return;
     case ObjectDetectionType::sam3:
     case ObjectDetectionType::yolo:
@@ -62,18 +70,22 @@ void Detection::deinit() {
     }
     if(type == ObjectDetectionType::none) {
         manager().clean_up();
+        detect::unregister_pipeline(detect::ObjectDetectionType::none);
         return;
     }
 
     if(type) {
         if(const auto* hooks = detect::ensure_backend(*type); hooks && hooks->deinit) {
             hooks->deinit();
-            manager().clean_up();
+            // The hook's deinit is responsible for clean_up() and unregistering its pipeline.
             return;
         }
     }
 
-    manager().clean_up();
+    // Fallback: type has no deinit hook; clean up its pipeline if registered.
+    if(type) {
+        try { manager().clean_up(); } catch(...) {}
+    }
 }
 
 bool Detection::is_initializing() {
@@ -168,25 +180,8 @@ void Detection::set_background(const cmn::Image::Ptr& image) {
     }
 }
 
-PipelineManager<TileImage, true>& Detection::manager() {
-    if(detection_type() == ObjectDetectionType::background_subtraction) {
-        return BackgroundSubtraction::manager();
-    }
-    if(detection_type() == ObjectDetectionType::precomputed) {
-        return PrecomputedDetection::manager();
-    }
-
-    static auto instance = PipelineManager<TileImage, true>(
-        max(1u, READ_SETTING(detect_batch_size, uchar)),
-        [](std::vector<TileImage>&& images) {
-#ifndef NDEBUG
-            if(images.empty())
-                FormatExcept("Images is empty :(");
-#endif
-            Detection::apply(std::move(images));
-        }
-    );
-    return instance;
+PipelineManager<TileImage>& Detection::manager() {
+    return detect::current_pipeline_manager();
 }
 
 } // namespace track

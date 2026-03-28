@@ -1,7 +1,7 @@
 #pragma once
 
 #include <commons.pc.h>
-#include <detect/Detection.h>
+#include <python/Detection.h>
 #include <misc/Image.h>
 #include <core/TileImage.h>
 
@@ -16,8 +16,6 @@ struct TREX_EXPORT BackgroundSubtraction {
     static void deinit();
     static double fps();
 
-    static PipelineManager<TileImage, true>& manager();
-    
 private:
     static void apply(std::vector<TileImage>&& tiled);
     friend struct Detection;

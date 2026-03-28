@@ -18,7 +18,7 @@
 #include <gui/dyn/ParseText.h>
 #include <core/TileBuffers.h>
 #include <core/DetectionTypes.h>
-#include <detect/OverlayedVideo.h>
+#include <python/OverlayedVideo.h>
 #include <tracking/Individual.h>
 #include <tracking/LockGuard.h>
 #include <ui/Segmenter.h>

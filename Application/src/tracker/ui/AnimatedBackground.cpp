@@ -8,14 +8,14 @@
 
 namespace cmn::gui {
 
-AnimatedBackground::AnimatedBackground(Image::Ptr&& image, const pv::File* video)
+AnimatedBackground::AnimatedBackground(Image::Ptr&& image, const pv::File* video, std::shared_ptr<TimingStatsCollector> stats)
     :
     buffers("AnimatedBackgroundPV", image->dimensions()),
     grey_buffers("GreyVideoSourcePV", image->dimensions()),
     _average(std::move(image)),
     _static_image(Image::Make(*_average)),
     _grey_image(Image::Make(*_average)),
-    preloader([this](Frame_t index) { return preload(index); }, nullptr, TimingMetric_t::BackgroundRequest, TimingMetric_t::BackgroundLoad)
+    preloader(std::move(stats), [this](Frame_t index) { return preload(index); }, nullptr, TimingMetric_t::BackgroundRequest, TimingMetric_t::BackgroundLoad)
 {
     _static_image.set_clickable(true);
     _static_image.set_color(_tint);
@@ -106,13 +106,13 @@ AnimatedBackground::AnimatedBackground(Image::Ptr&& image, const pv::File* video
     auto_size({});
 }
 
-AnimatedBackground::AnimatedBackground(VideoSource&& source)
+AnimatedBackground::AnimatedBackground(VideoSource&& source, std::shared_ptr<TimingStatsCollector> stats)
     : 
     buffers("AnimatedBackgroundVideoSource", source.size()),
     grey_buffers("GreyVideoSource", source.size()),
     _source(std::make_unique<VideoSource>(std::move(source))),
     _file_opened(true),
-      preloader([this](Frame_t index) { return preload(index); },
+      preloader(std::move(stats), [this](Frame_t index) { return preload(index); },
       [this](Image::Ptr&& ptr) {
           buffers.move_back(std::move(ptr));
       })

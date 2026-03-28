@@ -10,6 +10,13 @@
     {
       "excluded": [],
       "module": "trex.core",
+      "path": "core/BaslerVideoSource.h",
+      "sha256": "4a5652448b9319bfb669c511476b3c70a1fdde3690591455766e2d5d655144ee",
+      "symbols": []
+    },
+    {
+      "excluded": [],
+      "module": "trex.core",
       "path": "core/BackgroundTask.h",
       "sha256": "56165b51356326caa7dd6f97953fd103ccb428dd4f889ed1e8fe4526a1b3ff89",
       "symbols": [
@@ -221,7 +228,7 @@
       ],
       "module": "trex.core",
       "path": "core/DetectionTypes.h",
-      "sha256": "9eb42490c8b3ce70f5430fbad370c59f728fe568e992499ace6d3e7ffa9ca32f",
+      "sha256": "3d4323b1af4f87169ae3660ded3184cdee76149b824a94990e485f66fd7e4ca6",
       "symbols": [
         {
           "kind": "enum_class",
@@ -512,24 +519,24 @@
     {
       "excluded": [],
       "module": "trex.core",
-      "path": "core/NetworkStats.h",
-      "sha256": "7e9e5efe74d9867db9d55324bd81d7611e4013562c0a30683da65629efeaa802",
-      "symbols": []
+      "path": "core/GPURecognitionTypes.h",
+      "sha256": "bd501a751696126e85daf919b9621919924637e73842c41a51c46e027fc82e20",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "Keypoint",
+          "namespace": "track::detect",
+          "qualified": "track::detect::Keypoint",
+          "smoke": "using"
+        }
+      ]
     },
     {
       "excluded": [],
       "module": "trex.core",
-      "path": "core/PrecomuptedDetection.h",
-      "sha256": "c807c3657a390dfdeeb86db073f40b217dfc1b6f811dac5a1893b6f08dfda953",
-      "symbols": [
-        {
-          "kind": "function_template",
-          "name": "match_name",
-          "namespace": "track",
-          "qualified": "track::match_name",
-          "smoke": "using"
-        }
-      ]
+      "path": "core/NetworkStats.h",
+      "sha256": "7e9e5efe74d9867db9d55324bd81d7611e4013562c0a30683da65629efeaa802",
+      "symbols": []
     },
     {
       "excluded": [],
@@ -586,7 +593,7 @@
       "excluded": [],
       "module": "trex.core",
       "path": "core/TaskPipeline.h",
-      "sha256": "b5c029ee9bb003f9b83fa22ce927712ff2cd79bcdbb641b6e9aed44901fa4b01",
+      "sha256": "024e27bc7ba5c1fb0a6b04848b4d76719bb78f579208ef014314b49b1e44ec3b",
       "symbols": [
         {
           "kind": "class_template",
@@ -658,7 +665,7 @@
       "excluded": [],
       "module": "trex.core",
       "path": "core/SettingsInitializer.h",
-      "sha256": "8aabcecb468f3249483aeacad90ec1628960c1f2527eb4d25b037df04b291a4c",
+      "sha256": "cbf887c3551d68dada385e0560d08952d3c5aa708ad8ef2836a1f9491c2b4131",
       "symbols": [
         {
           "kind": "class",
@@ -737,7 +744,7 @@
       ],
       "module": "trex.core",
       "path": "core/TimingStatsCollector.h",
-      "sha256": "595680efe51c1ca2ed31e4f3b0b9338a102668fdd6c0c0637ae2574cbb411267",
+      "sha256": "fbe8a180ee6e23c37e2f14d05901282d13a06b4737450c8dd89987fce9c47c97",
       "symbols": []
     },
     {
@@ -879,79 +886,6 @@
     },
     {
       "excluded": [],
-      "module": "trex.detect",
-      "path": "detect/BackgroundSubtraction.h",
-      "sha256": "43698a33addcf209ddd7f828119fbbabe322c3771b317715e52ef91a02ea3b83",
-      "symbols": []
-    },
-    {
-      "excluded": [],
-      "module": "trex.detect",
-      "path": "detect/Detection.h",
-      "sha256": "867b6a47069026cf656cae27d91988196a1684407a3db217dad2b88ec6f95805",
-      "symbols": [
-        {
-          "kind": "function",
-          "name": "register_backend",
-          "namespace": "track::detect",
-          "qualified": "track::detect::register_backend",
-          "smoke": "using"
-        },
-        {
-          "kind": "function",
-          "name": "unregister_backend",
-          "namespace": "track::detect",
-          "qualified": "track::detect::unregister_backend",
-          "smoke": "using"
-        },
-        {
-          "kind": "function",
-          "name": "backend",
-          "namespace": "track::detect",
-          "qualified": "track::detect::backend",
-          "smoke": "using"
-        },
-        {
-          "kind": "concept",
-          "name": "MultiObjectDetection",
-          "namespace": "track",
-          "qualified": "track::MultiObjectDetection",
-          "reason": "requires_witness_type",
-          "smoke": "excluded"
-        }
-      ]
-    },
-    {
-      "excluded": [],
-      "module": "trex.detect",
-      "path": "detect/GPURecognitionTypes.h",
-      "sha256": "bd501a751696126e85daf919b9621919924637e73842c41a51c46e027fc82e20",
-      "symbols": [
-        {
-          "kind": "class",
-          "name": "Keypoint",
-          "namespace": "track::detect",
-          "qualified": "track::detect::Keypoint",
-          "smoke": "using"
-        }
-      ]
-    },
-    {
-      "excluded": [],
-      "module": "trex.detect",
-      "path": "detect/NoDetection.h",
-      "sha256": "fef9456c4285a995d5b10dc0dd96f3d8e1b6e6838fabdb151f56c1bd877fd056",
-      "symbols": []
-    },
-    {
-      "excluded": [],
-      "module": "trex.detect",
-      "path": "detect/OverlayedVideo.h",
-      "sha256": "7b43f2c3d66c62eba480dc4c75fb2a37b40d7b8483c34e25ed9c88c5dfcdb2c6",
-      "symbols": []
-    },
-    {
-      "excluded": [],
       "module": "trex.tracking",
       "path": "tracking/AutomaticMatches.h",
       "sha256": "49af8eb7ae60e8b398b38c5a9526cc3e794edd58cf10ec376aedfa83c22eed40",
@@ -1025,7 +959,7 @@
       "excluded": [],
       "module": "trex.tracking",
       "path": "tracking/BlobReceiver.h",
-      "sha256": "3b99665385ca9188bf6086aa214be60c37e9281a64715c79bce6ee083987a4ce",
+      "sha256": "5b45e98353a724ade749dd10667a04545db1e08a934e12b0842eed6add9e1879",
       "symbols": [
         {
           "kind": "struct",
@@ -1582,7 +1516,7 @@
       "excluded": [],
       "module": "trex.tracking",
       "path": "tracking/PPFrame.h",
-      "sha256": "8db651fc1f372621a5b421fddc446eaef2353014ed35a8a8c7cee7ad95f8b741",
+      "sha256": "f031a25ca6d02471b9f4f2968c96e0b0e564d318d8e32489f920dc1c061b6bdf",
       "symbols": [
         {
           "kind": "class",
@@ -1956,7 +1890,7 @@
       "excluded": [],
       "module": "trex.ui",
       "path": "ui/AnimatedBackground.h",
-      "sha256": "180b56d33cb7997e8d79f20de62ddc634cd9ce9683fbb67423a04579d608de2a",
+      "sha256": "d303206611bbab043ee834991a59df403d20cd38a396dfbe6d6a3cb3f301d2c1",
       "symbols": [
         {
           "kind": "class",
@@ -1971,7 +1905,7 @@
       "excluded": [],
       "module": "trex.ui",
       "path": "ui/AnnotationScene.h",
-      "sha256": "2d0dadc4a11e0738df4006775ad5cd03cdcc23a49d1d94a12ba697d7aee020a1",
+      "sha256": "f9dc71b9cf93b1dbd0594057bdbdc03f8b76e55a55b9691b903f4adfee509c5e",
       "symbols": [
         {
           "kind": "class",
@@ -2308,7 +2242,7 @@
       ],
       "module": "trex.ui",
       "path": "ui/ConvertScene.h",
-      "sha256": "d0a34d21e42f28b81a5a40c973a44ecfec547787218f375c692badc4fd870bfb",
+      "sha256": "625a4b0872cc94845fb2f4b966775edd3d97fbdca2dcf6946982fe7b08d6e62e",
       "symbols": [
         {
           "kind": "class",
@@ -2587,7 +2521,7 @@
       "excluded": [],
       "module": "trex.ui",
       "path": "ui/DrawFish.h",
-      "sha256": "385e6d3ac8d02359128142836d666d466e19c7cecbe022bbc28b658f945cf787",
+      "sha256": "df8040705d820e4365f3623d436b2be0dcb026f7fcc5a71464ad3802815d0976",
       "symbols": [
         {
           "kind": "class",
@@ -2847,7 +2781,7 @@
       "excluded": [],
       "module": "trex.ui",
       "path": "ui/FramePreloader.h",
-      "sha256": "d5c8d42726d0a50990e485eea32895c38863d6c409ebfd0aadd89ce5988382c8",
+      "sha256": "cf86013f208f16e3ad5c66c6ef5c04c084bc118b86e998d65c10b7b2ecbc258a",
       "symbols": [
         {
           "kind": "class",
@@ -2903,7 +2837,7 @@
       ],
       "module": "trex.ui",
       "path": "ui/GUICache.h",
-      "sha256": "fb9f91a2e04c389d98faa66ec6f19cb295931081d2e111f689aff8fc8748842d",
+      "sha256": "88800a35a35a4f8365bbdf409d7d5849131e7bc616e00d470f82ca9395d397c8",
       "symbols": [
         {
           "kind": "class",
@@ -3126,7 +3060,7 @@
       "excluded": [],
       "module": "trex.ui",
       "path": "ui/ImageGeneratorRegistry.h",
-      "sha256": "392396c691660a0c1378a98f6630f4cbeae2fc5a1b5b098d8a078d1c37bda925",
+      "sha256": "8fabbd5d87989aee86ba92428b186210b4b0a7bf7a3ed5a0be5a233a9d12c0d8",
       "symbols": [
         {
           "kind": "struct",
@@ -3219,7 +3153,7 @@
       "excluded": [],
       "module": "trex.ui",
       "path": "ui/Label.h",
-      "sha256": "ae4f9a428d879d901a95775ea7b7cc4903224666a893f200338eb2236dc1596f",
+      "sha256": "a9e089fefbdf34edd947835fa9e70cac87c346ed7f1003ba216e39f06b0b90b7",
       "symbols": [
         {
           "kind": "class",
@@ -3321,13 +3255,6 @@
     {
       "excluded": [],
       "module": "trex.ui",
-      "path": "ui/Overlay.h",
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "symbols": []
-    },
-    {
-      "excluded": [],
-      "module": "trex.ui",
       "path": "ui/PreviewAdapterElement.h",
       "sha256": "69af6659052322f129ebba92977568fce0a07a750a29a674e208967d1d7a2ce2",
       "symbols": [
@@ -3380,8 +3307,15 @@
       "excluded": [],
       "module": "trex.ui",
       "path": "ui/Scene.h",
-      "sha256": "4fbb9f49f43b95de951650aa614b1f88181c33dcb56c679378dfbbd21076bdb0",
+      "sha256": "60d5680a19bc6b4e757812007112ba0bf469ad20efa385dc2d4391b784437686",
       "symbols": [
+        {
+          "kind": "class",
+          "name": "Dispatcher",
+          "namespace": "cmn::gui::attr",
+          "qualified": "cmn::gui::attr::Dispatcher",
+          "smoke": "using"
+        },
         {
           "kind": "class",
           "name": "DrawStructure",
@@ -4157,8 +4091,8 @@
   "source": "tracker_public_headers",
   "summary": {
     "excluded": 53,
-    "headers": 124,
-    "symbols": 403
+    "headers": 119,
+    "symbols": 399
   },
   "version": 1
 }

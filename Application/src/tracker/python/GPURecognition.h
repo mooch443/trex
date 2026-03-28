@@ -4,7 +4,7 @@
 #include <misc/Image.h>
 #include <core/SoftException.h>
 #include <core/idx_t.h>
-#include <detect/GPURecognitionTypes.h>
+#include <core/GPURecognitionTypes.h>
 #include <misc/PackLambda.h>
 
 namespace cmn::file {

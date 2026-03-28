@@ -39,6 +39,8 @@ set(CMAKE_XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 #set(CMAKE_XCODE_ATTRIBUTE_DEBUG_INFORMATION_FORMAT "dwarf-with-dsym")
 set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
 
+option(COMMONS_DISPATCHER_REQUIRE_EXPLICIT_INSTANCE "Require explicit instantiation of dispatcher templates in commons. This can reduce compile times at the cost of more complex build configuration." ON)
+
 function(trex_log_option option_name)
     if(DEFINED ${option_name})
         message(STATUS "[TREX CONFIG]   ${option_name}=${${option_name}}")
@@ -191,6 +193,10 @@ if(TREX_CONDA_PACKAGE_INSTALL)
 endif()
 
 add_subdirectory(src/commons)
+
+if(COMMONS_DISPATCHER_REQUIRE_EXPLICIT_INSTANCE)
+    add_compile_definitions(COMMONS_DISPATCHER_REQUIRE_EXPLICIT_INSTANCE=1)
+endif()
 
 message(STATUS "CMAKE_CXX_COMPILER_ID: ${CMAKE_CXX_COMPILER_ID}")
 message(STATUS "CMAKE_CXX_COMPILER_VERSION: ${CMAKE_CXX_COMPILER_VERSION}")

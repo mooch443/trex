@@ -11,7 +11,7 @@
       ],
       "module": "commons.types",
       "path": "misc/types.h",
-      "sha256": "714e473ce509b4dca032655b1b2b4faab01383135b9e062355f91cdbd824721e",
+      "sha256": "7d35238fee515d01d189dd8d975a853ac8af281e09a9d4b5ddf4de924cda3e63",
       "symbols": [
         {
           "kind": "function",
@@ -478,7 +478,7 @@
       ],
       "module": "commons.misc",
       "path": "misc/GlobalSettings.h",
-      "sha256": "a82d8ada3eba4db9d2f5a84a5919703e133d3e4af980390fcb4fca4d80617853",
+      "sha256": "81da9c0a3bd9052eb8ad2ccc063c6370dc6510f7695cc357713d50d577546082",
       "symbols": [
         {
           "kind": "enum_class",
@@ -809,7 +809,7 @@
       "excluded": [],
       "module": "commons.misc",
       "path": "misc/bid.h",
-      "sha256": "ad05aecb39b730b34ba7370ada1bcd0222528607f413ff6b463e68492a4213ee",
+      "sha256": "78cc5f00bcf1bab2bfc8e468104d45593451fbf44c102182d77574eef3ddd31f",
       "symbols": [
         {
           "kind": "class",
@@ -1074,7 +1074,7 @@
       ],
       "module": "commons.misc",
       "path": "misc/RBSettings.h",
-      "sha256": "ce225cc829ae36427020fed9cf506c004ec3df40be352e31db37fb568b1852d6",
+      "sha256": "2d6f872f72a83def8b842ca70f6f6b3ddaaab000c8f482cb8182fa6f9806196a",
       "symbols": []
     },
     {
@@ -2358,7 +2358,7 @@
       ],
       "module": "commons.misc",
       "path": "misc/metastring.h",
-      "sha256": "6733d6d579062af19629748110addba778ed36f43b7846388e26d46e278011a5",
+      "sha256": "2d64389b232f0179bebe565bc7973ec7f578bae2203e612fbef34b4dc220df41",
       "symbols": []
     },
     {
@@ -2766,7 +2766,7 @@
       "excluded": [],
       "module": "commons.file",
       "path": "file/DataLocation.h",
-      "sha256": "087e0efb5aaafb3c25ba67257cc5d51b8403476dfee611d21eda61b4ca6be3b7",
+      "sha256": "8c69182c706eea6bf0eef61948c61bea76dc0ad6153d91b5c0eba114a3835207",
       "symbols": [
         {
           "kind": "class",
@@ -3146,7 +3146,7 @@
       "excluded": [],
       "module": "commons.processing",
       "path": "processing/Source.h",
-      "sha256": "f10f44e2b9385873c96042f8f9d35c85169ce3ceb76a92e8a1fb951d903e0742",
+      "sha256": "1fde0da0b10234a134f6ca0d73cb3bb4f265ee5d545315c1905c55378eb91bb4",
       "symbols": [
         {
           "kind": "struct",
@@ -3809,13 +3809,20 @@
       "excluded": [],
       "module": "commons.gui",
       "path": "gui/Dispatcher.h",
-      "sha256": "be97ccc59e4de6b286ddd6de3423bdd049c7832a67883eebb641c755a47641bc",
+      "sha256": "7b0022b8a45fab0558b8e731a30b21f81ad79919298a0f8eb24be0f57adb7211",
       "symbols": [
         {
           "kind": "class",
           "name": "Dispatcher",
           "namespace": "cmn::gui::attr",
           "qualified": "cmn::gui::attr::Dispatcher",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "install_dispatcher_instance",
+          "namespace": "cmn::gui::attr",
+          "qualified": "cmn::gui::attr::install_dispatcher_instance",
           "smoke": "using"
         }
       ]
@@ -4339,7 +4346,7 @@
       "excluded": [],
       "module": "commons.gui",
       "path": "gui/GuiTypes.h",
-      "sha256": "32ffea39387b5b2725b5291a75bef02afc683b681baf50cd94892f9cf23e413b",
+      "sha256": "050f4682ee0efd2ac648d5b9cc066a9b9fee98c2e0beba02f17a1c1ad9686668",
       "symbols": [
         {
           "kind": "alias",
@@ -5039,7 +5046,7 @@
       "excluded": [],
       "module": "commons.gui.dyn",
       "path": "gui/dyn/Action.h",
-      "sha256": "4d83c5e18452e71d9866ab8071bff5457641c0e03b8e19d3c98ecbc5c3fb8e8c",
+      "sha256": "c8782ec97ca799b4c5f9aca03d32842490d4eec99ed37eff08341fc4e2f45f7f",
       "symbols": [
         {
           "kind": "struct",
@@ -5274,7 +5281,7 @@
       "excluded": [],
       "module": "commons.gui.dyn",
       "path": "gui/dyn/State.h",
-      "sha256": "931e27c26d3e81e0d1608dd31a1e0779918f3e5fbc0ff746e083386c43ec0410",
+      "sha256": "f9a529069dcb790f4982fb68fd57ea810dccf75681afe6f847a6b2a20be242ca",
       "symbols": [
         {
           "kind": "class",
@@ -6406,7 +6413,7 @@
   "summary": {
     "excluded": 39,
     "headers": 162,
-    "symbols": 686
+    "symbols": 687
   },
   "version": 1
 }

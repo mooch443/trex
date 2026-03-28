@@ -8,6 +8,7 @@
 #include <gui/dyn/VarProps.h>
 #include <misc/Timer.h>
 #include <core/TaskPipeline.h>
+#include <ui/ImageGeneratorRegistry.h>
 
 namespace cmn {
 class VideoSource;
@@ -55,6 +56,7 @@ private:
     std::unique_ptr<ExternalImage> _current_image;
     std::optional<SegmentationData> _current_data;
     std::unique_ptr<dyn::DynamicGUI> _gui;
+    ImageGeneratorRegistry _image_generators;
     
     Timer _timer;
     std::unique_ptr<std::thread> _fetch_thread;

@@ -2,6 +2,7 @@
 // Do not edit by hand.
 
 #include <core/AbstractVideoSource.h>
+#include <core/BaslerVideoSource.h>
 #include <core/BackgroundTask.h>
 #include <core/BlurryVideoLoop.h>
 #include <core/Border.h>
@@ -13,8 +14,8 @@
 #include <core/Identity.h>
 #include <core/idx_t.h>
 #include <core/indicators.h>
+#include <core/GPURecognitionTypes.h>
 #include <core/NetworkStats.h>
-#include <core/PrecomuptedDetection.h>
 #include <core/PVVideoSource.h>
 #include <core/RepeatedDeferral.h>
 #include <core/SizeFilters.h>

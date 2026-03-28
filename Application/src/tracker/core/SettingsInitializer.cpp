@@ -131,7 +131,7 @@ set_defaults_for(detect::ObjectDetectionType_t detect_type,
             "detect_format", track::detect::ObjectDetectionFormat::none,
             "detect_skeleton", std::optional<blob::Pose::Skeletons>{
                 blob::Pose::Skeletons{
-                    ._skeletons = {{"human", std::vector<blob::Pose::Skeleton::Connection>{
+                    ._skeletons = {{"person", std::vector<blob::Pose::Skeleton::Connection>{
                         {0, 1, "Nose to Left Eye"},
                         {0, 2, "Nose to Right Eye"},
                         {1, 3, "Left Eye to Ear"},

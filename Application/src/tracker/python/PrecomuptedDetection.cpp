@@ -1,4 +1,5 @@
 #include "PrecomuptedDetection.h"
+#include <python/PipelineRegistry.h>
 #include <file/PathArray.h>
 #include <core/TileBuffers.h>
 #include <misc/Timer.h>
@@ -448,72 +449,76 @@ void PrecomputedDetectionCache::buildCache(const file::Path& csv_path, const fil
     PrecomputedDetection::data()._precompute_percent.set(std::optional<float>{});
 }
 
-PipelineManager<TileImage, true>& PrecomputedDetection::manager() {
-    static auto instance = PipelineManager<TileImage, true>(1u, [](std::vector<TileImage>&& images)
-    {
-        /// in background subtraction case, we have to wait until the background
-        /// image has been generated and hang in the meantime.
-        auto start_time = std::chrono::steady_clock::now();
-        auto message_time = start_time;
-        while(not data().has_background()
-              && not manager().is_terminated())
-        {
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-
-            auto elapsed = std::chrono::steady_clock::now() - message_time;
-            if(std::chrono::duration_cast<std::chrono::seconds>(elapsed).count() > 30) {
-                FormatExcept("Background image not set in ",
-                             std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - start_time).count(),
-                             " seconds. Waiting for background image...");
-                message_time = std::chrono::steady_clock::now();
-            }
-        }
-        
-        start_time = std::chrono::steady_clock::now();
-        while(data()._frame_data_loader.has_value()
-              && not manager().is_terminated())
-        {
-            if(data()._frame_data_loader.has_value()
-               && data()._frame_data_loader->valid())
-            {
-                if(data()._frame_data_loader->wait_for(std::chrono::milliseconds(1)) == std::future_status::ready)
-                {
-                    auto result = data()._frame_data_loader->get();
-                    if(result.has_value()) {
-                        PrecomputedDetectionCache obj = std::move(result.value());
-                        data()._frame_data_cache = std::move(obj);
-                    } else {
-                        data()._frame_data_cache.reset();
-                        throw InvalidArgumentException("Cannot load file ", data()._filename, " into cache: ", no_quotes(result.error()));
-                    }
-                    break;
-                }
-                
-            } else {
-                /// then we remove it...
-                data()._frame_data_loader.reset();
-            }
-            
-            auto elapsed = std::chrono::steady_clock::now() - message_time;
-            if(std::chrono::duration_cast<std::chrono::seconds>(elapsed).count() > 30) {
-                FormatExcept("Loading the precomputed data is taking ",
-                             std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - start_time).count(),
-                             " seconds already. Waiting...");
-                message_time = std::chrono::steady_clock::now();
-            }
-        }
-        
-        if(not manager().is_terminated()) {
-            if(images.empty())
-                FormatExcept("Images is empty :(");
-            
-            PrecomputedDetection::apply(std::move(images));
-        }
-    });
-    return instance;
+static PipelineManager<TileImage>& manager() {
+    return detect::pipeline_manager(detect::ObjectDetectionType::precomputed);
 }
 
 PrecomputedDetection::PrecomputedDetection(file::PathArray&& path, Image::Ptr&& average, meta_encoding_t::Class meta_encoding) {
+    detect::register_pipeline(
+        detect::ObjectDetectionType::precomputed,
+        1u,
+        /*start_paused=*/true,
+        [](std::vector<TileImage>&& images)
+        {
+            /// Wait until the background image has been generated.
+            auto start_time = std::chrono::steady_clock::now();
+            auto message_time = start_time;
+            while(not data().has_background()
+                  && not manager().is_terminated())
+            {
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+                auto elapsed = std::chrono::steady_clock::now() - message_time;
+                if(std::chrono::duration_cast<std::chrono::seconds>(elapsed).count() > 30) {
+                    FormatExcept("Background image not set in ",
+                                 std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - start_time).count(),
+                                 " seconds. Waiting for background image...");
+                    message_time = std::chrono::steady_clock::now();
+                }
+            }
+
+            start_time = std::chrono::steady_clock::now();
+            while(data()._frame_data_loader.has_value()
+                  && not manager().is_terminated())
+            {
+                if(data()._frame_data_loader.has_value()
+                   && data()._frame_data_loader->valid())
+                {
+                    if(data()._frame_data_loader->wait_for(std::chrono::milliseconds(1)) == std::future_status::ready)
+                    {
+                        auto result = data()._frame_data_loader->get();
+                        if(result.has_value()) {
+                            PrecomputedDetectionCache obj = std::move(result.value());
+                            data()._frame_data_cache = std::move(obj);
+                        } else {
+                            data()._frame_data_cache.reset();
+                            throw InvalidArgumentException("Cannot load file ", data()._filename, " into cache: ", no_quotes(result.error()));
+                        }
+                        break;
+                    }
+
+                } else {
+                    /// then we remove it...
+                    data()._frame_data_loader.reset();
+                }
+
+                auto elapsed = std::chrono::steady_clock::now() - message_time;
+                if(std::chrono::duration_cast<std::chrono::seconds>(elapsed).count() > 30) {
+                    FormatExcept("Loading the precomputed data is taking ",
+                                 std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - start_time).count(),
+                                 " seconds already. Waiting...");
+                    message_time = std::chrono::steady_clock::now();
+                }
+            }
+
+            if(not manager().is_terminated()) {
+                if(images.empty())
+                    FormatExcept("Images is empty :(");
+
+                PrecomputedDetection::apply(std::move(images));
+            }
+        });
+
     data().set(std::move(average), meta_encoding);
     data().set(std::move(path));
 }
@@ -559,6 +564,7 @@ std::future<SegmentationData> PrecomputedDetection::apply(TileImage &&tiled) {
 }
 
 void PrecomputedDetection::deinit() {
+    detect::unregister_pipeline(detect::ObjectDetectionType::precomputed);
     std::unique_lock guard{data()._data_mutex};
     data()._filename.reset();
     data()._frame_data_cache.reset();

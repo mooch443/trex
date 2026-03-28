@@ -34,12 +34,6 @@ public:
         size_t index;
     };
 
-    // Returns the singleton instance of the collector.
-    static std::shared_ptr<TimingStatsCollector> getInstance() {
-        static std::shared_ptr<TimingStatsCollector> instance(new TimingStatsCollector());
-        return instance;
-    }
-    
     struct HandleGuard {
         std::shared_ptr<TimingStatsCollector> ptr;
         TimingStatsCollector::Handle handle;
@@ -48,7 +42,8 @@ public:
         {
         }
         ~HandleGuard() {
-            ptr->endEvent(handle);
+            if (ptr)
+                ptr->endEvent(handle);
         }
     };
 
@@ -62,10 +57,10 @@ public:
     // Returns all events that started within the past "window" duration.
     std::vector<TimingRecord> getEvents(std::chrono::steady_clock::duration window);
 
-private:
-    // Private constructor to enforce singleton usage.
+public:
     TimingStatsCollector() = default;
 
+private:
     mutable std::mutex _mutex;
     std::vector<TimingRecord> _records;
 };

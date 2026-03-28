@@ -20,11 +20,6 @@ struct ImageGeneratorRegistry {
         std::function<void()> reset;
     };
 
-    static ImageGeneratorRegistry& instance() {
-        static ImageGeneratorRegistry inst;
-        return inst;
-    }
-
     /// Register a generator under a name.
     void register_generator(std::string name, Generator gen) {
         _map.emplace(std::move(name), std::move(gen));

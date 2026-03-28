@@ -8,6 +8,9 @@
 namespace cmn::gui {
 
 //class GUITaskQueue_t;
+namespace attr {
+class Dispatcher;
+}
 class DrawStructure;
 class IMGUIBase;
 class Base;
@@ -73,6 +76,7 @@ public:
     SceneManager& operator=(const SceneManager&) = delete;
 
     static SceneManager& getInstance();
+    static void install_dispatcher_instance(attr::Dispatcher* dispatcher);
 
     void set_active(Scene* scene);
     bool is_scene_registered(std::string) const;

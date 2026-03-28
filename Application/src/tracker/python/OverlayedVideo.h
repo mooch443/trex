@@ -3,7 +3,7 @@
 #include <core/AbstractVideoSource.h>
 #include <core/BaslerVideoSource.h>
 #include <core/TileImage.h>
-#include <detect/Detection.h>
+#include <python/Detection.h>
 #include <core/VideoVideoSource.h>
 #include <core/WebcamVideoSource.h>
 

@@ -19,7 +19,7 @@
 #include <ui/GUIVideoAdapter.h>
 #include <ui/WorkProgress.h>
 #include <ui/Coordinates.h>
-#include <detect/Detection.h>
+#include <python/Detection.h>
 #include <tracking/Output.h>
 #include <python/PythonWrapper.h>
 

@@ -165,6 +165,7 @@ namespace globals {
         gui::DrawStructure* _graph{ nullptr };
         std::unique_ptr<gui::Posture> _posture_window;
         using FramePtr = std::unique_ptr<PPFrame>;
+        std::shared_ptr<TimingStatsCollector> _timing_stats;
         FramePreloader<FramePtr> _preloader;
         Timer _last_success;
         std::unique_ptr<PPFrame> _next_processed_frame;
@@ -351,7 +352,7 @@ namespace globals {
         
         const grid::ProximityGrid& blob_grid();
         
-        GUICache(gui::DrawStructure*, std::weak_ptr<pv::File>);
+        GUICache(gui::DrawStructure*, std::weak_ptr<pv::File>, std::shared_ptr<TimingStatsCollector> timing_stats = nullptr);
         ~GUICache();
         
         std::optional<std::vector<float>> find_prediction(pv::bid) const;

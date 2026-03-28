@@ -143,19 +143,6 @@ trex_add_semantic_library(trex_data
 trex_harden_internal_library(trex_data)
 target_link_libraries(trex_data PUBLIC trex_core)
 
-trex_add_semantic_library(trex_detect
-    TYPE ${TREX_INTERNAL_LIBRARY_TYPE}
-    SOURCES ${TREX_DETECT_SOURCES}
-    PUBLIC_HEADERS ${TREX_DETECT_PUBLIC_HEADERS}
-    PRIVATE_HEADERS ${TREX_DETECT_PRIVATE_HEADERS}
-    MODULE_INTERFACES ${TREX_DETECT_MODULE_INTERFACE_UNITS}
-)
-trex_harden_internal_library(trex_detect)
-target_link_libraries(trex_detect PUBLIC
-    trex_data
-    trex_core
-)
-
 trex_add_semantic_library(trex_tracking
     TYPE ${TREX_INTERNAL_LIBRARY_TYPE}
     SOURCES ${TREX_TRACKING_SOURCES}
@@ -165,7 +152,6 @@ trex_add_semantic_library(trex_tracking
 )
 trex_harden_internal_library(trex_tracking)
 target_link_libraries(trex_tracking PUBLIC
-    trex_detect
     trex_data
     trex_core
 )
@@ -183,7 +169,6 @@ trex_add_semantic_library(trex_ml
 trex_harden_internal_library(trex_ml)
 target_link_libraries(trex_ml PUBLIC
     trex_tracking
-    trex_detect
     trex_data
     trex_core
 )
@@ -201,7 +186,6 @@ trex_add_semantic_library(trex_ui
 trex_harden_internal_library(trex_ui)
 target_link_libraries(trex_ui PUBLIC
     trex_ml
-    trex_detect
     trex_tracking
     trex_data
     trex_core
@@ -215,17 +199,16 @@ add_library(tracker_misc INTERFACE)
 target_link_libraries(tracker_misc INTERFACE trex_core trex_data)
 
 add_library(tracker_tracking INTERFACE)
-target_link_libraries(tracker_tracking INTERFACE trex_tracking trex_detect trex_data trex_core)
+target_link_libraries(tracker_tracking INTERFACE trex_tracking trex_data trex_core)
 
 add_library(tracker_ml INTERFACE)
-target_link_libraries(tracker_ml INTERFACE trex_ml trex_tracking trex_detect trex_data trex_core)
+target_link_libraries(tracker_ml INTERFACE trex_ml trex_tracking trex_data trex_core)
 
 add_library(tracker_gui INTERFACE)
-target_link_libraries(tracker_gui INTERFACE trex_ui trex_ml trex_tracking trex_detect trex_data trex_core)
+target_link_libraries(tracker_gui INTERFACE trex_ui trex_ml trex_tracking trex_data trex_core)
 
 if(NOT COMMONS_NO_PYTHON)
     add_subdirectory(python)
-    target_link_libraries(trex_detect PUBLIC trex_python_staging)
     # In static Unix builds, trex_python_staging can reach final link steps
     # through tracker_* interface libraries. Make the implementation library
     # part of the propagated runtime link set at the interface layer.

@@ -37,7 +37,6 @@
 #include <ui/LabelWrapper.h>
 #include <ui/LoadingScene.h>
 #include <ui/MouseDock.h>
-#include <ui/Overlay.h>
 #include <ui/PreviewAdapterElement.h>
 #include <ui/RecognitionSummary.h>
 #include <ui/RecentItems.h>

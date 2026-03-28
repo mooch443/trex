@@ -59,8 +59,8 @@ class AnimatedBackground : public Entangled {
     std::atomic<bool> _strict{false};
     
 public:
-    AnimatedBackground(Image::Ptr&&, const pv::File* = nullptr);
-    AnimatedBackground(VideoSource&&);
+    AnimatedBackground(Image::Ptr&&, const pv::File* = nullptr, std::shared_ptr<TimingStatsCollector> stats = nullptr);
+    AnimatedBackground(VideoSource&&, std::shared_ptr<TimingStatsCollector> stats = nullptr);
     
     AnimatedBackground(const AnimatedBackground&) = delete;
     AnimatedBackground(AnimatedBackground&&) = delete;

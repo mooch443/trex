@@ -16,6 +16,7 @@ static void (*windowsEarlyEnvSetup)(void) = []() {
 #endif
 
 #include <gui/DrawStructure.h>
+#include <gui/Dispatcher.h>
 #include <gui/IMGUIBase.h>
 #include <gui/SFLoop.h>
 #include <gui/types/Button.h>
@@ -700,6 +701,10 @@ int main(int argc, char**argv) {
     file::DataLocation::create();
     GlobalSettings::create();
     default_config::register_default_locations();
+#if COMMONS_DISPATCHER_REQUIRE_EXPLICIT_INSTANCE
+    static gui::attr::Dispatcher dispatcher;
+    gui::SceneManager::install_dispatcher_instance(&dispatcher);
+#endif
 
     GlobalSettings::write([](Configuration& config){
         grab::default_config::get(config);

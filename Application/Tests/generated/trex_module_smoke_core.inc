@@ -94,11 +94,6 @@ namespace trex_module_smoke::trex_core::track {
 using ::track::Idx_t;
 }
 
-// core/PrecomuptedDetection.h
-namespace trex_module_smoke::trex_core::track {
-using ::track::match_name;
-}
-
 // core/RepeatedDeferral.h
 namespace trex_module_smoke::trex_core::cmn {
 using ::cmn::RepeatedDeferral;

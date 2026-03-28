@@ -4,7 +4,8 @@
 #include <python/GPURecognition.h>
 #include <misc/Timer.h>
 #include <core/TrackingSettings.h>
-#include <detect/Detection.h>
+#include <python/Detection.h>
+#include <python/PipelineRegistry.h>
 #include <python/YOLO.h>
 #include <python/ModuleProxy.h>
 #include <python/ResponseValidation.h>
@@ -27,20 +28,6 @@ SAM3::Data& SAM3::data() {
     return instance;
 }
 
-PipelineManager<TileImage, false>& SAM3::manager() {
-    static auto instance = PipelineManager<TileImage, false>(
-        min(1u, READ_SETTING(detect_batch_size, uchar)),
-        [](std::vector<TileImage>&& images) {
-#ifndef NDEBUG
-            if(images.empty())
-                FormatExcept("SAM3 received empty image package.");
-#endif
-            SAM3::apply(std::move(images));
-        }
-    );
-    return instance;
-}
-
 SAM3::SAM3(cmn::Image::Ptr&&) {
 }
 
@@ -54,7 +41,7 @@ std::future<SegmentationData> SAM3::apply(TileImage&& tiled) {
     tiled.promise = std::make_unique<std::promise<SegmentationData>>();
 
     auto f = tiled.promise->get_future();
-    manager().enqueue(std::move(tiled));
+    detect::pipeline_manager(detect::ObjectDetectionType::sam3).enqueue(std::move(tiled));
     return f;
 }
 
@@ -81,6 +68,18 @@ void SAM3::init() {
     if(data().initialized.compare_exchange_strong(expected, true)) {
         data().fps = 0.0;
         data().samples = 0;
+
+        detect::register_pipeline(
+            detect::ObjectDetectionType::sam3,
+            min(1u, READ_SETTING(detect_batch_size, uchar)),
+            /*start_paused=*/false,
+            [](std::vector<TileImage>&& images) {
+#ifndef NDEBUG
+                if(images.empty())
+                    FormatExcept("SAM3 received empty image package.");
+#endif
+                SAM3::apply(std::move(images));
+            });
 
         {
             std::unique_lock guard(data().mutex);
@@ -132,6 +131,9 @@ void SAM3::init() {
 void SAM3::deinit() {
     bool expected = true;
     if(data().initialized.compare_exchange_strong(expected, false)) {
+        detect::pipeline_manager(detect::ObjectDetectionType::sam3).clean_up();
+        detect::unregister_pipeline(detect::ObjectDetectionType::sam3);
+
         if(Python::python_initialized()) {
             Python::schedule([]() {
                 ModuleProxy proxy("trex_sam3_interface", SAM3::reinit, true);

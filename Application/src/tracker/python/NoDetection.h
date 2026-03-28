@@ -2,7 +2,7 @@
 #include <commons.pc.h>
 #include <core/DetectionTypes.h>
 #include <core/TileImage.h>
-#include <detect/Detection.h>
+#include <python/Detection.h>
 #include <misc/Image.h>
 
 namespace track {

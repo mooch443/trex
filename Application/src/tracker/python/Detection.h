@@ -6,6 +6,7 @@
 #include <core/TileImage.h>
 #include <misc/Image.h>
 #include <python/BackendRegistry.h>
+#include <python/PipelineRegistry.h>
 
 namespace track {
 
@@ -31,7 +32,7 @@ struct TREX_EXPORT Detection {
     static double fps();
     static void set_background(const cmn::Image::Ptr& image);
 
-    static PipelineManager<TileImage, true>& manager();
+    static PipelineManager<TileImage>& manager();
 
 private:
     static void apply(std::vector<TileImage>&& tiled);
