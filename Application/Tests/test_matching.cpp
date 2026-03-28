@@ -18,6 +18,7 @@
 #include <algorithm>
 #include <sstream>
 #include <stdexcept>
+#include <file/DataLocation.h>
 
 using ::testing::TestWithParam;
 using ::testing::Values;
@@ -38,6 +39,18 @@ static void resetGlobalSettings()
         grab::default_config::get(config);
         ::default_config::get(config);
     });
+
+    Python::configure_runtime(
+        GlobalSettings::instance(),
+        file::DataLocation::instance(),
+        Python::get_instance(),
+        [](auto& name, auto& mat) {
+            tf::imshow(name, mat);
+        },
+        []() {
+            tf::destroyAllWindows();
+        }
+    );
     
     // Clear out the global SETTING(...) states used by these tests:
     SETTING(output_fields) = std::vector<std::pair<std::string, std::vector<std::string>>>{};
