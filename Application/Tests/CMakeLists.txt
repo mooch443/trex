@@ -101,6 +101,7 @@ set(TARGETS
     test_threadpool 
     test_tiling 
     test_segmenter
+    test_dispatcher
 )
 if(COMMONS_ENABLE_MODULES AND NOT CMAKE_VERSION VERSION_LESS "3.28.0")
     list(APPEND TARGETS test_commons_modules)
