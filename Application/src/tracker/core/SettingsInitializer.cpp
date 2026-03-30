@@ -622,6 +622,8 @@ void LoadContext::load_settings_from_source() {
                     if(not type.has_value()
                         || task == TRexTask_t::track)
                     {
+                        if(not tmp.has("detect_type"))
+                            throw RuntimeError("Expected to have detect_type setup in ", tmp," already, loading ",path,".");
                         combined.values["detect_type"] = type = tmp.at("detect_type").value<detect::ObjectDetectionType_t>();
                         set_config_if_different("detect_type", combined.values);
                     }

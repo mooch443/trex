@@ -242,6 +242,55 @@ TYPED_TEST(ParseAndResolveTest, JsonSubArrayTest)
     EXPECT_EQ(run_parser<TypeParam>("{object.0}", ctx, state), "1");
 }
 
+TYPED_TEST(ParseAndResolveTest, CanParseComplexString)
+{
+    State state;
+    Context ctx{
+        VarFunc("mouse_in_bowl", [](const VarProps&) -> Vec2 { return Vec2(123,456); }),
+        VarFunc("video_size", [](const VarProps&) -> Vec2 { return Vec2(1024,2048); })
+    };
+
+    EXPECT_EQ(run_parser<TypeParam>("{if:{&&:{>=:{mouse_in_bowl.x}:0}:{<:{mouse_in_bowl.x}:{video_size.x}}:{>=:{mouse_in_bowl.y}:0}:{<:{mouse_in_bowl.y}:{video_size.y}}}:[255,255,255,255]:[200,120,80,100]}", ctx, state), "[255,255,255,255]");
+}
+
+TYPED_TEST(ParseAndResolveTest, CanParseComplexStringWithoutTypes)
+{
+    State state;
+    Context ctx{
+        VarFunc("mouse_in_bowl", [](const VarProps&) -> std::string { return Meta::toStr(Vec2(123,456)); }),
+        VarFunc("video_size", [](const VarProps&) -> Vec2 { return Vec2(1024,2048); })
+    };
+
+    EXPECT_EQ(run_parser<TypeParam>("{if:{&&:{>=:{mouse_in_bowl.x}:0}:{<:{mouse_in_bowl.x}:{video_size.x}}:{>=:{mouse_in_bowl.y}:0}:{<:{mouse_in_bowl.y}:{video_size.y}}}:[255,255,255,255]:[200,120,80,100]}", ctx, state), "[255,255,255,255]");
+}
+
+TYPED_TEST(ParseAndResolveTest, CanParseComplexStringWithoutTypesInteger)
+{
+    State state;
+    Context ctx{
+        VarFunc("mouse_in_bowl", [](const VarProps&) -> std::string { return Meta::toStr(Vec2(123,456)); }),
+        VarFunc("video_size", [](const VarProps&) -> Vec2 { return Vec2(1024,2048); })
+    };
+
+    EXPECT_EQ(run_parser<TypeParam>("{if:{&&:{>=:{mouse_in_bowl.0}:0}:{<:{mouse_in_bowl.0}:{video_size.x}}:{>=:{mouse_in_bowl.1}:0}:{<:{mouse_in_bowl.1}:{video_size.y}}}:[255,255,255,255]:[200,120,80,100]}", ctx, state), "[255,255,255,255]");
+}
+
+TYPED_TEST(ParseAndResolveTest, CanParseGlobalVariable)
+{
+    State state;
+    sprite::Map map;
+    map["test"] = Size2(1024,768);
+    
+    Context ctx{
+        VarFunc("mouse_in_bowl", [](const VarProps&) -> std::string { return Meta::toStr(Vec2(123,456)); }),
+        VarFunc("global", [&map](const VarProps&) -> const sprite::Map& { return map; })
+    };
+
+    EXPECT_EQ(run_parser<TypeParam>("{global.test}", ctx, state), "[1024,768]");
+    EXPECT_EQ(run_parser<TypeParam>("<h5><sym>🖰</sym></h5> <i>{round:{mouse_in_bowl.x}},{round:{mouse_in_bowl.y}}</i>", ctx, state), "<h5><sym>🖰</sym></h5> <i>123,456</i>");
+}
+
+
 TYPED_TEST(ParseAndResolveTest, JsonSubSubArrayTest)
 {
     State state;
@@ -652,6 +701,57 @@ TYPED_TEST(ParseAndResolveTest, EmptyBracesThrows)
     State   state;
     Context ctx;
     ASSERT_THROW(run_parser<TypeParam>("{}", ctx, state), std::runtime_error);
+}
+
+TEST(DefaultVariablesTest, LoadedDefaultExpressionSupportsVec2Subfields)
+{
+    constexpr std::string_view json = R"json(
+{
+  "defaults": {
+    "vars": {
+      "mouse_in_bowl": "{2bowl:{mouse}}"
+    }
+  },
+  "objects": [
+    {
+      "type": "stext",
+      "text": "<h5><sym>🖰</sym></h5> <i>{round:{mouse_in_bowl.x}},{round:{mouse_in_bowl.y}}</i>"
+    }
+  ]
+}
+)json";
+
+    auto loaded = load(std::string(json));
+    ASSERT_TRUE(loaded.has_value()) << loaded.error();
+
+    auto [defaults, objects] = std::move(loaded.value());
+    ASSERT_TRUE(objects.is_array());
+    ASSERT_EQ(objects.get_array().size(), 1u);
+    ASSERT_TRUE(objects.get_array().front().is_object());
+
+    Context context{
+        VarFunc("mouse", [](const VarProps&) -> Vec2 { return Vec2(123,456); }),
+        VarFunc("2bowl", [](const VarProps& props) -> Vec2 {
+            return Meta::fromStr<Vec2>(props.parameters.front());
+        })
+    };
+    context.defaults = std::move(defaults);
+
+    State state;
+    auto handler = std::make_shared<CurrentObjectHandler>();
+    state._current_object_handler = handler;
+
+    DrawStructure graph(640, 480);
+    auto root = parse_object(nullptr, objects.get_array().front().get_object(), context, state, context.defaults);
+    ASSERT_TRUE(root);
+
+    ASSERT_NO_THROW((void)DynamicGUI::update_objects(nullptr, graph, root, context, state));
+
+    std::vector<std::string> texts;
+    collect_static_text_strings(root, texts);
+    ASSERT_THAT(texts, ::testing::ElementsAre(
+        "<h5><sym>🖰</sym></h5> <i>123,456</i>"
+    ));
 }
 
 TEST(EachElementTest, NestedEachRestoresOuterScope) {
