@@ -229,6 +229,47 @@ TYPED_TEST(ParseAndResolveTest, SpriteMapFieldAccess)
     EXPECT_EQ(run_parser<TypeParam>("{object.json.value}", ctx, state), "42");
 }
 
+TYPED_TEST(ParseAndResolveTest, JsonSubArrayTest)
+{
+    State state;
+    glz::json_t object= cvt2json(std::vector<int>{1,2,3});
+
+    Context ctx{
+        VarFunc("object", [&object](const VarProps&) -> glz::json_t { return object; })
+    };
+
+    EXPECT_EQ(run_parser<TypeParam>("{object}", ctx, state), "[1,2,3]");
+    EXPECT_EQ(run_parser<TypeParam>("{object.0}", ctx, state), "1");
+}
+
+TYPED_TEST(ParseAndResolveTest, JsonSubSubArrayTest)
+{
+    State state;
+    glz::json_t object;
+    object["array"] = cvt2json(std::vector<int>{1,2,3});
+
+    Context ctx{
+        VarFunc("object", [&object](const VarProps&) -> glz::json_t { return object; })
+    };
+
+    EXPECT_EQ(run_parser<TypeParam>("{object.array}", ctx, state), "[1,2,3]");
+    EXPECT_EQ(run_parser<TypeParam>("{object.array.0}", ctx, state), "1");
+}
+
+TYPED_TEST(ParseAndResolveTest, SpriteSubArrayTest)
+{
+    State state;
+    sprite::Map map;
+    map["object"] = std::vector<int>{1,2,3};
+
+    Context ctx{
+        VarFunc("map", [&map](const VarProps&) -> const sprite::Map& { return map; })
+    };
+
+    EXPECT_EQ(run_parser<TypeParam>("{map.object}", ctx, state), "[1,2,3]");
+    EXPECT_EQ(run_parser<TypeParam>("{map.object.0}", ctx, state), "1");
+}
+
 TYPED_TEST(ParseAndResolveTest, JsonObjectSubfieldReplacement)
 {
     State state;

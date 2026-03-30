@@ -287,7 +287,11 @@ if(NOT WIN32 AND TREX_WITH_TESTS)
         Commons::Gui
     )
     trex_link_static_python_impl(test_imgui)
-    #target_precompile_headers(test_imgui REUSE_FROM commons)
+    if(NOT COMMONS_ENABLE_MODULES AND NOT COMMONS_DONT_USE_PCH
+            AND COMMONS_CAN_REUSE_PCH_ACROSS_TARGETS
+            AND DEFINED COMMONS_PCH_OWNER AND NOT "${COMMONS_PCH_OWNER}" STREQUAL "")
+        target_precompile_headers(test_imgui REUSE_FROM ${COMMONS_PCH_OWNER})
+    endif()
 endif()
 
 #add_executable(properties properties.cpp
@@ -655,8 +659,12 @@ if(APPLE)
 endif()
 
 #target_precompile_headers(properties REUSE_FROM commons)
-#target_precompile_headers(${TREX_EXEC_NAME} REUSE_FROM commons)
-#target_precompile_headers(${TREXA_EXEC_NAME} REUSE_FROM commons)
+#target_precompile_headers(${TREX_EXEC_NAME} REUSE_FROM commons)  # legacy; TREX_EXEC_NAME only set when BUILD_LEGACY_TREX
+if(NOT COMMONS_ENABLE_MODULES AND NOT COMMONS_DONT_USE_PCH
+    AND COMMONS_CAN_REUSE_PCH_ACROSS_TARGETS
+        AND DEFINED COMMONS_PCH_OWNER AND NOT "${COMMONS_PCH_OWNER}" STREQUAL "")
+    target_precompile_headers(${TREXA_EXEC_NAME} REUSE_FROM ${COMMONS_PCH_OWNER})
+endif()
 
 install(TARGETS ${targets}
     EXPORT TRex

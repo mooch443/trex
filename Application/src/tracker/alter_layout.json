@@ -25,6 +25,7 @@
 			"animation_begin":"{max:0:{-:{spots}:{text_start}}}",
 			"slide":"{pad_string:{animation_begin}:''}{substr:0:{-:{slide_window}:{animation_begin}}:{pad_string:{slide_window}:{substr:{max:0:{-:{-:{text_start}:{spots}}:{animation_begin}}}:{+:{spots}:{text_start}}:{long_text}}}}",
 			"animated_text":"{animation} {animation2}  [<c>{slide}</c>]  <c>{pad_string:{text_length}:{buildup}<sym>❚</sym>}</c>",
+			"mouse_in_bowl": "{2bowl:{mouse}}",
 
 			"infocard_width": 215
 		}
@@ -177,16 +178,29 @@
 		]]
 	},
 	{
-		"type":"stext",
+		"type":"hlayout",
 		"pos":"[{-:{window_size.x}:10},{-:{window_size.y}:10}]",
 		"origin":[1,1],
-		"font":{"size":0.5},
-		"clickable":true,
-		"pad":[5,5,5,5],
 		"fill":"{if:{hovered}:[0,0,0,200]:[0,0,0,100]}",
+
 		"none":"📤🌩🗬🗎🛈▶🛠👁🐈⮩⮞⭯⮞⭓❮←❯➯➾➲➢➝➩○◔◑◕●▷🡢⮚❵↱⮡🢤🠰🕐 🕜 🕑 🕝 🕒 🕞 🕓 🕟 🕔 🕠 🕕 🕡 🕖 🕢 🕗 🕣 🕘 🕤 🕙 🕥 🕚 🕦 🕛 🕧<sym>❯</sym>",
 
-		"text":"{mouse} {if:{is_initializing}:'{animation} <c>loading</c><sym> 🞙</sym> ':{if:{equal:{global.detect_type}:yolo}:{if:{global.region_model}:<sym>🖽</sym> {global.region_resolution}<i>px</i><sym> 🞙</sym> {shorten:{filename:{global.region_model}}:{if:{hovered}:40:15}} <sym>❯</sym> :''}<sym>🐟 </sym> {global.detect_resolution}<i>px [{global.detect_format}]</i> <sym> 🞙</sym> <c>{shorten:{filename:{global.detect_model}}:{if:{hovered}:40:15}}</c> <sym>❯</sym>:'background subtraction'}} <sym>💻</sym><i>{gpu_device}</i>{if:{global.gui_is_recording}:' <str><sym>○</sym></str>':''}"
+		"children":[
+			{
+				"type":"stext",
+		"pad":[5,5,5,5],
+				"text":"<h5><sym>🖰</sym></h5> <i>{round:{mouse_in_bowl.x}},{round:{mouse_in_bowl.y}}</i>",
+				"font":{"size":0.5},
+				"color":"{if:{&&:{>=:{mouse_in_bowl.x}:0}:{<:{mouse_in_bowl.x}:{video_size.x}}:{>=:{mouse_in_bowl.y}:0}:{<:{mouse_in_bowl.y}:{video_size.y}}}:[255,255,255,255]:[200,120,80,100]}"
+			},
+			{
+				"type":"stext",
+		"pad":[5,5,5,5],
+				"font":{"size":0.5},
+				"clickable":true,
+				"text":"{if:{is_initializing}:'{animation} <c>loading</c><sym> 🞙</sym> ':{if:{equal:{global.detect_type}:yolo}:{if:{global.region_model}:<sym>🖽</sym> {global.region_resolution}<i>px</i><sym> 🞙</sym> {shorten:{filename:{global.region_model}}:{if:{hovered}:40:15}} <sym>❯</sym> :''}<sym>🐟 </sym> {global.detect_resolution}<i>px [{global.detect_format}]</i> <sym> 🞙</sym> <c>{shorten:{filename:{global.detect_model}}:{if:{hovered}:40:15}}</c> <sym>❯</sym>:'background subtraction'}} <sym>💻</sym><i>{gpu_device}</i>{if:{global.gui_is_recording}:' <str><sym>○</sym></str>':''}"
+			}
+		]
 	},
 
 	{

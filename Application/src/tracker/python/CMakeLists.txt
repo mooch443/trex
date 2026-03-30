@@ -144,8 +144,12 @@ else()
     target_link_libraries(trex_check_python PUBLIC ${PYTHON_LIBRARIES})
 endif()
 
-#target_precompile_headers(trex_check_python REUSE_FROM commons)
-#target_precompile_headers(trex_python REUSE_FROM commons)
+if(NOT COMMONS_ENABLE_MODULES AND NOT COMMONS_DONT_USE_PCH
+    AND COMMONS_CAN_REUSE_PCH_ACROSS_TARGETS
+        AND DEFINED COMMONS_PCH_OWNER AND NOT "${COMMONS_PCH_OWNER}" STREQUAL "")
+    target_precompile_headers(trex_check_python REUSE_FROM ${COMMONS_PCH_OWNER})
+    target_precompile_headers(trex_python REUSE_FROM ${COMMONS_PCH_OWNER})
+endif()
 
 add_dependencies(trex_python trex_check_python )
 install(TARGETS trex_check_python

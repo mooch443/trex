@@ -309,8 +309,8 @@ void YOLO::deinit() {
         }
         _pool = nullptr;
         
-        std::unique_lock guard(running_mutex);
         {
+            std::unique_lock guard(running_mutex);
             if(running_prediction.valid()) {
                 Print("Still have an active prediction running, waiting...");
                 running_prediction.get();
@@ -318,18 +318,19 @@ void YOLO::deinit() {
             }
             running_promise = {};
             running_prediction = {};
+            
+            if(not Python::python_initialized())
+                throw U_EXCEPTION("Please Yolo::deinit before calling Python::deinit().");
+            
+            Python::schedule([](){
+                track::PythonIntegration::unload_module("bbx_saved_model");
+                track::PythonIntegration::unload_module("trex_yolo");
+                track::PythonIntegration::unload_module("trex_detection_model");
+            }).get();
+            
+            data().reset();
         }
         
-        if(not Python::python_initialized())
-            throw U_EXCEPTION("Please Yolo::deinit before calling Python::deinit().");
-        
-        Python::schedule([](){
-            track::PythonIntegration::unload_module("bbx_saved_model");
-            track::PythonIntegration::unload_module("trex_yolo");
-            track::PythonIntegration::unload_module("trex_detection_model");
-        }).get();
-        
-        data().reset();
         detect::pipeline_manager(detect::ObjectDetectionType::yolo).clean_up();
         detect::unregister_pipeline(detect::ObjectDetectionType::yolo);
     }

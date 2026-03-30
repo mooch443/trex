@@ -192,6 +192,17 @@ if(TREX_CONDA_PACKAGE_INSTALL)
     endif("${isSystemDir}" STREQUAL "-1")
 endif()
 
+# Visibility flags must be set before processing subdirectories so that commons
+# and all consumer targets (tracker, pv, …) share the same compile flags, which
+# is a hard requirement for precompiled-header reuse (REUSE_FROM).
+if(CMAKE_CXX_COMPILER_ID MATCHES "^(Apple)?Clang$")
+    if(NOT ${TREX_ENABLE_SHARED_INTERNAL_LIBS})
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fvisibility-inlines-hidden -fvisibility=hidden -fstrict-aliasing")
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fvisibility-inlines-hidden -fvisibility=hidden -fstrict-aliasing")
+        message(STATUS "Using hidden visibility for non-shared TRex build on Apple Clang.")
+    endif()
+endif()
+
 add_subdirectory(src/commons)
 
 if(COMMONS_DISPATCHER_REQUIRE_EXPLICIT_INSTANCE)
@@ -234,11 +245,7 @@ set_property(GLOBAL PROPERTY DEBUG_CONFIGURATIONS "Debug;DEBUG;")
 set(CMAKE_DEBUG_POSTFIX -d)
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "^(Apple)?Clang$")
-    if(NOT ${TREX_ENABLE_SHARED_INTERNAL_LIBS})
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fvisibility-inlines-hidden -fvisibility=hidden -fstrict-aliasing")
-        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fvisibility-inlines-hidden -fvisibility=hidden -fstrict-aliasing")
-        message(STATUS "Using hidden visibility for non-shared TRex build on Apple Clang.")
-    endif()
+    # Visibility flags were moved before add_subdirectory(src/commons) above.
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-undefined,error")
     set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,-undefined,error")
     set(CMAKE_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS} -Wl,-undefined,error")

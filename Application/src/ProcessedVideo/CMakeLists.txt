@@ -69,4 +69,8 @@ add_subdirectory(lzo)
 target_link_libraries(pv PUBLIC lzo)
 target_link_libraries(pv PUBLIC Commons::Video)
 
-#target_precompile_headers(pv REUSE_FROM commons)
+if(NOT COMMONS_ENABLE_MODULES AND NOT COMMONS_DONT_USE_PCH
+    AND COMMONS_CAN_REUSE_PCH_ACROSS_TARGETS
+        AND DEFINED COMMONS_PCH_OWNER AND NOT "${COMMONS_PCH_OWNER}" STREQUAL "")
+    target_precompile_headers(pv REUSE_FROM ${COMMONS_PCH_OWNER})
+endif()
