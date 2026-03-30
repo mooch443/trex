@@ -256,6 +256,22 @@ TYPED_TEST(ParseAndResolveTest, JsonSubSubArrayTest)
     EXPECT_EQ(run_parser<TypeParam>("{object.array.0}", ctx, state), "1");
 }
 
+TYPED_TEST(ParseAndResolveTest, JsonDynamicSubSubArrayTest)
+{
+    State state;
+    glz::json_t object;
+    object["array"] = cvt2json(std::vector<int>{1,2,3});
+
+    Context ctx{
+        VarFunc("index", [](const VarProps&){ return 1; }),
+        VarFunc("object", [&object](const VarProps&) -> glz::json_t { return object; })
+    };
+
+    EXPECT_EQ(run_parser<TypeParam>("{index}", ctx, state), "1");
+    EXPECT_EQ(run_parser<TypeParam>("{object.array}", ctx, state), "[1,2,3]");
+    EXPECT_EQ(run_parser<TypeParam>("{object.array.{index}}", ctx, state), "2");
+}
+
 TYPED_TEST(ParseAndResolveTest, SpriteSubArrayTest)
 {
     State state;
