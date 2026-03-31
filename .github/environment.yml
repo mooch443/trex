@@ -5,4 +5,4 @@ channels:
 dependencies:
     - conda-build
     - git
-    - python=3.11
+    - python

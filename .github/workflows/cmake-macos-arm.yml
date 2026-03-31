@@ -21,7 +21,6 @@ jobs:
       fail-fast: false
       matrix:
         os: ["macos-26"]
-        python-version: ["3.11"]
     steps:
     - uses: actions/checkout@v4
       with:
@@ -62,7 +61,7 @@ jobs:
       uses: actions/cache@v4
       with:
         path: ${{ steps.conda-prefix.outputs.path }}
-        key: ${{ runner.os }}-conda-env-1-${{ matrix.python-version }}-${{ steps.envhash.outputs.hash }}
+        key: ${{ runner.os }}-conda-env-1-${{ steps.envhash.outputs.hash }}
     - name: Install environment into base
       if: steps.conda-env-cache.outputs.cache-hit != 'true'
       shell: bash -el {0}
@@ -70,7 +69,6 @@ jobs:
       run: |
         echo "::group::Install environment into base"
         conda env update --name base -f .github/macos-environment-arm64.yml
-        conda install -y python=${{ matrix.python-version }}
         conda info
         conda list
         echo "::endgroup::"
