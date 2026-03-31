@@ -44,7 +44,6 @@ jobs:
         auto-activate: true
         auto-update-conda: false
         activate-environment: ""
-        python-version: ${{ matrix.python-version }}
         use-only-tar-bz2: true
         pkgs-dirs: ~/conda_pkgs_dir
         cache-env: true
@@ -54,8 +53,8 @@ jobs:
       working-directory: ${{github.workspace}}
       run: |
         echo "::group::Install environment into base"
+        conda install -n base -y python=${{ matrix.python-version }}
         conda env update --name base -f .github/environment.yml
-        conda install -y python=${{ matrix.python-version }}
         conda info
         conda list
         echo "::endgroup::"
