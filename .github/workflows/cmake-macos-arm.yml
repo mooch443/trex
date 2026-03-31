@@ -22,7 +22,7 @@ jobs:
       matrix:
         os: ["macos-26"]
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
       with:
         ref: ${{ github.ref }}
         submodules: 'recursive'
@@ -50,8 +50,7 @@ jobs:
         miniforge-version: latest
         activate-environment: base
         channels: conda-forge
-        auto-update-conda: true
-        use-only-tar-bz2: true
+        auto-update-conda: false
     - name: Get conda prefix
       id: conda-prefix
       shell: bash

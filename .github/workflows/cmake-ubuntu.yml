@@ -35,20 +35,26 @@ jobs:
         path: ~/conda_pkgs_dir
         key: ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{ hashFiles('.github/environment.yml') }}
     - uses: conda-incubator/setup-miniconda@v3
-      id: setup-conda
       with:
         miniforge-version: latest
         channels: conda-forge
         conda-remove-defaults: true
         auto-activate: true
         auto-update-conda: false
-        activate-environment: ""
-        use-only-tar-bz2: true
+        activate-environment: base
         pkgs-dirs: ~/conda_pkgs_dir
-        cache-env: true
-        cache-env-key: ${{ runner.os }}-conda-base-${{ hashFiles('.github/environment.yml') }}
+    - name: Get conda prefix
+      id: conda-prefix
+      shell: bash
+      run: echo "path=$CONDA" >> $GITHUB_OUTPUT
+    - name: Cache conda base environment
+      id: conda-env-cache
+      uses: actions/cache@v4
+      with:
+        path: ${{ steps.conda-prefix.outputs.path }}
+        key: ${{ runner.os }}-conda-env-1-${{ hashFiles('.github/environment.yml') }}
     - name: Install environment into base
-      if: steps.setup-conda.outputs.cache-hit != 'true'
+      if: steps.conda-env-cache.outputs.cache-hit != 'true'
       working-directory: ${{github.workspace}}
       run: |
         echo "::group::Install environment into base"
