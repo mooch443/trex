@@ -50,13 +50,11 @@ jobs:
         subst W: "${{ github.workspace }}"
 
         "SHORT_WORKSPACE=W:\"        | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-        "TRACKING_PREFIX=C:\ce\t"   | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
         "TEST_PREFIX=C:\ce\s"       | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
         "CONDA_BLD_PATH=C:\cbld"    | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
         "CONDA_PKGS_DIRS=C:\cpkgs"  | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
         Write-Host "SHORT_WORKSPACE=W:\"
-        Write-Host "TRACKING_PREFIX=C:\ce\t"
         Write-Host "TEST_PREFIX=C:\ce\s"
         Write-Host "CONDA_BLD_PATH=C:\cbld"
         Write-Host "CONDA_PKGS_DIRS=C:\cpkgs"
@@ -76,19 +74,28 @@ jobs:
         Get-Content "$HOME\.condarc"
         conda config --show channels
 
-    - name: Create tracking env
+    - name: Get conda prefix
+      id: conda-prefix
+      shell: pwsh
+      run: echo "path=$env:CONDA" >> $env:GITHUB_OUTPUT
+    - name: Cache conda base environment
+      id: conda-env-cache
+      uses: actions/cache@v4
+      with:
+        path: ${{ steps.conda-prefix.outputs.path }}
+        key: ${{ runner.os }}-conda-env-1-${{ matrix.python-version }}-${{ hashFiles('.github/environment.yml') }}
+    - name: Install environment into base
+      if: steps.conda-env-cache.outputs.cache-hit != 'true'
       shell: pwsh
       working-directory: ${{ env.SHORT_WORKSPACE }}
       env:
         CONDA_BLD_PATH: ${{ env.CONDA_BLD_PATH }}
         CONDA_PKGS_DIRS: ${{ env.CONDA_PKGS_DIRS }}
       run: |
-        if (Test-Path $env:TRACKING_PREFIX) { Remove-Item -Recurse -Force $env:TRACKING_PREFIX }
-        mamba env create -p $env:TRACKING_PREFIX -f .github/environment.yml
-        mamba install -y -p $env:TRACKING_PREFIX python=${{ matrix.python-version }}
-
-        conda run -p $env:TRACKING_PREFIX conda info
-        conda run -p $env:TRACKING_PREFIX conda list
+        mamba env update --name base -f .github/environment.yml
+        mamba install -y python=${{ matrix.python-version }}
+        conda info
+        conda list
 
     - name: Fix Meta
       shell: pwsh
@@ -118,8 +125,8 @@ jobs:
         CONDA_BLD_PATH: ${{ env.CONDA_BLD_PATH }}
         CONDA_PKGS_DIRS: ${{ env.CONDA_PKGS_DIRS }}
       run: |
-        conda run -p $env:TRACKING_PREFIX conda update --all --override-channels -c conda-forge -y
-        conda run -p $env:TRACKING_PREFIX conda build . --override-channels -c conda-forge
+        conda update --all --override-channels -c conda-forge -y
+        conda build . --override-channels -c conda-forge
 
     - name: Test
       shell: pwsh
@@ -130,7 +137,7 @@ jobs:
       run: |
         if (Test-Path $env:TEST_PREFIX) { Remove-Item -Recurse -Force $env:TEST_PREFIX }
 
-        conda run -p $env:TRACKING_PREFIX conda search numpy
+        conda search numpy
         conda create -y -p $env:TEST_PREFIX --override-channels -c "$env:CONDA_BLD_PATH" -c conda-forge trex
 
         conda run -p $env:TEST_PREFIX pvinfo -opencv_ffmpeg_support

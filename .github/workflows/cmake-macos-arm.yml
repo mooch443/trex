@@ -49,13 +49,31 @@ jobs:
     - uses: conda-incubator/setup-miniconda@v3
       with:
         miniforge-version: latest
-        environment-file: .github/macos-environment-arm64.yml
-        activate-environment: tracking
-        python-version: ${{ matrix.python-version }}
+        activate-environment: base
         channels: conda-forge
-        auto-activate-base: true
         auto-update-conda: true
         use-only-tar-bz2: true
+    - name: Get conda prefix
+      id: conda-prefix
+      shell: bash
+      run: echo "path=$CONDA" >> $GITHUB_OUTPUT
+    - name: Cache conda base environment
+      id: conda-env-cache
+      uses: actions/cache@v4
+      with:
+        path: ${{ steps.conda-prefix.outputs.path }}
+        key: ${{ runner.os }}-conda-env-1-${{ matrix.python-version }}-${{ steps.envhash.outputs.hash }}
+    - name: Install environment into base
+      if: steps.conda-env-cache.outputs.cache-hit != 'true'
+      shell: bash -el {0}
+      working-directory: ${{github.workspace}}
+      run: |
+        echo "::group::Install environment into base"
+        conda env update --name base -f .github/macos-environment-arm64.yml
+        conda install -y python=${{ matrix.python-version }}
+        conda info
+        conda list
+        echo "::endgroup::"
     - name: Create .condarc file
       run: |
         conda config --show channels
