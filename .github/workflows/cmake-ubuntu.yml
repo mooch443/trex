@@ -40,14 +40,13 @@ jobs:
         auto-activate: false
         auto-update-conda: true
         conda-remove-defaults: true
-    - name: Create tracking env
+    - name: Install environment into base
       shell: bash -el {0}
       working-directory: ${{github.workspace}}
       run: |
-        echo "::group::Create tracking env"
-        conda env create -f .github/environment.yml
-        conda install -y -n tracking python=${{ matrix.python-version }}
-        conda activate tracking
+        echo "::group::Install environment into base"
+        conda env update --name base -f .github/environment.yml
+        conda install -y python=${{ matrix.python-version }}
         conda info
         conda list
         echo "::endgroup::"
@@ -62,7 +61,6 @@ jobs:
         echo "::group::Info"
         conda info
         conda list
-        conda activate tracking
         echo "::endgroup::"
         echo "::group::Fix Meta"
         cd $GITHUB_WORKSPACE/conda
@@ -88,6 +86,7 @@ jobs:
       run: |
         echo "::group::Test"
         echo $CONDA_PREFIX
+        conda index $CONDA_PREFIX/conda-bld/
         conda create -y -n test --override-channels -c $CONDA_PREFIX/conda-bld/ -c conda-forge trex
         pip cache purge -v --no-input
         conda activate test
