@@ -14,6 +14,54 @@ namespace track {
 
 static_assert(ObjectDetection<SAM3>);
 
+namespace {
+
+struct ResolvedSam3Prompts {
+    detect::Sam3PromptsPerImage prompts_per_image;
+};
+
+/**
+ * Append prompts from one repository entry while preserving their configured
+ * order.
+ */
+void append_prompt_list(detect::Sam3PromptList& dst, const detect::Sam3PromptList& src)
+{
+    dst.insert(dst.end(), src.begin(), src.end());
+}
+
+/**
+ * Resolve the frame-indexed prompt repository into prompt lists aligned with
+ * the images in a single SAM3 batch.
+ */
+ResolvedSam3Prompts resolve_prompts_for_input(const detect::YoloInput& input,
+                                              const detect::Sam3Prompts& prompts_by_frame)
+{
+    ResolvedSam3Prompts resolved;
+    const auto image_count = input.images().size();
+    resolved.prompts_per_image.resize(image_count);
+    const auto null_frame_it = prompts_by_frame.find(Frame_t());
+
+    for(size_t image_idx = 0; image_idx < image_count; ++image_idx) {
+        auto& image_prompts = resolved.prompts_per_image[image_idx];
+        if(null_frame_it != prompts_by_frame.end()) {
+            append_prompt_list(image_prompts, null_frame_it->second);
+        }
+
+        const auto frame_key = Frame_t(static_cast<uint32_t>(input.orig_id().at(image_idx)));
+        const auto it = prompts_by_frame.find(frame_key);
+        if(it == prompts_by_frame.end()) {
+            continue;
+        }
+
+        image_prompts.reserve(image_prompts.size() + it->second.size());
+        append_prompt_list(image_prompts, it->second);
+    }
+
+    return resolved;
+}
+
+} // namespace
+
 struct SAM3::Data {
     std::atomic<bool> initialized{false};
     std::atomic<double> fps{0.0};
@@ -208,34 +256,24 @@ void SAM3::apply(std::vector<TileImage>&& tiled) {
                             }
                         }
                     };
-                    
-                    // 2) Build typed prompts aligned to each image
-                    std::vector<std::vector<detect::Sam3PromptPayload>> prompts_per_item;
 
-                    // image 0: set session-global text prompt (text prompts only).
-                    auto text_prompt = READ_SETTING_WITH_DEFAULT(detect_sam3_prompt, std::optional<std::string>("fish"));
-                    if(text_prompt.has_value()
-                       && tile_image_count > 0)
-                    {
-                        detect::Sam3PromptPayload p0;
-                        p0.type = detect::Sam3PromptType::text;
-                        p0.frame_index = frame_index;
-                        p0.text = text_prompt;
-                        p0.text_session_scope = true;
-                        p0.text_skip_if_unchanged = true;
-                        prompts_per_item.push_back(std::vector<detect::Sam3PromptPayload>{std::move(p0)});
-                    }
-                    
-                    
+                    const auto prompt_repository = READ_SETTING_WITH_DEFAULT(
+                        detect_sam3_prompt,
+                        detect::Sam3Prompts{});
+                    const auto resolved_prompts = resolve_prompts_for_input(input, prompt_repository);
+
                     detect::Sam3Input in{
                         std::move(input),
-                        std::move(prompts_per_item)
+                        resolved_prompts.prompts_per_image
                     };
                     
                     py::convert_python_exceptions([&](){
                         auto results = py::predict(std::move(in), proxy.m);
-                        if(results.empty()) {
-                            throw U_EXCEPTION("SAM3 predict returned no result for frame ", frame_index, ".");
+                        if(results.size() != tile_image_count) {
+                            throw U_EXCEPTION(
+                                "SAM3 predict returned ", results.size(),
+                                " results for ", tile_image_count,
+                                " images in frame ", frame_index, ".");
                         }
 
                         for(auto& result : results) {

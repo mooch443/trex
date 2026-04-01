@@ -77,6 +77,13 @@ LiveSegmentation::~LiveSegmentation() {
     
 }
 
+void LiveSegmentation::request_frame(Frame_t index) {
+    std::unique_lock guard{_next_frame_mutex};
+    _requested_frame = index;
+    _next_frame.reset();
+    _condition.notify_one();
+}
+
 void LiveSegmentation::activate() {
     Scene::activate();
     // Logic to activate the scene, e.g., initializing framePreloader
@@ -100,7 +107,7 @@ void LiveSegmentation::activate() {
     SETTING(detect_resolution) = track::detect::DetectResolution{};
     
     namespace py = Python;
-    py::schedule([](){
+    auto f = py::schedule([](){
         if(const auto* hooks = track::detect::ensure_backend(track::detect::ObjectDetectionType::sam3); hooks && hooks->init) {
             hooks->init();
         } else {
@@ -111,7 +118,7 @@ void LiveSegmentation::activate() {
     
     assert(not _fetch_thread);
     _fetch_thread = std::make_unique<std::thread>(
-        [this](){
+        [this, f = std::move(f)]() mutable {
             std::unique_lock guard{_next_frame_mutex};
             Frame_t index = 0_f;
             VideoFrame frame;
@@ -120,6 +127,9 @@ void LiveSegmentation::activate() {
             bool disable_waiting = false;
             useMat_t buffer;
             std::optional<std::future<SegmentationData>> result;
+            
+            /// retrieving the ensure_backend / init procedure
+            f.get();
             
             while(not _terminated.load()) {
                 if(not _next_frame.has_value()
@@ -155,11 +165,11 @@ void LiveSegmentation::activate() {
                 
                 if(not disable_waiting)
                     _condition.wait(guard, [&](){
-                        return not (_next_frame.has_value()
-                                    && (not result.has_value()
-                                        || result.value().wait_for(std::chrono::milliseconds(0)) == std::future_status::ready))
-                                || _terminated.load()
-                                || _requested_frame.has_value();
+                        return _terminated.load()
+                            || _requested_frame.has_value()
+                            || not _next_frame.has_value()
+                            || (result.has_value()
+                                && result.value().wait_for(std::chrono::milliseconds(0)) == std::future_status::ready);
                     });
                 disable_waiting = false;
                 
@@ -255,7 +265,7 @@ void LiveSegmentation::deactivate() {
         if(const auto* hooks = track::detect::ensure_backend(track::detect::ObjectDetectionType::sam3); hooks && hooks->deinit) {
             hooks->deinit();
         }
-    });
+    }).get();
 }
 
 // Custom drawing implementation
@@ -338,6 +348,7 @@ void LiveSegmentation::_draw(DrawStructure& graph) {
                         std::unique_lock guard{_next_frame_mutex};
                         _requested_frame = Meta::fromStr<Frame_t>(action.parameters.front());
                         _next_frame.reset();
+                        _condition.notify_one();
                     })
                 };
                 
@@ -470,6 +481,7 @@ bool LiveSegmentation::on_global_event(Event event) {
             std::unique_lock g{_next_frame_mutex};
             _requested_frame = _current_frame.index;
             _next_frame.reset();
+            _condition.notify_one();
         } else
             Print("not adding point at ", original, " => ", p);
         
@@ -496,6 +508,7 @@ bool LiveSegmentation::on_global_event(Event event) {
                     std::unique_lock guard{_next_frame_mutex};
                     _requested_frame = _current_frame.index - 1_f;
                     _next_frame.reset();
+                    _condition.notify_one();
                     /*Frame_t closestFrame;
                     for (const auto& frame : _selected_frames) {
                         if (frame < currentFrameIndex) {

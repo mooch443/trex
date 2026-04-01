@@ -76,6 +76,7 @@ public:
 private:
     // Custom drawing
     void _draw(DrawStructure&);
+    void request_frame(Frame_t);
     
     std::unique_ptr<Data> _data;
 };

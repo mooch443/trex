@@ -98,4 +98,34 @@ PointData::PointData(std::vector<float>&& data)
     assert(_icxyr.size() % 5u == 0u);
 }
 
+std::string Sam3PromptPayload::toStr() const {
+    switch(type()) {
+        case Sam3PromptType::text:
+            if(std::holds_alternative<std::monostate>(value))
+                return "null";
+            return text();
+        case Sam3PromptType::boxes:
+            return Meta::toStr(boxes());
+        case Sam3PromptType::points:
+            return Meta::toStr(points());
+        default:
+            throw InvalidArgumentException("Not implemented: ", type());
+    }
+}
+
+glz::json_t Sam3PromptPayload::to_json() const {
+    switch(type()) {
+        case Sam3PromptType::text:
+            if(std::holds_alternative<std::monostate>(value))
+                return "null";
+            return text();
+        case Sam3PromptType::boxes:
+            return cvt2json(boxes());
+        case Sam3PromptType::points:
+            return cvt2json(points());
+        default:
+            throw InvalidArgumentException("Not implemented: ", type());
+    }
+}
+
 } // namespace track::detect

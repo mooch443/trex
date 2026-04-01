@@ -35,6 +35,7 @@ static void (*windowsEarlyEnvSetup)(void) = []() {
 #include <ui/AnnotationScene.h>
 #include <ui/Bowl.h>
 #include "LiveSegmentation.h"
+#include <core/GPURecognitionTypes.h>
 
 using namespace cmn;
 
@@ -57,7 +58,11 @@ int main(int argc, char** argv) {
     cmd.load_settings();
 
     SETTING(app_name) = std::string("TRex");
-    SETTING(detect_sam3_prompt) = std::string("floor");
+    SETTING(detect_sam3_prompt) = track::detect::Sam3Prompts{
+        {Frame_t{}, track::detect::Sam3PromptList{
+            track::detect::Sam3PromptPayload{ .value = "floor" }
+        }}
+    };
     
     Print("interactive_segmentation_prototype",
           "git:", std::string_view(g_GIT_DESCRIBE_TAG),
@@ -98,6 +103,7 @@ int main(int argc, char** argv) {
     
     static constexpr auto window_title = "InteractiveSegmentationPrototype";
     IMGUIBase base(window_title, {1024,850}, [&, ptr = &base](DrawStructure& graph)->bool {
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
         UNUSED(ptr);
         graph.draw_log_messages(Bounds(Vec2(0, 80), graph.dialog_window_size()));
         return true;
@@ -132,8 +138,8 @@ int main(int argc, char** argv) {
     
     file::cd(file::DataLocation::parse("app"));
     
-    SETTING(source) = file::PathArray{"/Users/tristan/Downloads/test_videos/cam1/GX010004_recut.MP4"};
-    
+    //SETTING(source) = file::PathArray{"/Users/tristan/Downloads/test_videos/cam1/GX010004_recut.MP4"};
+    SETTING(source) = file::PathArray{"/Users/tristan/Downloads/20230320_115142188_blue_DJI_0357.MP4"};
     LiveSegmentation live_scene(base);
     AnnotationScene annotation_scene(base);
     manager.register_scene(&annotation_scene);

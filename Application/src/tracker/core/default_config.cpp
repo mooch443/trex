@@ -12,6 +12,7 @@
 #include <core/TrackingSettings.h>
 #include <pv.h>
 #include <misc/CropOffsets.h>
+#include <core/GPURecognitionTypes.h>
 
 #ifndef WIN32
 #include <unistd.h>
@@ -1092,7 +1093,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("detect_tile_overlap", float(0.f), "Relative overlap (0-0.95) between adjacent tiles when tiling detection inputs. Enables SAHI-style inference without losing objects on tile borders.");
         CONFIG("detect_tile_merge_iou", Float2_t(0.55f), "IoU threshold used when merging tile predictions on the C++ side after SAHI tiling.");
         CONFIG("detect_tile_merge_containment", Float2_t(0.9f), "Containment threshold (fraction of the smaller box overlapped) used to drop partial detections at tile seams.");
-        CONFIG("detect_sam3_prompt", std::optional<std::string>{}, "Set to a text to prompt SAM3 segmentation with it for every image. This is different from point / box prompts, which are applied per-image (because objects are in different places each time).", PUBLIC, {std::optional<std::string>{"fish"}});
+        CONFIG("detect_sam3_prompt", track::detect::Sam3Prompts{}, "Frame-indexed SAM3 prompt repository. C++ resolves this map into per-image prompt arrays before dispatching batches to the Python SAM3 adapter.", PUBLIC, {track::detect::Sam3Prompts{}});
         CONFIG("yolo_tracking_enabled", false, "If set to true, the program will try to use yolov8s internal tracking routine to improve results. This can be significantly slower and disables batching.");
         CONFIG("yolo_region_tracking_enabled", false, "If set to true, the program will try to use yolov8s internal tracking routine to improve results for region tracking. This can be significantly slower and disables batching.");
         CONFIG("detect_model", file::Path(), "The path to a .pt file that contains a valid PyTorch object detection model (currently only YOLO networks are supported).");

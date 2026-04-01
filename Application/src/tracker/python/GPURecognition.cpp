@@ -533,37 +533,65 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
         .def("orig_id", &track::detect::YoloInput::orig_id);
 
     py::enum_<track::detect::Sam3PromptType>(m, "Sam3PromptType")
+        .value("none", track::detect::Sam3PromptType::none)
         .value("text", track::detect::Sam3PromptType::text)
         .value("box", track::detect::Sam3PromptType::box)
         .value("boxes", track::detect::Sam3PromptType::boxes)
-        .value("points", track::detect::Sam3PromptType::points)
-        .value("mask", track::detect::Sam3PromptType::mask)
-        .value("remove_object", track::detect::Sam3PromptType::remove_object);
+        .value("points", track::detect::Sam3PromptType::points);
 
     py::class_<track::detect::Sam3PromptPayload>(m, "Sam3PromptPayload")
         .def(py::init<>())
+        .def(py::init([](std::string text) {
+            track::detect::Sam3PromptPayload payload;
+            payload.value = std::move(text);
+            return payload;
+        }))
+        .def(py::init([](std::vector<cmn::Vec2> points) {
+            track::detect::Sam3PromptPayload payload;
+            payload.value = std::move(points);
+            return payload;
+        }))
+        .def(py::init([](std::vector<cmn::Bounds> boxes) {
+            track::detect::Sam3PromptPayload payload;
+            payload.value = std::move(boxes);
+            return payload;
+        }))
         .def("__repr__", [](const track::detect::Sam3PromptPayload& v) -> std::string {
             return v.toStr();
         })
-        .def_readwrite("type", &track::detect::Sam3PromptPayload::type)
-        .def_readwrite("frame_index", &track::detect::Sam3PromptPayload::frame_index)
-        .def_readwrite("text", &track::detect::Sam3PromptPayload::text)
-        .def_readwrite("obj_id", &track::detect::Sam3PromptPayload::obj_id)
-        .def_readwrite("points", &track::detect::Sam3PromptPayload::points)
-        .def_readwrite("point_labels", &track::detect::Sam3PromptPayload::point_labels)
-        .def_readwrite("boxes", &track::detect::Sam3PromptPayload::boxes)
-        .def_readwrite("labels", &track::detect::Sam3PromptPayload::labels)
-        .def_readwrite("mask", &track::detect::Sam3PromptPayload::mask)
-        .def_readwrite("mask_size", &track::detect::Sam3PromptPayload::mask_size)
-        .def_readwrite("text_session_scope", &track::detect::Sam3PromptPayload::text_session_scope)
-        .def_readwrite("text_skip_if_unchanged", &track::detect::Sam3PromptPayload::text_skip_if_unchanged);
+        .def_property_readonly("type", [](const track::detect::Sam3PromptPayload& v) {
+            return v.type();
+        })
+        .def_property_readonly("text", [](const track::detect::Sam3PromptPayload& v) -> std::string {
+            if(std::holds_alternative<std::string>(v.value)) {
+                return v.text();
+            }
+            return {};
+        })
+        .def_property_readonly("points", [](const track::detect::Sam3PromptPayload& v) -> std::vector<cmn::Vec2> {
+            if(std::holds_alternative<std::vector<cmn::Vec2>>(v.value)) {
+                return v.points();
+            }
+            return {};
+        })
+        .def_property_readonly("boxes", [](const track::detect::Sam3PromptPayload& v) -> std::vector<cmn::Bounds> {
+            if(std::holds_alternative<std::vector<cmn::Bounds>>(v.value)) {
+                return v.boxes();
+            }
+            return {};
+        });
 
     py::class_<track::detect::Sam3Input>(m, "Sam3Input")
         .def(py::init([](std::vector<cmn::Image::Ptr>&& images,
                          std::vector<cmn::Vec2>&& offsets,
                          std::vector<cmn::Vec2>&& scales,
                          std::vector<size_t>&& orig_id,
-                         std::vector<std::vector<track::detect::Sam3PromptPayload>> prompts_per_item) {
+                         py::list prompts_per_image) {
+            track::detect::Sam3PromptsPerImage prompt_lists;
+            prompt_lists.reserve(py::len(prompts_per_image));
+            for(py::handle item : prompts_per_image) {
+                prompt_lists.emplace_back(item.cast<track::detect::Sam3PromptList>());
+            }
             return track::detect::Sam3Input{
                 track::detect::YoloInput{
                     std::move(images),
@@ -571,19 +599,25 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
                     std::move(scales),
                     std::move(orig_id)
                 },
-                std::move(prompts_per_item)
+                std::move(prompt_lists)
             };
         }),
         py::arg("images"),
         py::arg("offsets"),
         py::arg("scales"),
         py::arg("orig_id"),
-        py::arg("prompts_per_item") = std::vector<std::vector<track::detect::Sam3PromptPayload>>{})
+        py::arg("prompts_per_image") = py::list{})
         .def("__repr__", [](const track::detect::Sam3Input& v) -> std::string {
             return v.toStr();
         })
         .def("base", &track::detect::Sam3Input::base, py::return_value_policy::reference_internal)
-        .def("prompts_per_item", &track::detect::Sam3Input::prompts_per_item);
+        .def("prompts_per_image", [](const track::detect::Sam3Input& self) -> py::list {
+            py::list result;
+            for(const auto& prompt_list : self.prompts_per_image()) {
+                result.append(py::cast(prompt_list));
+            }
+            return result;
+        });
 
     m.def("log", [](std::string text) {
         Print(fmt::clr<FormatColor::DARK_GRAY>("[py] "), text.c_str());
@@ -813,7 +847,7 @@ void PythonIntegration::init() {
         }
 #else
         ~SignalRestorer() {
-            // after you’ve created the interpreter…
+            // after youï¿½ve created the interpreterï¿½
             HMODULE hExe = GetModuleHandle(NULL);                    // or the name of the module that exports it
             auto fn = (void(*)())GetProcAddress(hExe, "RehookConsoleHandler");
             if (fn)
@@ -1067,7 +1101,7 @@ bool PythonIntegration::check_module(const std::string& name,
     }
 
 #ifdef _WIN32
-    // after you’ve created the interpreter…
+    // after youï¿½ve created the interpreterï¿½
     HMODULE hExe = GetModuleHandle(NULL);                    // or the name of the module that exports it
     auto fn = (void(*)())GetProcAddress(hExe, "RehookConsoleHandler");
     if (fn) fn();

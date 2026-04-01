@@ -39,15 +39,15 @@
             }
         },
 
-
         {
             "type": "each",
             "var": "{data}",
             "do": {
                 "type": "text",
-                "text": "{i} {2hud:[{i.x},{i.y}]} {size2hud:[{i.w},{i.h}]}",
+                "text": "{index}: {i} {2hud:[{i.x},{i.y}]} {size2hud:[{i.w},{i.h}]}",
                 "color": [255, 255, 255],
-                "pos": "[0,{+:100:{*:{index}:20}}]"
+                "pos": "[50,{+:100:{*:{index}:20}}]",
+                "font":{"size":0.5}
             }
         },
 
@@ -89,7 +89,7 @@
             "type":"settings",
             "var":"",
             "pos":"[10,{-:{window_size.y}:20}]",
-            "size":"[{-:{window_size.x}:20},30]",
+            "size":"[{max:100:{-:{window_size.x}:20}},30]",
             "origin":[0,1],
             "fill":[30,30,30,255],
             "cleartext":"<sym>⮾</sym>",

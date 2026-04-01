@@ -4,6 +4,7 @@
 #include <core/DetectionTypes.h>
 #include <core/SoftException.h>
 #include <core/idx_t.h>
+#include <misc/frame_t.h>
 #include <misc/Image.h>
 
 namespace track {
@@ -388,51 +389,188 @@ public:
 };
 
 enum class TREX_EXPORT Sam3PromptType : uint8_t {
+    none,
     text,
     box,
     boxes,
-    points,
-    mask,
-    remove_object
+    points
 };
 
+/**
+ * Canonical SAM3 prompt payload transported from C++ to Python.
+ *
+ * The payload intentionally remains lightweight and format-oriented. Prompt
+ * routing and frame association are handled outside this struct.
+ */
 struct TREX_EXPORT Sam3PromptPayload {
-    Sam3PromptType type = Sam3PromptType::text;
-    int64_t frame_index = 0;
-    std::optional<std::string> text;
-    std::optional<int64_t> obj_id;
-    std::vector<Vec2> points;
-    std::vector<int32_t> point_labels;
-    std::vector<std::array<float, 4>> boxes;
-    std::vector<int32_t> labels;
-    std::vector<uint8_t> mask;
-    Size2 mask_size{};
-    bool text_session_scope = false;
-    bool text_skip_if_unchanged = true;
+    std::variant<std::monostate, std::string, std::vector<Vec2>, std::vector<Bounds>> value{};
+    
+    static Sam3PromptPayload fromStr(StringLike auto&& str) {
+        std::string_view sv = utils::trim(utils::string_like_view(str));
+        if(sv.empty()) {
+            return Sam3PromptPayload{};
+        }
 
-    std::string toStr() const {
-        return "Sam3PromptPayload<type=" + Meta::toStr(static_cast<int>(type)) +
-               " frame=" + Meta::toStr(frame_index) +
-               " text=" + Meta::toStr(text) +
-               " obj_id=" + Meta::toStr(obj_id) +
-               " points=" + Meta::toStr(points.size()) +
-               " boxes=" + Meta::toStr(boxes.size()) + ">";
+        if((sv.front() == '"' && sv.back() == '"')
+           || (sv.front() == '\'' && sv.back() == '\''))
+        {
+            Sam3PromptPayload payload;
+            payload.value = Meta::fromStr<std::string>(std::string(sv));
+            return payload;
+        }
+
+        if(sv.front() == '[' && sv.back() == ']') {
+            const auto values = Meta::fromStr<std::vector<std::vector<float>>>(std::string(sv));
+            if(values.empty()) {
+                return Sam3PromptPayload{};
+            }
+
+            const bool all_points = std::ranges::all_of(values, [](const auto& row) {
+                return row.size() == 2u;
+            });
+            const bool all_boxes = std::ranges::all_of(values, [](const auto& row) {
+                return row.size() == 4u;
+            });
+
+            Sam3PromptPayload payload;
+            if(all_points) {
+                payload.value = std::vector<Vec2>{};
+                payload.points().reserve(values.size());
+                for(const auto& row : values) {
+                    payload.points().emplace_back(row.at(0), row.at(1));
+                }
+                return payload;
+            }
+
+            if(all_boxes) {
+                payload.value = std::vector<Bounds>{};
+                payload.boxes().reserve(values.size());
+                for(const auto& row : values) {
+                    payload.boxes().emplace_back(row.at(0), row.at(1), row.at(2), row.at(3));
+                }
+                return payload;
+            }
+
+            throw InvalidArgumentException(
+                "The sam3 prompt ", str,
+                " must be plain text, [[x,y],...] points, or [[x0,y0,x1,y1],...] boxes.");
+        }
+
+        Sam3PromptPayload payload;
+        payload.value = std::string(sv);
+        return payload;
     }
+    
+    std::vector<Vec2>& points() { return std::get<std::vector<Vec2>>(value); }
+    std::vector<Bounds>& boxes() { return std::get<std::vector<Bounds>>(value); }
+    std::string& text() { return std::get<std::string>(value); }
+    const std::vector<Vec2>& points() const { return std::get<std::vector<Vec2>>(value); }
+    const std::vector<Bounds>& boxes() const { return std::get<std::vector<Bounds>>(value); }
+    const std::string& text() const { return std::get<std::string>(value); }
+    bool has_value() const { return not std::holds_alternative<std::monostate>(value); }
+    
+    Sam3PromptType type() const {
+        if(not has_value())
+            return Sam3PromptType::none;
+        if(std::holds_alternative<std::string>(value))
+            return Sam3PromptType::text;
+        if(std::holds_alternative<std::vector<Vec2>>(value))
+            return Sam3PromptType::points;
+        if(std::holds_alternative<std::vector<Bounds>>(value))
+            return Sam3PromptType::boxes;
+        throw InvalidArgumentException("Invalid data type.");
+    }
+
+    glz::json_t to_json() const;
+    std::string toStr() const;
+    static std::string class_name() { return "Sam3Prompt"; }
+    bool operator==(const Sam3PromptPayload&) const = default;
+    bool operator!=(const Sam3PromptPayload&) const = default;
 };
 
+/// Ordered prompts associated with one SAM3 image.
+using Sam3PromptList = std::vector<Sam3PromptPayload>;
+
+/// Frame-indexed prompt repository used by C++ settings/state.
+struct Sam3Prompts {
+    using MapType = std::map<Frame_t, Sam3PromptList>;
+    MapType map;
+
+    Sam3Prompts() noexcept = default;
+    Sam3Prompts(MapType&& map) : map(std::move(map)) {}
+    Sam3Prompts(std::initializer_list<MapType::value_type>&& list) : map(std::move(list)) {}
+    
+    std::string toStr() const;
+    static Sam3Prompts fromStr(StringLike auto&& str) {
+        std::string_view sv = utils::trim(utils::string_like_view(str));
+        if(sv.empty()) {
+            return {};
+        }
+        
+        if(sv.front() == '{' && sv.back() == '}') {
+            /// this is actually a map
+            return Sam3Prompts{
+                Meta::fromStr<MapType>(std::forward<decltype(str)>(str))
+            };
+        }
+        
+        /// try to parse it as a single promptlist then for frame null:
+        if(sv.front() == '[' && sv.back() == ']') {
+            return Sam3Prompts {
+                {
+                    Frame_t{},
+                    Meta::fromStr<Sam3PromptList>(std::forward<decltype(str)>(str))
+                }
+            };
+        }
+        
+        /// in this case
+        return Sam3Prompts {
+            
+        };
+    }
+    
+    static std::string class_name() { return "Sam3Prompts"; }
+};
+
+
+/// Prompt lists aligned one-to-one with `YoloInput::images()`.
+using Sam3PromptsPerImage = std::vector<Sam3PromptList>;
+
+/**
+ * SAM3 batch input with prompts already aligned to each image.
+ *
+ * No session-global or frame-keyed prompt semantics are stored here. C++
+ * resolves those before the object crosses into Python.
+ */
 class TREX_EXPORT Sam3Input {
     GETTER(YoloInput, base);
-    GETTER(std::vector<std::vector<Sam3PromptPayload>>, prompts_per_item);
+    GETTER(Sam3PromptsPerImage, prompts_per_image);
 
 public:
-    Sam3Input(YoloInput&& base, std::vector<std::vector<Sam3PromptPayload>> prompts_per_item = {})
-        : _base(std::move(base)), _prompts_per_item(std::move(prompts_per_item))
-    {}
+    /**
+     * Construct an image-aligned SAM3 inference batch.
+     *
+     * @param base Image batch and geometric metadata.
+     * @param prompts_per_image Ordered prompts aligned with `base.images()`.
+     */
+    Sam3Input(YoloInput&& base, Sam3PromptsPerImage prompts_per_image = {})
+        : _base(std::move(base)), _prompts_per_image(std::move(prompts_per_image))
+    {
+        if(!_prompts_per_image.empty()
+           && _prompts_per_image.size() != _base.images().size())
+        {
+            throw InvalidArgumentException(
+                "Sam3Input expects prompts_per_image to be empty or match images().size(), got ",
+                _prompts_per_image.size(), " prompts for ", _base.images().size(), " images.");
+        }
+    }
 
     std::string toStr() const {
-        return "Sam3Input<base=" + _base.toStr() + " prompts=" + Meta::toStr(_prompts_per_item.size()) + ">";
+        return "Sam3Input<base=" + _base.toStr() + " prompts_per_image=" + Meta::toStr(_prompts_per_image.size()) + ">";
     }
 };
 
 } // namespace detect
 } // namespace track
+
