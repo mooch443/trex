@@ -51,7 +51,7 @@ struct Idx_t {
         return Idx_t(get() * other.get());
     }
     
-    static std::string class_name() { return "Idx_t"; }
+    static consteval std::string_view class_name() { return "Idx_t"; }
     static Idx_t fromStr(cmn::StringLike auto&& str) {
         if(std::string_view(str) == "-1")
             return Idx_t();

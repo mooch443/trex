@@ -43,7 +43,7 @@ class track::SplitBlob {
         std::string toStr() const {
             return "t:"+cmn::Meta::toStr(threshold)+" obj:"+cmn::Meta::toStr(blobs.size())+" r:"+cmn::Meta::toStr(ratio);
         }
-        static std::string class_name() {
+        static consteval std::string_view class_name() {
             return "SplitBlob::ResultProp";
         }
     };

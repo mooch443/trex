@@ -66,7 +66,7 @@ public:
     timestamp_t timestamp() const;
     double time() const;
     std::string toStr() const;
-    static std::string class_name() { return "FrameProperties"; }
+    static consteval std::string_view class_name() { return "FrameProperties"; }
 };
 
 enum class Units {

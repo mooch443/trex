@@ -219,6 +219,8 @@ conda build -c conda-forge .
 ## Agent execution constraints
 - do not run commands in the build directory and dont delete the existing project files there
 - do not run commands outside the root directory of the project, or commands that affect the outside
+- stay in scope for the task you were asked to do. only edit files directly relevant to that task, plus the minimal wiring required to make those edits work.
+- if the task is to add or edit tests, edit tests and only the smallest necessary test wiring (for example `Application/Tests/CMakeLists.txt`). do not edit unrelated production/source files unless the user explicitly asks for that too.
 - Only use the Conda environment `trex` for environment-specific commands or instructions, or the `trex-modules` environment. Do not access or assume any other environment.
 - For commons monolith + modules work, run CMake/Ninja from `Application/tmp-modules-osx-tests-nolto` with the `trex-modules` Conda environment.
 - For commons shared-library split testing with modules disabled, use `tmp-shared-split-osx-tests-nolto` with Ninja in the `trex-modules` Conda environment.

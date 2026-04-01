@@ -68,7 +68,7 @@ struct PoseMidlineIndexes {
     }
     std::string toStr() const;
     glz::json_t to_json() const;
-    static std::string class_name() { return "PoseMidlineIndexes"; }
+    static consteval std::string_view class_name() { return "PoseMidlineIndexes"; }
 
     bool operator==(const PoseMidlineIndexes& other) const {
         return indexes == other.indexes;
@@ -264,7 +264,7 @@ using Probability = Match::prob_t;
 struct DetailProbability {
     Match::prob_t p, p_time, p_pos, p_angle;
     std::string toStr() const;
-    static std::string class_name() { return "DetailProbability"; }
+    static consteval std::string_view class_name() { return "DetailProbability"; }
 };
 
 struct Statistics {
@@ -298,7 +298,7 @@ struct IDaverage {
     std::string toStr() const {
         return "Pred<" + std::to_string(best_id) + ","+std::to_string(p) + ">";
     }
-    static std::string class_name() { return "IDaverage"; }
+    static consteval std::string_view class_name() { return "IDaverage"; }
 };
 
 std::map<Idx_t, float> prediction2map(const std::vector<float>& pred);

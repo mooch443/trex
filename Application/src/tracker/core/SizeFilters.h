@@ -30,7 +30,7 @@ public:
     glz::json_t to_json() const {
         return cvt2json(_ranges);
     }
-    static std::string class_name() { return "SizeFilters"; }
+    static consteval std::string_view class_name() { return "SizeFilters"; }
     static SizeFilters fromStr(cmn::StringLike auto&& str) {
         if(str == "" || str == "[]")
             return SizeFilters();

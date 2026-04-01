@@ -273,7 +273,7 @@ public:
     virtual uint8_t channels() const = 0;
     
     virtual std::string toStr() const;
-    static std::string class_name();
+    static consteval std::string_view class_name() { return "AbstractBaseVideoSource"; }
     
     virtual std::set<std::string_view> recovered_errors() const { return {}; }
     

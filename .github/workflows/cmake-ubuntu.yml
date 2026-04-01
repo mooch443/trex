@@ -43,16 +43,18 @@ jobs:
         auto-update-conda: false
         activate-environment: base
         pkgs-dirs: ~/conda_pkgs_dir
-    - name: Get conda prefix
+    - name: Get conda prefix and cache date
       id: conda-prefix
       shell: bash
-      run: echo "path=$CONDA" >> $GITHUB_OUTPUT
+      run: |
+        echo "path=$CONDA" >> $GITHUB_OUTPUT
+        echo "month=$(date +%Y-%m)" >> $GITHUB_OUTPUT
     - name: Cache conda base environment
       id: conda-env-cache
       uses: actions/cache@v4
       with:
         path: ${{ steps.conda-prefix.outputs.path }}
-        key: ${{ runner.os }}-conda-env-1-${{ hashFiles('.github/environment.yml') }}
+        key: ${{ runner.os }}-conda-env-${{ steps.conda-prefix.outputs.month }}-${{ hashFiles('.github/environment.yml') }}
     - name: Install environment into base
       if: steps.conda-env-cache.outputs.cache-hit != 'true'
       working-directory: ${{github.workspace}}

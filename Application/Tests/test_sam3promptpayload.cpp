@@ -70,7 +70,7 @@ TEST(Sam3PromptListTest, FromStrParsesBoxPromptArray) {
 }
 
 TEST(Sam3PromptsTest, FromStrParseSingle) {
-    auto list = Meta::fromStr<Sam3PromptList>("['hi i bims',[[25,666],[1234,4567]],[[0,0,200,200],[200,200,210,230]]]");
+    Sam3Prompts prompts = Meta::fromStr<Sam3Prompts>("['hi i bims',[[25,666],[1234,4567]],[[0,0,200,200],[200,200,210,230]]]");
 
     Sam3PromptList expected{
         { .value = "hi i bims" },
@@ -78,17 +78,18 @@ TEST(Sam3PromptsTest, FromStrParseSingle) {
         { .value = std::vector<Bounds>{{0.f,0.f,200.f,200.f}, {200.f,200.f,210.f,230.f}} }
     };
     
-    Sam3Prompts prompts {
+    Sam3Prompts expected_prompts {
         { Frame_t{}, expected }
     };
     
+    /// check that move is there
     Sam3Prompts other = std::move(prompts);
     prompts = std::move(other);
     
-    ASSERT_EQ(expected.size(), list.size());
-    for(auto&& [E, A] : Zip::Zip(expected, list)) {
-        ASSERT_EQ(E, A) << E.toStr() << " != " << A.toStr();
-        EXPECT_EQ(E.toStr(), A.toStr());
-    }
+    ASSERT_EQ(expected_prompts.size(), prompts.size());
     
+    for(auto &&[expected_key, real_key] : Zip::Zip(extract_keys(expected_prompts), extract_keys(prompts))) {
+        ASSERT_EQ(expected_key, real_key);
+        ASSERT_EQ(expected_prompts.at(expected_key), prompts.at(real_key));
+    }
 }

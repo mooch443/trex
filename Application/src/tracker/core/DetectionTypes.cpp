@@ -278,9 +278,6 @@ std::string DetectResolution::toStr() const {
     os << "[" << height << "," << width << "]";
     return os.str();
 }
-std::string DetectResolution::class_name() {
-    return "DetectResolution";
-}
 
 ObjectDetectionType_t detection_type() {
     return READ_SETTING(detect_type, ObjectDetectionType_t);

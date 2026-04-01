@@ -17,7 +17,7 @@ struct RecentItemJSON {
     
     glz::json_t to_json() const;
     std::string toStr() const;
-    static std::string class_name() { return "RecentItem"; }
+    static consteval std::string_view class_name() { return "RecentItem"; }
     
     operator cmn::gui::DetailTooltipItem() const {
         cmn::gui::DetailTooltipItem item;
@@ -69,7 +69,7 @@ protected:
     void add(std::string name, const cmn::sprite::Map& options);
 
     std::string toStr() const;
-    static std::string class_name() { return "RecentItems"; }
+    static consteval std::string_view class_name() { return "RecentItems"; }
 
 public:
     static void open(const cmn::file::PathArray&, const cmn::sprite::Map& settings);

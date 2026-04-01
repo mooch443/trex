@@ -762,7 +762,7 @@ public:
     
     void clear();
     
-    static std::string class_name() { return "PPFrame"; }
+    static consteval std::string_view class_name() { return "PPFrame"; }
     std::string toStr() const;
     
 private:

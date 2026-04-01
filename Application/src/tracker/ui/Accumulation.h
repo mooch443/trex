@@ -65,7 +65,7 @@ protected:
         size_t num_ranges_added{0};
         
         std::string toStr() const;
-        static std::string class_name() { return "Accumulation::Result"; }
+        static consteval std::string_view class_name() { return "Accumulation::Result"; }
     };
     
     Result MakeResult() {

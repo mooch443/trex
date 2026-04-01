@@ -181,7 +181,6 @@ Frame_t AbstractBaseVideoSource::length() const {
 }
 
 std::string AbstractBaseVideoSource::toStr() const {return "AbstractBaseVideoSource<>";}
-std::string AbstractBaseVideoSource::class_name() { return "AbstractBaseVideoSource"; }
 
 void AbstractBaseVideoSource::set_undistortion(
        std::optional<std::vector<double>> &&cam_matrix,

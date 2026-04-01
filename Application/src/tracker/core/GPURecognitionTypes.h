@@ -56,7 +56,7 @@ struct TREX_EXPORT ModelConfig {
         return s;
     }
 
-    static std::string class_name() {
+    static consteval std::string_view class_name() {
         return "detect::ModelConfig";
     }
 
@@ -125,7 +125,7 @@ public:
         return "Boxes<" + std::to_string(num_rows()) + " rows>";
     }
 
-    static std::string class_name() {
+    static consteval std::string_view class_name() {
         return "detect::Boxes";
     }
 
@@ -185,7 +185,7 @@ public:
         return "MaskData<" + std::to_string(mat.rows) + "x" + std::to_string(mat.cols) + "x" + std::to_string(mat.channels()) + ">";
     }
 
-    static std::string class_name() {
+    static consteval std::string_view class_name() {
         return "detect::MaskData";
     }
 };
@@ -214,7 +214,7 @@ public:
         return "KeypointData<" + std::to_string(_num_bones) + " " + (!_xy_conf.empty() ? Meta::toStr(_xy_conf.size() / 2u) : "null") + " triplets>";
     }
 
-    static std::string class_name() {
+    static consteval std::string_view class_name() {
         return "detect::KeypointData";
     }
 };
@@ -232,7 +232,7 @@ struct TREX_EXPORT ICXYWHR {
         return "ICXYWHR<" + Meta::toStr(clid) + "," + Meta::toStr(conf) + "," + Meta::toStr(x) + "," + Meta::toStr(y) + "," + Meta::toStr(w) + "," + Meta::toStr(h) + "," + Meta::toStr(r) + ">";
     }
 
-    static std::string class_name() {
+    static consteval std::string_view class_name() {
         return "detect::ICXYWHR";
     }
 
@@ -261,7 +261,7 @@ public:
         return "ObbData<" + std::to_string(size()) + ">";
     }
 
-    static std::string class_name() {
+    static consteval std::string_view class_name() {
         return "detect::ObbData";
     }
 };
@@ -277,7 +277,7 @@ struct TREX_EXPORT ICXYR {
         return "ICXYR<" + Meta::toStr(clid) + "," + Meta::toStr(conf) + "," + Meta::toStr(x) + "," + Meta::toStr(y) + "," + Meta::toStr(r) + ">";
     }
 
-    static std::string class_name() {
+    static consteval std::string_view class_name() {
         return "detect::ICXYR";
     }
 
@@ -306,7 +306,7 @@ public:
         return "PointData<" + std::to_string(size()) + ">";
     }
 
-    static std::string class_name() {
+    static consteval std::string_view class_name() {
         return "detect::PointData";
     }
 };
@@ -340,7 +340,7 @@ public:
         return "Result<" + std::to_string(index()) + "," + _boxes.toStr() + "," + Meta::toStr(_masks) + "," + Meta::toStr(_keypoints) + "," + Meta::toStr(_obbdata) + "," + Meta::toStr(_points) + ">";
     }
 
-    static std::string class_name() {
+    static consteval std::string_view class_name() {
         return "detect::Result";
     }
 
@@ -483,7 +483,7 @@ struct TREX_EXPORT Sam3PromptPayload {
 
     glz::json_t to_json() const;
     std::string toStr() const;
-    static std::string class_name() { return "Sam3Prompt"; }
+    static consteval std::string_view class_name() { return "Sam3Prompt"; }
     bool operator==(const Sam3PromptPayload&) const = default;
     bool operator!=(const Sam3PromptPayload&) const = default;
 };
@@ -494,13 +494,46 @@ using Sam3PromptList = std::vector<Sam3PromptPayload>;
 /// Frame-indexed prompt repository used by C++ settings/state.
 struct Sam3Prompts {
     using MapType = std::map<Frame_t, Sam3PromptList>;
+    
+    using iterator = MapType::iterator;
+    using const_iterator = MapType::const_iterator;
+    using value_type = MapType::value_type;
+    using key_type = MapType::key_type;
+    
     MapType map;
 
     Sam3Prompts() noexcept = default;
     Sam3Prompts(MapType&& map) : map(std::move(map)) {}
     Sam3Prompts(std::initializer_list<MapType::value_type>&& list) : map(std::move(list)) {}
+
+    iterator begin() noexcept { return map.begin(); }
+    iterator end() noexcept { return map.end(); }
+    const_iterator begin() const noexcept { return map.begin(); }
+    const_iterator end() const noexcept { return map.end(); }
+    const_iterator cbegin() const noexcept { return map.cbegin(); }
+    const_iterator cend() const noexcept { return map.cend(); }
+
+    bool empty() const noexcept { return map.empty(); }
+    std::size_t size() const noexcept { return map.size(); }
+    
+    // Map-like accessors
+    Sam3PromptList& at(const key_type& key) { return map.at(key); }
+    const Sam3PromptList& at(const key_type& key) const { return map.at(key); }
+
+    Sam3PromptList& operator[](const key_type& key) { return map[key]; }
+    Sam3PromptList& operator[](key_type&& key) { return map[std::move(key)]; }
+
+    bool contains(const key_type& key) const { return map.contains(key); }
+
+    iterator find(const Frame_t& key) { return map.find(key); }
+    const_iterator find(const Frame_t& key) const { return map.find(key); }
     
     std::string toStr() const;
+    glz::json_t to_json() const;
+    
+    bool operator==(const Sam3Prompts&) const = default;
+    bool operator!=(const Sam3Prompts&) const = default;
+    
     static Sam3Prompts fromStr(StringLike auto&& str) {
         std::string_view sv = utils::trim(utils::string_like_view(str));
         if(sv.empty()) {
@@ -530,7 +563,7 @@ struct Sam3Prompts {
         };
     }
     
-    static std::string class_name() { return "Sam3Prompts"; }
+    static consteval std::string_view class_name() { return "Sam3Prompts"; }
 };
 
 

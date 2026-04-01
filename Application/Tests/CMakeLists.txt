@@ -57,6 +57,9 @@ target_compile_definitions(test_segmenter PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CU
 add_executable(test_dispatcher test_dispatcher.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
 target_compile_definitions(test_dispatcher PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
 
+add_executable(test_sam3promptpayload test_sam3promptpayload.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
+target_compile_definitions(test_sam3promptpayload PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
+
 if(COMMONS_ENABLE_MODULES AND NOT CMAKE_VERSION VERSION_LESS "3.28.0")
 add_custom_target(commons_module_surface_check
     COMMAND "${PYTHON_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/generate_commons_module_surface.py" --check
@@ -102,6 +105,7 @@ set(TARGETS
     test_tiling 
     test_segmenter
     test_dispatcher
+    test_sam3promptpayload
 )
 if(COMMONS_ENABLE_MODULES AND NOT CMAKE_VERSION VERSION_LESS "3.28.0")
     list(APPEND TARGETS test_commons_modules)
@@ -145,6 +149,7 @@ target_link_libraries(test_threadpool PUBLIC gtest)
 target_link_libraries(test_tiling PUBLIC gtest gmock)
 target_link_libraries(test_segmenter PUBLIC gtest)
 target_link_libraries(test_dispatcher PUBLIC gtest)
+target_link_libraries(test_sam3promptpayload PUBLIC gtest)
 
 # Extra linking for the project.
 target_link_libraries(test_matching PUBLIC
@@ -222,6 +227,12 @@ target_link_libraries(test_dispatcher PUBLIC
     commons
 )
 
+target_link_libraries(test_sam3promptpayload PUBLIC
+    tracker_misc
+    pv
+    commons
+)
+
 if(COMMONS_ENABLE_MODULES AND NOT CMAKE_VERSION VERSION_LESS "3.28.0")
 target_link_libraries(test_commons_modules PUBLIC
     gtest
@@ -253,6 +264,7 @@ set_target_properties(test_threadpool PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARC
 set_target_properties(test_tiling PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 set_target_properties(test_segmenter PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 set_target_properties(test_dispatcher PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
+set_target_properties(test_sam3promptpayload PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 if(COMMONS_ENABLE_MODULES AND NOT CMAKE_VERSION VERSION_LESS "3.28.0")
 set_target_properties(test_commons_modules PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 endif()
@@ -280,6 +292,7 @@ add_test(NAME test-threadpool COMMAND test_threadpool)
 add_test(NAME test-tiling COMMAND test_tiling)
 add_test(NAME test-segmenter COMMAND test_segmenter)
 add_test(NAME test-dispatcher COMMAND test_dispatcher)
+add_test(NAME test-sam3promptpayload COMMAND test_sam3promptpayload)
 if(COMMONS_ENABLE_MODULES AND NOT CMAKE_VERSION VERSION_LESS "3.28.0")
 add_test(NAME test-commons-modules COMMAND test_commons_modules)
 endif()

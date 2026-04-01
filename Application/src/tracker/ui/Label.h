@@ -50,7 +50,7 @@ public:
     std::string toStr() const override {
         return "Label<"+Meta::toStr(_source) + ", " + Meta::toStr(text()->text()) + ">";
     }
-    static std::string class_name() {
+    static consteval std::string_view class_name() {
         return "Label";
     }
 

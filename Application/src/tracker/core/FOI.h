@@ -29,7 +29,7 @@ namespace track {
                 return other.id == id;
             }
             std::string toStr() const;
-            static std::string class_name() {
+            static consteval std::string_view class_name() {
                 return "fdx_t";
             }
             [[nodiscard]] operator Idx_t() const { return Idx_t{id}; }
@@ -42,7 +42,7 @@ namespace track {
                 return id < other.id;
             }
             std::string toStr() const;
-            static std::string class_name() {
+            static consteval std::string_view class_name() {
                 return "bdx_t";
             }
             bool operator==(const bdx_t& other) const {
@@ -102,7 +102,7 @@ namespace track {
         static uint64_t last_change();
         static foi_type all_fois();
         std::string toStr() const;
-        static std::string class_name() { return "FOI"; }
+        static consteval std::string_view class_name() { return "FOI"; }
 
     private:
         static void changed();

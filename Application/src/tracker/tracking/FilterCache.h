@@ -57,7 +57,7 @@ struct FilterCache {
     bool has_std() const { return midline_length_px_std != -1; }
     
     std::string toStr() const;
-    static std::string class_name() {
+    static consteval std::string_view class_name() {
         return "FilterCache";
     }
     

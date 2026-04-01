@@ -340,7 +340,7 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
         .def_readonly("height", &DetectResolution::height)
         .def("__repr__", &DetectResolution::toStr)
         .def("__str__", &DetectResolution::toStr)
-        .def_static("class_name", &DetectResolution::class_name);
+        .def_static("class_name", []() { return std::string(DetectResolution::class_name()); });
     
     py::class_<KeypointFormat>(m, "KeypointFormat")
         .def(py::init<uint8_t, uint8_t>(),
@@ -350,7 +350,7 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
         .def_readonly("n_dims", &KeypointFormat::n_dims)
         .def("__repr__", &KeypointFormat::toStr)
         .def("__str__", &KeypointFormat::toStr)
-        .def_static("class_name", &KeypointFormat::class_name);
+        .def_static("class_name", []() { return std::string(KeypointFormat::class_name()); });
     
     py::class_<ModelConfig>(m, "ModelConfig")
         .def(py::init<ModelTaskType, bool, std::string, DetectResolution, ObjectDetectionFormat::data::values, std::optional<KeypointFormat>
@@ -370,7 +370,7 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
         .def_readwrite("keypoint_format", &ModelConfig::keypoint_format)
         .def("__repr__", &ModelConfig::toStr)
         .def("__str__", &ModelConfig::toStr)
-        .def_static("class_name", &ModelConfig::class_name);
+        .def_static("class_name", []() { return std::string(ModelConfig::class_name()); });
 
 
     py::class_<Rect>(m, "Rect")

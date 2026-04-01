@@ -29,7 +29,7 @@ struct PredictionFilter {
     
     std::string toStr() const;
     glz::json_t to_json() const;
-    static std::string class_name() { return "PredictionFilter"; }
+    static consteval std::string_view class_name() { return "PredictionFilter"; }
     
     static std::vector<uint16_t> invert(const std::vector<uint16_t>& ids, const yolo::names::map_t& detect_classes);
     static std::optional<uint16_t> class_id_for(std::string_view search, const yolo::names::map_t& detect_classes);
@@ -103,7 +103,7 @@ struct KeypointFormat {
     constexpr bool valid() const {
         return n_points != 0 && n_dims != 0;
     }
-    static std::string class_name() { return "KeypointFormat"; }
+    static consteval std::string_view class_name() { return "KeypointFormat"; }
 };
 
 struct KeypointNames {
@@ -126,7 +126,7 @@ struct KeypointNames {
     bool valid() const {
         return names.has_value();
     }
-    static std::string class_name() { return "KeypointNames"; }
+    static consteval std::string_view class_name() { return "KeypointNames"; }
 };
 
 class Bone {
@@ -174,7 +174,7 @@ struct DetectResolution {
     
     glz::json_t to_json() const;
     std::string toStr() const;
-    static std::string class_name();
+    static consteval std::string_view class_name() { return "DetectResolution"; }
 };
 
 namespace yolo {
@@ -219,7 +219,7 @@ struct VIWeights {
     
     std::string toStr() const;
     static VIWeights fromStr(const std::string&);
-    static std::string class_name() { return "VIWeights"; }
+    static consteval std::string_view class_name() { return "VIWeights"; }
     glz::json_t to_json() const;
 };
 

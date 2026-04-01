@@ -128,4 +128,23 @@ glz::json_t Sam3PromptPayload::to_json() const {
     }
 }
 
+glz::json_t Sam3Prompts::to_json() const {
+    return cvt2json(map);
+}
+
+std::string Sam3Prompts::toStr() const {
+    if(empty()) {
+        return "{}";
+    }
+    
+    if(size() == 1u
+       && map.begin()->first == Frame_t{})
+    {
+        /// we only have one global prompt
+        return Meta::toStr(map.begin()->second);
+    }
+    
+    return Meta::toStr(map);
+}
+
 } // namespace track::detect

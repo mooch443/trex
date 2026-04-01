@@ -204,7 +204,7 @@ namespace Match {
         
         bool empty() const; // no elements in the graph
         std::string toStr() const;
-        static std::string class_name() { return "PairedProbabilities"; }
+        static consteval std::string_view class_name() { return "PairedProbabilities"; }
         
         PairedProbabilities() noexcept = default;
         PairedProbabilities(const PairedProbabilities&) = delete;

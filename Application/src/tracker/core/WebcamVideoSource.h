@@ -17,7 +17,7 @@ public:
     
     uint8_t channels() const override;
     std::string toStr() const override;
-    static std::string class_name() { return "WebcamVideoSource"; }
+    static consteval std::string_view class_name() { return "WebcamVideoSource"; }
     
 protected:
     void undistort(const gpuMat&, gpuMat&) override {}

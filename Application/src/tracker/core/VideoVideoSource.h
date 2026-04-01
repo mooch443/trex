@@ -20,7 +20,7 @@ public:
 
     uint8_t channels() const override;
     std::string toStr() const override;
-    static std::string class_name() { return "VideoSourceVideoSource"; }
+    static consteval std::string_view class_name() { return "VideoSourceVideoSource"; }
     
     std::set<std::string_view> recovered_errors() const override;
 };
