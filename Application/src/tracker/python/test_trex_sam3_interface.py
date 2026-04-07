@@ -27,6 +27,7 @@ class FakeResult:
 
 
 class FakeTRex:
+    settings: dict[str, float] = {"detect_iou_threshold": 0.5}
     Result = FakeResult
     Boxes = staticmethod(lambda value: np.asarray(value, dtype=np.float32))
     KeypointData = staticmethod(lambda value: value)
@@ -44,6 +45,10 @@ class FakeTRex:
     @staticmethod
     def imshow(name: str, image) -> None:
         del name, image
+
+    @staticmethod
+    def setting(name: str) -> float:
+        return FakeTRex.settings[name]
 
 
 class FakeTrackerModel:
@@ -236,6 +241,7 @@ class Sam3InterfaceTest(unittest.TestCase):
         sam3.TRex = FakeTRex
         sam3.SAM3VideoSemanticPredictor = FakePredictor
         sam3.check_imgsz = lambda imgsz, stride, min_dim, max_dim: int(imgsz)
+        FakeTRex.settings = {"detect_iou_threshold": 0.5}
         FakePredictor.box_detection_score_overrides = {}
         FakePredictor.box_tracker_score_overrides = {}
         sam3.shutdown()
@@ -323,6 +329,36 @@ class Sam3InterfaceTest(unittest.TestCase):
         self.assertAlmostEqual(float(conf_np[0]), 0.9, places=5)
         self.assertAlmostEqual(float(cls_np[0]), 5.0, places=5)
 
+    def test_duplicate_masks_are_suppressed(self):
+        pred_masks = torch.tensor(
+            [
+                [[True, True], [False, False]],
+                [[True, True], [False, False]],
+            ],
+            dtype=torch.bool,
+        )
+        pred_scores = torch.tensor([0.9, 0.9], dtype=torch.float32)
+
+        keep = sam3._suppress_near_duplicate_masks(pred_masks, pred_scores, 0.95)
+
+        self.assertEqual(keep.tolist(), [True, False])
+
+    def test_session_uses_detect_iou_threshold_from_request(self):
+        self.create_session(detect_iou_threshold=0.7)
+
+        current = sam3._require_session()
+
+        self.assertAlmostEqual(current.duplicate_mask_iou, 0.7, places=6)
+
+    def test_set_iou_threshold_updates_session_threshold(self):
+        self.create_session(detect_iou_threshold=0.6)
+
+        response = sam3.set_iou_threshold({"iou": 0.3})
+
+        self.assertTrue(response["ok"])
+        self.assertAlmostEqual(response["iou"], 0.3, places=6)
+        self.assertAlmostEqual(sam3._require_session().duplicate_mask_iou, 0.3, places=6)
+
     def test_later_frame_prompt_remains_active(self):
         self.create_session()
 
@@ -354,15 +390,27 @@ class Sam3InterfaceTest(unittest.TestCase):
         self.assertEqual(result1.frame_index, 1)
         self.assertEqual(len(result1.masks), 1)
 
-    def test_replay_fails_when_target_image_is_not_cached(self):
+    def test_old_frame_can_be_replayed_from_new_input_without_crashing(self):
         self.create_session()
 
         sam3.predict(self.frame_input(0, [text_prompt("fish")]))
         sam3.predict(self.frame_input(1, []))
         sam3.predict(self.frame_input(2, []))
+        result0 = sam3.predict(self.frame_input(0, []))[0]
 
-        with self.assertRaises(RuntimeError):
-            sam3.predict(self.frame_input(0, []))
+        self.assertEqual(result0.frame_index, 0)
+
+    def test_missing_replay_context_is_deferred_instead_of_raising(self):
+        self.create_session()
+
+        sam3.predict(self.frame_input(0, [text_prompt("fish")]))
+        sam3.predict(self.frame_input(1, []))
+        sam3.predict(self.frame_input(2, []))
+        deferred = sam3.predict(self.frame_input(5, []))[0]
+
+        self.assertEqual(deferred.frame_index, 5)
+        self.assertEqual(len(deferred.masks), 0)
+        self.assertIsNone(sam3._require_session().last_processed_frame)
 
     def test_shutdown_clears_session(self):
         self.create_session()

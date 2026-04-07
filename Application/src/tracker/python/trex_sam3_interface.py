@@ -39,6 +39,11 @@ class SetConfThresholdResponse(TypedDict):
     conf: float
 
 
+class SetIouThresholdResponse(TypedDict):
+    ok: bool
+    iou: float
+
+
 class CreateSessionResponse(TypedDict):
     ok: bool
     device: str
@@ -90,6 +95,7 @@ class Sam3VideoSession:
     last_processed_frame: int | None = None
     active_texts: list[str] = field(default_factory=list)
     max_cached_frames: int = 2
+    duplicate_mask_iou: float = 0.95
 
     def set_conf_threshold(self, conf: float) -> float:
         """Update the confidence threshold used for future predictions."""
@@ -111,14 +117,22 @@ class Sam3VideoSession:
 
         return value
 
+    def set_iou_threshold(self, iou: float) -> float:
+        """Update the duplicate-mask IoU suppression threshold used for future predictions."""
+        value = float(np.clip(float(iou), 0.0, 1.0))
+        self.duplicate_mask_iou = value
+        return value
+
     def store_frame(self, frame_index: int, image: npt.NDArray[np.uint8], prompt_state: PromptState) -> None:
         """Cache the latest authoritative frame payload received from C++."""
         if not prompt_state.has_prompts() and frame_index in self.prompt_history:
             prompt_state = self.prompt_history[frame_index]
         self.prompt_history[frame_index] = prompt_state
+        if frame_index in self.frame_cache:
+            del self.frame_cache[frame_index]
         self.frame_cache[frame_index] = ReplayFrame(frame_index, image, prompt_state)
         if len(self.frame_cache) > self.max_cached_frames:
-            oldest = min(self.frame_cache)
+            oldest = next(iter(self.frame_cache))
             del self.frame_cache[oldest]
 
     def reset_runtime(self, max_frame_index: int) -> None:
@@ -217,6 +231,21 @@ def _choose_device() -> str:
     if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
         return "mps"
     return "cpu"
+
+
+def _resolve_iou_threshold(request: Mapping[str, object]) -> float:
+    """Resolve the IoU threshold from request payload first, then TRex settings as fallback."""
+    for key in ("detect_iou_threshold", "iou_threshold", "iou", "duplicate_mask_iou"):
+        if key in request:
+            return float(np.clip(float(request[key]), 0.0, 1.0))
+
+    if TRex is not None and hasattr(TRex, "setting"):
+        try:
+            return float(np.clip(float(TRex.setting("detect_iou_threshold")), 0.0, 1.0))  # type: ignore[union-attr]
+        except Exception:
+            pass
+
+    return 0.95
 
 
 def _cleanup_device_caches(device: str) -> None:
@@ -550,6 +579,20 @@ def _postprocess_video_output(
     pred_masks = pred_masks[keep]
     pred_scores = pred_scores[keep]
     pred_cls = pred_cls[keep]
+    kept_obj_ids = [obj_id for obj_id, enabled in zip(curr_obj_ids, keep.tolist()) if enabled]
+
+    if pred_masks.shape[0] > 1:
+        duplicate_keep = _suppress_near_duplicate_masks(pred_masks, pred_scores, session.duplicate_mask_iou)
+        if duplicate_keep.shape[0] == pred_masks.shape[0] and not torch.all(duplicate_keep):
+            removed_ids = [str(kept_obj_ids[idx]) for idx, enabled in enumerate(duplicate_keep.tolist()) if not enabled]
+            pred_masks = pred_masks[duplicate_keep]
+            pred_scores = pred_scores[duplicate_keep]
+            pred_cls = pred_cls[duplicate_keep]
+            kept_obj_ids = [obj_id for obj_id, enabled in zip(kept_obj_ids, duplicate_keep.tolist()) if enabled]
+            if TRex is not None and hasattr(TRex, "log") and removed_ids:
+                TRex.log(  # type: ignore[union-attr]
+                    "SAM3 duplicate-mask suppression removed ids: " + ", ".join(removed_ids)
+                )
 
     if pred_masks.shape[0] > 1:
         pred_masks = (
@@ -566,6 +609,44 @@ def _postprocess_video_output(
         pred_scores.detach().cpu().numpy().astype(np.float32, copy=False),
         pred_cls.detach().cpu().numpy().astype(np.float32, copy=False),
     )
+
+
+def _suppress_near_duplicate_masks(
+    pred_masks: torch.Tensor,
+    pred_scores: torch.Tensor,
+    iou_threshold: float,
+) -> torch.Tensor:
+    """Greedily suppress near-duplicate masks using mask IoU."""
+    count = int(pred_masks.shape[0])
+    if count < 2:
+        return torch.ones((count,), dtype=torch.bool, device=pred_masks.device)
+
+    pred_masks = pred_masks.to(torch.bool).reshape(count, -1)
+    areas = pred_masks.sum(dim=1)
+    order = sorted(range(count), key=lambda idx: (-float(pred_scores[idx]), idx))
+    keep = torch.ones((count,), dtype=torch.bool, device=pred_masks.device)
+
+    for rank, idx in enumerate(order):
+        area_idx = int(areas[idx].item())
+        if not bool(keep[idx]):
+            continue
+        if area_idx == 0:
+            keep[idx] = False
+            continue
+        mask = pred_masks[idx]
+        for other_idx in order[rank + 1 :]:
+            area_other = int(areas[other_idx].item())
+            if not bool(keep[other_idx]):
+                continue
+            if area_other == 0:
+                keep[other_idx] = False
+                continue
+            intersection = int(torch.logical_and(mask, pred_masks[other_idx]).sum().item())
+            union = area_idx + area_other - intersection
+            if union > 0 and (intersection / union) >= float(iou_threshold):
+                keep[other_idx] = False
+
+    return keep
 
 
 def _run_one_frame(
@@ -727,6 +808,7 @@ def create_session(request: Mapping[str, object]) -> CreateSessionResponse:
         device=device,
         conf=float(overrides["conf"]),
         timeline_capacity=max(1, int(request.get("video_capacity", 65536))),
+        duplicate_mask_iou=_resolve_iou_threshold(request),
     )
     return {"ok": True, "device": device}
 
@@ -737,6 +819,20 @@ def set_conf_threshold(request: Mapping[str, object]) -> SetConfThresholdRespons
         raise ValueError("set_conf_threshold requires 'conf'.")
     value = _require_session().set_conf_threshold(float(request["conf"]))
     return {"ok": True, "conf": value}
+
+
+def set_iou_threshold(request: Mapping[str, object]) -> SetIouThresholdResponse:
+    """Update the active SAM3 duplicate-mask IoU threshold."""
+    if "iou" in request:
+        raw = request["iou"]
+    elif "iou_threshold" in request:
+        raw = request["iou_threshold"]
+    elif "detect_iou_threshold" in request:
+        raw = request["detect_iou_threshold"]
+    else:
+        raise ValueError("set_iou_threshold requires 'iou', 'iou_threshold', or 'detect_iou_threshold'.")
+    value = _require_session().set_iou_threshold(float(raw))
+    return {"ok": True, "iou": value}
 
 
 def shutdown() -> GenericOkResponse:
@@ -781,7 +877,15 @@ def predict(input: object) -> list["TRex.Result"]:
         elif idx == session.last_processed_frame + 1:
             result = _run_one_frame(session, session.frame_cache[idx], scale)
         else:
-            result = _replay_to_frame(session, idx, scale)
+            try:
+                result = _replay_to_frame(session, idx, scale)
+            except RuntimeError as exc:
+                if TRex is not None and hasattr(TRex, "log"):
+                    TRex.log(  # type: ignore[union-attr]
+                        f"SAM3 deferring replay for frame {idx} until new frames arrive: {exc}"
+                    )
+                session.reset_runtime(idx)
+                result = _empty_result(idx)
 
         results.append(result)
 

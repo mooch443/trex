@@ -178,6 +178,7 @@ void SAM3::reinit(track::ModuleProxy& proxy) {
         // SAM3 backbone/rope path is sensitive to image size; keep it on model-native 1024.
         {"imgsz", READ_SETTING(detect_resolution, detect::DetectResolution).width},
         {"conf", static_cast<float>(READ_SETTING(detect_conf_threshold, Float2_t))},
+        {"detect_iou_threshold", static_cast<float>(READ_SETTING(detect_iou_threshold, Float2_t))},
         {"half", true},
         {"verbose", true}
     };
@@ -210,7 +211,8 @@ void SAM3::init() {
             }
             
             data().callbacks = GlobalSettings::register_callbacks({
-                "detect_conf_threshold"
+                "detect_conf_threshold",
+                "detect_iou_threshold"
 
             }, [](std::string_view){
                 Python::schedule([]() {
@@ -233,8 +235,20 @@ void SAM3::init() {
                             "conf",
                             detect_conf_threshold);
 
+                        auto detect_iou_threshold = static_cast<double>(READ_SETTING(detect_iou_threshold, Float2_t));
+                        result = proxy.run("set_iou_threshold", glz::json_t{
+                            {"iou", detect_iou_threshold}
+                        });
+
+                        Python::validate_setter_response_with_value(
+                            "SAM3",
+                            "set_iou_threshold",
+                            result,
+                            "iou",
+                            detect_iou_threshold);
+
                     } catch(const std::exception& ex) {
-                        FormatExcept("Failed to update SAM3 conf threshold: ", ex.what());
+                        FormatExcept("Failed to update SAM3 thresholds: ", ex.what());
                     }
                 }).get();
             });
