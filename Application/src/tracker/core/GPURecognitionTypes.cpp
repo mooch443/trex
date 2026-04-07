@@ -112,8 +112,8 @@ std::string Sam3PromptPayload::toStr() const {
                 xyxy_boxes.push_back({
                     box.x,
                     box.y,
-                    box.x + box.width,
-                    box.y + box.height
+                    box.width,
+                    box.height
                 });
             }
             return Meta::toStr(xyxy_boxes);
@@ -137,10 +137,10 @@ glz::json_t Sam3PromptPayload::to_json() const {
             xyxy_boxes.reserve(boxes().size());
             for(const auto& box : boxes()) {
                 xyxy_boxes.push_back(glz::json_t::array_t{
-                    glz::json_t{box.x},
-                    glz::json_t{box.y},
-                    glz::json_t{box.x + box.width},
-                    glz::json_t{box.y + box.height}
+                    box.x,
+                    box.y,
+                    box.width,
+                    box.height
                 });
             }
             return xyxy_boxes;

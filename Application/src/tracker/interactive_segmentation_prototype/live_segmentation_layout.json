@@ -23,7 +23,7 @@
         },
         {
             "type":"button",
-            "action":"set_frame:0",
+            "action":"set_frame:{global.gui_frame}",
             "text":"reset",
             "pos":[100,100]
         },

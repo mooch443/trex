@@ -452,8 +452,8 @@ def _build_result(
 
     for idx, mask in enumerate(masks_np):
         resized_mask = _resize_mask(mask * np.uint8(255), target_h, target_w)
-        if TRex is not None and hasattr(TRex, "imshow"):
-            TRex.imshow("SAM3 full frmae", resized_mask)  # type: ignore[union-attr]
+        #if TRex is not None and hasattr(TRex, "imshow"):
+        #    TRex.imshow("SAM3 full frmae", resized_mask)  # type: ignore[union-attr]
 
         if pred_boxes_np is not None and idx < len(pred_boxes_np):
             boxes[idx, 0] = float(pred_boxes_np[idx, 0] * scale_x)
@@ -473,10 +473,9 @@ def _build_result(
                         f"{boxes[idx, 2]:.1f}, {boxes[idx, 3]:.1f})"
                     )
                 if TRex is not None and hasattr(TRex, "imshow"):
-                    copied = resized_mask.copy()
-                    TRex.imshow("SAM3 mask", copied)  # type: ignore[union-attr]
-                    cropped = copied[int(ys.min()) : int(ys.max()) + 1, int(xs.min()) : int(xs.max()) + 1].copy()
-                    TRex.imshow("SAM3 mask cropped", cropped)  # type: ignore[union-attr]
+                    #TRex.imshow("SAM3 mask", copied)  # type: ignore[union-attr]
+                    cropped = resized_mask[int(ys.min()) : int(ys.max()) + 1, int(xs.min()) : int(xs.max()) + 1].copy()
+                    #TRex.imshow("SAM3 mask cropped", cropped)  # type: ignore[union-attr]
                     resized_mask = cropped
                     boxes[idx, 2] = cropped.shape[1] - 1
                     boxes[idx, 3] = cropped.shape[0] - 1
