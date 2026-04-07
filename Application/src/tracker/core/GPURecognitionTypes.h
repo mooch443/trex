@@ -449,8 +449,8 @@ struct TREX_EXPORT Sam3PromptPayload {
                     payload.boxes().emplace_back(
                         row.at(0),
                         row.at(1),
-                        row.at(2) - row.at(0),
-                        row.at(3) - row.at(1)
+                        row.at(2),
+                        row.at(3)
                     );
                 }
                 return payload;

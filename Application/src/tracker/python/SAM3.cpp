@@ -73,8 +73,8 @@ detect::Sam3PromptPayload normalize_prompt_payload(const detect::Sam3PromptPaylo
                 dst_boxes.emplace_back(
                     clamp_unit(box.x / full_width),
                     clamp_unit(box.y / full_height),
-                    clamp_unit(box.width / full_width),
-                    clamp_unit(box.height / full_height)
+                    clamp_unit((box.width) / full_width),
+                    clamp_unit((box.height) / full_height)
                 );
             }
         }

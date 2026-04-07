@@ -408,7 +408,8 @@ void LiveSegmentation::_draw(DrawStructure& graph) {
                         
                         if(_current_data) {
                             auto blob = _current_data->frame.blob_at(index);
-                            Background bg(FindCoord::get().video_size(), READ_SETTING_WITH_DEFAULT(meta_encoding, meta_encoding_t::gray ));
+                            auto meta_encoding = READ_SETTING_WITH_DEFAULT(meta_encoding, meta_encoding_t::gray);
+                            Background bg(FindCoord::get().video_size(), meta_encoding);
                             
                             
                             Image::SPtr image = Image::Make();

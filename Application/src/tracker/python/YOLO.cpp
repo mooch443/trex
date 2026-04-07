@@ -866,7 +866,8 @@ std::optional<std::tuple<SegmentationData::Assignment, blob::Pair>> YOLO::proces
 {
     // Extract bounding box from the detection row
     Bounds bounds = row.box;
-    assert(bounds.x < mask.mat.cols && bounds.y < mask.mat.rows);
+    //assert(bounds.x < mask.mat.cols && bounds.y < mask.mat.rows);
+    assert(bounds.x < w && bounds.y < h);
     assert(bounds.x + bounds.width <= mask.mat.cols);
     assert(bounds.y + bounds.height <= mask.mat.rows);
     assert(mask.mat.isContinuous());
@@ -936,11 +937,19 @@ std::optional<std::tuple<SegmentationData::Assignment, blob::Pair>> YOLO::proces
 
     // Build a Blob object for pixel extraction and outline generation.
     pv::Blob blob(std::make_unique<std::vector<HorizontalLine>>(*pair.lines), nullptr, uint8_t(pair.extra_flags), blob::Prediction{pair.pred});
+    //blob.add_offset(bounds.pos());
+    Print("* processing object ", blob, " ", blob.bounds());
     
     //pv::Blob blob(*pair.lines, *pair.pixels, pair.extra_flags, pair.pred);
     // Convert the blob outline into actual pixel values from the image
     auto [o, px] = blob.calculate_pixels(r3);
+    blob.set_pixels(std::make_unique<PixelArray_t>(*px));
     pair.pixels = std::move(px);
+    
+    
+    auto &&[_, test_image] = blob.color_image();
+    auto _m = test_image->get();
+    tf::imshow("color image", _m);
 
     // Extract the outer contour points from the blob for outline construction
     auto points = pixel::find_outer_points(&blob, 0);
@@ -1017,6 +1026,12 @@ std::optional<std::tuple<SegmentationData::Assignment, blob::Pair>> YOLO::proces
                 // Append additional outlines to the prediction object
                 pair.pred.outlines.add(std::move(*pts));
         }
+    }
+    
+    {
+        auto &&[_, test_image] = blob.color_image();
+        auto _m = test_image->get();
+        tf::imshow("color image", _m);
     }
     
     return std::make_tuple(
