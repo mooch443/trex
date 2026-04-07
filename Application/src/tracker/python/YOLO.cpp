@@ -869,6 +869,7 @@ std::optional<std::tuple<SegmentationData::Assignment, blob::Pair>> YOLO::proces
     assert(bounds.x < mask.mat.cols && bounds.y < mask.mat.rows);
     assert(bounds.x + bounds.width <= mask.mat.cols);
     assert(bounds.y + bounds.height <= mask.mat.rows);
+    assert(mask.mat.isContinuous());
 
     // Perform CPU-based connected-component labeling on the mask
     auto blobs = CPULabeling::run(list, mask.mat);

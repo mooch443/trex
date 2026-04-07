@@ -208,6 +208,16 @@ std::function<void()> _destroy_all_windows = []() {};
 namespace track::detect {
     namespace py = pybind11;
 
+    track::detect::Sam3PromptList move_prompt_list(py::handle prompt_list) {
+        return track::detect::Sam3PromptList{
+            prompt_list.cast<track::detect::Sam3PromptList::base_t>()
+        };
+    }
+
+    py::list cast_prompt_list(const track::detect::Sam3PromptList& prompt_list) {
+        return py::cast(static_cast<const track::detect::Sam3PromptList::base_t&>(prompt_list));
+    }
+
     template<typename T>
     std::shared_ptr<T> transfer_array(py::array_t<T, py::array::c_style | py::array::forcecast> input) {
         py::buffer_info buf_info = input.request();
@@ -574,11 +584,19 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
             }
             return {};
         })
-        .def_property_readonly("boxes", [](const track::detect::Sam3PromptPayload& v) -> std::vector<cmn::Bounds> {
+        .def_property_readonly("boxes", [](const track::detect::Sam3PromptPayload& v) -> py::list {
+            py::list result;
             if(std::holds_alternative<std::vector<cmn::Bounds>>(v.value)) {
-                return v.boxes();
+                for(const auto& box : v.boxes()) {
+                    result.append(py::make_tuple(
+                        box.x,
+                        box.y,
+                        box.x + box.width,
+                        box.y + box.height
+                    ));
+                }
             }
-            return {};
+            return result;
         });
 
     py::class_<track::detect::Sam3Input>(m, "Sam3Input")
@@ -590,7 +608,7 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
             track::detect::Sam3PromptsPerImage prompt_lists;
             prompt_lists.reserve(py::len(prompts_per_image));
             for(py::handle item : prompts_per_image) {
-                prompt_lists.emplace_back(item.cast<track::detect::Sam3PromptList>());
+                prompt_lists.emplace_back(move_prompt_list(item));
             }
             return track::detect::Sam3Input{
                 track::detect::YoloInput{
@@ -614,7 +632,7 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
         .def("prompts_per_image", [](const track::detect::Sam3Input& self) -> py::list {
             py::list result;
             for(const auto& prompt_list : self.prompts_per_image()) {
-                result.append(py::cast(prompt_list));
+                result.append(cast_prompt_list(prompt_list));
             }
             return result;
         });

@@ -47,7 +47,7 @@ private:
     
     std::atomic<bool> _playback{false};
     
-    std::optional<Frame_t> _requested_frame;
+    std::optional<Frame_t> _last_requested_frame, _requested_frame;
     std::optional<VideoFrame> _next_frame;
     std::optional<VideoFrame> _previous_frame;
     std::optional<SegmentationData> _next_data;

@@ -2,7 +2,7 @@
     "objects":[
         {
             "type":"text",
-            "text":"Hello World! {frame} {mouse}",
+            "text":"Hello World! {frame} {2bowl:{mouse}}",
             "color":[255,255,255]
         },
         

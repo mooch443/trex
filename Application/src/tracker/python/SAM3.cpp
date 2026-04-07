@@ -20,13 +20,78 @@ struct ResolvedSam3Prompts {
     detect::Sam3PromptsPerImage prompts_per_image;
 };
 
-/**
- * Append prompts from one repository entry while preserving their configured
- * order.
- */
-void append_prompt_list(detect::Sam3PromptList& dst, const detect::Sam3PromptList& src)
+double clamp_unit(double value)
 {
-    dst.insert(dst.end(), src.begin(), src.end());
+    return std::clamp(value, 0.0, 1.0);
+}
+
+bool is_normalized_point(const Vec2& point)
+{
+    return point.x >= 0.f && point.x <= 1.f
+        && point.y >= 0.f && point.y <= 1.f;
+}
+
+bool is_normalized_box(const Bounds& box)
+{
+    return box.x >= 0.f && box.y >= 0.f
+        && box.width >= 0.f && box.height >= 0.f
+        && box.x + box.width <= 1.f
+        && box.y + box.height <= 1.f;
+}
+
+detect::Sam3PromptPayload normalize_prompt_payload(const detect::Sam3PromptPayload& src,
+                                                   double full_width,
+                                                   double full_height)
+{
+    if(full_width <= 0.0 || full_height <= 0.0) {
+        return src;
+    }
+
+    detect::Sam3PromptPayload normalized = src;
+    if(std::holds_alternative<std::vector<Vec2>>(src.value)) {
+        normalized.value = std::vector<Vec2>{};
+        auto& dst_points = normalized.points();
+        dst_points.reserve(src.points().size());
+        for(const auto& point : src.points()) {
+            if(is_normalized_point(point)) {
+                dst_points.push_back(point);
+            } else {
+                dst_points.emplace_back(
+                    clamp_unit(point.x / full_width),
+                    clamp_unit(point.y / full_height)
+                );
+            }
+        }
+    } else if(std::holds_alternative<std::vector<Bounds>>(src.value)) {
+        normalized.value = std::vector<Bounds>{};
+        auto& dst_boxes = normalized.boxes();
+        dst_boxes.reserve(src.boxes().size());
+        for(const auto& box : src.boxes()) {
+            if(is_normalized_box(box)) {
+                dst_boxes.push_back(box);
+            } else {
+                dst_boxes.emplace_back(
+                    clamp_unit(box.x / full_width),
+                    clamp_unit(box.y / full_height),
+                    clamp_unit(box.width / full_width),
+                    clamp_unit(box.height / full_height)
+                );
+            }
+        }
+    }
+
+    return normalized;
+}
+
+void append_normalized_prompt_list(detect::Sam3PromptList& dst,
+                                   const detect::Sam3PromptList& src,
+                                   double full_width,
+                                   double full_height)
+{
+    dst.reserve(dst.size() + src.size());
+    for(const auto& prompt : src) {
+        dst.push_back(normalize_prompt_payload(prompt, full_width, full_height));
+    }
 }
 
 /**
@@ -43,8 +108,17 @@ ResolvedSam3Prompts resolve_prompts_for_input(const detect::YoloInput& input,
 
     for(size_t image_idx = 0; image_idx < image_count; ++image_idx) {
         auto& image_prompts = resolved.prompts_per_image[image_idx];
+        const auto& image = input.images().at(image_idx);
+        const auto& scale = input.scales().at(image_idx);
+        const double full_width = image
+            ? std::max(1.0, double(image->cols) * double(scale.x))
+            : 1.0;
+        const double full_height = image
+            ? std::max(1.0, double(image->rows) * double(scale.y))
+            : 1.0;
+
         if(null_frame_it != prompts_by_frame.end()) {
-            append_prompt_list(image_prompts, null_frame_it->second);
+            append_normalized_prompt_list(image_prompts, null_frame_it->second, full_width, full_height);
         }
 
         const auto frame_key = Frame_t(static_cast<uint32_t>(input.orig_id().at(image_idx)));
@@ -54,7 +128,7 @@ ResolvedSam3Prompts resolve_prompts_for_input(const detect::YoloInput& input,
         }
 
         image_prompts.reserve(image_prompts.size() + it->second.size());
-        append_prompt_list(image_prompts, it->second);
+        append_normalized_prompt_list(image_prompts, it->second, full_width, full_height);
     }
 
     return resolved;

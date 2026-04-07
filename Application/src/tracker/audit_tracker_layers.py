@@ -15,9 +15,6 @@ SET_INFO = {
     "TREX_DATA_PUBLIC_HEADERS": ("data", "public_header"),
     "TREX_DATA_PRIVATE_HEADERS": ("data", "private_header"),
     "TREX_DATA_SOURCES": ("data", "source"),
-    "TREX_DETECT_PUBLIC_HEADERS": ("detect", "public_header"),
-    "TREX_DETECT_PRIVATE_HEADERS": ("detect", "private_header"),
-    "TREX_DETECT_SOURCES": ("detect", "source"),
     "TREX_TRACKING_PUBLIC_HEADERS": ("tracking", "public_header"),
     "TREX_TRACKING_PRIVATE_HEADERS": ("tracking", "private_header"),
     "TREX_TRACKING_SOURCES": ("tracking", "source"),
@@ -88,23 +85,17 @@ def iter_violations(rel_path, info):
         if not prefix:
             continue
 
-        if owner == "core" and prefix in {"data", "detect", "tracking", "ml", "ui", "python"}:
+        if owner == "core" and prefix in {"data", "tracking", "ml", "ui", "python"}:
             yield f"{rel_path}:{lineno}: core must not include {include_path}"
 
-        if owner == "data" and prefix in {"detect", "tracking", "ml", "ui", "python"}:
+        if owner == "data" and prefix in {"tracking", "ml", "ui", "python"}:
             yield f"{rel_path}:{lineno}: data must not include {include_path}"
-
-        if owner == "detect" and prefix in {"tracking", "ml", "ui", "python"}:
-            yield f"{rel_path}:{lineno}: detect must not include {include_path}"
 
         if owner == "tracking" and prefix in {"ml", "ui", "python"}:
             yield f"{rel_path}:{lineno}: tracking must not include {include_path}"
 
         if owner == "ml" and kind == "public_header" and prefix == "python":
             yield f"{rel_path}:{lineno}: ml public headers must not include {include_path}"
-
-        if owner == "detect" and kind == "public_header" and prefix == "python":
-            yield f"{rel_path}:{lineno}: detect public headers must not include {include_path}"
 
         if owner == "python" and prefix == "ui":
             yield f"{rel_path}:{lineno}: python must not include {include_path}"

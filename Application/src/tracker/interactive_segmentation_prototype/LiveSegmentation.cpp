@@ -13,6 +13,7 @@
 #include <ui/LabelElement.h>
 #include <processing/Background.h>
 #include <core/idx_t.h>
+#include <core/GPURecognitionTypes.h>
 
 struct DetectionMeta {
     pv::bid bdx;
@@ -82,6 +83,7 @@ void LiveSegmentation::request_frame(Frame_t index) {
     _requested_frame = index;
     _next_frame.reset();
     _condition.notify_one();
+    _last_requested_frame = index;
 }
 
 void LiveSegmentation::activate() {
@@ -96,11 +98,14 @@ void LiveSegmentation::activate() {
     video_length = _video->length();
     video_size = _video->size();
     
+    SETTING(meta_video_size) = Size2(video_size);
+    SETTING(video_size) = Size2(video_size);
+    request_frame(0_f);
+    
     _data = std::make_unique<Data>();
     
     FindCoord::set_video(video_size);
     
-    _next_frame.reset();
     _terminated = false;
     SETTING(detect_type) = track::detect::ObjectDetectionType_t{track::detect::ObjectDetectionType::sam3};
     SETTING(detect_model) = file::Path("/Users/tristan/Downloads/sam3.pt");
@@ -126,14 +131,15 @@ void LiveSegmentation::activate() {
             frame.image = Image::Make(_video->size().height, _video->size().width, 4);
             bool disable_waiting = false;
             useMat_t buffer;
-            std::optional<std::future<SegmentationData>> result;
+            std::optional<std::tuple<Frame_t, std::future<SegmentationData>>> result;
             
             /// retrieving the ensure_backend / init procedure
             f.get();
             
             while(not _terminated.load()) {
-                if(not _next_frame.has_value()
-                   || not frame.index.valid())
+                if(not result
+                   && (not _next_frame.has_value()
+                       || not frame.index.valid()))
                 {
                     guard.unlock();
                     
@@ -154,7 +160,8 @@ void LiveSegmentation::activate() {
                             Print("Fun is done!");
                         };
                         
-                        result = track::Detection::apply(std::move(tiled));
+                        Print("* Moving ", frame.image->index(), " to result");
+                        result = std::make_tuple(index, track::Detection::apply(std::move(tiled)));
                         
                         guard.lock();
                     } catch(...) {
@@ -169,7 +176,7 @@ void LiveSegmentation::activate() {
                             || _requested_frame.has_value()
                             || not _next_frame.has_value()
                             || (result.has_value()
-                                && result.value().wait_for(std::chrono::milliseconds(0)) == std::future_status::ready);
+                                && std::get<1>(result.value()).wait_for(std::chrono::milliseconds(0)) == std::future_status::ready);
                     });
                 disable_waiting = false;
                 
@@ -188,20 +195,48 @@ void LiveSegmentation::activate() {
                     else if(index >= length)
                         index = length - 1_f;
                     
-                    if(frame.index != index) {
-                        disable_waiting = true;
+                    Print("* Requesting frame ", index," over ", frame.index);
+                    
+                    if(_next_frame.has_value())
+                        _next_frame.reset();
+                    if(result.has_value()
+                       && std::get<0>(result.value()) != index)
+                    {
+                        Print("* Discarding ", std::get<0>(result.value()), " in loop to get to ", index);
+                        
+                        try {
+                            std::get<1>(result.value()).get(); /// discard
+                        } catch(...) {
+                            /// Any python errors are ignored here...
+                        }
+                        
+                        result.reset();
+                        
+                        //disable_waiting = true;
                         continue;
                     }
                 }
                 
                 if(not _next_frame.has_value()) {
-                    SegmentationData data;
                     guard.unlock();
                     
                     try {
                         /// load new frame
-                        data = result.value().get();
+                        auto [loaded, f] = std::move(result.value());
+                        if(not f.valid()) {
+                            _requested_frame = loaded;
+                            result.reset();
+                            disable_waiting = true;
+                            guard.lock();
+                            continue;
+                        }
+                        assert(f.valid());
+                        SegmentationData data = f.get();
+                        result.reset();
+                        
                         guard.lock();
+                        
+                        Print("* Moving ", frame.index, " (",loaded,") to _next_frame with ", data.frame.n(), " objects");
                         
                         _next_frame = std::move(frame);
                         _next_data = std::move(data);
@@ -344,11 +379,7 @@ void LiveSegmentation::_draw(DrawStructure& graph) {
                 context.actions = {
                     ActionFunc("set_frame", [this](const Action& action){
                         REQUIRE_EXACTLY(1, action);
-                        
-                        std::unique_lock guard{_next_frame_mutex};
-                        _requested_frame = Meta::fromStr<Frame_t>(action.parameters.front());
-                        _next_frame.reset();
-                        _condition.notify_one();
+                        request_frame(Meta::fromStr<Frame_t>(action.parameters.front()));
                     })
                 };
                 
@@ -405,18 +436,31 @@ void LiveSegmentation::_draw(DrawStructure& graph) {
         };
     }
     
-    if(_playback.load())
+    if(_playback.load()
+       || _last_requested_frame)
     {
         std::unique_lock guard{_next_frame_mutex};
         if(_next_frame.has_value()) {
-            _current_frame.image = _current_image->update_with(nullptr);
-            _previous_frame = std::move(_current_frame);
-            _current_frame = std::move(_next_frame.value());
-            _current_image->set_source(std::move(_current_frame.image));
-            _current_data = std::move(_next_data);
-            _next_data.reset();
-            _next_frame.reset();
-            _image_generators.reset_generator("blob_image");
+            if(_last_requested_frame
+               && _next_frame->index != _last_requested_frame)
+            {
+                /// discard
+                Print("* Discarding ", _next_frame->index, " as its not ", _last_requested_frame);
+                _previous_frame = std::move(_next_frame);
+                _next_data.reset();
+                _next_frame.reset();
+            } else {
+                Print("* Accepting ", _next_frame->index," as next visible frame");
+                _current_frame.image = _current_image->update_with(nullptr);
+                _previous_frame = std::move(_current_frame);
+                _current_frame = std::move(_next_frame.value());
+                _current_image->set_source(std::move(_current_frame.image));
+                _current_data = std::move(_next_data);
+                _next_data.reset();
+                _next_frame.reset();
+                _image_generators.reset_generator("blob_image");
+                _last_requested_frame.reset();
+            }
         }
         _condition.notify_one();
     }
@@ -477,11 +521,11 @@ bool LiveSegmentation::on_global_event(Event event) {
         
         if(p.x >= 0 && p.y >= 0 && p.x < coord.video_size().width && p.y < coord.video_size().height) {
             Print("adding point at ", original, " => ", p);
+            auto detect_sam3_prompt = READ_SETTING_WITH_DEFAULT(detect_sam3_prompt, track::detect::Sam3Prompts{});
+            detect_sam3_prompt[_current_frame.index].emplace_back(std::vector<Vec2>{p});
+            SETTING(detect_sam3_prompt) = detect_sam3_prompt;
             
-            std::unique_lock g{_next_frame_mutex};
-            _requested_frame = _current_frame.index;
-            _next_frame.reset();
-            _condition.notify_one();
+            request_frame(_current_frame.index);
         } else
             Print("not adding point at ", original, " => ", p);
         
@@ -505,10 +549,7 @@ bool LiveSegmentation::on_global_event(Event event) {
                 if(_current_frame.index.valid()
                    && _current_frame.index > 0_f)
                 {
-                    std::unique_lock guard{_next_frame_mutex};
-                    _requested_frame = _current_frame.index - 1_f;
-                    _next_frame.reset();
-                    _condition.notify_one();
+                    request_frame(_current_frame.index.try_sub(1_f));
                     /*Frame_t closestFrame;
                     for (const auto& frame : _selected_frames) {
                         if (frame < currentFrameIndex) {
@@ -530,10 +571,7 @@ bool LiveSegmentation::on_global_event(Event event) {
                 if(_current_frame.index.valid()
                    && _current_frame.index < video_length)
                 { // Assuming MAX_FRAME_INDEX is the upper limit for frame index
-                    std::unique_lock guard{_next_frame_mutex};
-                    _requested_frame = _current_frame.index + 1_f;
-                    _next_frame.reset();
-                    _condition.notify_one();
+                    request_frame(_current_frame.index + 1_f);
                     /*Frame_t closestFrame;
                     for (const auto& frame : _selected_frames) {
                         if (frame > currentFrameIndex) {
@@ -548,10 +586,7 @@ bool LiveSegmentation::on_global_event(Event event) {
                         navigateToFrame(closestFrame);
                     }*/
                 } else {
-                    std::unique_lock guard{_next_frame_mutex};
-                    _requested_frame = 0_f;
-                    _next_frame.reset();
-                    _condition.notify_one();
+                    request_frame(0_f);
                 }
                 break;
 

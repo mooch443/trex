@@ -53,6 +53,17 @@ const auto homedir = []() {
 using namespace cmn::file;
 #define CONFIG adding.add<ParameterCategoryType::CONVERTING>
 
+namespace cmn {
+
+/// ENUM_CLASS(meta_encoding_t, gray, r3g3b2, rgb8, binary);
+ENUM_CLASS_DOCS(meta_encoding_t,
+                "Grayscale video, calculated by simply extracting one channel (default R) from the video.",
+                "Encode all colors into a 256-colors unsigned 8-bit integer. The top 2 bits are blue (4 shades), the following 3 bits green (8 shades) and the last 3 bits red (8 shades).",
+                "Encode all colors into a full color 8-bit R8G8B8 array.",
+                "Pixels are either 0 or 1, no shades or colors in between.");
+
+}
+
 namespace default_config {
 
 const std::string& homedir() {

@@ -105,7 +105,19 @@ std::string Sam3PromptPayload::toStr() const {
                 return "null";
             return text();
         case Sam3PromptType::boxes:
-            return Meta::toStr(boxes());
+        {
+            std::vector<std::array<float, 4>> xyxy_boxes;
+            xyxy_boxes.reserve(boxes().size());
+            for(const auto& box : boxes()) {
+                xyxy_boxes.push_back({
+                    box.x,
+                    box.y,
+                    box.x + box.width,
+                    box.y + box.height
+                });
+            }
+            return Meta::toStr(xyxy_boxes);
+        }
         case Sam3PromptType::points:
             return Meta::toStr(points());
         default:
@@ -120,7 +132,19 @@ glz::json_t Sam3PromptPayload::to_json() const {
                 return "null";
             return text();
         case Sam3PromptType::boxes:
-            return cvt2json(boxes());
+        {
+            glz::json_t::array_t xyxy_boxes;
+            xyxy_boxes.reserve(boxes().size());
+            for(const auto& box : boxes()) {
+                xyxy_boxes.push_back(glz::json_t::array_t{
+                    glz::json_t{box.x},
+                    glz::json_t{box.y},
+                    glz::json_t{box.x + box.width},
+                    glz::json_t{box.y + box.height}
+                });
+            }
+            return xyxy_boxes;
+        }
         case Sam3PromptType::points:
             return cvt2json(points());
         default:
@@ -129,6 +153,8 @@ glz::json_t Sam3PromptPayload::to_json() const {
 }
 
 glz::json_t Sam3Prompts::to_json() const {
+    if(empty())
+        return glz::json_t::object_t();
     return cvt2json(map);
 }
 
@@ -145,6 +171,17 @@ std::string Sam3Prompts::toStr() const {
     }
     
     return Meta::toStr(map);
+}
+
+glz::json_t Sam3PromptList::to_json() const {
+    return cvt2json(static_cast<const base_t&>(*this));
+}
+
+std::string Sam3PromptList::toStr() const {
+    if(size() == 1u) {
+        return Meta::toStr(front());
+    }
+    return Meta::toStr(static_cast<const base_t&>(*this));
 }
 
 } // namespace track::detect

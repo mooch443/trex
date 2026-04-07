@@ -3,6 +3,7 @@
 #include <commons.pc.h>
 #include <misc/GlobalSettings.h>
 #include <misc/Path.h>
+#include <processing/encoding.h>
 
 namespace pv {
 class File;
@@ -121,4 +122,8 @@ std::vector<std::pair<std::string, std::vector<std::string>>> add_missing_pose_f
 namespace cmn::gui {
 ENUM_CLASS(mode_t, blobs, tracking, optical_flow)
 
+}
+
+namespace cmn {
+ENUM_CLASS_HAS_DOCS(meta_encoding_t)
 }

@@ -8,6 +8,14 @@
 using namespace cmn;
 using namespace track::detect;
 
+namespace {
+
+std::string json_string(const glz::json_t& json) {
+    return glz::write_json(json).value();
+}
+
+}
+
 TEST(Sam3PromptPayloadTest, FromStrParsesPlainTextPrompt) {
     const auto prompt = Sam3PromptPayload::fromStr("fish");
 
@@ -15,6 +23,7 @@ TEST(Sam3PromptPayloadTest, FromStrParsesPlainTextPrompt) {
     ASSERT_TRUE(prompt.has_value());
     EXPECT_EQ(prompt.text(), "fish");
     EXPECT_EQ(prompt.toStr(), "fish");
+    EXPECT_EQ(json_string(prompt.to_json()), "\"fish\"");
 }
 
 TEST(Sam3PromptPayloadTest, FromStrParsesQuotedTextPrompt) {
@@ -26,6 +35,16 @@ TEST(Sam3PromptPayloadTest, FromStrParsesQuotedTextPrompt) {
     EXPECT_EQ(prompt.toStr(), "fish");
 }
 
+TEST(Sam3PromptPayloadTest, FromStrTrimsAndParsesSingleQuotedTextPrompt) {
+    const auto prompt = Sam3PromptPayload::fromStr("  'fish'  ");
+
+    ASSERT_EQ(prompt.type(), Sam3PromptType::text);
+    ASSERT_TRUE(prompt.has_value());
+    EXPECT_EQ(prompt.text(), "fish");
+    EXPECT_EQ(prompt.toStr(), "fish");
+    EXPECT_EQ(json_string(prompt.to_json()), "\"fish\"");
+}
+
 TEST(Sam3PromptPayloadTest, FromStrParsesPointPromptArray) {
     const auto prompt = Sam3PromptPayload::fromStr("[[1,2],[3,4]]");
 
@@ -34,6 +53,7 @@ TEST(Sam3PromptPayloadTest, FromStrParsesPointPromptArray) {
     EXPECT_EQ(prompt.points()[0], Vec2(1, 2));
     EXPECT_EQ(prompt.points()[1], Vec2(3, 4));
     EXPECT_EQ(prompt.toStr(), "[[1,2],[3,4]]");
+    EXPECT_EQ(json_string(prompt.to_json()), "[[1,2],[3,4]]");
 }
 
 TEST(Sam3PromptPayloadTest, FromStrParsesBoxPromptArray) {
@@ -44,6 +64,35 @@ TEST(Sam3PromptPayloadTest, FromStrParsesBoxPromptArray) {
     EXPECT_EQ(prompt.boxes()[0], (Bounds(10, 20, 30, 40)));
     EXPECT_EQ(prompt.boxes()[1], (Bounds(50, 60, 70, 80)));
     EXPECT_EQ(prompt.toStr(), "[[10,20,30,40],[50,60,70,80]]");
+    EXPECT_EQ(json_string(prompt.to_json()), "[[10,20,30,40],[50,60,70,80]]");
+}
+
+TEST(Sam3PromptPayloadTest, FromStrTrimsArrayPromptWhitespace) {
+    const auto prompt = Sam3PromptPayload::fromStr("  [[1,2],[3,4]]  ");
+
+    ASSERT_EQ(prompt.type(), Sam3PromptType::points);
+    ASSERT_EQ(prompt.points().size(), 2u);
+    EXPECT_EQ(prompt.points()[0], Vec2(1, 2));
+    EXPECT_EQ(prompt.points()[1], Vec2(3, 4));
+    EXPECT_EQ(prompt.toStr(), "[[1,2],[3,4]]");
+}
+
+TEST(Sam3PromptPayloadTest, FromStrTreatsEmptyTextAsNoPayload) {
+    const auto prompt = Sam3PromptPayload::fromStr("  ");
+
+    EXPECT_FALSE(prompt.has_value());
+    EXPECT_EQ(prompt.type(), Sam3PromptType::none);
+    EXPECT_THROW((void)prompt.toStr(), std::exception);
+    EXPECT_THROW((void)prompt.to_json(), std::exception);
+}
+
+TEST(Sam3PromptPayloadTest, FromStrTreatsEmptyArrayAsNoPayload) {
+    const auto prompt = Sam3PromptPayload::fromStr("[]");
+
+    EXPECT_FALSE(prompt.has_value());
+    EXPECT_EQ(prompt.type(), Sam3PromptType::none);
+    EXPECT_THROW((void)prompt.toStr(), std::exception);
+    EXPECT_THROW((void)prompt.to_json(), std::exception);
 }
 
 TEST(Sam3PromptPayloadTest, FromStrRejectsMixedArrayShapes) {
@@ -69,6 +118,25 @@ TEST(Sam3PromptListTest, FromStrParsesBoxPromptArray) {
     
 }
 
+TEST(Sam3PromptListTest, ToStrCollapsesSinglePayloadButJsonKeepsArray) {
+    const Sam3PromptList list{
+        Sam3PromptPayload{ .value = std::string("fish") }
+    };
+
+    EXPECT_EQ(list.toStr(), "fish");
+    EXPECT_EQ(json_string(list.to_json()), "[\"fish\"]");
+}
+
+TEST(Sam3PromptListTest, ToStrKeepsArrayForMultiplePayloads) {
+    const Sam3PromptList list{
+        Sam3PromptPayload{ .value = std::string("fish") },
+        Sam3PromptPayload{ .value = std::vector<Vec2>{Vec2(1, 2)} }
+    };
+
+    EXPECT_EQ(list.toStr(), "[fish,[[1,2]]]");
+    EXPECT_EQ(json_string(list.to_json()), "[\"fish\",[[1,2]]]");
+}
+
 TEST(Sam3PromptsTest, FromStrParseSingle) {
     Sam3Prompts prompts = Meta::fromStr<Sam3Prompts>("['hi i bims',[[25,666],[1234,4567]],[[0,0,200,200],[200,200,210,230]]]");
 
@@ -92,4 +160,66 @@ TEST(Sam3PromptsTest, FromStrParseSingle) {
         ASSERT_EQ(expected_key, real_key);
         ASSERT_EQ(expected_prompts.at(expected_key), prompts.at(real_key));
     }
+}
+
+TEST(Sam3PromptsTest, FromStrPlainTextPromptString) {
+    const Sam3Prompts prompts = Sam3Prompts::fromStr("fish");
+
+    EXPECT_TRUE(prompts.size() == 1u);
+    EXPECT_EQ(prompts.toStr(), "fish");
+    EXPECT_EQ(json_string(prompts.to_json()), "{\"null\":[\"fish\"]}");
+}
+
+TEST(Sam3PromptsTest, ToStrCollapsesSingleGlobalPromptListButJsonKeepsMapShape) {
+    const Sam3Prompts prompts{
+        { Frame_t{}, Sam3PromptList{ Sam3PromptPayload{ .value = std::string("fish") } } }
+    };
+
+    EXPECT_EQ(prompts.toStr(), "fish");
+    EXPECT_EQ(json_string(prompts.to_json()), "{\"null\":[\"fish\"]}");
+}
+
+TEST(Sam3PromptsTest, ToStr) {
+    const Sam3Prompts prompts{
+        { 0_f, Sam3PromptList{ Sam3PromptPayload{ .value = std::string("fish") } } }
+    };
+
+    EXPECT_EQ(prompts.toStr(), "{0:fish}");
+    EXPECT_EQ(json_string(prompts.to_json()), "{\"0\":[\"fish\"]}");
+}
+
+TEST(Sam3PromptsTest, FromStr) {
+    const Sam3Prompts expected{
+        { 0_f, Sam3PromptList{ Sam3PromptPayload{ .value = std::string("fish") } } }
+    };
+
+    EXPECT_EQ(Sam3Prompts::fromStr("{0:fish}"), expected);
+    EXPECT_EQ(Sam3Prompts::fromStr("{0:'fish'}"), expected);
+    EXPECT_EQ(Sam3Prompts::fromStr("{0:[fish]}"), expected);
+    EXPECT_EQ(Sam3Prompts::fromStr("{0:['fish']}"), expected);
+    
+    const Sam3Prompts multi_expected{
+        { 0_f, Sam3PromptList{
+            Sam3PromptPayload{ .value = std::string("fish") },
+            Sam3PromptPayload{ .value = std::string("human") }
+        } }
+    };
+    
+    EXPECT_EQ(Sam3Prompts::fromStr("{0:[fish,human]}"), multi_expected);
+    
+    const Sam3Prompts expected2{
+        { Frame_t{}, Sam3PromptList{ Sam3PromptPayload{ .value = std::string("human") } } },
+        { 0_f, Sam3PromptList{ Sam3PromptPayload{ .value = std::string("fish") } } },
+        { 1_f, Sam3PromptList{ Sam3PromptPayload{ .value = std::vector<Vec2>{{10_F,12_F}} } } }
+    };
+    
+    EXPECT_EQ(Sam3Prompts::fromStr("{null:human,0:fish,1:[[10,12]]}"), expected2) << "expected " << expected2.toStr() << " got " << Sam3Prompts::fromStr("{null:human,0:fish,1:[[10,12]]}").toStr();
+}
+
+TEST(Sam3PromptsTest, EmptyPromptRepositorySerializesAsEmptyObject) {
+    const Sam3Prompts prompts;
+
+    EXPECT_TRUE(prompts.empty());
+    EXPECT_EQ(prompts.toStr(), "{}");
+    EXPECT_EQ(json_string(prompts.to_json()), "{}");
 }

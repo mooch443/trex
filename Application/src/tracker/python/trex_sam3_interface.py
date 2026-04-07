@@ -154,12 +154,57 @@ def _resize_mask(mask: npt.NDArray[np.uint8], height: int, width: int) -> npt.ND
     return np.ascontiguousarray(resized.to(torch.uint8).cpu().numpy())
 
 
+def _denormalize_points(
+    points: npt.NDArray[np.float32],
+    image_shape: tuple[int, int],
+) -> npt.NDArray[np.float32]:
+    """Convert normalized point prompts into image-space pixel coordinates."""
+    if points.size == 0:
+        return np.empty((0, 2), dtype=np.float32)
+
+    height, width = image_shape
+    points_px = points.astype(np.float32, copy=True)
+    points_px[:, 0] = np.clip(points_px[:, 0], 0.0, 1.0) * max(0, width - 1)
+    points_px[:, 1] = np.clip(points_px[:, 1], 0.0, 1.0) * max(0, height - 1)
+    return points_px
+
+
+def _denormalize_boxes(
+    boxes: npt.NDArray[np.float32],
+    image_shape: tuple[int, int],
+) -> npt.NDArray[np.float32]:
+    """Convert normalized XYXY box prompts into image-space pixel coordinates."""
+    if boxes.size == 0:
+        return np.empty((0, 4), dtype=np.float32)
+
+    height, width = image_shape
+    boxes_px = boxes.astype(np.float32, copy=True)
+    boxes_px[:, 0] = np.clip(boxes_px[:, 0], 0.0, 1.0) * width
+    boxes_px[:, 1] = np.clip(boxes_px[:, 1], 0.0, 1.0) * height
+    boxes_px[:, 2] = np.clip(boxes_px[:, 2], 0.0, 1.0) * width
+    boxes_px[:, 3] = np.clip(boxes_px[:, 3], 0.0, 1.0) * height
+    return boxes_px
+
+
+def _mask_contains_point(mask: npt.NDArray[np.uint8], x: float, y: float, radius: int = 2) -> bool:
+    """Return whether a resized mask contains the given point within a small tolerance."""
+    xi = int(round(float(x)))
+    yi = int(round(float(y)))
+    if xi < 0 or yi < 0 or xi >= mask.shape[1] or yi >= mask.shape[0]:
+        return False
+
+    x0 = max(0, xi - radius)
+    x1 = min(mask.shape[1], xi + radius + 1)
+    y0 = max(0, yi - radius)
+    y1 = min(mask.shape[0], yi + radius + 1)
+    return bool(np.any(mask[y0:y1, x0:x1] > 0))
+
+
 def _collect_prompt_kwargs(prompt_list: Sequence[object]) -> dict[str, object]:
-    """Merge one image's ordered prompt list into predictor kwargs."""
+    """Merge one image's normalized prompt list into Python-native arrays."""
     texts: list[str] = []
     boxes: list[list[float]] = []
     points: list[list[float]] = []
-    point_labels: list[float] = []
 
     for prompt in prompt_list:
         ptype = str(getattr(prompt, "type")).split(".")[-1].lower()
@@ -179,7 +224,6 @@ def _collect_prompt_kwargs(prompt_list: Sequence[object]) -> dict[str, object]:
         if ptype in {"point", "points"}:
             for point in getattr(prompt, "points", []):
                 points.append([float(point.x), float(point.y)])
-                point_labels.append(1.0)
             continue
 
         raise ValueError(f"Unsupported SAM3 prompt type: {ptype}")
@@ -191,102 +235,100 @@ def _collect_prompt_kwargs(prompt_list: Sequence[object]) -> dict[str, object]:
         kwargs["bboxes"] = np.asarray(boxes, dtype=np.float32)
     if points:
         kwargs["points"] = np.asarray(points, dtype=np.float32)
-        kwargs["point_labels"] = np.asarray(point_labels, dtype=np.float32)
     return kwargs
 
 
-def _result_from_public_prediction(
-    frame_index: int,
-    prediction: object,
+def _select_masks_matching_points(
+    masks_np: npt.NDArray[np.uint8],
     scale: object,
-) -> "TRex.Result":
-    """Convert a standard Ultralytics SAM3 `Results` item into `TRex.Result`."""
-    if TRex is None:
-        raise RuntimeError("TRex module is required for SAM3 predict().")
-
-    masks_data = getattr(getattr(prediction, "masks", None), "data", None)
-    boxes_data = getattr(prediction, "boxes", None)
-    if masks_data is None:
-        return _empty_result(frame_index)
-
-    masks_np = cast(
-        npt.NDArray[np.uint8],
-        masks_data.detach().to(torch.uint8).cpu().numpy(),
-    )
-
-    box_conf = np.zeros((masks_np.shape[0],), dtype=np.float32)
-    box_cls = np.zeros((masks_np.shape[0],), dtype=np.float32)
-    if boxes_data is not None and getattr(boxes_data, "conf", None) is not None:
-        box_conf = boxes_data.conf.detach().cpu().numpy().astype(np.float32, copy=False)
-    if boxes_data is not None and getattr(boxes_data, "cls", None) is not None:
-        box_cls = boxes_data.cls.detach().cpu().numpy().astype(np.float32, copy=False)
+    points_normalized: npt.NDArray[np.float32],
+) -> npt.NDArray[np.intp]:
+    """Return indices of masks that contain all requested point prompts."""
+    if masks_np.size == 0 or points_normalized.size == 0:
+        return np.empty((0,), dtype=np.intp)
 
     scale_x = float(getattr(scale, "x", 1.0))
     scale_y = float(getattr(scale, "y", 1.0))
-    trex_masks: list[npt.NDArray[np.uint8]] = []
-    boxes = np.zeros((masks_np.shape[0], 6), dtype=np.float32)
+    matches: list[int] = []
 
     for idx, mask in enumerate(masks_np):
         target_h = max(1, int(round(mask.shape[0] * scale_y)))
         target_w = max(1, int(round(mask.shape[1] * scale_x)))
         resized_mask = _resize_mask(mask * np.uint8(255), target_h, target_w)
-        trex_masks.append(resized_mask)
+        points_px = _denormalize_points(points_normalized, resized_mask.shape)
+        if all(_mask_contains_point(resized_mask, point[0], point[1]) for point in points_px):
+            matches.append(idx)
 
-        boxes[idx, 0] = 0.0
-        boxes[idx, 1] = 0.0
-        boxes[idx, 2] = float(resized_mask.shape[1])
-        boxes[idx, 3] = float(resized_mask.shape[0])
-        boxes[idx, 4] = float(box_conf[idx]) if idx < len(box_conf) else 0.0
-        boxes[idx, 5] = float(box_cls[idx]) if idx < len(box_cls) else 0.0
-
-    return TRex.Result(  # type: ignore[attr-defined]
-        int(frame_index),
-        TRex.Boxes(boxes),  # type: ignore[attr-defined]
-        trex_masks,
-        TRex.KeypointData(np.empty((0, 1, 2), dtype=np.float32)),  # type: ignore[attr-defined]
-        TRex.ObbData(np.empty((0, 7), dtype=np.float32)),  # type: ignore[attr-defined]
-        TRex.PointData(np.empty((0, 5), dtype=np.float32)),  # type: ignore[attr-defined]
-    )
+    return np.asarray(matches, dtype=np.intp)
 
 
-def _result_from_prompt_masks(
+def _build_result(
     frame_index: int,
-    masks: object,
-    scores: object,
     scale: object,
+    image_shape: tuple[int, int],
+    masks_np: npt.NDArray[np.uint8],
+    conf_np: npt.NDArray[np.float32],
+    cls_np: npt.NDArray[np.float32],
+    *,
+    pred_boxes_np: npt.NDArray[np.float32] | None = None,
+    keep_indices: npt.NDArray[np.intp] | None = None,
 ) -> "TRex.Result":
-    """Convert prompt-inference tensors into a `TRex.Result`."""
+    """Build a TRex.Result from mask/score arrays.
+
+    image_shape: the source image size
+    pred_boxes_np: (N, 4) XYXY coords in input space, scaled by scale_x/y.
+                   Used by the inference-features (box-prompt) path.
+    If neither is given, boxes are derived from each mask's tight bounding rect.
+    keep_indices: optional index filter applied before any processing.
+    """
     if TRex is None:
         raise RuntimeError("TRex module is required for SAM3 predict().")
 
-    masks_np = cast(
-        npt.NDArray[np.uint8],
-        cast(torch.Tensor, masks).detach().to(torch.uint8).cpu().numpy(),
-    )
-    scores_np = cast(
-        npt.NDArray[np.float32],
-        cast(torch.Tensor, scores).detach().cpu().numpy().astype(np.float32, copy=False),
-    )
+    assert image_shape is not None, "image_shape is required for _build_result in this SAM3 interface implementation"
+
+    if keep_indices is not None:
+        masks_np = masks_np[keep_indices]
+        conf_np = conf_np[keep_indices]
+        cls_np = cls_np[keep_indices]
+        if pred_boxes_np is not None:
+            pred_boxes_np = pred_boxes_np[keep_indices]
 
     scale_x = float(getattr(scale, "x", 1.0))
     scale_y = float(getattr(scale, "y", 1.0))
+    n = masks_np.shape[0]
     trex_masks: list[npt.NDArray[np.uint8]] = []
-    boxes = np.zeros((masks_np.shape[0], 6), dtype=np.float32)
+    boxes = np.zeros((n, 6), dtype=np.float32)
+
+    tgt_h, tgt_w = int(round(image_shape[0] * scale_y)), int(round(image_shape[1] * scale_x))
+    #tgt_h, tgt_w = int(image_shape[0]), int(image_shape[1])  # --- IGNORE ---
+    TRex.log(f"SAM3 prediction for frame={frame_index} has {n} mask(s) before resizing to {tgt_w}x{tgt_h} with scale=({scale_x:.3f},{scale_y:.3f})")  # type: ignore[union-attr]
 
     for idx, mask in enumerate(masks_np):
-        target_h = max(1, int(round(mask.shape[0] * scale_y)))
-        target_w = max(1, int(round(mask.shape[1] * scale_x)))
-        resized_mask = _resize_mask(mask * np.uint8(255), target_h, target_w)
+        resized_mask = _resize_mask(mask * np.uint8(255), tgt_h, tgt_w)
+        #if image_shape is not None:
+        #    TRex.imshow("SAM3 mask", resized_mask)  # type: ignore[union-attr]
         trex_masks.append(resized_mask)
 
-        ys, xs = np.where(resized_mask > 0)
-        if xs.size and ys.size:
-            boxes[idx, 0] = float(xs.min())
-            boxes[idx, 1] = float(ys.min())
-            boxes[idx, 2] = float(xs.max() + 1)
-            boxes[idx, 3] = float(ys.max() + 1)
-        boxes[idx, 4] = float(scores_np[idx]) if idx < len(scores_np) else 0.0
-        boxes[idx, 5] = 0.0
+        if image_shape is not None:
+            boxes[idx, 0] = 0.0
+            boxes[idx, 1] = 0.0
+            boxes[idx, 2] = float(tgt_w)
+            boxes[idx, 3] = float(tgt_h)
+        elif pred_boxes_np is not None and idx < len(pred_boxes_np):
+            boxes[idx, 0] = float(pred_boxes_np[idx, 0] * scale_x)
+            boxes[idx, 1] = float(pred_boxes_np[idx, 1] * scale_y)
+            boxes[idx, 2] = float(pred_boxes_np[idx, 2] * scale_x)
+            boxes[idx, 3] = float(pred_boxes_np[idx, 3] * scale_y)
+        else:
+            ys, xs = np.where(resized_mask > 0)
+            if xs.size and ys.size:
+                boxes[idx, 0] = float(xs.min())
+                boxes[idx, 1] = float(ys.min())
+                boxes[idx, 2] = float(xs.max() + 1)
+                boxes[idx, 3] = float(ys.max() + 1)
+
+        boxes[idx, 4] = float(conf_np[idx]) if idx < len(conf_np) else 0.0
+        boxes[idx, 5] = float(cls_np[idx]) if idx < len(cls_np) else 0.0
 
     return TRex.Result(  # type: ignore[attr-defined]
         int(frame_index),
@@ -314,11 +356,17 @@ def _predict_one(
         return _empty_result(frame_index)
 
     texts = cast(list[str] | None, prompt_kwargs.get("text"))
-    bboxes = cast(npt.NDArray[np.float32] | None, prompt_kwargs.get("bboxes"))
-    points = cast(npt.NDArray[np.float32] | None, prompt_kwargs.get("points"))
-    point_labels = cast(npt.NDArray[np.float32] | None, prompt_kwargs.get("point_labels"))
+    normalized_bboxes = cast(npt.NDArray[np.float32] | None, prompt_kwargs.get("bboxes"))
+    normalized_points = cast(npt.NDArray[np.float32] | None, prompt_kwargs.get("points"))
+    bboxes = _denormalize_boxes(normalized_bboxes, image.shape[:2]) if normalized_bboxes is not None else None
+    points = _denormalize_points(normalized_points, image.shape[:2]) if normalized_points is not None else None
 
-    print(f"[SAM3] frame={frame_index}: texts={texts} bboxes_shape={None if bboxes is None else bboxes.shape} points_shape={None if points is None else points.shape}")
+    print(
+        f"[SAM3] frame={frame_index} dims={image.shape} scale=({getattr(scale,'x',1.0):.3f},{getattr(scale,'y',1.0):.3f}): texts={texts}"
+        f" bboxes_shape={None if bboxes is None else bboxes.shape}"
+        f" points_shape={None if points is None else points.shape}"
+        f" normalized_boxes={None if normalized_bboxes is None else normalized_bboxes.tolist()}"
+    )
 
     if bboxes is None and points is None:
         print(f"[SAM3] frame={frame_index}: text-only path — calling predictor(source=..., conf={session.conf}, text={texts})")
@@ -328,58 +376,92 @@ def _predict_one(
             print(f"[SAM3] frame={frame_index}: predictor returned no results — returning empty result")
             return _empty_result(frame_index)
         masks_data = getattr(getattr(first, "masks", None), "data", None)
-        n_masks = 0 if masks_data is None else masks_data.shape[0]
-        print(f"[SAM3] frame={frame_index}: text-only path got {n_masks} mask(s)")
-        return _result_from_public_prediction(frame_index, first, scale)
+        if masks_data is None:
+            print(f"[SAM3] frame={frame_index}: text-only path got no masks")
+            return _empty_result(frame_index)
+        masks_np = cast(npt.NDArray[np.uint8], masks_data.detach().to(torch.uint8).cpu().numpy())
+        boxes_data = getattr(first, "boxes", None)
+        conf_np = np.zeros(masks_np.shape[0], dtype=np.float32)
+        cls_np = np.zeros(masks_np.shape[0], dtype=np.float32)
+        if boxes_data is not None and getattr(boxes_data, "conf", None) is not None:
+            conf_np = boxes_data.conf.detach().cpu().numpy().astype(np.float32, copy=False)
+        if boxes_data is not None and getattr(boxes_data, "cls", None) is not None:
+            cls_np = boxes_data.cls.detach().cpu().numpy().astype(np.float32, copy=False)
+        print(f"[SAM3] frame={frame_index}: text-only path got {masks_np.shape[0]} mask(s)")
+        return _build_result(frame_index=frame_index, scale=scale, masks_np=masks_np, conf_np=conf_np, cls_np=cls_np, image_shape=image.shape[:2])
+
+    if points is not None and bboxes is None:
+        if texts:
+            print(f"[SAM3] frame={frame_index}: text+points safe fallback — running text-only inference then selecting masks by points")
+            results = session.predictor(source=image, stream=True, conf=float(session.conf), text=texts)
+            first = _first_stream_item(results)
+            if first is None:
+                print(f"[SAM3] frame={frame_index}: text+points fallback returned no text results")
+                return _empty_result(frame_index)
+
+            masks_data = getattr(getattr(first, "masks", None), "data", None)
+            if masks_data is None:
+                print(f"[SAM3] frame={frame_index}: text+points fallback had no masks to filter")
+                return _empty_result(frame_index)
+
+            masks_np = cast(
+                npt.NDArray[np.uint8],
+                masks_data.detach().to(torch.uint8).cpu().numpy(),
+            )
+            boxes_data = getattr(first, "boxes", None)
+            conf_np = np.zeros(masks_np.shape[0], dtype=np.float32)
+            cls_np = np.zeros(masks_np.shape[0], dtype=np.float32)
+            if boxes_data is not None and getattr(boxes_data, "conf", None) is not None:
+                conf_np = boxes_data.conf.detach().cpu().numpy().astype(np.float32, copy=False)
+            if boxes_data is not None and getattr(boxes_data, "cls", None) is not None:
+                cls_np = boxes_data.cls.detach().cpu().numpy().astype(np.float32, copy=False)
+            keep_indices = _select_masks_matching_points(
+                masks_np,
+                scale,
+                normalized_points if normalized_points is not None else np.empty((0, 2), dtype=np.float32),
+            )
+            print(f"[SAM3] frame={frame_index}: text+points fallback kept {len(keep_indices)} of {masks_np.shape[0]} mask(s)")
+            if keep_indices.size == 0:
+                return _empty_result(frame_index)
+            return _build_result(frame_index=frame_index, scale=scale, masks_np=masks_np, conf_np=conf_np, cls_np=cls_np, image_shape=image.shape[:2], keep_indices=keep_indices)
+
+        print(f"[SAM3] frame={frame_index}: point-only prompts are disabled for SAM3 in this build to avoid unstable predictor crashes")
+        return _empty_result(frame_index)
+
+    if points is not None and bboxes is not None:
+        print(f"[SAM3] frame={frame_index}: ignoring point prompts because SAM3 geometric inference is only stable with boxes in this build")
 
     reset_image = getattr(session.predictor, "reset_image", None)
     if callable(reset_image):
         reset_image()
     session.predictor.set_image(image)
-    batch = getattr(session.predictor, "batch", None)
-    if batch is None:
-        raise RuntimeError("SAM3 predictor did not expose a prepared batch for prompt inference.")
-
-    model_input = session.predictor.preprocess(batch[1])
-    print(f"[SAM3] frame={frame_index}: model_input shape={model_input.shape}")
 
     features = session.predictor.features
     if features is None:
-        print(f"[SAM3] frame={frame_index}: features not cached — calling get_im_features")
-        features = session.predictor.get_im_features(model_input)
-    else:
-        print(f"[SAM3] frame={frame_index}: using cached features")
+        raise RuntimeError("SAM3 predictor did not expose cached features after set_image().")
+    print(f"[SAM3] frame={frame_index}: using features from set_image()")
 
-    if texts:
-        print(f"[SAM3] frame={frame_index}: text+prompt path — _prepare_prompts then _inference_features")
-        prepared_points, prepared_labels, _ = session.predictor._prepare_prompts(
-            model_input.shape[2:],
-            batch[1][0].shape[:2],
-            bboxes=bboxes,
-            points=points,
-            labels=point_labels,
-            masks=None,
-        )
-        masks, scores, _ = session.predictor._inference_features(
-            features,
-            prepared_points,
-            prepared_labels,
-            text=texts,
-        )
-    else:
-        print(f"[SAM3] frame={frame_index}: prompt_inference path (no text)")
-        masks, scores, _ = session.predictor.prompt_inference(
-            model_input,
-            bboxes=bboxes,
-            points=points,
-            labels=point_labels,
-        )
+    print(
+        f"[SAM3] frame={frame_index} dims={image.shape}: SAM3 box path — using {len(bboxes) if bboxes is not None else 0} box prompt(s)"
+        f" text={texts}"
+        f" boxes={bboxes.tolist() if bboxes is not None else None}"
+    )
+    masks, pred_boxes = session.predictor.inference_features(
+        features,
+        image.shape[:2],
+        bboxes=bboxes,
+        text=texts,
+    )
 
     masks_shape = getattr(masks, "shape", None)
-    scores_val = scores.detach().cpu().numpy() if hasattr(scores, "detach") else scores
-    print(f"[SAM3] frame={frame_index}: inference done — masks={masks_shape} scores={scores_val}")
+    pred_boxes_shape = getattr(pred_boxes, "shape", None)
+    print(f"[SAM3] frame={frame_index}: inference done — masks={masks_shape} pred_boxes={pred_boxes_shape}")
 
-    return _result_from_prompt_masks(frame_index, masks, scores, scale)
+    if masks is None:
+        return _empty_result(frame_index)
+    masks_np = cast(npt.NDArray[np.uint8], cast(torch.Tensor, masks).detach().to(torch.uint8).cpu().numpy())
+    boxes_np = cast(npt.NDArray[np.float32], cast(torch.Tensor, pred_boxes).detach().cpu().numpy().astype(np.float32, copy=False))
+    return _build_result(frame_index=frame_index, scale=scale, masks_np=masks_np, conf_np=boxes_np[:, 4], cls_np=boxes_np[:, 5], pred_boxes_np=boxes_np[:, :4], image_shape=image.shape[:2])
 
 
 def create_session(request: Mapping[str, object]) -> CreateSessionResponse:

@@ -446,7 +446,12 @@ struct TREX_EXPORT Sam3PromptPayload {
                 payload.value = std::vector<Bounds>{};
                 payload.boxes().reserve(values.size());
                 for(const auto& row : values) {
-                    payload.boxes().emplace_back(row.at(0), row.at(1), row.at(2), row.at(3));
+                    payload.boxes().emplace_back(
+                        row.at(0),
+                        row.at(1),
+                        row.at(2) - row.at(0),
+                        row.at(3) - row.at(1)
+                    );
                 }
                 return payload;
             }
@@ -489,10 +494,66 @@ struct TREX_EXPORT Sam3PromptPayload {
 };
 
 /// Ordered prompts associated with one SAM3 image.
-using Sam3PromptList = std::vector<Sam3PromptPayload>;
+struct TREX_EXPORT Sam3PromptList : public std::vector<Sam3PromptPayload> {
+    using base_t = std::vector<Sam3PromptPayload>;
+    using base_t::vector; // inherit std::vector constructors
+
+    Sam3PromptList(base_t&& v) : base_t(std::move(v))
+    {}
+
+    std::string toStr() const;
+    glz::json_t to_json() const;
+
+    static Sam3PromptList fromStr(StringLike auto&& str) {
+        auto sv = utils::trim(utils::string_like_view(str));
+        if(sv.empty())
+            return {};
+
+        if(sv.front() == '[' && sv.back() == ']') {
+            /// remove outer [] to get the inner elements
+            auto parts = util::parse_array_parts(util::truncate(sv));
+
+            /// we might have either
+            ///     1. a normal array of payloads aka [fish,human,[[1,2]],...]
+            ///     2. a shortened form e.g. `fish` or `[[1,2]]`
+            /// so here we test whether its a double array `[[[...` which has at least 3 brackets
+            /// or something else (string)
+            if(parts.empty()) {
+                return {};
+
+            } else if(parts.front().front() != '['
+                      || (parts.front().length() > 2u && parts.front()[1] == '['))
+            {
+                /// it is either a string (not an array) or an array with at least
+                /// (truncated one bracket) [|[[...
+                /// not checking for closing brackets is an approximation
+                Sam3PromptList result;
+                result.reserve(parts.size());
+                for(auto &&part : parts)
+                    result.push_back(Meta::fromStr<Sam3PromptPayload>(part));
+
+                /// its just a normal array
+                return {
+                    result
+                };
+
+            } else {
+                /// here we have only a maximum of `[[` in the original string
+                /// so it cant be an array of payloads. it must be a single payload
+                /// falls through to the end
+            }
+        }
+
+        return {
+            Meta::fromStr<Sam3PromptPayload>(std::forward<decltype(str)>(str))
+        };
+    }
+
+    static consteval std::string_view class_name() { return "Sam3PromptList"; }
+  };
 
 /// Frame-indexed prompt repository used by C++ settings/state.
-struct Sam3Prompts {
+struct TREX_EXPORT Sam3Prompts {
     using MapType = std::map<Frame_t, Sam3PromptList>;
     
     using iterator = MapType::iterator;
@@ -559,7 +620,12 @@ struct Sam3Prompts {
         
         /// in this case
         return Sam3Prompts {
-            
+            {
+                Frame_t{},
+                Sam3PromptList{
+                    Meta::fromStr<Sam3PromptPayload>(std::forward<decltype(str)>(str))
+                }
+            }
         };
     }
     
@@ -606,4 +672,3 @@ public:
 
 } // namespace detect
 } // namespace track
-
