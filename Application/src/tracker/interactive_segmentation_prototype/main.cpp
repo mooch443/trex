@@ -40,8 +40,8 @@ static void (*windowsEarlyEnvSetup)(void) = []() {
 using namespace cmn;
 
 int main(int argc, char** argv) {
-    file::DataLocation::create();
     GlobalSettings::create();
+    file::DataLocation::create();
 #if COMMONS_DISPATCHER_REQUIRE_EXPLICIT_INSTANCE
     static gui::attr::Dispatcher dispatcher;
     gui::SceneManager::install_dispatcher_instance(&dispatcher);
@@ -72,21 +72,21 @@ int main(int argc, char** argv) {
     namespace py = Python;
     std::future<void> f;
     try {
+        py::configure_runtime(
+            GlobalSettings::instance(),
+            file::DataLocation::instance(),
+            Python::get_instance(),
+            [](auto& name, auto& mat) {
+                tf::imshow(name, mat);
+            },
+            []() {
+                tf::destroyAllWindows();
+            }
+        );
+        
         py::init().get();
-        f = py::schedule([](){
-            //Print("Python = ", py::get_instance());
-            py::configure_runtime(
-                GlobalSettings::instance(),
-                file::DataLocation::instance(),
-                Python::get_instance(),
-                [](auto& name, auto& mat) {
-                    tf::imshow(name, mat);
-                },
-                []() {
-                    tf::destroyAllWindows();
-                }
-            );
-        });
+        //Print("Python = ", py::get_instance());
+        
     } catch(const std::exception& e) {
         FormatError("Cannot initialize python. Please refer to the above error messages prefixed with [py] to estimate the cause of this issue: ", e.what());
         exit(1);

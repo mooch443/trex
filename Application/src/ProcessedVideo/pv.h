@@ -133,7 +133,7 @@ namespace pv {
         
     public:
         Frame& operator=(const Frame& other) = delete;
-        Frame& operator=(Frame&& other) = default;
+        Frame& operator=(Frame&& other);
         
         //! initialize empty object
         Frame() = default;

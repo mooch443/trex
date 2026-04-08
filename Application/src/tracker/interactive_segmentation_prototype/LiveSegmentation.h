@@ -60,6 +60,7 @@ private:
     
     Timer _timer;
     std::unique_ptr<std::thread> _fetch_thread;
+    std::unique_ptr<Rect> _drag_box;
 
 public:
     // Constructor

@@ -10,6 +10,8 @@ The contract remains intentionally small:
 
 from __future__ import annotations
 
+import copy
+from collections import defaultdict
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 import gc
@@ -74,6 +76,18 @@ class ReplayFrame:
 
 
 @dataclass
+class RuntimeCheckpoint:
+    """Restorable CPU snapshot of predictor/runtime state at a frame boundary."""
+
+    frame_index: int
+    inference_state: dict[str, object]
+    tracker_backbone_out: object | None
+    active_texts: list[str]
+    last_processed_frame: int
+    result: object | None = None
+
+
+@dataclass
 class _VideoDatasetShim:
     """Small dataset shim that satisfies Ultralytics' video predictor state."""
 
@@ -89,13 +103,18 @@ class Sam3VideoSession:
     predictor: SAM3VideoSemanticPredictor
     device: str
     conf: float
-    timeline_capacity: int = 65536
+    timeline_capacity: int | None = None
+    runtime_checkpoints_enabled: bool = True
     frame_cache: dict[int, ReplayFrame] = field(default_factory=dict)
     prompt_history: dict[int, PromptState] = field(default_factory=dict)
+    checkpoint_history: dict[int, RuntimeCheckpoint] = field(default_factory=dict)
     last_processed_frame: int | None = None
     active_texts: list[str] = field(default_factory=list)
     max_cached_frames: int = 2
     duplicate_mask_iou: float = 0.95
+    checkpoint_interval: int = 10
+    latest_checkpoint_frame: int | None = None
+    timeline_slack: int = 10
 
     def set_conf_threshold(self, conf: float) -> float:
         """Update the confidence threshold used for future predictions."""
@@ -125,8 +144,11 @@ class Sam3VideoSession:
 
     def store_frame(self, frame_index: int, image: npt.NDArray[np.uint8], prompt_state: PromptState) -> None:
         """Cache the latest authoritative frame payload received from C++."""
+        previous_prompt = self.prompt_history.get(frame_index)
         if not prompt_state.has_prompts() and frame_index in self.prompt_history:
             prompt_state = self.prompt_history[frame_index]
+        elif prompt_state.has_prompts() and (previous_prompt is None or not _prompt_states_equal(previous_prompt, prompt_state)):
+            self.discard_checkpoints_from(frame_index)
         self.prompt_history[frame_index] = prompt_state
         if frame_index in self.frame_cache:
             del self.frame_cache[frame_index]
@@ -134,6 +156,96 @@ class Sam3VideoSession:
         if len(self.frame_cache) > self.max_cached_frames:
             oldest = next(iter(self.frame_cache))
             del self.frame_cache[oldest]
+
+    def discard_checkpoints_from(self, frame_index: int) -> None:
+        """Drop restore checkpoints at and after `frame_index`."""
+        stale = [idx for idx in self.checkpoint_history if idx >= frame_index]
+        for idx in stale:
+            del self.checkpoint_history[idx]
+        if self.latest_checkpoint_frame is not None and self.latest_checkpoint_frame >= frame_index:
+            self.latest_checkpoint_frame = None
+
+    def snapshot_runtime_checkpoint(self, frame_index: int, result: object | None = None) -> None:
+        """Save a sparse CPU checkpoint of the current predictor runtime."""
+        if not self.runtime_checkpoints_enabled or self.last_processed_frame != frame_index:
+            return
+
+        inference_state = _checkpoint_inference_state(self.predictor.inference_state, frame_index)
+
+        tracker_backbone_out = None
+        tracker = getattr(self.predictor, "tracker", None)
+        if tracker is not None:
+            tracker_backbone_out = _clone_state_tree(getattr(tracker, "backbone_out", None), device=None)
+
+        checkpoint = RuntimeCheckpoint(
+            frame_index=frame_index,
+            inference_state=inference_state,
+            tracker_backbone_out=tracker_backbone_out,
+            active_texts=list(self.active_texts),
+            last_processed_frame=frame_index,
+            result=result,
+        )
+        self.checkpoint_history[frame_index] = checkpoint
+
+        if frame_index % self.checkpoint_interval != 0:
+            if (
+                self.latest_checkpoint_frame is not None
+                and self.latest_checkpoint_frame != frame_index
+                and self.latest_checkpoint_frame % self.checkpoint_interval != 0
+            ):
+                self.checkpoint_history.pop(self.latest_checkpoint_frame, None)
+            self.latest_checkpoint_frame = frame_index
+        else:
+            self.latest_checkpoint_frame = frame_index
+
+        checkpoint_kind = "interval" if frame_index % self.checkpoint_interval == 0 else "latest"
+        _restore_log(
+            f"saved checkpoint frame={frame_index} kind={checkpoint_kind} "
+            f"all={sorted(self.checkpoint_history.keys())}"
+        )
+
+    def restore_runtime_checkpoint(self, frame_index: int) -> RuntimeCheckpoint:
+        """Restore a previously saved predictor runtime checkpoint."""
+        if not self.runtime_checkpoints_enabled:
+            raise RuntimeError("SAM3 runtime checkpoints are disabled.")
+        checkpoint = self.checkpoint_history[frame_index]
+        self._ensure_runtime_capacity(max(frame_index, checkpoint.last_processed_frame))
+        inference_state = cast(
+            dict[str, object],
+            _clone_state_tree(checkpoint.inference_state, device=self.device),
+        )
+        raw_prompts = inference_state.get("per_frame_geometric_prompt")
+        if isinstance(raw_prompts, dict):
+            prompts = [None] * int(getattr(self.predictor.dataset, "frames", checkpoint.last_processed_frame + 1))
+            for idx, prompt in raw_prompts.items():
+                prompts[int(idx)] = prompt
+            inference_state["per_frame_geometric_prompt"] = prompts
+        self.predictor.inference_state = inference_state
+        self.active_texts = list(checkpoint.active_texts)
+        self.last_processed_frame = checkpoint.last_processed_frame
+        self.predictor.batch = None
+        self.predictor.im = None
+
+        tracker = getattr(self.predictor, "tracker", None)
+        if tracker is not None:
+            tracker_backbone_out = _clone_state_tree(checkpoint.tracker_backbone_out, device=self.device)
+            try:
+                tracker.backbone_out = tracker_backbone_out
+            except Exception:
+                pass
+
+        _restore_log(
+            f"restored checkpoint frame={frame_index} last_processed={self.last_processed_frame}"
+        )
+
+        return checkpoint
+
+    def find_best_checkpoint(self, target_frame_index: int) -> int | None:
+        """Return the nearest checkpoint at or before `target_frame_index`."""
+        if not self.runtime_checkpoints_enabled:
+            return None
+        candidates = [idx for idx in self.checkpoint_history if idx <= target_frame_index]
+        return max(candidates) if candidates else None
 
     def reset_runtime(self, max_frame_index: int) -> None:
         """Reset tracker state while keeping the loaded model and cached frames."""
@@ -172,8 +284,10 @@ class Sam3VideoSession:
 
         self.frame_cache.clear()
         self.prompt_history.clear()
+        self.checkpoint_history.clear()
         self.active_texts = []
         self.last_processed_frame = None
+        self.latest_checkpoint_frame = None
         self.predictor.inference_state = {}
         self.predictor.batch = None
         self.predictor.im = None
@@ -182,7 +296,11 @@ class Sam3VideoSession:
 
     def _ensure_runtime_capacity(self, max_frame_index: int) -> None:
         """Ensure the predictor has enough timeline capacity for `max_frame_index`."""
-        required_frames = max(1, self.timeline_capacity, max_frame_index + 1)
+        required_frames = max(1, max_frame_index + 1)
+        if self.timeline_capacity is not None:
+            required_frames = max(required_frames, int(self.timeline_capacity))
+        else:
+            required_frames += max(0, int(self.timeline_slack))
         dataset = getattr(self.predictor, "dataset", None)
         if dataset is None or getattr(dataset, "mode", None) != "video":
             self.predictor.dataset = _VideoDatasetShim(frames=required_frames)
@@ -197,6 +315,15 @@ class Sam3VideoSession:
             prompts = self.predictor.inference_state.get("per_frame_geometric_prompt")
             if isinstance(prompts, list) and len(prompts) < int(self.predictor.dataset.frames):
                 prompts.extend([None] * (int(self.predictor.dataset.frames) - len(prompts)))
+            tracker_capacity = self.predictor.inference_state.get("tracker_capacity")
+            if tracker_capacity is not None:
+                try:
+                    self.predictor.inference_state["tracker_capacity"] = max(
+                        int(tracker_capacity),
+                        int(self.predictor.dataset.frames),
+                    )
+                except Exception:
+                    pass
 
         tracker = getattr(self.predictor, "tracker", None)
         if tracker is None:
@@ -220,6 +347,7 @@ class Sam3VideoSession:
 
 
 _SESSION: Sam3VideoSession | None = None
+_RESTORE_LOG_PREFIX = "[py][sam3-restore]"
 
 
 def _choose_device() -> str:
@@ -231,6 +359,20 @@ def _choose_device() -> str:
     if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
         return "mps"
     return "cpu"
+
+
+def _restore_log(message: str) -> None:
+    """Emit restore/checkpoint diagnostics with a stable filterable prefix."""
+    if TRex is not None and hasattr(TRex, "log"):
+        TRex.log(f"{_RESTORE_LOG_PREFIX} {message}")  # type: ignore[union-attr]
+
+
+def _session_log(message: str) -> None:
+    """Emit session lifecycle diagnostics even when TRex logging is unavailable."""
+    if TRex is not None and hasattr(TRex, "log"):
+        TRex.log(message)  # type: ignore[union-attr]
+    else:  # pragma: no cover
+        print(message)
 
 
 def _resolve_iou_threshold(request: Mapping[str, object]) -> float:
@@ -246,6 +388,14 @@ def _resolve_iou_threshold(request: Mapping[str, object]) -> float:
             pass
 
     return 0.95
+
+
+def _set_optional_predictor_attr(predictor: object, name: str, value: object) -> None:
+    """Best-effort runtime attribute assignment for SAM3 predictor knobs."""
+    try:
+        setattr(predictor, name, value)
+    except Exception:
+        pass
 
 
 def _cleanup_device_caches(device: str) -> None:
@@ -282,6 +432,80 @@ def _normalize_frame(image: npt.ArrayLike) -> npt.NDArray[np.uint8]:
     if frame.dtype != np.uint8:
         frame = frame.astype(np.uint8, copy=False)
     return np.ascontiguousarray(frame)
+
+
+def _clone_state_tree(obj: object, device: str | None) -> object:
+    """Deep-copy nested runtime state, moving torch tensors to `device` or CPU."""
+    if isinstance(obj, torch.Tensor):
+        tensor = obj.detach().clone()
+        return tensor.cpu() if device is None else tensor.to(device)
+    if isinstance(obj, np.ndarray):
+        return obj.copy()
+    if isinstance(obj, defaultdict):
+        cloned = defaultdict(obj.default_factory)
+        for key, value in obj.items():
+            cloned[key] = _clone_state_tree(value, device)
+        return cloned
+    if isinstance(obj, dict):
+        return {key: _clone_state_tree(value, device) for key, value in obj.items()}
+    if isinstance(obj, list):
+        return [_clone_state_tree(value, device) for value in obj]
+    if isinstance(obj, tuple):
+        return tuple(_clone_state_tree(value, device) for value in obj)
+    if isinstance(obj, set):
+        return {_clone_state_tree(value, device) for value in obj}
+    if isinstance(obj, SimpleNamespace):
+        return SimpleNamespace(**{key: _clone_state_tree(value, device) for key, value in vars(obj).items()})
+    return copy.deepcopy(obj)
+
+
+def _checkpoint_inference_state(inference_state: object, frame_index: int) -> dict[str, object]:
+    """Return a replay-focused CPU checkpoint payload for predictor inference state."""
+    if not isinstance(inference_state, dict):
+        return {}
+
+    sanitized: dict[str, object] = {}
+    for key, value in inference_state.items():
+        if key == "im":
+            continue
+        if key == "num_frames":
+            sanitized[key] = int(frame_index + 1)
+            continue
+        if key == "per_frame_geometric_prompt":
+            if isinstance(value, list):
+                sanitized[key] = {
+                    idx: prompt
+                    for idx, prompt in enumerate(value[: frame_index + 1])
+                    if prompt is not None
+                }
+            elif isinstance(value, dict):
+                sanitized[key] = {
+                    int(idx): prompt
+                    for idx, prompt in value.items()
+                    if prompt is not None and int(idx) <= frame_index
+                }
+            continue
+        if key == "tracker_inference_states" and isinstance(value, list):
+            sanitized[key] = value[: frame_index + 1]
+            continue
+        sanitized[key] = value
+
+    return cast(dict[str, object], _clone_state_tree(sanitized, device=None))
+
+
+def _prompt_states_equal(lhs: PromptState, rhs: PromptState) -> bool:
+    """Return whether two normalized prompt states are equivalent."""
+    if lhs.texts != rhs.texts:
+        return False
+    if (lhs.boxes is None) != (rhs.boxes is None):
+        return False
+    if lhs.boxes is not None and rhs.boxes is not None and not np.array_equal(lhs.boxes, rhs.boxes):
+        return False
+    if (lhs.points is None) != (rhs.points is None):
+        return False
+    if lhs.points is not None and rhs.points is not None and not np.array_equal(lhs.points, rhs.points):
+        return False
+    return True
 
 
 def _empty_result(frame_index: int) -> "TRex.Result":
@@ -692,11 +916,23 @@ def _run_one_frame(
             )
         else:
             session.last_processed_frame = frame_index
-            return _empty_result(frame_index)
+            result = _empty_result(frame_index)
+            session.snapshot_runtime_checkpoint(frame_index, result)
+            return result
 
     if output is None:
         session.last_processed_frame = frame_index
-        return _empty_result(frame_index)
+        result = _empty_result(frame_index)
+        session.snapshot_runtime_checkpoint(frame_index, result)
+        return result
+
+    obj_id_to_mask = cast(Mapping[int, torch.Tensor], output.get("obj_id_to_mask", {}))
+    removed_obj_ids = sorted(cast(set[int], output.get("removed_obj_ids", set())))
+    tracker_score_map = cast(Mapping[int, float], output.get("obj_id_to_tracker_score", {}))
+    _restore_log(
+        f"frame={frame_index} raw_objects={len(obj_id_to_mask)} "
+        f"tracker_scores={len(tracker_score_map)} removed={removed_obj_ids}"
+    )
 
     masks_np, conf_np, cls_np = _postprocess_video_output(session, output, image)
     keep_indices = None
@@ -704,10 +940,12 @@ def _run_one_frame(
         keep_indices = _select_masks_matching_points(masks_np, scale, prompt_state.points)
         if keep_indices.size == 0:
             session.last_processed_frame = frame_index
-            return _empty_result(frame_index)
+            result = _empty_result(frame_index)
+            session.snapshot_runtime_checkpoint(frame_index, result)
+            return result
 
     session.last_processed_frame = frame_index
-    return _build_result(
+    result = _build_result(
         frame_index=frame_index,
         scale=scale,
         image_shape=image.shape[:2],
@@ -716,39 +954,103 @@ def _run_one_frame(
         cls_np=cls_np,
         keep_indices=keep_indices,
     )
+    session.snapshot_runtime_checkpoint(frame_index, result)
+    return result
 
 
 def _replay_to_frame(
     session: Sam3VideoSession,
     target_frame_index: int,
     scale: object,
+    incoming_frames: Mapping[int, ReplayFrame],
 ) -> "TRex.Result":
-    """Reset runtime state and replay cached frames up to `target_frame_index`."""
-    if target_frame_index not in session.frame_cache:
+    """Restore predictor state from a checkpoint and replay forward to `target_frame_index`."""
+    if not session.runtime_checkpoints_enabled:
+        raise RuntimeError("SAM3 runtime checkpoints are disabled.")
+    target_prompt_state = session.prompt_history.get(target_frame_index, PromptState())
+    checkpoint_index = session.find_best_checkpoint(target_frame_index)
+    if checkpoint_index is None:
+        raise RuntimeError(f"SAM3 cannot restore frame {target_frame_index}: no checkpoint is available.")
+
+    checkpoint = session.checkpoint_history[checkpoint_index]
+    _restore_log(
+        f"restore request target={target_frame_index} checkpoint={checkpoint_index} "
+        f"exact={checkpoint_index == target_frame_index}"
+    )
+    if checkpoint_index == target_frame_index and not (target_prompt_state.points is not None and target_prompt_state.points.size):
+        session.restore_runtime_checkpoint(checkpoint_index)
+        if checkpoint.result is not None:
+            return cast("TRex.Result", checkpoint.result)
         raise RuntimeError(
-            f"SAM3 cannot replay frame {target_frame_index} because its image is no longer cached."
+            f"SAM3 checkpoint for frame {target_frame_index} is missing a cached result."
         )
 
-    replay_indices = sorted(frame for frame in session.frame_cache if frame <= target_frame_index)
-    if not replay_indices:
-        raise RuntimeError(f"SAM3 replay has no cached frames for target frame {target_frame_index}.")
-
-    expected = replay_indices[0]
+    replay_indices = list(range(checkpoint_index + 1, target_frame_index + 1))
+    replay_frames: list[ReplayFrame] = []
+    missing: list[int] = []
     for frame_index in replay_indices:
-        if frame_index != expected:
-            raise RuntimeError(
-                "SAM3 cannot rebuild tracker state because cached replay images are missing between "
-                f"{replay_indices[0]} and {target_frame_index}."
-            )
-        expected += 1
+        replay_frame = incoming_frames.get(frame_index) or session.frame_cache.get(frame_index)
+        if replay_frame is None:
+            missing.append(frame_index)
+            continue
+        prompt_state = session.prompt_history.get(frame_index, replay_frame.prompt_state)
+        replay_frames.append(ReplayFrame(frame_index, replay_frame.image, prompt_state))
 
-    session.reset_runtime(target_frame_index)
+    if missing:
+        missing_start = missing[0]
+        missing_end = missing[-1]
+        _restore_log(
+            f"restore missing target={target_frame_index} checkpoint={checkpoint_index} "
+            f"missing={missing_start}-{missing_end}"
+        )
+        raise RuntimeError(
+            "SAM3 cannot restore frame "
+            f"{target_frame_index}: nearest checkpoint={checkpoint_index}, missing replay frames {missing_start}-{missing_end}."
+        )
 
-    result = _empty_result(target_frame_index)
-    for frame_index in replay_indices:
-        replay_frame = session.frame_cache[frame_index]
-        result = _run_one_frame(session, replay_frame, scale if frame_index == target_frame_index else SimpleNamespace(x=1.0, y=1.0))
+    session.restore_runtime_checkpoint(checkpoint_index)
+    result = cast("TRex.Result", checkpoint.result) if checkpoint.result is not None else _empty_result(checkpoint_index)
+    for frame_index, replay_frame in zip(replay_indices, replay_frames):
+        _restore_log(
+            f"replay step frame={frame_index} target={target_frame_index} checkpoint={checkpoint_index}"
+        )
+        result = _run_one_frame(
+            session,
+            replay_frame,
+            scale if frame_index == target_frame_index else SimpleNamespace(x=1.0, y=1.0),
+        )
     return result
+
+
+def _fallback_to_current_frame(
+    session: Sam3VideoSession,
+    target_frame_index: int,
+    scale: object,
+    incoming_frames: Mapping[int, ReplayFrame],
+) -> "TRex.Result":
+    """Process the requested frame directly when replay cannot be completed."""
+    replay_frame = incoming_frames.get(target_frame_index) or session.frame_cache.get(target_frame_index)
+    if replay_frame is None:
+        raise RuntimeError(f"SAM3 cannot recover frame {target_frame_index}: frame data is unavailable.")
+
+    prompt_state = session.prompt_history.get(target_frame_index, replay_frame.prompt_state)
+    checkpoint_index = session.find_best_checkpoint(target_frame_index)
+    if checkpoint_index is not None:
+        _restore_log(
+            f"restore fallback target={target_frame_index} checkpoint={checkpoint_index} mode=direct-current-frame"
+        )
+        session.restore_runtime_checkpoint(checkpoint_index)
+    else:
+        _restore_log(
+            f"restore fallback target={target_frame_index} checkpoint=none mode=reset-current-frame"
+        )
+        session.reset_runtime(target_frame_index)
+
+    return _run_one_frame(
+        session,
+        ReplayFrame(target_frame_index, replay_frame.image, prompt_state),
+        scale,
+    )
 
 
 def create_session(request: Mapping[str, object]) -> CreateSessionResponse:
@@ -787,6 +1089,13 @@ def create_session(request: Mapping[str, object]) -> CreateSessionResponse:
     predictor = SAM3VideoSemanticPredictor(overrides=overrides)
     predictor.setup_model(verbose=bool(overrides["verbose"]))
     predictor.score_threshold_detection = float(overrides["conf"])
+    _set_optional_predictor_attr(predictor, "init_trk_keep_alive", int(request.get("init_trk_keep_alive", 300)))
+    _set_optional_predictor_attr(predictor, "max_trk_keep_alive", int(request.get("max_trk_keep_alive", 300)))
+    _set_optional_predictor_attr(
+        predictor,
+        "decrease_trk_keep_alive_for_empty_masklets",
+        bool(request.get("decrease_trk_keep_alive_for_empty_masklets", False)),
+    )
 
     imgsz_checked = check_imgsz(
         overrides.get("imgsz", 640),
@@ -802,12 +1111,27 @@ def create_session(request: Mapping[str, object]) -> CreateSessionResponse:
     if hasattr(predictor.model, "set_imgsz"):
         predictor.model.set_imgsz(predictor.imgsz)
 
+    explicit_video_capacity = max(1, int(request["video_capacity"])) if "video_capacity" in request else None
+    runtime_checkpoints_enabled = bool(request.get("runtime_checkpoints_enabled", True))
+
     _SESSION = Sam3VideoSession(
         predictor=predictor,
         device=device,
         conf=float(overrides["conf"]),
-        timeline_capacity=max(1, int(request.get("video_capacity", 65536))),
+        timeline_capacity=explicit_video_capacity,
+        runtime_checkpoints_enabled=runtime_checkpoints_enabled,
         duplicate_mask_iou=_resolve_iou_threshold(request),
+    )
+    video_capacity_text = str(explicit_video_capacity) if explicit_video_capacity is not None else f"adaptive(+{_SESSION.timeline_slack})"
+    _session_log(
+        "SAM3 create_session: "
+        f"model={weights_path} "
+        f"device={device} "
+        f"imgsz={predictor.imgsz} "
+        f"conf={float(overrides['conf']):.3f} "
+        f"half={bool(overrides['half'])} "
+        f"runtime_checkpoints_enabled={runtime_checkpoints_enabled} "
+        f"video_capacity={video_capacity_text}"
     )
     return {"ok": True, "device": device}
 
@@ -863,28 +1187,33 @@ def predict(input: object) -> list["TRex.Result"]:
     if not prompts_per_image:
         prompts_per_image = [[] for _ in images]
 
-    results: list["TRex.Result"] = []
+    prepared_inputs: list[tuple[int, npt.NDArray[np.uint8], object, PromptState]] = []
+    incoming_frames: dict[int, ReplayFrame] = {}
     for frame_index, image, scale, prompt_list in zip(orig_ids, images, scales, prompts_per_image):
         idx = int(frame_index)
         normalized_image = _normalize_frame(image)
         prompt_state = _collect_prompt_state(cast(Sequence[object], prompt_list))
+        prepared_inputs.append((idx, normalized_image, scale, prompt_state))
+        replay_frame = ReplayFrame(idx, normalized_image, prompt_state)
+        incoming_frames[idx] = replay_frame
         session.store_frame(idx, normalized_image, prompt_state)
 
+    results: list["TRex.Result"] = []
+    for idx, normalized_image, scale, prompt_state in prepared_inputs:
         if session.last_processed_frame is None:
             session.reset_runtime(idx)
-            result = _run_one_frame(session, session.frame_cache[idx], scale)
+            result = _run_one_frame(session, incoming_frames[idx], scale)
         elif idx == session.last_processed_frame + 1:
-            result = _run_one_frame(session, session.frame_cache[idx], scale)
+            result = _run_one_frame(session, incoming_frames[idx], scale)
         else:
             try:
-                result = _replay_to_frame(session, idx, scale)
+                _restore_log(
+                    f"out-of-order request frame={idx} last_processed={session.last_processed_frame}"
+                )
+                result = _replay_to_frame(session, idx, scale, incoming_frames)
             except RuntimeError as exc:
-                if TRex is not None and hasattr(TRex, "log"):
-                    TRex.log(  # type: ignore[union-attr]
-                        f"SAM3 deferring replay for frame {idx} until new frames arrive: {exc}"
-                    )
-                session.reset_runtime(idx)
-                result = _empty_result(idx)
+                _restore_log(f"restore failed frame={idx}: {exc}")
+                result = _fallback_to_current_frame(session, idx, scale, incoming_frames)
 
         results.append(result)
 

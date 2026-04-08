@@ -194,7 +194,6 @@ void NAME(const char *cmd, ...) { \
 MESSAGE_TYPE(PythonLog, TYPE_INFO, false, CYAN, "python");
 MESSAGE_TYPE(PythonWarn, TYPE_WARNING, false, YELLOW, "python");*/
 
-cmn::GlobalSettings* _settings{ nullptr };
 std::function<void(const std::string&, const cv::Mat&)> _mat_display = [](auto&, auto&) { };
 std::function<void()> _destroy_all_windows = []() {};
 
@@ -646,9 +645,7 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
 
     auto choose_backend = []() -> std::string {
         using namespace default_config;
-        if(not _settings)
-            throw InvalidArgumentException("No _settings has been set.");
-        
+
         auto torch = py::module::import("torch");
         bool is_cuda_available = torch.attr("cuda").attr("is_available")().cast<bool>();
         std::string backend;
@@ -668,9 +665,7 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
 
     m.def("choose_device", [choose_backend]() -> std::string {
         using namespace default_config;
-        if(not _settings)
-            throw InvalidArgumentException("No _settings has been set.");
-        
+
         std::string device;
         auto device_from_settings = GlobalSettings::read_value<default_config::gpu_torch_device_t::Class>("gpu_torch_device");
         if (not device_from_settings
@@ -732,8 +727,8 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
         
         try {
             constexpr auto accessLevel = default_config::AccessLevelType::PUBLIC;
-            if (!_settings->has_access(name, accessLevel))
-                FormatError("User cannot write setting ", name, " (AccessLevel::", _settings->access_level(name).name(), ").");
+            if (!GlobalSettings::has_access(name, accessLevel))
+                FormatError("User cannot write setting ", name, " (AccessLevel::", GlobalSettings::access_level(name).name(), ").");
             else {
                 GlobalSettings::write([&](Configuration& config){
                     if (config.values.has(name)) {
@@ -841,7 +836,7 @@ void PythonIntegration::set_settings(GlobalSettings* obj, file::DataLocation* in
     GlobalSettings::set_instance(obj);
     file::DataLocation::set_instance(instance);
     Python::set_instance(python_wrapper);
-    _settings = obj;
+    thread_print("setting settings instance to ", hex(obj));
 }
 
 template<typename T>

@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from collections import defaultdict
 from pathlib import Path
 from types import SimpleNamespace
 import tempfile
@@ -267,6 +268,11 @@ class Sam3InterfaceTest(unittest.TestCase):
         image = np.zeros((8, 8, 3), dtype=np.uint8)
         return FakeSam3Input([image], [frame_index], [FakeScale()], [prompts])
 
+    def frame_batch_input(self, frame_indices, prompts_per_image):
+        images = [np.zeros((8, 8, 3), dtype=np.uint8) for _ in frame_indices]
+        scales = [FakeScale() for _ in frame_indices]
+        return FakeSam3Input(images, list(frame_indices), scales, list(prompts_per_image))
+
     def test_global_text_persists_across_frames(self):
         self.create_session()
 
@@ -295,6 +301,45 @@ class Sam3InterfaceTest(unittest.TestCase):
 
         self.assertEqual(len(result0.masks), 1)
         self.assertEqual(len(result1.masks), 1)
+
+    def test_session_defaults_to_checkpoints_enabled(self):
+        self.create_session()
+
+        current = sam3._require_session()
+
+        self.assertTrue(current.runtime_checkpoints_enabled)
+
+    def test_adaptive_default_video_capacity_grows_only_as_needed(self):
+        self.create_session()
+
+        result0 = sam3.predict(self.frame_input(0, [box_prompt(0.1, 0.1, 0.4, 0.4)]))[0]
+        result30 = None
+        for frame_index in range(1, 31):
+            result30 = sam3.predict(self.frame_input(frame_index, []))[0]
+
+        current = sam3._require_session()
+
+        self.assertEqual(len(result0.masks), 1)
+        self.assertIsNotNone(result30)
+        self.assertEqual(result30.frame_index, 30)
+        self.assertEqual(len(result30.masks), 1)
+        self.assertLess(current.predictor.dataset.frames, 128)
+        self.assertGreaterEqual(current.predictor.dataset.frames, 31)
+
+    def test_session_applies_keep_alive_directly_to_predictor_and_survives_frame30(self):
+        self.create_session()
+
+        current = sam3._require_session()
+        self.assertEqual(current.predictor.init_trk_keep_alive, 300)
+        self.assertEqual(current.predictor.max_trk_keep_alive, 300)
+        self.assertFalse(current.predictor.decrease_trk_keep_alive_for_empty_masklets)
+
+        for frame_index in range(31):
+            prompts = [box_prompt(0.1, 0.1, 0.4, 0.4)] if frame_index == 0 else []
+            result = sam3.predict(self.frame_input(frame_index, prompts))[0]
+
+        self.assertEqual(result.frame_index, 30)
+        self.assertEqual(len(result.masks), 1)
 
     def test_propagated_bbox_uses_tracker_score_when_detection_score_goes_stale(self):
         FakePredictor.box_detection_score_overrides[(0, 0)] = 0.3
@@ -359,6 +404,59 @@ class Sam3InterfaceTest(unittest.TestCase):
         self.assertAlmostEqual(response["iou"], 0.3, places=6)
         self.assertAlmostEqual(sam3._require_session().duplicate_mask_iou, 0.3, places=6)
 
+    def test_checkpoint_restore_preserves_defaultdict_metadata(self):
+        self.create_session(runtime_checkpoints_enabled=True)
+        session = sam3._require_session()
+        session.predictor.inference_state = {
+            "num_frames": 8,
+            "tracker_inference_states": [],
+            "tracker_metadata": {
+                "metadata": {
+                    "obj_first_frame_idx": {},
+                    "unmatched_frame_inds": defaultdict(list),
+                    "trk_keep_alive": defaultdict(int),
+                    "overlap_pair_to_frame_inds": defaultdict(list),
+                    "removed_obj_ids": set(),
+                },
+                "obj_id_to_tracker_score_frame_wise": defaultdict(dict),
+                "obj_ids": np.array([0], dtype=np.int32),
+            },
+            "text_prompt": None,
+            "per_frame_geometric_prompt": [None] * 8,
+        }
+        session.last_processed_frame = 0
+        session.snapshot_runtime_checkpoint(0, sam3._empty_result(0))
+
+        session.predictor.inference_state = {}
+        session.restore_runtime_checkpoint(0)
+
+        metadata = session.predictor.inference_state["tracker_metadata"]["metadata"]
+        metadata["unmatched_frame_inds"][np.int64(0)].append(1)
+        metadata["trk_keep_alive"][np.int64(0)] += 1
+
+        self.assertEqual(metadata["unmatched_frame_inds"][np.int64(0)], [1])
+        self.assertEqual(metadata["trk_keep_alive"][np.int64(0)], 1)
+
+    def test_checkpoint_snapshot_omits_im_tensor(self):
+        self.create_session(runtime_checkpoints_enabled=True)
+        session = sam3._require_session()
+        session.predictor.inference_state = {
+            "num_frames": 8,
+            "tracker_inference_states": [SimpleNamespace(frame=0)],
+            "tracker_metadata": {"metadata": {}},
+            "text_prompt": None,
+            "im": torch.ones((1, 3, 8, 8), dtype=torch.float32),
+            "per_frame_geometric_prompt": [np.ones((1, 4), dtype=np.float32)] + [None] * 7,
+        }
+        session.last_processed_frame = 0
+
+        session.snapshot_runtime_checkpoint(0, sam3._empty_result(0))
+
+        checkpoint = session.checkpoint_history[0]
+        self.assertNotIn("im", checkpoint.inference_state)
+        self.assertEqual(checkpoint.inference_state["num_frames"], 1)
+        self.assertEqual(list(checkpoint.inference_state["per_frame_geometric_prompt"].keys()), [0])
+
     def test_later_frame_prompt_remains_active(self):
         self.create_session()
 
@@ -371,7 +469,7 @@ class Sam3InterfaceTest(unittest.TestCase):
         self.assertEqual(len(result3.masks), 2)
 
     def test_repeated_prompt_snapshot_does_not_duplicate(self):
-        self.create_session()
+        self.create_session(runtime_checkpoints_enabled=True)
 
         result0 = sam3.predict(self.frame_input(0, [box_prompt(0.1, 0.1, 0.4, 0.4)]))[0]
         result0_repeat = sam3.predict(self.frame_input(0, [box_prompt(0.1, 0.1, 0.4, 0.4)]))[0]
@@ -380,7 +478,7 @@ class Sam3InterfaceTest(unittest.TestCase):
         self.assertEqual(len(result0_repeat.masks), 1)
 
     def test_out_of_order_frame_replays_cached_state(self):
-        self.create_session()
+        self.create_session(runtime_checkpoints_enabled=True)
 
         sam3.predict(self.frame_input(0, [box_prompt(0.1, 0.1, 0.4, 0.4)]))
         sam3.predict(self.frame_input(1, [box_prompt(0.5, 0.5, 0.8, 0.8)]))
@@ -388,10 +486,47 @@ class Sam3InterfaceTest(unittest.TestCase):
         result1 = sam3.predict(self.frame_input(1, []))[0]
 
         self.assertEqual(result1.frame_index, 1)
-        self.assertEqual(len(result1.masks), 1)
+        self.assertEqual(len(result1.masks), 2)
+
+    def test_exact_checkpoint_restore_recovers_frame_after_image_eviction(self):
+        self.create_session(runtime_checkpoints_enabled=True)
+
+        for frame_index in range(41):
+            prompts = [box_prompt(0.1, 0.1, 0.4, 0.4)] if frame_index == 0 else []
+            sam3.predict(self.frame_input(frame_index, prompts))
+
+        result20 = sam3.predict(self.frame_input(20, []))[0]
+
+        self.assertEqual(result20.frame_index, 20)
+        self.assertEqual(len(result20.masks), 1)
+        self.assertIn(0, sam3._require_session().prompt_history)
+        self.assertEqual(sam3._require_session().last_processed_frame, 20)
+
+    def test_checkpoint_replay_uses_current_input_frames_to_bridge_gap(self):
+        self.create_session(runtime_checkpoints_enabled=True)
+
+        for frame_index in range(21):
+            prompts = [box_prompt(0.1, 0.1, 0.4, 0.4)] if frame_index == 0 else []
+            sam3.predict(self.frame_input(frame_index, prompts))
+
+        session = sam3._require_session()
+        incoming_frames = {
+            frame_index: sam3.ReplayFrame(
+                frame_index=frame_index,
+                image=np.zeros((8, 8, 3), dtype=np.uint8),
+                prompt_state=session.prompt_history.get(frame_index, sam3.PromptState()),
+            )
+            for frame_index in range(11, 15)
+        }
+
+        result14 = sam3._replay_to_frame(session, 14, FakeScale(), incoming_frames)
+
+        self.assertEqual(result14.frame_index, 14)
+        self.assertEqual(len(result14.masks), 1)
+        self.assertEqual(session.last_processed_frame, 14)
 
     def test_old_frame_can_be_replayed_from_new_input_without_crashing(self):
-        self.create_session()
+        self.create_session(runtime_checkpoints_enabled=True)
 
         sam3.predict(self.frame_input(0, [text_prompt("fish")]))
         sam3.predict(self.frame_input(1, []))
@@ -400,17 +535,28 @@ class Sam3InterfaceTest(unittest.TestCase):
 
         self.assertEqual(result0.frame_index, 0)
 
-    def test_missing_replay_context_is_deferred_instead_of_raising(self):
-        self.create_session()
+    def test_missing_replay_context_runs_current_frame_when_prompted(self):
+        self.create_session(runtime_checkpoints_enabled=False)
+
+        sam3.predict(self.frame_input(0, [box_prompt(0.1, 0.1, 0.4, 0.4)]))
+        sam3.predict(self.frame_input(1, []))
+        sam3.predict(self.frame_input(2, []))
+        recovered = sam3.predict(self.frame_input(5, [box_prompt(0.5, 0.5, 0.8, 0.8)]))[0]
+
+        self.assertEqual(recovered.frame_index, 5)
+        self.assertEqual(len(recovered.masks), 1)
+        self.assertEqual(sam3._require_session().last_processed_frame, 5)
+
+    def test_out_of_order_requests_run_current_frame_when_checkpoints_disabled(self):
+        self.create_session(runtime_checkpoints_enabled=False)
 
         sam3.predict(self.frame_input(0, [text_prompt("fish")]))
         sam3.predict(self.frame_input(1, []))
-        sam3.predict(self.frame_input(2, []))
-        deferred = sam3.predict(self.frame_input(5, []))[0]
+        recovered = sam3.predict(self.frame_input(0, [text_prompt("fish")]))[0]
 
-        self.assertEqual(deferred.frame_index, 5)
-        self.assertEqual(len(deferred.masks), 0)
-        self.assertIsNone(sam3._require_session().last_processed_frame)
+        self.assertEqual(recovered.frame_index, 0)
+        self.assertEqual(len(recovered.masks), 1)
+        self.assertEqual(sam3._require_session().last_processed_frame, 0)
 
     def test_shutdown_clears_session(self):
         self.create_session()

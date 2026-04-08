@@ -54,12 +54,68 @@ struct ImageCache {
     std::unordered_map<uint32_t, Image::SPtr> cached_images;
 };
 
+struct CachedFrame {
+    SegmentationData _data;
+};
+
 struct LiveSegmentation::Data {
     ImageCache cache;
     LabelCache_t unassigned_labels;
     std::unordered_map<Idx_t, Label_t> labels;
     double dt = 0;
     Timer timer;
+    cmn::CallbackFuture _callback;
+    
+    bool has_annotations(Frame_t index) const {
+        auto detect_sam3_prompt = READ_SETTING_WITH_DEFAULT(detect_sam3_prompt, track::detect::Sam3Prompts{});
+        auto it = detect_sam3_prompt.find(index);
+        if(it == detect_sam3_prompt.end())
+            return false;
+        
+        return not it->second.empty();
+    }
+    
+    void init() {
+        _callback = GlobalSettings::register_callbacks({
+            "detect_sam3_prompt"
+        }, [this](auto) {
+            /// we're changing the prompt, so we need to
+            /// evict the cache here
+            cleanup();
+        });
+    }
+    
+    void store_frame_if_annotated(SegmentationData&& data) {
+        if(not has_annotations(data.original_index())) {
+            return; /// no need to store
+        }
+        
+        std::unique_lock g{_cache_mutex};
+        /// moving out of data into the cache
+        _frame_cache[data.original_index()]._data = std::move(data);
+        
+        Print("* currently cached ", extract_keys(_frame_cache));
+    }
+    
+    std::optional<CachedFrame> get_up2date_stored_frame(Frame_t index) {
+        std::unique_lock g{_cache_mutex};
+        auto it = _frame_cache.find(index);
+        if(it == _frame_cache.end())
+            return std::nullopt;
+        
+        auto obj = std::move(it->second);
+        Print("* removing cached ", it->first);
+        _frame_cache.erase(it);
+        return obj;
+    }
+    
+    void cleanup() {
+        std::unique_lock g{_cache_mutex};
+        _frame_cache.clear();
+    }
+    
+    std::mutex _cache_mutex;
+    std::unordered_map<Frame_t, CachedFrame> _frame_cache;
 };
 
 LiveSegmentation::LiveSegmentation(Base& window)
@@ -79,14 +135,22 @@ LiveSegmentation::~LiveSegmentation() {
 }
 
 void LiveSegmentation::request_frame(Frame_t index) {
+    thread_print("locking _next_frame_mutex");
     std::unique_lock guard{_next_frame_mutex};
-    _requested_frame = index;
-    _next_frame.reset();
+    if(not _next_frame
+       || _next_frame->index != index)
+    {
+        _requested_frame = index;
+        _next_frame.reset();
+    }
     _condition.notify_one();
     _last_requested_frame = index;
+    Print("* _last_requested_frame = ", index);
+    thread_print("unlocking _next_frame_mutex");
 }
 
 void LiveSegmentation::activate() {
+    set_thread_name("main");
     Scene::activate();
     // Logic to activate the scene, e.g., initializing framePreloader
     auto source = READ_SETTING(source, file::PathArray);
@@ -109,7 +173,7 @@ void LiveSegmentation::activate() {
     _terminated = false;
     SETTING(detect_type) = track::detect::ObjectDetectionType_t{track::detect::ObjectDetectionType::sam3};
     SETTING(detect_model) = file::Path("/Users/tristan/Downloads/sam3.pt");
-    SETTING(detect_resolution) = track::detect::DetectResolution{};
+    //SETTING(detect_resolution) = track::detect::DetectResolution{320};
     
     namespace py = Python;
     auto f = py::schedule([](){
@@ -124,6 +188,9 @@ void LiveSegmentation::activate() {
     assert(not _fetch_thread);
     _fetch_thread = std::make_unique<std::thread>(
         [this, f = std::move(f)]() mutable {
+            set_thread_name("fetch_thread");
+            
+            //thread_print("locking _next_frame_mutex");
             std::unique_lock guard{_next_frame_mutex};
             Frame_t index = 0_f;
             VideoFrame frame;
@@ -141,7 +208,56 @@ void LiveSegmentation::activate() {
                    && (not _next_frame.has_value()
                        || not frame.index.valid()))
                 {
+                    bool same_index = not _requested_frame.has_value() || _requested_frame.value() == index;
+                    //thread_print("unlocking _next_frame_mutex");
                     guard.unlock();
+                    
+                    if(_data && same_index) {
+                        auto data = _data->get_up2date_stored_frame(index);
+                        if(data) {
+                            /*std::promise<SegmentationData> prom;
+                            result = std::make_tuple(index, prom.get_future());
+                            frame = VideoFrame{
+                                .image = Image::Make(*data->_data.image),
+                                .index = index
+                            };
+                            prom.set_value(std::move(data->_data));*/
+                            //disable_waiting = true;
+                            //thread_print("locking _next_frame_mutex");
+                            //guard.lock();
+                            
+                            
+                            
+                            //SegmentationData data = f.get();
+                            //result.reset();
+                            
+                            //thread_print("locking _next_frame_mutex");
+                            guard.lock();
+                            
+                            Print("* Moving ", frame.index, " (",index,") to _next_frame with ", data->_data.frame.n(), " objects");
+                            
+                            frame = VideoFrame{
+                                .image = Image::Make(*data->_data.image),
+                                .index = index
+                            };
+                            
+                            _next_frame = std::move(frame);
+                            _next_data = std::move(data->_data);
+                            
+                            if(_previous_frame.has_value())
+                                frame = std::move(_previous_frame.value());
+                            else
+                                frame.image = Image::Make(_video->size().height, _video->size().width, 4);
+                            
+                            frame.index.invalidate();
+                            ++index;
+                            
+                            if(index >= length)
+                                index = 0_f;
+                            
+                            continue;
+                        }
+                    }
                     
                     try {
                         /// load a frame into cache
@@ -163,21 +279,31 @@ void LiveSegmentation::activate() {
                         Print("* Moving ", frame.image->index(), " to result");
                         result = std::make_tuple(index, track::Detection::apply(std::move(tiled)));
                         
+                        //thread_print("locking _next_frame_mutex");
                         guard.lock();
                     } catch(...) {
+                        //thread_print("locking _next_frame_mutex");
                         guard.lock();
                         throw;
                     }
                 }
                 
-                if(not disable_waiting)
+                if(not disable_waiting) {
+                    //thread_print("waiting locking _next_frame_mutex");
                     _condition.wait(guard, [&](){
                         return _terminated.load()
-                            || _requested_frame.has_value()
-                            || not _next_frame.has_value()
-                            || (result.has_value()
-                                && std::get<1>(result.value()).wait_for(std::chrono::milliseconds(0)) == std::future_status::ready);
+                        || _requested_frame.has_value()
+                        || not _next_frame.has_value()
+                        || (result.has_value()
+                            && std::get<1>(result.value()).wait_for(std::chrono::milliseconds(0)) == std::future_status::ready);
                     });
+                    _condition.wait_for(guard, std::chrono::milliseconds(1));
+                } else {
+                    //thread_print("short waiting locking _next_frame_mutex");
+                    _condition.wait_for(guard, std::chrono::milliseconds(1));
+                }
+                
+                //thread_print("got locking _next_frame_mutex");
                 disable_waiting = false;
                 
                 /// check if there was a request for a frame
@@ -204,11 +330,15 @@ void LiveSegmentation::activate() {
                     {
                         Print("* Discarding ", std::get<0>(result.value()), " in loop to get to ", index);
                         
+                        //thread_print("unlocking _next_frame_mutex");
+                        guard.unlock();
                         try {
                             std::get<1>(result.value()).get(); /// discard
                         } catch(...) {
                             /// Any python errors are ignored here...
                         }
+                        //thread_print("locking _next_frame_mutex");
+                        guard.lock();
                         
                         result.reset();
                         
@@ -218,6 +348,7 @@ void LiveSegmentation::activate() {
                 }
                 
                 if(not _next_frame.has_value()) {
+                    //thread_print("unlocking _next_frame_mutex");
                     guard.unlock();
                     
                     try {
@@ -227,13 +358,16 @@ void LiveSegmentation::activate() {
                             _requested_frame = loaded;
                             result.reset();
                             disable_waiting = true;
+                            //thread_print("locking _next_frame_mutex");
                             guard.lock();
+                            Print("* Future invalid for ", loaded, " re-requesting frame");
                             continue;
                         }
                         assert(f.valid());
                         SegmentationData data = f.get();
                         result.reset();
                         
+                        //thread_print("locking _next_frame_mutex");
                         guard.lock();
                         
                         Print("* Moving ", frame.index, " (",loaded,") to _next_frame with ", data.frame.n(), " objects");
@@ -253,6 +387,7 @@ void LiveSegmentation::activate() {
                     }
                     
                     if(not guard.owns_lock()) {
+                        //thread_print("locking _next_frame_mutex");
                         guard.lock();
                     }
                     
@@ -354,7 +489,9 @@ void LiveSegmentation::_draw(DrawStructure& graph) {
                     }),
                     VarFunc("data", [this](const VarProps&) -> std::vector<glz::json_t> {
                         std::vector<glz::json_t> result;
-                        if(_current_data) {
+                        if(std::unique_lock guard{_next_frame_mutex};
+                           _current_data)
+                        {
                             auto blobs = _current_data->frame.get_blobs();
                             size_t i = 0;
                             for(auto& blob : blobs)
@@ -380,6 +517,11 @@ void LiveSegmentation::_draw(DrawStructure& graph) {
                     ActionFunc("set_frame", [this](const Action& action){
                         REQUIRE_EXACTLY(1, action);
                         request_frame(Meta::fromStr<Frame_t>(action.parameters.front()));
+                    }),
+                    ActionFunc("set_playback", [this](const Action& action) {
+                        REQUIRE_EXACTLY(1, action);
+                        _playback = Meta::fromStr<bool>(action.parameters.front());
+                        Print("Playback = ", _playback.load());
                     })
                 };
                 
@@ -440,6 +582,7 @@ void LiveSegmentation::_draw(DrawStructure& graph) {
     if(_playback.load()
        || _last_requested_frame)
     {
+        //thread_print("locking _next_frame_mutex");
         std::unique_lock guard{_next_frame_mutex};
         if(_next_frame.has_value()) {
             if(_last_requested_frame
@@ -447,6 +590,8 @@ void LiveSegmentation::_draw(DrawStructure& graph) {
             {
                 /// discard
                 Print("* Discarding ", _next_frame->index, " as its not ", _last_requested_frame);
+                if(_current_data)
+                    _data->store_frame_if_annotated(std::move(_current_data.value()));
                 _previous_frame = std::move(_next_frame);
                 _next_data.reset();
                 _next_frame.reset();
@@ -456,6 +601,8 @@ void LiveSegmentation::_draw(DrawStructure& graph) {
                 _previous_frame = std::move(_current_frame);
                 _current_frame = std::move(_next_frame.value());
                 _current_image->set_source(std::move(_current_frame.image));
+                if(_current_data)
+                    _data->store_frame_if_annotated(std::move(_current_data.value()));
                 _current_data = std::move(_next_data);
                 _next_data.reset();
                 _next_frame.reset();
@@ -464,6 +611,7 @@ void LiveSegmentation::_draw(DrawStructure& graph) {
             }
         }
         _condition.notify_one();
+        //thread_print("unlocking _next_frame_mutex");
     }
     
     graph.wrap_object(*_current_image);
@@ -490,6 +638,11 @@ void LiveSegmentation::_draw(DrawStructure& graph) {
     graph.section("elements", [&](auto&, Section* s) {
         s->set_scale(_bowl->_current_scale);
         s->set_pos(_bowl->_current_pos);
+        
+        
+        if(_drag_box)
+            graph.wrap_object(*_drag_box);
+        
     });
     
     graph.section("gui", [this, &graph](DrawStructure &, Section *){
@@ -504,17 +657,34 @@ bool LiveSegmentation::on_global_event(Event event) {
        && graph->is_mouse_down(0)
        && not graph->selected_object())
     {
-        auto p = Vec2(event.move.x, event.move.y);
-        
         auto coords = FindCoord::get();
-        Print(coords.convert(HUDCoord(p)));
-        //_drag_box->create(Size{coords.convert(HUDCoord(p)) - pos + Vec2(1)}, FillClr{Red.alpha(50)});
+        auto p = coords.convert(HUDCoord(event.move.x, event.move.y));
+        
+        if(not _drag_box)
+            _drag_box = std::make_unique<Rect>(Loc{p});
+        
+        auto pos = _drag_box->pos();
+        _drag_box->create(Size{p - pos + Vec2(1)}, FillClr{Red.alpha(50)});
+        
+        
+        
     }
 
     if(event.type == EventType::MBUTTON
        && event.mbutton.button == 0
        && not event.mbutton.pressed)
     {
+        if(_drag_box) {
+            Print("Creating polygon at ", _drag_box->bounds(), " for frame ", _current_frame.index);
+            auto detect_sam3_prompt = READ_SETTING_WITH_DEFAULT(detect_sam3_prompt, track::detect::Sam3Prompts{});
+            
+            detect_sam3_prompt[_current_frame.index].emplace_back(std::vector<Bounds>{_drag_box->bounds()});
+            SETTING(detect_sam3_prompt) = detect_sam3_prompt;
+            _drag_box = nullptr;
+            
+            request_frame(_current_frame.index);
+        }
+        
         auto p = Vec2(event.mbutton.x, event.mbutton.y);
         auto coord = FindCoord::get();
         auto original = p;
@@ -522,11 +692,11 @@ bool LiveSegmentation::on_global_event(Event event) {
         
         if(p.x >= 0 && p.y >= 0 && p.x < coord.video_size().width && p.y < coord.video_size().height) {
             Print("adding point at ", original, " => ", p);
-            auto detect_sam3_prompt = READ_SETTING_WITH_DEFAULT(detect_sam3_prompt, track::detect::Sam3Prompts{});
+            /*auto detect_sam3_prompt = READ_SETTING_WITH_DEFAULT(detect_sam3_prompt, track::detect::Sam3Prompts{});
             detect_sam3_prompt[_current_frame.index].emplace_back(std::vector<Vec2>{p});
-            SETTING(detect_sam3_prompt) = detect_sam3_prompt;
+            SETTING(detect_sam3_prompt) = detect_sam3_prompt;*/
             
-            request_frame(_current_frame.index);
+            //request_frame(_current_frame.index);
         } else
             Print("not adding point at ", original, " => ", p);
         
@@ -538,7 +708,8 @@ bool LiveSegmentation::on_global_event(Event event) {
     }
     
     if(event.type == EventType::KEY
-       && event.key.pressed)
+       && event.key.pressed
+       && not graph->selected_object())
     {
         switch (event.key.code) {
             case Codes::Space:
@@ -550,6 +721,7 @@ bool LiveSegmentation::on_global_event(Event event) {
                 if(_current_frame.index.valid()
                    && _current_frame.index > 0_f)
                 {
+                    Print("Reverting to frame ", _current_frame.index.try_sub(1_f));
                     request_frame(_current_frame.index.try_sub(1_f));
                     /*Frame_t closestFrame;
                     for (const auto& frame : _selected_frames) {
