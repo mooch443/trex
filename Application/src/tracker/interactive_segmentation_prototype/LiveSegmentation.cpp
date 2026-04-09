@@ -198,7 +198,11 @@ void LiveSegmentation::activate() {
     
     _terminated = false;
     SETTING(detect_type) = track::detect::ObjectDetectionType_t{track::detect::ObjectDetectionType::sam3};
+#ifdef WIN32
+    SETTING(detect_model) = file::Path("C:/Users/mooch/Downloads/sam3.pt");
+#else
     SETTING(detect_model) = file::Path("/Users/tristan/Downloads/sam3.pt");
+#endif
     //SETTING(detect_resolution) = track::detect::DetectResolution{320};
     
     namespace py = Python;
