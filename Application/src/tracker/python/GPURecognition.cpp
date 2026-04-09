@@ -1525,6 +1525,24 @@ std::vector<track::detect::Result> PythonIntegration::predict(track::detect::Sam
     }
 }
 
+std::vector<track::detect::Result> PythonIntegration::predict_frame(track::detect::Sam3Input&& input, const std::string& m) {
+    PythonIntegration::check_correct_thread_id();
+
+    if (m.empty()) {
+        return _main.attr("predict_frame")(std::move(input)).cast<std::vector<track::detect::Result>>();
+    }
+    else {
+        if (_modules.count(m)) {
+            auto& mod = _modules[m];
+            if (!CHECK_NONE(mod)) {
+                return mod.attr("predict_frame")(std::move(input)).cast<std::vector<track::detect::Result>>();
+            }
+        }
+
+        throw SoftException("Cannot call function ", fmt::clr<FormatColor::DARK_CYAN>(m.c_str()), "::", fmt::clr<FormatColor::CYAN>("predict_frame"), " because the module ", fmt::clr<FormatColor::DARK_CYAN>(m.c_str()), " does not exist (you should probably have a look at previous error messages).");
+    }
+}
+
 // Forward declaration of the function to handle recursive calls
 py::object json_to_pyobject(const glz::json_t& j);
 

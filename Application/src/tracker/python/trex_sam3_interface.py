@@ -3,9 +3,10 @@
 
 The contract remains intentionally small:
 - C++ owns frame lookup, prompt lookup, batching, and prompt authority.
-- Python owns the loaded SAM3 video session, timeline state, and replay logic.
-- Public entrypoints are `create_session`, `set_conf_threshold`, `shutdown`,
-  and `predict`.
+- Python owns the loaded SAM3 video session plus the currently active mutable
+  predictor runtime.
+- Public entrypoints are `create_session`, `reset_runtime`, `restore_runtime`,
+  `predict_frame`, `snapshot_runtime`, `shutdown`, and the legacy `predict`.
 """
 
 from __future__ import annotations
@@ -36,19 +37,14 @@ class GenericOkResponse(TypedDict):
     ok: bool
 
 
-class SetConfThresholdResponse(TypedDict):
-    ok: bool
-    conf: float
-
-
-class SetIouThresholdResponse(TypedDict):
-    ok: bool
-    iou: float
-
-
 class CreateSessionResponse(TypedDict):
     ok: bool
     device: str
+
+
+class SnapshotRuntimeResponse(TypedDict):
+    ok: bool
+    state: str
 
 
 @dataclass
@@ -347,6 +343,8 @@ class Sam3VideoSession:
 
 
 _SESSION: Sam3VideoSession | None = None
+_RUNTIME_BLOBS: dict[str, dict[str, object]] = {}
+_NEXT_RUNTIME_BLOB_ID = 1
 _RESTORE_LOG_PREFIX = "[py][sam3-restore]"
 
 
@@ -388,6 +386,29 @@ def _resolve_iou_threshold(request: Mapping[str, object]) -> float:
             pass
 
     return 0.95
+
+
+def _resolve_conf_threshold(default: float) -> float:
+    """Resolve the active confidence threshold from TRex settings when available."""
+    if TRex is not None and hasattr(TRex, "setting"):
+        try:
+            return float(np.clip(float(TRex.setting("detect_conf_threshold")), 0.0, 1.0))  # type: ignore[union-attr]
+        except Exception:
+            pass
+    return float(np.clip(default, 0.0, 1.0))
+
+
+def _sync_runtime_settings(session: Sam3VideoSession) -> None:
+    """Refresh runtime thresholds from TRex settings before executing a frame step."""
+    conf = _resolve_conf_threshold(session.conf)
+    iou = _resolve_iou_threshold({})
+    session.set_conf_threshold(conf)
+    session.set_iou_threshold(iou)
+    predictor = session.predictor
+    try:
+        predictor.score_threshold_detection = conf
+    except Exception:
+        pass
 
 
 def _set_optional_predictor_attr(predictor: object, name: str, value: object) -> None:
@@ -491,6 +512,41 @@ def _checkpoint_inference_state(inference_state: object, frame_index: int) -> di
         sanitized[key] = value
 
     return cast(dict[str, object], _clone_state_tree(sanitized, device=None))
+
+
+def _snapshot_runtime_payload(session: Sam3VideoSession) -> dict[str, object]:
+    """Serialize the currently active mutable predictor runtime into a CPU payload."""
+    tracker = getattr(session.predictor, "tracker", None)
+    tracker_backbone_out = None
+    if tracker is not None:
+        tracker_backbone_out = _clone_state_tree(getattr(tracker, "backbone_out", None), device=None)
+
+    dataset = getattr(session.predictor, "dataset", None)
+    dataset_frames = int(getattr(dataset, "frames", 0)) if dataset is not None else 0
+
+    return {
+        "inference_state": _clone_state_tree(getattr(session.predictor, "inference_state", {}), device=None),
+        "tracker_backbone_out": tracker_backbone_out,
+        "active_texts": list(session.active_texts),
+        "last_processed_frame": session.last_processed_frame,
+        "dataset_frames": dataset_frames,
+    }
+
+
+def _store_runtime_blob(payload: Mapping[str, object]) -> str:
+    """Store a runtime payload in-process and return an opaque handle."""
+    global _NEXT_RUNTIME_BLOB_ID
+    handle = f"blob:{_NEXT_RUNTIME_BLOB_ID}"
+    _NEXT_RUNTIME_BLOB_ID += 1
+    _RUNTIME_BLOBS[handle] = dict(payload)
+    return handle
+
+
+def _load_runtime_blob(state: str) -> dict[str, object]:
+    """Load a previously stored runtime payload from its opaque handle."""
+    if state not in _RUNTIME_BLOBS:
+        raise ValueError(f"Unknown SAM3 runtime blob: {state}")
+    return cast(dict[str, object], _RUNTIME_BLOBS[state])
 
 
 def _prompt_states_equal(lhs: PromptState, rhs: PromptState) -> bool:
@@ -876,12 +932,15 @@ def _run_one_frame(
     session: Sam3VideoSession,
     replay_frame: ReplayFrame,
     scale: object,
+    *,
+    snapshot_result: bool = True,
 ) -> "TRex.Result":
     """Run one cached frame through the stateful SAM3 video predictor."""
     frame_index = replay_frame.frame_index
     image = replay_frame.image
     prompt_state = replay_frame.prompt_state
 
+    _sync_runtime_settings(session)
     session._ensure_runtime_capacity(frame_index)
     session.predictor.dataset.frame = frame_index + 1
     session.predictor.batch = ([f"frame_{frame_index}"], [image], None)
@@ -917,13 +976,15 @@ def _run_one_frame(
         else:
             session.last_processed_frame = frame_index
             result = _empty_result(frame_index)
-            session.snapshot_runtime_checkpoint(frame_index, result)
+            if snapshot_result:
+                session.snapshot_runtime_checkpoint(frame_index, result)
             return result
 
     if output is None:
         session.last_processed_frame = frame_index
         result = _empty_result(frame_index)
-        session.snapshot_runtime_checkpoint(frame_index, result)
+        if snapshot_result:
+            session.snapshot_runtime_checkpoint(frame_index, result)
         return result
 
     obj_id_to_mask = cast(Mapping[int, torch.Tensor], output.get("obj_id_to_mask", {}))
@@ -941,7 +1002,8 @@ def _run_one_frame(
         if keep_indices.size == 0:
             session.last_processed_frame = frame_index
             result = _empty_result(frame_index)
-            session.snapshot_runtime_checkpoint(frame_index, result)
+            if snapshot_result:
+                session.snapshot_runtime_checkpoint(frame_index, result)
             return result
 
     session.last_processed_frame = frame_index
@@ -954,7 +1016,8 @@ def _run_one_frame(
         cls_np=cls_np,
         keep_indices=keep_indices,
     )
-    session.snapshot_runtime_checkpoint(frame_index, result)
+    if snapshot_result:
+        session.snapshot_runtime_checkpoint(frame_index, result)
     return result
 
 
@@ -1136,35 +1199,103 @@ def create_session(request: Mapping[str, object]) -> CreateSessionResponse:
     return {"ok": True, "device": device}
 
 
-def set_conf_threshold(request: Mapping[str, object]) -> SetConfThresholdResponse:
-    """Update the active SAM3 confidence threshold."""
-    if "conf" not in request:
-        raise ValueError("set_conf_threshold requires 'conf'.")
-    value = _require_session().set_conf_threshold(float(request["conf"]))
-    return {"ok": True, "conf": value}
+def reset_runtime(request: Mapping[str, object]) -> GenericOkResponse:
+    """Reset the mutable predictor runtime while keeping the loaded model."""
+    session = _require_session()
+    max_frame_index = int(request.get("max_frame_index", 0))
+    session.reset_runtime(max_frame_index)
+    return {"ok": True}
 
 
-def set_iou_threshold(request: Mapping[str, object]) -> SetIouThresholdResponse:
-    """Update the active SAM3 duplicate-mask IoU threshold."""
-    if "iou" in request:
-        raw = request["iou"]
-    elif "iou_threshold" in request:
-        raw = request["iou_threshold"]
-    elif "detect_iou_threshold" in request:
-        raw = request["detect_iou_threshold"]
-    else:
-        raise ValueError("set_iou_threshold requires 'iou', 'iou_threshold', or 'detect_iou_threshold'.")
-    value = _require_session().set_iou_threshold(float(raw))
-    return {"ok": True, "iou": value}
+def snapshot_runtime() -> SnapshotRuntimeResponse:
+    """Serialize the current mutable predictor runtime into an opaque blob."""
+    session = _require_session()
+    return {
+        "ok": True,
+        "state": _store_runtime_blob(_snapshot_runtime_payload(session)),
+    }
+
+
+def restore_runtime(request: Mapping[str, object]) -> GenericOkResponse:
+    """Restore the current mutable predictor runtime from an opaque blob."""
+    session = _require_session()
+    if "state" not in request:
+        raise ValueError("restore_runtime requires 'state'.")
+
+    payload = _load_runtime_blob(str(request["state"]))
+    last_processed_frame = payload.get("last_processed_frame")
+    dataset_frames = int(payload.get("dataset_frames", 0))
+    capacity_hint = dataset_frames - 1 if dataset_frames > 0 else 0
+    if last_processed_frame is not None:
+        capacity_hint = max(capacity_hint, int(last_processed_frame))
+    session._ensure_runtime_capacity(capacity_hint)
+
+    inference_state = cast(
+        dict[str, object],
+        _clone_state_tree(payload.get("inference_state", {}), device=session.device),
+    )
+    session.predictor.inference_state = inference_state
+    session.active_texts = list(cast(Sequence[str], payload.get("active_texts", [])))
+    session.last_processed_frame = cast(int | None, last_processed_frame)
+    session.predictor.batch = None
+    session.predictor.im = None
+
+    tracker = getattr(session.predictor, "tracker", None)
+    if tracker is not None:
+        tracker_backbone_out = _clone_state_tree(payload.get("tracker_backbone_out"), device=session.device)
+        try:
+            tracker.backbone_out = tracker_backbone_out
+        except Exception:
+            pass
+
+    return {"ok": True}
 
 
 def shutdown() -> GenericOkResponse:
     """Shutdown and discard the active SAM3 session."""
-    global _SESSION
+    global _SESSION, _RUNTIME_BLOBS, _NEXT_RUNTIME_BLOB_ID
     if _SESSION is not None:
         _SESSION.close()
         _SESSION = None
+    _RUNTIME_BLOBS.clear()
+    _NEXT_RUNTIME_BLOB_ID = 1
     return {"ok": True}
+
+
+def predict_frame(input: object) -> list["TRex.Result"]:
+    """Run exactly the supplied frame payload against the currently prepared runtime."""
+    session = _require_session()
+    if TRex is None:
+        raise RuntimeError("TRex module is required for SAM3 predict_frame().")
+
+    base = input.base()
+    images = list(base.images())
+    orig_ids = list(base.orig_id())
+    scales = list(base.scales())
+    prompts_per_image = list(input.prompts_per_image()) if hasattr(input, "prompts_per_image") else []
+
+    if len(images) != len(orig_ids) or len(images) != len(scales):
+        raise ValueError("SAM3 predict_frame received mismatched images/orig_id/scales lengths.")
+    if prompts_per_image and len(prompts_per_image) != len(images):
+        raise ValueError("SAM3 predict_frame received prompts_per_image with a different length than images().")
+
+    if not prompts_per_image:
+        prompts_per_image = [[] for _ in images]
+
+    results: list["TRex.Result"] = []
+    for frame_index, image, scale, prompt_list in zip(orig_ids, images, scales, prompts_per_image):
+        idx = int(frame_index)
+        normalized_image = _normalize_frame(image)
+        prompt_state = _collect_prompt_state(cast(Sequence[object], prompt_list))
+        result = _run_one_frame(
+            session,
+            ReplayFrame(idx, normalized_image, prompt_state),
+            scale,
+            snapshot_result=False,
+        )
+        results.append(result)
+
+    return results
 
 
 def predict(input: object) -> list["TRex.Result"]:

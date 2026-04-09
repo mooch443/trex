@@ -1010,7 +1010,7 @@
                         {
                             "type": "rect",
                             "name": "timeline_current",
-                            "pos": "{addVector:[{saturate:{at:0:{current_pos}}:18:{-:{window_size.x}:18}},{at:1:{current_pos}}]:[0,14]}",
+                            "pos": "{addVector:[{saturate:{at:0:{current_pos}}:18:{max:19:{-:{window_size.x}:18}}},{at:1:{current_pos}}]:[0,14]}",
                             "size": [1,28],
                             "corners":["all",10],
                             "fill": [255,255,255,220],

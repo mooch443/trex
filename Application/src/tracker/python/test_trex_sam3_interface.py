@@ -28,7 +28,7 @@ class FakeResult:
 
 
 class FakeTRex:
-    settings: dict[str, float] = {"detect_iou_threshold": 0.5}
+    settings: dict[str, float] = {"detect_conf_threshold": 0.25, "detect_iou_threshold": 0.5}
     Result = FakeResult
     Boxes = staticmethod(lambda value: np.asarray(value, dtype=np.float32))
     KeypointData = staticmethod(lambda value: value)
@@ -242,7 +242,7 @@ class Sam3InterfaceTest(unittest.TestCase):
         sam3.TRex = FakeTRex
         sam3.SAM3VideoSemanticPredictor = FakePredictor
         sam3.check_imgsz = lambda imgsz, stride, min_dim, max_dim: int(imgsz)
-        FakeTRex.settings = {"detect_iou_threshold": 0.5}
+        FakeTRex.settings = {"detect_conf_threshold": 0.25, "detect_iou_threshold": 0.5}
         FakePredictor.box_detection_score_overrides = {}
         FakePredictor.box_tracker_score_overrides = {}
         sam3.shutdown()
@@ -388,21 +388,62 @@ class Sam3InterfaceTest(unittest.TestCase):
 
         self.assertEqual(keep.tolist(), [True, False])
 
-    def test_session_uses_detect_iou_threshold_from_request(self):
-        self.create_session(detect_iou_threshold=0.7)
+    def test_predict_frame_uses_live_thresholds_from_trex_settings(self):
+        FakePredictor.box_detection_score_overrides[(0, 0)] = 0.6
+        FakePredictor.box_tracker_score_overrides[(0, 0)] = None
+        FakeTRex.settings["detect_conf_threshold"] = 0.7
+        self.create_session()
 
-        current = sam3._require_session()
+        sam3.reset_runtime({"max_frame_index": 0})
+        before = sam3.snapshot_runtime()["state"]
+        rejected = sam3.predict_frame(self.frame_input(0, [box_prompt(0.1, 0.1, 0.4, 0.4)]))[0]
 
-        self.assertAlmostEqual(current.duplicate_mask_iou, 0.7, places=6)
+        FakeTRex.settings["detect_conf_threshold"] = 0.5
+        sam3.restore_runtime({"state": before})
+        accepted = sam3.predict_frame(self.frame_input(0, [box_prompt(0.1, 0.1, 0.4, 0.4)]))[0]
 
-    def test_set_iou_threshold_updates_session_threshold(self):
-        self.create_session(detect_iou_threshold=0.6)
+        self.assertEqual(len(rejected.masks), 0)
+        self.assertEqual(len(accepted.masks), 1)
 
-        response = sam3.set_iou_threshold({"iou": 0.3})
+    def test_snapshot_and_restore_runtime_round_trip_predict_frame(self):
+        self.create_session()
 
-        self.assertTrue(response["ok"])
-        self.assertAlmostEqual(response["iou"], 0.3, places=6)
-        self.assertAlmostEqual(sam3._require_session().duplicate_mask_iou, 0.3, places=6)
+        sam3.reset_runtime({"max_frame_index": 0})
+        before = sam3.snapshot_runtime()["state"]
+        first = sam3.predict_frame(self.frame_input(0, [box_prompt(0.1, 0.1, 0.4, 0.4)]))[0]
+        after = sam3.snapshot_runtime()["state"]
+
+        sam3.restore_runtime({"state": before})
+        rerun = sam3.predict_frame(self.frame_input(0, [box_prompt(0.1, 0.1, 0.4, 0.4)]))[0]
+        sam3.restore_runtime({"state": after})
+
+        self.assertEqual(len(first.masks), 1)
+        self.assertEqual(len(rerun.masks), 1)
+        self.assertEqual(sam3._require_session().last_processed_frame, 0)
+
+    def test_predict_frame_does_not_resurrect_empty_frame_prompts(self):
+        self.create_session()
+
+        sam3.reset_runtime({"max_frame_index": 0})
+        before = sam3.snapshot_runtime()["state"]
+        prompted = sam3.predict_frame(self.frame_input(0, [box_prompt(0.1, 0.1, 0.4, 0.4)]))[0]
+
+        sam3.restore_runtime({"state": before})
+        cleared = sam3.predict_frame(self.frame_input(0, []))[0]
+
+        self.assertEqual(len(prompted.masks), 1)
+        self.assertEqual(len(cleared.masks), 0)
+
+    def test_predict_frame_skips_python_replay_bookkeeping(self):
+        self.create_session(runtime_checkpoints_enabled=True)
+
+        sam3.reset_runtime({"max_frame_index": 0})
+        result = sam3.predict_frame(self.frame_input(0, [box_prompt(0.1, 0.1, 0.4, 0.4)]))[0]
+        session = sam3._require_session()
+
+        self.assertEqual(result.frame_index, 0)
+        self.assertEqual(session.prompt_history, {})
+        self.assertEqual(session.checkpoint_history, {})
 
     def test_checkpoint_restore_preserves_defaultdict_metadata(self):
         self.create_session(runtime_checkpoints_enabled=True)

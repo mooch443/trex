@@ -204,54 +204,9 @@ void SAM3::init() {
                 SAM3::apply(std::move(images));
             });
 
-        {
-            std::unique_lock guard(data().mutex);
-            if(data().callbacks) {
-                GlobalSettings::unregister_callbacks(std::move(data().callbacks));
-            }
-            
-            data().callbacks = GlobalSettings::register_callbacks({
-                "detect_conf_threshold",
-                "detect_iou_threshold"
-
-            }, [](std::string_view){
-                Python::schedule([]() {
-                    try {
-                        ModuleProxy proxy{
-                            ThrowAlways{},
-                            "trex_sam3_interface",
-                            SAM3::reinit
-                        };
-
-                        auto detect_conf_threshold = static_cast<double>(READ_SETTING(detect_conf_threshold, Float2_t));
-                        auto result = proxy.run("set_conf_threshold", glz::json_t{
-                            {"conf", detect_conf_threshold}
-                        });
-
-                        Python::validate_setter_response_with_value(
-                            "SAM3",
-                            "set_conf_threshold",
-                            result,
-                            "conf",
-                            detect_conf_threshold);
-
-                        auto detect_iou_threshold = static_cast<double>(READ_SETTING(detect_iou_threshold, Float2_t));
-                        result = proxy.run("set_iou_threshold", glz::json_t{
-                            {"iou", detect_iou_threshold}
-                        });
-
-                        Python::validate_setter_response_with_value(
-                            "SAM3",
-                            "set_iou_threshold",
-                            result,
-                            "iou",
-                            detect_iou_threshold);
-
-                    } catch(const std::exception& ex) {
-                        FormatExcept("Failed to update SAM3 thresholds: ", ex.what());
-                    }
-                }).get();
-            });
+        std::unique_lock guard(data().mutex);
+        if(data().callbacks) {
+            GlobalSettings::unregister_callbacks(std::move(data().callbacks));
         }
 
         Python::schedule([]() {
