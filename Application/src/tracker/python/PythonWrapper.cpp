@@ -356,6 +356,8 @@ void configure_runtime(
         throw SoftException("trex_python did not register runtime configuration callbacks.");
     impl.set_settings(settings, data_location, instance);
     impl.set_display_function(std::move(show_fn), std::move(close_fn));
+
+    Print("Python runtime configured to ", hex(settings), " and ", hex(data_location), ".");
 }
 
 void check_correct_thread_id() {

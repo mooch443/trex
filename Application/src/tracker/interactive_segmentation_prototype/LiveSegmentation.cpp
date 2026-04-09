@@ -156,6 +156,8 @@ void LiveSegmentation::activate() {
     auto source = READ_SETTING(source, file::PathArray);
     Print("Loading source = ", utils::ShortenText(source.toStr(), 1000));
     
+    _data = std::make_unique<Data>();
+    
     _video = std::make_unique<VideoSource>(source);
     _video->set_colors(ImageMode::RGB);
     
@@ -165,8 +167,6 @@ void LiveSegmentation::activate() {
     SETTING(meta_video_size) = Size2(video_size);
     SETTING(video_size) = Size2(video_size);
     request_frame(0_f);
-    
-    _data = std::make_unique<Data>();
     
     FindCoord::set_video(video_size);
     
@@ -440,6 +440,9 @@ void LiveSegmentation::deactivate() {
 
 // Custom drawing implementation
 void LiveSegmentation::_draw(DrawStructure& graph) {
+    if(not _data)
+        return;
+    
     auto coord = FindCoord::get();
     if (not _bowl) {
         _bowl = std::make_unique<Bowl>(nullptr);
@@ -674,7 +677,9 @@ bool LiveSegmentation::on_global_event(Event event) {
        && event.mbutton.button == 0
        && not event.mbutton.pressed)
     {
-        if(_drag_box) {
+        if(_drag_box
+           && _drag_box->size().max() >= 10)
+        {
             Print("Creating polygon at ", _drag_box->bounds(), " for frame ", _current_frame.index);
             auto detect_sam3_prompt = READ_SETTING_WITH_DEFAULT(detect_sam3_prompt, track::detect::Sam3Prompts{});
             

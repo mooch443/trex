@@ -22,10 +22,57 @@
             "pos": "{2hud:{video_size}}"
         },
         {
-            "type":"button",
-            "action":"set_frame:{global.gui_frame}",
-            "text":"reset",
-            "pos":[100,100]
+            "type":"hlayout",
+            "pos":[10,50],
+            "children":[
+                {
+                    "type":"button",
+                    "action":"set_frame:{global.gui_frame}",
+                    "text":"reset",
+                    "size":[100,30],
+                    "font":{"size":0.6,"align":"center"},
+                    "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                    "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                    "list":{
+                        "line":[220,220,220,200],
+                        "fill":[25,25,25,220],
+                        "size":[700,300],
+                        "font":{"size":0.6}
+                    }
+                },
+                {
+                    "type":"settings",
+                    "var":"gui_frame",
+                    "cleartext":"<sym>⮾</sym>",
+                    "size":[100,30],
+                    "desc":"",
+                    "font":{"size":0.6,"align":"center"},
+                    "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                    "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                    "list":{
+                        "line":[220,220,220,200],
+                        "fill":[25,25,25,220],
+                        "size":[700,300],
+                        "font":{"size":0.6}
+                    }
+                },
+                {
+                    "type":"settings",
+                    "var":"detect_sam3_prompt",
+                    "cleartext":"<sym>⮾</sym>",
+                    "size":[300,30],
+                    "desc":"",
+                    "font":{"size":0.6,"align":"center"},
+                    "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                    "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                    "list":{
+                        "line":[220,220,220,200],
+                        "fill":[25,25,25,220],
+                        "size":[700,300],
+                        "font":{"size":0.6}
+                    }
+                }
+            ]
         },
         {
             "type":"each",
