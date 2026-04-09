@@ -329,6 +329,7 @@ set(TREX_PYTHON_STAGING_PUBLIC_HEADERS
     ${CMAKE_CURRENT_LIST_DIR}/python/OverlayedVideo.h
     ${CMAKE_CURRENT_LIST_DIR}/python/PipelineRegistry.h
     ${CMAKE_CURRENT_LIST_DIR}/python/PrecomuptedDetection.h
+    ${CMAKE_CURRENT_LIST_DIR}/python/SAM3InteractiveSession.h
     ${CMAKE_CURRENT_LIST_DIR}/python/PythonWrapper.h
 )
 
@@ -340,6 +341,7 @@ set(TREX_PYTHON_IMPL_PUBLIC_HEADERS
     ${CMAKE_CURRENT_LIST_DIR}/python/PythonWrapper.h
     ${CMAKE_CURRENT_LIST_DIR}/python/ResponseValidation.h
     ${CMAKE_CURRENT_LIST_DIR}/python/SAM3.h
+    ${CMAKE_CURRENT_LIST_DIR}/python/SAM3InteractiveSession.h
     ${CMAKE_CURRENT_LIST_DIR}/python/YOLO.h
 )
 
@@ -364,5 +366,6 @@ set(TREX_PYTHON_IMPL_SOURCES
     ${CMAKE_CURRENT_LIST_DIR}/python/PythonBackendRegistry.cpp
     ${CMAKE_CURRENT_LIST_DIR}/python/PythonEntryPoint.cpp
     ${CMAKE_CURRENT_LIST_DIR}/python/SAM3.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/python/SAM3InteractiveSession.cpp
     ${CMAKE_CURRENT_LIST_DIR}/python/YOLO.cpp
 )
