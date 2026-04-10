@@ -270,7 +270,7 @@ namespace pv {
         Float2_t meta_real_width;
         
         //! Contains average time delta between frames
-        double average_tdelta;
+        double average_tdelta{0.0};
         
     private:
         /**
@@ -358,7 +358,7 @@ namespace pv {
         
         friend struct pv::TaskSentinel;
         
-        const FileMode _mode;
+        FileMode _mode;
         void _check_opened() const;
         mutable bool _tried_to_open{false};
         
@@ -431,6 +431,8 @@ namespace pv {
         void add_individual(const Frame& frame);
         void add_individual(const Frame& frame, DataPackage& pack, bool compressed);
         
+        void reset_to_frame(Frame_t);
+        
         template<meta_encoding_t::Class mode>
         void read_frame(Frame& frame, Frame_t frameIndex) {
             //static_assert(is_in(mode, ImageMode::RGB, ImageMode::GRAY), "Reading from pv is only supported in either RGB or GRAY mode.");
@@ -467,6 +469,7 @@ namespace pv {
         
     private:
         virtual void stop_writing() override;
+        virtual void stop_modifying() override;
         
     public:
         void set_resolution(const Size2& size) { _header.resolution = Size2((cv::Size)size); }

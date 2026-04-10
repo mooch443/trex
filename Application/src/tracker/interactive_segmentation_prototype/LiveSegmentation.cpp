@@ -14,6 +14,8 @@
 #include <processing/Background.h>
 #include <core/idx_t.h>
 #include <core/GPURecognitionTypes.h>
+#include <file/DataLocation.h>
+#include <pv.h>
 
 struct DetectionMeta {
     pv::bid bdx;
@@ -66,6 +68,7 @@ struct LiveSegmentation::Data {
     double dt = 0;
     Timer timer;
     cmn::CallbackFuture _callback;
+    std::unique_ptr<pv::File> _output_file;
     
     bool has_annotations(Frame_t index) const {
         auto detect_sam3_prompt = READ_SETTING_WITH_DEFAULT(detect_sam3_prompt, track::detect::Sam3Prompts{});
@@ -204,6 +207,9 @@ void LiveSegmentation::activate() {
     SETTING(detect_model) = file::Path("/Users/tristan/Downloads/sam3.pt");
 #endif
     //SETTING(detect_resolution) = track::detect::DetectResolution{320};
+    
+    auto filename = file::DataLocation::parse("output", "sam_output.pv").absolute();
+    _data->_output_file = pv::File::Make<pv::FileMode::WRITE>(filename, meta_encoding_t::rgb8);
     
     namespace py = Python;
     auto f = py::schedule([](){

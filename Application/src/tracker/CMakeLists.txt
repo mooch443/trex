@@ -14,7 +14,7 @@ function(trex_harden_internal_library target)
             VISIBILITY_INLINES_HIDDEN OFF
         )
         target_compile_options(${target} PRIVATE -fvisibility=default)
-        target_link_options(${target} PRIVATE "-Wl,-undefined,error")
+        # Apple ld defaults to treating undefined symbols as link errors.
     endif()
 endfunction()
 

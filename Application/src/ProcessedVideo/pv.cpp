@@ -984,6 +984,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const PixelArray
         }
         
         // read the index table
+        //Print("* Resizing to ", num_frames, " and reading from index_offset ", index_offset);
         index_table.resize(num_frames);
         auto len = sizeof(decltype(index_table)::value_type) * num_frames;
         ref.Data::read_data(index_offset, len, (char*)index_table.data());
@@ -1180,8 +1181,10 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const PixelArray
     void Header::update(DataFormat& ref) {
         // write index table
         index_offset = ref.current_offset();
-        Print("Index table is ",FileSize(index_table.size() * sizeof(decltype(index_table)::value_type))," big.");
+        assert(index_offset == ref.tell());
         
+        Print("Index table is ",FileSize(index_table.size() * sizeof(decltype(index_table)::value_type))," big @ ", index_offset);
+        Print("Index table (",index_table.size(),"): ", index_table);
         for (auto index : index_table) {
             ref.write<decltype(index_table)::value_type>(index);
         }
@@ -1207,10 +1210,14 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const PixelArray
                 throw InvalidArgumentException("Wrong resolution for average image ", average->cols,"x", average->rows, " vs. ", resolution,".");
             }
             
+            assert(_average_offset > 0);
+            //Print("* writing average to ", _average_offset);
             ref.Data::write_data(_average_offset, average->size(), (char*)average->data());
         }
         
         Print("Updated number of frames with ",this->num_frames,", index offset ",this->index_offset,", timestamp ",this->timestamp,", ", _meta_offset);
+        
+        ref.truncate();
     }
 
 const cv::Size& File::size() const {
@@ -1238,6 +1245,8 @@ Frame_t File::length() const {
         if(is_open()) {
             if(bool(_mode & FileMode::WRITE))
                 stop_writing();
+            if(bool(_mode & FileMode::MODIFY))
+                stop_modifying();
         }
         DataFormat::close();
         _tried_to_open = false;
@@ -1383,10 +1392,51 @@ Frame_t File::length() const {
         return _last_frame;
     }
 
+    void File::reset_to_frame(Frame_t index) {
+        _check_opened();
+        
+        std::unique_lock<std::mutex> lock(_lock);
+        assert(_open_for_writing || _open_for_modifying);
+        assert(index <= Frame_t(_header.num_frames));
+        
+        if(_open_for_writing) {
+            promote_to_modify();
+            _mode = pv::FileMode::MODIFY;
+            _tried_to_open = true;
+            assert(is_open());
+            assert(_open_for_modifying);
+            assert(not _open_for_writing);
+        }
+        
+        auto prev_frame = index.try_sub(1_f);
+        auto file_index = _header.index_table.at(prev_frame.get());
+        seek(file_index); /// seek back to that position
+        /// and remove from the index table
+        _header.index_table.erase(_header.index_table.begin() + index.get(), _header.index_table.end());
+        
+        if(index > 0_f) {
+            _last_frame.read_from(*this, prev_frame, color_mode());
+            _prev_frame_time = _last_frame._timestamp;
+        } else {
+            _last_frame.clear();
+            _prev_frame_time = {};
+        }
+        
+        
+        auto position = current_offset();
+        seek(0); seek(position);
+        _header.num_frames = index.get();
+        
+        _header._running_average_tdelta = _header.average_tdelta * _header.num_frames;
+        
+        //_last_frame.set_index(index > 0_f ? index.try_sub(1_f) : Frame_t{});
+        /// now we can overwrite frame `index`
+    }
+
     void File::add_individual(const Frame& frame, DataPackage& pack, bool compressed) {
         _check_opened();
         
-        assert(_open_for_writing);
+        assert(_open_for_writing || _open_for_modifying);
         assert(_header.timestamp != 0); // start time has to be set
 
         if(_header.index_table.empty()
@@ -1483,6 +1533,16 @@ Frame_t File::length() const {
         _header.update(*this);
         print_info();
     }
+
+void File::stop_modifying() {
+    if(not is_open()
+       || not bool(_mode & FileMode::MODIFY))
+        throw U_EXCEPTION("Do not stop modifying on a file that was not open for modifying (",_filename,").");
+    
+    write(uint64_t(0));
+    header().update(*this);
+    print_info();
+}
     
     void File::read_frame(Frame& frame, Frame_t frameIndex) {
         read_frame(frame, frameIndex, color_mode());

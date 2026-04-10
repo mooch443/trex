@@ -45,7 +45,7 @@ if(APPLE AND TREX_ENABLE_SHARED_INTERNAL_LIBS)
         VISIBILITY_INLINES_HIDDEN OFF
     )
     target_compile_options(trex_python_staging PRIVATE -fvisibility=default)
-    target_link_options(trex_python_staging PRIVATE "-Wl,-undefined,error")
+    # Apple ld already errors on undefined symbols by default.
 endif()
 
 if(TREX_PYTHON_LIBRARY_TYPE STREQUAL "SHARED")
@@ -96,7 +96,7 @@ if(APPLE AND TREX_ENABLE_SHARED_INTERNAL_LIBS)
         VISIBILITY_INLINES_HIDDEN OFF
     )
     target_compile_options(trex_python PRIVATE -fvisibility=default)
-    target_link_options(trex_python PRIVATE "-Wl,-undefined,error")
+    # Apple ld already errors on undefined symbols by default.
 endif()
 
 if(TREX_PYTHON_IMPL_LIBRARY_TYPE STREQUAL "SHARED")
