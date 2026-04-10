@@ -1181,6 +1181,8 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const PixelArray
     void Header::update(DataFormat& ref) {
         // write index table
         index_offset = ref.current_offset();
+        ref.seek(0);
+        ref.seek(index_offset);
         assert(index_offset == ref.tell());
         
         Print("Index table is ",FileSize(index_table.size() * sizeof(decltype(index_table)::value_type))," big @ ", index_offset);
@@ -1539,6 +1541,10 @@ void File::stop_modifying() {
        || not bool(_mode & FileMode::MODIFY))
         throw U_EXCEPTION("Do not stop modifying on a file that was not open for modifying (",_filename,").");
     
+    auto index = tell();
+    seek(0);
+    seek(index);
+
     write(uint64_t(0));
     header().update(*this);
     print_info();
