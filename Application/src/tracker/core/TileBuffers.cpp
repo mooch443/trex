@@ -40,7 +40,7 @@ TileBuffers::Buffers_t& TileBuffers::get() {
     std::lock_guard guard(tile_buffers_mutex());
     auto* ptr = tile_buffers_storage();
     if(!ptr)
-        throw U_EXCEPTION("TileBuffers::create() must be called before accessing the instance.");
+        throw std::runtime_error("TileBuffers::create() must be called before accessing the instance.");
     return *ptr;
 }
 
