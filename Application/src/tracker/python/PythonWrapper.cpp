@@ -350,6 +350,7 @@ void configure_runtime(
 ) {
     GlobalSettings::instance(settings);
     file::DataLocation::set_instance(data_location);
+    buffers::TileBuffers::set(static_cast<buffers::TileBuffers::Buffers_t*>(tile_buffers));
 
     // Persist so lazily-loaded impls receive the same settings (see load_python_impl_library).
     stored_runtime_config() = {settings, data_location, instance, tile_buffers};
