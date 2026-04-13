@@ -136,7 +136,7 @@ jobs:
           referencing `
           rpds-py
 
-        conda list conda conda-build jsonschema referencing rpds-py
+        conda list -n base
 
     - name: Build
       shell: pwsh
