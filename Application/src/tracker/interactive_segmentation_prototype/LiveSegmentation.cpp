@@ -517,7 +517,7 @@ void LiveSegmentation::activate() {
                         
                         Print("* Moving ", frame.index, " (",loaded,") to _next_frame with ", processed.data.frame.n(), " objects");
                         
-                        buffers::TileBuffers::get().move_back(std::move(processed.data.image));
+                        //buffers::TileBuffers::get().move_back(std::move(processed.data.image));
 
                         _next_frame = std::move(frame);
                         _next_data = std::move(processed.data);

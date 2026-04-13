@@ -164,12 +164,12 @@ Image::Ptr AnimatedBackground::preload(Frame_t index) {
         //else if(_source->colors() != ImageMode::RGBA)
         //    throw InvalidArgumentException("Invalid image mode: ", _source->colors());
 
-        auto image = buffers.get(source_location::current());
+        auto source_size = _source->size();
+        auto image = buffers.get(source_size, source_location::current());
         
         auto scale = _source_scale.load();
         auto offsets = _crop_offsets.get();
         
-        auto source_size = _source->size();
         auto image_size = offsets.toPixels(source_size).size().mul(scale).map(roundf);
         
         if(not offsets.empty()
@@ -335,7 +335,7 @@ void AnimatedBackground::before_draw() {
             _displayed_frame = Frame_t((uint32_t)image->index());
             
             /// pre-cache a greyscale image in case we need it...
-            Image::Ptr grey = grey_buffers.get(source_location::current());
+            Image::Ptr grey = grey_buffers.get(image->dimensions(), source_location::current());
             if(not grey
                || grey->cols != image->cols
                || grey->rows != image->rows

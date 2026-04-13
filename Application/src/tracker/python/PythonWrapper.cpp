@@ -129,6 +129,7 @@ void prepare_python_environment() {
             GetEnvironmentVariable("PATH", path, buffSize);
 
             set = set + path;
+            SetEnvironmentVariable("PATH", set.c_str());
             SetEnvironmentVariable("PYTHONHOME", home.c_str());
 #else
             std::string path = (std::string)getenv("PATH");

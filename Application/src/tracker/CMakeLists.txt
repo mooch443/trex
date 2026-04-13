@@ -6,6 +6,15 @@ else()
     set(TREX_INTERNAL_LIBRARY_TYPE STATIC)
 endif()
 
+set(TREX_UI_LIBRARY_TYPE ${TREX_INTERNAL_LIBRARY_TYPE})
+if(WIN32 AND TREX_ENABLE_SHARED_INTERNAL_LIBS)
+    # The UI layer has a very large symbol surface. Letting CMake auto-export
+    # every symbol can overflow link.exe/import-lib limits, while the lower
+    # semantic libraries still benefit from shared boundaries. trex_ui is only
+    # consumed by final executables/tests, so keep it static on Windows.
+    set(TREX_UI_LIBRARY_TYPE STATIC)
+endif()
+
 function(trex_harden_internal_library target)
     if(APPLE AND TREX_ENABLE_SHARED_INTERNAL_LIBS)
         set_target_properties(${target} PROPERTIES
@@ -94,6 +103,7 @@ function(trex_add_semantic_library target)
             target_compile_definitions(${target}
                 PRIVATE "TREX_EXPORT=__declspec(dllexport)" "TREX_TYPE_EXPORT=__declspec(dllexport)"
             )
+            set_target_properties(${target} PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
         else()
             target_compile_definitions(${target}
                 PRIVATE "TREX_EXPORT=__attribute__((visibility(\"default\")))" "TREX_TYPE_EXPORT=__attribute__((visibility(\"default\"),type_visibility(\"default\")))"
@@ -177,7 +187,7 @@ target_link_libraries(trex_ml PRIVATE
 )
 
 trex_add_semantic_library(trex_ui
-    TYPE ${TREX_INTERNAL_LIBRARY_TYPE}
+    TYPE ${TREX_UI_LIBRARY_TYPE}
     SOURCES ${TREX_UI_SOURCES}
     PUBLIC_HEADERS ${TREX_UI_PUBLIC_HEADERS}
     PRIVATE_HEADERS ${TREX_UI_PRIVATE_HEADERS}
@@ -191,6 +201,13 @@ target_link_libraries(trex_ui PUBLIC
     trex_core
     trex_python_staging
 )
+if(WIN32 AND TREX_ENABLE_SHARED_INTERNAL_LIBS)
+    # trex_ui includes commons GUI headers directly. On Windows shared builds,
+    # make that dependency explicit so dllimport usage requirements are active
+    # while compiling this static library, not only at final executable links.
+    target_link_libraries(trex_ui PUBLIC Commons::Gui)
+    target_compile_definitions(trex_ui PRIVATE COMMONS_IS_SHARED_LIBRARY=1)
+endif()
 if(CMAKE_COMPILER_IS_GNUCXX)
     target_link_libraries(trex_ui PUBLIC atomic)
 endif()
@@ -332,6 +349,10 @@ if(WIN32 OR UNIX AND NOT APPLE)
 endif()
 
 add_executable(${TREXA_EXEC_NAME} ${TREXA_SRCS})
+if(WIN32)
+target_compile_options(${TREXA_EXEC_NAME} PRIVATE /bigobj)
+endif()
+
 target_link_libraries(${TREXA_EXEC_NAME} PUBLIC
     #tracker_tracking
     tracker_gui
@@ -572,6 +593,12 @@ if(NOT TREX_CONDA_PACKAGE_INSTALL)
                         "${comp}"
                         "$<TARGET_FILE_DIR:${app_target}>/${comp_s}")
             endforeach()
+
+            add_custom_command(TARGET ${app_target} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    $<TARGET_RUNTIME_DLLS:${app_target}>
+                    $<TARGET_FILE_DIR:${app_target}>
+                COMMAND_EXPAND_LISTS)
         endforeach()
         
     elseif(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")

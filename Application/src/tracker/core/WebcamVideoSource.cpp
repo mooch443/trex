@@ -23,7 +23,7 @@ AbstractBaseVideoSource::VideoFrame_t WebcamVideoSource::fetch_next() {
 
         auto index = i++;
 
-        auto buffer = mat_buffers.get(source_location::current());
+        auto buffer = mat_buffers.get( source.size(), source_location::current());
         //auto tmp = buffers::get(source_location::current());
         
         size_t tries = 0;
@@ -37,7 +37,7 @@ AbstractBaseVideoSource::VideoFrame_t WebcamVideoSource::fetch_next() {
         }
         
         if(not tmp)
-            tmp = mat_buffers.get(source_location::current());
+            tmp = mat_buffers.get( source.size(), source_location::current());
         
         if(tmp->cols != source.size().width
            || tmp->rows != source.size().height

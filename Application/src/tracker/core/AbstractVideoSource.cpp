@@ -123,7 +123,7 @@ AVS::PreprocessResult_t AbstractBaseVideoSource::fetch_next_process() {
             //! throws bad optional access if the returned frame is not valid
             assert(index.valid());
             
-            auto image = image_buffers.get(source_location::current());
+            auto image = image_buffers.get(Size2(*buffer), source_location::current());
             image->create(*buffer, index.get());
             
             if (_video_samples.load() > 1000) {

@@ -87,13 +87,6 @@ option(WITH_GITSHA1 "include git hash" ON)
 option(BUILD_LEGACY_TREX "Build the TRex (legacy) target" OFF)
 option(TREX_ENABLE_PROTOTYPES "Enable prototype features that are not yet fully tested or may be subject to change." OFF)
 
-if(TREX_ENABLE_SHARED_INTERNAL_LIBS AND NOT APPLE)
-    message(FATAL_ERROR
-        "TREX_ENABLE_SHARED_INTERNAL_LIBS is currently supported only on macOS. "
-        "Disable it or configure on Apple platforms."
-    )
-endif()
-
 if(TREX_ENABLE_MODULES)
     if(NOT COMMONS_ENABLE_MODULES)
         message(FATAL_ERROR

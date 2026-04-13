@@ -619,7 +619,7 @@ std::future<std::unordered_set<Frame_t>> AnnotationScene::select_unique_frames()
         };
         ImageBuffers<Image::Ptr, ImageMaker> buffers("select_unique_frames", size);
         for (Frame_t i = 0_f; i < L; i += Frame_t(step)) {
-            auto output = buffers.get(source_location::current());
+            auto output = buffers.get(size, source_location::current());
             output->create(size.height, size.width, 4);
             
             {

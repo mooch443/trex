@@ -44,7 +44,7 @@ TileImage::TileImage(const useMat_t& source, Image::Ptr&& original, Size2 tile_s
         && tile_size.height == source.rows)
     {
         source_size = tile_size;
-        auto buffer = buffers::TileBuffers::get().get(source_location::current());
+        auto buffer = buffers::TileBuffers::get().get(tile_size, source_location::current());
         buffer->create(source);
         images.emplace_back(std::move(buffer));
         _offsets = { Vec2() };
@@ -55,7 +55,7 @@ TileImage::TileImage(const useMat_t& source, Image::Ptr&& original, Size2 tile_s
         source_size = tile_size;
         cv::resize(source, resized_image(), tile_size);
 
-        auto buffer = buffers::TileBuffers::get().get(source_location::current());
+        auto buffer = buffers::TileBuffers::get().get(tile_size, source_location::current());
         buffer->create(resized_image());
         images.emplace_back(std::move(buffer));
         _offsets = { Vec2() };
@@ -109,7 +109,7 @@ TileImage::TileImage(const useMat_t& source, Image::Ptr&& original, Size2 tile_s
                 bds.restrict_to(Bounds(0, 0, source.cols, source.rows));
                 source(bds).copyTo(tile(Bounds{ bds.size() }));
 
-                auto buffer = buffers::TileBuffers::get().get(source_location::current());
+                auto buffer = buffers::TileBuffers::get().get(tile_size, source_location::current());
                 buffer->create(tile);
                 images.emplace_back(std::move(buffer));
                 tile.setTo(0);

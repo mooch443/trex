@@ -27,7 +27,7 @@ AbstractBaseVideoSource::VideoFrame_t PVVideoSource::fetch_next() {
         }
 
         auto index = i++;
-        auto buffer = mat_buffers.get(source_location::current());
+        auto buffer = mat_buffers.get(source.size(), source_location::current());
         if(not buffer)
             throw U_EXCEPTION("Failed to get buffer");
 
