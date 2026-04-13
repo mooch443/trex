@@ -157,18 +157,19 @@ struct LiveSegmentation::Data {
     }
 
     void store_frame_if_annotated(SegmentationData&& data, uint64_t prompt_revision) {
-        if(not has_annotations(data.frame.index())) {
+        auto index = data.original_index();
+        if(not has_annotations(index)) {
             return; /// no need to store
         }
         
         std::unique_lock g{_cache_mutex};
         /// moving out of data into the cache
-        _frame_cache[data.frame.index()] = CachedFrame{
+        _frame_cache[index] = CachedFrame{
             ._data = std::move(data),
             .prompt_revision = prompt_revision
         };
         
-        Print("* currently cached ", extract_keys(_frame_cache));
+        Print("* currently cached ", extract_keys(_frame_cache), " for ", index);
     }
     
     std::optional<CachedFrame> get_up2date_stored_frame(Frame_t index) {
