@@ -199,6 +199,7 @@ TEST(Sam3InteractiveSessionTest, SameFrameRerunRestoresStoredBeforeRuntime) {
     session.commit_frame(Sam3ProcessedFrame{
         .frame_index = first.frame_index,
         .prompt_revision = first.prompt_revision,
+        .session_generation = first.session_generation,
         .before_runtime = first.before_runtime,
         .after_runtime = first.after_runtime
     });
@@ -228,6 +229,7 @@ TEST(Sam3InteractiveSessionTest, NextFrameRestoresPreviousAfterRuntime) {
     session.commit_frame(Sam3ProcessedFrame{
         .frame_index = first.frame_index,
         .prompt_revision = first.prompt_revision,
+        .session_generation = first.session_generation,
         .before_runtime = first.before_runtime,
         .after_runtime = first.after_runtime
     });
@@ -250,6 +252,7 @@ TEST(Sam3InteractiveSessionTest, InvalidatingFromFrameDropsLaterPreparedStates) 
     session.commit_frame(Sam3ProcessedFrame{
         .frame_index = first.frame_index,
         .prompt_revision = first.prompt_revision,
+        .session_generation = first.session_generation,
         .before_runtime = first.before_runtime,
         .after_runtime = first.after_runtime
     });
@@ -258,6 +261,7 @@ TEST(Sam3InteractiveSessionTest, InvalidatingFromFrameDropsLaterPreparedStates) 
     session.commit_frame(Sam3ProcessedFrame{
         .frame_index = second.frame_index,
         .prompt_revision = second.prompt_revision,
+        .session_generation = second.session_generation,
         .before_runtime = second.before_runtime,
         .after_runtime = second.after_runtime
     });
@@ -276,3 +280,41 @@ TEST(Sam3InteractiveSessionTest, InvalidatingFromFrameDropsLaterPreparedStates) 
         "snapshot:after:2"));
 }
 
+TEST(Sam3InteractiveSessionTest, InvalidatedInFlightFrameCannotRecommitStaleState) {
+    auto backend = std::make_unique<FakeBackend>();
+    auto* backend_ptr = backend.get();
+    Sam3InteractiveSession session(std::move(backend));
+
+    auto first = session.process_frame(make_tile(0_f), 0);
+    ASSERT_TRUE(session.commit_frame(Sam3ProcessedFrame{
+        .frame_index = first.frame_index,
+        .prompt_revision = first.prompt_revision,
+        .session_generation = first.session_generation,
+        .before_runtime = first.before_runtime,
+        .after_runtime = first.after_runtime
+    }));
+
+    auto second = session.process_frame(make_tile(1_f), 0);
+
+    session.invalidate_from(1_f);
+
+    EXPECT_FALSE(session.commit_frame(Sam3ProcessedFrame{
+        .frame_index = second.frame_index,
+        .prompt_revision = second.prompt_revision,
+        .session_generation = second.session_generation,
+        .before_runtime = second.before_runtime,
+        .after_runtime = second.after_runtime
+    }));
+
+    backend_ptr->calls.clear();
+
+    auto third = session.process_frame(make_tile(2_f), 0);
+
+    ASSERT_EQ(third.frame_index, 2_f);
+    EXPECT_EQ(third.before_runtime.handle, "reset:2");
+    EXPECT_THAT(backend_ptr->calls, ::testing::ElementsAre(
+        "reset:2",
+        "snapshot:reset:2",
+        "predict:2",
+        "snapshot:after:2"));
+}

@@ -16,10 +16,6 @@ static_assert(ObjectDetection<SAM3>);
 
 namespace {
 
-struct ResolvedSam3Prompts {
-    detect::Sam3PromptsPerImage prompts_per_image;
-};
-
 double clamp_unit(double value)
 {
     return std::clamp(value, 0.0, 1.0);
@@ -94,47 +90,55 @@ void append_normalized_prompt_list(detect::Sam3PromptList& dst,
     }
 }
 
+} // namespace
+
 /**
  * Resolve the frame-indexed prompt repository into prompt lists aligned with
  * the images in a single SAM3 batch.
  */
-ResolvedSam3Prompts resolve_prompts_for_input(const detect::YoloInput& input,
-                                              const detect::Sam3Prompts& prompts_by_frame)
+detect::Sam3PromptsPerImage resolve_prompts_for_input(
+  const detect::YoloInput& input,
+  const std::optional<detect::Sam3Prompts>& prompts_by_frame)
 {
-    ResolvedSam3Prompts resolved;
+    detect::Sam3PromptsPerImage resolved;
     const auto image_count = input.images().size();
-    resolved.prompts_per_image.resize(image_count);
-    const auto null_frame_it = prompts_by_frame.find(Frame_t());
-
-    for(size_t image_idx = 0; image_idx < image_count; ++image_idx) {
-        auto& image_prompts = resolved.prompts_per_image[image_idx];
-        const auto& image = input.images().at(image_idx);
-        const auto& scale = input.scales().at(image_idx);
-        const double full_width = image
+    resolved.resize(image_count);
+    
+    if(not prompts_by_frame) {
+        /// we have an empty list
+        
+    } else {
+        const auto null_frame_it = prompts_by_frame->find(Frame_t());
+        
+        for(size_t image_idx = 0; image_idx < image_count; ++image_idx) {
+            auto& image_prompts = resolved[image_idx];
+            const auto& image = input.images().at(image_idx);
+            const auto& scale = input.scales().at(image_idx);
+            const double full_width = image
             ? std::max(1.0, double(image->cols) * double(scale.x))
             : 1.0;
-        const double full_height = image
+            const double full_height = image
             ? std::max(1.0, double(image->rows) * double(scale.y))
             : 1.0;
-
-        if(null_frame_it != prompts_by_frame.end()) {
-            append_normalized_prompt_list(image_prompts, null_frame_it->second, full_width, full_height);
+            
+            if(null_frame_it != prompts_by_frame->end()) {
+                append_normalized_prompt_list(image_prompts, null_frame_it->second, full_width, full_height);
+            }
+            
+            const auto frame_key = Frame_t(static_cast<uint32_t>(input.orig_id().at(image_idx)));
+            const auto it = prompts_by_frame->find(frame_key);
+            if(it == prompts_by_frame->end()) {
+                continue;
+            }
+            
+            image_prompts.reserve(image_prompts.size() + it->second.size());
+            append_normalized_prompt_list(image_prompts, it->second, full_width, full_height);
         }
-
-        const auto frame_key = Frame_t(static_cast<uint32_t>(input.orig_id().at(image_idx)));
-        const auto it = prompts_by_frame.find(frame_key);
-        if(it == prompts_by_frame.end()) {
-            continue;
-        }
-
-        image_prompts.reserve(image_prompts.size() + it->second.size());
-        append_normalized_prompt_list(image_prompts, it->second, full_width, full_height);
     }
 
     return resolved;
 }
 
-} // namespace
 
 struct SAM3::Data {
     std::atomic<bool> initialized{false};
@@ -305,12 +309,12 @@ void SAM3::apply(std::vector<TileImage>&& tiled) {
 
                     const auto prompt_repository = READ_SETTING_WITH_DEFAULT(
                         detect_sam3_prompt,
-                        detect::Sam3Prompts{});
+                        std::optional<detect::Sam3Prompts>{});
                     const auto resolved_prompts = resolve_prompts_for_input(input, prompt_repository);
 
                     detect::Sam3Input in{
                         std::move(input),
-                        resolved_prompts.prompts_per_image
+                        std::move(resolved_prompts)
                     };
                     
                     py::convert_python_exceptions([&](){

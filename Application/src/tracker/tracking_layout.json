@@ -35,7 +35,6 @@
 "var":"{global.gui_show_timeline}",
 "then":{
     "type":"collection",
-    "size":"auto",
     "children":[
         {
             "type":"condition",

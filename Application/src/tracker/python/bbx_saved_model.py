@@ -24,27 +24,6 @@ conf_threshold = 0.1
 
 seen, windows, dt = 0, [], None
 
-
-def _parse_optional_float_setting(name: str) -> Optional[float]:
-    try:
-        raw = TRex.setting(name)
-    except Exception:
-        return None
-
-    if raw is None:
-        return None
-
-    if isinstance(raw, str):
-        text = raw.strip()
-        if text.lower() in {"", "none", "null", "nullopt"}:
-            return None
-        raw = text
-
-    try:
-        return float(raw)
-    except Exception:
-        return None
-
 def load_yolo(configs : List[TRex.ModelConfig]):
     import torch
     TRex.log("Clearing caches...")
@@ -67,7 +46,7 @@ def load_yolo(configs : List[TRex.ModelConfig]):
 def predict(input : TRex.YoloInput) -> List[TRex.Result]:
     global model
     conf_threshold = float(TRex.setting("detect_conf_threshold"))
-    iou_threshold = _parse_optional_float_setting("detect_iou_threshold")
+    iou_threshold : Optional[float] = TRex.setting("detect_iou_threshold")
     if not model:
         raise ValueError("Model not loaded. Please load the model before predicting.")
 

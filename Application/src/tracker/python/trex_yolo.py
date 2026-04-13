@@ -109,34 +109,6 @@ RUNTIME_PROFILE_LEGACY = "legacy_head"
 RUNTIME_PROFILE_MODERN_END2END = "modern_end2end"
 RUNTIME_PROFILE_MODERN_END2END_FORCED_NMS = "modern_end2end_forced_nms"
 
-
-def _parse_optional_float_setting(name: str) -> Optional[float]:
-    """
-    Parse a TRex setting that may be unset.
-
-    TRex.setting() returns strings via the pybind bridge, so optional values may surface
-    as textual sentinels such as '', 'null', or 'None'.
-    """
-    try:
-        raw = TRex.setting(name)
-    except Exception:
-        return None
-
-    if raw is None:
-        return None
-
-    if isinstance(raw, str):
-        text = raw.strip()
-        if text.lower() in {"", "none", "null", "nullopt"}:
-            return None
-        raw = text
-
-    try:
-        return float(raw)
-    except Exception:
-        return None
-
-
 def unscale_coords(img1_shape, coords, img0_shape, ratio_pad=None):
     """
     Rescale segment coordinates (xyxy) from normalized to original image scale
@@ -419,7 +391,7 @@ class YOLOModel(DetectionModel):
             return False
 
     def _resolve_runtime_profile(self) -> str:
-        self.explicit_iou_override = _parse_optional_float_setting("detect_iou_threshold")
+        self.explicit_iou_override = TRex.setting("detect_iou_threshold")
         self.detect_head = None
 
         for head in self._iter_detect_heads():

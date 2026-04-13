@@ -69,23 +69,76 @@ struct LiveSegmentation::Data {
     Timer timer;
     cmn::CallbackFuture _callback;
     std::unique_ptr<pv::File> _output_file;
+    std::optional<track::detect::Sam3Prompts> _last_prompt_repository;
     
     bool has_annotations(Frame_t index) const {
-        auto detect_sam3_prompt = READ_SETTING_WITH_DEFAULT(detect_sam3_prompt, track::detect::Sam3Prompts{});
-        auto it = detect_sam3_prompt.find(index);
-        if(it == detect_sam3_prompt.end())
+        auto detect_sam3_prompt = READ_SETTING_WITH_DEFAULT(detect_sam3_prompt, std::optional<track::detect::Sam3Prompts>{});
+        if(not detect_sam3_prompt)
+            return false;
+        
+        auto it = detect_sam3_prompt->find(index);
+        if(it == detect_sam3_prompt->end())
             return false;
         
         return not it->second.empty();
     }
     
-    void init() {
+    static std::optional<Frame_t> earliest_affected_frame(const std::optional<track::detect::Sam3Prompts>& previous,
+                                                          const std::optional<track::detect::Sam3Prompts>& current) {
+        std::optional<Frame_t> earliest;
+        auto consider = [&](Frame_t frame) {
+            auto affected = frame.valid() ? frame : 0_f;
+            if(not earliest || affected < earliest.value()) {
+                earliest = affected;
+            }
+        };
+
+        if(previous) {
+            for(const auto& [frame, prompts] : *previous) {
+                if(not current) {
+                    consider(frame);
+                } else {
+                    auto it = current->find(frame);
+                    if(it == current->end() || it->second != prompts) {
+                        consider(frame);
+                    }
+                }
+            }
+        }
+
+        if(current) {
+            for(const auto& [frame, prompts] : *current) {
+                if(not previous) {
+                    consider(frame);
+                } else {
+                    auto it = previous->find(frame);
+                    if(it == previous->end() || it->second != prompts) {
+                        consider(frame);
+                    }
+                }
+            }
+        }
+
+        return earliest;
+    }
+
+    void init(std::function<void(Frame_t)> on_prompt_change) {
+        _last_prompt_repository = READ_SETTING_WITH_DEFAULT(detect_sam3_prompt, std::optional<track::detect::Sam3Prompts>{});
         _callback = GlobalSettings::register_callbacks({
             "detect_sam3_prompt"
-        }, [this](auto) {
+        }, [this, on_prompt_change = std::move(on_prompt_change)](auto) {
+            const auto prompt_repository = READ_SETTING_WITH_DEFAULT(detect_sam3_prompt, std::optional<track::detect::Sam3Prompts>{});
+            const auto earliest = earliest_affected_frame(_last_prompt_repository, prompt_repository);
+            _last_prompt_repository = prompt_repository;
+
             /// we're changing the prompt, so we need to
             /// evict the cache here
             cleanup();
+
+            if(earliest) {
+                (void)bump_prompt_revision(*earliest);
+                on_prompt_change(*earliest);
+            }
         });
     }
     
@@ -185,7 +238,17 @@ void LiveSegmentation::activate() {
     Print("Loading source = ", utils::ShortenText(source.toStr(), 1000));
     
     _data = std::make_unique<Data>();
-    _data->init();
+    _data->init([this](Frame_t first_invalid_frame) {
+        if(_sam3_session) {
+            _sam3_session->invalidate_from(first_invalid_frame);
+        }
+
+        if(_current_frame.index.valid() && _current_frame.index == first_invalid_frame) {
+            request_frame(first_invalid_frame);
+        } else {
+            _condition.notify_one();
+        }
+    });
     
     _video = std::make_unique<VideoSource>(source);
     _video->set_colors(ImageMode::RGB);
@@ -201,11 +264,6 @@ void LiveSegmentation::activate() {
     
     _terminated = false;
     SETTING(detect_type) = track::detect::ObjectDetectionType_t{track::detect::ObjectDetectionType::sam3};
-#ifdef WIN32
-    SETTING(detect_model) = file::Path("C:/Users/mooch/Downloads/sam3.pt");
-#else
-    SETTING(detect_model) = file::Path("/Users/tristan/Downloads/sam3.pt");
-#endif
     //SETTING(detect_resolution) = track::detect::DetectResolution{320};
     
     auto filename = file::DataLocation::parse("output", "sam_output.pv").absolute();
@@ -428,8 +486,15 @@ void LiveSegmentation::activate() {
                                 index = 0_f;
                             continue;
                         }
-                        if(_sam3_session) {
-                            _sam3_session->commit_frame(std::move(processed));
+                        if(_sam3_session
+                           && not _sam3_session->commit_frame(std::move(processed)))
+                        {
+                            Print("* Dropping invalidated result for ", loaded, " after session generation changed");
+                            frame.index.invalidate();
+                            ++index;
+                            if(index >= length)
+                                index = 0_f;
+                            continue;
                         }
                         
                         Print("* Moving ", frame.index, " (",loaded,") to _next_frame with ", processed.data.frame.n(), " objects");
@@ -659,8 +724,6 @@ void LiveSegmentation::_draw(DrawStructure& graph) {
             {
                 /// discard
                 Print("* Discarding ", _next_frame->index, " as its not ", _last_requested_frame);
-                if(_current_data)
-                    _data->store_frame_if_annotated(std::move(_current_data.value()), _current_data_revision.value_or(0));
                 _previous_frame = std::move(_next_frame);
                 _next_data.reset();
                 _next_data_revision.reset();
@@ -750,9 +813,11 @@ bool LiveSegmentation::on_global_event(Event event) {
            && _drag_box->size().max() >= 10)
         {
             Print("Creating polygon at ", _drag_box->bounds(), " for frame ", _current_frame.index);
-            auto detect_sam3_prompt = READ_SETTING_WITH_DEFAULT(detect_sam3_prompt, track::detect::Sam3Prompts{});
+            auto detect_sam3_prompt = READ_SETTING_WITH_DEFAULT(detect_sam3_prompt, std::optional<track::detect::Sam3Prompts>{});
+            if(not detect_sam3_prompt)
+                detect_sam3_prompt = track::detect::Sam3Prompts{};
             
-            detect_sam3_prompt[_current_frame.index].emplace_back(std::vector<Bounds>{_drag_box->bounds()});
+            (*detect_sam3_prompt)[_current_frame.index].emplace_back(std::vector<Bounds>{_drag_box->bounds()});
             SETTING(detect_sam3_prompt) = detect_sam3_prompt;
             if(_data) {
                 (void)_data->bump_prompt_revision(_current_frame.index);
@@ -772,11 +837,6 @@ bool LiveSegmentation::on_global_event(Event event) {
         
         if(p.x >= 0 && p.y >= 0 && p.x < coord.video_size().width && p.y < coord.video_size().height) {
             Print("adding point at ", original, " => ", p);
-            /*auto detect_sam3_prompt = READ_SETTING_WITH_DEFAULT(detect_sam3_prompt, track::detect::Sam3Prompts{});
-            detect_sam3_prompt[_current_frame.index].emplace_back(std::vector<Vec2>{p});
-            SETTING(detect_sam3_prompt) = detect_sam3_prompt;*/
-            
-            //request_frame(_current_frame.index);
         } else
             Print("not adding point at ", original, " => ", p);
         

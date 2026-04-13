@@ -2010,7 +2010,7 @@ void File::set_average(const cv::Mat& average) {
 
 Frame& Frame::operator=(Frame&& other) {
     _index = std::move(other._index); other._index.invalidate();
-    _timestamp = other._timestamp;
+    _timestamp = std::move(other._timestamp);
     _n = other._n; other._n = 0u;
     _loading_time = other._loading_time;
     _source_index = std::move(other._source_index);

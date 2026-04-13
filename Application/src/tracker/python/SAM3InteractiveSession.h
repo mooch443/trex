@@ -16,6 +16,7 @@ struct Sam3RuntimeBlob {
 struct Sam3ProcessedFrame {
     Frame_t frame_index;
     uint64_t prompt_revision = 0;
+    uint64_t session_generation = 0;
     Sam3RuntimeBlob before_runtime;
     Sam3RuntimeBlob after_runtime;
     SegmentationData data;
@@ -36,7 +37,7 @@ public:
     explicit Sam3InteractiveSession(std::unique_ptr<ISam3InteractiveBackend> backend);
 
     [[nodiscard]] Sam3ProcessedFrame process_frame(TileImage&& tiled, uint64_t prompt_revision);
-    void commit_frame(Sam3ProcessedFrame&& processed);
+    bool commit_frame(Sam3ProcessedFrame&& processed);
     void invalidate_from(Frame_t first_invalid_frame);
     void clear();
 
@@ -47,11 +48,17 @@ private:
         Sam3RuntimeBlob after_runtime;
     };
 
-    [[nodiscard]] Sam3RuntimeBlob prepare_runtime_for(Frame_t frame_index) const;
+    struct PreparedRuntime {
+        uint64_t session_generation = 0;
+        Sam3RuntimeBlob runtime;
+    };
+
+    [[nodiscard]] PreparedRuntime prepare_runtime_for(Frame_t frame_index) const;
 
     std::unique_ptr<ISam3InteractiveBackend> _backend;
     mutable std::mutex _mutex;
     std::map<Frame_t, FrameState> _states;
+    uint64_t _session_generation = 0;
 };
 
 TREX_EXPORT std::unique_ptr<ISam3InteractiveBackend> make_python_sam3_interactive_backend();

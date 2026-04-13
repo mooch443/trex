@@ -55,96 +55,6 @@ bool is_normalized_box(const Bounds& box)
         && box.y + box.height <= 1.f;
 }
 
-detect::Sam3PromptPayload normalize_prompt_payload(const detect::Sam3PromptPayload& src,
-                                                   double full_width,
-                                                   double full_height)
-{
-    if(full_width <= 0.0 || full_height <= 0.0) {
-        return src;
-    }
-
-    detect::Sam3PromptPayload normalized = src;
-    if(std::holds_alternative<std::vector<Vec2>>(src.value)) {
-        normalized.value = std::vector<Vec2>{};
-        auto& dst_points = normalized.points();
-        dst_points.reserve(src.points().size());
-        for(const auto& point : src.points()) {
-            if(is_normalized_point(point)) {
-                dst_points.push_back(point);
-            } else {
-                dst_points.emplace_back(
-                    clamp_unit(point.x / full_width),
-                    clamp_unit(point.y / full_height)
-                );
-            }
-        }
-    } else if(std::holds_alternative<std::vector<Bounds>>(src.value)) {
-        normalized.value = std::vector<Bounds>{};
-        auto& dst_boxes = normalized.boxes();
-        dst_boxes.reserve(src.boxes().size());
-        for(const auto& box : src.boxes()) {
-            if(is_normalized_box(box)) {
-                dst_boxes.push_back(box);
-            } else {
-                dst_boxes.emplace_back(
-                    clamp_unit(box.x / full_width),
-                    clamp_unit(box.y / full_height),
-                    clamp_unit(box.width / full_width),
-                    clamp_unit(box.height / full_height)
-                );
-            }
-        }
-    }
-
-    return normalized;
-}
-
-void append_normalized_prompt_list(detect::Sam3PromptList& dst,
-                                   const detect::Sam3PromptList& src,
-                                   double full_width,
-                                   double full_height)
-{
-    dst.reserve(dst.size() + src.size());
-    for(const auto& prompt : src) {
-        dst.push_back(normalize_prompt_payload(prompt, full_width, full_height));
-    }
-}
-
-detect::Sam3PromptsPerImage resolve_prompts_for_input(const detect::YoloInput& input,
-                                                      const detect::Sam3Prompts& prompts_by_frame)
-{
-    detect::Sam3PromptsPerImage resolved;
-    const auto image_count = input.images().size();
-    resolved.resize(image_count);
-    const auto null_frame_it = prompts_by_frame.find(Frame_t());
-
-    for(size_t image_idx = 0; image_idx < image_count; ++image_idx) {
-        auto& image_prompts = resolved[image_idx];
-        const auto& image = input.images().at(image_idx);
-        const auto& scale = input.scales().at(image_idx);
-        const double full_width = image
-            ? std::max(1.0, double(image->cols) * double(scale.x))
-            : 1.0;
-        const double full_height = image
-            ? std::max(1.0, double(image->rows) * double(scale.y))
-            : 1.0;
-
-        if(null_frame_it != prompts_by_frame.end()) {
-            append_normalized_prompt_list(image_prompts, null_frame_it->second, full_width, full_height);
-        }
-
-        const auto frame_key = Frame_t(static_cast<uint32_t>(input.orig_id().at(image_idx)));
-        const auto it = prompts_by_frame.find(frame_key);
-        if(it == prompts_by_frame.end()) {
-            continue;
-        }
-
-        append_normalized_prompt_list(image_prompts, it->second, full_width, full_height);
-    }
-
-    return resolved;
-}
-
 template <typename Response>
 Response parse_json_response(const std::optional<glz::json_t>& response, std::string_view function_name)
 {
@@ -265,7 +175,7 @@ public:
 
                 const auto prompt_repository = READ_SETTING_WITH_DEFAULT(
                     detect_sam3_prompt,
-                    detect::Sam3Prompts{});
+                    std::optional<detect::Sam3Prompts>{});
                 const auto resolved_prompts = resolve_prompts_for_input(input, prompt_repository);
 
                 detect::Sam3Input in{
@@ -314,20 +224,27 @@ Sam3InteractiveSession::Sam3InteractiveSession(std::unique_ptr<ISam3InteractiveB
     }
 }
 
-Sam3RuntimeBlob Sam3InteractiveSession::prepare_runtime_for(Frame_t frame_index) const
+Sam3InteractiveSession::PreparedRuntime Sam3InteractiveSession::prepare_runtime_for(Frame_t frame_index) const
 {
     std::unique_lock guard(_mutex);
+    const auto session_generation = _session_generation;
     if(auto it = _states.find(frame_index); it != _states.end() && it->second.before_runtime) {
         auto runtime = it->second.before_runtime;
         guard.unlock();
         _backend->restore_runtime(runtime);
-        return runtime;
+        return PreparedRuntime{
+            .session_generation = session_generation,
+            .runtime = std::move(runtime)
+        };
     }
 
     if(not frame_index.valid() || frame_index <= 0_f) {
         guard.unlock();
         _backend->reset_runtime(frame_index.valid() ? frame_index : 0_f);
-        return _backend->snapshot_runtime();
+        return PreparedRuntime{
+            .session_generation = session_generation,
+            .runtime = _backend->snapshot_runtime()
+        };
     }
 
     const auto previous = frame_index.try_sub(1_f);
@@ -335,43 +252,56 @@ Sam3RuntimeBlob Sam3InteractiveSession::prepare_runtime_for(Frame_t frame_index)
         auto runtime = it->second.after_runtime;
         guard.unlock();
         _backend->restore_runtime(runtime);
-        return runtime;
+        return PreparedRuntime{
+            .session_generation = session_generation,
+            .runtime = std::move(runtime)
+        };
     }
 
     guard.unlock();
     _backend->reset_runtime(frame_index);
-    return _backend->snapshot_runtime();
+    return PreparedRuntime{
+        .session_generation = session_generation,
+        .runtime = _backend->snapshot_runtime()
+    };
 }
 
 Sam3ProcessedFrame Sam3InteractiveSession::process_frame(TileImage&& tiled, uint64_t prompt_revision)
 {
     const auto frame_index = tiled.data.original_index();
-    auto before_runtime = prepare_runtime_for(frame_index);
+    auto prepared = prepare_runtime_for(frame_index);
     auto data = _backend->predict_frame(std::move(tiled));
     auto after_runtime = _backend->snapshot_runtime();
 
     return Sam3ProcessedFrame{
         .frame_index = frame_index,
         .prompt_revision = prompt_revision,
-        .before_runtime = std::move(before_runtime),
+        .session_generation = prepared.session_generation,
+        .before_runtime = std::move(prepared.runtime),
         .after_runtime = std::move(after_runtime),
         .data = std::move(data)
     };
 }
 
-void Sam3InteractiveSession::commit_frame(Sam3ProcessedFrame&& processed)
+bool Sam3InteractiveSession::commit_frame(Sam3ProcessedFrame&& processed)
 {
     std::unique_lock guard(_mutex);
+    if(processed.session_generation != _session_generation) {
+        return false;
+    }
+
     _states[processed.frame_index] = FrameState{
         .prompt_revision = processed.prompt_revision,
         .before_runtime = std::move(processed.before_runtime),
         .after_runtime = std::move(processed.after_runtime)
     };
+    return true;
 }
 
 void Sam3InteractiveSession::invalidate_from(Frame_t first_invalid_frame)
 {
     std::unique_lock guard(_mutex);
+    ++_session_generation;
     auto it = _states.lower_bound(first_invalid_frame);
     _states.erase(it, _states.end());
 }

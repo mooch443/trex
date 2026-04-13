@@ -717,9 +717,19 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
         return d;
     });
 
-    m.def("setting", [](const std::string& name) -> std::string {
+    m.def("setting", [](const std::string& name) -> py::object {
         using namespace pybind11::literals;
-        return GlobalSettings::read_value<cmn::NoType>(name).get().valueString();
+        auto& value = GlobalSettings::read_value<cmn::NoType>(name).get();
+        auto json = value.to_json();
+        if(json.is_string())
+            return py::str(json.get_string());
+        if(json.is_number())
+            return py::float_(json.get_number());
+        if(json.is_boolean())
+            return py::bool_(json.get_boolean());
+        if(json.is_null())
+            return py::none();
+        return py::str(value.valueString());
     });
 
     m.def("setting", [](const std::string& name, const std::string& value) {
