@@ -118,6 +118,26 @@ jobs:
         Get-Content meta.yaml
         if (Test-Path post-link.sh) { Get-Content post-link.sh }
 
+    - name: Refresh conda-build runtime
+      shell: pwsh
+      working-directory: ${{ env.SHORT_WORKSPACE }}\conda
+      env:
+        CONDA_BLD_PATH: ${{ env.CONDA_BLD_PATH }}
+        CONDA_PKGS_DIRS: ${{ env.CONDA_PKGS_DIRS }}
+      run: |
+        # Packaging validates Menu/*.json, which imports jsonschema and its
+        # compiled rpds-py dependency from the base conda environment.
+        # Refresh that stack explicitly instead of relying on a cached base
+        # prefix plus a broad "conda update --all".
+        mamba install --name base --override-channels -c conda-forge -y `
+          conda `
+          conda-build `
+          jsonschema `
+          referencing `
+          rpds-py
+
+        conda list conda conda-build jsonschema referencing rpds-py
+
     - name: Build
       shell: pwsh
       working-directory: ${{ env.SHORT_WORKSPACE }}\conda
@@ -125,7 +145,6 @@ jobs:
         CONDA_BLD_PATH: ${{ env.CONDA_BLD_PATH }}
         CONDA_PKGS_DIRS: ${{ env.CONDA_PKGS_DIRS }}
       run: |
-        conda update --all --override-channels -c conda-forge -y
         conda build . --override-channels -c conda-forge
 
     - name: Test
