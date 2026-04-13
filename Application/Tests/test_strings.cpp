@@ -3979,3 +3979,61 @@ TEST(ConcatTest, Basic) {
         EXPECT_EQ(out, std::string(100, 'x'));
     }
 }
+
+TEST(IsInIndexTest, ReturnsMatchingIndex) {
+    EXPECT_EQ(is_in_index(7, 7, 8, 9), 0u);
+    EXPECT_EQ(is_in_index(8, 7, 8, 9), 1u);
+    EXPECT_EQ(is_in_index(9, 7, 8, 9), 2u);
+}
+
+TEST(IsInIndexTest, ReturnsFirstIndexForDuplicates) {
+    EXPECT_EQ(is_in_index(5, 1, 5, 5, 9), 1u);
+
+    constexpr auto duplicate_index = is_in_index(2, 0, 2, 2, 4);
+    static_assert(duplicate_index == 1u);
+    EXPECT_EQ(duplicate_index, 1u);
+}
+
+TEST(IsInIndexTest, ReturnsNposWhenMissing) {
+    constexpr std::size_t npos = static_cast<std::size_t>(-1);
+
+    EXPECT_EQ(is_in_index(10, 7, 8, 9), npos);
+
+    constexpr auto missing_index = is_in_index(std::string_view("missing"),
+                                               std::string_view("x"),
+                                               std::string_view("y"),
+                                               std::string_view("z"));
+    static_assert(missing_index == npos);
+    EXPECT_EQ(missing_index, npos);
+}
+
+namespace {
+struct ThrowIfCompared {
+    bool* was_compared = nullptr;
+};
+
+bool operator==(int, const ThrowIfCompared& rhs) {
+    if (rhs.was_compared != nullptr) {
+        *rhs.was_compared = true;
+    }
+    throw std::runtime_error("comparison should have been short-circuited");
+}
+}
+
+TEST(IsInIndexTest, StopsEvaluatingAfterFirstMatch) {
+    bool compared_after_match = false;
+
+    EXPECT_NO_THROW({
+        EXPECT_EQ(is_in_index(1, 1, ThrowIfCompared{&compared_after_match}), 0u);
+    });
+    EXPECT_FALSE(compared_after_match);
+}
+
+TEST(IsInIndexTest, StopsEvaluatingAfterLaterMatch) {
+    bool compared_after_match = false;
+
+    EXPECT_NO_THROW({
+        EXPECT_EQ(is_in_index(2, 1, 2, ThrowIfCompared{&compared_after_match}), 1u);
+    });
+    EXPECT_FALSE(compared_after_match);
+}

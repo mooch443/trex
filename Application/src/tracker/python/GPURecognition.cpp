@@ -544,7 +544,6 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
     py::enum_<track::detect::Sam3PromptType>(m, "Sam3PromptType")
         .value("none", track::detect::Sam3PromptType::none)
         .value("text", track::detect::Sam3PromptType::text)
-        .value("box", track::detect::Sam3PromptType::box)
         .value("boxes", track::detect::Sam3PromptType::boxes)
         .value("points", track::detect::Sam3PromptType::points);
 

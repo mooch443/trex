@@ -391,7 +391,6 @@ public:
 enum class TREX_EXPORT Sam3PromptType : uint8_t {
     none,
     text,
-    box,
     boxes,
     points
 };

@@ -621,6 +621,24 @@ void LiveSegmentation::_draw(DrawStructure& graph) {
                         auto p = Meta::fromStr<Vec2>(props.parameters.front());
                         return coords.convert(HUDCoord(p));
                     }),
+                    VarFunc("annotations", [this](const VarProps&) -> std::vector<glz::json_t> {
+                        std::vector<glz::json_t> result;
+                        auto detect_sam3_prompt = READ_SETTING_WITH_DEFAULT(detect_sam3_prompt, std::optional<track::detect::Sam3Prompts>{});
+                        if(not detect_sam3_prompt)
+                            return result;
+                        
+                        if(_current_frame.index.valid()) {
+                            auto it = detect_sam3_prompt->find(_current_frame.index);
+                            if(it != detect_sam3_prompt->end()) {
+                                for(auto& prompt : it->second) {
+                                    if(prompt.type() == track::detect::Sam3PromptType::boxes)
+                                        result.emplace_back(prompt.to_json());
+                                }
+                            }
+                        }
+                        
+                        return result;
+                    }),
                     VarFunc("data", [this](const VarProps&) -> std::vector<glz::json_t> {
                         std::vector<glz::json_t> result;
                         if(std::unique_lock guard{_next_frame_mutex};

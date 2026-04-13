@@ -100,6 +100,23 @@
 
         {
             "type": "each",
+            "var": "{annotations}",
+            "do": {
+                "type":"each",
+                "var":"{i}",
+                "do":{
+                    "type": "rect",
+                    "text": "annotation {index}: {i} [{i.x},{i.y}] [{i.w},{i.h}]",
+                    "line": [255, 0, 0],
+                    "fill":[255, 0, 0, 25],
+                    "pos":"{2hud:[{i.x},{i.y}]}",
+                    "size":"{size2hud:[{i.w},{i.h}]}"
+                }
+            }
+        },
+
+        {
+            "type": "each",
             "var": "{data}",
             "do": {
                 "type": "collection",
