@@ -37,11 +37,24 @@ bool is_normalized_box(const Bounds& box)
 
 detect::Sam3PromptPayload normalize_prompt_payload(const detect::Sam3PromptPayload& src,
                                                    double full_width,
-                                                   double full_height)
+                                                   double full_height,
+                                                   double model_width,
+                                                   double model_height,
+                                                   const Vec2& offset,
+                                                   const Vec2& scale)
 {
-    if(full_width <= 0.0 || full_height <= 0.0) {
+    if(full_width <= 0.0 || full_height <= 0.0
+       || model_width <= 0.0 || model_height <= 0.0)
+    {
         return src;
     }
+
+    const auto map_x = [&](double original_x) {
+        return clamp_unit((original_x / double(scale.x) - double(offset.x)) / model_width);
+    };
+    const auto map_y = [&](double original_y) {
+        return clamp_unit((original_y / double(scale.y) - double(offset.y)) / model_height);
+    };
 
     detect::Sam3PromptPayload normalized = src;
     if(std::holds_alternative<std::vector<Vec2>>(src.value)) {
@@ -49,30 +62,32 @@ detect::Sam3PromptPayload normalize_prompt_payload(const detect::Sam3PromptPaylo
         auto& dst_points = normalized.points();
         dst_points.reserve(src.points().size());
         for(const auto& point : src.points()) {
-            if(is_normalized_point(point)) {
-                dst_points.push_back(point);
-            } else {
-                dst_points.emplace_back(
-                    clamp_unit(point.x / full_width),
-                    clamp_unit(point.y / full_height)
-                );
-            }
+            const double original_x = is_normalized_point(point) ? double(point.x) * full_width : double(point.x);
+            const double original_y = is_normalized_point(point) ? double(point.y) * full_height : double(point.y);
+            dst_points.emplace_back(
+                map_x(original_x),
+                map_y(original_y)
+            );
         }
     } else if(std::holds_alternative<std::vector<Bounds>>(src.value)) {
         normalized.value = std::vector<Bounds>{};
         auto& dst_boxes = normalized.boxes();
         dst_boxes.reserve(src.boxes().size());
         for(const auto& box : src.boxes()) {
-            if(is_normalized_box(box)) {
-                dst_boxes.push_back(box);
-            } else {
-                dst_boxes.emplace_back(
-                    clamp_unit(box.x / full_width),
-                    clamp_unit(box.y / full_height),
-                    clamp_unit((box.width) / full_width),
-                    clamp_unit((box.height) / full_height)
-                );
-            }
+            const double original_x = is_normalized_box(box) ? double(box.x) * full_width : double(box.x);
+            const double original_y = is_normalized_box(box) ? double(box.y) * full_height : double(box.y);
+            const double original_w = is_normalized_box(box) ? double(box.width) * full_width : double(box.width);
+            const double original_h = is_normalized_box(box) ? double(box.height) * full_height : double(box.height);
+            const double x0 = map_x(original_x);
+            const double y0 = map_y(original_y);
+            const double x1 = map_x(original_x + original_w);
+            const double y1 = map_y(original_y + original_h);
+            dst_boxes.emplace_back(
+                x0,
+                y0,
+                std::max(0.0, x1 - x0),
+                std::max(0.0, y1 - y0)
+            );
         }
     }
 
@@ -82,12 +97,22 @@ detect::Sam3PromptPayload normalize_prompt_payload(const detect::Sam3PromptPaylo
 void append_normalized_prompt_list(detect::Sam3PromptList& dst,
                                    const detect::Sam3PromptList& src,
                                    double full_width,
-                                   double full_height)
+                                   double full_height,
+                                   double model_width,
+                                   double model_height,
+                                   const Vec2& offset,
+                                   const Vec2& scale)
 {
     dst.reserve(dst.size() + src.size());
     for(const auto& prompt : src) {
-        dst.push_back(normalize_prompt_payload(prompt, full_width, full_height));
+        dst.push_back(normalize_prompt_payload(prompt, full_width, full_height, model_width, model_height, offset, scale));
     }
+}
+
+double estimated_original_extent(double model_extent, double scale, double offset)
+{
+    const double content_extent = std::max(1.0, model_extent + 2.0 * offset);
+    return std::max(1.0, std::round(content_extent * scale));
 }
 
 } // namespace
@@ -113,16 +138,27 @@ detect::Sam3PromptsPerImage resolve_prompts_for_input(
         for(size_t image_idx = 0; image_idx < image_count; ++image_idx) {
             auto& image_prompts = resolved[image_idx];
             const auto& image = input.images().at(image_idx);
+            const auto& offset = input.offsets().at(image_idx);
             const auto& scale = input.scales().at(image_idx);
+            const double model_width = image ? std::max(1.0, double(image->cols)) : 1.0;
+            const double model_height = image ? std::max(1.0, double(image->rows)) : 1.0;
             const double full_width = image
-            ? std::max(1.0, double(image->cols) * double(scale.x))
+            ? estimated_original_extent(model_width, double(scale.x), double(offset.x))
             : 1.0;
             const double full_height = image
-            ? std::max(1.0, double(image->rows) * double(scale.y))
+            ? estimated_original_extent(model_height, double(scale.y), double(offset.y))
             : 1.0;
             
             if(null_frame_it != prompts_by_frame->end()) {
-                append_normalized_prompt_list(image_prompts, null_frame_it->second, full_width, full_height);
+                append_normalized_prompt_list(
+                    image_prompts,
+                    null_frame_it->second,
+                    full_width,
+                    full_height,
+                    model_width,
+                    model_height,
+                    offset,
+                    scale);
             }
             
             const auto frame_key = Frame_t(static_cast<uint32_t>(input.orig_id().at(image_idx)));
@@ -132,7 +168,15 @@ detect::Sam3PromptsPerImage resolve_prompts_for_input(
             }
             
             image_prompts.reserve(image_prompts.size() + it->second.size());
-            append_normalized_prompt_list(image_prompts, it->second, full_width, full_height);
+            append_normalized_prompt_list(
+                image_prompts,
+                it->second,
+                full_width,
+                full_height,
+                model_width,
+                model_height,
+                offset,
+                scale);
         }
     }
 
@@ -177,10 +221,12 @@ void SAM3::reinit(track::ModuleProxy& proxy) {
         throw U_EXCEPTION("SAM3 requires `detect_model` to point to the SAM3 weights path.");
     }
 
-    glz::json_t create_req = {
+    glz::json_t create_req {
         {"weights_path", weights.str()},
-        // SAM3 backbone/rope path is sensitive to image size; keep it on model-native 1024.
-        {"imgsz", READ_SETTING(detect_resolution, detect::DetectResolution).width},
+        {"imgsz", cvt2json(std::vector<uint16_t>{
+            READ_SETTING(detect_resolution, detect::DetectResolution).width,
+            READ_SETTING(detect_resolution, detect::DetectResolution).height
+        })},
         {"conf", static_cast<float>(READ_SETTING(detect_conf_threshold, Float2_t))},
         {"half", true},
         {"verbose", true}
@@ -287,8 +333,9 @@ void SAM3::apply(std::vector<TileImage>&& tiled) {
                     scales.reserve(tile_image_count);
                     orig_id.reserve(tile_image_count);
                     
+                    const auto tile_offsets = tile.offsets();
                     for(size_t k = 0; k < tile_image_count; ++k) {
-                        offsets.emplace_back(0.f, 0.f);
+                        offsets.emplace_back(k < tile_offsets.size() ? tile_offsets[k] : Vec2(0.f, 0.f));
                         scales.push_back(tile.original_size.div(tile.source_size));
                         //scales.emplace_back(1.f, 1.f);
                         // Use real frame id for all tiles; do not encode tile index in frame id.

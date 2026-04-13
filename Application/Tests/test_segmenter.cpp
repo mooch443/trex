@@ -13,6 +13,7 @@
 #include <python/Detection.h>
 
 #include <filesystem>
+#include <core/TileBuffers.h>
 #include <atomic>
 #include <chrono>
 #include <future>
@@ -30,6 +31,11 @@ using namespace track::detect;
 namespace {
 
 namespace fs = std::filesystem;
+
+buffers::TileBuffers::Buffers_t& testTileBuffers() {
+    static buffers::TileBuffers::Buffers_t buffers{"TestSegmenter"};
+    return buffers;
+}
 
 struct TempWorkspace {
     fs::path root;
@@ -65,6 +71,7 @@ void reset_global_settings() {
         GlobalSettings::instance(),
         file::DataLocation::instance(),
         Python::get_instance(),
+        &testTileBuffers(),
         [](auto& name, auto& mat) {
             tf::imshow(name, mat);
         },

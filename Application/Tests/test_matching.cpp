@@ -19,6 +19,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <file/DataLocation.h>
+#include <core/TileBuffers.h>
 
 using ::testing::TestWithParam;
 using ::testing::Values;
@@ -33,6 +34,15 @@ using namespace default_config;
 
 // A utility function to reset global settings relevant to our tests.
 // (Optional, but can help avoid cross-test pollution.)
+namespace {
+
+buffers::TileBuffers::Buffers_t& testTileBuffers() {
+    static buffers::TileBuffers::Buffers_t buffers{"TestMatching"};
+    return buffers;
+}
+
+}
+
 static void resetGlobalSettings()
 {
     GlobalSettings::write([&](Configuration& config) {
@@ -44,6 +54,7 @@ static void resetGlobalSettings()
         GlobalSettings::instance(),
         file::DataLocation::instance(),
         Python::get_instance(),
+        &testTileBuffers(),
         [](auto& name, auto& mat) {
             tf::imshow(name, mat);
         },

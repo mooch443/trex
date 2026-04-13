@@ -155,8 +155,9 @@ public:
                 scales.reserve(tile_image_count);
                 orig_id.reserve(tile_image_count);
 
+                const auto tile_offsets = tile.offsets();
                 for(size_t k = 0; k < tile_image_count; ++k) {
-                    offsets.emplace_back(0.f, 0.f);
+                    offsets.emplace_back(k < tile_offsets.size() ? tile_offsets[k] : Vec2(0.f, 0.f));
                     scales.push_back(tile.original_size.div(tile.source_size));
                     orig_id.emplace_back(static_cast<size_t>(uint64_t(frame_index)));
                 }

@@ -621,6 +621,51 @@ def _denormalize_boxes(
     return boxes_px
 
 
+def _scale_components(scale: object) -> tuple[float, float]:
+    return float(getattr(scale, "x", 1.0)), float(getattr(scale, "y", 1.0))
+
+
+def _offset_components(offset: object) -> tuple[float, float]:
+    return float(getattr(offset, "x", 0.0)), float(getattr(offset, "y", 0.0))
+
+
+def _estimate_original_image_shape(
+    model_shape: tuple[int, int],
+    scale: object,
+    offset: object,
+) -> tuple[int, int]:
+    scale_x, scale_y = _scale_components(scale)
+    offset_x, offset_y = _offset_components(offset)
+    content_w = max(1, int(round(float(model_shape[1]) + 2.0 * offset_x)))
+    content_h = max(1, int(round(float(model_shape[0]) + 2.0 * offset_y)))
+    original_w = max(1, int(round(content_w * scale_x)))
+    original_h = max(1, int(round(content_h * scale_y)))
+    return original_h, original_w
+
+
+def _restore_mask_to_original(
+    mask: npt.NDArray[np.uint8],
+    model_shape: tuple[int, int],
+    scale: object,
+    offset: object,
+) -> npt.NDArray[np.uint8]:
+    original_h, original_w = _estimate_original_image_shape(model_shape, scale, offset)
+    scale_x, scale_y = _scale_components(scale)
+    offset_x, offset_y = _offset_components(offset)
+    pad_left = max(0, int(round(-offset_x)))
+    pad_top = max(0, int(round(-offset_y)))
+    content_w = max(1, int(round(original_w / scale_x)))
+    content_h = max(1, int(round(original_h / scale_y)))
+    pad_right = min(mask.shape[1], pad_left + content_w)
+    pad_bottom = min(mask.shape[0], pad_top + content_h)
+    cropped = np.ascontiguousarray(mask[pad_top:pad_bottom, pad_left:pad_right])
+    if cropped.size == 0:
+        return np.zeros((original_h, original_w), dtype=np.uint8)
+    if cropped.shape != (content_h, content_w):
+        cropped = _resize_mask(cropped, content_h, content_w)
+    return _resize_mask(cropped, original_h, original_w)
+
+
 def _mask_contains_point(mask: npt.NDArray[np.uint8], x: float, y: float, radius: int = 2) -> bool:
     """Return whether a resized mask contains the given point within a small tolerance."""
     xi = int(round(float(x)))
@@ -671,23 +716,18 @@ def _collect_prompt_state(prompt_list: Sequence[object]) -> PromptState:
 
 def _select_masks_matching_points(
     masks_np: npt.NDArray[np.uint8],
-    scale: object,
+    image_shape: tuple[int, int],
     points_normalized: npt.NDArray[np.float32],
 ) -> npt.NDArray[np.intp]:
     """Return indices of masks that contain all requested point prompts."""
     if masks_np.size == 0 or points_normalized.size == 0:
         return np.empty((0,), dtype=np.intp)
 
-    scale_x = float(getattr(scale, "x", 1.0))
-    scale_y = float(getattr(scale, "y", 1.0))
+    points_px = _denormalize_points(points_normalized, image_shape)
     matches: list[int] = []
 
     for idx, mask in enumerate(masks_np):
-        target_h = max(1, int(round(mask.shape[0] * scale_y)))
-        target_w = max(1, int(round(mask.shape[1] * scale_x)))
-        resized_mask = _resize_mask(mask * np.uint8(255), target_h, target_w)
-        points_px = _denormalize_points(points_normalized, resized_mask.shape)
-        if all(_mask_contains_point(resized_mask, point[0], point[1]) for point in points_px):
+        if all(_mask_contains_point(mask, point[0], point[1]) for point in points_px):
             matches.append(idx)
 
     return np.asarray(matches, dtype=np.intp)
@@ -696,6 +736,7 @@ def _select_masks_matching_points(
 def _build_result(
     frame_index: int,
     scale: object,
+    offset: object,
     image_shape: tuple[int, int],
     masks_np: npt.NDArray[np.uint8],
     conf_np: npt.NDArray[np.float32],
@@ -717,8 +758,8 @@ def _build_result(
 
     scale_x = float(getattr(scale, "x", 1.0))
     scale_y = float(getattr(scale, "y", 1.0))
-    target_h = max(1, int(round(image_shape[0] * scale_y)))
-    target_w = max(1, int(round(image_shape[1] * scale_x)))
+    offset_x, offset_y = _offset_components(offset)
+    target_h, target_w = _estimate_original_image_shape(image_shape, scale, offset)
 
     n = masks_np.shape[0]
     trex_masks: list[npt.NDArray[np.uint8]] = []
@@ -727,19 +768,24 @@ def _build_result(
     if TRex is not None and hasattr(TRex, "log"):
         TRex.log(  # type: ignore[union-attr]
             f"SAM3 prediction for frame={frame_index} has {n} mask(s) before resizing to "
-            f"{target_w}x{target_h} with scale=({scale_x:.3f},{scale_y:.3f})"
+            f"{target_w}x{target_h} with scale=({scale_x:.3f},{scale_y:.3f}) "
+            f"and offset=({offset_x:.3f},{offset_y:.3f})"
         )
 
     for idx, mask in enumerate(masks_np):
-        resized_mask = _resize_mask(mask * np.uint8(255), target_h, target_w)
+        resized_mask = _restore_mask_to_original(mask * np.uint8(255), image_shape, scale, offset)
         #if TRex is not None and hasattr(TRex, "imshow"):
         #    TRex.imshow("SAM3 full frmae", resized_mask)  # type: ignore[union-attr]
 
         if pred_boxes_np is not None and idx < len(pred_boxes_np):
-            boxes[idx, 0] = float(pred_boxes_np[idx, 0] * scale_x)
-            boxes[idx, 1] = float(pred_boxes_np[idx, 1] * scale_y)
-            boxes[idx, 2] = float(pred_boxes_np[idx, 2] * scale_x)
-            boxes[idx, 3] = float(pred_boxes_np[idx, 3] * scale_y)
+            x0 = float((pred_boxes_np[idx, 0] + offset_x) * scale_x)
+            y0 = float((pred_boxes_np[idx, 1] + offset_y) * scale_y)
+            x1 = float((pred_boxes_np[idx, 2] + offset_x) * scale_x)
+            y1 = float((pred_boxes_np[idx, 3] + offset_y) * scale_y)
+            boxes[idx, 0] = x0
+            boxes[idx, 1] = y0
+            boxes[idx, 2] = max(0.0, x1 - x0)
+            boxes[idx, 3] = max(0.0, y1 - y0)
         else:
             ys, xs = np.where(resized_mask > 0)
             if xs.size and ys.size:
@@ -932,6 +978,7 @@ def _run_one_frame(
     session: Sam3VideoSession,
     replay_frame: ReplayFrame,
     scale: object,
+    offset: object,
     *,
     snapshot_result: bool = True,
 ) -> "TRex.Result":
@@ -998,7 +1045,7 @@ def _run_one_frame(
     masks_np, conf_np, cls_np = _postprocess_video_output(session, output, image)
     keep_indices = None
     if prompt_state.points is not None and prompt_state.points.size:
-        keep_indices = _select_masks_matching_points(masks_np, scale, prompt_state.points)
+        keep_indices = _select_masks_matching_points(masks_np, image.shape[:2], prompt_state.points)
         if keep_indices.size == 0:
             session.last_processed_frame = frame_index
             result = _empty_result(frame_index)
@@ -1010,6 +1057,7 @@ def _run_one_frame(
     result = _build_result(
         frame_index=frame_index,
         scale=scale,
+        offset=offset,
         image_shape=image.shape[:2],
         masks_np=masks_np,
         conf_np=conf_np,
@@ -1025,6 +1073,7 @@ def _replay_to_frame(
     session: Sam3VideoSession,
     target_frame_index: int,
     scale: object,
+    offset: object,
     incoming_frames: Mapping[int, ReplayFrame],
 ) -> "TRex.Result":
     """Restore predictor state from a checkpoint and replay forward to `target_frame_index`."""
@@ -1081,6 +1130,7 @@ def _replay_to_frame(
             session,
             replay_frame,
             scale if frame_index == target_frame_index else SimpleNamespace(x=1.0, y=1.0),
+            offset if frame_index == target_frame_index else SimpleNamespace(x=0.0, y=0.0),
         )
     return result
 
@@ -1089,6 +1139,7 @@ def _fallback_to_current_frame(
     session: Sam3VideoSession,
     target_frame_index: int,
     scale: object,
+    offset: object,
     incoming_frames: Mapping[int, ReplayFrame],
 ) -> "TRex.Result":
     """Process the requested frame directly when replay cannot be completed."""
@@ -1113,6 +1164,7 @@ def _fallback_to_current_frame(
         session,
         ReplayFrame(target_frame_index, replay_frame.image, prompt_state),
         scale,
+        offset,
     )
 
 
@@ -1135,7 +1187,7 @@ def create_session(request: Mapping[str, object]) -> CreateSessionResponse:
         "task": "segment",
         "mode": "predict",
         "model": str(weights_path),
-        "imgsz": int(request.get("imgsz", 640)),
+        "imgsz": request.get("imgsz", 640),
         "conf": float(request.get("conf", 0.25)),
         "half": bool(request.get("half", True)),
         "device": device,
@@ -1271,11 +1323,12 @@ def predict_frame(input: object) -> list["TRex.Result"]:
     base = input.base()
     images = list(base.images())
     orig_ids = list(base.orig_id())
+    offsets = list(base.offsets())
     scales = list(base.scales())
     prompts_per_image = list(input.prompts_per_image()) if hasattr(input, "prompts_per_image") else []
 
-    if len(images) != len(orig_ids) or len(images) != len(scales):
-        raise ValueError("SAM3 predict_frame received mismatched images/orig_id/scales lengths.")
+    if len(images) != len(orig_ids) or len(images) != len(scales) or len(images) != len(offsets):
+        raise ValueError("SAM3 predict_frame received mismatched images/orig_id/scales/offsets lengths.")
     if prompts_per_image and len(prompts_per_image) != len(images):
         raise ValueError("SAM3 predict_frame received prompts_per_image with a different length than images().")
 
@@ -1283,7 +1336,7 @@ def predict_frame(input: object) -> list["TRex.Result"]:
         prompts_per_image = [[] for _ in images]
 
     results: list["TRex.Result"] = []
-    for frame_index, image, scale, prompt_list in zip(orig_ids, images, scales, prompts_per_image):
+    for frame_index, image, scale, offset, prompt_list in zip(orig_ids, images, scales, offsets, prompts_per_image):
         idx = int(frame_index)
         normalized_image = _normalize_frame(image)
         prompt_state = _collect_prompt_state(cast(Sequence[object], prompt_list))
@@ -1291,6 +1344,7 @@ def predict_frame(input: object) -> list["TRex.Result"]:
             session,
             ReplayFrame(idx, normalized_image, prompt_state),
             scale,
+            offset,
             snapshot_result=False,
         )
         results.append(result)
@@ -1307,44 +1361,45 @@ def predict(input: object) -> list["TRex.Result"]:
     base = input.base()
     images = list(base.images())
     orig_ids = list(base.orig_id())
+    offsets = list(base.offsets())
     scales = list(base.scales())
     prompts_per_image = list(input.prompts_per_image()) if hasattr(input, "prompts_per_image") else []
 
-    if len(images) != len(orig_ids) or len(images) != len(scales):
-        raise ValueError("SAM3 predict received mismatched images/orig_id/scales lengths.")
+    if len(images) != len(orig_ids) or len(images) != len(scales) or len(images) != len(offsets):
+        raise ValueError("SAM3 predict received mismatched images/orig_id/scales/offsets lengths.")
     if prompts_per_image and len(prompts_per_image) != len(images):
         raise ValueError("SAM3 predict received prompts_per_image with a different length than images().")
 
     if not prompts_per_image:
         prompts_per_image = [[] for _ in images]
 
-    prepared_inputs: list[tuple[int, npt.NDArray[np.uint8], object, PromptState]] = []
+    prepared_inputs: list[tuple[int, npt.NDArray[np.uint8], object, object, PromptState]] = []
     incoming_frames: dict[int, ReplayFrame] = {}
-    for frame_index, image, scale, prompt_list in zip(orig_ids, images, scales, prompts_per_image):
+    for frame_index, image, scale, offset, prompt_list in zip(orig_ids, images, scales, offsets, prompts_per_image):
         idx = int(frame_index)
         normalized_image = _normalize_frame(image)
         prompt_state = _collect_prompt_state(cast(Sequence[object], prompt_list))
-        prepared_inputs.append((idx, normalized_image, scale, prompt_state))
+        prepared_inputs.append((idx, normalized_image, scale, offset, prompt_state))
         replay_frame = ReplayFrame(idx, normalized_image, prompt_state)
         incoming_frames[idx] = replay_frame
         session.store_frame(idx, normalized_image, prompt_state)
 
     results: list["TRex.Result"] = []
-    for idx, normalized_image, scale, prompt_state in prepared_inputs:
+    for idx, normalized_image, scale, offset, prompt_state in prepared_inputs:
         if session.last_processed_frame is None:
             session.reset_runtime(idx)
-            result = _run_one_frame(session, incoming_frames[idx], scale)
+            result = _run_one_frame(session, incoming_frames[idx], scale, offset)
         elif idx == session.last_processed_frame + 1:
-            result = _run_one_frame(session, incoming_frames[idx], scale)
+            result = _run_one_frame(session, incoming_frames[idx], scale, offset)
         else:
             try:
                 _restore_log(
                     f"out-of-order request frame={idx} last_processed={session.last_processed_frame}"
                 )
-                result = _replay_to_frame(session, idx, scale, incoming_frames)
+                result = _replay_to_frame(session, idx, scale, offset, incoming_frames)
             except RuntimeError as exc:
                 _restore_log(f"restore failed frame={idx}: {exc}")
-                result = _fallback_to_current_frame(session, idx, scale, incoming_frames)
+                result = _fallback_to_current_frame(session, idx, scale, offset, incoming_frames)
 
         results.append(result)
 

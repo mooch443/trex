@@ -17,6 +17,7 @@
 #include <file/DataLocation.h>
 #include <pv.h>
 #include <core/TileBuffers.h>
+#include <processing/ResizeImage.h>
 
 struct DetectionMeta {
     pv::bid bdx;
@@ -47,6 +48,12 @@ struct glz::meta<DetectionMeta> {
         "h", &DetectionMeta::h
     );
 };
+
+namespace {
+
+static thread_local useMat_t sam3_letterboxed_input_buffer;
+
+} // namespace
 
 namespace cmn::gui {
 
@@ -279,7 +286,6 @@ void LiveSegmentation::activate() {
             throw U_EXCEPTION("SAM3 backend is unavailable.");
         }
     });
-    static const Size2 tile_size(640,640);
     _sam3_session = std::make_unique<track::Sam3InteractiveSession>(
         track::make_python_sam3_interactive_backend());
     
@@ -295,7 +301,6 @@ void LiveSegmentation::activate() {
             const auto length = _video->length();
             frame.image = Image::Make(_video->size().height, _video->size().width, 4);
             bool disable_waiting = false;
-            useMat_t buffer;
             std::optional<std::tuple<Frame_t, uint64_t, std::future<track::Sam3ProcessedFrame>>> result;
             
             /// retrieving the ensure_backend / init procedure
@@ -366,11 +371,22 @@ void LiveSegmentation::activate() {
                         
                         _video->frame(index, *frame.image);
                         frame.index = index;
-                        frame.image->get().copyTo(buffer);
                         frame.image->set_index(index.valid() ? index.get() : -1);
-                        cv::resize(buffer, buffer, tile_size);
-                        
-                        TileImage tiled(buffer, Image::Make(*frame.image), tile_size, frame.image->dimensions());
+                        const auto detect_resolution = READ_SETTING(detect_resolution, track::detect::DetectResolution);
+                        const Size2 tile_size(detect_resolution.width, detect_resolution.height);
+                        const auto geometry = resize_image_into(
+                            frame.image->get(),
+                            tile_size,
+                            sam3_letterboxed_input_buffer,
+                            ImageResizeMode::letterbox);
+
+                        TileImage tiled(
+                            sam3_letterboxed_input_buffer,
+                            Image::Make(*frame.image),
+                            tile_size,
+                            frame.image->dimensions());
+                        tiled._offsets = {geometry.offset};
+                        tiled.source_size = geometry.content_size;
                         tiled.callback = [](){
                             Print("Fun is done!");
                         };

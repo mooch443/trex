@@ -3,6 +3,7 @@
 #include <core/AbstractVideoSource.h>
 #include <core/BaslerVideoSource.h>
 #include <core/TileImage.h>
+#include <processing/ResizeImage.h>
 #include <python/Detection.h>
 #include <core/VideoVideoSource.h>
 #include <core/WebcamVideoSource.h>
@@ -209,30 +210,35 @@ public:
             // could use image here
             const Size2 original_size(current_use->cols, current_use->rows);
             Size2 detector_size = track::detect::get_model_image_size();
-            Size2 new_size(detector_size);
-
             const uint16_t detect_tile_target_width = READ_SETTING(detect_tile_target_width, uint16_t);
             const size_t detect_tile_image = READ_SETTING(detect_tile_image, uchar);
             const float detect_tile_overlap = READ_SETTING(detect_tile_overlap, float);
+            const bool tiling_requested = detect_tile_target_width > 0 || detect_tile_image > 1;
 
             auto [computed_size, computed_detector] = compute_tiling_dimensions(
                 Size2(current_use->cols, current_use->rows),
                 detector_size,
                 detect_tile_target_width,
                 detect_tile_image);
-
-            new_size = computed_size;
             detector_size = computed_detector;
 
-            // could also use image here
-            if (current_use->cols != new_size.width || current_use->rows != new_size.height) {
-                cv::resize(*current_use, _resized_buffer, new_size);
+            TileImage tiled;
+            if(not tiling_requested
+               && (current_use->cols != computed_size.width || current_use->rows != computed_size.height))
+            {
+                const auto geometry = cmn::resize_image_into(
+                    *current_use,
+                    computed_size,
+                    _resized_buffer,
+                    cmn::ImageResizeMode::letterbox);
                 current_use = &_resized_buffer;
+                tiled = TileImage(*current_use, std::move(image.ptr), detector_size, original_size, detect_tile_overlap);
+                tiled._offsets = {geometry.offset};
+                tiled.source_size = geometry.content_size;
+            } else {
+                // In tiled mode, crop tiles directly from the source frame instead of pre-resizing it.
+                tiled = TileImage(*current_use, std::move(image.ptr), detector_size, original_size, detect_tile_overlap);
             }
-
-            // tileimage barely uses the current_use / could probably use image here as well
-            // but have to check - it is a const reference
-            TileImage tiled(*current_use, std::move(image.ptr), detector_size, original_size, detect_tile_overlap);
             tiled.callback = callback;
             _source->move_back(std::move(image.buffer));
             

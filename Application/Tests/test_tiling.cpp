@@ -10,6 +10,8 @@
 #include <python/OverlayedVideo.h>
 #include <python/PythonWrapper.h>
 #include <file/DataLocation.h>
+#include <core/TileBuffers.h>
+#include <processing/ResizeImage.h>
 
 #include <opencv2/core.hpp>
 
@@ -21,6 +23,11 @@ using namespace track;
 
 namespace {
 
+buffers::TileBuffers::Buffers_t& testTileBuffers() {
+    static buffers::TileBuffers::Buffers_t buffers{"TestTileImage"};
+    return buffers;
+}
+
 void resetGlobalSettings() {
     GlobalSettings::write([&](Configuration& config) {
         grab::default_config::get(config);
@@ -31,6 +38,7 @@ void resetGlobalSettings() {
         GlobalSettings::instance(),
         file::DataLocation::instance(),
         Python::get_instance(),
+        &testTileBuffers(),
         [](auto& name, auto& mat) {
             tf::imshow(name, mat);
         },
@@ -159,6 +167,71 @@ TEST(OverlayedVideoTiling, LegacyMultiplierExtendsFrame) {
 
     EXPECT_EQ(tile_size, Size2(640, 640));
     EXPECT_EQ(new_size, Size2(640 * 3, 640 * 3));
+}
+
+TEST(ImageResizeTest, StretchResizesWithoutPadding) {
+    cv::Mat source(4, 8, CV_8UC3, cv::Scalar(3, 4, 5));
+    useMat_t dst;
+
+    const auto geometry = resize_image_into(source, Size2(8, 8), dst, ImageResizeMode::stretch);
+
+    EXPECT_EQ(dst.cols, 8);
+    EXPECT_EQ(dst.rows, 8);
+    EXPECT_EQ(geometry.offset, Vec2(0, 0));
+    EXPECT_FLOAT_EQ(geometry.scale.x, 1.f);
+    EXPECT_FLOAT_EQ(geometry.scale.y, 0.5f);
+    EXPECT_EQ(geometry.content_size, Size2(8, 8));
+    EXPECT_EQ(dst.at<cv::Vec3b>(0, 0), cv::Vec3b(3, 4, 5));
+}
+
+TEST(ImageResizeTest, LetterboxSquareInputKeepsFullExtent) {
+    cv::Mat source(8, 8, CV_8UC3, cv::Scalar(10, 20, 30));
+    useMat_t dst;
+
+    const auto geometry = resize_image_into(source, Size2(8, 8), dst, ImageResizeMode::letterbox);
+
+    EXPECT_EQ(dst.cols, 8);
+    EXPECT_EQ(dst.rows, 8);
+    EXPECT_EQ(geometry.offset, Vec2(0, 0));
+    EXPECT_FLOAT_EQ(geometry.scale.x, 1.f);
+    EXPECT_FLOAT_EQ(geometry.scale.y, 1.f);
+    EXPECT_EQ(geometry.content_size, Size2(8, 8));
+    EXPECT_EQ(dst.at<cv::Vec3b>(0, 0), cv::Vec3b(10, 20, 30));
+}
+
+TEST(ImageResizeTest, LetterboxRectangularInputCentersPaddingAndReportsGeometry) {
+    cv::Mat source(4, 8, CV_8UC3, cv::Scalar(7, 9, 11));
+    useMat_t dst;
+
+    const auto geometry = resize_image_into(source, Size2(8, 8), dst, ImageResizeMode::letterbox);
+
+    EXPECT_EQ(dst.cols, 8);
+    EXPECT_EQ(dst.rows, 8);
+    EXPECT_EQ(geometry.offset, Vec2(0, -2));
+    EXPECT_FLOAT_EQ(geometry.scale.x, 1.f);
+    EXPECT_FLOAT_EQ(geometry.scale.y, 1.f);
+    EXPECT_EQ(geometry.content_size, Size2(8, 4));
+    EXPECT_EQ(dst.at<cv::Vec3b>(0, 0), cv::Vec3b(114, 114, 114));
+    EXPECT_EQ(dst.at<cv::Vec3b>(2, 0), cv::Vec3b(7, 9, 11));
+
+    const Vec2 model_point(3.f, 3.f);
+    const Vec2 original_point(
+        (model_point.x + geometry.offset.x) * geometry.scale.x,
+        (model_point.y + geometry.offset.y) * geometry.scale.y);
+    EXPECT_FLOAT_EQ(original_point.x, 3.f);
+    EXPECT_FLOAT_EQ(original_point.y, 1.f);
+}
+
+TEST(ImageResizeTest, LetterboxReusesDestinationAllocationForMatchingTargetSize) {
+    cv::Mat source(4, 8, CV_8UC3, cv::Scalar(1, 2, 3));
+    useMat_t dst;
+
+    (void)resize_image_into(source, Size2(8, 8), dst, ImageResizeMode::letterbox);
+    const auto* first_data = dst.data;
+
+    (void)resize_image_into(source, Size2(8, 8), dst, ImageResizeMode::letterbox);
+
+    EXPECT_EQ(dst.data, first_data);
 }
 
 TEST(TileImageTest, HandlesIncompleteTilesAndOverlap) {
