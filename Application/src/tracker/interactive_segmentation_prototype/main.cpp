@@ -34,6 +34,7 @@ static void (*windowsEarlyEnvSetup)(void) = []() {
 #include <ui/Scene.h>
 #include <ui/AnnotationScene.h>
 #include <ui/Bowl.h>
+#include <core/TileBuffers.h>
 #include "LiveSegmentation.h"
 #include <core/GPURecognitionTypes.h>
 
@@ -42,6 +43,7 @@ using namespace cmn;
 int main(int argc, char** argv) {
     GlobalSettings::create();
     file::DataLocation::create();
+    buffers::TileBuffers::create();
 #if COMMONS_DISPATCHER_REQUIRE_EXPLICIT_INSTANCE
     static gui::attr::Dispatcher dispatcher;
     gui::SceneManager::install_dispatcher_instance(&dispatcher);
@@ -76,6 +78,7 @@ int main(int argc, char** argv) {
             GlobalSettings::instance(),
             file::DataLocation::instance(),
             Python::get_instance(),
+            &buffers::TileBuffers::get(),
             [](auto& name, auto& mat) {
                 tf::imshow(name, mat);
             },

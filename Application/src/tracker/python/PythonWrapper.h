@@ -89,7 +89,7 @@ struct PythonImplInterface {
     std::string& (*init_error_state)() = nullptr;
     std::string& (*gpu_name_state)() = nullptr;
     void (*convert_exceptions)(std::function<void()>&&) = nullptr;
-    void (*set_settings)(cmn::GlobalSettings*, cmn::file::DataLocation*, void*) = nullptr;
+    void (*set_settings)(cmn::GlobalSettings*, cmn::file::DataLocation*, void*, void*) = nullptr;
     void (*set_display_function)(std::function<void(const std::string&, const cv::Mat&)>&&, std::function<void()>&&) = nullptr;
     bool (*has_loaded_module)(const std::string&) = nullptr;
     bool (*check_module)(const std::string&, std::function<void()>) = nullptr;
@@ -120,6 +120,7 @@ TREX_EXPORT void configure_runtime(
     cmn::GlobalSettings* settings,
     cmn::file::DataLocation* data_location,
     void* instance,
+    void* tile_buffers,
     std::function<void(const std::string&, const cv::Mat&)> show_fn,
     std::function<void()> close_fn
 );

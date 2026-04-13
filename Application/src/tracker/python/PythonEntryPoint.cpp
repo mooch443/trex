@@ -25,8 +25,8 @@ static void dispatch_convert_exceptions(std::function<void()>&& fn) {
     PythonIntegration::convert_python_exceptions(std::move(fn));
 }
 
-static void dispatch_set_settings(cmn::GlobalSettings* settings, cmn::file::DataLocation* dl, void* instance) {
-    PythonIntegration::set_settings(settings, dl, instance);
+static void dispatch_set_settings(cmn::GlobalSettings* settings, cmn::file::DataLocation* dl, void* instance, void* tile_buffers) {
+    PythonIntegration::set_settings(settings, dl, instance, tile_buffers);
 }
 
 static void dispatch_set_display_function(

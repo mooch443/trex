@@ -1,6 +1,7 @@
 #include <python/PythonWrapper.h>
 #include <python/PythonEntryPoint.h>
 #include <core/Network.h>
+#include <core/TileBuffers.h>
 #include <core/default_config.h>
 #include <file/DataLocation.h>
 #include <misc/ThreadManager.h>
@@ -32,6 +33,7 @@ struct StoredRuntimeConfig {
     GlobalSettings*      settings      = nullptr;
     file::DataLocation*  data_location = nullptr;
     void*                instance      = nullptr;
+    void*                tile_buffers  = nullptr;
 };
 
 StoredRuntimeConfig& stored_runtime_config() {
@@ -212,7 +214,7 @@ void load_python_impl_library() {
         auto& cfg = stored_runtime_config();
         auto& impl = python_impl_interface_storage();
         if (cfg.settings && impl.set_settings)
-            impl.set_settings(cfg.settings, cfg.data_location, cfg.instance);
+            impl.set_settings(cfg.settings, cfg.data_location, cfg.instance, cfg.tile_buffers);
         return;
     }
 
@@ -268,7 +270,7 @@ void load_python_impl_library() {
             auto& cfg = stored_runtime_config();
             auto& impl = python_impl_interface_storage();
             if (cfg.settings && impl.set_settings)
-                impl.set_settings(cfg.settings, cfg.data_location, cfg.instance);
+                impl.set_settings(cfg.settings, cfg.data_location, cfg.instance, cfg.tile_buffers);
             return;
         }
 
@@ -342,6 +344,7 @@ void configure_runtime(
     cmn::GlobalSettings* settings,
     cmn::file::DataLocation* data_location,
     void* instance,
+    void* tile_buffers,
     std::function<void(const std::string&, const cv::Mat&)> show_fn,
     std::function<void()> close_fn
 ) {
@@ -349,12 +352,12 @@ void configure_runtime(
     file::DataLocation::set_instance(data_location);
 
     // Persist so lazily-loaded impls receive the same settings (see load_python_impl_library).
-    stored_runtime_config() = {settings, data_location, instance};
+    stored_runtime_config() = {settings, data_location, instance, tile_buffers};
 
     auto& impl = active_python_impl();
     if (!impl.set_settings || !impl.set_display_function)
         throw SoftException("trex_python did not register runtime configuration callbacks.");
-    impl.set_settings(settings, data_location, instance);
+    impl.set_settings(settings, data_location, instance, tile_buffers);
     impl.set_display_function(std::move(show_fn), std::move(close_fn));
 
     Print("Python runtime configured to ", hex(settings), " and ", hex(data_location), ".");
@@ -1214,6 +1217,7 @@ void fix_paths(bool force_init, cmn::source_location loc) {
                     GlobalSettings::instance(),
                     file::DataLocation::instance(),
                     Python::get_instance(),
+                    buffers::TileBuffers::instance_if_set(),
                     [](auto& name, auto& mat) {
                         tf::imshow(name, mat);
                     },

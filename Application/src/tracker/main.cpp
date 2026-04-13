@@ -26,6 +26,7 @@ static void (*windowsEarlyEnvSetup)(void) = []() {
 #include <misc/CommandLine.h>
 #include <file/DataLocation.h>
 #include <core/default_config.h>
+#include <core/TileBuffers.h>
 #include <tracking/Tracker.h>
 #include <tracking/IndividualManager.h>
 #include <processing/PixelTree.h>
@@ -700,6 +701,7 @@ int main(int argc, char**argv) {
 #endif
     file::DataLocation::create();
     GlobalSettings::create();
+    buffers::TileBuffers::create();
     default_config::register_default_locations();
 #if COMMONS_DISPATCHER_REQUIRE_EXPLICIT_INSTANCE
     static gui::attr::Dispatcher dispatcher;
@@ -821,6 +823,7 @@ int main(int argc, char**argv) {
                 GlobalSettings::instance(),
                 file::DataLocation::instance(),
                 Python::get_instance(),
+                &buffers::TileBuffers::get(),
                 [](auto& name, auto& mat) {
                     tf::imshow(name, mat);
                 },

@@ -23,6 +23,7 @@
 
 #include <misc/default_settings.h>
 #include <core/default_config.h>
+#include <core/TileBuffers.h>
 #include <misc/GlobalSettings.h>
 #include <file/DataLocation.h>
 #include <python/PythonWrapper.h>
@@ -841,10 +842,11 @@ std::shared_mutex initialize_mutex;
 std::thread::id _saved_id;
 std::unique_ptr<py::scoped_interpreter> _interpreter;
 
-void PythonIntegration::set_settings(GlobalSettings* obj, file::DataLocation* instance, void *python_wrapper) {
+void PythonIntegration::set_settings(GlobalSettings* obj, file::DataLocation* instance, void *python_wrapper, void* tile_buffers) {
     GlobalSettings::set_instance(obj);
     file::DataLocation::set_instance(instance);
     Python::set_instance(python_wrapper);
+    buffers::TileBuffers::set(static_cast<buffers::TileBuffers::Buffers_t*>(tile_buffers));
     thread_print("setting settings instance to ", hex(obj));
 }
 
