@@ -178,10 +178,13 @@ void SAM3::reinit(track::ModuleProxy& proxy) {
         // SAM3 backbone/rope path is sensitive to image size; keep it on model-native 1024.
         {"imgsz", READ_SETTING(detect_resolution, detect::DetectResolution).width},
         {"conf", static_cast<float>(READ_SETTING(detect_conf_threshold, Float2_t))},
-        {"detect_iou_threshold", static_cast<float>(READ_SETTING(detect_iou_threshold, Float2_t))},
         {"half", true},
         {"verbose", true}
     };
+
+    if(auto detect_iou_threshold = READ_SETTING(detect_iou_threshold, std::optional<Float2_t>); detect_iou_threshold.has_value()) {
+        create_req["detect_iou_threshold"] = static_cast<float>(*detect_iou_threshold);
+    }
 
     proxy.run("create_session", create_req);
 }

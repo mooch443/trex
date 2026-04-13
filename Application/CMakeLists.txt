@@ -61,6 +61,7 @@ function(trex_log_selected_options)
         TREX_ENABLE_MODULES
         WITH_GITSHA1
         BUILD_LEGACY_TREX
+        TREX_ENABLE_PROTOTYPES
     )
         trex_log_option(${option_name})
     endforeach()
@@ -84,6 +85,7 @@ option(TREX_ENABLE_SHARED_INTERNAL_LIBS "Build TRex internal libraries as shared
 option(TREX_ENABLE_MODULES "Build TRex semantic libraries with C++ named module interfaces." OFF)
 option(WITH_GITSHA1 "include git hash" ON)
 option(BUILD_LEGACY_TREX "Build the TRex (legacy) target" OFF)
+option(TREX_ENABLE_PROTOTYPES "Enable prototype features that are not yet fully tested or may be subject to change." OFF)
 
 if(TREX_ENABLE_SHARED_INTERNAL_LIBS AND NOT APPLE)
     message(FATAL_ERROR

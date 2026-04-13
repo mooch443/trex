@@ -105,6 +105,38 @@ TRex.log("*** patched functions ***")
 ##############
 
 
+RUNTIME_PROFILE_LEGACY = "legacy_head"
+RUNTIME_PROFILE_MODERN_END2END = "modern_end2end"
+RUNTIME_PROFILE_MODERN_END2END_FORCED_NMS = "modern_end2end_forced_nms"
+
+
+def _parse_optional_float_setting(name: str) -> Optional[float]:
+    """
+    Parse a TRex setting that may be unset.
+
+    TRex.setting() returns strings via the pybind bridge, so optional values may surface
+    as textual sentinels such as '', 'null', or 'None'.
+    """
+    try:
+        raw = TRex.setting(name)
+    except Exception:
+        return None
+
+    if raw is None:
+        return None
+
+    if isinstance(raw, str):
+        text = raw.strip()
+        if text.lower() in {"", "none", "null", "nullopt"}:
+            return None
+        raw = text
+
+    try:
+        return float(raw)
+    except Exception:
+        return None
+
+
 def unscale_coords(img1_shape, coords, img0_shape, ratio_pad=None):
     """
     Rescale segment coordinates (xyxy) from normalized to original image scale
@@ -365,9 +397,59 @@ class YOLOModel(DetectionModel):
         """
         assert isinstance(config, TRex.ModelConfig)
         super().__init__(config)
+        self.runtime_profile = RUNTIME_PROFILE_LEGACY
+        self.explicit_iou_override: Optional[float] = None
+        self.detect_head = None
 
     def __str__(self) -> str:
         return f"YOLOModel<{str(self.config)}>"
+
+    def _iter_detect_heads(self):
+        if not hasattr(self.ptr, "model") or self.ptr.model is None:
+            return []
+        return [module for module in self.ptr.model.modules() if hasattr(module, "end2end")]
+
+    def _head_has_one2one_branch(self, head: Any) -> bool:
+        try:
+            one2one = getattr(head, "one2one", None)
+            if not isinstance(one2one, dict):
+                return False
+            return one2one.get("box_head") is not None and one2one.get("cls_head") is not None
+        except Exception:
+            return False
+
+    def _resolve_runtime_profile(self) -> str:
+        self.explicit_iou_override = _parse_optional_float_setting("detect_iou_threshold")
+        self.detect_head = None
+
+        for head in self._iter_detect_heads():
+            if getattr(head, "end2end", False) and self._head_has_one2one_branch(head):
+                self.detect_head = head
+                if self.explicit_iou_override is not None:
+                    return RUNTIME_PROFILE_MODERN_END2END_FORCED_NMS
+                return RUNTIME_PROFILE_MODERN_END2END
+
+        return RUNTIME_PROFILE_LEGACY
+
+    def _set_detect_head_end2end(self, enabled: bool) -> None:
+        for head in self._iter_detect_heads():
+            try:
+                head.end2end = enabled
+            except Exception as exc:
+                TRex.warn(f"Could not set end2end={enabled} for {type(head)}: {exc}")
+
+    def _prediction_kwargs(self, kwargs: dict[str, Any]) -> dict[str, Any]:
+        sanitized = dict(kwargs)
+
+        if self.runtime_profile == RUNTIME_PROFILE_MODERN_END2END:
+            # Respect upstream NMS-free end2end inference even if callers still pass legacy knobs.
+            sanitized.pop("iou", None)
+            sanitized.pop("agnostic_nms", None)
+        elif sanitized.get("iou", None) is None:
+            sanitized.pop("iou", None)
+            sanitized.pop("agnostic_nms", None)
+
+        return sanitized
 
     def load(self):
         """
@@ -428,23 +510,22 @@ class YOLOModel(DetectionModel):
             TRex.warn("Could not determine trained resolution from model, using " + str(self.config.trained_resolution)+ " ("+ str(e) + ")")
             pass
 
-        # --- Ensure end2end mode is decided BEFORE fusing ---
-        # Ultralytics end2end Detect.fuse() prunes the one2many head (cv2/cv3=None).
-        # If we later run with end2end=False, the forward path expects cv2/cv3 and will crash.
-        # So: force Detect.end2end=False before calling fuse(), then fuse conv/bn as usual.
-        try:
-            if hasattr(self.ptr, "model") and self.ptr.model is not None:
-                for m in self.ptr.model.modules():
-                    if hasattr(m, "end2end"):
-                        if m.end2end:
-                            TRex.log(f"Setting end2end=False for model {self.config.model_path} module {type(m)} to ensure compatibility with fused inference.")
-                        else:
-                            TRex.log(f"Model {self.config.model_path} for module {type(m)} already has end2end=False.")
-                        m.end2end = False
-        except Exception as e:
-            TRex.warn(f"Could not force end2end=False before fuse: {e}")
+        self.runtime_profile = self._resolve_runtime_profile()
+        TRex.log(
+            f"Resolved runtime profile {self.runtime_profile} for model {self.config.model_path} "
+            f"(detect_iou_threshold={self.explicit_iou_override})."
+        )
 
-        # Fuse (safe now that end2end pruning is disabled).
+        if self.runtime_profile == RUNTIME_PROFILE_MODERN_END2END_FORCED_NMS:
+            try:
+                self._set_detect_head_end2end(False)
+                TRex.log(
+                    f"Disabled end2end before fuse() for model {self.config.model_path} because "
+                    "detect_iou_threshold is explicitly set."
+                )
+            except Exception as e:
+                TRex.warn(f"Could not disable end2end before fuse: {e}")
+
         try:
             self.ptr.fuse()
         except Exception as e:
@@ -465,6 +546,8 @@ class YOLOModel(DetectionModel):
     def predict_boxes(self, images : List[np.ndarray], **kwargs) -> List[np.ndarray]:
         if len(images) == 0:
             return []
+
+        kwargs = self._prediction_kwargs(kwargs)
         
         if self.config.use_tracking:
             results = []
@@ -491,6 +574,7 @@ class YOLOModel(DetectionModel):
             return []
 
         results = []
+        kwargs = self._prediction_kwargs(kwargs)
 
         # If radii is not provided in kwargs and the model has class names, generate default radii
         if self.config.output_format == ObjectDetectionFormat.points:

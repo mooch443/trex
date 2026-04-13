@@ -98,7 +98,7 @@ void Skelett::update() {
     }
     else {
         size_t i = 0;
-        Line::Point_t last { _pose.points.back() };
+        Line::Point_t last { _pose.points.empty() ? Line::Point_t{} : _pose.points.back() };
         for (auto& bone : _pose.points) {
             if (bone.valid()) {
                 add<Circle>(Loc{ bone }, LineClr{ _color }, Radius{ 3 }, FillClr{ _color.alpha(75) }, Scale{ coord.bowl_scale().reciprocal() });
