@@ -1518,24 +1518,6 @@ std::vector<track::detect::Result> PythonIntegration::predict(track::detect::Yol
     }
 }
 
-std::vector<track::detect::Result> PythonIntegration::predict(track::detect::Sam3Input&& input, const std::string& m) {
-    PythonIntegration::check_correct_thread_id();
-
-    if (m.empty()) {
-        return _main.attr("predict")(std::move(input)).cast<std::vector<track::detect::Result>>();
-    }
-    else {
-        if (_modules.count(m)) {
-            auto& mod = _modules[m];
-            if (!CHECK_NONE(mod)) {
-                return mod.attr("predict")(std::move(input)).cast<std::vector<track::detect::Result>>();
-            }
-        }
-
-        throw SoftException("Cannot call function ", fmt::clr<FormatColor::DARK_CYAN>(m.c_str()), "::", fmt::clr<FormatColor::CYAN>("predict"), " because the module ", fmt::clr<FormatColor::DARK_CYAN>(m.c_str()), " does not exist (you should probably have a look at previous error messages).");
-    }
-}
-
 std::vector<track::detect::Result> PythonIntegration::predict_frame(track::detect::Sam3Input&& input, const std::string& m) {
     PythonIntegration::check_correct_thread_id();
 

@@ -53,6 +53,30 @@ namespace {
 
 static thread_local useMat_t sam3_letterboxed_input_buffer;
 
+/**
+ * Build the single-image SAM3 tile package used by both live processing and
+ * interactive replay.
+ */
+TileImage make_sam3_tiled_frame(Image::Ptr&& frame_image)
+{
+    const auto detect_resolution = READ_SETTING(detect_resolution, track::detect::DetectResolution);
+    const Size2 tile_size(detect_resolution.width, detect_resolution.height);
+    const auto geometry = resize_image_into(
+        frame_image->get(),
+        tile_size,
+        sam3_letterboxed_input_buffer,
+        ImageResizeMode::letterbox);
+
+    TileImage tiled(
+        sam3_letterboxed_input_buffer,
+        Image::Make(*frame_image),
+        tile_size,
+        frame_image->dimensions());
+    tiled._offsets = {geometry.offset};
+    tiled.source_size = geometry.content_size;
+    return tiled;
+}
+
 } // namespace
 
 namespace cmn::gui {
@@ -287,7 +311,13 @@ void LiveSegmentation::activate() {
         }
     });
     _sam3_session = std::make_unique<track::Sam3InteractiveSession>(
-        track::make_python_sam3_interactive_backend());
+        track::make_python_sam3_interactive_backend(),
+        [this](Frame_t replay_frame) {
+            auto image = Image::Make(_video->size().height, _video->size().width, 4);
+            _video->frame(replay_frame, *image);
+            image->set_index(replay_frame.valid() ? replay_frame.get() : -1);
+            return make_sam3_tiled_frame(std::move(image));
+        });
     
     assert(not _fetch_thread);
     _fetch_thread = std::make_unique<std::thread>(
@@ -372,21 +402,7 @@ void LiveSegmentation::activate() {
                         _video->frame(index, *frame.image);
                         frame.index = index;
                         frame.image->set_index(index.valid() ? index.get() : -1);
-                        const auto detect_resolution = READ_SETTING(detect_resolution, track::detect::DetectResolution);
-                        const Size2 tile_size(detect_resolution.width, detect_resolution.height);
-                        const auto geometry = resize_image_into(
-                            frame.image->get(),
-                            tile_size,
-                            sam3_letterboxed_input_buffer,
-                            ImageResizeMode::letterbox);
-
-                        TileImage tiled(
-                            sam3_letterboxed_input_buffer,
-                            Image::Make(*frame.image),
-                            tile_size,
-                            frame.image->dimensions());
-                        tiled._offsets = {geometry.offset};
-                        tiled.source_size = geometry.content_size;
+                        TileImage tiled = make_sam3_tiled_frame(Image::Make(*frame.image));
                         tiled.callback = [](){
                             Print("Fun is done!");
                         };

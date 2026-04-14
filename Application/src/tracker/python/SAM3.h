@@ -62,5 +62,9 @@ detect::Sam3PromptsPerImage resolve_prompts_for_input(
   const detect::YoloInput& input,
   const std::optional<detect::Sam3Prompts>& prompts_by_frame);
 
+detect::Sam3PromptsPerImage resolve_prompts_for_tile(
+  const TileImage& tile,
+  const std::optional<detect::Sam3Prompts>& prompts_by_frame);
+
 
 }

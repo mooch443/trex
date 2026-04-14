@@ -38,30 +38,41 @@ TileImage make_tile(Frame_t frame_index) {
 class FakeBackend final : public ISam3InteractiveBackend {
 public:
     std::vector<std::string> calls;
-    std::string current_runtime;
+    Frame_t current_runtime = {};
 
     void reset_runtime(Frame_t max_frame_index) override {
-        current_runtime = "reset:" + max_frame_index.toStr();
-        calls.push_back(current_runtime);
+        current_runtime = max_frame_index;
+        calls.push_back("reset:" + max_frame_index.toStr());
     }
 
-    void restore_runtime(const Sam3RuntimeBlob& runtime) override {
-        current_runtime = runtime.handle;
-        calls.push_back("restore:" + runtime.handle);
-    }
-
-    Sam3RuntimeBlob snapshot_runtime() override {
-        calls.push_back("snapshot:" + current_runtime);
-        return Sam3RuntimeBlob{current_runtime};
-    }
-
-    SegmentationData predict_frame(TileImage&& tiled) override {
+    SegmentationData predict_frame(TileImage&& tiled, detect::Sam3PromptsPerImage prompts_per_image = {}) override {
         const auto frame_index = tiled.data.original_index();
-        current_runtime = "after:" + frame_index.toStr();
-        calls.push_back("predict:" + frame_index.toStr());
+        current_runtime = frame_index;
+        const auto prompt_count = prompts_per_image.empty() ? size_t(0) : prompts_per_image.front().size();
+        calls.push_back("predict:" + frame_index.toStr() + ":" + Meta::toStr(prompt_count));
         return std::move(tiled.data);
     }
 };
+
+detect::Sam3PromptPayload make_box_prompt(float x, float y, float w, float h)
+{
+    detect::Sam3PromptPayload payload;
+    payload.value = std::vector<Bounds>{Bounds(x, y, w, h)};
+    return payload;
+}
+
+std::unique_ptr<Sam3InteractiveSession> make_session(FakeBackend*& backend_ptr,
+                                                     std::vector<Frame_t>& loaded_frames)
+{
+    auto backend = std::make_unique<FakeBackend>();
+    backend_ptr = backend.get();
+    return std::make_unique<Sam3InteractiveSession>(
+        std::move(backend),
+        [&loaded_frames](Frame_t frame_index) {
+            loaded_frames.push_back(frame_index);
+            return make_tile(frame_index);
+        });
+}
 
 } // namespace
 
@@ -190,131 +201,154 @@ TEST(PVTest, DoItInOne) {
     }
 }
 
-TEST(Sam3InteractiveSessionTest, SameFrameRerunRestoresStoredBeforeRuntime) {
-    auto backend = std::make_unique<FakeBackend>();
-    auto* backend_ptr = backend.get();
-    Sam3InteractiveSession session(std::move(backend));
+TEST(Sam3InteractiveSessionTest, SameFrameRerunUsesStoredPromptSnapshotAnchor) {
+    SETTING(detect_sam3_prompt) = std::optional<detect::Sam3Prompts>{};
 
-    auto first = session.process_frame(make_tile(0_f), 0);
-    session.commit_frame(Sam3ProcessedFrame{
-        .frame_index = first.frame_index,
-        .prompt_revision = first.prompt_revision,
-        .session_generation = first.session_generation,
-        .before_runtime = first.before_runtime,
-        .after_runtime = first.after_runtime
-    });
+    FakeBackend* backend_ptr = nullptr;
+    std::vector<Frame_t> loaded_frames;
+    auto session = make_session(backend_ptr, loaded_frames);
 
-    auto rerun = session.process_frame(make_tile(0_f), 1);
+    auto first = session->process_frame(make_tile(0_f), 0);
+    ASSERT_TRUE(session->commit_frame(std::move(first)));
+
+    backend_ptr->calls.clear();
+    loaded_frames.clear();
+
+    auto rerun = session->process_frame(make_tile(0_f), 1);
 
     ASSERT_EQ(rerun.frame_index, 0_f);
-    EXPECT_EQ(rerun.before_runtime.handle, "reset:0");
-    EXPECT_THAT(
-        backend_ptr->calls,
-        ::testing::ElementsAre(
-            "reset:0",
-            "snapshot:reset:0",
-            "predict:0",
-            "snapshot:after:0",
-            "restore:reset:0",
-            "predict:0",
-            "snapshot:after:0"));
+    EXPECT_THAT(backend_ptr->calls, ::testing::ElementsAre("reset:0", "predict:0:0"));
+    EXPECT_TRUE(loaded_frames.empty());
 }
 
-TEST(Sam3InteractiveSessionTest, NextFrameRestoresPreviousAfterRuntime) {
-    auto backend = std::make_unique<FakeBackend>();
-    auto* backend_ptr = backend.get();
-    Sam3InteractiveSession session(std::move(backend));
+TEST(Sam3InteractiveSessionTest, NextFrameContinuesFromLiveRuntimeWithoutReset) {
+    SETTING(detect_sam3_prompt) = std::optional<detect::Sam3Prompts>{};
 
-    auto first = session.process_frame(make_tile(0_f), 0);
-    session.commit_frame(Sam3ProcessedFrame{
-        .frame_index = first.frame_index,
-        .prompt_revision = first.prompt_revision,
-        .session_generation = first.session_generation,
-        .before_runtime = first.before_runtime,
-        .after_runtime = first.after_runtime
-    });
+    FakeBackend* backend_ptr = nullptr;
+    std::vector<Frame_t> loaded_frames;
+    auto session = make_session(backend_ptr, loaded_frames);
 
-    auto second = session.process_frame(make_tile(1_f), 0);
+    auto first = session->process_frame(make_tile(0_f), 0);
+    ASSERT_TRUE(session->commit_frame(std::move(first)));
+
+    backend_ptr->calls.clear();
+    loaded_frames.clear();
+
+    auto second = session->process_frame(make_tile(1_f), 0);
 
     ASSERT_EQ(second.frame_index, 1_f);
-    EXPECT_EQ(second.before_runtime.handle, "after:0");
-    EXPECT_THAT(
-        backend_ptr->calls,
-        ::testing::Contains("restore:after:0"));
+    EXPECT_THAT(backend_ptr->calls, ::testing::ElementsAre("predict:1:0"));
+    EXPECT_TRUE(loaded_frames.empty());
 }
 
-TEST(Sam3InteractiveSessionTest, InvalidatingFromFrameDropsLaterPreparedStates) {
-    auto backend = std::make_unique<FakeBackend>();
-    auto* backend_ptr = backend.get();
-    Sam3InteractiveSession session(std::move(backend));
+TEST(Sam3InteractiveSessionTest, PromptFrameBecomesReplayAnchor) {
+    SETTING(detect_sam3_prompt) = std::optional<detect::Sam3Prompts>{
+        detect::Sam3Prompts{{
+            {3_f, detect::Sam3PromptList{make_box_prompt(0.1f, 0.1f, 0.3f, 0.3f)}}
+        }}
+    };
 
-    auto first = session.process_frame(make_tile(0_f), 0);
-    session.commit_frame(Sam3ProcessedFrame{
-        .frame_index = first.frame_index,
-        .prompt_revision = first.prompt_revision,
-        .session_generation = first.session_generation,
-        .before_runtime = first.before_runtime,
-        .after_runtime = first.after_runtime
-    });
+    FakeBackend* backend_ptr = nullptr;
+    std::vector<Frame_t> loaded_frames;
+    auto session = make_session(backend_ptr, loaded_frames);
 
-    auto second = session.process_frame(make_tile(1_f), 0);
-    session.commit_frame(Sam3ProcessedFrame{
-        .frame_index = second.frame_index,
-        .prompt_revision = second.prompt_revision,
-        .session_generation = second.session_generation,
-        .before_runtime = second.before_runtime,
-        .after_runtime = second.after_runtime
-    });
+    for(auto frame = 0_f; frame <= 3_f; ++frame) {
+        auto processed = session->process_frame(make_tile(frame), 0);
+        ASSERT_TRUE(session->commit_frame(std::move(processed)));
+    }
 
-    session.invalidate_from(1_f);
     backend_ptr->calls.clear();
+    loaded_frames.clear();
 
-    auto third = session.process_frame(make_tile(2_f), 0);
+    auto replayed = session->process_frame(make_tile(5_f), 0);
 
-    ASSERT_EQ(third.frame_index, 2_f);
-    EXPECT_EQ(third.before_runtime.handle, "reset:2");
+    ASSERT_EQ(replayed.frame_index, 5_f);
     EXPECT_THAT(backend_ptr->calls, ::testing::ElementsAre(
-        "reset:2",
-        "snapshot:reset:2",
-        "predict:2",
-        "snapshot:after:2"));
+        "reset:3",
+        "predict:3:1",
+        "predict:4:0",
+        "predict:5:0"));
+    EXPECT_THAT(loaded_frames, ::testing::ElementsAre(3_f, 4_f));
+}
+
+TEST(Sam3InteractiveSessionTest, PeriodicKeyframesBoundReplayDistance) {
+    SETTING(detect_sam3_prompt) = std::optional<detect::Sam3Prompts>{};
+
+    FakeBackend* backend_ptr = nullptr;
+    std::vector<Frame_t> loaded_frames;
+    auto session = make_session(backend_ptr, loaded_frames);
+
+    for(auto frame = 0_f; frame <= 10_f; ++frame) {
+        auto processed = session->process_frame(make_tile(frame), 0);
+        ASSERT_TRUE(session->commit_frame(std::move(processed)));
+    }
+
+    backend_ptr->calls.clear();
+    loaded_frames.clear();
+
+    auto replayed = session->process_frame(make_tile(12_f), 0);
+
+    ASSERT_EQ(replayed.frame_index, 12_f);
+    EXPECT_THAT(backend_ptr->calls, ::testing::ElementsAre(
+        "reset:10",
+        "predict:10:0",
+        "predict:11:0",
+        "predict:12:0"));
+    EXPECT_THAT(loaded_frames, ::testing::ElementsAre(10_f, 11_f));
+}
+
+TEST(Sam3InteractiveSessionTest, InvalidatingFromFrameDropsLaterAnchorsAndForcesReplay) {
+    SETTING(detect_sam3_prompt) = std::optional<detect::Sam3Prompts>{};
+
+    FakeBackend* backend_ptr = nullptr;
+    std::vector<Frame_t> loaded_frames;
+    auto session = make_session(backend_ptr, loaded_frames);
+
+    for(auto frame = 0_f; frame <= 2_f; ++frame) {
+        auto processed = session->process_frame(make_tile(frame), 0);
+        ASSERT_TRUE(session->commit_frame(std::move(processed)));
+    }
+
+    session->invalidate_from(1_f);
+    backend_ptr->calls.clear();
+    loaded_frames.clear();
+
+    auto replayed = session->process_frame(make_tile(2_f), 0);
+
+    ASSERT_EQ(replayed.frame_index, 2_f);
+    EXPECT_THAT(backend_ptr->calls, ::testing::ElementsAre(
+        "reset:0",
+        "predict:0:0",
+        "predict:1:0",
+        "predict:2:0"));
+    EXPECT_THAT(loaded_frames, ::testing::ElementsAre(0_f, 1_f));
 }
 
 TEST(Sam3InteractiveSessionTest, InvalidatedInFlightFrameCannotRecommitStaleState) {
-    auto backend = std::make_unique<FakeBackend>();
-    auto* backend_ptr = backend.get();
-    Sam3InteractiveSession session(std::move(backend));
+    SETTING(detect_sam3_prompt) = std::optional<detect::Sam3Prompts>{};
 
-    auto first = session.process_frame(make_tile(0_f), 0);
-    ASSERT_TRUE(session.commit_frame(Sam3ProcessedFrame{
-        .frame_index = first.frame_index,
-        .prompt_revision = first.prompt_revision,
-        .session_generation = first.session_generation,
-        .before_runtime = first.before_runtime,
-        .after_runtime = first.after_runtime
-    }));
+    FakeBackend* backend_ptr = nullptr;
+    std::vector<Frame_t> loaded_frames;
+    auto session = make_session(backend_ptr, loaded_frames);
 
-    auto second = session.process_frame(make_tile(1_f), 0);
+    auto first = session->process_frame(make_tile(0_f), 0);
+    ASSERT_TRUE(session->commit_frame(std::move(first)));
 
-    session.invalidate_from(1_f);
+    auto second = session->process_frame(make_tile(1_f), 0);
+    session->invalidate_from(1_f);
 
-    EXPECT_FALSE(session.commit_frame(Sam3ProcessedFrame{
-        .frame_index = second.frame_index,
-        .prompt_revision = second.prompt_revision,
-        .session_generation = second.session_generation,
-        .before_runtime = second.before_runtime,
-        .after_runtime = second.after_runtime
-    }));
+    EXPECT_FALSE(session->commit_frame(std::move(second)));
 
     backend_ptr->calls.clear();
+    loaded_frames.clear();
 
-    auto third = session.process_frame(make_tile(2_f), 0);
+    auto third = session->process_frame(make_tile(2_f), 0);
 
     ASSERT_EQ(third.frame_index, 2_f);
-    EXPECT_EQ(third.before_runtime.handle, "reset:2");
     EXPECT_THAT(backend_ptr->calls, ::testing::ElementsAre(
-        "reset:2",
-        "snapshot:reset:2",
-        "predict:2",
-        "snapshot:after:2"));
+        "reset:0",
+        "predict:0:0",
+        "predict:1:0",
+        "predict:2:0"));
+    EXPECT_THAT(loaded_frames, ::testing::ElementsAre(0_f, 1_f));
 }

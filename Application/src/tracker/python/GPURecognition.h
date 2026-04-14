@@ -78,7 +78,6 @@ public:
     static std::optional<std::string> variable_to_string(const std::string &name, const std::string &mod);
 
     static std::vector<track::detect::Result> predict(track::detect::YoloInput&&, const std::string &m = "");
-    static std::vector<track::detect::Result> predict(track::detect::Sam3Input&&, const std::string &m = "");
     static std::vector<track::detect::Result> predict_frame(track::detect::Sam3Input&&, const std::string &m = "");
     static std::vector<track::detect::ModelConfig> set_models(const std::vector<track::detect::ModelConfig>&, const std::string& m = "");
 

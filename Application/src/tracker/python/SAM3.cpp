@@ -183,6 +183,75 @@ detect::Sam3PromptsPerImage resolve_prompts_for_input(
     return resolved;
 }
 
+/**
+ * Resolve frame-indexed prompts directly against a `TileImage` package without
+ * copying ownership of the tile image buffers.
+ */
+detect::Sam3PromptsPerImage resolve_prompts_for_tile(
+  const TileImage& tile,
+  const std::optional<detect::Sam3Prompts>& prompts_by_frame)
+{
+    detect::Sam3PromptsPerImage resolved;
+    const auto image_count = tile.images.size();
+    resolved.resize(image_count);
+
+    if(not prompts_by_frame) {
+        return resolved;
+    }
+
+    const auto raw_frame_index = tile.data.original_index().valid()
+        ? static_cast<int64_t>(tile.data.original_index().get())
+        : int64_t(0);
+    const Frame_t frame_key(static_cast<uint32_t>(std::max<int64_t>(0, raw_frame_index)));
+    const auto tile_offsets = tile.offsets();
+    const auto null_frame_it = prompts_by_frame->find(Frame_t());
+
+    for(size_t image_idx = 0; image_idx < image_count; ++image_idx) {
+        auto& image_prompts = resolved[image_idx];
+        const auto& image = tile.images.at(image_idx);
+        const auto offset = image_idx < tile_offsets.size() ? tile_offsets[image_idx] : Vec2(0.f, 0.f);
+        const Vec2 scale = tile.original_size.div(tile.source_size);
+        const double model_width = image ? std::max(1.0, double(image->cols)) : 1.0;
+        const double model_height = image ? std::max(1.0, double(image->rows)) : 1.0;
+        const double full_width = image
+            ? estimated_original_extent(model_width, double(scale.x), double(offset.x))
+            : 1.0;
+        const double full_height = image
+            ? estimated_original_extent(model_height, double(scale.y), double(offset.y))
+            : 1.0;
+
+        if(null_frame_it != prompts_by_frame->end()) {
+            append_normalized_prompt_list(
+                image_prompts,
+                null_frame_it->second,
+                full_width,
+                full_height,
+                model_width,
+                model_height,
+                offset,
+                scale);
+        }
+
+        const auto it = prompts_by_frame->find(frame_key);
+        if(it == prompts_by_frame->end()) {
+            continue;
+        }
+
+        image_prompts.reserve(image_prompts.size() + it->second.size());
+        append_normalized_prompt_list(
+            image_prompts,
+            it->second,
+            full_width,
+            full_height,
+            model_width,
+            model_height,
+            offset,
+            scale);
+    }
+
+    return resolved;
+}
+
 
 struct SAM3::Data {
     std::atomic<bool> initialized{false};
@@ -365,10 +434,10 @@ void SAM3::apply(std::vector<TileImage>&& tiled) {
                     };
                     
                     py::convert_python_exceptions([&](){
-                        auto results = py::predict(std::move(in), proxy.m);
+                        auto results = py::predict_frame(std::move(in), proxy.m);
                         if(results.size() != tile_image_count) {
                             throw U_EXCEPTION(
-                                "SAM3 predict returned ", results.size(),
+                                "SAM3 predict_frame returned ", results.size(),
                                 " results for ", tile_image_count,
                                 " images in frame ", frame_index, ".");
                         }
