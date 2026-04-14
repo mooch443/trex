@@ -1,12 +1,28 @@
 {
+    "defaults":{
+        "vars":{
+            "mouse_in_bowl": "{2bowl:{mouse}}"
+        }
+    },
     "objects":[
         {
-            "type":"text",
-            "text":"Hello World! {frame} {2bowl:{mouse}}",
-            "color":[255,255,255]
+            "type":"hlayout",
+            "pad":[5,5,5,5],
+            "children":[
+                {
+                    "type":"stext",
+                    "text":"Hello World! <nr>{frame}</nr>",
+                    "color":[255,255,255]
+                },
+                {
+                    "type":"stext",
+                    "text":"<h5><sym>🖰</sym></h5> <i>{round:{mouse_in_bowl.x}},{round:{mouse_in_bowl.y}}</i>",
+                    "font":{"size":0.5},
+                    "color":"{if:{&&:{>=:{mouse_in_bowl.x}:0}:{<:{mouse_in_bowl.x}:{video_size.w}}:{>=:{mouse_in_bowl.y}:0}:{<:{mouse_in_bowl.y}:{video_size.h}}}:[255,255,255,255]:[200,120,80,100]}"
+                }
+            ]
         },
         
-
         {
             "type":"circle",
             "radius": 10,
@@ -27,27 +43,23 @@
             "children":[
                 {
                     "type":"button",
-                    "action":"set_frame:{global.gui_frame}",
-                    "text":"reset",
+                    "action":"set_frame:{global.gui_frame}", 
+                    "text":"<sym>⮎</sym> go to",
                     "size":[100,30],
+                    "corners": ["left"],
                     "font":{"size":0.6,"align":"center"},
                     "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
-                    "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
-                    "list":{
-                        "line":[220,220,220,200],
-                        "fill":[25,25,25,220],
-                        "size":[700,300],
-                        "font":{"size":0.6}
-                    }
+                    "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}"
                 },
                 {
                     "type":"settings",
                     "var":"gui_frame",
                     "cleartext":"<sym>⮾</sym>",
-                    "size":[100,30],
+                    "size":[50,30],
+                    "corners": ["right"],
                     "desc":"",
                     "font":{"size":0.6,"align":"center"},
-                    "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                    "fill":"{if:{||:{selected}:{hovered}}:[50,50,50,200]:[30,30,30,200]}",
                     "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
                     "list":{
                         "line":[220,220,220,200],
@@ -57,15 +69,25 @@
                     }
                 },
                 {
+                    "type":"rect",
+                    "size":[5,30],
+                    "fill":[0,0,0,0]
+                },
+                {
                     "type":"settings",
                     "var":"detect_sam3_prompt",
                     "cleartext":"<sym>⮾</sym>",
-                    "size":[300,30],
+                    "size":"[{max:100:{-:{window_size.x}:175}},30]",
                     "desc":"",
+                    "corners": ["all"],
+                    "label":{
+                        "corners": ["all"]
+                    },
                     "font":{"size":0.6,"align":"center"},
                     "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
                     "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
                     "list":{
+                        "corners": ["all"],
                         "line":[220,220,220,200],
                         "fill":[25,25,25,220],
                         "size":[700,300],
@@ -104,14 +126,28 @@
             "do": {
                 "type":"each",
                 "var":"{i}",
-                "do":{
-                    "type": "rect",
-                    "text": "annotation {index}: {i} [{i.x},{i.y}] [{i.w},{i.h}]",
-                    "line": [255, 0, 0],
-                    "fill":[255, 0, 0, 25],
-                    "pos":"{2hud:[{i.x},{i.y}]}",
-                    "size":"{size2hud:[{i.w},{i.h}]}"
+                "do": {
+                    "type":"collection",
+                    "children":[
+                        {
+                            "type":"label",
+                            "text":"[{int:{i.x}},{int:{i.y}}] [{int:{i.w}},{int:{i.h}}]",
+                            "length":120,
+                            "color":[255,0,0],
+                            "font":{"size":0.4},
+                            "line":[255,0,0,100],
+                            "center":"{2hud:[{+:{i.x}:{*:0.5:{i.w}}},{+:{i.y}:{*:0.5:{i.h}}}]}"
+                        },
+                        {
+                            "type": "rect",
+                            "line": [255,0,0],
+                            "fill":[255,0,0, 25],
+                            "pos":"{2hud:[{i.x},{i.y}]}",
+                            "size":"{size2hud:[{i.w},{i.h}]}"
+                        }
+                    ]   
                 }
+                
             }
         },
 
@@ -153,12 +189,12 @@
             "type":"settings",
             "var":"",
             "pos":"[10,{-:{window_size.y}:20}]",
-            "size":"[{max:100:{-:{window_size.x}:20}},30]",
+            "size":"[{max:100:{-:{window_size.x}:30}},30]",
             "origin":[0,1],
             "fill":[30,30,30,255],
             "cleartext":"<sym>⮾</sym>",
             "label":{
-                "size":[500,30],
+                "size":[300,30],
                 "line":[200,0,0,255],
                 "color":[255,255,255] 
             },

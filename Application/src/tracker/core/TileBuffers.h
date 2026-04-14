@@ -17,6 +17,7 @@ struct TREX_EXPORT TileBuffers {
     static void set(Buffers_t* ptr);
     static Buffers_t* instance_if_set() noexcept;
     static Buffers_t& get();
+    static void clear();
 };
 
 }

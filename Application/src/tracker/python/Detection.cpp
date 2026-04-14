@@ -8,6 +8,7 @@
 #include <core/AbstractVideoSource.h>
 #include <python/PrecomuptedDetection.h>
 #include <core/TrackingSettings.h>
+#include <core/TileBuffers.h>
 namespace track {
 
 using namespace detect;
@@ -86,6 +87,9 @@ void Detection::deinit() {
 
     // Fallback: type has no deinit hook; clean up its pipeline if registered.
     if(mgr) mgr->clean_up();
+    
+    /// clear out remaining tilebuffer images
+    buffers::TileBuffers::clear();
 }
 
 bool Detection::is_initializing() {

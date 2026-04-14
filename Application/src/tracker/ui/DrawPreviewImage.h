@@ -28,5 +28,11 @@ make_image(pv::BlobWeakPtr blob,
            const track::constraints::FilterCache* filters,
            const track::Background*);
 
+std::optional<Vec2> make_image(pv::BlobWeakPtr blob,
+           const track::Midline* midline,
+           const track::constraints::FilterCache* filters,
+           const track::Background*,
+           Image& output);
+
 }
 }

@@ -27,6 +27,9 @@ AbstractBaseVideoSource::~AbstractBaseVideoSource() {
 void AbstractBaseVideoSource::quit() {
     _source_frame.quit();
     _resize_cvt.quit();
+    
+    mat_buffers.clear();
+    image_buffers.clear();
 }
 void AbstractBaseVideoSource::notify() {
     _source_frame.notify();

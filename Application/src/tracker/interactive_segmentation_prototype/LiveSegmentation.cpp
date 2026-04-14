@@ -603,6 +603,9 @@ void LiveSegmentation::deactivate() {
             hooks->deinit();
         }
     }).get();
+    
+    /// clear out remaining tilebuffer images
+    buffers::TileBuffers::clear();
 }
 
 // Custom drawing implementation
@@ -829,8 +832,10 @@ void LiveSegmentation::_draw(DrawStructure& graph) {
         s->set_pos(_bowl->_current_pos);
         
         
-        if(_drag_box)
+        if(_drag_box) {
+            graph.circle(Loc{_drag_box->pos()}, Radius{5}, FillClr{Red.alpha(125)});
             graph.wrap_object(*_drag_box);
+        }
         
     });
     
@@ -894,7 +899,14 @@ bool LiveSegmentation::on_global_event(Event event) {
         } else
             Print("not adding point at ", original, " => ", p);
         
-    } else if(event.type == EventType::MBUTTON
+    }
+    if(not graph->is_mouse_down(0)
+       && _drag_box)
+    {
+        _drag_box = nullptr;
+    }
+    
+    if(event.type == EventType::MBUTTON
               && event.mbutton.button == 1
               && event.mbutton.pressed)
     {

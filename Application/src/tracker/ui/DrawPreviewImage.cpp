@@ -193,17 +193,22 @@ PreviewData& preview_data() {
     return *_preview_data;
 }
 
-Image::Ptr convert_image_to_rgba(Image::Ptr&& image,
-                         meta_encoding_t::Class from, bool is_r3g3b2)
+void convert_image_to_rgba(
+        Image::Ptr&& image,
+        meta_encoding_t::Class from,
+        bool is_r3g3b2,
+        Image& ptr)
 {
     if(image->dims == 4) {
         /// must already be in RGBA format!
         FormatWarning("Null operation since the image is already in 4-channel format!");
-        return std::move(image);
+        ptr = std::move(*image);
+        return;
     }
     
-    auto ptr = Image::Make(image->rows, image->cols, 4);
-    cv::Mat output = ptr->get();
+    /// make sure we have the right format allocated
+    ptr.create(image->rows, image->cols, 4);
+    cv::Mat output = ptr.get();
     
     if(from == meta_encoding_t::data::values::binary) {
         from = meta_encoding_t::data::values::gray;
@@ -218,12 +223,12 @@ Image::Ptr convert_image_to_rgba(Image::Ptr&& image,
             if(image->channels() == 1) [[likely]] {
                 /// got a greyscale r3g3b2 image input -> just convert
                 convert_from_r3g3b2<4, 1, true>(image->get(), output);
-                return ptr;
+                return;
                 
             } else if(image->channels() == 3) {
                 /// got a 3 channel format, so maybe we have a RGB image?
                 cv::cvtColor(image->get(), output, cv::COLOR_BGR2BGRA);
-                return ptr;
+                return;
             }
             
             break;
@@ -232,7 +237,7 @@ Image::Ptr convert_image_to_rgba(Image::Ptr&& image,
             if(image->channels() == 3) [[likely]] {
                 /// this is the most likely option
                 cv::cvtColor(image->get(), output, cv::COLOR_BGR2BGRA);
-                return ptr;
+                return;
                 
             } else if(image->channels() == 1) {
                 /// likely a grayscale image
@@ -242,7 +247,7 @@ Image::Ptr convert_image_to_rgba(Image::Ptr&& image,
                 } else {
                     cv::cvtColor(image->get(), output, cv::COLOR_GRAY2BGRA);
                 }
-                return ptr;
+                return;
             }
             
             break;
@@ -251,14 +256,14 @@ Image::Ptr convert_image_to_rgba(Image::Ptr&& image,
             if(image->channels() == 3) {
                 /// this was likely from a rgb8 image
                 cv::cvtColor(image->get(), output, cv::COLOR_BGR2BGRA);
-                return ptr;
+                return;
             } else if(image->channels() == 1) {
                 if(is_r3g3b2) {
                     convert_from_r3g3b2<4, 1, true>(image->get(), output);
                 } else {
                     cv::cvtColor(image->get(), output, cv::COLOR_GRAY2BGRA);
                 }
-                return ptr;
+                return;
             }
             break;
         }
@@ -281,10 +286,31 @@ std::tuple<Image::Ptr, Vec2> make_image(pv::BlobWeakPtr blob,
     if(not image)
         return {nullptr, Vec2{}};
     
+    Image::Ptr output = Image::Make(output_shape.height, output_shape.width, 4);
+    convert_image_to_rgba(std::move(image), SETTING(meta_encoding), false, *output);
     return {
-        convert_image_to_rgba(std::move(image), SETTING(meta_encoding), false),
+        std::move(output),
         pos
     };
+}
+
+std::optional<Vec2> make_image(pv::BlobWeakPtr blob,
+                const track::Midline* midline,
+                const track::constraints::FilterCache* filters,
+                const track::Background* background,
+                Image& output)
+{
+    const auto normalize = default_config::valid_individual_image_normalization();
+    auto output_shape = FAST_SETTING(individual_image_size);
+    auto transform = midline ? midline->transform(normalize) : gui::Transform();
+    
+    auto &&[image, pos] = constraints::diff_image(normalize, blob, transform, filters ? filters->median_midline_length_px : 0, output_shape, background);
+    
+    if(not image)
+        return std::nullopt;
+    
+    convert_image_to_rgba(std::move(image), SETTING(meta_encoding), false, output);
+    return pos;
 }
 
 void draw(const Background* average, const PPFrame& pp,Frame_t frame, DrawStructure& graph) {

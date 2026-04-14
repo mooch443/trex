@@ -312,6 +312,8 @@ void YOLO::deinit() {
         {
             std::unique_lock guard(running_mutex);
             if(running_prediction.valid()) {
+                Print("[shutdown-trace] YOLO::deinit entering active-prediction wait. python_initialized=",
+                      Python::python_initialized());
                 Print("Still have an active prediction running, waiting...");
                 running_prediction.get();
                 Print("Got it.");
@@ -1317,6 +1319,9 @@ void YOLO::apply(std::vector<TileImage>&& tiles) {
             running_prediction = running_promise.get_future().share();
         }
 
+        Print("[shutdown-trace] YOLO::apply dispatch start requests=", transfer.datas.size(),
+              " tiles=", transfer.images.size(),
+              " callback_count=", transfer.callbacks.size());
         py::schedule([&transfer]() mutable {
             StartPythonProcess(std::move(transfer));
         }).get();

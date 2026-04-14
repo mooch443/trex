@@ -1480,6 +1480,11 @@ void Segmenter::tracking_thread() {
 }
 
 void Segmenter::force_stop() {
+    Print("[shutdown-trace] Segmenter::force_stop current_frame=", _current_frame.load(),
+          " generated=", _last_generated_frame,
+          " generator_has_data=", _generating_step.has_data(),
+          " writer_has_data=", _writing_step.has_data(),
+          " tracker_has_data=", _tracking_step.has_data());
     graceful_end();
 }
 

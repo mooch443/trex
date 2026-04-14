@@ -528,6 +528,30 @@ std::string get_variable<std::string>(const std::string& name, const std::string
     return impl.get_string_variable(name, m);
 }
 
+std::exception_ptr terminated_queue_exception() {
+    try {
+        throw SoftException("Python task queue terminated during shutdown.");
+    } catch(...) {
+        return std::current_exception();
+    }
+}
+
+void fail_task(PackagedTask&& task, std::exception_ptr error = terminated_queue_exception()) {
+    try {
+        task._task.promise.set_exception(error);
+    } catch(...) {
+        // The future may already have been completed; nothing else to do.
+    }
+}
+
+void fail_pending_tasks(std::deque<PackagedTask>& queue, std::exception_ptr error = terminated_queue_exception()) {
+    while(!queue.empty()) {
+        auto task = std::move(queue.front());
+        queue.pop_front();
+        fail_task(std::move(task), error);
+    }
+}
+
 struct Data {
 private:
     static Data* _data;
@@ -672,8 +696,20 @@ public:
 	}
     static void add_task(PackagedTask&& task) {
         std::unique_lock guard(_data_mutex);
+        if(!_data) {
+            guard.unlock();
+            fail_task(std::move(task));
+            return;
+        }
+
         {
             std::unique_lock guard2(_data->_queue_mutex);
+            if(_data->_terminate) {
+                guard2.unlock();
+                guard.unlock();
+                fail_task(std::move(task));
+                return;
+            }
             _data->_queue.emplace_back(std::move(task));
         }
         _data->_queue_update.notify();
@@ -706,17 +742,26 @@ public:
 
             // only call this if we are still talking about the same data
             if (_data == data) {
+                std::unique_lock queue_guard(_data->_queue_mutex);
+                fail_pending_tasks(_data->_queue);
+                queue_guard.unlock();
                 _data->_exit_promise.set_value();
                 _data->_initialized = false;
             }
         }
         catch (const std::exception& ex) {
             FormatExcept(fmt::clr<FormatColor::DARK_GRAY>("[py] "), "Critical exception in python thread: ", ex.what());
+            std::unique_lock queue_guard(_data->_queue_mutex);
+            fail_pending_tasks(_data->_queue, std::current_exception());
+            queue_guard.unlock();
             _data->_exit_promise.set_exception(std::current_exception());
             _data->_initialized = false;
 
         }
         catch (...) {
+            std::unique_lock queue_guard(_data->_queue_mutex);
+            fail_pending_tasks(_data->_queue, std::current_exception());
+            queue_guard.unlock();
             _data->_exit_promise.set_exception(std::current_exception());
             _data->_initialized = false;
         }
@@ -741,6 +786,13 @@ public:
     }
     static std::future<void> deinit() {
         std::unique_lock guard(_data_mutex);
+        if (!_data) {
+            std::promise<void> p;
+            auto f = p.get_future();
+            p.set_value();
+            return f;
+        }
+
         if (!_data->_init_future.valid()) {
             std::promise<void> p;
             auto f = p.get_future();
@@ -814,6 +866,9 @@ private:
 
         //! in the python queue
         while (!_queue.empty()) {
+            if (_terminate)
+                break;
+
             auto it = _queue.begin();
 
             if (!gpu_initialized().load()

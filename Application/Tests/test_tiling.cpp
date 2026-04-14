@@ -9,6 +9,7 @@
 #include <python/YOLO.h>
 #include <python/OverlayedVideo.h>
 #include <python/PythonWrapper.h>
+#include <python/PythonEntryPoint.h>
 #include <file/DataLocation.h>
 #include <core/TileBuffers.h>
 #include <processing/ResizeImage.h>
@@ -16,7 +17,12 @@
 #include <opencv2/core.hpp>
 
 #include <algorithm>
+#include <chrono>
+#include <future>
+#include <mutex>
+#include <optional>
 #include <set>
+#include <thread>
 
 using namespace cmn;
 using namespace track;
@@ -108,6 +114,93 @@ void expectOffsetsWithinBounds(const std::vector<Vec2>& offsets,
         EXPECT_TRUE(found_last) << "Missing bottom-most tile";
     }
 }
+
+struct FakePythonImplScope {
+    std::atomic_bool gpu_initialized{true};
+    std::string init_error;
+    std::mutex thread_mutex;
+    std::optional<std::thread::id> python_thread_id;
+    bool skip_deinit{false};
+
+    FakePythonImplScope() {
+        Python::set_python_impl_interface(Python::PythonImplInterface{
+            .interpreter_init = []() {
+                instance().record_thread_id();
+            },
+            .interpreter_deinit = []() {
+                instance().clear_thread_id();
+            },
+            .check_correct_thread_id = []() {},
+            .is_correct_thread_id = []() {
+                return instance().is_python_thread();
+            },
+            .gpu_initialized_state = []() -> std::atomic_bool& {
+                return instance().gpu_initialized;
+            },
+            .init_error_state = []() -> std::string& {
+                return instance().init_error;
+            },
+            .convert_exceptions = [](std::function<void()>&& fn) {
+                fn();
+            },
+            .set_settings = [](cmn::GlobalSettings*, cmn::file::DataLocation*, void*, void*) {},
+            .set_display_function = [](
+                std::function<void(const std::string&, const cv::Mat&)>&&,
+                std::function<void()>&&
+            ) {}
+        });
+    }
+
+    ~FakePythonImplScope() {
+        if (!skip_deinit) {
+            try {
+                if (auto deinit_future = Python::deinit();
+                    deinit_future.valid())
+                {
+                    deinit_future.get();
+                }
+            } catch(...) {
+                // best effort cleanup for the test harness
+            }
+        }
+        current() = nullptr;
+        track::trex_python_register();
+    }
+
+    static FakePythonImplScope& instance() {
+        return *current();
+    }
+
+    static FakePythonImplScope& install(FakePythonImplScope& scope) {
+        current() = &scope;
+        return scope;
+    }
+
+    void record_thread_id() {
+        std::scoped_lock guard(thread_mutex);
+        python_thread_id = std::this_thread::get_id();
+    }
+
+    void clear_thread_id() {
+        std::scoped_lock guard(thread_mutex);
+        python_thread_id.reset();
+    }
+
+    void mark_deinitialized() {
+        skip_deinit = true;
+    }
+
+    bool is_python_thread() {
+        std::scoped_lock guard(thread_mutex);
+        return python_thread_id.has_value() && *python_thread_id == std::this_thread::get_id();
+    }
+
+private:
+    static FakePythonImplScope*& current() {
+        static FakePythonImplScope* value = nullptr;
+        return value;
+    }
+};
 
 } // namespace
 
@@ -232,6 +325,45 @@ TEST(ImageResizeTest, LetterboxReusesDestinationAllocationForMatchingTargetSize)
     (void)resize_image_into(source, Size2(8, 8), dst, ImageResizeMode::letterbox);
 
     EXPECT_EQ(dst.data, first_data);
+}
+
+TEST(PythonWrapperShutdownTest, DeinitFailsQueuedTasksInsteadOfLeavingThemPending) {
+    FakePythonImplScope scope;
+    FakePythonImplScope::install(scope);
+
+    auto started = std::promise<void>{};
+    auto started_future = started.get_future();
+    auto release = std::promise<void>{};
+    auto release_future = release.get_future().share();
+
+    auto first = Python::schedule([started = std::move(started), release_future]() mutable {
+        started.set_value();
+        release_future.wait();
+    });
+
+    ASSERT_EQ(started_future.wait_for(std::chrono::seconds(1)), std::future_status::ready);
+
+    auto queued = Python::schedule([]() {});
+
+    auto shutdown = std::async(std::launch::async, []() {
+        auto future = Python::deinit();
+        if (future.valid())
+            future.get();
+    });
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(25));
+    release.set_value();
+
+    ASSERT_EQ(first.wait_for(std::chrono::seconds(5)), std::future_status::ready);
+    EXPECT_NO_THROW(first.get());
+
+    EXPECT_EQ(queued.wait_for(std::chrono::seconds(5)), std::future_status::ready)
+        << "Queued Python work stayed pending during shutdown and can strand callers waiting on it.";
+    EXPECT_THROW(queued.get(), SoftExceptionImpl);
+
+    ASSERT_EQ(shutdown.wait_for(std::chrono::seconds(5)), std::future_status::ready);
+    EXPECT_NO_THROW(shutdown.get());
+    scope.mark_deinitialized();
 }
 
 TEST(TileImageTest, HandlesIncompleteTilesAndOverlap) {

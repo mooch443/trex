@@ -42,8 +42,11 @@ public:
         this->_fdx = fdx;
         this->_frame = frame;
         
-        auto &&[image, pos] = DrawPreviewImage::make_image(blob, midline, filters, background);
-        _display.set_source(std::move(image));
+        auto pos = DrawPreviewImage::make_image(blob, midline, filters, background, _display.unsafe_get_source());
+        if(pos) {
+            _display.updated_source();
+        }
+        //_display.set_source(std::move(image));
         update_settings();
         update();
     }

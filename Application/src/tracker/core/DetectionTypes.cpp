@@ -303,7 +303,7 @@ Size2 get_model_image_size() {
         const auto region_resolution = READ_SETTING(region_resolution, track::detect::DetectResolution);
         
         Size2 size;
-        const float ratio = meta_video_size.height / meta_video_size.width;
+        const double ratio = double(meta_video_size.height) / double(meta_video_size.width);
         if (region_resolution.width > 0 && not READ_SETTING(region_model, file::Path).empty()) {
             const auto max_w = max((float)detect_resolution.width, (float)region_resolution.width * 2);
             size = Size2(max_w, ratio * max_w);
@@ -314,7 +314,7 @@ Size2 get_model_image_size() {
         
         //Print("Using a resolution of meta_video_size = ", meta_video_size, " and detect_resolution = ", detect_resolution, " and region_resolution = ", region_resolution," gives a model image size of ", size);
         //return meta_video_size.div(2);
-        return size;
+        return size.map(roundf);
     }
     else {
         return Size2(detect_resolution.width, detect_resolution.height);
