@@ -21,6 +21,7 @@ import numpy as np
 import numpy.typing as npt
 import torch
 from torch.nn import functional as F
+from tqdm import tqdm
 from ultralytics.models.sam.predict import SAM3VideoSemanticPredictor
 from ultralytics.utils.checks import check_imgsz
 
@@ -73,7 +74,7 @@ class Sam3VideoSession:
     timeline_capacity: int | None = None
     last_processed_frame: int | None = None
     active_texts: list[str] = field(default_factory=list)
-    duplicate_mask_iou: float = 0.95
+    duplicate_mask_iou: float | None = 0.95
     timeline_slack: int = 10
 
     def set_conf_threshold(self, conf: float) -> float:
@@ -96,8 +97,12 @@ class Sam3VideoSession:
 
         return value
 
-    def set_iou_threshold(self, iou: float) -> float:
+    def set_iou_threshold(self, iou: float | None) -> float | None:
         """Update the duplicate-mask IoU suppression threshold."""
+        if iou is None:
+            self.duplicate_mask_iou = None
+            return None
+
         value = float(np.clip(float(iou), 0.0, 1.0))
         self.duplicate_mask_iou = value
         return value
@@ -200,6 +205,7 @@ class Sam3VideoSession:
 
 _SESSION: Sam3VideoSession | None = None
 _SESSION_LOG_PREFIX = "[py][sam3-session]"
+_REPLAY_PROGRESS: tqdm | None = None
 
 
 def _choose_device() -> str:
@@ -222,19 +228,37 @@ def _session_log(message: str) -> None:
         print(formatted)
 
 
-def _resolve_iou_threshold(request: Mapping[str, object]) -> float:
+def _close_replay_progress() -> None:
+    global _REPLAY_PROGRESS
+    if _REPLAY_PROGRESS is not None:
+        try:
+            _REPLAY_PROGRESS.close()
+        except Exception:
+            pass
+        _REPLAY_PROGRESS = None
+
+
+def _coerce_optional_threshold(value: object) -> float | None:
+    if value is None:
+        return None
+    if isinstance(value, str) and value.strip().lower() == "null":
+        return None
+    return float(np.clip(float(value), 0.0, 1.0))
+
+
+def _resolve_iou_threshold(request: Mapping[str, object]) -> float | None:
     """Resolve the IoU threshold from request payload first, then TRex settings."""
     for key in ("detect_iou_threshold", "iou_threshold", "iou", "duplicate_mask_iou"):
         if key in request:
-            return float(np.clip(float(request[key]), 0.0, 1.0))
+            return _coerce_optional_threshold(request[key])
 
     if TRex is not None and hasattr(TRex, "setting"):
         try:
-            return float(np.clip(float(TRex.setting("detect_iou_threshold")), 0.0, 1.0))  # type: ignore[union-attr]
+            return _coerce_optional_threshold(TRex.setting("detect_iou_threshold"))  # type: ignore[union-attr]
         except Exception:
             pass
 
-    return 0.95
+    return None
 
 
 def _resolve_conf_threshold(default: float) -> float:
@@ -561,6 +585,57 @@ def _label_array(boxes: npt.NDArray[np.float32] | None) -> npt.NDArray[np.int32]
     return np.ones((len(boxes),), dtype=np.int32)
 
 
+def _prepare_prompt_batch(prompt_state: PromptState) -> tuple[str | list[str] | None, npt.NDArray[np.float32] | None]:
+    """Prepare one shared concept prompt plus optional multi-box geometry."""
+    boxes = prompt_state.boxes
+    texts = [str(text) for text in prompt_state.texts]
+
+    if boxes is None or len(boxes) == 0:
+        if not texts:
+            return None, None
+        return texts[0] if len(texts) == 1 else texts, None
+
+    if not texts:
+        # Let SAM3 use its built-in visual prompt path for box-only prompting.
+        return None, boxes
+
+    # Multiple positive boxes on one frame are one shared concept with many objects.
+    # Ultralytics' add_prompt() expects the concept batch size to stay at 1 here.
+    return texts[0], boxes
+
+
+def _add_multi_object_prompt(
+    session: Sam3VideoSession,
+    frame_index: int,
+    texts: Sequence[str],
+    boxes: npt.NDArray[np.float32],
+) -> Mapping[str, object]:
+    """Dispatch one box at a time so each new seed enters SAM3 as a separate addition."""
+    predictor = session.predictor
+    concept_text = next((str(text) for text in texts if str(text)), None)
+    output: Mapping[str, object] | None = None
+
+    _session_log(
+        f"dispatch_multi_object_prompt frame={frame_index} objects={len(boxes)} "
+        f"mode=sequential concept={'yes' if concept_text else 'no'}"
+    )
+
+    for box_index, box in enumerate(boxes):
+        _, output = predictor.add_prompt(
+            frame_idx=frame_index,
+            text=concept_text,
+            bboxes=np.asarray([box], dtype=np.float32),
+            labels=np.ones((1,), dtype=np.int32),
+        )
+        _session_log(
+            f"dispatch_multi_object_prompt frame={frame_index} step={box_index + 1}/{len(boxes)}"
+        )
+
+    if output is None:
+        raise RuntimeError("Sequential SAM3 multi-object prompt dispatch produced no output.")
+    return output
+
+
 def _postprocess_video_output(
     session: Sam3VideoSession,
     output: Mapping[str, object],
@@ -614,7 +689,7 @@ def _postprocess_video_output(
     pred_scores = pred_scores[keep]
     pred_cls = pred_cls[keep]
 
-    if pred_masks.shape[0] > 1:
+    if pred_masks.shape[0] > 1 and session.duplicate_mask_iou is not None:
         duplicate_keep = _suppress_near_duplicate_masks(pred_masks, pred_scores, session.duplicate_mask_iou)
         if duplicate_keep.shape[0] == pred_masks.shape[0] and not torch.all(duplicate_keep):
             pred_masks = pred_masks[duplicate_keep]
@@ -706,12 +781,25 @@ def _run_one_frame(
                 if prompt_state.boxes is not None
                 else None
             )
-            _, output = session.predictor.add_prompt(
-                frame_idx=frame_index,
-                text=effective_texts or None,
-                bboxes=boxes,
-                labels=_label_array(boxes),
-            )
+            if boxes is not None and len(boxes) > 1:
+                output = _add_multi_object_prompt(
+                    session,
+                    frame_index,
+                    effective_texts,
+                    boxes,
+                )
+            else:
+                prompt_text, prompt_boxes = _prepare_prompt_batch(PromptState(
+                    texts=effective_texts,
+                    boxes=boxes,
+                    points=prompt_state.points,
+                ))
+                _, output = session.predictor.add_prompt(
+                    frame_idx=frame_index,
+                    text=prompt_text,
+                    bboxes=prompt_boxes,
+                    labels=_label_array(prompt_boxes),
+                )
         elif "text_ids" in session.predictor.inference_state:
             output = session.predictor._run_single_frame_inference(
                 frame_index,
@@ -832,13 +920,50 @@ def reset_runtime(request: Mapping[str, object]) -> GenericOkResponse:
     session = _require_session()
     max_frame_index = int(request.get("max_frame_index", 0))
     _session_log(f"reset_runtime max_frame_index={max_frame_index}")
+    _close_replay_progress()
     session.reset_runtime(max_frame_index)
+    return {"ok": True}
+
+
+def begin_replay_progress(request: Mapping[str, object]) -> GenericOkResponse:
+    """Create a tqdm progress bar for a replay run driven from C++."""
+    global _REPLAY_PROGRESS
+    _close_replay_progress()
+
+    total_steps = max(0, int(request.get("total_steps", 0)))
+    start_frame = int(request.get("start_frame", 0))
+    target_frame = int(request.get("target_frame", start_frame))
+    if total_steps <= 0:
+        return {"ok": True}
+
+    _REPLAY_PROGRESS = tqdm(
+        total=total_steps,
+        desc=f"SAM3 replay {start_frame}->{target_frame}",
+        unit="frame",
+        dynamic_ncols=True,
+        leave=False,
+    )
+    return {"ok": True}
+
+
+def advance_replay_progress(request: Mapping[str, object]) -> GenericOkResponse:
+    """Advance the active replay tqdm progress bar."""
+    steps = max(0, int(request.get("steps", 1)))
+    if _REPLAY_PROGRESS is not None and steps > 0:
+        _REPLAY_PROGRESS.update(steps)
+    return {"ok": True}
+
+
+def finish_replay_progress(_: Mapping[str, object] | None = None) -> GenericOkResponse:
+    """Close the active replay tqdm progress bar."""
+    _close_replay_progress()
     return {"ok": True}
 
 
 def shutdown() -> GenericOkResponse:
     """Shutdown and discard the active SAM3 session."""
     global _SESSION
+    _close_replay_progress()
     if _SESSION is not None:
         _session_log("shutdown")
         _SESSION.close()

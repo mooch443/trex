@@ -588,6 +588,8 @@ struct TREX_EXPORT Sam3Prompts {
     iterator find(const Frame_t& key) { return map.find(key); }
     const_iterator find(const Frame_t& key) const { return map.find(key); }
     
+    auto erase(auto&& k) { return map.erase(std::forward<decltype(k)>(k)); }
+    
     std::string toStr() const;
     glz::json_t to_json() const;
     

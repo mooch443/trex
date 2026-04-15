@@ -80,6 +80,42 @@ public:
         }).get();
     }
 
+    void begin_replay_progress(Frame_t start_frame, Frame_t target_frame, size_t total_steps) override
+    {
+        namespace py = Python;
+        py::schedule([start_frame, target_frame, total_steps]() {
+            ModuleProxy proxy("trex_sam3_interface", SAM3::reinit, true);
+            const auto response = proxy.run("begin_replay_progress", glz::json_t{
+                {"start_frame", start_frame.valid() ? static_cast<int64_t>(start_frame.get()) : int64_t(0)},
+                {"target_frame", target_frame.valid() ? static_cast<int64_t>(target_frame.get()) : int64_t(0)},
+                {"total_steps", static_cast<int64_t>(total_steps)}
+            });
+            (void)parse_json_response<GenericOkResponse>(response, "begin_replay_progress");
+        }).get();
+    }
+
+    void advance_replay_progress(size_t steps = 1) override
+    {
+        namespace py = Python;
+        py::schedule([steps]() {
+            ModuleProxy proxy("trex_sam3_interface", SAM3::reinit, true);
+            const auto response = proxy.run("advance_replay_progress", glz::json_t{
+                {"steps", static_cast<int64_t>(steps)}
+            });
+            (void)parse_json_response<GenericOkResponse>(response, "advance_replay_progress");
+        }).get();
+    }
+
+    void finish_replay_progress() override
+    {
+        namespace py = Python;
+        py::schedule([]() {
+            ModuleProxy proxy("trex_sam3_interface", SAM3::reinit, true);
+            const auto response = proxy.run("finish_replay_progress", glz::json_t::object_t{});
+            (void)parse_json_response<GenericOkResponse>(response, "finish_replay_progress");
+        }).get();
+    }
+
     SegmentationData predict_frame(TileImage&& tiled, detect::Sam3PromptsPerImage prompts_per_image = {}) override
     {
         namespace py = Python;
@@ -178,82 +214,8 @@ Sam3InteractiveSession::Sam3InteractiveSession(std::unique_ptr<ISam3InteractiveB
 
 detect::Sam3PromptList Sam3InteractiveSession::materialize_prompt_snapshot(Frame_t frame_index) const
 {
-    detect::Sam3PromptList snapshot;
-    const auto prompt_repository = current_prompt_repository();
-    if(not prompt_repository) {
-        return snapshot;
-    }
-
-    std::vector<std::string> active_texts;
-    std::vector<Bounds> accumulated_boxes;
-    std::vector<Vec2> current_points;
-
-    const auto absorb = [&](Frame_t prompt_frame, const detect::Sam3PromptList& prompt_list) {
-        std::vector<std::string> frame_texts;
-        std::vector<Vec2> frame_points;
-
-        for(const auto& prompt : prompt_list) {
-            switch(prompt.type()) {
-                case detect::Sam3PromptType::none:
-                    break;
-                case detect::Sam3PromptType::text:
-                    frame_texts.push_back(prompt.text());
-                    break;
-                case detect::Sam3PromptType::boxes:
-                    accumulated_boxes.insert(
-                        accumulated_boxes.end(),
-                        prompt.boxes().begin(),
-                        prompt.boxes().end());
-                    break;
-                case detect::Sam3PromptType::points:
-                    frame_points.insert(frame_points.end(), prompt.points().begin(), prompt.points().end());
-                    break;
-            }
-        }
-
-        if(not frame_texts.empty()) {
-            active_texts = std::move(frame_texts);
-        }
-
-        if(not frame_points.empty()
-           && ((not prompt_frame.valid()) || prompt_frame == frame_index))
-        {
-            current_points = std::move(frame_points);
-        }
-    };
-
-    if(auto it = prompt_repository->find(Frame_t{}); it != prompt_repository->end()) {
-        absorb(Frame_t{}, it->second);
-    }
-
-    for(const auto& [prompt_frame, prompt_list] : *prompt_repository) {
-        if(not prompt_frame.valid()) {
-            continue;
-        }
-        if(prompt_frame > frame_index) {
-            break;
-        }
-        absorb(prompt_frame, prompt_list);
-    }
-
-    snapshot.reserve(active_texts.size() + (accumulated_boxes.empty() ? 0u : 1u) + (current_points.empty() ? 0u : 1u));
-    for(const auto& text : active_texts) {
-        detect::Sam3PromptPayload prompt;
-        prompt.value = text;
-        snapshot.push_back(std::move(prompt));
-    }
-    if(not accumulated_boxes.empty()) {
-        detect::Sam3PromptPayload prompt;
-        prompt.value = std::move(accumulated_boxes);
-        snapshot.push_back(std::move(prompt));
-    }
-    if(not current_points.empty()) {
-        detect::Sam3PromptPayload prompt;
-        prompt.value = std::move(current_points);
-        snapshot.push_back(std::move(prompt));
-    }
-
-    return snapshot;
+    return flatten_sam3_prompt_state(
+        materialize_sam3_prompt_snapshot_state(frame_index, current_prompt_repository()));
 }
 
 bool Sam3InteractiveSession::should_store_keyframe(Frame_t frame_index) const
@@ -286,9 +248,10 @@ Sam3InteractiveSession::ReplayPlan Sam3InteractiveSession::plan_replay_for(Frame
     if(_runtime_valid
        && _runtime_generation == _session_generation
        && _runtime_frame.valid()
-       && frame_index == _runtime_frame + 1_f)
+       && frame_index > _runtime_frame)
     {
         plan.continue_from_live_runtime = true;
+        plan.live_runtime_frame = _runtime_frame;
         return plan;
     }
 
@@ -324,8 +287,40 @@ Sam3ProcessedFrame Sam3InteractiveSession::process_frame(TileImage&& tiled, uint
     try {
         SegmentationData data;
         if(plan.continue_from_live_runtime) {
-            auto prompt_lists = resolve_prompts_for_tile(tiled, prompt_repository);
-            data = _backend->predict_frame(std::move(tiled), std::move(prompt_lists));
+            const bool needs_replay_progress = plan.live_runtime_frame.valid() && plan.live_runtime_frame + 1_f < frame_index;
+            const auto replay_steps = needs_replay_progress
+                ? size_t(frame_index.get() - plan.live_runtime_frame.get())
+                : size_t(0);
+            if(needs_replay_progress) {
+                _backend->begin_replay_progress(plan.live_runtime_frame + 1_f, frame_index, replay_steps);
+            }
+            try {
+                if(plan.live_runtime_frame.valid() && plan.live_runtime_frame + 1_f < frame_index) {
+                    Print(
+                        kSam3InteractiveLogPrefix,
+                        " continuing live runtime from=", plan.live_runtime_frame,
+                        " target=", frame_index);
+                    for(auto replay_frame = plan.live_runtime_frame + 1_f; replay_frame < frame_index; ++replay_frame) {
+                        auto replay_tile = _frame_loader(replay_frame);
+                        auto replay_prompts = resolve_prompts_for_tile(replay_tile, prompt_repository);
+                        (void)_backend->predict_frame(std::move(replay_tile), std::move(replay_prompts));
+                        _backend->advance_replay_progress();
+                    }
+                }
+                auto prompt_lists = resolve_prompts_for_tile(tiled, prompt_repository);
+                data = _backend->predict_frame(std::move(tiled), std::move(prompt_lists));
+                if(needs_replay_progress) {
+                    _backend->advance_replay_progress();
+                }
+            } catch(...) {
+                if(needs_replay_progress) {
+                    _backend->finish_replay_progress();
+                }
+                throw;
+            }
+            if(needs_replay_progress) {
+                _backend->finish_replay_progress();
+            }
         } else {
             Print(
                 kSam3InteractiveLogPrefix,
@@ -337,27 +332,53 @@ Sam3ProcessedFrame Sam3InteractiveSession::process_frame(TileImage&& tiled, uint
                 " resetting runtime start_frame=", plan.anchor_frame);
             _backend->reset_runtime(plan.anchor_frame.valid() ? plan.anchor_frame : 0_f);
 
-            if(plan.anchor_frame < frame_index) {
-                Print(
-                    kSam3InteractiveLogPrefix,
-                    " replay_range=", plan.anchor_frame,
-                    " -> ", frame_index);
+            const bool needs_replay_progress = plan.anchor_frame < frame_index;
+            const auto replay_steps = needs_replay_progress
+                ? size_t(frame_index.get() - plan.anchor_frame.get() + 1u)
+                : size_t(0);
+            if(needs_replay_progress) {
+                _backend->begin_replay_progress(plan.anchor_frame, frame_index, replay_steps);
+            }
+            try {
+                if(plan.anchor_frame < frame_index) {
+                    Print(
+                        kSam3InteractiveLogPrefix,
+                        " replay_range=", plan.anchor_frame,
+                        " -> ", frame_index);
 
-                auto anchor_tile = _frame_loader(plan.anchor_frame);
-                auto anchor_prompts = prompt_snapshot_for_tile(anchor_tile, plan.anchor_prompt_snapshot);
-                (void)_backend->predict_frame(std::move(anchor_tile), std::move(anchor_prompts));
+                    auto anchor_tile = _frame_loader(plan.anchor_frame);
+                    auto anchor_prompts = prompt_snapshot_for_tile(anchor_tile, plan.anchor_prompt_snapshot);
+                    (void)_backend->predict_frame(std::move(anchor_tile), std::move(anchor_prompts));
+                    if(needs_replay_progress) {
+                        _backend->advance_replay_progress();
+                    }
 
-                for(auto replay_frame = plan.anchor_frame + 1_f; replay_frame < frame_index; ++replay_frame) {
-                    auto replay_tile = _frame_loader(replay_frame);
-                    auto replay_prompts = resolve_prompts_for_tile(replay_tile, prompt_repository);
-                    (void)_backend->predict_frame(std::move(replay_tile), std::move(replay_prompts));
+                    for(auto replay_frame = plan.anchor_frame + 1_f; replay_frame < frame_index; ++replay_frame) {
+                        auto replay_tile = _frame_loader(replay_frame);
+                        auto replay_prompts = resolve_prompts_for_tile(replay_tile, prompt_repository);
+                        (void)_backend->predict_frame(std::move(replay_tile), std::move(replay_prompts));
+                        if(needs_replay_progress) {
+                            _backend->advance_replay_progress();
+                        }
+                    }
+
+                    auto target_prompts = resolve_prompts_for_tile(tiled, prompt_repository);
+                    data = _backend->predict_frame(std::move(tiled), std::move(target_prompts));
+                    if(needs_replay_progress) {
+                        _backend->advance_replay_progress();
+                    }
+                } else {
+                    auto target_prompts = prompt_snapshot_for_tile(tiled, plan.anchor_prompt_snapshot);
+                    data = _backend->predict_frame(std::move(tiled), std::move(target_prompts));
                 }
-
-                auto target_prompts = resolve_prompts_for_tile(tiled, prompt_repository);
-                data = _backend->predict_frame(std::move(tiled), std::move(target_prompts));
-            } else {
-                auto target_prompts = prompt_snapshot_for_tile(tiled, plan.anchor_prompt_snapshot);
-                data = _backend->predict_frame(std::move(tiled), std::move(target_prompts));
+            } catch(...) {
+                if(needs_replay_progress) {
+                    _backend->finish_replay_progress();
+                }
+                throw;
+            }
+            if(needs_replay_progress) {
+                _backend->finish_replay_progress();
             }
         }
 

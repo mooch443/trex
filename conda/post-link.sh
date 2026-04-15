@@ -136,13 +136,16 @@ else
 fi
 
 common_packages=(
-    "torch>=2.0.0,<2.9.0"
-    "torchvision>=0.15.1,<0.24.0"
+    "torch>=2.0.0,<3.0.0"
+    "torchvision>=0.15.1"
     "torchmetrics"
     "tqdm"
     "opencv-python>=4,<5"
     "ultralytics>=8.3.0,<9"
     "dill"
+    "timm"
+    "scikit-learn"
+    "git+https://github.com/ultralytics/CLIP.git"
 )
 
 if [ ${#numpy_requirement[@]} -gt 0 ]; then

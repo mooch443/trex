@@ -27,6 +27,9 @@ public:
 
     virtual void reset_runtime(Frame_t max_frame_index) = 0;
     virtual SegmentationData predict_frame(TileImage&& tiled, detect::Sam3PromptsPerImage prompts_per_image = {}) = 0;
+    virtual void begin_replay_progress(Frame_t start_frame, Frame_t target_frame, size_t total_steps) = 0;
+    virtual void advance_replay_progress(size_t steps = 1) = 0;
+    virtual void finish_replay_progress() = 0;
 };
 
 /**
@@ -58,6 +61,7 @@ private:
     struct ReplayPlan {
         uint64_t session_generation = 0;
         bool continue_from_live_runtime = false;
+        Frame_t live_runtime_frame = {};
         Frame_t anchor_frame = 0_f;
         detect::Sam3PromptList anchor_prompt_snapshot;
     };

@@ -162,7 +162,7 @@ std::string Sam3Prompts::toStr() const {
     if(empty()) {
         return "{}";
     }
-    
+
     if(size() == 1u
        && map.begin()->first == Frame_t{})
     {

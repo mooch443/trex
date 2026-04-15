@@ -45,6 +45,19 @@ public:
         calls.push_back("reset:" + max_frame_index.toStr());
     }
 
+    void begin_replay_progress(Frame_t start_frame, Frame_t target_frame, size_t total_steps) override {
+        calls.push_back(
+            "replay_begin:" + start_frame.toStr() + ":" + target_frame.toStr() + ":" + Meta::toStr(total_steps));
+    }
+
+    void advance_replay_progress(size_t steps = 1) override {
+        calls.push_back("replay_step:" + Meta::toStr(steps));
+    }
+
+    void finish_replay_progress() override {
+        calls.push_back("replay_finish");
+    }
+
     SegmentationData predict_frame(TileImage&& tiled, detect::Sam3PromptsPerImage prompts_per_image = {}) override {
         const auto frame_index = tiled.data.original_index();
         current_runtime = frame_index;
@@ -58,6 +71,13 @@ detect::Sam3PromptPayload make_box_prompt(float x, float y, float w, float h)
 {
     detect::Sam3PromptPayload payload;
     payload.value = std::vector<Bounds>{Bounds(x, y, w, h)};
+    return payload;
+}
+
+detect::Sam3PromptPayload make_boxes_prompt(std::initializer_list<Bounds> boxes)
+{
+    detect::Sam3PromptPayload payload;
+    payload.value = std::vector<Bounds>(boxes);
     return payload;
 }
 
@@ -264,11 +284,83 @@ TEST(Sam3InteractiveSessionTest, PromptFrameBecomesReplayAnchor) {
 
     ASSERT_EQ(replayed.frame_index, 5_f);
     EXPECT_THAT(backend_ptr->calls, ::testing::ElementsAre(
-        "reset:3",
-        "predict:3:1",
+        "replay_begin:4:5:2",
         "predict:4:0",
-        "predict:5:0"));
-    EXPECT_THAT(loaded_frames, ::testing::ElementsAre(3_f, 4_f));
+        "replay_step:1",
+        "predict:5:0",
+        "replay_step:1",
+        "replay_finish"));
+    EXPECT_THAT(loaded_frames, ::testing::ElementsAre(4_f));
+}
+
+TEST(Sam3InteractiveSessionTest, ForwardJumpUsesLiveRuntimeWithoutResettingToAnchor) {
+    SETTING(detect_sam3_prompt) = std::optional<detect::Sam3Prompts>{
+        detect::Sam3Prompts{{
+            {0_f, detect::Sam3PromptList{make_boxes_prompt({
+                Bounds(0.1f, 0.1f, 0.2f, 0.2f),
+                Bounds(0.5f, 0.5f, 0.2f, 0.2f),
+            })}}
+        }}
+    };
+
+    FakeBackend* backend_ptr = nullptr;
+    std::vector<Frame_t> loaded_frames;
+    auto session = make_session(backend_ptr, loaded_frames);
+
+    auto first = session->process_frame(make_tile(0_f), 0);
+    ASSERT_TRUE(session->commit_frame(std::move(first)));
+
+    backend_ptr->calls.clear();
+    loaded_frames.clear();
+
+    auto jumped = session->process_frame(make_tile(3_f), 0);
+
+    ASSERT_EQ(jumped.frame_index, 3_f);
+    EXPECT_THAT(backend_ptr->calls, ::testing::ElementsAre(
+        "replay_begin:1:3:3",
+        "predict:1:0",
+        "replay_step:1",
+        "predict:2:0",
+        "replay_step:1",
+        "predict:3:0",
+        "replay_step:1",
+        "replay_finish"));
+    EXPECT_THAT(loaded_frames, ::testing::ElementsAre(1_f, 2_f));
+}
+
+TEST(Sam3InteractiveSessionTest, LegacyMultiBoxPromptReplaysAsSeparatePromptObjects) {
+    SETTING(detect_sam3_prompt) = std::optional<detect::Sam3Prompts>{
+        detect::Sam3Prompts{{
+            {3_f, detect::Sam3PromptList{make_boxes_prompt({
+                Bounds(0.1f, 0.1f, 0.2f, 0.2f),
+                Bounds(0.5f, 0.5f, 0.2f, 0.2f),
+            })}}
+        }}
+    };
+
+    FakeBackend* backend_ptr = nullptr;
+    std::vector<Frame_t> loaded_frames;
+    auto session = make_session(backend_ptr, loaded_frames);
+
+    for(auto frame = 0_f; frame <= 3_f; ++frame) {
+        auto processed = session->process_frame(make_tile(frame), 0);
+        ASSERT_TRUE(session->commit_frame(std::move(processed)));
+    }
+
+    backend_ptr->calls.clear();
+    loaded_frames.clear();
+
+    auto replayed = session->process_frame(make_tile(5_f), 0);
+
+    ASSERT_EQ(replayed.frame_index, 5_f);
+    EXPECT_THAT(backend_ptr->calls, ::testing::ElementsAre(
+        "replay_begin:4:5:2",
+        "predict:4:0",
+        "replay_step:1",
+        "predict:5:0",
+        "replay_step:1",
+        "replay_finish"));
+    EXPECT_THAT(loaded_frames, ::testing::ElementsAre(4_f));
 }
 
 TEST(Sam3InteractiveSessionTest, PeriodicKeyframesBoundReplayDistance) {
@@ -290,11 +382,13 @@ TEST(Sam3InteractiveSessionTest, PeriodicKeyframesBoundReplayDistance) {
 
     ASSERT_EQ(replayed.frame_index, 12_f);
     EXPECT_THAT(backend_ptr->calls, ::testing::ElementsAre(
-        "reset:10",
-        "predict:10:0",
+        "replay_begin:11:12:2",
         "predict:11:0",
-        "predict:12:0"));
-    EXPECT_THAT(loaded_frames, ::testing::ElementsAre(10_f, 11_f));
+        "replay_step:1",
+        "predict:12:0",
+        "replay_step:1",
+        "replay_finish"));
+    EXPECT_THAT(loaded_frames, ::testing::ElementsAre(11_f));
 }
 
 TEST(Sam3InteractiveSessionTest, InvalidatingFromFrameDropsLaterAnchorsAndForcesReplay) {
@@ -318,9 +412,14 @@ TEST(Sam3InteractiveSessionTest, InvalidatingFromFrameDropsLaterAnchorsAndForces
     ASSERT_EQ(replayed.frame_index, 2_f);
     EXPECT_THAT(backend_ptr->calls, ::testing::ElementsAre(
         "reset:0",
+        "replay_begin:0:2:3",
         "predict:0:0",
+        "replay_step:1",
         "predict:1:0",
-        "predict:2:0"));
+        "replay_step:1",
+        "predict:2:0",
+        "replay_step:1",
+        "replay_finish"));
     EXPECT_THAT(loaded_frames, ::testing::ElementsAre(0_f, 1_f));
 }
 
@@ -347,8 +446,13 @@ TEST(Sam3InteractiveSessionTest, InvalidatedInFlightFrameCannotRecommitStaleStat
     ASSERT_EQ(third.frame_index, 2_f);
     EXPECT_THAT(backend_ptr->calls, ::testing::ElementsAre(
         "reset:0",
+        "replay_begin:0:2:3",
         "predict:0:0",
+        "replay_step:1",
         "predict:1:0",
-        "predict:2:0"));
+        "replay_step:1",
+        "predict:2:0",
+        "replay_step:1",
+        "replay_finish"));
     EXPECT_THAT(loaded_frames, ::testing::ElementsAre(0_f, 1_f));
 }

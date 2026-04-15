@@ -27,7 +27,7 @@ class FakeResult:
 
 
 class FakeTRex:
-    settings: dict[str, float] = {"detect_conf_threshold": 0.25, "detect_iou_threshold": 0.5}
+    settings: dict[str, float | None | str] = {"detect_conf_threshold": 0.25, "detect_iou_threshold": 0.5}
     Result = FakeResult
     Boxes = staticmethod(lambda value: np.asarray(value, dtype=np.float32))
     KeypointData = staticmethod(lambda value: value)
@@ -67,16 +67,46 @@ class FakeTracker:
         self._bb_feat_sizes = None
 
 
+class FakeGeometricPrompt:
+    def __init__(self, num_prompts: int):
+        self.num_prompts = int(num_prompts)
+        self.boxes = np.empty((0, self.num_prompts, 4), dtype=np.float32)
+        self.labels = np.empty((0, self.num_prompts), dtype=np.int32)
+
+    def append_boxes(self, boxes, labels=None, mask=None):
+        del mask
+        boxes_np = np.asarray(boxes, dtype=np.float32)
+        labels_np = (
+            np.asarray(labels, dtype=np.int32)
+            if labels is not None
+            else np.ones(boxes_np.shape[:2], dtype=np.int32)
+        )
+        if boxes_np.ndim != 3:
+            raise AssertionError(f"Expected rank-3 box tensor, got {boxes_np.shape}")
+        if boxes_np.shape[1] != self.num_prompts:
+            raise AssertionError(
+                f"Batch size mismatch: expected {self.num_prompts}, got {boxes_np.shape[1]}"
+            )
+        self.boxes = np.concatenate([self.boxes, boxes_np], axis=0)
+        self.labels = np.concatenate([self.labels, labels_np], axis=0)
+
+
 class FakePredictor:
     box_detection_score_overrides: dict[tuple[int, int], float] = {}
     box_tracker_score_overrides: dict[tuple[int, int], float | None] = {}
+    non_overlap_calls: int = 0
 
     def __init__(self, overrides):
         self.overrides = dict(overrides)
         self.args = SimpleNamespace(conf=float(overrides.get("conf", 0.25)))
         self.device = "cpu"
         self.stride = 14
-        self.model = SimpleNamespace(fp16=False, set_imgsz=lambda imgsz: None)
+        self.model = SimpleNamespace(
+            fp16=False,
+            names=None,
+            set_imgsz=lambda imgsz: None,
+            set_classes=self._set_classes,
+        )
         self.tracker = FakeTracker()
         self.imgsz = (640, 640)
         self.dataset = None
@@ -84,6 +114,9 @@ class FakePredictor:
         self.im = None
         self.inference_state = {}
         self.shutdown_called = False
+
+    def _set_classes(self, text):
+        self.model.names = text
 
     def setup_model(self, verbose=True):
         del verbose
@@ -104,8 +137,21 @@ class FakePredictor:
     def preprocess(self, images):
         return images[0]
 
+    def _prepare_geometric_prompts(self, src_shape, bboxes=None, labels=None):
+        del src_shape
+        boxes = np.asarray(bboxes, dtype=np.float32)
+        labels_array = np.asarray(labels, dtype=np.int32)
+        return (
+            torch.as_tensor(boxes.reshape(-1, 1, 4), dtype=torch.float32),
+            torch.as_tensor(labels_array.reshape(-1, 1), dtype=torch.int32),
+        )
+
+    def _get_dummy_prompt(self, num_prompts=1):
+        return FakeGeometricPrompt(num_prompts)
+
     def _apply_object_wise_non_overlapping_constraints(self, masks, tracker_scores, background_value=0):
         del tracker_scores, background_value
+        type(self).non_overlap_calls += 1
         return masks
 
     def add_prompt(self, frame_idx, text=None, bboxes=None, labels=None, inference_state=None):
@@ -118,7 +164,20 @@ class FakePredictor:
         elif "text_ids" not in state:
             state["text_ids"] = np.arange(1, dtype=np.int32)
         if bboxes is not None:
-            state["per_frame_geometric_prompt"][frame_idx] = np.asarray(bboxes, dtype=np.float32)
+            new_boxes = np.asarray(bboxes, dtype=np.float32)
+            existing = state["per_frame_geometric_prompt"][frame_idx]
+            if existing is None:
+                state["per_frame_geometric_prompt"][frame_idx] = new_boxes
+            elif isinstance(existing, FakeGeometricPrompt):
+                state["per_frame_geometric_prompt"][frame_idx] = np.concatenate(
+                    [existing.boxes[:, 0, :], new_boxes],
+                    axis=0,
+                )
+            else:
+                state["per_frame_geometric_prompt"][frame_idx] = np.concatenate(
+                    [np.atleast_2d(np.asarray(existing, dtype=np.float32)), new_boxes],
+                    axis=0,
+                )
         if "tracker_capacity" not in state:
             state["tracker_capacity"] = int(state["num_frames"])
         return frame_idx, self._run_single_frame_inference(frame_idx, inference_state=state)
@@ -131,7 +190,8 @@ class FakePredictor:
         obj_id_to_cls: dict[int, float] = {}
         tracker_scores: dict[int, float] = {}
 
-        if state.get("text_prompt") not in (None, [], ""):
+        has_geometry = any(prompt is not None for prompt in state.get("per_frame_geometric_prompt", []))
+        if state.get("text_prompt") not in (None, [], "") and not has_geometry:
             mask = torch.zeros((1, 2, 2), dtype=torch.bool)
             mask[0, 0, 0] = True
             obj_id_to_mask[100] = mask
@@ -156,17 +216,27 @@ class FakePredictor:
         for prompt_frame, prompt in enumerate(state.get("per_frame_geometric_prompt", [])[: frame_idx + 1]):
             if prompt is None:
                 continue
-            obj_id = 1000 + prompt_frame
-            mask = torch.zeros((1, 2, 2), dtype=torch.bool)
-            mask[0, prompt_frame % 2, 1 - (prompt_frame % 2)] = True
-            score_key = (prompt_frame, frame_idx)
-            det_score = type(self).box_detection_score_overrides.get(score_key, 0.9)
-            tracker_score = type(self).box_tracker_score_overrides.get(score_key, 0.9)
-            obj_id_to_mask[obj_id] = mask
-            obj_id_to_score[obj_id] = det_score
-            obj_id_to_cls[obj_id] = float(prompt_frame + 2)
-            if tracker_score is not None:
-                tracker_scores[obj_id] = tracker_score
+            if isinstance(prompt, FakeGeometricPrompt):
+                prompt_boxes = np.asarray(prompt.boxes, dtype=np.float32)
+                object_count = prompt_boxes.shape[1]
+            else:
+                prompt_boxes = np.atleast_2d(np.asarray(prompt, dtype=np.float32))
+                object_count = len(prompt_boxes)
+
+            for box_index in range(object_count):
+                object_key = prompt_frame if box_index == 0 else prompt_frame * 100 + box_index
+                obj_id = 1000 + object_key
+                mask = torch.zeros((1, 2, 2), dtype=torch.bool)
+                pixel_index = (prompt_frame + box_index) % 4
+                mask[0, pixel_index // 2, pixel_index % 2] = True
+                score_key = (object_key, frame_idx)
+                det_score = type(self).box_detection_score_overrides.get(score_key, 0.9)
+                tracker_score = type(self).box_tracker_score_overrides.get(score_key, 0.9)
+                obj_id_to_mask[obj_id] = mask
+                obj_id_to_score[obj_id] = det_score
+                obj_id_to_cls[obj_id] = float(prompt_frame + box_index + 2)
+                if tracker_score is not None:
+                    tracker_scores[obj_id] = tracker_score
 
         return {
             "obj_id_to_mask": obj_id_to_mask,
@@ -242,6 +312,7 @@ class Sam3InterfaceTest(unittest.TestCase):
         FakeTRex.settings = {"detect_conf_threshold": 0.25, "detect_iou_threshold": 0.5}
         FakePredictor.box_detection_score_overrides = {}
         FakePredictor.box_tracker_score_overrides = {}
+        FakePredictor.non_overlap_calls = 0
         sam3.shutdown()
 
         self.temp = tempfile.NamedTemporaryFile(suffix=".pt", delete=False)
@@ -290,6 +361,33 @@ class Sam3InterfaceTest(unittest.TestCase):
 
         self.assertEqual(result1.frame_index, 1)
         self.assertEqual(len(result1.masks), 1)
+
+    def test_same_concept_multiple_boxes_create_multiple_prompted_objects(self):
+        self.create_session()
+
+        result = sam3.predict_frame(self.frame_input(0, [
+            text_prompt("fish"),
+            box_prompt(0.1, 0.1, 0.4, 0.4),
+            box_prompt(0.5, 0.5, 0.8, 0.8),
+        ]))[0]
+        current = sam3._require_session()
+
+        self.assertEqual(len(result.masks), 2)
+        self.assertEqual(current.predictor.inference_state["text_prompt"], "fish")
+        self.assertEqual(len(current.predictor.inference_state["text_ids"]), 1)
+
+    def test_multiple_box_prompts_without_text_still_create_multiple_objects(self):
+        self.create_session()
+
+        result = sam3.predict_frame(self.frame_input(0, [
+            box_prompt(0.1, 0.1, 0.4, 0.4),
+            box_prompt(0.5, 0.5, 0.8, 0.8),
+        ]))[0]
+        current = sam3._require_session()
+
+        self.assertEqual(len(result.masks), 2)
+        self.assertIsNone(current.predictor.inference_state["text_prompt"])
+        self.assertEqual(len(current.predictor.inference_state["text_ids"]), 1)
 
     def test_session_initializes_with_capacity_large_enough_for_frame1_propagation(self):
         self.create_session(video_capacity=8)
@@ -385,6 +483,26 @@ class Sam3InterfaceTest(unittest.TestCase):
         keep = sam3._suppress_near_duplicate_masks(pred_masks, pred_scores, 0.95)
 
         self.assertEqual(keep.tolist(), [True, False])
+
+    def test_postprocess_skips_duplicate_suppression_when_iou_is_unset(self):
+        FakeTRex.settings["detect_iou_threshold"] = None
+        self.create_session()
+        session = sam3._require_session()
+        image = np.zeros((8, 8, 3), dtype=np.uint8)
+        output = {
+            "obj_id_to_mask": {
+                1: torch.tensor([[[1.0, 1.0], [0.0, 0.0]]], dtype=torch.float32),
+                2: torch.tensor([[[1.0, 1.0], [0.0, 0.0]]], dtype=torch.float32),
+            },
+            "obj_id_to_score": {1: 0.9, 2: 0.8},
+            "obj_id_to_cls": {1: 1.0, 2: 1.0},
+            "obj_id_to_tracker_score": {1: 0.9, 2: 0.8},
+        }
+
+        masks_np, _, _ = sam3._postprocess_video_output(session, output, image)
+
+        self.assertEqual(masks_np.shape[0], 2)
+        self.assertEqual(FakePredictor.non_overlap_calls, 1)
 
     def test_build_result_inverse_maps_letterboxed_masks(self):
         result = sam3._build_result(

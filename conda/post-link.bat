@@ -45,8 +45,8 @@ rem (see meta.yaml) to prevent conda from installing a conda-managed numpy whose
 rem layout is incompatible with torch wheels from download.pytorch.org (WinError 127 /
 rem fbgemm.dll). Both are installed here via pip so DLL ownership is consistent.
 set "PIP_ARGS="
-call :add_package "torch>=2.0.0,<2.9.0"
-call :add_package "torchvision>=0.15.1,<0.24.0"
+call :add_package "torch>=2.0.0,<3.0.0"
+call :add_package "torchvision>=0.15.1"
 call :add_package "torchmetrics"
 call :add_package "tqdm"
 call :add_package "opencv-python>=4,<5"
@@ -54,6 +54,8 @@ call :add_package "ultralytics>=8.3.0,<9"
 call :add_package "dill"
 call :add_package "numpy>=1.26,<3"
 call :add_package "scikit-learn"
+call :add_package "timm"
+call :add_package "git+https://github.com/ultralytics/CLIP.git"
 
 call :log "Windows detected; checking CUDA availability to document channel choice."
 

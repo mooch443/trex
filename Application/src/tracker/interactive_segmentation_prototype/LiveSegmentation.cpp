@@ -18,6 +18,7 @@
 #include <pv.h>
 #include <core/TileBuffers.h>
 #include <processing/ResizeImage.h>
+#include <python/SAM3.h>
 
 struct DetectionMeta {
     pv::bid bdx;
@@ -107,12 +108,11 @@ struct LiveSegmentation::Data {
         auto detect_sam3_prompt = READ_SETTING_WITH_DEFAULT(detect_sam3_prompt, std::optional<track::detect::Sam3Prompts>{});
         if(not detect_sam3_prompt)
             return false;
-        
-        auto it = detect_sam3_prompt->find(index);
-        if(it == detect_sam3_prompt->end())
-            return false;
-        
-        return not it->second.empty();
+
+        const auto materialized = track::materialize_sam3_prompt_state(index, detect_sam3_prompt);
+        return not materialized.shared_prompts.empty()
+            || not materialized.legacy_points.empty()
+            || not materialized.objects.empty();
     }
     
     static std::optional<Frame_t> earliest_affected_frame(const std::optional<track::detect::Sam3Prompts>& previous,
@@ -535,6 +535,12 @@ void LiveSegmentation::activate() {
                         
                         //buffers::TileBuffers::get().move_back(std::move(processed.data.image));
 
+                        if(_requested_frame
+                           && _requested_frame.value() == frame.index)
+                        {
+                            _requested_frame.reset();
+                        }
+                        
                         _next_frame = std::move(frame);
                         _next_data = std::move(processed.data);
                         _next_data_revision = expected_revision;
@@ -660,6 +666,9 @@ void LiveSegmentation::_draw(DrawStructure& graph) {
                         auto p = Meta::fromStr<Vec2>(props.parameters.front());
                         return coords.convert(HUDCoord(p));
                     }),
+                    VarFunc("frame_requested", [this](const VarProps&) -> std::optional<Frame_t> {
+                        return _last_requested_frame;
+                    }),
                     VarFunc("annotations", [this](const VarProps&) -> std::vector<glz::json_t> {
                         std::vector<glz::json_t> result;
                         auto detect_sam3_prompt = READ_SETTING_WITH_DEFAULT(detect_sam3_prompt, std::optional<track::detect::Sam3Prompts>{});
@@ -667,12 +676,17 @@ void LiveSegmentation::_draw(DrawStructure& graph) {
                             return result;
                         
                         if(_current_frame.index.valid()) {
-                            auto it = detect_sam3_prompt->find(_current_frame.index);
-                            if(it != detect_sam3_prompt->end()) {
-                                for(auto& prompt : it->second) {
-                                    if(prompt.type() == track::detect::Sam3PromptType::boxes)
-                                        result.emplace_back(prompt.to_json());
-                                }
+                            const auto materialized = track::materialize_sam3_prompt_state(_current_frame.index, detect_sam3_prompt);
+                            result.reserve(materialized.objects.size());
+                            for(const auto& object : materialized.objects) {
+                                result.push_back(glz::json_t::object_t{
+                                    {"id", object.id},
+                                    {"seed_frame", object.seed_frame.valid() ? glz::json_t(object.seed_frame.get()) : glz::json_t(nullptr)},
+                                    {"x", object.seed_box.x},
+                                    {"y", object.seed_box.y},
+                                    {"w", object.seed_box.width},
+                                    {"h", object.seed_box.height}
+                                });
                             }
                         }
                         
@@ -713,6 +727,28 @@ void LiveSegmentation::_draw(DrawStructure& graph) {
                         REQUIRE_EXACTLY(1, action);
                         _playback = Meta::fromStr<bool>(action.parameters.front());
                         Print("Playback = ", _playback.load());
+                    }),
+                    ActionFunc("remove_annotation", [this](const Action& action) {
+                        REQUIRE_EXACTLY(1, action);
+                        auto object_id = Meta::fromStr<uint64_t>(action.parameters.front());
+                        Print("Remove annotation ", object_id);
+                        
+                        auto detect_sam3_prompt = READ_SETTING_WITH_DEFAULT(detect_sam3_prompt, std::optional<track::detect::Sam3Prompts>{});
+                        if(not detect_sam3_prompt)
+                            return; /// Not found
+
+                        if(track::erase_sam3_prompt_object(*detect_sam3_prompt, object_id)) {
+                            SETTING(detect_sam3_prompt) = detect_sam3_prompt;
+                            if(_data) {
+                                (void)_data->bump_prompt_revision(_current_frame.index);
+                            }
+                            if(_sam3_session) {
+                                _sam3_session->invalidate_from(_current_frame.index + 1_f);
+                            }
+                            
+                            Print("Removed annotation ", object_id);
+                            request_frame(_current_frame.index);
+                        }
                     })
                 };
                 
@@ -786,6 +822,11 @@ void LiveSegmentation::_draw(DrawStructure& graph) {
                 _next_data_revision.reset();
                 _next_frame.reset();
             } else {
+                if(_last_requested_frame)
+                {
+                    assert(_last_requested_frame == _next_frame->index);
+                    _last_requested_frame.reset();
+                }
                 Print("* Accepting ", _next_frame->index," as next visible frame");
                 _current_frame.image = _current_image->update_with(nullptr);
                 _previous_frame = std::move(_current_frame);
@@ -876,7 +917,7 @@ bool LiveSegmentation::on_global_event(Event event) {
             if(not detect_sam3_prompt)
                 detect_sam3_prompt = track::detect::Sam3Prompts{};
             
-            (*detect_sam3_prompt)[_current_frame.index].emplace_back(std::vector<Bounds>{_drag_box->bounds()});
+            detect_sam3_prompt->operator[](_current_frame.index).emplace_back(std::vector<Bounds>{_drag_box->bounds()});
             SETTING(detect_sam3_prompt) = detect_sam3_prompt;
             if(_data) {
                 (void)_data->bump_prompt_revision(_current_frame.index);
