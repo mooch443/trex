@@ -234,6 +234,7 @@ target_link_libraries(test_dispatcher PUBLIC
 
 target_link_libraries(test_sam3promptpayload PUBLIC
     tracker_misc
+    trex_python_staging
     pv
     commons
 )

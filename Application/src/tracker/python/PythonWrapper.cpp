@@ -131,6 +131,12 @@ void prepare_python_environment() {
             set = set + path;
             SetEnvironmentVariable("PATH", set.c_str());
             SetEnvironmentVariable("PYTHONHOME", home.c_str());
+
+            // Embedded Python on Windows often needs explicit DLL directories
+            // for extension modules such as cv2 to resolve their dependent DLLs.
+            AddDllDirectory(s2ws(file::Path(home).str()).c_str());
+            AddDllDirectory(s2ws((file::Path(home) / "DLLs").str()).c_str());
+            AddDllDirectory(s2ws((file::Path(home) / "Library" / "bin").str()).c_str());
 #else
             std::string path = (std::string)getenv("PATH");
             set = set + path;
