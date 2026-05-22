@@ -13,7 +13,7 @@ public:
     // Constructor: takes non-owning pointers to the label cache, the labels map, and dt.
     explicit LabelElement(LabelCache_t* labelCache,
                           std::unordered_map<track::Idx_t, Label_t>* labelsMap,
-                          double* dt);
+                          std::function<double()>&& dt);
     LabelElement(LabelElement&&) = delete;
     LabelElement(const LabelElement&) = delete;
     LabelElement& operator=(LabelElement&&) = delete;
@@ -31,7 +31,7 @@ public:
 private:
     LabelCache_t* _labelCache; // Non-owning pointer to the label cache.
     std::unordered_map<track::Idx_t, Label_t>* _labelsMap; // Non-owning pointer to the labels map.
-    double* _dt; // Non-owning pointer to the dt variable.
+    const std::function<double()> _dt;
 };
 
 } // namespace cmn::gui

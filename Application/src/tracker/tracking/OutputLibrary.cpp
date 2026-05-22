@@ -935,6 +935,16 @@ const track::MotionRecord* Library::retrieve_props(
             return GlobalSettings::invalid();
         });
         
+        FN_IS_CENTROID_ONLY_PROPERTY(tracklet_length);
+        _cache_func["tracklet_length"] = LIB_NO_CHECK_FNC({
+            std::shared_ptr<track::TrackletInformation> tracklet = fish->tracklet_for(frame);
+            if (tracklet) {
+                return (uint64_t)tracklet->length().get();
+            }
+
+            return GlobalSettings::invalid();
+        });
+        
         FN_IS_CENTROID_ONLY_PROPERTY(blobid);
         _cache_func["blobid"] = LIB_NO_CHECK_FNC({
             auto blob = fish->compressed_blob(frame);

@@ -16,6 +16,7 @@
 #include <ui/Scene.h>
 #include <gui/DynamicGUI.h>
 #include <gui/dyn/ParseText.h>
+#include <core/annotation.h>
 
 using namespace cmn::gui;
 
@@ -46,6 +47,7 @@ struct BlobView {
     
     std::unique_ptr<Entangled> combine = std::make_unique<Entangled>();
     std::shared_ptr<Button> button = nullptr;
+    std::vector<std::shared_ptr<Button>> annotation_buttons;
     std::shared_ptr<Dropdown> dropdown = nullptr;
     
     Frame_t _last_frame;
@@ -1296,9 +1298,9 @@ void BlobView::draw_boundary_selection(DrawStructure& base, Base* window, GUICac
             if(top_left.x != FLT_MAX) {
                 Bounds bds{
                     (top_left) + Vec2{
-                            0.f,
-                            - 50.f
-                        },
+                        0.f,
+                        - 50.f
+                    },
                     Size2(0, 35)
                 };
                 std::string name = "";
@@ -1337,26 +1339,150 @@ void BlobView::draw_boundary_selection(DrawStructure& base, Base* window, GUICac
                     });
                     
                 } else {
-                    button->set_bounds(Bounds(Vec2(), bds.size()));
                     button->set_txt(name);
                 }
                 
+                auto detect_classes = READ_SETTING_WITH_DEFAULT(detect_classes, cmn::blob::MaybeObjectClass_t{});
+                if(annotation_buttons.empty()
+                   && (bdry.size() == 1 && bdry.front().size() >= 1))
+                {
+                    auto create_button = [this](StringLike auto&& name, size_t id){
+                        auto annotation_button = std::make_shared<Button>(Str(name), Font(0.6, Align::Center), FillClr{60,60,60,200}, LineClr{100,175,250,200}, TextClr{225,225,225}, CornerFlags_t(CornerFlags::fromStr("['bottom']")));
+                        annotation_button->on_click([&, id](auto){
+                            if(_current_boundary.size() == 1
+                               && _current_boundary.front().size() >= 1)
+                            {
+                                auto track_annotations = READ_SETTING_WITH_DEFAULT(track_annotations, track::AnnotationMap{});
+                                if(not track_annotations)
+                                    track_annotations.init();
+                                auto current = READ_SETTING_WITH_DEFAULT(gui_frame, Frame_t());
+                                auto &field = track_annotations[current];
+                                
+                                using namespace track::detect;
+                                using Point = track::Annotation::Point_t;
+                                std::vector<Point> points;
+                                for(auto &pt : _current_boundary.front()) {
+                                    points.emplace_back(pt);
+                                }
+                                
+                                auto format = READ_SETTING_WITH_DEFAULT(detect_format, ObjectDetectionFormat::poses);
+                                if(is_in(format, ObjectDetectionFormat::boxes, ObjectDetectionFormat::masks)) {
+                                    auto get_bounds_of = [](auto&& points) -> std::optional<Bounds> {
+                                        Bounds bds(FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX);
+                                        for(auto& pt : points) {
+                                            if(pt.x < bds.x) bds.x = pt.x;
+                                            if(pt.y < bds.y) bds.y = pt.y;
+                                            if(pt.x > bds.width) bds.width = pt.x;
+                                            if(pt.y > bds.height) bds.height = pt.y;
+                                        }
+                                        if(bds.x == FLT_MAX)
+                                            return std::nullopt;
+                                        return Bounds(bds.x, bds.y, bds.width - bds.x, bds.height - bds.y);
+                                    };
+                                    
+                                    auto box = get_bounds_of(points);
+                                    points = {
+                                        Point(clamp_cast<uint16_t>(box->x), clamp_cast<uint16_t>(box->y)),
+                                        Point(clamp_cast<uint16_t>(box->x + box->width), clamp_cast<uint16_t>(box->y)),
+                                        Point(clamp_cast<uint16_t>(box->x + box->width), clamp_cast<uint16_t>(box->y + box->height)),
+                                        Point(clamp_cast<uint16_t>(box->x), clamp_cast<uint16_t>(box->y + box->height))
+                                    };
+                                    
+                                    Annotation annotation{
+                                        .uid = uint8_t(field.size()),
+                                        .clid = uint8_t(id),
+                                        .type = AnnotationType::BOX,
+                                        .points = std::move(points)
+                                    };
+                                    Print("Adding points ", _current_boundary, " to ", format," annotations of type ",id," => ", annotation);
+                                    field.push_back(std::move(annotation));
+                                }
+                                else {
+                                    Annotation annotation{
+                                        .uid = uint8_t(field.size()),
+                                        .clid = uint8_t(id),
+                                        .type = AnnotationType::POSE,
+                                        .points = std::move(points)
+                                    };
+                                    Print("Adding points ", _current_boundary, " to keypoint annotations of type ",id," => ", annotation);
+                                    field.push_back(std::move(annotation));
+                                }
+                                
+                                SETTING(track_annotations) = std::move(track_annotations);
+                                _current_boundary.clear();
+                            }
+                        });
+                        return annotation_button;
+                    };
+                    if(detect_classes) {
+                        annotation_buttons.reserve(detect_classes->size());
+                        for(auto &[id, name] : *detect_classes) {
+                            annotation_buttons.push_back(create_button("Annotate <c>"+name+"</c>", id));
+                        }
+                        
+                    } else {
+                        annotation_buttons.resize(1);
+                        annotation_buttons[0] = create_button("Annotate class <c>0</c>", 0);
+                    }
+                }
+                
+                if(not annotation_buttons.empty()) {
+                    if(detect_classes
+                       && detect_classes->size() == annotation_buttons.size())
+                    {
+                        size_t i = 0;
+                        for(auto &[id, name] : *detect_classes) {
+                            annotation_buttons[i]->set(Str{"Annotate <c>"+name+"</c>"});
+                            ++i;
+                        }
+                        
+                    } else if(detect_classes) {
+                        annotation_buttons.clear();
+                    }
+                }
+                
+                Vec2 pos(0, button->local_bounds().height);
+                if(not annotation_buttons.empty()) {
+                    for(auto &b: annotation_buttons) {
+                        auto text_bounds = window ? window->text_bounds(b->txt(), NULL, Font(0.6)) : Base::default_text_bounds(b->txt(), NULL, Font(0.6));
+                        bds.width = max(bds.width, text_bounds.width + 10);
+                        b->set(Box(pos, bds.size()));
+                        pos.y += b->local_bounds().height;
+                    }
+                    
+                    annotation_buttons.front()->set(CornerFlags_t(CornerFlags(false, false, false, false)));
+                    
+                    auto flags = annotation_buttons.back()->corner_flags();
+                    flags.set(CornerFlags::Corner::BottomLeft);
+                    flags.set(CornerFlags::Corner::BottomRight);
+                    annotation_buttons.back()->set(CornerFlags_t(flags));
+                    
+                    button->set(CornerFlags_t(CornerFlags(true, true, false, false)));
+                }
+                
+                button->set_bounds(Bounds(Vec2(), bds.size()));
+                
                 if(!dropdown) {
                     dropdown = std::make_shared<Dropdown>(Box(Vec2(0, button->local_bounds().height), bds.size()), ListDims_t{bds.width, 200.f}, ListFillClr_t{60,60,60,200}, FillClr{60,60,60,200}, LineClr{100,175,250,200}, TextClr{225,225,225}, LabelFont_t{0.6}, ItemFont_t{0.6},
-                    std::vector<std::string>{
-                        "gui_zoom_polygon",
-                        "track_ignore",
-                        "track_include",
-                        "recognition_shapes",
-                        "visual_field_shapes"
-                    });
+                        std::vector<std::string>{
+                            "gui_zoom_polygon",
+                            "track_ignore",
+                            "track_include",
+                            "recognition_shapes",
+                            "visual_field_shapes"
+                        }
+                    );
                     dropdown->on_select([&](auto, const Dropdown::TextItem & item){
                         clicked_background(base, cache, Vec2(), true, item.name());
                     });
                     dropdown->textfield()->set_placeholder("select below...");
-                    
-                } else
+                }
+                
+                if(annotation_buttons.empty()) {
                     dropdown->set_bounds(Bounds(Vec2(0, button->local_bounds().height), bds.size()));
+                } else {
+                    dropdown->set_bounds(Bounds(pos, bds.size()));
+                }
                 
                 combine->update([&](auto&e) {
                     if(bdry.size() > 1
@@ -1371,6 +1497,10 @@ void BlobView::draw_boundary_selection(DrawStructure& base, Base* window, GUICac
                         if(_current_boundary.size() != 1 || _current_boundary.front().size() > 2)
                             e.advance_wrap(*dropdown);
                         e.advance_wrap(*button);
+                        if(not annotation_buttons.empty()) {
+                            for(auto& b : annotation_buttons)
+                                e.advance_wrap(*b);
+                        }
                     }
                 });
                 

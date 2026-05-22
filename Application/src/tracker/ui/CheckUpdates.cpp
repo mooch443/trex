@@ -320,9 +320,12 @@ std::future<VersionStatus> perform(bool manually_triggered) {
                     py::execute("retrieve_version(sorted([o['name'].split(':')[0].split('v')[1] for o in requests.get('https://api.github.com/repos/mooch443/trex/releases', headers={'accept':'application/vnd.github.v3.full+json'}).json() if 'v' in o['name']])[-1])");
                 } catch(const SoftExceptionImpl& ex) {
                     std::string line = ex.what();
-                    auto array = utils::split(line, '\n');
+                    auto _array = utils::split(line, '\n');
+                    std::vector<std::string> array;
+                    array.reserve(_array.size());
+                    
                     for(auto &l : array)
-                        l = escape_html(l);
+                        array.push_back(escape_html(l));
                     
                     if(array.size() > 3) {
                         array.erase(array.begin() + 1, array.begin() + (array.size() - 2));

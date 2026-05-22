@@ -13,6 +13,7 @@
 #include <pv.h>
 #include <misc/CropOffsets.h>
 #include <core/GPURecognitionTypes.h>
+#include <core/annotation.h>
 
 #ifndef WIN32
 #include <unistd.h>
@@ -119,6 +120,11 @@ ENUM_CLASS_DOCS(gpu_verbosity_t,
     "No output during training.",
     "An animated bar with detailed information about the training progress.",
     "One line per epoch."
+)
+
+ENUM_CLASS_DOCS(detect_pose_bbx_t,
+    "Use the model-provided YOLO bounding boxes for pose tile duplicate matching.",
+    "Use a padded minimum-area rotated rectangle around pose keypoints for tile duplicate matching."
 )
 
 ENUM_CLASS_DOCS(app_update_check_t,
@@ -508,7 +514,7 @@ std::vector<std::pair<std::string, std::vector<std::string>>> add_missing_pose_f
     // 3) Collect missing pose fields.
     std::vector<std::pair<std::string, std::vector<std::string>>> needed;
     needed.reserve(auto_fields.size());
-    for (const auto& [field_index, field_props] : Zip::Zip( auto_field_indexes, auto_fields ))
+    for (const auto&& [field_index, field_props] : Zip::Zip( auto_field_indexes, auto_fields ))
     {
         const auto& [field_name, transforms] = field_props;
         
@@ -897,6 +903,11 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("manual_matches", std::map<Frame_t, std::map<track::Idx_t, pv::bid>>{ }, "A map of manually defined matches (also updated by GUI menu for assigning manual identities). `{{frame: {fish0: blob2, fish1: blob0}}, ...}`");
         CONFIG("manual_splits", std::map<Frame_t, std::set<pv::bid>>{}, "This map contains `{frame: [blobid1,blobid2,...]}` where frame and blobid are integers. When this is read during tracking for a frame, the tracker will attempt to force-split the given blob ids.");
         CONFIG("track_ignore_bdx", std::map<Frame_t, std::set<pv::bid>>{}, "This is a map of frame -> [bdx0, bdx1, ...] of blob ids that are specifically set to be ignored in the given frame. Can be reached using the GUI by clicking on a blob in raw mode.");
+        
+        using namespace track;
+        AnnotationMap annotation_example = AnnotationMap::fromStr("{100:[[0,1,[[100,120],[200,300],[350,400]]]]}");
+        CONFIG("track_annotations", track::AnnotationMap{}, "This is a map of {frame:[[clid,type,[points...]],...]} that can be used to export annotations per frame. These can be added in the graphical user interface by CMD+clicking on the video and selecting 'add annotation'.", PUBLIC, {std::move(annotation_example)});
+        
         CONFIG("match_mode", matching_mode_t::automatic, "Changes the default algorithm to be used for matching blobs in one frame with blobs in the next frame. The accurate algorithm performs best, but also scales less well for more individuals than the approximate one. However, if it is too slow (temporarily) in a few frames, the program falls back to using the approximate one that doesnt slow down.");
         CONFIG("match_min_probability", float(0.1), "The probability below which a possible connection between blob and identity is considered too low. The probability depends largely upon settings like `track_max_speed`.");
         CONFIG("match_topk", std::optional<uint8_t>(), "If not null, the matching algorithm will consider only the top k elements with the highest probability.", PUBLIC, {std::optional<uint8_t>{5}});
@@ -1097,13 +1108,14 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("detect_format", track::detect::ObjectDetectionFormat::none, "The type of data returned by the `detect_model`, which can be an instance segmentation", AccessLevelType::INIT);
         CONFIG("detect_keypoint_format", track::detect::KeypointFormat{}, "When a keypoint (pose) type model is loaded, this variable will be set to [n_points,n_dims].", AccessLevelType::INIT, {track::detect::KeypointFormat{.n_points = 17, .n_dims = 2}});
         CONFIG("detect_keypoint_names", track::detect::KeypointNames{}, "An array of names in the correct keypoint index order for the given model.", AccessLevelType::INIT, {track::detect::KeypointNames{.names = std::vector<std::string>{"nose", "left_eye", "right_eye", "left_ear", "right_ear"}}});
+        CONFIG("detect_pose_bbx", detect_pose_bbx_t::keypoints, "Bounding-box geometry used for pose tile duplicate matching. `yolo` uses model boxes; `keypoints` uses padded minimum-area rotated rectangles around keypoints.");
         CONFIG("detect_point_radii", std::map<int, float>{}, "An array of radii for a given point class in a POLO network.", PUBLIC, {std::map<int, float>{{0, 3.f}, {1, 2.5f}}});
         CONFIG("detect_batch_size", uchar(1), "The batching size for object detection.");
         CONFIG("detect_tile_image", uchar(0), "Legacy tile multiplier for SAHI detection. If > 1, this will tile the input image into that many multiples of `detect_resolution`. Retained for backwards compatibility; prefer `detect_tile_target_width`.");
         CONFIG("detect_tile_target_width", uint16_t(0), "Desired horizontal resolution (in pixels) used when preparing tiles for SAHI detection. We derive the number of tiles from this width; set to 0 to disable or fall back to `detect_tile_image`.");
         CONFIG("detect_tile_overlap", float(0.f), "Relative overlap (0-0.95) between adjacent tiles when tiling detection inputs. Enables SAHI-style inference without losing objects on tile borders.");
-        CONFIG("detect_tile_merge_iou", Float2_t(0.55f), "IoU threshold used when merging tile predictions on the C++ side after SAHI tiling.");
-        CONFIG("detect_tile_merge_containment", Float2_t(0.9f), "Containment threshold (fraction of the smaller box overlapped) used to drop partial detections at tile seams.");
+        CONFIG("detect_tile_merge_iou", Float2_t(0.55f), "IoU threshold used by representative NMS fallback paths after SAHI tiling.");
+        CONFIG("detect_tile_merge_containment", Float2_t(0.5f), "IOS threshold (intersection over smaller box area) used by SAHI-style GreedyNMM tile prediction merging.");
         
         std::optional<track::detect::Sam3Prompts> example_prompts = track::detect::Sam3Prompts{{
             {Frame_t{}, track::detect::Sam3PromptList{track::detect::Sam3PromptPayload::fromStr("shark")}}

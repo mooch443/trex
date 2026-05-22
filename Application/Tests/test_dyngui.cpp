@@ -50,6 +50,28 @@ static void collect_static_text_strings(const Layout::Ptr& node, std::vector<std
     }
 }
 
+static void collect_rendered_text_strings(const Layout::Ptr& node, std::vector<std::string>& out) {
+    if(not node) {
+        return;
+    }
+    
+    if(node.is<StaticText>()) {
+        out.push_back(node.to<StaticText>()->text());
+        return;
+    }
+    
+    if(node.is<Text>()) {
+        out.push_back(node.to<Text>()->txt());
+        return;
+    }
+    
+    if(node.is<Layout>()) {
+        for(const auto& child : node.to<Layout>()->objects()) {
+            collect_rendered_text_strings(child, out);
+        }
+    }
+}
+
 static Vec2 center_of(Drawable& drawable) {
     const auto bounds = drawable.global_bounds();
     return Vec2(bounds.x + bounds.width * 0.5, bounds.y + bounds.height * 0.5);
@@ -826,6 +848,136 @@ TEST(EachElementTest, NestedEachRestoresOuterScope) {
         "inner:3-0",
         "inner:4-1",
         "outer:20-1"
+    ));
+}
+
+TEST(EachElementTest, ConditionThenBranchNestedEachUsesCurrentOuterItem) {
+    constexpr std::string_view json = R"json(
+{
+  "type": "each",
+  "var": "{annotations}",
+  "do": {
+    "type": "collection",
+    "children": [
+      {
+        "type": "condition",
+        "var": "{equal:{i.type}:1}",
+        "then": {
+          "type": "each",
+          "var": "{i.pts}",
+          "do": {
+            "type": "text",
+            "text": "pt:{i}-{index}",
+            "pos": [10, 10],
+            "origin": [0.5, 0.5],
+            "color": [255, 0, 255]
+          }
+        },
+        "else": {
+          "type": "text",
+          "text": "not {i.type}: {i.pts}",
+          "pos": [10, 20],
+          "origin": [0.5, 1],
+          "color": [255, 0, 255]
+        }
+      }
+    ]
+  }
+}
+)json";
+
+    glz::json_t obj;
+    auto parse_error = glz::read_json(obj, json);
+    ASSERT_EQ(parse_error, glz::error_code::none) << glz::format_error(parse_error, json);
+    ASSERT_TRUE(obj.is_object());
+
+    struct TestAnnotation {
+        uint8_t uid{};
+        uint8_t type{};
+        std::vector<blob::Pose::Point> points{};
+    };
+
+    std::vector<TestAnnotation> source{
+        TestAnnotation{.uid = 1, .type = 1, .points = {blob::Pose::Point{1, 2}, blob::Pose::Point{3, 4}}},
+        TestAnnotation{.uid = 2, .type = 2, .points = {blob::Pose::Point{5, 6}}}
+    };
+
+    Context context{
+        VarFunc("annotations", [&source](const VarProps&) -> std::vector<glz::json_t> {
+            std::vector<glz::json_t> result;
+            result.reserve(source.size());
+
+            for(auto& object : source) {
+                Bounds bds(FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX);
+                for(auto& pt : object.points) {
+                    if(not pt.valid()) {
+                        continue;
+                    }
+
+                    if(pt.x >= bds.width) {
+                        bds.width = pt.x;
+                    }
+                    if(pt.x < bds.x) {
+                        bds.x = pt.x;
+                    }
+                    if(pt.y >= bds.height) {
+                        bds.height = pt.y;
+                    }
+                    if(pt.y < bds.y) {
+                        bds.y = pt.y;
+                    }
+                }
+                if(bds.x == FLT_MAX) {
+                    continue;
+                }
+
+                result.push_back(glz::json_t::object_t{
+                    {"id", object.uid},
+                    {"seed_frame", glz::json_t{0}},
+                    {"type", object.type},
+                    {"x", bds.x},
+                    {"y", bds.y},
+                    {"w", bds.width - bds.x},
+                    {"h", bds.height - bds.y},
+                    {"pts", cvt2json(object.points)}
+                });
+            }
+
+            return result;
+        })
+    };
+
+    State state;
+    auto handler = std::make_shared<CurrentObjectHandler>();
+    state._current_object_handler = handler;
+
+    DrawStructure graph(640, 480);
+    auto root = parse_object(nullptr, obj.get_object(), context, state, context.defaults);
+    ASSERT_TRUE(root);
+    ASSERT_TRUE(root.is<Layout>());
+
+    ASSERT_NO_THROW((void)DynamicGUI::update_objects(nullptr, graph, root, context, state));
+
+    std::vector<std::string> texts;
+    collect_rendered_text_strings(root, texts);
+    ASSERT_THAT(texts, ::testing::ElementsAre(
+        "pt:[1,2]-0",
+        "pt:[3,4]-1",
+        "not 2: [[5,6]]"
+    ));
+
+    source[0].points = {blob::Pose::Point{10, 11}};
+    source[1].type = 1;
+    source[1].points = {blob::Pose::Point{20, 21}, blob::Pose::Point{30, 31}};
+
+    ASSERT_NO_THROW((void)DynamicGUI::update_objects(nullptr, graph, root, context, state));
+
+    texts.clear();
+    collect_rendered_text_strings(root, texts);
+    ASSERT_THAT(texts, ::testing::ElementsAre(
+        "pt:[10,11]-0",
+        "pt:[20,21]-0",
+        "pt:[30,31]-1"
     ));
 }
 

@@ -4,7 +4,6 @@
 #include <python/PythonWrapper.h>
 #endif
 
-extern "C" {
 namespace track::detect {
 
 namespace {
@@ -52,4 +51,3 @@ const BackendHooks* ensure_backend(ObjectDetectionType::Class type) {
 }
 
 } // namespace track::detect
-}

@@ -397,10 +397,19 @@ Fish::~Fish() {
             _library_y = Output::Library::get_with_modifiers(color_source, _info, _safe_frame);
             if(!GlobalSettings::is_invalid(_library_y)) {
                 auto video_size = FindCoord::get().video_size();
-                if(color_source == "X") 
+                if(utils::beginsWith(color_source, "X"))
                     _library_y /= video_size.width * FAST_SETTING(cm_per_pixel);
-                else if(color_source == "Y")
+                else if(utils::beginsWith(color_source, "Y"))
                     _library_y /= video_size.height * FAST_SETTING(cm_per_pixel);
+                else if(utils::contains(color_source, "ANGLE")) {
+                    _library_y /= M_PI * 2_F;
+                }
+                else if(utils::contains(color_source, "DISTANCE")) {
+                    _library_y /= video_size.min();
+                }
+                else if(utils::contains(utils::lowercase(color_source), "tracklet")) {
+                    _library_y /= 100_F;
+                }
             }
         }
         
@@ -475,8 +484,18 @@ Fish::~Fish() {
         if (not _skelett) {
             _skelett = std::make_unique<Skelett>();
         }
+        
+        const auto single_identity = OPTION(gui_single_identity_color);
+        auto base_color = single_identity != Transparent ? single_identity : _id.color();
+        auto percent = saturate(cmn::abs(_library_y), 0.f, 1.f);
+        //Color clr = /*Color(225, 255, 0, 255)*/ base_color * percent + Color(50, 50, 50, 255) * (1 - percent);
+        
+        Color clr = utils::contains(color_source, "ANGLE")
+                    ? Color(255 * percent, 200, 255).HSV2RGB()
+                    : (base_color * percent + Color(50, 50, 50, 255) * (1 - percent));
+        
         if(frameIndex == _safe_frame)
-            _skelett->set_color(_color.alpha(150));
+            _skelett->set_color(clr.alpha(150));
         else
             _skelett->set_color(Gray.alpha(100));
         _skelett->set_name(Meta::toStr(_id.color()));
@@ -1529,12 +1548,14 @@ void Fish::selection_clicked(Event) {
             }
         
             //if(OPTION(gui_show_texts))
-            if(OPTION(gui_show_centroid))
+            if(OPTION(gui_show_centroid)
+               && GlobalSettings::is_invalid(_library_y))
             {
+                _view.add<Circle>(Loc(c_pos), Radius{2}, LineClr{White.alpha(255)});
+                
                 if(_next_frame_cache.has_value()) {
                     auto estimated = _next_frame_cache->estimated_px + offset;
                     
-                    _view.add<Circle>(Loc(c_pos), Radius{2}, LineClr{White.alpha(255)});
                     _view.add<Line>(Line::Point_t(c_pos), Line::Point_t(estimated), LineClr{ _color });
                     _view.add<Circle>(Loc(estimated), Radius{2}, LineClr{Transparent}, FillClr{_color});
                 }
@@ -1658,11 +1679,16 @@ void Fish::selection_clicked(Event) {
                 });
             
             } else if(not GlobalSettings::is_invalid(_library_y)) {
-                auto percent = min(1.f, cmn::abs(_library_y));
+                auto percent = saturate(cmn::abs(_library_y), 0.f, 1.f);
+                //Color clr = /*Color(225, 255, 0, 255)*/ base_color * percent + Color(50, 50, 50, 255) * (1 - percent);
                 
-                if(percent < 1) {
-                    Color clr = /*Color(225, 255, 0, 255)*/ base_color * percent + Color(50, 50, 50, 255) * (1 - percent);
-                    
+                Color clr = utils::contains(color_source, "ANGLE")
+                            ? Color(255 * percent, 200, 255).HSV2RGB()
+                            : (base_color * percent + Color(50, 50, 50, 255) * (1 - percent));
+                
+                if(OPTION(gui_show_blobs)
+                   && percent <= 1)
+                {
                     GUICache::instance().processed_frame().transform_blobs([&, bdx, pdx](const pv::Blob& b)
                                                                            {
                         if(!is_in(b.blob_id(), bdx, pdx))
@@ -1684,10 +1710,16 @@ void Fish::selection_clicked(Event) {
                         rgba->set_channels(image->data(), {0, 1, 2});
                         rgba->set_channel(3, *difference);
                         
-                        _view.add<ExternalImage>(std::move(rgba), image_pos + offset, Vec2(1), clr);
+                        _view.add<ExternalImage>(std::move(rgba), image_pos + offset, Vec2(1), clr.alpha(200));
                         
                         return false;
                     });
+                }
+                
+                if(OPTION(gui_show_centroid)
+                        && percent <= 1)
+                {
+                    _view.add<Circle>(Loc(c_pos), Radius{4}, FillClr{clr.alpha(255)}, LineClr{Transparent}, Origin{0.5});
                 }
             }
         

@@ -55,6 +55,7 @@ namespace globals {
         (uint8_t, gui_outline_thickness),
         (bool, gui_show_texts),
         (bool, gui_show_centroid),
+        (bool, gui_show_blobs),
         (float, gui_max_path_time),
         (std::string, gui_fish_label),
         (int, panic_button),
@@ -203,7 +204,7 @@ namespace globals {
         GETTER_I(mode_t::Class, mode, mode_t::tracking);
         GETTER_I(double, gui_time, 0);
         GETTER_SETTER_I(float, zoom_level, 1);
-        GETTER_I(float, dt, 0);
+        GETTER(double, dt){0.0};
         std::atomic_bool _tracking_dirty = false;
         
         GETTER_PTR(const Background*, background){nullptr};
@@ -269,6 +270,10 @@ namespace globals {
         std::mutex _fish_map_mutex;
         std::unordered_map<Idx_t, std::unique_ptr<gui::Fish>> _fish_map;
         std::map<Frame_t, track::Statistics> _statistics;
+        
+        auto& statistics() const {
+            return _statistics;
+        }
         
         std::unordered_map<pv::bid, uint16_t> _ranged_blob_labels;
         std::unordered_map<pv::bid, uint16_t> _blob_labels;

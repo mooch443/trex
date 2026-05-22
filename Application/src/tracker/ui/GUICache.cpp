@@ -1322,6 +1322,7 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
                 .gui_show_shadows = GUIOPTION(gui_show_shadows),
                 .gui_show_texts = GUIOPTION(gui_show_texts),
                 .gui_show_centroid = GUIOPTION(gui_show_centroid),
+                .gui_show_blobs = GUIOPTION(gui_show_blobs),
                 .gui_show_selections = GUIOPTION(gui_show_selections),
                 .gui_show_boundary_crossings = GUIOPTION(gui_show_boundary_crossings),
                 .gui_show_paths = GUIOPTION(gui_show_paths),

@@ -358,7 +358,7 @@ namespace pv {
         
         friend struct pv::TaskSentinel;
         
-        FileMode _mode;
+        GETTER(FileMode, mode);
         void _check_opened() const;
         mutable bool _tried_to_open{false};
         

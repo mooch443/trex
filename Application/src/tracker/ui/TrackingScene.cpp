@@ -48,7 +48,11 @@
 #include <ml/UniquenessProvider.h>
 #include <misc/SampleInterpolator.h>
 #include <tracking/PPFrame.h>
+#include <core/TileImage.h>
 #include <misc/DisplayValue.h>
+#include <ui/AnnotationScene.h>
+#include <ui/LabelWrapper.h>
+#include <ui/LabelElement.h>
 
 using namespace track;
 
@@ -63,6 +67,8 @@ struct TrackingScene::Data {
     std::unique_ptr<DrawDataset> _dataset;
     std::unique_ptr<DrawExportOptions> _export_options;
     std::unique_ptr<DrawUniqueness> _uniqueness;
+    LabelCache_t _unassigned_labels;
+    std::unordered_map<Idx_t, Label_t> _labels;
     
     std::unique_ptr<TimingStatsCollector::HandleGuard> _display_handle, _waiting_handle;
     Frame_t _last_displayed_frame;
@@ -79,6 +85,8 @@ struct TrackingScene::Data {
     
     std::unique_ptr<AnimatedBackground> _background;
     std::unique_ptr<ExternalImage> _gui_mask;
+    
+    std::unique_ptr<Rect> _drag_box;
     
     std::unordered_map<Idx_t, std::optional<sprite::Map>> _cache_maps;
     
@@ -2205,9 +2213,29 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
             VarFunc("mouse_in_bowl", [this](const VarProps&) -> Vec2 {
                 return _data->_bowl_mouse;
             }),
-            
+
             VarFunc("mouse", [this](const VarProps&) -> Vec2 {
                 return this->_data->_last_mouse;
+            }),
+            VarFunc("2bowl", [](const VarProps& props) {
+                auto coords = FindCoord::get();
+                auto p = Meta::fromStr<Vec2>(props.parameters.front());
+                return coords.convert(HUDCoord(p));
+            }),
+            VarFunc("size2bowl", [](const VarProps& props) {
+                auto coords = FindCoord::get();
+                auto p = Meta::fromStr<Size2>(props.parameters.front());
+                return coords.convert(HUDRect(Bounds(Vec2(), p))).size();
+            }),
+            VarFunc("2hud", [](const VarProps& props) {
+                auto coords = FindCoord::get();
+                auto p = Meta::fromStr<Vec2>(props.parameters.front());
+                return coords.convert(BowlCoord(p));
+            }),
+            VarFunc("size2hud", [](const VarProps& props) {
+                auto coords = FindCoord::get();
+                auto p = Meta::fromStr<Size2>(props.parameters.front());
+                return coords.convert(BowlRect(Bounds(Vec2(), p))).size();
             }),
             VarFunc("vi_apply_percent", [this](const VarProps&) {
                 return _state->_controller->_current_percent.load();

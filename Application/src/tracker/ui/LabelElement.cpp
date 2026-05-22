@@ -13,9 +13,11 @@ using namespace dyn;
 
 LabelElement::LabelElement(LabelCache_t* labelCache,
                            std::unordered_map<Idx_t, Label_t>* labelsMap,
-                           double* dt)
-    : _labelCache(labelCache), _labelsMap(labelsMap), _dt(dt)
+                           std::function<double()>&& dt)
+    : _labelCache(labelCache), _labelsMap(labelsMap), _dt(std::move(dt))
 {
+    assert(_dt != nullptr);
+    
     name = "label";
     // Set up the create callback.
     create = [this](dyn::LayoutContext& layout) -> Layout::Ptr
@@ -132,7 +134,7 @@ bool LabelElement::_update(Layout::Ptr& o,
     p->set_data(0_f, map.get<"text">(), source, map.get<"center">());
     
     // Use dt from the provided pointer.
-    p->update(FindCoord::get(), 1, 1, false, *_dt, Scale{1});
+    p->update(FindCoord::get(), 1, 1, false, _dt(), Scale{1});
     
     return true;
 }

@@ -198,9 +198,10 @@ struct ScreenRecorder::Data {
             
         } else {
             auto clip_name = std::string(_recording_path.filename());
-            printf("ffmpeg -start_number %" PRIu32 " -i \"%s/%%06d.%s\" -vcodec h264 -crf 13 -vf 'scale=trunc(iw/2)*2:trunc(ih/2)*2' -profile:v main -pix_fmt yuv420p \"%s.mp4\"\n", _recording_start.get(), _recording_path.str().c_str(), _recording_format.name(), clip_name.c_str());
+            printf("ffmpeg -start_number %" PRIu32 " -i \"%s/%%06d.%.*s\" -vcodec h264 -crf 13 -vf 'scale=trunc(iw/2)*2:trunc(ih/2)*2' -profile:v main -pix_fmt yuv420p \"%s.mp4\"\n", _recording_start.get(), _recording_path.str().c_str(), static_cast<int>(_recording_format.name().size()), _recording_format.name().data(), clip_name.c_str());
         }
         
+        _recording_start = {};
         _recording = false;
         SETTING(gui_is_recording) = false;
         _last_recording_frame.invalidate();
@@ -218,6 +219,7 @@ struct ScreenRecorder::Data {
     
     void start_recording(Base* base, Frame_t frame) {
         _recording_start = frame;
+        _recording_frame = {};
         _last_recording_frame = {};
         
         if (!base)

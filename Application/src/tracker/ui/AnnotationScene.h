@@ -8,6 +8,7 @@
 #include <gui/types/Entangled.h>
 #include <gui/dyn/VarProps.h>
 #include <misc/Timer.h>
+#include <tracker/core/annotation.h>
 
 namespace cmn {
 class VideoSource;
@@ -26,22 +27,10 @@ namespace dyn {
 struct DynamicGUI;
 }
 
-enum class AnnotationType {
-    BOX,
-    POSE,
-    SEGMENTATION
-};
-
-struct Annotation {
-    uint8_t clid{};
-    AnnotationType type{};
-    std::vector<blob::Pose::Point> points{};
-};
-
 class AnnotationView : public Entangled {
     std::vector<derived_ptr<Circle>> _circles;
     std::unique_ptr<Rect> _rect;
-    Annotation _a;
+    track::Annotation _a;
     
 public:
     AnnotationView() = default;
@@ -60,7 +49,7 @@ public:
     
     using Entangled::set;
     
-    void set_annotation(Annotation&&);
+    void set_annotation(track::Annotation&&);
     void update() override;
     
 private:
@@ -69,7 +58,7 @@ private:
 
 class AnnotationScene : public Scene {
 public:
-    using Manager = ObjectManager<Annotation>;
+    using Manager = ObjectManager<track::Annotation>;
 private:
     static inline constexpr uint32_t max_cache = 1000;
     
@@ -98,7 +87,7 @@ private:
     std::unique_ptr<dyn::DynamicGUI> _gui;
     
     std::optional<blob::Pose::Skeletons> _skeleton;
-    Annotation _pose_in_progress;
+    track::Annotation _pose_in_progress;
     Timer _timer;
 
 public:
@@ -114,9 +103,9 @@ public:
     virtual bool on_global_event(Event event) override;
 
     // Methods to manage annotations
-    Manager::ID addAnnotation(Frame_t frameNumber, Annotation&&);
+    Manager::ID addAnnotation(Frame_t frameNumber, track::Annotation&&);
     void removeAnnotation(Frame_t frameNumber, Manager::ID id);
-    const Annotation& getAnnotation(Frame_t frameNumber, Manager::ID id) const;
+    const track::Annotation& getAnnotation(Frame_t frameNumber, Manager::ID id) const;
 
     // Method to handle frame navigation
     void navigateToFrame(Frame_t frameIndex);

@@ -89,6 +89,9 @@ namespace default_config {
     ENUM_CLASS(gpu_torch_device_t, automatic, cuda, mps, cpu)
     ENUM_CLASS_HAS_DOCS(gpu_torch_device_t)
 
+    ENUM_CLASS(detect_pose_bbx_t, yolo, keypoints)
+    ENUM_CLASS_HAS_DOCS(detect_pose_bbx_t)
+
     using TRexTask = TRexTask_t::Class;
 
 /**

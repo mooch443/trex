@@ -128,6 +128,8 @@ function(trex_add_semantic_library target)
     endif()
 endfunction()
 
+set(TREX_DYLIB_TARGETS trex_python)
+
 trex_add_semantic_library(trex_core
     TYPE ${TREX_INTERNAL_LIBRARY_TYPE}
     SOURCES ${TREX_CORE_SOURCES} "${CMAKE_CURRENT_BINARY_DIR}/../GitSHA1.cpp"
@@ -142,6 +144,7 @@ target_link_libraries(trex_core PUBLIC
     lzo
     Commons::Gui
 )
+set(TREX_DYLIB_TARGETS ${TREX_DYLIB_TARGETS} trex_core)
 
 trex_add_semantic_library(trex_data
     TYPE ${TREX_INTERNAL_LIBRARY_TYPE}
@@ -152,6 +155,8 @@ trex_add_semantic_library(trex_data
 )
 trex_harden_internal_library(trex_data)
 target_link_libraries(trex_data PUBLIC trex_core)
+
+set(TREX_DYLIB_TARGETS ${TREX_DYLIB_TARGETS} trex_data)
 
 trex_add_semantic_library(trex_tracking
     TYPE ${TREX_INTERNAL_LIBRARY_TYPE}
@@ -186,6 +191,8 @@ target_link_libraries(trex_ml PRIVATE
     trex_python_staging
 )
 
+set(TREX_DYLIB_TARGETS ${TREX_DYLIB_TARGETS} trex_ml)
+
 trex_add_semantic_library(trex_ui
     TYPE ${TREX_UI_LIBRARY_TYPE}
     SOURCES ${TREX_UI_SOURCES}
@@ -211,6 +218,8 @@ endif()
 if(CMAKE_COMPILER_IS_GNUCXX)
     target_link_libraries(trex_ui PUBLIC atomic)
 endif()
+
+set(TREX_DYLIB_TARGETS ${TREX_DYLIB_TARGETS} trex_ui)
 
 add_library(tracker_misc INTERFACE)
 target_link_libraries(tracker_misc INTERFACE trex_core trex_data)
@@ -535,6 +544,20 @@ if(NOT TREX_CONDA_PACKAGE_INSTALL)
         ${CMAKE_CURRENT_SOURCE_DIR}/export_options_layout.json
         ${CMAKE_CURRENT_SOURCE_DIR}/interactive_segmentation_prototype/live_segmentation_layout.json
     )
+
+    if(TREX_ENABLE_SHARED_INTERNAL_LIBS)
+        foreach(app_target ${TREX_APP_TARGETS} ${TREX_TOOL_TARGETS})
+            foreach(dylib ${TREX_DYLIB_TARGETS})
+                message(STATUS "${CMAKE_COMMAND} -E create_symlink
+                            $<TARGET_FILE_DIR:${dylib}>/lib${dylib}.dylib
+                            $<TARGET_FILE_DIR:${app_target}>/../Resources/lib${dylib}.dylib")
+                add_custom_command(TARGET ${app_target} POST_BUILD
+                        COMMAND ${CMAKE_COMMAND} -E create_symlink
+                            $<TARGET_FILE_DIR:${dylib}>/lib${dylib}.dylib
+                            "$<TARGET_FILE_DIR:${app_target}>/../Resources/lib${dylib}.dylib")
+            endforeach()
+        endforeach()
+    endif()
 
     IF("${CMAKE_SYSTEM}" MATCHES "Linux")
         message(STATUS "Copying files ${RESOURCE_COPY_SINGLE_FILES}")

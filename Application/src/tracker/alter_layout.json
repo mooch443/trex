@@ -418,6 +418,7 @@
 									"line":"{if:{global.gui_show_individual_preview}:[100,100,100,50]:{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}}",
 									"color":[225,225,225],
 									"font":{"size":0.6},
+									"corners":"{if:{&&:{global.gui_show_individual_preview}:{||:{hovered:info_box}:{selected:info_box}}}:[\"top\"]:[]}",
 									"size":"[{infocard_width},30]",
 									"checked":"{global.gui_show_individual_preview}",
 									"action":"set:gui_show_individual_preview:{not:{global.gui_show_individual_preview}}"
@@ -435,7 +436,6 @@
 												"fdx":"{primary_selection.fdx}",
 												"clickable":true,
 												"fill":"{if:{||:{selected}:{hovered}}:[20,20,20,200]:[10,10,10,200]}",
-												"line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,175,200,50]}",
 												"scale":"{divVector:[{infocard_width},{infocard_width}]:{global.individual_image_size}}"
 											},
 											{

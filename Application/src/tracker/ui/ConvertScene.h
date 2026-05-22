@@ -19,7 +19,7 @@ namespace track {
 class Segmenter;
 }
 
-namespace cmn::gui {
+namespace cmn::gui::convert {
 
 struct VideoInfo {
     Frame_t frame;
@@ -38,8 +38,8 @@ struct VideoInfo {
 }
 
 template <>
-struct glz::meta<cmn::gui::VideoInfo> {
-    using T = cmn::gui::VideoInfo;
+struct glz::meta<cmn::gui::convert::VideoInfo> {
+    using T = cmn::gui::convert::VideoInfo;
     static constexpr auto value = glz::object(
         "frame", &T::frame,
         "length", &T::length,
@@ -57,7 +57,7 @@ class ExternalImage;
 
 class ConvertScene : public Scene {
     static glz::json_t fish;
-    static VideoInfo _video_info;
+    static convert::VideoInfo _video_info;
     std::atomic<Frame_t> _video_length;
     
     Timer last_tick;
@@ -69,6 +69,9 @@ class ConvertScene : public Scene {
     std::function<void(ConvertScene&)> _on_activate, _on_deactivate;
     
     std::unique_ptr<Data> _data;
+
+public:
+    static read_once<bool> force_start_over;
     
 public:
     ConvertScene(Base& window, std::function<void(ConvertScene&)> on_activate, std::function<void(ConvertScene&)> on_deactivate);

@@ -8,63 +8,6 @@
 #include <core/VideoVideoSource.h>
 #include <core/WebcamVideoSource.h>
 
-#include <algorithm>
-#include <cmath>
-#include <utility>
-
-inline std::pair<Size2, Size2> compute_tiling_dimensions(
-    Size2 frame_size,
-    Size2 detector_size,
-    uint16_t detect_tile_target_width,
-    size_t detect_tile_image)
-{
-    Size2 new_size(detector_size);
-    Size2 tile_size(detector_size);
-
-    const bool tiling_requested = detect_tile_target_width > 0 || detect_tile_image > 1;
-    if(!tiling_requested)
-        return {new_size, tile_size};
-
-    const uint16_t base_edge = std::max<uint16_t>(detector_size.width, detector_size.height);
-    uint16_t tile_edge = base_edge == 0 ? uint16_t(320) : base_edge;
-
-    if(detect_tile_target_width > 0)
-        tile_edge = detect_tile_target_width;
-
-    if(tile_edge == 0)
-        tile_edge = uint16_t(320);
-
-    // Determine horizontal tile count.
-    size_t tiles_x = detect_tile_image > 1 ? detect_tile_image : size_t(1);
-    if(detect_tile_target_width > 0) {
-        if(frame_size.width == 0)
-            frame_size.width = tile_edge;
-        const size_t required_x = static_cast<size_t>(std::ceil(static_cast<float>(frame_size.width) / static_cast<float>(tile_edge)));
-        tiles_x = std::max<size_t>(tiles_x, required_x);
-    }
-    tiles_x = std::max<size_t>(tiles_x, size_t(1));
-
-    // Determine vertical tile count.
-    size_t tiles_y = 1;
-    if(detect_tile_image > 1) {
-        const float frame_ratio = (frame_size.width > 0 && frame_size.height > 0)
-                                  ? (static_cast<float>(frame_size.height) / static_cast<float>(frame_size.width))
-                                  : 1.f;
-        tiles_y = std::max<size_t>(tiles_y, static_cast<size_t>(std::ceil(frame_ratio * tiles_x)));
-    }
-    if(detect_tile_target_width > 0) {
-        if(frame_size.height == 0)
-            frame_size.height = tile_edge;
-        const size_t required_y = static_cast<size_t>(std::ceil(static_cast<float>(frame_size.height) / static_cast<float>(tile_edge)));
-        tiles_y = std::max<size_t>(tiles_y, required_y);
-    }
-    tiles_y = std::max<size_t>(tiles_y, size_t(1));
-
-    new_size = Size2(tile_edge * tiles_x, tile_edge * tiles_y);
-    tile_size = Size2(tile_edge, tile_edge);
-
-    return {new_size, tile_size};
-}
 
 template<typename T>
 concept overlay_function = requires {

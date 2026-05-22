@@ -30,6 +30,7 @@ set(TREX_CORE_PUBLIC_HEADERS
     ${CMAKE_CURRENT_LIST_DIR}/core/VideoVideoSource.h
     ${CMAKE_CURRENT_LIST_DIR}/core/WebcamVideoSource.h
     ${CMAKE_CURRENT_LIST_DIR}/core/Network.h
+    ${CMAKE_CURRENT_LIST_DIR}/core/annotation.h
 )
 
 set(TREX_CORE_PRIVATE_HEADERS
@@ -64,6 +65,7 @@ set(TREX_CORE_SOURCES
     ${CMAKE_CURRENT_LIST_DIR}/core/TrackingSettings.cpp
     ${CMAKE_CURRENT_LIST_DIR}/core/VideoVideoSource.cpp
     ${CMAKE_CURRENT_LIST_DIR}/core/WebcamVideoSource.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/core/annotation.cpp
 )
 
 set(TREX_DATA_PUBLIC_HEADERS
@@ -342,6 +344,7 @@ set(TREX_PYTHON_IMPL_PUBLIC_HEADERS
     ${CMAKE_CURRENT_LIST_DIR}/python/ResponseValidation.h
     ${CMAKE_CURRENT_LIST_DIR}/python/SAM3.h
     ${CMAKE_CURRENT_LIST_DIR}/python/SAM3InteractiveSession.h
+    ${CMAKE_CURRENT_LIST_DIR}/python/SAM3PromptState.h
     ${CMAKE_CURRENT_LIST_DIR}/python/YOLO.h
 )
 
@@ -367,5 +370,6 @@ set(TREX_PYTHON_IMPL_SOURCES
     ${CMAKE_CURRENT_LIST_DIR}/python/PythonEntryPoint.cpp
     ${CMAKE_CURRENT_LIST_DIR}/python/SAM3.cpp
     ${CMAKE_CURRENT_LIST_DIR}/python/SAM3InteractiveSession.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/python/SAM3PromptState.cpp
     ${CMAKE_CURRENT_LIST_DIR}/python/YOLO.cpp
 )

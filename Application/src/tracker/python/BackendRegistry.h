@@ -5,7 +5,6 @@
 #include <core/TileImage.h>
 #include <misc/Image.h>
 
-extern "C" {
 namespace track::detect {
 
 struct TREX_EXPORT BackendHooks {
@@ -23,4 +22,3 @@ TREX_EXPORT const BackendHooks* backend(ObjectDetectionType::Class type);
 TREX_EXPORT const BackendHooks* ensure_backend(ObjectDetectionType::Class type);
 
 } // namespace track::detect
-}

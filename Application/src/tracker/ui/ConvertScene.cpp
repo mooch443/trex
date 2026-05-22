@@ -40,6 +40,8 @@ namespace cmn::gui {
 using namespace dyn;
 using Skeleton = blob::Pose::Skeleton;
 
+read_once<bool> ConvertScene::force_start_over;
+
 template<typename T>
     requires has_to_json_method<std::remove_cvref_t<T>>
 glz::json_t to_json(T&& obj) {
@@ -243,7 +245,10 @@ struct ConvertScene::Data {
                 return {filters, std::nullopt};
             }));
             dynGUI.context.custom_elements["label"] = std::unique_ptr<CustomElement>(
-                new LabelElement(&_unassigned_labels, &_labels, &dt)
+                     new LabelElement(&_unassigned_labels, &_labels, [this]() -> double
+                     {
+                         return dt;
+                     })
             );
         }
         
@@ -1052,7 +1057,7 @@ dyn::DynamicGUI ConvertScene::Data::init_gui(Base* window) {
         VarFunc("actual_frame", [this](const VarProps&) {
             return _actual_frame.load();
         }),
-        VarFunc("video", [](const VarProps&) -> const gui::VideoInfo& {
+        VarFunc("video", [](const VarProps&) -> const gui::convert::VideoInfo& {
             return _video_info;
         }),
         VarFunc("num_tracked", [this](const VarProps&) -> size_t {
