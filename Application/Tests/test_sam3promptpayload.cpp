@@ -4,7 +4,7 @@
 
 #include <core/GPURecognitionTypes.h>
 #include <misc/zipper.h>
-#include <python/SAM3.h>
+#include <python/SAM3PromptState.h>
 
 using namespace cmn;
 using namespace track::detect;
