@@ -5,6 +5,7 @@ on: [push]
 env:
   BUILD_TYPE: Release
   GITHUB_WORKFLOW: CondaBuildWindows
+  WINDOWS_CONDA_CACHE_ENABLED: 'false'
 
 jobs:
   build:
@@ -22,9 +23,10 @@ jobs:
         submodules: recursive
 
     - name: Cache conda
+      if: env.WINDOWS_CONDA_CACHE_ENABLED == 'true'
       uses: actions/cache@v4
       env:
-        CACHE_NUMBER: 1
+        CACHE_NUMBER: 2
       with:
         path: C:\cpkgs
         key: ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{ hashFiles('.github/environment.yml') }}
@@ -79,13 +81,14 @@ jobs:
       shell: pwsh
       run: echo "path=$env:CONDA" >> $env:GITHUB_OUTPUT
     - name: Cache conda base environment
+      if: env.WINDOWS_CONDA_CACHE_ENABLED == 'true'
       id: conda-env-cache
       uses: actions/cache@v4
       with:
         path: ${{ steps.conda-prefix.outputs.path }}
-        key: ${{ runner.os }}-conda-env-1-${{ matrix.python-version }}-${{ hashFiles('.github/environment.yml') }}
+        key: ${{ runner.os }}-conda-env-2-${{ matrix.python-version }}-${{ hashFiles('.github/environment.yml') }}
     - name: Install environment into base
-      if: steps.conda-env-cache.outputs.cache-hit != 'true'
+      if: env.WINDOWS_CONDA_CACHE_ENABLED != 'true' || steps.conda-env-cache.outputs.cache-hit != 'true'
       shell: pwsh
       working-directory: ${{ env.SHORT_WORKSPACE }}
       env:
