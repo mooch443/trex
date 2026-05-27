@@ -298,6 +298,20 @@ endif()
 
 # This is so you can do 'make test' to see all your tests run, instead of
 # manually running the executable runUnitTests to see those specific tests.
+function(trex_prepend_test_path test_name target_name)
+    if(WIN32 AND TARGET ${target_name})
+        if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.22")
+            set_tests_properties(${test_name} PROPERTIES
+                ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:${target_name}>"
+            )
+        else()
+            set_tests_properties(${test_name} PROPERTIES
+                WORKING_DIRECTORY "$<TARGET_FILE_DIR:${target_name}>"
+            )
+        endif()
+    endif()
+endfunction()
+
 add_test(NAME test-matching COMMAND test_matching)
 add_test(NAME test-commandline COMMAND test_commandline)
 add_test(NAME test-strings COMMAND test_strings)
@@ -307,7 +321,7 @@ add_test(NAME test-dyngui COMMAND test_dyngui)
 add_test(NAME test-outlines COMMAND test_outlines)
 add_test(NAME test-threadpool COMMAND test_threadpool)
 add_test(NAME test-tiling COMMAND test_tiling)
-add_test(NAME test-segmenter COMMAND test_segmenter)
+trex_prepend_test_path(test-segmenter trex_check_python)
 add_test(NAME test-dispatcher COMMAND test_dispatcher)
 add_test(NAME test-sam3promptpayload COMMAND test_sam3promptpayload)
 add_test(NAME test-sam3interactivesession COMMAND test_sam3interactivesession)
