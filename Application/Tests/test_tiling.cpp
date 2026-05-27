@@ -40,6 +40,18 @@ void resetGlobalSettings() {
         ::default_config::get(config);
     });
 
+    Python::configure_runtime(
+        GlobalSettings::instance(),
+        file::DataLocation::instance(),
+        Python::get_instance(),
+        &testTileBuffers(),
+        [](auto& name, auto& mat) {
+            tf::imshow(name, mat);
+        },
+        []() {
+            tf::destroyAllWindows();
+        }
+    );
     buffers::TileBuffers::set(&testTileBuffers());
 
     SETTING(detect_tile_overlap) = 0.f;
@@ -153,7 +165,7 @@ struct FakePythonImplScope {
             }
         }
         current() = nullptr;
-        track::trex_python_register();
+        Python::set_python_impl_interface(Python::PythonImplInterface{});
     }
 
     static FakePythonImplScope& instance() {
