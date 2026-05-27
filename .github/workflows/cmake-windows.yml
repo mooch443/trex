@@ -6,7 +6,6 @@ env:
   BUILD_TYPE: Release
   GITHUB_WORKFLOW: CondaBuildWindows
   WINDOWS_CONDA_CACHE_ENABLED: 'false'
-  CONDA_NO_PLUGINS: 'true'
 
 jobs:
   build:
@@ -39,7 +38,7 @@ jobs:
         python-version: ${{ matrix.python-version }}
         channels: conda-forge
         auto-activate: false
-        auto-update-conda: true
+        auto-update-conda: false
         use-only-tar-bz2: true
         conda-remove-defaults: true
 
@@ -76,7 +75,7 @@ jobs:
         "@ | Set-Content -Path "$HOME\.condarc" -Encoding utf8
 
         Get-Content "$HOME\.condarc"
-        conda config --show channels
+        conda --no-plugins config --show channels
 
     - name: Get conda prefix
       id: conda-prefix
@@ -101,8 +100,8 @@ jobs:
           python=${{ matrix.python-version }} `
           "conda-build>=24" `
           git
-        conda info
-        conda list
+        conda --no-plugins info
+        conda --no-plugins list
 
     - name: Fix Meta
       shell: pwsh
@@ -145,7 +144,7 @@ jobs:
           rpds-py `
           typing_extensions
 
-        conda list -n base
+        conda --no-plugins list -n base
 
     - name: Build
       shell: pwsh
@@ -154,7 +153,7 @@ jobs:
         CONDA_BLD_PATH: ${{ env.CONDA_BLD_PATH }}
         CONDA_PKGS_DIRS: ${{ env.CONDA_PKGS_DIRS }}
       run: |
-        conda build . --override-channels -c conda-forge
+        conda-build . --override-channels -c conda-forge
 
     - name: Test
       shell: pwsh
@@ -165,18 +164,18 @@ jobs:
       run: |
         if (Test-Path $env:TEST_PREFIX) { Remove-Item -Recurse -Force $env:TEST_PREFIX }
 
-        conda search numpy
-        conda create -y -p $env:TEST_PREFIX --override-channels -c "$env:CONDA_BLD_PATH" -c conda-forge trex
+        conda --no-plugins search numpy
+        conda --no-plugins create -y -p $env:TEST_PREFIX --override-channels -c "$env:CONDA_BLD_PATH" -c conda-forge trex
 
-        conda run -p $env:TEST_PREFIX pvinfo -opencv_ffmpeg_support
-        conda run -p $env:TEST_PREFIX pvinfo -opencv_opencl_support
+        conda --no-plugins run -p $env:TEST_PREFIX pvinfo -opencv_ffmpeg_support
+        conda --no-plugins run -p $env:TEST_PREFIX pvinfo -opencv_opencl_support
 
     - name: TestFunctions
       continue-on-error: true
       shell: pwsh
       working-directory: ${{ env.SHORT_WORKSPACE }}\Application\Tests
       run: |
-        & "C:\Program Files\Git\bin\bash.exe" -lc "conda run -p '$env:TEST_PREFIX' bash ./run_unix.bash"
+        & "C:\Program Files\Git\bin\bash.exe" -lc "conda --no-plugins run -p '$env:TEST_PREFIX' bash ./run_unix.bash"
         $TEST_EC = $LASTEXITCODE
         "TEST_EXIT_CODE=$TEST_EC" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
         exit 0
