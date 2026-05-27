@@ -6,6 +6,7 @@ env:
   BUILD_TYPE: Release
   GITHUB_WORKFLOW: CondaBuildWindows
   WINDOWS_CONDA_CACHE_ENABLED: 'false'
+  CONDA_NO_PLUGINS: 'true'
 
 jobs:
   build:
@@ -35,6 +36,7 @@ jobs:
       with:
         miniforge-version: latest
         activate-environment: base
+        python-version: ${{ matrix.python-version }}
         channels: conda-forge
         auto-activate: false
         auto-update-conda: true
@@ -95,8 +97,10 @@ jobs:
         CONDA_BLD_PATH: ${{ env.CONDA_BLD_PATH }}
         CONDA_PKGS_DIRS: ${{ env.CONDA_PKGS_DIRS }}
       run: |
-        mamba env update --name base -f .github/environment.yml
-        mamba install -y python=${{ matrix.python-version }}
+        mamba install --name base --override-channels -c conda-forge -y `
+          python=${{ matrix.python-version }} `
+          "conda-build>=24" `
+          git
         conda info
         conda list
 
@@ -131,13 +135,15 @@ jobs:
         # Packaging validates Menu/*.json, which imports jsonschema and its
         # compiled rpds-py dependency from the base conda environment.
         # Refresh that stack explicitly instead of relying on a cached base
-        # prefix plus a broad "conda update --all".
+        # prefix plus a broad "conda update --all". Do not reinstall conda
+        # itself here; mutating the running package manager can leave the base
+        # prefix in a partially linked state on Windows.
         mamba install --name base --override-channels -c conda-forge -y `
-          conda `
           conda-build `
           jsonschema `
           referencing `
-          rpds-py
+          rpds-py `
+          typing_extensions
 
         conda list -n base
 
