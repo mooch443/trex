@@ -330,6 +330,7 @@ set(TREX_PYTHON_STAGING_PUBLIC_HEADERS
     ${CMAKE_CURRENT_LIST_DIR}/python/PipelineRegistry.h
     ${CMAKE_CURRENT_LIST_DIR}/python/PrecomuptedDetection.h
     ${CMAKE_CURRENT_LIST_DIR}/python/SAM3InteractiveSession.h
+    ${CMAKE_CURRENT_LIST_DIR}/python/SAM3PromptState.h
     ${CMAKE_CURRENT_LIST_DIR}/python/PythonWrapper.h
 )
 
@@ -358,6 +359,7 @@ set(TREX_PYTHON_STAGING_SOURCES
     ${CMAKE_CURRENT_LIST_DIR}/python/PrecomuptedDetection.cpp
     ${CMAKE_CURRENT_LIST_DIR}/python/PythonWrapper.cpp
     ${CMAKE_CURRENT_LIST_DIR}/python/Network.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/python/SAM3PromptState.cpp
 )
 
 set(TREX_PYTHON_IMPL_SOURCES
