@@ -1173,38 +1173,6 @@
                 "row_height":30,
                 "line":"{if:{hovered}:[100,175,250,230]:[100,100,100,50]}"
             }
-        },
-
-        {
-            "type":"stext",
-            "text":"{num_individuals}"
-        },
-        {
-            "type":"graph",
-            "size":[800,300],
-            "xrange":"[0,{global.video_length}]",
-            "yrange":"[0,{+:0:100}]",
-            "center":"{global.gui_frame}",
-            "draggable":true,
-            "lines": [ {
-                "name": "mouse_line",
-                "extrapolate": false,
-                "display_points": false,
-                "pts": "{num_individuals}"
-            }]
-        },
-
-        {
-            "type":"condition",
-            "var":"{bool:{drag_box}}",
-            "then":{
-                "type":"rect",
-                "pos":"{2hud:[{drag_box.x},{drag_box.y}]}",
-                "size":"{size2hud:[{drag_box.w},{drag_box.h}]}",
-                "line":[255,0,0,255],
-                "fill":[1,1,1,0],
-                "corners":["all", 8]
-            }
         }
     ]
 }
