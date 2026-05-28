@@ -2289,7 +2289,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                     auto mat = ptr->get();
                     auto length = double(_state->video->length().get());
                     
-                    SampleInterpolator interpolator;
+                    SampleInterpolator<Float2_t> interpolator;
                     interpolator.set_samples(std::move(uniquenesses.value()));
                     Color* px = reinterpret_cast<Color*>(mat.ptr<uchar>(0));
                     for(double x = 0; x < width; ++x, ++px) {
