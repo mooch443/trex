@@ -125,6 +125,7 @@ requirements:
     - pip
     - requests
     - psutil
+    - git
 
 about:
   home: https://trex.run

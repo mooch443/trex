@@ -227,7 +227,8 @@ if [ $? -eq 0 ] && [ -n "${numpy_version}" ]; then
     numpy_requirement=("numpy==${numpy_version}")
     log "Installing pip packages (numpy=${numpy_version})..."
 else
-    log "[post-link] Could not determine numpy version; proceeding without pinning."
+    log "[post-link] Could not determine numpy version; will install latest numpy."
+    numpy_requirement=("numpy")
 fi
 
 common_packages=(
