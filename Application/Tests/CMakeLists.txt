@@ -36,6 +36,9 @@ target_compile_definitions(test_pixels PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRE
 add_executable(test_patharray test_patharray.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
 target_compile_definitions(test_patharray PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
 
+add_executable(test_optionslist test_optionslist.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
+target_compile_definitions(test_optionslist PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
+
 add_executable(test_dyngui test_dyngui.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
 target_compile_definitions(test_dyngui PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
 
@@ -102,6 +105,7 @@ set(TARGETS
     test_strings 
     test_pixels 
     test_patharray 
+    test_optionslist
     test_dyngui 
     test_outlines 
     test_threadpool 
@@ -193,6 +197,9 @@ target_link_libraries(test_pixels PUBLIC
 target_link_libraries(test_patharray PUBLIC
         commons
         pv)
+
+target_link_libraries(test_optionslist PUBLIC
+        gtest)
 
 target_link_libraries(test_dyngui PUBLIC
         commons
