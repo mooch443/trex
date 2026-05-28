@@ -69,6 +69,7 @@ jobs:
         channels:
           - conda-forge
         channel_priority: strict
+        solver: classic
         default_channels: []
         pkgs_dirs:
           - C:\cpkgs
@@ -76,6 +77,7 @@ jobs:
 
         Get-Content "$HOME\.condarc"
         conda --no-plugins config --show channels
+        conda --no-plugins config --show solver
 
     - name: Get conda prefix
       id: conda-prefix
