@@ -1176,18 +1176,6 @@
         },
 
         {
-            "type":"each",
-            "var":"{tiles}",
-            "do":{
-                "type":"rect",
-                "pos":"{2hud:[{i.x},{i.y}]}",
-                "size":"{size2hud:[{i.w},{i.h}]}",
-                "fill":[255,255,255,0],
-                "line":[255,255,255,220]
-            }
-        },
-
-        {
             "type":"stext",
             "text":"{num_individuals}"
         },
