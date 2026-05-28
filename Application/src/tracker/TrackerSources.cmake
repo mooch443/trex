@@ -1,0 +1,377 @@
+set(TREX_CORE_PUBLIC_HEADERS
+    ${CMAKE_CURRENT_LIST_DIR}/core/AbstractVideoSource.h
+    ${CMAKE_CURRENT_LIST_DIR}/core/BaslerVideoSource.h
+    ${CMAKE_CURRENT_LIST_DIR}/core/BackgroundTask.h
+    ${CMAKE_CURRENT_LIST_DIR}/core/BlurryVideoLoop.h
+    ${CMAKE_CURRENT_LIST_DIR}/core/Border.h
+    ${CMAKE_CURRENT_LIST_DIR}/core/default_config.h
+    ${CMAKE_CURRENT_LIST_DIR}/core/DetectionImageTypes.h
+    ${CMAKE_CURRENT_LIST_DIR}/core/DetectionTypes.h
+    ${CMAKE_CURRENT_LIST_DIR}/core/FOI.h
+    ${CMAKE_CURRENT_LIST_DIR}/core/IdentifiedTag.h
+    ${CMAKE_CURRENT_LIST_DIR}/core/Identity.h
+    ${CMAKE_CURRENT_LIST_DIR}/core/idx_t.h
+    ${CMAKE_CURRENT_LIST_DIR}/core/indicators.h
+    ${CMAKE_CURRENT_LIST_DIR}/core/GPURecognitionTypes.h
+    ${CMAKE_CURRENT_LIST_DIR}/core/NetworkStats.h
+    ${CMAKE_CURRENT_LIST_DIR}/core/PVVideoSource.h
+    ${CMAKE_CURRENT_LIST_DIR}/core/RepeatedDeferral.h
+    ${CMAKE_CURRENT_LIST_DIR}/core/SizeFilters.h
+    ${CMAKE_CURRENT_LIST_DIR}/core/SoftException.h
+    ${CMAKE_CURRENT_LIST_DIR}/core/TaskPipeline.h
+    ${CMAKE_CURRENT_LIST_DIR}/core/SettingsPaths.h
+    ${CMAKE_CURRENT_LIST_DIR}/core/SettingsInitializer.h
+    ${CMAKE_CURRENT_LIST_DIR}/core/TileImage.h
+    ${CMAKE_CURRENT_LIST_DIR}/core/TileBuffers.h
+    ${CMAKE_CURRENT_LIST_DIR}/core/TimingStatsCollector.h
+    ${CMAKE_CURRENT_LIST_DIR}/core/tomp4.h
+    ${CMAKE_CURRENT_LIST_DIR}/core/TrackingSettings.h
+    ${CMAKE_CURRENT_LIST_DIR}/core/VideoInfo.h
+    ${CMAKE_CURRENT_LIST_DIR}/core/VideoVideoSource.h
+    ${CMAKE_CURRENT_LIST_DIR}/core/WebcamVideoSource.h
+    ${CMAKE_CURRENT_LIST_DIR}/core/Network.h
+    ${CMAKE_CURRENT_LIST_DIR}/core/annotation.h
+)
+
+set(TREX_CORE_PRIVATE_HEADERS
+    ${CMAKE_CURRENT_LIST_DIR}/../GitSHA1.h
+)
+
+set(TREX_CORE_SOURCES
+    ${CMAKE_CURRENT_LIST_DIR}/core/AbstractVideoSource.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/core/BaslerVideoSource.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/core/BackgroundTask.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/core/BlurryVideoLoop.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/core/Border.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/core/default_config.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/core/DetectionTypes.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/core/FOI.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/core/IdentifiedTag.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/core/Identity.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/core/idx_t.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/core/GPURecognitionTypes.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/core/NetworkStats.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/core/PVVideoSource.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/core/RepeatedDeferral.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/core/SettingsPaths.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/core/SettingsInitializer.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/core/SizeFilters.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/core/SoftException.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/core/TaskPipeline.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/core/TileBuffers.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/core/TileImage.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/core/TimingStatsCollector.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/core/tomp4.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/core/TrackingSettings.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/core/VideoVideoSource.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/core/WebcamVideoSource.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/core/annotation.cpp
+)
+
+set(TREX_DATA_PUBLIC_HEADERS
+    ${CMAKE_CURRENT_LIST_DIR}/data/IndividualCache.h
+    ${CMAKE_CURRENT_LIST_DIR}/data/MotionRecord.h
+)
+
+set(TREX_DATA_PRIVATE_HEADERS
+)
+
+set(TREX_DATA_SOURCES
+    ${CMAKE_CURRENT_LIST_DIR}/data/MotionRecord.cpp
+)
+
+set(TREX_TRACKING_PUBLIC_HEADERS
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/AutomaticMatches.h
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/BlobReceiver.h
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/ConnectedTasks.h
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/DebugDrawing.h
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/DetectTag.h
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/CacheHints.h
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/CategorizeDatastore.h
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/FilterCache.h
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/EventAnalysis.h
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/HistorySplit.h
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/Hungarian.h
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/ImageExtractor.h
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/IndividualManager.h
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/Results.h
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/TrackletInformation.h
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/TrainingData.h
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/OutputLibrary.h
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/OutputLibraryTypes.h
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/PairingGraph.h
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/PPFrame.h
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/PrefilterBlobs.h
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/RecTask.h
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/SplitBlob.h
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/Stuffs.h
+)
+
+set(TREX_TRACKING_PRIVATE_HEADERS
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/DatasetQuality.h
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/Individual.h
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/LockGuard.h
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/MemoryStats.h
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/Outline.h
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/Output.h
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/Posture.h
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/Tracker.h
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/TrackingHelper.h
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/VisualField.h
+)
+
+set(TREX_TRACKING_SOURCES
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/AutomaticMatches.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/BlobReceiver.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/ConnectedTasks.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/CacheHints.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/CategorizeDatastore.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/DatasetQuality.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/DebugDrawing.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/DetectTag.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/FilterCache.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/EventAnalysis.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/HistorySplit.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/Hungarian.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/ImageExtractor.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/Individual.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/IndividualManager.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/LockGuard.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/MemoryStats.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/Outline.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/Output.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/OutputLibrary.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/Results.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/PairingGraph.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/Posture.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/PPFrame.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/PrefilterBlobs.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/RecTask.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/SplitBlob.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/Stuffs.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/Tracker.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/TrackingHelper.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/TrainingData.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/TrackletInformation.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/VisualField.cpp
+)
+
+set(TREX_ML_PUBLIC_HEADERS
+    ${CMAKE_CURRENT_LIST_DIR}/ml/AccumulationRuntime.h
+    ${CMAKE_CURRENT_LIST_DIR}/ml/ClosedLoop.h
+    ${CMAKE_CURRENT_LIST_DIR}/ml/UniquenessProvider.h
+    ${CMAKE_CURRENT_LIST_DIR}/ml/VisualIdentification.h
+)
+
+set(TREX_ML_PRIVATE_HEADERS)
+
+set(TREX_ML_SOURCES
+    ${CMAKE_CURRENT_LIST_DIR}/ml/AccumulationRuntime.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/ml/ClosedLoop.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/ml/UniquenessProvider.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/ml/VisualIdentification.cpp
+)
+
+set(TREX_UI_PUBLIC_HEADERS
+    ${CMAKE_CURRENT_LIST_DIR}/ui/AnimatedBackground.h
+    ${CMAKE_CURRENT_LIST_DIR}/ui/AnnotationScene.h
+    ${CMAKE_CURRENT_LIST_DIR}/ui/Bowl.h
+    ${CMAKE_CURRENT_LIST_DIR}/ui/CalibrateScene.h
+    ${CMAKE_CURRENT_LIST_DIR}/ui/CheckUpdates.h
+    ${CMAKE_CURRENT_LIST_DIR}/ui/ConfirmedCrossings.h
+    ${CMAKE_CURRENT_LIST_DIR}/ui/ConvertScene.h
+    ${CMAKE_CURRENT_LIST_DIR}/ui/Coordinates.h
+    ${CMAKE_CURRENT_LIST_DIR}/ui/DrawBlobView.h
+    ${CMAKE_CURRENT_LIST_DIR}/ui/DrawBorder.h
+    ${CMAKE_CURRENT_LIST_DIR}/ui/DrawDataset.h
+    ${CMAKE_CURRENT_LIST_DIR}/ui/DrawExportOptions.h
+    ${CMAKE_CURRENT_LIST_DIR}/ui/DrawFish.h
+    ${CMAKE_CURRENT_LIST_DIR}/ui/DrawGraph.h
+    ${CMAKE_CURRENT_LIST_DIR}/ui/DrawPosture.h
+    ${CMAKE_CURRENT_LIST_DIR}/ui/DrawPreviewImage.h
+    ${CMAKE_CURRENT_LIST_DIR}/ui/DrawSegmentsElement.h
+    ${CMAKE_CURRENT_LIST_DIR}/ui/DrawTrackingView.h
+    ${CMAKE_CURRENT_LIST_DIR}/ui/DrawUniqueness.h
+    ${CMAKE_CURRENT_LIST_DIR}/ui/Export.h
+    ${CMAKE_CURRENT_LIST_DIR}/ui/FlowMenu.h
+    ${CMAKE_CURRENT_LIST_DIR}/ui/FramePreloader.h
+    ${CMAKE_CURRENT_LIST_DIR}/ui/GraphElement.h
+    ${CMAKE_CURRENT_LIST_DIR}/ui/GUICache.h
+    ${CMAKE_CURRENT_LIST_DIR}/ui/GuiSettings.h
+    ${CMAKE_CURRENT_LIST_DIR}/ui/GUIVideoAdapter.h
+    ${CMAKE_CURRENT_LIST_DIR}/ui/GUIVideoAdapterElement.h
+    ${CMAKE_CURRENT_LIST_DIR}/ui/IdentityHeatmap.h
+    ${CMAKE_CURRENT_LIST_DIR}/ui/ImageDisplayElement.h
+    ${CMAKE_CURRENT_LIST_DIR}/ui/ImageGeneratorRegistry.h
+    ${CMAKE_CURRENT_LIST_DIR}/ui/InfoCard.h
+    ${CMAKE_CURRENT_LIST_DIR}/ui/Label.h
+    ${CMAKE_CURRENT_LIST_DIR}/ui/LabelElement.h
+    ${CMAKE_CURRENT_LIST_DIR}/ui/LabelWrapper.h
+    ${CMAKE_CURRENT_LIST_DIR}/ui/LoadingScene.h
+    ${CMAKE_CURRENT_LIST_DIR}/ui/MouseDock.h
+    ${CMAKE_CURRENT_LIST_DIR}/ui/PreviewAdapterElement.h
+    ${CMAKE_CURRENT_LIST_DIR}/ui/RecognitionSummary.h
+    ${CMAKE_CURRENT_LIST_DIR}/ui/RecentItems.h
+    ${CMAKE_CURRENT_LIST_DIR}/ui/Scene.h
+    ${CMAKE_CURRENT_LIST_DIR}/ui/ScreenRecorder.h
+    ${CMAKE_CURRENT_LIST_DIR}/ui/SettingsDropdown.h
+    ${CMAKE_CURRENT_LIST_DIR}/ui/SettingsScene.h
+    ${CMAKE_CURRENT_LIST_DIR}/ui/SettingsInitializer.h
+    ${CMAKE_CURRENT_LIST_DIR}/ui/Skelett.h
+    ${CMAKE_CURRENT_LIST_DIR}/ui/StartingScene.h
+    ${CMAKE_CURRENT_LIST_DIR}/ui/Terminal.h
+    ${CMAKE_CURRENT_LIST_DIR}/ui/TimingStatsElement.h
+    ${CMAKE_CURRENT_LIST_DIR}/ui/TimingStatsWidget.h
+    ${CMAKE_CURRENT_LIST_DIR}/ui/TrackingScene.h
+    ${CMAKE_CURRENT_LIST_DIR}/ui/TrackingSettingsScene.h
+    ${CMAKE_CURRENT_LIST_DIR}/ui/TrackingState.h
+    ${CMAKE_CURRENT_LIST_DIR}/ui/VisualFieldWidget.h
+    ${CMAKE_CURRENT_LIST_DIR}/ui/VisualIdentDialog.h
+    ${CMAKE_CURRENT_LIST_DIR}/ui/WorkProgress.h
+    ${CMAKE_CURRENT_LIST_DIR}/ui/Accumulation.h
+    ${CMAKE_CURRENT_LIST_DIR}/ui/Categorize.h
+    ${CMAKE_CURRENT_LIST_DIR}/ui/CategorizeInterface.h
+)
+
+set(TREX_UI_PRIVATE_HEADERS
+    ${CMAKE_CURRENT_LIST_DIR}/ui/BdxAndPred.h
+    ${CMAKE_CURRENT_LIST_DIR}/ui/ShadowTracklet.h
+    ${CMAKE_CURRENT_LIST_DIR}/ui/Segmenter.h
+)
+
+set(TREX_UI_SOURCES
+    ${CMAKE_CURRENT_LIST_DIR}/ui/AnimatedBackground.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/ui/AnnotationScene.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/ui/Bowl.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/ui/CalibrateScene.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/ui/CheckUpdates.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/ui/ConfirmedCrossings.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/ui/ConvertScene.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/ui/Coordinates.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/ui/DrawBlobView.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/ui/DrawBorder.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/ui/DrawDataset.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/ui/DrawExportOptions.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/ui/DrawFish.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/ui/DrawGraph.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/ui/DrawPosture.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/ui/DrawPreviewImage.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/ui/DrawSegmentsElement.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/ui/DrawTrackingView.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/ui/DrawUniqueness.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/ui/Export.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/ui/FlowMenu.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/ui/FramePreloader.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/ui/GraphElement.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/ui/GUICache.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/ui/GuiSettings.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/ui/GUIVideoAdapter.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/ui/GUIVideoAdapterElement.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/ui/IdentityHeatmap.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/ui/ImageDisplayElement.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/ui/ImageGeneratorRegistry.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/ui/InfoCard.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/ui/Label.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/ui/LabelElement.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/ui/LabelWrapper.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/ui/LoadingScene.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/ui/MouseDock.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/ui/PreviewAdapterElement.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/ui/RecognitionSummary.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/ui/RecentItems.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/ui/Scene.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/ui/ScreenRecorder.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/ui/SettingsInitializer.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/ui/Segmenter.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/ui/SettingsDropdown.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/ui/SettingsScene.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/ui/Skelett.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/ui/StartingScene.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/ui/Terminal.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/ui/TimingStatsElement.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/ui/TimingStatsWidget.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/ui/TrackingScene.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/ui/TrackingSettingsScene.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/ui/TrackingState.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/ui/VisualFieldWidget.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/ui/VisualIdentDialog.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/ui/WorkProgress.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/ui/Accumulation.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/ui/Categorize.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/ui/CategorizeInterface.cpp
+)
+
+set(TREX_CORE_MODULE_INTERFACE_UNITS
+    ${CMAKE_CURRENT_LIST_DIR}/modules/trex.core.cppm
+)
+
+set(TREX_DATA_MODULE_INTERFACE_UNITS
+    ${CMAKE_CURRENT_LIST_DIR}/modules/trex.data.cppm
+)
+
+set(TREX_TRACKING_MODULE_INTERFACE_UNITS
+    ${CMAKE_CURRENT_LIST_DIR}/modules/trex.tracking.cppm
+)
+
+set(TREX_ML_MODULE_INTERFACE_UNITS
+    ${CMAKE_CURRENT_LIST_DIR}/modules/trex.ml.cppm
+)
+
+set(TREX_UI_MODULE_INTERFACE_UNITS
+    ${CMAKE_CURRENT_LIST_DIR}/modules/trex.cppm
+    ${CMAKE_CURRENT_LIST_DIR}/modules/trex.ui.cppm
+)
+
+set(TREX_PYTHON_STAGING_PUBLIC_HEADERS
+    ${CMAKE_CURRENT_LIST_DIR}/python/BackendRegistry.h
+    ${CMAKE_CURRENT_LIST_DIR}/python/BackgroundSubtraction.h
+    ${CMAKE_CURRENT_LIST_DIR}/python/Detection.h
+    ${CMAKE_CURRENT_LIST_DIR}/python/ModuleProxy.h
+    ${CMAKE_CURRENT_LIST_DIR}/python/NoDetection.h
+    ${CMAKE_CURRENT_LIST_DIR}/python/OverlayedVideo.h
+    ${CMAKE_CURRENT_LIST_DIR}/python/PipelineRegistry.h
+    ${CMAKE_CURRENT_LIST_DIR}/python/PrecomuptedDetection.h
+    ${CMAKE_CURRENT_LIST_DIR}/python/SAM3InteractiveSession.h
+    ${CMAKE_CURRENT_LIST_DIR}/python/SAM3PromptState.h
+    ${CMAKE_CURRENT_LIST_DIR}/python/PythonWrapper.h
+)
+
+set(TREX_PYTHON_IMPL_PUBLIC_HEADERS
+    ${CMAKE_CURRENT_LIST_DIR}/python/GPURecognition.h
+    ${CMAKE_CURRENT_LIST_DIR}/python/ModuleProxy.h
+    ${CMAKE_CURRENT_LIST_DIR}/python/PythonEntryPoint.h
+    ${CMAKE_CURRENT_LIST_DIR}/python/PythonBackendRegistry.h
+    ${CMAKE_CURRENT_LIST_DIR}/python/PythonWrapper.h
+    ${CMAKE_CURRENT_LIST_DIR}/python/ResponseValidation.h
+    ${CMAKE_CURRENT_LIST_DIR}/python/SAM3.h
+    ${CMAKE_CURRENT_LIST_DIR}/python/SAM3InteractiveSession.h
+    ${CMAKE_CURRENT_LIST_DIR}/python/SAM3PromptState.h
+    ${CMAKE_CURRENT_LIST_DIR}/python/YOLO.h
+)
+
+set(TREX_PYTHON_IMPL_PRIVATE_HEADERS
+)
+
+set(TREX_PYTHON_STAGING_SOURCES
+    ${CMAKE_CURRENT_LIST_DIR}/python/BackendRegistry.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/python/BackgroundSubtraction.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/python/Detection.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/python/ModuleProxy.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/python/NoDetection.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/python/PipelineRegistry.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/python/PrecomuptedDetection.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/python/PythonWrapper.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/python/Network.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/python/SAM3PromptState.cpp
+)
+
+set(TREX_PYTHON_IMPL_SOURCES
+    ${CMAKE_CURRENT_LIST_DIR}/python/GPURecognition.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/python/Network.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/python/PythonBackendRegistry.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/python/PythonEntryPoint.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/python/SAM3.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/python/SAM3InteractiveSession.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/python/SAM3PromptState.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/python/YOLO.cpp
+)

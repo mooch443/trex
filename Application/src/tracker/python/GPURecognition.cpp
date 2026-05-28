@@ -22,12 +22,13 @@
 #include <misc/SpriteMap.h>
 
 #include <misc/default_settings.h>
-#include <misc/default_config.h>
+#include <core/default_config.h>
+#include <core/TileBuffers.h>
 #include <misc/GlobalSettings.h>
 #include <file/DataLocation.h>
-#include <misc/PythonWrapper.h>
+#include <python/PythonWrapper.h>
 
-#include <misc/DetectionTypes.h>
+#include <core/DetectionTypes.h>
 
 #include <signal.h>
 typedef void (*sighandler_t)(int);
@@ -194,20 +195,28 @@ void NAME(const char *cmd, ...) { \
 MESSAGE_TYPE(PythonLog, TYPE_INFO, false, CYAN, "python");
 MESSAGE_TYPE(PythonWarn, TYPE_WARNING, false, YELLOW, "python");*/
 
-cmn::GlobalSettings* _settings{ nullptr };
 std::function<void(const std::string&, const cv::Mat&)> _mat_display = [](auto&, auto&) { };
 std::function<void()> _destroy_all_windows = []() {};
 
 #include "GPURecognition.h"
 #include <pybind11/stl.h>
-#include <gui/WorkProgress.h>
-#include <misc/SoftException.h>
+#include <core/SoftException.h>
 
 #include <misc/Timer.h>
 #include <file/DataLocation.h>
 
 namespace track::detect {
     namespace py = pybind11;
+
+    track::detect::Sam3PromptList move_prompt_list(py::handle prompt_list) {
+        return track::detect::Sam3PromptList{
+            prompt_list.cast<track::detect::Sam3PromptList::base_t>()
+        };
+    }
+
+    py::list cast_prompt_list(const track::detect::Sam3PromptList& prompt_list) {
+        return py::cast(static_cast<const track::detect::Sam3PromptList::base_t&>(prompt_list));
+    }
 
     template<typename T>
     std::shared_ptr<T> transfer_array(py::array_t<T, py::array::c_style | py::array::forcecast> input) {
@@ -307,126 +316,6 @@ std::vector<KeypointData> transfer_keypoints(py::list keypoints) {
     return result;
 }
 
-KeypointData::KeypointData(std::vector<float>&& data, size_t bones)
-    : _num_bones(bones), _xy_conf(std::move(data))
-{
-    if (data.size() % (sizeof(Bone) / sizeof(decltype(Bone::x))) != 0u)
-        throw InvalidArgumentException("Invalid size for KeypointData constructor. Please use a size that is divisible by ", sizeof(Bone) / sizeof(decltype(Bone::x)), " and is a flat ", Meta::name<decltype(Bone::x)>(), " array.");
-    // expecting 3 floats per row, 2 for xy, 1 for conf
-    assert(data.size() % (sizeof(Bone) / sizeof(decltype(Bone::x))) == 0u);
-    assert(data.size() % _num_bones == 0);
-}
-    
-Keypoint KeypointData::operator[](size_t index) const {
-    if (index * num_bones() * 2u >= xy_conf().size())
-        throw OutOfRangeException("The index ", index, " is outside the keypoints arrays dimensions of ", size());
-    return Keypoint{
-        .bones = std::vector<Bone>{
-            reinterpret_cast<const Bone*>(xy_conf().data()) + num_bones() * index,
-            reinterpret_cast<const Bone*>(xy_conf().data()) + num_bones() * (index + 1)
-        }
-    };
-}
-
-ICXYWHR ObbData::operator[](size_t index) const {
-    if (index * 7u >= icxywhr().size())
-        throw OutOfRangeException("The index ", index, " is outside the OBB arrays dimensions of ", size());
-    return reinterpret_cast<const ICXYWHR*>(icxywhr().data())[index];
-}
-
-ObbData::ObbData(std::vector<float>&& data)
-    : _icxywhr(std::move(data))
-{
-    if (not _icxywhr.empty() && _icxywhr.size() % 7u != 0u)
-        throw InvalidArgumentException("Invalid size for ObbData constructor. Please use a size that is divisible by 7 and is a flat ICXYWHR array.");
-    // expecting 7 floats per row, 1 for id, 1 for confidence, 2 for xy, 2 for wh, 1 for r
-    assert(_icxywhr.size() % 7u == 0u);
-}
-
-
-std::array<cmn::Vec2, 4> ICXYWHR::corners() const {
-    float cos_r = std::cos(r);
-    float sin_r = std::sin(r);
-    float dx = w / 2.f;
-    float dy = h / 2.f;
-    std::array<cmn::Vec2, 4> out;
-    // bottom-left
-    {
-        float x_local = -dx;
-        float y_local = -dy;
-        out[0] = {x + x_local * cos_r - y_local * sin_r, y + x_local * sin_r + y_local * cos_r};
-    }
-    // bottom-right
-    {
-        float x_local = dx;
-        float y_local = -dy;
-        out[1] = {x + x_local * cos_r - y_local * sin_r, y + x_local * sin_r + y_local * cos_r};
-    }
-    // top-right
-    {
-        float x_local = dx;
-        float y_local = dy;
-        out[2] = {x + x_local * cos_r - y_local * sin_r, y + x_local * sin_r + y_local * cos_r};
-    }
-    // top-left
-    {
-        float x_local = -dx;
-        float y_local = dy;
-        out[3] = {x + x_local * cos_r - y_local * sin_r, y + x_local * sin_r + y_local * cos_r};
-    }
-    return out;
-}
-
-Bounds ICXYWHR::bounding_box() const {
-    return bounding_box(corners());
-}
-
-Bounds ICXYWHR::bounding_box(const std::array<cmn::Vec2, 4>& pts) {
-    float min_x = pts[0].x;
-    float min_y = pts[0].y;
-    float max_x = pts[0].x;
-    float max_y = pts[0].y;
-    for (int i = 1; i < 4; ++i) {
-        min_x = std::min(min_x, pts[i].x);
-        min_y = std::min(min_y, pts[i].y);
-        max_x = std::max(max_x, pts[i].x);
-        max_y = std::max(max_y, pts[i].y);
-    }
-    return Bounds(min_x, min_y, max_x - min_x, max_y - min_y);
-}
-
-std::array<cmn::Vec2, 4> ICXYR::corners() const {
-    return std::array{
-        Vec2(x - r, y - r),
-        Vec2(x + r, y - r),
-        Vec2(x + r, y + r),
-        Vec2(x - r, y + r)
-    };
-}
-
-Bounds ICXYR::bounding_box() const {
-    return bounding_box(corners());
-}
-
-Bounds ICXYR::bounding_box(const std::array<cmn::Vec2, 4>& pts) {
-    return ICXYWHR::bounding_box(pts);
-}
-
-ICXYR PointData::operator[](size_t index) const {
-    if (index * 5u >= icxyr().size())
-        throw OutOfRangeException("The index ", index, " is outside the PointData arrays dimensions of ", size());
-    return reinterpret_cast<const ICXYR*>(icxyr().data())[index];
-}
-
-PointData::PointData(std::vector<float>&& data)
-    : _icxyr(std::move(data))
-{
-    if (not _icxyr.empty() && _icxyr.size() % 5u != 0u)
-        throw InvalidArgumentException("Invalid size for PointData constructor. Please use a size that is divisible by 5 and is a flat ICXYR array.");
-    // expecting 5 floats per row, 1 for id, 1 for confidence, 2 for xy, 1 for radius
-    assert(_icxyr.size() % 5u == 0u);
-}
-
 }
 
 using namespace track::detect;
@@ -461,7 +350,7 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
         .def_readonly("height", &DetectResolution::height)
         .def("__repr__", &DetectResolution::toStr)
         .def("__str__", &DetectResolution::toStr)
-        .def_static("class_name", &DetectResolution::class_name);
+        .def_static("class_name", []() { return std::string(DetectResolution::class_name()); });
     
     py::class_<KeypointFormat>(m, "KeypointFormat")
         .def(py::init<uint8_t, uint8_t>(),
@@ -471,7 +360,7 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
         .def_readonly("n_dims", &KeypointFormat::n_dims)
         .def("__repr__", &KeypointFormat::toStr)
         .def("__str__", &KeypointFormat::toStr)
-        .def_static("class_name", &KeypointFormat::class_name);
+        .def_static("class_name", []() { return std::string(KeypointFormat::class_name()); });
     
     py::class_<ModelConfig>(m, "ModelConfig")
         .def(py::init<ModelTaskType, bool, std::string, DetectResolution, ObjectDetectionFormat::data::values, std::optional<KeypointFormat>
@@ -491,7 +380,7 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
         .def_readwrite("keypoint_format", &ModelConfig::keypoint_format)
         .def("__repr__", &ModelConfig::toStr)
         .def("__str__", &ModelConfig::toStr)
-        .def_static("class_name", &ModelConfig::class_name);
+        .def_static("class_name", []() { return std::string(ModelConfig::class_name()); });
 
 
     py::class_<Rect>(m, "Rect")
@@ -654,37 +543,72 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
         .def("orig_id", &track::detect::YoloInput::orig_id);
 
     py::enum_<track::detect::Sam3PromptType>(m, "Sam3PromptType")
+        .value("none", track::detect::Sam3PromptType::none)
         .value("text", track::detect::Sam3PromptType::text)
-        .value("box", track::detect::Sam3PromptType::box)
         .value("boxes", track::detect::Sam3PromptType::boxes)
-        .value("points", track::detect::Sam3PromptType::points)
-        .value("mask", track::detect::Sam3PromptType::mask)
-        .value("remove_object", track::detect::Sam3PromptType::remove_object);
+        .value("points", track::detect::Sam3PromptType::points);
 
     py::class_<track::detect::Sam3PromptPayload>(m, "Sam3PromptPayload")
         .def(py::init<>())
+        .def(py::init([](std::string text) {
+            track::detect::Sam3PromptPayload payload;
+            payload.value = std::move(text);
+            return payload;
+        }))
+        .def(py::init([](std::vector<cmn::Vec2> points) {
+            track::detect::Sam3PromptPayload payload;
+            payload.value = std::move(points);
+            return payload;
+        }))
+        .def(py::init([](std::vector<cmn::Bounds> boxes) {
+            track::detect::Sam3PromptPayload payload;
+            payload.value = std::move(boxes);
+            return payload;
+        }))
         .def("__repr__", [](const track::detect::Sam3PromptPayload& v) -> std::string {
             return v.toStr();
         })
-        .def_readwrite("type", &track::detect::Sam3PromptPayload::type)
-        .def_readwrite("frame_index", &track::detect::Sam3PromptPayload::frame_index)
-        .def_readwrite("text", &track::detect::Sam3PromptPayload::text)
-        .def_readwrite("obj_id", &track::detect::Sam3PromptPayload::obj_id)
-        .def_readwrite("points", &track::detect::Sam3PromptPayload::points)
-        .def_readwrite("point_labels", &track::detect::Sam3PromptPayload::point_labels)
-        .def_readwrite("boxes", &track::detect::Sam3PromptPayload::boxes)
-        .def_readwrite("labels", &track::detect::Sam3PromptPayload::labels)
-        .def_readwrite("mask", &track::detect::Sam3PromptPayload::mask)
-        .def_readwrite("mask_size", &track::detect::Sam3PromptPayload::mask_size)
-        .def_readwrite("text_session_scope", &track::detect::Sam3PromptPayload::text_session_scope)
-        .def_readwrite("text_skip_if_unchanged", &track::detect::Sam3PromptPayload::text_skip_if_unchanged);
+        .def_property_readonly("type", [](const track::detect::Sam3PromptPayload& v) {
+            return v.type();
+        })
+        .def_property_readonly("text", [](const track::detect::Sam3PromptPayload& v) -> std::string {
+            if(std::holds_alternative<std::string>(v.value)) {
+                return v.text();
+            }
+            return {};
+        })
+        .def_property_readonly("points", [](const track::detect::Sam3PromptPayload& v) -> std::vector<cmn::Vec2> {
+            if(std::holds_alternative<std::vector<cmn::Vec2>>(v.value)) {
+                return v.points();
+            }
+            return {};
+        })
+        .def_property_readonly("boxes", [](const track::detect::Sam3PromptPayload& v) -> py::list {
+            py::list result;
+            if(std::holds_alternative<std::vector<cmn::Bounds>>(v.value)) {
+                for(const auto& box : v.boxes()) {
+                    result.append(py::make_tuple(
+                        box.x,
+                        box.y,
+                        box.x + box.width,
+                        box.y + box.height
+                    ));
+                }
+            }
+            return result;
+        });
 
     py::class_<track::detect::Sam3Input>(m, "Sam3Input")
         .def(py::init([](std::vector<cmn::Image::Ptr>&& images,
                          std::vector<cmn::Vec2>&& offsets,
                          std::vector<cmn::Vec2>&& scales,
                          std::vector<size_t>&& orig_id,
-                         std::vector<std::vector<track::detect::Sam3PromptPayload>> prompts_per_item) {
+                         py::list prompts_per_image) {
+            track::detect::Sam3PromptsPerImage prompt_lists;
+            prompt_lists.reserve(py::len(prompts_per_image));
+            for(py::handle item : prompts_per_image) {
+                prompt_lists.emplace_back(move_prompt_list(item));
+            }
             return track::detect::Sam3Input{
                 track::detect::YoloInput{
                     std::move(images),
@@ -692,19 +616,25 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
                     std::move(scales),
                     std::move(orig_id)
                 },
-                std::move(prompts_per_item)
+                std::move(prompt_lists)
             };
         }),
         py::arg("images"),
         py::arg("offsets"),
         py::arg("scales"),
         py::arg("orig_id"),
-        py::arg("prompts_per_item") = std::vector<std::vector<track::detect::Sam3PromptPayload>>{})
+        py::arg("prompts_per_image") = py::list{})
         .def("__repr__", [](const track::detect::Sam3Input& v) -> std::string {
             return v.toStr();
         })
         .def("base", &track::detect::Sam3Input::base, py::return_value_policy::reference_internal)
-        .def("prompts_per_item", &track::detect::Sam3Input::prompts_per_item);
+        .def("prompts_per_image", [](const track::detect::Sam3Input& self) -> py::list {
+            py::list result;
+            for(const auto& prompt_list : self.prompts_per_image()) {
+                result.append(cast_prompt_list(prompt_list));
+            }
+            return result;
+        });
 
     m.def("log", [](std::string text) {
         Print(fmt::clr<FormatColor::DARK_GRAY>("[py] "), text.c_str());
@@ -715,9 +645,7 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
 
     auto choose_backend = []() -> std::string {
         using namespace default_config;
-        if(not _settings)
-            throw InvalidArgumentException("No _settings has been set.");
-        
+
         auto torch = py::module::import("torch");
         bool is_cuda_available = torch.attr("cuda").attr("is_available")().cast<bool>();
         std::string backend;
@@ -737,9 +665,7 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
 
     m.def("choose_device", [choose_backend]() -> std::string {
         using namespace default_config;
-        if(not _settings)
-            throw InvalidArgumentException("No _settings has been set.");
-        
+
         std::string device;
         auto device_from_settings = GlobalSettings::read_value<default_config::gpu_torch_device_t::Class>("gpu_torch_device");
         if (not device_from_settings
@@ -791,9 +717,19 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
         return d;
     });
 
-    m.def("setting", [](const std::string& name) -> std::string {
+    m.def("setting", [](const std::string& name) -> py::object {
         using namespace pybind11::literals;
-        return GlobalSettings::read_value<cmn::NoType>(name).get().valueString();
+        auto& value = GlobalSettings::read_value<cmn::NoType>(name).get();
+        auto json = value.to_json();
+        if(json.is_string())
+            return py::str(json.get_string());
+        if(json.is_number())
+            return py::float_(json.get_number());
+        if(json.is_boolean())
+            return py::bool_(json.get_boolean());
+        if(json.is_null())
+            return py::none();
+        return py::str(value.valueString());
     });
 
     m.def("setting", [](const std::string& name, const std::string& value) {
@@ -801,8 +737,8 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
         
         try {
             constexpr auto accessLevel = default_config::AccessLevelType::PUBLIC;
-            if (!_settings->has_access(name, accessLevel))
-                FormatError("User cannot write setting ", name, " (AccessLevel::", _settings->access_level(name).name(), ").");
+            if (!GlobalSettings::has_access(name, accessLevel))
+                FormatError("User cannot write setting ", name, " (AccessLevel::", GlobalSettings::access_level(name).name(), ").");
             else {
                 GlobalSettings::write([&](Configuration& config){
                     if (config.values.has(name)) {
@@ -906,11 +842,12 @@ std::shared_mutex initialize_mutex;
 std::thread::id _saved_id;
 std::unique_ptr<py::scoped_interpreter> _interpreter;
 
-void PythonIntegration::set_settings(GlobalSettings* obj, file::DataLocation* instance, void *python_wrapper) {
+void PythonIntegration::set_settings(GlobalSettings* obj, file::DataLocation* instance, void *python_wrapper, void* tile_buffers) {
     GlobalSettings::set_instance(obj);
     file::DataLocation::set_instance(instance);
     Python::set_instance(python_wrapper);
-    _settings = obj;
+    buffers::TileBuffers::set(static_cast<buffers::TileBuffers::Buffers_t*>(tile_buffers));
+    thread_print("setting settings instance to ", hex(obj));
 }
 
 template<typename T>
@@ -934,7 +871,7 @@ void PythonIntegration::init() {
         }
 #else
         ~SignalRestorer() {
-            // after you’ve created the interpreter…
+            // after youï¿½ve created the interpreterï¿½
             HMODULE hExe = GetModuleHandle(NULL);                    // or the name of the module that exports it
             auto fn = (void(*)())GetProcAddress(hExe, "RehookConsoleHandler");
             if (fn)
@@ -1188,7 +1125,7 @@ bool PythonIntegration::check_module(const std::string& name,
     }
 
 #ifdef _WIN32
-    // after you’ve created the interpreter…
+    // after youï¿½ve created the interpreterï¿½
     HMODULE hExe = GetModuleHandle(NULL);                    // or the name of the module that exports it
     auto fn = (void(*)())GetProcAddress(hExe, "RehookConsoleHandler");
     if (fn) fn();
@@ -1581,21 +1518,21 @@ std::vector<track::detect::Result> PythonIntegration::predict(track::detect::Yol
     }
 }
 
-std::vector<track::detect::Result> PythonIntegration::predict(track::detect::Sam3Input&& input, const std::string& m) {
+std::vector<track::detect::Result> PythonIntegration::predict_frame(track::detect::Sam3Input&& input, const std::string& m) {
     PythonIntegration::check_correct_thread_id();
 
     if (m.empty()) {
-        return _main.attr("predict")(std::move(input)).cast<std::vector<track::detect::Result>>();
+        return _main.attr("predict_frame")(std::move(input)).cast<std::vector<track::detect::Result>>();
     }
     else {
         if (_modules.count(m)) {
             auto& mod = _modules[m];
             if (!CHECK_NONE(mod)) {
-                return mod.attr("predict")(std::move(input)).cast<std::vector<track::detect::Result>>();
+                return mod.attr("predict_frame")(std::move(input)).cast<std::vector<track::detect::Result>>();
             }
         }
 
-        throw SoftException("Cannot call function ", fmt::clr<FormatColor::DARK_CYAN>(m.c_str()), "::", fmt::clr<FormatColor::CYAN>("predict"), " because the module ", fmt::clr<FormatColor::DARK_CYAN>(m.c_str()), " does not exist (you should probably have a look at previous error messages).");
+        throw SoftException("Cannot call function ", fmt::clr<FormatColor::DARK_CYAN>(m.c_str()), "::", fmt::clr<FormatColor::CYAN>("predict_frame"), " because the module ", fmt::clr<FormatColor::DARK_CYAN>(m.c_str()), " does not exist (you should probably have a look at previous error messages).");
     }
 }
 

@@ -1,141 +1,77 @@
-# - Try to find Pylon
-# Once done this will define
-#  PYLON_FOUND - System has Pylon
-#  PYLON_INCLUDE_DIRS - The Pylon include directories
-#  PYLON_LIBRARIES - The libraries needed to use Pylon
+# - Try to find the Basler pylon SDK headers.
+#
+# Once done this will define:
+#  PYLON_FOUND - SDK headers are available
+#  PYLON_INCLUDE_DIRS - Include directories needed for the headers
+#  PYLON_COMPILE_DEFINITIONS - Compile definitions used by the lazy Basler boundary
+#  PYLON_FRAMEWORK_DIR - (macOS only) Framework search path for -F flag
 
-IF(WIN32)
-	if( CMAKE_SIZEOF_VOID_P EQUAL 8 )
-		set( PYLON_LIBRARY "$ENV{PYLON_ROOT}/lib/x64" )
-	else()
-		set( PYLON_LIBRARY "$ENV{PYLON_ROOT}/lib/Win32" )
-	endif()
-ELSEIF(APPLE)
-	find_library(PYLON_LIBRARY
-				NAMES pylonbase
-				HINTS
-				$ENV{PYLON_ROOT}
-				$ENV{PYLON_ROOT}/lib64
-				/Library/Frameworks/pylon.framework/Libraries
-				PATHS
-				/Library/Frameworks/pylon.framework/Libraries
-	)
-ELSE()
-		if( CMAKE_SIZEOF_VOID_P EQUAL 8 )
-			set( PYLON_LIBRARY "/opt/pylon6/lib64" )
-		else()
-			set( PYLON_LIBRARY "/opt/pylon6/lib32" )
-		endif()
-ENDIF()
+include(FindPackageHandleStandardArgs)
 
-message(STATUS "Searching for pylon at " ${PYLON_LIBRARY})
+if(APPLE)
+    # macOS: pylon ships as pylon.framework; only C++ API headers are present.
+    find_path(PYLON_INCLUDE_DIR
+        NAMES PylonIncludes.h
+        PATHS
+            /Library/Frameworks/pylon.framework/Headers
+            /Library/Frameworks/pylon.framework/Versions/A/Headers
+            "$ENV{PYLON_ROOT}/pylon.framework/Headers"
+            "$ENV{TREX_BASLER_RUNTIME}/pylon.framework/Headers"
+        NO_DEFAULT_PATH
+    )
+    find_path(PYLON_GENAPI_INCLUDE_DIR
+        NAMES GenICam.h
+        PATHS
+            /Library/Frameworks/pylon.framework/Versions/A/Headers/GenICam
+            /Library/Frameworks/pylon.framework/Headers/GenICam
+            "$ENV{PYLON_ROOT}/pylon.framework/Versions/A/Headers/GenICam"
+        NO_DEFAULT_PATH
+    )
+    if(PYLON_INCLUDE_DIR)
+        # Derive the directory that contains pylon.framework (used by -F).
+        # Handles both:
+        #   .../pylon.framework/Headers
+        #   .../pylon.framework/Versions/A/Headers
+        string(REPLACE "\\" "/" _pylon_include_norm "${PYLON_INCLUDE_DIR}")
+        string(REGEX REPLACE "^(.*)/pylon\\.framework(/.*)?$" "\\1" PYLON_FRAMEWORK_DIR "${_pylon_include_norm}")
+    endif()
+else()
+    set(_PYLON_HEADER_HINTS
+        "$ENV{PYLON_ROOT}/include"
+        "$ENV{PYLON_ROOT}/Development/include"
+        "$ENV{PYLON_ROOT}/Include"
+        "/opt/pylon/include"
+        "/opt/pylon5/include"
+        "/opt/pylon6/include"
+        "C:/Program Files/Basler/pylon 5/Development/include"
+        "C:/Program Files/Basler/pylon 6/Development/include"
+    )
+    find_path(PYLON_INCLUDE_DIR
+        NAMES pylonc/PylonC.h
+        PATHS ${_PYLON_HEADER_HINTS}
+    )
+    find_path(PYLON_GENAPI_INCLUDE_DIR
+        NAMES genapic/GenApiC.h
+        PATHS ${_PYLON_HEADER_HINTS}
+    )
+endif()
 
-FIND_PATH(	PYLON_INCLUDE_DIR pylon/PylonBase.h
-			PATHS
-			"$ENV{PYLON_ROOT}/lib"
-			"$ENV{PYLON_ROOT}/lib64"
-			/opt/pylon6/include
-			/opt/pylon5/include
-			"$ENV{PYLON_ROOT}/include"
-			"$ENV{PYLON_ROOT}/Development/include"
-			"C:/Program Files/Basler/pylon 5/Development/include"
-			"C:/Program Files/Basler/pylon 6/Development/include"
+set(PYLON_INCLUDE_DIRS
+    ${PYLON_INCLUDE_DIR}
+    ${PYLON_GENAPI_INCLUDE_DIR}
 )
 
-FIND_LIBRARY(	PYLONBASE_LIBRARY 
-				NAMES 
-				pylonbase 
-				PylonBase_MD_VC100 
-				PylonBase_v6_0 
-				PylonBase_v6_3
-				PylonBase_v5_2
-				PylonBase_v5_1
-				PATHS
-				${PYLON_LIBRARY}
-				"$ENV{PYLON_ROOT}/lib"
-				"$ENV{PYLON_ROOT}/lib64"
-				/opt/pylon6/lib
-				/opt/pylon5/lib
-				/opt/pylon5/lib64
-				"C:/Program Files/Basler/pylon 5/Runtime/x64"
-				"C:/Program Files/Basler/pylon 5/Development/lib/x64"
-				"C:/Program Files/Basler/pylon 6/Runtime/x64"
-				"C:/Program Files/Basler/pylon 6/Development/lib/x64"
+set(PYLON_COMPILE_DEFINITIONS
+    WITH_PYLON=1
+    TREX_BASLER_COMPILED=1
+    TREX_BASLER_LAZY_RUNTIME=1
 )
 
-FIND_LIBRARY(	PYLON_UTILITY_LIBRARY 
-				NAMES 
-				pylonutility PylonUtility_MD_VC100 
-				PylonUtility_v6_0 PylonUtility_v5_2
-				PylonUtility_v6_3
-				PylonUtility_v5_1
-				PATHS
-				${PYLON_LIBRARY}
-				"$ENV{PYLON_ROOT}/lib"
-				"$ENV{PYLON_ROOT}/lib64"
-				"C:/Program Files/Basler/pylon 5/Runtime/x64"
-				"C:/Program Files/Basler/pylon 5/Development/lib/x64"
-				"C:/Program Files/Basler/pylon 6/Runtime/x64"
-				"C:/Program Files/Basler/pylon 6/Development/lib/x64"
+# FOUND_VAR keeps the result in PYLON_FOUND and silences the name-mismatch warning.
+find_package_handle_standard_args(BaslerPylon
+    FOUND_VAR BaslerPylon_FOUND
+    REQUIRED_VARS PYLON_INCLUDE_DIR PYLON_GENAPI_INCLUDE_DIR
 )
 
-FIND_LIBRARY( PYLON_GEN_LIBRARY
-	NAMES
-	GenApi_gcc_v3_0_Basler_pylon_v5_0
-	GenApi_gcc_v3_1_Basler_pylon_v5_1
-	GenApi_MD_VC141_v3_1_Basler_pylon_v5_1
-	GenApi_gcc_v3_1_Basler_pylon 
-	GenApi_MD_VC141_v3_1_Basler_pylon 
-	PATHS
-	${PYLON_LIBRARY}
-	"$ENV{PYLON_ROOT}/lib"
-	"$ENV{PYLON_ROOT}/lib64"
-				"C:/Program Files/Basler/pylon 5/Runtime/x64"
-				"C:/Program Files/Basler/pylon 5/Development/lib/x64"
-				"C:/Program Files/Basler/pylon 6/Runtime/x64"
-				"C:/Program Files/Basler/pylon 6/Development/lib/x64"
-)
-
-FIND_LIBRARY( PYLON_GEN2_LIBRARY
-	NAMES
-	GCBase_gcc_v3_0_Basler_pylon_v5_0
-	GCBase_gcc_v3_0_Basler_pylon_v5_1
-	GCBase_gcc_v3_1_Basler_pylon_v5_1
-	GCBase_gcc_v3_1_Basler_pylon 
-	GCBase_MD_VC141_v3_1_Basler_pylon
-	GCBase_MD_VC141_v3_1_Basler_pylon_v5_1
-	PATHS
-	${PYLON_LIBRARY}
-	"$ENV{PYLON_ROOT}/lib"
-	"$ENV{PYLON_ROOT}/lib64"
-				"C:/Program Files/Basler/pylon 5/Runtime/x64"
-				"C:/Program Files/Basler/pylon 5/Development/lib/x64"
-				"C:/Program Files/Basler/pylon 6/Runtime/x64"
-				"C:/Program Files/Basler/pylon 6/Development/lib/x64"
-
-)
-
-set( XERCES-C_LIBRARY "" )
-FIND_LIBRARY(	XERCES-C_LIBRARY 
-				NAMES 
-				Xerces-C_gcc40_v2_7 Xerces-C_MD_VC100_v2_7_1
-				PATHS
-				${PYLON_LIBRARY}
-				"$ENV{PYLON_ROOT}/lib"
-				"$ENV{PYLON_ROOT}/lib64"
-)
-
-if( NOT XERCES-C_LIBRARY)
-    set(XERCES-C_LIBRARY "")
-endif(NOT XERCES-C_LIBRARY)
-
-set(PYLON_LIBRARIES  ${PYLONBASE_LIBRARY} ${XERCES-C_LIBRARY} ${PYLON_UTILITY_LIBRARY} ${PYLON_GEN_LIBRARY} ${PYLON_GEN2_LIBRARY})
-set(PYLON_INCLUDE_DIRS ${PYLON_INCLUDE_DIR})
-message(STATUS "PylonLIBRARIES:" ${PYLON_LIBRARIES})
-INCLUDE(FindPackageHandleStandardArgs)
-
-FIND_PACKAGE_HANDLE_STANDARD_ARGS(PYLON DEFAULT_MSG
-  PYLON_INCLUDE_DIR
-  PYLON_LIBRARY)
-
-mark_as_advanced(PYLON_INCLUDE_DIR PYLON_LIBRARIES)
+mark_as_advanced(PYLON_INCLUDE_DIR PYLON_GENAPI_INCLUDE_DIR PYLON_INCLUDE_DIRS
+                 PYLON_COMPILE_DEFINITIONS PYLON_FRAMEWORK_DIR)

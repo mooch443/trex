@@ -1,7 +1,7 @@
 #include "ClosedLoop.h"
 #include <misc/GlobalSettings.h>
 #include <python/ModuleProxy.h>
-#include <misc/PythonWrapper.h>
+#include <python/PythonWrapper.h>
 
 namespace ml {
 

@@ -3,8 +3,8 @@
 #include <commons.pc.h>
 #include <misc/Image.h>
 #include <misc/bid.h>
-#include <gui/Transform.h>
-#include <tracker/misc/default_config.h>
+#include <processing/BlobWeakPtr.h>
+#include <core/default_config.h>
 #include <misc/frame_t.h>
 #include <misc/ranges.h>
 
@@ -12,8 +12,13 @@ namespace cmn {
 class Background;
 }
 
+namespace cmn::gui {
+class Transform;
+}
+
 namespace track {
 class Individual;
+struct PostureStuff;
 
 namespace image {
 
@@ -52,7 +57,7 @@ struct FilterCache {
     bool has_std() const { return midline_length_px_std != -1; }
     
     std::string toStr() const;
-    static std::string class_name() {
+    static consteval std::string_view class_name() {
         return "FilterCache";
     }
     

@@ -2,6 +2,17 @@
 
 set +e  # Disable immediate exit on error so that failures don't abort the script
 
+export PIP_DISABLE_PIP_VERSION_CHECK=1
+export PIP_NO_INPUT=1
+export PIP_PROGRESS_BAR=off
+export GIT_TERMINAL_PROMPT=0
+export ULTRALYTICS_HUB_NO_PROGRESS=1
+export HF_HUB_DISABLE_PROGRESS_BAR=1
+export DISABLE_TQDM=1
+export RICH_NO_COLOR=1
+export RICH_FORCE_TERMINAL=0
+export FORCE_COLOR=0
+
 echo "PREFIX=${PREFIX}"
 OUT_STREAM="${PREFIX}/.messages.txt"
 if [ -z "${PREFIX}" ]; then
@@ -11,6 +22,74 @@ fi
 
 POST_LINK_FAILED=0
 LAST_COMMAND_STATUS=0
+PROGRESS_PID=""
+PROGRESS_STOP=""
+
+progress_stream() {
+    if [ -w /dev/tty ]; then
+        printf '%s' "$1" >/dev/tty
+    else
+        printf '%s' "$1" >&2
+    fi
+}
+
+announce_progress() {
+    progress_stream "$(printf '\n[post-link] %s\n' "$1")"
+}
+
+last_progress_line() {
+    local path="$1"
+    if [ -f "${path}" ]; then
+        tail -n 20 "${path}" 2>/dev/null | awk 'NF { line=$0 } END { if (line) print substr(line, 1, 90) }'
+    fi
+}
+
+start_progress() {
+    local label="$1"
+    local log_path="$2"
+
+    if [ -n "${PROGRESS_PID}" ]; then
+        return 0
+    fi
+
+    PROGRESS_STOP="${TMPDIR:-/tmp}/trex_post_link_stop_$$_${RANDOM:-0}"
+    rm -f "${PROGRESS_STOP}" 2>/dev/null
+
+    (
+        frames='|/-\'
+        i=0
+        start_time=$(date +%s)
+        while [ ! -f "${PROGRESS_STOP}" ]; do
+            now=$(date +%s)
+            elapsed=$((now - start_time))
+            minutes=$((elapsed / 60))
+            seconds=$((elapsed % 60))
+            frame=$(printf '%s' "${frames}" | cut -c $((i % 4 + 1)))
+            info=$(last_progress_line "${log_path}")
+            if [ -n "${info}" ]; then
+                progress_stream "$(printf '\r  %s %s  %02d:%02d   ' "${frame}" "${info}" "${minutes}" "${seconds}")"
+            else
+                progress_stream "$(printf '\r  %s %s  %02d:%02d   ' "${frame}" "${label}" "${minutes}" "${seconds}")"
+            fi
+            i=$((i + 1))
+            sleep 1
+        done
+        progress_stream "$(printf '\r%*s\r' 120 '')"
+    ) &
+    PROGRESS_PID=$!
+}
+
+stop_progress() {
+    if [ -n "${PROGRESS_PID}" ]; then
+        touch "${PROGRESS_STOP}" 2>/dev/null
+        wait "${PROGRESS_PID}" 2>/dev/null
+        rm -f "${PROGRESS_STOP}" 2>/dev/null
+        PROGRESS_PID=""
+        PROGRESS_STOP=""
+    fi
+}
+
+trap stop_progress EXIT
 
 # Append a single log line to the conda post-link message stream.
 log() {
@@ -41,12 +120,28 @@ run_with_reporting() {
         return "${LAST_COMMAND_STATUS}"
     fi
 
+    local progress_log=""
+    if [ -n "${TREX_PROGRESS_LABEL:-}" ]; then
+        progress_log="${TMPDIR:-/tmp}/trex_post_link_$$_${RANDOM:-0}.log"
+        : >"${progress_log}" 2>/dev/null
+        start_progress "${TREX_PROGRESS_LABEL}" "${progress_log}"
+    fi
+
     if command -v tee >/dev/null 2>&1; then
-        "$@" 2>&1 | tee -a "${OUT_STREAM}"
+        if [ -n "${progress_log}" ]; then
+            "$@" 2>&1 | tee -a "${OUT_STREAM}" "${progress_log}" >/dev/null
+        else
+            "$@" 2>&1 | tee -a "${OUT_STREAM}"
+        fi
         LAST_COMMAND_STATUS=${PIPESTATUS[0]}
     else
         "$@" >>"${OUT_STREAM}" 2>&1
         LAST_COMMAND_STATUS=$?
+    fi
+
+    stop_progress
+    if [ -n "${progress_log}" ]; then
+        rm -f "${progress_log}" 2>/dev/null
     fi
 
     return "${LAST_COMMAND_STATUS}"
@@ -132,39 +227,53 @@ if [ $? -eq 0 ] && [ -n "${numpy_version}" ]; then
     numpy_requirement=("numpy==${numpy_version}")
     log "Installing pip packages (numpy=${numpy_version})..."
 else
-    log "[post-link] Could not determine numpy version; proceeding without pinning."
+    log "[post-link] Could not determine numpy version; will install latest numpy."
+    numpy_requirement=("numpy")
 fi
 
 common_packages=(
-    "torch>=2.0.0,<2.9.0"
-    "torchvision>=0.15.1,<0.24.0"
+    "torch>=2.0.0,<3.0.0"
+    "torchvision>=0.15.1"
     "torchmetrics"
     "tqdm"
     "opencv-python>=4,<5"
     "ultralytics>=8.3.0,<9"
     "dill"
+    "timm"
+    "scikit-learn"
+    "git+https://github.com/ultralytics/CLIP.git"
 )
 
 if [ ${#numpy_requirement[@]} -gt 0 ]; then
     common_packages+=("${numpy_requirement[@]}")
 fi
 
+pip_flags=(
+    --disable-pip-version-check
+    --no-input
+    --no-color
+    --progress-bar
+    off
+)
+
 arch=$(uname -p)
 system=$(uname)
+
+announce_progress "TRex is installing Python ML packages. This can take several minutes; progress below shows the latest pip activity."
 
 # Explicitly describe channel decisions per platform.
 if [ "${arch}" = "arm" ]; then
     log "ARM architecture detected; using default pip index (no custom channels)."
-    log_command python -m pip install "${common_packages[@]}"
-    if run_with_reporting python -m pip install "${common_packages[@]}"; then
+    log_command python -m pip install "${pip_flags[@]}" "${common_packages[@]}"
+    if TREX_PROGRESS_LABEL="pip install..." run_with_reporting python -m pip install "${pip_flags[@]}" "${common_packages[@]}"; then
         check_nvidia_support
     else
         record_failure "[post-link] pip package installation failed on ARM (exit ${LAST_COMMAND_STATUS})."
     fi
 elif [ "${system}" = "Darwin" ]; then
     log "macOS detected; using default pip index (no custom channels)."
-    log_command python -m pip install "${common_packages[@]}"
-    if run_with_reporting python -m pip install "${common_packages[@]}"; then
+    log_command python -m pip install "${pip_flags[@]}" "${common_packages[@]}"
+    if TREX_PROGRESS_LABEL="pip install..." run_with_reporting python -m pip install "${pip_flags[@]}" "${common_packages[@]}"; then
         check_nvidia_support
     else
         record_failure "[post-link] pip package installation failed on macOS (exit ${LAST_COMMAND_STATUS})."
@@ -185,8 +294,8 @@ PY
         log "[post-link] torch.cuda.is_available() -> ${gpu_check:-False}; installing from default pip channels."
     fi
 
-    log_command python -m pip install "${common_packages[@]}"
-    if run_with_reporting python -m pip install "${common_packages[@]}"; then
+    log_command python -m pip install "${pip_flags[@]}" "${common_packages[@]}"
+    if TREX_PROGRESS_LABEL="pip install..." run_with_reporting python -m pip install "${pip_flags[@]}" "${common_packages[@]}"; then
         check_nvidia_support
     else
         record_failure "[post-link] pip package installation failed on Linux (exit ${LAST_COMMAND_STATUS})."
@@ -194,11 +303,12 @@ PY
 fi
 
 log "Testing installation..."
+announce_progress "TRex is running a short YOLO smoke test to verify the Python install."
 
 CMD_STRING="from ultralytics import YOLO; import numpy as np; YOLO('yolo26n.yaml').to('cpu').predict(np.zeros((640, 480, 3), dtype=np.uint8))"
 log_command python -c "${CMD_STRING}"
 
-if run_with_reporting python -c "${CMD_STRING}"; then
+if TREX_PROGRESS_LABEL="YOLO smoke test..." run_with_reporting python -c "${CMD_STRING}"; then
     log "[post-link] YOLO smoke test succeeded."
 else
     record_failure "[post-link] YOLO smoke test failed (exit ${LAST_COMMAND_STATUS})."

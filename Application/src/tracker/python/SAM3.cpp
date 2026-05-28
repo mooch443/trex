@@ -1,9 +1,11 @@
 #include "SAM3.h"
 
-#include <misc/PythonWrapper.h>
+#include <python/PythonWrapper.h>
+#include <python/GPURecognition.h>
 #include <misc/Timer.h>
-#include <misc/TrackingSettings.h>
+#include <core/TrackingSettings.h>
 #include <python/Detection.h>
+#include <python/PipelineRegistry.h>
 #include <python/YOLO.h>
 #include <python/ModuleProxy.h>
 #include <python/ResponseValidation.h>
@@ -26,20 +28,6 @@ SAM3::Data& SAM3::data() {
     return instance;
 }
 
-PipelineManager<TileImage, false>& SAM3::manager() {
-    static auto instance = PipelineManager<TileImage, false>(
-        min(1u, READ_SETTING(detect_batch_size, uchar)),
-        [](std::vector<TileImage>&& images) {
-#ifndef NDEBUG
-            if(images.empty())
-                FormatExcept("SAM3 received empty image package.");
-#endif
-            SAM3::apply(std::move(images));
-        }
-    );
-    return instance;
-}
-
 SAM3::SAM3(cmn::Image::Ptr&&) {
 }
 
@@ -53,7 +41,7 @@ std::future<SegmentationData> SAM3::apply(TileImage&& tiled) {
     tiled.promise = std::make_unique<std::promise<SegmentationData>>();
 
     auto f = tiled.promise->get_future();
-    manager().enqueue(std::move(tiled));
+    detect::pipeline_manager(detect::ObjectDetectionType::sam3).enqueue(std::move(tiled));
     return f;
 }
 
@@ -63,14 +51,20 @@ void SAM3::reinit(track::ModuleProxy& proxy) {
         throw U_EXCEPTION("SAM3 requires `detect_model` to point to the SAM3 weights path.");
     }
 
-    glz::json_t create_req = {
+    glz::json_t create_req {
         {"weights_path", weights.str()},
-        // SAM3 backbone/rope path is sensitive to image size; keep it on model-native 1024.
-        {"imgsz", READ_SETTING(detect_resolution, detect::DetectResolution).width},
+        {"imgsz", cvt2json(std::vector<uint16_t>{
+            READ_SETTING(detect_resolution, detect::DetectResolution).width,
+            READ_SETTING(detect_resolution, detect::DetectResolution).height
+        })},
         {"conf", static_cast<float>(READ_SETTING(detect_conf_threshold, Float2_t))},
         {"half", true},
         {"verbose", true}
     };
+
+    if(auto detect_iou_threshold = READ_SETTING(detect_iou_threshold, std::optional<Float2_t>); detect_iou_threshold.has_value()) {
+        create_req["detect_iou_threshold"] = static_cast<float>(*detect_iou_threshold);
+    }
 
     proxy.run("create_session", create_req);
 }
@@ -81,41 +75,21 @@ void SAM3::init() {
         data().fps = 0.0;
         data().samples = 0;
 
-        {
-            std::unique_lock guard(data().mutex);
-            if(data().callbacks) {
-                GlobalSettings::unregister_callbacks(std::move(data().callbacks));
-            }
-            
-            data().callbacks = GlobalSettings::register_callbacks({
-                "detect_conf_threshold"
-
-            }, [](std::string_view){
-                Python::schedule([]() {
-                    try {
-                        ModuleProxy proxy{
-                            ThrowAlways{},
-                            "trex_sam3_interface",
-                            SAM3::reinit
-                        };
-
-                        auto detect_conf_threshold = static_cast<double>(READ_SETTING(detect_conf_threshold, Float2_t));
-                        auto result = proxy.run("set_conf_threshold", glz::json_t{
-                            {"conf", detect_conf_threshold}
-                        });
-
-                        Python::validate_setter_response_with_value(
-                            "SAM3",
-                            "set_conf_threshold",
-                            result,
-                            "conf",
-                            detect_conf_threshold);
-
-                    } catch(const std::exception& ex) {
-                        FormatExcept("Failed to update SAM3 conf threshold: ", ex.what());
-                    }
-                }).get();
+        detect::register_pipeline(
+            detect::ObjectDetectionType::sam3,
+            min(1u, READ_SETTING(detect_batch_size, uchar)),
+            /*start_paused=*/false,
+            [](std::vector<TileImage>&& images) {
+#ifndef NDEBUG
+                if(images.empty())
+                    FormatExcept("SAM3 received empty image package.");
+#endif
+                SAM3::apply(std::move(images));
             });
+
+        std::unique_lock guard(data().mutex);
+        if(data().callbacks) {
+            GlobalSettings::unregister_callbacks(std::move(data().callbacks));
         }
 
         Python::schedule([]() {
@@ -131,6 +105,9 @@ void SAM3::init() {
 void SAM3::deinit() {
     bool expected = true;
     if(data().initialized.compare_exchange_strong(expected, false)) {
+        detect::pipeline_manager(detect::ObjectDetectionType::sam3).clean_up();
+        detect::unregister_pipeline(detect::ObjectDetectionType::sam3);
+
         if(Python::python_initialized()) {
             Python::schedule([]() {
                 ModuleProxy proxy("trex_sam3_interface", SAM3::reinit, true);
@@ -186,8 +163,9 @@ void SAM3::apply(std::vector<TileImage>&& tiled) {
                     scales.reserve(tile_image_count);
                     orig_id.reserve(tile_image_count);
                     
+                    const auto tile_offsets = tile.offsets();
                     for(size_t k = 0; k < tile_image_count; ++k) {
-                        offsets.emplace_back(0.f, 0.f);
+                        offsets.emplace_back(k < tile_offsets.size() ? tile_offsets[k] : Vec2(0.f, 0.f));
                         scales.push_back(tile.original_size.div(tile.source_size));
                         //scales.emplace_back(1.f, 1.f);
                         // Use real frame id for all tiles; do not encode tile index in frame id.
@@ -205,34 +183,24 @@ void SAM3::apply(std::vector<TileImage>&& tiled) {
                             }
                         }
                     };
-                    
-                    // 2) Build typed prompts aligned to each image
-                    std::vector<std::vector<detect::Sam3PromptPayload>> prompts_per_item;
 
-                    // image 0: set session-global text prompt (text prompts only).
-                    auto text_prompt = READ_SETTING_WITH_DEFAULT(detect_sam3_prompt, std::optional<std::string>("fish"));
-                    if(text_prompt.has_value()
-                       && tile_image_count > 0)
-                    {
-                        detect::Sam3PromptPayload p0;
-                        p0.type = detect::Sam3PromptType::text;
-                        p0.frame_index = frame_index;
-                        p0.text = text_prompt;
-                        p0.text_session_scope = true;
-                        p0.text_skip_if_unchanged = true;
-                        prompts_per_item.push_back(std::vector<detect::Sam3PromptPayload>{std::move(p0)});
-                    }
-                    
-                    
+                    const auto prompt_repository = READ_SETTING_WITH_DEFAULT(
+                        detect_sam3_prompt,
+                        std::optional<detect::Sam3Prompts>{});
+                    const auto resolved_prompts = resolve_prompts_for_input(input, prompt_repository);
+
                     detect::Sam3Input in{
                         std::move(input),
-                        std::move(prompts_per_item)
+                        std::move(resolved_prompts)
                     };
                     
                     py::convert_python_exceptions([&](){
-                        auto results = py::predict(std::move(in), proxy.m);
-                        if(results.empty()) {
-                            throw U_EXCEPTION("SAM3 predict returned no result for frame ", frame_index, ".");
+                        auto results = py::predict_frame(std::move(in), proxy.m);
+                        if(results.size() != tile_image_count) {
+                            throw U_EXCEPTION(
+                                "SAM3 predict_frame returned ", results.size(),
+                                " results for ", tile_image_count,
+                                " images in frame ", frame_index, ".");
                         }
 
                         for(auto& result : results) {
@@ -273,6 +241,21 @@ void SAM3::apply(std::vector<TileImage>&& tiled) {
 
     data().fps = data().fps.load() + timer.elapsed();
     data().samples = data().samples.load() + 1;
+}
+
+} // namespace track
+
+namespace track {
+
+void register_sam3_backend() {
+    detect::register_backend(detect::ObjectDetectionType::sam3, detect::BackendHooks{
+        .init = []() { SAM3::init(); },
+        .deinit = []() { SAM3::deinit(); },
+        .is_initializing = []() { return SAM3::is_initializing(); },
+        .fps = []() { return SAM3::fps(); },
+        .apply = [](std::vector<TileImage>&& tiles) { SAM3::apply(std::move(tiles)); },
+        .set_background = [](const cmn::Image::Ptr&) {}
+    });
 }
 
 } // namespace track

@@ -8,7 +8,7 @@
 #include <misc/stacktrace.h>
 #include <misc/CircularGraph.h>
 #include <gui/DrawCVBase.h>
-#include <misc/default_config.h>
+#include <core/default_config.h>
 #include <misc/create_struct.h>
 
 using namespace track;

@@ -1,4 +1,5 @@
 #include <commons.pc.h>
+#include <file/PathArray.h>
 
 #ifndef WIN32
 __attribute__((constructor))
@@ -17,25 +18,36 @@ static void (*windowsEarlyEnvSetup)(void) = []() {
 #endif
 
 #include <misc/CommandLine.h>
-#include <misc/PythonWrapper.h>
+#include <gui/Dispatcher.h>
+#include <python/PythonWrapper.h>
 #include <tracking/Tracker.h>
-#include <tracking/Segmenter.h>
+#include <ui/Segmenter.h>
 #include <pv.h>
 #include <GitSHA1.h>
-#include <gui/Scene.h>
+#include <ui/Scene.h>
 #include <gui/SFLoop.h>
 #include <gui/DrawStructure.h>
 #include <file/DataLocation.h>
 #include <gui/IMGUIBase.h>
 #include <misc/GlobalSettings.h>
 #include <gui/DynamicGUI.h>
-#include <gui/Scene.h>
-#include <gui/AnnotationScene.h>
-#include <gui/Bowl.h>
+#include <ui/Scene.h>
+#include <ui/AnnotationScene.h>
+#include <ui/Bowl.h>
+#include <core/TileBuffers.h>
 #include "LiveSegmentation.h"
-#include <python/GPURecognition.h>
+#include <core/GPURecognitionTypes.h>
+
+using namespace cmn;
 
 int main(int argc, char** argv) {
+    GlobalSettings::create();
+    file::DataLocation::create();
+    buffers::TileBuffers::create();
+#if COMMONS_DISPATCHER_REQUIRE_EXPLICIT_INSTANCE
+    static gui::attr::Dispatcher dispatcher;
+    gui::SceneManager::install_dispatcher_instance(&dispatcher);
+#endif
     GlobalSettings::write([](Configuration& config){
         default_config::get(config);
     });
@@ -48,7 +60,11 @@ int main(int argc, char** argv) {
     cmd.load_settings();
 
     SETTING(app_name) = std::string("TRex");
-    SETTING(detect_sam3_prompt) = std::string("floor");
+    /*SETTING(detect_sam3_prompt) = track::detect::Sam3Prompts{
+        {Frame_t{}, track::detect::Sam3PromptList{
+            track::detect::Sam3PromptPayload{ .value = "floor" }
+        }}
+    };*/
     
     Print("interactive_segmentation_prototype",
           "git:", std::string_view(g_GIT_DESCRIBE_TAG),
@@ -58,17 +74,22 @@ int main(int argc, char** argv) {
     namespace py = Python;
     std::future<void> f;
     try {
-        py::init().get();
-        f = py::schedule([](){
-            //Print("Python = ", py::get_instance());
-            track::PythonIntegration::set_settings(GlobalSettings::instance(), file::DataLocation::instance(), Python::get_instance());
-            track::PythonIntegration::set_display_function([](auto& name, auto& mat) {
+        py::configure_runtime(
+            GlobalSettings::instance(),
+            file::DataLocation::instance(),
+            Python::get_instance(),
+            &buffers::TileBuffers::get(),
+            [](auto& name, auto& mat) {
                 tf::imshow(name, mat);
             },
             []() {
                 tf::destroyAllWindows();
-            });
-        });
+            }
+        );
+        
+        py::init().get();
+        //Print("Python = ", py::get_instance());
+        
     } catch(const std::exception& e) {
         FormatError("Cannot initialize python. Please refer to the above error messages prefixed with [py] to estimate the cause of this issue: ", e.what());
         exit(1);
@@ -85,6 +106,7 @@ int main(int argc, char** argv) {
     
     static constexpr auto window_title = "InteractiveSegmentationPrototype";
     IMGUIBase base(window_title, {1024,850}, [&, ptr = &base](DrawStructure& graph)->bool {
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
         UNUSED(ptr);
         graph.draw_log_messages(Bounds(Vec2(0, 80), graph.dialog_window_size()));
         return true;
@@ -119,8 +141,8 @@ int main(int argc, char** argv) {
     
     file::cd(file::DataLocation::parse("app"));
     
-    SETTING(source) = file::PathArray{"/Users/tristan/Downloads/test_videos/cam1/GX010004_recut.MP4"};
-    
+    //SETTING(source) = file::PathArray{"/Users/tristan/Downloads/test_videos/cam1/GX010004_recut.MP4"};
+    //SETTING(source) = file::PathArray{"/Users/tristan/Downloads/20230320_115142188_blue_DJI_0357.MP4"};
     LiveSegmentation live_scene(base);
     AnnotationScene annotation_scene(base);
     manager.register_scene(&annotation_scene);

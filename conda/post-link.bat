@@ -39,30 +39,33 @@ if errorlevel 1 (
     )
 )
 
-set "NUMPY_VERSION="
-for /f "usebackq delims=" %%i in (`python -c "import numpy, sys; sys.stdout.write(numpy.__version__)" 2^>NUL`) do (
-    set "NUMPY_VERSION=%%i"
-)
+rem Compose pip argument lists. Non-torch packages are installed from PyPI first so
+rem they are never resolved against the PyTorch CUDA channel index. torch and
+rem torchvision are installed separately from the CUDA channel so the GPU-accelerated
+rem wheels are chosen; installing them together with ordinary packages risks pulling
+rem a mismatched CPU-only wheel from PyPI when the CUDA channel is the primary index.
+rem
+rem numpy and scikit-learn are intentionally excluded from conda run deps on Windows
+rem (see meta.yaml) to prevent conda from installing a conda-managed numpy whose DLL
+rem layout is incompatible with torch wheels from download.pytorch.org (WinError 127 /
+rem fbgemm.dll). Both are installed here via pip so DLL ownership is consistent.
 
-if defined NUMPY_VERSION (
-    call :log "Installing pip packages (numpy=!NUMPY_VERSION!)..."
-) else (
-    call :log "[post-link] Could not determine numpy version; proceeding without pinning."
-)
-
-rem Compose the pip command arguments that should be shared across platforms.
 set "PIP_ARGS="
-call :add_package "torch>=2.0.0,<2.9.0"
-call :add_package "torchvision>=0.15.1,<0.24.0"
 call :add_package "torchmetrics"
 call :add_package "tqdm"
 call :add_package "opencv-python>=4,<5"
 call :add_package "ultralytics>=8.3.0,<9"
 call :add_package "dill"
+call :add_package "numpy>=1.26,<3"
+call :add_package "scikit-learn"
+call :add_package "timm"
+call :add_package "git+https://github.com/ultralytics/CLIP.git"
+set "PIP_ARGS_SIMPLE=!PIP_ARGS!"
 
-if defined NUMPY_VERSION (
-    call :add_package "numpy==!NUMPY_VERSION!"
-)
+set "PIP_ARGS="
+call :add_package "torch>=2.0.0,<3.0.0"
+call :add_package "torchvision>=0.15.1"
+set "PIP_ARGS_TORCH=!PIP_ARGS!"
 
 call :log "Windows detected; checking CUDA availability to document channel choice."
 
@@ -77,26 +80,113 @@ if /i "!GPU_CHECK!"=="True" (
     call :log "[post-link] torch.cuda.is_available() -> !GPU_CHECK!; still selecting a PyTorch CUDA wheel channel for Windows."
 )
 
+rem Spin up a background progress indicator that writes directly to CONOUT$ via
+rem ctypes, bypassing conda's pipe that holds .messages.txt until the script exits.
+rem The script polls a sentinel file; we create it when the pip install finishes.
+rem Note: | and & must be escaped as ^| and ^& in echo outside a paren block.
+set "PROGRESS_PY=%TEMP%\trex_pip_progress_%RANDOM%.py"
+set "PROGRESS_STOP=%TEMP%\trex_pip_stop_%RANDOM%.flag"
+set "PROGRESS_LOG=%TEMP%\trex_pip_log_%RANDOM%.txt"
+if exist "%PROGRESS_STOP%" del "%PROGRESS_STOP%" 2>nul
+if exist "%PROGRESS_LOG%" del "%PROGRESS_LOG%" 2>nul
+
+rem Python progress script: reads the last non-empty line from the live pip log
+rem and displays it on the console via CONOUT$ (bypasses conda's stdout pipe).
+rem Indentation uses 1 space throughout to keep echo escaping simple.
+rem Batch special chars in echo outside paren blocks: | -> ^|  & -> ^&
+echo import ctypes,time,os,sys > "%PROGRESS_PY%"
+echo k=ctypes.windll.kernel32 >> "%PROGRESS_PY%"
+echo h=k.CreateFileW("CONOUT$",0x40000000,3,None,3,0,None) >> "%PROGRESS_PY%"
+echo if h==-1:sys.exit(0) >> "%PROGRESS_PY%"
+echo stop=sys.argv[1] >> "%PROGRESS_PY%"
+echo log=sys.argv[2] >> "%PROGRESS_PY%"
+echo s=time.time() >> "%PROGRESS_PY%"
+echo i=0 >> "%PROGRESS_PY%"
+echo w=ctypes.c_ulong(0) >> "%PROGRESS_PY%"
+echo frames=["|","/","-","\\"] >> "%PROGRESS_PY%"
+echo def last(p): >> "%PROGRESS_PY%"
+echo  try: >> "%PROGRESS_PY%"
+echo   with open(p,"rb") as f: >> "%PROGRESS_PY%"
+echo    f.seek(0,2) >> "%PROGRESS_PY%"
+echo    sz=f.tell() >> "%PROGRESS_PY%"
+echo    f.seek(max(0,sz-2048)) >> "%PROGRESS_PY%"
+echo    chunk=f.read(2048) >> "%PROGRESS_PY%"
+echo   lines=chunk.decode("utf-8",errors="replace").splitlines() >> "%PROGRESS_PY%"
+echo   for ln in reversed(lines): >> "%PROGRESS_PY%"
+echo    ln=ln.strip() >> "%PROGRESS_PY%"
+echo    if ln:return ln[:60] >> "%PROGRESS_PY%"
+echo  except:pass >> "%PROGRESS_PY%"
+echo  return "" >> "%PROGRESS_PY%"
+echo while not os.path.exists(stop): >> "%PROGRESS_PY%"
+echo  e=int(time.time()-s) >> "%PROGRESS_PY%"
+echo  m,r=divmod(e,60) >> "%PROGRESS_PY%"
+echo  info=last(log) >> "%PROGRESS_PY%"
+echo  if info: >> "%PROGRESS_PY%"
+echo   msg="\r  "+frames[i ^& 3]+" "+info+"  "+str(m).zfill(2)+":"+str(r).zfill(2)+"   " >> "%PROGRESS_PY%"
+echo  else: >> "%PROGRESS_PY%"
+echo   msg="\r  "+frames[i ^& 3]+" pip install...  "+str(m).zfill(2)+":"+str(r).zfill(2)+"   " >> "%PROGRESS_PY%"
+echo  k.WriteConsoleW(h,msg,len(msg),ctypes.byref(w),None) >> "%PROGRESS_PY%"
+echo  i=i+1 >> "%PROGRESS_PY%"
+echo  time.sleep(0.5) >> "%PROGRESS_PY%"
+echo clear="\r"+" "*80+"\r" >> "%PROGRESS_PY%"
+echo k.WriteConsoleW(h,clear,len(clear),ctypes.byref(w),None) >> "%PROGRESS_PY%"
+echo k.CloseHandle(h) >> "%PROGRESS_PY%"
+
+start "" /b python -X utf8 "%PROGRESS_PY%" "%PROGRESS_STOP%" "%PROGRESS_LOG%"
+
+rem Verbose flags for pip: no --quiet so Collecting/Downloading/Installing lines appear
+rem in PROGRESS_LOG for the live display. The log is appended to OUT_STREAM afterwards.
+set "PIP_FLAGS_LOG=--disable-pip-version-check --no-input --no-color --progress-bar off"
+
+rem Step 1: install torch + torchvision from the appropriate CUDA channel so the
+rem GPU-accelerated wheels are selected. This must happen first because the packages
+rem in Step 2 (ultralytics, torchmetrics, etc.) declare torch as a dependency; having
+rem torch already present prevents pip from pulling a CPU-only build from PyPI.
 set "CUDA_CHANNEL_SUFFIX="
 set "CUDA_CHANNELS=cu128 cu126 cu124 cu122 cu121 cu118"
 
 for %%C in (!CUDA_CHANNELS!) do (
     set "CUDA_CHANNEL_SUFFIX=%%C"
     set "PIP_INDEX_URL=https://download.pytorch.org/whl/%%C"
-    call :log "[post-link] Trying PyTorch install with CUDA channel %%C (!PIP_INDEX_URL!)."
-    call :log_command python -X utf8 -m pip install !PIP_INSTALL_FLAGS! --index-url !PIP_INDEX_URL! --extra-index-url https://pypi.org/simple !PIP_ARGS!
-    call :run_with_reporting python -X utf8 -m pip install !PIP_INSTALL_FLAGS! --index-url !PIP_INDEX_URL! --extra-index-url https://pypi.org/simple !PIP_ARGS!
-    if not errorlevel 1 (
-        call :log "[post-link] pip install succeeded using CUDA channel %%C."
-        call :check_nvidia_support
-        goto pip_install_after
+    call :log "[post-link] Trying torch+torchvision install with CUDA channel %%C (!PIP_INDEX_URL!)."
+    call :log_command python -X utf8 -m pip install !PIP_FLAGS_LOG! --index-url !PIP_INDEX_URL! !PIP_ARGS_TORCH!
+    python -X utf8 -m pip install !PIP_FLAGS_LOG! --index-url !PIP_INDEX_URL! !PIP_ARGS_TORCH! > "%PROGRESS_LOG%" 2>&1
+    set "LAST_COMMAND_STATUS=!ERRORLEVEL!"
+    if defined OUT_STREAM (
+        type "%PROGRESS_LOG%" >> "%OUT_STREAM%" 2>nul
     )
-    call :log "[post-link] pip install failed for CUDA channel %%C (exit !LAST_COMMAND_STATUS!); trying next option."
+    if "!LAST_COMMAND_STATUS!"=="0" (
+        call :log "[post-link] torch install succeeded using CUDA channel %%C."
+        call :check_nvidia_support
+        goto torch_install_done
+    )
+    call :log "[post-link] torch install failed for CUDA channel %%C (exit !LAST_COMMAND_STATUS!); trying next option."
 )
 
-call :record_failure "[post-link] pip package installation failed for all CUDA channels (last exit !LAST_COMMAND_STATUS!)."
+call :record_failure "[post-link] torch+torchvision installation failed for all CUDA channels (last exit !LAST_COMMAND_STATUS!)."
+
+:torch_install_done
+
+rem Step 2: install remaining packages from PyPI. torch is already present so pip
+rem will not attempt to resolve a different (CPU-only) torch from PyPI.
+call :log "[post-link] Installing non-torch packages from PyPI..."
+call :log_command python -X utf8 -m pip install !PIP_FLAGS_LOG! --index-url https://pypi.org/simple !PIP_ARGS_SIMPLE!
+python -X utf8 -m pip install !PIP_FLAGS_LOG! --index-url https://pypi.org/simple !PIP_ARGS_SIMPLE! > "%PROGRESS_LOG%" 2>&1
+set "LAST_COMMAND_STATUS=!ERRORLEVEL!"
+if defined OUT_STREAM (
+    type "%PROGRESS_LOG%" >> "%OUT_STREAM%" 2>nul
+)
+if not "!LAST_COMMAND_STATUS!"=="0" (
+    call :record_failure "[post-link] Non-torch pip install failed (exit !LAST_COMMAND_STATUS!)."
+)
 
 :pip_install_after
+
+rem Signal the progress indicator to stop. The sentinel is left in %TEMP% (harmless random-named
+rem file) so the Python polling loop cannot miss it by racing against a delete.
+copy nul "%PROGRESS_STOP%" >nul 2>&1
+timeout /t 1 /nobreak >nul 2>&1
+del "%PROGRESS_PY%" "%PROGRESS_LOG%" 2>nul
 
 call :log "Testing installation..."
 call :log_command python -X utf8 -c "from ultralytics import YOLO; import numpy as np; YOLO('yolo26n.yaml').to('cpu').predict(np.zeros((640, 480, 3), dtype=np.uint8))"

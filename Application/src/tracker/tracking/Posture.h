@@ -4,8 +4,8 @@
 #include <commons.pc.h>
 
 #include "Outline.h"
-#include <misc/bid.h>
-#include <misc/idx_t.h>
+#include <processing/BlobWeakPtr.h>
+#include <core/idx_t.h>
 
 //#define POSTURE_DEBUG
 namespace cmn::blob {

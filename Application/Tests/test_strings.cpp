@@ -2,12 +2,12 @@
 #include <commons.pc.h>
 #include <misc/parse_parameter_lists.h>
 #include <misc/Timer.h>
-#include <file/Path.h>
+#include <misc/Path.h>
 #include <misc/default_settings.h>
 #include <gui/types/StaticText.h>
-#include <tracking/IndividualCache.h>
+#include <data/IndividualCache.h>
 #include <misc/detail.h>
-#include <misc/RecentItems.h>
+#include <ui/RecentItems.h>
 #include <gui/dyn/ParseText.h>
 #include <gui/dyn/VarProps.h>
 #include <gui/dyn/Context.h>
@@ -16,7 +16,7 @@
 #include <gui/dyn/Action.h>
 #include <gui/dyn/ResolveVariable.h>
 #include <gui/DynamicGUI.h>
-#include <misc/idx_t.h>
+#include <core/idx_t.h>
 #include <gui/dyn/UnresolvedStringPattern.h>
 #include <misc/Median.h>
 
@@ -653,6 +653,27 @@ TEST(PreparseTest, SubItemsExtended) {
     ASSERT_EQ(realized, "[1024,768] 1024");
 }
 
+TEST(PreparseTest, SpecialCase) {
+    using namespace cmn::pattern;
+    
+    auto str = "{if:{global.gui_show_selections}:'<sym>☑</sym> ':'<sym>☐</sym> <gray>'}Selection Circles{if:{global.gui_show_selections}:'':</gray>}";
+    auto result = UnresolvedStringPattern::prepare(str);
+    
+    Print(result);
+    
+    using namespace gui::dyn;
+    SETTING(gui_show_selections) = true;
+    Context context{};
+    State state;
+    
+    std::string realized;
+    EXPECT_NO_THROW((realized = result.realize(context, state)));
+    
+    Print(no_quotes(realized));
+    
+    ASSERT_EQ(realized, "<sym>☑</sym> Selection Circles");
+}
+
 TEST(PreparseTest, JSONPreparse) {
     /// we need to find all the variables / parsing hierarchy and set it in binary
     /// in the end this returns a string (which can then be parsed into whatever)
@@ -888,6 +909,103 @@ TEST(UnresolvedStringPatternTest, CopyAssignmentDeepCopiesAndFixesPointers) {
     ASSERT_EQ(b.all_patterns[0]->original, "B-CHANGED");
 }
 
+namespace {
+
+void verify_string_views_point_into_original(const UnresolvedStringPattern& pattern)
+{
+    ASSERT_TRUE(pattern.original);
+    const char* const base = pattern.original->data();
+    const char* const end = base + pattern.original->size();
+
+    std::function<void(const PreparedPattern&)> check_pattern;
+    std::function<void(const Prepared&)> check_prepared;
+
+    check_pattern = [&](const PreparedPattern& pat)
+    {
+        switch (pat.type)
+        {
+            case PreparedPattern::SV:
+                ASSERT_GE(pat.value.sv.data(), base);
+                ASSERT_LE(pat.value.sv.data() + pat.value.sv.size(), end);
+                break;
+
+            case PreparedPattern::PREPARED:
+                check_prepared(*pat.value.prepared);
+                break;
+
+            case PreparedPattern::POINTER:
+                check_prepared(*pat.value.ptr);
+                break;
+
+            default:
+                FAIL() << "Unknown PreparedPattern type";
+        }
+    };
+
+    check_prepared = [&](const Prepared& prep)
+    {
+        ASSERT_GE(prep.original.data(), base);
+        ASSERT_LE(prep.original.data() + prep.original.size(), end);
+
+        for (const auto& param_vec : prep.parameters)
+            for (const auto& child : param_vec)
+                check_pattern(child);
+
+        for (const auto& sub_vec : prep.subs)
+            for (const auto& child : sub_vec)
+                check_pattern(child);
+    };
+
+    for (const auto& obj : pattern.objects)
+        check_pattern(obj);
+}
+
+void verify_prepared_patterns_are_owned(const UnresolvedStringPattern& pattern)
+{
+    std::unordered_set<const Prepared*> owned(pattern.all_patterns.begin(), pattern.all_patterns.end());
+
+    std::function<void(const PreparedPattern&)> check_pattern;
+    std::function<void(const Prepared&)> check_prepared;
+
+    check_pattern = [&](const PreparedPattern& pat)
+    {
+        switch (pat.type)
+        {
+            case PreparedPattern::SV:
+                break;
+
+            case PreparedPattern::PREPARED:
+                ASSERT_TRUE(owned.contains(pat.value.prepared));
+                check_prepared(*pat.value.prepared);
+                break;
+
+            case PreparedPattern::POINTER:
+                ASSERT_TRUE(owned.contains(pat.value.ptr));
+                check_prepared(*pat.value.ptr);
+                break;
+
+            default:
+                FAIL() << "Unknown PreparedPattern type";
+        }
+    };
+
+    check_prepared = [&](const Prepared& prep)
+    {
+        for (const auto& param_vec : prep.parameters)
+            for (const auto& child : param_vec)
+                check_pattern(child);
+
+        for (const auto& sub_vec : prep.subs)
+            for (const auto& child : sub_vec)
+                check_pattern(child);
+    };
+
+    for (const auto& obj : pattern.objects)
+        check_pattern(obj);
+}
+
+} // namespace
+
 // ---------------------------------------------------------------------------
 // Verify that all string_views stored in PreparedPattern::SV refer to the
 // internal `original` buffer of their owning UnresolvedStringPattern object,
@@ -901,62 +1019,52 @@ TEST(UnresolvedStringPatternTest, SVStringViewsPointIntoOriginal)
     constexpr std::string_view expr = "hi {foo} and {if:{cond}:'bar':'baz'}!";
     auto pattern = UnresolvedStringPattern::prepare(expr);
 
-    // Helper that asserts every SV points inside the pattern's own buffer.
-    auto verify = [](const UnresolvedStringPattern& p)
-    {
-        ASSERT_TRUE(p.original);                         // invariant
-        const char* const base = p.original->data();
-        const char* const end  = base + p.original->size();
-
-        // We need mutually‑recursive lambdas, so declare the std::functions
-        // first and assign them afterwards.
-        std::function<void(const PreparedPattern&)> check_pattern;
-        std::function<void(const Prepared&)>        check_prepared;
-
-        check_pattern = [&](const PreparedPattern& pat)
-        {
-            switch (pat.type)
-            {
-                case PreparedPattern::SV:
-                    // The SV’s data pointer must lie within the owned buffer.
-                    ASSERT_GE(pat.value.sv.data(), base);
-                    ASSERT_LE(pat.value.sv.data() + pat.value.sv.size(), end);
-                    break;
-
-                case PreparedPattern::PREPARED:
-                    check_prepared(*pat.value.prepared);
-                    break;
-
-                case PreparedPattern::POINTER:
-                    check_prepared(*pat.value.ptr);
-                    break;
-
-                default:
-                    FAIL() << "Unknown PreparedPattern type";
-            }
-        };
-
-        check_prepared = [&](const Prepared& prep)
-        {
-            for (const auto& paramVec : prep.parameters)
-                for (const auto& child : paramVec)
-                    check_pattern(child);
-        };
-
-        for (const auto& top : p.objects)
-            check_pattern(top);
-    };
-
     // 1) Original pattern
-    verify(pattern);
+    verify_string_views_point_into_original(pattern);
 
     // 2) After a deep copy – every SV must now point *into the copy’s* buffer.
     UnresolvedStringPattern copy = pattern;
-    verify(copy);
+    verify_string_views_point_into_original(copy);
 
     // Finally, make sure the two buffers are distinct so the above checks
     // really exercised different memory regions.
     ASSERT_NE(pattern.original->data(), copy.original->data());
+}
+
+TEST(UnresolvedStringPatternTest, CopyAssignmentRemapsStringViewsInsideSubs)
+{
+    using namespace cmn::pattern;
+
+    constexpr std::string_view expr =
+        "{if:{global.gui_show_selections}:'<sym>☑</sym> ':'<sym>☐</sym> <gray>'}"
+        "Selection Circles"
+        "{if:{global.gui_show_selections}:'':</gray>}";
+
+    auto source = UnresolvedStringPattern::prepare(expr);
+    UnresolvedStringPattern copy = source;
+
+    verify_string_views_point_into_original(source);
+    verify_string_views_point_into_original(copy);
+
+    ASSERT_NE(source.original->data(), copy.original->data());
+}
+
+TEST(UnresolvedStringPatternTest, PrepareTracksPreparedPatternsInsideSubs)
+{
+    using namespace cmn::pattern;
+
+    auto pattern = UnresolvedStringPattern::prepare("{foo.{bar}}");
+
+    ASSERT_EQ(pattern.objects.size(), 1u);
+    ASSERT_EQ(pattern.objects[0].type, PreparedPattern::PREPARED);
+
+    auto* top = pattern.objects[0].value.prepared;
+    ASSERT_NE(top, nullptr);
+    ASSERT_EQ(top->subs.size(), 1u);
+    ASSERT_EQ(top->subs[0].size(), 1u);
+    ASSERT_EQ(top->subs[0][0].type, PreparedPattern::PREPARED);
+
+    verify_prepared_patterns_are_owned(pattern);
 }
 
 // ---------------------------------------------------------------------------
@@ -1776,13 +1884,13 @@ TEST(StringTrimTests, TrimFullWidthSpacesTest) {
 
 TEST(StringTrimTests, TrimCombiningCharactersTest) {
     // Test with combining characters to ensure they are not trimmed
-    std::string str1 = "e\u0301e\u0300e\u0302"; // e with acute, grave, and circumflex accents
+    std::string str1 = "e\xcc\x81" "e\xcc\x80" "e\xcc\x82"; // e with acute, grave, and circumflex accents
     auto result1 = trim(str1);
-    ASSERT_EQ(result1, "e\u0301e\u0300e\u0302");
+    ASSERT_EQ(result1, "e\xcc\x81" "e\xcc\x80" "e\xcc\x82");
 
-    std::string_view str2 = "e\u0301e\u0300e\u0302";
+    std::string_view str2 = "e\xcc\x81" "e\xcc\x80" "e\xcc\x82";
     auto result2 = trim(str2);
-    ASSERT_EQ(result2, "e\u0301e\u0300e\u0302");
+    ASSERT_EQ(result2, "e\xcc\x81" "e\xcc\x80" "e\xcc\x82");
 }
 
 TEST(StringTrimTests, TrimEmojiTest) {
@@ -3870,4 +3978,62 @@ TEST(ConcatTest, Basic) {
         auto out = concat_views(pieces);
         EXPECT_EQ(out, std::string(100, 'x'));
     }
+}
+
+TEST(IsInIndexTest, ReturnsMatchingIndex) {
+    EXPECT_EQ(is_in_index(7, 7, 8, 9), 0u);
+    EXPECT_EQ(is_in_index(8, 7, 8, 9), 1u);
+    EXPECT_EQ(is_in_index(9, 7, 8, 9), 2u);
+}
+
+TEST(IsInIndexTest, ReturnsFirstIndexForDuplicates) {
+    EXPECT_EQ(is_in_index(5, 1, 5, 5, 9), 1u);
+
+    constexpr auto duplicate_index = is_in_index(2, 0, 2, 2, 4);
+    static_assert(duplicate_index == 1u);
+    EXPECT_EQ(duplicate_index, 1u);
+}
+
+TEST(IsInIndexTest, ReturnsNposWhenMissing) {
+    constexpr std::size_t npos = static_cast<std::size_t>(-1);
+
+    EXPECT_EQ(is_in_index(10, 7, 8, 9), npos);
+
+    constexpr auto missing_index = is_in_index(std::string_view("missing"),
+                                               std::string_view("x"),
+                                               std::string_view("y"),
+                                               std::string_view("z"));
+    static_assert(missing_index == npos);
+    EXPECT_EQ(missing_index, npos);
+}
+
+namespace {
+struct ThrowIfCompared {
+    bool* was_compared = nullptr;
+};
+
+bool operator==(int, const ThrowIfCompared& rhs) {
+    if (rhs.was_compared != nullptr) {
+        *rhs.was_compared = true;
+    }
+    throw std::runtime_error("comparison should have been short-circuited");
+}
+}
+
+TEST(IsInIndexTest, StopsEvaluatingAfterFirstMatch) {
+    bool compared_after_match = false;
+
+    EXPECT_NO_THROW({
+        EXPECT_EQ(is_in_index(1, 1, ThrowIfCompared{&compared_after_match}), 0u);
+    });
+    EXPECT_FALSE(compared_after_match);
+}
+
+TEST(IsInIndexTest, StopsEvaluatingAfterLaterMatch) {
+    bool compared_after_match = false;
+
+    EXPECT_NO_THROW({
+        EXPECT_EQ(is_in_index(2, 1, 2, ThrowIfCompared{&compared_after_match}), 1u);
+    });
+    EXPECT_FALSE(compared_after_match);
 }

@@ -3,7 +3,7 @@
 #include <sys/stat.h>
 #include <misc/GlobalSettings.h>
 #include <misc/Timer.h>
-#include <misc/PVBlob.h>
+#include <processing/PVBlob.h>
 #include <misc/ranges.h>
 #include <misc/SpriteMap.h>
 #include <file/DataLocation.h>
@@ -984,6 +984,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const PixelArray
         }
         
         // read the index table
+        //Print("* Resizing to ", num_frames, " and reading from index_offset ", index_offset);
         index_table.resize(num_frames);
         auto len = sizeof(decltype(index_table)::value_type) * num_frames;
         ref.Data::read_data(index_offset, len, (char*)index_table.data());
@@ -1180,8 +1181,12 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const PixelArray
     void Header::update(DataFormat& ref) {
         // write index table
         index_offset = ref.current_offset();
-        Print("Index table is ",FileSize(index_table.size() * sizeof(decltype(index_table)::value_type))," big.");
+        ref.seek(0);
+        ref.seek(index_offset);
+        assert(index_offset == ref.tell());
         
+        Print("Index table is ",FileSize(index_table.size() * sizeof(decltype(index_table)::value_type))," big @ ", index_offset);
+        Print("Index table (",index_table.size(),"): ", index_table);
         for (auto index : index_table) {
             ref.write<decltype(index_table)::value_type>(index);
         }
@@ -1207,10 +1212,14 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const PixelArray
                 throw InvalidArgumentException("Wrong resolution for average image ", average->cols,"x", average->rows, " vs. ", resolution,".");
             }
             
+            assert(_average_offset > 0);
+            //Print("* writing average to ", _average_offset);
             ref.Data::write_data(_average_offset, average->size(), (char*)average->data());
         }
         
         Print("Updated number of frames with ",this->num_frames,", index offset ",this->index_offset,", timestamp ",this->timestamp,", ", _meta_offset);
+        
+        ref.truncate();
     }
 
 const cv::Size& File::size() const {
@@ -1238,6 +1247,8 @@ Frame_t File::length() const {
         if(is_open()) {
             if(bool(_mode & FileMode::WRITE))
                 stop_writing();
+            if(bool(_mode & FileMode::MODIFY))
+                stop_modifying();
         }
         DataFormat::close();
         _tried_to_open = false;
@@ -1383,10 +1394,51 @@ Frame_t File::length() const {
         return _last_frame;
     }
 
+    void File::reset_to_frame(Frame_t index) {
+        _check_opened();
+        
+        std::unique_lock<std::mutex> lock(_lock);
+        assert(_open_for_writing || _open_for_modifying);
+        assert(index <= Frame_t(_header.num_frames));
+        
+        if(_open_for_writing) {
+            promote_to_modify();
+            _mode = pv::FileMode::MODIFY;
+            _tried_to_open = true;
+            assert(is_open());
+            assert(_open_for_modifying);
+            assert(not _open_for_writing);
+        }
+        
+        auto prev_frame = index.try_sub(1_f);
+        auto file_index = _header.index_table.at(prev_frame.get());
+        seek(file_index); /// seek back to that position
+        /// and remove from the index table
+        _header.index_table.erase(_header.index_table.begin() + index.get(), _header.index_table.end());
+        
+        if(index > 0_f) {
+            _last_frame.read_from(*this, prev_frame, color_mode());
+            _prev_frame_time = _last_frame._timestamp;
+        } else {
+            _last_frame.clear();
+            _prev_frame_time = {};
+        }
+        
+        
+        auto position = current_offset();
+        seek(0); seek(position);
+        _header.num_frames = index.get();
+        
+        _header._running_average_tdelta = _header.average_tdelta * _header.num_frames;
+        
+        //_last_frame.set_index(index > 0_f ? index.try_sub(1_f) : Frame_t{});
+        /// now we can overwrite frame `index`
+    }
+
     void File::add_individual(const Frame& frame, DataPackage& pack, bool compressed) {
         _check_opened();
         
-        assert(_open_for_writing);
+        assert(_open_for_writing || _open_for_modifying);
         assert(_header.timestamp != 0); // start time has to be set
 
         if(_header.index_table.empty()
@@ -1483,6 +1535,20 @@ Frame_t File::length() const {
         _header.update(*this);
         print_info();
     }
+
+void File::stop_modifying() {
+    if(not is_open()
+       || not bool(_mode & FileMode::MODIFY))
+        throw U_EXCEPTION("Do not stop modifying on a file that was not open for modifying (",_filename,").");
+    
+    auto index = tell();
+    seek(0);
+    seek(index);
+
+    write(uint64_t(0));
+    header().update(*this);
+    print_info();
+}
     
     void File::read_frame(Frame& frame, Frame_t frameIndex) {
         read_frame(frame, frameIndex, color_mode());
@@ -1629,31 +1695,71 @@ Frame_t File::length() const {
         Frame_t last_reset_idx;
         uint64_t last_difference = 0;
         
-        for (Frame_t idx = 0_f; idx < Frame_t(file.length()); ++idx) {
-            pv::Frame frame;
-            file.read_frame(frame, idx);
-            
-            //frame.set_timestamp(file.header().timestamp + frame.timestamp());
-            
-            if (raw_prev_timestamp.valid() && frame.timestamp() < raw_prev_timestamp) {
-                last_reset = raw_prev_timestamp.get() + last_difference;
-                last_reset_idx = idx;
+        if(file.length() == 0_f) {
+            for(Frame_t idx = 0_f;;++idx) {
+                pv::Frame frame;
+                try {
+                    frame.read_from(file, idx, file.header().encoding);
+                } catch(...) {
+                    Print("Could not read past ", idx,".");
+                    break;
+                }
                 
-                FormatWarning("Fixing frame ",idx," because timestamp ",frame.timestamp()," < ",last_reset," -> ",last_reset + frame.timestamp().get());
-            } else {
-            	last_difference = frame.timestamp().get() - raw_prev_timestamp.get();
+                Print(frame);
+                
+                if (raw_prev_timestamp.valid()
+                    && frame.timestamp() < raw_prev_timestamp)
+                {
+                    last_reset = raw_prev_timestamp.get() + last_difference;
+                    last_reset_idx = idx;
+                    
+                    FormatWarning("Fixing frame ",idx," because timestamp ",frame.timestamp()," < ",last_reset," -> ",last_reset + frame.timestamp().get());
+                } else if(raw_prev_timestamp.valid()) {
+                    last_difference = frame.timestamp().get() - raw_prev_timestamp.get();
+                } else {
+                    last_difference = 0;
+                }
+                
+                raw_prev_timestamp = frame.timestamp();
+                
+                if(last_reset_idx.valid()) {
+                    frame.set_timestamp(last_reset + frame.timestamp());
+                }
+                
+                copy.add_individual(std::move(frame));
+                
+                if (idx.get() % 1000 == 0) {
+                    Print("Frame ", idx," / ", file.length()," (",copy.compression_ratio() * 100,"% compression ratio)...");
+                }
             }
             
-            raw_prev_timestamp = frame.timestamp();
-            
-            if(last_reset_idx.valid()) {
-                frame.set_timestamp(last_reset + frame.timestamp());
-            }
-            
-            copy.add_individual(std::move(frame));
-            
-            if (idx.get() % 1000 == 0) {
-                Print("Frame ", idx," / ", file.length()," (",copy.compression_ratio() * 100,"% compression ratio)...");
+        } else {
+            for (Frame_t idx = 0_f; idx < Frame_t(file.length()); ++idx) {
+                pv::Frame frame;
+                file.read_frame(frame, idx);
+                
+                //frame.set_timestamp(file.header().timestamp + frame.timestamp());
+                
+                if (raw_prev_timestamp.valid() && frame.timestamp() < raw_prev_timestamp) {
+                    last_reset = raw_prev_timestamp.get() + last_difference;
+                    last_reset_idx = idx;
+                    
+                    FormatWarning("Fixing frame ",idx," because timestamp ",frame.timestamp()," < ",last_reset," -> ",last_reset + frame.timestamp().get());
+                } else {
+                    last_difference = frame.timestamp().get() - raw_prev_timestamp.get();
+                }
+                
+                raw_prev_timestamp = frame.timestamp();
+                
+                if(last_reset_idx.valid()) {
+                    frame.set_timestamp(last_reset + frame.timestamp());
+                }
+                
+                copy.add_individual(std::move(frame));
+                
+                if (idx.get() % 1000 == 0) {
+                    Print("Frame ", idx," / ", file.length()," (",copy.compression_ratio() * 100,"% compression ratio)...");
+                }
             }
         }
         
@@ -1814,12 +1920,12 @@ Frame_t File::length() const {
 void File::set_average(const cv::Mat& average) {
     //tf::imshow("average", average);
     const auto required_channels = _header.encoding == meta_encoding_t::binary ? 1u : required_storage_channels(_header.encoding);
-    if(required_channels != average.channels()) /// just basic compatibility
+    if(int64_t(required_channels) != int64_t(average.channels())) /// just basic compatibility
     {
         throw InvalidArgumentException("Number of channels ",average.channels()," must match the encoding format ", _header.encoding," for the average image provided.");
     }
     
-    if(average.type() != CV_8UC(required_channels))
+    if(average.type() != CV_8UC((int)required_channels))
     {
         auto str = getImgType(average.type());
         throw InvalidArgumentException("Average image is of type ",str," != 'CV_8UC",required_channels,"'.");
@@ -1901,4 +2007,22 @@ void File::set_average(const cv::Mat& average) {
     std::string File::toStr() const {
         return "pv::File<"+filename().str()+">";
     }
+
+Frame& Frame::operator=(Frame&& other) {
+    _index = std::move(other._index); other._index.invalidate();
+    _timestamp = std::move(other._timestamp);
+    _n = other._n; other._n = 0u;
+    _loading_time = other._loading_time;
+    _source_index = std::move(other._source_index);
+    
+    _encoding = std::move(other._encoding);
+    _mask = std::move(other._mask);
+    _pixels = std::move(other._pixels);
+    _flags = std::move(other._flags);
+    
+    _predictions = std::move(other._predictions);
+    
+    return *this;
+}
+
 }

@@ -1,9 +1,9 @@
 #pragma once
 
 #include <commons.pc.h>
-#include <misc/PVBlob.h>
+#include <processing/PVBlob.h>
 #include <misc/frame_t.h>
-#include <misc/SizeFilters.h>
+#include <core/SizeFilters.h>
 #include <processing/CPULabeling.h>
 
 namespace cmn {
@@ -30,7 +30,7 @@ struct split_expectation {
     std::string toStr() const {
         return "{"+std::to_string(number)+","+(allow_less_than ? "true" : "false")+","+Meta::toStr(centers) + "}";
     }
-    static std::string class_name() {
+    static consteval std::string_view class_name() {
         return "split_expectation";
     }
 };

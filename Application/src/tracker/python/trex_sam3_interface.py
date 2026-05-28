@@ -1,31 +1,28 @@
 # -*- coding: utf-8 -*-
-"""TRex SAM3 interface for pybind11 ModuleProxy.
+"""Almost-stateless SAM3 adapter used by the C++ interactive backend.
 
-This module is intentionally C++-first:
-- C++ owns all video decoding and frame access.
-- Python owns only SAM3 model state and prompt/inference logic.
-- Integration is driven via `ModuleProxy::run(...)` and `ModuleProxy::set_variable(...)`.
-
-Typical call order from C++:
-1) `create_session({...})`
-2) Per frame: `set_variable("sam3_frame", <np uint8 HxWx3>)`
-3) Per frame: `set_frame({"frame_index": i})`
-4) Optional prompt updates: `add_prompt({...})`
-5) Query output: `get_frame({"frame_index": i})`
+The contract is intentionally narrow:
+- C++ owns prompt history, keyframe selection, and replay orchestration.
+- Python owns only the loaded SAM3 model plus the currently active mutable
+  runtime for the branch being processed right now.
+- Public entrypoints are `create_session`, `reset_runtime`, `predict_frame`,
+  and `shutdown`.
 """
 
 from __future__ import annotations
 
-from collections import OrderedDict
-from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import dataclass
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass, field
+import gc
 from pathlib import Path
-from typing import Dict, NotRequired, Tuple, TypedDict, cast, Any
+from typing import TypedDict, cast
 
 import numpy as np
 import numpy.typing as npt
 import torch
 from torch.nn import functional as F
+from tqdm import tqdm
+from ultralytics.models.sam.predict import SAM3VideoSemanticPredictor
 from ultralytics.utils.checks import check_imgsz
 
 try:
@@ -33,104 +30,186 @@ try:
 except Exception:  # pragma: no cover
     TRex = None
 
-from ultralytics.models.sam.predict import SAM3SemanticPredictor, SAM3VideoSemanticPredictor
-
-
-# Hard, always-on safety cap to prevent unbounded host-memory growth.
-_MAX_FRAME_CACHE = 0
-
-
-# ModuleProxy::set_variable("sam3_frame", ...) writes this module variable.
-sam3_frame: npt.NDArray[np.uint8] | None = None
-
-
-class BoxPromptPayload(TypedDict):
-    boxes: npt.NDArray[np.float32]
-    labels: npt.NDArray[np.float32]
-
-
-class Sam3Object(TypedDict):
-    obj_id: int
-    score: float
-    class_id: int
-    height: int
-    width: int
-    foreground_indices: list[int]
-
-
-class FrameOutput(TypedDict):
-    frame_index: int
-    num_objects: int
-    objects: list[Sam3Object]
-    frame_stats: dict[str, object]
-    unconfirmed_obj_ids: list[int]
-    ok: NotRequired[bool]
-
-
-class FrameSetResponse(TypedDict):
-    frame_index: int
-    height: int
-    width: int
-    channels: int
-    ok: bool
-
-
-class PromptResponse(TypedDict):
-    ok: bool
-    type: str
-    scope: NotRequired[str]
-    frame_index: NotRequired[int]
-    unchanged: NotRequired[bool]
-    count: NotRequired[int]
-
-
-class RemoveObjectResponse(TypedDict):
-    ok: bool
-    obj_id: int
-    mode: str
-
 
 class GenericOkResponse(TypedDict):
     ok: bool
 
 
-class SetConfThresholdResponse(TypedDict):
-    ok: bool
-    conf: float
-
-
-class FramesResponse(TypedDict):
-    ok: bool
-    frames: list[FrameOutput]
-
-
 class CreateSessionResponse(TypedDict):
     ok: bool
     device: str
-    capabilities: dict[str, bool]
-
-
-class CapabilitiesResponse(TypedDict):
-    ok: bool
-    capabilities: dict[str, bool]
 
 
 @dataclass
-class FrameCacheEntry:
-    frame: npt.NDArray[np.uint8] | None = None
-    box_prompt: BoxPromptPayload | None = None
-    output: FrameOutput | None = None
+class PromptState:
+    """Normalized prompt payload for one frame as received from C++."""
+
+    texts: list[str] = field(default_factory=list)
+    boxes: npt.NDArray[np.float32] | None = None
+    points: npt.NDArray[np.float32] | None = None
+
+    def has_prompts(self) -> bool:
+        return bool(self.texts) or self.boxes is not None or self.points is not None
+
+    def has_video_prompts(self) -> bool:
+        return bool(self.texts) or self.boxes is not None
 
 
-def _log(msg: str) -> None:
-    if TRex is not None:
-        TRex.log(msg)
-    else:
-        print(f"[sam3] {msg}")
+@dataclass
+class _VideoDatasetShim:
+    """Small dataset shim that satisfies Ultralytics' video predictor state."""
+
+    frames: int
+    frame: int = 1
+    mode: str = "video"
+
+
+@dataclass
+class Sam3VideoSession:
+    """Loaded SAM3 video predictor plus the current mutable runtime only."""
+
+    predictor: SAM3VideoSemanticPredictor
+    device: str
+    conf: float
+    timeline_capacity: int | None = None
+    last_processed_frame: int | None = None
+    active_texts: list[str] = field(default_factory=list)
+    duplicate_mask_iou: float | None = 0.95
+    timeline_slack: int = 10
+
+    def set_conf_threshold(self, conf: float) -> float:
+        """Update the confidence threshold used for future predictions."""
+        value = float(np.clip(float(conf), 0.0, 1.0))
+        self.conf = value
+
+        overrides = getattr(self.predictor, "overrides", None)
+        if isinstance(overrides, dict):
+            overrides["conf"] = value
+
+        args = getattr(self.predictor, "args", None)
+        if isinstance(args, dict):
+            args["conf"] = value
+        elif args is not None:
+            try:
+                setattr(args, "conf", value)
+            except Exception:
+                pass
+
+        return value
+
+    def set_iou_threshold(self, iou: float | None) -> float | None:
+        """Update the duplicate-mask IoU suppression threshold."""
+        if iou is None:
+            self.duplicate_mask_iou = None
+            return None
+
+        value = float(np.clip(float(iou), 0.0, 1.0))
+        self.duplicate_mask_iou = value
+        return value
+
+    def reset_runtime(self, max_frame_index: int) -> None:
+        """Reset predictor state while keeping the loaded model."""
+        self.active_texts = []
+        self.last_processed_frame = None
+
+        inference_state = getattr(self.predictor, "inference_state", None)
+        if isinstance(inference_state, dict):
+            inference_state.clear()
+        self.predictor.inference_state = {}
+        self.predictor.im = None
+        self.predictor.batch = None
+
+        reset_tracking = getattr(self.predictor, "_reset_tracking_results", None)
+        if callable(reset_tracking):
+            try:
+                reset_tracking()
+            except Exception:
+                pass
+
+        self._ensure_runtime_capacity(max_frame_index)
+
+    def close(self) -> None:
+        """Fully discard runtime state and model references for the active session."""
+        try:
+            self.reset_runtime(max(self.last_processed_frame or 0, 0))
+        except Exception:
+            pass
+
+        shutdown_fn = getattr(self.predictor, "shutdown", None)
+        if callable(shutdown_fn):
+            try:
+                shutdown_fn()
+            except Exception:
+                pass
+
+        self.active_texts = []
+        self.last_processed_frame = None
+        self.predictor.inference_state = {}
+        self.predictor.batch = None
+        self.predictor.im = None
+        self.predictor.dataset = None
+        _cleanup_device_caches(self.device)
+
+    def _ensure_runtime_capacity(self, max_frame_index: int) -> None:
+        """Ensure the predictor can represent frames up to `max_frame_index`."""
+        required_frames = max(1, max_frame_index + 1)
+        if self.timeline_capacity is not None:
+            required_frames = max(required_frames, int(self.timeline_capacity))
+        else:
+            required_frames += max(0, int(self.timeline_slack))
+
+        dataset = getattr(self.predictor, "dataset", None)
+        if dataset is None or getattr(dataset, "mode", None) != "video":
+            self.predictor.dataset = _VideoDatasetShim(frames=required_frames)
+        else:
+            dataset.frames = max(required_frames, int(getattr(dataset, "frames", 0)))
+
+        self.predictor.inference_state = cast(dict[str, object], getattr(self.predictor, "inference_state", {}))
+        if not self.predictor.inference_state:
+            SAM3VideoSemanticPredictor.init_state(self.predictor)
+        else:
+            self.predictor.inference_state["num_frames"] = int(self.predictor.dataset.frames)
+            prompts = self.predictor.inference_state.get("per_frame_geometric_prompt")
+            if isinstance(prompts, list) and len(prompts) < int(self.predictor.dataset.frames):
+                prompts.extend([None] * (int(self.predictor.dataset.frames) - len(prompts)))
+            tracker_capacity = self.predictor.inference_state.get("tracker_capacity")
+            if tracker_capacity is not None:
+                try:
+                    self.predictor.inference_state["tracker_capacity"] = max(
+                        int(tracker_capacity),
+                        int(self.predictor.dataset.frames),
+                    )
+                except Exception:
+                    pass
+
+        tracker = getattr(self.predictor, "tracker", None)
+        if tracker is None:
+            return
+
+        tracker.imgsz = self.predictor.imgsz
+        tracker_model = getattr(tracker, "model", None)
+        if tracker_model is not None and hasattr(tracker_model, "set_imgsz"):
+            tracker_model.set_imgsz(self.predictor.imgsz)
+
+        if hasattr(self.predictor, "stride"):
+            tracker._bb_feat_sizes = [
+                [int(x / (self.predictor.stride * i)) for x in self.predictor.imgsz]
+                for i in [1 / 4, 1 / 2, 1]
+            ]
+
+        mask_downsampler = getattr(getattr(tracker_model, "memory_encoder", None), "mask_downsampler", None)
+        interpol_size = getattr(mask_downsampler, "interpol_size", None)
+        if interpol_size is not None:
+            self.predictor.interpol_size = interpol_size
+
+
+_SESSION: Sam3VideoSession | None = None
+_SESSION_LOG_PREFIX = "[py][sam3-session]"
+_REPLAY_PROGRESS: tqdm | None = None
 
 
 def _choose_device() -> str:
-    """Resolve torch device from TRex settings first, then local availability."""
+    """Resolve the torch device from TRex first, then local availability."""
     if TRex is not None and hasattr(TRex, "choose_device"):
         return str(TRex.choose_device())
     if torch.cuda.is_available():
@@ -140,995 +219,784 @@ def _choose_device() -> str:
     return "cpu"
 
 
-def _normalize_text_prompt(value: object) -> str | list[str]:
-    if isinstance(value, str):
-        return value
-    if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
-        return [str(item) for item in value]
-    raise ValueError("Text prompt must be a string or a sequence of strings.")
+def _session_log(message: str) -> None:
+    """Emit filterable session diagnostics even when TRex logging is unavailable."""
+    formatted = f"{_SESSION_LOG_PREFIX} {message}"
+    if TRex is not None and hasattr(TRex, "log"):
+        TRex.log(formatted)  # type: ignore[union-attr]
+    else:  # pragma: no cover
+        print(formatted)
 
 
-def _first_stream_item(results: object) -> object | None:
-    """Return the first prediction item from list/tuple/generator-like outputs."""
-    if results is None:
+def _close_replay_progress() -> None:
+    global _REPLAY_PROGRESS
+    if _REPLAY_PROGRESS is not None:
+        try:
+            _REPLAY_PROGRESS.close()
+        except Exception:
+            pass
+        _REPLAY_PROGRESS = None
+
+
+def _coerce_optional_threshold(value: object) -> float | None:
+    if value is None:
         return None
-    if isinstance(results, Sequence):
-        return results[0] if len(results) > 0 else None
+    if isinstance(value, str) and value.strip().lower() == "null":
+        return None
+    return float(np.clip(float(value), 0.0, 1.0))
+
+
+def _resolve_iou_threshold(request: Mapping[str, object]) -> float | None:
+    """Resolve the IoU threshold from request payload first, then TRex settings."""
+    for key in ("detect_iou_threshold", "iou_threshold", "iou", "duplicate_mask_iou"):
+        if key in request:
+            return _coerce_optional_threshold(request[key])
+
+    if TRex is not None and hasattr(TRex, "setting"):
+        try:
+            return _coerce_optional_threshold(TRex.setting("detect_iou_threshold"))  # type: ignore[union-attr]
+        except Exception:
+            pass
+
+    return None
+
+
+def _resolve_conf_threshold(default: float) -> float:
+    """Resolve the active confidence threshold from TRex settings when available."""
+    if TRex is not None and hasattr(TRex, "setting"):
+        try:
+            return float(np.clip(float(TRex.setting("detect_conf_threshold")), 0.0, 1.0))  # type: ignore[union-attr]
+        except Exception:
+            pass
+    return float(np.clip(default, 0.0, 1.0))
+
+
+def _sync_runtime_settings(session: Sam3VideoSession) -> None:
+    """Refresh runtime thresholds from TRex settings before executing a frame step."""
+    conf = _resolve_conf_threshold(session.conf)
+    iou = _resolve_iou_threshold({})
+    session.set_conf_threshold(conf)
+    session.set_iou_threshold(iou)
+    predictor = session.predictor
     try:
-        iterator = iter(cast(Iterable[object], results))
-    except TypeError:
-        return results
-    first = next(iterator, None)
-    close = getattr(iterator, "close", None)
-    if callable(close):
-        try:
-            close()
-        except Exception:
-            pass
-    return first
-
-
-@dataclass(frozen=True)
-class Sam3Capabilities:
-    """Runtime capabilities of the active SAM3 backend and adapter."""
-
-    text: bool
-    boxes: bool
-    points: bool
-    masks: bool
-    remove_object: bool
-    reset_session: bool
-    close_session: bool
-    frame_ingest: bool
-
-    def as_dict(self) -> dict[str, bool]:
-        return {
-            "text": self.text,
-            "boxes": self.boxes,
-            "points": self.points,
-            "masks": self.masks,
-            "remove_object": self.remove_object,
-            "reset_session": self.reset_session,
-            "close_session": self.close_session,
-            "frame_ingest": self.frame_ingest,
-        }
-
-
-class Sam3VideoSession:
-    """Stateful SAM3 session keyed by frame index, without video file access.
-
-    The session stores only:
-    - predictor runtime
-    - prompt state
-    - cached per-frame outputs
-    - frames pushed from C++ for inference
-
-    It never opens/reads videos, by design.
-    """
-
-    def __init__(
-        self,
-        weights_path: str | Path,
-        *,
-        imgsz: int = 640,
-        conf: float = 0.25,
-        half: bool = True,
-        verbose: bool = True,
-        predictor_kwargs: Mapping[str, object] | None = None,
-    ) -> None:
-        """Initialize predictor and empty session state.
-
-        Args:
-            weights_path: SAM3 weights path.
-            imgsz: Predictor image size override.
-            conf: Confidence threshold.
-            half: Request fp16 execution where supported.
-            verbose: Verbose backend logging.
-            predictor_kwargs: Additional Ultralytics predictor overrides.
-        """
-        self.weights_path = str(weights_path)
-        self.device = _choose_device()
-        self.verbose = bool(verbose)
-        self._conf = float(conf)
-        # Keep a single switch for future re-enabling of video internals.
-        self._use_video_backend = False
-
-        overrides: dict[str, object] = {
-            "task": "segment",
-            "mode": "predict",
-            "model": self.weights_path,
-            "imgsz": int(imgsz),
-            "conf": float(self._conf),
-            "half": bool(half),
-            "device": self.device,
-            "verbose": self.verbose,
-        }
-        if predictor_kwargs:
-            overrides.update(predictor_kwargs)
-        # SAM3 on MPS is unstable in half precision; force fp32.
-        if str(self.device).startswith("mps"):
-            overrides["half"] = False
-
-        predictor_cls = SAM3VideoSemanticPredictor if self._use_video_backend else SAM3SemanticPredictor
-        self._predictor = predictor_cls(overrides=overrides)
-        self._predictor.setup_model(verbose=self.verbose)
-        # setup_source() is not used in this C++ frame-ingest path, so ensure imgsz
-        # is initialized for preprocessing and aligned to model stride.
-        imgsz_cfg = overrides.get("imgsz", 640)
-        imgsz_checked = check_imgsz(
-            imgsz_cfg,
-            stride=int(getattr(self._predictor, "stride", 14)),
-            min_dim=1,
-            max_dim=2,
-        )
-        if isinstance(imgsz_checked, int):
-            imgsz_hw = (int(imgsz_checked), int(imgsz_checked))
-        else:
-            vals = [int(x) for x in imgsz_checked]
-            imgsz_hw = (vals[0], vals[0]) if len(vals) == 1 else (vals[0], vals[1])
-        self._predictor.imgsz = imgsz_hw
-        self._log_effective_device()
-
-        # Prompt and inference state.
-        self._text_prompt: str | list[str] | None = None
-        self._text_frame_index: int = 0
-        self._text_session_scope: bool = False
-        self._removed_obj_ids: set[int] = set()
-
-        # Unified per-frame cache entry: pixels + frame-level prompts + output.
-        self._frame_cache: OrderedDict[int, FrameCacheEntry] = OrderedDict()
-        self._max_computed_frame: int = -1
-
-        self._capabilities = Sam3Capabilities(
-            text=True,
-            boxes=True,
-            points=False,
-            masks=False,
-            remove_object=True,
-            reset_session=True,
-            close_session=True,
-            frame_ingest=True,
-        )
-
-        _log(
-            f"SAM3 session created (device={self.device}, backend={'video' if self._use_video_backend else 'image'}, "
-            f"weights={self.weights_path})"
-        )
-
-    def _log_effective_device(self) -> None:
-        """Log effective torch devices for predictor components after setup."""
-        requested = self.device
-        detector_dev = "unknown"
-        tracker_dev = "unknown"
-
-        try:
-            model = getattr(self._predictor, "model", None)
-            if model is not None:
-                detector_dev = str(next(model.parameters()).device)
-        except Exception:
-            pass
-
-        try:
-            tracker = getattr(self._predictor, "tracker", None)
-            tmodel = getattr(tracker, "model", None) if tracker is not None else None
-            if tmodel is not None:
-                tracker_dev = str(next(tmodel.parameters()).device)
-        except Exception:
-            pass
-
-        _log(
-            f"SAM3 effective devices: requested={requested}, detector={detector_dev}, "
-            f"tracker={tracker_dev}, imgsz={getattr(self._predictor, 'imgsz', 'unknown')}"
-        )
-
-    def capabilities(self) -> dict[str, bool]:
-        """Return a plain dict of runtime capability flags."""
-        return self._capabilities.as_dict()
-
-    def set_conf_threshold(self, conf: float) -> float:
-        """Update predictor confidence threshold used for subsequent inference."""
-        conf_value = float(conf)
-        if not np.isfinite(conf_value):
-            raise ValueError("set_conf_threshold requires a finite numeric `conf`.")
-
-        conf_value = float(np.clip(conf_value, 0.0, 1.0))
-        self._conf = conf_value
-
-        overrides = getattr(self._predictor, "overrides", None)
-        if isinstance(overrides, dict):
-            overrides["conf"] = conf_value
-
-        args = getattr(self._predictor, "args", None)
-        if isinstance(args, dict):
-            args["conf"] = conf_value
-        elif args is not None:
-            try:
-                setattr(args, "conf", conf_value)
-            except Exception:
-                pass
-
-        _log(f"SAM3 confidence threshold set to {conf_value:.4f}")
-        return conf_value
-
-    def _recompute_max_cached_output_index(self) -> None:
-        cached = [idx for idx, entry in self._frame_cache.items() if entry.output is not None]
-        self._max_computed_frame = max(cached, default=-1)
-
-    def _get_or_create_frame_entry(self, frame_index: int) -> FrameCacheEntry:
-        idx = int(frame_index)
-        if _MAX_FRAME_CACHE <= 0:
-            # Zero-cache mode: keep exactly one in-flight frame entry so
-            # set_frame(frame_i) -> get_frame(frame_i) still works.
-            entry = self._frame_cache.get(idx)
-            if entry is None:
-                self._frame_cache.clear()
-                entry = FrameCacheEntry()
-                self._frame_cache[idx] = entry
-            self._recompute_max_cached_output_index()
-            return entry
-
-        entry = self._frame_cache.get(idx)
-        if entry is None:
-            entry = FrameCacheEntry()
-            self._frame_cache[idx] = entry
-        self._frame_cache.move_to_end(idx)
-        while len(self._frame_cache) > _MAX_FRAME_CACHE:
-            self._frame_cache.popitem(last=False)
-        self._recompute_max_cached_output_index()
-        return entry
-
-    def _get_frame_entry(self, frame_index: int) -> FrameCacheEntry | None:
-        idx = int(frame_index)
-        entry = self._frame_cache.get(idx)
-        if entry is not None:
-            self._frame_cache.move_to_end(idx)
-        return entry
-
-    def set_frame(self, frame_index: int, frame: npt.ArrayLike) -> FrameSetResponse:
-        """Ingest one decoded frame from C++.
-
-        Args:
-            frame_index: Absolute frame index in the C++ timeline.
-            frame: `np.uint8` array with shape `H x W x 3` (BGR).
-
-        Returns:
-            Metadata summary for confirmation.
-        """
-        arr = np.asarray(frame)
-        # Accept common TRex tile layouts and normalize to HxWx3 uint8.
-        if arr.ndim == 2:
-            arr = np.repeat(arr[:, :, None], 3, axis=2)
-        elif arr.ndim == 3 and arr.shape[2] == 1:
-            arr = np.repeat(arr, 3, axis=2)
-        elif arr.ndim == 3 and arr.shape[2] >= 3:
-            arr = arr[:, :, :3]
-        else:
-            raise ValueError("set_frame expects HxW, HxWx1, HxWx3, or HxWx4 image data.")
-
-        if arr.dtype != np.uint8:
-            arr = arr.astype(np.uint8, copy=False)
-
-        idx = int(frame_index)
-        entry = self._get_or_create_frame_entry(idx)
-        entry.frame = cast(npt.NDArray[np.uint8], np.ascontiguousarray(arr))
-        entry.output = None
-        self._invalidate_from(idx)
-        return {
-            "frame_index": idx,
-            "height": int(arr.shape[0]),
-            "width": int(arr.shape[1]),
-            "channels": int(arr.shape[2]),
-            "ok": True,
-        }
-
-    def reset_session(self, clear_prompts: bool = False) -> None:
-        """Reset incremental state and optionally clear prompts."""
-        self._predictor.inference_state = {}
-        for entry in self._frame_cache.values():
-            entry.output = None
-        self._max_computed_frame = -1
-
-        if clear_prompts:
-            self._text_prompt = None
-            self._text_session_scope = False
-            for entry in self._frame_cache.values():
-                entry.box_prompt = None
-            self._removed_obj_ids.clear()
-
-    def close_session(self) -> None:
-        """Release cached frames/outputs and reset predictor state."""
-        self.reset_session(clear_prompts=True)
-        self._frame_cache.clear()
-
-    def shutdown(self) -> None:
-        """Shutdown predictor runtime if backend exposes it."""
-        self.close_session()
-        if hasattr(self._predictor, "shutdown"):
-            self._predictor.shutdown()
-
-    def add_prompt(self, prompt: Mapping[str, object]) -> PromptResponse:
-        """Add or update prompts.
-
-        Supported prompt payloads in this adapter:
-        - Text:
-          `{"type":"text", "text":"fish", "frame_index":0}`
-          Optional text behavior keys:
-          - `text_session_scope` (bool): if true, set/replace global session text.
-          - `text_skip_if_unchanged` (bool): if true, no-op when text is unchanged.
-        - Single box:
-          `{"type":"box", "frame_index":12, "box":[x1,y1,x2,y2], "label":1}`
-        - Multiple boxes:
-          `{"type":"boxes", "frame_index":12, "boxes":[[...],[...]], "labels":[1,1]}`
-
-        Note:
-        - Point/mask prompts require request-style SAM3 APIs not available in the
-          current Ultralytics build used by TRex.
-        """
-        ptype = str(prompt.get("type", "")).strip().lower()
-        frame_index = int(prompt.get("frame_index", 0))
-        has_session_scope_flag = ("text_session_scope" in prompt) or ("session_scope" in prompt)
-        if has_session_scope_flag and ptype != "text":
-            raise ValueError("Session-global prompt scope is supported for text prompts only.")
-
-        if ptype == "text":
-            text = prompt.get("text")
-            if text is None:
-                raise ValueError(f"Text prompt requires key 'text', got: {prompt}")
-            text_prompt = _normalize_text_prompt(text)
-            session_scope = bool(prompt.get("text_session_scope", prompt.get("session_scope", False)))
-            skip_if_unchanged = bool(prompt.get("text_skip_if_unchanged", prompt.get("skip_if_unchanged", True)))
-            current_same = self._text_prompt == text_prompt
-
-            if skip_if_unchanged and current_same:
-                if session_scope:
-                    return {"ok": True, "type": "text", "scope": "session", "unchanged": True}
-                if self._text_frame_index == frame_index:
-                    return {"ok": True, "type": "text", "frame_index": frame_index, "unchanged": True}
-
-            self._text_prompt = text_prompt
-            if session_scope:
-                self._text_session_scope = True
-                self._text_frame_index = 0
-                self._invalidate_from(0)
-                return {"ok": True, "type": "text", "scope": "session", "frame_index": 0}
-
-            self._text_session_scope = False
-            self._text_frame_index = frame_index
-            self._invalidate_from(frame_index)
-            return {"ok": True, "type": "text", "frame_index": frame_index, "scope": "frame"}
-
-        if ptype in {"box", "boxes"}:
-            boxes = prompt.get("boxes")
-            labels = prompt.get("labels")
-            if ptype == "box":
-                single = prompt.get("box")
-                if single is None:
-                    raise ValueError("Box prompt requires key 'box'.")
-                boxes = [single]
-                if labels is None:
-                    labels = [prompt.get("label", 1)]
-            if boxes is None:
-                raise ValueError("Boxes prompt requires key 'boxes'.")
-
-            boxes_arr = np.asarray(boxes, dtype=np.float32).reshape(-1, 4)
-            if boxes_arr.shape[0] == 0:
-                entry = self._get_or_create_frame_entry(frame_index)
-                entry.box_prompt = None
-                self._invalidate_from(frame_index)
-                return {
-                    "ok": True,
-                    "type": "boxes",
-                    "frame_index": frame_index,
-                    "count": 0,
-                }
-            if labels is not None:
-                labels_arr = np.asarray(labels, dtype=np.float32).reshape(-1)
-                if boxes_arr.shape[0] != labels_arr.shape[0]:
-                    raise ValueError("Number of labels must match number of boxes.")
-            else:
-                labels_arr = np.ones((boxes_arr.shape[0],), dtype=np.float32)
-
-            entry = self._get_or_create_frame_entry(frame_index)
-            entry.box_prompt = {"boxes": boxes_arr, "labels": labels_arr}
-            self._invalidate_from(frame_index)
-            return {
-                "ok": True,
-                "type": "boxes",
-                "frame_index": frame_index,
-                "count": int(boxes_arr.shape[0]),
-            }
-
-        if ptype in {"point", "points", "mask", "masks"}:
-            raise NotImplementedError(
-                "Point/mask prompts are not supported by the active SAM3 backend adapter."
-            )
-
-        raise ValueError(f"Unsupported prompt type: {ptype}")
-
-    def remove_object(self, obj_id: int) -> RemoveObjectResponse:
-        """Suppress one object id from returned outputs."""
-        oid = int(obj_id)
-        self._removed_obj_ids.add(oid)
-        for entry in self._frame_cache.values():
-            if entry.output is not None:
-                entry.output = self._filter_removed(entry.output)
-        return {"ok": True, "obj_id": oid, "mode": "post_filter"}
-
-    def get_frame(self, frame_index: int) -> FrameOutput:
-        """Return segmentation for one frame index using current prompt state."""
-        idx = int(frame_index)
-        entry = self._get_frame_entry(idx)
-        if entry is not None and entry.output is not None:
-            return entry.output
-        self._compute_with_native_api(idx)
-        out_entry = self._get_frame_entry(idx)
-        if out_entry is None or out_entry.output is None:
-            raise RuntimeError(f"Frame {idx} output missing after compute.")
-        return out_entry.output
-
-    def get_frames(self, frame_indices: Iterable[int]) -> list[FrameOutput]:
-        """Batch helper around :meth:`get_frame`."""
-        return [self.get_frame(int(i)) for i in frame_indices]
-    
-    def _color_for_obj_id(self, obj_id: int) -> Tuple[int, int, int]:
-        oid = int(obj_id)
-        # Deterministic BGR palette for stable visualization across frames.
-        return (
-            int((37 * oid + 71) % 255),
-            int((67 * oid + 131) % 255),
-            int((97 * oid + 191) % 255),
-        )
-    
-    def _obj_to_mask(self, obj: Dict[str, Any]) -> np.ndarray:
-        h = int(obj["height"])
-        w = int(obj["width"])
-        flat = np.zeros((h * w,), dtype=np.uint8)
-        fg = np.asarray(obj.get("foreground_indices", []), dtype=np.int64)
-        if fg.size:
-            flat[fg] = 1
-        return flat.reshape((h, w))
-
-    def _render_preview_frame(
-        self,
-        frame: np.ndarray,
-        frame_out: Dict[str, Any],
-        alpha: float,
-        text_prompt: str | list[str] | None,
-        text_scope: str,
-        box_payload: BoxPromptPayload | None,
-    ) -> np.ndarray:
-        import cv2
-
-        vis = np.ascontiguousarray(frame.copy())
-        a = float(np.clip(alpha, 0.0, 1.0))
-
-        for obj in frame_out.get("objects", []):
-            obj_id = int(obj.get("obj_id", 0))
-            score = float(obj.get("score", 0.0))
-            class_id = int(obj.get("class_id", 0))
-            color = np.asarray(self._color_for_obj_id(obj_id), dtype=np.float32)
-
-            mask = self._obj_to_mask(obj) > 0
-            if np.any(mask):
-                src = vis[mask].astype(np.float32)
-                vis[mask] = np.clip((1.0 - a) * src + a * color[None, :], 0, 255).astype(np.uint8)
-
-                ys, xs = np.where(mask)
-                x0 = int(xs.min())
-                y0 = int(ys.min())
-                x1 = int(xs.max() + 1)
-                y1 = int(ys.max() + 1)
-            else:
-                x0 = y0 = x1 = y1 = 0
-
-            cv2.rectangle(vis, (x0, y0), (x1, y1), tuple(int(v) for v in color), 2)
-            label = f"id={obj_id} cls={class_id} conf={score:.2f}"
-            ty = y0 - 8 if y0 > 20 else y0 + 16
-            cv2.putText(vis, label, (x0, ty), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (255, 255, 255), 1, cv2.LINE_AA)
-
-        header = f"frame={int(frame_out.get('frame_index', -1))} objects={int(frame_out.get('num_objects', 0))}"
-        cv2.putText(vis, header, (8, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2, cv2.LINE_AA)
-
-        if text_prompt is None:
-            text_display = "text: (none)"
-        elif isinstance(text_prompt, list):
-            joined = ", ".join(str(item) for item in text_prompt)
-            text_display = f"text({text_scope}): {joined}"
-        else:
-            text_display = f"text({text_scope}): {text_prompt}"
-        if len(text_display) > 120:
-            text_display = text_display[:117] + "..."
-        cv2.putText(vis, text_display, (8, 42), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
-
-        if box_payload is None:
-            box_header = "boxes: (none)"
-        else:
-            box_count = int(box_payload["boxes"].shape[0])
-            box_header = f"boxes: {box_count}"
-            if box_count > 0:
-                for i, box in enumerate(box_payload["boxes"]):
-                    x0, y0, x1, y1 = [int(round(v)) for v in box]
-                    cv2.rectangle(vis, (x0, y0), (x1, y1), (255, 255, 0), 2)
-                    label = "prompt box"
-                    if i < len(box_payload["labels"]):
-                        label = f"prompt box label={int(box_payload['labels'][i])}"
-                    ty = y0 - 6 if y0 > 12 else y0 + 14
-                    cv2.putText(vis, label, (x0, ty), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (255, 255, 0), 1, cv2.LINE_AA)
-
-        cv2.putText(vis, box_header, (8, 62), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
-        return vis
-
-    def _compute_with_native_api(self, target_frame: int) -> None:
-        target_entry = self._get_frame_entry(target_frame)
-        if target_entry is None or target_entry.frame is None:
-            raise RuntimeError(
-                f"Frame {target_frame} is not available (not set or evicted by cache cap={_MAX_FRAME_CACHE}). "
-                "Call set_frame(frame_index=...) before get_frame for this index."
-            )
-
-        start = self._max_computed_frame + 1
-        if target_frame < start:
-            frame_sequence = [target_frame]
-        else:
-            # Sparse/large ids are valid. Never iterate over full numeric ranges.
-            # Only process ids that are actually present in frame cache.
-            frame_sequence = sorted(
-                idx for idx, entry in self._frame_cache.items() if start <= idx <= target_frame and entry.frame is not None
-            )
-            if not frame_sequence:
-                frame_sequence = [target_frame]
-            elif frame_sequence[-1] != target_frame:
-                frame_sequence.append(target_frame)
-
-        for frame_idx in frame_sequence:
-            entry = self._get_frame_entry(frame_idx)
-            if entry is None or entry.frame is None:
-                raise RuntimeError(
-                    f"Frame {frame_idx} is not available (not set or evicted by cache cap={_MAX_FRAME_CACHE}). "
-                    "Call set_frame(frame_index=...) before get_frame for this index."
-                )
-
-            frame = entry.frame
-            self._predictor.features = None
-            has_text = self._text_prompt is not None and (self._text_session_scope or frame_idx == self._text_frame_index)
-            box_payload = entry.box_prompt
-            if not has_text and box_payload is None:
-                formatted = {
-                    "frame_index": int(frame_idx),
-                    "num_objects": 0,
-                    "objects": [],
-                    "frame_stats": {},
-                    "unconfirmed_obj_ids": [],
-                }
-                entry.output = self._filter_removed(formatted)
-                self._frame_cache.move_to_end(frame_idx)
-                self._max_computed_frame = frame_idx
-                continue
-            kwargs: dict[str, object] = {"stream": True, "conf": float(self._conf)}
-            if has_text:
-                kwargs["text"] = self._text_prompt
-            if box_payload is not None:
-                if int(box_payload["boxes"].shape[0]) > 0:
-                    kwargs["bboxes"] = box_payload["boxes"]
-                    kwargs["labels"] = box_payload["labels"]
-            results = self._predictor(source=frame, **kwargs)
-            first_result = _first_stream_item(results)
-            if first_result is None:
-                formatted = {
-                    "frame_index": int(frame_idx),
-                    "num_objects": 0,
-                    "objects": [],
-                    "frame_stats": {},
-                    "unconfirmed_obj_ids": [],
-                }
-            else:
-                formatted = self._format_result_output(frame_idx, first_result, frame.shape[:2])
-            entry.output = self._filter_removed(formatted)
-            self._frame_cache.move_to_end(frame_idx)
-            self._max_computed_frame = frame_idx
-
-            text_scope = "session" if self._text_session_scope else f"frame {int(self._text_frame_index)}"
-            preview = self._render_preview_frame(
-                frame,
-                entry.output,
-                alpha=0.5,
-                text_prompt=self._text_prompt,
-                text_scope=text_scope,
-                box_payload=box_payload,
-            )
-            if TRex is not None:
-                TRex.imshow(f"SAM3 Preview", preview)
-
-    def _format_result_output(self, frame_index: int, result: object, frame_shape: tuple[int, int]) -> FrameOutput:
-        h, w = int(frame_shape[0]), int(frame_shape[1])
-        objects: list[Sam3Object] = []
-        masks_data = None
-        boxes_conf: npt.NDArray[np.float32] = np.zeros((0,), dtype=np.float32)
-        boxes_cls: npt.NDArray[np.int32] = np.zeros((0,), dtype=np.int32)
-
-        if getattr(result, "masks", None) is not None and getattr(result.masks, "data", None) is not None:
-            masks_data = result.masks.data
-        if getattr(result, "boxes", None) is not None:
-            if getattr(result.boxes, "conf", None) is not None:
-                boxes_conf = result.boxes.conf.detach().cpu().numpy().astype(np.float32, copy=False)
-            if getattr(result.boxes, "cls", None) is not None:
-                boxes_cls = result.boxes.cls.detach().cpu().numpy().astype(np.int32, copy=False)
-
-        if masks_data is not None:
-            masks_np = cast(npt.NDArray[np.uint8], masks_data.detach().to(torch.uint8).cpu().numpy())
-        else:
-            masks_np = np.zeros((0, h, w), dtype=np.uint8)
-
-        num = int(masks_np.shape[0])
-        for i in range(num):
-            mask = masks_np[i]
-            if mask.shape != (h, w):
-                mask_t = torch.from_numpy(mask.astype(np.float32, copy=False))[None, None]
-                mask = cast(
-                    npt.NDArray[np.uint8],
-                    (F.interpolate(mask_t, size=(h, w), mode="nearest")[0, 0] > 0).to(torch.uint8).cpu().numpy(),
-                )
-            fg = cast(npt.NDArray[np.int64], np.flatnonzero(mask.reshape(-1) > 0).astype(np.int64, copy=False))
-            objects.append(
-                {
-                    "obj_id": i,
-                    "score": float(boxes_conf[i]) if i < len(boxes_conf) else 0.0,
-                    "class_id": int(boxes_cls[i]) if i < len(boxes_cls) else 0,
-                    "height": h,
-                    "width": w,
-                    "foreground_indices": fg.tolist(),
-                }
-            )
-
-        return {
-            "frame_index": int(frame_index),
-            "num_objects": int(len(objects)),
-            "objects": objects,
-            "frame_stats": {},
-            "unconfirmed_obj_ids": [],
-        }
-
-    def _filter_removed(self, frame_out: FrameOutput) -> FrameOutput:
-        if not self._removed_obj_ids:
-            return frame_out
-        kept = [obj for obj in frame_out["objects"] if int(obj["obj_id"]) not in self._removed_obj_ids]
-        frame_out = cast(FrameOutput, dict(frame_out))
-        frame_out["objects"] = kept
-        frame_out["num_objects"] = len(kept)
-        return frame_out
-
-    def _invalidate_from(self, frame_index: int) -> None:
-        for idx, entry in self._frame_cache.items():
-            if idx >= frame_index:
-                entry.output = None
-        self._max_computed_frame = min(self._max_computed_frame, int(frame_index) - 1)
-        self._recompute_max_cached_output_index()
-
-    def evict_frame_cache(self, frame_index: int) -> None:
-        """Drop one per-frame cache entry (frame + prompt + output)."""
-        idx = int(frame_index)
-        self._frame_cache.pop(idx, None)
-        self._recompute_max_cached_output_index()
-
-
-# ---------------------------------------------------------------------------
-# Module-level wrappers for C++ ModuleProxy::run(...)
-# ---------------------------------------------------------------------------
-
-_SESSION: Sam3VideoSession | None = None
+        predictor.score_threshold_detection = conf
+    except Exception:
+        pass
+
+
+def _set_optional_predictor_attr(predictor: object, name: str, value: object) -> None:
+    """Best-effort runtime attribute assignment for SAM3 predictor knobs."""
+    try:
+        setattr(predictor, name, value)
+    except Exception:
+        pass
+
+
+def _cleanup_device_caches(device: str) -> None:
+    """Best-effort Python-side device cleanup after session shutdown."""
+    try:
+        if device.startswith("cuda") and torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        elif device.startswith("mps") and hasattr(torch, "mps") and torch.backends.mps.is_available():
+            torch.mps.empty_cache()
+    except Exception:
+        pass
+    gc.collect()
 
 
 def _require_session() -> Sam3VideoSession:
+    """Return the active SAM3 session or fail with a clear error."""
     if _SESSION is None:
         raise RuntimeError("SAM3 session is not created. Call create_session(...) first.")
     return _SESSION
 
 
-def create_session(request: Mapping[str, object]) -> CreateSessionResponse:
-    """Create or replace the singleton session.
+def _normalize_frame(image: npt.ArrayLike) -> npt.NDArray[np.uint8]:
+    """Normalize incoming image data to contiguous HxWx3 uint8 BGR."""
+    frame = np.asarray(image)
+    if frame.ndim == 2:
+        frame = np.repeat(frame[:, :, None], 3, axis=2)
+    elif frame.ndim == 3 and frame.shape[2] == 1:
+        frame = np.repeat(frame, 3, axis=2)
+    elif frame.ndim == 3 and frame.shape[2] >= 3:
+        frame = frame[:, :, :3]
+    else:
+        raise ValueError("SAM3 predict expects HxW, HxWx1, HxWx3, or HxWx4 image data.")
 
-    Args:
-        request: Dict with required key `weights_path` and optional keys
-            `imgsz`, `conf`, `half`, `verbose`, `predictor_kwargs`.
-    """
+    if frame.dtype != np.uint8:
+        frame = frame.astype(np.uint8, copy=False)
+    return np.ascontiguousarray(frame)
+
+
+def _empty_result(frame_index: int) -> "TRex.Result":
+    """Construct an empty TRex result for an image with no prompts/output."""
+    if TRex is None:
+        raise RuntimeError("TRex module is required for SAM3 predict_frame().")
+
+    return TRex.Result(  # type: ignore[attr-defined]
+        int(frame_index),
+        TRex.Boxes(np.empty((0, 6), dtype=np.float32)),  # type: ignore[attr-defined]
+        [],
+        TRex.KeypointData(np.empty((0, 1, 2), dtype=np.float32)),  # type: ignore[attr-defined]
+        TRex.ObbData(np.empty((0, 7), dtype=np.float32)),  # type: ignore[attr-defined]
+        TRex.PointData(np.empty((0, 5), dtype=np.float32)),  # type: ignore[attr-defined]
+    )
+
+
+def _resize_mask(mask: npt.NDArray[np.uint8], height: int, width: int) -> npt.NDArray[np.uint8]:
+    """Resize a binary mask with nearest-neighbor sampling."""
+    if mask.shape == (height, width):
+        return np.ascontiguousarray(mask)
+
+    tensor = torch.from_numpy(mask.astype(np.float32, copy=False)).unsqueeze(0).unsqueeze(0)
+    resized = F.interpolate(tensor, size=(height, width), mode="nearest")[0, 0]
+    return np.ascontiguousarray(resized.to(torch.uint8).cpu().numpy())
+
+
+def _denormalize_points(
+    points: npt.NDArray[np.float32],
+    image_shape: tuple[int, int],
+) -> npt.NDArray[np.float32]:
+    """Convert normalized point prompts into image-space pixel coordinates."""
+    if points.size == 0:
+        return np.empty((0, 2), dtype=np.float32)
+
+    height, width = image_shape
+    points_px = points.astype(np.float32, copy=True)
+    points_px[:, 0] = np.clip(points_px[:, 0], 0.0, 1.0) * max(0, width - 1)
+    points_px[:, 1] = np.clip(points_px[:, 1], 0.0, 1.0) * max(0, height - 1)
+    return points_px
+
+
+def _denormalize_boxes(
+    boxes: npt.NDArray[np.float32],
+    image_shape: tuple[int, int],
+) -> npt.NDArray[np.float32]:
+    """Convert normalized XYXY box prompts into image-space pixel coordinates."""
+    if boxes.size == 0:
+        return np.empty((0, 4), dtype=np.float32)
+
+    height, width = image_shape
+    boxes_px = boxes.astype(np.float32, copy=True)
+    boxes_px[:, 0] = np.clip(boxes_px[:, 0], 0.0, 1.0) * width
+    boxes_px[:, 1] = np.clip(boxes_px[:, 1], 0.0, 1.0) * height
+    boxes_px[:, 2] = np.clip(boxes_px[:, 2], 0.0, 1.0) * width
+    boxes_px[:, 3] = np.clip(boxes_px[:, 3], 0.0, 1.0) * height
+    return boxes_px
+
+
+def _scale_components(scale: object) -> tuple[float, float]:
+    return float(getattr(scale, "x", 1.0)), float(getattr(scale, "y", 1.0))
+
+
+def _offset_components(offset: object) -> tuple[float, float]:
+    return float(getattr(offset, "x", 0.0)), float(getattr(offset, "y", 0.0))
+
+
+def _estimate_original_image_shape(
+    model_shape: tuple[int, int],
+    scale: object,
+    offset: object,
+) -> tuple[int, int]:
+    scale_x, scale_y = _scale_components(scale)
+    offset_x, offset_y = _offset_components(offset)
+    content_w = max(1, int(round(float(model_shape[1]) + 2.0 * offset_x)))
+    content_h = max(1, int(round(float(model_shape[0]) + 2.0 * offset_y)))
+    original_w = max(1, int(round(content_w * scale_x)))
+    original_h = max(1, int(round(content_h * scale_y)))
+    return original_h, original_w
+
+
+def _restore_mask_to_original(
+    mask: npt.NDArray[np.uint8],
+    model_shape: tuple[int, int],
+    scale: object,
+    offset: object,
+) -> npt.NDArray[np.uint8]:
+    original_h, original_w = _estimate_original_image_shape(model_shape, scale, offset)
+    scale_x, scale_y = _scale_components(scale)
+    offset_x, offset_y = _offset_components(offset)
+    pad_left = max(0, int(round(-offset_x)))
+    pad_top = max(0, int(round(-offset_y)))
+    content_w = max(1, int(round(original_w / scale_x)))
+    content_h = max(1, int(round(original_h / scale_y)))
+    pad_right = min(mask.shape[1], pad_left + content_w)
+    pad_bottom = min(mask.shape[0], pad_top + content_h)
+    cropped = np.ascontiguousarray(mask[pad_top:pad_bottom, pad_left:pad_right])
+    if cropped.size == 0:
+        return np.zeros((original_h, original_w), dtype=np.uint8)
+    if cropped.shape != (content_h, content_w):
+        cropped = _resize_mask(cropped, content_h, content_w)
+    return _resize_mask(cropped, original_h, original_w)
+
+
+def _mask_contains_point(mask: npt.NDArray[np.uint8], x: float, y: float, radius: int = 2) -> bool:
+    """Return whether a resized mask contains the given point within a small tolerance."""
+    xi = int(round(float(x)))
+    yi = int(round(float(y)))
+    if xi < 0 or yi < 0 or xi >= mask.shape[1] or yi >= mask.shape[0]:
+        return False
+
+    x0 = max(0, xi - radius)
+    x1 = min(mask.shape[1], xi + radius + 1)
+    y0 = max(0, yi - radius)
+    y1 = min(mask.shape[0], yi + radius + 1)
+    return bool(np.any(mask[y0:y1, x0:x1] > 0))
+
+
+def _collect_prompt_state(prompt_list: Sequence[object]) -> PromptState:
+    """Merge one image's normalized prompt list into typed Python data."""
+    texts: list[str] = []
+    boxes: list[list[float]] = []
+    points: list[list[float]] = []
+
+    for prompt in prompt_list:
+        ptype = str(getattr(prompt, "type")).split(".")[-1].lower()
+        if ptype == "none":
+            continue
+        if ptype == "text":
+            text = getattr(prompt, "text", None)
+            if text is not None:
+                texts.append(str(text))
+            continue
+        if ptype in {"box", "boxes"}:
+            for box in getattr(prompt, "boxes", []):
+                boxes.append([float(v) for v in box])
+            continue
+        if ptype in {"point", "points"}:
+            for point in getattr(prompt, "points", []):
+                points.append([float(point.x), float(point.y)])
+            continue
+        raise ValueError(f"Unsupported SAM3 prompt type: {ptype}")
+
+    _session_log(
+        f"received_prompts texts={len(texts)} boxes={len(boxes)} points={len(points)}"
+    )
+
+    return PromptState(
+        texts=texts,
+        boxes=np.asarray(boxes, dtype=np.float32) if boxes else None,
+        points=np.asarray(points, dtype=np.float32) if points else None,
+    )
+
+
+def _select_masks_matching_points(
+    masks_np: npt.NDArray[np.uint8],
+    image_shape: tuple[int, int],
+    points_normalized: npt.NDArray[np.float32],
+) -> npt.NDArray[np.intp]:
+    """Return indices of masks that contain all requested point prompts."""
+    if masks_np.size == 0 or points_normalized.size == 0:
+        return np.empty((0,), dtype=np.intp)
+
+    points_px = _denormalize_points(points_normalized, image_shape)
+    matches: list[int] = []
+
+    for idx, mask in enumerate(masks_np):
+        if all(_mask_contains_point(mask, point[0], point[1]) for point in points_px):
+            matches.append(idx)
+
+    return np.asarray(matches, dtype=np.intp)
+
+
+def _build_result(
+    frame_index: int,
+    scale: object,
+    offset: object,
+    image_shape: tuple[int, int],
+    masks_np: npt.NDArray[np.uint8],
+    conf_np: npt.NDArray[np.float32],
+    cls_np: npt.NDArray[np.float32],
+    *,
+    pred_boxes_np: npt.NDArray[np.float32] | None = None,
+    keep_indices: npt.NDArray[np.intp] | None = None,
+) -> "TRex.Result":
+    """Build a TRex.Result from mask/score arrays."""
+    if TRex is None:
+        raise RuntimeError("TRex module is required for SAM3 predict_frame().")
+
+    if keep_indices is not None:
+        masks_np = masks_np[keep_indices]
+        conf_np = conf_np[keep_indices]
+        cls_np = cls_np[keep_indices]
+        if pred_boxes_np is not None:
+            pred_boxes_np = pred_boxes_np[keep_indices]
+
+    scale_x = float(getattr(scale, "x", 1.0))
+    scale_y = float(getattr(scale, "y", 1.0))
+    offset_x, offset_y = _offset_components(offset)
+    target_h, target_w = _estimate_original_image_shape(image_shape, scale, offset)
+
+    n = masks_np.shape[0]
+    trex_masks: list[npt.NDArray[np.uint8]] = []
+    boxes = np.zeros((n, 6), dtype=np.float32)
+
+    _session_log(
+        f"frame={frame_index} masks={n} target={target_w}x{target_h} "
+        f"scale=({scale_x:.3f},{scale_y:.3f}) offset=({offset_x:.3f},{offset_y:.3f})"
+    )
+
+    for idx, mask in enumerate(masks_np):
+        resized_mask = _restore_mask_to_original(mask * np.uint8(255), image_shape, scale, offset)
+
+        if pred_boxes_np is not None and idx < len(pred_boxes_np):
+            x0 = float((pred_boxes_np[idx, 0] + offset_x) * scale_x)
+            y0 = float((pred_boxes_np[idx, 1] + offset_y) * scale_y)
+            x1 = float((pred_boxes_np[idx, 2] + offset_x) * scale_x)
+            y1 = float((pred_boxes_np[idx, 3] + offset_y) * scale_y)
+            boxes[idx, 0] = x0
+            boxes[idx, 1] = y0
+            boxes[idx, 2] = max(0.0, x1 - x0)
+            boxes[idx, 3] = max(0.0, y1 - y0)
+        else:
+            ys, xs = np.where(resized_mask > 0)
+            if xs.size and ys.size:
+                boxes[idx, 0] = float(xs.min())
+                boxes[idx, 1] = float(ys.min())
+                boxes[idx, 2] = float(xs.max() + 1) - boxes[idx, 0]
+                boxes[idx, 3] = float(ys.max() + 1) - boxes[idx, 1]
+                cropped = resized_mask[int(ys.min()) : int(ys.max()) + 1, int(xs.min()) : int(xs.max()) + 1].copy()
+                resized_mask = cropped
+                boxes[idx, 2] = cropped.shape[1] - 1
+                boxes[idx, 3] = cropped.shape[0] - 1
+            else:
+                boxes[idx, 0] = 0
+                boxes[idx, 1] = 0
+                boxes[idx, 2] = target_w - 1
+                boxes[idx, 3] = target_h - 1
+
+        trex_masks.append(resized_mask)
+        boxes[idx, 4] = float(conf_np[idx]) if idx < len(conf_np) else 0.0
+        boxes[idx, 5] = float(cls_np[idx]) if idx < len(cls_np) else 0.0
+
+    return TRex.Result(  # type: ignore[attr-defined]
+        int(frame_index),
+        TRex.Boxes(boxes),  # type: ignore[attr-defined]
+        trex_masks,
+        TRex.KeypointData(np.empty((0, 1, 2), dtype=np.float32)),  # type: ignore[attr-defined]
+        TRex.ObbData(np.empty((0, 7), dtype=np.float32)),  # type: ignore[attr-defined]
+        TRex.PointData(np.empty((0, 5), dtype=np.float32)),  # type: ignore[attr-defined]
+    )
+
+
+def _label_array(boxes: npt.NDArray[np.float32] | None) -> npt.NDArray[np.int32] | None:
+    if boxes is None:
+        return None
+    return np.ones((len(boxes),), dtype=np.int32)
+
+
+def _prepare_prompt_batch(prompt_state: PromptState) -> tuple[str | list[str] | None, npt.NDArray[np.float32] | None]:
+    """Prepare one shared concept prompt plus optional multi-box geometry."""
+    boxes = prompt_state.boxes
+    texts = [str(text) for text in prompt_state.texts]
+
+    if boxes is None or len(boxes) == 0:
+        if not texts:
+            return None, None
+        return texts[0] if len(texts) == 1 else texts, None
+
+    if not texts:
+        # Let SAM3 use its built-in visual prompt path for box-only prompting.
+        return None, boxes
+
+    # Multiple positive boxes on one frame are one shared concept with many objects.
+    # Ultralytics' add_prompt() expects the concept batch size to stay at 1 here.
+    return texts[0], boxes
+
+
+def _add_multi_object_prompt(
+    session: Sam3VideoSession,
+    frame_index: int,
+    texts: Sequence[str],
+    boxes: npt.NDArray[np.float32],
+) -> Mapping[str, object]:
+    """Dispatch one box at a time so each new seed enters SAM3 as a separate addition."""
+    predictor = session.predictor
+    concept_text = next((str(text) for text in texts if str(text)), None)
+    output: Mapping[str, object] | None = None
+
+    _session_log(
+        f"dispatch_multi_object_prompt frame={frame_index} objects={len(boxes)} "
+        f"mode=sequential concept={'yes' if concept_text else 'no'}"
+    )
+
+    for box_index, box in enumerate(boxes):
+        _, output = predictor.add_prompt(
+            frame_idx=frame_index,
+            text=concept_text,
+            bboxes=np.asarray([box], dtype=np.float32),
+            labels=np.ones((1,), dtype=np.int32),
+        )
+        _session_log(
+            f"dispatch_multi_object_prompt frame={frame_index} step={box_index + 1}/{len(boxes)}"
+        )
+
+    if output is None:
+        raise RuntimeError("Sequential SAM3 multi-object prompt dispatch produced no output.")
+    return output
+
+
+def _postprocess_video_output(
+    session: Sam3VideoSession,
+    output: Mapping[str, object],
+    image: npt.NDArray[np.uint8],
+) -> tuple[npt.NDArray[np.uint8], npt.NDArray[np.float32], npt.NDArray[np.float32]]:
+    """Convert one video predictor output dict into resized masks and score arrays."""
+    obj_id_to_mask = cast(Mapping[int, torch.Tensor], output.get("obj_id_to_mask", {}))
+    obj_id_to_score = cast(Mapping[int, float], output.get("obj_id_to_score", {}))
+    obj_id_to_cls = cast(Mapping[int, float], output.get("obj_id_to_cls", {}))
+    obj_id_to_tracker_score = cast(Mapping[int, float], output.get("obj_id_to_tracker_score", {}))
+
+    curr_obj_ids = sorted(obj_id_to_mask.keys())
+    if not curr_obj_ids:
+        return (
+            np.empty((0, image.shape[0], image.shape[1]), dtype=np.uint8),
+            np.empty((0,), dtype=np.float32),
+            np.empty((0,), dtype=np.float32),
+        )
+
+    pred_mask_logits = torch.cat([obj_id_to_mask[obj_id] for obj_id in curr_obj_ids], dim=0)
+    pred_mask_logits = F.interpolate(pred_mask_logits.float()[None], image.shape[:2], mode="bilinear")[0]
+    pred_masks = pred_mask_logits > 0.5
+    det_scores = torch.tensor(
+        [float(obj_id_to_score.get(obj_id, 0.0)) for obj_id in curr_obj_ids],
+        device=pred_masks.device,
+        dtype=torch.float32,
+    )
+    tracker_scores = torch.tensor(
+        [
+            float(obj_id_to_tracker_score[obj_id]) if obj_id in obj_id_to_tracker_score else float("nan")
+            for obj_id in curr_obj_ids
+        ],
+        device=pred_masks.device,
+        dtype=torch.float32,
+    )
+    pred_scores = torch.where(torch.isnan(tracker_scores), det_scores, tracker_scores)
+    pred_cls = torch.tensor(
+        [float(obj_id_to_cls.get(obj_id, 0.0)) for obj_id in curr_obj_ids],
+        device=pred_masks.device,
+        dtype=torch.float32,
+    )
+
+    weak_positive_masks = pred_mask_logits > 0
+    fallback_mask_rows = (~pred_masks.any(dim=(1, 2))) & weak_positive_masks.any(dim=(1, 2)) & ~torch.isnan(tracker_scores)
+    if fallback_mask_rows.any():
+        pred_masks = pred_masks.clone()
+        pred_masks[fallback_mask_rows] = weak_positive_masks[fallback_mask_rows]
+
+    keep = (pred_scores > session.conf) & pred_masks.any(dim=(1, 2))
+    pred_masks = pred_masks[keep]
+    pred_scores = pred_scores[keep]
+    pred_cls = pred_cls[keep]
+
+    if pred_masks.shape[0] > 1 and session.duplicate_mask_iou is not None:
+        duplicate_keep = _suppress_near_duplicate_masks(pred_masks, pred_scores, session.duplicate_mask_iou)
+        if duplicate_keep.shape[0] == pred_masks.shape[0] and not torch.all(duplicate_keep):
+            pred_masks = pred_masks[duplicate_keep]
+            pred_scores = pred_scores[duplicate_keep]
+            pred_cls = pred_cls[duplicate_keep]
+
+    if pred_masks.shape[0] > 1:
+        pred_masks = (
+            session.predictor._apply_object_wise_non_overlapping_constraints(
+                pred_masks.unsqueeze(1),
+                pred_scores.unsqueeze(1),
+                background_value=0,
+            ).squeeze(1)
+            > 0
+        )
+
+    return (
+        pred_masks.detach().to(torch.uint8).cpu().numpy(),
+        pred_scores.detach().cpu().numpy().astype(np.float32, copy=False),
+        pred_cls.detach().cpu().numpy().astype(np.float32, copy=False),
+    )
+
+
+def _suppress_near_duplicate_masks(
+    pred_masks: torch.Tensor,
+    pred_scores: torch.Tensor,
+    iou_threshold: float,
+) -> torch.Tensor:
+    """Greedily suppress near-duplicate masks using mask IoU."""
+    count = int(pred_masks.shape[0])
+    if count < 2:
+        return torch.ones((count,), dtype=torch.bool, device=pred_masks.device)
+
+    pred_masks = pred_masks.to(torch.bool).reshape(count, -1)
+    areas = pred_masks.sum(dim=1)
+    order = sorted(range(count), key=lambda idx: (-float(pred_scores[idx]), idx))
+    keep = torch.ones((count,), dtype=torch.bool, device=pred_masks.device)
+
+    for rank, idx in enumerate(order):
+        area_idx = int(areas[idx].item())
+        if not bool(keep[idx]):
+            continue
+        if area_idx == 0:
+            keep[idx] = False
+            continue
+        mask = pred_masks[idx]
+        for other_idx in order[rank + 1 :]:
+            area_other = int(areas[other_idx].item())
+            if not bool(keep[other_idx]):
+                continue
+            if area_other == 0:
+                keep[other_idx] = False
+                continue
+            intersection = int(torch.logical_and(mask, pred_masks[other_idx]).sum().item())
+            union = area_idx + area_other - intersection
+            if union > 0 and (intersection / union) >= float(iou_threshold):
+                keep[other_idx] = False
+
+    return keep
+
+
+def _run_one_frame(
+    session: Sam3VideoSession,
+    frame_index: int,
+    image: npt.NDArray[np.uint8],
+    prompt_state: PromptState,
+    scale: object,
+    offset: object,
+) -> "TRex.Result":
+    """Run one frame through the active SAM3 video predictor runtime."""
+    _sync_runtime_settings(session)
+    session._ensure_runtime_capacity(frame_index)
+    session.predictor.dataset.frame = frame_index + 1
+    session.predictor.batch = ([f"frame_{frame_index}"], [image], None)
+    session.predictor.im = None
+
+    with torch.inference_mode():
+        session.predictor.inference_state["im"] = session.predictor.preprocess([image])
+
+        effective_texts = session.active_texts
+        if prompt_state.texts:
+            effective_texts = list(prompt_state.texts)
+            session.active_texts = list(prompt_state.texts)
+
+        output: Mapping[str, object] | None = None
+        if prompt_state.has_video_prompts():
+            boxes = (
+                _denormalize_boxes(prompt_state.boxes, image.shape[:2])
+                if prompt_state.boxes is not None
+                else None
+            )
+            if boxes is not None and len(boxes) > 1:
+                output = _add_multi_object_prompt(
+                    session,
+                    frame_index,
+                    effective_texts,
+                    boxes,
+                )
+            else:
+                prompt_text, prompt_boxes = _prepare_prompt_batch(PromptState(
+                    texts=effective_texts,
+                    boxes=boxes,
+                    points=prompt_state.points,
+                ))
+                _, output = session.predictor.add_prompt(
+                    frame_idx=frame_index,
+                    text=prompt_text,
+                    bboxes=prompt_boxes,
+                    labels=_label_array(prompt_boxes),
+                )
+        elif "text_ids" in session.predictor.inference_state:
+            output = session.predictor._run_single_frame_inference(
+                frame_index,
+                reverse=False,
+                inference_state=session.predictor.inference_state,
+            )
+        else:
+            session.last_processed_frame = frame_index
+            return _empty_result(frame_index)
+
+    if output is None:
+        session.last_processed_frame = frame_index
+        return _empty_result(frame_index)
+
+    masks_np, conf_np, cls_np = _postprocess_video_output(session, output, image)
+    keep_indices = None
+    if prompt_state.points is not None and prompt_state.points.size:
+        keep_indices = _select_masks_matching_points(masks_np, image.shape[:2], prompt_state.points)
+        if keep_indices.size == 0:
+            session.last_processed_frame = frame_index
+            return _empty_result(frame_index)
+
+    session.last_processed_frame = frame_index
+    return _build_result(
+        frame_index=frame_index,
+        scale=scale,
+        offset=offset,
+        image_shape=image.shape[:2],
+        masks_np=masks_np,
+        conf_np=conf_np,
+        cls_np=cls_np,
+        keep_indices=keep_indices,
+    )
+
+
+def create_session(request: Mapping[str, object]) -> CreateSessionResponse:
+    """Create or replace the singleton SAM3 model session."""
     global _SESSION
-    if _SESSION is not None:
-        try:
-            _SESSION.shutdown()
-        except Exception:
-            pass
 
     if "weights_path" not in request:
         raise ValueError("create_session requires 'weights_path'.")
 
-    _SESSION = Sam3VideoSession(
-        weights_path=cast(str | Path, request["weights_path"]),
-        imgsz=int(request.get("imgsz", 640)),
-        conf=float(request.get("conf", 0.25)),
-        half=bool(request.get("half", True)),
-        verbose=bool(request.get("verbose", False)),
-        predictor_kwargs=cast(Mapping[str, object] | None, request.get("predictor_kwargs")),
+    weights_path = Path(str(cast(str | Path, request["weights_path"])))
+    if not weights_path.exists():
+        raise ValueError(f"SAM3 weights_path does not exist: {weights_path}")
+
+    if _SESSION is not None:
+        shutdown()
+
+    device = _choose_device()
+    overrides: dict[str, object] = {
+        "task": "segment",
+        "mode": "predict",
+        "model": str(weights_path),
+        "imgsz": request.get("imgsz", 640),
+        "conf": float(request.get("conf", 0.25)),
+        "half": bool(request.get("half", True)),
+        "device": device,
+        "verbose": bool(request.get("verbose", False)),
+    }
+
+    predictor_kwargs = request.get("predictor_kwargs")
+    if isinstance(predictor_kwargs, Mapping):
+        overrides.update(cast(Mapping[str, object], predictor_kwargs))
+
+    if str(device).startswith("mps"):
+        overrides["half"] = False
+
+    predictor = SAM3VideoSemanticPredictor(overrides=overrides)
+    predictor.setup_model(verbose=bool(overrides["verbose"]))
+    predictor.score_threshold_detection = float(overrides["conf"])
+    _set_optional_predictor_attr(predictor, "init_trk_keep_alive", int(request.get("init_trk_keep_alive", 300)))
+    _set_optional_predictor_attr(predictor, "max_trk_keep_alive", int(request.get("max_trk_keep_alive", 300)))
+    _set_optional_predictor_attr(
+        predictor,
+        "decrease_trk_keep_alive_for_empty_masklets",
+        bool(request.get("decrease_trk_keep_alive_for_empty_masklets", False)),
     )
-    return {"ok": True, "device": _SESSION.device, "capabilities": _SESSION.capabilities()}
+
+    imgsz_checked = check_imgsz(
+        overrides.get("imgsz", 640),
+        stride=int(getattr(predictor, "stride", 14)),
+        min_dim=1,
+        max_dim=2,
+    )
+    if isinstance(imgsz_checked, int):
+        predictor.imgsz = (int(imgsz_checked), int(imgsz_checked))
+    else:
+        dims = [int(x) for x in imgsz_checked]
+        predictor.imgsz = (dims[0], dims[0]) if len(dims) == 1 else (dims[0], dims[1])
+    if hasattr(predictor.model, "set_imgsz"):
+        predictor.model.set_imgsz(predictor.imgsz)
+
+    explicit_video_capacity = max(1, int(request["video_capacity"])) if "video_capacity" in request else None
+    _SESSION = Sam3VideoSession(
+        predictor=predictor,
+        device=device,
+        conf=float(overrides["conf"]),
+        timeline_capacity=explicit_video_capacity,
+        duplicate_mask_iou=_resolve_iou_threshold(request),
+    )
+
+    video_capacity_text = str(explicit_video_capacity) if explicit_video_capacity is not None else f"adaptive(+{_SESSION.timeline_slack})"
+    _session_log(
+        "create_session "
+        f"model={weights_path} "
+        f"device={device} "
+        f"imgsz={predictor.imgsz} "
+        f"conf={float(overrides['conf']):.3f} "
+        f"half={bool(overrides['half'])} "
+        f"video_capacity={video_capacity_text}"
+    )
+    return {"ok": True, "device": device}
 
 
-def capabilities() -> CapabilitiesResponse:
-    """Return capabilities for the active session."""
-    s = _require_session()
-    return {"ok": True, "capabilities": s.capabilities()}
-
-
-def set_frame(request: Mapping[str, object]) -> FrameSetResponse:
-    """Ingest frame pixels previously injected via `ModuleProxy::set_variable`.
-
-    Expected keys:
-    - `frame_index` (required)
-
-    Required module variable:
-    - `sam3_frame`: `np.uint8` HxWx3 image (BGR), set by C++ before this call.
-    """
-    s = _require_session()
-    if "frame_index" not in request:
-        raise ValueError("set_frame requires 'frame_index'.")
-
-    frame = globals().get("sam3_frame", None)
-    if frame is None:
-        raise RuntimeError("sam3_frame is not set. Call ModuleProxy::set_variable('sam3_frame', ...) first.")
-
-    return s.set_frame(int(request["frame_index"]), np.asarray(frame))
-
-
-def reset_session(request: Mapping[str, object] | None = None) -> GenericOkResponse:
-    """Reset active session state.
-
-    Optional keys:
-    - `clear_prompts` (bool, default False)
-    """
-    s = _require_session()
-    request = request or {}
-    s.reset_session(clear_prompts=bool(request.get("clear_prompts", False)))
+def reset_runtime(request: Mapping[str, object]) -> GenericOkResponse:
+    """Reset the mutable predictor runtime while keeping the loaded model."""
+    session = _require_session()
+    max_frame_index = int(request.get("max_frame_index", 0))
+    _session_log(f"reset_runtime max_frame_index={max_frame_index}")
+    _close_replay_progress()
+    session.reset_runtime(max_frame_index)
     return {"ok": True}
 
 
-def set_conf_threshold(request: Mapping[str, object]) -> SetConfThresholdResponse:
-    """Update confidence threshold for the active session.
+def begin_replay_progress(request: Mapping[str, object]) -> GenericOkResponse:
+    """Create a tqdm progress bar for a replay run driven from C++."""
+    global _REPLAY_PROGRESS
+    _close_replay_progress()
 
-    Expected keys:
-    - `conf` (required float, clamped to [0, 1])
-    """
-    s = _require_session()
-    if "conf" not in request:
-        raise ValueError("set_conf_threshold requires 'conf'.")
+    total_steps = max(0, int(request.get("total_steps", 0)))
+    start_frame = int(request.get("start_frame", 0))
+    target_frame = int(request.get("target_frame", start_frame))
+    if total_steps <= 0:
+        return {"ok": True}
 
-    updated = s.set_conf_threshold(float(request["conf"]))
-    return {"ok": True, "conf": updated}
-
-
-def add_prompt(request: Mapping[str, object]) -> PromptResponse:
-    """Add/update one prompt in the active session."""
-    s = _require_session()
-    out = s.add_prompt(request)
-    out["ok"] = True
-    return out
-
-
-def remove_object(request: Mapping[str, object]) -> RemoveObjectResponse:
-    """Suppress one object id in the active session.
-
-    Expected keys:
-    - `obj_id` (required)
-    """
-    s = _require_session()
-    if "obj_id" not in request:
-        raise ValueError("remove_object requires 'obj_id'.")
-    out = s.remove_object(int(request["obj_id"]))
-    out["ok"] = True
-    return out
+    _REPLAY_PROGRESS = tqdm(
+        total=total_steps,
+        desc=f"SAM3 replay {start_frame}->{target_frame}",
+        unit="frame",
+        dynamic_ncols=True,
+        leave=False,
+    )
+    return {"ok": True}
 
 
-def get_frame(request: Mapping[str, object]) -> FrameOutput:
-    """Return segmentation output for one frame index.
-
-    Expected keys:
-    - `frame_index` (required)
-    """
-    s = _require_session()
-    if "frame_index" not in request:
-        raise ValueError("get_frame requires 'frame_index'.")
-    out = s.get_frame(int(request["frame_index"]))
-    out["ok"] = True
-    return out
+def advance_replay_progress(request: Mapping[str, object]) -> GenericOkResponse:
+    """Advance the active replay tqdm progress bar."""
+    steps = max(0, int(request.get("steps", 1)))
+    if _REPLAY_PROGRESS is not None and steps > 0:
+        _REPLAY_PROGRESS.update(steps)
+    return {"ok": True}
 
 
-def get_frames(request: Mapping[str, object]) -> FramesResponse:
-    """Return segmentation outputs for multiple frame indices.
-
-    Expected keys:
-    - `frame_indices` (required list[int])
-    """
-    s = _require_session()
-    if "frame_indices" not in request:
-        raise ValueError("get_frames requires 'frame_indices'.")
-    return {"ok": True, "frames": s.get_frames(cast(Iterable[int], request["frame_indices"]))}
-
-
-def close_session() -> GenericOkResponse:
-    """Clear cached frames/prompts/inference state while keeping model loaded."""
-    s = _require_session()
-    s.close_session()
+def finish_replay_progress(_: Mapping[str, object] | None = None) -> GenericOkResponse:
+    """Close the active replay tqdm progress bar."""
+    _close_replay_progress()
     return {"ok": True}
 
 
 def shutdown() -> GenericOkResponse:
-    """Shutdown and delete singleton session."""
+    """Shutdown and discard the active SAM3 session."""
     global _SESSION
+    _close_replay_progress()
     if _SESSION is not None:
-        _SESSION.shutdown()
+        _session_log("shutdown")
+        _SESSION.close()
         _SESSION = None
     return {"ok": True}
 
 
-def predict(input: object) -> list[object]:
-    """Compatibility entrypoint to reuse `TRex.YoloInput` with SAM3.
-
-    This mirrors the YOLO module contract (`predict(input: TRex.YoloInput)`)
-    so C++ can reuse the same transport object for image batches.
-
-    Notes:
-    - Requires an active session (`create_session(...)` called first).
-    - Uses `orig_id()` values as frame indices.
-    - Returns `List[TRex.Result]` with masks + box/conf/class placeholders.
-    """
+def predict_frame(input: object) -> list["TRex.Result"]:
+    """Run the supplied image-aligned prompts against the current SAM3 runtime."""
+    session = _require_session()
     if TRex is None:
-        raise RuntimeError("TRex module is required for predict(TRex.YoloInput).")
+        raise RuntimeError("TRex module is required for SAM3 predict_frame().")
 
-    s = _require_session()
-
-    # Accept both TRex.YoloInput and TRex.Sam3Input.
-    base = input.base() if hasattr(input, "base") else input
-    TRex.log(f"Received predict(...) call with input type {type(input).__name__} => base type {type(base).__name__}")
+    base = input.base()
     images = list(base.images())
     orig_ids = list(base.orig_id())
+    offsets = list(base.offsets())
     scales = list(base.scales())
+    prompts_per_image = list(input.prompts_per_image()) if hasattr(input, "prompts_per_image") else []
 
-    if not hasattr(base, "scales"):
-        raise ValueError("Input missing scales(). Scales are required to map orig_id() to frame indices.")
-    
-    TRex.log(f"Scales: {scales}")
+    if len(images) != len(orig_ids) or len(images) != len(scales) or len(images) != len(offsets):
+        raise ValueError("SAM3 predict_frame received mismatched images/orig_id/scales/offsets lengths.")
+    if prompts_per_image and len(prompts_per_image) != len(images):
+        raise ValueError("SAM3 predict_frame received prompts_per_image with a different length than images().")
 
-    if len(images) != len(orig_ids):
-        raise ValueError("YoloInput.images() and YoloInput.orig_id() size mismatch.")
+    if not prompts_per_image:
+        prompts_per_image = [[] for _ in images]
 
-    typed_prompts: list[list[object]] = []
-    if hasattr(input, "prompts_per_item"):
-        typed_prompts = list(input.prompts_per_item())
-        if typed_prompts and len(typed_prompts) != len(images):
-            raise ValueError("Sam3Input.prompts_per_item must match number of images.")
-
-    results: list[object] = []
-    for item_idx, (idx, image, scale) in enumerate(zip(orig_ids, images, scales)):
-        frame_index = int(idx)
-        TRex.log(f"Processing frame_index={frame_index} with SAM3 predictor ({image.shape}) scale={scale}...")
-
-        # Apply typed prompts if provided by Sam3Input.
-        if typed_prompts:
-            for p in typed_prompts[item_idx]:
-                req: dict[str, object] = {"frame_index": int(getattr(p, "frame_index", frame_index))}
-                ptype = str(getattr(p, "type")).split(".")[-1].lower()
-                req["type"] = ptype
-
-                if ptype == "text":
-                    txt = getattr(p, "text", None)
-                    if txt is not None:
-                        req["text"] = str(txt)
-                    req["text_session_scope"] = bool(getattr(p, "text_session_scope", False))
-                    req["text_skip_if_unchanged"] = bool(getattr(p, "text_skip_if_unchanged", True))
-                elif ptype in {"box", "boxes"}:
-                    boxes = getattr(p, "boxes", [])
-                    req["boxes"] = [list(b) for b in boxes]
-                    labels = getattr(p, "labels", [])
-                    if labels:
-                        req["labels"] = list(labels)
-                    if ptype == "box" and req["boxes"]:
-                        req["box"] = req["boxes"][0]
-                        req.pop("boxes", None)
-                elif ptype in {"point", "points"}:
-                    pts = getattr(p, "points", [])
-                    req["points"] = [[float(v.x), float(v.y)] for v in pts]
-                    pl = getattr(p, "point_labels", [])
-                    if pl:
-                        req["point_labels"] = list(pl)
-                    oid = getattr(p, "obj_id", None)
-                    if oid is not None:
-                        req["obj_id"] = int(oid)
-                elif ptype in {"remove_object"}:
-                    oid = getattr(p, "obj_id", None)
-                    if oid is not None:
-                        remove_object({"obj_id": int(oid)})
-                    continue
-
-                add_prompt(req)
-
-        frame_meta = s.set_frame(frame_index, np.asarray(image))
-        TRex.log(
-            f"Normalized frame_index={frame_index} -> "
-            f"{frame_meta['height']}x{frame_meta['width']}x{frame_meta['channels']}"
-        )
-        frame_out = s.get_frame(frame_index)
-
-        n = int(frame_out.get("num_objects", 0))
-        boxes = np.zeros((n, 6), dtype=np.float32)  # [x0,y0,x1,y1,conf,clid]
-        masks: list[npt.NDArray[np.uint8]] = []
-
-        for i, obj in enumerate(frame_out.get("objects", [])):
-            h = int(obj["height"])
-            w = int(obj["width"])
-            fg = np.asarray(obj["foreground_indices"], dtype=np.int64)
-            mask = np.zeros((h * w,), dtype=np.uint8)
-            if fg.size > 0:
-                mask[fg] = 255
-            mask = np.ascontiguousarray(mask.reshape((h, w)))
-
-            orig = [0, 0, int(round(w * scale.x)), int(round(h * scale.y))]
-
-            assert w == 640 and h == 640, f"Expected SAM3 output masks to be 640x640, got {w}x{h}. Check predictor output and scaling logic."
-
-            #TRex.imshow(f"SAM3 Mask {i}", mask)
-
-            # Resize valid mask to box's size
-            import torch
-            tensor = torch.from_numpy(mask).unsqueeze(0).unsqueeze(0)
-            
-            ssub = F.interpolate(
-                tensor, 
-                size=(orig[3], orig[2]),
-                mode="nearest",
-            ).squeeze(0).squeeze(0)
-
-            TRex.log(f"ssub = {ssub.shape}")
-            mask = ssub.cpu().numpy().astype(np.uint8)
-
-            masks.append(mask)
-
-            ys, xs = np.where(mask > 0)
-            if xs.size > 0 and ys.size > 0:
-                x0 = float(xs.min())
-                y0 = float(ys.min())
-                x1 = float(xs.max() + 1)
-                y1 = float(ys.max() + 1)
-            else:
-                x0 = y0 = x1 = y1 = 0.0
-
-            boxes[i, 0] = 0#x0 #* float(scale.x)
-            boxes[i, 1] = 0#y0 #* float(scale.y)
-            boxes[i, 2] = mask.shape[1] #x1 #* float(scale.x)
-            boxes[i, 3] = mask.shape[0] #y1 #* float(scale.y)
-            boxes[i, 4] = float(obj.get("score", 0.0))
-            boxes[i, 5] = float(obj.get("class_id", 0))
-
-            TRex.log(f"Adding box for object {i}: [{boxes[i, 0]}, {boxes[i, 1]}, {boxes[i, 2]}, {boxes[i, 3]}] conf={boxes[i, 4]:.4f} cls={boxes[i, 5]}")
-
-        if len(masks) != n:
-            raise RuntimeError("SAM3 predict produced inconsistent boxes/masks counts.")
-
-        # Empty placeholders for keypoints/obb/points.
-        keypoints = TRex.KeypointData(np.empty((0, 1, 2), dtype=np.float32))
-        obb = TRex.ObbData(np.empty((0, 7), dtype=np.float32))
-        points = TRex.PointData(np.empty((0, 5), dtype=np.float32))
-
-        results.append(
-            TRex.Result(  # type: ignore[attr-defined]
-                frame_index,
-                TRex.Boxes(boxes),  # type: ignore[attr-defined]
-                masks,
-                keypoints,
-                obb,
-                points,
-            )
-        )
-
-        # `predict(...)` is the streaming C++ path; retaining all frame caches here
-        # causes host-memory growth over long videos.
-        s.evict_frame_cache(frame_index)
+    results: list["TRex.Result"] = []
+    for frame_index, image, scale, offset, prompt_list in zip(orig_ids, images, scales, offsets, prompts_per_image):
+        idx = int(frame_index)
+        normalized_image = _normalize_frame(image)
+        prompt_state = _collect_prompt_state(cast(Sequence[object], prompt_list))
+        results.append(_run_one_frame(session, idx, normalized_image, prompt_state, scale, offset))
 
     return results

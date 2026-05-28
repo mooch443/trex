@@ -83,7 +83,7 @@ using namespace cmn;
         int frame_rate();
         
         std::string toStr() const override { return "Webcam"; }
-        static std::string class_name() { return "fg::Webcam"; }
+        static consteval std::string_view class_name() { return "fg::Webcam"; }
     };
 }
 

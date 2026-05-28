@@ -73,4 +73,15 @@
     },
     "python-envs.defaultEnvManager": "ms-python.python:conda",
     "python-envs.defaultPackageManager": "ms-python.python:conda",
+    "chat.tools.terminal.autoApprove": {
+        "/^conda env list \\| cat$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "ctest": true,
+        "/^pushd /Users/tristan/trex >/dev/null && cmake --build \\./Application/tmp-modules-osx-tests-nolto --target trex_detect --parallel 8$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    },
 }

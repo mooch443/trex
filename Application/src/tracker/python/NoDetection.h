@@ -1,7 +1,8 @@
 #pragma once
 #include <commons.pc.h>
-#include <misc/DetectionTypes.h>
-#include <misc/TileImage.h>
+#include <core/DetectionTypes.h>
+#include <core/TileImage.h>
+#include <python/Detection.h>
 #include <misc/Image.h>
 
 namespace track {

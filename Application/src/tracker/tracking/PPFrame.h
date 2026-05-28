@@ -4,11 +4,13 @@
 
 #include <pv.h>
 #include <misc/bid.h>
-#include <misc/idx_t.h>
-#include <tracking/IndividualCache.h>
-#include <misc/ProximityGrid.h>
-#include <misc/TrackingSettings.h>
-#include <tracking/MotionRecord.h>
+#include <processing/BlobWeakPtr.h>
+#include <core/idx_t.h>
+#include <data/IndividualCache.h>
+#include <processing/ProximityGrid.h>
+#include <core/TrackingSettings.h>
+#include <tracking/CacheHints.h>
+#include <data/MotionRecord.h>
 
 #ifndef NDEBUG
 #define TREX_ENABLE_HISTORY_LOGS true
@@ -760,7 +762,7 @@ public:
     
     void clear();
     
-    static std::string class_name() { return "PPFrame"; }
+    static consteval std::string_view class_name() { return "PPFrame"; }
     std::string toStr() const;
     
 private:

@@ -246,7 +246,7 @@ cmake ..
 CMAKE_BUILD_PARALLEL_LEVEL=${PROCS} cmake --build . --parallel ${PROCS} --target runAllTests --config Release
 
 cmake .. -DTREX_WITH_TESTS=OFF
-CMAKE_BUILD_PARALLEL_LEVEL=${PROCS} cmake --build . --parallel ${PROCS} && make install
+CMAKE_BUILD_PARALLEL_LEVEL=${PROCS} cmake --build . --parallel ${PROCS} && cmake --install .
 
 echo "Build complete. Checking Git SHA1..."
 if [ -f src/GitSHA1.cpp ]; then

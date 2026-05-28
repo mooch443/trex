@@ -5,7 +5,7 @@
 #include <misc/Timer.h>
 #include <file/PathArray.h>
 #include <gmock/gmock.h>
-#include <file/Path.h>
+#include <misc/Path.h>
 #include <misc/SpriteMap.h>
 
 using namespace cmn;
@@ -27,7 +27,7 @@ struct TrivialType {
     constexpr bool operator==(const TrivialType& other) const { return value == other.value; }
     std::string toStr() const { throw std::exception(); }
     static TrivialType fromStr(const std::string&) { throw std::exception(); }
-    static std::string class_name() { return "TrivialType"; }
+    static consteval std::string_view class_name() { return "TrivialType"; }
     glz::json_t to_json() const { throw std::exception(); }
 };
 
@@ -37,7 +37,7 @@ struct NonTrivialType {
     bool operator==(const NonTrivialType& other) const { return value == other.value; }
     std::string toStr() const { throw std::exception(); }
     static NonTrivialType fromStr(const std::string&) { throw std::exception(); }
-    static std::string class_name() { return "NonTrivialType"; }
+    static consteval std::string_view class_name() { return "NonTrivialType"; }
     glz::json_t to_json() const { throw std::exception(); }
 };
 
@@ -46,7 +46,7 @@ struct TrivialTypeWithoutNonEquals {
     constexpr bool operator==(const TrivialTypeWithoutNonEquals& other) const { return value == other.value; }
     std::string toStr() const { throw std::exception(); }
     static TrivialTypeWithoutNonEquals fromStr(const std::string&) { throw std::exception(); }
-    static std::string class_name() { return "TrivialTypeWithoutNonEquals"; }
+    static consteval std::string_view class_name() { return "TrivialTypeWithoutNonEquals"; }
     glz::json_t to_json() const { throw std::exception(); }
 };
 
@@ -55,7 +55,7 @@ struct NonTrivialTypeWithoutNonEquals {
     bool operator==(const NonTrivialTypeWithoutNonEquals& other) const { return value == other.value; }
     std::string toStr() const { throw std::exception(); }
     static NonTrivialTypeWithoutNonEquals fromStr(const std::string&) { throw std::exception(); }
-    static std::string class_name() { return "NonTrivialTypeWithoutNonEquals"; }
+    static consteval std::string_view class_name() { return "NonTrivialTypeWithoutNonEquals"; }
     glz::json_t to_json() const { throw std::exception(); }
 };
 
@@ -1302,9 +1302,4 @@ INSTANTIATE_TEST_SUITE_P(
 void PrintTo(const MakePathTestParams& params, std::ostream* os) {
     *os << "PathTestParams{ path: " << Meta::toStr(params.parts)
         << ", expectedStr: \"" << params.expected<< "\" }";
-}
-
-int main(int argc, char **argv) {
-    ::testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
 }

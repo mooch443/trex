@@ -35,7 +35,6 @@
 "var":"{global.gui_show_timeline}",
 "then":{
     "type":"collection",
-    "size":"auto",
     "children":[
         {
             "type":"condition",
@@ -1010,7 +1009,7 @@
                         {
                             "type": "rect",
                             "name": "timeline_current",
-                            "pos": "{addVector:[{saturate:{at:0:{current_pos}}:18:{-:{window_size.x}:18}},{at:1:{current_pos}}]:[0,14]}",
+                            "pos": "{addVector:[{saturate:{at:0:{current_pos}}:18:{max:19:{-:{window_size.x}:18}}},{at:1:{current_pos}}]:[0,14]}",
                             "size": [1,28],
                             "corners":["all",10],
                             "fill": [255,255,255,220],
@@ -1173,6 +1172,140 @@
                 "size":"[{*:0.75:{window_size.x}},200]",
                 "row_height":30,
                 "line":"{if:{hovered}:[100,175,250,230]:[100,100,100,50]}"
+            }
+        },
+
+        {
+            "type":"each",
+            "var":"{tiles}",
+            "do":{
+                "type":"rect",
+                "pos":"{2hud:[{i.x},{i.y}]}",
+                "size":"{size2hud:[{i.w},{i.h}]}",
+                "fill":[255,255,255,0],
+                "line":[255,255,255,220]
+            }
+        },
+
+        {
+            "type":"stext",
+            "text":"{num_individuals}"
+        },
+        {
+            "type":"graph",
+            "size":[800,300],
+            "xrange":"[0,{global.video_length}]",
+            "yrange":"[0,{+:0:100}]",
+            "center":"{global.gui_frame}",
+            "draggable":true,
+            "lines": [ {
+                "name": "mouse_line",
+                "extrapolate": false,
+                "display_points": false,
+                "pts": "{num_individuals}"
+            }]
+        },
+
+        {
+            "type":"condition",
+            "var":"{bool:{drag_box}}",
+            "then":{
+                "type":"rect",
+                "pos":"{2hud:[{drag_box.x},{drag_box.y}]}",
+                "size":"{size2hud:[{drag_box.w},{drag_box.h}]}",
+                "line":[255,0,0,255],
+                "fill":[1,1,1,0],
+                "corners":["all", 8]
+            }
+        },
+
+        {
+            "type": "each",
+            "var": "{annotations}",
+            "do": {
+                "type":"collection",
+                "children":[
+                    {
+                        "type": "rect",
+                        "line": [255,0,0],
+                        "fill":[255,0,0, 25],
+                        "pos":"{2hud:[{i.x},{i.y}]}",
+                        "size":"{size2hud:[{i.w},{i.h}]}",
+                        "corners":["all", 8]
+                    },
+
+                    {
+                        "type":"condition",
+                        "var":"{equal:{i.type}:1}",
+                        "then": {
+                            "type":"each",
+                            "var":"{i.pts}",
+                            "do": {
+                                "type":"collection",
+                                "children":[
+                                    {
+                                        "type":"circle",
+                                        "radius":8,
+                                        "modules":["draggable"],
+                                        "pos":"{2hud:[{i.x},{i.y}]}",
+                                        "origin":[0.5,0.5],
+                                        "fill": [255,255,255,125],
+                                        "color":[255,255,255,255],
+                                        "drag":"move_annotation:{pindex}:{index}"
+                                    },
+                                    {
+                                        "type":"stext",
+                                        "text":"{index}",
+                                        "pos":"{2hud:[{i.x},{i.y}]}",
+                                        "origin":[0.5,0.5],
+                                        "fill": [255,255,255,125],
+                                        "color":[255,0,255,255],
+                                        "font":{"size":0.5,"align":"center"}
+                                    }
+                                ]
+                            }
+                        },
+                        "else": {
+                            "type":"text",
+                            "text":"not POSE: {i.type}",
+                            "pos":"{2hud:[{+:{i.x}:{*:0.5:{i.w}}},{-:{i.y}:5}]}",
+                            "origin":[0.5,1],
+                            "color":[255,0,255]
+                        }
+                    },
+
+                    {
+                        "type":"stext",
+                        "text":"<sym>🖰</sym> {index} {i.pts}",
+                        "color":[255,0,0,255],
+                        "origin":[0,0],
+                        "font":{"size":0.3},
+                        "pos":"{2hud:[{+:{i.x}:5},{+:{i.y}:5}]}"
+                    },
+
+                    {
+                        "type":"label",
+                        "text":"[{int:{i.x}},{int:{i.y}} {int:{i.w}}x{int:{i.h}}]",
+                        "length":120,
+                        "color":[255,0,0],
+                        "font":{"size":0.4},
+                        "line":[255,0,0,100],
+                        "center":"{2hud:[{+:{i.x}:{*:0.5:{i.w}}},{+:{i.y}:{*:0.5:{i.h}}}]}"
+                    },
+
+                    {
+                        "type":"button",
+                        "action":"remove_annotation:{index}",
+                        "text":"<sym>⮾</sym>",
+                        "size":[18,18],
+                        "origin":[1,0],
+                        "color":"{if:{||:{selected}:{hovered}}:[255,255,255,255]:[255,0,0,150]}",
+                        "font":{"size":0.7,"align":"center"},
+                        "pos":"{2hud:[{-:{+:{i.x}:{i.w}}:3},{i.y}]}",
+                        "fill":[1,0,0,0],
+                        "line":[1,0,0,0]
+                    }
+                ]
             }
         }
     ]

@@ -3,9 +3,9 @@
 #include <tracking/EventAnalysis.h>
 #include <file/CSVExport.h>
 #include <misc/cnpy_wrapper.h>
-#include <tracker/misc/default_config.h>
+#include <core/default_config.h>
 #include <tracking/CategorizeDatastore.h>
-#include <misc/IdentifiedTag.h>
+#include <core/IdentifiedTag.h>
 #include <tracking/IndividualManager.h>
 #include <tracking/Individual.h>
 #include <gui/Graph.h>
@@ -151,9 +151,10 @@ std::tuple<const MotionRecord*, const MotionRecord*> interpolate_1d(const Librar
             if(info.modifiers.is(Modifiers::POSTURE_CENTROID)) {
                 ptr0 = pair.first->centroid_posture.get();
                 ptr1 = pair.second->centroid_posture.get();
-            } else
+            } else {
                 ptr0 = pair.first->head.get();
                 ptr1 = pair.second->head.get();
+            }
         }
     }
     
@@ -929,6 +930,16 @@ const track::MotionRecord* Library::retrieve_props(
             auto tracklet = fish->tracklet_for(frame);
             if (tracklet) {
                 return (uint64_t)tracklet.get();
+            }
+
+            return GlobalSettings::invalid();
+        });
+        
+        FN_IS_CENTROID_ONLY_PROPERTY(tracklet_length);
+        _cache_func["tracklet_length"] = LIB_NO_CHECK_FNC({
+            std::shared_ptr<track::TrackletInformation> tracklet = fish->tracklet_for(frame);
+            if (tracklet) {
+                return (uint64_t)tracklet->length().get();
             }
 
             return GlobalSettings::invalid();

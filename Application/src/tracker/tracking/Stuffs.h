@@ -1,8 +1,8 @@
 #pragma once
 
 #include <misc/frame_t.h>
-#include <misc/PVBlob.h>
-#include <tracking/MotionRecord.h>
+#include <processing/PVBlob.h>
+#include <data/MotionRecord.h>
 #include <tracking/Outline.h>
 
 namespace track {
@@ -99,5 +99,7 @@ struct PostureStuff {
         return posture_original_angle.has_value();
     }
 };
+
+bool can_use_visual_identification(const BasicStuff* basic, const PostureStuff* posture);
 
 }

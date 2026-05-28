@@ -1,13 +1,15 @@
 #pragma once
 #include <commons.pc.h>
 
-#include <gui/Scene.h>
+#include <ui/Scene.h>
 #include <misc/Image.h>
 #include <misc/ObjectManager.h>
 #include <gui/types/Entangled.h>
 #include <gui/dyn/VarProps.h>
 #include <misc/Timer.h>
-#include <misc/TaskPipeline.h>
+#include <core/TaskPipeline.h>
+#include <python/SAM3InteractiveSession.h>
+#include <ui/ImageGeneratorRegistry.h>
 
 namespace cmn {
 class VideoSource;
@@ -46,18 +48,23 @@ private:
     
     std::atomic<bool> _playback{false};
     
-    std::optional<Frame_t> _requested_frame;
+    std::optional<Frame_t> _last_requested_frame, _requested_frame;
     std::optional<VideoFrame> _next_frame;
     std::optional<VideoFrame> _previous_frame;
     std::optional<SegmentationData> _next_data;
+    std::optional<uint64_t> _next_data_revision;
     
     VideoFrame _current_frame;
     std::unique_ptr<ExternalImage> _current_image;
     std::optional<SegmentationData> _current_data;
+    std::optional<uint64_t> _current_data_revision;
     std::unique_ptr<dyn::DynamicGUI> _gui;
+    ImageGeneratorRegistry _image_generators;
+    std::unique_ptr<track::Sam3InteractiveSession> _sam3_session;
     
     Timer _timer;
     std::unique_ptr<std::thread> _fetch_thread;
+    std::unique_ptr<Rect> _drag_box;
 
 public:
     // Constructor
@@ -74,6 +81,7 @@ public:
 private:
     // Custom drawing
     void _draw(DrawStructure&);
+    void request_frame(Frame_t);
     
     std::unique_ptr<Data> _data;
 };

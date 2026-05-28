@@ -2,182 +2,307 @@ name: CondaBuildWindows
 
 on: [push]
 
+permissions:
+  contents: write
+
 env:
-  # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
   BUILD_TYPE: Release
   GITHUB_WORKFLOW: CondaBuildWindows
+  WINDOWS_CONDA_CACHE_ENABLED: 'false'
 
 jobs:
   build:
-    # The CMake configure and build commands are platform agnostic and should work equally
-    # well on Windows or Mac.  You can convert this to a matrix build if you need
-    # cross-platform coverage.
-    # See: https://docs.github.com/en/actions/configuring-and-managing-workflows/configuring-a-workflow#configuring-a-build-matrix
     runs-on: ${{ matrix.os }}
     strategy:
-      fail-fast: false
+      fail-fast: true
       matrix:
         os: ["windows-latest"]
-        python-version: ["3.12"]
+        python-version: ["3.11"]
+
     steps:
     - uses: actions/checkout@v4
       with:
         ref: ${{ github.ref }}
-        submodules: 'recursive'
+        submodules: recursive
+
     - name: Cache conda
+      if: env.WINDOWS_CONDA_CACHE_ENABLED == 'true'
       uses: actions/cache@v4
       env:
-        # Increase this value to reset cache if .github/environment.yml has not changed
-        CACHE_NUMBER: 1
+        CACHE_NUMBER: 2
       with:
-        path: ~/conda_pkgs_dir
+        path: C:\cpkgs
         key: ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{ hashFiles('.github/environment.yml') }}
+
     - uses: conda-incubator/setup-miniconda@v3
       with:
         miniforge-version: latest
         activate-environment: base
+        python-version: ${{ matrix.python-version }}
         channels: conda-forge
         auto-activate: false
-        auto-update-conda: true
+        auto-update-conda: false
         use-only-tar-bz2: true
         conda-remove-defaults: true
-    - name: Create .condarc file
+
+    - name: Prepare short paths
+      shell: pwsh
       run: |
-        conda config --show channels
-        echo "channels:" > ~/.condarc
-        echo "  - conda-forge" >> ~/.condarc
-        echo "channel_priority: strict" >> ~/.condarc
-        echo "default_channels: []" >> ~/.condarc
-    - name: Verify .condarc content
-      run: |
-        cat ~/.condarc
-    - name: Show current conda channels
-      run: conda config --show channels
-    - name: Enable long paths
-      run: |
-        echo "::group::Enable long paths"
         reg add "HKLM\SYSTEM\CurrentControlSet\Control\FileSystem" /v LongPathsEnabled /t REG_DWORD /d 1 /f
         git config --system core.longpaths true
-        echo "::endgroup::"
-    - name: Create tracking env
-      shell: bash -el {0}
-      working-directory: ${{github.workspace}}
+
+        New-Item -ItemType Directory -Force -Path C:\w, C:\cbld, C:\cpkgs, C:\ce | Out-Null
+
+        subst W: "${{ github.workspace }}"
+
+        "SHORT_WORKSPACE=W:\"        | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+        "TEST_PREFIX=C:\ce\s"       | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+        "CONDA_BLD_PATH=C:\cbld"    | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+        "CONDA_PKGS_DIRS=C:\cpkgs"  | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+        Write-Host "SHORT_WORKSPACE=W:\"
+        Write-Host "TEST_PREFIX=C:\ce\s"
+        Write-Host "CONDA_BLD_PATH=C:\cbld"
+        Write-Host "CONDA_PKGS_DIRS=C:\cpkgs"
+
+    - name: Create .condarc file
+      shell: pwsh
       run: |
-        echo "::group::Create tracking env"
-        mamba env create -f .github/environment.yml
-        mamba install -y -n tracking python=${{ matrix.python-version }}
-        conda activate tracking
-        conda info
-        conda list
-        echo "::endgroup::"
+        @"
+        channels:
+          - conda-forge
+        channel_priority: strict
+        default_channels: []
+        pkgs_dirs:
+          - C:\cpkgs
+        "@ | Set-Content -Path "$HOME\.condarc" -Encoding utf8
+
+        Get-Content "$HOME\.condarc"
+        conda --no-plugins config --show channels
+
+    - name: Get conda prefix
+      id: conda-prefix
+      shell: pwsh
+      run: echo "path=$env:CONDA" >> $env:GITHUB_OUTPUT
+    - name: Cache conda base environment
+      if: env.WINDOWS_CONDA_CACHE_ENABLED == 'true'
+      id: conda-env-cache
+      uses: actions/cache@v4
+      with:
+        path: ${{ steps.conda-prefix.outputs.path }}
+        key: ${{ runner.os }}-conda-env-2-${{ matrix.python-version }}-${{ hashFiles('.github/environment.yml') }}
+    - name: Install environment into base
+      if: env.WINDOWS_CONDA_CACHE_ENABLED != 'true' || steps.conda-env-cache.outputs.cache-hit != 'true'
+      shell: pwsh
+      working-directory: ${{ env.SHORT_WORKSPACE }}
+      env:
+        CONDA_BLD_PATH: ${{ env.CONDA_BLD_PATH }}
+        CONDA_PKGS_DIRS: ${{ env.CONDA_PKGS_DIRS }}
+      run: |
+        mamba install --name base --override-channels -c conda-forge -y `
+          python=${{ matrix.python-version }} `
+          "conda-build>=24" `
+          git
+        conda --no-plugins info
+        conda --no-plugins list
+
+    - name: Fix Meta
+      shell: pwsh
+      working-directory: ${{ env.SHORT_WORKSPACE }}\conda
+      run: |
+        $branch = "${{ github.ref_name }}"
+        $branchSanitized = $branch -replace '/', '_' -replace '-', '_'
+
+        $meta = Get-Content meta.yaml -Raw
+        $meta = $meta -replace '(\{% set git_tag = ")([^"]+)(" %\})', "`$1$branch`$3"
+        $meta = $meta -replace '(\{% set git_tag_sanitized = ")([^"]+)(" %\})', "`$1$branchSanitized`$3"
+        Set-Content meta.yaml $meta -Encoding utf8
+
+        if (Test-Path post-link.bat) {
+          $bat = Get-Content post-link.bat -Raw
+          $bat = $bat -replace '--index-url https://download\.pytorch\.org/whl/cu118', ''
+          Set-Content post-link.bat $bat -Encoding utf8
+        }
+
+        Get-Content meta.yaml
+        if (Test-Path post-link.sh) { Get-Content post-link.sh }
+
+    - name: Refresh conda-build runtime
+      shell: pwsh
+      working-directory: ${{ env.SHORT_WORKSPACE }}\conda
+      env:
+        CONDA_BLD_PATH: ${{ env.CONDA_BLD_PATH }}
+        CONDA_PKGS_DIRS: ${{ env.CONDA_PKGS_DIRS }}
+      run: |
+        # Packaging validates Menu/*.json, which imports jsonschema and its
+        # compiled rpds-py dependency from the base conda environment.
+        # Refresh that stack explicitly instead of relying on a cached base
+        # prefix plus a broad "conda update --all". Do not reinstall conda
+        # itself here; mutating the running package manager can leave the base
+        # prefix in a partially linked state on Windows.
+        mamba install --name base --override-channels -c conda-forge -y `
+          conda-build `
+          jsonschema `
+          referencing `
+          rpds-py `
+          typing_extensions
+
+        conda --no-plugins list -n base
+
     - name: Build
-      shell: bash -l {0}
-      working-directory: ${{github.workspace}}
+      shell: pwsh
+      working-directory: ${{ env.SHORT_WORKSPACE }}\conda
+      env:
+        CONDA_BLD_PATH: ${{ env.CONDA_BLD_PATH }}
+        CONDA_PKGS_DIRS: ${{ env.CONDA_PKGS_DIRS }}
       run: |
-        echo "::group::Info"
-        conda activate tracking
-        conda info
-        conda list
-        conda search numpy
-        echo "::endgroup::"
-        echo "::group::Fix Meta"
-        cd $GITHUB_WORKSPACE/conda
-        p=${GITHUB_REF##*/}
-        sed -i -e '/^{% set git_tag =/ s+main+'$p'+g' meta.yaml
-        cat meta.yaml
-        sed -i.bak 's|--index-url https://download.pytorch.org/whl/cu118||g' post-link.bat
-        cat post-link.sh
-        echo "::endgroup::"
-        echo "::group::Build"
-        conda update --all --override-channels -c conda-forge -y
-        conda build . --override-channels -c conda-forge
-        echo "::endgroup::"
-        echo $CONDA_PREFIX
+        conda-build . --override-channels -c conda-forge
+
     - name: Test
-      shell: bash -l {0}
-      working-directory: ${{github.workspace}}
+      shell: pwsh
+      working-directory: ${{ env.SHORT_WORKSPACE }}
+      env:
+        CONDA_BLD_PATH: ${{ env.CONDA_BLD_PATH }}
+        CONDA_PKGS_DIRS: ${{ env.CONDA_PKGS_DIRS }}
       run: |
-        echo "::group::Test"
-        conda activate tracking
-        echo $CONDA_PREFIX
+        if (Test-Path $env:TEST_PREFIX) { Remove-Item -Recurse -Force $env:TEST_PREFIX }
+
         conda search numpy
-        conda create -y -n test --override-channels -c $CONDA_PREFIX/conda-bld/ -c conda-forge trex
-        conda activate test
-        pvinfo -opencv_ffmpeg_support
-        pvinfo -opencv_opencl_support
-        echo "::endgroup::"
+        conda create -y -p $env:TEST_PREFIX --override-channels -c "$env:CONDA_BLD_PATH" -c conda-forge trex
+
+        conda run -p $env:TEST_PREFIX pvinfo -opencv_ffmpeg_support
+        conda run -p $env:TEST_PREFIX pvinfo -opencv_opencl_support
+
     - name: TestFunctions
       continue-on-error: true
-      shell: bash -l {0}
-      working-directory: ${{github.workspace}}
+      shell: pwsh
+      working-directory: ${{ env.SHORT_WORKSPACE }}\Application\Tests
       run: |
-        echo "::group::TestFunctions"
-        cd $GITHUB_WORKSPACE/Application/Tests
-        conda activate test
-        ./run_unix.bash
-        TEST_EC=$?
-        echo "TEST_EXIT_CODE=$TEST_EC" >> $GITHUB_ENV
-        echo "::endgroup::"
+        & "C:\Program Files\Git\bin\bash.exe" -lc "conda run -p '$env:TEST_PREFIX' bash ./run_unix.bash"
+        $TEST_EC = $LASTEXITCODE
+        "TEST_EXIT_CODE=$TEST_EC" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
         exit 0
+
     - name: DLL dependency diagnostics (Dependencies.exe)
       if: env.TEST_EXIT_CODE != '0'
-      shell: bash -l {0}
-      working-directory: ${{github.workspace}}
+      shell: pwsh
+      working-directory: ${{ env.SHORT_WORKSPACE }}
       run: |
-        echo "::group::DLL diagnostics"
-        conda activate test
-        
-        # grab portable Dependencies tool
-        curl -L -o deps.zip \
-          https://github.com/lucasg/Dependencies/releases/download/v1.11.1/Dependencies_x64_Release.zip
-        unzip -q deps.zip -d deps
-        DEPS="$PWD/deps/Dependencies.exe"
+        Invoke-WebRequest `
+          -Uri "https://github.com/lucasg/Dependencies/releases/download/v1.11.1/Dependencies_x64_Release.zip" `
+          -OutFile deps.zip
+        Expand-Archive -Path deps.zip -DestinationPath deps -Force
+        $depsExe = Join-Path $PWD "deps\Dependencies.exe"
 
-        echo "CONDA_PREFIX=$CONDA_PREFIX"
+        $candidates = @(
+          (Join-Path $env:TEST_PREFIX "Library\bin\pvinfo.exe"),
+          (Join-Path $env:TEST_PREFIX "Library\bin\trex.exe"),
+          (Join-Path $env:TEST_PREFIX "Scripts\pvinfo.exe"),
+          (Join-Path $env:TEST_PREFIX "Scripts\trex.exe")
+        ) | Where-Object { Test-Path $_ }
 
-        # find likely binaries from the test env
-        EXES=()
-        if command -v pvinfo >/dev/null 2>&1; then EXES+=("$(which pvinfo)"); fi
-        if command -v trex   >/dev/null 2>&1; then EXES+=("$(which trex)"); fi
+        foreach ($exe in $candidates) {
+          Write-Host "=== Dependencies scan for: $exe ==="
+          & $depsExe -modules $exe
+        }
 
-        # scan each exe
-        for exe in "${EXES[@]}"; do
-          echo "=== Dependencies scan for: $exe ==="
-          "$DEPS" -modules "$exe" || true
-          echo ""
-        done
+        $pydDir = Join-Path $env:TEST_PREFIX "Lib\site-packages"
+        if (Test-Path $pydDir) {
+          Get-ChildItem $pydDir -Recurse -Filter *.pyd -ErrorAction SilentlyContinue |
+            Select-Object -First 20 |
+            ForEach-Object {
+              Write-Host "--- $($_.FullName) ---"
+              & $depsExe -modules $_.FullName
+            }
+        }
 
-        # also scan any .pyd in site-packages (DLL-load failures on import)
-        PYD_DIR="$CONDA_PREFIX/Lib/site-packages"
-        if [ -d "$PYD_DIR" ]; then
-          echo "=== Scanning .pyd files under $PYD_DIR ==="
-          find "$PYD_DIR" -name "*.pyd" -maxdepth 3 2>/dev/null | head -n 20 | while read -r pyd; do
-            echo "--- $pyd ---"
-            "$DEPS" -modules "$pyd" || true
-          done
-        fi
-
-        echo "::endgroup::"
     - name: Fail if tests failed
       if: env.TEST_EXIT_CODE != '0'
-      shell: bash -l {0}
+      shell: pwsh
       run: |
-        echo "Tests failed with exit code $TEST_EXIT_CODE"
-        exit $TEST_EXIT_CODE
-    - name: Upload failure artifacts (.csv, .npz, .results, .pv, logs, html, post-link logs)
+        Write-Host "Tests failed with exit code $env:TEST_EXIT_CODE"
+        exit $env:TEST_EXIT_CODE
+
+    - name: Collect conda package artifacts
+      if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
+      shell: pwsh
+      working-directory: ${{ env.SHORT_WORKSPACE }}
+      run: |
+        $out = Join-Path "${{ github.workspace }}" "conda-artifacts"
+        New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+        $packages = Get-ChildItem -Path $env:CONDA_BLD_PATH -Recurse -Filter "trex-*.conda" -File
+        if (-not $packages) {
+          throw "No trex .conda packages found under $env:CONDA_BLD_PATH"
+        }
+
+        $latest = $packages | Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1
+        Copy-Item -Path $latest.FullName -Destination (Join-Path $out $latest.Name) -Force
+
+        Get-ChildItem -Path $out | Format-Table Name,Length
+
+    - name: Upload conda packages
+      if: github.ref == 'refs/heads/main'
+      uses: actions/upload-artifact@v4
+      with:
+        name: trex-conda-win-64
+        path: ${{ github.workspace }}/conda-artifacts/*.conda
+        if-no-files-found: error
+        retention-days: 14
+        compression-level: 0
+
+    - name: Attach conda packages to GitHub release
+      if: startsWith(github.ref, 'refs/tags/')
+      shell: pwsh
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        $tag = "${{ github.ref_name }}"
+
+        gh release view $tag *> $null
+        if ($LASTEXITCODE -ne 0) {
+          gh release create $tag --verify-tag --title $tag --notes "Conda package builds for $tag."
+          if ($LASTEXITCODE -ne 0) {
+            gh release view $tag *> $null
+            if ($LASTEXITCODE -ne 0) {
+              exit $LASTEXITCODE
+            }
+          }
+        }
+
+        $releaseAssets = Join-Path "${{ github.workspace }}" "release-assets"
+        New-Item -ItemType Directory -Force -Path $releaseAssets | Out-Null
+        $asset = Join-Path $releaseAssets "trex-conda-win-64.zip"
+        Compress-Archive -Path (Join-Path "${{ github.workspace }}" "conda-artifacts\*.conda") -DestinationPath $asset -Force
+
+        $assets = Get-ChildItem -Path $releaseAssets -Filter "*.zip" -File
+        foreach ($asset in $assets) {
+          gh release upload $tag $asset.FullName --clobber
+          if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+          }
+        }
+
+    - name: Upload failure artifacts
       if: failure()
       uses: actions/upload-artifact@v4
       with:
         name: windows-failure-artifacts
         path: |
-          ${{ github.workspace }}/videos/corrected/data/*.csv
-          ${{ github.workspace }}/videos/**/*.html
-          ${{ github.workspace }}/videos/**/*.log
-          ${{ github.workspace }}/videos/**/*.npz
-          ${{ github.workspace }}/videos/**/*.results
-          ${{ github.workspace }}/videos/**/*.pv
-          ${{ github.workspace }}/**/.messages.txt
-          ${{ github.workspace }}/**/deps-scan.txt
+          ${{ env.SHORT_WORKSPACE }}/videos/corrected/data/*.csv
+          ${{ env.SHORT_WORKSPACE }}/videos/**/*.html
+          ${{ env.SHORT_WORKSPACE }}/videos/**/*.log
+          ${{ env.SHORT_WORKSPACE }}/videos/**/*.npz
+          ${{ env.SHORT_WORKSPACE }}/videos/**/*.results
+          ${{ env.SHORT_WORKSPACE }}/videos/**/*.pv
+          ${{ env.SHORT_WORKSPACE }}/**/.messages.txt
+          ${{ env.SHORT_WORKSPACE }}/**/deps-scan.txt
         if-no-files-found: ignore
         retention-days: 7
         compression-level: 9
+
+    - name: Remove short workspace alias
+      if: always()
+      shell: pwsh
+      run: |
+        subst W: /D

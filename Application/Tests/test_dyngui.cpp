@@ -50,6 +50,28 @@ static void collect_static_text_strings(const Layout::Ptr& node, std::vector<std
     }
 }
 
+static void collect_rendered_text_strings(const Layout::Ptr& node, std::vector<std::string>& out) {
+    if(not node) {
+        return;
+    }
+    
+    if(node.is<StaticText>()) {
+        out.push_back(node.to<StaticText>()->text());
+        return;
+    }
+    
+    if(node.is<Text>()) {
+        out.push_back(node.to<Text>()->txt());
+        return;
+    }
+    
+    if(node.is<Layout>()) {
+        for(const auto& child : node.to<Layout>()->objects()) {
+            collect_rendered_text_strings(child, out);
+        }
+    }
+}
+
 static Vec2 center_of(Drawable& drawable) {
     const auto bounds = drawable.global_bounds();
     return Vec2(bounds.x + bounds.width * 0.5, bounds.y + bounds.height * 0.5);
@@ -227,6 +249,112 @@ TYPED_TEST(ParseAndResolveTest, SpriteMapFieldAccess)
     EXPECT_EQ(run_parser<TypeParam>("{object.enabled}", ctx, state), "true");
     EXPECT_EQ(run_parser<TypeParam>("{object.json}", ctx, state), "{\"value\":42}");
     EXPECT_EQ(run_parser<TypeParam>("{object.json.value}", ctx, state), "42");
+}
+
+TYPED_TEST(ParseAndResolveTest, JsonSubArrayTest)
+{
+    State state;
+    glz::json_t object= cvt2json(std::vector<int>{1,2,3});
+
+    Context ctx{
+        VarFunc("object", [&object](const VarProps&) -> glz::json_t { return object; })
+    };
+
+    EXPECT_EQ(run_parser<TypeParam>("{object}", ctx, state), "[1,2,3]");
+    EXPECT_EQ(run_parser<TypeParam>("{object.0}", ctx, state), "1");
+}
+
+TYPED_TEST(ParseAndResolveTest, CanParseComplexString)
+{
+    State state;
+    Context ctx{
+        VarFunc("mouse_in_bowl", [](const VarProps&) -> Vec2 { return Vec2(123,456); }),
+        VarFunc("video_size", [](const VarProps&) -> Vec2 { return Vec2(1024,2048); })
+    };
+
+    EXPECT_EQ(run_parser<TypeParam>("{if:{&&:{>=:{mouse_in_bowl.x}:0}:{<:{mouse_in_bowl.x}:{video_size.x}}:{>=:{mouse_in_bowl.y}:0}:{<:{mouse_in_bowl.y}:{video_size.y}}}:[255,255,255,255]:[200,120,80,100]}", ctx, state), "[255,255,255,255]");
+}
+
+TYPED_TEST(ParseAndResolveTest, CanParseComplexStringWithoutTypes)
+{
+    State state;
+    Context ctx{
+        VarFunc("mouse_in_bowl", [](const VarProps&) -> std::string { return Meta::toStr(Vec2(123,456)); }),
+        VarFunc("video_size", [](const VarProps&) -> Vec2 { return Vec2(1024,2048); })
+    };
+
+    EXPECT_EQ(run_parser<TypeParam>("{if:{&&:{>=:{mouse_in_bowl.x}:0}:{<:{mouse_in_bowl.x}:{video_size.x}}:{>=:{mouse_in_bowl.y}:0}:{<:{mouse_in_bowl.y}:{video_size.y}}}:[255,255,255,255]:[200,120,80,100]}", ctx, state), "[255,255,255,255]");
+}
+
+TYPED_TEST(ParseAndResolveTest, CanParseComplexStringWithoutTypesInteger)
+{
+    State state;
+    Context ctx{
+        VarFunc("mouse_in_bowl", [](const VarProps&) -> std::string { return Meta::toStr(Vec2(123,456)); }),
+        VarFunc("video_size", [](const VarProps&) -> Vec2 { return Vec2(1024,2048); })
+    };
+
+    EXPECT_EQ(run_parser<TypeParam>("{if:{&&:{>=:{mouse_in_bowl.0}:0}:{<:{mouse_in_bowl.0}:{video_size.x}}:{>=:{mouse_in_bowl.1}:0}:{<:{mouse_in_bowl.1}:{video_size.y}}}:[255,255,255,255]:[200,120,80,100]}", ctx, state), "[255,255,255,255]");
+}
+
+TYPED_TEST(ParseAndResolveTest, CanParseGlobalVariable)
+{
+    State state;
+    sprite::Map map;
+    map["test"] = Size2(1024,768);
+    
+    Context ctx{
+        VarFunc("mouse_in_bowl", [](const VarProps&) -> std::string { return Meta::toStr(Vec2(123,456)); }),
+        VarFunc("global", [&map](const VarProps&) -> const sprite::Map& { return map; })
+    };
+
+    EXPECT_EQ(run_parser<TypeParam>("{global.test}", ctx, state), "[1024,768]");
+    EXPECT_EQ(run_parser<TypeParam>("<h5><sym>🖰</sym></h5> <i>{round:{mouse_in_bowl.x}},{round:{mouse_in_bowl.y}}</i>", ctx, state), "<h5><sym>🖰</sym></h5> <i>123,456</i>");
+}
+
+
+TYPED_TEST(ParseAndResolveTest, JsonSubSubArrayTest)
+{
+    State state;
+    glz::json_t object;
+    object["array"] = cvt2json(std::vector<int>{1,2,3});
+
+    Context ctx{
+        VarFunc("object", [&object](const VarProps&) -> glz::json_t { return object; })
+    };
+
+    EXPECT_EQ(run_parser<TypeParam>("{object.array}", ctx, state), "[1,2,3]");
+    EXPECT_EQ(run_parser<TypeParam>("{object.array.0}", ctx, state), "1");
+}
+
+TYPED_TEST(ParseAndResolveTest, JsonDynamicSubSubArrayTest)
+{
+    State state;
+    glz::json_t object;
+    object["array"] = cvt2json(std::vector<int>{1,2,3});
+
+    Context ctx{
+        VarFunc("index", [](const VarProps&){ return 1; }),
+        VarFunc("object", [&object](const VarProps&) -> glz::json_t { return object; })
+    };
+
+    EXPECT_EQ(run_parser<TypeParam>("{index}", ctx, state), "1");
+    EXPECT_EQ(run_parser<TypeParam>("{object.array}", ctx, state), "[1,2,3]");
+    EXPECT_EQ(run_parser<TypeParam>("{object.array.{index}}", ctx, state), "2");
+}
+
+TYPED_TEST(ParseAndResolveTest, SpriteSubArrayTest)
+{
+    State state;
+    sprite::Map map;
+    map["object"] = std::vector<int>{1,2,3};
+
+    Context ctx{
+        VarFunc("map", [&map](const VarProps&) -> const sprite::Map& { return map; })
+    };
+
+    EXPECT_EQ(run_parser<TypeParam>("{map.object}", ctx, state), "[1,2,3]");
+    EXPECT_EQ(run_parser<TypeParam>("{map.object.0}", ctx, state), "1");
 }
 
 TYPED_TEST(ParseAndResolveTest, JsonObjectSubfieldReplacement)
@@ -597,6 +725,57 @@ TYPED_TEST(ParseAndResolveTest, EmptyBracesThrows)
     ASSERT_THROW(run_parser<TypeParam>("{}", ctx, state), std::runtime_error);
 }
 
+TEST(DefaultVariablesTest, LoadedDefaultExpressionSupportsVec2Subfields)
+{
+    constexpr std::string_view json = R"json(
+{
+  "defaults": {
+    "vars": {
+      "mouse_in_bowl": "{2bowl:{mouse}}"
+    }
+  },
+  "objects": [
+    {
+      "type": "stext",
+      "text": "<h5><sym>🖰</sym></h5> <i>{round:{mouse_in_bowl.x}},{round:{mouse_in_bowl.y}}</i>"
+    }
+  ]
+}
+)json";
+
+    auto loaded = load(std::string(json));
+    ASSERT_TRUE(loaded.has_value()) << loaded.error();
+
+    auto [defaults, objects] = std::move(loaded.value());
+    ASSERT_TRUE(objects.is_array());
+    ASSERT_EQ(objects.get_array().size(), 1u);
+    ASSERT_TRUE(objects.get_array().front().is_object());
+
+    Context context{
+        VarFunc("mouse", [](const VarProps&) -> Vec2 { return Vec2(123,456); }),
+        VarFunc("2bowl", [](const VarProps& props) -> Vec2 {
+            return Meta::fromStr<Vec2>(props.parameters.front());
+        })
+    };
+    context.defaults = std::move(defaults);
+
+    State state;
+    auto handler = std::make_shared<CurrentObjectHandler>();
+    state._current_object_handler = handler;
+
+    DrawStructure graph(640, 480);
+    auto root = parse_object(nullptr, objects.get_array().front().get_object(), context, state, context.defaults);
+    ASSERT_TRUE(root);
+
+    ASSERT_NO_THROW((void)DynamicGUI::update_objects(nullptr, graph, root, context, state));
+
+    std::vector<std::string> texts;
+    collect_static_text_strings(root, texts);
+    ASSERT_THAT(texts, ::testing::ElementsAre(
+        "<h5><sym>🖰</sym></h5> <i>123,456</i>"
+    ));
+}
+
 TEST(EachElementTest, NestedEachRestoresOuterScope) {
     constexpr std::string_view json = R"json(
 {
@@ -669,6 +848,136 @@ TEST(EachElementTest, NestedEachRestoresOuterScope) {
         "inner:3-0",
         "inner:4-1",
         "outer:20-1"
+    ));
+}
+
+TEST(EachElementTest, ConditionThenBranchNestedEachUsesCurrentOuterItem) {
+    constexpr std::string_view json = R"json(
+{
+  "type": "each",
+  "var": "{annotations}",
+  "do": {
+    "type": "collection",
+    "children": [
+      {
+        "type": "condition",
+        "var": "{equal:{i.type}:1}",
+        "then": {
+          "type": "each",
+          "var": "{i.pts}",
+          "do": {
+            "type": "text",
+            "text": "pt:{i}-{index}",
+            "pos": [10, 10],
+            "origin": [0.5, 0.5],
+            "color": [255, 0, 255]
+          }
+        },
+        "else": {
+          "type": "text",
+          "text": "not {i.type}: {i.pts}",
+          "pos": [10, 20],
+          "origin": [0.5, 1],
+          "color": [255, 0, 255]
+        }
+      }
+    ]
+  }
+}
+)json";
+
+    glz::json_t obj;
+    auto parse_error = glz::read_json(obj, json);
+    ASSERT_EQ(parse_error, glz::error_code::none) << glz::format_error(parse_error, json);
+    ASSERT_TRUE(obj.is_object());
+
+    struct TestAnnotation {
+        uint8_t uid{};
+        uint8_t type{};
+        std::vector<blob::Pose::Point> points{};
+    };
+
+    std::vector<TestAnnotation> source{
+        TestAnnotation{.uid = 1, .type = 1, .points = {blob::Pose::Point{1, 2}, blob::Pose::Point{3, 4}}},
+        TestAnnotation{.uid = 2, .type = 2, .points = {blob::Pose::Point{5, 6}}}
+    };
+
+    Context context{
+        VarFunc("annotations", [&source](const VarProps&) -> std::vector<glz::json_t> {
+            std::vector<glz::json_t> result;
+            result.reserve(source.size());
+
+            for(auto& object : source) {
+                Bounds bds(FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX);
+                for(auto& pt : object.points) {
+                    if(not pt.valid()) {
+                        continue;
+                    }
+
+                    if(pt.x >= bds.width) {
+                        bds.width = pt.x;
+                    }
+                    if(pt.x < bds.x) {
+                        bds.x = pt.x;
+                    }
+                    if(pt.y >= bds.height) {
+                        bds.height = pt.y;
+                    }
+                    if(pt.y < bds.y) {
+                        bds.y = pt.y;
+                    }
+                }
+                if(bds.x == FLT_MAX) {
+                    continue;
+                }
+
+                result.push_back(glz::json_t::object_t{
+                    {"id", object.uid},
+                    {"seed_frame", glz::json_t{0}},
+                    {"type", object.type},
+                    {"x", bds.x},
+                    {"y", bds.y},
+                    {"w", bds.width - bds.x},
+                    {"h", bds.height - bds.y},
+                    {"pts", cvt2json(object.points)}
+                });
+            }
+
+            return result;
+        })
+    };
+
+    State state;
+    auto handler = std::make_shared<CurrentObjectHandler>();
+    state._current_object_handler = handler;
+
+    DrawStructure graph(640, 480);
+    auto root = parse_object(nullptr, obj.get_object(), context, state, context.defaults);
+    ASSERT_TRUE(root);
+    ASSERT_TRUE(root.is<Layout>());
+
+    ASSERT_NO_THROW((void)DynamicGUI::update_objects(nullptr, graph, root, context, state));
+
+    std::vector<std::string> texts;
+    collect_rendered_text_strings(root, texts);
+    ASSERT_THAT(texts, ::testing::ElementsAre(
+        "pt:[1,2]-0",
+        "pt:[3,4]-1",
+        "not 2: [[5,6]]"
+    ));
+
+    source[0].points = {blob::Pose::Point{10, 11}};
+    source[1].type = 1;
+    source[1].points = {blob::Pose::Point{20, 21}, blob::Pose::Point{30, 31}};
+
+    ASSERT_NO_THROW((void)DynamicGUI::update_objects(nullptr, graph, root, context, state));
+
+    texts.clear();
+    collect_rendered_text_strings(root, texts);
+    ASSERT_THAT(texts, ::testing::ElementsAre(
+        "pt:[10,11]-0",
+        "pt:[20,21]-0",
+        "pt:[30,31]-1"
     ));
 }
 
@@ -1460,9 +1769,4 @@ TEST(ConditionElementTest, IfInsideEachKeepsScopedVariables)
         "enabled:alpha-0",
         "disabled:beta-1"
     ));
-}
-
-int main(int argc, char **argv) {
-    ::testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
 }

@@ -15,7 +15,3 @@ namespace default_config {
 
 }
 }
-
-namespace cmn {
-ENUM_CLASS_HAS_DOCS(meta_encoding_t);
-}

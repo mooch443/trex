@@ -23,6 +23,20 @@
             "cppStandard": "c++23",
             "intelliSenseMode": "linux-gcc-x64",
             "compilerPath": "/home/tristan/miniforge3/envs/trex/bin/x86_64-conda-linux-gnu-gcc"
+        },
+        {
+            "name": "macos-clang",
+            "includePath": [
+                "${workspaceFolder}/**"
+            ],
+            "defines": [],
+            "compilerPath": "/usr/bin/clang++",
+            "cStandard": "c23",
+            "cppStandard": "c++23",
+            "intelliSenseMode": "macos-clang-arm64",
+            "compileCommands": [
+                "${workspaceFolder}/Application/tmp-modules-osx-tests-nolto/libzip/src/libzip-build/compile_commands.json"
+            ]
         }
     ],
     "version": 4

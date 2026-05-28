@@ -21,7 +21,7 @@ namespace fg {
         virtual cmn::ImageMode colors() const = 0;
         
         virtual std::string toStr() const { return "Camera"; }
-        static std::string class_name() { return "Camera"; }
+        static consteval std::string_view class_name() { return "Camera"; }
     };
 }
 

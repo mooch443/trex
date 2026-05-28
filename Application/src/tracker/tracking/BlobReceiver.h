@@ -1,7 +1,7 @@
 #pragma once
 
 #include <commons.pc.h>
-#include <misc/PVBlob.h>
+#include <processing/PVBlob.h>
 #include <tracking/PPFrame.h>
 #include <tracking/PrefilterBlobs.h>
 

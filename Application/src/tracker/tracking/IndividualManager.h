@@ -1,9 +1,9 @@
 #pragma once
 
 #include <commons.pc.h>
-#include <misc/idx_t.h>
+#include <core/idx_t.h>
 #include <misc/frame_t.h>
-#include <misc/TrackingSettings.h>
+#include <core/TrackingSettings.h>
 #include <tracking/PPFrame.h>
 #include <tracking/Stuffs.h>
 
@@ -183,12 +183,12 @@ public:
             if constexpr(safe)
                 ptrs = info.frame->extract_from_all<PPFrame::VectorHandling::Compress, PPFrame::RemoveHandling::Leave, PPFrame::GridHandling::Remove>(blob_map);
             else
-                ptrs = info.frame->extract_from_all<PPFrame::VectorHandling::Compress, PPFrame::RemoveHandling::Leave, PPFrame::GridHandling::Remove>(blob_map);
+                ptrs = info.frame->extract_from_all<PPFrame::VectorHandling::Compress, PPFrame::RemoveHandling::Leave, PPFrame::GridHandling::Leave>(blob_map);
         } else {
             if constexpr(safe)
                 ptrs = info.frame->extract_from_blobs<PPFrame::VectorHandling::Compress, PPFrame::RemoveHandling::Leave, PPFrame::GridHandling::Remove>(blob_map);
             else
-                ptrs = info.frame->extract_from_blobs<PPFrame::VectorHandling::Compress, PPFrame::RemoveHandling::Leave, PPFrame::GridHandling::Remove>(blob_map);
+                ptrs = info.frame->extract_from_blobs<PPFrame::VectorHandling::Compress, PPFrame::RemoveHandling::Leave, PPFrame::GridHandling::Leave>(blob_map);
         }
         
         

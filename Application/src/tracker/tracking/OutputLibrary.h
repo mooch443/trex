@@ -2,7 +2,7 @@
 #define _OUTPUT_LIBRARY_H
 
 #include <commons.pc.h>
-#include <file/Path.h>
+#include <misc/Path.h>
 #include <misc/ranges.h>
 #include <tracking/OutputLibraryTypes.h>
 #include <misc/SpriteMap.h>

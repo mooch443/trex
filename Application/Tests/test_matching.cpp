@@ -1,22 +1,25 @@
 #include "gtest/gtest.h"
 #include <tracking/PairingGraph.h>
 #include <tracking/Individual.h>
-#include <tracker/misc/default_config.h>
+#include <core/default_config.h>
 #include <tracking/Tracker.h>
 #include <misc/frame_t.h>
 #include <tracking/IndividualManager.h>
-#include <misc/PixelTree.h>
+#include <processing/BlobWeakPtr.h>
+#include <processing/PixelTree.h>
 #include <filesystem>
 #include <misc/Image.h>
-#include <misc/DetectionTypes.h>
+#include <core/DetectionTypes.h>
 #include <misc/RBSettings.h>
-#include <tracker/misc/PrecomuptedDetection.h>
+#include <python/PrecomuptedDetection.h>
 #include <tracking/SplitBlob.h>
 #include <tracking/HistorySplit.h>
 #include <grabber/misc/default_config.h>
 #include <algorithm>
 #include <sstream>
 #include <stdexcept>
+#include <file/DataLocation.h>
+#include <core/TileBuffers.h>
 
 using ::testing::TestWithParam;
 using ::testing::Values;
@@ -31,12 +34,34 @@ using namespace default_config;
 
 // A utility function to reset global settings relevant to our tests.
 // (Optional, but can help avoid cross-test pollution.)
+namespace {
+
+buffers::TileBuffers::Buffers_t& testTileBuffers() {
+    static buffers::TileBuffers::Buffers_t buffers{"TestMatching"};
+    return buffers;
+}
+
+}
+
 static void resetGlobalSettings()
 {
     GlobalSettings::write([&](Configuration& config) {
         grab::default_config::get(config);
         ::default_config::get(config);
     });
+
+    Python::configure_runtime(
+        GlobalSettings::instance(),
+        file::DataLocation::instance(),
+        Python::get_instance(),
+        &testTileBuffers(),
+        [](auto& name, auto& mat) {
+            tf::imshow(name, mat);
+        },
+        []() {
+            tf::destroyAllWindows();
+        }
+    );
     
     // Clear out the global SETTING(...) states used by these tests:
     SETTING(output_fields) = std::vector<std::pair<std::string, std::vector<std::string>>>{};
@@ -881,20 +906,6 @@ TEST(TestValidModels, Invalid) {
     ASSERT_FALSE(yolo::valid_model("yolo8x-pose.pt", mockfs));
 }
 
-static auto _ = [](){
-    Print("Initializing global maps.");
-    
-    GlobalSettings::write([&](Configuration& config) {
-        default_config::get(config);
-    });
-    Settings::init();
-    
-    for(auto name : Settings::names()) {
-        Settings::variable_changed(sprite::Map::Signal::NONE, name, GlobalSettings::get(name).get());
-    }
-    
-    return 0;
-}();
 
 TEST(TestLocalSettings, Init) {
     using RB_t = RBSettings<true, true>;
@@ -1776,8 +1787,9 @@ TEST_F(TestSystemTracker, MissingManualMatchOutsideTrackMaxSpeedDoesNotLoseObjec
     auto fish = IndividualManager::individual_by_id(fish_id);
     ASSERT_TRUE(fish);
     auto assigned_blob = fish.value()->blob(1_f);
-    if(assigned_blob)
+    if(assigned_blob) {
         ASSERT_NE(assigned_blob->blob_id(), fake_bdx);
+    }
 }
 
 TEST_F(TestSystemTracker, ManualMatchSplitFallbackPreservesConcreteInventory) {

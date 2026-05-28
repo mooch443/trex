@@ -1,15 +1,19 @@
+#include <commons.pc.h>
+
 #include "gtest/gtest.h"
 
-#include <commons.pc.h>
 #include <file/DataLocation.h>
-#include <file/Path.h>
+#include <misc/Path.h>
 #include <file/PathArray.h>
 #include <grabber/misc/default_config.h>
 #include <misc/GlobalSettings.h>
-#include <tracker/misc/default_config.h>
-#include <tracking/Segmenter.h>
+#include <core/default_config.h>
+#include <ui/Segmenter.h>
+#include <python/PythonWrapper.h>
+#include <python/Detection.h>
 
 #include <filesystem>
+#include <core/TileBuffers.h>
 #include <atomic>
 #include <chrono>
 #include <future>
@@ -19,9 +23,6 @@
 #include <sstream>
 #include <thread>
 
-#include <misc/PythonWrapper.h>
-#include <python/GPURecognition.h>
-
 using namespace cmn;
 using namespace cmn::file;
 using namespace track;
@@ -30,6 +31,11 @@ using namespace track::detect;
 namespace {
 
 namespace fs = std::filesystem;
+
+buffers::TileBuffers::Buffers_t& testTileBuffers() {
+    static buffers::TileBuffers::Buffers_t buffers{"TestSegmenter"};
+    return buffers;
+}
 
 struct TempWorkspace {
     fs::path root;
@@ -60,7 +66,22 @@ void reset_global_settings() {
         grab::default_config::get(config);
         ::default_config::get(config);
     });
-    PythonIntegration::set_settings(GlobalSettings::instance(), file::DataLocation::instance(), Python::get_instance());
+
+    Python::configure_runtime(
+        GlobalSettings::instance(),
+        file::DataLocation::instance(),
+        Python::get_instance(),
+        &testTileBuffers(),
+        [](auto& name, auto& mat) {
+            tf::imshow(name, mat);
+        },
+        []() {
+            tf::destroyAllWindows();
+        }
+    );
+	Python::ensure_python_impl_loaded();
+    buffers::TileBuffers::create();
+    Detection::init();
 }
 
 void register_data_locations_once() {

@@ -394,7 +394,7 @@ class TRexDetection:
         """
         return [cv2.cvtColor(trex_utils.asarray(i, copy=False), cv2.COLOR_BGR2RGB) for i in images]
 
-    def inference(self, input, max_det = 1000, conf_threshold=0.1, iou_threshold=0.7) -> list[TRex.Result]:
+    def inference(self, input, max_det = 1000, conf_threshold=0.1, iou_threshold: Optional[float] = None) -> list[TRex.Result]:
         """
         Performs inference on the input images.
 
@@ -402,7 +402,8 @@ class TRexDetection:
         input (torch.Tensor): Input tensor of images
         max_det (int): Maximum number of detections
         conf_threshold (float): Confidence threshold for detection
-        iou_threshold (float): Intersection over Union threshold for detection
+        iou_threshold (Optional[float]): Intersection over Union threshold for detection. If unset, do not override
+                                         the upstream predictor's NMS policy.
 
         Returns:
         list[TRex.Result]: List of detection results
@@ -449,6 +450,16 @@ class TRexDetection:
         #print(f"Calculated max_len = {max_len} based on total_memory = {total_memory} and normal_res = {normal_res} and {w}x{h} pixels / image, memory_per_image = {memory_per_image}")
 
         results : List[StrippedResults] = []
+        predict_kwargs = {
+            "conf": conf_threshold,
+            "imgsz": self.detect_resolution(),
+            "classes": None,
+            "verbose": False,
+            "max_det": max_det,
+        }
+        if iou_threshold is not None:
+            predict_kwargs["iou"] = iou_threshold
+            predict_kwargs["agnostic_nms"] = True
 
         if len(tensor) > max_len:
             # send data in packages of X images
@@ -460,14 +471,7 @@ class TRexDetection:
                 results.extend(self.detect_or_segment(images = tensor[i:i+max_len], 
                                             scales = scales[i:i+max_len],
                                             offsets = offsets[i:i+max_len],
-                                            conf = conf_threshold, 
-                                            iou = iou_threshold, 
-                                            #offsets = offsets, 
-                                            imgsz = self.detect_resolution(),
-                                            classes=None, 
-                                            agnostic_nms=True,
-                                            verbose = False,
-                                            max_det = max_det))
+                                            **predict_kwargs))
                 '''for r, scale, offset in zip(rs, scales[i:i+max_len], offsets[i:i+max_len]):
                     results.append(StrippedYoloResults(r, scale=scale, offset=offset))
                 #results.extend(rs)
@@ -478,14 +482,7 @@ class TRexDetection:
             results.extend(self.detect_or_segment(images = tensor, 
                                         scales = scales,
                                         offsets = offsets,
-                                        conf = conf_threshold, 
-                                        iou = iou_threshold, 
-                                        #offsets = offsets, 
-                                        imgsz = self.detect_resolution(),
-                                        classes=None, 
-                                        agnostic_nms=True,
-                                        verbose = False,
-                                        max_det = max_det))
+                                        **predict_kwargs))
             '''results = []
             for r, scale, offset in zip(rs, scales, offsets):
                     results.append(StrippedYoloResults(r, scale=scale, offset=offset))
@@ -547,7 +544,14 @@ class TRexDetection:
 
         return rexsults
 
-    def perform_region_proposal(self, tensor: np.ndarray, offsets: List[float], scales: List[float], ious: List[float], confs: List[float]) -> List[TRex.Result]:
+    def perform_region_proposal(
+        self,
+        tensor: np.ndarray,
+        offsets: List[float],
+        scales: List[float],
+        ious: Optional[float],
+        confs: List[float],
+    ) -> List[TRex.Result]:
         """
         This function applies the region proposal to a given tensor, performing object detection and segmentation 
         on the proposed regions. It then collects and returns the results.
@@ -577,14 +581,11 @@ class TRexDetection:
             images = all_images, 
             scales = scales,
             offsets=offsets,
-
-            conf = confs, 
-            iou = ious, 
+            conf = confs,
             imgsz = self.detect_resolution(),
-            #imgsz=160,
-            classes=None, 
-            agnostic_nms=True,
-            verbose = False)
+            classes=None,
+            verbose = False,
+            **({"iou": ious, "agnostic_nms": True} if ious is not None else {}))
 
         # Check if the number of results is equal to the number of images
         assert len(results) == len(all_images),f"length of results {len(results)} is not equal to length of all images {len(all_images)}"
@@ -634,7 +635,8 @@ class TRexDetection:
             # perform nms on collected_boxes, use indexes to filter keypoints, boxes and masks in the same way
             if len(collected_boxes) > 0:
                 from torchvision.ops import nms
-                indexes = nms(torch.Tensor(collected_boxes[..., :4]), torch.Tensor(collected_boxes[..., 4]), ious)
+                effective_iou = 0.5 if ious is None else ious
+                indexes = nms(torch.Tensor(collected_boxes[..., :4]), torch.Tensor(collected_boxes[..., 4]), effective_iou)
                 if(sorted(indexes.numpy()) != list(range(len(indexes)))):
                     #print("filtering boxes: ", collected_boxes,"with",ious)
                     #print("using indexes: ", sorted(indexes.numpy()))

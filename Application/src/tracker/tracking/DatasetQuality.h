@@ -30,7 +30,7 @@ struct Single {
     { }
     
     std::string toStr() const;
-    static std::string class_name() {
+    static consteval std::string_view class_name() {
         return "DatasetQuality::Single";
     }
 };
@@ -55,7 +55,7 @@ struct Quality {
     }
     
     std::string toStr() const;
-    static std::string class_name() {
+    static consteval std::string_view class_name() {
         return "Quality";
     }
 };

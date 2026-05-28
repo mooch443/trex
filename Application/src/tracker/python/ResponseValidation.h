@@ -22,37 +22,13 @@ using parsed_field_t = std::conditional_t<
     std::string,
     clean_t<ExpectedT>>;
 
-template<cmn::StringLike Str>
-constexpr std::string_view string_view_of(const Str& str) noexcept {
-    using str_t = clean_t<Str>;
-    if constexpr(std::is_array_v<str_t>) {
-        using elem_t = std::remove_cv_t<std::remove_extent_t<str_t>>;
-        static_assert(std::same_as<elem_t, char>, "StringLike arrays must be char arrays.");
-        constexpr size_t N = std::extent_v<str_t>;
-        if constexpr(N == 0u) {
-            return {};
-        } else {
-            const size_t len = str[N - 1] == '\0' ? N - 1 : N;
-            return std::string_view(str, len);
-        }
-    } else if constexpr(std::same_as<str_t, std::string>) {
-        return std::string_view(str.data(), str.size());
-    } else if constexpr(std::same_as<str_t, std::string_view>) {
-        return str;
-    } else if constexpr(std::same_as<str_t, const char*>) {
-        return str ? std::string_view(str) : std::string_view{};
-    } else {
-        static_assert(always_false_v<Str>, "Unsupported StringLike type.");
-    }
-}
-
 template<typename T, cmn::StringLike Key>
 validation_result_t read_typed_field(const glz::json_t& response,
                                      Key&& key,
                                      T& out_value)
 {
     using value_t = clean_t<T>;
-    const auto key_sv = string_view_of(key);
+    const auto key_sv = cmn::utils::string_like_view(key);
     const auto key_str = std::string(key_sv);
 
     if(not response.contains(key_str)) {
@@ -85,7 +61,7 @@ validation_result_t read_typed_field(const glz::json_t& response,
 template<typename L, typename R>
 bool values_match(const L& lhs, const R& rhs, float epsilon = 1e-6f) {
     if constexpr(string_like_v<L> && string_like_v<R>) {
-        return string_view_of(lhs) == string_view_of(rhs);
+        return cmn::utils::string_like_view(lhs) == cmn::utils::string_like_view(rhs);
     } else if constexpr(std::floating_point<clean_t<L>> && std::floating_point<clean_t<R>>) {
         using wide_t = std::common_type_t<clean_t<L>, clean_t<R>>;
         return std::fabs(static_cast<wide_t>(lhs) - static_cast<wide_t>(rhs))
@@ -103,8 +79,8 @@ bool validate_setter_response(ModuleName&& module_name,
                               const std::optional<glz::json_t>& result,
                               ExtraValidation&& extra_validation = nullptr)
 {
-    const auto module_name_sv = string_view_of(module_name);
-    const auto setter_name_sv = string_view_of(setter_name);
+    const auto module_name_sv = cmn::utils::string_like_view(module_name);
+    const auto setter_name_sv = cmn::utils::string_like_view(setter_name);
 
     if(not result.has_value()) {
         FormatWarning(module_name_sv, " ", setter_name_sv, " did not return a value.");
@@ -152,7 +128,7 @@ bool validate_setter_response_with_value(ModuleName&& module_name,
                                          const T& expected_value,
                                          float epsilon = 1e-6f)
 {
-    const auto key_str = std::string(string_view_of(key));
+    const auto key_str = std::string(cmn::utils::string_like_view(key));
 
     parsed_field_t<T> expected_stored{};
     if constexpr(std::same_as<clean_t<T>, std::string_view>) {

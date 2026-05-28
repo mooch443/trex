@@ -10,26 +10,26 @@
 #include <misc/default_settings.h>
 #include <misc/pretty.h>
 #include <tracking/DatasetQuality.h>
-#include <misc/PixelTree.h>
+#include <processing/PixelTree.h>
 #include <misc/CircularGraph.h>
 #include <tracking/MemoryStats.h>
 #include <tracking/CategorizeDatastore.h>
 #include <tracking/VisualField.h>
 #include <file/DataLocation.h>
-#include <misc/FOI.h>
-#include <misc/PVBlob.h>
+#include <core/FOI.h>
+#include <processing/PVBlob.h>
+#include <tracking/FilterCache.h>
+#include <core/DetectionTypes.h>
+#include <tracking/TrainingData.h>
 
 #include <tracking/TrackingHelper.h>
 #include <tracking/AutomaticMatches.h>
 #include <tracking/HistorySplit.h>
 #include <tracking/IndividualManager.h>
-#include <misc/SettingsInitializer.h>
+#include <core/SettingsPaths.h>
 
 #if !COMMONS_NO_PYTHON
-#include <misc/PythonWrapper.h>
 #include <tracking/RecTask.h>
-#include <ml/Accumulation.h>
-namespace py = Python;
 #endif
 
 #ifndef NDEBUG
@@ -418,10 +418,9 @@ Tracker::~Tracker() {
     assert(_instance);
     Settings::clear_callbacks();
 
-    FilterCache::clear();
+    constraints::FilterCache::clear();
     
 #if !COMMONS_NO_PYTHON
-    Accumulation::on_terminate();
     RecTask::deinit();
 #endif
     Individual::shutdown();
@@ -462,14 +461,6 @@ void Tracker::prepare_shutdown() {
     _thread_pool.force_stop();
     recognition_pool.force_stop();
     Match::PairingGraph::prepare_shutdown();
-#if !COMMONS_NO_PYTHON
-    Accumulation::on_terminate();
-    try {
-        py::deinit().get();
-    } catch(...) {
-        FormatWarning("Exception during py::deinit().");
-    }
-#endif
     IndividualManager::clear();
 }
 
@@ -2539,7 +2530,7 @@ void Tracker::update_consecutive(const CachedSettings& s, const set_of_individua
         
         assert((_added_frames.empty() && !end_frame().valid()) || (end_frame().valid() && (*_added_frames.rbegin())->frame() == end_frame()));
         
-        FilterCache::clear();
+        constraints::FilterCache::clear();
         //! TODO: MISSING remove_frames
         //_recognition->remove_frames(frameIndex);
         DatasetQuality::update();
@@ -2551,7 +2542,6 @@ void Tracker::update_consecutive(const CachedSettings& s, const set_of_individua
         
         global_tracklet_order_changed();
         
-        Print("After removing frames: ", gui::CacheObject::memory());
         Print("posture: ", Midline::saved_midlines());
         Print("all blobs: ", pv::Blob::all_blobs());
         Print("Range: ", start_frame(),"-",end_frame());
