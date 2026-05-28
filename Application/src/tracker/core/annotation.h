@@ -80,7 +80,7 @@ public:
     }
     static consteval std::string_view class_name() { return "AnnotationMap"; }
     
-    constexpr operator bool() const { return not empty(); }
+    operator bool() const { return not empty(); }
 };
 
 }
