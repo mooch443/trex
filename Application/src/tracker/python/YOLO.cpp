@@ -1319,9 +1319,9 @@ void YOLO::apply(std::vector<TileImage>&& tiles) {
             running_prediction = running_promise.get_future().share();
         }
 
-        Print("[shutdown-trace] YOLO::apply dispatch start requests=", transfer.datas.size(),
+        /*Print("[shutdown-trace] YOLO::apply dispatch start requests=", transfer.datas.size(),
               " tiles=", transfer.images.size(),
-              " callback_count=", transfer.callbacks.size());
+              " callback_count=", transfer.callbacks.size());*/
         py::schedule([&transfer]() mutable {
             StartPythonProcess(std::move(transfer));
         }).get();
