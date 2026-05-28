@@ -1884,13 +1884,13 @@ TEST(StringTrimTests, TrimFullWidthSpacesTest) {
 
 TEST(StringTrimTests, TrimCombiningCharactersTest) {
     // Test with combining characters to ensure they are not trimmed
-    std::string str1 = "e\u0301e\u0300e\u0302"; // e with acute, grave, and circumflex accents
+    std::string str1 = "e\xcc\x81" "e\xcc\x80" "e\xcc\x82"; // e with acute, grave, and circumflex accents
     auto result1 = trim(str1);
-    ASSERT_EQ(result1, "e\u0301e\u0300e\u0302");
+    ASSERT_EQ(result1, "e\xcc\x81" "e\xcc\x80" "e\xcc\x82");
 
-    std::string_view str2 = "e\u0301e\u0300e\u0302";
+    std::string_view str2 = "e\xcc\x81" "e\xcc\x80" "e\xcc\x82";
     auto result2 = trim(str2);
-    ASSERT_EQ(result2, "e\u0301e\u0300e\u0302");
+    ASSERT_EQ(result2, "e\xcc\x81" "e\xcc\x80" "e\xcc\x82");
 }
 
 TEST(StringTrimTests, TrimEmojiTest) {
