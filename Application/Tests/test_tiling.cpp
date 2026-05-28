@@ -57,6 +57,7 @@ void resetGlobalSettings() {
             tf::destroyAllWindows();
         }
     );
+    buffers::TileBuffers::set(&testTileBuffers());
 
     SETTING(detect_tile_overlap) = 0.f;
     SETTING(detect_tile_target_width) = uint16_t{0};
@@ -222,7 +223,7 @@ struct FakePythonImplScope {
             }
         }
         current() = nullptr;
-        track::trex_python_register();
+        Python::set_python_impl_interface(Python::PythonImplInterface{});
     }
 
     static FakePythonImplScope& instance() {

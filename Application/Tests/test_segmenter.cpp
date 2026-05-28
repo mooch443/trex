@@ -80,6 +80,7 @@ void reset_global_settings() {
         }
     );
 	Python::ensure_python_impl_loaded();
+    buffers::TileBuffers::create();
     Detection::init();
 }
 

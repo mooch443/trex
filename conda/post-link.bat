@@ -39,14 +39,18 @@ if errorlevel 1 (
     )
 )
 
-rem Compose the pip command arguments that should be shared across platforms.
+rem Compose pip argument lists. Non-torch packages are installed from PyPI first so
+rem they are never resolved against the PyTorch CUDA channel index. torch and
+rem torchvision are installed separately from the CUDA channel so the GPU-accelerated
+rem wheels are chosen; installing them together with ordinary packages risks pulling
+rem a mismatched CPU-only wheel from PyPI when the CUDA channel is the primary index.
+rem
 rem numpy and scikit-learn are intentionally excluded from conda run deps on Windows
 rem (see meta.yaml) to prevent conda from installing a conda-managed numpy whose DLL
 rem layout is incompatible with torch wheels from download.pytorch.org (WinError 127 /
 rem fbgemm.dll). Both are installed here via pip so DLL ownership is consistent.
+
 set "PIP_ARGS="
-call :add_package "torch>=2.0.0,<3.0.0"
-call :add_package "torchvision>=0.15.1"
 call :add_package "torchmetrics"
 call :add_package "tqdm"
 call :add_package "opencv-python>=4,<5"
@@ -56,6 +60,12 @@ call :add_package "numpy>=1.26,<3"
 call :add_package "scikit-learn"
 call :add_package "timm"
 call :add_package "git+https://github.com/ultralytics/CLIP.git"
+set "PIP_ARGS_SIMPLE=!PIP_ARGS!"
+
+set "PIP_ARGS="
+call :add_package "torch>=2.0.0,<3.0.0"
+call :add_package "torchvision>=0.15.1"
+set "PIP_ARGS_TORCH=!PIP_ARGS!"
 
 call :log "Windows detected; checking CUDA availability to document channel choice."
 
@@ -124,32 +134,51 @@ echo k.CloseHandle(h) >> "%PROGRESS_PY%"
 
 start "" /b python -X utf8 "%PROGRESS_PY%" "%PROGRESS_STOP%" "%PROGRESS_LOG%"
 
-set "CUDA_CHANNEL_SUFFIX="
-set "CUDA_CHANNELS=cu128 cu126 cu124 cu122 cu121 cu118"
-
 rem Verbose flags for pip: no --quiet so Collecting/Downloading/Installing lines appear
 rem in PROGRESS_LOG for the live display. The log is appended to OUT_STREAM afterwards.
 set "PIP_FLAGS_LOG=--disable-pip-version-check --no-input --no-color --progress-bar off"
 
+rem Step 1: install torch + torchvision from the appropriate CUDA channel so the
+rem GPU-accelerated wheels are selected. This must happen first because the packages
+rem in Step 2 (ultralytics, torchmetrics, etc.) declare torch as a dependency; having
+rem torch already present prevents pip from pulling a CPU-only build from PyPI.
+set "CUDA_CHANNEL_SUFFIX="
+set "CUDA_CHANNELS=cu128 cu126 cu124 cu122 cu121 cu118"
+
 for %%C in (!CUDA_CHANNELS!) do (
     set "CUDA_CHANNEL_SUFFIX=%%C"
     set "PIP_INDEX_URL=https://download.pytorch.org/whl/%%C"
-    call :log "[post-link] Trying PyTorch install with CUDA channel %%C (!PIP_INDEX_URL!)."
-    call :log_command python -X utf8 -m pip install !PIP_FLAGS_LOG! --index-url !PIP_INDEX_URL! --extra-index-url https://pypi.org/simple !PIP_ARGS!
-    python -X utf8 -m pip install !PIP_FLAGS_LOG! --index-url !PIP_INDEX_URL! --extra-index-url https://pypi.org/simple !PIP_ARGS! > "%PROGRESS_LOG%" 2>&1
+    call :log "[post-link] Trying torch+torchvision install with CUDA channel %%C (!PIP_INDEX_URL!)."
+    call :log_command python -X utf8 -m pip install !PIP_FLAGS_LOG! --index-url !PIP_INDEX_URL! !PIP_ARGS_TORCH!
+    python -X utf8 -m pip install !PIP_FLAGS_LOG! --index-url !PIP_INDEX_URL! !PIP_ARGS_TORCH! > "%PROGRESS_LOG%" 2>&1
     set "LAST_COMMAND_STATUS=!ERRORLEVEL!"
     if defined OUT_STREAM (
         type "%PROGRESS_LOG%" >> "%OUT_STREAM%" 2>nul
     )
     if "!LAST_COMMAND_STATUS!"=="0" (
-        call :log "[post-link] pip install succeeded using CUDA channel %%C."
+        call :log "[post-link] torch install succeeded using CUDA channel %%C."
         call :check_nvidia_support
-        goto pip_install_after
+        goto torch_install_done
     )
-    call :log "[post-link] pip install failed for CUDA channel %%C (exit !LAST_COMMAND_STATUS!); trying next option."
+    call :log "[post-link] torch install failed for CUDA channel %%C (exit !LAST_COMMAND_STATUS!); trying next option."
 )
 
-call :record_failure "[post-link] pip package installation failed for all CUDA channels (last exit !LAST_COMMAND_STATUS!)."
+call :record_failure "[post-link] torch+torchvision installation failed for all CUDA channels (last exit !LAST_COMMAND_STATUS!)."
+
+:torch_install_done
+
+rem Step 2: install remaining packages from PyPI. torch is already present so pip
+rem will not attempt to resolve a different (CPU-only) torch from PyPI.
+call :log "[post-link] Installing non-torch packages from PyPI..."
+call :log_command python -X utf8 -m pip install !PIP_FLAGS_LOG! --index-url https://pypi.org/simple !PIP_ARGS_SIMPLE!
+python -X utf8 -m pip install !PIP_FLAGS_LOG! --index-url https://pypi.org/simple !PIP_ARGS_SIMPLE! > "%PROGRESS_LOG%" 2>&1
+set "LAST_COMMAND_STATUS=!ERRORLEVEL!"
+if defined OUT_STREAM (
+    type "%PROGRESS_LOG%" >> "%OUT_STREAM%" 2>nul
+)
+if not "!LAST_COMMAND_STATUS!"=="0" (
+    call :record_failure "[post-link] Non-torch pip install failed (exit !LAST_COMMAND_STATUS!)."
+)
 
 :pip_install_after
 

@@ -13,6 +13,14 @@
 #ifndef WIN32
 #include <dlfcn.h>
 #endif
+#ifdef WIN32
+#include <algorithm>
+#include <cctype>
+#include <set>
+#endif
+#if defined(WIN32) && defined(_MSC_VER)
+#include <crtdbg.h>
+#endif
 
 namespace Python {
 using namespace cmn;
@@ -56,6 +64,173 @@ HMODULE& python_impl_library_handle() {
     static HMODULE handle = nullptr;
     return handle;
 }
+
+std::vector<std::string>& windows_dll_search_directories() {
+    static std::vector<std::string> directories;
+    return directories;
+}
+
+std::string windows_loader_error_message(DWORD error) {
+    LPSTR message = nullptr;
+    const DWORD length = FormatMessageA(
+        FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+        nullptr,
+        error,
+        MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+        reinterpret_cast<LPSTR>(&message),
+        0,
+        nullptr);
+
+    std::string result = length && message
+        ? std::string(message, length)
+        : std::string("Unknown Windows loader error.");
+
+    if (message)
+        LocalFree(message);
+
+    while (!result.empty() && (result.back() == '\r' || result.back() == '\n'))
+        result.pop_back();
+
+    return result;
+}
+
+std::string lowercase_ascii(std::string value) {
+    std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) {
+        return static_cast<char>(std::tolower(c));
+    });
+    return value;
+}
+
+void add_windows_dll_search_directory(const file::Path& path) {
+    if(path.empty())
+        return;
+
+    const auto absolute = path.is_absolute() ? path : path.absolute();
+    if(!absolute.exists() || !absolute.is_folder())
+        return;
+
+    const auto absolute_str = absolute.str();
+    auto& directories = windows_dll_search_directories();
+    if(std::find(directories.begin(), directories.end(), absolute_str) == directories.end()) {
+        directories.emplace_back(absolute_str);
+        AddDllDirectory(s2ws(absolute_str).c_str());
+    }
+}
+
+void add_windows_path_dll_search_directories() {
+    static std::once_flag flag;
+    std::call_once(flag, []() {
+        const DWORD size = GetEnvironmentVariableA("PATH", nullptr, 0);
+        if(size == 0)
+            return;
+
+        std::string path(size, '\0');
+        const DWORD written = GetEnvironmentVariableA("PATH", path.data(), size);
+        if(written == 0)
+            return;
+
+        path.resize(written);
+
+        size_t start = 0;
+        while(start <= path.size()) {
+            const size_t end = path.find(';', start);
+            const auto entry = path.substr(start, end == std::string::npos ? std::string::npos : end - start);
+            add_windows_dll_search_directory(file::Path(entry));
+
+            if(end == std::string::npos)
+                break;
+            start = end + 1;
+        }
+    });
+}
+
+void inspect_windows_import_dependencies(
+    const file::Path& candidate,
+    std::set<std::string>& visited,
+    std::vector<std::string>& missing,
+    size_t depth = 0)
+{
+    if(!candidate.exists() || depth > 8)
+        return;
+
+    const auto candidate_key = lowercase_ascii(candidate.absolute().str());
+    if(!visited.emplace(candidate_key).second)
+        return;
+
+    HMODULE image = LoadLibraryExA(
+        candidate.str().c_str(),
+        nullptr,
+        DONT_RESOLVE_DLL_REFERENCES | LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_DEFAULT_DIRS | LOAD_LIBRARY_SEARCH_USER_DIRS);
+    if(!image) {
+        missing.emplace_back(candidate.str() + " (unable to inspect imports: " + windows_loader_error_message(GetLastError()) + ")");
+        return;
+    }
+
+    const auto* base = reinterpret_cast<const uint8_t*>(image);
+    const auto* dos = reinterpret_cast<const IMAGE_DOS_HEADER*>(base);
+    if(dos->e_magic != IMAGE_DOS_SIGNATURE) {
+        FreeLibrary(image);
+        missing.emplace_back(candidate.str() + " (unable to inspect imports: invalid DOS header)");
+        return;
+    }
+
+    const auto* nt = reinterpret_cast<const IMAGE_NT_HEADERS*>(base + dos->e_lfanew);
+    if(nt->Signature != IMAGE_NT_SIGNATURE) {
+        FreeLibrary(image);
+        missing.emplace_back(candidate.str() + " (unable to inspect imports: invalid NT header)");
+        return;
+    }
+
+    const auto& directory = nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT];
+    if(directory.VirtualAddress == 0) {
+        FreeLibrary(image);
+        return;
+    }
+
+    const auto* imports = reinterpret_cast<const IMAGE_IMPORT_DESCRIPTOR*>(base + directory.VirtualAddress);
+
+    for(const auto* import = imports; import->Name != 0; ++import) {
+        const auto* name = reinterpret_cast<const char*>(base + import->Name);
+        HMODULE dependency = LoadLibraryExA(
+            name,
+            nullptr,
+            DONT_RESOLVE_DLL_REFERENCES | LOAD_LIBRARY_SEARCH_DEFAULT_DIRS | LOAD_LIBRARY_SEARCH_USER_DIRS);
+        if(dependency) {
+            char dependency_path[MAX_PATH] = {0};
+            if(GetModuleFileNameA(dependency, dependency_path, MAX_PATH) > 0)
+                inspect_windows_import_dependencies(file::Path(dependency_path), visited, missing, depth + 1);
+            FreeLibrary(dependency);
+        } else {
+            missing.emplace_back(
+                std::string(name)
+                + " imported by "
+                + candidate.str()
+                + " ("
+                + windows_loader_error_message(GetLastError())
+                + ")");
+        }
+    }
+
+    FreeLibrary(image);
+}
+
+std::string windows_import_dependency_report(const file::Path& candidate) {
+    std::set<std::string> visited;
+    std::vector<std::string> missing;
+    inspect_windows_import_dependencies(candidate, visited, missing);
+
+    if(missing.empty())
+        return {};
+
+    std::sort(missing.begin(), missing.end());
+    missing.erase(std::unique(missing.begin(), missing.end()), missing.end());
+
+    std::string report = "missing imported DLLs:";
+    for(const auto& dependency : missing)
+        report += "\n      * " + dependency;
+
+    return report;
+}
 #else
 void*& python_impl_library_handle() {
     static void* handle = nullptr;
@@ -96,6 +271,12 @@ void prepare_python_environment() {
         return;
     }
 
+#if defined(WIN32) && defined(_MSC_VER)
+    _CrtSetReportMode(_CRT_ASSERT, 0);
+    _CrtSetReportMode(_CRT_ERROR, 0);
+    _CrtSetReportMode(_CRT_WARN, 0);
+#endif
+
     std::call_once(python_environment_once(), []() {
         if(file::DataLocation::is_registered("app"))
             file::cd(file::DataLocation::parse("app"));
@@ -106,6 +287,13 @@ void prepare_python_environment() {
             home = READ_SETTING(python_path, file::Path).str();
         if (file::Path(home).exists() && file::Path(home).is_regular())
             home = file::Path(home).remove_filename().str();
+#if defined(WIN32)
+        auto compiled_python_home = file::Path(COMMONS_PYTHON_EXECUTABLE);
+        if(!compiled_python_home.exists() && compiled_python_home.add_extension("exe").exists())
+            compiled_python_home = compiled_python_home.add_extension("exe");
+        if (compiled_python_home.exists() && compiled_python_home.is_regular())
+            compiled_python_home = compiled_python_home.remove_filename();
+#endif
 
         if (!can_initialize_python() && !getenv("TREX_DONT_SET_PATHS")) {
             const bool quiet = GlobalSettings::is_runtime_quiet();
@@ -115,6 +303,15 @@ void prepare_python_environment() {
             std::string sep = "/";
 #if defined(WIN32)
             auto set = home + ";" + home + "/DLLs;" + home + "/Lib;" + home + "/Scripts;" + home + "/Library/bin;" + home + "/Library;";
+            if(!compiled_python_home.empty()) {
+                set += compiled_python_home.str()
+                    + ";" + (compiled_python_home / "DLLs").str()
+                    + ";" + (compiled_python_home / "Lib").str()
+                    + ";" + (compiled_python_home / "Scripts").str()
+                    + ";" + (compiled_python_home / "Library" / "bin").str()
+                    + ";" + (compiled_python_home / "Library").str()
+                    + ";";
+            }
 #else
             auto set = home + ":" + home + "/bin:" + home + "/condabin:" + home + "/lib:" + home + "/sbin:";
 #endif
@@ -134,9 +331,12 @@ void prepare_python_environment() {
 
             // Embedded Python on Windows often needs explicit DLL directories
             // for extension modules such as cv2 to resolve their dependent DLLs.
-            AddDllDirectory(s2ws(file::Path(home).str()).c_str());
-            AddDllDirectory(s2ws((file::Path(home) / "DLLs").str()).c_str());
-            AddDllDirectory(s2ws((file::Path(home) / "Library" / "bin").str()).c_str());
+            add_windows_dll_search_directory(file::Path(home));
+            add_windows_dll_search_directory(file::Path(home) / "DLLs");
+            add_windows_dll_search_directory(file::Path(home) / "Library" / "bin");
+            add_windows_dll_search_directory(compiled_python_home);
+            add_windows_dll_search_directory(compiled_python_home / "DLLs");
+            add_windows_dll_search_directory(compiled_python_home / "Library" / "bin");
 #else
             std::string path = (std::string)getenv("PATH");
             set = set + path;
@@ -229,24 +429,48 @@ void load_python_impl_library() {
     throw SoftException(python_impl_load_error());
 #else
     std::string errors;
+#ifdef WIN32
+    add_windows_path_dll_search_directories();
+#endif
     for (const auto& candidate : python_library_candidates()) {
         const auto candidate_str = candidate.str();
 
 #ifdef WIN32
-        HMODULE handle = LoadLibraryA(candidate_str.c_str());
+        Print("Trying to load trex_python implementation from ", candidate_str, "... ", candidate.exists());
+        if(candidate.is_absolute())
+            add_windows_dll_search_directory(candidate.remove_filename());
+
+        HMODULE handle = candidate.is_absolute()
+            ? LoadLibraryExA(
+                candidate_str.c_str(),
+                nullptr,
+                LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_DEFAULT_DIRS | LOAD_LIBRARY_SEARCH_USER_DIRS)
+            : LoadLibraryExA(
+                candidate_str.c_str(),
+                nullptr,
+                LOAD_LIBRARY_SEARCH_DEFAULT_DIRS | LOAD_LIBRARY_SEARCH_USER_DIRS);
         if (!handle) {
+            const auto error = GetLastError();
             if (!errors.empty())
                 errors += "\n";
-            errors += "  - " + candidate_str;
+            errors += "  - " + candidate_str + " (LoadLibraryExA failed with error "
+                + std::to_string(static_cast<unsigned long>(error)) + ": "
+                + windows_loader_error_message(error) + ")";
+            const auto dependency_report = windows_import_dependency_report(candidate);
+            if(!dependency_report.empty())
+                errors += "\n    " + dependency_report;
             continue;
         }
 
         auto register_fn = reinterpret_cast<void(*)()>(GetProcAddress(handle, "trex_python_register"));
         if (!register_fn) {
+            const auto error = GetLastError();
             FreeLibrary(handle);
             if (!errors.empty())
                 errors += "\n";
-            errors += "  - " + candidate_str + " (missing trex_python_register)";
+            errors += "  - " + candidate_str + " (missing trex_python_register; GetProcAddress error "
+                + std::to_string(static_cast<unsigned long>(error)) + ": "
+                + windows_loader_error_message(error) + ")";
             continue;
         }
 #else

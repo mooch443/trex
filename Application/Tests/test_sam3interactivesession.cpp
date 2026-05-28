@@ -3,6 +3,11 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
+#include <core/TileBuffers.h>
+#include <core/default_config.h>
+#include <file/DataLocation.h>
+#include <grabber/misc/default_config.h>
+#include <python/PythonWrapper.h>
 #include <python/SAM3InteractiveSession.h>
 #include <pv.h>
 
@@ -26,6 +31,31 @@ void PrintTo(const T& value, std::ostream* os) {
 }
 
 namespace {
+
+buffers::TileBuffers::Buffers_t& testTileBuffers() {
+    static buffers::TileBuffers::Buffers_t buffers{"TestSam3InteractiveSession"};
+    return buffers;
+}
+
+void resetGlobalSettings() {
+    GlobalSettings::write([&](Configuration& config) {
+        grab::default_config::get(config);
+        ::default_config::get(config);
+    });
+
+    Python::configure_runtime(
+        GlobalSettings::instance(),
+        file::DataLocation::instance(),
+        Python::get_instance(),
+        &testTileBuffers(),
+        [](auto& name, auto& mat) {
+            tf::imshow(name, mat);
+        },
+        []() {
+            tf::destroyAllWindows();
+        }
+    );
+}
 
 TileImage make_tile(Frame_t frame_index) {
     TileImage tile;
@@ -222,6 +252,7 @@ TEST(PVTest, DoItInOne) {
 }
 
 TEST(Sam3InteractiveSessionTest, SameFrameRerunUsesStoredPromptSnapshotAnchor) {
+    resetGlobalSettings();
     SETTING(detect_sam3_prompt) = std::optional<detect::Sam3Prompts>{};
 
     FakeBackend* backend_ptr = nullptr;
@@ -242,6 +273,7 @@ TEST(Sam3InteractiveSessionTest, SameFrameRerunUsesStoredPromptSnapshotAnchor) {
 }
 
 TEST(Sam3InteractiveSessionTest, NextFrameContinuesFromLiveRuntimeWithoutReset) {
+    resetGlobalSettings();
     SETTING(detect_sam3_prompt) = std::optional<detect::Sam3Prompts>{};
 
     FakeBackend* backend_ptr = nullptr;
@@ -262,6 +294,7 @@ TEST(Sam3InteractiveSessionTest, NextFrameContinuesFromLiveRuntimeWithoutReset) 
 }
 
 TEST(Sam3InteractiveSessionTest, PromptFrameBecomesReplayAnchor) {
+    resetGlobalSettings();
     SETTING(detect_sam3_prompt) = std::optional<detect::Sam3Prompts>{
         detect::Sam3Prompts{{
             {3_f, detect::Sam3PromptList{make_box_prompt(0.1f, 0.1f, 0.3f, 0.3f)}}
@@ -294,6 +327,7 @@ TEST(Sam3InteractiveSessionTest, PromptFrameBecomesReplayAnchor) {
 }
 
 TEST(Sam3InteractiveSessionTest, ForwardJumpUsesLiveRuntimeWithoutResettingToAnchor) {
+    resetGlobalSettings();
     SETTING(detect_sam3_prompt) = std::optional<detect::Sam3Prompts>{
         detect::Sam3Prompts{{
             {0_f, detect::Sam3PromptList{make_boxes_prompt({
@@ -329,6 +363,7 @@ TEST(Sam3InteractiveSessionTest, ForwardJumpUsesLiveRuntimeWithoutResettingToAnc
 }
 
 TEST(Sam3InteractiveSessionTest, LegacyMultiBoxPromptReplaysAsSeparatePromptObjects) {
+    resetGlobalSettings();
     SETTING(detect_sam3_prompt) = std::optional<detect::Sam3Prompts>{
         detect::Sam3Prompts{{
             {3_f, detect::Sam3PromptList{make_boxes_prompt({
@@ -364,6 +399,7 @@ TEST(Sam3InteractiveSessionTest, LegacyMultiBoxPromptReplaysAsSeparatePromptObje
 }
 
 TEST(Sam3InteractiveSessionTest, PeriodicKeyframesBoundReplayDistance) {
+    resetGlobalSettings();
     SETTING(detect_sam3_prompt) = std::optional<detect::Sam3Prompts>{};
 
     FakeBackend* backend_ptr = nullptr;
@@ -392,6 +428,7 @@ TEST(Sam3InteractiveSessionTest, PeriodicKeyframesBoundReplayDistance) {
 }
 
 TEST(Sam3InteractiveSessionTest, InvalidatingFromFrameDropsLaterAnchorsAndForcesReplay) {
+    resetGlobalSettings();
     SETTING(detect_sam3_prompt) = std::optional<detect::Sam3Prompts>{};
 
     FakeBackend* backend_ptr = nullptr;
@@ -424,6 +461,7 @@ TEST(Sam3InteractiveSessionTest, InvalidatingFromFrameDropsLaterAnchorsAndForces
 }
 
 TEST(Sam3InteractiveSessionTest, InvalidatedInFlightFrameCannotRecommitStaleState) {
+    resetGlobalSettings();
     SETTING(detect_sam3_prompt) = std::optional<detect::Sam3Prompts>{};
 
     FakeBackend* backend_ptr = nullptr;

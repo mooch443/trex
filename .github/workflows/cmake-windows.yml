@@ -2,9 +2,13 @@ name: CondaBuildWindows
 
 on: [push]
 
+permissions:
+  contents: write
+
 env:
   BUILD_TYPE: Release
   GITHUB_WORKFLOW: CondaBuildWindows
+  WINDOWS_CONDA_CACHE_ENABLED: 'false'
 
 jobs:
   build:
@@ -22,9 +26,10 @@ jobs:
         submodules: recursive
 
     - name: Cache conda
+      if: env.WINDOWS_CONDA_CACHE_ENABLED == 'true'
       uses: actions/cache@v4
       env:
-        CACHE_NUMBER: 1
+        CACHE_NUMBER: 2
       with:
         path: C:\cpkgs
         key: ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{ hashFiles('.github/environment.yml') }}
@@ -33,9 +38,10 @@ jobs:
       with:
         miniforge-version: latest
         activate-environment: base
+        python-version: ${{ matrix.python-version }}
         channels: conda-forge
         auto-activate: false
-        auto-update-conda: true
+        auto-update-conda: false
         use-only-tar-bz2: true
         conda-remove-defaults: true
 
@@ -72,36 +78,39 @@ jobs:
         "@ | Set-Content -Path "$HOME\.condarc" -Encoding utf8
 
         Get-Content "$HOME\.condarc"
-        conda config --show channels
+        conda --no-plugins config --show channels
 
     - name: Get conda prefix
       id: conda-prefix
       shell: pwsh
       run: echo "path=$env:CONDA" >> $env:GITHUB_OUTPUT
     - name: Cache conda base environment
+      if: env.WINDOWS_CONDA_CACHE_ENABLED == 'true'
       id: conda-env-cache
       uses: actions/cache@v4
       with:
         path: ${{ steps.conda-prefix.outputs.path }}
-        key: ${{ runner.os }}-conda-env-1-${{ matrix.python-version }}-${{ hashFiles('.github/environment.yml') }}
+        key: ${{ runner.os }}-conda-env-2-${{ matrix.python-version }}-${{ hashFiles('.github/environment.yml') }}
     - name: Install environment into base
-      if: steps.conda-env-cache.outputs.cache-hit != 'true'
+      if: env.WINDOWS_CONDA_CACHE_ENABLED != 'true' || steps.conda-env-cache.outputs.cache-hit != 'true'
       shell: pwsh
       working-directory: ${{ env.SHORT_WORKSPACE }}
       env:
         CONDA_BLD_PATH: ${{ env.CONDA_BLD_PATH }}
         CONDA_PKGS_DIRS: ${{ env.CONDA_PKGS_DIRS }}
       run: |
-        mamba env update --name base -f .github/environment.yml
-        mamba install -y python=${{ matrix.python-version }}
-        conda info
-        conda list
+        mamba install --name base --override-channels -c conda-forge -y `
+          python=${{ matrix.python-version }} `
+          "conda-build>=24" `
+          git
+        conda --no-plugins info
+        conda --no-plugins list
 
     - name: Fix Meta
       shell: pwsh
       working-directory: ${{ env.SHORT_WORKSPACE }}\conda
       run: |
-        $branch = "${{ github.ref }}" -replace '^refs/heads/', ''
+        $branch = "${{ github.ref_name }}"
         $branchSanitized = $branch -replace '/', '_' -replace '-', '_'
 
         $meta = Get-Content meta.yaml -Raw
@@ -128,15 +137,17 @@ jobs:
         # Packaging validates Menu/*.json, which imports jsonschema and its
         # compiled rpds-py dependency from the base conda environment.
         # Refresh that stack explicitly instead of relying on a cached base
-        # prefix plus a broad "conda update --all".
+        # prefix plus a broad "conda update --all". Do not reinstall conda
+        # itself here; mutating the running package manager can leave the base
+        # prefix in a partially linked state on Windows.
         mamba install --name base --override-channels -c conda-forge -y `
-          conda `
           conda-build `
           jsonschema `
           referencing `
-          rpds-py
+          rpds-py `
+          typing_extensions
 
-        conda list -n base
+        conda --no-plugins list -n base
 
     - name: Build
       shell: pwsh
@@ -145,7 +156,7 @@ jobs:
         CONDA_BLD_PATH: ${{ env.CONDA_BLD_PATH }}
         CONDA_PKGS_DIRS: ${{ env.CONDA_PKGS_DIRS }}
       run: |
-        conda build . --override-channels -c conda-forge
+        conda-build . --override-channels -c conda-forge
 
     - name: Test
       shell: pwsh
@@ -211,6 +222,66 @@ jobs:
       run: |
         Write-Host "Tests failed with exit code $env:TEST_EXIT_CODE"
         exit $env:TEST_EXIT_CODE
+
+    - name: Collect conda package artifacts
+      if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
+      shell: pwsh
+      working-directory: ${{ env.SHORT_WORKSPACE }}
+      run: |
+        $out = Join-Path "${{ github.workspace }}" "conda-artifacts"
+        New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+        $packages = Get-ChildItem -Path $env:CONDA_BLD_PATH -Recurse -Filter "trex-*.conda" -File
+        if (-not $packages) {
+          throw "No trex .conda packages found under $env:CONDA_BLD_PATH"
+        }
+
+        $latest = $packages | Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1
+        Copy-Item -Path $latest.FullName -Destination (Join-Path $out $latest.Name) -Force
+
+        Get-ChildItem -Path $out | Format-Table Name,Length
+
+    - name: Upload conda packages
+      if: github.ref == 'refs/heads/main'
+      uses: actions/upload-artifact@v4
+      with:
+        name: trex-conda-win-64
+        path: ${{ github.workspace }}/conda-artifacts/*.conda
+        if-no-files-found: error
+        retention-days: 14
+        compression-level: 0
+
+    - name: Attach conda packages to GitHub release
+      if: startsWith(github.ref, 'refs/tags/')
+      shell: pwsh
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        $tag = "${{ github.ref_name }}"
+
+        gh release view $tag *> $null
+        if ($LASTEXITCODE -ne 0) {
+          gh release create $tag --verify-tag --title $tag --notes "Conda package builds for $tag."
+          if ($LASTEXITCODE -ne 0) {
+            gh release view $tag *> $null
+            if ($LASTEXITCODE -ne 0) {
+              exit $LASTEXITCODE
+            }
+          }
+        }
+
+        $releaseAssets = Join-Path "${{ github.workspace }}" "release-assets"
+        New-Item -ItemType Directory -Force -Path $releaseAssets | Out-Null
+        $asset = Join-Path $releaseAssets "trex-conda-win-64.zip"
+        Compress-Archive -Path (Join-Path "${{ github.workspace }}" "conda-artifacts\*.conda") -DestinationPath $asset -Force
+
+        $assets = Get-ChildItem -Path $releaseAssets -Filter "*.zip" -File
+        foreach ($asset in $assets) {
+          gh release upload $tag $asset.FullName --clobber
+          if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+          }
+        }
 
     - name: Upload failure artifacts
       if: failure()
