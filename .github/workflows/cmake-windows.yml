@@ -69,7 +69,6 @@ jobs:
         channels:
           - conda-forge
         channel_priority: strict
-        solver: classic
         default_channels: []
         pkgs_dirs:
           - C:\cpkgs
@@ -77,7 +76,6 @@ jobs:
 
         Get-Content "$HOME\.condarc"
         conda --no-plugins config --show channels
-        conda --no-plugins config --show solver
 
     - name: Get conda prefix
       id: conda-prefix
@@ -166,18 +164,18 @@ jobs:
       run: |
         if (Test-Path $env:TEST_PREFIX) { Remove-Item -Recurse -Force $env:TEST_PREFIX }
 
-        conda --no-plugins search numpy
-        conda --no-plugins create -y -p $env:TEST_PREFIX --override-channels -c "$env:CONDA_BLD_PATH" -c conda-forge trex
+        conda search numpy
+        conda create -y -p $env:TEST_PREFIX --override-channels -c "$env:CONDA_BLD_PATH" -c conda-forge trex
 
-        conda --no-plugins run -p $env:TEST_PREFIX pvinfo -opencv_ffmpeg_support
-        conda --no-plugins run -p $env:TEST_PREFIX pvinfo -opencv_opencl_support
+        conda run -p $env:TEST_PREFIX pvinfo -opencv_ffmpeg_support
+        conda run -p $env:TEST_PREFIX pvinfo -opencv_opencl_support
 
     - name: TestFunctions
       continue-on-error: true
       shell: pwsh
       working-directory: ${{ env.SHORT_WORKSPACE }}\Application\Tests
       run: |
-        & "C:\Program Files\Git\bin\bash.exe" -lc "conda --no-plugins run -p '$env:TEST_PREFIX' bash ./run_unix.bash"
+        & "C:\Program Files\Git\bin\bash.exe" -lc "conda run -p '$env:TEST_PREFIX' bash ./run_unix.bash"
         $TEST_EC = $LASTEXITCODE
         "TEST_EXIT_CODE=$TEST_EC" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
         exit 0
