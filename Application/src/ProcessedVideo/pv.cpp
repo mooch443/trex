@@ -1186,7 +1186,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const PixelArray
         assert(index_offset == ref.tell());
         
         Print("Index table is ",FileSize(index_table.size() * sizeof(decltype(index_table)::value_type))," big @ ", index_offset);
-        Print("Index table (",index_table.size(),"): ", index_table);
+        //Print("Index table (",index_table.size(),"): ", index_table);
         for (auto index : index_table) {
             ref.write<decltype(index_table)::value_type>(index);
         }
