@@ -2038,11 +2038,22 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                 
                 return _data->variables;
             }),
-            
-            VarFunc("num_individuals", [](const VarProps& props) -> std::vector<size_t> {
+            VarFunc("drag_box", [this](const VarProps&) -> std::optional<Bounds> {
+                if(_data && _data->_drag_box)
+                    return _data->_drag_box->bounds();
+                return std::nullopt;
+            }),
+            VarFunc("num_individuals", [this](const VarProps& props) -> std::vector<std::tuple<Frame_t, size_t>> {
                 REQUIRE_EXACTLY(0, props);
+                if(not _data)
+                    throw InvalidArgumentException("_data not set.");
                 
-                return {};
+                std::vector<std::tuple<Frame_t, size_t>> result;
+                auto& stats = _data->_cache->statistics();
+                for(auto& [frame, s] : stats) {
+                    result.emplace_back(frame, s.number_fish);
+                }
+                return result;
             }),
             
             VarFunc("primary_selection", [this](const VarProps& props) -> std::string {

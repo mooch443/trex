@@ -55,7 +55,7 @@ build:
         - {{ pin_compatible('libstdcxx-ng', min_pin='x.x.x', max_pin='x.x.x') }} # [linux]
     ignore_run_exports:
         - {{ pin_compatible('libstdcxx-ng', min_pin='x.x.x', max_pin='x.x.x') }} # [linux]
-        - numpy # [win]
+        - numpy
     detect_binary_files_with_prefix: False # [win]
     detect_binary_files_with_prefix: True # [not win]
     files_with_prefix:
@@ -74,7 +74,11 @@ requirements:
     - make                  # [unix]
     - {{ compiler('c') }}   # [not osx]
     - {{ compiler('cxx') }} # [not osx]
-    - cmake >=3.20,<4
+    #- {{ compiler('c') }}   # [osx]
+    #- {{ compiler('cxx') }} # [osx]
+    #- clang-tools  # [osx]
+    - cmake >=3.20,<5
+    #- ninja  # [not win]
     - git # [not win]
     - git <2.34 # [win]
     - {{ cdt('libselinux') }}  # [linux]
@@ -109,10 +113,13 @@ requirements:
     - python =3.11 # [osx and not arm64]
     - python =3.11 # [win]
     - python =3.11 # [linux]
-    - openblas # [arm64]
+    #- openblas # [arm64]
     - ffmpeg >=3,<8=*lgpl*
-    - openh264 # [osx]
-    - numpy >=1.26,<3
+    #- openh264 # [osx]
+    #- numpy >=1.26,<3
+    #- libvorbis
+    #- libogg
+    #- libavif
 
   run:
     - {{ pin_compatible('python', min_pin='x.x', max_pin='x.x') }}
@@ -121,11 +128,14 @@ requirements:
     - {{ pin_compatible('numpy', min_pin='x.x', max_pin='x.x') }} # [not win]
     - {{ pin_compatible('openblas', min_pin='x.x', max_pin='x.x') }} # [arm64]
     - {{ pin_compatible('icu', min_pin='x.x', max_pin='x.x') }}
-    - scikit-learn # [not win]
+    #- scikit-learn # [not win]
     - pip
     - requests
     - psutil
     - git
+    #- libvorbis
+    #- libogg
+    #- libavif
 
 about:
   home: https://trex.run
