@@ -149,8 +149,8 @@ for %%C in (!CUDA_CHANNELS!) do (
     set "CUDA_CHANNEL_SUFFIX=%%C"
     set "PIP_INDEX_URL=https://download.pytorch.org/whl/%%C"
     call :log "[post-link] Trying torch+torchvision install with CUDA channel %%C (!PIP_INDEX_URL!)."
-    call :log_command python -X utf8 -m pip install !PIP_FLAGS_LOG! --index-url !PIP_INDEX_URL! --extra-index-url https://pypi.org/simple !PIP_ARGS_TORCH!
-    python -X utf8 -m pip install !PIP_FLAGS_LOG! --index-url !PIP_INDEX_URL! --extra-index-url https://pypi.org/simple !PIP_ARGS_TORCH! > "%PROGRESS_LOG%" 2>&1
+    call :log_command python -X utf8 -m pip install !PIP_FLAGS_LOG! --index-url !PIP_INDEX_URL! !PIP_ARGS_TORCH!
+    python -X utf8 -m pip install !PIP_FLAGS_LOG! --index-url !PIP_INDEX_URL! !PIP_ARGS_TORCH! > "%PROGRESS_LOG%" 2>&1
     set "LAST_COMMAND_STATUS=!ERRORLEVEL!"
     if defined OUT_STREAM (
         type "%PROGRESS_LOG%" >> "%OUT_STREAM%" 2>nul
