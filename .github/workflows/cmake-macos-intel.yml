@@ -2,6 +2,9 @@ name: CondaBuildMacOSIntel
 
 on: [push]
 
+permissions:
+  contents: write
+
 env:
   # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
   BUILD_TYPE: Release
@@ -78,11 +81,11 @@ jobs:
         echo "::endgroup::"
         echo "::group::Fix Meta"
         cd $GITHUB_WORKSPACE/conda
-        p=${GITHUB_REF#refs/heads/}
+        p=${GITHUB_REF_NAME}
         p_sanitized=${p//\//_}
         p_sanitized=${p_sanitized//-/_}
-        sed -i -e '/^{% set git_tag =/ s+main+'$p'+g' meta.yaml
-        sed -i -e '/^{% set git_tag_sanitized =/ s+main+'$p_sanitized'+g' meta.yaml
+        sed -i -e '/^{% set git_tag =/ s+{% set git_tag = "[^"]*" %}+{% set git_tag = "'"$p"'" %}+g' meta.yaml
+        sed -i -e '/^{% set git_tag_sanitized =/ s+{% set git_tag_sanitized = "[^"]*" %}+{% set git_tag_sanitized = "'"$p_sanitized"'" %}+g' meta.yaml
         cat meta.yaml
         echo "::endgroup::"
         echo "::group::Fix PostLink"
@@ -112,6 +115,48 @@ jobs:
         cd $GITHUB_WORKSPACE/Application/Tests
         ./run_unix.bash
         echo "::endgroup::"
+    - name: Collect conda package artifacts
+      if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
+      shell: bash -l {0}
+      working-directory: ${{ github.workspace }}
+      run: |
+        set -euo pipefail
+        out="$GITHUB_WORKSPACE/conda-artifacts"
+        mkdir -p "$out"
+        packages=()
+        while IFS= read -r -d '' pkg; do
+          packages+=("$pkg")
+        done < <(find "$CONDA_PREFIX/conda-bld" -type f -name 'trex-*.conda' -print0)
+        if [ "${#packages[@]}" -eq 0 ]; then
+          echo "No trex .conda packages found under $CONDA_PREFIX/conda-bld" >&2
+          exit 1
+        fi
+        latest=$(ls -t "${packages[@]}" | head -n 1)
+        cp "$latest" "$out/$(basename "$latest")"
+        ls -lh "$out"
+    - name: Upload conda packages
+      if: github.ref == 'refs/heads/main'
+      uses: actions/upload-artifact@v4
+      with:
+        name: trex-conda-osx-64
+        path: ${{ github.workspace }}/conda-artifacts/*.conda
+        if-no-files-found: error
+        retention-days: 14
+        compression-level: 0
+    - name: Attach conda packages to GitHub release
+      if: startsWith(github.ref, 'refs/tags/')
+      shell: bash -l {0}
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        set -euo pipefail
+        tag="$GITHUB_REF_NAME"
+        if ! gh release view "$tag" >/dev/null 2>&1; then
+          gh release create "$tag" --verify-tag --title "$tag" --notes "Conda package builds for $tag." || gh release view "$tag" >/dev/null
+        fi
+        mkdir -p "$GITHUB_WORKSPACE/release-assets"
+        zip -j "$GITHUB_WORKSPACE/release-assets/trex-conda-osx-64.zip" "$GITHUB_WORKSPACE"/conda-artifacts/*.conda
+        gh release upload "$tag" "$GITHUB_WORKSPACE"/release-assets/*.zip --clobber
     - name: Upload failure artifacts (.csv, .npz, .results, .pv, logs, html, post-link logs)
       if: failure()
       uses: actions/upload-artifact@v4
