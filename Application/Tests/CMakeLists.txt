@@ -199,7 +199,7 @@ target_link_libraries(test_patharray PUBLIC
         pv)
 
 target_link_libraries(test_optionslist PUBLIC
-        gtest)
+        commons)
 
 target_link_libraries(test_dyngui PUBLIC
         commons
