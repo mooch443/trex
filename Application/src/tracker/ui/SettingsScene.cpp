@@ -36,6 +36,18 @@ void SettingsScene::reset_last_opened_tab() {
     last_opened_tab.set("choose_settings_layout.json");
 }
 
+namespace {
+void set_global_setting_from_path_string(const std::string& parm, const std::string& path) {
+    auto ref = GlobalSettings::get(parm);
+    auto& setting = ref.get();
+    if(setting.is_type<file::Path>()) {
+        setting.toProperty<file::Path>() = file::Path(path);
+    } else {
+        setting.set_value_from_string(path);
+    }
+}
+}
+
 struct SettingsScene::Data {
     Timer video_image_timer, animation_timer;
     double blur_target{1};
@@ -686,7 +698,7 @@ struct SettingsScene::Data {
                                 folder = {};
                             
                             auto dir = pfd::select_folder("Select a folder", folder).result();
-                            GlobalSettings::get(parm).get().set_value_from_string(dir);
+                            set_global_setting_from_path_string(parm, dir);
                             std::cout << "Selected "<< parm <<": " << dir << "\n";
                         });
                     }),
@@ -712,7 +724,7 @@ struct SettingsScene::Data {
                                     GlobalSettings::get(parm).get().set_value_from_string(Meta::toStr(dir));
                             } else {
                                 if(not dir.empty()) {
-                                    GlobalSettings::get(parm).get().set_value_from_string(dir.front());
+                                    set_global_setting_from_path_string(parm, dir.front());
                                 }
                             }
                         });
