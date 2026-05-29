@@ -220,10 +220,21 @@ if [ "$(uname -p)" = "arm" ] || [ "${OSTYPE}" = "linux-gnu" ] || [ "$(uname)" = 
     fi
 fi
 
+arch=$(uname -p)
+system=$(uname)
+
 # Detect the currently bundled numpy version so pip sees a compatible build.
 numpy_requirement=()
 numpy_version=$(python -c "import numpy; print(numpy.__version__)" 2>>"${OUT_STREAM}")
-if [ $? -eq 0 ] && [ -n "${numpy_version}" ]; then
+numpy_status=$?
+if [ "${system}" = "Darwin" ] && [ "${arch}" != "arm" ] && [ "${arch}" != "arm64" ]; then
+    numpy_requirement=("numpy>=1.26,<2")
+    if [ ${numpy_status} -eq 0 ] && [ -n "${numpy_version}" ]; then
+        log "macOS Intel detected; installing pip packages with numpy>=1.26,<2 (currently ${numpy_version})."
+    else
+        log "macOS Intel detected; installing pip packages with numpy>=1.26,<2."
+    fi
+elif [ ${numpy_status} -eq 0 ] && [ -n "${numpy_version}" ]; then
     numpy_requirement=("numpy==${numpy_version}")
     log "Installing pip packages (numpy=${numpy_version})..."
 else
@@ -255,9 +266,6 @@ pip_flags=(
     --progress-bar
     off
 )
-
-arch=$(uname -p)
-system=$(uname)
 
 announce_progress "TRex is installing Python ML packages. This can take several minutes; progress below shows the latest pip activity."
 

@@ -10,6 +10,7 @@
 #include <filesystem>
 #include <misc/Image.h>
 #include <core/DetectionTypes.h>
+#include <core/GPURecognitionTypes.h>
 #include <misc/RBSettings.h>
 #include <python/PrecomuptedDetection.h>
 #include <tracking/SplitBlob.h>
@@ -885,6 +886,29 @@ TEST(TestValidModels, Valid) {
     ASSERT_TRUE(yolo::valid_model("yolov4-human.pt", mockfs));
     ASSERT_TRUE(yolo::valid_model("yolov10-cls.pt", mockfs));
     ASSERT_TRUE(yolo::valid_model("yolo11lu.pt", mockfs));
+}
+
+TEST(TestValidModels, ExistingPtPathWithSpaces) {
+    const auto native_path = std::filesystem::temp_directory_path() / "trex model with spaces.pt";
+    {
+        std::ofstream model_file(native_path, std::ios::binary);
+        ASSERT_TRUE(model_file.good());
+    }
+
+    struct Cleanup {
+        std::filesystem::path path;
+        ~Cleanup() {
+            std::error_code ec;
+            std::filesystem::remove(path, ec);
+        }
+    } cleanup{native_path};
+
+    const file::Path model_path(native_path.string());
+    ASSERT_TRUE(yolo::valid_model(model_path));
+    EXPECT_NO_THROW(track::detect::ModelConfig(
+        track::detect::ModelTaskType::detect,
+        false,
+        model_path.str()));
 }
 
 TEST(TestValidModels, Invalid) {

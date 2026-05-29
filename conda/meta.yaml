@@ -72,11 +72,10 @@ requirements:
     - pkg-config            # [not win]
     - jom                   # [win]
     - make                  # [unix]
+    - {{ compiler('c') }}   # [osx and not arm64]
+    - {{ compiler('cxx') }} # [osx and not arm64]
     - {{ compiler('c') }}   # [not osx]
     - {{ compiler('cxx') }} # [not osx]
-    #- {{ compiler('c') }}   # [osx]
-    #- {{ compiler('cxx') }} # [osx]
-    #- clang-tools  # [osx]
     - cmake >=3.20,<5
     #- ninja  # [not win]
     - git # [not win]
