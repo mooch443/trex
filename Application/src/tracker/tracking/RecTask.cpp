@@ -3,19 +3,14 @@
 #include <commons.pc.h>
 #include <misc/Timer.h>
 #include <misc/frame_t.h>
-#include <misc/idx_t.h>
+#include <core/idx_t.h>
 #include <misc/Image.h>
 #include <misc/GlobalSettings.h>
-#include <python/GPURecognition.h>
-#include <misc/PythonWrapper.h>
 #include <file/DataLocation.h>
-
-namespace py = Python;
 
 namespace track {
 
 inline static std::atomic<bool> _initialized = false;
-inline static constexpr auto tagwork = "pretrained_tagwork";
 inline static std::atomic_bool _terminate = false;
 static auto& mutex() {
     static std::mutex m;
@@ -28,6 +23,19 @@ inline static Timer _time_last_added;
 inline static std::unique_ptr<std::thread> _update_thread;
 
 #if !COMMONS_NO_PYTHON
+
+static RecTaskBackend& rec_task_backend() {
+    static RecTaskBackend backend;
+    return backend;
+}
+
+void install_rec_task_backend(RecTaskBackend backend) {
+    rec_task_backend() = std::move(backend);
+}
+
+bool has_rec_task_backend() {
+    return static_cast<bool>(rec_task_backend().predict);
+}
 
 bool RecTask::can_take_more() {
     static Timer last_print_timer;
@@ -172,96 +180,77 @@ bool RecTask::add(RecTask&& task, const std::function<void(RecTask&)>& fill, con
 }
 
 void RecTask::update(RecTask&& task) {
-    //auto individual = task.individual;
-    auto apply = [task = std::move(task)]() 
-        mutable -> void 
-    {
-        using py = PythonIntegration;
-        py::set_variable("tag_images", task._images, tagwork);
+    if(!has_rec_task_backend()) {
+        throw SoftException("Tracking recognition backend was not installed.");
+    }
 
-        Predictions result{
-            ._tracklet_start = task._tracklet_start,
-            .individual = task.individual,
-            ._frames = std::move(task._frames)
-        };
-
-        auto receive = [
-            images = std::move(task._images), 
-            callback = std::move(task._callback),
-            result = std::move(result)](std::vector<int64_t> values) 
-                mutable -> void 
-        {
-            result._ids = std::move(values);
-
-            std::unordered_map<int64_t, int> _best_id;
-            for (auto i : result._ids)
-                _best_id[i]++;
-
-            int64_t maximum = -1;
-            int64_t max_key = -1;
-            int64_t N = sign_cast<int64_t>(result._ids.size());
-            for (auto& [k, v] : _best_id) {
-                if (v > maximum) {
-                    maximum = v;
-                    max_key = k;
-                }
-            }
-
-            result.best_id = max_key;
-            result.p = float(maximum) / float(N);
-            //Print("\t",result._tracklet_start,": individual ", result.individual, " is ", max_key, " with p:", result.p, " (", task._images.size(), " samples)");
-
-            static const bool tags_save_predictions = BOOL_SETTING(tags_save_predictions);
-            if (tags_save_predictions) {
-                static std::atomic<int64_t> saved_index{ 0 };
-                static const auto filename = (std::string)READ_SETTING(filename, file::Path).filename();
-
-                //if(result.p <= 0.7)
-                {
-                    file::Path output = file::DataLocation::parse("output", "tags_" + filename) / Meta::toStr(max_key);
-                    if (!output.exists())
-                        output.create_folder();
-
-                    auto prefix = Meta::toStr(result.individual) + "." + Meta::toStr(result._tracklet_start);
-                    if (!(output / prefix).exists())
-                        (output / prefix).create_folder();
-
-                    auto files = (output / prefix).find_files();
-
-                    // delete files that already existed for this individual AND segment
-                    for (auto& f : files) {
-                        if (utils::beginsWith((std::string)f.filename(), prefix))
-                            f.delete_file();
-                    }
-
-                    // save example image
-                    if (!images.empty())
-                        cv::imwrite((output / prefix).str() + ".png", images.front()->get());
-
-                    output = output / prefix / (Meta::toStr(saved_index.load()) + ".");
-
-                    Print("\t\t-> exporting ", images.size(), " guesses to ", output);
-
-                    for (size_t i = 0; i < images.size(); ++i) {
-                        cv::imwrite(output.str() + Meta::toStr(i) + ".png", images[i]->get());
-                    }
-                }
-
-                ++saved_index;
-            }
-
-            //Print("Calling callback on ", result.individual, " and frame ", result._tracklet_start);
-            callback(std::move(result));
-        };
-
-        
-        auto pt = cmn::package::F<void(std::vector<int64_t>)>(std::move(receive));
-        py::set_function("receive", std::move(pt), tagwork);
-        py::run(tagwork, "predict");
-        py::unset_function("receive", tagwork);
+    auto images = std::move(task._images);
+    Predictions result{
+        ._tracklet_start = task._tracklet_start,
+        .individual = task.individual,
+        ._frames = std::move(task._frames)
     };
 
-    py::schedule(std::move(apply)).get();
+    auto receive = cmn::package::F<void(std::vector<int64_t>)>([
+        images = std::move(images),
+        callback = std::move(task._callback),
+        result = std::move(result)
+    ](std::vector<int64_t> values) mutable {
+        result._ids = std::move(values);
+
+        std::unordered_map<int64_t, int> best_id_counts;
+        for(auto id : result._ids)
+            best_id_counts[id]++;
+
+        int64_t maximum = -1;
+        int64_t max_key = -1;
+        const int64_t total = sign_cast<int64_t>(result._ids.size());
+        for(auto& [key, count] : best_id_counts) {
+            if(count > maximum) {
+                maximum = count;
+                max_key = key;
+            }
+        }
+
+        result.best_id = max_key;
+        result.p = total > 0 ? float(maximum) / float(total) : 0.f;
+
+        static const bool tags_save_predictions = BOOL_SETTING(tags_save_predictions);
+        if(tags_save_predictions) {
+            static std::atomic<int64_t> saved_index{0};
+            static const auto filename = (std::string)READ_SETTING(filename, file::Path).filename();
+
+            file::Path output = file::DataLocation::parse("output", "tags_" + filename) / Meta::toStr(max_key);
+            if(!output.exists())
+                output.create_folder();
+
+            auto prefix = Meta::toStr(result.individual) + "." + Meta::toStr(result._tracklet_start);
+            if(!(output / prefix).exists())
+                (output / prefix).create_folder();
+
+            auto files = (output / prefix).find_files();
+            for(auto& f : files) {
+                if(utils::beginsWith((std::string)f.filename(), prefix))
+                    f.delete_file();
+            }
+
+            if(!images.empty())
+                cv::imwrite((output / prefix).str() + ".png", images.front()->get());
+
+            output = output / prefix / (Meta::toStr(saved_index.load()) + ".");
+            Print("\t\t-> exporting ", images.size(), " guesses to ", output);
+
+            for(size_t i = 0; i < images.size(); ++i) {
+                cv::imwrite(output.str() + Meta::toStr(i) + ".png", images[i]->get());
+            }
+
+            ++saved_index;
+        }
+
+        callback(std::move(result));
+    });
+
+    rec_task_backend().predict(std::move(images), std::move(receive));
 }
 
 
@@ -293,36 +282,21 @@ void RecTask::deinit() {
         _update_thread = nullptr;
     }
     
+    if(rec_task_backend().deinit)
+        rec_task_backend().deinit();
     _initialized = false;
 }
 
 void RecTask::init() {
     if(_initialized)
         return;
-    
-    py::init().get();
-    
-    py::schedule(py::pack([&]() -> void {
-        using py = PythonIntegration;
-        
-        try {
-            py::import_module(tagwork);
-            auto path = READ_SETTING(tags_model_path, file::Path);
-            if(path.empty() || !path.exists()) {
-                throw SoftException("The model at ", path, " can not be found. Please set `tags_model_path` to point to an h5 file with a pretrained network. See `https://trex.run/docs/parameters_trex.html#tags_model_path` for more information.");
-            }
-            py::set_variable("model_path", path.str(), tagwork);
-            py::set_variable("width", 32, tagwork);
-            py::set_variable("height", 32, tagwork);
-            py::run(tagwork, "init");
-            Print("Initialized tagging successfully.");
-            _initialized = true;
-            
-        } catch(...) {
-            FormatError("Error during tagging initialization.");
-            return;
-        }
-    })).get();
+
+    if(!has_rec_task_backend() || !rec_task_backend().init) {
+        throw SoftException("Tracking recognition backend was not installed.");
+    }
+
+    rec_task_backend().init();
+    _initialized = true;
 }
 
 #endif

@@ -2,9 +2,9 @@
 
 #include <tracking/Individual.h>
 #include <tracking/Stuffs.h>
-#include <misc/PVBlob.h>
-#include <tracker/misc/default_config.h>
-#include <misc/TrackingSettings.h>
+#include <processing/PVBlob.h>
+#include <core/default_config.h>
+#include <core/TrackingSettings.h>
 #include <tracking/IndividualManager.h>
 
 namespace track {
@@ -24,6 +24,7 @@ struct CachedSettings {
     DEFINE_CACHE_SETTING(track_max_speed);
     DEFINE_CACHE_SETTING(cm_per_pixel);
     DEFINE_CACHE_SETTING(match_min_probability);
+    DEFINE_CACHE_SETTING(match_topk);
     DEFINE_CACHE_SETTING(huge_timestamp_seconds);
     DEFINE_CACHE_SETTING(posture_direction_smoothing);
 };

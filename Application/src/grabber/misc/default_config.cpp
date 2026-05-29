@@ -1,11 +1,11 @@
 #include "default_config.h"
 #include <misc/SpriteMap.h>
-#include <file/Path.h>
+#include <misc/Path.h>
 #include <misc/CropOffsets.h>
 #include <video/GenericVideo.h>
 #include <video/AveragingAccumulator.h>
 #include <misc/ranges.h>
-#include <misc/idx_t.h>
+#include <core/idx_t.h>
 #include <processing/Background.h>
 
 #ifndef WIN32
@@ -16,16 +16,6 @@
 #include <misc/default_settings.h>
 
 #include "GitSHA1.h"
-
-namespace cmn {
-
-ENUM_CLASS_DOCS(meta_encoding_t,
-                "No color information is stored. This makes .pv video files very small, but loses all greyscale or color information.",
-                "Grayscale video, calculated by simply extracting one channel (default R) from the video.",
-                "Encode all colors into a 256-colors unsigned 8-bit integer. The top 2 bits are blue (4 shades), the following 3 bits green (8 shades) and the last 3 bits red (8 shades).",
-                "Encode all colors into a full color 8-bit R8G8B8 array.");
-
-}
 
 namespace grab {
 #ifndef WIN32
@@ -85,6 +75,7 @@ namespace default_config {
         
 #if WITH_PYLON
         CONFIG("cam_serial_number", std::string(), "Serial number of a Basler camera you want to choose, if multiple are present.");
+        CONFIG("basler_runtime_root", file::Path(), "Optional explicit runtime root for Basler pylon discovery. If empty, TRex searches environment, conda, and bundled paths at use time.");
 #endif
         
 #if WITH_FFMPEG
@@ -99,8 +90,7 @@ namespace default_config {
         
         CONFIG("frame_rate", uint32_t(0), "Frame rate of the video will be set according to `cam_framerate` or, for video conversion, the metadata of a given video. If you want to modify your frame rate, please set either `cam_framerate` or `frame_rate` during conversion.", LOAD);
         CONFIG("blob_size_range", Rangef(0.01f, 500000.f), "Minimum or maximum size of the individuals on screen after thresholding. Anything smaller or bigger than these values will be disregarded as noise.");
-        CONFIG("crop_offsets", CropOffsets(), "Percentage offsets [left, top, right, bottom] that will be cut off the input images (e.g. [0.1,0.1,0.5,0.5] will remove 10%% from the left and top and 50%% from the right and bottom and the video will be 60%% smaller in X and Y).");
-        CONFIG("crop_window", false, "If set to true, the grabber will open a window before the analysis starts where the user can drag+drop points defining the crop_offsets.");
+        //CONFIG("crop_window", false, "If set to true, the grabber will open a window before the analysis starts where the user can drag+drop points defining the crop_offsets.");
         
         CONFIG("approximate_length_minutes", uint32_t(0), "If available, please provide the approximate length of the video in minutes here, so that the encoding strategy can be chosen intelligently. If set to 0, infinity is assumed. This setting is overwritten by `stop_after_minutes`.");
         CONFIG("stop_after_minutes", uint32_t(0), "If set to a value above 0, the video will stop recording after X minutes of recording time.");
@@ -208,6 +198,8 @@ namespace default_config {
             "detect_type",
             "detect_iou_threshold",
             "detect_conf_threshold",
+            "detect_keypoint_format",
+            "detect_keypoint_names",
             "video_conversion_range",
             "detect_batch_size",
             "detect_threshold",
@@ -223,7 +215,7 @@ namespace default_config {
         CONFIG("grabber_force_settings", false, "If set to true, live tracking will always overwrite a settings file with `filename`.settings in the output folder.");
         
 #if !CMN_WITH_IMGUI_INSTALLED
-        config["nowindow"] = true;
+        config.values["nowindow"] = true;
 #endif
     }
 }

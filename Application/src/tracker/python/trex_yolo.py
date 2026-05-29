@@ -105,6 +105,10 @@ TRex.log("*** patched functions ***")
 ##############
 
 
+RUNTIME_PROFILE_LEGACY = "legacy_head"
+RUNTIME_PROFILE_MODERN_END2END = "modern_end2end"
+RUNTIME_PROFILE_MODERN_END2END_FORCED_NMS = "modern_end2end_forced_nms"
+
 def unscale_coords(img1_shape, coords, img0_shape, ratio_pad=None):
     """
     Rescale segment coordinates (xyxy) from normalized to original image scale
@@ -169,8 +173,11 @@ class StrippedYoloResults(StrippedResults):
             # Store original boxes array for later scaling
         self.orig_shape = getattr(results, 'orig_shape', None)
 
-        box = np.array([box[0], box[1]])
-        box_offset = np.array([box[0], box[1]])
+        box_array = np.asarray(box, dtype=np.float32)
+        if box_array.shape[0] < 4:
+            box_array = np.pad(box_array, (0, 4 - box_array.shape[0]), constant_values=0.0)
+        box_offset = box_array[:2]
+        crop_offset = box_offset  # legacy naming compatibility
 
         # Process keypoints: scale valid keypoint coordinates
         keypoints_attr = getattr(results, 'keypoints', None)
@@ -205,8 +212,12 @@ class StrippedYoloResults(StrippedResults):
             self.obb: np.ndarray = obb_attr.data[:, :5].cpu().numpy()
             
             # Scale and offset the center coordinates of each OBB
-            self.obb[:, :2] = (self.obb[:, :2] + offset + box_offset) * scale[0]
-            self.obb[:, 2:4] = (self.obb[:, 2:4] + offset + box_offset) * scale[1]
+            offset_x, offset_y = offset
+            box_dx, box_dy = box_offset
+            self.obb[:, 0] = (self.obb[:, 0] + offset_x + box_dx) * scale[0]
+            self.obb[:, 1] = (self.obb[:, 1] + offset_y + box_dy) * scale[1]
+            self.obb[:, 2] = self.obb[:, 2] * scale[0]
+            self.obb[:, 3] = self.obb[:, 3] * scale[1]
 
             # insert column for confidence in the front
             confs = obb_attr.conf.cpu().numpy()
@@ -230,11 +241,17 @@ class StrippedYoloResults(StrippedResults):
             unscaled : np.ndarray = np.copy(coords)
 
             # Scale boxes to resized image coordinates
-            coords[:, :2] = (coords[:, :2] + offset + box) * scale[0]
-            coords[:, 2:4] = (coords[:, 2:4] + offset + box) * scale[1]
+            offset_x, offset_y = offset
+            box_dx, box_dy = crop_offset
+            coords[:, 0] = (coords[:, 0] + offset_x + box_dx) * scale[0]
+            coords[:, 1] = (coords[:, 1] + offset_y + box_dy) * scale[1]
+            coords[:, 2] = (coords[:, 2] + offset_x + box_dx) * scale[0]
+            coords[:, 3] = (coords[:, 3] + offset_y + box_dy) * scale[1]
 
-            unscaled[:, :2] *= scale[0]
-            unscaled[:, 2:4] *= scale[1]
+            unscaled[:, 0] *= scale[0]
+            unscaled[:, 1] *= scale[1]
+            unscaled[:, 2] *= scale[0]
+            unscaled[:, 3] *= scale[1]
 
             # Unscale coordinates back to original image resolution
             # scale xy first and then wh:
@@ -330,9 +347,12 @@ class StrippedYoloResults(StrippedResults):
 
         # Finally, scale any remaining bounding boxes to the target image space
         if self.boxes is not None:
-            # Scale and offset the bounding boxes
-            self.boxes[:, :2] = (self.boxes[:, :2] + offset + box_offset) * scale[0]
-            self.boxes[:, 2:4] = (self.boxes[:, 2:4] + offset + box_offset) * scale[1]
+            offset_x, offset_y = offset
+            box_dx, box_dy = box_offset
+            self.boxes[:, 0] = (self.boxes[:, 0] + offset_x + box_dx) * scale[0]
+            self.boxes[:, 1] = (self.boxes[:, 1] + offset_y + box_dy) * scale[1]
+            self.boxes[:, 2] = (self.boxes[:, 2] + offset_x + box_dx) * scale[0]
+            self.boxes[:, 3] = (self.boxes[:, 3] + offset_y + box_dy) * scale[1]
 
             # If coords has more than 6 columns, it contains tracking information
             # We remove that tracking information by deleting the id-column (at index 4)
@@ -349,9 +369,59 @@ class YOLOModel(DetectionModel):
         """
         assert isinstance(config, TRex.ModelConfig)
         super().__init__(config)
+        self.runtime_profile = RUNTIME_PROFILE_LEGACY
+        self.explicit_iou_override: Optional[float] = None
+        self.detect_head = None
 
     def __str__(self) -> str:
         return f"YOLOModel<{str(self.config)}>"
+
+    def _iter_detect_heads(self):
+        if not hasattr(self.ptr, "model") or self.ptr.model is None:
+            return []
+        return [module for module in self.ptr.model.modules() if hasattr(module, "end2end")]
+
+    def _head_has_one2one_branch(self, head: Any) -> bool:
+        try:
+            one2one = getattr(head, "one2one", None)
+            if not isinstance(one2one, dict):
+                return False
+            return one2one.get("box_head") is not None and one2one.get("cls_head") is not None
+        except Exception:
+            return False
+
+    def _resolve_runtime_profile(self) -> str:
+        self.explicit_iou_override = TRex.setting("detect_iou_threshold")
+        self.detect_head = None
+
+        for head in self._iter_detect_heads():
+            if getattr(head, "end2end", False) and self._head_has_one2one_branch(head):
+                self.detect_head = head
+                if self.explicit_iou_override is not None:
+                    return RUNTIME_PROFILE_MODERN_END2END_FORCED_NMS
+                return RUNTIME_PROFILE_MODERN_END2END
+
+        return RUNTIME_PROFILE_LEGACY
+
+    def _set_detect_head_end2end(self, enabled: bool) -> None:
+        for head in self._iter_detect_heads():
+            try:
+                head.end2end = enabled
+            except Exception as exc:
+                TRex.warn(f"Could not set end2end={enabled} for {type(head)}: {exc}")
+
+    def _prediction_kwargs(self, kwargs: dict[str, Any]) -> dict[str, Any]:
+        sanitized = dict(kwargs)
+
+        if self.runtime_profile == RUNTIME_PROFILE_MODERN_END2END:
+            # Respect upstream NMS-free end2end inference even if callers still pass legacy knobs.
+            sanitized.pop("iou", None)
+            sanitized.pop("agnostic_nms", None)
+        elif sanitized.get("iou", None) is None:
+            sanitized.pop("iou", None)
+            sanitized.pop("agnostic_nms", None)
+
+        return sanitized
 
     def load(self):
         """
@@ -359,8 +429,16 @@ class YOLOModel(DetectionModel):
         This method should handle the loading of the model parameters and any necessary setup.
         """
         # Load the model from the specified path
-        self.ptr = YOLO(self.config.model_path).to('cpu')
-        print(f"Loading model {self} on device {self.device}")
+        try:
+            self.ptr = YOLO(self.config.model_path).to("cpu")
+            print(f"Loaded model {self} onto the CPU first.")
+        except Exception as e:
+            if "LocalizationModel" in str(e):
+                # user is trying to load a POLO model in a version of ultralytics that does not support it
+                # i.e. the user didnt install POLO, but ultralytics default version
+                raise Exception(f"Failed to load model {self}. This model may be a POLO model which requires a version of ultralytics that supports it. Please install ultralytics with POLO support or use a non-POLO model. Original error: {e}")
+            else:
+                raise Exception(f"Failed to load model {self}. Original error: {e}")
 
         # initialize the torch device in case this has been broken
         # or the device has changed
@@ -404,15 +482,44 @@ class YOLOModel(DetectionModel):
             TRex.warn("Could not determine trained resolution from model, using " + str(self.config.trained_resolution)+ " ("+ str(e) + ")")
             pass
 
-        self.ptr.fuse()
-        self.ptr.half()
+        self.runtime_profile = self._resolve_runtime_profile()
+        TRex.log(
+            f"Resolved runtime profile {self.runtime_profile} for model {self.config.model_path} "
+            f"(detect_iou_threshold={self.explicit_iou_override})."
+        )
+
+        if self.runtime_profile == RUNTIME_PROFILE_MODERN_END2END_FORCED_NMS:
+            try:
+                self._set_detect_head_end2end(False)
+                TRex.log(
+                    f"Disabled end2end before fuse() for model {self.config.model_path} because "
+                    "detect_iou_threshold is explicitly set."
+                )
+            except Exception as e:
+                TRex.warn(f"Could not disable end2end before fuse: {e}")
+
+        try:
+            self.ptr.fuse()
+        except Exception as e:
+            TRex.warn(f"Model fuse() failed, continuing unfused: {e}")
+
+        # half() is generally only beneficial/valid on CUDA; keep it disabled by default.
+        if self.device.type == "cuda":
+            try:
+                self.ptr.half()
+            except Exception as e:
+                TRex.warn(f"Model half() failed: {e}")
+
         self.ptr.to(self.device)
+        TRex.log(f"Moved model {self} to device {self.device}.")
 
         super().load()
 
     def predict_boxes(self, images : List[np.ndarray], **kwargs) -> List[np.ndarray]:
         if len(images) == 0:
             return []
+
+        kwargs = self._prediction_kwargs(kwargs)
         
         if self.config.use_tracking:
             results = []
@@ -439,6 +546,7 @@ class YOLOModel(DetectionModel):
             return []
 
         results = []
+        kwargs = self._prediction_kwargs(kwargs)
 
         # If radii is not provided in kwargs and the model has class names, generate default radii
         if self.config.output_format == ObjectDetectionFormat.points:

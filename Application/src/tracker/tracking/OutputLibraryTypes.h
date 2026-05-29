@@ -1,6 +1,7 @@
 #pragma once
 
 #include <commons.pc.h>
+#include <misc/frame_t.h>
 #include <misc/OptionsList.h>
 
 namespace track {

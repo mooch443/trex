@@ -4,11 +4,13 @@
 
 #include <pv.h>
 #include <misc/bid.h>
-#include <misc/idx_t.h>
-#include <tracking/IndividualCache.h>
-#include <misc/ProximityGrid.h>
-#include <misc/TrackingSettings.h>
-#include <tracking/MotionRecord.h>
+#include <processing/BlobWeakPtr.h>
+#include <core/idx_t.h>
+#include <data/IndividualCache.h>
+#include <processing/ProximityGrid.h>
+#include <core/TrackingSettings.h>
+#include <tracking/CacheHints.h>
+#include <data/MotionRecord.h>
 
 #ifndef NDEBUG
 #define TREX_ENABLE_HISTORY_LOGS true
@@ -164,16 +166,16 @@ public:
     //! Adds one blob to _blobs.
     void add_regular(pv::BlobPtr&&);
     //! Adds one blob to _noise.
-    void add_noise(pv::BlobPtr&&);
+    void add_noise(pv::BlobPtr&&, pv::FilterReason);
     
     //! Adds a vector of blobs to _blobs.
     void add_regular(std::vector<pv::BlobPtr>&& v);
     //! Adds a vector of blobs to _noise.
-    void add_noise(std::vector<pv::BlobPtr>&& v);
+    void add_noise(std::vector<pv::BlobPtr>&& v, pv::FilterReason);
     
     //! Simply moves one blob from _blobs to _noise.
     /// Has the advantage of not requiring recalculate of num_pixels.
-    void move_to_noise(size_t blob_index);
+    void move_to_noise(size_t blob_index, pv::FilterReason);
     
     //! Tries to find the given blob in any of the arrays and removes it.
     //bool erase_anywhere(pv::bid bdx);
@@ -609,9 +611,53 @@ public:
         }
     }
     
+    template<typename F, typename Container>
+        requires Transformer<F, pv::Blob>
+    void transform_all_by_bid(const Container& c, F&& fn) const {
+        size_t i = 0;
+        for(auto const& idx : c) {
+            auto it = _blob_map.find(idx);
+            if(it != _blob_map.end()) {
+                if(auto own = it->second;
+                   own)
+                {
+                    if constexpr(VoidTransformer<F, pv::Blob>) {
+                        fn(*own);
+                    } else if constexpr(Predicate<F, pv::Blob>) {
+                        if(!fn(*own))
+                            break;
+                    } else if constexpr(IndexedTransformer<F, pv::Blob>) {
+                        fn(i++, *own);
+                    } else {
+                        static_assert(sizeof(F) == 0, "Transformer type not implemented.");
+                    }
+                }
+                continue;
+            }
+            
+            it = _noise_map.find(idx);
+            if(it != _noise_map.end()) {
+                if(auto own = it->second;
+                   own)
+                {
+                    if constexpr(VoidTransformer<F, pv::Blob>) {
+                        fn(*own);
+                    } else if constexpr(Predicate<F, pv::Blob>) {
+                        if(!fn(*own))
+                            break;
+                    } else if constexpr(IndexedTransformer<F, pv::Blob>) {
+                        fn(i++, *own);
+                    } else {
+                        static_assert(sizeof(F) == 0, "Transformer type not implemented.");
+                    }
+                }
+            }
+        }
+    }
+    
     template<typename F>
         requires Predicate<F, pv::Blob>
-    void move_to_noise_if(F && fn) {
+    void move_to_noise_if(F && fn, pv::FilterReason reason) {
         for(auto it = _blob_owner.begin(); it != _blob_owner.end(); ) {
             auto &&own = *it;
             if(!own) {
@@ -620,6 +666,8 @@ public:
             }
             
             if(fn(*own)) {
+                if(reason != pv::FilterReason::Unknown)
+                    own->set_reason(reason);
                 _noise_map[own->blob_id()] = own.get();
                 _blob_map.erase(own->blob_id());
                 
@@ -714,7 +762,7 @@ public:
     
     void clear();
     
-    static std::string class_name() { return "PPFrame"; }
+    static consteval std::string_view class_name() { return "PPFrame"; }
     std::string toStr() const;
     
 private:

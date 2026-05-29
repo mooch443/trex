@@ -1,7 +1,7 @@
 #pragma once
 
 #include <commons.pc.h>
-#include <misc/PVBlob.h>
+#include <processing/PVBlob.h>
 #include <tracking/PPFrame.h>
 #include <tracking/PrefilterBlobs.h>
 
@@ -23,7 +23,7 @@ struct BlobReceiver {
 public:
     BlobReceiver(PrefilterBlobs& prefilter, PPFrameType type, std::function<bool(pv::BlobPtr&)>&& map = nullptr, FilterReason = FilterReason::Unknown);
     BlobReceiver(PPFrame& frame, PPFrameType type, FilterReason = FilterReason::Unknown);
-    BlobReceiver(std::vector<pv::BlobPtr>& base);
+    BlobReceiver(std::vector<pv::BlobPtr>& base, PPFrameType type, FilterReason = FilterReason::Unknown);
     
     void operator()(std::vector<pv::BlobPtr>&& v) const;
     void operator()(pv::BlobPtr&& b) const;

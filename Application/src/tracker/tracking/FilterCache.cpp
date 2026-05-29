@@ -1,13 +1,14 @@
 #include "FilterCache.h"
 #include <gui/Transform.h>
 #include <misc/Image.h>
-#include <misc/idx_t.h>
+#include <core/idx_t.h>
 #include <misc/frame_t.h>
-#include <tracker/misc/default_config.h>
+#include <core/default_config.h>
 #include <grabber/misc/default_config.h>
-#include <misc/PVBlob.h>
+#include <processing/PVBlob.h>
 #include <misc/ranges.h>
 #include <misc/Timer.h>
+#include <tracking/Stuffs.h>
 #include <tracking/Tracker.h>
 #include <processing/Background.h>
 

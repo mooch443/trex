@@ -4,9 +4,9 @@
 #include <commons.pc.h>
 #include <file/DataFormat.h>
 #include <video/GenericVideo.h>
-#include <file/Path.h>
+#include <misc/Path.h>
 #include <misc/Image.h>
-#include <misc/PVBlob.h>
+#include <processing/PVBlob.h>
 #include <misc/frame_t.h>
 
 namespace pv {
@@ -133,7 +133,7 @@ namespace pv {
         
     public:
         Frame& operator=(const Frame& other) = delete;
-        Frame& operator=(Frame&& other) = default;
+        Frame& operator=(Frame&& other);
         
         //! initialize empty object
         Frame() = default;
@@ -166,7 +166,23 @@ namespace pv {
         void serialize(DataPackage&, bool& compressed) const;
         
         std::string toStr() const {
-            return "pv::Frame<"+index().toStr()+">";
+            std::string s = "pv::Frame<idx:" + index().toStr();
+            if (timestamp().valid()) {
+                s += " ts:" + Meta::toStr(timestamp().get());
+            }
+            s += " objs:" + Meta::toStr(n());
+            s += " enc:" + encoding().str();
+            if (source_index().valid()) {
+                s += " src:" + source_index().toStr();
+            }
+            if (!_predictions.empty()) {
+                s += " preds:" + Meta::toStr(_predictions.size());
+            }
+            if (loading_time() > 0.f) {
+                s += " load:" + Meta::toStr(loading_time()) + "s";
+            }
+            s += ">";
+            return s;
         }
         
     protected:
@@ -254,7 +270,7 @@ namespace pv {
         Float2_t meta_real_width;
         
         //! Contains average time delta between frames
-        double average_tdelta;
+        double average_tdelta{0.0};
         
     private:
         /**
@@ -342,7 +358,7 @@ namespace pv {
         
         friend struct pv::TaskSentinel;
         
-        const FileMode _mode;
+        GETTER(FileMode, mode);
         void _check_opened() const;
         mutable bool _tried_to_open{false};
         
@@ -415,6 +431,8 @@ namespace pv {
         void add_individual(const Frame& frame);
         void add_individual(const Frame& frame, DataPackage& pack, bool compressed);
         
+        void reset_to_frame(Frame_t);
+        
         template<meta_encoding_t::Class mode>
         void read_frame(Frame& frame, Frame_t frameIndex) {
             //static_assert(is_in(mode, ImageMode::RGB, ImageMode::GRAY), "Reading from pv is only supported in either RGB or GRAY mode.");
@@ -451,6 +469,7 @@ namespace pv {
         
     private:
         virtual void stop_writing() override;
+        virtual void stop_modifying() override;
         
     public:
         void set_resolution(const Size2& size) { _header.resolution = Size2((cv::Size)size); }
@@ -508,7 +527,7 @@ namespace pv {
         }
         
         std::string toStr() const;
-        static std::string class_name() {
+        static consteval std::string_view class_name() {
             return "pv::File";
         }
         std::string filesize() const;

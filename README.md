@@ -2,16 +2,13 @@
 
 `main`
 [![CondaBuildLinux](https://github.com/mooch443/trex/actions/workflows/cmake-ubuntu.yml/badge.svg?branch=main)](https://github.com/mooch443/trex/actions/workflows/cmake-ubuntu.yml)
-[![CondaBuildMacOS](https://github.com/mooch443/trex/actions/workflows/cmake-macos.yml/badge.svg?branch=main)](https://github.com/mooch443/trex/actions/workflows/cmake-macos.yml)
+[![CondaBuildMacOSARM64](https://github.com/mooch443/trex/actions/workflows/cmake-macos-arm.yml/badge.svg?branch=main)](https://github.com/mooch443/trex/actions/workflows/cmake-macos-arm.yml)
 [![CondaBuildWindows](https://github.com/mooch443/trex/actions/workflows/cmake-windows.yml/badge.svg?branch=main)](https://github.com/mooch443/trex/actions/workflows/cmake-windows.yml)
 
-`dev`
-[![CondaBuildLinux](https://github.com/mooch443/trex/actions/workflows/cmake-ubuntu.yml/badge.svg?branch=dev)](https://github.com/mooch443/trex/actions/workflows/cmake-ubuntu.yml)
-[![CondaBuildMacOS](https://github.com/mooch443/trex/actions/workflows/cmake-macos.yml/badge.svg?branch=dev)](https://github.com/mooch443/trex/actions/workflows/cmake-macos.yml)
-[![CondaBuildWindows](https://github.com/mooch443/trex/actions/workflows/cmake-windows.yml/badge.svg?branch=dev)](https://github.com/mooch443/trex/actions/workflows/cmake-windows.yml)
+:book: [Docs](https://trex.run/docs) | :tv: [YouTube](https://youtube.com/@TRexTracker) | :scroll: [License](LICENSING.md)
+AGPL v3+ (free). 
 
-*Documentation: https://trex.run/docs*
-*YouTube: https://youtube.com/@TRexTracker*
+:office: Company use requires a paid commercial license — contact us at a&#64;trex.run
 
 # Hey there
 
@@ -69,7 +66,11 @@ Significant contributions by:
 
 # License
 
-Released under the GPLv3 License (see [LICENSE](https://github.com/mooch443/trex/blob/main/LICENSE)).
+Released under the GNU Affero General Public License v3.0 or later (see
+[LICENSE](https://github.com/mooch443/trex/blob/main/LICENSE) and
+[LICENSING.md](LICENSING.md)).
+The `Application/src/commons` subtree continues to ship under the GNU General
+Public License v3.0 (see `Application/src/commons/LICENSE` for details).
 
 # Reference
 

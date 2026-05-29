@@ -1,0 +1,27 @@
+TRex Multi-Animal Tracking Software
+Copyright (C) 2017-2025 Tristan Walter and contributors
+
+Licensing Overview
+------------------
+- TRex, including all code outside of `Application/src/commons`, is released under the
+  GNU Affero General Public License v3.0 or any later version. See the root `LICENSE`
+  file for the complete terms.
+- The `Application/src/commons` subtree is maintained as a standalone component under
+  the GNU General Public License v3.0. Its dedicated license text lives at
+  `Application/src/commons/LICENSE` and must be preserved when
+  distributing that component.
+- TRex depends on multiple third-party libraries whose licenses are included under
+  `licenses/` and other paths referenced in packaging metadata.
+
+Key Obligations Under the GNU AGPL v3
+------------------------------------
+- Provide complete corresponding source code, including your modifications, to every
+  recipient of TRex binaries or installers.
+- When offering TRex functionality over a network (for example, as a hosted service),
+  ensure remote users can obtain the source code of the version actually running on
+  the server, in accordance with section 13 of the GNU AGPL v3.
+- Preserve copyright notices, license texts, and the ability for downstream users to
+  inspect this NOTICE file.
+
+If you have questions about compliance or commercial licensing, please contact the
+project maintainers via https://trex.run.

@@ -42,6 +42,11 @@ cd Application
 mkdir build
 cd build
 
+
+#export CC="${PREFIX}/bin/clang"
+#export CXX="${PREFIX}/bin/clang++"
+#export CXX_CLANG_SCAN_DEPS="${BUILD_PREFIX}/bin/clang-scan-deps"
+
 declare -a CMAKE_PLATFORM_FLAGS
 BUILD_GLFW="OFF"
 echo "GITHUB_WORKFLOW = ${GITHUB_WORKFLOW}"
@@ -187,6 +192,9 @@ export PKG_CONFIG_PATH="${PREFIX}/lib/pkgconfig:${BUILD_PREFIX}/${HOST}/sysroot/
 export PKG_CONFIG_LIBDIR="${PKG_CONFIG_PATH}"
 echo "PKG_CONFIG_PATH=${PKG_CONFIG_PATH}"
 
+#CMAKE_PLATFORM_FLAGS+=("-DCMAKE_CXX_COMPILER_CLANG_SCAN_DEPS=${CXX_CLANG_SCAN_DEPS}")
+#CMAKE_PLATFORM_FLAGS+=("-G Ninja")
+
 echo "Using system flags: ${CMAKE_PLATFORM_FLAGS[@]}"
 cmake .. \
     -DPython_EXECUTABLE:FILEPATH=${PREFIX}/bin/python3 \
@@ -212,6 +220,9 @@ cmake .. \
     -DBUILD_LEGACY_TREX=OFF -DBUILD_LEGACY_TGRABS=OFF \
     -DCMAKE_C_COMPILER=$CC \
     -DCMAKE_CXX_COMPILER=$CXX \
+    -DTREX_ENABLE_SHARED_INTERNAL_LIBS=OFF \
+    -DTREX_ENABLE_MODULES=OFF \
+    -DCOMMONS_ENABLE_MODULES=OFF \
     ${CMAKE_PLATFORM_FLAGS[@]}
     #-DPython_INCLUDE_DIRS:FILEPATH=$(python3 -c "from distutils.sysconfig import get_python_inc; print(get_python_inc())") \
     #-DPython_LIBRARIES:FILEPATH=$(python3 ../find_library.py) \
@@ -246,7 +257,7 @@ cmake ..
 CMAKE_BUILD_PARALLEL_LEVEL=${PROCS} cmake --build . --parallel ${PROCS} --target runAllTests --config Release
 
 cmake .. -DTREX_WITH_TESTS=OFF
-CMAKE_BUILD_PARALLEL_LEVEL=${PROCS} cmake --build . --parallel ${PROCS} && make install
+CMAKE_BUILD_PARALLEL_LEVEL=${PROCS} cmake --build . --parallel ${PROCS} && cmake --install .
 
 echo "Build complete. Checking Git SHA1..."
 if [ -f src/GitSHA1.cpp ]; then

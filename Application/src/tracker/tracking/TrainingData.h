@@ -4,8 +4,8 @@
 
 #include <misc/Image.h>
 #include <pv.h>
-#include <tracker/misc/default_config.h>
-#include <tracker/misc/idx_t.h>
+#include <core/default_config.h>
+#include <core/idx_t.h>
 #include <misc/ranges.h>
 #include <tracking/FilterCache.h>
 
@@ -45,7 +45,7 @@ public:
         void reverse_mapping();
         
         std::string toStr() const;
-        static std::string class_name() {
+        static consteval std::string_view class_name() {
             return "DataRange";
         }
     };
@@ -223,7 +223,7 @@ public:
     void add_frame(std::shared_ptr<DataRange> ptr, Frame_t frame_index, Idx_t id, Idx_t original_id, const Image::SPtr& image, const Vec2& pos, size_t px, const FrameRange& from_range);
     void apply_mapping(const std::map<Idx_t, Idx_t>&);
     std::string toStr() const;
-    static std::string class_name() {
+    static consteval std::string_view class_name() {
         return "TrainingData";
     }
     

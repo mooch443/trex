@@ -49,3 +49,6 @@ include_directories(grabber)
 
 add_subdirectory(grabber)
 add_subdirectory(tracker)
+if(TREX_BUILD_TOOLS)
+    add_subdirectory(tools)
+endif()

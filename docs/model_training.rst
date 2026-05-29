@@ -37,9 +37,9 @@ Ensure that your annotations follow the standard YOLO format. If you’re new to
 
 Of course, don't forget to update your training script to point to your data as demonstrated there. 😊
 
-Configuring YOLOv11
+Configuring YOLOv26
 -------------------
-Customize your YOLOv11 configuration to suit your training needs. Open your configuration file (typically a .yaml or .cfg file) and adjust the following as needed:
+Customize your YOLOv26 configuration to suit your training needs. Open your configuration file (typically a .yaml or .cfg file) and adjust the following as needed:
 
 - :param:`batch` – The number of images to process per training iteration.
 - :param:`imgsz` – The dimensions for your input images.
@@ -51,6 +51,6 @@ Troubleshooting and Tips
 ------------------------
 Here are a few tips to help you get the best results:
 
-- **Common Issues:** If you experience slow training or memory errors, consider reducing the :param:`batch` or :param:`imgsz`. You can also try using a smaller model variant (e.g., YOLO11n instead of YOLO11x) to speed up training. Check out the `ultralytics website <https://docs.ultralytics.com/models/yolo11/#supported-tasks-and-modes>`_ on this topic.
+- **Common Issues:** If you experience slow training or memory errors, consider reducing the :param:`batch` or :param:`imgsz`. You can also try using a smaller model variant (e.g., YOLO26n instead of YOLO26x) to speed up training. Check out the `ultralytics website <https://docs.ultralytics.com/models/yolo26/#supported-tasks-and-modes>`_ on this topic.
 - **Data Augmentation:** Use data augmentation techniques (e.g., rotations, flips, scaling) to increase the diversity of your training data and improve model robustness. But be careful: for pose models containing keypoints like left-/right-arm be sure to disable any rotation / mirroring!
 - **Is my model any good?:** To evaluate your model's performance, consider using metrics such as mAP (mean Average Precision) and F1 score. An mAP of above 90% is usually a good sign. Visualizing predictions on a validation set can also provide insights into its accuracy.

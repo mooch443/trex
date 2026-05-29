@@ -1,14 +1,12 @@
 #include "TrainingData.h"
+#include <gui/Transform.h>
 #include <misc/GlobalSettings.h>
 #include <tracking/Tracker.h>
-#include <misc/PixelTree.h>
-#include <tracking/VisualIdentification.h>
+#include <processing/PixelTree.h>
 #include <tracking/FilterCache.h>
 #include <tracking/IndividualManager.h>
 
 //#undef NDEBUG
-
-namespace py = Python;
 
 namespace track {
 
@@ -893,7 +891,7 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
         IndividualManager::transform_ids(ids, [frame=frame, &illegal_frames](auto id, auto fish){
             auto && [basic, posture] = fish->all_stuff(frame);
             
-            if(!py::VINetwork::is_good(basic, posture)
+            if(!can_use_visual_identification(basic, posture)
                || !basic || basic->blob.split())
             {
                 illegal_frames[id].insert(frame);
@@ -1128,7 +1126,7 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
             auto basic = fish->basic_stuff()[bidx].get();
             auto posture = pidx != -1 ? fish->posture_stuff()[pidx].get() : nullptr;
             
-            if(!py::VINetwork::is_good(basic, posture))
+            if(!can_use_visual_identification(basic, posture))
                 return;
 
             auto bid = basic->blob.blob_id();

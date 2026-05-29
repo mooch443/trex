@@ -5,9 +5,10 @@
 #include <file/DataFormat.h>
 #include <pv.h>
 #include <tracking/Individual.h>
-#include <tracking/MotionRecord.h>
+#include <tracking/CacheHints.h>
+#include <data/MotionRecord.h>
 #include <misc/ThreadPool.h>
-#include <file/Path.h>
+#include <misc/Path.h>
 
 namespace track {
 class Tracker;
@@ -37,7 +38,7 @@ namespace Output {
         timestamp_t timestamp;
         
         std::string toStr() const { return "CompatibilityFrameProperties<"+std::to_string(time)+" "+timestamp.toStr()+">"; }
-        static std::string class_name() { return "CompatibilityFrameProperties"; }
+        static consteval std::string_view class_name() { return "CompatibilityFrameProperties"; }
         
         FrameProperties convert(Frame_t) const;
     };

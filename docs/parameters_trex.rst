@@ -636,9 +636,41 @@ TRex parameters
 	**default value:** 0
 
 
-	If > 1, this will tile the input image for Object detection (SAHI method) before passing it to the network. These tiles will be ``detect_resolution`` pixels high and wide (with zero padding).
+	Legacy tiling control. If > 1, the input image will be tiled into that many multiples of ``detect_resolution`` before passing it to the detection network. Retained for backwards compatibility; prefer :param:`detect_tile_target_width` for new projects.
 
-	.. seealso:: :param:`detect_resolution`
+	.. seealso:: :param:`detect_resolution`, :param:`detect_tile_target_width`
+
+
+.. function:: detect_tile_target_width(uint16)
+
+	**default value:** 0
+
+
+	Desired horizontal resolution (in pixels) to target when preparing SAHI tiles. The number of tiles is derived from this value while honouring the detector's native ``detect_resolution``. A value of ``0`` disables the override and falls back to :param:`detect_tile_image`.
+
+
+.. function:: detect_tile_overlap(float)
+
+	**default value:** 0
+
+
+	Relative overlap (``0`` - ``0.95``) between neighbouring tiles when SAHI tiling is active. Increasing this value recovers objects that sit on tile borders at the cost of evaluating more tiles per frame.
+
+
+.. function:: detect_tile_merge_iou(float)
+
+	**default value:** 0.55
+
+
+	Intersection-over-union threshold used when merging predictions created on overlapping tiles. Lower values keep more duplicates; higher values collapse more boxes into a single detection.
+
+
+.. function:: detect_tile_merge_containment(float)
+
+	**default value:** 0.9
+
+
+	Containment threshold that drops smaller boxes largely overlapped by a neighbouring tile (ratio of intersection area to the smaller box). Helps remove cut-in-half detections right on tile seams.
 
 
 .. function:: detect_type(ObjectDetectionType)
@@ -3234,6 +3266,3 @@ TRex parameters
 
 
 	If set to true, the program will try to use yolov8s internal tracking routine to improve results. This can be significantly slower and disables batching.
-
-
-

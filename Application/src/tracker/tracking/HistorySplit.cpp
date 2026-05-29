@@ -1,5 +1,4 @@
 #include "HistorySplit.h"
-#include <tracking/SplitBlob.h>
 #include <tracking/Tracker.h>
 #include <tracking/BlobReceiver.h>
 #include <tracking/IndividualManager.h>
@@ -348,7 +347,7 @@ HistorySplit::HistorySplit(PPFrame &frame, PPFrame::NeedGrid need, GenericThread
     PrefilterBlobs::split_big(
            frame.index(),
            std::move(collection),
-           BlobReceiver(frame, BlobReceiver::noise, FilterReason::SplitFailed),
+           BlobReceiver(frame, BlobReceiver::noise, FilterReason::History),
            BlobReceiver(frame, BlobReceiver::regular),
            expect, true, nullptr, pool);
     
@@ -368,7 +367,7 @@ HistorySplit::HistorySplit(PPFrame &frame, PPFrame::NeedGrid need, GenericThread
             return true;
         }
         return false;
-    });
+    }, pv::FilterReason::History);
     
     frame.finalize(cmn::source_location::current());
 }

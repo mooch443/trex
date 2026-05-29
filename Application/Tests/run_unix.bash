@@ -7,8 +7,11 @@ PWD="${PWD}/../../videos"
 PWD="$(cd $(dirname $PWD); pwd)/$(basename $PWD)"
 
 WPWD=${PWD}
+TEST_FRAMES_DIR="${WPWD}/test_frames"
 TGRABS=trex
 TREX=trex
+PVINFO=pvinfo
+exit_code=0
 
 if ! which git; then
     GIT="C:/Users/tristan/miniconda3/envs/trex/Library/bin/git.exe"
@@ -44,10 +47,34 @@ if ! which trex; then
     fi
 fi
 
+if ! command -v pvinfo >/dev/null 2>&1; then
+    if [ $(uname) == "Darwin" ]; then
+        PVINFO=~/trex/Application/build/RelWithDebInfo/pvinfo
+    elif [ $(uname) == "Linux" ]; then
+        PVINFO=~/trex/Application/build/pvinfo
+    else
+        PVINFO=~/trex/Application/build/Release/pvinfo
+    fi
+fi
+
 if [ -f "${WPWD}/average_test.png" ]; then
     # delete the average file, as to test that process as well
     rm "${WPWD}/average_test.png"
     echo "Removing ${WPWD}/average_test.png"
+fi
+
+actual_frame_count=$(find "${TEST_FRAMES_DIR}" -maxdepth 1 -type f -name 'frame_*.jpg' | wc -l | tr -d ' ')
+if [[ "${actual_frame_count}" -le 0 ]]; then
+    echo "[ERROR] Expected at least one input frame in ${TEST_FRAMES_DIR}, found ${actual_frame_count}."
+    exit 1
+fi
+
+FRAME_COUNT="${actual_frame_count}"
+echo "Found ${FRAME_COUNT} frames in ${TEST_FRAMES_DIR}."
+
+if [[ ! -f "${TEST_FRAMES_DIR}/frame_000.jpg" || ! -f "${TEST_FRAMES_DIR}/frame_$(printf '%03d' $((FRAME_COUNT - 1))).jpg" ]]; then
+    echo "[ERROR] Expected a contiguous ${FRAME_COUNT}-frame sequence starting at frame_000.jpg."
+    exit 1
 fi
 
 function compare_csv() {
@@ -143,8 +170,61 @@ function compare_csv_folder() {
   return 0
 }
 
+function check_frame_count_with_pvinfo() {
+    local label="$1"
+    local prefix="${2:-}"
+    local pvinfo_args=(-d "${WPWD}" -i "${WPWD}/test" -quiet)
+    local video_length_output=""
+    local frames_output=""
+    local video_length=""
+    local frames=""
+
+    if [[ -n "${prefix}" ]]; then
+        pvinfo_args+=(-p "${prefix}")
+    fi
+
+    if ! video_length_output="$(${PVINFO} "${pvinfo_args[@]}" -print_parameters "[video_length]" 2>&1)"; then
+        echo "[ERROR] pvinfo failed while checking ${label} video_length."
+        echo "${video_length_output}"
+        return 1
+    fi
+
+    video_length=$(printf '%s\n' "${video_length_output}" | awk -F'= ' '/^video_length = / {print $2; exit}' | tr -d '[:space:]')
+    if [[ -z "${video_length}" ]]; then
+        echo "[ERROR] Could not parse video_length from pvinfo for ${label}."
+        echo "${video_length_output}"
+        return 1
+    fi
+
+    if ! frames_output="$(${PVINFO} "${pvinfo_args[@]}" -plain_text 2>&1)"; then
+        echo "[ERROR] pvinfo failed while checking ${label} frame count."
+        echo "${frames_output}"
+        return 1
+    fi
+
+    frames=$(printf '%s\n' "${frames_output}" | awk '/^frames / {print $2; exit}' | tr -d '[:space:]')
+    if [[ -z "${frames}" ]]; then
+        echo "[ERROR] Could not parse frames from pvinfo for ${label}."
+        echo "${frames_output}"
+        return 1
+    fi
+
+    if [[ "${video_length}" != "${FRAME_COUNT}" ]]; then
+        echo "[ERROR] pvinfo video_length for ${label} was ${video_length}, expected ${FRAME_COUNT}."
+        return 1
+    fi
+
+    if [[ "${frames}" != "${FRAME_COUNT}" ]]; then
+        echo "[ERROR] pvinfo frames for ${label} was ${frames}, expected ${FRAME_COUNT}."
+        return 1
+    fi
+
+    echo "  pvinfo verified ${label}: video_length=${video_length}, frames=${frames}."
+    return 0
+}
+
 rm \"${WPWD}/corrected/test.settings\"
-CMD="${TGRABS} -d "${WPWD}" -i \"${WPWD}/test_frames/frame_%3d.jpg\" -o test -s \"${WPWD}/test.settings\" -auto_quit -nowindow -task convert -detect_type background_subtraction -history_matching_log history_matching_tgrabs.html"
+CMD="${TGRABS} -d "${WPWD}" -i \"${TEST_FRAMES_DIR}/frame_%3d.jpg\" -o test -s \"${WPWD}/test.settings\" -auto_quit -nowindow -task convert -detect_type background_subtraction -history_matching_log history_matching_tgrabs.html"
 echo "Running TGrabs... ${CMD}"
 if ! { ${CMD} 2>&1; } > "${PWD}/tgrabs.log"; then
     cat "${PWD}/tgrabs.log"
@@ -166,6 +246,9 @@ else
             exit_code=1
         else
             echo 'OK'
+            if ! check_frame_count_with_pvinfo "convert output"; then
+                exit_code=1
+            fi
         fi
     fi
 
@@ -184,7 +267,7 @@ for MODE in ${MODES}; do
 
     if ! { ${CMD} 2>&1; } > "${PWD}/trex.log"; then
         cat "${PWD}/trex.log"
-        echo "TRex could not be executed."
+        echo -e "\n\nTRex could not be executed."
         exit_code=1
     else
         echo "  Scanning files..."
@@ -206,6 +289,9 @@ for MODE in ${MODES}; do
                 exit_code=1
             else
                 echo 'OK'
+                if ! check_frame_count_with_pvinfo "track output (${MODE})" "corrected"; then
+                    exit_code=1
+                fi
             fi
 
             #for f in ${FILES}; do
@@ -223,18 +309,21 @@ for MODE in ${MODES}; do
         fi
     fi
 
-    if [ $exit_code -ne 0 ]; then
+    if [ "${exit_code}" -ne 0 ]; then
         echo "TRex (${MODE}) failed."
         cat "${PWD}/trex.log"
+        # Keep outputs for artifact collection on failure.
     else
         echo "TRex (${MODE}) completed successfully."
+        # Clean outputs on success to keep workspace tidy.
+        rm -rf ${PWD}/corrected/data
+        rm -f ${PWD}/corrected/test.settings
     fi
-
-    rm -rf ${PWD}/corrected/data
-    rm -f ${PWD}/corrected/test.settings
 done
 
-rm -f ${PWD}/average_test.png
-rm -f ${PWD}/corrected/test.results.meta
+if [ "${exit_code:-0}" = "0" ]; then
+  rm -f ${PWD}/average_test.png
+  rm -f ${PWD}/corrected/test.results.meta
+fi
 
-exit ${exit_code}
+exit "${exit_code:-0}"

@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 #include <commons.pc.h>
 #include <tracking/Posture.h>
-#include <misc/TrackingSettings.h>
+#include <core/TrackingSettings.h>
 
 using namespace track;
 using namespace cmn;
@@ -92,10 +92,4 @@ TEST(OutlineResampleTest, SinglePointOutline) {
     // Single point should remain unchanged
     std::vector<Vec2> expectedPoints = {{0, 0}};
     ASSERT_TRUE(compareOutlines(outline.points(), expectedPoints));
-}
-
-
-int main(int argc, char **argv) {
-    ::testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
 }

@@ -1,13 +1,13 @@
-#include <types.h>
+#include <misc/types.h>
 #include <gui/IMGUIBase.h>
-#include <tracking/MotionRecord.h>
+#include <data/MotionRecord.h>
 #include <tracking/Tracker.h>
-#include <tracker/misc/default_config.h>
-#include <gui/GUICache.h>
+#include <core/default_config.h>
+#include <ui/GUICache.h>
 #include <misc/CommandLine.h>
 #include <gui/Timeline.h>
-#include <gui/DrawFish.h>
-#include <gui/InfoCard.h>
+#include <ui/DrawFish.h>
+#include <ui/InfoCard.h>
 #include <video/VideoSource.h>
 #include <file/DataLocation.h>
 
@@ -46,7 +46,6 @@ void async_main(void*) {
 		"gpu_max_sample_gb = 1\n"
 		"midline_stiff_percentage = 0.07\n"
 		"outline_resample = 0.75\n"
-		"speed_extrapolation = 10\n"
 		//"track_max_individuals = 8\n"
 		"track_max_individuals = 10\n"
 		"track_max_reassign_time = 0.25\n"
@@ -440,4 +439,3 @@ int main(int argc, char**argv) {
 	async_main(nullptr);
     return 0;
 }
-

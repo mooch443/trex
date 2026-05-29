@@ -224,7 +224,7 @@ ssize_t** kuhn_match(cell** table, size_t n, size_t m)
     if (kuhn_isDone(marks, colCovered, n, m))
         break;
     
-        for (;;)
+    for (;;)
     {
         prime = kuhn_findPrime(table, marks, rowCovered, colCovered, n, m);
         if (prime != null)

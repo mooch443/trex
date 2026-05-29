@@ -3,10 +3,9 @@
 
 #include <commons.pc.h>
 //#include <file/DataFormat.h>
-#include <gui/Transform.h>
-#include <tracker/misc/default_config.h>
+#include <core/default_config.h>
 #include <misc/ranges.h>
-#include <misc/idx_t.h>
+#include <core/idx_t.h>
 
 namespace Output {
     class ResultsFormat;
@@ -14,6 +13,9 @@ namespace Output {
 
 namespace cmn {
 class Data;
+namespace gui {
+class Transform;
+}
 
 /**
  * @brief A lightweight, simplified vector-like container for small dynamic arrays of simple types.

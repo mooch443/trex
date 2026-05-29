@@ -2,7 +2,7 @@
 #define _OUTPUT_LIBRARY_H
 
 #include <commons.pc.h>
-#include <file/Path.h>
+#include <misc/Path.h>
 #include <misc/ranges.h>
 #include <tracking/OutputLibraryTypes.h>
 #include <misc/SpriteMap.h>
@@ -100,12 +100,7 @@ namespace std
     {
         bool operator() (const Output::Options_t& lhs, const Output::Options_t& rhs) const
         {
-            uint32_t s0 = 0, s1 = 0;
-			for (auto k : lhs.values())
-				s0 += (uint32_t)k;
-			for (auto k : rhs.values())
-				s1 += (uint32_t)k;
-			return s0 < s1;
+            return lhs < rhs;
         }
     };
 }

@@ -26,15 +26,19 @@ if [ "$(uname)" == "Linux" ]; then
     echo "Setting up for Linux."
     echo ""
     
-    CC=$(which gcc)
-    CXX=$(which g++)
-
     if [ $(printenv CC) ]; then
         CC=$(printenv CC)
+    else
+        CC=$(which gcc)
     fi
     if [ $(printenv CXX) ]; then
         CXX=$(printenv CXX)
+    else
+        CXX=$(which g++)
     fi
+
+    echo "Using CC=$CC and CXX=$CXX"
+
     
     if [ ! $CC ]; then
         echo "No gcc compiler found. Please provide it in PATH or as a CC environment variable."
@@ -99,7 +103,7 @@ else
 
     MACOSX_DEPLOYMENT_TARGET=$(printenv MACOSX_DEPLOYMENT_TARGET)
     if [ ! $MACOSX_DEPLOYMENT_TARGET ]; then
-        MACOSX_DEPLOYMENT_TARGET="15.4"
+        MACOSX_DEPLOYMENT_TARGET="26.2"
         export MACOSX_DEPLOYMENT_TARGET=$MACOSX_DEPLOYMENT_TARGET
     fi
     echo "MACOSX_DEPLOYMENT_TARGET=$MACOSX_DEPLOYMENT_TARGET"

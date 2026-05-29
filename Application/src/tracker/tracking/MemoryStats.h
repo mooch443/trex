@@ -3,7 +3,7 @@
 #include <commons.pc.h>
 #include <tracking/Individual.h>
 #include <tracking/OutputLibrary.h>
-#include <misc/idx_t.h>
+#include <core/idx_t.h>
 
 namespace mem {
 using namespace track;

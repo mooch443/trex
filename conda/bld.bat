@@ -17,6 +17,24 @@ if not defined TREX_DESCRIBE_TAG set "TREX_DESCRIBE_TAG=vuntagged"
 echo TREX_DESCRIBE_TAG=%TREX_DESCRIBE_TAG%
 rem --------------------------------------------------------------------------
 
+rem --------------------------------------------------------------------------
+rem FetchContent patch steps in nested MSBuild projects can lose access to bare
+rem "git" on PATH. Create a wrapper in the build directory that forwards to the
+rem resolved git executable so downstream "git apply" commands remain stable.
+rem --------------------------------------------------------------------------
+set "TREX_GIT_EXE="
+for /f "delims=" %%i in ('where git 2^>NUL') do if not defined TREX_GIT_EXE set "TREX_GIT_EXE=%%i"
+if not defined TREX_GIT_EXE (
+    echo Could not resolve git.exe on PATH.
+    exit /b 1
+)
+set "TREX_GIT_WRAPPER_DIR=%CD%\git-wrapper"
+if not exist "%TREX_GIT_WRAPPER_DIR%" mkdir "%TREX_GIT_WRAPPER_DIR%"
+>"%TREX_GIT_WRAPPER_DIR%\git.bat" echo @call "%TREX_GIT_EXE%" %%*
+set "PATH=%TREX_GIT_WRAPPER_DIR%;%PATH%"
+echo TREX_GIT_EXE=%TREX_GIT_EXE%
+rem --------------------------------------------------------------------------
+
 
 set MENU_DIR=%PREFIX%\Menu
 mkdir %MENU_DIR%
@@ -54,6 +72,22 @@ if "%CMAKE_GENERATOR%" == "Visual Studio 16 2019 Win64" set CMAKE_GENERATOR=Visu
 if "%CMAKE_GENERATOR%" == "Visual Studio 17 2022 Win64" set CMAKE_GENERATOR=Visual Studio 17 2022
 if "%GITHUB_WORKFLOW%" == "" set GENERATOR=-G "%CMAKE_GENERATOR%"
 echo GENERATOR %GENERATOR%
+
+rem --------------------------------------------------------------------------
+rem Add git to PATH for CMake's FetchContent PATCH_COMMAND operations.
+rem Git is a build dependency. Add common conda locations to PATH.
+rem --------------------------------------------------------------------------
+echo DEBUG: About to modify PATH
+if defined BUILD_PREFIX (
+    echo DEBUG: BUILD_PREFIX is defined
+    set "PATH=%BUILD_PREFIX%\Library\bin;%BUILD_PREFIX%\Scripts;%PATH%"
+)
+if defined LIBRARY_BIN (
+    echo DEBUG: LIBRARY_BIN is defined
+    set "PATH=%LIBRARY_BIN%;%PATH%"
+)
+echo DEBUG: PATH modification complete
+rem --------------------------------------------------------------------------
 
 cmake .. %GENERATOR% -DWITH_GITSHA1=ON -DCONDA_PREFIX:FILEPATH=%PREFIX% -DPYTHON_INCLUDE_DIR:FILEPATH=%pythoninclude% -DPYTHON_LIBRARY:FILEPATH=%findlib% -DPYTHON_EXECUTABLE:FILEPATH=%PREFIX%\python -DWITH_PYLON=OFF -DCOMMONS_BUILD_OPENCV=ON -DCMAKE_INSTALL_PREFIX=%PREFIX% -DCMAKE_SKIP_RPATH=ON -DCOMMONS_BUILD_PNG=ON -DCOMMONS_BUILD_ZIP=ON -DTREX_CONDA_PACKAGE_INSTALL=ON -DCMAKE_INSTALL_RPATH_USE_LINK_PATH:BOOL=TRUE -DTREX_WITH_TESTS:BOOL=ON -DCOMMONS_BUILD_GLFW=ON -DCOMMONS_BUILD_ZLIB=ON -DCMAKE_BUILD_TYPE=Release -DBUILD_LEGACY_TREX:BOOL=OFF -DBUILD_LEGACY_TGRABS:BOOL=OFF -DCOMMONS_BUILD_EXAMPLES:BOOL=OFF
 

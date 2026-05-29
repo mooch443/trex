@@ -18,6 +18,9 @@ using namespace cmn;
         std::vector<cv::Mat> _array;
         std::vector<gpuMat> _gpu_array;
         int _frame_rate{0};
+
+        [[nodiscard]] bool capture_open() const;
+        void release_capture();
         
     public:
         Webcam();
@@ -34,9 +37,9 @@ using namespace cmn;
             _color_mode = std::move(other._color_mode);
             return *this;
         }
-        ~Webcam() {
-            if(open())
-                close();
+        ~Webcam() override {
+            if(capture_open())
+                release_capture();
         }
         
         ImageMode colors() const override { return _color_mode; }
@@ -83,7 +86,7 @@ using namespace cmn;
         int frame_rate();
         
         std::string toStr() const override { return "Webcam"; }
-        static std::string class_name() { return "fg::Webcam"; }
+        static consteval std::string_view class_name() { return "fg::Webcam"; }
     };
 }
 

@@ -1,16 +1,16 @@
 #include "Output.h"
 #include <misc/Timer.h>
-#include <misc/FOI.h>
-#include <misc/default_config.h>
+#include <core/FOI.h>
+#include <core/default_config.h>
 #include <lzo/minilzo.h>
 #include <tracking/CategorizeDatastore.h>
 #include <misc/frame_t.h>
-#include <misc/IdentifiedTag.h>
+#include <core/IdentifiedTag.h>
 #include <tracking/Tracker.h>
 #include <file/DataLocation.h>
 #include <tracking/IndividualManager.h>
 #include <tracking/DatasetQuality.h>
-#include <misc/SettingsInitializer.h>
+#include <core/SettingsPaths.h>
 #include <tracking/TrackingHelper.h>
 #include <tracking/AutomaticMatches.h>
 
@@ -685,8 +685,13 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
                 continue;
             }
             
-            assert(frameIndex <= analysis_range.end().get()
-                   && frameIndex >= analysis_range.start().get());
+#ifndef NDEBUG
+            if(frameIndex > analysis_range.end().get()
+               || frameIndex < analysis_range.start().get())
+            {
+                FormatWarning("Frame ", frameIndex, " is outside of range ", analysis_range, " while loading ", filename(),".");
+            }
+#endif
             
             data.prev_frame = prev_frame;
             prev_frame = Frame_t(frameIndex);

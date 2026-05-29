@@ -1,12 +1,11 @@
 #pragma once
 
 #include <commons.pc.h>
+#include <python/Detection.h>
 #include <misc/Image.h>
-#include <misc/TileImage.h>
+#include <core/TileImage.h>
 
 namespace track {
-
-struct Detection;
 
 struct TREX_EXPORT BackgroundSubtraction {
     BackgroundSubtraction(cmn::Image::Ptr&& = nullptr);
@@ -17,8 +16,6 @@ struct TREX_EXPORT BackgroundSubtraction {
     static void deinit();
     static double fps();
 
-    static PipelineManager<TileImage, true>& manager();
-    
 private:
     static void apply(std::vector<TileImage>&& tiled);
     friend struct Detection;

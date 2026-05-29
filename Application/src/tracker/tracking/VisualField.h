@@ -1,7 +1,6 @@
 #pragma once
 
 #include <commons.pc.h>
-#include <gui/DrawStructure.h>
 #include <tracking/Individual.h>
 
 namespace cmn::gui {
@@ -69,4 +68,3 @@ namespace track {
         static std::vector<Vec64> tesselate_outline(const std::vector<Vec2>& outline, Scalar64 max_distance = Scalar64(5));
     };
 }
-

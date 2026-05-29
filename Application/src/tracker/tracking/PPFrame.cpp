@@ -168,7 +168,6 @@ void PPFrame::init_cache(GenericThreadPool* pool, NeedGrid need)
 {
     ASSUME_NOT_FINALIZED;
     
-    Settings::manual_matches_t::mapped_type current_fixed_matches;
     {
         auto manual_matches = Settings::get<Settings::manual_matches>();
         auto it = manual_matches->find(index());
@@ -465,8 +464,8 @@ pv::bid PPFrame::_add_ownership(bool regular, pv::BlobPtr && blob) {
         
         Print("Blob1 ", uint32_t(blob1->bounds().x) & 0x00000FFF," << 24 = ", (uint32_t(blob1->bounds().x) & 0x00000FFF) << 20," (mask ", (uint32_t(blob1->lines()->front().y) & 0x00000FFF) << 8,", max=", std::numeric_limits<uint32_t>::max(),")");
         
-        auto bid0 = pv::bid::from_blob(*blob);
-        auto bid1 = pv::bid::from_blob(*bdx_to_ptr(blob->blob_id()));
+        auto bid0 = pv::blob_bid(*blob);
+        auto bid1 = pv::blob_bid(*bdx_to_ptr(blob->blob_id()));
         
         FormatExcept("Frame ", _index,": Blob ", blob->blob_id()," already in map (", blob.get() == bdx_to_ptr(blob->blob_id()),"), at ",blob->bounds().pos()," bid=", bid0," vs. ", bdx_to_ptr(blob->blob_id())->bounds().pos()," bid=", bid1);
 #endif
@@ -521,22 +520,35 @@ MaybeLabel PPFrame::label(const pv::bid& bdx) const {
     return {};
 }
 
-void PPFrame::add_noise(pv::BlobPtr && blob) {
+void PPFrame::add_noise(pv::BlobPtr && blob, pv::FilterReason reason) {
     ASSUME_NOT_FINALIZED;
     //Print("Frame ",index()," has added 1 noise blobs.");
+    if(reason != pv::FilterReason::Unknown
+       && blob)
+    {
+        blob->set_reason(reason);
+    }
     _add_ownership(false, std::move(blob));
 }
 
-void PPFrame::add_noise(std::vector<pv::BlobPtr>&& v) {
+void PPFrame::add_noise(std::vector<pv::BlobPtr>&& v, pv::FilterReason reason) {
     ASSUME_NOT_FINALIZED;
     
     //Print("Frame ",index()," has added ", v.size(), " noise blobs.");
     _noise_owner.reserve(_noise_owner.size() + v.size());
     
+    if(reason != pv::FilterReason::Unknown) {
+        for(auto &b : v) {
+            if(b)
+                b->set_reason(reason);
+        }
+    }
+    
     for(auto it = std::make_move_iterator(v.begin());
         it.base() != v.end(); ++it)
     {
-        _add_ownership(false, std::move(*it));
+        if(*it != nullptr)
+            _add_ownership(false, std::move(*it));
     }
     
     //_pixel_samples += v.size();
@@ -544,7 +556,7 @@ void PPFrame::add_noise(std::vector<pv::BlobPtr>&& v) {
     //_noise.insert(_noise.end(), std::make_move_iterator( v.begin() ), std::make_move_iterator( v.end() ));
 }
 
-void PPFrame::move_to_noise(size_t blob_index) {
+void PPFrame::move_to_noise(size_t blob_index, pv::FilterReason reason) {
     ASSUME_NOT_FINALIZED;
     assert(blob_index < _blob_owner.size());
     
@@ -554,6 +566,12 @@ void PPFrame::move_to_noise(size_t blob_index) {
     auto ptr = _blob_owner.at(blob_index).get();
     _blob_map.erase(ptr->blob_id());
     _noise_map[ptr->blob_id()] = ptr;
+    
+    if(reason != pv::FilterReason::Unknown
+       && ptr)
+    {
+        ptr->set_reason(reason);
+    }
     
     _noise_owner.insert(_noise_owner.end(), std::make_move_iterator(_blob_owner.begin() + blob_index), std::make_move_iterator(_blob_owner.begin() + blob_index + 1));
     _blob_owner.erase(_blob_owner.begin() + blob_index);
@@ -746,8 +764,8 @@ void PPFrame::add_blobs(std::vector<pv::BlobPtr>&& blobs,
                 
                 Print("Blob1 ", uint32_t(blob1->bounds().x) & 0x00000FFF," << 24 = ", (uint32_t(blob1->bounds().x) & 0x00000FFF) << 20," (mask ", (uint32_t(blob1->lines()->front().y) & 0x00000FFF) << 8,", max=", std::numeric_limits<uint32_t>::max(),")");
                 
-                auto bid0 = pv::bid::from_blob(blob);
-                auto bid1 = pv::bid::from_blob(*bdx_to_ptr(blob->blob_id()));
+                auto bid0 = pv::blob_bid(blob);
+                auto bid1 = pv::blob_bid(*bdx_to_ptr(blob->blob_id()));
                 
                 FormatExcept("Frame ", _index,": Blob ", blob->blob_id()," already in map (", blob.get() == bdx_to_ptr(blob->blob_id()),"), at ",blob->bounds().pos()," bid=", bid0," vs. ", bdx_to_ptr(blob->blob_id())->bounds().pos()," bid=", bid1);
         #endif

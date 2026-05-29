@@ -1,0 +1,10 @@
+alpha beta gamma
+alpha alpha beta
+gamma delta
+search text frequency demo
+text search utility
+preprocess corpus example
+apply item filtering uses text search
+term importance idf tf df
+simple corpus line
+another line of sample text

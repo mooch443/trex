@@ -66,14 +66,22 @@ namespace fg {
         return _frame_rate;
     }
 
-    bool Webcam::open() const {
+    bool Webcam::capture_open() const {
         std::unique_lock guard(_mutex);
         return _capture.isOpened();
     }
 
-    void Webcam::close() {
+    void Webcam::release_capture() {
         std::unique_lock guard(_mutex);
         _capture.release();
+    }
+
+    bool Webcam::open() const {
+        return capture_open();
+    }
+
+    void Webcam::close() {
+        release_capture();
     }
 
     bool Webcam::next(cmn::Image &image) {

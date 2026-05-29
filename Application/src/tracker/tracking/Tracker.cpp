@@ -1,6 +1,5 @@
 #include "Tracker.h"
 #include <misc/GlobalSettings.h>
-#include <tracking/SplitBlob.h>
 #include <misc/Timer.h>
 #include "PairingGraph.h"
 #include <tracking/OutputLibrary.h>
@@ -11,26 +10,26 @@
 #include <misc/default_settings.h>
 #include <misc/pretty.h>
 #include <tracking/DatasetQuality.h>
-#include <misc/PixelTree.h>
+#include <processing/PixelTree.h>
 #include <misc/CircularGraph.h>
 #include <tracking/MemoryStats.h>
 #include <tracking/CategorizeDatastore.h>
 #include <tracking/VisualField.h>
 #include <file/DataLocation.h>
-#include <misc/FOI.h>
-#include <misc/PVBlob.h>
+#include <core/FOI.h>
+#include <processing/PVBlob.h>
+#include <tracking/FilterCache.h>
+#include <core/DetectionTypes.h>
+#include <tracking/TrainingData.h>
 
 #include <tracking/TrackingHelper.h>
 #include <tracking/AutomaticMatches.h>
 #include <tracking/HistorySplit.h>
 #include <tracking/IndividualManager.h>
-#include <misc/SettingsInitializer.h>
+#include <core/SettingsPaths.h>
 
 #if !COMMONS_NO_PYTHON
-#include <misc/PythonWrapper.h>
 #include <tracking/RecTask.h>
-#include <ml/Accumulation.h>
-namespace py = Python;
 #endif
 
 #ifndef NDEBUG
@@ -76,6 +75,7 @@ void Tracker::initialize_slows() {
         DEF_CALLBACK(track_time_probability_enabled);
         DEF_CALLBACK(track_speed_decay);
         DEF_CALLBACK(match_min_probability);
+        DEF_CALLBACK(match_topk);
         
         DEF_CALLBACK(track_include);
         DEF_CALLBACK(track_ignore);
@@ -418,10 +418,9 @@ Tracker::~Tracker() {
     assert(_instance);
     Settings::clear_callbacks();
 
-    FilterCache::clear();
+    constraints::FilterCache::clear();
     
 #if !COMMONS_NO_PYTHON
-    Accumulation::on_terminate();
     RecTask::deinit();
 #endif
     Individual::shutdown();
@@ -462,14 +461,6 @@ void Tracker::prepare_shutdown() {
     _thread_pool.force_stop();
     recognition_pool.force_stop();
     Match::PairingGraph::prepare_shutdown();
-#if !COMMONS_NO_PYTHON
-    Accumulation::on_terminate();
-    try {
-        py::deinit().get();
-    } catch(...) {
-        FormatWarning("Exception during py::deinit().");
-    }
-#endif
     IndividualManager::clear();
 }
 
@@ -891,7 +882,7 @@ void Tracker::prefilter(
                     }
                 }
 #endif
-                //! TODO: translate track_only_classes to IDs and check those...
+                //! translate track_only_classes to IDs and check those
                 if(not track_only_classes.empty()) {
                     if(ptr->prediction().valid()) {
                         auto clid = ptr->prediction().clid;
@@ -907,8 +898,7 @@ void Tracker::prefilter(
                 
                 if(ptr->prediction().valid()) {
                     if(Float2_t(ptr->prediction().p) / 255_F < track_conf_threshold) {
-                        //! TODO: use own filter reason
-                        result.filter_out(std::move(ptr), FilterReason::LabelConfidenceThreshold);
+                        result.filter_out(std::move(ptr), FilterReason::TrackConfidenceThreshold);
                         continue;
                     }
                 }
@@ -1174,6 +1164,7 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
         const auto N_blobs = unassigned_blobs.size();
         const auto N_fish  = unassigned_individuals.size();
         const auto match_min_probability = FAST_SETTING(match_min_probability);
+        const auto match_topk = FAST_SETTING(match_topk);
         
         auto work = [&](auto, auto start, auto end, auto){
             size_t pid = 0;
@@ -1202,6 +1193,34 @@ Match::PairedProbabilities Tracker::calculate_paired_probabilities
 #ifndef NDEBUG
                     FormatWarning("Cannot retrieve cache for ", fish->identity(), " and frame=",frameIndex);
 #endif
+                }
+                
+                /// limit to top-k matches, in case this is enabled.
+                /// this means we have to sort them by probability first, then
+                /// keep only the top-k ones.
+                if(match_topk
+                   && probs.size() > *match_topk)
+                {
+                    std::vector<std::tuple<prob_t, Blob_t>> resorted;
+                    resorted.reserve(probs.size());
+
+                    for(auto& [blob, p] : probs) {
+                        resorted.emplace_back(p, blob);
+                    }
+                    
+                    /// top results land at the top of the list
+                    std::sort(resorted.begin(), resorted.end(), std::greater{});
+                    
+                    //Print("* have too many probabilities for ", (*it)->identity(), ": ", resorted);
+                    resorted.erase(resorted.begin() + (*match_topk), resorted.end());
+                    
+                    probs.clear();
+                    for(auto &[p, blob] : resorted) {
+                        probs[blob] = p;
+                    }
+                    
+                    //Print("\tpruned to: ", probs);
+                    assert(probs.size() <= *match_topk);
                 }
             }
             
@@ -2511,7 +2530,7 @@ void Tracker::update_consecutive(const CachedSettings& s, const set_of_individua
         
         assert((_added_frames.empty() && !end_frame().valid()) || (end_frame().valid() && (*_added_frames.rbegin())->frame() == end_frame()));
         
-        FilterCache::clear();
+        constraints::FilterCache::clear();
         //! TODO: MISSING remove_frames
         //_recognition->remove_frames(frameIndex);
         DatasetQuality::update();
@@ -2523,7 +2542,6 @@ void Tracker::update_consecutive(const CachedSettings& s, const set_of_individua
         
         global_tracklet_order_changed();
         
-        Print("After removing frames: ", gui::CacheObject::memory());
         Print("posture: ", Midline::saved_midlines());
         Print("all blobs: ", pv::Blob::all_blobs());
         Print("Range: ", start_frame(),"-",end_frame());

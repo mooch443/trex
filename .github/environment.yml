@@ -1,6 +1,9 @@
-name: tracking
+name: base
 channels:
     - conda-forge
     - nodefaults
 dependencies:
-    - conda-build
+    - conda-build>=24
+    - conda>=24
+    - git
+    - python

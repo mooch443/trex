@@ -85,6 +85,10 @@ In order to get your own (local) conda channel, all you need to do is make sure 
 	conda create -n build conda-build git python pip
 	conda activate build
 
+If you want a fresh build environment with the compiler toolchain and the Conda-side Linux graphics dependencies already installed, you can use the helper script from the repository root instead::
+
+	bash docs/scripts/init_trex_build_env.sh --env-name build
+
 Once this is done, you can clone the |trex| repository and change your directory to the ``trex/conda`` folder in the downloaded repository::
 
 	git clone --recursive https://github.com/mooch443/trex
@@ -147,6 +151,10 @@ The easiest way to ensure that all requirements are met, is by using conda to cr
 
 	conda create -n trex git cmake ffmpeg pip numpy==1.26.4 python=3.11 nasm
 
+You can also bootstrap a fresh environment directly from the repository root::
+
+	bash docs/scripts/init_trex_build_env.sh --env-name trex
+
 Next, switch to the conda environment using::
 
 	conda activate trex
@@ -164,6 +172,8 @@ Now run the ``post-link`` script to install some required pip packages::
 	# Linux or MacOS
 	cd trex/conda
 	sh post-link.sh
+
+The helper script above already runs ``conda/post-link.sh`` for Linux and macOS, so you can skip this step if you used ``docs/scripts/init_trex_build_env.sh``.
 
 Create and switch to the build folder::
 

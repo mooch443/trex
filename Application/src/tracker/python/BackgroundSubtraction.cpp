@@ -1,10 +1,11 @@
 #include "BackgroundSubtraction.h"
+#include <python/PipelineRegistry.h>
 #include <misc/Timer.h>
 #include <processing/RawProcessing.h>
 #include <processing/CPULabeling.h>
-#include <misc/TrackingSettings.h>
-#include <python/TileBuffers.h>
-#include <python/Detection.h>
+#include <core/TrackingSettings.h>
+#include <core/TileBuffers.h>
+#include <processing/DLList.h>
 
 using namespace cmn;
 
@@ -43,38 +44,42 @@ struct BackgroundSubtraction::Data {
     }
 };
 
-PipelineManager<TileImage, true>& BackgroundSubtraction::manager() {
-    static auto instance = PipelineManager<TileImage, true>(1u, [](std::vector<TileImage>&& images)
-    {
-        /// in background subtraction case, we have to wait until the background
-        /// image has been generated and hang in the meantime.
-        auto start_time = std::chrono::steady_clock::now();
-        auto message_time = start_time;
-        while(not data().has_background()
-              && not manager().is_terminated())
-        {
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-
-            auto elapsed = std::chrono::steady_clock::now() - message_time;
-            if(std::chrono::duration_cast<std::chrono::seconds>(elapsed).count() > 30) {
-                FormatExcept("Background image not set in ",
-                             std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - start_time).count(),
-                             " seconds. Waiting for background image...");
-                message_time = std::chrono::steady_clock::now();
-            }
-        }
-        
-        if(not manager().is_terminated()) {
-            if(images.empty())
-                FormatExcept("Images is empty :(");
-            
-            BackgroundSubtraction::apply(std::move(images));
-        }
-    });
-    return instance;
+static PipelineManager<TileImage>& manager() {
+    return detect::pipeline_manager(detect::ObjectDetectionType::background_subtraction);
 }
 
 BackgroundSubtraction::BackgroundSubtraction(Image::Ptr&& average) {
+    detect::register_pipeline(
+        detect::ObjectDetectionType::background_subtraction,
+        1u,
+        /*start_paused=*/true,
+        [](std::vector<TileImage>&& images)
+        {
+            /// Wait until the background image has been generated.
+            auto start_time = std::chrono::steady_clock::now();
+            auto message_time = start_time;
+            while(not data().has_background()
+                  && not manager().is_terminated())
+            {
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+                auto elapsed = std::chrono::steady_clock::now() - message_time;
+                if(std::chrono::duration_cast<std::chrono::seconds>(elapsed).count() > 30) {
+                    FormatExcept("Background image not set in ",
+                                 std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - start_time).count(),
+                                 " seconds. Waiting for background image...");
+                    message_time = std::chrono::steady_clock::now();
+                }
+            }
+
+            if(not manager().is_terminated()) {
+                if(images.empty())
+                    FormatExcept("Images is empty :(");
+
+                BackgroundSubtraction::apply(std::move(images));
+            }
+        });
+
     data().set(std::move(average));
 }
 
@@ -111,6 +116,7 @@ std::future<SegmentationData> BackgroundSubtraction::apply(TileImage &&tiled) {
 }
 
 void BackgroundSubtraction::deinit() {
+    detect::unregister_pipeline(detect::ObjectDetectionType::background_subtraction);
 }
 
 double BackgroundSubtraction::fps() {
@@ -123,13 +129,15 @@ void BackgroundSubtraction::apply(std::vector<TileImage> &&tiled) {
     
     std::shared_lock guard(data()._gpu_mutex);
     RawProcessing raw(data()._gpu, &data()._float_average, nullptr);
-    gpuMat gpu_buffer;
+    static thread_local gpuMat gpu_buffer;
     TagCache tag;
-    CPULabeling::ListCache_t cache;
+    static thread_local CPULabeling::ListCache_t cache;
+    cache.obj->clear();
+    
     const auto cm_per_pixel = READ_SETTING(cm_per_pixel, Settings::cm_per_pixel_t);
     const auto detect_size_filter = READ_SETTING(detect_size_filter, SizeFilters);
     const Float2_t sqcm = SQR(cm_per_pixel);
-    cv::Mat r3;
+    static thread_local cv::Mat r3;
     
     static thread_local cv::Mat split_channels[4];
     const auto color_channel = READ_SETTING(color_channel, std::optional<uint8_t>);
@@ -151,13 +159,14 @@ void BackgroundSubtraction::apply(std::vector<TileImage> &&tiled) {
                 else if (mode == meta_encoding_t::gray
                          || mode == meta_encoding_t::binary)
                 {
-                    if(is_in(image->dims, 3, 4)) {
+                    if(is_in(image->dims, 3u, 4u)) {
                         if(not color_channel.has_value()
                            || color_channel.value() >= 4)
                         {
                             if(image->dims == 3) {
                                 cv::cvtColor(image->get(), r3, cv::COLOR_BGR2GRAY);
                             } else /*if(image->dims == 4)*/ {
+                                assert(image->dims == 4);
                                 cv::cvtColor(image->get(), r3, cv::COLOR_BGRA2GRAY);
                             }
                             
@@ -195,7 +204,7 @@ void BackgroundSubtraction::apply(std::vector<TileImage> &&tiled) {
                 
                 //apply_filters(*input);
                 //Print("CHannels = ", r3.channels(), " input=", input->channels());
-                //Print("size = ", Size2(r3), " input=", Size2(input->cols, input->rows), " average=",Size2(data().gpu.cols, data().gpu.rows), " channels=", data().gpu.channels());
+                //Print("size = ", Size2(r3), " input=", Size2(input->cols, input->rows), " average=",Size2(data()._gpu.cols, data()._gpu.rows), " channels=", data()._gpu.channels());
                 assert(Size2(r3) == Size2(data()._gpu.cols, data()._gpu.rows));
                 raw.generate_binary(r3, *input, r3, &tag);
                 

@@ -1,4 +1,5 @@
 #include "ImageExtractor.h"
+#include <gui/Transform.h>
 #include <tracking/Tracker.h>
 #include <tracking/FilterCache.h>
 #include <tracking/IndividualManager.h>
@@ -129,6 +130,13 @@ void ImageExtractor::update_thread(selector_t&& selector, partial_apply_t&& part
         _promise.set_value();
         callback(this, 1.0, true);
         
+    } catch(const std::exception& ex) {
+        FormatWarning("[update_thread] Rethrowing exception for main: ", ex.what());
+        try {
+            _promise.set_exception(std::current_exception());
+        } catch(...) {
+            FormatExcept("[update_thread] Unrecoverable exception in retrieve_image_data: ", ex.what());
+        }
     } catch(...) {
         FormatWarning("[update_thread] Rethrowing exception for main.");
         try {

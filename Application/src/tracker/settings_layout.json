@@ -169,7 +169,8 @@
                                         "label":{
                                             "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,250]}",
                                             "fill":"{if:{||:{selected}:{hovered}}:[10,80,110,240]:[10,50,80,240]}",
-                                            "font":{"size":0.65}
+                                            "font":{"size":0.65},
+                                            "color":[255,255,255]
                                         },
                                         "size":"[{min:350:{max:100:{-:{element_w}:195}}},45]",
                                         "pad":[0,0,10,0],
@@ -202,7 +203,8 @@
                                                                 "corners":["right"],
                                                                 "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,250]}",
                                                                 "fill":"{if:{||:{selected}:{hovered}}:[10,80,110,240]:[10,50,80,240]}",
-                                                                "font":{"size":0.65}
+                                                                "font":{"size":0.65},
+                                                                "color":[255,255,255]
                                                             },
                                                             "size":"[{min:200:{max:120:{element_w}}},45]",
                                                             "desc":""
@@ -218,6 +220,8 @@
                                                         "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
                                                         "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
                                                         "size":"[{min:50:{max:120:{element_w}}},45]",
+                                                        "corners":["right"],
+                                                        "color":[255,255,0],
                                                         "desc":""
                                                     },
                                                     "else":{
@@ -294,7 +298,8 @@
                                                     "line":[220,220,220,200],
                                                     "fill":[25,25,25,220],
                                                     "size":"[{element_w},200]",
-                                                    "font":{"size":0.6}
+                                                    "font":{"size":0.6},
+                                                    "color":[255,255,255]
                                                 },
                                                 "size":"[{max:50:{*:{textfield_w}:0.1}},45]",
                                                 "desc":""
@@ -315,7 +320,8 @@
                                                     "line":[220,220,220,200],
                                                     "fill":[25,25,25,220],
                                                     "size":"[{element_w},200]",
-                                                    "font":{"size":0.6}
+                                                    "font":{"size":0.6},
+                                                    "color":[255,255,255]
                                                 },
                                                 "size":"[{max:50:{*:{textfield_w}:0.1}},45]",
                                                 "desc":""
@@ -405,7 +411,7 @@
                                     "children":[
                                         {
                                             "type":"settings",
-                                            "label":{ "corners":["left"] },
+                                            "label":{ "corners":["left"], "color":[255,255,255] },
                                             "var":"detect_model",
                                             "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
                                             "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
@@ -505,8 +511,8 @@
                                                     [
                                                         {
                                                             "type":"button",
-                                                            "text":"<sym>⮞</sym> yolo11n",
-                                                            "click":"set:detect_model:'yolo11n'",
+                                                            "text":"<sym>⮞</sym> yolo26n",
+                                                            "click":"set:detect_model:'yolo26n'",
                                                             "fill":[50,90,50],
                     
                                                             "size":[90,30],
@@ -514,8 +520,8 @@
                                                         },
                                                         {
                                                             "type":"button",
-                                                            "text":"<sym>⮞</sym> yolo11n-seg",
-                                                            "click":"set:detect_model:'yolo11n-seg'",
+                                                            "text":"<sym>⮞</sym> yolo26n-seg",
+                                                            "click":"set:detect_model:'yolo26n-seg'",
                                                             "fill":[50,90,50],
                     
                                                             "size":[120,30],
@@ -523,16 +529,16 @@
                                                         },
                                                         {
                                                             "type":"button",
-                                                            "text":"<sym>⮞</sym> yolo11n-pose",
-                                                            "click":"set:detect_model:'yolo11n-pose'",
+                                                            "text":"<sym>⮞</sym> yolo26n-pose",
+                                                            "click":"set:detect_model:'yolo26n-pose'",
                                                             "fill":[50,90,50],
                                                             "size":[120,30],
                                                             "font":{"size":0.5}
                                                         },
                                                         {
                                                             "type":"button",
-                                                            "text":"<sym>⮞</sym> yolo11s-pose",
-                                                            "click":"set:detect_model:'yolo11s-pose'",
+                                                            "text":"<sym>⮞</sym> yolo26s-pose",
+                                                            "click":"set:detect_model:'yolo26s-pose'",
                                                             "fill":[50,90,50],
                                                             "size":[120,30],
                                                             "font":{"size":0.5}
@@ -560,7 +566,8 @@
                                     "label":{
                                         "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,250]}",
                                         "fill":"{if:{||:{selected}:{hovered}}:[10,80,110,240]:[10,50,80,240]}",
-                                        "font":{"size":0.65}
+                                        "font":{"size":0.65},
+                                        "color":[255,255,255]
                                     },
                                     "list":{
                                         "line":[220,220,220,200],
@@ -607,7 +614,7 @@
                                 "children":[
                                     {
                                         "type":"settings",
-                                        "label":{ "corners":["left"] },
+                                        "label":{ "corners":["left"], "color":[255,255,255] },
                                         "name":"conditional_region_model",
                                         "var":"{if:{machine_learning}:'region_model':'detect_threshold'}",
                                         "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
@@ -709,34 +716,105 @@
                                     "size":[1,10]
                                 },
                                 {
-                                    "type":"hlayout",
-                                    "pad":[0,0,10,0],
+                                    "type":"gridlayout",
+                                    "pad":[0,0,15,5],
                                     "children":[
-                                        {
-                                            "type":"stext",
-                                            "text":"<b>Tile images</b>\n<gray>before detection.</gray>",
-                                            "font":{"size":0.6}
-                                        },
-                                        {
-                                            "type":"settings",
-                                            "var":"detect_tile_image",
-                                            "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
-                                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
-                                            "list":{
-                                                "line":[220,220,220,200],
-                                                "fill":[25,25,25,220],
-                                                "size":"[{element_w},200]"
+                                        [
+                                            {
+                                                "type":"hlayout",
+                                                "line":[150,150,150,255],
+                                                "pad":[10,5,5,5],
+                                                "fill":[30,30,30,150],
+                                                "children":[
+                                                    {      
+                                                        "type":"stext",
+                                                        "text":"<b>Tile width</b>\n<gray>pixels before detection.</gray>",
+                                                        "font":{"size":0.6}
+                                                    },
+                                                    {
+                                                        "type":"settings",
+                                                        "var":"detect_tile_target_width",
+                                                        "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                                                        "size":[50,40],
+                                                        "desc":""
+                                                    }
+                                                ]
                                             },
-                                            "size":[50,40],
-                                            "desc":""
-                                        }
+                                            
+                                            {
+                                                "type":"hlayout",
+                                                "line":[150,150,150,255],
+                                                "pad":[10,5,5,5],
+                                                "fill":[30,30,30,150],
+                                                "children":[
+                                                    {
+                                                        "type":"stext",
+                                                        "text":"<b>Tile overlap</b>\n<gray>relative fraction.</gray>",
+                                                        "font":{"size":0.6}
+                                                    },
+                                                    {
+                                                        "type":"settings",
+                                                        "var":"detect_tile_overlap",
+                                                        "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                                                        "size":[50,40],
+                                                        "desc":""
+                                                    }
+                                                ]
+                                            },
+
+                                            {
+                                                "type":"hlayout",
+                                                "line":[150,150,150,255],
+                                                "pad":[10,5,5,5],
+                                                "fill":[30,30,30,150],
+                                                "children":[
+                                                    {
+                                                        "type":"stext",
+                                                        "text":"<b>Tile merge IoU</b>\n<gray>SAHI fusion.</gray>",
+                                                        "font":{"size":0.6}
+                                                    },
+                                                    {
+                                                        "type":"settings",
+                                                        "var":"detect_tile_merge_iou",
+                                                        "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                                                        "size":[50,40],
+                                                        "desc":""
+                                                    }
+                                                ]
+                                            },
+                                            {
+                                                "type":"hlayout",
+                                                "line":[150,150,150,255],
+                                                "pad":[10,5,5,5],
+                                                "fill":[30,30,30,150],
+                                                "children":[
+                                                    {
+                                                        "type":"stext",
+                                                        "text":"<b>Tile merge containment</b>\n<gray>Drop smaller boxes when their overlap with a neighbour exceeds this fraction (0-1).</gray>",
+                                                        "font":{"size":0.6},
+                                                        "max_size":"[{-:{inside_label_w}:20},0]"
+                                                    },
+                                                    {
+                                                        "type":"settings",
+                                                        "var":"detect_tile_merge_containment",
+                                                        "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                                                        "size":[50,40],
+                                                        "desc":""
+                                                    }
+                                                ]
+                                            }
+                                        ]
                                     ]
                                 },
                                 {
                                     "type":"stext",
                                     "pad":[0,5,0,0],
                                     "max_size": "[{min:900:{element_w}},65]",
-                                    "text": "{if:{machine_learning}:'If enabled, the input images will be split into smaller tiles before being processed by the <lightgray><sym>🐟</sym> <c>detection</c></lightgray> model. This can be an alternative to using <sym>🖽</sym> <lightgray><c>region proposals</c></lightgray> and similarly help increase the resolution per individual for the <c><lightgray>detection</lightgray></c> step. <lightgray>This number is a multiplier and will increase the number of predictions per frame - it will impact processing speed.</lightgray>':''}",
+                                    "text": "{if:{machine_learning}:'If tiling is enabled, the input images will be split into smaller tiles before being processed by the <lightgray><sym>🐟</sym> <c>detection</c></lightgray> model. This can be an alternative to using <sym>🖽</sym> <lightgray><c>region proposals</c></lightgray> and similarly help increase the resolution per individual for the <c><lightgray>detection</lightgray></c> step. <lightgray>The <c>Tile width</c> determines the target horizontal resolution in pixels; the number of tiles is derived from it, so larger values increase the number of predictions per frame and impact processing speed. Combine it with <c>Tile overlap</c> to keep context across tile borders; overlapping detections are fused using the <c>Tile merge IoU</c> threshold.</lightgray>':''}",
                                     "font":{"size":0.5}
                                 },
 

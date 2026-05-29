@@ -1,7 +1,7 @@
 #pragma once
 
 #include <misc/bid.h>
-#include <misc/idx_t.h>
+#include <core/idx_t.h>
 #include <misc/ranges.h>
 #include <file/DataFormat.h>
 

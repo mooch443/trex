@@ -24,6 +24,8 @@
     "displayed_frame_valid": "{equal:{global.gui_frame}:{global.gui_displayed_frame}}",
     "number_individuals":"{if:{is_tracked:{smart_highlighted}}:{.active_individuals:{smart_highlighted}}:''}",
 
+    "open_autoident_controls": "{&&:{global.gui_show_autoident_controls}:{primary_selection.bdx}}",
+
     "infocard_width": 215
 }
 },
@@ -33,7 +35,6 @@
 "var":"{global.gui_show_timeline}",
 "then":{
     "type":"collection",
-    "size":"auto",
     "children":[
         {
             "type":"condition",
@@ -128,24 +129,24 @@
                     },
                     {
                         "type":"vlayout",
-                        "corners":"{if:{global.gui_show_autoident_controls}:[\"all\"]:[\"top\"]}",
+                        "corners":"{if:{open_autoident_controls}:[\"all\"]:[\"top\"]}",
                         "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
                         "children":[
                             {
                                 "type":"button",
                                 "corners":["top"],
                                 "text":"<c>tracklet controls</c> {if:{global.gui_show_autoident_controls}:<sym>△</sym>:<sym>▼</sym>}",
-                                "fill":"{if:{global.gui_show_autoident_controls}:[20,{if:{primary_selection.is_automatic}:50:20},20,200]:[20,{if:{primary_selection.is_automatic}:50:20},20,200]}",
-                                "line1":"{if:{global.gui_show_autoident_controls}:[100,100,100,50]:{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}}",
+                                "fill":"{if:{open_autoident_controls}:[20,{if:{primary_selection.is_automatic}:50:20},20,200]:[20,{if:{primary_selection.is_automatic}:50:20},20,200]}",
+                                "line1":"{if:{open_autoident_controls}:[100,100,100,50]:{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}}",
                                 "color":[225,225,225],
                                 "font":{"size":0.55},
                                 "size":"[{infocard_width},30]",
-                                "checked":"{global.gui_show_autoident_controls}",
+                                "checked":"{open_autoident_controls}",
                                 "action":"set:gui_show_autoident_controls:{not:{global.gui_show_autoident_controls}}"
                             },
                             {
                                 "type":"condition",
-                                "var":"{global.gui_show_autoident_controls}",
+                                "var":"{open_autoident_controls}",
                                 "then":
                                 {
                                     "type":"condition",
@@ -553,7 +554,7 @@
                                                             "type":"stext",
                                                             "font":{"size":0.5,"style":"mono"},
                                                             "max_size":"[{infocard_width}, 0]",
-                                                            "text":" {if:{equal:{index}:0}:<gray><sym>⮩</sym></gray> :'<small>   </small>'}bdx[<lightgray>{round:{at:0:{i}}:2}</lightgray>]: <cyan>{round:{at:1:{i}}:2}</cyan>{if:{global.gui_show_detailed_probabilities}:' t=<cyan>{round:{at:2:{i}}:2}</cyan>':''}"
+                                                            "text":" {if:{equal:{index}:0}:<gray><sym>⮩</sym></gray> :'<small>   </small>'}{if:{>=:{index}:{global.match_topk}}:<gray>:''}bdx[<lightgray>{round:{at:0:{i}}:2}</lightgray>]: <cyan>{round:{at:1:{i}}:2}</cyan>{if:{global.gui_show_detailed_probabilities}:' t=<cyan>{round:{at:2:{i}}:2}</cyan>':''}{if:{>=:{index}:{global.match_topk}}:</gray>:''}"
                                                         }
                                                     },
                                                     {
@@ -916,6 +917,7 @@
                 {
                     "type":"collection",
                     "name":"timeline",
+                    "size":"[{width},20]",
                     "clickable":true,
                     "children":[
                         {
@@ -1007,7 +1009,7 @@
                         {
                             "type": "rect",
                             "name": "timeline_current",
-                            "pos": "{addVector:[{saturate:{at:0:{current_pos}}:18:{-:{window_size.x}:18}},{at:1:{current_pos}}]:[0,14]}",
+                            "pos": "{addVector:[{saturate:{at:0:{current_pos}}:18:{max:19:{-:{window_size.x}:18}}},{at:1:{current_pos}}]:[0,14]}",
                             "size": [1,28],
                             "corners":["all",10],
                             "fill": [255,255,255,220],
