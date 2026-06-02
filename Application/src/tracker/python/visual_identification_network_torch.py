@@ -577,12 +577,11 @@ class ModelFetcher:
             else:
                 model = self.versions[model_name](num_classes, channels, image_width, image_height)
             
-            # Always keep BatchNorm2d; avoid GroupNorm.
-            # Move to device and prefer channels_last activations on MPS so compiled convs
-            # see consistent NHWC (channels_last) layout during forward/backward.
+            # MPS BatchNorm2d backward can fail on recent PyTorch builds with
+            # non-viewable strides, so use GroupNorm there and keep CUDA/CPU unchanged.
             try:
                 if str(device).startswith('mps'):
-                    #model = replace_batchnorm2d_with_groupnorm(model)
+                    model = replace_batchnorm2d_with_groupnorm(model)
                     model = model.to(device, memory_format=torch.channels_last)
                 else:
                     model = model.to(device)
@@ -665,6 +664,10 @@ def replace_batchnorm2d_with_groupnorm(module: nn.Module) -> nn.Module:
             gn = nn.GroupNorm(num_groups=num_groups, num_channels=num_channels, eps=child.eps, affine=child.affine)
             # Back-compat for code that expects BatchNorm2d.num_features
             gn.num_features = num_channels
+            if child.affine:
+                with torch.no_grad():
+                    gn.weight.copy_(child.weight)
+                    gn.bias.copy_(child.bias)
             setattr(module, name, gn)
         else:
             replace_batchnorm2d_with_groupnorm(child)
