@@ -53,6 +53,15 @@ function(trex_bundle_basler_bridge target)
     endif()
 endfunction()
 
+function(trex_prepare_resource_dir target)
+    if(APPLE AND NOT "${CMAKE_SYSTEM_NAME}" STREQUAL "Emscripten")
+        add_custom_command(TARGET ${target} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${target}>/../Resources"
+            VERBATIM
+        )
+    endif()
+endfunction()
+
 function(trex_link_static_python_impl target)
     target_link_libraries(${target} PUBLIC trex_python_staging trex_python)
     
@@ -544,6 +553,10 @@ if(NOT TREX_CONDA_PACKAGE_INSTALL)
         ${CMAKE_CURRENT_SOURCE_DIR}/export_options_layout.json
         ${CMAKE_CURRENT_SOURCE_DIR}/interactive_segmentation_prototype/live_segmentation_layout.json
     )
+
+    foreach(app_target ${TREX_APP_TARGETS} ${TREX_TOOL_TARGETS})
+        trex_prepare_resource_dir(${app_target})
+    endforeach()
 
     if(TREX_ENABLE_SHARED_INTERNAL_LIBS)
         foreach(app_target ${TREX_APP_TARGETS} ${TREX_TOOL_TARGETS})

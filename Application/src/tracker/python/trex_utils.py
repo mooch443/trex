@@ -110,7 +110,7 @@ def load_checkpoint_from_file(file_path: str, device: str):
             torch.serialization.add_safe_globals([PermuteAxesWrapper, Normalize, transforms.transforms.Normalize])
             torch.serialization.add_safe_globals([set])
             torch.serialization.add_safe_globals([V118_3, V110, V119, V200])
-            torch.serialization.add_safe_globals([nn.Softmax, nn.Conv2d, nn.BatchNorm2d, nn.ReLU,
+            torch.serialization.add_safe_globals([nn.Softmax, nn.Conv2d, nn.BatchNorm2d, nn.GroupNorm, nn.ReLU,
                                                 nn.MaxPool2d, nn.Linear, nn.Dropout, nn.Dropout2d,
                                                 nn.LayerNorm, nn.AdaptiveAvgPool2d, nn.AdaptiveMaxPool2d,
                                                 nn.AvgPool2d, nn.MaxPool2d, nn.Flatten, nn.Sequential])
