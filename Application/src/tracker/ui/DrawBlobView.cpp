@@ -1544,13 +1544,15 @@ void BlobView::draw_boundary_selection(DrawStructure& base, Base* window, GUICac
                 auto coords = FindCoord::get();
                 auto viewport = coords.viewport();
                 
-                auto object_bounds = Bounds{p, combine->size()};
+                const auto object_size = combine->size().mul(sca);
+                const auto viewport_padding = Vec2(100, 80).mul(sca);
+                auto object_bounds = Bounds{p, object_size};
                 
-                if(object_bounds.x - viewport.x < 100) {
-                    object_bounds.x = viewport.x + 100;
+                if(object_bounds.x - viewport.x < viewport_padding.x) {
+                    object_bounds.x = viewport.x + viewport_padding.x;
                 }
-                if(object_bounds.y - viewport.y < 80) {
-                    object_bounds.y = viewport.y + 80;
+                if(object_bounds.y - viewport.y < viewport_padding.y) {
+                    object_bounds.y = viewport.y + viewport_padding.y;
                 }
                 if(object_bounds.x - viewport.x >= viewport.width) {
                     object_bounds.x = viewport.x + viewport.width - object_bounds.width;
@@ -1612,4 +1614,3 @@ void BlobView::draw_boundary_selection(DrawStructure& base, Base* window, GUICac
 }
 
 }
-
