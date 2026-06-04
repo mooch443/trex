@@ -1,3 +1,5 @@
+#include <commons.pc.h>
+
 #include "DrawBlobView.h"
 #include <gui/DrawStructure.h>
 #include <ui/GUICache.h>
@@ -1544,13 +1546,28 @@ void BlobView::draw_boundary_selection(DrawStructure& base, Base* window, GUICac
                 auto coords = FindCoord::get();
                 auto viewport = coords.viewport();
                 
-                auto object_bounds = Bounds{p, combine->size()};
+                const auto object_size = combine->size().mul(sca);
+                const auto viewport_padding = Vec2(100, 80).mul(sca);
+                auto update_origin = [&]() {
+                    auto screen_pos = coords.convert(BowlCoord{p});
+                    float top = screen_pos.y < coords.screen_size().height * 0.5
+                                ? 0.f : 1.f;
+                    if(screen_pos.x < coords.screen_size().width * 0.5) {
+                        combine->set_origin(Vec2(0, top));
+                    } else {
+                        combine->set_origin(Vec2(1, top));
+                    }
+                };
+                update_origin();
+
+                auto object_top_left = p - object_size.mul(combine->origin());
+                auto object_bounds = Bounds{object_top_left, object_size};
                 
-                if(object_bounds.x - viewport.x < 100) {
-                    object_bounds.x = viewport.x + 100;
+                if(object_bounds.x - viewport.x < viewport_padding.x) {
+                    object_bounds.x = viewport.x + viewport_padding.x;
                 }
-                if(object_bounds.y - viewport.y < 80) {
-                    object_bounds.y = viewport.y + 80;
+                if(object_bounds.y - viewport.y < viewport_padding.y) {
+                    object_bounds.y = viewport.y + viewport_padding.y;
                 }
                 if(object_bounds.x - viewport.x >= viewport.width) {
                     object_bounds.x = viewport.x + viewport.width - object_bounds.width;
@@ -1559,18 +1576,7 @@ void BlobView::draw_boundary_selection(DrawStructure& base, Base* window, GUICac
                     object_bounds.y = viewport.y + viewport.height - object_bounds.height;
                 }
                 
-                p = object_bounds.pos();
-                
-                /// check which direction we should be looking wrt
-                /// screen viewport and object size:
-                auto screen_pos = coords.convert(BowlCoord{p});
-                float top = screen_pos.y < coords.screen_size().height * 0.5
-                            ? 0.f : 1.f;
-                if(screen_pos.x < coords.screen_size().width * 0.5) {
-                    combine->set_origin(Vec2(0, top));
-                } else {
-                    combine->set_origin(Vec2(1, top));
-                }
+                p = object_bounds.pos() + object_size.mul(combine->origin());
                 
 #ifdef __APPLE__
                 if(base.is_key_pressed(Codes::LSystem))
@@ -1581,18 +1587,10 @@ void BlobView::draw_boundary_selection(DrawStructure& base, Base* window, GUICac
                     auto mpos = coords.convert(HUDCoord{base.mouse_position()});
                     if(Bounds(p + Vec2(combine->origin().x == 0 ? 15 : -15,
                                        combine->origin().y == 0 ? 5 : -5)
-                              .mul(sca) - combine->size().mul(sca).mul(combine->origin()), combine->size().mul(sca)).contains(mpos))
+                              .mul(sca) - object_size.mul(combine->origin()), object_size).contains(mpos))
                     {
                         p = mpos;
-                        
-                        screen_pos = coords.convert(BowlCoord{p});
-                        float top = screen_pos.y < coords.screen_size().height * 0.5
-                            ? 0.f : 1.f;
-                        if(screen_pos.x < coords.screen_size().width * 0.5) {
-                            combine->set_origin(Vec2(0, top));
-                        } else {
-                            combine->set_origin(Vec2(1, top));
-                        }
+                        update_origin();
                     }
                 }
                 
@@ -1612,4 +1610,3 @@ void BlobView::draw_boundary_selection(DrawStructure& base, Base* window, GUICac
 }
 
 }
-
