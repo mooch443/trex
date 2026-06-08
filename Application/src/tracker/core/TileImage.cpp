@@ -166,9 +166,14 @@ std::vector<track::SourceRect> compute_tile_bounds(
 
     std::vector<track::SourceRect> tiles;
     tiles.reserve(x_offsets.size() * y_offsets.size());
-    for(int y : y_offsets)
-        for(int x : x_offsets)
-            tiles.push_back(track::SourceRect(x, y, tile_size.width, tile_size.height));
+    const Bounds source_bounds(0, 0, video_size.width, video_size.height);
+    for(int y : y_offsets) {
+        for(int x : x_offsets) {
+            Bounds tile_bounds(x, y, tile_size.width, tile_size.height);
+            tile_bounds.restrict_to(source_bounds);
+            tiles.push_back(track::SourceRect(tile_bounds));
+        }
+    }
     return tiles;
 }
 

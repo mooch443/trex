@@ -489,22 +489,29 @@ bool TrackingScene::on_global_event(Event event) {
         const Frame_t gui_frame = READ_SETTING(gui_frame, Frame_t);
         const auto detect_format = READ_SETTING_WITH_DEFAULT(detect_format, track::detect::ObjectDetectionFormat::none);
         
-        if(_data->_drag_box
-           && _data->_drag_box->size().max() >= 10
+        const auto box = _data->_drag_box->bounds();
+        const auto x0 = std::min(box.x, box.x + box.width);
+        const auto y0 = std::min(box.y, box.y + box.height);
+        const auto x1 = std::max(box.x, box.x + box.width);
+        const auto y1 = std::max(box.y, box.y + box.height);
+        const auto width = x1 - x0;
+        const auto height = y1 - y0;
+
+        if(width >= 10
+           && height >= 10
            && gui_frame.valid()
            && detect_format == track::detect::ObjectDetectionFormat::boxes)
         {
             using Point = blob::Pose::Point;
-            auto box = _data->_drag_box->bounds();
             Annotation annotation{
                 .uid = 0u,
                 .clid = 0u,
                 .type = AnnotationType::BOX,
                 .points = std::vector<Point>{
-                    Point(clamp_cast<uint16_t>(box.x), clamp_cast<uint16_t>(box.y)),
-                    Point(clamp_cast<uint16_t>(box.x + box.width), clamp_cast<uint16_t>(box.y)),
-                    Point(clamp_cast<uint16_t>(box.x + box.width), clamp_cast<uint16_t>(box.y + box.height)),
-                    Point(clamp_cast<uint16_t>(box.x), clamp_cast<uint16_t>(box.y + box.height))
+                    Point(clamp_cast<uint16_t>(x0), clamp_cast<uint16_t>(y0)),
+                    Point(clamp_cast<uint16_t>(x1), clamp_cast<uint16_t>(y0)),
+                    Point(clamp_cast<uint16_t>(x1), clamp_cast<uint16_t>(y1)),
+                    Point(clamp_cast<uint16_t>(x0), clamp_cast<uint16_t>(y1))
                 }
             };
 

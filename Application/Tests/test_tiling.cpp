@@ -701,6 +701,31 @@ TEST(TileImageTest, GeneratesExpectedOffsetsWithoutOverlap) {
     EXPECT_EQ(tile.images.size(), offsets.size());
 }
 
+TEST(TileImageTest, ComputeTileBoundsClampsFrameSmallerThanTile) {
+    const auto bounds = compute_tile_bounds(
+        Size2(100, 80),
+        Size2(320, 320),
+        320,
+        1,
+        0.f);
+
+    ASSERT_EQ(bounds.size(), 1u);
+    EXPECT_EQ(bounds.front(), track::SourceRect(0, 0, 100, 80));
+}
+
+TEST(TileImageTest, ComputeTileBoundsClampsEdgeTilesToSourceFrame) {
+    const auto bounds = compute_tile_bounds(
+        Size2(500, 300),
+        Size2(320, 320),
+        320,
+        1,
+        0.f);
+
+    ASSERT_EQ(bounds.size(), 2u);
+    EXPECT_EQ(bounds[0], track::SourceRect(0, 0, 320, 300));
+    EXPECT_EQ(bounds[1], track::SourceRect(180, 0, 320, 300));
+}
+
 TEST(TileCoordinateUnitsTest, CropGeometryConvertsTilePointAndRectToSource) {
     const track::TileGeometry geometry{
         .source_region = track::SourceRect(320, 120, 320, 320),
