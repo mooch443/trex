@@ -1173,6 +1173,171 @@
                 "row_height":30,
                 "line":"{if:{hovered}:[100,175,250,230]:[100,100,100,50]}"
             }
+        },
+
+        {
+            "type":"condition",
+            "var":"{global.gui_show_tiles}",
+            "then":{
+                "type":"each",
+                "var":"{tiles}",
+                "do":{
+                    "type":"rect",
+                    "pos":"{2hud:[{i.x},{i.y}]}",
+                    "size":"{size2hud:[{i.w},{i.h}]}",
+                    "fill":[255,255,255,0],
+                    "line":[255,255,255,220]
+                }
+            }
+        },
+
+        {
+            "type":"condition",
+            "var":"{global.gui_show_number_individuals}",
+            "then":{
+                "type":"graph",
+                "size":[800,300],
+                "xrange":"[0,{global.video_length}]",
+                "yrange":"[0,{+:0:100}]",
+                "center":"{global.gui_frame}",
+                "draggable":true,
+                "lines": [ {
+                    "name": "mouse_line",
+                    "extrapolate": false,
+                    "display_points": false,
+                    "pts": "{num_individuals}"
+                }]
+            }
+        },
+
+        {
+            "type":"condition",
+            "var":"{&&:{bool:{drag_box}}:{equal:{global.detect_format}:boxes}}",
+            "then":{
+                "type":"rect",
+                "pos":"{2hud:[{drag_box.x},{drag_box.y}]}",
+                "size":"{size2hud:[{drag_box.w},{drag_box.h}]}",
+                "line":[255,0,0,255],
+                "fill":[1,1,1,0],
+                "corners":["all", 8]
+            }
+        },
+
+        {
+            "type": "each",
+            "var": "{annotations}",
+            "as":"a",
+            "do": {
+                "type":"condition",
+                "var":"{equal:{a.type}:1}",
+                "then":{
+                    "type":"each",
+                    "var":"{at:{at:{a.clid}:{global.detect_classes}}:{global.detect_skeleton}}",
+                    "do":  {
+                        "type":"condition",
+                        "var":"{&&:{nequal:{i}:null}:{<:{at:0:{i}}:{array_length:{a.pts}}}:{<:{at:1:{i}}:{array_length:{a.pts}}}}",
+                        "then":{
+                            "type":"line",
+                            "from":"{2hud:{at:{at:0:{i}}:{a.pts}}}",
+                            "to":"{2hud:{at:{at:1:{i}}:{a.pts}}}",
+                            "line":[255,0,255,150],
+                            "thickness":3
+                        }
+                    }
+                }
+            }
+        },
+
+        {
+            "type": "each",
+            "var": "{annotations}",
+            "do": {
+                "type":"collection",
+                "children":[
+                    {
+                        "type": "rect",
+                        "line": [255,0,0],
+                        "fill":[255,0,0, 25],
+                        "pos":"{2hud:[{-:{i.x}:15},{-:{i.y}:15}]}",
+                        "size":"{size2hud:[{+:{i.w}:30},{+:{i.h}:30}]}",
+                        "corners":["all", 8]
+                    },
+
+                    {
+                        "type":"condition",
+                        "var":"{equal:{i.type}:1}",
+                        "then": {
+                            "type":"each",
+                            "var":"{i.pts}",
+                            "as":"j",
+                            "do": {
+                                "type":"collection",
+                                "children":[
+                                    {
+                                        "type":"circle",
+                                        "radius":8,
+                                        "modules":["draggable"],
+                                        "pos":"{2hud:[{j.x},{j.y}]}",
+                                        "origin":[0.5,0.5],
+                                        "fill": [255,255,255,125],
+                                        "line":"{if:{||:{selected}:{hovered}}:[25,25,25,200]:[100,100,100,150]}",
+                                        "color":[255,255,255,255],
+                                        "drag":"move_annotation:{i.id}:{index}"
+                                    },
+                                    {
+                                        "type":"stext",
+                                        "text":"{index}",
+                                        "pos":"{2hud:[{j.x},{j.y}]}",
+                                        "origin":[0.5,0.5],
+                                        "color":[50,50,50,255],
+                                        "font":{"size":0.5,"align":"center"}
+                                    }
+                                ]
+                            }
+                        },
+                        "else": {
+                            "type":"text",
+                            "text":"not POSE: {i.type}",
+                            "pos":"{2hud:[{+:{i.x}:{*:0.5:{i.w}}},{-:{i.y}:5}]}",
+                            "origin":[0.5,1],
+                            "color":[255,0,255]
+                        }
+                    },
+
+                    {
+                        "type":"stext",
+                        "text":"<sym>🖰</sym> {if:{equal:{i.type}:1}:POSE:POINTS} {index} {i.pts}",
+                        "color":[255,100,100,255],
+                        "shadow":0.5,
+                        "origin":[0,0],
+                        "font":{"size":0.5},
+                        "pos":"{addVector:[10,10]:{2hud:[{i.x},{i.y}]}}"
+                    },
+
+                    {
+                        "type":"label",
+                        "text":"[{int:{i.x}},{int:{i.y}} {int:{i.w}}x{int:{i.h}}]",
+                        "length":120,
+                        "color":[255,0,0],
+                        "font":{"size":0.4},
+                        "line":[255,0,0,100],
+                        "center":"{2hud:[{+:{i.x}:{*:0.5:{i.w}}},{+:{i.y}:{*:0.5:{i.h}}}]}"
+                    },
+
+                    {
+                        "type":"button",
+                        "action":"remove_annotation:{i.id}",
+                        "text":"<sym>⮾</sym>",
+                        "size":[20,25],
+                        "origin":[1,0],
+                        "color":"{if:{||:{selected}:{hovered}}:[255,255,255,255]:[255,125,125,150]}",
+                        "font":{"size":1,"align":"center"},
+                        "pos":"{2hud:[{+:{+:{i.x}:{i.w}}:13},{-:{i.y}:15}]}",
+                        "fill":[1,0,0,0],
+                        "line":[1,0,0,0]
+                    }
+                ]
+            }
         }
     ]
 }

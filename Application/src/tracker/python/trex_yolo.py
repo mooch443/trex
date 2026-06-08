@@ -25,7 +25,7 @@ from ultralytics.utils.ops import clip_boxes, crop_mask
 
 def scale_boxes(img1_shape, boxes, img0_shape, ratio_pad=None, padding=True, xywh=False):
     """
-    Rescales bounding boxes (in the format of xyxy by default) from the shape of the image they were originally
+    Rescales bounding boxes (in the format of xyxy by default) from the shape of the image they were predicted
     specified in (img1_shape) to the shape of a different image (img0_shape).
 
     Args:
@@ -76,7 +76,7 @@ def process_mask(protos, masks_in, bboxes, shape, upsample=False):
         masks_in (torch.Tensor): A tensor of shape [n, mask_dim], where n is the number of masks after NMS.
         bboxes (torch.Tensor): A tensor of shape [n, 4], where n is the number of masks after NMS.
         shape (tuple): A tuple of integers representing the size of the input image in the format (h, w).
-        upsample (bool): A flag to indicate whether to upsample the mask to the original image size. Default is False.
+        upsample (bool): A flag to indicate whether to upsample the mask to the source image size. Default is False.
 
     Returns:
         (torch.Tensor): A binary mask tensor of shape [n, h, w], where n is the number of masks after NMS, and h and w
@@ -111,7 +111,7 @@ RUNTIME_PROFILE_MODERN_END2END_FORCED_NMS = "modern_end2end_forced_nms"
 
 def unscale_coords(img1_shape, coords, img0_shape, ratio_pad=None):
     """
-    Rescale segment coordinates (xyxy) from normalized to original image scale
+    Rescale segment coordinates (xyxy) from normalized to source image scale
 
     Args:
       img1_shape (tuple): The shape of the image that the coords are from.
@@ -160,8 +160,8 @@ class StrippedYoloResults(StrippedResults):
                 - keypoints (optional): tensor of shape [n, num_keypoints, 2], with (x, y) coordinates.
                 - obb (optional): tensor of shape [n, 5] as [x_center, y_center, width, height, angle] before class/conf insertion.
                 - masks (optional): tensor of shape [n, mask_h, mask_w] for segmentation masks.
-            scale (np.ndarray): A 2-element array [scale_x, scale_y] to map model coordinates back to original image.
-            offset (np.ndarray): A 2-element array [offset_x, offset_y] to apply before scaling.
+            scale (np.ndarray): A 2-element array [scale_x, scale_y] to map tile coordinates back to source image coordinates.
+            offset (np.ndarray): A 2-element array [offset_x, offset_y] to apply in tile coordinates before scaling.
             box (List[int]): A 4-element list [x_offset, y_offset, x_offset, y_offset] for additional cropping offset.
         """
         super().__init__(scale, offset)
@@ -170,7 +170,7 @@ class StrippedYoloResults(StrippedResults):
         boxes_attr = getattr(results, 'boxes', None)
         if boxes_attr is not None:
             self.boxes = boxes_attr.data.cpu().numpy()
-            # Store original boxes array for later scaling
+            # Store source-space boxes array for later scaling
         self.orig_shape = getattr(results, 'orig_shape', None)
 
         box_array = np.asarray(box, dtype=np.float32)
@@ -253,7 +253,7 @@ class StrippedYoloResults(StrippedResults):
             unscaled[:, 2] *= scale[0]
             unscaled[:, 3] *= scale[1]
 
-            # Unscale coordinates back to original image resolution
+            # Unscale coordinates back to source image resolution
             # scale xy first and then wh:
             orig_shape_local = self.orig_shape if self.orig_shape is not None else np.array(masks_attr.data.shape[1:])
             new_size: np.ndarray = orig_shape_local * scale

@@ -69,6 +69,16 @@ MERGE_CASES = {
             (220.0, 0.0, 320.0, 100.0, 0.6, 1),
         ],
     ),
+    # TEST(YoloTileMergeGroupsTest, GreedyChainUsesRepresentativeOnly) -- SAHI
+    # cross-check block appended at the end of that test.
+    "greedy_chain": dict(
+        ios_threshold=0.5,
+        boxes=[
+            (0.0, 0.0, 100.0, 100.0, 0.9, 1),
+            (40.0, 0.0, 140.0, 100.0, 0.8, 1),
+            (80.0, 0.0, 180.0, 100.0, 0.7, 1),
+        ],
+    ),
 }
 
 # --- NMS (IOU) cases: compared against compute_tile_nms_indices --------------
@@ -79,6 +89,15 @@ NMS_CASES = {
         boxes=[
             (40.0, 40.0, 80.0, 80.0, 0.9, 1),
             (45.0, 40.0, 85.0, 80.0, 0.8, 1),
+        ],
+    ),
+    # TEST(YoloTileMergeGroupsTest, NmsIndicesKeepsBoxesBelowIouThreshold) -- SAHI
+    # cross-check line appended at the end of that test.
+    "nms_below_threshold": dict(
+        iou_threshold=0.55,
+        boxes=[
+            (0.0, 0.0, 100.0, 100.0, 0.9, 1),
+            (90.0, 0.0, 190.0, 100.0, 0.8, 1),
         ],
     ),
 }

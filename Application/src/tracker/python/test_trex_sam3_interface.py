@@ -261,12 +261,23 @@ class FakeOffset:
     y: float = 0.0
 
 
+class FakeTileGeometry:
+    def __init__(self, offset=None, scale=None):
+        self._offset = offset or FakeOffset()
+        self._scale = scale or FakeScale()
+
+    def offset(self):
+        return self._offset
+
+    def scale(self):
+        return self._scale
+
+
 class FakeBaseInput:
-    def __init__(self, images, orig_ids, offsets, scales):
+    def __init__(self, images, orig_ids, geometries):
         self._images = images
         self._orig_ids = orig_ids
-        self._offsets = offsets
-        self._scales = scales
+        self._geometries = geometries
 
     def images(self):
         return self._images
@@ -274,16 +285,16 @@ class FakeBaseInput:
     def orig_id(self):
         return self._orig_ids
 
-    def offsets(self):
-        return self._offsets
-
-    def scales(self):
-        return self._scales
+    def tile_geometries(self):
+        return self._geometries
 
 
 class FakeSam3Input:
     def __init__(self, images, orig_ids, offsets, scales, prompts_per_image):
-        self._base = FakeBaseInput(images, orig_ids, offsets, scales)
+        self._base = FakeBaseInput(
+            images,
+            orig_ids,
+            [FakeTileGeometry(offset, scale) for offset, scale in zip(offsets, scales)])
         self._prompts_per_image = prompts_per_image
 
     def base(self):
@@ -572,10 +583,10 @@ class Sam3InterfaceTest(unittest.TestCase):
         self.assertTrue(predictor.shutdown_called)
         self.assertIsNone(sam3._SESSION)
 
-    def test_predict_frame_rejects_mismatched_offsets_length(self):
+    def test_predict_frame_rejects_mismatched_geometry_length(self):
         self.create_session()
 
-        with self.assertRaisesRegex(ValueError, "offsets"):
+        with self.assertRaisesRegex(ValueError, "tile_geometries"):
             sam3.predict_frame(FakeSam3Input(
                 [np.zeros((8, 8, 3), dtype=np.uint8)],
                 [0],

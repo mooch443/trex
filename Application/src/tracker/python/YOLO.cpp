@@ -84,10 +84,10 @@ std::vector<TileMergeGroup> compute_tile_merge_groups(const track::detect::Boxes
 
     ios_threshold = std::clamp(ios_threshold, 0.f, 1.f);
 
-    // Tile detections arrive in original-image coordinates, but without row-level tile provenance.
+    // Tile detections arrive in source-image coordinates, but without row-level tile provenance.
     // GreedyNMM mirrors SAHI's sliced prediction postprocess: per-class, confidence-sorted
     // matching by intersection-over-smaller-area (IOS), with geometry/mask merging later.
-    // Source indices stay original row indices so masks/keypoints remain aligned.
+    // Source indices stay result row indices so masks/keypoints remain aligned.
     // This can merge duplicate/partial seam detections when boxes overlap strongly,
     // but it deliberately cannot fuse two non-overlapping left/right seam halves into a new object.
     std::unordered_map<int, std::vector<size_t>> by_class;
@@ -1448,8 +1448,7 @@ struct YOLO::TransferData {
     std::vector<Image::Ptr> images;
     //std::vector<Image::Ptr> oimages;
     std::vector<SegmentationData> datas;
-    std::vector<Vec2> scales;
-    std::vector<Vec2> offsets;
+    std::vector<TileGeometry> tile_geometries;
     std::vector<size_t> orig_id;
     std::vector<std::promise<SegmentationData>> promises;
     std::vector<std::function<void()>> callbacks;
@@ -1509,7 +1508,6 @@ void YOLO::StartPythonProcess(TransferData&& transfer) {
         }
     }
     ModuleProxy bbx("bbx_saved_model", YOLO::reinit, true);
-    //bbx.set_variable("offsets", std::move(transfer.offsets));
     //bbx.set_variable("image", transfer.images);
     //bbx.set_variable("oimages", transfer.oimages);
 
@@ -1519,9 +1517,8 @@ void YOLO::StartPythonProcess(TransferData&& transfer) {
     try {
         track::detect::YoloInput input{
             std::move(transfer.images),
-            (transfer.offsets),
-            (transfer.scales),
-            (transfer.orig_id),
+            std::move(transfer.tile_geometries),
+            std::move(transfer.orig_id),
             [](std::vector<Image::Ptr>&& images)
             {
                 for (auto&& image : images)
@@ -1682,20 +1679,16 @@ void YOLO::apply(std::vector<TileImage>&& tiles) {
         transfer.promises.emplace_back(std::move(*tiled.promise));
         tiled.promise = nullptr;
         
-        //Print("Image scale: ", scale, " with tile source=", tiled.source_size, " image=", data.image->dimensions()," output_size=", READ_SETTING(output_size, Size2), " original=", tiled.original_size);
-        
         {
-            const Vec2 scale = tiled.original_size.div(tiled.source_size);
-            for(size_t k = 0; k < tiled.offsets().size(); ++k) {
+            for(size_t k = 0; k < tiled.tile_geometries().size(); ++k) {
                 transfer.orig_id.push_back(i);
-                transfer.scales.push_back(scale);
             }
-            auto scaled = tiled.scaled_tile_bounds();
-            tiled.data.tiles.insert(tiled.data.tiles.end(), scaled.begin(), scaled.end());
+            const auto bounds = tiled.source_tile_bounds();
+            tiled.data.tiles.insert(tiled.data.tiles.end(), bounds.begin(), bounds.end());
         }
         
-        auto o = tiled.offsets();
-        transfer.offsets.insert(transfer.offsets.end(), o.begin(), o.end());
+        const auto& geometries = tiled.tile_geometries();
+        transfer.tile_geometries.insert(transfer.tile_geometries.end(), geometries.begin(), geometries.end());
         transfer.datas.emplace_back(std::move(tiled.data));
         transfer.callbacks.emplace_back(tiled.callback);
         

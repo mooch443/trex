@@ -21,24 +21,24 @@ printed_warning = False
 
 class StrippedResults:
     """
-    Base class for stripped detection results, storing bounding boxes, keypoints, masks, and oriented bounding boxes along with scale and offset for coordinate transformations.
+    Base class for stripped detection results, storing bounding boxes, keypoints, masks, and oriented bounding boxes along with tile-to-source conversion metadata.
     """
     def __init__(self, scale: np.ndarray, offset: np.ndarray) -> None:
         """
         Initialize StrippedResults with scale and offset for coordinate transformations.
 
         Args:
-            scale (np.ndarray): A 2-element array [scale_x, scale_y] representing scaling factors applied to model output coordinates to map them back to the original image.
-            offset (np.ndarray): A 2-element array [offset_x, offset_y] representing pixel offsets added to model output coordinates before scaling.
+            scale (np.ndarray): A 2-element array [scale_x, scale_y] used to map tile coordinates back to source-image coordinates.
+            offset (np.ndarray): A 2-element array [offset_x, offset_y] applied in tile coordinates before scaling.
 
         Attributes:
-            boxes: Array of clid, conf, and bounding boxes in format [clid, conf, x, y, w, h] in original image coordinates.
+            boxes: Array of clid, conf, and bounding boxes in format [clid, conf, x, y, w, h] in source-image coordinates.
 
-            keypoints: List of arrays (same length as the boxes array), each of shape [num_keypoints, 2], containing (x, y) coordinates of keypoints in original image space.
+            keypoints: List of arrays (same length as the boxes array), each of shape [num_keypoints, 2], containing (x, y) coordinates of keypoints in source-image space.
 
-            masks: List of 2D numpy arrays (uint8) representing segmentation masks aligned to the original image dimensions. Same length as boxes.
+            masks: List of 2D numpy arrays (uint8) representing segmentation masks aligned to source-image boxes. Same length as boxes.
 
-            obb: Array of oriented bounding boxes, with each row formatted as [class_id, confidence, x_center, y_center, width, height, angle] in original image coordinates. Note: if obb is set, boxes is not required and has to be empty.
+            obb: Array of oriented bounding boxes, with each row formatted as [class_id, confidence, x_center, y_center, width, height, angle] in source-image coordinates. Note: if obb is set, boxes is not required and has to be empty.
 
             points: Array of point detections, with each row formatted as [class_id, confidence, x, y, radius]
 
@@ -410,19 +410,15 @@ class TRexDetection:
         """
         global receive
 
-        offsets = input.offsets()
-        offsets = np.array([(o.x, o.y) for o in offsets], dtype=np.float32)
-
-        scales = input.scales()
-        scales = np.array([(o.x, o.y) for o in scales], dtype=np.float32)
-
-        offsets = np.reshape(offsets, (-1, 2))
-        scales = np.reshape(scales, (-1, 2)).astype(np.float32)
+        geometries = list(input.tile_geometries())
+        scales, offsets = TRex.tile_affines(geometries)
 
         orig_id = trex_utils.asarray(input.orig_id(), copy=True, dtype=np.uint64)
         #print(f"Received orig_id = {orig_id}")
 
         im = input.images()
+        if len(im) != len(geometries) or len(im) != len(orig_id):
+            raise ValueError("YoloInput received mismatched images/tile_geometries/orig_id lengths.")
         tensor = self.preprocess(im)
 
         # if we have a box detection model, we can focus on parts of the image
@@ -490,8 +486,6 @@ class TRexDetection:
 
         # use groupby to group the list elements by id
         results = [[x[1] for x in group] for _, group in groupby(list(zip(orig_id, results)), lambda x: x[0])]
-        offsets = [[x[1] for x in group] for _, group in groupby(list(zip(orig_id, offsets)), lambda x: x[0])]
-        scales = [[x[1] for x in group] for _, group in groupby(list(zip(orig_id, scales)), lambda x: x[0])]
         #print(f"len(results) = {len(results)} len(offsets) = {len(offsets)} len(scales) = {len(scales)}")
 
         index = 0

@@ -21,6 +21,7 @@ set(TREX_CORE_PUBLIC_HEADERS
     ${CMAKE_CURRENT_LIST_DIR}/core/TaskPipeline.h
     ${CMAKE_CURRENT_LIST_DIR}/core/SettingsPaths.h
     ${CMAKE_CURRENT_LIST_DIR}/core/SettingsInitializer.h
+    ${CMAKE_CURRENT_LIST_DIR}/core/TileCoordinates.h
     ${CMAKE_CURRENT_LIST_DIR}/core/TileImage.h
     ${CMAKE_CURRENT_LIST_DIR}/core/TileBuffers.h
     ${CMAKE_CURRENT_LIST_DIR}/core/TimingStatsCollector.h

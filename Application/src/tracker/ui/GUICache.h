@@ -176,6 +176,8 @@ namespace globals {
         LOGGED_MUTEX_VAR(vector_mutex, "GUICache::vector_mutex");
         
     public:
+        gui::DrawStructure* graph() { return _graph; }
+        
         Size2 _video_resolution;
         int last_threshold = -1;
         Bounds boundary;

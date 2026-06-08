@@ -553,6 +553,54 @@ TYPED_TEST(ParseAndResolveTest, NestedForKeepsOuterState)
     ASSERT_EQ(result, "[[[10,1],[10,2]],[[20,1],[20,2]]]");
 }
 
+TYPED_TEST(ParseAndResolveTest, AtIndexesArray)
+{
+    State   state;
+    Context ctx;
+    auto result = run_parser<TypeParam>("{at:0:[alpha,beta,gamma]}", ctx, state);
+    ASSERT_EQ(result, "alpha");
+}
+
+TYPED_TEST(ParseAndResolveTest, AtIndexesString)
+{
+    State   state;
+    Context ctx;
+    auto result = run_parser<TypeParam>("{at:1:'abc'}", ctx, state);
+    ASSERT_EQ(result, "b");
+}
+
+TYPED_TEST(ParseAndResolveTest, AtLooksUpObjectValueByKey)
+{
+    State   state;
+    Context ctx;
+    auto result = run_parser<TypeParam>("{at:key:\\{key:value,other:ignored\\}}", ctx, state);
+    ASSERT_EQ(result, "value");
+}
+
+TYPED_TEST(ParseAndResolveTest, AtLooksUpObjectValueWithWhitespace)
+{
+    State   state;
+    Context ctx;
+    auto result = run_parser<TypeParam>("{at:key:\\{ other: ignored, key: value \\}}", ctx, state);
+    ASSERT_EQ(result, "value");
+}
+
+TYPED_TEST(ParseAndResolveTest, AtReturnsNullForMissingObjectKey)
+{
+    State   state;
+    Context ctx;
+    auto result = run_parser<TypeParam>("{at:missing:\\{key:value,other:ignored\\}}", ctx, state);
+    ASSERT_EQ(result, "null");
+}
+
+/*TYPED_TEST(ParseAndResolveTest, AtReturnsNullForMalformedObjectEntry)
+{
+    State   state;
+    Context ctx;
+    auto result = run_parser<TypeParam>("{at:key:\\{key:value,malformed\\}}", ctx, state);
+    ASSERT_EQ(result, "null");
+}*/
+
 TYPED_TEST(ParseAndResolveTest, ArithmeticAddVector)
 {
     State   state;
@@ -1035,6 +1083,49 @@ TEST(EachElementTest, GenericVectorLoopUpdatesStringifiedValues) {
     ));
 }
 
+TEST(EachElementTest, CustomLoopVariableNameWorksForGenericVectorLoops) {
+    constexpr std::string_view json = R"json(
+{
+  "type": "each",
+  "var": "items",
+  "as": "item",
+  "do": {
+    "type": "stext",
+    "text": "item:{item}-{index}"
+  }
+}
+)json";
+
+    glz::json_t obj;
+    auto parse_error = glz::read_json(obj, json);
+    ASSERT_EQ(parse_error, glz::error_code::none) << glz::format_error(parse_error, json);
+    ASSERT_TRUE(obj.is_object());
+
+    std::vector<int> items{10, 20};
+
+    Context context{
+        VarFunc("items", [&items](const VarProps&) -> std::vector<int> { return items; })
+    };
+
+    State state;
+    auto handler = std::make_shared<CurrentObjectHandler>();
+    state._current_object_handler = handler;
+
+    DrawStructure graph(640, 480);
+    auto root = parse_object(nullptr, obj.get_object(), context, state, context.defaults);
+    ASSERT_TRUE(root);
+    ASSERT_TRUE(root.is<Layout>());
+
+    ASSERT_NO_THROW((void)DynamicGUI::update_objects(nullptr, graph, root, context, state));
+
+    std::vector<std::string> texts;
+    collect_static_text_strings(root, texts);
+    ASSERT_THAT(texts, ::testing::ElementsAre(
+        "item:10-0",
+        "item:20-1"
+    ));
+}
+
 TEST(EachElementTest, SpriteMapSubfieldArrayLoopUpdatesValues) {
     constexpr std::string_view json = R"json(
 {
@@ -1087,6 +1178,81 @@ TEST(EachElementTest, SpriteMapSubfieldArrayLoopUpdatesValues) {
         "value:7-0",
         "value:8-1",
         "value:9-2"
+    ));
+}
+
+TEST(EachElementTest, CustomLoopVariableNamesWorkInNestedObjectLoops) {
+    constexpr std::string_view json = R"json(
+{
+  "type": "each",
+  "var": "outer",
+  "as": "group",
+  "do": {
+    "type": "collection",
+    "children": [
+      {
+        "type": "stext",
+        "text": "outer:{group.label}-{index}"
+      },
+      {
+        "type": "each",
+        "var": "group.inner",
+        "as": "point",
+        "do": {
+          "type": "stext",
+          "text": "inner:{group.label}:{point}-{index}"
+        }
+      }
+    ]
+  }
+}
+)json";
+
+    glz::json_t obj;
+    auto parse_error = glz::read_json(obj, json);
+    ASSERT_EQ(parse_error, glz::error_code::none) << glz::format_error(parse_error, json);
+    ASSERT_TRUE(obj.is_object());
+
+    std::vector<sprite::Map> outer_data(2);
+    outer_data[0]["label"] = 10;
+    outer_data[0]["inner"] = std::vector<int>{1, 2};
+    outer_data[1]["label"] = 20;
+    outer_data[1]["inner"] = std::vector<int>{3};
+
+    std::vector<std::shared_ptr<VarBase_t>> outer_entries;
+    outer_entries.reserve(outer_data.size());
+    for(size_t idx = 0; idx < outer_data.size(); ++idx) {
+        outer_entries.emplace_back(std::shared_ptr<VarBase_t>(new Variable([idx, &outer_data](const VarProps&) -> sprite::Map& {
+            return outer_data[idx];
+        })));
+    }
+
+    Context context{
+        VarFunc("outer", [&outer_entries](const VarProps&) -> std::vector<std::shared_ptr<VarBase_t>>& {
+            return outer_entries;
+        })
+    };
+
+    State state;
+    auto handler = std::make_shared<CurrentObjectHandler>();
+    state._current_object_handler = handler;
+
+    DrawStructure graph(640, 480);
+    auto root = parse_object(nullptr, obj.get_object(), context, state, context.defaults);
+    ASSERT_TRUE(root);
+    ASSERT_TRUE(root.is<Layout>());
+
+    ASSERT_NO_THROW((void)DynamicGUI::update_objects(nullptr, graph, root, context, state));
+    ASSERT_NO_THROW((void)DynamicGUI::update_objects(nullptr, graph, root, context, state));
+
+    std::vector<std::string> texts;
+    collect_static_text_strings(root, texts);
+    ASSERT_THAT(texts, ::testing::ElementsAre(
+        "outer:10-0",
+        "inner:10:1-0",
+        "inner:10:2-1",
+        "outer:20-1",
+        "inner:20:3-0"
     ));
 }
 
@@ -1160,6 +1326,102 @@ TEST(EachElementTest, VectorOfJsonObjectsExpandsObjectFields) {
         "x:7",
         "name:raptor",
         "index:1"
+    ));
+}
+
+TEST(EachElementTest, CustomLoopVariableNameWorksForJsonObjectLoops) {
+    constexpr std::string_view json = R"json(
+{
+  "type": "each",
+  "var": "items",
+  "as": "item",
+  "do": {
+    "type": "stext",
+    "text": "name:{item.name}-{index}"
+  }
+}
+)json";
+
+    glz::json_t obj;
+    auto parse_error = glz::read_json(obj, json);
+    ASSERT_EQ(parse_error, glz::error_code::none) << glz::format_error(parse_error, json);
+    ASSERT_TRUE(obj.is_object());
+
+    std::vector<glz::json_t> items;
+    {
+        glz::json_t first;
+        first["name"] = std::string("trex");
+        items.push_back(first);
+    }
+    {
+        glz::json_t second;
+        second["name"] = std::string("raptor");
+        items.push_back(second);
+    }
+
+    Context context{
+        VarFunc("items", [&items](const VarProps&) -> std::vector<glz::json_t> { return items; })
+    };
+
+    State state;
+    auto handler = std::make_shared<CurrentObjectHandler>();
+    state._current_object_handler = handler;
+
+    DrawStructure graph(640, 480);
+    auto root = parse_object(nullptr, obj.get_object(), context, state, context.defaults);
+    ASSERT_TRUE(root);
+    ASSERT_TRUE(root.is<Layout>());
+
+    ASSERT_NO_THROW((void)DynamicGUI::update_objects(nullptr, graph, root, context, state));
+
+    std::vector<std::string> texts;
+    collect_static_text_strings(root, texts);
+    ASSERT_THAT(texts, ::testing::ElementsAre(
+        "name:trex-0",
+        "name:raptor-1"
+    ));
+}
+
+TEST(EachElementTest, CustomLoopVariableNameWorksForStringArrayLoops) {
+    constexpr std::string_view json = R"json(
+{
+  "type": "each",
+  "var": "items",
+  "as": "item",
+  "do": {
+    "type": "stext",
+    "text": "item:{item}-{index}"
+  }
+}
+)json";
+
+    glz::json_t obj;
+    auto parse_error = glz::read_json(obj, json);
+    ASSERT_EQ(parse_error, glz::error_code::none) << glz::format_error(parse_error, json);
+    ASSERT_TRUE(obj.is_object());
+
+    std::string items = "[alpha,beta]";
+
+    Context context{
+        VarFunc("items", [&items](const VarProps&) -> std::string { return items; })
+    };
+
+    State state;
+    auto handler = std::make_shared<CurrentObjectHandler>();
+    state._current_object_handler = handler;
+
+    DrawStructure graph(640, 480);
+    auto root = parse_object(nullptr, obj.get_object(), context, state, context.defaults);
+    ASSERT_TRUE(root);
+    ASSERT_TRUE(root.is<Layout>());
+
+    ASSERT_NO_THROW((void)DynamicGUI::update_objects(nullptr, graph, root, context, state));
+
+    std::vector<std::string> texts;
+    collect_static_text_strings(root, texts);
+    ASSERT_THAT(texts, ::testing::ElementsAre(
+        "item:alpha-0",
+        "item:beta-1"
     ));
 }
 
@@ -1571,6 +1833,149 @@ TEST(EventBindingTest, ClickActionsOnlyFireOnMouseButtonWithScopedContext) {
 
     ASSERT_NO_THROW(graph.mouse_up(true));
     ASSERT_EQ(received_actions.size(), 1u);
+}
+
+TEST(LineElementTest, ParsesLineFromEndpoints)
+{
+    constexpr std::string_view json = R"json(
+{
+  "type": "line",
+  "from": [10, 20],
+  "to": [30, 50],
+  "color": [1, 2, 3, 4],
+  "thickness": 3
+}
+)json";
+
+    glz::json_t obj;
+    auto parse_error = glz::read_json(obj, json);
+    ASSERT_EQ(parse_error, glz::error_code::none) << glz::format_error(parse_error, json);
+    ASSERT_TRUE(obj.is_object());
+
+    Context context;
+    State state;
+    DrawStructure graph(640, 480);
+    auto root = parse_object(nullptr, obj.get_object(), context, state, context.defaults);
+    ASSERT_TRUE(root);
+    ASSERT_TRUE(root.is<Line>());
+
+    auto line = root.to<Line>();
+    EXPECT_EQ(line->line_clr(), Color(1, 2, 3, 4));
+    EXPECT_EQ(line->thickness(), 3);
+    EXPECT_EQ(line->bounds().pos(), Vec2(10, 20));
+    EXPECT_EQ(line->bounds().size(), Size2(20, 30));
+}
+
+TEST(LineElementTest, UpdatesLinePatterns)
+{
+    constexpr std::string_view json = R"json(
+{
+  "type": "line",
+  "from": "{from}",
+  "to": "{to}",
+  "color": "{line_color}",
+  "thickness": "{line_thickness}"
+}
+)json";
+
+    glz::json_t obj;
+    auto parse_error = glz::read_json(obj, json);
+    ASSERT_EQ(parse_error, glz::error_code::none) << glz::format_error(parse_error, json);
+    ASSERT_TRUE(obj.is_object());
+
+    Vec2 from{10, 20};
+    Vec2 to{30, 50};
+    Color line_color{10, 20, 30, 255};
+    Float2_t line_thickness{2};
+    Context context{
+        VarFunc("from", [&from](const VarProps&) -> Vec2 { return from; }),
+        VarFunc("to", [&to](const VarProps&) -> Vec2 { return to; }),
+        VarFunc("line_color", [&line_color](const VarProps&) -> Color { return line_color; }),
+        VarFunc("line_thickness", [&line_thickness](const VarProps&) -> Float2_t { return line_thickness; })
+    };
+
+    State state;
+    auto handler = std::make_shared<CurrentObjectHandler>();
+    state._current_object_handler = handler;
+
+    DrawStructure graph(640, 480);
+    auto root = parse_object(nullptr, obj.get_object(), context, state, context.defaults);
+    ASSERT_TRUE(root);
+    ASSERT_TRUE(root.is<Line>());
+
+    ASSERT_NO_THROW((void)DynamicGUI::update_objects(nullptr, graph, root, context, state));
+
+    auto line = root.to<Line>();
+    EXPECT_EQ(line->line_clr(), line_color);
+    EXPECT_EQ(line->thickness(), line_thickness);
+    EXPECT_EQ(line->bounds().pos(), Vec2(10, 20));
+    EXPECT_EQ(line->bounds().size(), Size2(20, 30));
+
+    to = Vec2{40, 70};
+
+    ASSERT_NO_THROW((void)DynamicGUI::update_objects(nullptr, graph, root, context, state));
+
+    EXPECT_EQ(line->bounds().pos(), Vec2(10, 20));
+    EXPECT_EQ(line->bounds().size(), Size2(30, 50));
+
+    from = Vec2{5, 7};
+    to = Vec2{15, 22};
+    line_color = Color{30, 40, 50, 200};
+    line_thickness = 5;
+
+    ASSERT_NO_THROW((void)DynamicGUI::update_objects(nullptr, graph, root, context, state));
+
+    EXPECT_EQ(line->line_clr(), line_color);
+    EXPECT_EQ(line->thickness(), line_thickness);
+    EXPECT_EQ(line->bounds().pos(), Vec2(5, 7));
+    EXPECT_EQ(line->bounds().size(), Size2(10, 15));
+}
+
+TEST(LineElementTest, UpdatesParameterizedLineEndpointPatterns)
+{
+    constexpr std::string_view json = R"json(
+{
+  "type": "line",
+  "from": "{2hud:[50,50]}",
+  "to": "{2hud:[100,50]}",
+  "color": [255, 255, 255, 255]
+}
+)json";
+
+    glz::json_t obj;
+    auto parse_error = glz::read_json(obj, json);
+    ASSERT_EQ(parse_error, glz::error_code::none) << glz::format_error(parse_error, json);
+    ASSERT_TRUE(obj.is_object());
+
+    Float2_t conversion_factor{1};
+    Context context{
+        VarFunc("2hud", [&conversion_factor](const VarProps& props) -> Vec2 {
+            auto point = Meta::fromStr<Vec2>(props.parameters.front());
+            return Vec2(point.x * conversion_factor, point.y * conversion_factor);
+        })
+    };
+
+    State state;
+    auto handler = std::make_shared<CurrentObjectHandler>();
+    state._current_object_handler = handler;
+
+    DrawStructure graph(640, 480);
+    auto root = parse_object(nullptr, obj.get_object(), context, state, context.defaults);
+    ASSERT_TRUE(root);
+    ASSERT_TRUE(root.is<Line>());
+
+    ASSERT_NO_THROW((void)DynamicGUI::update_objects(nullptr, graph, root, context, state));
+
+    auto line = root.to<Line>();
+    EXPECT_EQ(line->bounds().pos(), Vec2(50, 50));
+    EXPECT_EQ(line->bounds().size(), Size2(50, 0));
+
+    conversion_factor = 2;
+
+    ASSERT_NO_THROW((void)DynamicGUI::update_objects(nullptr, graph, root, context, state));
+
+    EXPECT_EQ(line->bounds().pos(), Vec2(100, 100));
+    EXPECT_EQ(line->bounds().size(), Size2(100, 0));
 }
 
 

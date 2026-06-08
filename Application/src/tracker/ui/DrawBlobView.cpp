@@ -47,10 +47,10 @@ struct BlobView {
     Entangled _mousedock_collection;
     NumericTextfield<double> cm_per_pixel_text{1.0, Bounds(0, 0, 200,30), arange<double>{0, infinity<double>()}};
     
-    std::unique_ptr<Entangled> combine = std::make_unique<Entangled>();
-    std::shared_ptr<Button> button = nullptr;
-    std::vector<std::shared_ptr<Button>> annotation_buttons;
-    std::shared_ptr<Dropdown> dropdown = nullptr;
+    std::unique_ptr<VerticalLayout> combine = std::make_unique<VerticalLayout>();
+    derived_ptr<Button> button = nullptr;
+    std::vector<derived_ptr<Button>> annotation_buttons;
+    derived_ptr<Dropdown> dropdown = nullptr;
     
     Frame_t _last_frame;
     
@@ -1288,7 +1288,7 @@ void BlobView::draw_boundary_selection(DrawStructure& base, Base* window, GUICac
                 f.align = Align::Left;
                 for(auto &pt : boundary) {
                     base.circle(Loc(pt), Radius{5}, LineClr{Cyan.alpha(125)}, sca);
-                    //base.text(Meta::toStr(pt), pt + Vec2(7 * f.size, 0), White.alpha(200), f, sca);
+                    base.text(Str{Meta::toStr(pt)}, Loc{pt + Vec2(7 * f.size, 0)}, TextClr{White.alpha(200)}, f, sca);
                     
                     if(pt.x < top_left.x) top_left.x = pt.x;
                     if(pt.y < top_left.y) top_left.y = pt.y;
@@ -1296,6 +1296,13 @@ void BlobView::draw_boundary_selection(DrawStructure& base, Base* window, GUICac
                     if(pt.y > bottom_right.y) bottom_right.y = pt.y;
                 }
             }
+            
+            const bool is_system_pressed =
+#ifdef __APPLE__
+                base.is_key_pressed(Codes::LSystem);
+#else
+                base.is_key_pressed(Codes::LControl);
+#endif
             
             if(top_left.x != FLT_MAX) {
                 Bounds bds{
@@ -1335,7 +1342,7 @@ void BlobView::draw_boundary_selection(DrawStructure& base, Base* window, GUICac
                 bds.width = max(100.f, text_bounds.width) + 10;
                 
                 if(!button) {
-                    button = std::make_shared<Button>(Str(name), Box(Vec2(), bds.size()), Font(0.6, Align::Center), FillClr{60,60,60,200}, LineClr{100,175,250,200}, TextClr{225,225,225});
+                    button = Layout::Make<Button>(Str(name), Box(Vec2(), bds.size()), Font(0.6, Align::Center), FillClr{60,60,60,200}, LineClr{100,175,250,200}, TextClr{225,225,225});
                     button->on_click([&](auto){
                         clicked_background(base, cache, Vec2(), true, "");
                     });
@@ -1348,8 +1355,8 @@ void BlobView::draw_boundary_selection(DrawStructure& base, Base* window, GUICac
                 if(annotation_buttons.empty()
                    && (bdry.size() == 1 && bdry.front().size() >= 1))
                 {
-                    auto create_button = [this](StringLike auto&& name, size_t id){
-                        auto annotation_button = std::make_shared<Button>(Str(name), Font(0.6, Align::Center), FillClr{60,60,60,200}, LineClr{100,175,250,200}, TextClr{225,225,225}, CornerFlags_t(CornerFlags::fromStr("['bottom']")));
+                    auto create_button = [this](StringLike auto&& name, size_t id) -> derived_ptr<Button> {
+                        auto annotation_button = Layout::Make<Button>(Str(name), Font(0.6, Align::Center), FillClr{60,60,60,200}, LineClr{100,175,250,200}, TextClr{225,225,225}, CornerFlags_t(CornerFlags::fromStr("['bottom']")));
                         annotation_button->on_click([&, id](auto){
                             if(_current_boundary.size() == 1
                                && _current_boundary.front().size() >= 1)
@@ -1428,7 +1435,15 @@ void BlobView::draw_boundary_selection(DrawStructure& base, Base* window, GUICac
                     }
                 }
                 
+                /// This is what will go into the combine layout later:
+                std::vector<Layout::Ptr> children;
+                children.push_back(button);
+                
                 if(not annotation_buttons.empty()) {
+                    const auto detect_format = READ_SETTING_WITH_DEFAULT(detect_format, track::detect::ObjectDetectionFormat::none);
+                    auto text = Layout::Make<StaticText>(Str{"<c><b>Annotating ("+Meta::toStr(detect_format)+")</b></c>"}, Font{0.5});
+                    children.push_back(text);
+                    
                     if(detect_classes
                        && detect_classes->size() == annotation_buttons.size())
                     {
@@ -1443,29 +1458,8 @@ void BlobView::draw_boundary_selection(DrawStructure& base, Base* window, GUICac
                     }
                 }
                 
-                Vec2 pos(0, button->local_bounds().height);
-                if(not annotation_buttons.empty()) {
-                    for(auto &b: annotation_buttons) {
-                        auto text_bounds = window ? window->text_bounds(b->txt(), NULL, Font(0.6)) : Base::default_text_bounds(b->txt(), NULL, Font(0.6));
-                        bds.width = max(bds.width, text_bounds.width + 10);
-                        b->set(Box(pos, bds.size()));
-                        pos.y += b->local_bounds().height;
-                    }
-                    
-                    annotation_buttons.front()->set(CornerFlags_t(CornerFlags(false, false, false, false)));
-                    
-                    auto flags = annotation_buttons.back()->corner_flags();
-                    flags.set(CornerFlags::Corner::BottomLeft);
-                    flags.set(CornerFlags::Corner::BottomRight);
-                    annotation_buttons.back()->set(CornerFlags_t(flags));
-                    
-                    button->set(CornerFlags_t(CornerFlags(true, true, false, false)));
-                }
-                
-                button->set_bounds(Bounds(Vec2(), bds.size()));
-                
-                if(!dropdown) {
-                    dropdown = std::make_shared<Dropdown>(Box(Vec2(0, button->local_bounds().height), bds.size()), ListDims_t{bds.width, 200.f}, ListFillClr_t{60,60,60,200}, FillClr{60,60,60,200}, LineClr{100,175,250,200}, TextClr{225,225,225}, LabelFont_t{0.6}, ItemFont_t{0.6},
+                if(not dropdown) {
+                    dropdown = Layout::Make<Dropdown>(Box(Vec2(0, button->local_bounds().height), bds.size()), ListDims_t{bds.width, 200.f}, ListFillClr_t{60,60,60,200}, FillClr{60,60,60,200}, LineClr{100,175,250,200}, TextClr{225,225,225}, LabelFont_t{0.6}, ItemFont_t{0.6}, LabelCornerFlags{false, false, false, false},
                         std::vector<std::string>{
                             "gui_zoom_polygon",
                             "track_ignore",
@@ -1477,37 +1471,50 @@ void BlobView::draw_boundary_selection(DrawStructure& base, Base* window, GUICac
                     dropdown->on_select([&](auto, const Dropdown::TextItem & item){
                         clicked_background(base, cache, Vec2(), true, item.name());
                     });
-                    dropdown->textfield()->set_placeholder("select below...");
+                    dropdown->textfield()->set_placeholder("Add shape to...");
                 }
                 
-                if(annotation_buttons.empty()) {
-                    dropdown->set_bounds(Bounds(Vec2(0, button->local_bounds().height), bds.size()));
-                } else {
-                    dropdown->set_bounds(Bounds(pos, bds.size()));
-                }
-                
-                combine->update([&](auto&e) {
-                    if(bdry.size() > 1
-                        || bdry.front().size() > 2
-     #ifdef __APPLE__
-                        || not base.is_key_pressed(Codes::LSystem)
-     #else
-                        || not base.is_key_pressed(Codes::LControl)
-     #endif
-                       )
-                    {
-                        if(_current_boundary.size() != 1 || _current_boundary.front().size() > 2)
-                            e.advance_wrap(*dropdown);
-                        e.advance_wrap(*button);
-                        if(not annotation_buttons.empty()) {
-                            for(auto& b : annotation_buttons)
-                                e.advance_wrap(*b);
-                        }
+                if(_current_boundary.size() != 1 || _current_boundary.front().size() > 2) {
+                    bds.width = max(bds.width, dropdown->width());
+                    children.push_back(dropdown);
+                    
+                    if(is_system_pressed) {
+                        dropdown->set(FillClr{60,60,60,100});
+                    } else {
+                        dropdown->set(FillClr{60,60,60,200});
                     }
-                });
+                }
+                
+                if(not annotation_buttons.empty()) {
+                    for(auto &b: annotation_buttons) {
+                        auto text_bounds = window ? window->text_bounds(b->txt(), NULL, Font(0.6)) : Base::default_text_bounds(b->txt(), NULL, Font(0.6));
+                        bds.width = max(bds.width, text_bounds.width + 10);
+                        b->set(Size(bds.size()));
+                        
+                        if(is_system_pressed) {
+                            b->set(FillClr{60,60,60,100});
+                        } else {
+                            b->set(FillClr{60,60,60,200});
+                        }
+                        
+                        b->set(CornerFlags_t(CornerFlags(false, false, false, false)));
+                        children.push_back(b);
+                    }
+                    
+                    auto flags = annotation_buttons.back()->corner_flags();
+                    flags.set(CornerFlags::Corner::BottomLeft);
+                    flags.set(CornerFlags::Corner::BottomRight);
+                    annotation_buttons.back()->set(CornerFlags_t(flags));
+                    
+                    button->set(CornerFlags_t(CornerFlags(true, true, false, false)));
+                }
+                
+                button->set_size(Size2(bds.width, button->height()));
+                dropdown->set_size(Size2(bds.width, dropdown->height()));
+                combine->set_children(children);
                 
                 base.wrap_object(*combine);
-                combine->auto_size(Margin{0, 0});
+                //combine->auto_size(Margin{0, 0});
                 
                 Vec2 p;
                 //if(bdry.size() > 1
@@ -1520,27 +1527,6 @@ void BlobView::draw_boundary_selection(DrawStructure& base, Base* window, GUICac
                 } else {
                     p = Vec2((top_left.x + bottom_right.x) * 0.5, top_left.y) - Vec2(0, 20);
                 }
-                
-                //} else {
-                //    p = top_left - Vec2(combine->width() * sca.x, 0);//Vec2(top_left.x, top_left.y + (bottom_right.y - top_left.y) * 0.5); //- Vec2(20, 0).mul(sca);
-                    
-                    /*if(bdry.size() == 1
-                       && bdry.front().size() == 2)
-                    {
-                        auto& boundary = bdry.front();
-                        Vec2 v;
-                        if(boundary[1].x > boundary[0].x)
-                            v = boundary[1] - boundary[0];
-                        else
-                            v = boundary[0] - boundary[1];
-                        
-                        auto D = v.length();
-                        v = v.normalize();
-                        
-                        a = atan2(v);
-                        p += v.perp() * (combine->size().mul(sca).height);
-                    }*/
-                //}
                 
                 /// restrict the object bounds to within screen viewport
                 auto coords = FindCoord::get();
@@ -1578,24 +1564,30 @@ void BlobView::draw_boundary_selection(DrawStructure& base, Base* window, GUICac
                 
                 p = object_bounds.pos() + object_size.mul(combine->origin());
                 
-#ifdef __APPLE__
-                if(base.is_key_pressed(Codes::LSystem))
-#else
-                if(base.is_key_pressed(Codes::LControl))
-#endif
-                {
+                auto calculate_mouse_offset = [this, &sca]() -> Vec2{
+                    return Vec2{
+                        combine->origin().x == 0 ? 25_F : -25_F,
+                        combine->origin().y == 0 ? 25_F : -25_F
+                    }.mul(sca);
+                };
+                
+                Vec2 mouse_offset = calculate_mouse_offset();
+                Print("* origin ", combine->origin()," => ", mouse_offset);
+                
+                if(is_system_pressed) {
                     auto mpos = coords.convert(HUDCoord{base.mouse_position()});
-                    if(Bounds(p + Vec2(combine->origin().x == 0 ? 15 : -15,
-                                       combine->origin().y == 0 ? 5 : -5)
-                              .mul(sca) - object_size.mul(combine->origin()), object_size).contains(mpos))
+                    if(Bounds(p - Vec2(5) + mouse_offset - object_size.mul(combine->origin()), object_size + Size2(10))
+                        .contains(mpos))
                     {
+                        Print("* contains mpos");
                         p = mpos;
                         update_origin();
+                        
+                        mouse_offset = calculate_mouse_offset();
                     }
                 }
                 
-                p += Vec2(combine->origin().x == 0 ? 15 : -15,
-                          combine->origin().y == 0 ? 5 : -5).mul(sca);
+                p += mouse_offset;
                 
                 auto dt = cache.dt();
                 auto prev_pos = combine->pos();

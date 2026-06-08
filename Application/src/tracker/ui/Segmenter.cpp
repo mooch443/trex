@@ -309,6 +309,8 @@ Segmenter::~Segmenter() {
     }
     
     _overlayed_video = nullptr;
+    
+    std::unique_lock vlock(_mutex_general);
     _output_file = nullptr;
 }
 
@@ -442,12 +444,10 @@ void Segmenter::callback_after_generating(cv::Mat &bg) {
         //    _tracker->set_average(Image::Make(bg));
     }
     
+    open_output_file();
+    
     {
         std::unique_lock vlock(_mutex_general);
-        if (not _output_file) {
-            _output_file = pv::File::Make<pv::FileMode::OVERWRITE | pv::FileMode::WRITE>(_output_file_name, encoding);
-            set_metadata();
-        }
         try {
             _output_file->set_average(bg);
             
@@ -462,6 +462,71 @@ void Segmenter::callback_after_generating(cv::Mat &bg) {
             }
         }
     }
+}
+
+void Segmenter::open_output_file() {
+    std::unique_lock vlock(_mutex_general);
+    
+    if(_output_file) {
+        FormatWarning("Outputfile already opened when calling open_output_file.");
+        return;
+    }
+    
+    auto source_length = video_length();
+    auto range = READ_SETTING(video_conversion_range, Range<long_t>);
+    if(not source_length.valid())
+        source_length = 0_f;
+    _video_conversion_range = Range<Frame_t>{
+        range.start == -1
+            ? 0_f
+            : Frame_t(range.start),
+        range.end == -1
+            ? source_length
+            : min(source_length, Frame_t(range.end))
+    };
+    
+    const auto meta_encoding = Background::meta_encoding();
+    auto start_over = _start_over.read();
+    
+    if((not start_over
+        || not start_over.value())
+       && _output_file_name.add_extension("pv").exists())
+    {
+        try {
+            _output_file = pv::File::Make<pv::FileMode::MODIFY>(_output_file_name, meta_encoding);
+            _output_file->print_info();
+            auto &r = _output_file->header().conversion_range;
+            if(r.start) {
+                if(Frame_t(r.start.value()) != _video_conversion_range.start) {
+                    throw RuntimeError("We have different video conversion range starts (", r.start," in the pv file and ", _video_conversion_range.start, " in our settings). We will error out here to be safe.");
+                }
+            }
+            
+            if(_output_file->length() > 0_f) {
+                _output_file->reset_to_frame(_output_file->length());
+                _overlayed_video->reset_to_frame(_video_conversion_range.start + _output_file->length());
+            } else {
+                _output_file = nullptr;
+            }
+            
+        } catch(...) {
+            // probably a broken file...
+            try {
+                _output_file = nullptr;
+            } catch(...) {
+                FormatExcept("Cannot close the file properly...");
+            }
+        }
+    }
+    
+    if(not _output_file) {
+        _output_file = pv::File::Make<pv::FileMode::OVERWRITE | pv::FileMode::WRITE>(_output_file_name, meta_encoding);
+        
+        std::unique_lock vlock(_mutex_video);
+        _overlayed_video->reset_to_frame(_video_conversion_range.start);
+    }
+    
+    set_metadata();
 }
 
 void Segmenter::trigger_average_generator(bool do_generate_average, cv::Mat& bg) {
@@ -574,9 +639,7 @@ void Segmenter::trigger_average_generator(bool do_generate_average, cv::Mat& bg)
                 _tracker = std::make_unique<Tracker>(Image::Make(image_size.height, image_size.width, channels), Background::meta_encoding(), READ_SETTING(meta_real_width, Float2_t));
             }
 
-            std::unique_lock vlock(_mutex_general);
-            _output_file = pv::File::Make<pv::FileMode::OVERWRITE | pv::FileMode::WRITE>(_output_file_name, encoding);
-            set_metadata();
+            open_output_file();
         }
         
     } else {
@@ -696,19 +759,7 @@ void Segmenter::open_video() {
 
     trigger_average_generator(do_generate_average, bg);
 
-    auto range = READ_SETTING(video_conversion_range, Range<long_t>);
-    if(not source_length.valid())
-        source_length = 0_f;
-    _video_conversion_range = Range<Frame_t>{
-        range.start == -1
-            ? 0_f
-            : Frame_t(range.start),
-        range.end == -1
-            ? source_length
-            : min(source_length, Frame_t(range.end))
-    };
-
-    _overlayed_video->reset_to_frame(_video_conversion_range.start);
+    open_output_file();
 }
 
 void Segmenter::open_camera() {
@@ -886,7 +937,10 @@ std::string date_time() {
 
 void Segmenter::start() {
     SETTING(meta_conversion_time) = std::string(date_time());
-    running_id = 0_f;
+    {
+        std::unique_lock vlock(_mutex_general);
+        running_id = _output_file->length();
+    }
     
     start_recording_ffmpeg();
 
@@ -1065,7 +1119,8 @@ void Segmenter::generator_thread() {
 #endif
             _writing_step.notify();
             
-            if(_output_file && _output_file->length() == 0_f
+            if(std::unique_lock vlock(_mutex_general);
+               _output_file && _output_file->length() == 0_f
                && not _generating_step.has_data()
                && not _writing_step.has_data()
                && not _tracking_step.has_data())
@@ -1480,11 +1535,11 @@ void Segmenter::tracking_thread() {
 }
 
 void Segmenter::force_stop() {
-    Print("[shutdown-trace] Segmenter::force_stop current_frame=", _current_frame.load(),
+    /*Print("[shutdown-trace] Segmenter::force_stop current_frame=", _current_frame.load(),
           " generated=", _last_generated_frame,
           " generator_has_data=", _generating_step.has_data(),
           " writer_has_data=", _writing_step.has_data(),
-          " tracker_has_data=", _tracking_step.has_data());
+          " tracker_has_data=", _tracking_step.has_data());*/
     graceful_end();
 }
 

@@ -503,6 +503,13 @@ void ConvertScene::activate()  {
         SETTING(filename) = default_filename;
     }
     
+    auto start_over = force_start_over.read();
+    if(start_over
+       && start_over.value())
+    {
+        segmenter().start_over().set(true);
+    }
+    
     Print("Loading source = ", no_quotes(utils::ShortenText(source.toStr(), 1000)));
     SETTING(meta_source_path) = source.source();
     try {
@@ -1086,7 +1093,7 @@ dyn::DynamicGUI ConvertScene::Data::init_gui(Base* window) {
             return _primary_selection;
         }),
         VarFunc("tiles", [this](const VarProps&) -> std::vector<Bounds> {
-            return _current_data.tiles;
+            return std::vector<Bounds>(_current_data.tiles.begin(), _current_data.tiles.end());
         }),
         VarFunc("video_error", [this](const VarProps&) -> std::string {
             if(_recovered_error.empty())
@@ -1336,7 +1343,7 @@ void ConvertScene::Data::draw_scene(DrawStructure& graph, const detect::yolo::na
         }
 
         for (auto &box : _current_data.tiles)
-            graph.rect(Box(box), attr::FillClr{Transparent}, attr::LineClr{Red.alpha(200)});
+            graph.rect(Box(to_bowl(box)), attr::FillClr{Transparent}, attr::LineClr{Red.alpha(200)});
         
         ColorWheel wheel;
         size_t pose_index{ 0 };

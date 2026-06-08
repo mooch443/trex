@@ -3,6 +3,7 @@
 #include <commons.pc.h>
 #include <core/DetectionTypes.h>
 #include <core/SoftException.h>
+#include <core/TileCoordinates.h>
 #include <core/idx_t.h>
 #include <misc/frame_t.h>
 #include <misc/Image.h>
@@ -355,20 +356,17 @@ protected:
 
 class TREX_EXPORT YoloInput {
     GETTER(std::vector<Image::Ptr>, images);
-    GETTER(std::vector<Vec2>, offsets);
-    GETTER(std::vector<Vec2>, scales);
+    GETTER(std::vector<TileGeometry>, tile_geometries);
     GETTER(std::vector<size_t>, orig_id);
     std::function<void(std::vector<Image::Ptr>&&)> _delete;
 
 public:
     YoloInput(std::vector<Image::Ptr>&& images,
-              std::vector<Vec2> offsets,
-              std::vector<Vec2> scales,
+              std::vector<TileGeometry> tile_geometries,
               std::vector<size_t> orig_id,
               std::function<void(std::vector<Image::Ptr>&&)>&& deleter = nullptr)
         : _images(std::move(images)),
-          _offsets(std::move(offsets)),
-          _scales(std::move(scales)),
+          _tile_geometries(std::move(tile_geometries)),
           _orig_id(std::move(orig_id)),
           _delete(std::move(deleter))
     {}
@@ -384,7 +382,7 @@ public:
     }
 
     std::string toStr() const {
-        return "YoloInput<images=" + Meta::toStr(_images) + " offsets=" + Meta::toStr(_offsets) + " scales=" + Meta::toStr(_scales) + " belongs=" + Meta::toStr(_orig_id) + ">";
+        return "YoloInput<images=" + Meta::toStr(_images) + " tile_geometries=" + Meta::toStr(_tile_geometries.size()) + " belongs=" + Meta::toStr(_orig_id) + ">";
     }
 };
 

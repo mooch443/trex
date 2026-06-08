@@ -73,8 +73,17 @@ TileImage make_sam3_tiled_frame(Image::Ptr&& frame_image)
         Image::Make(*frame_image),
         tile_size,
         frame_image->dimensions());
-    tiled._offsets = {geometry.offset};
-    tiled.source_size = geometry.content_size;
+    tiled.set_tile_geometries({
+        track::TileGeometry{
+            .source_region = track::SourceRect(0, 0, frame_image->cols, frame_image->rows),
+            .tile_content = track::TileRect(
+                -geometry.offset.x,
+                -geometry.offset.y,
+                geometry.content_size.width,
+                geometry.content_size.height),
+            .tile_size = tile_size
+        }
+    });
     return tiled;
 }
 

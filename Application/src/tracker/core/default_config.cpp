@@ -795,6 +795,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("gui_max_path_time", float(3), "Length (in time) of the trails shown in GUI.");
         
         CONFIG("gui_draw_only_filtered_out", false, "Only show filtered out blob texts.");
+        CONFIG("gui_show_tiles", false, "If enabled, the gui will show red lines representing the tiles used during detection (if e.g. `detect_tile_target_width` is set). The visuals will depend on the current setting - i.e. how it would tile the image if the conversion were to be run again under the current settings.");
         CONFIG("gui_show_timeline", true, "If enabled, the timeline (top of the screen) will be shown in the tracking view.");
         CONFIG("gui_show_fish", std::tuple<pv::bid, Frame_t>{pv::bid::invalid, Frame_t()}, "Show debug output for {blob_id, fish_id}.");
         CONFIG("gui_source_video_frame", Frame_t(0u), "Best information the system has on which frame index in the original video the given `gui_frame` corresponds to (integrated into the pv file starting from V_9).", SYSTEM);

@@ -156,26 +156,17 @@ void SAM3::apply(std::vector<TileImage>&& tiled) {
                         : int64_t(0);
                     const int64_t frame_index = raw_frame_index < 0 ? 0 : raw_frame_index;
                     const auto tile_image_count = tile.images.size();
-                    std::vector<Vec2> offsets;
-                    std::vector<Vec2> scales;
                     std::vector<size_t> orig_id;
-                    offsets.reserve(tile_image_count);
-                    scales.reserve(tile_image_count);
                     orig_id.reserve(tile_image_count);
                     
-                    const auto tile_offsets = tile.offsets();
                     for(size_t k = 0; k < tile_image_count; ++k) {
-                        offsets.emplace_back(k < tile_offsets.size() ? tile_offsets[k] : Vec2(0.f, 0.f));
-                        scales.push_back(tile.original_size.div(tile.source_size));
-                        //scales.emplace_back(1.f, 1.f);
                         // Use real frame id for all tiles; do not encode tile index in frame id.
                         orig_id.emplace_back(static_cast<size_t>(uint64_t(frame_index)));
                     }
 
                     track::detect::YoloInput input{
                         std::move(tile.images),
-                        std::move(offsets),
-                        std::move(scales),
+                        tile.tile_geometries(),
                         std::move(orig_id),
                         [](std::vector<Image::Ptr>&& images) {
                             for(auto&& image : images) {

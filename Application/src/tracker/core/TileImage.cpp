@@ -105,16 +105,36 @@ std::vector<int> TileImage::compute_offsets(int extent, int tile_extent, int str
     return offsets;
 }
 
-std::vector<Bounds> TileImage::scaled_tile_bounds() const {
-    const Vec2 scale = original_size.div(source_size);
-    std::vector<Bounds> result;
-    result.reserve(_offsets.size());
-    for(auto& p : _offsets)
-        result.push_back(Bounds(p.x, p.y, tile_size.width, tile_size.height).mul(scale));
+const std::vector<track::TileGeometry>& TileImage::tile_geometries() const {
+    return _tile_geometries;
+}
+
+std::vector<track::SourceCoord> TileImage::tile_origins() const {
+    std::vector<track::SourceCoord> result;
+    result.reserve(_tile_geometries.size());
+    for(const auto& geometry : _tile_geometries)
+        result.emplace_back(geometry.source_region.pos());
     return result;
 }
 
-std::vector<Bounds> compute_tile_bounds(
+void TileImage::set_tile_geometries(std::vector<track::TileGeometry>&& geometries) {
+    if(geometries.size() != images.size()) {
+        throw U_EXCEPTION(
+            "TileImage geometry count ", geometries.size(),
+            " does not match image count ", images.size(), ".");
+    }
+    _tile_geometries = std::move(geometries);
+}
+
+std::vector<track::SourceRect> TileImage::source_tile_bounds() const {
+    std::vector<track::SourceRect> result;
+    result.reserve(_tile_geometries.size());
+    for(const auto& geometry : _tile_geometries)
+        result.push_back(geometry.source_region);
+    return result;
+}
+
+std::vector<track::SourceRect> compute_tile_bounds(
     Size2 video_size,
     Size2 detector_size,
     uint16_t detect_tile_target_width,
@@ -129,7 +149,7 @@ std::vector<Bounds> compute_tile_bounds(
         return {};
 
     // tile_size is the per-tile detector resolution; new_size is an internal
-    // square grid used only for aspect-ratio math — it is NOT the actual frame
+    // square grid used only for aspect-ratio math; it is NOT the actual frame
     // size.  TileImage always splits the source frame directly
     // (source.cols x source.rows == video_size in the prediction path), so
     // offsets must be computed against video_size, not new_size.
@@ -144,20 +164,29 @@ std::vector<Bounds> compute_tile_bounds(
     const auto x_offsets = TileImage::compute_offsets(video_size.width,  tile_size.width,  stride_x);
     const auto y_offsets = TileImage::compute_offsets(video_size.height, tile_size.height, stride_y);
 
-    std::vector<Bounds> tiles;
+    std::vector<track::SourceRect> tiles;
     tiles.reserve(x_offsets.size() * y_offsets.size());
     for(int y : y_offsets)
         for(int x : x_offsets)
-            tiles.push_back(Bounds(x, y, tile_size.width, tile_size.height));
+            tiles.push_back(track::SourceRect(x, y, tile_size.width, tile_size.height));
     return tiles;
 }
 
-TileImage::TileImage(const useMat_t& source, Image::Ptr&& original, Size2 tile_size, Size2 original_size, float overlap_ratio)
+TileImage::TileImage(const useMat_t& prepared, Image::Ptr&& source, Size2 tile_size, Size2 source_size, float overlap_ratio)
     : tile_size(tile_size),
-    source_size(source.cols, source.rows),
-    original_size(original_size)
+    source_size(source_size),
+    prepared_size(prepared.cols, prepared.rows)
 {
-    data.image = std::move(original);
+    data.image = std::move(source);
+
+    const auto make_geometry = [&](const Bounds& prepared_bounds, const Bounds& tile_content) {
+        const Vec2 prepared_to_source = source_size.div(prepared_size);
+        return track::TileGeometry{
+            .source_region = track::SourceRect(prepared_bounds.mul(prepared_to_source)),
+            .tile_content = track::TileRect(tile_content),
+            .tile_size = tile_size
+        };
+    };
 
     const float clamped_overlap = std::clamp(overlap_ratio, 0.f, 0.95f);
     const auto compute_stride = [](int tile_extent, float overlap) {
@@ -169,37 +198,47 @@ TileImage::TileImage(const useMat_t& source, Image::Ptr&& original, Size2 tile_s
     const int stride_x = compute_stride(tile_size.width,  clamped_overlap);
     const int stride_y = compute_stride(tile_size.height, clamped_overlap);
 
-    if (tile_size.width == source.cols
-        && tile_size.height == source.rows)
+    if (tile_size.width == prepared.cols
+        && tile_size.height == prepared.rows)
     {
-        source_size = tile_size;
         auto buffer = buffers::TileBuffers::get().get(tile_size, source_location::current());
-        buffer->create(source);
+        buffer->create(prepared);
         images.emplace_back(std::move(buffer));
-        _offsets = { Vec2() };
+        _tile_geometries = {
+            make_geometry(
+                Bounds(0, 0, prepared.cols, prepared.rows),
+                Bounds(0, 0, tile_size.width, tile_size.height))
+        };
     }
-    else if (tile_size.width > source.cols
-        || tile_size.height > source.rows)
+    else if (tile_size.width > prepared.cols
+        || tile_size.height > prepared.rows)
     {
-        source_size = tile_size;
-        cv::resize(source, resized_image(), tile_size);
+        cv::resize(prepared, resized_image(), tile_size);
 
         auto buffer = buffers::TileBuffers::get().get(tile_size, source_location::current());
         buffer->create(resized_image());
         images.emplace_back(std::move(buffer));
-        _offsets = { Vec2() };
+        _tile_geometries = {
+            track::TileGeometry{
+                .source_region = track::SourceRect(0, 0, source_size.width, source_size.height),
+                .tile_content = track::TileRect(0, 0, tile_size.width, tile_size.height),
+                .tile_size = tile_size
+            }
+        };
     }
     else {
-        const auto x_offsets = compute_offsets(source.cols, tile_size.width,  stride_x);
-        const auto y_offsets = compute_offsets(source.rows, tile_size.height, stride_y);
+        const auto x_offsets = compute_offsets(prepared.cols, tile_size.width,  stride_x);
+        const auto y_offsets = compute_offsets(prepared.rows, tile_size.height, stride_y);
 
-        useMat_t tile = useMat_t::zeros(tile_size.height, tile_size.width, CV_8UC(source.channels()));
+        useMat_t tile = useMat_t::zeros(tile_size.height, tile_size.width, CV_8UC(prepared.channels()));
         for (int y : y_offsets) {
             for (int x : x_offsets) {
                 Bounds bds = Bounds(x, y, tile_size.width, tile_size.height);
-                _offsets.push_back(Vec2(x, y));
-                bds.restrict_to(Bounds(0, 0, source.cols, source.rows));
-                source(bds).copyTo(tile(Bounds{ bds.size() }));
+                bds.restrict_to(Bounds(0, 0, prepared.cols, prepared.rows));
+                _tile_geometries.push_back(make_geometry(
+                    bds,
+                    Bounds(0, 0, bds.width, bds.height)));
+                prepared(bds).copyTo(tile(Bounds{ bds.size() }));
 
                 auto buffer = buffers::TileBuffers::get().get(tile_size, source_location::current());
                 buffer->create(tile);

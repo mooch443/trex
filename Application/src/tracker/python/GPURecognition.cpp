@@ -316,6 +316,63 @@ std::vector<KeypointData> transfer_keypoints(py::list keypoints) {
     return result;
 }
 
+std::vector<track::TileGeometry> geometries_from_legacy_vectors(
+    const std::vector<cmn::Image::Ptr>& images,
+    const std::vector<cmn::Vec2>& offsets,
+    const std::vector<cmn::Vec2>& scales)
+{
+    if(images.size() != offsets.size() || images.size() != scales.size()) {
+        throw InvalidArgumentException(
+            "YoloInput expects matching images, offsets, and scales lengths, got ",
+            images.size(), " images, ", offsets.size(), " offsets, and ", scales.size(), " scales.");
+    }
+
+    std::vector<track::TileGeometry> geometries;
+    geometries.reserve(images.size());
+    for(size_t i = 0; i < images.size(); ++i) {
+        const auto width = images[i] ? images[i]->cols : 0;
+        const auto height = images[i] ? images[i]->rows : 0;
+        const auto& offset = offsets[i];
+        const auto& scale = scales[i];
+        const auto pad_x = std::max(0.f, -offset.x);
+        const auto pad_y = std::max(0.f, -offset.y);
+        const auto content_width = std::max(0.f, float(width) - 2.f * pad_x);
+        const auto content_height = std::max(0.f, float(height) - 2.f * pad_y);
+        geometries.push_back(track::TileGeometry{
+            .source_region = track::SourceRect(
+                std::max(0.f, offset.x * scale.x),
+                std::max(0.f, offset.y * scale.y),
+                content_width * scale.x,
+                content_height * scale.y),
+            .tile_content = track::TileRect(pad_x, pad_y, content_width, content_height),
+            .tile_size = cmn::Size2(width, height)
+        });
+    }
+    return geometries;
+}
+
+py::tuple tile_affine_arrays(const std::vector<track::TileGeometry>& geometries)
+{
+    const auto affines = track::tile_to_source_affines(geometries);
+    const std::array<py::ssize_t, 2> shape{
+        static_cast<py::ssize_t>(affines.size()),
+        py::ssize_t(2)
+    };
+    py::array_t<float> scales(shape);
+    py::array_t<float> offsets(shape);
+    auto scales_data = scales.mutable_unchecked<2>();
+    auto offsets_data = offsets.mutable_unchecked<2>();
+
+    for(py::ssize_t i = 0; i < static_cast<py::ssize_t>(affines.size()); ++i) {
+        scales_data(i, 0) = affines.at(size_t(i)).scale.x;
+        scales_data(i, 1) = affines.at(size_t(i)).scale.y;
+        offsets_data(i, 0) = affines.at(size_t(i)).tile_offset.x;
+        offsets_data(i, 1) = affines.at(size_t(i)).tile_offset.y;
+    }
+
+    return py::make_tuple(std::move(scales), std::move(offsets));
+}
+
 }
 
 using namespace track::detect;
@@ -532,14 +589,54 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
         })
         .def("to_string", &VIWeights::toStr);
 
+    py::class_<track::SourceRect>(m, "SourceRect")
+        .def(py::init<float, float, float, float>())
+        .def_property_readonly("x", [](const track::SourceRect& v) { return v.x; })
+        .def_property_readonly("y", [](const track::SourceRect& v) { return v.y; })
+        .def_property_readonly("width", [](const track::SourceRect& v) { return v.width; })
+        .def_property_readonly("height", [](const track::SourceRect& v) { return v.height; });
+
+    py::class_<track::TileRect>(m, "TileRect")
+        .def(py::init<float, float, float, float>())
+        .def_property_readonly("x", [](const track::TileRect& v) { return v.x; })
+        .def_property_readonly("y", [](const track::TileRect& v) { return v.y; })
+        .def_property_readonly("width", [](const track::TileRect& v) { return v.width; })
+        .def_property_readonly("height", [](const track::TileRect& v) { return v.height; });
+
+    py::class_<track::TileGeometry>(m, "TileGeometry")
+        .def_readonly("source_region", &track::TileGeometry::source_region)
+        .def_readonly("tile_content", &track::TileGeometry::tile_content)
+        .def("scale", &track::TileGeometry::source_scale)
+        .def("offset", &track::TileGeometry::tile_offset_for_affine)
+        .def_property_readonly("source_x", [](const track::TileGeometry& v) { return v.source_region.x; })
+        .def_property_readonly("source_y", [](const track::TileGeometry& v) { return v.source_region.y; })
+        .def_property_readonly("source_width", [](const track::TileGeometry& v) { return v.source_region.width; })
+        .def_property_readonly("source_height", [](const track::TileGeometry& v) { return v.source_region.height; })
+        .def_property_readonly("tile_x", [](const track::TileGeometry& v) { return v.tile_content.x; })
+        .def_property_readonly("tile_y", [](const track::TileGeometry& v) { return v.tile_content.y; })
+        .def_property_readonly("tile_width", [](const track::TileGeometry& v) { return v.tile_content.width; })
+        .def_property_readonly("tile_height", [](const track::TileGeometry& v) { return v.tile_content.height; });
+
+    m.def("tile_affines", &tile_affine_arrays, py::arg("geometries"));
+
     py::class_<track::detect::YoloInput>(m, "YoloInput")
-        .def(py::init<std::vector<cmn::Image::Ptr>&&, std::vector<cmn::Vec2>&&, std::vector<cmn::Vec2>&&, std::vector<size_t>&&>())
+        .def(py::init<std::vector<cmn::Image::Ptr>&&, std::vector<track::TileGeometry>&&, std::vector<size_t>&&>())
+        .def(py::init([](std::vector<cmn::Image::Ptr>&& images,
+                         std::vector<cmn::Vec2>&& offsets,
+                         std::vector<cmn::Vec2>&& scales,
+                         std::vector<size_t>&& orig_id) {
+            auto geometries = geometries_from_legacy_vectors(images, offsets, scales);
+            return track::detect::YoloInput{
+                std::move(images),
+                std::move(geometries),
+                std::move(orig_id)
+            };
+        }))
         .def("__repr__", [](const YoloInput& v) -> std::string {
             return v.toStr();
         })
         .def("images", &track::detect::YoloInput::images)
-        .def("offsets", &track::detect::YoloInput::offsets)
-        .def("scales", &track::detect::YoloInput::scales)
+        .def("tile_geometries", &track::detect::YoloInput::tile_geometries)
         .def("orig_id", &track::detect::YoloInput::orig_id);
 
     py::enum_<track::detect::Sam3PromptType>(m, "Sam3PromptType")
@@ -604,6 +701,7 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
                          std::vector<cmn::Vec2>&& scales,
                          std::vector<size_t>&& orig_id,
                          py::list prompts_per_image) {
+            auto geometries = geometries_from_legacy_vectors(images, offsets, scales);
             track::detect::Sam3PromptsPerImage prompt_lists;
             prompt_lists.reserve(py::len(prompts_per_image));
             for(py::handle item : prompts_per_image) {
@@ -612,8 +710,7 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
             return track::detect::Sam3Input{
                 track::detect::YoloInput{
                     std::move(images),
-                    std::move(offsets),
-                    std::move(scales),
+                    std::move(geometries),
                     std::move(orig_id)
                 },
                 std::move(prompt_lists)

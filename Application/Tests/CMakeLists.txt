@@ -63,8 +63,10 @@ target_compile_definitions(test_dispatcher PRIVATE -DTREX_TEST_FOLDER="${CMAKE_C
 add_executable(test_sam3promptpayload test_sam3promptpayload.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
 target_compile_definitions(test_sam3promptpayload PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
 
-add_executable(test_sam3interactivesession test_sam3interactivesession.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
-target_compile_definitions(test_sam3interactivesession PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
+if(NOT TREX_CONDA_PACKAGE_INSTALL)
+    add_executable(test_sam3interactivesession test_sam3interactivesession.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
+    target_compile_definitions(test_sam3interactivesession PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
+endif()
 
 if(COMMONS_ENABLE_MODULES AND NOT CMAKE_VERSION VERSION_LESS "3.28.0")
 add_custom_target(commons_module_surface_check
@@ -113,8 +115,10 @@ set(TARGETS
     test_segmenter
     test_dispatcher
     test_sam3promptpayload
-    test_sam3interactivesession
 )
+if(NOT TREX_CONDA_PACKAGE_INSTALL)
+    list(APPEND TARGETS test_sam3interactivesession)
+endif()
 if(COMMONS_ENABLE_MODULES AND NOT CMAKE_VERSION VERSION_LESS "3.28.0")
     list(APPEND TARGETS test_commons_modules)
 endif()
@@ -159,7 +163,9 @@ target_link_libraries(test_tiling PUBLIC gtest gmock)
 target_link_libraries(test_segmenter PUBLIC gtest)
 target_link_libraries(test_dispatcher PUBLIC gtest)
 target_link_libraries(test_sam3promptpayload PUBLIC gtest)
-target_link_libraries(test_sam3interactivesession PUBLIC gtest gmock)
+if(NOT TREX_CONDA_PACKAGE_INSTALL)
+    target_link_libraries(test_sam3interactivesession PUBLIC gtest gmock)
+endif()
 
 # Extra linking for the project.
 target_link_libraries(test_matching PUBLIC
@@ -241,21 +247,27 @@ target_link_libraries(test_dispatcher PUBLIC
 )
 
 target_link_libraries(test_sam3promptpayload PUBLIC
+    tracker_tracking
+    tracker_ml
+    tracker_gui
     tracker_misc
     trex_python_staging
     pv
     commons
 )
+trex_link_static_python_impl(test_sam3promptpayload)
 
-target_link_libraries(test_sam3interactivesession PUBLIC
-    tracker_tracking
-    tracker_ml
-    tracker_gui
-    tracker_misc
-    pv
-    commons
-)
-trex_link_static_python_impl(test_sam3interactivesession)
+if(NOT TREX_CONDA_PACKAGE_INSTALL)
+    target_link_libraries(test_sam3interactivesession PUBLIC
+        tracker_tracking
+        tracker_ml
+        tracker_gui
+        tracker_misc
+        pv
+        commons
+    )
+    trex_link_static_python_impl(test_sam3interactivesession)
+endif()
 
 if(COMMONS_ENABLE_MODULES AND NOT CMAKE_VERSION VERSION_LESS "3.28.0")
 target_link_libraries(test_commons_modules PUBLIC
@@ -289,7 +301,9 @@ set_target_properties(test_tiling PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "Y
 set_target_properties(test_segmenter PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 set_target_properties(test_dispatcher PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 set_target_properties(test_sam3promptpayload PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
-set_target_properties(test_sam3interactivesession PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
+if(NOT TREX_CONDA_PACKAGE_INSTALL)
+    set_target_properties(test_sam3interactivesession PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
+endif()
 if(COMMONS_ENABLE_MODULES AND NOT CMAKE_VERSION VERSION_LESS "3.28.0")
 set_target_properties(test_commons_modules PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 endif()

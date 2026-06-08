@@ -228,3 +228,15 @@ conda build -c conda-forge .
 - For commons monolith + modules work, run CMake/Ninja from `Application/tmp-modules-osx-tests-nolto` with the `trex-modules` Conda environment.
 - For commons shared-library split testing with modules disabled, use `tmp-shared-split-osx-tests-nolto` with Ninja in the `trex-modules` Conda environment.
 - For commons shared-library split testing with modules enabled, use `tmp-shared-split-osx-tests-nolto` with Ninja in the `trex-modules` Conda environment.
+
+## Release/tag workflow notes
+- Before release work, preserve any dirty user worktree state first. If the
+  user approves, stash tracked and untracked files before switching branches.
+- For quick-fix releases from `main`, fetch remotes and tags, fast-forward
+  `main`, create an annotated `vX.Y.Z` tag, push only that tag, then create the
+  GitHub release with the same title as the tag.
+- Use the previous GitHub release as the naming/body template and include a
+  `Full Changelog` compare link.
+- If `gh` is unavailable, install/use GitHub CLI when the user approves it.
+  Authenticate with `gh auth login -h github.com -w` so the user can approve
+  the device-code flow.

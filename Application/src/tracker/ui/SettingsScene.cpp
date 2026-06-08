@@ -24,6 +24,7 @@
 #include <python/PythonWrapper.h>
 
 #include <ui/TrackingScene.h>
+#include <ui/ConvertScene.h>
 
 #include <portable-file-dialogs.h>
 #include <misc/ProtectedProperty.h>
@@ -543,6 +544,12 @@ struct SettingsScene::Data {
                                     ](Dialog::Result result) mutable {
                                         if(result == Dialog::Result::OKAY) {
                                             /// continue on to converting!
+                                            bool force_start_over = true;
+                                            ConvertScene::force_start_over.set(force_start_over);
+                                            SceneManager::getInstance().set_active("convert-scene");
+                                        } else if(result == Dialog::Result::SECOND) {
+                                            /// continue but overwrite file:
+
                                             SceneManager::getInstance().set_active("convert-scene");
                                             
                                         } else {
@@ -554,7 +561,7 @@ struct SettingsScene::Data {
                                             GlobalSettings::set_current_defaults_with_config(std::move(defaults_with_config));
                                         }
                                         
-                                    }, "Starting the conversion would overwrite <cyan><c>"+filename.str()+"</c></cyan>, which already exists. Are you sure?", "Overwrite file", "Overwrite", "Cancel");
+                                    }, "Starting the conversion would overwrite <cyan><c>"+filename.str()+"</c></cyan>, which already exists. Are you sure?", "Overwrite file", "Start over (overwrite)", "Cancel", "Continue (if possible)");
                                 } else
                                     SceneManager::getInstance().set_active("convert-scene");
                             });
