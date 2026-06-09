@@ -349,6 +349,9 @@ void launch_gui(std::future<void>& f) {
                     .source_map = cmd_options
                 });
                 
+                /// if we explicitly set -task convert, we want to force the override
+                ConvertScene::force_start_over.set(true);
+                
             } else if(it->second == &tracking_scene) {
                 settings::load(settings::LoadContext{
                     .source = READ_SETTING(source, file::PathArray),
@@ -605,6 +608,9 @@ std::string start_converting(std::future<void>& f) {
             SETTING(terminate) = true;
             last_error = error;
         });
+    
+    /// if we explicitly set -task convert, we want to force the override
+    segmenter.start_over().set(true);
     
     Print("Loading source = ",
           utils::ShortenText(READ_SETTING(source, file::PathArray).toStr(), 1000));
