@@ -212,22 +212,28 @@ bool Bowl::Data::update_shapes() {
             Vec2 br(pt.x + scale, pt.y + scale);
             
             constexpr auto clrA = White.alpha(150);
-            auto ptr = Layout::Make<Vertices>(std::vector<Vertex>{
-                {tl, clrA}, {pt, clrA},
-                {br, clrA}, {pt, clrA},
-                {bl, clrA}, {pt, clrA},
-                {tr, clrA}
-            }, PrimitiveType::LineStrip);
+            derived_ptr<Vertices> ptr = Layout::Make<Vertices>{
+                std::vector<Vertex>{
+                    {tl, clrA}, {pt, clrA},
+                    {br, clrA}, {pt, clrA},
+                    {bl, clrA}, {pt, clrA},
+                    {tr, clrA}
+                },
+                PrimitiveType::LineStrip
+            };
             _zoom_polygon_indicators.emplace_back(ptr);
             
             constexpr auto clrB = Black.alpha(150);
             constexpr auto offset = Vec2(0.25);
-            ptr = Layout::Make<Vertices>(std::vector<Vertex>{
-                {tl + offset, clrB}, {pt + offset, clrB},
-                {br + offset, clrB}, {pt + offset, clrB},
-                {bl + offset, clrB}, {pt + offset, clrB},
-                {tr + offset, clrB}
-            }, PrimitiveType::LineStrip);
+            ptr = Layout::Make<Vertices>{
+                std::vector<Vertex>{
+                    {tl + offset, clrB}, {pt + offset, clrB},
+                    {br + offset, clrB}, {pt + offset, clrB},
+                    {bl + offset, clrB}, {pt + offset, clrB},
+                    {tr + offset, clrB}
+                },
+                PrimitiveType::LineStrip
+            };
             _zoom_polygon_indicators.emplace_back(ptr);
         }
         //ptr->set_clickable(true);

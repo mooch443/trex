@@ -2272,11 +2272,11 @@ Drawable* Fish::shadow() {
     
     if(OPTION(gui_highlight_categories)) {
         if(_avg_cat.has_value()) {
-            children.emplace_back(Layout::Make<Circle>(
+            children.emplace_back(Layout::Make<Circle>{
                   Loc(_view.pos() + _view.size() * 0.5),
                   Radius{_view.size().length()},
                   LineClr{Transparent},
-                  FillClr{ColorWheel(_avg_cat.value()).next().alpha(75)}));
+                  FillClr{ColorWheel(_avg_cat.value()).next().alpha(75)}});
         } else {
             /*e.add<Circle>(Loc(_view.pos() + _view.size() * 0.5),
                           Radius{_view.size().length()},
@@ -2286,11 +2286,11 @@ Drawable* Fish::shadow() {
     }
     
     if(OPTION(gui_show_match_modes)) {
-        children.emplace_back(Layout::Make<Circle>(
+        children.emplace_back(Layout::Make<Circle>{
               Loc(_view.pos() + _view.size() * 0.5),
               Radius{_view.size().length()},
               LineClr{Transparent},
-              FillClr{ColorWheel(_match_mode.has_value() ? (int)_match_mode.value().value() : -1).next().alpha(50)}));
+              FillClr{ColorWheel(_match_mode.has_value() ? (int)_match_mode.value().value() : -1).next().alpha(50)}});
     }
     
     //auto bdx = blob->blob_id();
@@ -2298,11 +2298,11 @@ Drawable* Fish::shadow() {
         uint32_t i=0;
         for(auto &clique : GUICache::instance()._cliques) {
             if(clique.fishs.contains(_id.ID())) {
-                children.emplace_back(Layout::Make<Circle>(
+                children.emplace_back(Layout::Make<Circle>{
                       Loc(_view.pos() + _view.size() * 0.5),
                       Radius{_view.size().length()},
                       LineClr{Transparent},
-                      FillClr{ColorWheel(i).next().alpha(50)}));
+                      FillClr{ColorWheel(i).next().alpha(50)}});
                 break;
             }
             ++i;

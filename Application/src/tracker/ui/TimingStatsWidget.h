@@ -38,6 +38,16 @@ public:
     void set(RowHeight_t h) { _rowHeight = (int)h; }
 };
 
+namespace detail {
+template<>
+struct AllowDirectMakeArgs<
+    TimingStatsWidget,
+    std::shared_ptr<TimingStatsCollector>,
+    std::chrono::steady_clock::duration,
+    int
+> : std::true_type {};
+}
+
 namespace attr {
 CMN_GUI_REGISTER_ATTRIBUTE_MEMBER(TimingStatsWidget, TimingStatsWidget::RowHeight_t);
 CMN_GUI_REGISTER_ATTRIBUTE_MEMBER(TimingStatsWidget, std::chrono::steady_clock::duration);

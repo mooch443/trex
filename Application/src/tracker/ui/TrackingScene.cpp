@@ -88,6 +88,14 @@ struct TrackingScene::Data {
     
     std::unique_ptr<Rect> _drag_box;
     
+    struct DraggedAnnotation {
+        Drawable* ptr{nullptr};
+        uint64_t annotation_uid{0u};
+        dyn::Action action;
+    };
+    
+    std::optional<DraggedAnnotation> dragged_annotation;
+    
     std::unordered_map<Idx_t, std::optional<sprite::Map>> _cache_maps;
     
     std::function<void(Vec2, bool, std::string)> _clicked_background;
@@ -395,7 +403,7 @@ void TrackingScene::Data::handle_zooming(Event e) {
     } else {
         auto zoom_limit = READ_SETTING(gui_zoom_limit, Size2);
         if(e.scroll.dy > 0) {
-            //zoom_limit *= 0.95_F;
+            zoom_limit *= 0.95_F;
             if(zoom_limit.width > 10) {
                 GlobalSettings::do_print("gui_zoom_limit", false);
                 SETTING(gui_zoom_limit) = zoom_limit;
@@ -403,7 +411,7 @@ void TrackingScene::Data::handle_zooming(Event e) {
             }
             
         } else if(e.scroll.dy < 0) {
-            //zoom_limit *= 1.05_F;
+            zoom_limit *= 1.05_F;
             if(zoom_limit.width < video_size.width * 2
                && zoom_limit.height < video_size.height * 2)
             {
@@ -1238,6 +1246,55 @@ void TrackingScene::_draw(DrawStructure& graph) {
     if(not _data)
         return;
     
+    if(_data->dragged_annotation
+       && not graph.is_mouse_down(0))
+    {
+        if(_data->dragged_annotation->ptr == graph.selected_object()) {
+            auto selected = _data->dragged_annotation->ptr;
+            auto annotation_uid = _data->dragged_annotation->annotation_uid;
+            auto action = _data->dragged_annotation->action;
+            
+            auto track_annotations = READ_SETTING_WITH_DEFAULT(track_annotations, track::AnnotationMap{});
+            auto it = track_annotations.find(READ_SETTING_WITH_DEFAULT(gui_frame, Frame_t()));
+            if(it == track_annotations.end()) {
+                throw InvalidArgumentException("Cannot find annotation ", action, " in ", track_annotations);
+            }
+
+            auto annotation = std::find_if(it->second.begin(), it->second.end(), [annotation_uid](const Annotation& candidate) {
+                return candidate.uid == annotation_uid;
+            });
+            if(annotation == it->second.end())
+                throw InvalidArgumentException("Cannot find annotation uid ", annotation_uid, " in ", it->second);
+            
+            auto coords = FindCoord::get();
+            auto pos = coords.convert(HUDCoord(selected->pos())).map(roundf);
+            auto absolute = coords.convert(HUDCoord(selected->absolute_drag_start())).map(roundf);
+            Print("Pos = ", pos, " absolute=",absolute, " diff=", pos - absolute);
+            
+            Vec2 xy(FLT_MAX, FLT_MAX);
+            for(auto& pt : annotation->points) {
+                if(pt.x < xy.x) xy.x = pt.x;
+                if(pt.y < xy.y) xy.y = pt.y;
+            }
+            
+            if(xy.x != FLT_MAX
+               && xy.y != FLT_MAX)
+            {
+                for(auto& pt : annotation->points) {
+                    Print("pt=",pt," adding ", pos - absolute, " => ", Vec2(pt) + pos - absolute);
+                    pt = Vec2(pt) + pos - absolute;
+                    //if(pt.y < xy.y) xy.y = pt.y;
+                }
+                
+                SETTING(track_annotations) = std::move(track_annotations);
+                
+                
+            }
+        }
+        
+        _data->dragged_annotation.reset();
+    }
+    
     if(_data->_tracker_has_added_frames
        //&& _state && _state->analysis->is_paused()
        && _data->_cache)
@@ -1828,6 +1885,30 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                 Print("Got ", action.name, ": ", action.parameters);
             }),
             
+            ActionFunc("move_whole_annotation", [this](const Action& action) {
+                REQUIRE_EXACTLY(1, action);
+
+                auto annotation_uid = Meta::fromStr<uint64_t>(action.parameters.front());
+
+                if(not _data
+                   || not _data->_cache)
+                    throw InvalidArgumentException("No data pointer set. Probably quitting.");
+
+                SceneManager::enqueue([=](auto, DrawStructure& graph) {
+                    auto selected = graph.selected_object();
+                    if(not selected)
+                        throw InvalidArgumentException("No object selected to be moved.");
+                    
+                    if(not _data->dragged_annotation) {
+                        _data->dragged_annotation = Data::DraggedAnnotation{
+                            .ptr = selected,
+                            .annotation_uid = annotation_uid,
+                            .action = action
+                        };
+                    }
+                });
+            }),
+            
             ActionFunc("move_annotation", [this](const Action& action) {
                 REQUIRE_EXACTLY(2, action);
 
@@ -1858,7 +1939,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                         throw InvalidArgumentException(point_idx, " out of range for annotation uid ", annotation_uid, " with ", annotation->points.size(), " points.");
 
                     auto coords = FindCoord::get();
-                    auto pos = coords.convert(HUDCoord(selected->pos()));//.map(roundf);
+                    auto pos = coords.convert(HUDCoord(selected->pos())).map(roundf);
 
                     if(not Vec2(pos).Equals((Vec2)annotation->points.at(point_idx))) {
                         annotation->points.at(point_idx) = pos;

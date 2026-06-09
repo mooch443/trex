@@ -762,7 +762,9 @@ void LiveSegmentation::_draw(DrawStructure& graph) {
                 };
                 
                 context.custom_elements["label"] = std::unique_ptr<CustomElement>(
-                    new LabelElement(&_data->unassigned_labels, &_data->labels, &_data->dt)
+                      new LabelElement(&_data->unassigned_labels, &_data->labels, [this](){
+                          return _data->dt;
+                      })
                 );
                 context.custom_elements["image_generator"] = std::unique_ptr<CustomElement>(
                     new ImageDisplayElement(&_image_generators)

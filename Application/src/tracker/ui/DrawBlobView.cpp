@@ -1342,7 +1342,7 @@ void BlobView::draw_boundary_selection(DrawStructure& base, Base* window, GUICac
                 bds.width = max(100.f, text_bounds.width) + 10;
                 
                 if(!button) {
-                    button = Layout::Make<Button>(Str(name), Box(Vec2(), bds.size()), Font(0.6, Align::Center), FillClr{60,60,60,200}, LineClr{100,175,250,200}, TextClr{225,225,225});
+                    button = Layout::Make<Button>{Str(name), Box(Vec2(), bds.size()), Font(0.6, Align::Center), FillClr{60,60,60,200}, LineClr{100,175,250,200}, TextClr{225,225,225}};
                     button->on_click([&](auto){
                         clicked_background(base, cache, Vec2(), true, "");
                     });
@@ -1356,7 +1356,14 @@ void BlobView::draw_boundary_selection(DrawStructure& base, Base* window, GUICac
                    && (bdry.size() == 1 && bdry.front().size() >= 1))
                 {
                     auto create_button = [this](StringLike auto&& name, size_t id) -> derived_ptr<Button> {
-                        auto annotation_button = Layout::Make<Button>(Str(name), Font(0.6, Align::Center), FillClr{60,60,60,200}, LineClr{100,175,250,200}, TextClr{225,225,225}, CornerFlags_t(CornerFlags::fromStr("['bottom']")));
+                        auto annotation_button = Layout::Make<Button>{
+                            Str(name),
+                            Font(0.6, Align::Center),
+                            FillClr{60,60,60,200},
+                            LineClr{100,175,250,200},
+                            TextClr{225,225,225},
+                            CornerFlags_t::Bottom()
+                        }();
                         annotation_button->on_click([&, id](auto){
                             if(_current_boundary.size() == 1
                                && _current_boundary.front().size() >= 1)
@@ -1440,10 +1447,6 @@ void BlobView::draw_boundary_selection(DrawStructure& base, Base* window, GUICac
                 children.push_back(button);
                 
                 if(not annotation_buttons.empty()) {
-                    const auto detect_format = READ_SETTING_WITH_DEFAULT(detect_format, track::detect::ObjectDetectionFormat::none);
-                    auto text = Layout::Make<StaticText>(Str{"<c><b>Annotating ("+Meta::toStr(detect_format)+")</b></c>"}, Font{0.5});
-                    children.push_back(text);
-                    
                     if(detect_classes
                        && detect_classes->size() == annotation_buttons.size())
                     {
@@ -1459,7 +1462,7 @@ void BlobView::draw_boundary_selection(DrawStructure& base, Base* window, GUICac
                 }
                 
                 if(not dropdown) {
-                    dropdown = Layout::Make<Dropdown>(Box(Vec2(0, button->local_bounds().height), bds.size()), ListDims_t{bds.width, 200.f}, ListFillClr_t{60,60,60,200}, FillClr{60,60,60,200}, LineClr{100,175,250,200}, TextClr{225,225,225}, LabelFont_t{0.6}, ItemFont_t{0.6}, LabelCornerFlags{false, false, false, false},
+                    dropdown = Layout::Make<Dropdown>{Box(Vec2(0, button->local_bounds().height), bds.size()), ListDims_t{bds.width, 200.f}, ListFillClr_t{60,60,60,200}, FillClr{60,60,60,200}, LineClr{100,175,250,200}, TextClr{225,225,225}, LabelFont_t{0.6}, ItemFont_t{0.6}, LabelCornerFlags::Square(),
                         std::vector<std::string>{
                             "gui_zoom_polygon",
                             "track_ignore",
@@ -1467,7 +1470,7 @@ void BlobView::draw_boundary_selection(DrawStructure& base, Base* window, GUICac
                             "recognition_shapes",
                             "visual_field_shapes"
                         }
-                    );
+                    };
                     dropdown->on_select([&](auto, const Dropdown::TextItem & item){
                         clicked_background(base, cache, Vec2(), true, item.name());
                     });
@@ -1486,6 +1489,20 @@ void BlobView::draw_boundary_selection(DrawStructure& base, Base* window, GUICac
                 }
                 
                 if(not annotation_buttons.empty()) {
+                    const auto detect_format = READ_SETTING_WITH_DEFAULT(detect_format, track::detect::ObjectDetectionFormat::none);
+                    auto text = Layout::Make<StaticText>{
+                        Str{"<c><b>Annotating ("+Meta::toStr(detect_format)+")</b></c>"},
+                        Font{0.5}
+                    }();
+                    
+                    derived_ptr<Layout> container = Layout::Make<Layout>{
+                        FillClr{30,30,30,200},
+                        Size{bds.width, text->local_bounds().height},
+                        CornerFlags_t::Square()
+                    };
+                    container->set_children({text});
+                    children.push_back(container);
+                    
                     for(auto &b: annotation_buttons) {
                         auto text_bounds = window ? window->text_bounds(b->txt(), NULL, Font(0.6)) : Base::default_text_bounds(b->txt(), NULL, Font(0.6));
                         bds.width = max(bds.width, text_bounds.width + 10);
@@ -1497,16 +1514,14 @@ void BlobView::draw_boundary_selection(DrawStructure& base, Base* window, GUICac
                             b->set(FillClr{60,60,60,200});
                         }
                         
-                        b->set(CornerFlags_t(CornerFlags(false, false, false, false)));
+                        b->set(CornerFlags_t::Square());
                         children.push_back(b);
                     }
                     
-                    auto flags = annotation_buttons.back()->corner_flags();
-                    flags.set(CornerFlags::Corner::BottomLeft);
-                    flags.set(CornerFlags::Corner::BottomRight);
+                    auto flags = annotation_buttons.back()->corner_flags() | CornerFlags::Bottom();
                     annotation_buttons.back()->set(CornerFlags_t(flags));
                     
-                    button->set(CornerFlags_t(CornerFlags(true, true, false, false)));
+                    button->set(CornerFlags_t::Top());
                 }
                 
                 button->set_size(Size2(bds.width, button->height()));
@@ -1572,14 +1587,12 @@ void BlobView::draw_boundary_selection(DrawStructure& base, Base* window, GUICac
                 };
                 
                 Vec2 mouse_offset = calculate_mouse_offset();
-                Print("* origin ", combine->origin()," => ", mouse_offset);
                 
                 if(is_system_pressed) {
                     auto mpos = coords.convert(HUDCoord{base.mouse_position()});
                     if(Bounds(p - Vec2(5) + mouse_offset - object_size.mul(combine->origin()), object_size + Size2(10))
                         .contains(mpos))
                     {
-                        Print("* contains mpos");
                         p = mpos;
                         update_origin();
                         

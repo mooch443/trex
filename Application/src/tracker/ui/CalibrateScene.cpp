@@ -225,7 +225,7 @@ void CalibrateScene::_draw(DrawStructure &graph) {
                     _data->_adapter.to<GUIVideoAdapter>()->set(path);
                     return _data->_adapter;
                 } else {
-                    Layout::Ptr ptr = Layout::Make<GUIVideoAdapter>(path, window, callback);
+                    Layout::Ptr ptr = Layout::Make<GUIVideoAdapter>{path, window, callback};
                     _data->_adapter = ptr;
                     return ptr;
                 }

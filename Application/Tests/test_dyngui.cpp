@@ -118,12 +118,15 @@ TYPED_TEST_SUITE(ParseAndResolveTest, ParserImpls);
 TEST(TestDerivedPtr, Construct) {
     derived_ptr<Drawable> ptr;
     ASSERT_EQ(ptr, nullptr);
+    ASSERT_FALSE(ptr != nullptr);
     
     {
-        auto text_ptr = Layout::Make<Text>();
+        auto text_ptr = Layout::Make<Text>{}();
         ptr = text_ptr;
         
         ASSERT_EQ(text_ptr, ptr);
+        ASSERT_FALSE(text_ptr != ptr);
+        ASSERT_TRUE(ptr != nullptr);
         ASSERT_TRUE(text_ptr.get_smart());
         ASSERT_EQ(text_ptr.get_smart().use_count(), ptr.get_smart().use_count());
         ASSERT_EQ(text_ptr.get_smart().use_count(), 2);
@@ -134,13 +137,31 @@ TEST(TestDerivedPtr, Construct) {
         auto smart = ptr.get_smart();
         ASSERT_EQ(ptr.get_smart().use_count(), 2);
         ptr = nullptr;
+        ASSERT_FALSE(ptr != nullptr);
         ASSERT_EQ(smart.use_count(), 1);
     }
 }
 
 TEST(TestDerivedPtr, Convert) {
-    auto button = Layout::Make<Button>();
-    static_assert(std::same_as<decltype(button), derived_ptr<Drawable>>, "");
+    auto button = Layout::Make<Button>{}();
+    static_assert(std::same_as<decltype(button), derived_ptr<Button>>, "");
+
+    derived_ptr<Button> typed_button = Layout::Make<Button>{};
+    Layout::Ptr drawable_button = typed_button;
+    ASSERT_EQ(typed_button, drawable_button);
+    ASSERT_FALSE(typed_button != drawable_button);
+    ASSERT_EQ(typed_button.get_smart().use_count(), drawable_button.get_smart().use_count());
+    ASSERT_EQ(typed_button.get_smart().use_count(), 2);
+
+    Layout::Ptr direct_drawable = button;
+    ASSERT_TRUE(direct_drawable.is<Button>());
+    ASSERT_EQ(button, direct_drawable);
+    ASSERT_FALSE(button != direct_drawable);
+    
+    auto button2 = Layout::Make<Button>{}();
+    ASSERT_TRUE(button != button2);
+    ASSERT_TRUE(button2 != direct_drawable);
+    ASSERT_FALSE(direct_drawable == button2);
 }
 
 // Unit Tests

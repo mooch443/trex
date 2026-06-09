@@ -13,6 +13,8 @@ library for shared utilities and GUI infrastructure.
 - `docs/`: Sphinx docs.
 - `website/`, `images/`, `videos/`: site + assets.
 
+Do not use whitespace cleanup tools if they produce lots of diff, never commit huge diff that is just whitespace changes.
+
 ## Commons library overview
 - Core GUI headers live under `Application/src/commons/common/gui/`.
 - The dynamic GUI system is `Application/src/commons/common/gui/DynamicGUI.h`
