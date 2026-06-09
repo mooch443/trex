@@ -14,6 +14,9 @@ library for shared utilities and GUI infrastructure.
 - `website/`, `images/`, `videos/`: site + assets.
 
 Do not use whitespace cleanup tools if they produce lots of diff, never commit huge diff that is just whitespace changes.
+When creating commits, match recent repository style: use bullet-style,
+past-tense messages where each line starts with `* Added`, `* Updated`,
+`* Modified`, or similar wording.
 
 ## Commons library overview
 - Core GUI headers live under `Application/src/commons/common/gui/`.
