@@ -11,6 +11,7 @@
 #include <ui/Coordinates.h>
 #include <ui/DrawBlobView.h>
 #include <ui/DrawBorder.h>
+#include <ui/DrawAnnotationExportOptions.h>
 #include <ui/DrawDataset.h>
 #include <ui/DrawExportOptions.h>
 #include <ui/DrawFish.h>

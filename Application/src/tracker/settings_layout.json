@@ -43,11 +43,12 @@
     "fill":"{if:{is_small_window}:[0,0,0,0]:[0,0,0,50]}",
     "pos":"{if:{is_small_window}:[0,0]:[{*:{window_size.x}:0.5},20]}",
     "origin":"{if:{is_small_window}:[0,0]:[0.5,0]}",
-    "pad":[20,0,0,5],
+    "outer_pad":[20,5,0,0],
+    "pad":[0,-1,0,0],
     "children":[
         {
             "type":"vlayout",
-            "pad":[0,20,0,-1],
+            "outer_pad":[0,5,0,5],
             "children":[
                 { "type":"stext",
                 "name":"title",
@@ -62,16 +63,15 @@
         },
         {
             "type":"hlayout",
-            "pad":[0,-10,-36,-1.5],
+            "outer_pad":[0,-10,-36,-1.5],
             "children":[
                 {
                     "type":"hlayout",
                     "align":"center",
                     "origin":[0,0],
                     "clickable":true,
-                    "pad":[-1,0,0,0],
+                    "outer_pad":[0,0,-1,0],
                     "corners":["top"],
-                    "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
                     "children":[
                         {
                             "type":"button",
@@ -136,11 +136,70 @@
             "cellfillclr":[20,20,20,180],
             "mincellsize":[227,0],
             "line":[100,100,100,150],
-            "pad":[10,0,10,0],
+            "pad":[5,0,0,0],
+            "outer_pad":[0,0,10,0],
             "clickable":true,
             "halign":"left",
             "valign":"top",
             "children":[
+
+
+                [
+                    {
+                        "type":"stext",
+                        "text":"<b>Storage format</b>\n<small><gray>Which data is stored. Simpler is sometimes better.</gray></small>",
+                        "font":{"size":0.75},
+                        "origin":"{label_origin}", "pos":"{label_offset}",
+                        "max_size":"[{label_w},0]",
+                        "pad":"{label_padding}"
+                    },
+                    [
+                    {
+                        "type":"vlayout",
+                        "outer_pad":[0,15,0,15],
+                        "children":[
+                            {
+                                "type":"gridlayout",
+                                "pad":[0,0,15,10],
+                                "cellfillclr":[60,60,60,150],
+                                "celllineclr":[100,100,100,50],
+                                "cellfillinterval":2,
+                                "children":[
+                                    [
+                                        {
+                                            "type":"stext",
+                                            "text":"encoding",
+                                            "origin":[0,0.5], "pos":[0,20],
+                                            "pad":[10,0,-5,0],
+                                            "max_size":"[{-:{inside_label_w}:20},0]"
+                                        },
+                                        {
+                                            "type":"settings",
+                                            "var":"meta_encoding",
+                                            "label":{
+                                                "corners":["right"],
+                                                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,250]}",
+                                                "fill":"{if:{||:{selected}:{hovered}}:[10,80,110,240]:[10,50,80,240]}",
+                                                "font":{"size":0.65},
+                                                "color":[255,255,255]
+                                            },
+                                            "size":"[{max:150:{*:{textfield_w}:0.1}},40]",
+                                            "desc":""
+                                        }
+                                    ]
+
+                                ]
+                            },
+
+                            {
+                                "type":"stext",
+                                "max_size": "[{min:600:{element_w}},80]",
+                                "text": "The <cyan><c>meta_encoding</c></cyan> setting is used to determine how the tracking data is stored. This can play a role for example in general tracking and overlap resolution, as well as visual identification.",
+                                "font":{"size":0.5}
+                            }
+                        ]
+                    }]
+                ],
                 [
                     {
                         "type":"stext",
@@ -148,17 +207,13 @@
                         "font":{"size":0.75},
                         "origin":"{label_origin}", "pos":"{label_offset}",
                         "max_size":"[{label_w},0]",
-                        "pad":[0,30,10,5]
+                        "pad":[0,10,10,10]
                     },
                     [{
                         "type":"vlayout",
+                        "outer_pad":[0,15,0,15],
                         "pad":[0,0,0,5],
                         "children":[
-                            {
-                                "type":"rect",
-                                "fill":[0,0,0,0],
-                                "size":"[{-:{element_w}:0},30]"
-                            },
                             {
                                 "type":"hlayout",
                                 "pad":[0,0,5,0],
@@ -170,10 +225,12 @@
                                             "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,250]}",
                                             "fill":"{if:{||:{selected}:{hovered}}:[10,80,110,240]:[10,50,80,240]}",
                                             "font":{"size":0.65},
-                                            "color":[255,255,255]
+                                            "color":[255,255,255],
+                                            "corners":["all"]
                                         },
                                         "size":"[{min:350:{max:100:{-:{element_w}:195}}},45]",
-                                        "pad":[0,0,10,0],
+                                        "pad":[0,0,0,0],
+                                        "outer_pad":[0,0,10,0],
                                         "desc":""
                                     },
                                     {
@@ -240,12 +297,6 @@
                                 "max_size": "[{min:900:{element_w}},50]",
                                 "font":{"size":0.5},
                                 "text": "{if:{machine_learning}:'<cyan><c>Machine learning</c></cyan> is used to find the individuals. This is very versatile and can deal with dynamic backgrounds, but requires a (<i>potentially custom</i>) trained object detection model. There are some default choices listed below the selection box.':'A <cyan><c>background image</c></cyan> is generated and then subtracted from each frame. Then, any color differences greater than <c>threshold</c> are understood to be <i>\"of interest\"</i>. This is very fast, but requires a relatively static background (e.g. a camera trap, lab videos).'}"
-                            },
-
-                            {
-                                "type":"rect",
-                                "fill":[0,0,0,0],
-                                "size":[1,20]
                             }
                         ]
                     }]
@@ -598,17 +649,13 @@
                         "font":{"size":0.75},
                         "origin":"{label_origin}", "pos":"{label_offset}",
                         "max_size":"[{label_w},0]",
-                        "pad":[0,10,0,0]
+                        "pad":[0,5,0,0]
                     },
                     {
                         "type":"vlayout",
                         "pad":[0,0,0,5],
+                        "outer_pad":[0,10,0,10],
                         "children": [
-                            {
-                                "type":"rect",
-                                "fill":[0,0,0,0],
-                                "size":[1,10]
-                            },
                             {
                                 "type":"hlayout",
                                 "children":[
@@ -681,12 +728,6 @@
                                 "max_size": "[{min:900:{element_w}},65]",
                                 "text": "{if:{machine_learning}:'<b>How does this work?</b>\nIdentified regions are extracted and processed separately by the <lightgray><sym>🐟</sym> <c>detection</c></lightgray> model (<i>e.g. segmentation, or pose estimation</i>) at full scale. This can help increase the resolution per individual for the <c><lightgray>detection</lightgray></c> step (<i>e.g. drone footage</i>). <lightgray>Using multiple models will impact processing speed.</lightgray>':'This threshold is the {if:{global.detect_threshold_is_absolute}:absolute:signed} difference between the background image and a video frame (grayscale). You should fine-tune this value to your video / batch of videos, so that objects are correctly detected and separated - while avoiding to increase it so much that holes in the individuals start to appear.'}",
                                 "font":{"size":0.5}
-                            },
-
-                            {
-                                "type":"rect",
-                                "fill":[0,0,0,0],
-                                "size":[1,10]
                             }
                         ]
                     }
@@ -709,12 +750,8 @@
                         "then": {
                             "type":"vlayout",
                             "pad":[0,0,0,5],
+                            "outer_pad":[0,5,0,5],
                             "children": [
-                                {
-                                    "type":"rect",
-                                    "fill":[0,0,0,0],
-                                    "size":[1,10]
-                                },
                                 {
                                     "type":"gridlayout",
                                     "pad":[0,0,15,5],
@@ -723,7 +760,8 @@
                                             {
                                                 "type":"hlayout",
                                                 "line":[150,150,150,255],
-                                                "pad":[10,5,5,5],
+                                                "outer_pad":[10,5,0,5],
+                                                "pad":[0,0,5,0],
                                                 "fill":[30,30,30,150],
                                                 "children":[
                                                     {      
@@ -741,11 +779,12 @@
                                                     }
                                                 ]
                                             },
-                                            
+
                                             {
                                                 "type":"hlayout",
                                                 "line":[150,150,150,255],
-                                                "pad":[10,5,5,5],
+                                                "outer_pad":[10,5,0,5],
+                                                "pad":[0,0,5,0],
                                                 "fill":[30,30,30,150],
                                                 "children":[
                                                     {
@@ -764,10 +803,12 @@
                                                 ]
                                             },
 
+
                                             {
                                                 "type":"hlayout",
                                                 "line":[150,150,150,255],
-                                                "pad":[10,5,5,5],
+                                                "outer_pad":[10,5,0,5],
+                                                "pad":[0,0,5,0],
                                                 "fill":[30,30,30,150],
                                                 "children":[
                                                     {
@@ -784,44 +825,40 @@
                                                         "desc":""
                                                     }
                                                 ]
-                                            },
-                                            {
-                                                "type":"hlayout",
-                                                "line":[150,150,150,255],
-                                                "pad":[10,5,5,5],
-                                                "fill":[30,30,30,150],
-                                                "children":[
-                                                    {
-                                                        "type":"stext",
-                                                        "text":"<b>Tile merge containment</b>\n<gray>Drop smaller boxes when their overlap with a neighbour exceeds this fraction (0-1).</gray>",
-                                                        "font":{"size":0.6},
-                                                        "max_size":"[{-:{inside_label_w}:20},0]"
-                                                    },
-                                                    {
-                                                        "type":"settings",
-                                                        "var":"detect_tile_merge_containment",
-                                                        "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
-                                                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
-                                                        "size":[50,40],
-                                                        "desc":""
-                                                    }
-                                                ]
                                             }
                                         ]
                                     ]
                                 },
+                                {
+                                    "type":"hlayout",
+                                    "line":[150,150,150,255],
+                                    "outer_pad":[10,5,0,5],
+                                    "pad":[0,0,5,0],
+                                    "fill":[30,30,30,150],
+                                    "children":[
+                                        {
+                                            "type":"stext",
+                                            "text":"<b>Tile merge containment</b>\n<gray>Drop smaller boxes when their overlap with a neighbour exceeds this fraction (0-1).</gray>",
+                                            "font":{"size":0.6},
+                                            "max_size":"[{min:800:{-:{element_w}:200}},0]"
+                                        },
+                                        {
+                                            "type":"settings",
+                                            "var":"detect_tile_merge_containment",
+                                            "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                                            "size":[50,40],
+                                            "desc":""
+                                        }
+                                    ]
+                                },
+
                                 {
                                     "type":"stext",
                                     "pad":[0,5,0,0],
                                     "max_size": "[{min:900:{element_w}},65]",
                                     "text": "{if:{machine_learning}:'If tiling is enabled, the input images will be split into smaller tiles before being processed by the <lightgray><sym>🐟</sym> <c>detection</c></lightgray> model. This can be an alternative to using <sym>🖽</sym> <lightgray><c>region proposals</c></lightgray> and similarly help increase the resolution per individual for the <c><lightgray>detection</lightgray></c> step. <lightgray>The <c>Tile width</c> determines the target horizontal resolution in pixels; the number of tiles is derived from it, so larger values increase the number of predictions per frame and impact processing speed. Combine it with <c>Tile overlap</c> to keep context across tile borders; overlapping detections are fused using the <c>Tile merge IoU</c> threshold.</lightgray>':''}",
                                     "font":{"size":0.5}
-                                },
-
-                                {
-                                    "type":"rect",
-                                    "fill":[0,0,0,0],
-                                    "size":[1,20]
                                 }
                             ]
                         }

@@ -48,12 +48,54 @@ export namespace track {
 using ::track::FOI;
 // core/Identity.h
 using ::track::Identity;
+// core/TileCoordinates.h
+using ::track::SourceCoord;
+using ::track::SourceRect;
+using ::track::TileCoord;
+using ::track::TileGeometry;
+using ::track::TileRect;
+using ::track::TileToSourceAffine;
+using ::track::tile_to_source_affines;
 // core/TrackingSettings.h
 using ::track::Individual;
 using ::track::Settings;
 using ::track::mmatches_t;
+// core/annotation.h
+using ::track::Annotation;
+using ::track::AnnotationMap;
+using ::track::AnnotationType;
 // core/idx_t.h
 using ::track::Idx_t;
+}
+
+export namespace track::annotation_dataset {
+// core/AnnotationDataset.h
+using ::track::annotation_dataset::clean_filename_suffix;
+using ::track::annotation_dataset::Format;
+using ::track::annotation_dataset::normalize_source_name;
+using ::track::annotation_dataset::source_basename_from_paths;
+using ::track::annotation_dataset::source_prefix_candidates;
+}
+
+export namespace track::annotation_dataset::format_t {
+// core/AnnotationDataset.h
+using ::track::annotation_dataset::format_t::Class;
+}
+
+export namespace track::annotation_export {
+// core/AnnotationExporter.h
+using ::track::annotation_export::Options;
+using ::track::annotation_export::Summary;
+using ::track::annotation_export::TypeCounts;
+using ::track::annotation_export::build_frame_mapping_csv;
+using ::track::annotation_export::annotation_to_yolo;
+using ::track::annotation_export::build_coco_json;
+using ::track::annotation_export::default_keypoint_names;
+using ::track::annotation_export::export_dataset;
+using ::track::annotation_export::frame_stem;
+using ::track::annotation_export::Format;
+using ::track::annotation_export::sample_background_frames;
+using ::track::annotation_export::summarize;
 }
 
 export namespace track::background_task {
@@ -77,6 +119,8 @@ using ::track::detect::PredictionFilter;
 using ::track::detect::detection_format;
 using ::track::detect::detection_type;
 using ::track::detect::get_model_image_size;
+// core/GPURecognitionTypes.h
+using ::track::detect::Sam3PromptsPerImage;
 }
 
 export namespace track::detect::ObjectDetectionFormat {

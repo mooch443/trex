@@ -46,21 +46,19 @@
             }
         },
 
-
-
         {
             "type": "each",
             "var": "{annotations}",
             "as":"a",
             "do": {
                 "type":"condition",
-                "var":"{equal:{a.type}:1}",
+                "var":"{&&:{global.detect_skeleton}:{equal:{a.type}:1}}",
                 "then":{
                     "type":"each",
                     "var":"{at:{at:{a.clid}:{global.detect_classes}}:{global.detect_skeleton}}",
                     "do":  {
                         "type":"condition",
-                        "var":"{&&:{nequal:{i}:null}:{<:{at:0:{i}}:{array_length:{a.pts}}}:{<:{at:1:{i}}:{array_length:{a.pts}}}}",
+                        "var":"{&&:{nequal:{i}:null}:{<:{at:0:{i}}:{array_length:{a.pts}}}:{<:{at:1:{i}}:{array_length:{a.pts}}}:{||:{>:{at:0:{at:{at:0:{i}}:{a.pts}}}:0}:{>:{at:1:{at:{at:0:{i}}:{a.pts}}}:0}}:{||:{>:{at:0:{at:{at:1:{i}}:{a.pts}}}:0}:{>:{at:1:{at:{at:1:{i}}:{a.pts}}}:0}}}",
                         "then":{
                             "type":"line",
                             "from":"{2hud:{at:{at:0:{i}}:{a.pts}}}",
@@ -108,17 +106,21 @@
                                     "var":"{i.pts}",
                                     "as":"j",
                                     "do": {
-                                        "type":"collection",
-                                        "children":[
-                                            {
-                                                "type":"circle",
-                                                "radius":5,
-                                                "pos":"{subVector:{2hud:[{j.x},{j.y}]}:{2hud:[{-:{i.x}:10},{-:{i.y}:10}]}}",
-                                                "origin":[0.5,0.5],
-                                                "fill": [255,255,255,50],
-                                                "color":[255,255,255,50]
-                                            }
-                                        ]
+                                        "type":"condition",
+                                        "var":"{||:{>:{j.x}:0}:{>:{j.y}:0}}",
+                                        "then": {
+                                            "type":"collection",
+                                            "children":[
+                                                {
+                                                    "type":"circle",
+                                                    "radius":5,
+                                                    "pos":"{subVector:{2hud:[{j.x},{j.y}]}:{2hud:[{-:{i.x}:10},{-:{i.y}:10}]}}",
+                                                    "origin":[0.5,0.5],
+                                                    "fill": [255,255,255,50],
+                                                    "color":[255,255,255,50]
+                                                }
+                                            ]
+                                        }
                                     }
                                 }
                             }
@@ -133,6 +135,9 @@
                             "var":"{i.pts}",
                             "as":"j",
                             "do": {
+                                "type":"condition",
+                                "var":"{||:{>:{j.x}:0}:{>:{j.y}:0}}",
+                                "then": {
                                 "type":"collection",
                                 "children":[
                                     {
@@ -155,6 +160,7 @@
                                         "font":{"size":0.5,"align":"center"}
                                     }
                                 ]
+                                }
                             }
                         },
                         "else": {
@@ -168,7 +174,7 @@
 
                     {
                         "type":"label",
-                        "text":"<sym>🖰</sym> <c>{if:{equal:{i.type}:1}:POSE:BOX}</c> annotation <c>[{int:{i.x}},{int:{i.y}} {int:{i.w}}x{int:{i.h}}]</c>",
+                        "text":"<sym>🖰</sym> {i.clid} <c>{if:{equal:{i.type}:1}:POSE:BOX}</c> annotation <c>[{int:{i.x}},{int:{i.y}} {int:{i.w}}x{int:{i.h}}]</c> {i.pts}",
                         "length":120,
                         "color":[255,0,0],
                         "font":{"size":0.6},
@@ -234,7 +240,8 @@
                 "pos":[10,90],
                 "fill":[30,30,30,220],
                 "line":"{primary_selection.color}",
-                "pad":[10,5,10,5],
+                "outer_pad":[10,0,10,0],
+                "pad":[0,5,0,5],
                 "clickable":true,
                 "name":"info_box",
                 "children": [
@@ -273,11 +280,6 @@
                             "type":"vlayout",
                             "pad":[5,0,0,-1],
                             "children":[
-                                {
-                                    "type":"rect",
-                                    "size":[0,5],
-                                    "fill":[0,0,0,0]
-                                },
                                 {
                                     "type":"stext",
                                     "text":"<c><white>categorization</white></c>",
@@ -334,7 +336,7 @@
                                     "var":"{primary_selection.is_automatic}",
                                     "then": {
                                         "type":"vlayout",
-                                        "pad":[5,0,5,2],
+                                        "outer_pad":[5,0,5,5],
                                         "max_size":"[{infocard_width},0]",
                                         "fill":"{if:{||:{selected}:{hovered}}:[20,50,20,200]:[20,50,20,200]}",
                                         "children":[
@@ -373,17 +375,12 @@
                                                 "fill":"{if:{||:{selected}:{hovered}}:[20,20,20,200]:[10,10,10,200]}",
                                                 "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
                                                 "color":"{if:{||:{selected}:{hovered}}:[225,225,225,255]:[200,200,200,255]}"
-                                            },
-                                            {
-                                                "type":"rect",
-                                                "size":[0,5],
-                                                "fill":[0,0,0,0]
                                             }
                                         ]
                                     },
                                     "else": {
                                         "type":"vlayout",
-                                        "pad":[5,0,5,2],
+                                        "outer_pad":[5,0,5,5],
                                         "max_size":"[{infocard_width},0]",
                                         "corners":["bottom"],
                                         "clickable":true,
@@ -424,11 +421,6 @@
                                                 "fill":"{if:{||:{selected}:{hovered}}:[20,20,20,200]:[10,10,10,200]}",
                                                 "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
                                                 "color":"{if:{||:{selected}:{hovered}}:[225,225,225,255]:[200,200,200,255]}"
-                                            },
-                                            {
-                                                "type":"rect",
-                                                "size":[0,5],
-                                                "fill":[0,0,0,0]
                                             }
                                         ]
                                     }
@@ -470,6 +462,7 @@
                                             "vertical_clr":[0,0,0,30],
                                             "horizontal_clr":[10,50,80,80],
                                             "halign":"left",
+                                            "outer_pad":[5,0,0,5],
                                             "children": [
                                                 [
                                                     {
@@ -608,6 +601,7 @@
                                             "children":[
                                                 {
                                                     "type":"gridlayout",
+                                                    "pad":[0,0,0,-1],
                                                     "children":[
                                                         [
                                                             {
@@ -726,7 +720,8 @@
                                             },
                                             "then": {
                                                 "type":"vlayout",
-                                                "pad":[0,5,0,0],
+                                                "outer_pad":[5,3,0,3],
+                                                "pad":[0,0,0,5],
                                                 "children":[
                                                     {
                                                         "type":"each",
@@ -737,10 +732,6 @@
                                                             "max_size":"[{infocard_width}, 0]",
                                                             "text":" {if:{equal:{index}:0}:<gray><sym>⮩</sym></gray> :'<small>   </small>'}{if:{>=:{index}:{global.match_topk}}:<gray>:''}bdx[<lightgray>{round:{at:0:{i}}:2}</lightgray>]: <cyan>{round:{at:1:{i}}:2}</cyan>{if:{global.gui_show_detailed_probabilities}:' t=<cyan>{round:{at:2:{i}}:2}</cyan>':''}{if:{>=:{index}:{global.match_topk}}:</gray>:''}"
                                                         }
-                                                    },
-                                                    {
-                                                        "type":"rect",
-                                                        "size":[0,5]
                                                     }
                                                 ]
                                             }
@@ -758,6 +749,7 @@
             "type":"hlayout",
             "z-index":1,
             "pad":[5,0,0,0],
+            "outer_pad":[0,0,0,0],
             "pos":"[{-:{window_size.x}:10},6]",
             "origin":[1,0],
             "children":[
@@ -982,6 +974,16 @@
                                     "action":"export_data"
                                 },
                                 {
+                                    "text":"Export annotations",
+                                    "detail":"exports YOLO/COCO annotation datasets",
+                                    "action":"export_annotations"
+                                },
+                                {
+                                    "text":"Import annotations",
+                                    "detail":"imports YOLO or COCO annotation datasets into track_annotations",
+                                    "action":"import_annotations"
+                                },
+                                {
                                     "text":"<sym>🛠</sym> Save config",
                                     "detail":"writes parameters to a .settings file",
                                     "action":"write_config"
@@ -1045,14 +1047,26 @@
         
         {
             "type":"vlayout",
-            "pad":[0,10,0,0],
+            "outer_pad":[0,10,0,0],
+            "pad":[0,0,0,7],
             "children":[
                 
                 {
                     "type":"hlayout",
-                    "pad":[10,-7,0,5],
+                    "outer_pad":[12,0,0,0],
+                    "pad":[0,0,10,0],
                     "children":[
-                        
+
+                        {
+                            "type":"stext",
+                            "clickable":true,
+                            "name":"info_symbol",
+                            "text":"<sym>🛈</sym>",
+                            "shadow":0.5,
+                            "color":"{if:{hovered}:[250,250,250,250]:[200,200,200,100]}",
+                            "pad":[-5,-2,0,7.5]
+                        },
+
                         {
                             "type":"condition",
                             "var":"{equal:{global.video_length}:{tracker.end}}",
@@ -1072,16 +1086,6 @@
                                 "line":[100,100,100,0],
                                 "color":"{if:{is_paused}:[30,80,30,100]:[200,120,80,100]}"
                             }
-                        },
-
-                        {
-                            "type":"stext",
-                            "clickable":true,
-                            "name":"info_symbol",
-                            "text":"<sym>🛈</sym>",
-                            "shadow":0.5,
-                            "color":"{if:{hovered}:[250,250,250,250]:[200,200,200,100]}",
-                            "pad":[-5,0,0,7.5]
                         },
                         
                         {
@@ -1116,6 +1120,7 @@
                             "line": [255,255,255,220],
                             "clickable":true,
                             "name":"timeline_outline",
+                            "click": "set:gui_frame:{min:{length}:{*:{/:{-:{mouse.x}:10}:{-:{window_size.x}:22}}:{-:{global.video_length}:0.5}}}",
                             "drag": "set:gui_frame:{min:{length}:{*:{/:{-:{mouse.x}:10}:{-:{window_size.x}:22}}:{-:{global.video_length}:0.5}}}"
                         },
                         {
@@ -1126,7 +1131,7 @@
                             "line": [0,0,0,0],
                             "name":"timeline_left_border",
                             "clickable":true,
-                            "drag": "set:gui_frame:0"
+                            "click": "set:gui_frame:0"
                         },
                         {
                             "type": "rect",
@@ -1136,7 +1141,7 @@
                             "line": [255,255,255,0],
                             "name": "timeline_right_border",
                             "clickable":true,
-                            "drag": "set:gui_frame:{length}"
+                            "click": "set:gui_frame:{length}"
                         },
                         
                         {

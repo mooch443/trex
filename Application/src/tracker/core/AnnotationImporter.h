@@ -1,0 +1,97 @@
+#pragma once
+
+#include <commons.pc.h>
+#include <core/AnnotationDataset.h>
+#include <core/AnnotationExporter.h>
+#include <core/DetectionTypes.h>
+#include <file/PathArray.h>
+
+namespace track::annotation_import {
+
+ENUM_CLASS(merge_mode_t, add, replace)
+using MergeMode = merge_mode_t::Class;
+
+// Whether to import annotations only for the currently open video, or for every
+// video (source) contained in the dataset.
+ENUM_CLASS(import_scope_t, current_video, all_videos)
+using ImportScope = import_scope_t::Class;
+
+using Format = annotation_dataset::Format;
+
+ENUM_CLASS(task_t, unknown, boxes, segmentation, pose, mixed)
+using Task = task_t::Class;
+
+struct FrameIndexParseResult {
+    std::optional<cmn::Frame_t> source_index;
+    std::string error;
+
+    bool has_value() const { return source_index.has_value(); }
+    bool requires_csv() const { return !source_index.has_value(); }
+};
+
+struct ImportOptions {
+    Format format{annotation_dataset::format_t::yolo};
+    cmn::file::Path dataset_file;
+    cmn::file::Path frame_mapping_csv;
+    AnnotationMap existing_annotations;
+    MergeMode mode{merge_mode_t::add};
+    cmn::Size2 video_size;
+    std::string current_source_basename;
+    std::string selected_source_basename;
+    std::optional<cmn::Frame_t> converted_length;
+    std::optional<cmn::Frame_t> source_start;
+    std::optional<cmn::Frame_t> source_end;
+    cmn::blob::MaybeObjectClass_t current_class_names;
+    std::vector<std::string> current_keypoint_names;
+    std::optional<cmn::blob::Pose::Skeletons> current_skeletons;
+    track::detect::ObjectDetectionFormat_t current_detect_format{track::detect::ObjectDetectionFormat::none};
+};
+
+struct MetadataChanges {
+    cmn::blob::ObjectClass_t imported_class_names;
+    std::vector<std::string> imported_keypoint_names;
+    std::optional<cmn::blob::Pose::Skeletons> imported_skeletons;
+    track::detect::ObjectDetectionFormat_t imported_detect_format{track::detect::ObjectDetectionFormat::none};
+    bool class_names_changed{false};
+    bool keypoint_names_changed{false};
+    bool skeletons_changed{false};
+    bool detect_format_changed{false};
+
+    bool has_changes() const { return class_names_changed || keypoint_names_changed || skeletons_changed || detect_format_changed; }
+};
+
+struct ImportPreview {
+    cmn::file::Path dataset_file;
+    Task task{task_t::unknown};
+    AnnotationMap annotations;
+    AnnotationMap::SourceMap_t source_annotations;
+    std::vector<std::string> source_choices;
+    std::string auto_source_basename;
+    std::string selected_source_basename;
+    annotation_export::TypeCounts counts;
+    size_t image_count{0};
+    size_t annotated_frames{0};
+    size_t mapped_from_filenames{0};
+    size_t mapped_from_csv{0};
+    size_t skipped_other_sources{0};
+    MetadataChanges metadata;
+    std::vector<std::string> errors;
+    std::vector<std::string> warnings;
+
+    bool can_import() const { return errors.empty() && (!annotations.empty() || !source_annotations.empty()); }
+};
+
+/// Parses supported dataset image frame-id stems:
+/// frame_000123, frame-000123, source_000123, source-000123,
+/// source_index_000123, source-index-000123, 000123, and suffix forms such
+/// as frame_000123_aug0 or 0086_jpg.rf.hash. Callers should strip any known
+/// source-video prefix before invoking this so digits in the video basename
+/// are not considered frame ids.
+FrameIndexParseResult parse_source_index_from_image_stem(std::string_view stem);
+ImportPreview preview_yolo_import(const ImportOptions&);
+ImportPreview preview_coco_import(const ImportOptions&);
+ImportPreview preview_dataset_import(const ImportOptions&);
+AnnotationMap apply_dataset_import(const ImportPreview&, const AnnotationMap&, MergeMode, ImportScope = import_scope_t::all_videos);
+AnnotationMap apply_yolo_import(const ImportPreview&, const AnnotationMap&, MergeMode, ImportScope = import_scope_t::all_videos);
+
+}

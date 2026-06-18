@@ -2,6 +2,8 @@
 // Do not edit by hand.
 
 #include <core/AbstractVideoSource.h>
+#include <core/AnnotationDataset.h>
+#include <core/AnnotationExporter.h>
 #include <core/BaslerVideoSource.h>
 #include <core/BackgroundTask.h>
 #include <core/BlurryVideoLoop.h>
@@ -23,6 +25,7 @@
 #include <core/TaskPipeline.h>
 #include <core/SettingsPaths.h>
 #include <core/SettingsInitializer.h>
+#include <core/TileCoordinates.h>
 #include <core/TileImage.h>
 #include <core/TileBuffers.h>
 #include <core/TimingStatsCollector.h>
@@ -32,3 +35,4 @@
 #include <core/VideoVideoSource.h>
 #include <core/WebcamVideoSource.h>
 #include <core/Network.h>
+#include <core/annotation.h>

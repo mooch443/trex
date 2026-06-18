@@ -847,6 +847,8 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("gui_show_histograms", false, "Equivalent to the checkbox visible in GUI on the bottom-left.");
         CONFIG("gui_show_posture", false, "Show/hide the posture window on the top-right.");
         CONFIG("gui_show_export_options", false, "Show/hide the export options widget.");
+        CONFIG("gui_show_annotation_export_options", false, "Show/hide the annotation dataset export widget.");
+        CONFIG("gui_show_annotation_import_options", false, "Show/hide the annotation dataset import widget.");
         CONFIG("gui_show_visualfield_ts", false, "Show/hide the visual field time series.");
         CONFIG("gui_show_visualfield", false, "Show/hide the visual field rays.");
         CONFIG("gui_show_uniqueness", false, "Show/hide uniqueness overview after training.");
@@ -1130,7 +1132,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("region_model", file::Path(), "The path to a .pt file that contains a valid PyTorch object detection model used for region proposal (currently only YOLO networks are supported).");
         CONFIG("region_resolution", track::detect::DetectResolution{}, "The resolution of the region proposal network (`region_model`).", SYSTEM, {track::detect::DetectResolution{640, 640}});
         CONFIG("detect_resolution", track::detect::DetectResolution{}, "The input resolution of the object detection model (`detect_model`).", SYSTEM, {track::detect::DetectResolution{640, 640}});
-        CONFIG("detect_iou_threshold", std::optional<Float2_t>{}, "Optional IoU threshold override for object detection / segmentation networks. If unset, TRex preserves the upstream model's default postprocessing behaviour. If set, TRex forwards the IoU threshold explicitly and may disable end-to-end NMS-free inference so the override can affect the outcome.");
+        CONFIG("detect_iou_threshold", std::optional<Float2_t>{0.5_F}, "Optional IoU threshold override for object detection / segmentation networks. If unset, TRex preserves the upstream model's default postprocessing behaviour. If set, TRex forwards the IoU threshold explicitly and may disable end-to-end NMS-free inference so the override can affect the outcome.");
         CONFIG("detect_conf_threshold", Float2_t(0.1), "Confidence threshold (`0<=value<1`) for object detection / segmentation networks. Confidence is higher if the network is more *sure* about the object. Anything with a confidence level below `detect_conf_threshold` will not be considered an object and not saved to the PV file during conversion.");
         CONFIG("gpu_min_iterations", uchar(100), "Minimum number of iterations per epoch for training a recognition network.");
         CONFIG("gpu_max_cache", float(2), "Size of the image cache (transferring to GPU) in GigaBytes when applying the network.");

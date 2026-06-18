@@ -1,0 +1,262 @@
+{
+  "defaults": {
+    "vars": {
+      "label_height": 37,
+      "content_width": 620
+    }
+  },
+  "objects": [
+    {
+      "type": "vlayout",
+      "fill": [20, 20, 20, 220],
+      "line": [230, 230, 230, 220],
+      "pos": [0, 0],
+      "pad":[0,0,0,10],
+      "clickable": true,
+      "outer_pad": [25, 20, 25, 20],
+      "children": [
+        {
+          "type": "stext",
+          "text": "<h3>Export annotation dataset</h3>\n<i><lightgray>Export annotated frames from the source video as a training dataset.</lightgray></i>",
+          "max_size": "[{content_width}, 60]",
+          "font": {"size": 0.55},
+          "color": [255, 255, 255]
+        },
+        {
+          "type": "gridlayout",
+          "outer_pad":[10,10,10,10],
+          "pad": [0,5,0,5],
+          "fill": [30, 30, 30, 100],
+          "line": [100, 100, 100, 250],
+          "vertical_clr": [100, 100, 100, 100],
+          "horizontal_clr": [100, 100, 100, 100],
+          "cellfillclr": [0, 0, 0, 0],
+          "celllineclr": [0, 0, 0, 0],
+          "mincellsize": "[0, {label_height}]",
+          "children": [
+            [
+              {
+                "type": "stext",
+                "text": "<gray><b>Format</b>\n<small>dataset annotation format</small></gray>",
+                "font": {"size": 0.5},
+                "pad": [10, 3, 10, 5]
+              },
+              {
+                "type": "hlayout",
+                "outer_pad": [0, 0, -1, 0],
+                "children": [
+                  {
+                    "type": "button",
+                    "text": "{if:{equal:{info.format}:yolo}:<b>YOLO</b>:YOLO}",
+                    "action": "set-format:yolo",
+                    "corners": ["left"],
+                    "size": "[86,{label_height}]",
+                    "font": {"size": 0.5},
+                    "fill": "{if:{equal:{info.format}:yolo}:[55,85,70,230]:[45,45,45,200]}",
+                    "line": "{if:{equal:{info.format}:yolo}:[120,210,160,220]:[120,120,120,90]}"
+                  },
+                  {
+                    "type": "button",
+                    "text": "{if:{equal:{info.format}:coco}:<b>COCO</b>:COCO}",
+                    "action": "set-format:coco",
+                    "corners": ["right"],
+                    "size": "[86,{label_height}]",
+                    "font": {"size": 0.5},
+                    "fill": "{if:{equal:{info.format}:coco}:[55,85,70,230]:[45,45,45,200]}",
+                    "line": "{if:{equal:{info.format}:coco}:[120,210,160,220]:[120,120,120,90]}"
+                  }
+                ]
+              }
+            ],
+            [
+              {
+                "type": "stext",
+                "text": "<gray><b>Source video</b>\n<small>images are extracted from here</small></gray>",
+                "font": {"size": 0.5},
+                "pad": [10, 3, 10, 4]
+              },
+              {
+                "type": "hlayout",
+                "outer_pad": [0, 0, -1, 0],
+                "children": [
+                  {
+                    "type": "settings",
+                    "var": "meta_source_path",
+                    "desc": "",
+                    "corners": ["left"],
+                    "size": "[370,{label_height}]",
+                    "font": {"size": 0.45},
+                    "fill": "{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                    "line": "{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                    "color": [255, 255, 255]
+                  },
+                  {
+                    "type": "button",
+                    "text": "<sym>🗁</sym>",
+                    "action": "choose-file:meta_source_path:{folder:{global.meta_source_path}}",
+                    "corners": ["right"],
+                    "size": "[40, {label_height}]",
+                    "pad": [1, 0, 0, 0],
+                    "font": {"align": "center", "size": 0.8, "style": "bold"},
+                    "fill": "{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                    "line": "{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}"
+                  }
+                ]
+              }
+            ],
+            [
+              {
+                "type": "stext",
+                "text": "<gray><b>Background %</b>\n<small>extra images without annotations</small></gray>",
+                "font": {"size": 0.5},
+                "pad": [10, 3, 10, 4]
+              },
+              {
+                "type": "textfield",
+                "text": "{info.background_percent}",
+                "action": "set-background-percent:{text}",
+                "on_text_changed": "set-background-percent:{text}",
+                "size": "[410,{label_height}]",
+                "font": {"size": 0.48},
+                "fill": [50, 50, 50, 200],
+                "line": [100, 100, 100, 50],
+                "color": [255, 255, 255],
+                "placeholder": "0"
+              }
+            ],
+            [
+              {
+                "type": "stext",
+                "text": "<gray><b>Folder suffix</b>\n<small>appended to the output folder</small></gray>",
+                "font": {"size": 0.5},
+                "pad": [10, 3, 10, 4]
+              },
+              {
+                "type": "textfield",
+                "text": "{info.suffix}",
+                "action": "set-suffix:{text}",
+                "on_text_changed": "set-suffix:{text}",
+                "size": "[410,{label_height}]",
+                "font": {"size": 0.48},
+                "fill": [50, 50, 50, 200],
+                "line": [100, 100, 100, 50],
+                "color": [255, 255, 255],
+                "placeholder": "optional"
+              }
+            ]
+          ]
+        },
+        {
+          "type": "condition",
+          "var": "{info.multiple_types}",
+          "then": {
+            "type": "gridlayout",
+            "pad": [8, 6, 8, 6],
+            "fill": [30, 30, 30, 100],
+            "line": [100, 100, 100, 250],
+            "vertical_clr": [100, 100, 100, 100],
+            "horizontal_clr": [100, 100, 100, 100],
+            "cellfillclr": [0, 0, 0, 0],
+            "celllineclr": [0, 0, 0, 0],
+            "mincellsize": "[0, {label_height}]",
+            "children": [
+              [
+                {
+                  "type": "stext",
+                  "text": "<gray><b>Include</b>\n<small>annotation types to export</small></gray>",
+                  "font": {"size": 0.5},
+                  "pad": [10, 3, 10, 4]
+                },
+                {
+                  "type": "hlayout",
+                  "outer_pad": [0, 0, -1, 0],
+                  "children": [
+                    {
+                      "type": "button",
+                      "text": "BOX ({info.boxes})",
+                      "action": "toggle-type:box",
+                      "corners": ["left"],
+                      "size": "[110, {label_height}]",
+                      "font": {"size": 0.45},
+                      "fill": "{if:{info.export_boxes}:[55,85,70,230]:[45,45,45,200]}",
+                      "line": "{if:{info.export_boxes}:[120,210,160,220]:[120,120,120,90]}"
+                    },
+                    {
+                      "type": "button",
+                      "text": "SEGMENTATION ({info.segmentations})",
+                      "action": "toggle-type:segmentation",
+                      "corners": ["none"],
+                      "size": "[180, {label_height}]",
+                      "font": {"size": 0.45},
+                      "fill": "{if:{info.export_segmentations}:[55,85,70,230]:[45,45,45,200]}",
+                      "line": "{if:{info.export_segmentations}:[120,210,160,220]:[120,120,120,90]}"
+                    },
+                    {
+                      "type": "button",
+                      "text": "POSE ({info.poses})",
+                      "action": "toggle-type:pose",
+                      "corners": ["right"],
+                      "size": "[110, {label_height}]",
+                      "font": {"size": 0.45},
+                      "fill": "{if:{info.export_poses}:[55,85,70,230]:[45,45,45,200]}",
+                      "line": "{if:{info.export_poses}:[120,210,160,220]:[120,120,120,90]}"
+                    }
+                  ]
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "type": "condition",
+          "var": "{info.has_annotations}",
+          "then": {
+            "type": "stext",
+            "text": "{info.summary}",
+            "max_size": "[{content_width}, 150]",
+            "pad": [8, 12, 8, 8],
+            "font": {"size": 0.48},
+            "color": [235, 235, 235]
+          },
+          "else": {
+            "type": "stext",
+            "text": "<gray>There are no annotations to export yet. Draw annotations in the tracking view first (<c>track_annotations</c> is empty).</gray>",
+            "max_size": "[{content_width}, 150]",
+            "pad": [8, 12, 8, 8],
+            "font": {"size": 0.48},
+            "color": [235, 235, 235]
+          }
+        },
+        {
+          "type": "hlayout",
+          "pad": [0, 10, 0, 0],
+          "children": [
+            {
+              "type": "button",
+              "text": "Close",
+              "action": "close",
+              "font": {"size": 0.5, "style": "bold"},
+              "fill": "{if:{||:{selected}:{hovered}}:[70,45,45,220]:[50,35,35,210]}",
+              "line": "{if:{||:{selected}:{hovered}}:[230,160,150,220]:[120,100,100,90]}",
+              "size": [90, 32]
+            },
+            {
+              "type": "condition",
+              "var": "{info.has_annotations}",
+              "then": {
+                "type": "button",
+                "text": "Export",
+                "action": "export",
+                "disabled": "{not:{info.can_export}}",
+                "font": {"size": 0.5, "style": "bold"},
+                "fill": "{if:{||:{selected}:{hovered}}:[55,90,60,230]:[45,75,50,220]}",
+                "line": "{if:{||:{selected}:{hovered}}:[120,220,150,230]:[100,120,100,100]}",
+                "size": [90, 32]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

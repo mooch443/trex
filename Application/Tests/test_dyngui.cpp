@@ -10,6 +10,7 @@
 #include <gui/dyn/ResolveVariable.h>
 #include <gui/types/ListItemTypes.h>
 #include <gui/types/ScrollableList.h>
+#include <gui/types/Layout.h>
 #include <gui/types/StaticText.h>
 #include <gui/dyn/UnresolvedStringPattern.h>   // for ResolveStringPattern tests
 #include <type_traits>
@@ -162,6 +163,182 @@ TEST(TestDerivedPtr, Convert) {
     ASSERT_TRUE(button != button2);
     ASSERT_TRUE(button2 != direct_drawable);
     ASSERT_FALSE(direct_drawable == button2);
+}
+
+TEST(LayoutOuterPadding, HorizontalCenterUsesInnerPaddedArea) {
+    DrawStructure graph(640, 480);
+    auto child = Layout::Make<Rect>{Box{0, 0, 10, 20}}();
+    HorizontalLayout layout(
+        std::vector<Layout::Ptr>{child},
+        OuterPadding{0, 10, 0, 30},
+        HorizontalLayout::Policy::CENTER);
+
+    layout.set_stage(&graph);
+    layout.set_content_changed(true);
+    layout.update();
+
+    EXPECT_FLOAT_EQ(layout.height(), 60);
+    EXPECT_FLOAT_EQ(child->pos().y, 10);
+}
+
+TEST(LayoutOuterPadding, VerticalCenterUsesInnerPaddedArea) {
+    DrawStructure graph(640, 480);
+    auto child = Layout::Make<Rect>{Box{0, 0, 20, 10}}();
+    VerticalLayout layout(
+        std::vector<Layout::Ptr>{child},
+        OuterPadding{10, 0, 30, 0},
+        VerticalLayout::Policy::CENTER);
+
+    layout.set_stage(&graph);
+    layout.set_content_changed(true);
+    layout.update();
+
+    EXPECT_FLOAT_EQ(layout.width(), 60);
+    EXPECT_FLOAT_EQ(child->pos().x, 10);
+}
+
+TEST(LayoutOuterPadding, PlainAutoSizeIncludesPaddingWithoutMovingChildren) {
+    auto child = Layout::Make<Rect>{Box{7, 11, 13, 17}}();
+    Layout layout(
+        std::vector<Layout::Ptr>{child},
+        OuterPadding{3, 5, 19, 23});
+
+    layout.auto_size();
+
+    EXPECT_FLOAT_EQ(layout.width(), 42);
+    EXPECT_FLOAT_EQ(layout.height(), 56);
+    EXPECT_FLOAT_EQ(child->pos().x, 7);
+    EXPECT_FLOAT_EQ(child->pos().y, 11);
+}
+
+TEST(LayoutOuterPadding, EmptyGridSizesToPadding) {
+    DrawStructure graph(640, 480);
+    GridLayout grid(OuterPadding{3, 5, 7, 11});
+
+    grid.set_stage(&graph);
+    grid.set_content_changed(true);
+    grid.update();
+
+    EXPECT_FLOAT_EQ(grid.width(), 10);
+    EXPECT_FLOAT_EQ(grid.height(), 16);
+}
+
+TEST(LayoutOuterPadding, SingleGridCellBoundsIncludeAllEdgePadding) {
+    DrawStructure graph(640, 480);
+    auto cell_child = Layout::Make<Rect>{Box{0, 0, 20, 10}}();
+    auto cell = Layout::Make<HorizontalLayout>{std::vector<Layout::Ptr>{cell_child}, attr::Margins{0, 0, 0, 0}}();
+    cell.to<Layout>()->set_stage(&graph);
+    cell.to<Layout>()->set_content_changed(true);
+    cell.to<Layout>()->update();
+    auto row = Layout::Make<Layout>{std::vector<Layout::Ptr>{cell}, attr::Margins{0, 0, 0, 0}}();
+    GridLayout grid(
+        std::vector<Layout::Ptr>{row},
+        attr::Margins{0, 0, 0, 0},
+        OuterPadding{3, 5, 7, 11});
+
+    grid.set_stage(&graph);
+    grid.set_content_changed(true);
+    grid.update();
+
+    ASSERT_EQ(grid.grid_info().rowCount(), 1u);
+    ASSERT_EQ(grid.grid_info().colCount(), 1u);
+
+    const auto bounds = grid.grid_info().getCellBounds(0, 0);
+    EXPECT_FLOAT_EQ(bounds.x, 0);
+    EXPECT_FLOAT_EQ(bounds.y, 0);
+    EXPECT_FLOAT_EQ(bounds.width, 30);
+    EXPECT_FLOAT_EQ(bounds.height, 26);
+}
+
+TEST(LayoutOuterPadding, GridIgnoresEmptyCellsForEdgePaddingAndMargins) {
+    DrawStructure graph(640, 480);
+
+    /// fully empty
+    auto zero_cell = Layout::Make<HorizontalLayout>{
+        std::vector<Layout::Ptr>{},
+        attr::Margins{0, 0, 0, 0}
+    }();
+    auto visible_child = Layout::Make<Rect>{Box{0, 0, 20, 10}}();
+    auto visible_cell = Layout::Make<HorizontalLayout>{
+        std::vector<Layout::Ptr>{visible_child},
+        attr::Margins{0, 0, 0, 0}
+    }();
+    visible_cell.to<Layout>()->set_stage(&graph);
+    visible_cell.to<Layout>()->set_content_changed(true);
+    visible_cell.to<Layout>()->update();
+
+    auto row = Layout::Make<Layout>{
+        std::vector<Layout::Ptr>{zero_cell, visible_cell},
+        attr::Margins{0, 0, 0, 0}
+    }();
+    GridLayout grid(
+        std::vector<Layout::Ptr>{row},
+        attr::Margins{2, 3, 4, 5},
+        OuterPadding{7, 11, 13, 17});
+
+    grid.set_stage(&graph);
+    grid.set_content_changed(true);
+    grid.update();
+
+    ASSERT_EQ(grid.grid_info().rowCount(), 1u);
+    ASSERT_EQ(grid.grid_info().colCount(), 2u);
+
+    const auto zero_bounds = grid.grid_info().getCellBounds(0, 0);
+    EXPECT_FLOAT_EQ(zero_bounds.x, 0);
+    EXPECT_FLOAT_EQ(zero_bounds.width, 0);
+
+    const auto visible_bounds = grid.grid_info().getCellBounds(0, 1);
+    EXPECT_FLOAT_EQ(visible_bounds.x, 0);
+    EXPECT_FLOAT_EQ(visible_bounds.width, 20 + 2 + 4 + 7 + 13);
+    EXPECT_FLOAT_EQ(visible_cell->pos().x, 2);
+    EXPECT_FLOAT_EQ(grid.width(), 20 + 2 + 4 + 7 + 13);
+}
+
+TEST(LayoutOuterPadding, GridIgnoresZeroWidthCellsForEdgePaddingAndMargins) {
+    DrawStructure graph(640, 480);
+
+    /// visibly empty, but actually contains a rect
+    auto zero_cell = Layout::Make<HorizontalLayout>{
+        std::vector<Layout::Ptr>{
+            Layout::Make<Rect>{Box{0, 0, 0, 0}}(),
+            Layout::Make<Rect>{Box{0, 0, 0, 0}}()
+        },
+        attr::Margins{5, 5, 5, 5}
+    }();
+    auto visible_child = Layout::Make<Rect>{Box{0, 0, 20, 10}}();
+    auto visible_cell = Layout::Make<HorizontalLayout>{
+        std::vector<Layout::Ptr>{visible_child},
+        attr::Margins{0, 0, 0, 0}
+    }();
+    visible_cell.to<Layout>()->set_stage(&graph);
+    visible_cell.to<Layout>()->set_content_changed(true);
+    visible_cell.to<Layout>()->update();
+
+    auto row = Layout::Make<Layout>{
+        std::vector<Layout::Ptr>{zero_cell, visible_cell},
+        attr::Margins{0, 0, 0, 0}
+    }();
+    GridLayout grid(
+        std::vector<Layout::Ptr>{row},
+        attr::Margins{2, 3, 4, 5},
+        OuterPadding{7, 11, 13, 17});
+
+    grid.set_stage(&graph);
+    grid.set_content_changed(true);
+    grid.update();
+
+    ASSERT_EQ(grid.grid_info().rowCount(), 1u);
+    ASSERT_EQ(grid.grid_info().colCount(), 2u);
+
+    const auto zero_bounds = grid.grid_info().getCellBounds(0, 0);
+    EXPECT_FLOAT_EQ(zero_bounds.x, 0);
+    EXPECT_FLOAT_EQ(zero_bounds.width, 0);
+
+    const auto visible_bounds = grid.grid_info().getCellBounds(0, 1);
+    EXPECT_FLOAT_EQ(visible_bounds.x, 0);
+    EXPECT_FLOAT_EQ(visible_bounds.width, 20 + 2 + 4 + 7 + 13);
+    EXPECT_FLOAT_EQ(visible_cell->pos().x, 2);
+    EXPECT_FLOAT_EQ(grid.width(), 20 + 2 + 4 + 7 + 13);
 }
 
 // Unit Tests

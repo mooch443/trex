@@ -46,11 +46,12 @@
     "fill":"{if:{is_small_window}:[0,0,0,0]:[0,0,0,50]}",
     "pos":"{if:{is_small_window}:[0,0]:[{*:{window_size.x}:0.5},20]}",
     "origin":"{if:{is_small_window}:[0,0]:[0.5,0]}",
-    "pad":[20,0,0,5],
+    "outer_pad":[20,5,0,0],
+    "pad":[0,-1,0,0],
     "children":[
         {
             "type":"vlayout",
-            "pad":[0,20,0,-1],
+            "outer_pad":[0,5,0,5],
             "children":[
                 { "type":"stext",
                 "name":"title",
@@ -65,7 +66,7 @@
         },
         {
             "type":"hlayout",
-            "pad":[0,-10,-36,-1.5],
+            "outer_pad":[0,-10,-36,-1.5],
             "children":[
                 {
                     "type":"hlayout",
@@ -73,8 +74,7 @@
                     "corners" :["top"],
                     "origin":[0,0],
                     "clickable":true,
-                    "pad":[0,0,-1,0],
-                    "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
+                    "outer_pad":[0,0,-1,0],
                     "children":[
                         {
                             "type":"collection",
@@ -139,7 +139,8 @@
             "cellfillclr":[20,20,20,180],
             "line":[100,100,100,150],
             "mincellsize":[227,0],
-            "pad":[10,0,10,0],
+            "pad":[5,0,0,0],
+            "outer_pad":[0,0,0,0],
             "clickable":true,
             "halign":"left",
             "valign":"top",
@@ -207,7 +208,7 @@
                             },
                             {
                                 "type":"gridlayout",
-                                "pad":[0,5,5,0],
+                                "pad":[0,2,5,5],
                                 "halign":"left",
                                 "children":[
                                     [
@@ -328,7 +329,8 @@
                             },
                             {
                                 "type":"gridlayout",
-                                "pad":[0,0,0,0],
+                                "pad":[0,0,0,-1],
+                                "outer_pad":[5,0,10,0],
                                 "vertical_clr":[0,0,0,0],
                                 "horizontal_clr":[10,50,80,0],
                                 "cellfillclr":[60,60,60,150],
@@ -446,7 +448,8 @@
                         "children":[
                             {
                                 "type":"hlayout",
-                                "pad":[0,30,20,20],
+                                "outer_pad":[0,10,0,10],
+                                "pad":[10,10,0,0],
                                 "align":"top",
                                 "children":[
                                     {

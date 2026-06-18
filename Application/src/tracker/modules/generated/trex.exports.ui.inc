@@ -23,9 +23,7 @@ using ::cmn::gui::StaticText;
 // ui/AnimatedBackground.h
 using ::cmn::gui::AnimatedBackground;
 // ui/AnnotationScene.h
-using ::cmn::gui::Annotation;
 using ::cmn::gui::AnnotationScene;
-using ::cmn::gui::AnnotationType;
 using ::cmn::gui::AnnotationView;
 using ::cmn::gui::Bowl;
 using ::cmn::gui::Circle;
@@ -39,7 +37,6 @@ using ::cmn::gui::CalibrateScene;
 // ui/ConvertScene.h
 using ::cmn::gui::ConvertScene;
 using ::cmn::gui::Data;
-using ::cmn::gui::VideoInfo;
 // ui/Coordinates.h
 using ::cmn::gui::Base;
 using ::cmn::gui::BowlCoord;
@@ -47,6 +44,9 @@ using ::cmn::gui::BowlRect;
 using ::cmn::gui::FindCoord;
 using ::cmn::gui::HUDCoord;
 using ::cmn::gui::HUDRect;
+using ::cmn::gui::to_bowl;
+// ui/DrawAnnotationExportOptions.h
+using ::cmn::gui::DrawAnnotationExportOptions;
 // ui/DrawBlobView.h
 using ::cmn::gui::Dropdown;
 using ::cmn::gui::SectionInterface;
@@ -155,6 +155,16 @@ using ::cmn::gui::DrawPreviewImage::make_image;
 export namespace cmn::gui::attr {
 // ui/Scene.h
 using ::cmn::gui::attr::Dispatcher;
+}
+
+export namespace cmn::gui::convert {
+// ui/ConvertScene.h
+using ::cmn::gui::convert::VideoInfo;
+}
+
+export namespace cmn::gui::detail {
+// ui/GUIVideoAdapter.h
+using ::cmn::gui::detail::AllowDirectMakeArgs;
 }
 
 export namespace cmn::gui::dyn {

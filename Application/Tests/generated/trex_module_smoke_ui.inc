@@ -12,9 +12,7 @@ using ::cmn::VideoSource;
 }
 
 namespace trex_module_smoke::trex_ui::cmn::gui {
-using ::cmn::gui::Annotation;
 using ::cmn::gui::AnnotationScene;
-using ::cmn::gui::AnnotationType;
 using ::cmn::gui::AnnotationView;
 using ::cmn::gui::Bowl;
 using ::cmn::gui::Circle;
@@ -66,7 +64,10 @@ using ::track::FOIStatus;
 namespace trex_module_smoke::trex_ui::cmn::gui {
 using ::cmn::gui::ConvertScene;
 using ::cmn::gui::Data;
-using ::cmn::gui::VideoInfo;
+}
+
+namespace trex_module_smoke::trex_ui::cmn::gui::convert {
+using ::cmn::gui::convert::VideoInfo;
 }
 
 namespace trex_module_smoke::trex_ui::track {
@@ -81,6 +82,7 @@ using ::cmn::gui::BowlRect;
 using ::cmn::gui::FindCoord;
 using ::cmn::gui::HUDCoord;
 using ::cmn::gui::HUDRect;
+using ::cmn::gui::to_bowl;
 }
 
 // ui/DrawBlobView.h
@@ -104,6 +106,11 @@ using ::cmn::gui::tracker::set_clicked_blob_id;
 namespace trex_module_smoke::trex_ui::cmn::gui {
 using ::cmn::gui::DrawBorder;
 using ::cmn::gui::Drawable;
+}
+
+// ui/DrawAnnotationExportOptions.h
+namespace trex_module_smoke::trex_ui::cmn::gui {
+using ::cmn::gui::DrawAnnotationExportOptions;
 }
 
 // ui/DrawDataset.h
@@ -217,6 +224,10 @@ using ::cmn::gui::FrameTime;
 using ::cmn::gui::FrameTimeTag;
 using ::cmn::gui::GUIVideoAdapter;
 using ::cmn::gui::IMGUIBase;
+}
+
+namespace trex_module_smoke::trex_ui::cmn::gui::detail {
+using ::cmn::gui::detail::AllowDirectMakeArgs;
 }
 
 // ui/GUIVideoAdapterElement.h

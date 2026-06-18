@@ -5,7 +5,7 @@
 __attribute__((constructor))
 static void early_env_setup() {
     cmn::utf8loc::enable_utf8();
-    setenv("KMP_DUPLICATE_LIB_OK", "TRUE", 1);
+    //setenv("KMP_DUPLICATE_LIB_OK", "TRUE", 1);
 }
 #else
 #pragma section(".CRT$XCU", read)

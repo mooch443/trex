@@ -1,5 +1,8 @@
 set(TREX_CORE_PUBLIC_HEADERS
     ${CMAKE_CURRENT_LIST_DIR}/core/AbstractVideoSource.h
+    ${CMAKE_CURRENT_LIST_DIR}/core/AnnotationExporter.h
+    ${CMAKE_CURRENT_LIST_DIR}/core/AnnotationImporter.h
+    ${CMAKE_CURRENT_LIST_DIR}/core/AnnotationDataset.h
     ${CMAKE_CURRENT_LIST_DIR}/core/BaslerVideoSource.h
     ${CMAKE_CURRENT_LIST_DIR}/core/BackgroundTask.h
     ${CMAKE_CURRENT_LIST_DIR}/core/BlurryVideoLoop.h
@@ -40,6 +43,9 @@ set(TREX_CORE_PRIVATE_HEADERS
 
 set(TREX_CORE_SOURCES
     ${CMAKE_CURRENT_LIST_DIR}/core/AbstractVideoSource.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/core/AnnotationExporter.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/core/AnnotationImporter.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/core/AnnotationDataset.cpp
     ${CMAKE_CURRENT_LIST_DIR}/core/BaslerVideoSource.cpp
     ${CMAKE_CURRENT_LIST_DIR}/core/BackgroundTask.cpp
     ${CMAKE_CURRENT_LIST_DIR}/core/BlurryVideoLoop.cpp
@@ -184,6 +190,8 @@ set(TREX_UI_PUBLIC_HEADERS
     ${CMAKE_CURRENT_LIST_DIR}/ui/Coordinates.h
     ${CMAKE_CURRENT_LIST_DIR}/ui/DrawBlobView.h
     ${CMAKE_CURRENT_LIST_DIR}/ui/DrawBorder.h
+    ${CMAKE_CURRENT_LIST_DIR}/ui/DrawAnnotationExportOptions.h
+    ${CMAKE_CURRENT_LIST_DIR}/ui/DrawAnnotationImportOptions.h
     ${CMAKE_CURRENT_LIST_DIR}/ui/DrawDataset.h
     ${CMAKE_CURRENT_LIST_DIR}/ui/DrawExportOptions.h
     ${CMAKE_CURRENT_LIST_DIR}/ui/DrawFish.h
@@ -251,6 +259,8 @@ set(TREX_UI_SOURCES
     ${CMAKE_CURRENT_LIST_DIR}/ui/Coordinates.cpp
     ${CMAKE_CURRENT_LIST_DIR}/ui/DrawBlobView.cpp
     ${CMAKE_CURRENT_LIST_DIR}/ui/DrawBorder.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/ui/DrawAnnotationExportOptions.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/ui/DrawAnnotationImportOptions.cpp
     ${CMAKE_CURRENT_LIST_DIR}/ui/DrawDataset.cpp
     ${CMAKE_CURRENT_LIST_DIR}/ui/DrawExportOptions.cpp
     ${CMAKE_CURRENT_LIST_DIR}/ui/DrawFish.cpp

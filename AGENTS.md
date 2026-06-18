@@ -43,6 +43,52 @@ past-tense messages where each line starts with `* Added`, `* Updated`,
    - Each frame: call `dynGUI.update(graph, parent)` then process queued tasks.
    - Use `file::DataLocation::parse(...)` when layouts/assets are installed
      outside the build tree.
+
+### Dynamic GUI capabilities in this repo
+- Layout files use a top-level `"objects"` array plus optional `"defaults"`.
+  Most TRex layouts live beside `Application/src/tracker/tracking_layout.json`
+  and are good references for production patterns.
+- Built-in object types include `vlayout`, `hlayout`, `gridlayout`,
+  `collection`, `button`, `textfield`, `checkbox`, `settings`, `combobox`,
+  `list`, `each`, `condition`, `text`, `stext`, `rect`, `circle`, `line`, and
+  `image`. Some layouts also use custom registered module/object names; check
+  the owning scene/widget before assuming a type is globally built in.
+- Common object fields are `name`, `pos`, `size`, `scale`, `origin`, `pad`,
+  `outer_pad`, `fill`, `line`, `corners`, `color`, `font`, `max_size`,
+  `clickable`, `z-index`, and `modules`. Containers use `children`;
+  `gridlayout` uses row/cell child arrays.
+- `font` supports at least `size`, `style` (`regular`, `bold`, `italic`,
+  `mono`), and `align` (`left`, `right`, `center`, `vcenter`).
+- Text and most fields can contain dynamic expressions in `{...}`. Variables
+  come from `Context` `VarFunc`s, global settings are normally exposed as
+  `{global.setting_name}`, list/loop items default to `{i}`, and object fields
+  can be accessed with dotted paths like `{i.name}` or `{window_size.x}`.
+- Expression syntax is prefix-style and nestable. Existing layouts use
+  conditionals (`{if:cond:then:else}`), boolean operators (`{&&:...}`,
+  `{||:...}`, `{not:...}`), comparisons (`{equal:a:b}`, `{nequal:a:b}`,
+  `{<:a:b}`, `{>:a:b}`, `{>=:a:b}`), arithmetic (`{+:...}`, `{-:...}`,
+  `{*:...}`, `{/:...}`, `{mod:...}`, `{min:...}`, `{max:...}`), collection
+  access (`{at:index:value}`, `{array_length:value}`, `{concat:a:b}`), and
+  string/path helpers (`{lower:x}`, `{filename:x}`, `{basename:x}`,
+  `{shorten:x:n}`).
+- Actions are declared as strings such as `"action":"set:gui_run:true"` or
+  `"action":"import_annotations"`. The parser resolves expressions inside the
+  action name and parameters before calling the matching `ActionFunc`.
+- `button` triggers `action` on click. `textfield` triggers `action` on Enter
+  and `on_text_changed` while editing; the current text is available to the
+  action as `{text}`.
+- `condition` uses `"var"` plus `"then"` and optional `"else"` objects. `each`
+  uses `"var"` and `"do"`, with optional `"as"` to rename the loop item.
+- `list` supports either dynamic `"var"` plus `"template"` or static `"items"`.
+  Dynamic templates commonly expose `text`, `detail`, `tooltip`, `disabled`,
+  and `action`; if a list action has no explicit parameter, the selected row
+  index is passed by the list implementation.
+- `settings` binds directly to an existing setting named by `"var"` and can
+  render setting-specific controls. For new widget-local state, prefer exposing
+  a JSON object via a `VarFunc` and mutating C++ state through actions.
+- DynamicGUI is a renderer/action layer, not an ownership model. The C++
+  scene/widget should own state, validate inputs, catch exceptions from actions,
+  and expose derived preview/status data back to the layout via `VarFunc`.
 4. Scene workflow (TRex UI):
    - Implement `gui::Scene` objects that own state, draw UI, and respond to
      global events.
@@ -229,6 +275,7 @@ conda build -c conda-forge .
 - when fixing a bug, first reproduce the actual failure with a minimal viable test or local repro that matches the real issue. make sure that repro fails before changing production code, then fix the code until that same repro passes.
 - do not add speculative, broad, or low-value tests just to increase coverage. prefer the smallest targeted regression test for a real bug, and skip adding tests when they do not materially validate the reported failure.
 - Only use the Conda environment `trex` for environment-specific commands or instructions, or the `trex-modules` environment. Do not access or assume any other environment.
+- When building in `Application/build`, always use the Conda environment `trex` from the project root. Do not use `trex-modules` for `Application/build`.
 - when running Python commands in the `trex` environment for this repo, prefer `KMP_DUPLICATE_LIB_OK=TRUE conda run -n trex python ...` because duplicate `libomp` initialization can otherwise abort the process on macOS.
 - For commons monolith + modules work, run CMake/Ninja from `Application/tmp-modules-osx-tests-nolto` with the `trex-modules` Conda environment.
 - For commons shared-library split testing with modules disabled, use `tmp-shared-split-osx-tests-nolto` with Ninja in the `trex-modules` Conda environment.

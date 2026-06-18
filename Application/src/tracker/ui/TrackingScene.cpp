@@ -33,6 +33,8 @@
 #include <ui/InfoCard.h>
 #include <tracking/AutomaticMatches.h>
 #include <ui/DrawDataset.h>
+#include <ui/DrawAnnotationExportOptions.h>
+#include <ui/DrawAnnotationImportOptions.h>
 #include <ui/DrawExportOptions.h>
 #include <python/PythonWrapper.h>
 #include <tracking/MemoryStats.h>
@@ -65,6 +67,8 @@ struct TrackingScene::Data {
     ImageGeneratorRegistry _image_generators;
     std::unique_ptr<GUICache> _cache;
     std::unique_ptr<DrawDataset> _dataset;
+    std::unique_ptr<DrawAnnotationExportOptions> _annotation_export_options;
+    std::unique_ptr<DrawAnnotationImportOptions> _annotation_import_options;
     std::unique_ptr<DrawExportOptions> _export_options;
     std::unique_ptr<DrawUniqueness> _uniqueness;
     LabelCache_t _unassigned_labels;
@@ -1588,6 +1592,24 @@ void TrackingScene::_draw(DrawStructure& graph) {
     } else if(_data->_export_options) {
         _data->_export_options = nullptr;
     }
+
+    if(GUI_SETTINGS(gui_show_annotation_export_options)) {
+        if(not _data->_annotation_export_options)
+            _data->_annotation_export_options = std::make_unique<DrawAnnotationExportOptions>();
+        _data->_annotation_export_options->draw(graph);
+
+    } else if(_data->_annotation_export_options) {
+        _data->_annotation_export_options = nullptr;
+    }
+
+    if(GUI_SETTINGS(gui_show_annotation_import_options)) {
+        if(not _data->_annotation_import_options)
+            _data->_annotation_import_options = std::make_unique<DrawAnnotationImportOptions>();
+        _data->_annotation_import_options->draw(graph);
+
+    } else if(_data->_annotation_import_options) {
+        _data->_annotation_import_options = nullptr;
+    }
     
     if(GUI_SETTINGS(gui_show_uniqueness)) {
         if(not _data->_uniqueness) {
@@ -1782,6 +1804,12 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
             }),
             ActionFunc("export_data", [](Action){
                 SETTING(gui_show_export_options) = true;
+            }),
+            ActionFunc("export_annotations", [](Action){
+                SETTING(gui_show_annotation_export_options) = true;
+            }),
+            ActionFunc("import_annotations", [](Action){
+                SETTING(gui_show_annotation_import_options) = true;
             }),
             ActionFunc("python", [](Action action){
                 /**
