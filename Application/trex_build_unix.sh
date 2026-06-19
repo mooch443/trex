@@ -103,7 +103,10 @@ else
 
     MACOSX_DEPLOYMENT_TARGET=$(printenv MACOSX_DEPLOYMENT_TARGET)
     if [ ! $MACOSX_DEPLOYMENT_TARGET ]; then
-        MACOSX_DEPLOYMENT_TARGET="26.2"
+        MACOSX_DEPLOYMENT_TARGET=$(xcrun --sdk macosx --show-sdk-version 2>/dev/null)
+        if [ ! "$MACOSX_DEPLOYMENT_TARGET" ]; then
+            MACOSX_DEPLOYMENT_TARGET=$(sw_vers -productVersion | cut -d. -f1-2)
+        fi
         export MACOSX_DEPLOYMENT_TARGET=$MACOSX_DEPLOYMENT_TARGET
     fi
     echo "MACOSX_DEPLOYMENT_TARGET=$MACOSX_DEPLOYMENT_TARGET"
