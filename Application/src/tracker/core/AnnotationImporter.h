@@ -88,9 +88,9 @@ struct ImportPreview {
 /// source-video prefix before invoking this so digits in the video basename
 /// are not considered frame ids.
 FrameIndexParseResult parse_source_index_from_image_stem(std::string_view stem);
-ImportPreview preview_yolo_import(const ImportOptions&);
+ImportPreview preview_yolo_import(const ImportOptions&, ImportScope);
 ImportPreview preview_coco_import(const ImportOptions&);
-ImportPreview preview_dataset_import(const ImportOptions&);
+ImportPreview preview_dataset_import(const ImportOptions&, ImportScope);
 AnnotationMap apply_dataset_import(const ImportPreview&, const AnnotationMap&, MergeMode, ImportScope = import_scope_t::all_videos);
 AnnotationMap apply_yolo_import(const ImportPreview&, const AnnotationMap&, MergeMode, ImportScope = import_scope_t::all_videos);
 

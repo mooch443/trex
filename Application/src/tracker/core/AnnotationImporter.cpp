@@ -691,10 +691,10 @@ std::optional<Frame_t> to_annotation_frame(Frame_t source, const ImportOptions& 
 }
 
 Annotation::Point_t point_from_normalized(double x, double y, const Size2& size) {
-    if(x < -1e-6 || y < -1e-6 || x > 1.000001 || y > 1.000001)
-        throw InvalidArgumentException("Normalized point [", x, ", ", y, "] is outside [0, 1].");
-    const auto px = saturate(std::round(x * size.width), 0.0, double(std::numeric_limits<uint16_t>::max()));
-    const auto py = saturate(std::round(y * size.height), 0.0, double(std::numeric_limits<uint16_t>::max()));
+    if(round(x * size.width) <= -1 || round(y * size.height) <= -1 || round(x * size.width) > size.width || round(y * size.height) > size.height)
+        FormatWarning("Normalized point [", round(x * size.width), ", ", round(y * size.height), "] is outside ", size,".");
+    const auto px = saturate(std::round(x * size.width), 0.0, (double)size.width);
+    const auto py = saturate(std::round(y * size.height), 0.0, (double)size.height);
     return Annotation::Point_t(narrow_cast<uint16_t>(px), narrow_cast<uint16_t>(py));
 }
 
@@ -1014,7 +1014,7 @@ FrameIndexParseResult parse_source_index_from_image_stem(std::string_view input)
     };
 }
 
-ImportPreview preview_yolo_import(const ImportOptions& options) {
+ImportPreview preview_yolo_import(const ImportOptions& options, ImportScope scope) {
     ImportPreview preview;
     preview.dataset_file = options.dataset_file;
 
@@ -1058,32 +1058,51 @@ ImportPreview preview_yolo_import(const ImportOptions& options) {
             if(mapping->current_source) {
                 frame = to_annotation_frame(mapping->source_index, options, preview.errors, preview.warnings, image.path);
             }
+            
+            if(not frame
+               && scope == import_scope_t::current_video)
+                continue;
 
             if(!image.label_path.exists())
                 continue;
 
-            std::istringstream rows(image.label_path.read_file());
-            std::string row;
-            while(std::getline(rows, row)) {
-                row = std::string(utils::trim(row));
-                if(row.empty())
-                    continue;
-
-                try {
+            try {
+                std::vector<Annotation> parsed;
+                Task file_task{task_t::unknown};
+                std::istringstream rows(image.label_path.read_file());
+                std::string row;
+                while(std::getline(rows, row)) {
+                    row = std::string(utils::trim(row));
+                    if(row.empty())
+                        continue;
+                    
                     Task row_task{task_t::unknown};
                     auto annotation = parse_label_row(row, config, options.video_size, row_task);
-                    preview.task = combine_task(preview.task, row_task);
-                    auto& source_annotations = preview.source_annotations[source_key_for_mapping(*mapping, options)][mapping->source_index];
-                    annotation.uid = narrow_cast<uint8_t>(source_annotations.size());
-                    source_annotations.push_back(annotation);
-                    if(frame) {
-                        auto& frame_annotations = preview.annotations[*frame];
-                        annotation.uid = narrow_cast<uint8_t>(frame_annotations.size());
-                        frame_annotations.push_back(std::move(annotation));
-                    }
-                } catch(const std::exception& e) {
-                    preview.errors.push_back("Label " + image.label_path.str() + ": " + e.what());
+                    file_task = combine_task(file_task, row_task);
+                    parsed.push_back(std::move(annotation));
                 }
+
+                /// Only commit once the whole label file parsed cleanly. A single
+                /// malformed row must not leave already-parsed rows in
+                /// source_annotations while the frame is dropped from annotations
+                /// (which previously also desynced current_video vs all_videos).
+                if(not parsed.empty()) {
+                    preview.task = combine_task(preview.task, file_task);
+                    auto& source_annotations = preview.source_annotations[source_key_for_mapping(*mapping, options)][mapping->source_index];
+                    for(auto& annotation : parsed) {
+                        annotation.uid = narrow_cast<uint8_t>(source_annotations.size());
+                        source_annotations.push_back(annotation);
+                        if(frame) {
+                            auto& frame_annotations = preview.annotations[*frame];
+                            annotation.uid = narrow_cast<uint8_t>(frame_annotations.size());
+                            frame_annotations.push_back(std::move(annotation));
+                        }
+                    }
+                }
+                
+            } catch(const std::exception& e) {
+                
+                preview.warnings.push_back("Label " + image.label_path.str() + ": " + e.what());
             }
         }
 
@@ -1340,15 +1359,15 @@ ImportPreview preview_coco_import(const ImportOptions& options) {
     return preview;
 }
 
-ImportPreview preview_dataset_import(const ImportOptions& options) {
+ImportPreview preview_dataset_import(const ImportOptions& options, ImportScope scope) {
     return options.format == dataset::format_t::coco
         ? preview_coco_import(options)
-        : preview_yolo_import(options);
+        : preview_yolo_import(options, scope);
 }
 
 AnnotationMap apply_dataset_import(const ImportPreview& preview, const AnnotationMap& existing, MergeMode mode, ImportScope scope) {
     if(!preview.can_import())
-        throw InvalidArgumentException("Cannot import annotations: ", preview.errors);
+        throw InvalidArgumentException("Cannot import annotations: ", no_quotes(utils::ShortenText(Meta::toStr(preview.errors), 1000)));
 
     AnnotationMap result = mode == merge_mode_t::replace ? AnnotationMap{} : existing;
     for(const auto& [frame, annotations] : preview.annotations) {

@@ -164,15 +164,21 @@ vec_t get_vector() {
         return easy_cp_names_vector.value();
     }
     
-    std::unique_lock g(names_mutex);
-    auto& names = raw_names();
     std::vector<std::string_view> cp;
-    cp.reserve(names.size());
-    
-    for(auto &[key, value] : names)
-        cp.emplace_back(value);
-    
-    easy_cp_names_vector = cp;
+    std::unique_lock g(names_mutex);
+
+    if(names_owner.has_value()) {
+        auto& names = raw_names();
+        cp.reserve(names.size());
+        
+        for(auto &[key, value] : names)
+            cp.emplace_back(value);
+        
+        easy_cp_names_vector = cp;
+    } else {
+        easy_cp_names_vector.reset();
+    }
+
     return cp;
 }
 
@@ -188,14 +194,19 @@ map_t get_map() {
     }
     
     std::unique_lock g(names_mutex);
-    auto& names = raw_names();
-    std::map<uint16_t, std::string_view> cp;
-    
-    for(auto &[key, value] : names)
-        cp.emplace(key, value);
-    
-    easy_cp_names_reference = cp;
-    return cp;
+    if(names_owner.has_value()) {
+        auto& names = raw_names();
+        std::map<uint16_t, std::string_view> cp;
+        
+        for(auto &[key, value] : names)
+            cp.emplace(key, value);
+        
+        easy_cp_names_reference = cp;
+        return cp;
+    } else {
+        easy_cp_names_reference.reset();
+        return {};
+    }
 }
 
 std::optional<cmn::blob::Pose::Skeleton> get_skeleton(

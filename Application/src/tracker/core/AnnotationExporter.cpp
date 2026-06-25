@@ -52,8 +52,8 @@ void validate_annotation(const Annotation& annotation, const Size2& image_size, 
 
     switch(annotation.type) {
         case AnnotationType::BOX:
-            if(annotation.points.size() != 2)
-                throw InvalidArgumentException("BOX annotation needs exactly 2 points, got ", annotation.points.size(), ".");
+            if(annotation.points.size() < 2u)
+                throw InvalidArgumentException("BOX annotation needs at least 2 points, got ", annotation.points.size(), ".");
             break;
         case AnnotationType::SEGMENTATION:
             if(annotation.points.size() < 3)
@@ -205,15 +205,25 @@ void append_yolo_metadata(YamlNode& yaml, const AnnotationMap& annotations, cons
 
     auto names = YamlNode::mapping();
     auto map = track::detect::yolo::names::get_map();
-    for(auto id : ids) {
-        if(map.contains(id)) {
-            names[narrow_cast<int64_t>(id)] = std::string(map.at(id));
-        } else {
-            names[narrow_cast<int64_t>(id)] = "class_" + Meta::toStr(id);
+    size_t nc = 0;
+    
+    if(not map.empty()) {
+        for(auto &[id, name] : map) {
+            names[id] = std::string(name);
+            nc = max(narrow_cast<size_t>(id) + 1, nc);
+        }
+    } else {
+        for(auto id : ids) {
+            if(map.contains(id)) {
+                names[narrow_cast<int64_t>(id)] = std::string(map.at(id));
+            } else {
+                names[narrow_cast<int64_t>(id)] = "class_" + Meta::toStr(id);
+            }
+            nc = max(narrow_cast<size_t>(id) + 1, nc);
         }
     }
 
-    yaml["nc"] = narrow_cast<int64_t>(ids.size());
+    yaml["nc"] = nc;
     yaml["names"] = std::move(names);
     if(!keypoint_names.empty()) {
         auto kpt_shape = YamlNode::sequence();
@@ -499,14 +509,23 @@ glz::json_t build_coco_json(const AnnotationMap& annotations, const std::vector<
 
     std::vector<glz::json_t> categories;
 
-    auto ids = class_ids(annotations);
+    std::set<uint16_t> ids;
     std::vector<std::string> names;
     auto map = track::detect::yolo::names::get_map();
-    for(auto id : ids) {
-        if(map.contains(id)) {
-            names.emplace_back(map.at(id));
-        } else {
-            names.push_back("class_" + Meta::toStr(id));
+    
+    if(not map.empty()) {
+        for(auto &[id, name] : map) {
+            ids.insert(id);
+            names.push_back(std::string(name));
+        }
+    } else {
+        ids = class_ids(annotations);
+        for(auto id : ids) {
+            if(map.contains(id)) {
+                names.push_back(std::string(map.at(id)));
+            } else {
+                names.push_back("class_" + Meta::toStr(id));
+            }
         }
     }
 

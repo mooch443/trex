@@ -69,6 +69,13 @@ target_compile_definitions(test_sam3promptpayload PRIVATE -DTREX_TEST_FOLDER="${
 add_executable(test_annotation_exporter test_annotation_exporter.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
 target_compile_definitions(test_annotation_exporter PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
 
+add_executable(test_trex_detection_model_python test_trex_detection_model_python.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
+target_compile_definitions(test_trex_detection_model_python PRIVATE
+    -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}"
+    -DTREX_PYTHON_EXECUTABLE="${PYTHON_EXECUTABLE}"
+    -DTREX_DETECTION_MODEL_TEST_DIR="${CMAKE_SOURCE_DIR}/src/tracker/python"
+)
+
 if(NOT TREX_CONDA_PACKAGE_INSTALL)
     add_executable(test_sam3interactivesession test_sam3interactivesession.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
     target_compile_definitions(test_sam3interactivesession PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
@@ -123,6 +130,7 @@ set(TARGETS
     test_dispatcher
     test_sam3promptpayload
     test_annotation_exporter
+    test_trex_detection_model_python
 )
 if(NOT TREX_CONDA_PACKAGE_INSTALL)
     list(APPEND TARGETS test_sam3interactivesession)
@@ -173,6 +181,7 @@ target_link_libraries(test_segmenter PUBLIC gtest)
 target_link_libraries(test_dispatcher PUBLIC gtest)
 target_link_libraries(test_sam3promptpayload PUBLIC gtest)
 target_link_libraries(test_annotation_exporter PUBLIC gtest)
+target_link_libraries(test_trex_detection_model_python PUBLIC gtest)
 if(NOT TREX_CONDA_PACKAGE_INSTALL)
     target_link_libraries(test_sam3interactivesession PUBLIC gtest gmock)
 endif()
@@ -277,6 +286,10 @@ target_link_libraries(test_annotation_exporter PUBLIC
     pv
 )
 
+target_link_libraries(test_trex_detection_model_python PUBLIC
+    commons
+)
+
 if(NOT TREX_CONDA_PACKAGE_INSTALL)
     target_link_libraries(test_sam3interactivesession PUBLIC
         tracker_tracking
@@ -323,6 +336,7 @@ set_target_properties(test_segmenter PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH
 set_target_properties(test_dispatcher PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 set_target_properties(test_sam3promptpayload PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 set_target_properties(test_annotation_exporter PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
+set_target_properties(test_trex_detection_model_python PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 if(NOT TREX_CONDA_PACKAGE_INSTALL)
     set_target_properties(test_sam3interactivesession PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 endif()
@@ -371,6 +385,7 @@ trex_prepend_test_path(test-segmenter trex_check_python)
 add_test(NAME test-dispatcher COMMAND test_dispatcher)
 add_test(NAME test-sam3promptpayload COMMAND test_sam3promptpayload)
 add_test(NAME test-annotation-exporter COMMAND test_annotation_exporter)
+add_test(NAME test-trex-detection-model-python COMMAND test_trex_detection_model_python)
 if(NOT TREX_CONDA_PACKAGE_INSTALL)
     add_test(NAME test-sam3interactivesession COMMAND test_sam3interactivesession)
 endif()

@@ -5,7 +5,7 @@
 namespace track {
     IMPLEMENT(FOI::_mutex);
     IMPLEMENT(FOI::_frames_of_interest);
-    IMPLEMENT(FOI::_string_to_id){{"none",Properties{ -1, cmn::gui::Transparent }}};
+    IMPLEMENT(FOI::_string_to_id){{"none",Properties{ -1, cmn::gui::Transparent, true }}};
     IMPLEMENT(FOI::_id_to_string){{-1,"none"}};
     IMPLEMENT(FOI::_wheel);
     IMPLEMENT(FOI::_ids){-1};
@@ -39,22 +39,22 @@ namespace track {
     {}
     
     FOI::FOI(const Range<Frame_t>& frames, std::set<fdx_t> fdx, const std::string& reason, const std::string& description)
-        : FOI(frames, reason, description)
+        : FOI(frames, reason, false, description)
     {
         _fdx.insert(fdx.begin(), fdx.end());
     }
     
     FOI::FOI(const Range<Frame_t>& frames, std::set<bdx_t> bdx, const std::string& reason, const std::string& description)
-        : FOI(frames, reason, description)
+        : FOI(frames, reason, false, description)
     {
         _bdx.insert(bdx.begin(), bdx.end());
     }
     
-    FOI::FOI(Frame_t frame, const std::string& reason, const std::string& description)
-        : FOI(Range<Frame_t>(frame, frame), reason, description)
+    FOI::FOI(Frame_t frame, const std::string& reason, bool is_global, const std::string& description)
+        : FOI(Range<Frame_t>(frame, frame), reason, is_global, description)
     {}
     
-    FOI::FOI(const Range<Frame_t>& frames, const std::string& reason, const std::string& description)
+    FOI::FOI(const Range<Frame_t>& frames, const std::string& reason, bool is_global, const std::string& description)
         : _frames(frames), _description(description)
     {
         std::vector<std::string> all_ids;
@@ -77,7 +77,9 @@ namespace track {
                 changed();
             }
             
-            _props = &_string_to_id[utils::lowercase(reason)];
+            auto ptr = &_string_to_id[utils::lowercase(reason)];
+            _props = ptr;
+            ptr->is_global = ptr->is_global || is_global;
         }
         
         if(!all_ids.empty()) {
@@ -106,17 +108,17 @@ namespace track {
         changed();
     }
 
-    std::set<long_t> FOI::ids() {
+    std::set<FOI::ID_t> FOI::ids() {
         std::lock_guard<std::recursive_mutex> guard(_mutex);
         return _ids;
     }
 
-    long_t FOI::id() const {
+    FOI::ID_t FOI::id() const {
         std::lock_guard<std::recursive_mutex> guard(_mutex);
         return _props->id;
     }
 
-    std::optional<FOI::foi_type::mapped_type> FOI::foi(long_t id) {
+    std::optional<FOI::foi_type::mapped_type> FOI::foi(FOI::ID_t id) {
         std::lock_guard<std::recursive_mutex> guard(_mutex);
         auto it = _frames_of_interest.find(id);
         if(it != _frames_of_interest.end()) {
@@ -130,14 +132,31 @@ namespace track {
         std::lock_guard<std::recursive_mutex> guard(_mutex);
         return _frames_of_interest;
     }
+
+    std::set<FOI::ID_t> FOI::global_ids() {
+        std::set<ID_t> global_ids;
+        for(auto &[name, p]: _string_to_id) {
+            if(p.is_global)
+                global_ids.insert(p.id);
+        }
+        return global_ids;
+    }
         
     void FOI::remove_frames(Frame_t frameIndex) {
         //ConfirmedCrossings::remove_frames(frameIndex);
-
         std::lock_guard<std::recursive_mutex> guard(_mutex);
+        auto gids = global_ids();
+        
         for(auto it = _frames_of_interest.begin(); it != _frames_of_interest.end();)
         {
-            auto type = it->first;
+            ID_t type = it->first;
+            
+            /// skipping global ids for frame related stuff
+            if(gids.contains(type)) {
+                ++it;
+                continue;
+            }
+            
             auto &set  = it->second;
 #ifndef NDEBUG
             auto before = set.size();
@@ -156,13 +175,22 @@ namespace track {
         changed();
     }
     
-    void FOI::remove_frames(Frame_t frameIndex, long_t id) {
+    void FOI::remove_frames(Frame_t frameIndex, ID_t id) {
         //ConfirmedCrossings::remove_frames(frameIndex, id);
 
         std::lock_guard<std::recursive_mutex> guard(_mutex);
+        auto gids = global_ids();
+        
         for(auto it = _frames_of_interest.begin(); it != _frames_of_interest.end();)
         {
-            auto type = it->first;
+            ID_t type = it->first;
+            
+            /// skipping global ids for frame related stuff
+            if(gids.contains(type)) {
+                ++it;
+                continue;
+            }
+            
             auto &set  = it->second;
             
             if(type == id) {
@@ -189,7 +217,7 @@ namespace track {
         changed();
     }
     
-    const std::string& FOI::name(long_t id) {
+    const std::string& FOI::name(ID_t id) {
         std::lock_guard<std::recursive_mutex> guard(_mutex);
         auto it = _id_to_string.find(id);
         if(it != _id_to_string.end()) {
@@ -199,7 +227,7 @@ namespace track {
         throw U_EXCEPTION("Cannot find name of FOI-id ",id,".");
     }
     
-    long_t FOI::to_id(const std::string& name) {
+    FOI::ID_t FOI::to_id(const std::string& name) {
         std::lock_guard<std::recursive_mutex> guard(_mutex);
         auto it = _string_to_id.find(name);
         if(it != _string_to_id.end()) {
@@ -209,8 +237,64 @@ namespace track {
         return -1;
     }
     
-    void FOI::clear() {
-        remove_frames(Frame_t(0));
+    void FOI::clear_tracking_fois() {
+        std::lock_guard<std::recursive_mutex> guard(_mutex);
+        std::set<ID_t> all_ids;
+        for(auto &[name, p] : _string_to_id) {
+            if(p.is_global)
+                continue;
+            all_ids.insert(p.id);
+        }
+        
+        for(auto id : all_ids)
+            _remove_all_of(id);
+        //remove_frames(Frame_t(0));
+    }
+
+    void FOI::clear_all() {
+        std::lock_guard<std::recursive_mutex> guard(_mutex);
+        std::set<ID_t> all_ids;
+        for(auto &[name, p] : _string_to_id) {
+            all_ids.insert(p.id);
+        }
+        
+        for(auto id : all_ids)
+            _remove_all_of(id);
+        //remove_frames(Frame_t(0));
+    }
+
+    void FOI::remove_all_of(ID_t id) {
+        std::lock_guard<std::recursive_mutex> guard(_mutex);
+        _remove_all_of(id);
+        changed();
+    }
+
+    void FOI::_remove_all_of(ID_t id) {
+        _frames_of_interest.erase(id);
+    }
+
+    void FOI::replace_all(std::vector<FOI>&& objects) {
+        std::lock_guard<std::recursive_mutex> guard(_mutex);
+        for(FOI &foi : objects) {
+            auto it = _frames_of_interest.find(foi.id());
+            if(it != _frames_of_interest.end()) {
+                bool found = false;
+                for(auto &other : it->second) {
+                    if(other.frames() == foi.frames()) {
+                        /// we already have it
+                        found = true;
+                        break;
+                    }
+                }
+                if(not found) {
+                    it->second.insert(std::move(foi));
+                    changed();
+                }
+            } else {
+                _frames_of_interest.emplace(foi.id(), std::set<FOI>{std::move(foi)});
+                changed();
+            }
+        }
     }
     
     uint64_t FOI::last_change() {

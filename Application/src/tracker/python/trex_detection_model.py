@@ -219,6 +219,28 @@ class TRexDetection:
             str: A string that represents the TRexDetection instance.
         """
         return "TRexDetection<models={}>".format(self.models)
+
+    @staticmethod
+    def empty_boxes() -> np.ndarray:
+        return np.empty((0, 6), dtype=np.float32)
+
+    @staticmethod
+    def normalize_boxes(boxes: Optional[np.ndarray], context: str) -> np.ndarray:
+        if boxes is None:
+            return TRexDetection.empty_boxes()
+
+        boxes = np.asarray(boxes)
+        if boxes.ndim != 2 or boxes.shape[1] != 6:
+            raise ValueError(
+                f"{context}: expected boxes as a 2D array with shape (N, 6) "
+                f"for downstream TRex.Boxes processing, got shape {boxes.shape}."
+            )
+
+        if boxes.shape[0] == 0:
+            return TRexDetection.empty_boxes()
+        if boxes.dtype != np.float32 or not boxes.flags["C_CONTIGUOUS"]:
+            boxes = np.ascontiguousarray(boxes, dtype=np.float32)
+        return boxes
     
     def has_region_model(self) -> bool:
         """
@@ -419,6 +441,13 @@ class TRexDetection:
         im = input.images()
         if len(im) != len(geometries) or len(im) != len(orig_id):
             raise ValueError("YoloInput received mismatched images/tile_geometries/orig_id lengths.")
+        for i, image in enumerate(im):
+            shape = trex_utils.asarray(image, copy=False).shape
+            if len(shape) < 2 or shape[0] <= 0 or shape[1] <= 0:
+                raise ValueError(
+                    f"TRexDetection.inference received empty image at input index {i} "
+                    f"with shape {shape}; image height and width must be > 0 before preprocessing."
+                )
         tensor = self.preprocess(im)
 
         # if we have a box detection model, we can focus on parts of the image
@@ -484,6 +513,13 @@ class TRexDetection:
                     results.append(StrippedYoloResults(r, scale=scale, offset=offset))
             #torch.cuda.empty_cache()'''
 
+        if len(results) != len(tensor):
+            raise ValueError(
+                "TRexDetection.inference expected one model result per input tile/image before "
+                f"orig_id grouping, got {len(results)} result(s) for {len(tensor)} input image(s). "
+                "Check DetectionModel.predict for dropped or extra results."
+            )
+
         # use groupby to group the list elements by id
         results = [[x[1] for x in group] for _, group in groupby(list(zip(orig_id, results)), lambda x: x[0])]
         #print(f"len(results) = {len(results)} len(offsets) = {len(offsets)} len(scales) = {len(scales)}")
@@ -500,7 +536,10 @@ class TRexDetection:
                 #try:
                     #c, m, k = self.postprocess_result(index, tile)
                     #print("c.shape= ",c.shape, " len(m)=", len(m))
-                    coords.append(tile.boxes)
+                    coords.append(TRexDetection.normalize_boxes(
+                        tile.boxes,
+                        f"TRexDetection.inference result group {i}, tile {j}"
+                    ))
                     if tile.masks is not None and len(tile.masks) > 0:
                         masks.extend(tile.masks)
                     if tile.keypoints is not None and len(tile.keypoints) > 0:
@@ -527,12 +566,14 @@ class TRexDetection:
                 keypoints = np.concatenate(keypoints, axis=0, dtype=np.float32)
             if len(obbs) > 0:
                 obbs = np.concatenate(obbs, axis=0, dtype=np.float32)
-                coords = np.array([], dtype=np.float32)
+                coords = TRexDetection.empty_boxes()
             elif len(points) > 0:
                 points = np.concatenate(points, axis=0, dtype=np.float32)
-                coords = np.array([], dtype=np.float32)
-            else:
+                coords = TRexDetection.empty_boxes()
+            elif len(coords) > 0:
                 coords = np.concatenate(coords, axis=0)
+            else:
+                coords = TRexDetection.empty_boxes()
 
             rexsults.append(TRex.Result(index, TRex.Boxes(coords), masks, TRex.KeypointData(keypoints), TRex.ObbData(obbs), TRex.PointData(points)))
 
@@ -563,6 +604,11 @@ class TRexDetection:
         """
         # Apply the region proposal method on the given tensor
         proposal = self.region_proposal(tensor)
+        if len(proposal) != len(tensor):
+            raise ValueError(
+                "TRexDetection.perform_region_proposal expected one proposal list per input image, "
+                f"got {len(proposal)} proposal list(s) for {len(tensor)} input image(s)."
+            )
 
         rexsults = []
         all_images = []
@@ -581,8 +627,11 @@ class TRexDetection:
             verbose = False,
             **({"iou": ious, "agnostic_nms": True} if ious is not None else {}))
 
-        # Check if the number of results is equal to the number of images
-        assert len(results) == len(all_images),f"length of results {len(results)} is not equal to length of all images {len(all_images)}"
+        if len(results) != len(all_images):
+            raise ValueError(
+                "TRexDetection.perform_region_proposal expected one model result per proposed region, "
+                f"got {len(results)} result(s) for {len(all_images)} proposed region image(s)."
+            )
 
         # Reorder the results list to match the order of the proposal list
         cursor = 0
@@ -610,14 +659,20 @@ class TRexDetection:
                 #result = StrippedYoloResults(result, scale=scale, offset=offset)
                 
                 #coords, masks, keypoints = self.postprocess_result(i, result, offset, scale, box)
-                collected_boxes.append(result.boxes)
-                collected_masks.extend(result.masks)
-                if len(result.keypoints) > 0:
+                collected_boxes.append(TRexDetection.normalize_boxes(
+                    result.boxes,
+                    f"TRexDetection.perform_region_proposal input image {i}, region {t}"
+                ))
+                if result.masks is not None:
+                    collected_masks.extend(result.masks)
+                if result.keypoints is not None and len(result.keypoints) > 0:
                     collected_keypoints.extend(result.keypoints)
 
             # Concatenate all collected boxes
             if len(collected_boxes) > 0:
                 collected_boxes = np.concatenate(collected_boxes, axis=0)
+            else:
+                collected_boxes = TRexDetection.empty_boxes()
 
             if len(collected_keypoints) > 0:
                 collected_keypoints = np.concatenate(collected_keypoints, axis=0)
@@ -634,7 +689,7 @@ class TRexDetection:
                 if(sorted(indexes.numpy()) != list(range(len(indexes)))):
                     #print("filtering boxes: ", collected_boxes,"with",ious)
                     #print("using indexes: ", sorted(indexes.numpy()))
-                    collected_boxes = [collected_boxes[i] for i in indexes]
+                    collected_boxes = np.asarray([collected_boxes[i] for i in indexes], dtype=np.float32)
                     if len(collected_masks) > 0:
                         collected_masks = [collected_masks[i] for i in indexes]
                     if len(collected_keypoints) > 0:

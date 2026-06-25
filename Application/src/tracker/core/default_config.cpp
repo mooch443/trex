@@ -1286,7 +1286,8 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         };
         
         if(auto type = READ_SETTING(detect_type, track::detect::ObjectDetectionType_t);
-           type == track::detect::ObjectDetectionType::yolo)
+           type == track::detect::ObjectDetectionType::yolo
+           || READ_SETTING_WITH_DEFAULT(track_annotations, track::AnnotationMap{}))
         {
             explicitly_include.emplace("detect_classes");
             explicitly_include.emplace("detect_format");

@@ -1,6 +1,9 @@
 #include <gtest/gtest.h>
 #include <core/AnnotationExporter.h>
 #include <core/AnnotationImporter.h>
+#include <core/DetectionTypes.h>
+#include <core/default_config.h>
+#include <misc/GlobalSettings.h>
 
 #include <chrono>
 #include <filesystem>
@@ -261,7 +264,7 @@ TEST(AnnotationImporter, ImportsBoxesAndMapsSourceIndexThroughConversionStart) {
     write_file(root / "images" / "frame_000110.jpg");
     write_file(root / "labels" / "frame_000110.txt", "0 0.5 0.5 0.5 0.5\n");
 
-    auto preview = preview_yolo_import(default_import_options(root / "data.yaml"));
+    auto preview = preview_yolo_import(default_import_options(root / "data.yaml"), import_scope_t::all_videos);
 
     ASSERT_TRUE(preview.can_import()) << Meta::toStr(preview.errors);
     ASSERT_FALSE(preview.warnings.empty());
@@ -283,7 +286,7 @@ TEST(AnnotationImporter, ImportsSegmentationPolygons) {
     write_file(root / "images" / "source-000101.jpg");
     write_file(root / "labels" / "source-000101.txt", "0 0 0 1 0 1 1 0 1\n");
 
-    auto preview = preview_yolo_import(default_import_options(root / "data.yaml"));
+    auto preview = preview_yolo_import(default_import_options(root / "data.yaml"), import_scope_t::all_videos);
 
     ASSERT_TRUE(preview.can_import()) << Meta::toStr(preview.errors);
     EXPECT_TRUE(preview.metadata.detect_format_changed);
@@ -302,7 +305,7 @@ TEST(AnnotationImporter, DoesNotSuggestDetectFormatForMixedImportedTypes) {
     write_file(root / "labels" / "frame_000100.txt", "0 0.5 0.5 0.5 0.5\n");
     write_file(root / "labels" / "frame_000101.txt", "0 0 0 1 0 1 1 0 1\n");
 
-    auto preview = preview_yolo_import(default_import_options(root / "data.yaml"));
+    auto preview = preview_yolo_import(default_import_options(root / "data.yaml"), import_scope_t::all_videos);
 
     ASSERT_TRUE(preview.can_import()) << Meta::toStr(preview.errors);
     EXPECT_EQ(task_t::mixed, preview.task);
@@ -317,7 +320,7 @@ TEST(AnnotationImporter, ImportsPoseWithKeypointMetadata) {
     write_file(root / "images" / "source_index_000102.jpg");
     write_file(root / "labels" / "source_index_000102.txt", "0 0.5 0.5 0.2 0.2 0.1 0.2 2 0.3 0.4 0\n");
 
-    auto preview = preview_yolo_import(default_import_options(root / "data.yaml"));
+    auto preview = preview_yolo_import(default_import_options(root / "data.yaml"), import_scope_t::all_videos);
 
     ASSERT_TRUE(preview.can_import()) << Meta::toStr(preview.errors);
     EXPECT_TRUE(preview.metadata.detect_format_changed);
@@ -354,7 +357,7 @@ TEST(AnnotationImporter, ImportsYoloClassAndKeypointNamesFromDataYaml) {
                " 0.1 0.1 2 0.2 0.2 2 0.3 0.3 2 0.4 0.4 2"
                " 0.5 0.5 2 0.6 0.6 2 0.7 0.7 2\n");
 
-    auto preview = preview_yolo_import(default_import_options(root / "data.yaml"));
+    auto preview = preview_yolo_import(default_import_options(root / "data.yaml"), import_scope_t::all_videos);
 
     ASSERT_TRUE(preview.can_import()) << Meta::toStr(preview.errors);
     ASSERT_TRUE(preview.metadata.imported_class_names.contains(0));
@@ -378,7 +381,7 @@ TEST(AnnotationImporter, UsesCsvMappingForArbitraryImageNames) {
     auto options = default_import_options(root / "data.yaml");
     options.frame_mapping_csv = root / "mapping.csv";
     options.current_source_basename = "current_video.mp4";
-    auto preview = preview_yolo_import(options);
+    auto preview = preview_yolo_import(options, import_scope_t::all_videos);
 
     ASSERT_TRUE(preview.can_import()) << Meta::toStr(preview.errors);
     EXPECT_EQ(1u, preview.mapped_from_csv);
@@ -400,7 +403,7 @@ TEST(AnnotationImporter, UsesSplitRelativeCsvMappingBeforeBasenameFallback) {
     auto options = default_import_options(root / "data.yaml");
     options.frame_mapping_csv = root / "mapping.csv";
     options.current_source_basename = "current_video.mp4";
-    auto preview = preview_yolo_import(options);
+    auto preview = preview_yolo_import(options, import_scope_t::all_videos);
 
     ASSERT_TRUE(preview.can_import()) << Meta::toStr(preview.errors);
     EXPECT_EQ(2u, preview.mapped_from_csv);
@@ -423,7 +426,7 @@ TEST(AnnotationImporter, UsesAbsoluteImagePathInCsvMapping) {
     auto options = default_import_options(root / "data.yaml");
     options.frame_mapping_csv = root / "mapping.csv";
     options.current_source_basename = "current_video.mp4";
-    auto preview = preview_yolo_import(options);
+    auto preview = preview_yolo_import(options, import_scope_t::all_videos);
 
     ASSERT_TRUE(preview.can_import()) << Meta::toStr(preview.errors);
     EXPECT_EQ(1u, preview.mapped_from_csv);
@@ -438,7 +441,7 @@ TEST(AnnotationImporter, WarnsAndKeepsSourceAnnotationsOutsideConvertedRange) {
     write_file(root / "labels" / "source_index_000099.txt", "0 0.5 0.5 0.5 0.5\n");
     write_file(root / "labels" / "source_index_000151.txt", "0 0.5 0.5 0.5 0.5\n");
 
-    auto preview = preview_yolo_import(default_import_options(root / "data.yaml"));
+    auto preview = preview_yolo_import(default_import_options(root / "data.yaml"), import_scope_t::all_videos);
 
     ASSERT_TRUE(preview.can_import()) << Meta::toStr(preview.errors);
     EXPECT_TRUE(preview.errors.empty()) << Meta::toStr(preview.errors);
@@ -464,7 +467,7 @@ TEST(AnnotationImporter, FiltersCsvRowsByCurrentVideoSource) {
     auto options = default_import_options(root / "data.yaml");
     options.frame_mapping_csv = root / "mapping.csv";
     options.current_source_basename = "current_video.mp4";
-    auto preview = preview_yolo_import(options);
+    auto preview = preview_yolo_import(options, import_scope_t::all_videos);
 
     ASSERT_TRUE(preview.can_import()) << Meta::toStr(preview.errors);
     EXPECT_EQ(2u, preview.mapped_from_csv);
@@ -480,7 +483,7 @@ TEST(AnnotationImporter, FiltersCsvRowsByCurrentVideoSource) {
     EXPECT_TRUE(preview.source_annotations.at("other_video.mp4").contains(113_f));
 
     options.selected_source_basename = "other_video.mp4";
-    auto overridden = preview_yolo_import(options);
+    auto overridden = preview_yolo_import(options, import_scope_t::all_videos);
     ASSERT_TRUE(overridden.can_import()) << Meta::toStr(overridden.errors);
     EXPECT_TRUE(overridden.annotations.contains(13_f));
     EXPECT_FALSE(overridden.annotations.contains(12_f));
@@ -496,7 +499,7 @@ TEST(AnnotationImporter, RequiresVideoSourceColumnInCsvMapping) {
     auto options = default_import_options(root / "data.yaml");
     options.frame_mapping_csv = root / "mapping.csv";
     options.current_source_basename = "current_video.mp4";
-    auto preview = preview_yolo_import(options);
+    auto preview = preview_yolo_import(options, import_scope_t::all_videos);
 
     EXPECT_FALSE(preview.errors.empty());
 }
@@ -511,7 +514,7 @@ TEST(AnnotationImporter, StripsCurrentVideoPrefixBeforeParsingFrameIndex) {
 
     auto options = default_import_options(root / "data.yaml");
     options.current_source_basename = "cam2024_run7.mp4";
-    auto preview = preview_yolo_import(options);
+    auto preview = preview_yolo_import(options, import_scope_t::all_videos);
 
     ASSERT_TRUE(preview.can_import()) << Meta::toStr(preview.errors);
     EXPECT_EQ(2u, preview.mapped_from_filenames);
@@ -530,7 +533,7 @@ TEST(AnnotationImporter, AutoDetectsAndOverridesSourceFileFromFilenames) {
 
     auto options = default_import_options(root / "data.yaml");
     options.current_source_basename = "current_video.mp4";
-    auto preview = preview_yolo_import(options);
+    auto preview = preview_yolo_import(options, import_scope_t::all_videos);
 
     ASSERT_TRUE(preview.can_import()) << Meta::toStr(preview.errors);
     EXPECT_EQ("current_video", preview.auto_source_basename);
@@ -541,7 +544,7 @@ TEST(AnnotationImporter, AutoDetectsAndOverridesSourceFileFromFilenames) {
     EXPECT_TRUE(preview.source_annotations.at("other_video").contains(113_f));
 
     options.selected_source_basename = "other_video";
-    auto overridden = preview_yolo_import(options);
+    auto overridden = preview_yolo_import(options, import_scope_t::all_videos);
 
     ASSERT_TRUE(overridden.can_import()) << Meta::toStr(overridden.errors);
     EXPECT_EQ("current_video", overridden.auto_source_basename);
@@ -561,7 +564,7 @@ TEST(AnnotationImporter, StripsEncodedVideoExtensionPrefixBeforeParsingFrameInde
     options.source_start = 0_f;
     options.source_end = 200_f;
     options.converted_length = 200_f;
-    auto preview = preview_yolo_import(options);
+    auto preview = preview_yolo_import(options, import_scope_t::all_videos);
 
     ASSERT_TRUE(preview.can_import()) << Meta::toStr(preview.errors);
     EXPECT_EQ(1u, preview.mapped_from_filenames);
@@ -576,7 +579,7 @@ TEST(AnnotationImporter, KeepsPlainFrameNamesWhenCurrentVideoSourceIsKnown) {
 
     auto options = default_import_options(root / "data.yaml");
     options.current_source_basename = "current_video.mp4";
-    auto preview = preview_yolo_import(options);
+    auto preview = preview_yolo_import(options, import_scope_t::all_videos);
 
     ASSERT_TRUE(preview.can_import()) << Meta::toStr(preview.errors);
     EXPECT_EQ(1u, preview.mapped_from_filenames);
@@ -592,7 +595,7 @@ TEST(AnnotationImporter, BlocksImportAndRequestsCsvWhenNoImagesMap) {
 
     auto options = default_import_options(root / "data.yaml");
     options.current_source_basename = "current_video.mp4";
-    auto preview = preview_yolo_import(options);
+    auto preview = preview_yolo_import(options, import_scope_t::all_videos);
 
     EXPECT_FALSE(preview.can_import());
     ASSERT_FALSE(preview.errors.empty());
@@ -600,7 +603,7 @@ TEST(AnnotationImporter, BlocksImportAndRequestsCsvWhenNoImagesMap) {
 }
 
 TEST(AnnotationImporter, ReportsMissingDataYamlAndMalformedLabels) {
-    auto missing = preview_yolo_import(default_import_options(file::Path("/tmp/trex_missing_data_yaml.yaml")));
+    auto missing = preview_yolo_import(default_import_options(file::Path("/tmp/trex_missing_data_yaml.yaml")), import_scope_t::all_videos);
     EXPECT_FALSE(missing.errors.empty());
 
     auto root = make_temp_dataset("malformed");
@@ -608,8 +611,8 @@ TEST(AnnotationImporter, ReportsMissingDataYamlAndMalformedLabels) {
     write_file(root / "images" / "frame_000100.jpg");
     write_file(root / "labels" / "frame_000100.txt", "0 0.5 nope 0.5 0.5\n");
 
-    auto malformed = preview_yolo_import(default_import_options(root / "data.yaml"));
-    EXPECT_FALSE(malformed.errors.empty());
+    auto malformed = preview_yolo_import(default_import_options(root / "data.yaml"), import_scope_t::all_videos);
+    EXPECT_FALSE(malformed.warnings.empty());
 }
 
 TEST(AnnotationImporter, AppliesAddAndReplaceModesWithRenumberedUids) {
@@ -618,7 +621,7 @@ TEST(AnnotationImporter, AppliesAddAndReplaceModesWithRenumberedUids) {
     write_file(root / "images" / "frame_000110.jpg");
     write_file(root / "labels" / "frame_000110.txt", "0 0.5 0.5 0.5 0.5\n");
 
-    auto preview = preview_yolo_import(default_import_options(root / "data.yaml"));
+    auto preview = preview_yolo_import(default_import_options(root / "data.yaml"), import_scope_t::all_videos);
     ASSERT_TRUE(preview.can_import()) << Meta::toStr(preview.errors);
 
     AnnotationMap existing;
@@ -663,7 +666,7 @@ TEST(AnnotationImporter, ReportsMetadataDifferencesInPreview) {
 
     auto options = default_import_options(root / "data.yaml");
     options.current_class_names = blob::MaybeObjectClass_t{blob::ObjectClass_t{{0, "current"}}};
-    auto preview = preview_yolo_import(options);
+    auto preview = preview_yolo_import(options, import_scope_t::all_videos);
 
     ASSERT_TRUE(preview.can_import()) << Meta::toStr(preview.errors);
     EXPECT_TRUE(preview.metadata.class_names_changed);
@@ -827,7 +830,7 @@ TEST(AnnotationImporter, ImportsCocoSegmentationPolygons) {
 
     auto options = default_import_options(root / "_annotations.coco.json");
     options.format = annotation_dataset::format_t::coco;
-    auto preview = preview_dataset_import(options);
+    auto preview = preview_dataset_import(options, import_scope_t::all_videos);
 
     ASSERT_TRUE(preview.can_import()) << Meta::toStr(preview.errors);
     EXPECT_TRUE(preview.metadata.detect_format_changed);
@@ -915,4 +918,81 @@ TEST(AnnotationImporter, RoundTripsCocoUnlabeledKeypointVisibility) {
     ASSERT_EQ(4u, bbox.size());
     EXPECT_EQ(100, bbox.at(0).get_number());
     EXPECT_EQ(50, bbox.at(1).get_number());
+}
+
+TEST(AnnotationImporter, MalformedRowDropsImageAtomicallyKeepingSourceAndFrameConsistent) {
+    // A label file with a valid row followed by a malformed one must contribute
+    // nothing: previously the valid row was kept in source_annotations while the
+    // frame was dropped from annotations, desyncing the two views (and making the
+    // all_videos vs current_video scopes disagree for the very same file).
+    auto root = make_temp_dataset("malformed_atomic");
+    write_file(root / "data.yaml", "path: .\ntrain: images\nnames:\n  0: fish\n");
+
+    // a clean image -> imports fully (source index 100 -> annotation frame 0)
+    write_file(root / "images" / "frame_000100.jpg");
+    write_file(root / "labels" / "frame_000100.txt", "0 0.5 0.5 0.5 0.5\n");
+
+    // a valid row followed by a malformed row in the same file -> whole image dropped
+    write_file(root / "images" / "frame_000101.jpg");
+    write_file(root / "labels" / "frame_000101.txt", "0 0.5 0.5 0.5 0.5\n0 0.5 nope 0.5 0.5\n");
+
+    auto preview = preview_yolo_import(default_import_options(root / "data.yaml"), import_scope_t::all_videos);
+
+    ASSERT_TRUE(preview.can_import()) << Meta::toStr(preview.errors);
+
+    // the clean image is imported; the malformed image is absent from BOTH views
+    EXPECT_TRUE(preview.annotations.contains(0_f));
+    EXPECT_FALSE(preview.annotations.contains(1_f));
+
+    size_t source_total = 0;
+    for(const auto& [source, by_index] : preview.source_annotations)
+        for(const auto& [index, anns] : by_index)
+            source_total += anns.size();
+
+    size_t frame_total = 0;
+    for(const auto& [frame, anns] : preview.annotations)
+        frame_total += anns.size();
+
+    // consistency: the malformed image contributes 0 to both views. Before the
+    // fix this was 2 (source) vs 1 (frame) because the partial row leaked.
+    EXPECT_EQ(source_total, frame_total);
+    EXPECT_EQ(1u, frame_total);
+
+    bool reported = false;
+    for(const auto& w : preview.warnings)
+        if(w.find("frame_000101") != std::string::npos)
+            reported = true;
+    EXPECT_TRUE(reported) << Meta::toStr(preview.warnings);
+}
+
+TEST(AnnotationExporter, CocoExportsAllDetectClassesEvenWhenAbsentFromDataset) {
+    // When detect_classes is set it is authoritative: every configured class must
+    // be exported as a category, even classes that never appear in the dataset,
+    // so COCO/YOLO outputs stay consistent across datasets of the same type.
+    GlobalSettings::write([&](Configuration& config) {
+        ::default_config::get(config);
+    });
+    // make sure the detect_classes -> names map callback is registered before we set it
+    (void)track::detect::yolo::names::get_map();
+    SETTING(detect_classes) = cmn::blob::MaybeObjectClass_t{
+        cmn::blob::ObjectClass_t{{0, "fish"}, {1, "shrimp"}, {2, "crab"}}
+    };
+
+    AnnotationMap annotations;
+    annotations[1_f].push_back(make_annotation(0, AnnotationType::BOX, {{10, 20}, {50, 80}})); // only class 0 is used
+
+    auto json = build_coco_json(annotations, {1_f}, Size2(100, 100), {});
+
+    const auto& categories = json.get_object().at("categories").get_array();
+    std::set<std::string> names;
+    for(const auto& c : categories)
+        names.insert(c.get_object().at("name").get_string());
+
+    EXPECT_EQ(3u, names.size());
+    EXPECT_TRUE(names.contains("fish"));
+    EXPECT_TRUE(names.contains("shrimp"));
+    EXPECT_TRUE(names.contains("crab"));
+
+    // restore the inferred (empty detect_classes) behavior for any other tests
+    SETTING(detect_classes) = cmn::blob::MaybeObjectClass_t{};
 }

@@ -920,12 +920,16 @@ void YOLO::process_obbs(
             float xf1 = std::max(intersections[0], intersections[1]);
 
             // now round/clamp to integer pixel columns:
-            int x0 = static_cast<int>(std::ceil(xf0));
-            int x1 = static_cast<int>(std::floor(xf1));
+            int x0 = static_cast<int>(std::floor(xf0));
+            int x1 = static_cast<int>(std::ceil(xf1));
+            
+            if(x0 > x1) {
+                throw RuntimeError("Skipping illegal horizontal extent of ", x0, " -> ", x1, " at ", y, " for object at ", bounds, " in frame ", data.image->index());
+            }
             
             // clamp to image bounds [0..w-1]
             x0 = std::clamp(x0, 0, w-1);
-            x1 = std::clamp(x1, 0, w-1);
+            x1 = std::clamp(x1, x0, w-1);
             
             HorizontalLine line{
                 saturate(coord_t(y), coord_t(0), coord_t(h)),
@@ -973,7 +977,14 @@ void YOLO::process_obbs(
     };
 
     for(size_t idx : rows) {
-        process_index(idx);
+        try {
+            process_index(idx);
+        } catch(...) {
+            /// ignore
+#ifndef NDEBUG
+            FormatWarning("Skipped object in image ", data.image->index());
+#endif
+        }
     }
 }
 

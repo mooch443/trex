@@ -1,4 +1,4 @@
-{ 
+{
 "defaults": {
 "vars":{
     "start":"{analysis_range.start}",
@@ -162,13 +162,6 @@
                                 ]
                                 }
                             }
-                        },
-                        "else": {
-                            "type":"text",
-                            "text":"not POSE: {i.type}",
-                            "pos":"{2hud:[{+:{i.x}:{*:0.5:{i.w}}},{-:{i.y}:5}]}",
-                            "origin":[0.5,1],
-                            "color":[255,0,255]
                         }
                     },
 
@@ -821,6 +814,7 @@
                                 "pad":[8,0],
                                 "font":{"size":0.6,"align":"vcenter"}
                             },
+                            "corners":["bottom","topleft"],
                             "foldable":true,
                             "folded":true,
                             "var":"{concat:[\"uniqueness\"]:{global.gui_foi_types}}",
@@ -858,6 +852,7 @@
                             },
                             "foldable":true,
                             "folded":true,
+                            "corners":["bottom","topleft"],
                             "items":[
                                 {
                                     "text":"{if:{global.gui_show_selections}:'<sym>☑</sym> ':'<sym>☐</sym> <gray>'}Selection Circles{if:{global.gui_show_selections}:'':</gray>}",
@@ -1048,12 +1043,12 @@
         {
             "type":"vlayout",
             "outer_pad":[0,10,0,0],
-            "pad":[0,0,0,7],
+            "pad":[0,0,0,9],
             "children":[
                 
                 {
                     "type":"hlayout",
-                    "outer_pad":[12,0,0,0],
+                    "outer_pad":[15,0,0,0],
                     "pad":[0,0,10,0],
                     "children":[
 
@@ -1064,7 +1059,7 @@
                             "text":"<sym>🛈</sym>",
                             "shadow":0.5,
                             "color":"{if:{hovered}:[250,250,250,250]:[200,200,200,100]}",
-                            "pad":[-5,-2,0,7.5]
+                            "pad":[0,-1,0,7.5]
                         },
 
                         {

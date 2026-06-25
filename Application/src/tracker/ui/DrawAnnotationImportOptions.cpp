@@ -52,6 +52,10 @@ struct SourceChoiceItems {
                 {"selected", glz::json_t(selected)}
             });
         }
+        
+        std::sort(items.begin(), items.end(), [](const glz::json_t& A, const glz::json_t& B){
+            return std::make_tuple(not A.get_object().at("selected").get_boolean(), A.get_object().at("name").get_string()) < std::make_tuple(not B.get_object().at("selected").get_boolean(), B.get_object().at("name").get_string());
+        });
         return items;
     }
 };
@@ -125,9 +129,9 @@ struct DrawAnnotationImportOptions::Data {
         return options;
     }
 
-    std::string preview_text() const {
+    glz::json_t preview_text() const {
         if(_dataset_file.empty())
-            return "<gray>Select a YOLO data.yaml or COCO annotations JSON file to preview the import.</gray>";
+            return glz::json_t{};
 
         std::string text;
         if(_preview.can_import()) {
@@ -192,7 +196,7 @@ struct DrawAnnotationImportOptions::Data {
         else if(!_preview.warnings.empty())
             text += "\n<yellow>" + settings::htmlify(_preview.warnings.front()) + "</yellow>";
 
-        return text;
+        return glz::json_t::val_t{text};
     }
 
     void refresh_preview() {
@@ -210,7 +214,14 @@ struct DrawAnnotationImportOptions::Data {
             _preview.errors.push_back("Select a .yaml/.yml YOLO data.yaml file or a .json COCO annotations file.");
             return;
         }
-        _preview = preview_dataset_import(make_options());
+        _preview = preview_dataset_import(make_options(), _scope);
+    }
+
+    std::string file_dialog_start(const file::Path& current_file) const {
+        auto current_directory = current_file.remove_filename();
+        if(!current_directory.empty() && current_directory.is_folder())
+            return current_directory.str();
+        return {};
     }
 
     void update_info() {
@@ -228,7 +239,6 @@ struct DrawAnnotationImportOptions::Data {
             {"auto_source", glz::json_t(_preview.auto_source_basename)},
             {"source_choices", cvt2json(source_choices.to_list())},
             {"format", glz::json_t(detected_format_text)},
-            {"file_label", glz::json_t("Dataset file")},
             {"file_hint", glz::json_t("YOLO .yaml/.yml or COCO .json")},
             {"file_placeholder", glz::json_t("/path/to/data.yaml or /path/to/_annotations.coco.json")},
             {"mode", glz::json_t(_mode.str())},
@@ -237,14 +247,46 @@ struct DrawAnnotationImportOptions::Data {
             {"can_import", glz::json_t(can_import)},
             {"metadata_changes", glz::json_t(metadata_changes)},
             {"metadata_confirmed", glz::json_t(_metadata_confirmed)},
-            {"summary", glz::json_t(preview_text())}
+            
+            // Preview counts
+            {"counts", glz::json_t::object_t{
+                {"boxes", glz::json_t(_preview.counts.boxes)},
+                {"segmentations", glz::json_t(_preview.counts.segmentations)},
+                {"poses", glz::json_t(_preview.counts.poses)},
+                {"total", glz::json_t(_preview.counts.total())}
+            }},
+            
+            // Preview details
+            {"task", glz::json_t(_preview.task.str())},
+            {"annotated_frames", glz::json_t(_preview.annotated_frames)},
+            {"mapped_from_filenames", glz::json_t(_preview.mapped_from_filenames)},
+            {"mapped_from_csv", glz::json_t(_preview.mapped_from_csv)},
+            {"skipped_other_sources", glz::json_t(_preview.skipped_other_sources)},
+            
+            // Metadata change details
+            {"metadata_class_names_changed", glz::json_t(_preview.metadata.class_names_changed)},
+            {"metadata_keypoint_names_changed", glz::json_t(_preview.metadata.keypoint_names_changed)},
+            {"metadata_skeletons_changed", glz::json_t(_preview.metadata.skeletons_changed)},
+            {"metadata_detect_format_changed", glz::json_t(_preview.metadata.detect_format_changed)},
+            
+            {"detect_classes", cvt2json(_preview.metadata.imported_class_names) },
+            {"detect_skeletons", cvt2json(_preview.metadata.imported_skeletons) },
+            {"detect_keypoint_names", cvt2json(_preview.metadata.imported_keypoint_names) },
+            {"detect_format", cvt2json(_preview.metadata.imported_detect_format) },
+            
+            // Errors and warnings
+            {"has_errors", glz::json_t(!_preview.errors.empty())},
+            {"first_error", glz::json_t(_preview.errors.empty() ? std::string() : _preview.errors.front())},
+            {"has_warnings", glz::json_t(!_preview.warnings.empty())},
+            {"first_warning", glz::json_t(_preview.warnings.empty() ? std::string() : _preview.warnings.front())},
+            
+            // Source count (for "all X dataset sources")
+            {"source_count", glz::json_t(_preview.source_choices.size())}
         };
     }
 
     void choose_file(bool mapping) {
-        auto start = mapping ? _mapping_csv.remove_filename().str() : _dataset_file.remove_filename().str();
-        if(start.empty() || !file::Path(start).is_folder())
-            start = file::cwd().str();
+        const auto start = file_dialog_start(mapping ? _mapping_csv : _dataset_file);
 
         auto filters = mapping
             ? std::vector<std::string>{"CSV files", "*.csv", "All files", "*"}
@@ -337,7 +379,7 @@ struct DrawAnnotationImportOptions::Data {
                             try {
                                 if(!dataset::format_from_dataset_file(options.dataset_file))
                                     throw InvalidArgumentException("Select a .yaml/.yml YOLO data.yaml file or a .json COCO annotations file.");
-                                auto preview = preview_dataset_import(options);
+                                auto preview = preview_dataset_import(options, scope);
                                 auto imported = apply_dataset_import(preview, options.existing_annotations, options.mode, scope);
                                 SETTING(track_annotations) = std::move(imported);
                                 if(apply_metadata) {

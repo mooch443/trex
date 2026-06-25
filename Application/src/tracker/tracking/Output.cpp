@@ -1535,7 +1535,7 @@ namespace Output {
         _tracker._endFrame = Frame_t();
         _tracker._max_individuals = 0;
         _tracker._consecutive.clear();
-        FOI::clear();
+        FOI::clear_tracking_fois();
     }
     
     ResultsFormat::Header TrackingResults::load_header(const file::Path &filename) {

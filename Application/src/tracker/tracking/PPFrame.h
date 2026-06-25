@@ -211,7 +211,7 @@ public:
 #ifndef NDEBUG
         std::set<pv::bid> bdxes;
         auto name = Meta::name<T>();
-        Log("extract_from_single_range<", name.c_str(),">: ", owner, " objects:",objects);
+        Log("extract_from_single_range<", name,">: ", owner, " objects:",objects);
 #endif
         for(auto it = owner.begin(); it != owner.end(); ) {
             auto&& own = *it;

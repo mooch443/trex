@@ -4,6 +4,7 @@
 #include <misc/colors.h>
 #include <misc/ranges.h>
 #include <core/idx_t.h>
+#include <misc/frame_t.h>
 
 namespace track {
     using namespace cmn;
@@ -11,9 +12,12 @@ namespace track {
     //! Frames of interest
     class FOI {
     public:
+        using ID_t = long_t;
+        
         struct Properties {
-            long_t id;
+            ID_t id{0};
             gui::Color color;
+            bool is_global{false};
         };
         
         struct fdx_t {
@@ -50,15 +54,15 @@ namespace track {
             }
         };
         
-        typedef std::map<long_t, std::set<FOI, std::less<FOI>>> foi_type;
+        using foi_type = std::map<ID_t, std::set<FOI, std::less<FOI>>>;
         typedef std::chrono::high_resolution_clock change_clock_t;
         //typedef std::chrono::duration<double, std::ratio<1> > second_;
         typedef std::chrono::time_point<change_clock_t> time_point_t;
         
     protected:
         static std::map<std::string, Properties> _string_to_id;
-        static std::map<long_t, std::string> _id_to_string;
-        static std::set<long_t> _ids;
+        static std::map<ID_t, std::string> _id_to_string;
+        static std::set<ID_t> _ids;
         static foi_type _frames_of_interest;
         static std::recursive_mutex _mutex;
         static cmn::gui::ColorWheel _wheel;
@@ -81,24 +85,27 @@ namespace track {
         FOI(Frame_t frame, std::set<fdx_t> fdx, const std::string& reason, const std::string& _description = "");
         FOI(Frame_t frame, std::set<bdx_t> bdx, const std::string& reason, const std::string& _description = "");
         
-        FOI(Frame_t frame, const std::string& reason, const std::string& _description = "");
-        FOI(const Range<Frame_t>& frames, const std::string& reason, const std::string& _description = "");
+        FOI(Frame_t frame, const std::string& reason, bool is_global = false, const std::string& _description = "");
+        FOI(const Range<Frame_t>& frames, const std::string& reason, bool is_global = false, const std::string& _description = "");
         
     public:
         bool operator<(const FOI& other) const;
         bool operator==(const FOI& other) const;
         
         static const gui::Color& color(const std::string& name);
-        long_t id() const;
+        ID_t id() const;
         
-        static const std::string& name(long_t id);
-        static long_t to_id(const std::string& name);
+        static const std::string& name(ID_t id);
+        static ID_t to_id(const std::string& name);
         static void add(FOI&&);
-        static std::optional<foi_type::mapped_type> foi(long_t id);
-        static std::set<long_t> ids();
+        static std::optional<foi_type::mapped_type> foi(ID_t id);
+        static std::set<ID_t> ids();
         static void remove_frames(Frame_t frameIndex);
-        static void remove_frames(Frame_t frameIndex, long_t id);
-        static void clear();
+        static void remove_frames(Frame_t frameIndex, ID_t id);
+        static void remove_all_of(ID_t);
+        static void replace_all(std::vector<FOI>&&);
+        static void clear_tracking_fois();
+        static void clear_all();
         static uint64_t last_change();
         static foi_type all_fois();
         std::string toStr() const;
@@ -106,5 +113,8 @@ namespace track {
 
     private:
         static void changed();
+        
+        static std::set<ID_t> global_ids();
+        static void _remove_all_of(ID_t);
     };
 }

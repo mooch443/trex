@@ -708,7 +708,19 @@ void TrackingScene::settings_callback(std::string_view key) {
         auto stats = _data->_timing_stats;
         _data->_waiting_handle = std::make_unique<TimingStatsCollector::HandleGuard>(stats, stats->startEvent(TimingMetric_t::FrameWaiting, READ_SETTING(gui_frame, Frame_t)));
     }*/
-    if(key == "gui_foi_name") {
+    if(key == "track_annotations") {
+        auto track_annotations = READ_SETTING_WITH_DEFAULT(track_annotations, track::AnnotationMap{});
+        
+        std::vector<FOI> fois;
+        fois.reserve(track_annotations.size());
+        for(auto &[frame, annotations]: track_annotations) {
+            fois.emplace_back(frame, "annotated", true, "Frame with manual annotations");
+        }
+        FOI::replace_all(std::move(fois));
+        _data->update_cached_fois(_state->video, true);
+        return;
+    }
+    else if(key == "gui_foi_name") {
         _data->update_cached_fois(_state->video, true);
         return;
     }
@@ -783,7 +795,8 @@ void TrackingScene::settings_callback(std::string_view key) {
              "gui_zoom_polygon",//"gui_zoom_limit",
              "detect_skeleton",
             "gui_pose_smoothing",
-             "track_include", "track_ignore"))
+             "track_include", "track_ignore",
+                "track_annotations"))
     {
         redraw_all();
     }
@@ -791,6 +804,7 @@ void TrackingScene::settings_callback(std::string_view key) {
     if(key == "gui_focus_group"
        || key == "gui_fish_label"
        || key == "detect_skeleton"
+       || key == "track_annotations"
        || utils::beginsWith(key, "heatmap_"))
     {
         if(_data && _data->_cache) {
@@ -885,7 +899,8 @@ void TrackingScene::activate() {
         
         "output_prefix",
         
-        "gui_wait_for_background"
+        "gui_wait_for_background",
+        "track_annotations",
         
         //"gui_frame"
         

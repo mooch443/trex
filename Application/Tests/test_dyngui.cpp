@@ -15,6 +15,7 @@
 #include <gui/dyn/UnresolvedStringPattern.h>   // for ResolveStringPattern tests
 #include <type_traits>
 #include <gui/dyn/Action.h>
+#include <misc/GlobalSettings.h>
 
 using namespace cmn;
 using namespace cmn::gui;
@@ -76,6 +77,235 @@ static void collect_rendered_text_strings(const Layout::Ptr& node, std::vector<s
 static Vec2 center_of(Drawable& drawable) {
     const auto bounds = drawable.global_bounds();
     return Vec2(bounds.x + bounds.width * 0.5, bounds.y + bounds.height * 0.5);
+}
+
+TEST(DynamicGUILocalSettings, ParsesPredefinedAliasesAndDefaults) {
+    constexpr std::string_view json = R"json(
+{
+  "locals": {
+    "enabled": { "type": "bool", "value": true },
+    "count": { "type": "int", "value": 4 },
+    "ratio": { "type": "double", "value": 0.5 },
+    "label": { "type": "string", "value": "hello" },
+    "dataset": { "type": "path", "value": "/tmp/data.yaml" },
+    "inputs": { "type": "path_array" },
+    "selected_ids": { "type": "int_array", "value": [1, 2, 3] },
+    "origin": { "type": "vec2", "value": [2, 3] },
+    "panel_size": { "type": "size", "value": [100, 40] },
+    "accent": { "type": "color", "value": [10, 20, 30, 255] }
+  },
+  "objects": []
+}
+)json";
+
+    auto loaded = load(std::string(json));
+    ASSERT_TRUE(loaded.has_value()) << loaded.error();
+
+    auto [defaults, objects] = std::move(loaded.value());
+    (void)objects;
+    Context context;
+    ASSERT_NO_THROW(context.apply_local_settings(defaults));
+
+    EXPECT_TRUE(context.local_setting_ref("local.enabled").value<bool>());
+    EXPECT_EQ(context.local_setting_ref("local.count").value<int>(), 4);
+    EXPECT_DOUBLE_EQ(context.local_setting_ref("local.ratio").value<double>(), 0.5);
+    EXPECT_EQ(context.local_setting_ref("local.label").value<std::string>(), "hello");
+    EXPECT_EQ(context.local_setting_ref("local.dataset").value<file::Path>(), file::Path("/tmp/data.yaml"));
+    EXPECT_THAT(context.local_setting_ref("local.selected_ids").value<std::vector<int>>(), ::testing::ElementsAre(1, 2, 3));
+    EXPECT_EQ(context.local_setting_ref("local.origin").value<Vec2>(), Vec2(2, 3));
+    EXPECT_EQ(context.local_setting_ref("local.panel_size").value<Size2>(), Size2(100, 40));
+}
+
+TEST(DynamicGUILocalSettings, SettingsWidgetsBindToLocalValuesWithoutGlobalSettings) {
+    constexpr std::string_view json = R"json(
+{
+  "locals": {
+    "local_string": { "type": "string", "value": "abc" },
+    "local_bool": { "type": "bool", "value": true },
+    "local_path": { "type": "path", "value": "/tmp/data.yaml" },
+    "local_ids": { "type": "int_array", "value": [5, 6] }
+  },
+  "objects": [
+    {
+      "type": "collection",
+      "children": [
+        { "type": "settings", "var": "local.local_string" },
+        { "type": "settings", "var": "local.local_bool" },
+        { "type": "settings", "var": "local.local_path" },
+        { "type": "settings", "var": "local.local_ids" }
+      ]
+    }
+  ]
+}
+)json";
+
+    auto loaded = load(std::string(json));
+    ASSERT_TRUE(loaded.has_value()) << loaded.error();
+
+    auto [defaults, objects] = std::move(loaded.value());
+    (void)objects;
+    Context context;
+    context.apply_local_settings(defaults);
+    context.defaults = std::move(defaults);
+
+    State state;
+    auto handler = std::make_shared<CurrentObjectHandler>();
+    state._current_object_handler = handler;
+
+    GUITaskQueue_t queue;
+    DrawStructure graph(640, 480);
+    auto root = parse_object(&queue, objects.get_array().front().get_object(), context, state, context.defaults);
+    ASSERT_TRUE(root);
+    ASSERT_NO_THROW((void)DynamicGUI::update_objects(&queue, graph, root, context, state));
+
+    EXPECT_FALSE(GlobalSettings::has_value("local_string"));
+    EXPECT_FALSE(GlobalSettings::has_value("local_bool"));
+    EXPECT_EQ(context.local_setting_ref("local.local_string").value<std::string>(), "abc");
+    EXPECT_EQ(context.local_setting_ref("local.local_ids").value<std::vector<int>>(), std::vector<int>({5, 6}));
+}
+
+TEST(DynamicGUILocalSettings, LocalExpressionsResolveCurrentValues) {
+    constexpr std::string_view json = R"json(
+{
+  "locals": {
+    "title": { "type": "string", "value": "before" },
+    "enabled": { "type": "bool", "value": true }
+  },
+  "objects": []
+}
+)json";
+
+    auto loaded = load(std::string(json));
+    ASSERT_TRUE(loaded.has_value()) << loaded.error();
+
+    auto [defaults, objects] = std::move(loaded.value());
+    (void)objects;
+    Context context;
+    context.apply_local_settings(defaults);
+    context.defaults = std::move(defaults);
+    State state;
+
+    EXPECT_EQ(parse_text("{local.title}", context, state), "before");
+    EXPECT_EQ(parse_text("{if:{local.enabled}:yes:no}", context, state), "yes");
+
+    context.local_setting_ref("local.title").get().set_value_from_string("after");
+    context.local_setting_ref("local.enabled").get() = false;
+    EXPECT_EQ(parse_text("{local.title}", context, state), "after");
+    EXPECT_EQ(parse_text("{if:{local.enabled}:yes:no}", context, state), "no");
+}
+
+TEST(DynamicGUILocalSettings, LocalValuesSurviveReloadWhenAliasMatches) {
+    constexpr std::string_view json = R"json(
+{
+  "locals": {
+    "title": { "type": "string", "value": "default" }
+  },
+  "objects": []
+}
+)json";
+
+    auto first = load(std::string(json));
+    ASSERT_TRUE(first.has_value()) << first.error();
+    auto [defaults, objects] = std::move(first.value());
+    (void)objects;
+
+    Context context;
+    context.apply_local_settings(defaults);
+    context.local_setting_ref("local.title").get().set_value_from_string("edited");
+
+    auto second = load(std::string(json));
+    ASSERT_TRUE(second.has_value()) << second.error();
+    auto [reloaded_defaults, reloaded_objects] = std::move(second.value());
+    (void)reloaded_objects;
+    context.apply_local_settings(reloaded_defaults);
+
+    EXPECT_EQ(context.local_setting_ref("local.title").value<std::string>(), "edited");
+}
+
+TEST(DynamicGUILocalSettings, ChangedAliasReinitializesLocalValue) {
+    constexpr std::string_view string_json = R"json(
+{
+  "locals": {
+    "value": { "type": "string", "value": "default" }
+  },
+  "objects": []
+}
+)json";
+    constexpr std::string_view int_json = R"json(
+{
+  "locals": {
+    "value": { "type": "int", "value": 7 }
+  },
+  "objects": []
+}
+)json";
+
+    auto first = load(std::string(string_json));
+    ASSERT_TRUE(first.has_value()) << first.error();
+    auto [defaults, objects] = std::move(first.value());
+    (void)objects;
+
+    Context context;
+    context.apply_local_settings(defaults);
+    context.local_setting_ref("local.value").get().set_value_from_string("edited");
+
+    auto second = load(std::string(int_json));
+    ASSERT_TRUE(second.has_value()) << second.error();
+    auto [reloaded_defaults, reloaded_objects] = std::move(second.value());
+    (void)reloaded_objects;
+    context.apply_local_settings(reloaded_defaults);
+
+    EXPECT_EQ(context.local_setting_ref("local.value").value<int>(), 7);
+}
+
+TEST(DynamicGUILocalSettings, InvalidAliasReportsAvailableAliases) {
+    constexpr std::string_view json = R"json(
+{
+  "locals": {
+    "bad": { "type": "not_a_type", "value": 1 }
+  },
+  "objects": []
+}
+)json";
+
+    try {
+        (void)load(std::string(json));
+        FAIL() << "Expected invalid local setting alias to throw.";
+    } catch(const std::exception& e) {
+        const std::string message = e.what();
+        EXPECT_THAT(message, ::testing::HasSubstr("not_a_type"));
+        EXPECT_THAT(message, ::testing::HasSubstr("Available types"));
+        EXPECT_THAT(message, ::testing::HasSubstr("bool"));
+        EXPECT_THAT(message, ::testing::HasSubstr("string"));
+    }
+}
+
+TEST(DynamicGUILocalSettings, ExistingGlobalSettingsStillCreateSettingsWidgets) {
+    SETTING(dyngui_test_global_setting) = std::string("global");
+
+    constexpr std::string_view json = R"json(
+{
+  "objects": [
+    { "type": "settings", "var": "dyngui_test_global_setting" }
+  ]
+}
+)json";
+
+    auto loaded = load(std::string(json));
+    ASSERT_TRUE(loaded.has_value()) << loaded.error();
+
+    auto [defaults, objects] = std::move(loaded.value());
+    Context context;
+    context.defaults = std::move(defaults);
+
+    State state;
+    auto handler = std::make_shared<CurrentObjectHandler>();
+    state._current_object_handler = handler;
+
+    GUITaskQueue_t queue;
+    auto root = parse_object(&queue, objects.get_array().front().get_object(), context, state, context.defaults);
+    ASSERT_TRUE(root);
+    EXPECT_EQ(GlobalSettings::read_value<std::string>("dyngui_test_global_setting").value(), "global");
 }
 
 // ---------------------------------------------------------------------------

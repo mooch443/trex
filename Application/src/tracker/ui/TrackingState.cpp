@@ -154,7 +154,7 @@ TrackingState::~TrackingState() {
     pool.force_stop();
     analysis->terminate();
     
-    track::FOI::clear();
+    track::FOI::clear_all();
     
     if(_end_task.valid())
         _end_task.get();

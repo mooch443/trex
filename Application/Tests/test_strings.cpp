@@ -2910,6 +2910,97 @@ TEST(ParseArrayPartsBehaviorTest, HugeInputWithoutDelimiters)
     EXPECT_EQ(tokens.front().size(), big.size());
 }
 
+// === Meta::fromStr<container<...>> empty-element contract ====================
+//
+// Contract ("allow trailing only"): when parsing a container string, a single
+// trailing empty element (from a trailing delimiter, e.g. "[a,b,]") is tolerated
+// and dropped. Any other empty element is illegal and throws illegal_syntax:
+//   * interior empties      -> "[a,,b]"
+//   * leading empties       -> "[,a]"
+//   * a second trailing one -> "[a,b,,]"
+//   * the only token empty   -> "[,]"
+// This contract is enforced uniformly across vector, deque, array, set and map.
+
+TEST(ContainerEmptyElementContract, VectorTrailingCommaAllowed) {
+    EXPECT_EQ(Meta::fromStr<std::vector<int>>("[1,2,]"),
+              (std::vector<int>{1, 2}));
+}
+
+TEST(ContainerEmptyElementContract, VectorInteriorEmptyThrows) {
+    EXPECT_THROW(Meta::fromStr<std::vector<int>>("[1,,2]"), illegal_syntax);
+}
+
+TEST(ContainerEmptyElementContract, VectorLeadingEmptyThrows) {
+    EXPECT_THROW(Meta::fromStr<std::vector<int>>("[,1,2]"), illegal_syntax);
+}
+
+TEST(ContainerEmptyElementContract, VectorDoubleTrailingThrows) {
+    EXPECT_THROW(Meta::fromStr<std::vector<int>>("[1,2,,]"), illegal_syntax);
+}
+
+TEST(ContainerEmptyElementContract, VectorOnlyCommaThrows) {
+    EXPECT_THROW(Meta::fromStr<std::vector<int>>("[,]"), illegal_syntax);
+}
+
+TEST(ContainerEmptyElementContract, VectorEmptyContainerOk) {
+    EXPECT_EQ(Meta::fromStr<std::vector<int>>("[]"),
+              (std::vector<int>{}));
+}
+
+TEST(ContainerEmptyElementContract, DequeTrailingCommaAllowed) {
+    EXPECT_EQ(Meta::fromStr<std::deque<int>>("[1,2,]"),
+              (std::deque<int>{1, 2}));
+}
+
+TEST(ContainerEmptyElementContract, DequeInteriorEmptyThrows) {
+    EXPECT_THROW(Meta::fromStr<std::deque<int>>("[1,,2]"), illegal_syntax);
+}
+
+TEST(ContainerEmptyElementContract, ArrayTrailingCommaAllowed) {
+    EXPECT_EQ((Meta::fromStr<std::array<int, 2>>("[1,2,]")),
+              (std::array<int, 2>{1, 2}));
+}
+
+TEST(ContainerEmptyElementContract, ArrayInteriorEmptyThrows) {
+    EXPECT_THROW((Meta::fromStr<std::array<int, 2>>("[1,,2]")), illegal_syntax);
+}
+
+TEST(ContainerEmptyElementContract, SetTrailingCommaAllowed) {
+    EXPECT_EQ(Meta::fromStr<std::set<int>>("[1,2,]"),
+              (std::set<int>{1, 2}));
+}
+
+TEST(ContainerEmptyElementContract, SetInteriorEmptyThrows) {
+    EXPECT_THROW(Meta::fromStr<std::set<int>>("[1,,2]"), illegal_syntax);
+}
+
+TEST(ContainerEmptyElementContract, MapTrailingCommaAllowed) {
+    EXPECT_EQ((Meta::fromStr<std::map<std::string, int>>(R"({"a":1,"b":2,})")),
+              (std::map<std::string, int>{{"a", 1}, {"b", 2}}));
+}
+
+TEST(ContainerEmptyElementContract, MapInteriorEmptyThrows) {
+    EXPECT_THROW((Meta::fromStr<std::map<std::string, int>>(R"({"a":1,,"b":2})")),
+                 illegal_syntax);
+}
+
+TEST(ContainerEmptyElementContract, MapEmptyContainerOk) {
+    EXPECT_EQ((Meta::fromStr<std::map<std::string, int>>("{}")),
+              (std::map<std::string, int>{}));
+}
+
+// The literal example from the contract request: interior empty must throw,
+// while the trailing-only variant parses cleanly (whitespace is trimmed).
+TEST(ContainerEmptyElementContract, StringVectorInteriorEmptyThrows) {
+    EXPECT_THROW(Meta::fromStr<std::vector<std::string>>("[element,element 2,,last,]"),
+                 illegal_syntax);
+}
+
+TEST(ContainerEmptyElementContract, StringVectorTrailingOnlyAllowed) {
+    EXPECT_EQ(Meta::fromStr<std::vector<std::string>>("[element,element 2,last,]"),
+              (std::vector<std::string>{"element", "element 2", "last"}));
+}
+
 // === truncate – defensive programming ======================================
 
 TEST(TruncateTests, ThrowsOnMismatchedBraces)

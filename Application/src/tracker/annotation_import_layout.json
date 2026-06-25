@@ -23,241 +23,375 @@
           "color": [255, 255, 255]
         },
         {
-          "type": "gridlayout",
-          "outer_pad": [10, 10, 10, 10],
-          "pad": [0, 5, 0, 5],
-          "fill": [30, 30, 30, 100],
-          "line": [100, 100, 100, 250],
-          "vertical_clr": [100, 100, 100, 100],
-          "horizontal_clr": [100, 100, 100, 100],
-          "cellfillclr": [0, 0, 0, 0],
-          "celllineclr": [0, 0, 0, 0],
-          "mincellsize": "[0, {label_height}]",
-          "children": [
-            [
-              {
-                "type": "stext",
-                "text": "<gray><b>{info.file_label}</b>\n<small>{info.file_hint}</small></gray>",
-                "font": {"size": 0.5},
-                "pad": [10, 3, 10, 4]
-              },
-              {
-                "type": "hlayout",
-                "outer_pad": [0, 0, -1, 0],
-                "children": [
-                  {
-                    "type": "textfield",
-                    "text": "{info.dataset_file}",
-                    "action": "set-dataset-file:{text}",
-                    "on_text_changed": "set-dataset-file:{text}",
-                    "corners": ["left"],
-                    "size": "[390,{label_height}]",
-                    "font": {"size": 0.45},
-                    "fill": [50, 50, 50, 200],
-                    "line": [100, 100, 100, 50],
-                    "color": [255, 255, 255],
-                    "placeholder": "{info.file_placeholder}"
-                  },
-                  {
-                    "type": "button",
-                    "text": "<sym>🗁</sym>",
-                    "action": "choose-dataset-file",
-                    "corners": ["right"],
-                    "size": "[40, {label_height}]",
-                    "pad": [1, 0, 0, 0],
-                    "font": {"align": "center", "size": 0.8, "style": "bold"},
-                    "fill": "{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
-                    "line": "{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}"
-                  }
-                ]
-              }
-            ],
-            [
-              {
-                "type": "stext",
-                "text": "<gray><b>Mapping CSV</b>\n<small>optional image,video_source,source_index</small></gray>",
-                "font": {"size": 0.5},
-                "pad": [10, 3, 10, 4]
-              },
-              {
-                "type": "hlayout",
-                "outer_pad": [0, 0, -1, 0],
-                "children": [
-                  {
-                    "type": "textfield",
-                    "text": "{info.mapping_csv}",
-                    "action": "set-mapping-csv:{text}",
-                    "on_text_changed": "set-mapping-csv:{text}",
-                    "corners": ["left"],
-                    "size": "[390,{label_height}]",
-                    "font": {"size": 0.45},
-                    "fill": [50, 50, 50, 200],
-                    "line": [100, 100, 100, 50],
-                    "color": [255, 255, 255],
-                    "placeholder": "needed for arbitrary or mixed-video image names"
-                  },
-                  {
-                    "type": "button",
-                    "text": "<sym>🗁</sym>",
-                    "action": "choose-mapping-csv",
-                    "corners": ["right"],
-                    "size": "[40, {label_height}]",
-                    "pad": [1, 0, 0, 0],
-                    "font": {"align": "center", "size": 0.8, "style": "bold"},
-                    "fill": "{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
-                    "line": "{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}"
-                  }
-                ]
-              }
-            ],
-            [
-              {
-                "type": "stext",
-                "text": "<gray><b>Source file</b>\n<small>dataset source to import as current video</small></gray>",
-                "font": {"size": 0.5},
-                "pad": [10, 3, 10, 4]
-              },
-              {
-                "type": "vlayout",
-                "pad": [0, 5, 0, 0],
-                "children": [
-                  {
-                    "type": "condition",
-                    "var": "{info.source_choices}",
-                    "then": {
-                      "type":"list",
-                      "size": "[430,{label_height}]",
-                      "clickable": true,
-                      "foldable": false,
-                      "folded": false,
-                      "list": {
-                        "size": "[430,100]",
-                        "fill": [25,25,25,230],
-                        "line": [120,120,120,220]
+          "type":"condition",
+          "var": "{info.dataset_file}",
+          "then":{
+            "type": "gridlayout",
+            "outer_pad": [10, 10, 10, 10],
+            "pad": [0, 5, 0, 5],
+            "fill": [30, 30, 30, 100],
+            "line": [100, 100, 100, 250],
+            "vertical_clr": [100, 100, 100, 100],
+            "horizontal_clr": [100, 100, 100, 100],
+            "cellfillclr": [0, 0, 0, 0],
+            "celllineclr": [0, 0, 0, 0],
+            "mincellsize": "[0, {label_height}]",
+            "children": [
+              [
+                {
+                  "type": "stext",
+                  "text": "<gray><b>Dataset file</b>\n<small>{info.file_hint}</small></gray>",
+                  "font": {"size": 0.5},
+                  "pad": [10, 3, 10, 4]
+                },
+                {
+                  "type": "hlayout",
+                  "outer_pad": [0, 0, -1, 0],
+                  "children": [
+                    {
+                      "type": "textfield",
+                      "text": "{info.dataset_file}",
+                      "action": "set-dataset-file:{text}",
+                      "on_text_changed": "set-dataset-file:{text}",
+                      "corners": ["left"],
+                      "size": "[390,{label_height}]",
+                      "font": {"size": 0.45},
+                      "fill": [50, 50, 50, 200],
+                      "line": [100, 100, 100, 50],
+                      "color": [255, 255, 255],
+                      "placeholder": "{info.file_placeholder}"
+                    },
+                    {
+                      "type": "button",
+                      "text": "<sym>🗁</sym>",
+                      "action": "choose-dataset-file",
+                      "corners": ["right"],
+                      "size": "[40, {label_height}]",
+                      "pad": [1, 0, 0, 0],
+                      "font": {"align": "center", "size": 0.8, "style": "bold"},
+                      "fill": "{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                      "line": "{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}"
+                    }
+                  ]
+                }
+              ],
+              [
+                {
+                  "type": "stext",
+                  "text": "<gray><b>Mapping CSV</b>\n<small>optional image,video_source,source_index</small></gray>",
+                  "font": {"size": 0.5},
+                  "pad": [10, 3, 10, 4]
+                },
+                {
+                  "type": "hlayout",
+                  "outer_pad": [0, 0, -1, 0],
+                  "children": [
+                    {
+                      "type": "textfield",
+                      "text": "{info.mapping_csv}",
+                      "action": "set-mapping-csv:{text}",
+                      "on_text_changed": "set-mapping-csv:{text}",
+                      "corners": ["left"],
+                      "size": "[390,{label_height}]",
+                      "font": {"size": 0.45},
+                      "fill": [50, 50, 50, 200],
+                      "line": [100, 100, 100, 50],
+                      "color": [255, 255, 255],
+                      "placeholder": "needed for arbitrary or mixed-video image names"
+                    },
+                    {
+                      "type": "button",
+                      "text": "<sym>🗁</sym>",
+                      "action": "choose-mapping-csv",
+                      "corners": ["right"],
+                      "size": "[40, {label_height}]",
+                      "pad": [1, 0, 0, 0],
+                      "font": {"align": "center", "size": 0.8, "style": "bold"},
+                      "fill": "{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                      "line": "{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}"
+                    }
+                  ]
+                }
+              ],
+              [
+                {
+                  "type": "stext",
+                  "text": "<gray><b>Source file</b>\n<small>dataset source to import as current video</small></gray>",
+                  "font": {"size": 0.5},
+                  "pad": [10, 3, 10, 4]
+                },
+                {
+                  "type": "vlayout",
+                  "pad": [0, 5, 0, 0],
+                  "children": [
+                    {
+                      "type": "condition",
+                      "var": "{info.source_choices}",
+                      "then": {
+                        "type":"list",
+                        "size": "[430,{label_height}]",
+                        "clickable": true,
+                        "foldable": false,
+                        "folded": false,
+                        "list": {
+                          "size": "[430,100]",
+                          "fill": [25,25,25,230],
+                          "line": [120,120,120,220]
+                        },
+                        "label": {
+                          "fill": [50,50,50,200],
+                          "line": "{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                          "font": {"size": 0.45},
+                          "text": "{if:{info.selected_source}:<b>{info.selected_source}</b>:No source detected}",
+                          "corners": ["left", "right"]
+                        },
+                        "item": {
+                          "color": [60,60,60,100],
+                          "pad": [8,0],
+                          "font": {"size": 0.48, "align": "vcenter"}
+                        },
+                        "detail": {
+                          "color": [150,150,150,255],
+                          "font": {"size": 0.42, "align": "left"}
+                        },
+                        "var": "source_choices",
+                        "template": {
+                          "text": "{if:{i.selected}:<sym>☑</sym> :<sym>☐</sym> }{i.text}",
+                          "detail": "{i.detail}",
+                          "action": "set-source"
+                        }
                       },
-                      "label": {
-                        "fill": [50,50,50,200],
-                        "line": "{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                      "else": {
+                        "type": "stext",
+                        "text": "<gray>No dataset source detected yet.</gray>",
                         "font": {"size": 0.45},
-                        "text": "{if:{info.selected_source}:<b>{info.selected_source}</b>:No source detected}",
-                        "corners": ["left", "right"]
-                      },
-                      "item": {
-                        "color": [60,60,60,100],
-                        "pad": [8,0],
-                        "font": {"size": 0.48, "align": "vcenter"}
-                      },
-                      "detail": {
-                        "color": [150,150,150,255],
-                        "font": {"size": 0.42, "align": "left"}
-                      },
-                      "var": "source_choices",
-                      "template": {
-                        "text": "{if:{i.selected}:<sym>☑</sym> :<sym>☐</sym> }{i.text}",
-                        "detail": "{i.detail}",
-                        "action": "set-source"
+                        "pad": [0, 8, 0, 0]
                       }
                     },
-                    "else": {
+                    {
                       "type": "stext",
-                      "text": "<gray>No dataset source detected yet.</gray>",
-                      "font": {"size": 0.45},
-                      "pad": [0, 8, 0, 0]
+                      "text": "<gray><small>load annotations only from the selected source, or from every source in the dataset</small></gray>",
+                      "max_size": "[430, 40]",
+                      "font": {"size": 0.4},
+                      "pad": [2, 5, 0, 3]
+                    },
+                    {
+                      "type": "hlayout",
+                      "outer_pad": [0, 0, -1, 0],
+                      "children": [
+                        {
+                          "type": "button",
+                          "text": "{if:{equal:{info.scope}:current_video}:<b>Only this source</b>:Only this source}",
+                          "action": "set-scope:current_video",
+                          "corners": ["left"],
+                          "size": "[215,{label_height}]",
+                          "font": {"size": 0.5},
+                          "fill": "{if:{equal:{info.scope}:current_video}:[55,85,70,230]:[45,45,45,200]}",
+                          "line": "{if:{equal:{info.scope}:current_video}:[120,210,160,220]:[120,120,120,90]}"
+                        },
+                        {
+                          "type": "button",
+                          "text": "{if:{equal:{info.scope}:all_videos}:<b>All sources</b>:All sources}",
+                          "action": "set-scope:all_videos",
+                          "corners": ["right"],
+                          "size": "[215,{label_height}]",
+                          "font": {"size": 0.5},
+                          "fill": "{if:{equal:{info.scope}:all_videos}:[55,85,70,230]:[45,45,45,200]}",
+                          "line": "{if:{equal:{info.scope}:all_videos}:[120,210,160,220]:[120,120,120,90]}"
+                        }
+                      ]
                     }
-                  },
-                  {
-                    "type": "stext",
-                    "text": "<gray><small>load annotations only from the selected source, or from every source in the dataset</small></gray>",
-                    "max_size": "[430, 40]",
-                    "font": {"size": 0.4},
-                    "pad": [2, 5, 0, 3]
-                  },
-                  {
-                    "type": "hlayout",
-                    "outer_pad": [0, 0, -1, 0],
-                    "children": [
-                      {
-                        "type": "button",
-                        "text": "{if:{equal:{info.scope}:current_video}:<b>Only this source</b>:Only this source}",
-                        "action": "set-scope:current_video",
-                        "corners": ["left"],
-                        "size": "[215,{label_height}]",
-                        "font": {"size": 0.5},
-                        "fill": "{if:{equal:{info.scope}:current_video}:[55,85,70,230]:[45,45,45,200]}",
-                        "line": "{if:{equal:{info.scope}:current_video}:[120,210,160,220]:[120,120,120,90]}"
-                      },
-                      {
-                        "type": "button",
-                        "text": "{if:{equal:{info.scope}:all_videos}:<b>All sources</b>:All sources}",
-                        "action": "set-scope:all_videos",
-                        "corners": ["right"],
-                        "size": "[215,{label_height}]",
-                        "font": {"size": 0.5},
-                        "fill": "{if:{equal:{info.scope}:all_videos}:[55,85,70,230]:[45,45,45,200]}",
-                        "line": "{if:{equal:{info.scope}:all_videos}:[120,210,160,220]:[120,120,120,90]}"
-                      }
-                    ]
-                  }
-                ]
-              }
-            ],
-            [
-              {
-                "type": "stext",
-                "text": "<gray><b>Mode</b>\n<small>how to combine annotations</small></gray>",
-                "font": {"size": 0.5},
-                "pad": [10, 3, 10, 5]
-              },
-              {
-                "type": "hlayout",
-                "outer_pad": [0, 0, -1, 0],
-                "children": [
-                  {
-                    "type": "button",
-                    "text": "{if:{equal:{info.mode}:add}:<b>Add</b>:Add}",
-                    "action": "set-mode:add",
-                    "corners": ["left"],
-                    "size": "[96,{label_height}]",
-                    "font": {"size": 0.5},
-                    "fill": "{if:{equal:{info.mode}:add}:[55,85,70,230]:[45,45,45,200]}",
-                    "line": "{if:{equal:{info.mode}:add}:[120,210,160,220]:[120,120,120,90]}"
-                  },
-                  {
-                    "type": "button",
-                    "text": "{if:{equal:{info.mode}:replace}:<b>Replace</b>:Replace}",
-                    "action": "set-mode:replace",
-                    "corners": ["right"],
-                    "size": "[110,{label_height}]",
-                    "font": {"size": 0.5},
-                    "fill": "{if:{equal:{info.mode}:replace}:[80,65,50,230]:[45,45,45,200]}",
-                    "line": "{if:{equal:{info.mode}:replace}:[230,180,120,220]:[120,120,120,90]}"
-                  }
-                ]
-              }
+                  ]
+                }
+              ],
+              [
+                {
+                  "type": "stext",
+                  "text": "<gray><b>Mode</b>\n<small>how to combine annotations</small></gray>",
+                  "font": {"size": 0.5},
+                  "pad": [10, 3, 10, 5]
+                },
+                {
+                  "type": "hlayout",
+                  "outer_pad": [0, 0, -1, 0],
+                  "children": [
+                    {
+                      "type": "button",
+                      "text": "{if:{equal:{info.mode}:add}:<b>Add</b>:Add}",
+                      "action": "set-mode:add",
+                      "corners": ["left"],
+                      "size": "[96,{label_height}]",
+                      "font": {"size": 0.5},
+                      "fill": "{if:{equal:{info.mode}:add}:[55,85,70,230]:[45,45,45,200]}",
+                      "line": "{if:{equal:{info.mode}:add}:[120,210,160,220]:[120,120,120,90]}"
+                    },
+                    {
+                      "type": "button",
+                      "text": "{if:{equal:{info.mode}:replace}:<b>Replace</b>:Replace}",
+                      "action": "set-mode:replace",
+                      "corners": ["right"],
+                      "size": "[110,{label_height}]",
+                      "font": {"size": 0.5},
+                      "fill": "{if:{equal:{info.mode}:replace}:[80,65,50,230]:[45,45,45,200]}",
+                      "line": "{if:{equal:{info.mode}:replace}:[230,180,120,220]:[120,120,120,90]}"
+                    }
+                  ]
+                }
+              ]
             ]
-          ]
-        },
-        {
-          "type": "stext",
-          "text": "{info.summary}",
-          "max_size": "[{content_width}, 170]",
-          "pad": [8, 12, 8, 8],
-          "font": {"size": 0.48},
-          "color": [235, 235, 235]
-        },
-        {
-          "type": "condition",
-          "var": "{info.metadata_changes}",
-          "then": {
-            "type": "button",
-            "text": "{if:{info.metadata_confirmed}:<b>Imported metadata will be applied</b>:Apply imported metadata}",
-            "action": "confirm-metadata",
-            "font": {"size": 0.5, "style": "bold"},
-            "fill": "{if:{info.metadata_confirmed}:[55,85,70,230]:[80,65,45,230]}",
-            "line": "{if:{info.metadata_confirmed}:[120,210,160,220]:[230,180,120,220]}",
-            "size": [250, 32]
+          },
+          "else":{
+            "type": "gridlayout",
+            "outer_pad": [10, 10, 10, 10],
+            "pad": [0, 5, 0, 5],
+            "fill": [30, 30, 30, 100],
+            "line": [100, 100, 100, 250],
+            "vertical_clr": [100, 100, 100, 100],
+            "horizontal_clr": [100, 100, 100, 100],
+            "cellfillclr": [0, 0, 0, 0],
+            "celllineclr": [0, 0, 0, 0],
+            "mincellsize": "[0, {label_height}]",
+            "children": [
+              [
+                {
+                  "type": "stext",
+                  "text": "<gray><b>Dataset file</b>\n<small>{info.file_hint}</small></gray>",
+                  "font": {"size": 0.5},
+                  "pad": [10, 3, 10, 4]
+                },
+                {
+                  "type": "hlayout",
+                  "outer_pad": [0, 0, -1, 0],
+                  "children": [
+                    {
+                      "type": "textfield",
+                      "text": "{info.dataset_file}",
+                      "action": "set-dataset-file:{text}",
+                      "on_text_changed": "set-dataset-file:{text}",
+                      "corners": ["left"],
+                      "size": "[390,{label_height}]",
+                      "font": {"size": 0.45},
+                      "fill": "{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                      "line": "{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                      "color": [255, 255, 255],
+                      "placeholder": "{info.file_placeholder}"
+                    },
+                    {
+                      "type": "button",
+                      "text": "<sym>🗁</sym>",
+                      "action": "choose-dataset-file",
+                      "corners": ["right"],
+                      "size": "[40, {label_height}]",
+                      "pad": [1, 0, 0, 0],
+                      "font": {"align": "center", "size": 0.8, "style": "bold"},
+                      "fill": "{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                      "line": "{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}"
+                    }
+                  ]
+                }
+              ]
+            ]
           }
         },
+        {
+          "type":"condition",
+          "var": "{info.selected_source}",
+          "else":{
+            "type": "stext",
+            "text": "{if:{info.selected_source}:{info.summary}:<gray>Select a YOLO data.yaml or COCO annotations JSON file to preview the import.</gray>}",
+            "max_size": "[{content_width}, 170]",
+            "pad": [8, 12, 8, 8],
+            "font": {"size": 0.48},
+            "color": [235, 235, 235]
+          },
+          "then":{
+            "type": "vlayout",
+            "fill": [30, 30, 30, 100],
+            "line": [100, 100, 100, 250],
+            "outer_pad": [15, 15, 15, 15],
+            "pad":[10,5,10,0],
+            "children":[
+              {
+                "type":"stext",
+                "max_size":"[{-:{content_width}:50},-1]",
+                "text":"<h4>Summary</h4>\nImporting <c>{info.format}</c> annotations from {if:{equal:{info.scope}:all_videos}:<b>all sources</b>:<b>the current video</b>}. {if:{equal:{info.mode}:add}:Will merge existing annotations with the imported ones:Will replace everything in <c>track_annotations</c>. Make sure you have saved your config}.",
+                "font":{"size":0.55}
+              },
+              {
+                "type":"rect",
+                "fill":[50,50,50,0],
+                "size":"[{-:{content_width}:7},1]"
+              },
+              {
+                "type":"condition",
+                "var":"{info.metadata_changes}",
+                "then": {
+                  "type":"vlayout",
+                  "fill": "{if:{info.metadata_confirmed}:[55,85,70,230]:[85,75,55,230]}",
+                  "line": "{if:{info.metadata_confirmed}:[120,210,160,220]:[230,180,120,220]}",
+                  "outer_pad":[10,10,10,10],
+                  "pad":[0,5,0,5],
+                  "children":[
+                    {
+                      "type":"stext",
+                      "text":"<h4>Metadata changes {if:{info.metadata_confirmed}:confirmed:available}</h4>\nThe dataset you are importing has different meta settings. If you want to accept these changes, toggle the button below.",
+                      "pad":[5,0,5,0],
+                      "font":{"size":0.5},
+                      "color": "{if:{info.metadata_confirmed}:[200,255,200]:[255,200,200]}",
+                      "max_size": "[{-:{content_width}:150}, -1]"
+                    },
+                    {
+                      "type":"hlayout",
+                      "halign":"center",
+                      "pad":[5,0,5,0],
+                      "children":[
+                        {
+                          "type":"button",
+                          "text":"{if:{info.metadata_confirmed}:[x]:[ ]}",
+                          "action":"confirm-metadata",
+                          "size":"[50, 50]",
+                          "font":{ "size":0.55, "style":"bold" },
+                          "fill": "{if:{info.metadata_confirmed}:[55,85,70,230]:[55,55,45,200]}",
+                          "line": "{if:{info.metadata_confirmed}:[120,210,160,50]:[220,220,120,50]}"
+                        },
+                        {
+                          "type":"list",
+                          "var":"[{if:{info.metadata_class_names_changed}:detect_classes,:''}{if:{info.metadata_keypoint_names_changed}:detect_keypoint_names,:''}{if:{info.metadata_skeletons_changed}:detect_skeletons,:''}{if:{info.metadata_detect_format_changed}:detect_format:''}]",
+                          "template":{
+                            "text": "<c>{i}</c>",
+                            "detail":"{global.{i}} -> {info.{i}}"
+                          },
+                          "list": {
+                            "size": "[{-:{content_width}:180},80]",
+                            "fill": [25,25,25,230],
+                            "line": [120,120,120,220]
+                          },
+                          "label": {
+                            "fill": [50,50,50,200],
+                            "line": "{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                            "font": {"size": 0.45},
+                            "text": "{if:{info.selected_source}:<b>{info.selected_source}</b>:No source detected}",
+                            "corners": ["left", "right"]
+                          },
+                          "item": {
+                            "color": [60,60,60,100],
+                            "pad": [8,0],
+                            "font": {"size": 0.48, "align": "vcenter"}
+                          },
+                          "detail": {
+                            "color": [150,150,150,255],
+                            "font": {"size": 0.42, "align": "left"}
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+
         {
           "type": "hlayout",
           "pad": [0, 10, 0, 0],

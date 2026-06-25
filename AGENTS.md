@@ -268,6 +268,11 @@ conda build -c conda-forge .
   reference implementation for GUI structure or best practices.
 
 ## Agent execution constraints
+- Do not run builds, CMake configure/generate commands, or CMake build commands.
+  The user will run builds/tests after the agent has inspected the code and is
+  confident the changes are ready.
+- Optimize for fewer, higher-confidence iterations. Think and inspect longer
+  before responding or editing, because each exchange has a monetary cost.
 - do not run commands in the build directory and dont delete the existing project files there
 - do not run commands outside the root directory of the project, or commands that affect the outside
 - stay in scope for the task you were asked to do. only edit files directly relevant to that task, plus the minimal wiring required to make those edits work.
