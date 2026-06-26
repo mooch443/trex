@@ -4098,6 +4098,10 @@ TEST(IsInIndexTest, ReturnsNposWhenMissing) {
     EXPECT_EQ(missing_index, npos);
 }
 
+TEST(Serialize, TupleName) {
+    ASSERT_EQ((std::string)cmn::_Meta::tuple_name(std::tuple<int,float>{}), (std::string)"tuple<int,float>");
+}
+
 namespace {
 struct ThrowIfCompared {
     bool* was_compared = nullptr;

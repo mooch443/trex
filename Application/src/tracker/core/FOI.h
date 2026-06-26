@@ -103,7 +103,8 @@ namespace track {
         static void remove_frames(Frame_t frameIndex);
         static void remove_frames(Frame_t frameIndex, ID_t id);
         static void remove_all_of(ID_t);
-        static void replace_all(std::vector<FOI>&&);
+        static void replace_all_of(ID_t, std::set<FOI>&&);
+        static void replace_all_of(std::unordered_map<ID_t, std::set<FOI>>&&);
         static void clear_tracking_fois();
         static void clear_all();
         static uint64_t last_change();

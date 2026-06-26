@@ -711,14 +711,14 @@ void TrackingScene::settings_callback(std::string_view key) {
     if(key == "track_annotations") {
         auto track_annotations = READ_SETTING_WITH_DEFAULT(track_annotations, track::AnnotationMap{});
         
-        std::vector<FOI> fois;
-        fois.reserve(track_annotations.size());
+        static const std::string manual_annotations_foi_name = "annotated";
+        std::set<FOI> fois;
+        auto id = FOI::to_id(manual_annotations_foi_name);
         for(auto &[frame, annotations]: track_annotations) {
-            fois.emplace_back(frame, "annotated", true, "Frame with manual annotations");
+            fois.emplace(frame, manual_annotations_foi_name, true, "Frame with manual annotations");
         }
-        FOI::replace_all(std::move(fois));
+        FOI::replace_all_of(id, std::move(fois));
         _data->update_cached_fois(_state->video, true);
-        return;
     }
     else if(key == "gui_foi_name") {
         _data->update_cached_fois(_state->video, true);

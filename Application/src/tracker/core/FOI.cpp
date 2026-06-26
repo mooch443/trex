@@ -273,27 +273,30 @@ namespace track {
         _frames_of_interest.erase(id);
     }
 
-    void FOI::replace_all(std::vector<FOI>&& objects) {
+    void FOI::replace_all_of(std::unordered_map<ID_t, std::set<FOI>>&& map) {
+        for(auto &&[id, fois] : map) {
+            replace_all_of(id, std::move(fois));
+        }
+    }
+
+    void FOI::replace_all_of(FOI::ID_t id, std::set<FOI>&& objects) {
         std::lock_guard<std::recursive_mutex> guard(_mutex);
-        for(FOI &foi : objects) {
-            auto it = _frames_of_interest.find(foi.id());
-            if(it != _frames_of_interest.end()) {
-                bool found = false;
-                for(auto &other : it->second) {
-                    if(other.frames() == foi.frames()) {
-                        /// we already have it
-                        found = true;
-                        break;
-                    }
-                }
-                if(not found) {
-                    it->second.insert(std::move(foi));
-                    changed();
-                }
-            } else {
-                _frames_of_interest.emplace(foi.id(), std::set<FOI>{std::move(foi)});
+        auto it = _frames_of_interest.find(id);
+        if(it != _frames_of_interest.end()) {
+            if(it->second.size() != objects.size()
+               || not std::equal(it->second.begin(), it->second.end(), objects.begin(),
+                 [](const FOI& A, const FOI& B) -> bool {
+                    return A.frames() == B.frames();
+                 })
+               )
+            {
+                it->second = std::move(objects);
                 changed();
             }
+            
+        } else {
+            _frames_of_interest.emplace(id, std::move(objects));
+            changed();
         }
     }
     
