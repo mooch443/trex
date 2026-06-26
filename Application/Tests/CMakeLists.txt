@@ -16,6 +16,18 @@ FetchContent_MakeAvailable(googletest)
 include_directories(../src/tracker)
 include_directories(../src/ProcessedVideo)
 
+set(TREX_TEST_PYTHON_EXECUTABLE "${PYTHON_EXECUTABLE}")
+if(NOT TREX_TEST_PYTHON_EXECUTABLE AND DEFINED Python_EXECUTABLE)
+    set(TREX_TEST_PYTHON_EXECUTABLE "${Python_EXECUTABLE}")
+endif()
+if(NOT TREX_TEST_PYTHON_EXECUTABLE)
+    find_package(Python 3.6 COMPONENTS Interpreter REQUIRED)
+    set(TREX_TEST_PYTHON_EXECUTABLE "${Python_EXECUTABLE}")
+endif()
+string(REPLACE "\\" "/" TREX_TEST_PYTHON_EXECUTABLE "${TREX_TEST_PYTHON_EXECUTABLE}")
+set(PYTHON_EXECUTABLE "${TREX_TEST_PYTHON_EXECUTABLE}")
+message(STATUS "[TREX TESTS] Python executable: ${TREX_TEST_PYTHON_EXECUTABLE}")
+
 add_executable(test_matching test_matching.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
 target_compile_definitions(test_matching PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
 
@@ -72,7 +84,7 @@ target_compile_definitions(test_annotation_exporter PRIVATE -DTREX_TEST_FOLDER="
 add_executable(test_trex_detection_model_python test_trex_detection_model_python.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
 target_compile_definitions(test_trex_detection_model_python PRIVATE
     -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}"
-    -DTREX_PYTHON_EXECUTABLE="${PYTHON_EXECUTABLE}"
+    -DTREX_PYTHON_EXECUTABLE="${TREX_TEST_PYTHON_EXECUTABLE}"
     -DTREX_DETECTION_MODEL_TEST_DIR="${CMAKE_SOURCE_DIR}/src/tracker/python"
 )
 
