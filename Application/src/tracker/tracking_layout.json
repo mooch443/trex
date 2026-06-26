@@ -82,16 +82,16 @@
                         "type": "rect",
                         "line": [255,0,0,150],
                         "fill":[255,0,0, 20],
-                        "pos":"{2hud:[{-:{i.x}:10},{-:{i.y}:10}]}",
-                        "size":"{size2hud:[{+:{i.w}:20},{+:{i.h}:20}]}",
+                        "pos":"{addVector:[-25,-25]:{2hud:[{i.x},{i.y}]}}",
+                        "size":"{addSize:[50,50]:{size2hud:[{i.w},{i.h}]}}",
                         "corners":["all", 8]
                     },
 
                     /* draggable area over the whole annotation for easy dragging */
                     {
                         "type":"collection",
-                        "pos":"{2hud:[{-:{i.x}:10},{-:{i.y}:10}]}",
-                        "size":"{size2hud:[{+:{i.w}:20},{+:{i.h}:20}]}",
+                        "pos":"{addVector:[-25,-25]:{2hud:[{i.x},{i.y}]}}",
+                        "size":"{addSize:[50,50]:{size2hud:[{i.w},{i.h}]}}",
                         "line": [255,0,0,100],
                         "fill":[255,0,0, 10],
                         "corners":["all", 8],
@@ -178,12 +178,13 @@
                     {
                         "type":"button",
                         "action":"remove_annotation:{i.id}",
-                        "text":"<sym>⮾</sym>",
-                        "size":[25,25],
+                        "text":"<sym>⮿</sym>",
+                        "size":[25,30],
+                        "corners":["all", 18],
                         "origin":[0.5,0.5],
                         "color":"{if:{||:{selected}:{hovered}}:[255,255,255,255]:[255,125,125,150]}",
-                        "font":{"size":1,"align":"center"},
-                        "pos":"{2hud:{addVector:[{+:{i.w}:5},-5]:[{i.x},{i.y}]}}",
+                        "font":{"size":1.2,"align":"center"},
+                        "pos":"{addVector:[15,-15]:{2hud:{addVector:[{i.w},0]:[{i.x},{i.y}]}}}",
                         "fill":[1,0,0,0],
                         "line":[1,0,0,0]
                     }

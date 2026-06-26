@@ -83,7 +83,6 @@ auto TrackingState::addSafeTask(const std::string& title, Func&& f) {
 
 TrackingState::TrackingState(GUITaskQueue_t* gui)
   : video(pv::File::Make(READ_SETTING(filename, file::Path))),
-    tracker(std::make_unique<track::Tracker>(*this->video)),
     analysis(std::unique_ptr<ConnectedTasks>(new ConnectedTasks(
       {
          [this](ConnectedTasks::Type&& ptr, auto&) -> bool {
@@ -96,6 +95,14 @@ TrackingState::TrackingState(GUITaskQueue_t* gui)
     pool(4u, "preprocess_main"),
     _controller(std::make_unique<VIControllerImpl>(video, *this))
 {
+    try {
+        this->video->header();
+    } catch(const std::exception& ex) {
+        /// File open / read errors will happen here. Report back as file failed to open
+        /// instead of some other cryptic error:
+        throw RuntimeError("Failed to open PV file ",this->video->filename(),": ", no_quotes(ex.what()),"\nCheck if this file is corrupt and that you have all necessary access rights.");
+    }
+    tracker = std::make_unique<track::Tracker>(*this->video);
     _end_task_check_auto_quit = [this, gui](){
 #if !COMMONS_NO_PYTHON
             if(BOOL_SETTING(auto_categorize)) {

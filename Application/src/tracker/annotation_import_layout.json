@@ -356,7 +356,7 @@
                         },
                         {
                           "type":"list",
-                          "var":"[{if:{info.metadata_class_names_changed}:detect_classes,:''}{if:{info.metadata_keypoint_names_changed}:detect_keypoint_names,:''}{if:{info.metadata_skeletons_changed}:detect_skeletons,:''}{if:{info.metadata_detect_format_changed}:detect_format:''}]",
+                          "var":"[{if:{info.metadata_class_names_changed}:detect_classes,:}{if:{info.metadata_keypoint_names_changed}:detect_keypoint_names,:}{if:{info.metadata_skeletons_changed}:detect_skeletons,:}{if:{info.metadata_detect_format_changed}:detect_format,:}]",
                           "template":{
                             "text": "<c>{i}</c>",
                             "detail":"{global.{i}} -> {info.{i}}"

@@ -653,6 +653,45 @@ TEST(PreparseTest, SubItemsExtended) {
     ASSERT_EQ(realized, "[1024,768] 1024");
 }
 
+TEST(PreparseTest, EmptyConditionsInIf) {
+    using namespace cmn::pattern;
+    
+    auto str = "{if:{global.gui_show_selections}:'string':}";
+    auto result = UnresolvedStringPattern::prepare(str);
+    
+    Print(result);
+    
+    using namespace gui::dyn;
+
+    {
+        SETTING(gui_show_selections) = true;
+
+        Context context{};
+        State state;
+        
+        std::string realized;
+        EXPECT_NO_THROW((realized = result.realize(context, state)));
+        
+        Print(no_quotes(realized));
+        
+        ASSERT_EQ(realized, "string");
+    }
+
+    {
+        SETTING(gui_show_selections) = false;
+
+        Context context{};
+        State state;
+        
+        std::string realized;
+        EXPECT_NO_THROW((realized = result.realize(context, state)));
+        
+        Print(no_quotes(realized));
+        
+        ASSERT_EQ(realized, "");
+    }
+}
+
 TEST(PreparseTest, SpecialCase) {
     using namespace cmn::pattern;
     
@@ -4131,4 +4170,55 @@ TEST(IsInIndexTest, StopsEvaluatingAfterLaterMatch) {
         EXPECT_EQ(is_in_index(2, 1, 2, ThrowIfCompared{&compared_after_match}), 1u);
     });
     EXPECT_FALSE(compared_after_match);
+}
+
+
+namespace meter {
+
+template<typename Q>
+requires is_instantiation<std::optional, Q>::value
+constexpr std::string_view name() {
+    static constexpr util::ConstString_t ret("optional<", _Meta::name<typename cmn::remove_cvref<typename Q::value_type>::type>(), ">" );
+    return ret.view();
+}
+}
+
+TEST(MetaTest, OptionalSerializesProperly) {
+    ASSERT_EQ(meter::name<cmn::blob::MaybeObjectClass_t>(), "optional<map<uint16,string>>");
+    ASSERT_EQ(Meta::name<cmn::blob::MaybeObjectClass_t>(), "optional<map<uint16,string>>");
+}
+
+TEST(MetaTest, FunctionNameSerializesArgumentsAndReturnType) {
+    using Function = std::function<int(uint16_t, std::string)>;
+
+    ASSERT_EQ(utils::get_name(Function{}), "function<int(uint16,string)>");
+}
+
+TEST(MetaTest, FunctionNameSerializesRecursiveTypes) {
+    using Function = std::function<
+        std::optional<std::map<uint16_t, std::string>>(
+            std::vector<int>,
+            std::pair<uint16_t, std::string>,
+            std::tuple<int, float>
+        )
+    >;
+
+    ASSERT_EQ(
+        utils::get_name(Function{}),
+        "function<optional<map<uint16,string>>(array<int>,pair<uint16,string>,tuple<int,float>)>"
+    );
+}
+
+TEST(MetaTest, RecursiveTypeNamesSerializeProperly) {
+    using VectorOfPairs = std::vector<std::pair<uint16_t, std::string>>;
+    using MapOfVectors = std::map<uint16_t, std::vector<std::string>>;
+    using Tuple = std::tuple<
+        int,
+        std::optional<std::map<uint16_t, std::string>>,
+        std::vector<std::pair<uint16_t, std::string>>
+    >;
+
+    ASSERT_EQ(Meta::name<VectorOfPairs>(), "array<pair<uint16,string>>");
+    ASSERT_EQ(Meta::name<MapOfVectors>(), "map<uint16,array<string>>");
+    ASSERT_EQ(Meta::name<Tuple>(), "tuple<int,optional<map<uint16,string>>,array<pair<uint16,string>>>");
 }

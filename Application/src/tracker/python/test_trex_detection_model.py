@@ -214,6 +214,20 @@ def make_image(height: int, width: int):
 
 class TrexDetectionModelEdgeCaseTest(unittest.TestCase):
     def setUp(self):
+        # install_fakes() overwrites these entries in the global sys.modules; snapshot
+        # the originals and restore them afterwards so the fakes cannot leak into any
+        # other test module that runs in the same interpreter.
+        fake_names = ("TRex", "torch", "cv2", "trex_utils", "trex_detection_model")
+        saved = {name: sys.modules.get(name) for name in fake_names}
+
+        def restore():
+            for name, module in saved.items():
+                if module is None:
+                    sys.modules.pop(name, None)
+                else:
+                    sys.modules[name] = module
+
+        self.addCleanup(restore)
         self.module = install_fakes()
 
     def stripped(self, *, boxes=None, masks=None, keypoints=None, obb=None, points=None):

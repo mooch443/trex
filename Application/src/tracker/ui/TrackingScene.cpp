@@ -713,12 +713,21 @@ void TrackingScene::settings_callback(std::string_view key) {
         
         static const std::string manual_annotations_foi_name = "annotated";
         std::set<FOI> fois;
-        auto id = FOI::to_id(manual_annotations_foi_name);
         for(auto &[frame, annotations]: track_annotations) {
             fois.emplace(frame, manual_annotations_foi_name, true, "Frame with manual annotations");
         }
-        FOI::replace_all_of(id, std::move(fois));
-        _data->update_cached_fois(_state->video, true);
+
+        if(not fois.empty()) {
+            /// Resolve the id AFTER constructing the FOIs: the reason is registered
+            /// lazily on first construction, so reading it earlier returns -1 and files
+            /// the annotations under the "none" slot on the very first edit.
+            auto id = FOI::to_id(manual_annotations_foi_name);
+            if(id == -1)
+                FormatError("Failed to resolve FOI id for type ", manual_annotations_foi_name, ".");
+            else
+                FOI::replace_all_of(id, std::move(fois));
+            _data->update_cached_fois(_state->video, true);
+        }
     }
     else if(key == "gui_foi_name") {
         _data->update_cached_fois(_state->video, true);

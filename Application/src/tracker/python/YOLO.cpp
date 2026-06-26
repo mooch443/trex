@@ -957,33 +957,41 @@ void YOLO::process_obbs(
         pv::Blob::set_flag(flags, pv::Blob::Flags::is_r3g3b2, Background::meta_encoding() == meta_encoding_t::r3g3b2);
         pv::Blob::set_flag(flags, pv::Blob::Flags::is_binary, Background::meta_encoding() == meta_encoding_t::binary);
 
-        data.predictions.push_back({
-            .clid = size_t(row.clid),
-            .p = float(row.conf)
-        });
-
         blob::Pose pose;
-        if(not result.keypoints().empty() && idx < result.keypoints().size()) {
-            auto p = result.keypoints()[idx];
-            pose = p.toPose();
-            data.keypoints.push_back(std::move(p));
-        }
+        const bool has_keypoint = not result.keypoints().empty() && idx < result.keypoints().size();
+        if(has_keypoint)
+            pose = result.keypoints()[idx].toPose();
 
+        /// add_object first; only record the parallel predictions/keypoints arrays
+        /// once it has succeeded. Otherwise a throw here (e.g. from add_object)
+        /// would leave predictions/keypoints one entry longer than data.frame's
+        /// objects, and since we skip-and-continue on error that desync would
+        /// mis-assign every following object's prediction/pose downstream.
         data.frame.add_object(lines, pixels, flags, blob::Prediction{
             .clid = uint8_t(row.clid),
             .p = uint8_t(float(row.conf) * 255.f),
             .pose = std::move(pose)
         });
+
+        data.predictions.push_back({
+            .clid = size_t(row.clid),
+            .p = float(row.conf)
+        });
+        if(has_keypoint)
+            data.keypoints.push_back(result.keypoints()[idx]);
     };
 
     for(size_t idx : rows) {
         try {
             process_index(idx);
+        } catch(const std::exception& ex) {
+            /// Skip just this object and keep going. We cannot (and do not want to)
+            /// special-case exception types, so surface the failure rather than
+            /// swallow it. Each object is committed atomically (add_object before
+            /// the predictions/keypoints push), so a skip leaves them consistent.
+            FormatError("Skipping object in image ", data.image->index(), ": ", ex.what());
         } catch(...) {
-            /// ignore
-#ifndef NDEBUG
-            FormatWarning("Skipped object in image ", data.image->index());
-#endif
+            FormatError("Skipping object in image ", data.image->index(), ".");
         }
     }
 }
