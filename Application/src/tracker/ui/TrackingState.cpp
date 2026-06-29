@@ -83,17 +83,7 @@ auto TrackingState::addSafeTask(const std::string& title, Func&& f) {
 
 TrackingState::TrackingState(GUITaskQueue_t* gui)
   : video(pv::File::Make(READ_SETTING(filename, file::Path))),
-    analysis(std::unique_ptr<ConnectedTasks>(new ConnectedTasks(
-      {
-         [this](ConnectedTasks::Type&& ptr, auto&) -> bool {
-             return stage_0(std::move(ptr));
-         },
-         [this](ConnectedTasks::Type&& ptr, auto&) -> bool {
-             return stage_1(std::move(ptr));
-         }
-      }))),
-    pool(4u, "preprocess_main"),
-    _controller(std::make_unique<VIControllerImpl>(video, *this))
+    pool(4u, "preprocess_main")
 {
     try {
         this->video->header();
@@ -103,6 +93,18 @@ TrackingState::TrackingState(GUITaskQueue_t* gui)
         throw RuntimeError("Failed to open PV file ",this->video->filename(),": ", no_quotes(ex.what()),"\nCheck if this file is corrupt and that you have all necessary access rights.");
     }
     tracker = std::make_unique<track::Tracker>(*this->video);
+    analysis = std::unique_ptr<ConnectedTasks>(new ConnectedTasks{
+        {
+            [this](ConnectedTasks::Type&& ptr, auto&) -> bool {
+                return stage_0(std::move(ptr));
+            },
+            [this](ConnectedTasks::Type&& ptr, auto&) -> bool {
+                return stage_1(std::move(ptr));
+            }
+        }
+    });
+    _controller = std::make_unique<VIControllerImpl>(video, *this);
+    
     _end_task_check_auto_quit = [this, gui](){
 #if !COMMONS_NO_PYTHON
             if(BOOL_SETTING(auto_categorize)) {

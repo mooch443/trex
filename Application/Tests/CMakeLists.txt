@@ -60,6 +60,9 @@ target_compile_definitions(test_tiling PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRE
 add_executable(test_segmenter test_segmenter.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
 target_compile_definitions(test_segmenter PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
 
+add_executable(test_tracking_export_e2e test_tracking_export_e2e.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
+target_compile_definitions(test_tracking_export_e2e PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
+
 add_executable(test_dispatcher test_dispatcher.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
 target_compile_definitions(test_dispatcher PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
 
@@ -127,6 +130,7 @@ set(TARGETS
     test_threadpool 
     test_tiling 
     test_segmenter
+    test_tracking_export_e2e
     test_dispatcher
     test_sam3promptpayload
     test_annotation_exporter
@@ -178,6 +182,7 @@ target_link_libraries(test_outlines PUBLIC gtest gmock)
 target_link_libraries(test_threadpool PUBLIC gtest)
 target_link_libraries(test_tiling PUBLIC gtest gmock)
 target_link_libraries(test_segmenter PUBLIC gtest)
+target_link_libraries(test_tracking_export_e2e PUBLIC gtest)
 target_link_libraries(test_dispatcher PUBLIC gtest)
 target_link_libraries(test_sam3promptpayload PUBLIC gtest)
 target_link_libraries(test_annotation_exporter PUBLIC gtest)
@@ -262,6 +267,17 @@ target_link_libraries(test_segmenter PUBLIC
 )
 trex_link_static_python_impl(test_segmenter)
 
+target_link_libraries(test_tracking_export_e2e PUBLIC
+    tracker_tracking
+    tracker_ml
+    tracker_gui
+    tracker_misc
+    framegrabber_misc
+    pv
+    commons
+)
+trex_link_static_python_impl(test_tracking_export_e2e)
+
 target_link_libraries(test_dispatcher PUBLIC
     tracker_gui
     tracker_misc
@@ -333,6 +349,7 @@ set_target_properties(test_outlines PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH 
 set_target_properties(test_threadpool PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 set_target_properties(test_tiling PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 set_target_properties(test_segmenter PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
+set_target_properties(test_tracking_export_e2e PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 set_target_properties(test_dispatcher PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 set_target_properties(test_sam3promptpayload PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 set_target_properties(test_annotation_exporter PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
@@ -382,6 +399,8 @@ add_test(NAME test-threadpool COMMAND test_threadpool)
 add_test(NAME test-tiling COMMAND test_tiling)
 add_test(NAME test-segmenter COMMAND test_segmenter)
 trex_prepend_test_path(test-segmenter trex_check_python)
+add_test(NAME test-tracking-export-e2e COMMAND test_tracking_export_e2e)
+trex_prepend_test_path(test-tracking-export-e2e trex_check_python)
 add_test(NAME test-dispatcher COMMAND test_dispatcher)
 add_test(NAME test-sam3promptpayload COMMAND test_sam3promptpayload)
 add_test(NAME test-annotation-exporter COMMAND test_annotation_exporter)
