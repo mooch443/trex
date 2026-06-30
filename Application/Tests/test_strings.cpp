@@ -4138,7 +4138,7 @@ TEST(IsInIndexTest, ReturnsNposWhenMissing) {
 }
 
 TEST(Serialize, TupleName) {
-    ASSERT_EQ((std::string)cmn::_Meta::tuple_name(std::tuple<int,float>{}), (std::string)"tuple<int,float>");
+    ASSERT_EQ((Meta::name<std::tuple<int,float>>()), "tuple<int,float>");
 }
 
 namespace {
