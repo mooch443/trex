@@ -44,6 +44,7 @@ static void (*windowsEarlyEnvSetup)(void) = []() {
 #include <ui/Scene.h>
 
 #include <core/AbstractVideoSource.h>
+#include <core/TerminalProgress.h>
 #include <core/VideoVideoSource.h>
 #include <core/WebcamVideoSource.h>
 
@@ -579,24 +580,10 @@ std::string start_converting(std::future<void>& f) {
     
     /// this needs to go first so it gets destroyed last
     /// since we have callbacks in segmenter
-    ind::ProgressBar bar{
-        ind::option::BarWidth{50},
-        ind::option::Start{"["},
-/*#ifndef _WIN32
-        ind::option::Fill{"█"},
-        ind::option::Lead{"▂"},
-        ind::option::Remainder{"▁"},
-#else*/
-        ind::option::Fill{"="},
-        ind::option::Lead{">"},
-        ind::option::Remainder{" "},
-//#endif
-        ind::option::End{"]"},
-        ind::option::PostfixText{"Converting video..."},
-        ind::option::ShowPercentage{true},
-        ind::option::ForegroundColor{ind::Color::white},
-        ind::option::FontStyles{std::vector<ind::FontStyle>{ind::FontStyle::bold}}
-    };
+    auto bar = cmn::terminal::progress::make_progress_bar({
+        .width = 50,
+        .postfix = "Converting video..."
+    });
     
     std::string last_error;
     Segmenter segmenter(
@@ -620,17 +607,12 @@ std::string start_converting(std::future<void>& f) {
     ind::ProgressSpinner spinner{
         ind::option::PostfixText{"Recording..."},
         ind::option::ForegroundColor{ind::Color::white},
-        ind::option::SpinnerStates{std::vector<std::string>{
-            //"⣾","⣽","⣻","⢿","⡿","⣟","⣯","⣷"
-            //"◢","◣","◤","◥",
-            //"◜◞", "◟◝", "◜◞", "◟◝"
-            " ◴"," ◷"," ◶"," ◵"
-            //"⠈", "⠐", "⠠", "⢀", "⡀", "⠄", "⠂", "⠁"
-        }},
+        ind::option::SpinnerStates{cmn::terminal::progress::spinner_states()},
         ind::option::FontStyles{std::vector<ind::FontStyle>{ind::FontStyle::bold}}
     };
     
     Timer last_tick;
+    size_t bar_spinner_index = 0;
     
     if (READ_SETTING(source, file::PathArray) == file::PathArray("webcam")) {
         segmenter.open_camera();
@@ -659,11 +641,12 @@ std::string start_converting(std::future<void>& f) {
         
         if(percent >= 0) {
             percent = saturate(percent, 0.f, 100.f);
+            cmn::terminal::progress::advance_progress_bar_spinner(bar, bar_spinner_index);
             bar.set_progress(percent);
             
             auto frame = segmenter.current_frame();
-            bar.set_option(ind::option::PostfixText{"Converting "+Meta::toStr(frame)+"/"+video_length+" @ "+dec<1>(segmenter.fps()).toStr()+"fps..."});
-        } else if(last_tick.elapsed() > 1) {
+            bar.set_postfix("Converting "+Meta::toStr(frame)+"/"+video_length+" @ "+dec<1>(segmenter.fps()).toStr()+"fps...");
+        } else if(last_tick.elapsed() > cmn::terminal::progress::interval_seconds()) {
             spinner.set_option(ind::option::PostfixText{"Recording ("+Meta::toStr(Tracker::end_frame())+")..."});
             spinner.set_option(ind::option::ShowPercentage{false});
             spinner.tick();

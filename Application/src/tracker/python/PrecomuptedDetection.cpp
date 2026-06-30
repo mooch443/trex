@@ -7,8 +7,7 @@
 #include <core/TrackingSettings.h>
 #include <file/CSVReader.h>
 #include <core/indicators.h>
-#include <indicators/indeterminate_progress_bar.hpp>
-#include <indicators/cursor_control.hpp>
+#include <core/TerminalProgress.h>
 #include <file/DataLocation.h>
 #include <misc/ProtectedProperty.h>
 
@@ -242,15 +241,13 @@ void PrecomputedDetectionCache::buildCache(const file::Path& csv_path, const fil
         FormatWarning("[precomputed] individual_image_size is not set.");
     }
 
-    ind::show_console_cursor(false);
-    ind::IndeterminateProgressBar prog{
+    cmn::terminal::progress::ConsoleCursorGuard cursor_guard(false);
+    ind::ProgressSpinner prog{
         ind::option::ForegroundColor{ind::Color::white},
         ind::option::PostfixText{"Counting CSV rows..."},
-        indicators::option::Start{"["},
-        indicators::option::Fill{"."},
-        indicators::option::Lead{"<==>"},
-        indicators::option::End{"]"},
-		ind::option::BarWidth{40}
+        ind::option::ShowPercentage{false},
+        ind::option::SpinnerStates{cmn::terminal::progress::spinner_states()},
+        ind::option::FontStyles{std::vector<ind::FontStyle>{ind::FontStyle::bold}}
     };
 
     // First pass: count objects per frame
@@ -277,7 +274,7 @@ void PrecomputedDetectionCache::buildCache(const file::Path& csv_path, const fil
         assert(frame.valid());
         counts[frame]++;
         
-        if (timer.elapsed() >= 0.1) {
+        if (timer.elapsed() >= cmn::terminal::progress::interval_seconds()) {
             prog.set_option(ind::option::PostfixText{"Counting CSV rows ("+Meta::toStr(num_rows)+")..."});
             prog.tick();
 			timer.reset();
@@ -287,6 +284,7 @@ void PrecomputedDetectionCache::buildCache(const file::Path& csv_path, const fil
     {
         prog.set_option(ind::option::ForegroundColor{ind::Color::green});
         prog.set_option(ind::option::PrefixText{"✔"});
+        prog.set_option(ind::option::ShowSpinner{false});
         prog.set_option(ind::option::PostfixText{"Done."});
         prog.mark_as_completed();
     }
@@ -340,26 +338,12 @@ void PrecomputedDetectionCache::buildCache(const file::Path& csv_path, const fil
     ::close(fd);
 #endif
     
-    ind::ProgressBar bar{
-        ind::option::BarWidth{40},
-        ind::option::Start{"["},
-        /*#ifndef _WIN32
-                ind::option::Fill{"█"},
-                ind::option::Lead{"▂"},
-                ind::option::Remainder{"▁"},
-        #else*/
-        ind::option::Fill{"="},
-        ind::option::Lead{">"},
-        ind::option::Remainder{" "},
-        //#endif
-        ind::option::End{"]"},
-        ind::option::PostfixText{"Writing cache..."},
-        ind::option::ShowPercentage{true},
-        ind::option::ShowElapsedTime{true},
-        ind::option::ShowRemainingTime{true},
-        ind::option::ForegroundColor{ind::Color::white},
-        ind::option::FontStyles{std::vector<ind::FontStyle>{ind::FontStyle::bold}}
-    };
+    auto bar = cmn::terminal::progress::make_progress_bar({
+        .width = 40,
+        .postfix = "Writing cache...",
+        .show_elapsed_time = true,
+        .show_remaining_time = true
+    });
 
     bar.set_progress(0);
 
@@ -397,6 +381,7 @@ void PrecomputedDetectionCache::buildCache(const file::Path& csv_path, const fil
     // Remaining objects to write per frame (initialised with the counts)
     auto remaining = counts;          // copy – we will decrement
     size_t i = 0;
+    size_t bar_spinner_index = 0;
 
     while (reader2.hasNext()) {
         row = reader2.nextRow();
@@ -438,6 +423,7 @@ void PrecomputedDetectionCache::buildCache(const file::Path& csv_path, const fil
         if (--remaining[f] == 0) {
             remaining.erase(f);
             PrecomputedDetection::data()._precompute_percent.set( float(double(i) / double(num_rows) * 100));
+            cmn::terminal::progress::advance_progress_bar_spinner(bar, bar_spinner_index);
             bar.set_progress(double(i) / double(num_rows) * 100);
         }
     }
@@ -445,7 +431,6 @@ void PrecomputedDetectionCache::buildCache(const file::Path& csv_path, const fil
     
     bar.set_progress(100);
     bar.mark_as_completed();
-    ind::show_console_cursor(true);
     PrecomputedDetection::data()._precompute_percent.set(std::optional<float>{});
 }
 

@@ -23,6 +23,7 @@
 
 #include <misc/default_settings.h>
 #include <core/default_config.h>
+#include <core/TerminalProgress.h>
 #include <core/TileBuffers.h>
 #include <misc/GlobalSettings.h>
 #include <file/DataLocation.h>
@@ -30,7 +31,16 @@
 
 #include <core/DetectionTypes.h>
 
+#include <algorithm>
+#include <atomic>
+#include <chrono>
+#include <condition_variable>
+#include <cstdio>
+#include <memory>
+#include <mutex>
 #include <signal.h>
+#include <thread>
+#include <vector>
 typedef void (*sighandler_t)(int);
 
 //#define TREX_PYTHON_DEBUG true
@@ -47,6 +57,185 @@ namespace track {
 pybind11::module numpy, TRex, _main, _json_module;
 pybind11::dict* _locals = nullptr;
 }
+
+class TRexTqdm {
+public:
+    TRexTqdm(py::args args, py::kwargs kwargs) {
+        if (args.size() > 0 && !args[0].is_none()) {
+            _iterable = py::reinterpret_borrow<py::object>(args[0]);
+            _iterator = py::iter(_iterable);
+        }
+
+        if (kwargs) {
+            if (kwargs.contains("total") && !kwargs["total"].is_none()) {
+                _total = py::cast<double>(kwargs["total"]);
+                _has_total = _total > 0.0;
+            }
+            if (kwargs.contains("desc") && !kwargs["desc"].is_none()) {
+                _desc = py::cast<std::string>(kwargs["desc"]);
+            }
+            if (kwargs.contains("unit") && !kwargs["unit"].is_none()) {
+                _unit = py::cast<std::string>(kwargs["unit"]);
+            }
+            if (kwargs.contains("leave") && !kwargs["leave"].is_none()) {
+                _leave = py::cast<bool>(kwargs["leave"]);
+            }
+            if (kwargs.contains("disable") && !kwargs["disable"].is_none()) {
+                _disabled = py::cast<bool>(kwargs["disable"]);
+            }
+        }
+
+        if (!_has_total && !_iterable.is_none()) {
+            try {
+                _total = static_cast<double>(py::len(_iterable));
+                _has_total = _total > 0.0;
+            } catch (py::error_already_set& e) {
+                e.restore();
+                PyErr_Clear();
+            }
+        }
+
+        if (!_disabled) {
+            render();
+            _thread = std::thread([this]() {
+                while (!_stop.wait_for(cmn::terminal::progress::interval())) {
+                    ++_frame_index;
+                    render();
+                }
+            });
+        }
+    }
+
+    ~TRexTqdm() {
+        close();
+    }
+
+    TRexTqdm(const TRexTqdm&) = delete;
+    TRexTqdm& operator=(const TRexTqdm&) = delete;
+
+    TRexTqdm& iter() {
+        return *this;
+    }
+
+    py::object next() {
+        if (_iterator.is_none()) {
+            close();
+            throw py::stop_iteration();
+        }
+
+        try {
+            py::object item = _iterator.attr("__next__")();
+            update(1);
+            return item;
+        } catch (py::error_already_set& e) {
+            if (e.matches(PyExc_StopIteration)) {
+                e.restore();
+                PyErr_Clear();
+                close();
+                throw py::stop_iteration();
+            }
+            throw;
+        }
+    }
+
+    void update(size_t n = 1) {
+        if (_closed) {
+            return;
+        }
+        std::lock_guard guard(_mutex);
+        _current += static_cast<double>(n);
+        if (!_disabled) {
+            render_locked();
+        }
+    }
+
+    void close() {
+        if (_closed.exchange(true)) {
+            return;
+        }
+
+        _stop.notify_all();
+        if (_thread.joinable()) {
+            _thread.join();
+        }
+
+        if (!_disabled) {
+            std::lock_guard guard(_mutex);
+            if (_leave) {
+                _bar.set_postfix(build_postfix());
+                _bar.mark_as_completed();
+            } else {
+                cmn::terminal::progress::finish_progress_bar_line();
+            }
+        }
+    }
+
+private:
+    class StopSignal {
+    public:
+        template<class Rep, class Period>
+        bool wait_for(const std::chrono::duration<Rep, Period>& duration) {
+            std::unique_lock lock(_mutex);
+            return _condition.wait_for(lock, duration, [this]() { return _stop; });
+        }
+
+        void notify_all() {
+            {
+                std::lock_guard lock(_mutex);
+                _stop = true;
+            }
+            _condition.notify_all();
+        }
+
+    private:
+        std::mutex _mutex;
+        std::condition_variable _condition;
+        bool _stop = false;
+    };
+
+    void render() {
+        std::lock_guard guard(_mutex);
+        render_locked();
+    }
+
+    std::string build_postfix() const {
+        std::string postfix;
+        if (!_desc.empty())
+            postfix += cmn::terminal::progress::clean_progress_status(_desc) + " ";
+        const auto unit = cmn::terminal::progress::clean_progress_status(_unit);
+        char buf[64];
+        if (_has_total)
+            std::snprintf(buf, sizeof(buf), "%.0f/%.0f %s", _current, _total, unit.c_str());
+        else
+            std::snprintf(buf, sizeof(buf), "%.0f %s", _current, unit.c_str());
+        postfix += buf;
+        return postfix;
+    }
+
+    void render_locked() {
+        _bar.set_postfix(build_postfix());
+        _bar.set_spinner_index(_frame_index.load());
+        _bar.set_progress(_has_total
+            ? std::min(100.0, std::max(0.0, _current / _total * 100.0))
+            : 0.0);
+    }
+
+    py::object _iterable = py::none();
+    py::object _iterator = py::none();
+    std::string _desc;
+    std::string _unit = "it";
+    double _current = 0.0;
+    double _total = 0.0;
+    bool _has_total = false;
+    bool _leave = true;
+    bool _disabled = false;
+    std::atomic_bool _closed = false;
+    std::atomic_size_t _frame_index = 0;
+    std::mutex _mutex;
+    StopSignal _stop;
+    cmn::terminal::progress::ProgressBar _bar{cmn::terminal::progress::ProgressBarConfig{}};
+    std::thread _thread;
+};
 
 namespace pybind11 {
     namespace detail {
@@ -380,6 +569,20 @@ using namespace track::detect;
 PYBIND11_EMBEDDED_MODULE(TRex, m) {
     namespace py = pybind11;
     using namespace track::detect;
+
+    py::class_<TRexTqdm>(m, "tqdm")
+        .def(py::init([](py::args args, py::kwargs kwargs) {
+            return std::make_unique<TRexTqdm>(args, kwargs);
+        }))
+        .def("update", &TRexTqdm::update, py::arg("n") = 1)
+        .def("close", &TRexTqdm::close)
+        .def("__iter__", &TRexTqdm::iter, py::return_value_policy::reference_internal)
+        .def("__next__", &TRexTqdm::next)
+        .def("__enter__", &TRexTqdm::iter, py::return_value_policy::reference_internal)
+        .def("__exit__", [](TRexTqdm& self, py::object, py::object, py::object) {
+            self.close();
+            return false;
+        });
 
     py::enum_<track::detect::ModelTaskType>(m, "ModelTaskType")
         .value("detect", track::detect::ModelTaskType::detect)

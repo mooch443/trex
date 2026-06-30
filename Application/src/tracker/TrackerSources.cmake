@@ -15,6 +15,7 @@ set(TREX_CORE_PUBLIC_HEADERS
     ${CMAKE_CURRENT_LIST_DIR}/core/Identity.h
     ${CMAKE_CURRENT_LIST_DIR}/core/idx_t.h
     ${CMAKE_CURRENT_LIST_DIR}/core/indicators.h
+    ${CMAKE_CURRENT_LIST_DIR}/core/TerminalProgress.h
     ${CMAKE_CURRENT_LIST_DIR}/core/GPURecognitionTypes.h
     ${CMAKE_CURRENT_LIST_DIR}/core/NetworkStats.h
     ${CMAKE_CURRENT_LIST_DIR}/core/PVVideoSource.h

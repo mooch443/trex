@@ -21,7 +21,6 @@ import numpy as np
 import numpy.typing as npt
 import torch
 from torch.nn import functional as F
-from tqdm import tqdm
 from ultralytics.models.sam.predict import SAM3VideoSemanticPredictor
 from ultralytics.utils.checks import check_imgsz
 
@@ -29,6 +28,9 @@ try:
     import TRex  # type: ignore
 except Exception:  # pragma: no cover
     TRex = None
+
+if TRex is None:
+    from tqdm import tqdm as _standalone_tqdm
 
 
 class GenericOkResponse(TypedDict):
@@ -205,7 +207,7 @@ class Sam3VideoSession:
 
 _SESSION: Sam3VideoSession | None = None
 _SESSION_LOG_PREFIX = "[py][sam3-session]"
-_REPLAY_PROGRESS: tqdm | None = None
+_REPLAY_PROGRESS: object | None = None
 
 
 def _choose_device() -> str:
@@ -924,7 +926,8 @@ def begin_replay_progress(request: Mapping[str, object]) -> GenericOkResponse:
     if total_steps <= 0:
         return {"ok": True}
 
-    _REPLAY_PROGRESS = tqdm(
+    progress_factory = TRex.tqdm if TRex is not None else _standalone_tqdm
+    _REPLAY_PROGRESS = progress_factory(
         total=total_steps,
         desc=f"SAM3 replay {start_frame}->{target_frame}",
         unit="frame",

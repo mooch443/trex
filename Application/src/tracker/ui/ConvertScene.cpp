@@ -16,6 +16,7 @@
 #include <misc/CommandLine.h>
 #include <gui/dyn/Action.h>
 #include <gui/dyn/ParseText.h>
+#include <core/TerminalProgress.h>
 #include <core/TileBuffers.h>
 #include <core/DetectionTypes.h>
 #include <python/OverlayedVideo.h>
@@ -127,37 +128,20 @@ struct ConvertScene::Data {
     
     ScreenRecorder _recorder;
     
-    ind::ProgressBar bar{
-        ind::option::BarWidth{50},
-        ind::option::Start{"["},
-/*#ifndef _WIN32
-        ind::option::Fill{"█"},
-        ind::option::Lead{"▂"},
-        ind::option::Remainder{"▁"},
-#else*/
-        ind::option::Fill{"="},
-        ind::option::Lead{">"},
-        ind::option::Remainder{" "},
-//#endif
-        ind::option::End{"]"},
-        ind::option::PostfixText{"Converting video..."},
-        ind::option::ShowPercentage{true},
-        ind::option::ForegroundColor{ind::Color::white},
-        ind::option::FontStyles{std::vector<ind::FontStyle>{ind::FontStyle::bold}}
-    };
+    cmn::terminal::progress::ProgressBar bar = cmn::terminal::progress::make_progress_bar({
+        .width = 50,
+        .postfix = "Converting video..."
+    });
 
     ind::ProgressSpinner spinner{
         ind::option::PostfixText{""},
         ind::option::ForegroundColor{ind::Color::white},
-#ifndef _WIN32
-        ind::option::SpinnerStates{std::vector<std::string>{"⠈", "⠐", "⠠", "⢀", "⡀", "⠄", "⠂", "⠁"}},
-#else
-        ind::option::SpinnerStates{std::vector<std::string>{".","..","..."}},
-#endif
+        ind::option::SpinnerStates{cmn::terminal::progress::spinner_states()},
         ind::option::FontStyles{std::vector<ind::FontStyle>{ind::FontStyle::bold}}
     };
     
     double dt = 0;
+    size_t bar_spinner_index = 0;
     std::atomic<double> _time{0};
     std::unique_ptr<Bowl> _bowl;
     
@@ -353,14 +337,15 @@ void ConvertScene::update_progress_callback() {
                 fps = samples > 0 ? fps / samples : 0;
             }
             
+            cmn::terminal::progress::advance_progress_bar_spinner(_data->bar, _data->bar_spinner_index);
             _data->bar.set_progress(percent);
             if(fps > 0) {
                 auto video_length = Meta::toStr(_video_length.load());
                 
-                _data->bar.set_option(ind::option::PostfixText{"Converting "+Meta::toStr(_data->_actual_frame.load())+"/"+video_length+" @ "+dec<1>(fps).toStr()+"fps..."});
+                _data->bar.set_postfix("Converting "+Meta::toStr(_data->_actual_frame.load())+"/"+video_length+" @ "+dec<1>(fps).toStr()+"fps...");
             }
             
-        } else if(last_tick.elapsed() > 1) {
+        } else if(last_tick.elapsed() > cmn::terminal::progress::interval_seconds()) {
             _data->spinner.set_option(ind::option::PrefixText{"Recording ("+Meta::toStr(_data->_video_frame.load())+")"});
             _data->spinner.tick();
             last_tick.reset();
@@ -447,7 +432,6 @@ void ConvertScene::Data::check_video_info(bool wait, std::set<std::string_view>*
 
 void ConvertScene::open_video() {
     _data->bar.set_progress(0);
-    _data->bar.set_option(ind::option::ShowPercentage{true});
     segmenter().open_video();
     
     _video_info.resolution = segmenter().size();

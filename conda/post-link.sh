@@ -55,8 +55,9 @@ start_progress() {
     PROGRESS_STOP="${TMPDIR:-/tmp}/trex_post_link_stop_$$_${RANDOM:-0}"
     rm -f "${PROGRESS_STOP}" 2>/dev/null
 
+    progress_stream "$(printf '\033[?25l')"
     (
-        frames='|/-\'
+        frames=("⠋" "⠙" "⠚" "⠞" "⠖" "⠦" "⠴" "⠲" "⠳" "⠓")
         i=0
         start_time=$(date +%s)
         while [ ! -f "${PROGRESS_STOP}" ]; do
@@ -64,17 +65,17 @@ start_progress() {
             elapsed=$((now - start_time))
             minutes=$((elapsed / 60))
             seconds=$((elapsed % 60))
-            frame=$(printf '%s' "${frames}" | cut -c $((i % 4 + 1)))
+            frame="${frames[$((i % ${#frames[@]}))]}"
             info=$(last_progress_line "${log_path}")
             if [ -n "${info}" ]; then
-                progress_stream "$(printf '\r  %s %s  %02d:%02d   ' "${frame}" "${info}" "${minutes}" "${seconds}")"
+                progress_stream "$(printf '\r\033[34m%s\033[0m %s  %02d:%02d   ' "${frame}" "${info}" "${minutes}" "${seconds}")"
             else
-                progress_stream "$(printf '\r  %s %s  %02d:%02d   ' "${frame}" "${label}" "${minutes}" "${seconds}")"
+                progress_stream "$(printf '\r\033[34m%s\033[0m %s  %02d:%02d   ' "${frame}" "${label}" "${minutes}" "${seconds}")"
             fi
             i=$((i + 1))
-            sleep 1
+            sleep 0.1
         done
-        progress_stream "$(printf '\r%*s\r' 120 '')"
+        progress_stream "$(printf '\r\033[2K\033[?25h')"
     ) &
     PROGRESS_PID=$!
 }
