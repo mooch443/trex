@@ -78,7 +78,7 @@ public:
                 _unit = py::cast<std::string>(kwargs["unit"]);
             }
             if (kwargs.contains("leave") && !kwargs["leave"].is_none()) {
-                _leave = py::cast<bool>(kwargs["leave"]);
+                _persist = py::cast<bool>(kwargs["leave"]);
             }
             if (kwargs.contains("disable") && !kwargs["disable"].is_none()) {
                 _disabled = py::cast<bool>(kwargs["disable"]);
@@ -161,7 +161,7 @@ public:
 
         if (!_disabled) {
             std::lock_guard guard(_mutex);
-            if (_leave) {
+            if (_persist) {
                 _bar.set_postfix(build_postfix());
                 _bar.mark_as_completed();
             } else {
@@ -227,7 +227,7 @@ private:
     double _current = 0.0;
     double _total = 0.0;
     bool _has_total = false;
-    bool _leave = true;
+    bool _persist = true;
     bool _disabled = false;
     std::atomic_bool _closed = false;
     std::atomic_size_t _frame_index = 0;

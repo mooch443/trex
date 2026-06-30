@@ -100,7 +100,7 @@ void save_rst_files() {
     auto f = path.fopen("wb");
     if(!f)
         throw U_EXCEPTION("Cannot open ",path.str());
-    fwrite(rst.data(), sizeof(char), rst.length(), f.get());
+    f.write(rst.data(), rst.length());
     
     //printf("%s\n", rst.c_str());
     Print("Saved at ",path,".");

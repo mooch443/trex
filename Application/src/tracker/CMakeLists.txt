@@ -560,7 +560,7 @@ if(NOT TREX_CONDA_PACKAGE_INSTALL)
         trex_prepare_resource_dir(${app_target})
     endforeach()
 
-    if(TREX_ENABLE_SHARED_INTERNAL_LIBS)
+    if(APPLE AND TREX_ENABLE_SHARED_INTERNAL_LIBS)
         foreach(app_target ${TREX_APP_TARGETS} ${TREX_TOOL_TARGETS})
             foreach(dylib ${TREX_DYLIB_TARGETS})
                 message(STATUS "${CMAKE_COMMAND} -E create_symlink
@@ -611,15 +611,11 @@ if(NOT TREX_CONDA_PACKAGE_INSTALL)
             foreach(comp ${RESOURCE_COPY_SINGLE_FILES})
                 get_filename_component(comp_s ${comp} NAME)
 
-                message(STATUS "Creating symlink for $<TARGET_FILE_DIR:${app_target}>/${comp_s} ")
+                message(STATUS "(windows) Copying file to $<TARGET_FILE_DIR:${app_target}>/${comp_s} ")
                 add_custom_command(TARGET ${app_target} POST_BUILD
-                    COMMAND ${CMAKE_COMMAND} -E copy
+                    COMMAND ${CMAKE_COMMAND} -E copy_if_different
                         "${comp}"
                         "$<TARGET_FILE_DIR:${app_target}>/${comp_s}")
-                add_custom_command(TARGET ${app_target} POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E create_symlink
-                    "${comp}"
-                    "$<TARGET_FILE_DIR:${app_target}>/${comp_s}")
             endforeach()
 
             message(STATUS "(windows) Copying folders ${RESOURCE_COPY_FILES}")

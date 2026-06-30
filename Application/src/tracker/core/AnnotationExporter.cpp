@@ -114,7 +114,7 @@ void write_text(const file::Path& path, const std::string& text) {
     if(!f)
         throw U_EXCEPTION("Cannot open ", path, " for writing.");
     if(!text.empty())
-        fwrite(text.data(), sizeof(char), text.size(), f.get());
+        f.write(text.data(), text.size());
 }
 
 Frame_t exported_source_index(Frame_t frame, const Options& options) {
