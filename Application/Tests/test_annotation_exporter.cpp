@@ -87,9 +87,11 @@ TEST(AnnotationExporter, BuildsYoloFrameMappingCsvWithSourceIndex) {
     options.video_source_basename = "current_video.mp4";
     options.source_start = 100_f;
 
-    EXPECT_EQ("image,video_source,source_index\n"
-              "train/images/frame_000010.jpg,current_video.mp4,110\n"
-              "train/images/frame_000012.jpg,current_video.mp4,112\n",
+    const auto frame_10 = (file::Path("train") / "images" / "frame_000010.jpg").str();
+    const auto frame_12 = (file::Path("train") / "images" / "frame_000012.jpg").str();
+    EXPECT_EQ(std::string("image,video_source,source_index\n")
+              + frame_10 + ",current_video.mp4,110\n"
+              + frame_12 + ",current_video.mp4,112\n",
               build_frame_mapping_csv(options, {10_f, 12_f}));
 }
 
@@ -395,10 +397,12 @@ TEST(AnnotationImporter, UsesSplitRelativeCsvMappingBeforeBasenameFallback) {
     write_file(root / "val" / "images" / "duplicate.jpg");
     write_file(root / "train" / "labels" / "duplicate.txt", "0 0.25 0.25 0.2 0.2\n");
     write_file(root / "val" / "labels" / "duplicate.txt", "0 0.75 0.75 0.2 0.2\n");
+    const auto train_image = (file::Path("train") / "images" / "duplicate.jpg").str();
+    const auto val_image = (file::Path("val") / "images" / "duplicate.jpg").str();
     write_file(root / "mapping.csv",
-               "image,video_source,source_index\n"
-               "train/images/duplicate.jpg,current_video.mp4,112\n"
-               "val/images/duplicate.jpg,current_video.mp4,113\n");
+               std::string("image,video_source,source_index\n")
+               + train_image + ",current_video.mp4,112\n"
+               + val_image + ",current_video.mp4,113\n");
 
     auto options = default_import_options(root / "data.yaml");
     options.frame_mapping_csv = root / "mapping.csv";
