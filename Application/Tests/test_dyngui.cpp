@@ -1178,6 +1178,22 @@ TYPED_TEST(ParseAndResolveTest, TrailingBackslashThrows)
     ASSERT_THROW(run_parser<TypeParam>("{variable}\\", ctx, state), std::runtime_error);
 }
 
+TYPED_TEST(ParseAndResolveTest, EmptyIfClause)
+{
+    State   state;
+    Context ctx{
+        VarFunc("variable", [](const VarProps&) -> bool { return "x"; })
+    };
+    auto result = run_parser<TypeParam>("{if:{variable}:hi:}", ctx, state);
+    EXPECT_EQ(result, "hi");
+    
+    result = run_parser<TypeParam>("{if:{variable}::hi}", ctx, state);
+    EXPECT_EQ(result, "");
+    
+    result = run_parser<TypeParam>("{if:{not:{variable}}:hi:}", ctx, state);
+    EXPECT_EQ(result, "");
+}
+
 // --- Error‑handling parity checks -------------------------------------------------
 
 TYPED_TEST(ParseAndResolveTest, MissingClosingBraceThrows)
@@ -1199,6 +1215,54 @@ TYPED_TEST(ParseAndResolveTest, EmptyBracesThrows)
     State   state;
     Context ctx;
     ASSERT_THROW(run_parser<TypeParam>("{}", ctx, state), std::runtime_error);
+}
+
+TEST(DefaultVariablesTest, LoadedDefaultExpressionThrowsForDirectSelfReference)
+{
+    constexpr std::string_view json = R"json(
+{
+  "defaults": {
+    "vars": {
+      "foo": "{foo}"
+    }
+  },
+  "objects": []
+}
+)json";
+
+    try {
+        (void)load(std::string(json));
+        FAIL() << "Expected recursive DynamicGUI default variable definition to throw.";
+    } catch(const std::exception& e) {
+        const std::string message = e.what();
+        EXPECT_THAT(message, ::testing::HasSubstr("recursive"));
+        EXPECT_THAT(message, ::testing::HasSubstr("foo"));
+    }
+}
+
+TEST(DefaultVariablesTest, LoadedDefaultExpressionThrowsForIndirectCycle)
+{
+    constexpr std::string_view json = R"json(
+{
+  "defaults": {
+    "vars": {
+      "foo": "{bar}",
+      "bar": "{foo}"
+    }
+  },
+  "objects": []
+}
+)json";
+
+    try {
+        (void)load(std::string(json));
+        FAIL() << "Expected recursive DynamicGUI default variable definition to throw.";
+    } catch(const std::exception& e) {
+        const std::string message = e.what();
+        EXPECT_THAT(message, ::testing::HasSubstr("recursive"));
+        EXPECT_THAT(message, ::testing::HasSubstr("foo"));
+        EXPECT_THAT(message, ::testing::HasSubstr("bar"));
+    }
 }
 
 TEST(DefaultVariablesTest, LoadedDefaultExpressionSupportsVec2Subfields)
