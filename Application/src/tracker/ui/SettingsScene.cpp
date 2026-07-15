@@ -700,7 +700,7 @@ struct SettingsScene::Data {
                         REQUIRE_AT_LEAST(1, action);
                         WorkProgress::add_queue("Selecting folder", [action](){
                             auto parm = action.parameters.front();
-                            auto folder = action.parameters.size() == 1 ? action.parameters.back() : file::cwd().str();
+                            auto folder = action.parameters.size() > 1 ? action.parameters.at(1) : std::string{};
                             if(not file::Path{folder}.is_folder())
                                 folder = {};
                             
@@ -713,7 +713,7 @@ struct SettingsScene::Data {
                         REQUIRE_AT_LEAST(1, action);
                         WorkProgress::add_queue("Selecting file", [action](){
                             auto parm = action.parameters.front();
-                            auto folder = action.parameters.size() > 1 ? action.parameters.at(1) : file::cwd().str();
+                            auto folder = action.parameters.size() > 1 ? action.parameters.at(1) : std::string{};
                             if(not file::Path{folder}.is_folder())
                                 folder = {};
                             
@@ -738,7 +738,7 @@ struct SettingsScene::Data {
                     }),
                     ActionFunc("choose-settings", [this](const Action& action) {
                         WorkProgress::add_queue("Selecting file", [this, action](){
-                            auto folder = action.parameters.size() > 0 ? action.parameters.at(0) : file::cwd().str();
+                            auto folder = action.parameters.size() > 0 ? action.parameters.at(0) : std::string{};
                             if(not file::Path{folder}.is_folder())
                                 folder = {};
                             

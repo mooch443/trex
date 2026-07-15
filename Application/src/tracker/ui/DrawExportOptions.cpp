@@ -494,7 +494,7 @@ struct DrawExportOptions::Data {
                             REQUIRE_AT_LEAST(1, action);
                             WorkProgress::add_queue("Selecting folder", [action](){
                                 auto parm = action.parameters.front();
-                                auto folder = action.parameters.size() == 1 ? action.parameters.back() : file::cwd().str();
+                                auto folder = action.parameters.size() > 1 ? action.parameters.at(1) : std::string{};
                                 if(not file::Path{folder}.is_folder())
                                     folder = {};
                                 
