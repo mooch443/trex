@@ -274,17 +274,27 @@ std::unique_ptr<PPFrame> GUICache::PPFrameMaker::operator()() const {
         if(mode != _mode) {
             _mode = mode;
             
-            if(mode == mode_t::blobs)
+            if(mode == mode_t::raw)
                 set_blobs_dirty();
             else if(mode == mode_t::tracking)
                 set_tracking_dirty();
+            else if(mode == mode_t::annotate)
+                set_blobs_dirty();
+            else
+                throw InvalidArgumentException("Unknown mode ", mode, " in GUICache::set_mode().");
+            
             set_raw_blobs_dirty();
         }
     }
     
     bool GUICache::must_redraw() const {
-        if(raw_blobs_dirty() || _dirty || (_mode == mode_t::tracking && _tracking_dirty) || (_mode == mode_t::blobs && _blobs_dirty))
+        if(raw_blobs_dirty() 
+            || _dirty 
+            || (is_in(_mode, mode_t::tracking, mode_t::annotate) && _tracking_dirty) 
+            || (_mode == mode_t::raw && _blobs_dirty))
+        {
             return true;
+        }
         return false;
     }
 

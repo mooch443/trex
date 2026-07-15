@@ -1471,14 +1471,87 @@ struct YOLO::TransferData {
     std::vector<size_t> orig_id;
     std::vector<std::promise<SegmentationData>> promises;
     std::vector<std::function<void()>> callbacks;
+    std::vector<uint8_t> promise_completed;
+    std::vector<uint8_t> callback_invoked;
 
     TransferData() = default;
     TransferData(const TransferData&) = delete;
-    TransferData(TransferData&&) = default;
-    TransferData& operator=(TransferData&&) = default;
+    TransferData(TransferData&&) noexcept = default;
+    TransferData& operator=(TransferData&&) = delete;
     TransferData& operator=(const TransferData&) = delete;
 
+    bool is_promise_completed(size_t index) const noexcept {
+        return index < promise_completed.size() && promise_completed[index];
+    }
+
+    void mark_promise_completed(size_t index) noexcept {
+        if(index < promise_completed.size())
+            promise_completed[index] = true;
+    }
+
+    void set_exception(size_t index, std::exception_ptr exception) noexcept {
+        if(index >= promises.size() || is_promise_completed(index))
+            return;
+
+        try {
+            promises[index].set_exception(std::move(exception));
+        } catch(const std::exception& ex) {
+            FormatWarning("Could not set exception on YOLO result promise ", index, ": ", ex.what());
+        } catch(...) {
+            FormatWarning("Could not set exception on YOLO result promise ", index, ".");
+        }
+        mark_promise_completed(index);
+    }
+
+    void set_soft_exception(size_t index, std::string_view message) noexcept {
+        try {
+            throw SoftException(no_quotes(message));
+        } catch(...) {
+            set_exception(index, std::current_exception());
+        }
+    }
+
+    void set_value(size_t index, SegmentationData&& data) noexcept {
+        if(index >= promises.size() || is_promise_completed(index))
+            return;
+
+        try {
+            promises[index].set_value(std::move(data));
+            mark_promise_completed(index);
+        } catch(...) {
+            set_exception(index, std::current_exception());
+        }
+    }
+
+    void invoke_callback(size_t index) noexcept {
+        if(index >= callbacks.size()
+           || (index < callback_invoked.size() && callback_invoked[index]))
+        {
+            return;
+        }
+
+        if(index < callback_invoked.size())
+            callback_invoked[index] = true;
+
+        try {
+            if(callbacks[index])
+                callbacks[index]();
+        } catch(...) {
+            FormatExcept("Exception in callback of element ", index, " in python results.");
+        }
+    }
+
+    void fail_all(std::string_view message) noexcept {
+        for(size_t i = 0; i < promises.size(); ++i) {
+            if(!is_promise_completed(i))
+                set_soft_exception(i, message);
+        }
+        for(size_t i = 0; i < callbacks.size(); ++i)
+            invoke_callback(i);
+    }
+
     ~TransferData() {
+        fail_all("YOLO prediction ended before producing a result.");
         for (auto&& img : images) {
             TileImage::move_back(std::move(img));
         }
@@ -1567,17 +1640,7 @@ void YOLO::StartPythonProcess(TransferData&& transfer) {
     }
     catch (const std::exception& ex) {
         FormatError("Exception: ", ex.what());
-        for(auto &t : transfer.promises) {
-            try {
-                throw SoftException(no_quotes((std::string)ex.what()));
-            } catch(...) {
-                t.set_exception(std::current_exception());
-            }
-        }
-        
-        transfer.promises.clear();
-        ReceivePackage(std::move(transfer), {});
-        
+        transfer.fail_all(ex.what());
     }
     catch (...) {
         FormatWarning("Continue after exception...");
@@ -1594,30 +1657,11 @@ void YOLO::ReceivePackage(TransferData&& transfer, std::vector<track::detect::Re
     //for(auto &t : transfer.oimages)
     //    TileImage::buffers.move_back(std::move(t));
 
-    if (results.empty()) {
-#ifndef NDEBUG
-        if (not transfer.images.empty())
-            tf::imshow("ma", transfer.images.front()->get());
-#endif
-        if(not transfer.promises.empty()) {
-            for (size_t i = 0; i < transfer.datas.size(); ++i) {
-                try {
-                    transfer.promises.at(i).set_value(std::move(transfer.datas.at(i)));
-                }
-                catch (...) {
-                    FormatExcept("A promise failed for ", transfer.datas.at(i));
-                    transfer.promises.at(i).set_exception(std::current_exception());
-                }
-                
-                try {
-                    transfer.callbacks.at(i)();
-                }
-                catch (...) {
-                    FormatExcept("Exception in callback of element ", i, " in python results.");
-                }
-            }
-        }
-        FormatExcept("Empty data for ", transfer.datas, " image=", transfer.orig_id);
+    if(results.size() != transfer.datas.size()) {
+        const auto message = "YOLO predict returned " + Meta::toStr(results.size())
+            + " result(s) for " + Meta::toStr(transfer.datas.size()) + " request(s).";
+        FormatError(message);
+        transfer.fail_all(message);
         return;
     }
     
@@ -1631,24 +1675,17 @@ void YOLO::ReceivePackage(TransferData&& transfer, std::vector<track::detect::Re
     /// thread:
     auto p = pack<void()>([transfer = std::move(transfer), results = std::move(results)]() mutable {
         for (size_t i = 0; i < transfer.datas.size(); ++i) {
-            auto&& result = results.at(i);
             auto& data = transfer.datas.at(i);
-            
+
             try {
-                receive(data, std::move(result));
-                transfer.promises.at(i).set_value(std::move(data));
+                receive(data, std::move(results.at(i)));
+                transfer.set_value(i, std::move(data));
             }
             catch (...) {
                 FormatExcept("A promise failed for ", transfer.datas.at(i));
-                transfer.promises.at(i).set_exception(std::current_exception());
+                transfer.set_exception(i, std::current_exception());
             }
-
-            try {
-                transfer.callbacks.at(i)();
-            }
-            catch (...) {
-                FormatExcept("Exception in callback of element ", i, " in python results.");
-            }
+            transfer.invoke_callback(i);
         }
     });
     
@@ -1696,7 +1733,10 @@ void YOLO::apply(std::vector<TileImage>&& tiles) {
         if(not tiled.promise)
             throw U_EXCEPTION("Promise was not set.");
         transfer.promises.emplace_back(std::move(*tiled.promise));
+        transfer.promise_completed.emplace_back(false);
         tiled.promise = nullptr;
+        transfer.callbacks.emplace_back(std::move(tiled.callback));
+        transfer.callback_invoked.emplace_back(false);
         
         {
             for(size_t k = 0; k < tiled.tile_geometries().size(); ++k) {
@@ -1709,13 +1749,22 @@ void YOLO::apply(std::vector<TileImage>&& tiles) {
         const auto& geometries = tiled.tile_geometries();
         transfer.tile_geometries.insert(transfer.tile_geometries.end(), geometries.begin(), geometries.end());
         transfer.datas.emplace_back(std::move(tiled.data));
-        transfer.callbacks.emplace_back(tiled.callback);
         
         ++i;
     }
 
     tiles.clear();
     
+    auto mark_prediction_finished = []() noexcept {
+        try {
+            running_promise.set_value();
+        } catch(const std::exception& ex) {
+            FormatWarning("Could not mark the YOLO prediction as finished: ", ex.what());
+        } catch(...) {
+            FormatWarning("Could not mark the YOLO prediction as finished.");
+        }
+    };
+
     try {
         {
             std::unique_lock guard(running_mutex);
@@ -1731,15 +1780,15 @@ void YOLO::apply(std::vector<TileImage>&& tiles) {
         py::schedule([&transfer]() mutable {
             StartPythonProcess(std::move(transfer));
         }).get();
+
+        mark_prediction_finished();
         
-        running_promise.set_value();
-        
+    } catch(const std::exception& ex) {
+        mark_prediction_finished();
+        transfer.fail_all(ex.what());
     } catch(...) {
-        running_promise.set_value();
-        for(auto &t : transfer.promises) {
-            t.set_exception(std::current_exception());
-        }
-        //throw;
+        mark_prediction_finished();
+        transfer.fail_all("Unknown exception while running YOLO prediction.");
     }
 }
 

@@ -228,7 +228,123 @@
 
         {
             "type":"condition",
-            "var":"{&&:{global.gui_show_infocard}:{global.gui_focus_group}}",
+            "var":"{equal:{global.gui_mode}:annotate}",
+            "then":{
+                "type":"vlayout",
+                "pos":[10,90],
+                "fill":[30,30,30,220],
+                "outer_pad":[10,0,10,0],
+                "pad":[0,5,0,5],
+                "clickable":true,
+                "name":"info_box",
+                "children":[
+                    {
+                        "type":"stext",
+                        "text":"<c><h4>annotation mode</h4></c>",
+                        "pad":[5,15,5,0],
+                        "font":{"size":0.6}
+                    },
+
+                    {
+                        "type":"gridlayout",
+                        "outer_pad":[5,15,5,10],
+                        "pad":[0,0,0,10],
+                        "children":[
+                            [
+                                 {
+                                    "type":"stext",
+                                    "text":"<c><gray>detect_format</gray></c>\nhere you can choose to annotate boxes, keypoints, or bounding boxes",
+                                    "font":{"size":0.5},
+                                    "max_size":"[{-:{infocard_width}:0}, 0]"
+                                }
+                            ],
+                            [
+                                {
+                                    "type":"settings",
+                                    "var":"detect_format",
+                                    "desc":"",
+                                    "list":{
+                                        "font":{"size":0.5}
+                                    },
+                                    "label":{
+                                        "corners":["all"],
+                                        "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
+                                        "font":{"size":0.5}
+                                    },
+                                    "pad":[0,0,-1,-1],
+                                    "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                    "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
+                                    "size":[205,30]
+                                }
+                            ],
+
+                            [
+                                 {
+                                    "type":"stext",
+                                    "text":"<c><gray>detect_classes</gray></c>\nwhich classes do you want to annotate?",
+                                    "font":{"size":0.5},
+                                    "max_size":"[{-:{infocard_width}:0}, 0]"
+                                }
+                            ],
+                            [
+                                {
+                                    "type":"settings",
+                                    "var":"detect_classes",
+                                    "desc":"",
+                                    "list":{
+                                        "font":{"size":0.5}
+                                    },
+                                    "label":{
+                                        "corners":["all"],
+                                        "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
+                                        "font":{"size":0.5}
+                                    },
+                                    "pad":[0,0,-1,-1],
+                                    "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                    "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
+                                    "size":[205,30]
+                                }
+                            ],
+
+                            [
+                                 {
+                                    "type":"stext",
+                                    "text":"<c><gray>detect_skeleton</gray></c>\njust for visualization, not used for tracking",
+                                    "font":{"size":0.5},
+                                    "max_size":"[{-:{infocard_width}:0}, 0]"
+                                }
+                            ],
+                            [
+                                {
+                                    "type":"settings",
+                                    "var":"detect_skeleton",
+                                    "desc":"",
+                                    "list":{
+                                        "font":{"size":0.5}
+                                    },
+                                    "label":{
+                                        "corners":["all"],
+                                        "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
+                                        "font":{"size":0.5}
+                                    },
+                                    "pad":[0,0,-1,-1],
+                                    "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                    "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
+                                    "size":[205,30]
+                                }
+                            ]
+                        ]
+                    }
+                ]
+            }
+        },
+
+        {
+            "type":"condition",
+            "var":"{&&:{global.gui_show_infocard}:{global.gui_focus_group}:{not:{equal:{global.gui_mode}:annotate}}}",
             "then":{
                 "type":"vlayout",
                 "pos":[10,90],
@@ -765,17 +881,29 @@
                             "size":[95,30],
                             "action":"set:gui_mode:tracking"
                         },
+
+                        {
+                            "type":"button",
+                            "corners":["none"],
+                            "text":"<sym>⭍</sym> Annotate",
+                            "font":{"size":0.6},
+                            "fill":"{if:{equal:{global.gui_mode}:annotate}:[10,10,10,220]:[40,40,40,220]}",
+                            "color":"{if:{equal:{global.gui_mode}:annotate}:[100,100,100,220]:[250,250,250,220]}",
+                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                            "size":[95,30],
+                            "action":"set:gui_mode:annotate"
+                        },
                         
                         {
                             "type":"button",
                             "corners":["right"],
                             "text":"<sym>🎞</sym> Raw",
                             "font":{"size":0.6},
-                            "fill":"{if:{equal:{global.gui_mode}:blobs}:[10,10,10,220]:[40,40,40,220]}",
-                            "color":"{if:{equal:{global.gui_mode}:blobs}:[100,100,100,220]:[250,250,250,220]}",
+                            "fill":"{if:{equal:{global.gui_mode}:raw}:[10,10,10,220]:[40,40,40,220]}",
+                            "color":"{if:{equal:{global.gui_mode}:raw}:[100,100,100,220]:[250,250,250,220]}",
                             "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
                             "size":[65,30],
-                            "action":"set:gui_mode:blobs"
+                            "action":"set:gui_mode:raw"
                         }
                     ]
                 },

@@ -227,6 +227,20 @@ Segmenter::~Segmenter() {
     
     if(_undistort_callbacks)
         GlobalSettings::unregister_callbacks(std::move(_undistort_callbacks));
+
+    {
+        std::unique_lock guard(_mutex_general);
+        _average_terminate_requested = true;
+    }
+
+    /// The averaging task captures this and must finish before member teardown begins.
+    try {
+        stop_average_generator(true);
+    } catch(const std::exception& ex) {
+        FormatExcept("Generating the average failed during teardown: ", ex.what());
+    } catch(...) {
+        FormatExcept("Generating the average failed during teardown.");
+    }
     
     if(auto* mgr = detect::try_current_pipeline_manager())
         mgr->set_weight_limit(1);
@@ -539,17 +553,15 @@ void Segmenter::trigger_average_generator(bool do_generate_average, cv::Mat& bg)
         std::unique_lock guard(average_generator_mutex);
         average_generator = std::async(std::launch::async, [this, size = _output_size_before_crop, channels]()
         {
-            // Define a simple RAII helper:
             struct NotifyGuard {
                 std::mutex& mutex;
                 std::condition_variable& cv;
-                NotifyGuard(std::condition_variable& cv, std::mutex& mutex) : mutex(mutex), cv(cv) {}
-                ~NotifyGuard() {
+                NotifyGuard(std::condition_variable& cv, std::mutex& mutex)
+                    : mutex(mutex), cv(cv)
+                {}
+                ~NotifyGuard() noexcept {
                     std::unique_lock guard{mutex};
                     cv.notify_all();
-                    
-                    // in case somebody is waiting on us:
-                    Print("Average image terminated.");
                 }
             } guard(average_variable, average_generator_mutex);
             

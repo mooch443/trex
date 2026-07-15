@@ -60,6 +60,9 @@ target_compile_definitions(test_tiling PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRE
 add_executable(test_segmenter test_segmenter.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
 target_compile_definitions(test_segmenter PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
 
+add_executable(test_detection_pipeline_failures test_detection_pipeline_failures.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
+target_compile_definitions(test_detection_pipeline_failures PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
+
 add_executable(test_tracking_export_e2e test_tracking_export_e2e.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
 target_compile_definitions(test_tracking_export_e2e PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
 
@@ -73,6 +76,21 @@ add_executable(test_annotation_exporter test_annotation_exporter.cpp test_main.c
 target_compile_definitions(test_annotation_exporter PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
 
 if(NOT TREX_CONDA_PACKAGE_INSTALL)
+    add_executable(test_detection_ml_failures test_detection_ml_failures.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
+    target_compile_definitions(test_detection_ml_failures PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
+
+    add_executable(test_headless_convert_exit test_headless_convert_exit.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
+    if(APPLE)
+        set(TREX_TEST_APP_TARGET TRex)
+    else()
+        set(TREX_TEST_APP_TARGET trex)
+    endif()
+    target_compile_definitions(test_headless_convert_exit PRIVATE
+        -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}"
+        -DTREX_TEST_EXECUTABLE="$<TARGET_FILE:${TREX_TEST_APP_TARGET}>"
+    )
+    add_dependencies(test_headless_convert_exit ${TREX_TEST_APP_TARGET})
+
     add_executable(test_trex_detection_model_python test_trex_detection_model_python.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
     target_compile_definitions(test_trex_detection_model_python PRIVATE
         -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}"
@@ -130,12 +148,15 @@ set(TARGETS
     test_threadpool 
     test_tiling 
     test_segmenter
+    test_detection_pipeline_failures
     test_tracking_export_e2e
     test_dispatcher
     test_sam3promptpayload
     test_annotation_exporter
 )
 if(NOT TREX_CONDA_PACKAGE_INSTALL)
+    list(APPEND TARGETS test_detection_ml_failures)
+    list(APPEND TARGETS test_headless_convert_exit)
     list(APPEND TARGETS test_trex_detection_model_python)
     list(APPEND TARGETS test_sam3interactivesession)
 endif()
@@ -182,11 +203,14 @@ target_link_libraries(test_outlines PUBLIC gtest gmock)
 target_link_libraries(test_threadpool PUBLIC gtest)
 target_link_libraries(test_tiling PUBLIC gtest gmock)
 target_link_libraries(test_segmenter PUBLIC gtest)
+target_link_libraries(test_detection_pipeline_failures PUBLIC gtest)
 target_link_libraries(test_tracking_export_e2e PUBLIC gtest)
 target_link_libraries(test_dispatcher PUBLIC gtest)
 target_link_libraries(test_sam3promptpayload PUBLIC gtest)
 target_link_libraries(test_annotation_exporter PUBLIC gtest)
 if(NOT TREX_CONDA_PACKAGE_INSTALL)
+    target_link_libraries(test_detection_ml_failures PUBLIC gtest)
+    target_link_libraries(test_headless_convert_exit PUBLIC gtest)
     target_link_libraries(test_trex_detection_model_python PUBLIC gtest)
     target_link_libraries(test_sam3interactivesession PUBLIC gtest gmock)
 endif()
@@ -267,6 +291,17 @@ target_link_libraries(test_segmenter PUBLIC
 )
 trex_link_static_python_impl(test_segmenter)
 
+target_link_libraries(test_detection_pipeline_failures PUBLIC
+    tracker_tracking
+    tracker_ml
+    tracker_gui
+    tracker_misc
+    framegrabber_misc
+    pv
+    commons
+)
+trex_link_static_python_impl(test_detection_pipeline_failures)
+
 target_link_libraries(test_tracking_export_e2e PUBLIC
     tracker_tracking
     tracker_ml
@@ -303,6 +338,28 @@ target_link_libraries(test_annotation_exporter PUBLIC
 )
 
 if(NOT TREX_CONDA_PACKAGE_INSTALL)
+    target_link_libraries(test_detection_ml_failures PUBLIC
+        tracker_tracking
+        tracker_ml
+        tracker_gui
+        tracker_misc
+        framegrabber_misc
+        pv
+        commons
+    )
+    trex_link_static_python_impl(test_detection_ml_failures)
+
+    target_link_libraries(test_headless_convert_exit PUBLIC
+        tracker_tracking
+        tracker_ml
+        tracker_gui
+        tracker_misc
+        framegrabber_misc
+        pv
+        commons
+    )
+    trex_link_static_python_impl(test_headless_convert_exit)
+
     target_link_libraries(test_trex_detection_model_python PUBLIC
         commons
     )
@@ -349,11 +406,14 @@ set_target_properties(test_outlines PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH 
 set_target_properties(test_threadpool PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 set_target_properties(test_tiling PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 set_target_properties(test_segmenter PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
+set_target_properties(test_detection_pipeline_failures PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 set_target_properties(test_tracking_export_e2e PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 set_target_properties(test_dispatcher PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 set_target_properties(test_sam3promptpayload PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 set_target_properties(test_annotation_exporter PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 if(NOT TREX_CONDA_PACKAGE_INSTALL)
+    set_target_properties(test_detection_ml_failures PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
+    set_target_properties(test_headless_convert_exit PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
     set_target_properties(test_trex_detection_model_python PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
     set_target_properties(test_sam3interactivesession PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 endif()
@@ -399,12 +459,23 @@ add_test(NAME test-threadpool COMMAND test_threadpool)
 add_test(NAME test-tiling COMMAND test_tiling)
 add_test(NAME test-segmenter COMMAND test_segmenter)
 trex_prepend_test_path(test-segmenter trex_check_python)
+set_tests_properties(test-segmenter PROPERTIES TIMEOUT 300)
+add_test(NAME test-detection-pipeline-failures COMMAND test_detection_pipeline_failures)
+trex_prepend_test_path(test-detection-pipeline-failures trex_check_python)
+set_tests_properties(test-detection-pipeline-failures PROPERTIES TIMEOUT 300)
 add_test(NAME test-tracking-export-e2e COMMAND test_tracking_export_e2e)
 trex_prepend_test_path(test-tracking-export-e2e trex_check_python)
+set_tests_properties(test-tracking-export-e2e PROPERTIES TIMEOUT 600)
 add_test(NAME test-dispatcher COMMAND test_dispatcher)
 add_test(NAME test-sam3promptpayload COMMAND test_sam3promptpayload)
 add_test(NAME test-annotation-exporter COMMAND test_annotation_exporter)
 if(NOT TREX_CONDA_PACKAGE_INSTALL)
+    add_test(NAME test-detection-ml-failures COMMAND test_detection_ml_failures)
+    trex_prepend_test_path(test-detection-ml-failures trex_check_python)
+    set_tests_properties(test-detection-ml-failures PROPERTIES TIMEOUT 300)
+    add_test(NAME test-headless-convert-exit COMMAND test_headless_convert_exit)
+    trex_prepend_test_path(test-headless-convert-exit trex_check_python)
+    set_tests_properties(test-headless-convert-exit PROPERTIES TIMEOUT 600)
     add_test(NAME test-trex-detection-model-python COMMAND test_trex_detection_model_python)
     add_test(NAME test-sam3interactivesession COMMAND test_sam3interactivesession)
 endif()

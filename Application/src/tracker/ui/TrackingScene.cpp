@@ -660,12 +660,15 @@ bool TrackingScene::on_global_event(Event event) {
                }
                 break;
             }
-            case Keyboard::D:
-                SETTING(gui_mode) = GUI_SETTINGS(gui_mode) == mode_t::tracking ? mode_t::blobs : mode_t::tracking;
+            case Keyboard::D: {
+                auto current_mode = GUI_SETTINGS(gui_mode);
+                SETTING(gui_mode) = current_mode == mode_t::tracking ? mode_t::raw : mode_t::tracking;
+
                 _data->_cache->set_tracking_dirty();
                 _data->_cache->set_blobs_dirty();
                 _data->_cache->set_redraw();
                 break;
+            }
                 
             case Keyboard::F: {
                 SceneManager::enqueue([](IMGUIBase* base, DrawStructure& graph){
@@ -1570,7 +1573,7 @@ void TrackingScene::_draw(DrawStructure& graph) {
     //_data->_bowl->set(LineClr{Cyan});
     //_data->_bowl.set(FillClr{Yellow});
     
-    if(GUI_SETTINGS(gui_mode) == mode_t::blobs) {
+    if(is_in(GUI_SETTINGS(gui_mode), mode_t::raw)) {
         cmn::gui::tracker::draw_blob_view({
             .graph = graph,
             .cache = *_data->_cache,

@@ -560,11 +560,20 @@ std::string start_tracking(std::future<void>& f) {
     if(f.valid())
         f.get();
     
-    while(not terminate && not BOOL_SETTING(terminate))
+    while(not terminate
+          && not BOOL_SETTING(terminate)
+          && not BOOL_SETTING(error_terminate))
+    {
         std::this_thread::sleep_for(std::chrono::seconds(1));
-    
-    while(BOOL_SETTING(auto_quit))
+    }
+
+    /// Asynchronous startup failures can set error_terminate before the
+    /// workflow reaches the state transition that clears auto_quit.
+    while(BOOL_SETTING(auto_quit)
+          && not BOOL_SETTING(error_terminate))
+    {
         std::this_thread::sleep_for(std::chrono::seconds(1));
+    }
     
     WorkProgress::stop();
     return {};
@@ -654,7 +663,8 @@ std::string start_converting(std::future<void>& f) {
         }
     });
     
-    while(not BOOL_SETTING(terminate))
+    while(not BOOL_SETTING(terminate)
+          && not BOOL_SETTING(error_terminate))
         std::this_thread::sleep_for(std::chrono::seconds(1));
     
     if(not BOOL_SETTING(error_terminate)) {
@@ -894,37 +904,43 @@ int main(int argc, char**argv) {
         if(f.valid())
             f.get();
 
-        if(task == TRexTask_t::convert) {
-            last_error = start_converting(f);
-            
-            if(last_error.empty() && BOOL_SETTING(auto_train)) {
+        try {
+            if(task == TRexTask_t::convert) {
+                last_error = start_converting(f);
                 
-                try {
-                    if (f.valid())
-                        f.get();
+                if(last_error.empty() && BOOL_SETTING(auto_train)) {
 
-                    Detection::deinit();
-                    Accumulation::on_terminate();
-                    WorkProgress::stop();
+                    try {
+                        if (f.valid())
+                            f.get();
+
+                        Detection::deinit();
+                        Accumulation::on_terminate();
+                        WorkProgress::stop();
+
+                    } catch(const std::exception& e) {
+                        FormatExcept("Unknown deinit() error, quitting normally anyways. ", e.what());
+                    }
                     
-                } catch(const std::exception& e) {
-                    FormatExcept("Unknown deinit() error, quitting normally anyways. ", e.what());
+                    wants_to_load = true;
+                    SETTING(terminate) = false;
+                    SETTING(auto_quit) = true;
+                    start_tracking(f);
+                } else {
+                    WorkProgress::stop();
                 }
                 
-                wants_to_load = true;
-                SETTING(terminate) = false;
-                SETTING(auto_quit) = true;
-                start_tracking(f);
+            } else if(task == TRexTask_t::track) {
+                last_error = start_tracking(f);
+            } else if(task == TRexTask_t::rst) {
+                save_rst_files();
             } else {
-                WorkProgress::stop();
+                throw U_EXCEPTION("Unknown task type: ", task);
             }
-            
-        } else if(task == TRexTask_t::track) {
-            last_error = start_tracking(f);
-        } else if(task == TRexTask_t::rst) {
-            save_rst_files();
-        } else {
-            throw U_EXCEPTION("Unknown task type: ", task);
+        } catch(const std::exception& ex) {
+            SETTING(error_terminate) = true;
+            SETTING(terminate) = true;
+            last_error = ex.what();
         }
         
     } else {
