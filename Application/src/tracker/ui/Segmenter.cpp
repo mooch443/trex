@@ -1556,11 +1556,16 @@ void Segmenter::force_stop() {
 }
 
 void Segmenter::error_stop(std::string_view error) {
-    if(error_callback)
-		error_callback((std::string)error);
+    auto message = std::string(error);
+    auto callback = std::move(error_callback);
     error_callback = nullptr;
     eof_callback = nullptr;
     graceful_end();
+
+    /// The callback may release the last owner of this Segmenter, so it must
+    /// be the final operation that can expose completion to another thread.
+    if(callback)
+        callback(std::move(message));
 }
 
 void Segmenter::graceful_end() {
