@@ -242,8 +242,14 @@ Segmenter::~Segmenter() {
         FormatExcept("Generating the average failed during teardown.");
     }
     
-    if(auto* mgr = detect::try_current_pipeline_manager())
-        mgr->set_weight_limit(1);
+    try {
+        if(auto* mgr = detect::try_current_pipeline_manager())
+            mgr->set_weight_limit(1);
+    } catch(const std::exception& ex) {
+        FormatExcept("Detection pipeline failed during teardown: ", ex.what());
+    } catch(...) {
+        FormatExcept("Detection pipeline failed during teardown.");
+    }
 
     /// 1. step: stop generating new frames
     _generating_step.terminate_wait_blocking(_writing_step);
@@ -1556,11 +1562,16 @@ void Segmenter::force_stop() {
 }
 
 void Segmenter::error_stop(std::string_view error) {
-    if(error_callback)
-		error_callback((std::string)error);
+    auto message = std::string(error);
+    auto callback = std::move(error_callback);
     error_callback = nullptr;
     eof_callback = nullptr;
     graceful_end();
+
+    /// The callback may release the last owner of this Segmenter, so it must
+    /// be the final operation that can expose completion to another thread.
+    if(callback)
+        callback(std::move(message));
 }
 
 void Segmenter::graceful_end() {
