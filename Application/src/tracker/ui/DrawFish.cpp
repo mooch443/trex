@@ -1257,7 +1257,7 @@ void Fish::selection_clicked(Event) {
 }
     
     void Fish::update(const FindCoord& coord, Entangled& parent, DrawStructure &graph) {
-        _tight_selection.set_clickable(not graph.is_key_pressed(Codes::LSystem));
+        _tight_selection.set_clickable(not graph.is_system_pressed());
         
         //const auto frame_rate = slow::frame_rate;//FAST_SETTING(frame_rate);
         //const float track_max_reassign_time = FAST_SETTING(track_max_reassign_time);

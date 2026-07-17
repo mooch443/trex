@@ -1179,11 +1179,7 @@ void BlobView::clicked_background(DrawStructure& base, GUICache& cache, const Ve
         _current_boundary.clear();
         
     } else {
-#ifdef __APPLE__
-        if(!base.is_key_pressed(Codes::LSystem)) {
-#else
-        if(!base.is_key_pressed(Codes::LControl)) {
-#endif
+        if(not base.is_system_pressed()) {
             if(_current_boundary.empty()) {
                 if(not GUI_SETTINGS(gui_zoom_polygon).empty()) {
                     SETTING(gui_zoom_polygon) = std::vector<Vec2>();
@@ -1297,12 +1293,7 @@ void BlobView::draw_boundary_selection(DrawStructure& base, Base* window, GUICac
                 }
             }
             
-            const bool is_system_pressed =
-#ifdef __APPLE__
-                base.is_key_pressed(Codes::LSystem);
-#else
-                base.is_key_pressed(Codes::LControl);
-#endif
+            const bool is_system_pressed = base.is_system_pressed();
             
             if(top_left.x != FLT_MAX) {
                 Bounds bds{

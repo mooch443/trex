@@ -106,10 +106,10 @@ bool Individual::add_qrcode(Frame_t frame, pv::BlobPtr&& tag) {
                         if(it->second.size() > 2 || tracklet_ended) {
                             RecTask task;
                             {
-                                task._tracklet_start = tracklet->start(),
-                                    task.individual = identity().ID(),
-                                    task._optional = !tracklet_ended,
-                                    task._fdx = identity().ID();
+                                task._tracklet_start = tracklet->start();
+                                task.individual = identity().ID();
+                                task._optional = !tracklet_ended;
+                                task._fdx = identity().ID();
                             }
 
                             task._callback = [this, range = tracklet->range, N = it->second.size(), tracklet = tracklet](Predictions&& prediction) {

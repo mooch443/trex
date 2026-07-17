@@ -14,6 +14,7 @@
 #include <misc/CropOffsets.h>
 #include <core/GPURecognitionTypes.h>
 #include <core/annotation.h>
+#include <core/FrameTags.h>
 
 #ifndef WIN32
 #include <unistd.h>
@@ -909,7 +910,12 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         
         using namespace track;
         AnnotationMap annotation_example = AnnotationMap::fromStr("{100:[[0,1,[[100,120],[200,300],[350,400]]]]}");
-        CONFIG("track_annotations", track::AnnotationMap{}, "This is a map of {frame:[[clid,type,[points...]],...]} that can be used to export annotations per frame. These can be added in the graphical user interface by CMD+clicking on the video and selecting 'add annotation'.", PUBLIC, {std::move(annotation_example)});
+        CONFIG("track_annotations", track::AnnotationMap{}, "This is a map of `{frame:[[clid,type,[points...]],...]}` that can be used to export annotations per frame. These can be added in the graphical user interface by CMD+clicking on the video and selecting 'add annotation'.", PUBLIC, {std::move(annotation_example)});
+        
+        FrameTags tags{
+            {123_f, std::set<FrameTag>{FrameTag("blue"), FrameTag("green")}}
+        };
+        CONFIG("track_frame_tags", track::FrameTags{}, "This is a map of `{frame:[tag1,...],frame2:...}` ", PUBLIC, {std::move(tags)});
         
         CONFIG("match_mode", matching_mode_t::automatic, "Changes the default algorithm to be used for matching blobs in one frame with blobs in the next frame. The accurate algorithm performs best, but also scales less well for more individuals than the approximate one. However, if it is too slow (temporarily) in a few frames, the program falls back to using the approximate one that doesnt slow down.");
         CONFIG("match_min_probability", float(0.1), "The probability below which a possible connection between blob and identity is considered too low. The probability depends largely upon settings like `track_max_speed`.");

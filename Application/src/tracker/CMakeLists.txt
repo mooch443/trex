@@ -180,7 +180,7 @@ target_link_libraries(trex_tracking PUBLIC
     trex_core
 )
 if(WITH_HTTPD)
-    add_dependencies(trex_tracking LibMicroHttpd)
+    add_dependencies(trex_tracking Commons::HTTPD)
 endif()
 
 trex_add_semantic_library(trex_ml

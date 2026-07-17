@@ -2277,6 +2277,217 @@ TEST(FindReplaceTest, ReplaceSubstringsWithDifferentLengths) {
     EXPECT_EQ(find_replace(input, search_strings), expected);
 }
 
+// find_replace with single char pair
+
+TEST(FindReplaceCharTest, BasicTest) {
+    std::string input = "banana";
+    std::pair<char, char> search_replace = {'a', 'o'};
+    EXPECT_EQ(find_replace(input, search_replace), "bonono");
+}
+
+TEST(FindReplaceCharTest, EmptyInput) {
+    std::string input = "";
+    std::pair<char, char> search_replace = {'a', 'o'};
+    EXPECT_EQ(find_replace(input, search_replace), "");
+}
+
+TEST(FindReplaceCharTest, NoMatches) {
+    std::string input = "banana";
+    std::pair<char, char> search_replace = {'x', 'y'};
+    EXPECT_EQ(find_replace(input, search_replace), "banana");
+}
+
+TEST(FindReplaceCharTest, IdenticalReplacement) {
+    std::string input = "banana";
+    std::pair<char, char> search_replace = {'a', 'a'};
+    EXPECT_EQ(find_replace(input, search_replace), "banana");
+}
+
+TEST(FindReplaceCharTest, AllCharactersMatch) {
+    std::string input = "aaaa";
+    std::pair<char, char> search_replace = {'a', 'b'};
+    EXPECT_EQ(find_replace(input, search_replace), "bbbb");
+}
+
+TEST(FindReplaceCharTest, SpecialCharacters) {
+    std::string input = "path/to/file";
+    std::pair<char, char> search_replace = {'/', '\\'};
+    EXPECT_EQ(find_replace(input, search_replace), "path\\to\\file");
+}
+
+TEST(FindReplaceCharTest, StringViewInput) {
+    std::string_view input = "banana";
+    std::pair<char, char> search_replace = {'n', 'm'};
+    EXPECT_EQ(find_replace(input, search_replace), "bamama");
+}
+
+TEST(FindReplaceCharTest, MultipleInstancesOfSearchChar) {
+    std::string input = "abcdeabc";
+    std::pair<char, char> search_replace = {'a', 'x'};
+    EXPECT_EQ(find_replace(input, search_replace), "xbcdexbc");
+}
+
+TEST(FindReplaceCharTest, CaseSensitivity) {
+    std::string input = "AbaB";
+    std::pair<char, char> search_replace = {'a', 'x'};
+    EXPECT_EQ(find_replace(input, search_replace), "AbxB");
+}
+
+TEST(FindReplaceCharTest, UnicodeCharacters) {
+    // multibyte utf-8 sequences must pass through untouched when
+    // replacing a plain ascii char
+    std::string input = "こんにちは 世界";
+    std::pair<char, char> search_replace = {' ', '_'};
+    EXPECT_EQ(find_replace(input, search_replace), "こんにちは_世界");
+}
+
+// find_replace with multiple char pairs
+
+TEST(FindReplaceCharPairsTest, BasicTest) {
+    std::string input = "banana";
+    std::vector<std::pair<char, char>> search_replace_pairs = {
+        {'b', 'c'},
+        {'a', 'o'}
+    };
+    EXPECT_EQ(find_replace(input, search_replace_pairs), "conono");
+}
+
+TEST(FindReplaceCharPairsTest, EmptyInput) {
+    std::string input = "";
+    std::vector<std::pair<char, char>> search_replace_pairs = {
+        {'a', 'o'}
+    };
+    EXPECT_EQ(find_replace(input, search_replace_pairs), "");
+}
+
+TEST(FindReplaceCharPairsTest, EmptyPairs) {
+    std::string input = "banana";
+    std::vector<std::pair<char, char>> search_replace_pairs;
+    EXPECT_EQ(find_replace(input, search_replace_pairs), "banana");
+}
+
+TEST(FindReplaceCharPairsTest, EmptyInputAndPairs) {
+    std::string input = "";
+    std::vector<std::pair<char, char>> search_replace_pairs;
+    EXPECT_EQ(find_replace(input, search_replace_pairs), "");
+}
+
+TEST(FindReplaceCharPairsTest, NoMatches) {
+    std::string input = "banana";
+    std::vector<std::pair<char, char>> search_replace_pairs = {
+        {'x', 'y'},
+        {'z', 'w'}
+    };
+    EXPECT_EQ(find_replace(input, search_replace_pairs), "banana");
+}
+
+TEST(FindReplaceCharPairsTest, FirstMatchingPairWins) {
+    std::string input = "banana";
+    std::vector<std::pair<char, char>> search_replace_pairs = {
+        {'a', 'x'},
+        {'a', 'y'}
+    };
+    EXPECT_EQ(find_replace(input, search_replace_pairs), "bxnxnx");
+}
+
+TEST(FindReplaceCharPairsTest, ReplacementsDoNotCascade) {
+    // once a char is replaced, later pairs must not be applied to the result,
+    // so swapping two chars works in a single pass
+    std::string input = "abba";
+    std::vector<std::pair<char, char>> search_replace_pairs = {
+        {'a', 'b'},
+        {'b', 'a'}
+    };
+    EXPECT_EQ(find_replace(input, search_replace_pairs), "baab");
+}
+
+TEST(FindReplaceCharPairsTest, SpecialCharactersAndDigits) {
+    std::string input = "a$b%c123";
+    std::vector<std::pair<char, char>> search_replace_pairs = {
+        {'$', 'X'},
+        {'%', 'Y'},
+        {'1', '2'}
+    };
+    EXPECT_EQ(find_replace(input, search_replace_pairs), "aXbYc223");
+}
+
+TEST(FindReplaceCharPairsTest, SomeMatchingPairs) {
+    std::string input = "abcdefgh";
+    std::vector<std::pair<char, char>> search_replace_pairs = {
+        {'a', 'x'},
+        {'z', 'y'}
+    };
+    EXPECT_EQ(find_replace(input, search_replace_pairs), "xbcdefgh");
+}
+
+TEST(FindReplaceCharPairsTest, AllMatchingPairs) {
+    std::string input = "abab";
+    std::vector<std::pair<char, char>> search_replace_pairs = {
+        {'a', 'x'},
+        {'b', 'y'}
+    };
+    EXPECT_EQ(find_replace(input, search_replace_pairs), "xyxy");
+}
+
+TEST(FindReplaceCharPairsTest, MultipleInstancesOfSearchChars) {
+    std::string input = "abcdeabc";
+    std::vector<std::pair<char, char>> search_replace_pairs = {
+        {'a', 'x'}
+    };
+    EXPECT_EQ(find_replace(input, search_replace_pairs), "xbcdexbc");
+}
+
+TEST(FindReplaceCharPairsTest, IdenticalReplacements) {
+    std::string input = "abcabc";
+    std::vector<std::pair<char, char>> search_replace_pairs = {
+        {'a', 'a'},
+        {'b', 'b'}
+    };
+    EXPECT_EQ(find_replace(input, search_replace_pairs), "abcabc");
+}
+
+TEST(FindReplaceCharPairsTest, CaseSensitivity) {
+    std::string input = "The Quick Brown";
+    std::vector<std::pair<char, char>> search_replace_pairs = {
+        {'T', 't'},
+        {'Q', 'q'},
+        {'B', 'b'}
+    };
+    EXPECT_EQ(find_replace(input, search_replace_pairs), "the quick brown");
+}
+
+TEST(FindReplaceCharPairsTest, UnicodeCharacters) {
+    // multibyte utf-8 sequences must pass through untouched when
+    // replacing plain ascii chars
+    std::string input = "こんにちは 世界!";
+    std::vector<std::pair<char, char>> search_replace_pairs = {
+        {' ', '_'},
+        {'!', '?'}
+    };
+    EXPECT_EQ(find_replace(input, search_replace_pairs), "こんにちは_世界?");
+}
+
+TEST(FindReplaceCharPairsTest, MultipleReplacementsInARow) {
+    std::string input = "abc";
+    std::vector<std::pair<char, char>> search_replace_pairs = {
+        {'a', 'x'},
+        {'b', 'y'},
+        {'c', 'z'}
+    };
+    EXPECT_EQ(find_replace(input, search_replace_pairs), "xyz");
+}
+
+TEST(FindReplaceCharPairsTest, RespectOrderOfPairs) {
+    // like RespectOrderOfSearchStrings: an earlier pair takes precedence
+    // over a later pair with the same search char
+    std::string input = "aaa";
+    std::vector<std::pair<char, char>> search_replace_pairs = {
+        {'a', 'b'},
+        {'a', 'c'}
+    };
+    EXPECT_EQ(find_replace(input, search_replace_pairs), "bbb");
+}
+
 
 // more complex parsing
 

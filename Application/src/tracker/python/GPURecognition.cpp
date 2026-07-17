@@ -1935,11 +1935,11 @@ void PythonIntegration::set_function(const char* name_, std::function<void(const
     auto fn = [f](py::list batch) {
         std::vector<std::vector<cv::Mat>> batch_vector;
         // Each item in the batch is a list of images
-        for (const py::handle& img_list_handle : batch) {
+        for (py::handle img_list_handle : batch) {
             py::list img_list = py::cast<py::list>(img_list_handle);
 
             std::vector<cv::Mat> image_vector;
-            for (const py::handle& np_img_handle : img_list) {
+            for (py::handle np_img_handle : img_list) {
                 py::array_t<uint8_t> np_img = py::cast<py::array_t<uint8_t>>(np_img_handle);
                 py::buffer_info buf_info = np_img.request();
 

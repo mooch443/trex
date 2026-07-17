@@ -1210,7 +1210,7 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
             //for(auto &b : raw_blobs)
             //    b->ptr->updated_source();
             
-            const uint8_t max_alpha = _graph->is_key_pressed(Codes::LSystem) ? 200 : 255;
+            const uint8_t max_alpha = _graph->is_system_pressed() ? 200 : 255;
             for(auto &b : display_blobs) {
                 b.second->ptr->set_pos(b.second->image_pos);
                 b.second->ptr->updated_source();

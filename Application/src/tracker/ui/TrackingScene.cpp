@@ -672,7 +672,7 @@ bool TrackingScene::on_global_event(Event event) {
                 
             case Keyboard::F: {
                 SceneManager::enqueue([](IMGUIBase* base, DrawStructure& graph){
-                    if(graph.is_key_pressed(Codes::LSystem))
+                    if(graph.is_system_pressed())
                     {
                         base->toggle_fullscreen(graph);
                     }
@@ -1942,14 +1942,12 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
             
             ActionFunc("move_whole_annotation", [this](const Action& action) {
                 REQUIRE_EXACTLY(1, action);
-
-                auto annotation_uid = Meta::fromStr<uint64_t>(action.parameters.front());
-
+                
                 if(not _data
                    || not _data->_cache)
                     throw InvalidArgumentException("No data pointer set. Probably quitting.");
 
-                SceneManager::enqueue([=](auto, DrawStructure& graph) {
+                SceneManager::enqueue([this, annotation_uid = Meta::fromStr<uint64_t>(action.parameters.front()), action](auto, DrawStructure& graph) {
                     auto selected = graph.selected_object();
                     if(not selected)
                         throw InvalidArgumentException("No object selected to be moved.");

@@ -10,6 +10,7 @@ set(TREX_CORE_PUBLIC_HEADERS
     ${CMAKE_CURRENT_LIST_DIR}/core/default_config.h
     ${CMAKE_CURRENT_LIST_DIR}/core/DetectionImageTypes.h
     ${CMAKE_CURRENT_LIST_DIR}/core/DetectionTypes.h
+    ${CMAKE_CURRENT_LIST_DIR}/core/FrameTags.h
     ${CMAKE_CURRENT_LIST_DIR}/core/FOI.h
     ${CMAKE_CURRENT_LIST_DIR}/core/IdentifiedTag.h
     ${CMAKE_CURRENT_LIST_DIR}/core/Identity.h
@@ -53,6 +54,7 @@ set(TREX_CORE_SOURCES
     ${CMAKE_CURRENT_LIST_DIR}/core/Border.cpp
     ${CMAKE_CURRENT_LIST_DIR}/core/default_config.cpp
     ${CMAKE_CURRENT_LIST_DIR}/core/DetectionTypes.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/core/FrameTags.cpp
     ${CMAKE_CURRENT_LIST_DIR}/core/FOI.cpp
     ${CMAKE_CURRENT_LIST_DIR}/core/IdentifiedTag.cpp
     ${CMAKE_CURRENT_LIST_DIR}/core/Identity.cpp
