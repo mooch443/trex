@@ -478,7 +478,7 @@
       ],
       "module": "commons.misc",
       "path": "misc/GlobalSettings.h",
-      "sha256": "02ad3348e3e0366b9bbfc7432751f3596852130333f9d75d2ff16cc6ec9a090a",
+      "sha256": "4291539e0771e56a0d0618ac2b24c7674bfe10b1c4ed69e199ae2121ab7572e9",
       "symbols": [
         {
           "kind": "enum_class",
@@ -562,41 +562,6 @@
           "name": "read_setting_with_default_config",
           "namespace": "cmn",
           "qualified": "cmn::read_setting_with_default_config",
-          "smoke": "using"
-        },
-        {
-          "kind": "function",
-          "name": "setting",
-          "namespace": "cmn",
-          "qualified": "cmn::setting",
-          "smoke": "using"
-        },
-        {
-          "kind": "function",
-          "name": "bool_setting",
-          "namespace": "cmn",
-          "qualified": "cmn::bool_setting",
-          "smoke": "using"
-        },
-        {
-          "kind": "function_template",
-          "name": "optional_setting",
-          "namespace": "cmn",
-          "qualified": "cmn::optional_setting",
-          "smoke": "using"
-        },
-        {
-          "kind": "function_template",
-          "name": "read_setting",
-          "namespace": "cmn",
-          "qualified": "cmn::read_setting",
-          "smoke": "using"
-        },
-        {
-          "kind": "function_template",
-          "name": "read_setting_with_default",
-          "namespace": "cmn",
-          "qualified": "cmn::read_setting_with_default",
           "smoke": "using"
         }
       ]
@@ -1798,7 +1763,7 @@
       "excluded": [],
       "module": "commons.misc",
       "path": "misc/derived_ptr.h",
-      "sha256": "324bcb45be3230c59a8ca57b242b954fa7100b5071f05ad1390a9b9c49766a87",
+      "sha256": "963eb6b6b8358385f3cd39be8ac7d370adf65f02564909fd61268abc55e3933e",
       "symbols": [
         {
           "kind": "struct",
@@ -4575,7 +4540,7 @@
       "excluded": [],
       "module": "commons.gui",
       "path": "gui/ListAttributes.h",
-      "sha256": "9abcad373e41014e873fae6f0685897dfaaf9cb46a3aafff2c1dd9a2c028dab5",
+      "sha256": "d2d231ed5296f8d5c506c63af56e141bbc513aee1fcbe2ff64555b4e8d124634",
       "symbols": [
         {
           "kind": "alias",
@@ -4603,6 +4568,20 @@
           "name": "Foldable_tTag",
           "namespace": "cmn::gui",
           "qualified": "cmn::gui::Foldable_tTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "AlwaysOpen_t",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::AlwaysOpen_t",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "AlwaysOpen_tTag",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::AlwaysOpen_tTag",
           "smoke": "using"
         },
         {
@@ -4841,6 +4820,20 @@
           "name": "ItemLineColor_tTag",
           "namespace": "cmn::gui",
           "qualified": "cmn::gui::ItemLineColor_tTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "ItemTextClr_t",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::ItemTextClr_t",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "ItemTextClr_tTag",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::ItemTextClr_tTag",
           "smoke": "using"
         }
       ]
@@ -5745,7 +5738,7 @@
       "excluded": [],
       "module": "commons.gui",
       "path": "gui/types/Dropdown.h",
-      "sha256": "3c4d3dcdcb673b278b59aeb7a1029c4955242c288e78d3cc62daa4898f435bb8",
+      "sha256": "d3960946dd5382e67a388bf047697abe2b1ddf6fd3790b3c4f8076ab9b7336f3",
       "symbols": [
         {
           "kind": "struct",
@@ -5774,7 +5767,7 @@
       ],
       "module": "commons.gui",
       "path": "gui/types/Entangled.h",
-      "sha256": "ea95304a043a8f90f449d391a64d9315cff5ca937f123d4286afef374d9a9c1e",
+      "sha256": "8b6e642f3dc406f15809b9f8c9dcab3ee62dfd12cf13be72d050bd124da43aa7",
       "symbols": [
         {
           "kind": "enum_class",
@@ -5887,7 +5880,7 @@
       ],
       "module": "commons.gui",
       "path": "gui/types/Layout.h",
-      "sha256": "5b7a65a28d5e82dfb90c1a8b4dfb13e1b92f42dc6aecd2bdaf0a1f253ce25bb6",
+      "sha256": "ea08e4028b75a76e4de366f090fa641611f787ee604fa3025bf3df09debdc582",
       "symbols": [
         {
           "kind": "alias",
@@ -6110,7 +6103,7 @@
       "excluded": [],
       "module": "commons.gui",
       "path": "gui/types/ScrollableList.h",
-      "sha256": "88eebd291cd42535650fc068717146b18e8cc0c3510b183e5329194df6cbe814",
+      "sha256": "177b0f8b634982d8e01eb7defde600656f78c6d6be11dbb6f2a9d737f84df087",
       "symbols": [
         {
           "kind": "concept",
@@ -6271,7 +6264,7 @@
       "excluded": [],
       "module": "commons.gui",
       "path": "gui/types/TagList.h",
-      "sha256": "b1600e1619f8033a3c703d067fac6820495ca672f3b7840a90bedbb2a1c94ceb",
+      "sha256": "99fce5259e7b2816b5cf01e0669736a1d2dadc9fa905c7388f712f8cb4ac4338",
       "symbols": [
         {
           "kind": "alias",
@@ -6537,7 +6530,7 @@
   "summary": {
     "excluded": 45,
     "headers": 163,
-    "symbols": 698
+    "symbols": 697
   },
   "version": 1
 }

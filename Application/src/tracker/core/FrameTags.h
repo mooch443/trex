@@ -11,15 +11,18 @@ struct FrameTag {
     std::string toStr() const;
     glz::json_t to_json() const;
     static FrameTag fromStr(cmn::StringLike auto && str) {
-        if(cmn::utils::beginsWith(str, '[')
-           && cmn::utils::endsWith(str, ']'))
+        const auto value = cmn::utils::string_like_view(
+            std::forward<decltype(str)>(str));
+        if(cmn::utils::beginsWith(value, '[')
+           && cmn::utils::endsWith(value, ']'))
         {
-            return FrameTag{
-                .name = cmn::Meta::fromStr<std::pair<cmn::Bounds,std::string>>(str)
-            };
+            auto localized = cmn::Meta::fromStr<std::pair<cmn::Bounds,std::string>>(value);
+            validate_name(localized.second);
+            return FrameTag{.name = std::move(localized)};
         }
-        
-        return FrameTag{.name=(std::string)std::forward<decltype(str)>(str)};
+
+        validate_name(value);
+        return FrameTag{.name = std::string(value)};
     }
     bool operator==(const FrameTag& other) const = default;
     consteval static std::string_view class_name() { return "Tag"; }
@@ -33,6 +36,9 @@ struct FrameTag {
     auto operator<=>(const FrameTag& other) const {
         return name <=> other.name;
     }
+
+private:
+    static void validate_name(std::string_view);
 };
 
 class FrameTags : public std::map<cmn::Frame_t, std::set<FrameTag>> {

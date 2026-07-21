@@ -45,6 +45,9 @@ target_compile_definitions(test_dyngui PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRE
 add_executable(test_gui_scroll test_gui_scroll.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
 target_compile_definitions(test_gui_scroll PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
 
+add_executable(test_frame_tags test_frame_tags.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
+target_compile_definitions(test_frame_tags PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
+
 add_executable(bench_dyngui_parser bench_dyngui_parser.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
 target_compile_definitions(bench_dyngui_parser PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
 
@@ -144,6 +147,7 @@ set(TARGETS
     test_optionslist
     test_dyngui 
     test_gui_scroll
+    test_frame_tags
     test_outlines 
     test_threadpool 
     test_tiling 
@@ -199,6 +203,7 @@ target_link_libraries(test_patharray PUBLIC gtest gmock)
 target_link_libraries(test_optionslist PUBLIC gtest)
 target_link_libraries(test_dyngui PUBLIC gtest gmock)
 target_link_libraries(test_gui_scroll PUBLIC gtest)
+target_link_libraries(test_frame_tags PUBLIC gtest)
 target_link_libraries(test_outlines PUBLIC gtest gmock)
 target_link_libraries(test_threadpool PUBLIC gtest)
 target_link_libraries(test_tiling PUBLIC gtest gmock)
@@ -263,6 +268,8 @@ target_link_libraries(test_dyngui PUBLIC
 target_link_libraries(test_gui_scroll PUBLIC
         commons
         pv)
+
+target_link_libraries(test_frame_tags PUBLIC trex_core)
 
 target_link_libraries(bench_dyngui_parser PUBLIC
         commons
@@ -454,6 +461,7 @@ add_test(NAME test-pixels COMMAND test_pixels)
 add_test(NAME test-patharray COMMAND test_patharray)
 add_test(NAME test-dyngui COMMAND test_dyngui)
 add_test(NAME test-gui-scroll COMMAND test_gui_scroll)
+add_test(NAME test-frame-tags COMMAND test_frame_tags)
 add_test(NAME test-outlines COMMAND test_outlines)
 add_test(NAME test-threadpool COMMAND test_threadpool)
 add_test(NAME test-tiling COMMAND test_tiling)

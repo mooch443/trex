@@ -4,6 +4,23 @@ using namespace cmn;
 
 namespace track {
 
+void FrameTag::validate_name(std::string_view value) {
+    bool has_alphanumeric = false;
+    for(const unsigned char c : value) {
+        const bool alphanumeric = (c >= 'a' && c <= 'z')
+                               || (c >= 'A' && c <= 'Z')
+                               || (c >= '0' && c <= '9');
+        if(alphanumeric) {
+            has_alphanumeric = true;
+            continue;
+        }
+        if(c != ' ' && c != '-' && c != '_')
+            throw InvalidArgumentException("Invalid character in frame tag name: ", value);
+    }
+    if(not has_alphanumeric)
+        throw InvalidArgumentException("Frame tag names need at least one letter or number.");
+}
+
 std::string FrameTag::toStr() const {
     if(std::holds_alternative<std::string>(name))
         return std::get<std::string>(name);

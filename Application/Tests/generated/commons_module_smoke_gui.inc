@@ -245,20 +245,24 @@ using ::cmn::gui::dyn::has_set;
 namespace commons_module_smoke::commons_gui::cmn::gui {
 using ::cmn::gui::Alternating_t;
 using ::cmn::gui::Alternating_tTag;
+using ::cmn::gui::AlwaysOpen_t;
+using ::cmn::gui::AlwaysOpen_tTag;
 using ::cmn::gui::DetailColor_t;
 using ::cmn::gui::DetailColor_tTag;
 using ::cmn::gui::DetailFont_t;
 using ::cmn::gui::DetailFont_tTag;
 using ::cmn::gui::Foldable_t;
 using ::cmn::gui::Foldable_tTag;
-using ::cmn::gui::ItemBorderColor_t;
-using ::cmn::gui::ItemBorderColor_tTag;
-using ::cmn::gui::ItemColor_t;
-using ::cmn::gui::ItemColor_tTag;
+using ::cmn::gui::ItemFillClr_t;
+using ::cmn::gui::ItemFillClr_tTag;
 using ::cmn::gui::ItemFont_t;
 using ::cmn::gui::ItemFont_tTag;
+using ::cmn::gui::ItemLineColor_t;
+using ::cmn::gui::ItemLineColor_tTag;
 using ::cmn::gui::ItemPadding_t;
 using ::cmn::gui::ItemPadding_tTag;
+using ::cmn::gui::ItemTextClr_t;
+using ::cmn::gui::ItemTextClr_tTag;
 using ::cmn::gui::LabelAutoSize_t;
 using ::cmn::gui::LabelAutoSize_tTag;
 using ::cmn::gui::LabelColor_t;
@@ -398,6 +402,7 @@ using ::cmn::gui::Dropdown;
 // gui/types/Entangled.h
 namespace commons_module_smoke::commons_gui::cmn::gui {
 using ::cmn::gui::Margin;
+using ::cmn::gui::ScrollAxis;
 }
 
 // gui/types/ErrorElement.h
@@ -417,6 +422,7 @@ using ::cmn::gui::Hist::Options;
 namespace commons_module_smoke::commons_gui::cmn::gui {
 using ::cmn::gui::CellFillInterval;
 using ::cmn::gui::CellFillIntervalTag;
+using ::cmn::gui::FloatingLayout;
 using ::cmn::gui::GridInfo;
 using ::cmn::gui::GridLayout;
 using ::cmn::gui::HorizontalLayout;
@@ -425,6 +431,8 @@ using ::cmn::gui::MinCellSize;
 using ::cmn::gui::MinCellSizeTag;
 using ::cmn::gui::MinSize;
 using ::cmn::gui::MinSizeTag;
+using ::cmn::gui::OuterPadding;
+using ::cmn::gui::OuterPaddingTag;
 using ::cmn::gui::PlaceinLayout;
 using ::cmn::gui::VerticalLayout;
 }
@@ -493,6 +501,18 @@ using ::cmn::utils::find_splitting_point;
 // gui/types/Table.h
 namespace commons_module_smoke::commons_gui::cmn::gui {
 using ::cmn::gui::Table;
+}
+
+// gui/types/TagList.h
+namespace commons_module_smoke::commons_gui::cmn::gui {
+using ::cmn::gui::TagList;
+}
+
+namespace commons_module_smoke::commons_gui {
+using cmn_gui_TagList_AllowNew_t = ::cmn::gui::TagList::AllowNew_t;
+using cmn_gui_TagList_AllowNew_tTag = ::cmn::gui::TagList::AllowNew_tTag;
+using cmn_gui_TagList_MatchThreshold_t = ::cmn::gui::TagList::MatchThreshold_t;
+using cmn_gui_TagList_MatchThreshold_tTag = ::cmn::gui::TagList::MatchThreshold_tTag;
 }
 
 // gui/types/Textfield.h

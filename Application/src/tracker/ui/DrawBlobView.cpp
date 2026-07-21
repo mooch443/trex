@@ -764,6 +764,20 @@ void BlobView::draw(const DisplayParameters& parm)
         }
     });
     
+    if(popup != nullptr
+       && _clicked_blob_id.load().valid()
+       && _clicked_blob_id.load() == last_blob_id)
+    {
+        /// the whole popup is one selection scope: once nothing inside it
+        /// is selected anymore, it gets dismissed
+        if(auto sel = parm.graph.selected_object();
+           not sel || not sel->is_child_of(popup.get()))
+        {
+            _clicked_blob_id = pv::bid::invalid;
+            parm.cache.set_raw_blobs_dirty();
+        }
+    }
+
     if(_clicked_blob_id.load().valid() && _clicked_blob_frame.load() == frame) {
         if(popup == nullptr) {
             popup = std::make_shared<VerticalLayout>();
@@ -794,15 +808,7 @@ void BlobView::draw(const DisplayParameters& parm)
                 }
             });
             
-            list = Layout::Make<Dropdown>(Box(0, 0, 200, 35), ListDims_t{200,200}, Font{0.6}, ListFillClr_t{60,60,60,200}, FillClr{60,60,60,200}, LineClr{100,175,250,200}, TextClr{225,225,225});
-            list->on_open([list=list.get(), &cache = parm.cache, this](bool opened) {
-                if(!opened) {
-                    //list->set_items({});
-                    _clicked_blob_id = pv::bid::invalid;
-                    //GUI::set_redraw(); //TODO: redraw
-                    cache.set_raw_blobs_dirty();
-                }
-            });
+            list = Layout::Make<Dropdown>(Box(0, 0, 200, 235), AlwaysOpen_t{true}, LabelDims_t{200, 35}, Font{0.6}, ListFillClr_t{60,60,60,200}, FillClr{60,60,60,200}, LineClr{100,175,250,200}, TextClr{225,225,225});
             list->on_select([this, &cache = parm.cache](auto, const Dropdown::TextItem& item) {
                 auto number = uint64_t(item.custom());
                 uint32_t item_id = (number >> 32) & 0xFFFFFFFF;
@@ -880,12 +886,12 @@ void BlobView::draw(const DisplayParameters& parm)
                 blob_bounds = blob->blob->bounds();
                 blob_pos = blob_bounds.center();
                 auto pt = parm.coord.convert(BowlCoord(*blob_pos));
-                //auto top = pt.y < parm.coord.screen_size().height * 0.5_F
-                //            ? 0_F : 1_F;
+                auto top = pt.y < parm.coord.screen_size().height * 0.5_F
+                            ? 0_F : 1_F;
                 if(pt.x < parm.coord.screen_size().width * 0.5_F) {
-                    popup->set_origin(Vec2(0, 0));
+                    popup->set_origin(Vec2(0, top));
                 } else {
-                    popup->set_origin(Vec2(1, 0));
+                    popup->set_origin(Vec2(1, top));
                 }
                 
                 popup->set_pos(pt);
@@ -935,13 +941,7 @@ void BlobView::draw(const DisplayParameters& parm)
             
             list->set_items(sorted_items);
             list->set_clickable(true);
-            
-            if(_clicked_blob_id.load() != last_blob_id) {
-                list->set_opened(true);
-                list->select_textfield();
-                list->clear_textfield();
-            }
-            
+
             list->set(LineClr{Yellow});
             
             {
@@ -973,9 +973,17 @@ void BlobView::draw(const DisplayParameters& parm)
                 list,
                 tag_list
             });
-            
+
             parm.graph.wrap_object(*popup);
-            
+
+            if(_clicked_blob_id.load() != last_blob_id) {
+                /// opened for a new blob: focus the filter textfield; this has
+                /// to happen after wrap_object, since selecting requires the
+                /// popup to be attached to the stage
+                list->select_textfield();
+                list->clear_textfield();
+            }
+
         } else {
 #ifndef NDEBUG
             FormatWarning("Cannot find clicked blob id ",_clicked_blob_id.load(),".");

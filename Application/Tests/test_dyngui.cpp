@@ -101,7 +101,9 @@ static_assert(cmn::gui::dyn::takes_attribute<TagList, ItemPadding_t>);
 static_assert(cmn::gui::dyn::takes_attribute<TagList, ItemFillClr_t>);
 static_assert(cmn::gui::dyn::takes_attribute<TagList, std::optional<ItemFillClr_t>>);
 static_assert(cmn::gui::dyn::takes_attribute<TagList, ItemLineColor_t>);
-static_assert(cmn::gui::dyn::takes_attribute<TagList, TextClr>);
+static_assert(cmn::gui::dyn::takes_attribute<TagList, ItemTextClr_t>);
+static_assert(cmn::gui::dyn::takes_attribute<ScrollableList<DetailTooltipItem>, ItemFillClr_t>);
+static_assert(cmn::gui::dyn::takes_attribute<ScrollableList<DetailTooltipItem>, ItemTextClr_t>);
 static_assert(cmn::gui::dyn::takes_attribute<TagList, CornerFlags_t>);
 static_assert(cmn::gui::dyn::takes_attribute<TagList, LabelDims_t>);
 static_assert(cmn::gui::dyn::takes_attribute<TagList, ListDims_t>);
@@ -2720,13 +2722,53 @@ TEST(TagListTest, NormalizesTagsAndKeepsStableChipColors) {
     EXPECT_EQ((Color)tags.flow().objects()[1].to<HorizontalLayout>()->bg_fill_color(), beta_color);
 }
 
+TEST(DynamicGUIListTest, KeepsItemFillAndTextColorAttributesDistinct) {
+    constexpr std::string_view json = R"json(
+{
+  "type": "list",
+  "items": [{"text": "One"}],
+  "item": {
+    "fill": "{item_fill}",
+    "color": "{item_text}"
+  }
+}
+)json";
+    glz::json_t obj;
+    auto parse_error = glz::read_json(obj, json);
+    ASSERT_EQ(parse_error, glz::error_code::none) << glz::format_error(parse_error, json);
+
+    Color item_fill{20, 30, 40, 210};
+    Color item_text{220, 230, 240, 255};
+    Context context{
+        VarFunc("item_fill", [&item_fill](const VarProps&) -> Color { return item_fill; }),
+        VarFunc("item_text", [&item_text](const VarProps&) -> Color { return item_text; })
+    };
+    State state;
+    auto handler = std::make_shared<CurrentObjectHandler>();
+    state._current_object_handler = handler;
+    DrawStructure graph(640, 480);
+
+    auto root = parse_object(nullptr, obj.get_object(), context, state, context.defaults);
+    ASSERT_TRUE(root.is<ScrollableList<DetailTooltipItem>>());
+    ASSERT_NO_THROW((void)DynamicGUI::update_objects(nullptr, graph, root, context, state));
+    auto list = root.to<ScrollableList<DetailTooltipItem>>();
+    EXPECT_EQ(list->item_color(), item_fill);
+    EXPECT_EQ(list->text_color(), item_text);
+
+    item_fill = Color{50, 60, 70, 220};
+    item_text = Color{180, 190, 200, 255};
+    ASSERT_NO_THROW((void)DynamicGUI::update_objects(nullptr, graph, root, context, state));
+    EXPECT_EQ(list->item_color(), item_fill);
+    EXPECT_EQ(list->text_color(), item_text);
+}
+
 TEST(TagListTest, StandardAttributesConfigureItemsAndInputThroughSetOverloads) {
     TagList tags{
         ItemFont_t{Font{0.7f, Style::Bold}},
         ItemPadding_t{7, 3},
         ItemFillClr_t{Color{12, 34, 56, 220}},
         ItemLineColor_t{Color{1, 2, 3, 255}},
-        TextClr{Color{250, 251, 252, 255}},
+        ItemTextClr_t{Color{250, 251, 252, 255}},
         CornerFlags_t{CornerFlags::Rounded(6)},
         LabelDims_t{130, 26},
         ListDims_t{200, 140},
@@ -2777,7 +2819,7 @@ TEST(TagListTest, StandardAttributesAreAppliedByDynamicAttributeDelegation) {
     EXPECT_TRUE(LabeledField::delegate_to_proper_type(
         ItemLineColor_t{Color{10, 20, 30, 255}}, object));
     EXPECT_TRUE(LabeledField::delegate_to_proper_type(
-        TextClr{Color{220, 221, 222, 255}}, object));
+        ItemTextClr_t{Color{220, 221, 222, 255}}, object));
     EXPECT_TRUE(LabeledField::delegate_to_proper_type(
         CornerFlags_t{CornerFlags::Rounded(5)}, object));
     EXPECT_TRUE(LabeledField::delegate_to_proper_type(LabelDims_t{125, 24}, object));
@@ -2842,7 +2884,7 @@ TEST(TagListTest, CallbacksAreControlledAndOnlyExposeTheirControls) {
     tags.set_catalog({"alpha", "Gamma"});
     tags.on_add([&](const std::string& tag) { additions.push_back(tag); });
     tags.update();
-    EXPECT_EQ(tags.flow().objects().size(), 3u);
+    EXPECT_EQ(tags.flow().objects().size(), 2u);
     ASSERT_THAT(tags.input().items(), ::testing::ElementsAre(Dropdown::TextItem{"Gamma"}));
 
     tags.input().textfield()->set_text("draft");
@@ -3070,7 +3112,7 @@ TEST(DynamicGUITagListTest, ResolvesSourcesStylesAndControlledActions) {
 
     EXPECT_THAT(tag_list->tags(), ::testing::ElementsAre("beta", "alpha"));
     EXPECT_THAT(tag_list->catalog(), ::testing::ElementsAre("Alpha", "Beta", "Gamma"));
-    EXPECT_EQ(tag_list->flow().max_size(), attr::SizeLimit{limit});
+    EXPECT_EQ(tag_list->flow().max_size(), (attr::SizeLimit{210, 44}));
     EXPECT_FALSE(tag_list->allow_new());
     EXPECT_FLOAT_EQ(tag_list->match_threshold(), 0.8f);
     ASSERT_EQ(tag_list->flow().objects().size(), 3u);
@@ -3116,7 +3158,7 @@ TEST(DynamicGUITagListTest, ResolvesSourcesStylesAndControlledActions) {
     tag_list->update();
     EXPECT_THAT(tag_list->tags(), ::testing::ElementsAre("Gamma"));
     EXPECT_THAT(tag_list->input().items(), ::testing::ElementsAre(Dropdown::TextItem{"Delta"}));
-    EXPECT_EQ(tag_list->flow().max_size(), attr::SizeLimit{limit});
+    EXPECT_EQ(tag_list->flow().max_size(), (attr::SizeLimit{120, 0}));
     EXPECT_TRUE(tag_list->allow_new());
     EXPECT_FLOAT_EQ(tag_list->match_threshold(), 0.6f);
     EXPECT_EQ(tag_list->input().size(), input_size);
