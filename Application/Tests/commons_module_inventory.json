@@ -11,7 +11,7 @@
       ],
       "module": "commons.types",
       "path": "misc/types.h",
-      "sha256": "7d35238fee515d01d189dd8d975a853ac8af281e09a9d4b5ddf4de924cda3e63",
+      "sha256": "2bd23cd9a7a950f216715ef065eb2a224c7539638a435c862eff6b62d7633003",
       "symbols": [
         {
           "kind": "function",
@@ -201,7 +201,7 @@
       "excluded": [],
       "module": "commons.misc",
       "path": "misc/Buffers.h",
-      "sha256": "ddcce9279caf1044e5d3c823ea922fdf232704c7c14b9114391eb39602a013c5",
+      "sha256": "d2d9979a09433018688fda5088dd8e7918f7ef18193dd140effc13a144672b45",
       "symbols": [
         {
           "kind": "concept",
@@ -317,7 +317,7 @@
       ],
       "module": "commons.misc",
       "path": "misc/CircularGraph.h",
-      "sha256": "0bef69beea4fa2096920414f6eb14950720362e3ac346bfb5f4b2fff36e5c25b",
+      "sha256": "e7563f8ecacd270aa4234cf42e609f2044ebb71dc7ea66718478ba787fc9ecb5",
       "symbols": [
         {
           "kind": "typedef",
@@ -361,7 +361,7 @@
       "excluded": [],
       "module": "commons.misc",
       "path": "misc/CropOffsets.h",
-      "sha256": "569543bf2dd6337c3f827562823a848abe72f75cedcabe15b754412671d616c1",
+      "sha256": "a24d731eda818937570f0b259a461b62f326faff7aa39472ca21d64b305cf2aa",
       "symbols": [
         {
           "kind": "class",
@@ -405,7 +405,7 @@
       "excluded": [],
       "module": "commons.misc",
       "path": "misc/EnumClass.h",
-      "sha256": "363d7fa282ce35e1308ba32214b92fd5bc21a19c7be5ee9569418ed48b630405",
+      "sha256": "79cf2f684ad049316798586e6247d9b2232b270499abe396110afc82f7fc1d6f",
       "symbols": [
         {
           "kind": "class_template",
@@ -478,7 +478,7 @@
       ],
       "module": "commons.misc",
       "path": "misc/GlobalSettings.h",
-      "sha256": "81da9c0a3bd9052eb8ad2ccc063c6370dc6510f7695cc357713d50d577546082",
+      "sha256": "02ad3348e3e0366b9bbfc7432751f3596852130333f9d75d2ff16cc6ec9a090a",
       "symbols": [
         {
           "kind": "enum_class",
@@ -635,7 +635,7 @@
       "excluded": [],
       "module": "commons.misc",
       "path": "misc/Image.h",
-      "sha256": "fbedf642f998f2123517fad7117e5bfb6d3c23c36de3211e85f06c41674c4007",
+      "sha256": "f4ae39042cd3d74c25e43849d39b6f03c89bc95059d9c31518580f4e6ecd1529",
       "symbols": [
         {
           "kind": "concept",
@@ -724,7 +724,7 @@
       "excluded": [],
       "module": "commons.misc",
       "path": "misc/OptionsList.h",
-      "sha256": "dfc7bb0c82a77f4bbd6ed80a193510a516d1eeaadd0f93fa320123246874cbc2",
+      "sha256": "905f4a8f93ae9516705727784a751cb71dc3f0818dedef3c98548887c582c34d",
       "symbols": []
     },
     {
@@ -738,7 +738,7 @@
       "excluded": [],
       "module": "commons.misc",
       "path": "misc/Path.h",
-      "sha256": "f20cf00e383bf200cfa5a5b018e8f918502faf6aed5396c9102e9adbc393bde0",
+      "sha256": "04b42b07a3a0fa7f465adfa0d30e37c4ab3ad46f27f0b5c970e54da1c0734713",
       "symbols": [
         {
           "kind": "function_template",
@@ -809,7 +809,7 @@
       "excluded": [],
       "module": "commons.misc",
       "path": "misc/bid.h",
-      "sha256": "78cc5f00bcf1bab2bfc8e468104d45593451fbf44c102182d77574eef3ddd31f",
+      "sha256": "3a0c0deb8c1e264aafbcf942850abcdac949f979b595d0dd1c96502b99d49b80",
       "symbols": [
         {
           "kind": "class",
@@ -859,7 +859,7 @@
       "excluded": [],
       "module": "commons.processing",
       "path": "processing/PVBlob.h",
-      "sha256": "b952e9ea6efde992d4d5fd51e6032f01ff7b8e0a581aa7c8a0435e3f934c0899",
+      "sha256": "a342ecaf58ffd4efebdae2acfa31f1919b3a8e14bac6a07eef1f2dc733f151a2",
       "symbols": [
         {
           "kind": "struct",
@@ -1102,7 +1102,7 @@
       ],
       "module": "commons.misc",
       "path": "misc/SpriteMap.h",
-      "sha256": "d53a89f88c7ae4ac5dce441c25565c969ac0bd59b910a2bafde672f27746d4ca",
+      "sha256": "167d74d5b41c423eccd39ad23bb3c8c0c9db210c278c5b9d154fec560dbf64b1",
       "symbols": [
         {
           "kind": "concept",
@@ -1147,7 +1147,7 @@
       ],
       "module": "commons.misc",
       "path": "misc/SpriteProperty.h",
-      "sha256": "1e485c87c242ca6068d32e025f1c9504a04067bb4fa546473f3ed9452a1af3e8",
+      "sha256": "c70b43206baa19b1f02cc7110fb83d40044613b4ef840d01f208be168f476339",
       "symbols": [
         {
           "kind": "class",
@@ -1220,7 +1220,7 @@
       "excluded": [],
       "module": "commons.misc",
       "path": "misc/ThreadManager.h",
-      "sha256": "003e6318e23ff8942a84b011966f4974fd80a1ede9c89b6f7d0eef248314b313",
+      "sha256": "1749afe77a6cd9f304f1bcdcdb151380f988a9b830cfd2bbae1d775dcfb7a1da",
       "symbols": [
         {
           "kind": "concept",
@@ -1350,7 +1350,7 @@
       "excluded": [],
       "module": "commons.misc",
       "path": "misc/Timer.h",
-      "sha256": "a0329724491f1b4e1e0e05f7a2acc1c13f2c911a26b7a3c99aa6e6f921dd72bf",
+      "sha256": "aa703d230e5d5947efa6cffa13e7d5beb2bf995ccee83e6df9fd035877085483",
       "symbols": [
         {
           "kind": "class",
@@ -1365,7 +1365,7 @@
       "excluded": [],
       "module": "commons.misc",
       "path": "misc/TooltipData.h",
-      "sha256": "a5773e9c8bfbe04bf33503f2316590e60fef2b2be71109adb492d32c571cb77b",
+      "sha256": "65869eeb2928b83ab6c3efb14cfeec8c5fff75fc899c393fd320b5ee8c21cea9",
       "symbols": [
         {
           "kind": "struct",
@@ -1402,7 +1402,7 @@
       "excluded": [],
       "module": "commons.misc",
       "path": "misc/checked_casts.h",
-      "sha256": "b45929d78613375218a8bfdeb2c645a9ae0972319f807f84a4234b6b993746b3",
+      "sha256": "94abd41e33e1e682f6df41d96c6edc841185bc43057a7de878b0d771d7638f82",
       "symbols": [
         {
           "kind": "struct",
@@ -1563,7 +1563,7 @@
       ],
       "module": "commons.misc",
       "path": "misc/colors.h",
-      "sha256": "100100f693e1901ab055cbb5c169f6a141e90af1a3b41dd05feadcbafc01990c",
+      "sha256": "4d924266916cc3d1c5543ac58dbe03894690f0c69ab0501b2a404ab9b074ea63",
       "symbols": [
         {
           "kind": "enum_class",
@@ -1662,7 +1662,7 @@
       "excluded": [],
       "module": "commons.misc",
       "path": "misc/create_struct.h",
-      "sha256": "472b0f5183f79038d51f4ecaebeba9299ed4ef9c4662363a732c0073f377bc89",
+      "sha256": "e18ff20f3ef14cc8032a1bca404a786d72a69e93d9a135f54d10c8c8d42a6c5d",
       "symbols": []
     },
     {
@@ -1741,7 +1741,7 @@
       ],
       "module": "commons.misc",
       "path": "misc/default_settings.h",
-      "sha256": "05b5e4cd0bb19aeb07882bb4d2c46b5d3ff065ba26569e23c1a98cb74697974f",
+      "sha256": "8c8104aee5462a20c6a7e37fe069e6ac219b949e2b31a92c0e1c120ecc8edaf5",
       "symbols": [
         {
           "kind": "enum_class",
@@ -1798,7 +1798,7 @@
       "excluded": [],
       "module": "commons.misc",
       "path": "misc/derived_ptr.h",
-      "sha256": "14a9333bd95ba520640c3ffd8e56e867ab816f65ff6dff8a564f67fa03436dd3",
+      "sha256": "324bcb45be3230c59a8ca57b242b954fa7100b5071f05ad1390a9b9c49766a87",
       "symbols": [
         {
           "kind": "struct",
@@ -1827,7 +1827,7 @@
       "excluded": [],
       "module": "commons.misc",
       "path": "misc/detail.h",
-      "sha256": "f909d1aba9363657c463a987342cf3ad8d68a26b5193e6458473550c9868b240",
+      "sha256": "748508a3035d4fb3578e4743246ed8e300803f63ab2ca6fc98aa222374254d02",
       "symbols": [
         {
           "kind": "class",
@@ -2032,7 +2032,7 @@
       "excluded": [],
       "module": "commons.misc",
       "path": "misc/format.h",
-      "sha256": "aaded91eda85623fc557c4f3c1ad46668f11720cd5ec743cf4a1b32158f756a6",
+      "sha256": "54b059520f6ea29afda3144474acc6c4aa4957e831d158ae41e3dbf7424e6038",
       "symbols": [
         {
           "kind": "enum",
@@ -2061,7 +2061,7 @@
       "excluded": [],
       "module": "commons.misc",
       "path": "misc/frame_t.h",
-      "sha256": "c177fca0f044a45faeecc74c062cedd25512e6a9a356aa34019c2550d885633a",
+      "sha256": "5582e522fcbc1eaccbca0b7b5b74e888d6defaf53565691ba004df019e6f87b0",
       "symbols": [
         {
           "kind": "class_template",
@@ -2315,7 +2315,7 @@
       "excluded": [],
       "module": "commons.misc",
       "path": "misc/matharray.h",
-      "sha256": "da05b8c8146357b15a4ad51c6b6b0e2527c5a4000d7c278c1fd73af1b883cfbc",
+      "sha256": "4bc8cf15594181deb1e9457db60997a6df671e40ecb07b385463eb5a581fd485",
       "symbols": [
         {
           "kind": "function_template",
@@ -2358,7 +2358,7 @@
       ],
       "module": "commons.misc",
       "path": "misc/metastring.h",
-      "sha256": "2d64389b232f0179bebe565bc7973ec7f578bae2203e612fbef34b4dc220df41",
+      "sha256": "b464aefb74a54b192d8461b029d3a3ca077b25c938107e5e35f7897766e7bf2f",
       "symbols": []
     },
     {
@@ -2394,7 +2394,7 @@
       "excluded": [],
       "module": "commons.misc",
       "path": "misc/ranges.h",
-      "sha256": "7c07941c3b13da750338447a6fd34ffddc48f3e977cc2c7ff18568954bf33f41",
+      "sha256": "ddad6edf3583c0bacf69fcf4a624e39af8f86f5db0b84922001f650b2954fc39",
       "symbols": [
         {
           "kind": "concept",
@@ -2417,7 +2417,7 @@
       "excluded": [],
       "module": "commons.misc",
       "path": "misc/stringutils.h",
-      "sha256": "278aa15c756d5926b4115571eb77a11c1140c64da7d2e312c9bf9ff84f2cde5f",
+      "sha256": "3f6bf9bdd647c2e32b6f6ccea9c15726dd4d26deecaa00a78345c7534f132fc2",
       "symbols": [
         {
           "kind": "concept",
@@ -2475,7 +2475,7 @@
       "excluded": [],
       "module": "commons.misc",
       "path": "misc/useful_concepts.h",
-      "sha256": "5bab0014e2a8ac07037d4204344793a20d851f920064a8d868e469a9003b55f5",
+      "sha256": "0d821b74ebcbed42066f577ad01214f88af84c1697cd32035dc9bb755a30b295",
       "symbols": [
         {
           "kind": "concept",
@@ -2538,7 +2538,7 @@
       "excluded": [],
       "module": "commons.misc",
       "path": "misc/vec2.h",
-      "sha256": "b0c5b3d8a9a401ff60cb6e2a23f72ebfe0165e91deaf5f91103d2a915f4c22cd",
+      "sha256": "02f97cd6604556e035c3daeaf233ab82696b5329cc6a199f548008ce2236708c",
       "symbols": [
         {
           "kind": "alias",
@@ -2730,7 +2730,7 @@
       ],
       "module": "commons.file",
       "path": "file/DataFormat.h",
-      "sha256": "65a76d46f3c713fae0ec69738765f1381e5b781165e49471bdb450429f834c0e",
+      "sha256": "d2c4d559f403d29792070aa566fe9d246fb86f17897bb63224bf6ca08b6ab42f",
       "symbols": [
         {
           "kind": "class",
@@ -2832,7 +2832,7 @@
       "excluded": [],
       "module": "commons.file",
       "path": "file/PathArray.h",
-      "sha256": "c07d99c11708c74a19b3d8620ef29322709c5eca2eeee8eb4094e0d1077c3eee",
+      "sha256": "c0319a7f61b4c1c47c11cd1db281ae15df0fa3aeae9be03159cbf0868888a2ec",
       "symbols": [
         {
           "kind": "class_template",
@@ -2889,7 +2889,7 @@
       "excluded": [],
       "module": "commons.file",
       "path": "file/ask_for_permission.h",
-      "sha256": "1ad27147c1728dbe95b9651b42022d8637189e5436de9928e5e6e9f4e37a1348",
+      "sha256": "84aa7cdfa5a7d20f92d577ae9ab0b1c5eddadfd4fe910957f6878ed427134adb",
       "symbols": [
         {
           "kind": "function",
@@ -2904,7 +2904,7 @@
       "excluded": [],
       "module": "commons.processing",
       "path": "processing/Background.h",
-      "sha256": "d9e30fff3d32ce2f6d0e482d315b06cf8c71f57e3b83d9eb04edb7679b855173",
+      "sha256": "6084bd6fba59611d0e5456fa01aeb0ecc1b666df8d33a32e195229c67ddfa7c1",
       "symbols": [
         {
           "kind": "concept",
@@ -2979,7 +2979,7 @@
       "excluded": [],
       "module": "commons.processing",
       "path": "processing/HLine.h",
-      "sha256": "ce793e3c53bb8d6168c10dcfd2b6a6841adb3dc2b8262f82789b398cda4fbfcb",
+      "sha256": "0596facafa55130b1ebc2dc2b2cd1710cb81d8be450222015477e43f74524833",
       "symbols": [
         {
           "kind": "class_template",
@@ -3322,7 +3322,7 @@
       "excluded": [],
       "module": "commons.gui",
       "path": "gui/ControlsAttributes.h",
-      "sha256": "11eb7e877491962a197944487741ba99bda3bf2ac0bed57f7c74b4e0196277aa",
+      "sha256": "06afa9376918bfdbd3465260393bf8e3b3f3b8ffbc482a8ce6034510834aafeb",
       "symbols": [
         {
           "kind": "alias",
@@ -3765,7 +3765,7 @@
       "excluded": [],
       "module": "commons.gui",
       "path": "gui/CornerFlags.h",
-      "sha256": "e3cbc91b4065dc43280c14f077e9fe6edae35179138660fd38d3bf54dd269a5f",
+      "sha256": "af248e6f0c0c0429cdfe6d8e7acfa8cf1f734c985c5253684bf1f027788e8bcc",
       "symbols": [
         {
           "kind": "struct",
@@ -3965,7 +3965,7 @@
       "excluded": [],
       "module": "commons.gui",
       "path": "gui/DrawStructure.h",
-      "sha256": "73afc9b051355a748363265bee1ae71e0e08383b596549f917154e2c26d03f2c",
+      "sha256": "af373dc05c77db0b5c719450bec32c273390a6efdc0d610d2feccb5d39c56274",
       "symbols": [
         {
           "kind": "function",
@@ -4038,7 +4038,7 @@
       ],
       "module": "commons.gui",
       "path": "gui/DynamicGUI.h",
-      "sha256": "ce2e3c9e724e62b878e9294a98bc0f30fea84e652e379c23fa3b80e656fd6764",
+      "sha256": "021778870f1a52a822dd080c5833ae6068e0b804dc1abcd8b61341a546a91f27",
       "symbols": [
         {
           "kind": "enum_class",
@@ -4272,7 +4272,7 @@
       "excluded": [],
       "module": "commons.gui",
       "path": "gui/FileChooser.h",
-      "sha256": "c0887687f552104b54c66f88da4e9aa4e9bf2e7ee9c0da0762b1d67fb35a2019",
+      "sha256": "94a120fe307ed4190c69511743741a1a04cfcbea17586f21183c69355c0cca89",
       "symbols": [
         {
           "kind": "class",
@@ -4346,7 +4346,7 @@
       "excluded": [],
       "module": "commons.gui",
       "path": "gui/GuiTypes.h",
-      "sha256": "050f4682ee0efd2ac648d5b9cc066a9b9fee98c2e0beba02f17a1c1ad9686668",
+      "sha256": "75354b7ee0b2b018947463dac0967c230cbdfb7029c85fc1133b778cb0de2e31",
       "symbols": [
         {
           "kind": "alias",
@@ -4538,7 +4538,7 @@
       ],
       "module": "commons.gui",
       "path": "gui/LabeledField.h",
-      "sha256": "b0f39fba45ddbf76a60b656006a7a9a0d29d2dd0c054ef7d0d47aa90f6ff5a4a",
+      "sha256": "2ee07d549f453195414e42d3f879bb864c51eca10e0f5fb19cf60071f650ffd6",
       "symbols": [
         {
           "kind": "class",
@@ -4817,30 +4817,30 @@
         },
         {
           "kind": "alias",
-          "name": "ItemColor_t",
+          "name": "ItemFillClr_t",
           "namespace": "cmn::gui",
-          "qualified": "cmn::gui::ItemColor_t",
+          "qualified": "cmn::gui::ItemFillClr_t",
           "smoke": "using"
         },
         {
           "kind": "struct",
-          "name": "ItemColor_tTag",
+          "name": "ItemFillClr_tTag",
           "namespace": "cmn::gui",
-          "qualified": "cmn::gui::ItemColor_tTag",
+          "qualified": "cmn::gui::ItemFillClr_tTag",
           "smoke": "using"
         },
         {
           "kind": "alias",
-          "name": "ItemBorderColor_t",
+          "name": "ItemLineColor_t",
           "namespace": "cmn::gui",
-          "qualified": "cmn::gui::ItemBorderColor_t",
+          "qualified": "cmn::gui::ItemLineColor_t",
           "smoke": "using"
         },
         {
           "kind": "struct",
-          "name": "ItemBorderColor_tTag",
+          "name": "ItemLineColor_tTag",
           "namespace": "cmn::gui",
-          "qualified": "cmn::gui::ItemBorderColor_tTag",
+          "qualified": "cmn::gui::ItemLineColor_tTag",
           "smoke": "using"
         }
       ]
@@ -4886,7 +4886,7 @@
       "excluded": [],
       "module": "commons.gui",
       "path": "gui/ParseLayoutTypes.h",
-      "sha256": "4c9b2feea49ba820354029f64d8cbfd42181fc0f0e226900a6d3dcf92c5be666",
+      "sha256": "1033c161f674c650b690f2b4b3dd334b2a3db36561c72018ecbc10188e1a90b8",
       "symbols": [
         {
           "kind": "function",
@@ -4988,7 +4988,7 @@
       "excluded": [],
       "module": "commons.gui",
       "path": "gui/Section.h",
-      "sha256": "69a8bb4a6bf4f2b783536f0b306c9c7371ecd0412c0459b0833d250406c2a138",
+      "sha256": "1f224f40a280a1d9d9f585a8f34890421386cfd9c1f6de2a23438eae4c3bc2b8",
       "symbols": [
         {
           "kind": "class",
@@ -5046,7 +5046,7 @@
       "excluded": [],
       "module": "commons.gui.dyn",
       "path": "gui/dyn/Action.h",
-      "sha256": "c8782ec97ca799b4c5f9aca03d32842490d4eec99ed37eff08341fc4e2f45f7f",
+      "sha256": "0e3fd50e156bbe10a62a7bbea929706f5772d8042bade2eb97d982b781da8c61",
       "symbols": [
         {
           "kind": "struct",
@@ -5100,10 +5100,23 @@
       "symbols": []
     },
     {
-      "excluded": [],
+      "excluded": [
+        {
+          "header": "gui/dyn/Context.h",
+          "kind": "symbol",
+          "name": "cmn::gui::dyn::COMMONS_EXPORT",
+          "reason": "export_macro_parser_artifact"
+        },
+        {
+          "header": "gui/dyn/Context.h",
+          "kind": "symbol",
+          "name": "cmn::gui::dyn::detail::local_setting_from_json",
+          "reason": "internal_detail_helper"
+        }
+      ],
       "module": "commons.gui.dyn",
       "path": "gui/dyn/Context.h",
-      "sha256": "e463244753dcbff08951e95532ff96dfdc8aaff5d80ab4c8eb1decb2db42a197",
+      "sha256": "60c24df820a75f164dc4f5e034f366cbb46da2c69a01790015a557975e36caf5",
       "symbols": [
         {
           "kind": "class",
@@ -5131,6 +5144,13 @@
           "name": "DefaultSettings",
           "namespace": "cmn::gui::dyn",
           "qualified": "cmn::gui::dyn::DefaultSettings",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "LocalSettingTypes",
+          "namespace": "cmn::gui::dyn",
+          "qualified": "cmn::gui::dyn::LocalSettingTypes",
           "smoke": "using"
         },
         {
@@ -5259,7 +5279,7 @@
       "excluded": [],
       "module": "commons.gui.dyn",
       "path": "gui/dyn/ResolveVariable.h",
-      "sha256": "f1fb834a5856dcd5d235e2203652f53c892823649155d432f79eac9ba25c0b48",
+      "sha256": "0fa89204f3bc5a8971f5179e5060a3b72e15ba90f62a84ca7c7556e04c91e48e",
       "symbols": [
         {
           "kind": "function",
@@ -5281,7 +5301,7 @@
       "excluded": [],
       "module": "commons.gui.dyn",
       "path": "gui/dyn/State.h",
-      "sha256": "f9a529069dcb790f4982fb68fd57ea810dccf75681afe6f847a6b2a20be242ca",
+      "sha256": "25512c1a52a997129093e01c342e0029c848af2af8c34681c29a4faa4cc4101d",
       "symbols": [
         {
           "kind": "class",
@@ -5359,7 +5379,7 @@
       "excluded": [],
       "module": "commons.gui.dyn",
       "path": "gui/dyn/UnresolvedStringPattern.h",
-      "sha256": "2d381cbe97f063face44ec95945f1bc0793a5475ebd56ad98586027d00d81549",
+      "sha256": "fd2f4f2dbef0db8b0278de9632298698294fe73b952a830cd4e0d18bee497f64",
       "symbols": [
         {
           "kind": "struct",
@@ -5430,7 +5450,7 @@
       "excluded": [],
       "module": "commons.gui.dyn",
       "path": "gui/dyn/VarProps.h",
-      "sha256": "3352fd1afacfbb0c2add2ccf95840ea7cc50e45e478deedc4759f134d6c871c4",
+      "sha256": "439853fa52e40290730adc067d00996060ce7b066f3ab66a271c40b7317cd0d5",
       "symbols": [
         {
           "kind": "class",
@@ -5509,7 +5529,7 @@
       "excluded": [],
       "module": "commons.gui",
       "path": "gui/types/Basic.h",
-      "sha256": "0e88ee9da021791e740cd7605aa7e7641253df31761a9898586f4695cdd9ac0f",
+      "sha256": "4824422c3e15f2117930dd4f5c534059bdfbea6bcc217c486feb0f4a9b7995a9",
       "symbols": [
         {
           "kind": "function",
@@ -5632,7 +5652,7 @@
       ],
       "module": "commons.gui",
       "path": "gui/types/Drawable.h",
-      "sha256": "c2fdae3a099c6ae14f5cfe1e78f6b1f8932ce83eb861cf14a62791196c904f41",
+      "sha256": "d97b0529f361e9cda96b8a3da4511598d7c83e735d0554644370498bc1047e9e",
       "symbols": [
         {
           "kind": "enum_class",
@@ -5725,7 +5745,7 @@
       "excluded": [],
       "module": "commons.gui",
       "path": "gui/types/Dropdown.h",
-      "sha256": "8e3233e6fa7e6503a92764a669df4aceafa1f48464b8bae9fde40ee0af053de5",
+      "sha256": "3c4d3dcdcb673b278b59aeb7a1029c4955242c288e78d3cc62daa4898f435bb8",
       "symbols": [
         {
           "kind": "struct",
@@ -5754,8 +5774,15 @@
       ],
       "module": "commons.gui",
       "path": "gui/types/Entangled.h",
-      "sha256": "33fd3670a9c9721e1e40d9218b1bfe28121aa2e223743ad7c5619fe59b5f9a71",
+      "sha256": "ea95304a043a8f90f449d391a64d9315cff5ca937f123d4286afef374d9a9c1e",
       "symbols": [
+        {
+          "kind": "enum_class",
+          "name": "ScrollAxis",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::ScrollAxis",
+          "smoke": "using"
+        },
         {
           "kind": "struct",
           "name": "Margin",
@@ -5832,10 +5859,35 @@
       "symbols": []
     },
     {
-      "excluded": [],
+      "excluded": [
+        {
+          "header": "gui/types/Layout.h",
+          "kind": "symbol",
+          "name": "cmn::gui::HasSetEach",
+          "reason": "wrong_namespace_parser_artifact"
+        },
+        {
+          "header": "gui/types/Layout.h",
+          "kind": "symbol",
+          "name": "cmn::gui::HasCreateSetArgs",
+          "reason": "wrong_namespace_parser_artifact"
+        },
+        {
+          "header": "gui/types/Layout.h",
+          "kind": "symbol",
+          "name": "cmn::gui::AllowDirectMakeArgs",
+          "reason": "wrong_namespace_parser_artifact"
+        },
+        {
+          "header": "gui/types/Layout.h",
+          "kind": "symbol",
+          "name": "cmn::gui::HasMakeArgs",
+          "reason": "wrong_namespace_parser_artifact"
+        }
+      ],
       "module": "commons.gui",
       "path": "gui/types/Layout.h",
-      "sha256": "272838d79aa27a5c52580b87a9b031b74f5bc28c4c469ec47f1509860480b301",
+      "sha256": "5b7a65a28d5e82dfb90c1a8b4dfb13e1b92f42dc6aecd2bdaf0a1f253ce25bb6",
       "symbols": [
         {
           "kind": "alias",
@@ -5849,6 +5901,20 @@
           "name": "MinSizeTag",
           "namespace": "cmn::gui",
           "qualified": "cmn::gui::MinSizeTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "OuterPadding",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::OuterPadding",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "OuterPaddingTag",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::OuterPaddingTag",
           "smoke": "using"
         },
         {
@@ -5880,6 +5946,14 @@
           "smoke": "using"
         },
         {
+          "kind": "concept",
+          "name": "HasSetPack",
+          "namespace": "cmn::gui::detail",
+          "qualified": "cmn::gui::detail::HasSetPack",
+          "reason": "requires_witness_type",
+          "smoke": "excluded"
+        },
+        {
           "kind": "class",
           "name": "Layout",
           "namespace": "cmn::gui",
@@ -5905,6 +5979,13 @@
           "name": "VerticalLayout",
           "namespace": "cmn::gui",
           "qualified": "cmn::gui::VerticalLayout",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "FloatingLayout",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::FloatingLayout",
           "smoke": "using"
         },
         {
@@ -6104,7 +6185,7 @@
       "excluded": [],
       "module": "commons.gui",
       "path": "gui/types/StaticText.h",
-      "sha256": "415dd1e33733fb2526664e06a3dc7a0bb93880a17c845e854f268844e51abdd4",
+      "sha256": "5d435cead028814d44a0aae2cc5c06177027f251356e274f7322cd0485b5b92c",
       "symbols": [
         {
           "kind": "alias",
@@ -6182,6 +6263,49 @@
           "name": "Table",
           "namespace": "cmn::gui",
           "qualified": "cmn::gui::Table",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.gui",
+      "path": "gui/types/TagList.h",
+      "sha256": "b1600e1619f8033a3c703d067fac6820495ca672f3b7840a90bedbb2a1c94ceb",
+      "symbols": [
+        {
+          "kind": "alias",
+          "name": "AllowNew_t",
+          "namespace": "cmn::gui::TagList",
+          "qualified": "cmn::gui::TagList::AllowNew_t",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "AllowNew_tTag",
+          "namespace": "cmn::gui::TagList",
+          "qualified": "cmn::gui::TagList::AllowNew_tTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "MatchThreshold_t",
+          "namespace": "cmn::gui::TagList",
+          "qualified": "cmn::gui::TagList::MatchThreshold_t",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "MatchThreshold_tTag",
+          "namespace": "cmn::gui::TagList",
+          "qualified": "cmn::gui::TagList::MatchThreshold_tTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "TagList",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::TagList",
           "smoke": "using"
         }
       ]
@@ -6361,7 +6485,7 @@
       ],
       "module": "commons.types",
       "path": "modules/commons.exports.hpp",
-      "sha256": "33dada99587f92b18f9b640321f2c6bb154a8fd3742b673f747d04c7d57fe293",
+      "sha256": "6e6882bd67b665da3a6e579559c69ba4cc9df18cc2e21e48eb35408f8ebefbc6",
       "symbols": []
     }
   ],
@@ -6411,9 +6535,9 @@
   ],
   "source": "COMMONS_PUBLIC_HEADERS",
   "summary": {
-    "excluded": 39,
-    "headers": 162,
-    "symbols": 687
+    "excluded": 45,
+    "headers": 163,
+    "symbols": 698
   },
   "version": 1
 }

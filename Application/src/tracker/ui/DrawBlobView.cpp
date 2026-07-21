@@ -19,6 +19,8 @@
 #include <gui/DynamicGUI.h>
 #include <gui/dyn/ParseText.h>
 #include <core/annotation.h>
+#include <gui/types/TagList.h>
+#include <core/FrameTags.h>
 
 using namespace cmn::gui;
 
@@ -41,8 +43,9 @@ struct BlobView {
     std::atomic<pv::bid> _clicked_blob_id;
     std::atomic<Frame_t> _clicked_blob_frame;
 
-    std::shared_ptr<Entangled> popup;
-    std::shared_ptr<Dropdown> list;
+    std::shared_ptr<VerticalLayout> popup;
+    derived_ptr<Dropdown> list;
+    derived_ptr<TagList> tag_list;
     
     Entangled _mousedock_collection;
     NumericTextfield<double> cm_per_pixel_text{1.0, Bounds(0, 0, 200,30), arange<double>{0, infinity<double>()}};
@@ -172,6 +175,7 @@ struct BlobView {
         _clicked_blob_frame = Frame_t();
         popup = nullptr;
         list = nullptr;
+        tag_list = nullptr;
         last_blob_id = {};
     }
     
@@ -338,7 +342,7 @@ std::string BlobView::label_for_blob(const DisplayParameters& parm, const pv::Bl
     //Print(gui_blob_label, " => ", label_text, " for ", blob);
     return label_text;
     
-    std::stringstream ss;
+    /*std::stringstream ss;
     //if(not active)
     //    ss << "<ref>";
     if(register_label || d==1)
@@ -382,7 +386,7 @@ std::string BlobView::label_for_blob(const DisplayParameters& parm, const pv::Bl
         }
     }
     
-    return ss.str();
+    return ss.str();*/
 }
 
 void add_manual_match(Frame_t frameIndex, Idx_t fish_id, pv::bid blob_id) {
@@ -762,8 +766,35 @@ void BlobView::draw(const DisplayParameters& parm)
     
     if(_clicked_blob_id.load().valid() && _clicked_blob_frame.load() == frame) {
         if(popup == nullptr) {
-            popup = std::make_shared<Entangled>();
-            list = std::make_shared<Dropdown>(Box(0, 0, 200, 35), ListDims_t{200,200}, Font{0.6}, ListFillClr_t{60,60,60,200}, FillClr{60,60,60,200}, LineClr{100,175,250,200}, TextClr{225,225,225});
+            popup = std::make_shared<VerticalLayout>();
+            tag_list = Layout::Make<TagList>(Box(0, 0, 200,100), SizeLimit{200,200}, ItemFillClr_t{50,50,50,240}, FillClr{30,30,30,200}, LabelDims_t{200,35}, LabelFillClr_t{50,50,50,240}, LabelColor_t{200,200,200,240}, ListFillClr_t{30,30,30,200});
+            tag_list->on_add([this, &cache = parm.cache](const std::string& name) {
+                auto bdx = _clicked_blob_id.load();
+                auto frame = _clicked_blob_frame.load();
+                
+                if(bdx.valid()
+                   && frame.valid())
+                {
+                    std::optional<Bounds> blob_bounds;
+                    for(auto &blob : cache.raw_blobs) {
+                        if(blob->blob->blob_id() == _clicked_blob_id.load()) {
+                            blob_bounds = blob->blob->bounds();
+                            break;
+                        }
+                    }
+                    
+                    if(blob_bounds) {
+                        Print("Added ", name," for bdx=",bdx," frame=",frame, " @",*blob_bounds);
+                    } else {
+                        FormatWarning("Cannot find blob bounds for bdx=",bdx," in frame ", frame);
+                    }
+                    
+                } else {
+                    FormatWarning("Invalid bdx=", bdx, " frame=",frame," when adding a local tag.");
+                }
+            });
+            
+            list = Layout::Make<Dropdown>(Box(0, 0, 200, 35), ListDims_t{200,200}, Font{0.6}, ListFillClr_t{60,60,60,200}, FillClr{60,60,60,200}, LineClr{100,175,250,200}, TextClr{225,225,225});
             list->on_open([list=list.get(), &cache = parm.cache, this](bool opened) {
                 if(!opened) {
                     //list->set_items({});
@@ -842,12 +873,13 @@ void BlobView::draw(const DisplayParameters& parm)
             //popup->set_size(Size2(200, 400));
         }
         
-        Vec2 blob_pos(FLT_MAX);
-        bool found = false;
+        Bounds blob_bounds;
+        std::optional<Vec2> blob_pos;
         for(auto &blob : parm.cache.raw_blobs) {
             if(blob->blob->blob_id() == _clicked_blob_id.load()) {
-                blob_pos = blob->blob->bounds().center();
-                auto pt = parm.coord.convert(BowlCoord(blob_pos));
+                blob_bounds = blob->blob->bounds();
+                blob_pos = blob_bounds.center();
+                auto pt = parm.coord.convert(BowlCoord(*blob_pos));
                 //auto top = pt.y < parm.coord.screen_size().height * 0.5_F
                 //            ? 0_F : 1_F;
                 if(pt.x < parm.coord.screen_size().width * 0.5_F) {
@@ -857,12 +889,11 @@ void BlobView::draw(const DisplayParameters& parm)
                 }
                 
                 popup->set_pos(pt);
-                found = true;
                 break;
             }
         }
         
-        if(found) {
+        if(blob_pos.has_value()) {
             std::set<std::tuple<float, Dropdown::TextItem>> items;
             for(auto &id : parm.cache.all_ids) {
                 if(not parm.cache.fish_selected_blobs.contains(id)
@@ -874,7 +905,7 @@ void BlobView::draw(const DisplayParameters& parm)
                        && frame > Tracker::start_frame()
                        && c)
                     {
-                        d = (c->estimated_px - blob_pos).length();
+                        d = (c->estimated_px - *blob_pos).length();
                     }
                     uint64_t encoded_ids = ((uint64_t)_clicked_blob_id.load() & 0xFFFFFFFF) | ((uint64_t(id.get() + 2) & 0xFFFFFFFF) << 32);
 
@@ -911,10 +942,36 @@ void BlobView::draw(const DisplayParameters& parm)
                 list->clear_textfield();
             }
             
+            list->set(LineClr{Yellow});
+            
+            {
+                auto track_frame_tags = READ_SETTING_WITH_DEFAULT(track_frame_tags, track::FrameTags{});
+                auto unique_frame_tags = track_frame_tags.unique();
+                
+                std::vector<std::string> current_tags;
+                if(auto it = track_frame_tags.find(frame);
+                   it != track_frame_tags.end()
+                   && blob_pos.has_value())
+                {
+                    for(auto &tag : it->second) {
+                        if(tag.has_location()) {
+                            auto bds = tag.get_location();
+                            if(bds.contains(*blob_pos))
+                                current_tags.emplace_back(tag.toStr());
+                        }
+                    }
+                }
+                
+                tag_list->set_catalog({unique_frame_tags.begin(), unique_frame_tags.end()});
+                tag_list->set_tags(std::move(current_tags));
+                tag_list->set(LineClr{Red});
+            }
+            
             popup->set_scale(parm.graph.scale().reciprocal());
-            popup->auto_size(Margin{0, 0});
-            popup->update([&](Entangled &base){
-                base.advance_wrap(*list);
+            popup->auto_size();
+            popup->set_children(std::vector<Layout::Ptr>{
+                list,
+                tag_list
             });
             
             parm.graph.wrap_object(*popup);

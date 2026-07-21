@@ -55,6 +55,7 @@
 #include <ui/AnnotationScene.h>
 #include <ui/LabelWrapper.h>
 #include <ui/LabelElement.h>
+#include <core/FrameTags.h>
 
 using namespace track;
 
@@ -1573,7 +1574,7 @@ void TrackingScene::_draw(DrawStructure& graph) {
     //_data->_bowl->set(LineClr{Cyan});
     //_data->_bowl.set(FillClr{Yellow});
     
-    if(is_in(GUI_SETTINGS(gui_mode), mode_t::raw)) {
+    if(is_in(GUI_SETTINGS(gui_mode), mode_t::raw, mode_t::annotate)) {
         cmn::gui::tracker::draw_blob_view({
             .graph = graph,
             .cache = *_data->_cache,
@@ -1908,6 +1909,46 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                     Print("callback ");
                 }, _state->_controller);
             }),
+            
+            ActionFunc("add_tag", [this](Action action) {
+                REQUIRE_EXACTLY(1, action);
+                
+                if(not _data || not _data->_cache) {
+                    throw RuntimeError("Dialog is closing.");
+                }
+                
+                auto frame = _data->_cache->frame_idx;
+                auto tag = Meta::fromStr<FrameTag>(action.parameters.front());
+                
+                if(frame.valid()) {
+                    safely_change_setting("track_frame_tags", [&](track::FrameTags& tags){
+                        tags[frame].insert(tag);
+                    });
+                }
+            }),
+            ActionFunc("remove_tag", [this](Action action) {
+                if(not _data || not _data->_cache) {
+                    throw RuntimeError("Dialog is closing.");
+                }
+                
+                auto frame = _data->_cache->frame_idx;
+                auto tag = Meta::fromStr<FrameTag>(action.parameters.front());
+                
+                if(frame.valid()) {
+                    safely_change_setting("track_frame_tags", [&](track::FrameTags& tags){
+                        auto it = tags.find(frame);
+                        if(it == tags.end())
+                            return;
+                        
+                        auto kit = it->second.find(tag);
+                        if(kit == it->second.end())
+                            return;
+                        
+                        it->second.erase(kit);
+                    });
+                }
+            }),
+            
             ActionFunc("remove_automatic_matches", [this](const Action& action) {
                 /**
                  * @param fdx    The fish index for which to remove matches.
@@ -2156,6 +2197,24 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                 if(not _data)
                     throw RuntimeError("No _data.");
                 return _data->_foi_state.color;
+            }),
+            VarFunc("current_frame_tags", [this](const VarProps&) -> std::set<track::FrameTag> {
+                auto track_frame_tags = READ_SETTING_WITH_DEFAULT(track_frame_tags, track::FrameTags{});
+                if(not _data || not _data->_cache)
+                    throw RuntimeError("GUI is shutting down.");
+                
+                auto frame = _data->_cache->frame_idx;
+                auto it = track_frame_tags.find(frame);
+                if(it != track_frame_tags.end()) {
+                    return it->second;
+                }
+                
+                return {};
+            }),
+            VarFunc("unique_frame_tags", [this](const VarProps&) -> std::set<std::string_view> {
+                static track::FrameTags track_frame_tags;
+                track_frame_tags = READ_SETTING_WITH_DEFAULT(track_frame_tags, track::FrameTags{});
+                return track_frame_tags.unique();
             }),
             VarFunc("active_individuals", [this](const VarProps& props) -> size_t {
                 if(props.parameters.size() != 1)
@@ -2620,7 +2679,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
         
     }, [this](Idx_t fdx) -> std::tuple<const constraints::FilterCache*, std::optional<BdxAndPred>>
     {
-        if(not _data || not _data->_cache)
+        if(not _data || not _data->_cache || not fdx.valid())
             return {nullptr, std::nullopt};
         
         const constraints::FilterCache* filters{nullptr};

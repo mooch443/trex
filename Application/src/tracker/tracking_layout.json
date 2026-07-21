@@ -269,29 +269,35 @@
                             [
                                 {
                                     "type":"stext",
-                                    "text":"<c>tag this frame</c>\n<gray>tags can be converted to frame-level annotations or used as simple markers for you or collaborators</gray>",
+                                    "text":"<c>tag frame <nr>{global.gui_displayed_frame}</nr></c>\n<gray>tags can be converted to frame-level annotations or used as simple markers for you or collaborators</gray>",
                                     "font":{"size":0.5},
                                     "max_size":"[{-:{infocard_width}:0}, -1]"
                                 }
                             ],
                             [
                                 {
-                                    "type":"settings",
-                                    "var":"frame_tags",
-                                    "desc":"",
-                                    "list":{
-                                        "font":{"size":0.5}
+                                    "type": "taglist",
+                                    "var": "current_frame_tags",
+                                    "catalog": "{unique_frame_tags}",
+                                    "add_action": "add_tag",
+                                    "remove_action": "remove_tag",
+                                    "allow_new": true,
+                                    "match_threshold": 1.0,
+                                    "max_size": "[{infocard_width},200]",
+                                    "outer_pad":[0,0,0,0],
+                                    "pad": [0,0,4,4],
+                                    "clickable": true,
+                                    "item": {
+                                        "pad": [6,4],
+                                        "corners": [8]
                                     },
-                                    "label":{
-                                        "corners":["all"],
-                                        "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
-                                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
-                                        "font":{"size":0.5}
-                                    },
-                                    "pad":[0,0,-1,-1],
-                                    "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
-                                    "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
-                                    "size":[205,30]
+                                    "input": {
+                                        "size": [213, 28],
+                                        "list_size": [220, 180],
+                                        "placeholder": "Add tag...",
+                                        "fill": [50, 50, 50, 200],
+                                        "color": [225, 225, 225, 255]
+                                    }
                                 }
                             ],
                             [

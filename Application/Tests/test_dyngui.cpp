@@ -6,12 +6,15 @@
 #include <gmock/gmock.h>
 #include <gui/DynamicGUI.h>
 #include <gui/DynamicVariable.h>
+#include <gui/LabeledField.h>
 #include <gui/dyn/ParseText.h>
 #include <gui/dyn/ResolveVariable.h>
 #include <gui/types/ListItemTypes.h>
 #include <gui/types/ScrollableList.h>
+#include <gui/types/ErrorElement.h>
 #include <gui/types/Layout.h>
 #include <gui/types/StaticText.h>
+#include <gui/types/TagList.h>
 #include <gui/dyn/UnresolvedStringPattern.h>   // for ResolveStringPattern tests
 #include <type_traits>
 #include <gui/dyn/Action.h>
@@ -20,6 +23,15 @@
 using namespace cmn;
 using namespace cmn::gui;
 using namespace dyn;
+
+/// derived_ptr must never take ownership of a raw pointer implicitly, and
+/// assignment must reject pointer types other than an exact match: a raw
+/// Derived* (e.g. from to<Derived>()) is typically owned elsewhere already,
+/// and accepting it here would create a second owner that double-deletes.
+static_assert(not std::is_assignable_v<Layout::Ptr&, HorizontalLayout*>);
+static_assert(std::is_assignable_v<derived_ptr<HorizontalLayout>&, HorizontalLayout*>);
+static_assert(std::is_assignable_v<Layout::Ptr&, std::nullptr_t>);
+static_assert(not std::is_convertible_v<Drawable*, Layout::Ptr>);
 
 struct JsonBackedSample {
     int x;
@@ -78,6 +90,30 @@ static Vec2 center_of(Drawable& drawable) {
     const auto bounds = drawable.global_bounds();
     return Vec2(bounds.x + bounds.width * 0.5, bounds.y + bounds.height * 0.5);
 }
+
+static_assert(cmn::gui::detail::HasSet<FloatingLayout, attr::SizeLimit>);
+static_assert(cmn::gui::detail::HasSet<FloatingLayout, FloatingLayout::Policy>);
+static_assert(cmn::gui::dyn::takes_attribute<TagList, attr::SizeLimit>);
+static_assert(cmn::gui::dyn::takes_attribute<TagList, TagList::AllowNew_t>);
+static_assert(cmn::gui::dyn::takes_attribute<TagList, TagList::MatchThreshold_t>);
+static_assert(cmn::gui::dyn::takes_attribute<TagList, ItemFont_t>);
+static_assert(cmn::gui::dyn::takes_attribute<TagList, ItemPadding_t>);
+static_assert(cmn::gui::dyn::takes_attribute<TagList, ItemFillClr_t>);
+static_assert(cmn::gui::dyn::takes_attribute<TagList, std::optional<ItemFillClr_t>>);
+static_assert(cmn::gui::dyn::takes_attribute<TagList, ItemLineColor_t>);
+static_assert(cmn::gui::dyn::takes_attribute<TagList, TextClr>);
+static_assert(cmn::gui::dyn::takes_attribute<TagList, CornerFlags_t>);
+static_assert(cmn::gui::dyn::takes_attribute<TagList, LabelDims_t>);
+static_assert(cmn::gui::dyn::takes_attribute<TagList, ListDims_t>);
+static_assert(cmn::gui::dyn::takes_attribute<TagList, Placeholder_t>);
+static_assert(cmn::gui::dyn::takes_attribute<TagList, LabelFont_t>);
+static_assert(cmn::gui::dyn::takes_attribute<TagList, LabelFillClr_t>);
+static_assert(cmn::gui::dyn::takes_attribute<TagList, LabelLineColor_t>);
+static_assert(cmn::gui::dyn::takes_attribute<TagList, LabelColor_t>);
+static_assert(!std::is_move_constructible_v<FloatingLayout>);
+static_assert(!std::is_move_assignable_v<FloatingLayout>);
+static_assert(!std::is_move_constructible_v<TagList>);
+static_assert(!std::is_move_assignable_v<TagList>);
 
 TEST(DynamicGUILocalSettings, ParsesPredefinedAliasesAndDefaults) {
     constexpr std::string_view json = R"json(
@@ -2666,4 +2702,624 @@ TEST(ConditionElementTest, IfInsideEachKeepsScopedVariables)
         "enabled:alpha-0",
         "disabled:beta-1"
     ));
+}
+
+TEST(TagListTest, NormalizesTagsAndKeepsStableChipColors) {
+    TagList tags;
+    tags.set_tags({" beta ", "", "alpha", "beta", "Alpha"});
+    tags.update();
+
+    ASSERT_THAT(tags.tags(), ::testing::ElementsAre("beta", "alpha", "Alpha"));
+    ASSERT_EQ(tags.flow().objects().size(), 3u);
+    const auto beta_color = (Color)tags.flow().objects()[0].to<HorizontalLayout>()->bg_fill_color();
+    const auto alpha_color = (Color)tags.flow().objects()[1].to<HorizontalLayout>()->bg_fill_color();
+
+    tags.set_tags({"alpha", "beta"});
+    tags.update();
+    EXPECT_EQ((Color)tags.flow().objects()[0].to<HorizontalLayout>()->bg_fill_color(), alpha_color);
+    EXPECT_EQ((Color)tags.flow().objects()[1].to<HorizontalLayout>()->bg_fill_color(), beta_color);
+}
+
+TEST(TagListTest, StandardAttributesConfigureItemsAndInputThroughSetOverloads) {
+    TagList tags{
+        ItemFont_t{Font{0.7f, Style::Bold}},
+        ItemPadding_t{7, 3},
+        ItemFillClr_t{Color{12, 34, 56, 220}},
+        ItemLineColor_t{Color{1, 2, 3, 255}},
+        TextClr{Color{250, 251, 252, 255}},
+        CornerFlags_t{CornerFlags::Rounded(6)},
+        LabelDims_t{130, 26},
+        ListDims_t{200, 140},
+        Placeholder_t{"Search tags"},
+        LabelFont_t{Font{0.55f, Style::Italic}},
+        LabelFillClr_t{Color{240, 241, 242, 255}},
+        LabelLineColor_t{Color{20, 21, 22, 255}},
+        LabelColor_t{Color{3, 4, 5, 255}}
+    };
+    tags.set_tags({"alpha"});
+    tags.on_add([](const std::string&) {});
+    tags.on_remove([](size_t, const std::string&) {});
+    tags.update();
+
+    auto chip = tags.flow().objects()[0].to<HorizontalLayout>();
+    ASSERT_EQ(chip->objects().size(), 2u);
+    auto label = chip->objects()[0].to<StaticText>();
+    auto cross = chip->objects()[1].to<StaticText>();
+    EXPECT_EQ((Color)chip->bg_fill_color(), Color(12, 34, 56, 220));
+    EXPECT_EQ((Color)chip->bg_line_color(), Color(1, 2, 3, 255));
+    EXPECT_EQ(chip->corner_flags(), CornerFlags::Rounded(6));
+    EXPECT_EQ((Bounds)label->margins(), Bounds(7, 3, 3, 3));
+    EXPECT_EQ((Bounds)cross->margins(), Bounds(2, 3, 7, 3));
+    EXPECT_FLOAT_EQ(label->font().size, 0.7f);
+    EXPECT_EQ(label->font().style, Style::Bold);
+    EXPECT_EQ(label->text_color(), Color(250, 251, 252, 255));
+    EXPECT_EQ(tags.input().size(), Size2(130, 26));
+    EXPECT_EQ(tags.input().list().size(), Size2(200, 140));
+    EXPECT_FLOAT_EQ(tags.input().textfield()->font().size, 0.55f);
+    EXPECT_EQ(tags.input().textfield()->font().style, Style::Italic);
+    EXPECT_EQ(tags.input().textfield()->fill_color(), Color(240, 241, 242, 255));
+    EXPECT_EQ(tags.input().textfield()->line_color(), Color(20, 21, 22, 255));
+    EXPECT_EQ(tags.input().textfield()->text_color(), Color(3, 4, 5, 255));
+}
+
+TEST(TagListTest, StandardAttributesAreAppliedByDynamicAttributeDelegation) {
+    auto object = Layout::Make<TagList>{}();
+
+    EXPECT_TRUE(LabeledField::delegate_to_proper_type(
+        TagList::AllowNew_t{false}, object));
+    EXPECT_TRUE(LabeledField::delegate_to_proper_type(
+        TagList::MatchThreshold_t{0.75f}, object));
+    EXPECT_TRUE(LabeledField::delegate_to_proper_type(
+        ItemFont_t{Font{0.6f, Style::Bold}}, object));
+    EXPECT_TRUE(LabeledField::delegate_to_proper_type(ItemPadding_t{6, 2}, object));
+    EXPECT_TRUE(LabeledField::delegate_to_proper_type(
+        ItemFillClr_t{Color{40, 50, 60, 255}}, object));
+    EXPECT_TRUE(LabeledField::delegate_to_proper_type(
+        ItemLineColor_t{Color{10, 20, 30, 255}}, object));
+    EXPECT_TRUE(LabeledField::delegate_to_proper_type(
+        TextClr{Color{220, 221, 222, 255}}, object));
+    EXPECT_TRUE(LabeledField::delegate_to_proper_type(
+        CornerFlags_t{CornerFlags::Rounded(5)}, object));
+    EXPECT_TRUE(LabeledField::delegate_to_proper_type(LabelDims_t{125, 24}, object));
+    EXPECT_TRUE(LabeledField::delegate_to_proper_type(ListDims_t{190, 135}, object));
+    EXPECT_TRUE(LabeledField::delegate_to_proper_type(
+        Placeholder_t{"Find a tag"}, object));
+    EXPECT_TRUE(LabeledField::delegate_to_proper_type(
+        LabelFont_t{Font{0.5f, Style::Italic}}, object));
+    EXPECT_TRUE(LabeledField::delegate_to_proper_type(
+        LabelFillClr_t{Color{230, 231, 232, 255}}, object));
+    EXPECT_TRUE(LabeledField::delegate_to_proper_type(
+        LabelLineColor_t{Color{70, 71, 72, 255}}, object));
+    EXPECT_TRUE(LabeledField::delegate_to_proper_type(
+        LabelColor_t{Color{4, 5, 6, 255}}, object));
+
+    auto tags = object.to<TagList>();
+    EXPECT_FALSE(tags->allow_new());
+    EXPECT_FLOAT_EQ(tags->match_threshold(), 0.75f);
+    tags->set_tags({"alpha"});
+    tags->on_add([](const std::string&) {});
+    tags->update();
+
+    auto chip = tags->flow().objects()[0].to<HorizontalLayout>();
+    ASSERT_EQ(chip->objects().size(), 1u);
+    auto label = chip->objects()[0].to<StaticText>();
+    EXPECT_EQ((Bounds)label->margins(), Bounds(6, 2, 6, 2));
+    EXPECT_FLOAT_EQ(label->font().size, 0.6f);
+    EXPECT_EQ(label->font().style, Style::Bold);
+    EXPECT_EQ(label->text_color(), Color(220, 221, 222, 255));
+    EXPECT_EQ((Color)chip->bg_fill_color(), Color(40, 50, 60, 255));
+    EXPECT_EQ((Color)chip->bg_line_color(), Color(10, 20, 30, 255));
+    EXPECT_EQ(chip->corner_flags(), CornerFlags::Rounded(5));
+    EXPECT_EQ(tags->input().size(), Size2(125, 24));
+    EXPECT_EQ(tags->input().list().size(), Size2(190, 135));
+    EXPECT_FLOAT_EQ(tags->input().textfield()->font().size, 0.5f);
+    EXPECT_EQ(tags->input().textfield()->font().style, Style::Italic);
+    EXPECT_EQ(tags->input().textfield()->fill_color(), Color(230, 231, 232, 255));
+    EXPECT_EQ(tags->input().textfield()->line_color(), Color(70, 71, 72, 255));
+    EXPECT_EQ(tags->input().textfield()->text_color(), Color(4, 5, 6, 255));
+}
+
+TEST(TagListTest, CallbacksAreControlledAndOnlyExposeTheirControls) {
+    TagList tags;
+    tags.set_tags({"alpha", "beta"});
+    tags.update();
+    ASSERT_EQ(tags.flow().objects().size(), 2u);
+    ASSERT_EQ(tags.children().size(), 1u);
+    EXPECT_EQ(tags.children()[0], &tags.flow());
+    EXPECT_EQ(tags.flow().objects()[0].to<HorizontalLayout>()->objects().size(), 1u);
+
+    std::vector<std::pair<size_t, std::string>> removals;
+    tags.on_remove([&](size_t index, const std::string& tag) {
+        removals.emplace_back(index, tag);
+    });
+    tags.update();
+    EXPECT_EQ(tags.flow().objects()[0].to<HorizontalLayout>()->objects().size(), 2u);
+    tags.request_remove(1);
+    ASSERT_THAT(removals, ::testing::ElementsAre(std::pair<size_t, std::string>{1, "beta"}));
+    EXPECT_THAT(tags.tags(), ::testing::ElementsAre("alpha", "beta"));
+
+    std::vector<std::string> additions;
+    tags.set_catalog({"alpha", "Gamma"});
+    tags.on_add([&](const std::string& tag) { additions.push_back(tag); });
+    tags.update();
+    EXPECT_EQ(tags.flow().objects().size(), 3u);
+    ASSERT_THAT(tags.input().items(), ::testing::ElementsAre(Dropdown::TextItem{"Gamma"}));
+
+    tags.input().textfield()->set_text("draft");
+    tags.set_catalog({"alpha", "Gamma", "Delta"});
+    EXPECT_EQ(tags.input().textfield()->text(), "draft");
+    ASSERT_EQ(tags.children().size(), 2u);
+    EXPECT_EQ(tags.children()[0], &tags.flow());
+    EXPECT_EQ(tags.children()[1], &tags.input());
+    EXPECT_EQ(tags.input().parent(), &tags);
+    EXPECT_NE(tags.input().parent(), &tags.flow());
+    tags.input().textfield()->set_text(" gamma ");
+    tags.input().textfield()->enter();
+    EXPECT_THAT(additions, ::testing::ElementsAre("Gamma"));
+    EXPECT_THAT(tags.tags(), ::testing::ElementsAre("alpha", "beta"));
+
+    tags.on_add({});
+    tags.on_remove({});
+    tags.update();
+    ASSERT_EQ(tags.flow().objects().size(), 2u);
+    ASSERT_EQ(tags.children().size(), 1u);
+    EXPECT_EQ(tags.flow().objects()[0].to<HorizontalLayout>()->objects().size(), 1u);
+}
+
+TEST(TagListTest, OnlyTheTrailingCrossRequestsRemoval) {
+    TagList tags;
+    tags.set_tags({"alpha"});
+    std::vector<std::pair<size_t, std::string>> removals;
+    tags.on_remove([&](size_t index, const std::string& tag) {
+        removals.emplace_back(index, tag);
+    });
+    tags.update();
+
+    DrawStructure graph(320, 120);
+    graph.wrap_object(tags);
+    auto chip = tags.flow().objects()[0].to<HorizontalLayout>();
+    ASSERT_EQ(chip->objects().size(), 2u);
+    auto label = chip->objects()[0].to<StaticText>();
+    auto cross = chip->objects()[1].to<StaticText>();
+
+    const auto label_center = center_of(*label);
+    ASSERT_NE(graph.mouse_move(label_center.x, label_center.y), nullptr);
+    ASSERT_NO_THROW(graph.mouse_down(true));
+    ASSERT_NO_THROW(graph.mouse_up(true));
+    EXPECT_TRUE(removals.empty());
+
+    const auto cross_center = center_of(*cross);
+    ASSERT_EQ(graph.mouse_move(cross_center.x, cross_center.y), cross);
+    ASSERT_NO_THROW(graph.mouse_down(true));
+    ASSERT_NO_THROW(graph.mouse_up(true));
+    EXPECT_THAT(removals,
+                ::testing::ElementsAre(std::pair<size_t, std::string>{0, "alpha"}));
+    EXPECT_THAT(tags.tags(), ::testing::ElementsAre("alpha"));
+}
+
+TEST(TagListTest, EntryHonorsThresholdCatalogOnlyAndExplicitSelection) {
+    TagList tags;
+    std::vector<std::string> additions;
+    tags.on_add([&](const std::string& tag) { additions.push_back(tag); });
+    tags.set_catalog({"Alpha", "Beta"});
+
+    tags.input().textfield()->set_text("Alph");
+    tags.input().textfield()->enter();
+    ASSERT_THAT(additions, ::testing::ElementsAre("Alph"));
+
+    tags.set_match_threshold(0.75f);
+    tags.input().textfield()->set_text("Alph");
+    tags.input().textfield()->enter();
+    ASSERT_THAT(additions, ::testing::ElementsAre("Alph", "Alpha"));
+
+    tags.set_allow_new(false);
+    tags.set_match_threshold(1.f);
+    tags.input().textfield()->set_text("Alph");
+    tags.input().textfield()->enter();
+    EXPECT_THAT(additions, ::testing::ElementsAre("Alph", "Alpha"));
+    EXPECT_EQ(tags.input().textfield()->text(), "Alph");
+
+    ASSERT_GE(tags.input().items().size(), 2u);
+    // Unfiltered Dropdown mouse selections currently carry an invalid raw index;
+    // the canonical item still has to be accepted.
+    tags.input().on_select()(Dropdown::RawIndex{}, tags.input().items()[1]);
+    EXPECT_THAT(additions, ::testing::ElementsAre("Alph", "Alpha", "Beta"));
+    EXPECT_TRUE(tags.input().textfield()->text().empty());
+}
+
+TEST(TagListTest, SelectedCanonicalValuesNeverDispatchDuplicates) {
+    TagList tags;
+    std::vector<std::string> additions;
+    tags.on_add([&](const std::string& tag) { additions.push_back(tag); });
+    tags.set_tags({"Alpha"});
+    tags.set_catalog({"Alpha", "Beta"});
+
+    tags.input().textfield()->set_text(" alpha ");
+    tags.input().textfield()->enter();
+    EXPECT_TRUE(additions.empty());
+    EXPECT_TRUE(tags.input().textfield()->text().empty());
+    ASSERT_THAT(tags.input().items(), ::testing::ElementsAre(Dropdown::TextItem{"Beta"}));
+
+    tags.input().textfield()->set_text("   ");
+    tags.input().textfield()->enter();
+    EXPECT_TRUE(additions.empty());
+    EXPECT_TRUE(tags.input().textfield()->text().empty());
+}
+
+TEST(TagListTest, EnterCommitsAnArrowHighlightedCanonicalSuggestion) {
+    TagList tags;
+    std::vector<std::string> additions;
+    tags.on_add([&](const std::string& tag) { additions.push_back(tag); });
+    tags.set_catalog({"Alpha", "Beta"});
+
+    // Dropdown's Up/Down handler uses select_item; exercising the resulting
+    // highlight here keeps this test independent of platform key-code routing.
+    tags.input().textfield()->set_text("be");
+    tags.input().before_draw();
+    tags.input().select_item(Dropdown::RawIndex{1});
+    tags.input().textfield()->enter();
+
+    EXPECT_THAT(additions, ::testing::ElementsAre("Beta"));
+    EXPECT_TRUE(tags.input().textfield()->text().empty());
+}
+
+TEST(TagListTest, ControlledRefreshPreservesDraftAndRecomputesSuggestions) {
+    TagList tags;
+    tags.on_add([](const std::string&) {});
+    tags.set(attr::SizeLimit{Size2{100, 20}});
+    tags.set_catalog({"Alpha", "Beta", "Gamma"});
+    tags.set_tags({"Alpha"});
+    tags.input().textfield()->set_text("unfinished");
+    tags.update();
+    ASSERT_THAT(tags.input().items(), ::testing::ElementsAre(
+        Dropdown::TextItem{"Beta"}, Dropdown::TextItem{"Gamma"}));
+    ASSERT_TRUE(tags.flow().scroll_enabled());
+    ASSERT_GT(tags.flow().scroll_limit_y().end, 0);
+    const auto retained_offset = tags.flow().scroll_limit_y().end * 0.5f;
+    tags.flow().set_scroll_offset(Vec2(0, retained_offset));
+
+    tags.set_tags({"Beta"});
+    EXPECT_THAT(tags.input().items(), ::testing::ElementsAre(
+        Dropdown::TextItem{"Alpha"}, Dropdown::TextItem{"Gamma"}));
+    tags.update();
+    EXPECT_EQ(tags.input().textfield()->text(), "unfinished");
+    EXPECT_THAT(tags.input().items(), ::testing::ElementsAre(
+        Dropdown::TextItem{"Alpha"}, Dropdown::TextItem{"Gamma"}));
+    EXPECT_EQ(tags.flow().scroll_offset(), Vec2(0, retained_offset));
+}
+
+TEST(TagListTest, RemovePayloadSurvivesSynchronousControlledRefresh) {
+    TagList tags;
+    tags.set_tags({"Alpha", "Beta"});
+    std::string removed;
+    tags.on_remove([&](size_t, const std::string& tag) {
+        tags.set_tags({"Replacement"});
+        removed = tag;
+    });
+
+    tags.request_remove(1);
+    EXPECT_EQ(removed, "Beta");
+    EXPECT_THAT(tags.tags(), ::testing::ElementsAre("Replacement"));
+}
+
+TEST(DynamicGUITagListTest, ResolvesSourcesStylesAndControlledActions) {
+    constexpr std::string_view json = R"json(
+{
+  "type": "taglist",
+  "var": "tags",
+  "catalog": "catalog",
+  "add_action": "add_tag",
+  "remove_action": "remove_tag",
+  "max_size": "{limit}",
+  "allow_new": "{can_add}",
+  "match_threshold": "{threshold}",
+  "item": {
+    "pad": [7, 3],
+    "font": { "size": 0.7, "style": "bold" },
+    "fill": "{chip_fill}",
+    "line": [1, 2, 3, 255],
+    "color": [250, 251, 252, 255],
+    "corners": [6]
+  },
+  "input": {
+    "size": "{input_size}",
+    "list_size": [200, 140],
+    "placeholder": "Search tags",
+    "font": { "size": 0.55, "style": "italic" },
+    "fill": [240, 241, 242, 255],
+    "line": [20, 21, 22, 255],
+    "color": [3, 4, 5, 255]
+  }
+}
+)json";
+
+    glz::json_t obj;
+    auto parse_error = glz::read_json(obj, json);
+    ASSERT_EQ(parse_error, glz::error_code::none) << glz::format_error(parse_error, json);
+
+    std::vector<std::string> selected{" beta ", "alpha", "beta"};
+    std::vector<std::string> catalog{"Alpha", "Beta", "Gamma"};
+    Size2 limit{210, 80};
+    bool can_add{false};
+    float threshold{0.8f};
+    Color chip_fill{12, 34, 56, 220};
+    Size2 input_size{130, 26};
+    std::vector<Action> add_actions;
+    std::vector<Action> remove_actions;
+    Context context{
+        VarFunc("tags", [&selected](const VarProps&) -> std::vector<std::string> { return selected; }),
+        VarFunc("catalog", [&catalog](const VarProps&) -> std::vector<std::string> { return catalog; }),
+        VarFunc("limit", [&limit](const VarProps&) -> Size2 { return limit; }),
+        VarFunc("can_add", [&can_add](const VarProps&) -> bool { return can_add; }),
+        VarFunc("threshold", [&threshold](const VarProps&) -> float { return threshold; }),
+        VarFunc("chip_fill", [&chip_fill](const VarProps&) -> Color { return chip_fill; }),
+        VarFunc("input_size", [&input_size](const VarProps&) -> Size2 { return input_size; }),
+        ActionFunc("add_tag", [&add_actions](Action action) { add_actions.push_back(std::move(action)); }),
+        ActionFunc("remove_tag", [&remove_actions](Action action) { remove_actions.push_back(std::move(action)); })
+    };
+    State state;
+    auto handler = std::make_shared<CurrentObjectHandler>();
+    state._current_object_handler = handler;
+    DrawStructure graph(640, 480);
+
+    auto root = parse_object(nullptr, obj.get_object(), context, state, context.defaults);
+    ASSERT_TRUE(root.is<TagList>());
+    ASSERT_NO_THROW((void)DynamicGUI::update_objects(nullptr, graph, root, context, state));
+    auto tag_list = root.to<TagList>();
+    tag_list->update();
+
+    EXPECT_THAT(tag_list->tags(), ::testing::ElementsAre("beta", "alpha"));
+    EXPECT_THAT(tag_list->catalog(), ::testing::ElementsAre("Alpha", "Beta", "Gamma"));
+    EXPECT_EQ(tag_list->flow().max_size(), attr::SizeLimit{limit});
+    EXPECT_FALSE(tag_list->allow_new());
+    EXPECT_FLOAT_EQ(tag_list->match_threshold(), 0.8f);
+    ASSERT_EQ(tag_list->flow().objects().size(), 3u);
+    auto first_chip = tag_list->flow().objects()[0].to<HorizontalLayout>();
+    EXPECT_EQ((Color)first_chip->bg_fill_color(), Color(12, 34, 56, 220));
+    EXPECT_EQ((Color)first_chip->bg_line_color(), Color(1, 2, 3, 255));
+    EXPECT_EQ(first_chip->corner_flags(), CornerFlags::Rounded(6));
+    ASSERT_EQ(first_chip->objects().size(), 2u);
+    auto first_label = first_chip->objects()[0].to<StaticText>();
+    auto first_remove = first_chip->objects()[1].to<StaticText>();
+    EXPECT_EQ((Bounds)first_label->margins(), Bounds(7, 3, 3, 3));
+    EXPECT_EQ((Bounds)first_remove->margins(), Bounds(2, 3, 7, 3));
+    EXPECT_FLOAT_EQ(first_label->font().size, 0.7f);
+    EXPECT_EQ(first_label->font().style, Style::Bold);
+    EXPECT_EQ(first_label->text_color(), Color(250, 251, 252, 255));
+    EXPECT_EQ(tag_list->input().size(), Size2(130, 26));
+    EXPECT_EQ(tag_list->input().list().size(), Size2(200, 140));
+    EXPECT_FLOAT_EQ(tag_list->input().textfield()->font().size, 0.55f);
+    EXPECT_EQ(tag_list->input().textfield()->font().style, Style::Italic);
+    EXPECT_EQ(tag_list->input().textfield()->fill_color(), Color(240, 241, 242, 255));
+    EXPECT_EQ(tag_list->input().textfield()->line_color(), Color(20, 21, 22, 255));
+    EXPECT_EQ(tag_list->input().textfield()->text_color(), Color(3, 4, 5, 255));
+    EXPECT_EQ((Color)tag_list->input().list().list_fill_clr(), Color(240, 241, 242, 255));
+    EXPECT_EQ((Color)tag_list->input().list().list_line_clr(), Color(20, 21, 22, 255));
+    EXPECT_EQ(tag_list->input().list().text_color(), Color(3, 4, 5, 255));
+    ASSERT_THAT(tag_list->input().items(), ::testing::ElementsAre(Dropdown::TextItem{"Gamma"}));
+
+    tag_list->input().on_select()(Dropdown::RawIndex{0}, tag_list->input().items()[0]);
+    ASSERT_EQ(add_actions.size(), 1u);
+    EXPECT_THAT(add_actions[0].parameters, ::testing::ElementsAre("Gamma"));
+    tag_list->request_remove(1);
+    ASSERT_EQ(remove_actions.size(), 1u);
+    EXPECT_THAT(remove_actions[0].parameters, ::testing::ElementsAre("alpha", "1"));
+
+    selected = {"Gamma"};
+    catalog = {"Gamma", "Delta"};
+    limit = Size2(120, 40);
+    can_add = true;
+    threshold = 0.6f;
+    chip_fill = Color(60, 70, 80, 230);
+    input_size = Size2(170, 30);
+    ASSERT_NO_THROW((void)DynamicGUI::update_objects(nullptr, graph, root, context, state));
+    tag_list->update();
+    EXPECT_THAT(tag_list->tags(), ::testing::ElementsAre("Gamma"));
+    EXPECT_THAT(tag_list->input().items(), ::testing::ElementsAre(Dropdown::TextItem{"Delta"}));
+    EXPECT_EQ(tag_list->flow().max_size(), attr::SizeLimit{limit});
+    EXPECT_TRUE(tag_list->allow_new());
+    EXPECT_FLOAT_EQ(tag_list->match_threshold(), 0.6f);
+    EXPECT_EQ(tag_list->input().size(), input_size);
+    EXPECT_EQ((Color)tag_list->flow().objects()[0].to<HorizontalLayout>()->bg_fill_color(), chip_fill);
+}
+
+TEST(DynamicGUITagListTest, SupportsLiteralAndGlobalCatalogsAndDisplayOnlyMode) {
+    SETTING(dyngui_taglist_catalog) = std::vector<std::string>{"Global", "Other"};
+
+    constexpr std::string_view literal_json = R"json(
+{
+  "type": "taglist",
+  "var": "tags",
+  "catalog": ["Literal", "Second"],
+  "add_action": "add:{tag}:fixed",
+  "remove_action": "remove:{index}:{tag}:fixed"
+}
+)json";
+    constexpr std::string_view global_json = R"json(
+{
+  "type": "taglist",
+  "var": "tags",
+  "catalog": "{global.dyngui_taglist_catalog}",
+  "add_action": "add"
+}
+)json";
+    constexpr std::string_view display_json = R"json(
+{
+  "type": "taglist",
+  "var": ["Current"]
+}
+)json";
+
+    std::vector<std::string> selected{"Current"};
+    std::vector<Action> actions;
+    std::vector<Action> removals;
+    Context context{
+        VarFunc("tags", [&selected](const VarProps&) -> std::vector<std::string> { return selected; }),
+        ActionFunc("add", [&actions](Action action) { actions.push_back(std::move(action)); }),
+        ActionFunc("remove", [&removals](Action action) { removals.push_back(std::move(action)); })
+    };
+    DrawStructure graph(640, 480);
+
+    auto parse_tag_list = [&](std::string_view source) {
+        glz::json_t obj;
+        const auto error = glz::read_json(obj, source);
+        EXPECT_EQ(error, glz::error_code::none) << glz::format_error(error, source);
+        State state;
+        auto handler = std::make_shared<CurrentObjectHandler>();
+        state._current_object_handler = handler;
+        auto root = parse_object(nullptr, obj.get_object(), context, state, context.defaults);
+        EXPECT_TRUE(root.is<TagList>());
+        EXPECT_NO_THROW((void)DynamicGUI::update_objects(nullptr, graph, root, context, state));
+        root.to<TagList>()->update();
+        return std::pair{root, handler};
+    };
+
+    auto [literal, literal_handler] = parse_tag_list(literal_json);
+    auto literal_tags = literal.to<TagList>();
+    EXPECT_THAT(literal_tags->catalog(), ::testing::ElementsAre("Literal", "Second"));
+    literal_tags->input().on_select()(Dropdown::RawIndex{0}, literal_tags->input().items()[0]);
+    ASSERT_EQ(actions.size(), 1u);
+    EXPECT_THAT(actions[0].parameters, ::testing::ElementsAre("Literal", "fixed"));
+    literal_tags->request_remove(0);
+    ASSERT_EQ(removals.size(), 1u);
+    EXPECT_THAT(removals[0].parameters, ::testing::ElementsAre("0", "Current", "fixed"));
+
+    auto [global, global_handler] = parse_tag_list(global_json);
+    EXPECT_THAT(global.to<TagList>()->catalog(), ::testing::ElementsAre("Global", "Other"));
+
+    auto [display, display_handler] = parse_tag_list(display_json);
+    auto display_tags = display.to<TagList>();
+    ASSERT_EQ(display_tags->flow().objects().size(), 1u);
+    EXPECT_EQ(display_tags->flow().objects()[0].to<HorizontalLayout>()->objects().size(), 1u);
+}
+
+TEST(DynamicGUITagListTest, SupportsSetAndJsonArrayVariableSources) {
+    constexpr std::string_view json = R"json(
+{
+  "type": "taglist",
+  "var": "selected",
+  "catalog": "catalog",
+  "add_action": "add"
+}
+)json";
+    glz::json_t obj;
+    auto parse_error = glz::read_json(obj, json);
+    ASSERT_EQ(parse_error, glz::error_code::none) << glz::format_error(parse_error, json);
+
+    std::set<std::string> selected{"Beta", "Alpha"};
+    glz::json_t catalog;
+    parse_error = glz::read_json(catalog, R"json(["Alpha", "Beta", "Gamma"])json");
+    ASSERT_EQ(parse_error, glz::error_code::none);
+    Context context{
+        VarFunc("selected", [&selected](const VarProps&) -> std::set<std::string> { return selected; }),
+        VarFunc("catalog", [&catalog](const VarProps&) -> glz::json_t { return catalog; }),
+        ActionFunc("add", [](Action) {})
+    };
+    State state;
+    auto handler = std::make_shared<CurrentObjectHandler>();
+    state._current_object_handler = handler;
+    DrawStructure graph(640, 480);
+
+    auto root = parse_object(nullptr, obj.get_object(), context, state, context.defaults);
+    ASSERT_TRUE(root.is<TagList>());
+    ASSERT_NO_THROW((void)DynamicGUI::update_objects(nullptr, graph, root, context, state));
+    auto tag_list = root.to<TagList>();
+    EXPECT_THAT(tag_list->tags(), ::testing::ElementsAre("Alpha", "Beta"));
+    EXPECT_THAT(tag_list->catalog(), ::testing::ElementsAre("Alpha", "Beta", "Gamma"));
+    EXPECT_THAT(tag_list->input().items(), ::testing::ElementsAre(Dropdown::TextItem{"Gamma"}));
+
+    selected = {"Gamma"};
+    parse_error = glz::read_json(catalog, R"json(["Gamma", "Delta"])json");
+    ASSERT_EQ(parse_error, glz::error_code::none);
+    ASSERT_NO_THROW((void)DynamicGUI::update_objects(nullptr, graph, root, context, state));
+    EXPECT_THAT(tag_list->tags(), ::testing::ElementsAre("Gamma"));
+    EXPECT_THAT(tag_list->input().items(), ::testing::ElementsAre(Dropdown::TextItem{"Delta"}));
+}
+
+TEST(DynamicGUITagListTest, ReportsMissingControlledSourceAndMissingAddCatalog) {
+    Context context;
+    State state;
+    auto handler = std::make_shared<CurrentObjectHandler>();
+    state._current_object_handler = handler;
+
+    auto parse = [&](std::string_view source) {
+        glz::json_t obj;
+        const auto error = glz::read_json(obj, source);
+        EXPECT_EQ(error, glz::error_code::none) << glz::format_error(error, source);
+        return parse_object(nullptr, obj.get_object(), context, state, context.defaults);
+    };
+
+    EXPECT_TRUE(parse(R"json({"type":"taglist"})json").is<ErrorElement>());
+    EXPECT_TRUE(parse(R"json({"type":"taglist","var":[],"add_action":"add"})json").is<ErrorElement>());
+}
+
+TEST(DynamicGUIFloatingLayoutTest, ParsesPolicyAndTracksDynamicMaxSize) {
+    constexpr std::string_view json = R"json(
+{
+  "type": "floatinglayout",
+  "policy": "vertical-first",
+  "max_size": "{limit}",
+  "pad": [1, 2, 3, 4],
+  "outer_pad": [3, 4, 5, 6],
+  "children": [
+    { "type": "rect", "size": [10, 10] },
+    { "type": "rect", "size": [10, 10] },
+    { "type": "rect", "size": [10, 10] }
+  ]
+}
+)json";
+    glz::json_t obj;
+    auto parse_error = glz::read_json(obj, json);
+    ASSERT_EQ(parse_error, glz::error_code::none) << glz::format_error(parse_error, json);
+
+    Size2 limit{25, 45};
+    Context context{
+        VarFunc("limit", [&limit](const VarProps&) -> Size2 { return limit; })
+    };
+    State state;
+    auto handler = std::make_shared<CurrentObjectHandler>();
+    state._current_object_handler = handler;
+    DrawStructure graph(640, 480);
+
+    auto root = parse_object(nullptr, obj.get_object(), context, state, context.defaults);
+    ASSERT_TRUE(root.is<FloatingLayout>());
+    graph.wrap_object(*root);
+    ASSERT_NO_THROW((void)DynamicGUI::update_objects(nullptr, graph, root, context, state));
+    auto layout = root.to<FloatingLayout>();
+    layout->update();
+    EXPECT_EQ(layout->policy(), FloatingLayout::Policy::VerticalFirst);
+    EXPECT_EQ(layout->max_size(), attr::SizeLimit{limit});
+    ASSERT_EQ(layout->objects().size(), 3u);
+    EXPECT_EQ(layout->objects()[0]->pos(), Vec2(4, 6));
+    EXPECT_EQ(layout->objects()[1]->pos(), Vec2(4, 22));
+    EXPECT_EQ(layout->objects()[2]->pos(), Vec2(18, 6));
+    EXPECT_EQ(layout->scroll_axis(), ScrollAxis::Horizontal);
+
+    limit = Size2(40, 25);
+    ASSERT_NO_THROW((void)DynamicGUI::update_objects(nullptr, graph, root, context, state));
+    layout->update();
+    EXPECT_EQ(layout->max_size(), attr::SizeLimit{limit});
+    EXPECT_EQ(layout->objects()[0]->pos(), Vec2(4, 6));
+    EXPECT_EQ(layout->objects()[1]->pos(), Vec2(18, 6));
+    EXPECT_EQ(layout->objects()[2]->pos(), Vec2(32, 6));
+}
+
+TEST(DynamicGUIFloatingLayoutTest, ReportsUnknownPolicyAsAnErrorElement) {
+    constexpr std::string_view json = R"json(
+{
+  "type": "floatinglayout",
+  "policy": "diagonal",
+  "children": []
+}
+)json";
+    glz::json_t obj;
+    const auto error = glz::read_json(obj, json);
+    ASSERT_EQ(error, glz::error_code::none) << glz::format_error(error, json);
+
+    Context context;
+    State state;
+    auto handler = std::make_shared<CurrentObjectHandler>();
+    state._current_object_handler = handler;
+    auto result = parse_object(nullptr, obj.get_object(), context, state, context.defaults);
+    EXPECT_TRUE(result.is<ErrorElement>());
 }
