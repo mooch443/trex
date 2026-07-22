@@ -41,12 +41,6 @@ void PrintTo(const LabelCornerFlagsRoundTripCase& c, std::ostream* os) {
         return flags;
     }
 
-    Event scroll_event(Float2_t dy) {
-        Event e(EventType::SCROLL);
-        e.scroll.dx = 0;
-        e.scroll.dy = dy;
-        return e;
-    }
 }
 
 class LabelCornerFlagsMetaRoundTrip
@@ -103,19 +97,20 @@ INSTANTIATE_TEST_SUITE_P(
         LabelCornerFlagsToStrCase{LabelCornerFlags(false, true, false, true, 9.0f), "['tr','bl',9]"},
         LabelCornerFlagsToStrCase{LabelCornerFlags::Square(), "['none']"}));
 
-TEST(TestGuiScroll, InertClickableButtonDoesNotConsumeScroll) {
+TEST(TestGuiScroll, ScrollEnabledButtonConsumesScroll) {
     DrawStructure graph(200, 200);
-    Button button(Str("No scroll"), Box(10, 10, 90, 30));
+    Button button(Str("Owns scroll"), Box(10, 10, 90, 30));
 
     graph.wrap_object(button);
+    ASSERT_TRUE(button.scroll_enabled());
     ASSERT_EQ(graph.mouse_move(20, 20), &button);
     ASSERT_EQ(graph.hovered_object(), &button);
 
-    EXPECT_FALSE(graph.event(scroll_event(-10)));
+    EXPECT_EQ(graph.scroll(Vec2(0, -10)), &button);
     EXPECT_EQ(button.scroll_offset(), Vec2());
 }
 
-TEST(TestGuiScroll, InertButtonBubblesScrollToScrollableParent) {
+TEST(TestGuiScroll, ScrollEnabledButtonConsumesBeforeScrollableParent) {
     DrawStructure graph(200, 200);
     Entangled parent(Box(0, 0, 120, 120));
     parent.set_scroll_enabled(true);
@@ -130,12 +125,57 @@ TEST(TestGuiScroll, InertButtonBubblesScrollToScrollableParent) {
     ASSERT_NE(button.get(), nullptr);
 
     graph.wrap_object(parent);
+    ASSERT_TRUE(button->scroll_enabled());
     ASSERT_EQ(graph.mouse_move(20, 20), button.get());
     ASSERT_EQ(graph.hovered_object(), button.get());
 
-    EXPECT_EQ(graph.scroll(Vec2(0, -10)), &parent);
+    EXPECT_EQ(graph.scroll(Vec2(0, -10)), button.get());
     EXPECT_EQ(button->scroll_offset(), Vec2());
+    EXPECT_EQ(parent.scroll_offset(), Vec2());
+}
+
+TEST(TestGuiScroll, NonScrollableChildBubblesScrollToScrollableParent) {
+    DrawStructure graph(200, 200);
+    Entangled parent(Box(0, 0, 120, 120));
+    parent.set_scroll_enabled(true);
+    parent.set_scroll_limits(Rangef(), Rangef(0, 100));
+
+    auto child = Layout::Make<Rect>{
+        Box(10, 10, 90, 30), Clickable{true}
+    }();
+    parent.update([&](Entangled& layout) {
+        layout.advance_wrap(*child);
+    });
+
+    graph.wrap_object(parent);
+    ASSERT_EQ(graph.mouse_move(20, 20), child.get());
+
+    EXPECT_EQ(graph.scroll(Vec2(0, -10)), &parent);
     EXPECT_EQ(parent.scroll_offset(), Vec2(0, 10));
+}
+
+TEST(TestGuiScroll, InnerScrollableConsumesAtBoundary) {
+    DrawStructure graph(200, 200);
+    Entangled parent(Box(0, 0, 120, 120));
+    parent.set_scroll_enabled(true);
+    parent.set_scroll_limits(Rangef(), Rangef(0, 100));
+
+    auto child = Layout::Make<Entangled>{Box(10, 10, 90, 90)}();
+    child->set_clickable(true);
+    child->set_scroll_enabled(true);
+    child->set_scroll_limits(Rangef(), Rangef(0, 100));
+    child->set_scroll_offset(Vec2(0, 100));
+    parent.update([&](Entangled& layout) {
+        layout.advance_wrap(*child);
+    });
+
+    graph.wrap_object(parent);
+    ASSERT_TRUE(child->scroll_enabled());
+    ASSERT_EQ(graph.mouse_move(20, 20), child.get());
+
+    EXPECT_EQ(graph.scroll(Vec2(0, -10)), child.get());
+    EXPECT_EQ(child->scroll_offset(), Vec2(0, 100));
+    EXPECT_EQ(parent.scroll_offset(), Vec2());
 }
 
 TEST(TestGuiScroll, HorizontalAxisMapsOrdinaryWheelMovementToX) {
@@ -143,6 +183,7 @@ TEST(TestGuiScroll, HorizontalAxisMapsOrdinaryWheelMovementToX) {
     Entangled parent(Box(0, 0, 120, 120));
     parent.set_scroll_axis(ScrollAxis::Horizontal);
     parent.set_scroll_enabled(true);
+    parent.set_clickable(true);
     parent.set_scroll_limits(Rangef(0, 100), Rangef(0, 100));
     parent.set_scroll_offset(Vec2(0, 20));
 

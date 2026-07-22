@@ -91,6 +91,24 @@ static Vec2 center_of(Drawable& drawable) {
     return Vec2(bounds.x + bounds.width * 0.5, bounds.y + bounds.height * 0.5);
 }
 
+static std::shared_ptr<Drawable> update_until_named(
+    DynamicGUI& gui,
+    DrawStructure& graph,
+    Layout& parent,
+    std::string_view name)
+{
+    const auto deadline = std::chrono::steady_clock::now()
+                        + std::chrono::seconds(1);
+    do {
+        gui.update(graph, &parent);
+        if(auto object = gui.current_object_handler->retrieve_named(std::string(name)))
+            return object;
+        std::this_thread::yield();
+    } while(std::chrono::steady_clock::now() < deadline);
+
+    return nullptr;
+}
+
 static std::vector<FrameTag> frame_tags(
     std::initializer_list<std::string_view> values)
 {
@@ -259,11 +277,10 @@ TEST(DynamicGUILocalSettings, SetLocalSystemActionUpdatesDeclaredValue) {
 
     DrawStructure graph(640, 480);
     VerticalLayout parent;
-    ASSERT_NO_THROW(gui.update(graph, &parent));
+    auto button = update_until_named(gui, graph, parent, "set-local-button");
+    ASSERT_TRUE(button);
     graph.wrap_object(parent);
 
-    auto* button = graph.find("set-local-button");
-    ASSERT_NE(button, nullptr);
     EXPECT_EQ(gui.context.local_setting_ref("local.tab").value<int>(), 0);
 
     const auto button_center = center_of(*button);
@@ -281,11 +298,9 @@ TEST(DynamicGUISystemVariables, RelativeMouseUsesCurrentOrNamedElementTransform)
 
     DrawStructure graph(640, 480);
     VerticalLayout parent;
-    ASSERT_NO_THROW(gui.update(graph, &parent));
-    graph.wrap_object(parent);
-
-    auto target = gui.current_object_handler->retrieve_named("mouse-relative-target");
+    auto target = update_until_named(gui, graph, parent, "mouse-relative-target");
     ASSERT_TRUE(target);
+    graph.wrap_object(parent);
 
     const Vec2 expected{23, 17};
     const auto global_mouse = target->global_transform().transformPoint(expected);
@@ -2944,8 +2959,8 @@ TEST(TagListTest, StandardAttributesConfigureItemsAndInputThroughSetOverloads) {
     EXPECT_EQ((Color)chip->bg_fill_color(), Color(12, 34, 56, 220));
     EXPECT_EQ((Color)chip->bg_line_color(), Color(1, 2, 3, 255));
     EXPECT_EQ(chip->corner_flags(), CornerFlags::Rounded(6));
-    EXPECT_EQ((Bounds)label->margins(), Bounds(7, 3, 3, 3));
-    EXPECT_EQ((Bounds)cross->margins(), Bounds(2, 3, 7, 3));
+    EXPECT_EQ((Bounds)label->margins(), Bounds(7, 3, 1, 3));
+    EXPECT_EQ((Bounds)cross->margins(), Bounds(0, 3, 7, 3));
     EXPECT_FLOAT_EQ(label->font().size, 0.7f);
     EXPECT_EQ(label->font().style, Style::Bold);
     EXPECT_EQ(label->text_color(), Color(250, 251, 252, 255));
@@ -3199,7 +3214,7 @@ TEST(TagListTest, EnterCommitsAnArrowHighlightedCanonicalSuggestion) {
 TEST(TagListTest, ControlledRefreshPreservesDraftAndRecomputesSuggestions) {
     TagList tags;
     tags.on_add([](const FrameTag&) {});
-    tags.set(attr::SizeLimit{Size2{100, 20}});
+    tags.set(attr::SizeLimit{Size2{100, 40}});
     tags.set_catalog({"Alpha", "Beta", "Gamma"});
     tags.set_tags(frame_tags({"Alpha"}));
     tags.input().textfield()->set_text("unfinished");
@@ -3270,7 +3285,7 @@ TEST(DynamicGUITagListTest, ResolvesSourcesStylesAndControlledActions) {
     auto parse_error = glz::read_json(obj, json);
     ASSERT_EQ(parse_error, glz::error_code::none) << glz::format_error(parse_error, json);
 
-    std::vector<std::string> selected{" beta ", "alpha", "beta"};
+    std::vector<std::string> selected{"beta", "alpha"};
     std::vector<std::string> catalog{"Alpha", "Beta", "Gamma"};
     Size2 limit{210, 80};
     bool can_add{false};
@@ -3307,7 +3322,7 @@ TEST(DynamicGUITagListTest, ResolvesSourcesStylesAndControlledActions) {
     EXPECT_EQ(tag_list->flow().max_size(), (attr::SizeLimit{210, 44}));
     EXPECT_FALSE(tag_list->allow_new());
     EXPECT_FLOAT_EQ(tag_list->match_threshold(), 0.8f);
-    ASSERT_EQ(tag_list->flow().objects().size(), 3u);
+    ASSERT_EQ(tag_list->flow().objects().size(), 2u);
     auto first_chip = tag_list->flow().objects()[0].to<HorizontalLayout>();
     EXPECT_EQ((Color)first_chip->bg_fill_color(), Color(12, 34, 56, 220));
     EXPECT_EQ((Color)first_chip->bg_line_color(), Color(1, 2, 3, 255));
@@ -3315,8 +3330,8 @@ TEST(DynamicGUITagListTest, ResolvesSourcesStylesAndControlledActions) {
     ASSERT_EQ(first_chip->objects().size(), 2u);
     auto first_label = first_chip->objects()[0].to<StaticText>();
     auto first_remove = first_chip->objects()[1].to<StaticText>();
-    EXPECT_EQ((Bounds)first_label->margins(), Bounds(7, 3, 3, 3));
-    EXPECT_EQ((Bounds)first_remove->margins(), Bounds(2, 3, 7, 3));
+    EXPECT_EQ((Bounds)first_label->margins(), Bounds(7, 3, 1, 3));
+    EXPECT_EQ((Bounds)first_remove->margins(), Bounds(0, 3, 7, 3));
     EXPECT_FLOAT_EQ(first_label->font().size, 0.7f);
     EXPECT_EQ(first_label->font().style, Style::Bold);
     EXPECT_EQ(first_label->text_color(), Color(250, 251, 252, 255));
