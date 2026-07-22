@@ -2198,7 +2198,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                     throw RuntimeError("No _data.");
                 return _data->_foi_state.color;
             }),
-            VarFunc("current_frame_tags", [this](const VarProps&) -> std::set<track::FrameTag> {
+            VarFunc("current_frame_tags", [this](const VarProps&) -> std::set<FrameTag> {
                 auto track_frame_tags = READ_SETTING_WITH_DEFAULT(track_frame_tags, track::FrameTags{});
                 if(not _data || not _data->_cache)
                     throw RuntimeError("GUI is shutting down.");

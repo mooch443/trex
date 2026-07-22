@@ -771,7 +771,7 @@ void BlobView::draw(const DisplayParameters& parm)
         /// the whole popup is one selection scope: once nothing inside it
         /// is selected anymore, it gets dismissed
         if(auto sel = parm.graph.selected_object();
-           not sel || not sel->is_child_of(popup.get()))
+           sel && not sel->is_child_of(popup.get()))
         {
             _clicked_blob_id = pv::bid::invalid;
             parm.cache.set_raw_blobs_dirty();
@@ -781,8 +781,51 @@ void BlobView::draw(const DisplayParameters& parm)
     if(_clicked_blob_id.load().valid() && _clicked_blob_frame.load() == frame) {
         if(popup == nullptr) {
             popup = std::make_shared<VerticalLayout>();
-            tag_list = Layout::Make<TagList>(Box(0, 0, 200,100), SizeLimit{200,200}, ItemFillClr_t{50,50,50,240}, FillClr{30,30,30,200}, LabelDims_t{200,35}, LabelFillClr_t{50,50,50,240}, LabelColor_t{200,200,200,240}, ListFillClr_t{30,30,30,200});
-            tag_list->on_add([this, &cache = parm.cache](const std::string& name) {
+            tag_list = derived_ptr<TagList>(new TagList{
+                Box(0, 0, 200,100),
+                SizeLimit{200,200},
+                //ItemFillClr_t{50,50,50,240},
+                Placeholder_t{"Add tag..."},
+                FillClr{30,30,30,200},
+                LabelDims_t{200,35},
+                ListDims_t{200,100},
+                LineClr{0,0,0,0},
+                LabelFillClr_t{50,50,50,240},
+                LabelColor_t{200,200,200,240},
+                ListFillClr_t{30,30,30,200},
+                LabelCornerFlags::Square(),
+                TagList::DisplayFilter{[](const std::string& v){
+                    FrameTag tag = Meta::fromStr<FrameTag>(v);
+                    if(tag.has_location()) {
+                        return FrameTag{.name = (std::string)tag.get_name()}.toStr();
+                    }
+                    return v;
+                }}
+            });
+
+            tag_list->on_remove([this](size_t index, const FrameTag& tag)
+            {
+                auto frame = _clicked_blob_frame.load();
+                Print("Removing ", tag, " at ", index, " in frame ", frame);
+
+                safely_change_setting("track_frame_tags", [&](track::FrameTags& tags)
+                {
+                    auto it = tags.find(frame);
+                    if(it != tags.end()) {
+                        auto kit = it->second.find(tag);
+                        if(kit != it->second.end()) {
+                            it->second.erase(tag);
+                            if(it->second.empty()) {
+                                tags.erase(it);
+                            }
+                            return;
+                        }
+                    }
+
+                    FormatWarning("Could not find tag ", tag, " in tags ", tags);
+                });
+            });
+            tag_list->on_add([this, &cache = parm.cache](const FrameTag& name) {
                 auto bdx = _clicked_blob_id.load();
                 auto frame = _clicked_blob_frame.load();
                 
@@ -798,6 +841,13 @@ void BlobView::draw(const DisplayParameters& parm)
                     }
                     
                     if(blob_bounds) {
+                        FrameTag tag{
+                            .name = std::pair<Bounds, std::string>(*blob_bounds, name.get_name())
+                        };
+                        safely_change_setting("track_frame_tags", [&](track::FrameTags& tags){
+                            tags[frame].insert(std::move(tag));
+                        });
+
                         Print("Added ", name," for bdx=",bdx," frame=",frame, " @",*blob_bounds);
                     } else {
                         FormatWarning("Cannot find blob bounds for bdx=",bdx," in frame ", frame);
@@ -808,7 +858,7 @@ void BlobView::draw(const DisplayParameters& parm)
                 }
             });
             
-            list = Layout::Make<Dropdown>(Box(0, 0, 200, 235), AlwaysOpen_t{true}, LabelDims_t{200, 35}, Font{0.6}, ListFillClr_t{60,60,60,200}, FillClr{60,60,60,200}, LineClr{100,175,250,200}, TextClr{225,225,225});
+            list = Layout::Make<Dropdown>(Box(0, 0, 200, 235), AlwaysOpen_t{true}, LabelDims_t{200, 35}, Font{0.6}, ListFillClr_t{60,60,60,200}, FillClr{60,60,60,200}, TextClr{225,225,225}, LabelCornerFlags::Top(), ListCornerFlags::Square());
             list->on_select([this, &cache = parm.cache](auto, const Dropdown::TextItem& item) {
                 auto number = uint64_t(item.custom());
                 uint32_t item_id = (number >> 32) & 0xFFFFFFFF;
@@ -942,13 +992,13 @@ void BlobView::draw(const DisplayParameters& parm)
             list->set_items(sorted_items);
             list->set_clickable(true);
 
-            list->set(LineClr{Yellow});
+            //list->set(LineClr{Yellow});
             
             {
                 auto track_frame_tags = READ_SETTING_WITH_DEFAULT(track_frame_tags, track::FrameTags{});
                 auto unique_frame_tags = track_frame_tags.unique();
                 
-                std::vector<std::string> current_tags;
+                std::vector<FrameTag> current_tags;
                 if(auto it = track_frame_tags.find(frame);
                    it != track_frame_tags.end()
                    && blob_pos.has_value())
@@ -957,14 +1007,15 @@ void BlobView::draw(const DisplayParameters& parm)
                         if(tag.has_location()) {
                             auto bds = tag.get_location();
                             if(bds.contains(*blob_pos))
-                                current_tags.emplace_back(tag.toStr());
+                                current_tags.emplace_back(tag);
                         }
                     }
                 }
                 
                 tag_list->set_catalog({unique_frame_tags.begin(), unique_frame_tags.end()});
                 tag_list->set_tags(std::move(current_tags));
-                tag_list->set(LineClr{Red});
+                //tag_list->set(LineClr{Red});
+                tag_list->set(Placeholder_t{"Add tag at "+Meta::toStr(blob_pos)+"..."});
             }
             
             popup->set_scale(parm.graph.scale().reciprocal());
