@@ -220,6 +220,10 @@ if(NOT TREX_CONDA_PACKAGE_INSTALL)
     target_link_libraries(test_sam3interactivesession PUBLIC gtest gmock)
 endif()
 
+if(WIN32)
+    target_compile_options(test_dyngui PRIVATE /bigobj)
+endif()
+
 # Extra linking for the project.
 target_link_libraries(test_matching PUBLIC
     tracker_tracking
