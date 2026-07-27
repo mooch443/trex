@@ -190,12 +190,13 @@ install_post_link_python() {
     numpy_ver="$(${PYTHON_BIN} -c 'import numpy; print(numpy.__version__)' 2>/dev/null || true)"
 
     local packages=(
-        "torch>=2.0.0,<2.9.0"
-        "torchvision>=0.15.1,<0.24.0"
+        "torch>=2.2.0,<2.9.0"
+        "torchvision>=0.17.0,<0.24.0"
         "torchmetrics"
         "tqdm"
         "opencv-python>=4,<5"
         "ultralytics>=8.3.0,<9"
+        "rfdetr==1.8.3"
         "dill"
     )
 

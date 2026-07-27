@@ -3160,7 +3160,7 @@ TEST(TagListTest, SelectedCanonicalValuesNeverDispatchDuplicates) {
 TEST(TagListTest, LocalizedTagsMatchCatalogAndTypedNames) {
     TagList tags;
     tags.set_tags(std::vector<FrameTag>{FrameTag{
-        .name = std::pair{Bounds{1, 2, 3, 4}, std::string{"Alpha"}}
+        .name = SpatialTag{Bounds{1, 2, 3, 4}, std::string{"Alpha"}}
     }});
     tags.set_catalog({"Alpha", "Beta"});
 
