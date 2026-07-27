@@ -22,7 +22,9 @@ past-tense messages where each line starts with `* Added`, `* Updated`,
 - Core GUI headers live under `Application/src/commons/common/gui/`.
 - The dynamic GUI system is `Application/src/commons/common/gui/DynamicGUI.h`
   and `Application/src/commons/common/gui/dyn/`.
-- Most source files include the precompiled header `commons.pc.h`.
+- Do not include individual C++ standard-library headers; they are provided by
+  `commons.pc.h`. When it is included, `commons.pc.h` must be the first include
+  in the file for consistency.
 - Start with the dynamic GUI walkthrough in `Application/src/commons/README.md`.
 
 ## Creating GUIs with commons (how it should be used)

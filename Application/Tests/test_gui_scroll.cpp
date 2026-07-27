@@ -5,6 +5,7 @@
 #include <gui/types/Button.h>
 #include <gui/types/Entangled.h>
 #include <gui/types/Layout.h>
+#include <gui/types/ScrollableList.h>
 
 using namespace cmn;
 using namespace cmn::gui;
@@ -96,6 +97,424 @@ INSTANTIATE_TEST_SUITE_P(
         LabelCornerFlagsToStrCase{LabelCornerFlags(true, false, true, false, 1.5f), "['tl','br',1.5]"},
         LabelCornerFlagsToStrCase{LabelCornerFlags(false, true, false, true, 9.0f), "['tr','bl',9]"},
         LabelCornerFlagsToStrCase{LabelCornerFlags::Square(), "['none']"}));
+
+TEST(PointerEventsTest, MetaSerializationRoundTripsEveryMask) {
+    using pointer::Events;
+
+    EXPECT_EQ(Events::None.toStr(), "none");
+    EXPECT_EQ(Events::Hover.toStr(), "hover");
+    EXPECT_EQ(Events::Click.toStr(), "click");
+    EXPECT_EQ(Events::Drag.toStr(), "drag");
+    EXPECT_EQ(Events::Scroll.toStr(), "scroll");
+    EXPECT_EQ(Events::All.toStr(), "all");
+    EXPECT_EQ((Events::Hover | Events::Drag).toStr(), "[hover,drag]");
+    EXPECT_EQ((Events::Click | Events::Scroll).toStr(), "[click,scroll]");
+
+    for(uint8_t mask = 0; mask <= 0x0F; ++mask) {
+        const Events original{mask};
+        const auto serialized = Meta::toStr(original);
+        SCOPED_TRACE("mask=" + Meta::toStr(mask) + " serialized=" + serialized);
+        EXPECT_EQ(Meta::fromStr<Events>(serialized), original);
+    }
+
+    EXPECT_EQ(Meta::fromStr<Events>("'CLICK'"), Events::Click);
+    EXPECT_EQ(
+        Meta::fromStr<Events>("['SCROLL', 'hover']"),
+        Events::Scroll | Events::Hover);
+
+    const attr::PointerEvents attribute{Events::Drag | Events::Hover};
+    EXPECT_EQ(Meta::toStr(attribute), "[hover,drag]");
+    EXPECT_EQ(
+        static_cast<Events>(
+            Meta::fromStr<attr::PointerEvents>(Meta::toStr(attribute))),
+        static_cast<Events>(attribute));
+}
+
+TEST(DrawStructureFindTest, CentralLookupIncludesRootSectionsAndChildren) {
+    DrawStructure graph(200, 200);
+    Rect child(Box(0, 0, 40, 40));
+    child.set_name("named-child");
+    child.set_clickable(true);
+
+    Section* section = nullptr;
+    {
+        DrawStructure::SectionGuard root_guard(graph, "root");
+        {
+            DrawStructure::SectionGuard guard(graph, "named-section");
+            section = guard._section;
+            graph.wrap_object(child);
+        }
+    }
+
+    ASSERT_NE(section, nullptr);
+    auto* root = graph.find("root");
+    ASSERT_NE(root, nullptr);
+    EXPECT_EQ(root->name(), "root");
+    EXPECT_EQ(graph.find("named-section"), section);
+    EXPECT_EQ(graph.find("named-child"), &child);
+    EXPECT_EQ(
+        graph.find(20, 20, pointer::Events::Click),
+        &child);
+
+    // A section not visited during the next root update remains available for
+    // structural lookup but is disabled for drawing and pointer hit testing.
+    {
+        DrawStructure::SectionGuard root_guard(graph, "root");
+    }
+    ASSERT_FALSE(section->enabled());
+    EXPECT_EQ(
+        graph.find(20, 20, pointer::Events::Click),
+        nullptr);
+    EXPECT_EQ(graph.find("named-section"), section);
+    EXPECT_EQ(graph.find("named-child"), &child);
+}
+
+TEST(PointerEventsTest, MaskIsIndependentFromClickableAndDraggable) {
+    using pointer::Events;
+
+    Rect drawable(Box(0, 0, 40, 40));
+    EXPECT_EQ(drawable.pointer_events(), Events::All);
+
+    const auto drag_hover = Events::Drag | Events::Hover;
+    drawable.set(PointerEvents{drag_hover});
+    drawable.set_clickable(true);
+
+    EXPECT_TRUE(drawable.does_receive(Events::Drag));
+    EXPECT_TRUE(drawable.does_receive(Events::Hover));
+    EXPECT_FALSE(drawable.does_receive(Events::Click));
+    EXPECT_TRUE(drawable.does_receive(Events::Drag | Events::Click));
+
+    drawable.set_clickable(false);
+    EXPECT_FALSE(drawable.does_receive(Events::Drag));
+    EXPECT_EQ(drawable.pointer_events(), drag_hover);
+
+    drawable.set_draggable(true);
+    EXPECT_TRUE(drawable.clickable());
+    EXPECT_EQ(drawable.pointer_events(), drag_hover);
+}
+
+TEST(PointerEventsTest, EventSpecificHitTestingTraversesContainers) {
+    using pointer::Events;
+
+    DrawStructure graph(200, 200);
+    Entangled parent(Box(0, 0, 120, 120));
+    parent.set(PointerEvents{Events::None});
+
+    auto click_target = Layout::Make<Rect>{Box(0, 0, 100, 100)}();
+    click_target->set_clickable(true);
+    click_target->set(PointerEvents{Events::Click});
+    parent.update([&](Entangled& layout) {
+        layout.advance_wrap(*click_target);
+    });
+    graph.wrap_object(parent);
+
+    Rect drag_overlay(Box(0, 0, 100, 100));
+    drag_overlay.set_clickable(true);
+    drag_overlay.set(PointerEvents{Events::Drag | Events::Hover});
+    graph.wrap_object(drag_overlay);
+
+    EXPECT_EQ(graph.find(20, 20, Events::Click), click_target.get());
+    EXPECT_EQ(graph.find(20, 20, Events::Drag), &drag_overlay);
+    EXPECT_EQ(graph.find(20, 20, Events::Hover), &drag_overlay);
+    EXPECT_EQ(graph.find(20, 20, Events::Scroll), nullptr);
+}
+
+TEST(PointerEventsTest, ShortSplitGestureCommitsUnderlyingClick) {
+    using pointer::Events;
+
+    DrawStructure graph(200, 200);
+    Rect click_target(Box(0, 0, 100, 100));
+    click_target.set_clickable(true);
+    click_target.set(PointerEvents{Events::Click});
+
+    Rect drag_overlay(Box(0, 0, 100, 100));
+    drag_overlay.set_clickable(true);
+    drag_overlay.set(PointerEvents{Events::Drag | Events::Hover});
+
+    int mouse_downs = 0;
+    int clicks = 0;
+    click_target.add_event_handler(MBUTTON, [&](Event event) {
+        if(event.mbutton.pressed)
+            ++mouse_downs;
+    });
+    click_target.on_click([&](Event) {
+        ++clicks;
+    });
+
+    graph.wrap_object(click_target);
+    graph.wrap_object(drag_overlay);
+
+    ASSERT_EQ(graph.mouse_move(20, 20), &drag_overlay);
+    ASSERT_NE(graph.mouse_down(true), nullptr);
+    EXPECT_TRUE(click_target.pressed());
+    EXPECT_TRUE(drag_overlay.pressed());
+    EXPECT_EQ(mouse_downs, 0);
+    EXPECT_EQ(clicks, 0);
+
+    ASSERT_NE(graph.mouse_move(23, 20), nullptr);
+    EXPECT_TRUE(click_target.pressed());
+    EXPECT_FALSE(drag_overlay.being_dragged());
+
+    ASSERT_EQ(graph.mouse_up(true), &click_target);
+    EXPECT_EQ(mouse_downs, 1);
+    EXPECT_EQ(clicks, 1);
+    EXPECT_EQ(graph.selected_object(), &click_target);
+    EXPECT_FALSE(click_target.pressed());
+    EXPECT_FALSE(drag_overlay.pressed());
+}
+
+TEST(PointerEventsTest, ShortSplitGestureDoesNotClickAfterLeavingTarget) {
+    using pointer::Events;
+
+    DrawStructure graph(200, 200);
+    Rect click_target(Box(0, 0, 2, 20));
+    click_target.set_clickable(true);
+    click_target.set(PointerEvents{Events::Click});
+
+    Rect drag_overlay(Box(0, 0, 100, 20));
+    drag_overlay.set_clickable(true);
+    drag_overlay.set(PointerEvents{Events::Drag | Events::Hover});
+
+    int clicks = 0;
+    click_target.on_click([&](Event) {
+        ++clicks;
+    });
+
+    graph.wrap_object(click_target);
+    graph.wrap_object(drag_overlay);
+
+    ASSERT_EQ(graph.mouse_move(1, 10), &drag_overlay);
+    ASSERT_NE(graph.mouse_down(true), nullptr);
+    ASSERT_EQ(graph.mouse_move(4, 10), &drag_overlay);
+    ASSERT_EQ(graph.mouse_up(true), &click_target);
+    EXPECT_EQ(clicks, 0);
+}
+
+TEST(PointerEventsTest, BeingDraggedOnlyTracksMovableDrawables) {
+    Rect movable(Box(0, 0, 100, 100));
+    movable.set_draggable(true);
+
+    DrawStructure graph(200, 200);
+    graph.wrap_object(movable);
+
+    ASSERT_EQ(graph.mouse_move(20, 20), &movable);
+    ASSERT_EQ(graph.mouse_down(true), &movable);
+    EXPECT_TRUE(movable.being_dragged());
+
+    ASSERT_EQ(graph.mouse_move(30, 20), &movable);
+    EXPECT_EQ(movable.pos(), Vec2(10, 0));
+
+    ASSERT_EQ(graph.mouse_up(true), &movable);
+    EXPECT_FALSE(movable.being_dragged());
+}
+
+TEST(PointerEventsTest, DragReleaseDoesNotBubbleMouseUpToParent) {
+    DrawStructure graph(200, 200);
+    Entangled parent(Box(0, 0, 120, 120));
+    parent.set_clickable(true);
+
+    auto child = Layout::Make<Rect>{Box(0, 0, 60, 60)}();
+    child->set_draggable(true);
+    parent.update([&](Entangled& layout) {
+        layout.advance_wrap(*child);
+    });
+
+    int parent_mouse_ups = 0;
+    int parent_clicks = 0;
+    parent.add_event_handler(MBUTTON, [&](Event event) -> bool {
+        if(not event.mbutton.pressed)
+            ++parent_mouse_ups;
+        return false;
+    });
+    parent.on_click([&](Event) {
+        ++parent_clicks;
+    });
+
+    graph.wrap_object(parent);
+
+    ASSERT_EQ(graph.mouse_move(20, 20), child.get());
+    ASSERT_EQ(graph.mouse_down(true), child.get());
+    EXPECT_TRUE(child->pressed());
+    EXPECT_FALSE(parent.pressed());
+    ASSERT_EQ(graph.mouse_move(30, 20), child.get());
+    EXPECT_EQ(child->pos(), Vec2(10, 0));
+
+    ASSERT_EQ(graph.mouse_up(true), child.get());
+    EXPECT_EQ(parent_mouse_ups, 0);
+    EXPECT_EQ(parent_clicks, 0);
+    EXPECT_FALSE(parent.pressed());
+}
+
+TEST(PointerEventsTest, ClickChildRetainsDraggableParentBehavior) {
+    DrawStructure graph(200, 200);
+    Entangled parent(Box(0, 0, 100, 100));
+    parent.set_draggable(true);
+
+    auto child = Layout::Make<Rect>{Box(0, 0, 50, 50), Clickable{true}}();
+    int child_mouse_ups = 0;
+    child->add_event_handler(MBUTTON, [&](Event event) {
+        if(not event.mbutton.pressed)
+            ++child_mouse_ups;
+    });
+    parent.update([&](Entangled& layout) {
+        layout.advance_wrap(*child);
+    });
+    graph.wrap_object(parent);
+
+    ASSERT_EQ(graph.mouse_move(20, 20), child.get());
+    ASSERT_EQ(graph.mouse_down(true), child.get());
+    ASSERT_EQ(graph.mouse_move(30, 20), &parent);
+    EXPECT_EQ(parent.pos(), Vec2(10, 0));
+    EXPECT_TRUE(parent.being_dragged());
+
+    ASSERT_EQ(graph.mouse_up(true), child.get());
+    EXPECT_EQ(child_mouse_ups, 0);
+    EXPECT_FALSE(parent.being_dragged());
+}
+
+TEST(PointerEventsTest, CapturedDragSuppressesCrossedTargetsAndClick) {
+    using pointer::Events;
+
+    DrawStructure graph(200, 200);
+    Rect click_target(Box(0, 0, 120, 60));
+    click_target.set_clickable(true);
+    click_target.set(PointerEvents{Events::Click});
+
+    Rect drag_overlay(Box(0, 0, 50, 60));
+    drag_overlay.set_clickable(true);
+    drag_overlay.set(PointerEvents{Events::Drag | Events::Hover});
+
+    Rect crossed_target(Box(50, 0, 70, 60));
+    crossed_target.set_clickable(true);
+    crossed_target.set(PointerEvents{Events::Drag | Events::Hover});
+
+    int clicks = 0;
+    int captured_updates = 0;
+    int crossed_hovers = 0;
+    int crossed_drags = 0;
+    click_target.on_click([&](Event) {
+        ++clicks;
+    });
+    drag_overlay.add_event_handler(DRAG, [&](Event) {
+        ++captured_updates;
+    });
+    crossed_target.on_hover([&](Event event) {
+        if(event.hover.hovered)
+            ++crossed_hovers;
+    });
+    crossed_target.add_event_handler(DRAG, [&](Event) {
+        ++crossed_drags;
+    });
+
+    graph.wrap_object(click_target);
+    graph.wrap_object(drag_overlay);
+    graph.wrap_object(crossed_target);
+
+    ASSERT_EQ(graph.mouse_move(20, 20), &drag_overlay);
+    ASSERT_NE(graph.mouse_down(true), nullptr);
+    EXPECT_TRUE(graph.has_active_pointer_gesture());
+    ASSERT_EQ(graph.mouse_move(26, 20), &drag_overlay);
+    EXPECT_TRUE(graph.has_active_pointer_gesture());
+
+    EXPECT_FALSE(click_target.pressed());
+    EXPECT_TRUE(drag_overlay.pressed());
+    EXPECT_FALSE(drag_overlay.being_dragged());
+    EXPECT_FALSE(drag_overlay.hovered());
+    EXPECT_GT(captured_updates, 0);
+
+    ASSERT_EQ(graph.mouse_move(80, 20), &drag_overlay);
+    EXPECT_FALSE(crossed_target.hovered());
+    EXPECT_EQ(crossed_hovers, 0);
+    EXPECT_EQ(crossed_drags, 0);
+    EXPECT_EQ(clicks, 0);
+
+    ASSERT_NO_THROW(graph.mouse_up(true));
+    EXPECT_FALSE(graph.has_active_pointer_gesture());
+    EXPECT_FALSE(drag_overlay.pressed());
+    EXPECT_FALSE(drag_overlay.being_dragged());
+    EXPECT_TRUE(crossed_target.hovered());
+    EXPECT_EQ(crossed_hovers, 1);
+    EXPECT_EQ(crossed_drags, 0);
+    EXPECT_EQ(clicks, 0);
+}
+
+TEST(PointerEventsTest, RemovingGestureTargetCancelsPendingAndCapturedState) {
+    using pointer::Events;
+
+    DrawStructure graph(200, 200);
+    Rect click_target(Box(0, 0, 100, 100));
+    click_target.set_clickable(true);
+    click_target.set(PointerEvents{Events::Click});
+
+    int clicks = 0;
+    click_target.on_click([&](Event) {
+        ++clicks;
+    });
+    graph.wrap_object(click_target);
+
+    {
+        Rect drag_overlay(Box(0, 0, 100, 100));
+        drag_overlay.set_clickable(true);
+        drag_overlay.set(PointerEvents{Events::Drag | Events::Hover});
+        graph.wrap_object(drag_overlay);
+
+        ASSERT_EQ(graph.mouse_move(20, 20), &drag_overlay);
+        ASSERT_NE(graph.mouse_down(true), nullptr);
+        EXPECT_TRUE(click_target.pressed());
+        EXPECT_TRUE(drag_overlay.pressed());
+    }
+
+    EXPECT_FALSE(click_target.pressed());
+    EXPECT_EQ(clicks, 0);
+    EXPECT_NO_THROW(graph.mouse_up(true));
+    EXPECT_EQ(clicks, 0);
+
+    {
+        Rect drag_overlay(Box(0, 0, 100, 100));
+        drag_overlay.set_clickable(true);
+        drag_overlay.set(PointerEvents{Events::Drag | Events::Hover});
+        graph.wrap_object(drag_overlay);
+
+        ASSERT_EQ(graph.mouse_move(20, 20), &drag_overlay);
+        ASSERT_NE(graph.mouse_down(true), nullptr);
+        ASSERT_EQ(graph.mouse_move(26, 20), &drag_overlay);
+        EXPECT_FALSE(drag_overlay.being_dragged());
+    }
+
+    EXPECT_FALSE(click_target.pressed());
+    EXPECT_NO_THROW(graph.mouse_up(true));
+    EXPECT_EQ(clicks, 0);
+}
+
+TEST(PointerEventsTest, RightButtonUsesClickTargetWithoutDragArbitration) {
+    using pointer::Events;
+
+    DrawStructure graph(200, 200);
+    Rect click_target(Box(0, 0, 100, 100));
+    click_target.set_clickable(true);
+    click_target.set(PointerEvents{Events::Click});
+
+    Rect drag_overlay(Box(0, 0, 100, 100));
+    drag_overlay.set_clickable(true);
+    drag_overlay.set(PointerEvents{Events::Drag | Events::Hover});
+
+    int right_events = 0;
+    click_target.add_event_handler(MBUTTON, [&](Event event) {
+        if(event.mbutton.button == 1)
+            ++right_events;
+    });
+
+    graph.wrap_object(click_target);
+    graph.wrap_object(drag_overlay);
+
+    ASSERT_EQ(graph.mouse_move(20, 20), &drag_overlay);
+    EXPECT_EQ(graph.mouse_down(false), &click_target);
+    EXPECT_FALSE(drag_overlay.pressed());
+    EXPECT_FALSE(drag_overlay.being_dragged());
+
+    EXPECT_EQ(graph.mouse_up(false), &click_target);
+    EXPECT_EQ(right_events, 2);
+}
 
 TEST(TestGuiScroll, ScrollEnabledButtonConsumesScroll) {
     DrawStructure graph(200, 200);
@@ -204,11 +623,12 @@ TEST(TestGuiScroll, HorizontalAxisRendersScrollbarAlongBottomEdge) {
     graph.wrap_object(parent);
 
     parent.update([](Entangled&) {});
-    ASSERT_EQ(parent.children().size(), 2u);
+    ASSERT_EQ(parent.children().size(), 3u);
     ASSERT_TRUE(dynamic_cast<Rect*>(parent.children()[0]));
     ASSERT_TRUE(dynamic_cast<Rect*>(parent.children()[1]));
     EXPECT_EQ(parent.children()[0]->global_bounds(), Bounds(0, 112, 60, 8));
     EXPECT_EQ(parent.children()[1]->global_bounds(), Bounds(60, 112, 60, 8));
+    EXPECT_EQ(parent.children()[2]->global_bounds(), Bounds(0, 112, 120, 8));
 }
 
 TEST(TestGuiScroll, DefaultAxisPreservesLegacyVerticalScrollbarBehavior) {
@@ -220,9 +640,10 @@ TEST(TestGuiScroll, DefaultAxisPreservesLegacyVerticalScrollbarBehavior) {
     graph.wrap_object(parent);
 
     parent.update([](Entangled&) {});
-    ASSERT_EQ(parent.children().size(), 2u);
+    ASSERT_EQ(parent.children().size(), 3u);
     EXPECT_EQ(parent.children()[0]->global_bounds(), Bounds(104, 0, 8, 60));
     EXPECT_EQ(parent.children()[1]->global_bounds(), Bounds(104, 60, 8, 60));
+    EXPECT_EQ(parent.children()[2]->global_bounds(), Bounds(104, 0, 16, 120));
 }
 
 TEST(TestGuiScroll, HorizontalScrollbarDragPreservesVerticalOffset) {
@@ -259,6 +680,156 @@ TEST(TestGuiScroll, VerticalScrollbarDragPreservesHorizontalOffset) {
     EXPECT_EQ(parent.scroll_offset().x, 20);
     EXPECT_NE(parent.scroll_offset().y, 50);
     ASSERT_NO_THROW(graph.mouse_up(true));
+}
+
+TEST(TestGuiScroll, VerticalScrollbarClickJumpsImmediately) {
+    DrawStructure graph(200, 200);
+    Entangled parent(Box(0, 0, 120, 120));
+    parent.set_scroll_axis(ScrollAxis::Vertical);
+    parent.set_scroll_enabled(true);
+    parent.set_scroll_limits(Rangef(0, 100), Rangef(0, 100));
+    parent.set_scroll_offset(Vec2(20, 50));
+    graph.wrap_object(parent);
+    parent.update([](Entangled&) {});
+
+    ASSERT_NE(graph.mouse_move(108, 90), nullptr);
+    ASSERT_NE(graph.mouse_down(true), nullptr);
+    EXPECT_EQ(parent.scroll_offset(), Vec2(20, 75));
+    ASSERT_NO_THROW(graph.mouse_up(true));
+}
+
+TEST(TestGuiScroll, DropdownScrollbarDragSurvivesListRebuilds) {
+    ScrollableList<std::string> list;
+    list.set(Foldable_t{true});
+    list.set(Folded_t{false});
+    list.set(LabelDims_t{100, 30});
+    list.set(ListDims_t{120, 80});
+    list.set_items({
+        "0", "1", "2", "3", "4",
+        "5", "6", "7", "8", "9"
+    });
+
+    DrawStructure graph(300, 300);
+    graph.set_dialog_window_size(Size2(300, 300));
+    graph.wrap_object(list);
+    graph.collect();
+    // The first layout pass resolves the dropdown's content-dependent limits.
+    list.set_content_changed(true);
+    graph.collect();
+
+    Entangled* dropdown = nullptr;
+    for(auto* child : list.children()) {
+        if(child->type() == Type::ENTANGLED) {
+            auto* candidate = static_cast<Entangled*>(child);
+            if(candidate->scroll_enabled()
+               && candidate->size() == Size2(120, 80))
+            {
+                dropdown = candidate;
+                break;
+            }
+        }
+    }
+    ASSERT_NE(dropdown, nullptr);
+
+    Drawable* scrollbar = nullptr;
+    Float2_t largest_scrollbar_area = 0;
+    for(auto* child : dropdown->children()) {
+        if(child->custom_data("scrollbar")) {
+            const auto bounds = child->global_bounds();
+            const auto area = bounds.width * bounds.height;
+            if(area > largest_scrollbar_area) {
+                scrollbar = child;
+                largest_scrollbar_area = area;
+            }
+        }
+    }
+    ASSERT_NE(scrollbar, nullptr);
+
+    const auto dropdown_bounds = dropdown->global_bounds();
+    const auto scrollbar_bounds = scrollbar->global_bounds();
+    const auto drag_x = scrollbar_bounds.x + min(4_F, scrollbar_bounds.width * 0.5_F);
+    const auto drag_start_y = dropdown_bounds.y + dropdown_bounds.height - 10;
+    const auto drag_middle_y = dropdown_bounds.y + dropdown_bounds.height * 0.625_F;
+    const auto drag_end_y = dropdown_bounds.y + dropdown_bounds.height * 0.375_F;
+
+    ASSERT_EQ(graph.mouse_move(drag_x, drag_start_y), scrollbar);
+    ASSERT_EQ(graph.mouse_down(true), scrollbar);
+    ASSERT_TRUE(graph.has_active_pointer_gesture());
+
+    // Open dropdowns rebuild their visible rows after the initial scrollbar
+    // update. The captured drag target must survive that rebuild.
+    graph.collect();
+    const auto after_click = dropdown->scroll_offset().y;
+
+    ASSERT_EQ(graph.mouse_move(drag_x, drag_middle_y), scrollbar);
+    const auto after_first_drag = dropdown->scroll_offset().y;
+    EXPECT_LT(after_first_drag, after_click);
+    graph.collect();
+    ASSERT_EQ(graph.mouse_move(drag_x, drag_end_y), scrollbar);
+    EXPECT_LT(dropdown->scroll_offset().y, after_first_drag);
+    EXPECT_EQ(list.last_selected_item(), -1);
+    EXPECT_TRUE(graph.has_active_pointer_gesture());
+    ASSERT_NO_THROW(graph.mouse_up(true));
+}
+
+TEST(TestGuiScroll, DropdownScrollbarBlocksBorderSideItemClicks) {
+    ScrollableList<std::string> list;
+    list.set(Foldable_t{true});
+    list.set(Folded_t{false});
+    list.set(LabelDims_t{100, 30});
+    list.set(ListDims_t{120, 80});
+    list.set_items({"0", "1", "2", "3", "4"});
+
+    DrawStructure graph(300, 300);
+    graph.set_dialog_window_size(Size2(300, 300));
+    graph.wrap_object(list);
+    graph.collect();
+    // The first layout pass resolves the dropdown's content-dependent limits.
+    list.set_content_changed(true);
+    graph.collect();
+
+    Entangled* dropdown = nullptr;
+    for(auto* child : list.children()) {
+        if(child->type() == Type::ENTANGLED) {
+            auto* candidate = static_cast<Entangled*>(child);
+            if(candidate->scroll_enabled()
+               && candidate->size() == Size2(120, 80))
+            {
+                dropdown = candidate;
+                break;
+            }
+        }
+    }
+    ASSERT_NE(dropdown, nullptr);
+
+    Drawable* visible_scrollbar = nullptr;
+    for(auto* child : dropdown->children()) {
+        if(child->custom_data("scrollbar")
+           && child->global_bounds().height > 0
+           && (!visible_scrollbar
+               || child->global_bounds().width
+                    < visible_scrollbar->global_bounds().width))
+        {
+            visible_scrollbar = child;
+        }
+    }
+    ASSERT_NE(visible_scrollbar, nullptr);
+
+    const auto dropdown_bounds = dropdown->global_bounds();
+    const auto scrollbar_bounds = visible_scrollbar->global_bounds();
+    const auto border_side_x =
+        (scrollbar_bounds.x + scrollbar_bounds.width
+         + dropdown_bounds.x + dropdown_bounds.width) * 0.5_F;
+    const auto border_side_y =
+        scrollbar_bounds.y + scrollbar_bounds.height * 0.5_F;
+
+    auto* border_side = graph.mouse_move(border_side_x, border_side_y);
+    ASSERT_NE(border_side, nullptr);
+    ASSERT_NE(border_side->custom_data("scrollbar"), nullptr);
+    ASSERT_EQ(graph.mouse_down(true), border_side);
+    ASSERT_NO_THROW(graph.mouse_up(true));
+    EXPECT_EQ(list.last_selected_item(), -1);
+    EXPECT_FALSE(list.folded());
 }
 
 TEST(TestGuiScroll, HidingScrollbarDoesNotDisableScrolling) {

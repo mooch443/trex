@@ -481,6 +481,8 @@ bool TrackingScene::on_global_event(Event event) {
     const bool primary_mouse_down = graph && graph->is_mouse_down(0);
     if(event.type == EventType::MMOVE
        && primary_mouse_down
+       // A split click/drag gesture owns the pointer before it selects anything.
+       && !graph->has_active_pointer_gesture()
        && (not graph->selected_object()
            || (_data->_background
                && graph->selected_object()->is_child_of(_data->_background.get()))))
@@ -1590,14 +1592,6 @@ void TrackingScene::_draw(DrawStructure& graph) {
     
     cmn::gui::tracker::draw_boundary_selection(graph, window(), *_data->_cache, _data->_bowl.get());
     
-    if(GUI_SETTINGS(gui_show_timeline)
-       && GUI_SETTINGS(gui_mode) == mode_t::tracking)
-    {
-        for(auto &[id, ptr] : _data->_cache->_displayed_graphs) {
-            ptr->draw(graph);
-        }
-    }
-    
     _data->dynGUI.update(graph, nullptr);
     
     Categorize::draw(_state->video, (IMGUIBase*)window(), graph);
@@ -1655,6 +1649,14 @@ void TrackingScene::_draw(DrawStructure& graph) {
         
     } else if(_data->_uniqueness) {
         _data->_uniqueness = nullptr;
+    }
+
+    if(GUI_SETTINGS(gui_show_timeline)
+       && GUI_SETTINGS(gui_mode) == mode_t::tracking)
+    {
+        for(auto &[id, ptr] : _data->_cache->_displayed_graphs) {
+            ptr->draw(graph);
+        }
     }
     
     //if(not graph.root().is_dirty() && not graph.root().is_animating())

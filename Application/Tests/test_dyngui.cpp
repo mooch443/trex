@@ -138,6 +138,7 @@ static_assert(cmn::gui::dyn::takes_attribute<TagList, ItemFont_t>);
 static_assert(cmn::gui::dyn::takes_attribute<TagList, ItemPadding_t>);
 static_assert(cmn::gui::dyn::takes_attribute<TagList, ItemFillClr_t>);
 static_assert(cmn::gui::dyn::takes_attribute<TagList, std::optional<ItemFillClr_t>>);
+static_assert(cmn::gui::dyn::takes_attribute<Drawable, attr::PointerEvents>);
 static_assert(cmn::gui::dyn::takes_attribute<TagList, ItemLineColor_t>);
 static_assert(cmn::gui::dyn::takes_attribute<TagList, ItemTextClr_t>);
 static_assert(cmn::gui::dyn::takes_attribute<ScrollableList<DetailTooltipItem>, ItemFillClr_t>);
@@ -381,6 +382,132 @@ TEST(DynamicGUIEventCapture, DragActionPreventsParentDragAction) {
 
     EXPECT_EQ(child_drags, 1);
     EXPECT_EQ(parent_drags, 0);
+}
+
+TEST(DynamicGUIPointerEvents, ParsesArraysSpecialValuesAndDefaults) {
+    using pointer::Events;
+
+    EXPECT_EQ(static_cast<Events>(Meta::fromStr<attr::PointerEvents>("all")), Events::All);
+    EXPECT_EQ(static_cast<Events>(Meta::fromStr<attr::PointerEvents>("none")), Events::None);
+    EXPECT_EQ(static_cast<Events>(Meta::fromStr<attr::PointerEvents>("['drag', 'hover']")), Events::Drag | Events::Hover);
+    EXPECT_THROW(
+        (void)Meta::fromStr<attr::PointerEvents>("unknown"),
+        std::invalid_argument);
+
+    constexpr std::string_view json = R"json(
+{
+  "defaults": {
+    "pointer-events": ["click"]
+  },
+  "objects": [
+    {
+      "type": "rect",
+      "name": "default-pointer-events",
+      "size": [100, 50],
+      "clickable": true
+    },
+    {
+      "type": "rect",
+      "name": "drag-overlay",
+      "size": [100, 50],
+      "clickable": true,
+      "pointer-events": ["drag", "hover"]
+    }
+  ]
+}
+)json";
+
+    auto loaded = load(std::string(json));
+    ASSERT_TRUE(loaded.has_value()) << loaded.error();
+    auto [defaults, objects] = std::move(loaded.value());
+    ASSERT_EQ(defaults.pointer_events, Events::Click);
+
+    auto scalar_defaults = load(R"json(
+{
+  "defaults": {
+    "pointer-events": "scroll"
+  },
+  "objects": []
+}
+)json");
+    ASSERT_TRUE(scalar_defaults.has_value()) << scalar_defaults.error();
+    EXPECT_EQ(
+        std::get<0>(scalar_defaults.value()).pointer_events,
+        Events::Scroll);
+
+    Context context;
+    context.defaults = defaults;
+    State state;
+    auto handler = std::make_shared<CurrentObjectHandler>();
+    state._current_object_handler = handler;
+
+    auto default_object = parse_object(
+        nullptr,
+        objects.get_array().at(0).get_object(),
+        context,
+        state,
+        defaults);
+    auto drag_overlay = parse_object(
+        nullptr,
+        objects.get_array().at(1).get_object(),
+        context,
+        state,
+        defaults);
+
+    ASSERT_TRUE(default_object);
+    ASSERT_TRUE(drag_overlay);
+    EXPECT_EQ(default_object->pointer_events(), Events::Click);
+    EXPECT_EQ(
+        drag_overlay->pointer_events(),
+        Events::Drag | Events::Hover);
+}
+
+TEST(DynamicGUIPointerEvents, ResolvesDynamicExpressions) {
+    using pointer::Events;
+
+    constexpr std::string_view json = R"json(
+{
+  "type": "rect",
+  "size": [100, 50],
+  "clickable": true,
+  "pointer-events": "{event_mask}"
+}
+)json";
+
+    glz::json_t object;
+    const auto parse_error = glz::read_json(object, json);
+    ASSERT_EQ(parse_error, glz::error_code::none)
+        << glz::format_error(parse_error, json);
+
+    std::string event_mask = "['drag','hover']";
+    Context context{
+        VarFunc("event_mask", [&](const VarProps&) -> std::string {
+            return event_mask;
+        })
+    };
+
+    State state;
+    auto object_handler = std::make_shared<CurrentObjectHandler>();
+    state._current_object_handler = object_handler;
+    auto drawable = parse_object(
+        nullptr,
+        object.get_object(),
+        context,
+        state,
+        context.defaults);
+    ASSERT_TRUE(drawable);
+    EXPECT_EQ(drawable->pointer_events(), Events::Drag | Events::Hover);
+
+    event_mask = "click";
+    DrawStructure graph(640, 480);
+    ASSERT_NO_THROW(
+        (void)DynamicGUI::update_objects(
+            nullptr,
+            graph,
+            drawable,
+            context,
+            state));
+    EXPECT_EQ(drawable->pointer_events(), Events::Click);
 }
 
 TEST(DynamicGUILocalSettings, LocalValuesSurviveReloadWhenAliasMatches) {

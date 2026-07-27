@@ -50,7 +50,7 @@ struct BlobView {
     Entangled _mousedock_collection;
     NumericTextfield<double> cm_per_pixel_text{1.0, Bounds(0, 0, 200,30), arange<double>{0, infinity<double>()}};
     
-    std::unique_ptr<VerticalLayout> combine = std::make_unique<VerticalLayout>();
+    std::unique_ptr<VerticalLayout> combine = std::make_unique<VerticalLayout>(ZIndex{1});
     derived_ptr<Button> button = nullptr;
     std::vector<derived_ptr<Button>> annotation_buttons;
     derived_ptr<Dropdown> dropdown = nullptr;
