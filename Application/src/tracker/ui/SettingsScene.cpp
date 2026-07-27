@@ -525,7 +525,7 @@ struct SettingsScene::Data {
                                                     dynGUI = {};
                                                 });
                                             }
-                                        }, "The model file <c><cyan>"+path.str() + "</cyan></c> does not seem to exist and is not a default Yolo model name. Please choose a valid model file (a Yolo saved model <c><cyan>.pt</cyan></c>).", "Invalid model", "Okay");
+                                        }, "The model file <c><cyan>"+path.str() + "</cyan></c> does not seem to exist and is not a default YOLO model name. Please choose a valid saved model (<c><cyan>.pt</cyan></c> or <c><cyan>.pth</cyan></c>).", "Invalid model", "Okay");
                                         return;
                                     }
                                 }

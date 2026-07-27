@@ -106,12 +106,12 @@ class FakeTRexModule(types.ModuleType):
         self.Result = object
         self.settings = {
             "gpu_torch_no_fixes": "true",
-            "detect_conf_threshold": "0.1",
-            "detect_iou_threshold": "null",
+            "detect_conf_threshold": 0.1,
+            "detect_iou_threshold": None,
             "detect_point_radii": "{}",
         }
 
-    def setting(self, name: str) -> str:
+    def setting(self, name: str):
         return self.settings[name]
 
     @staticmethod
@@ -263,8 +263,8 @@ class RuntimePolicyTest(unittest.TestCase):
         FakeYOLO.instances.clear()
         self.fake_trex.settings = {
             "gpu_torch_no_fixes": "true",
-            "detect_conf_threshold": "0.1",
-            "detect_iou_threshold": "null",
+            "detect_conf_threshold": 0.1,
+            "detect_iou_threshold": None,
             "detect_point_radii": "{}",
         }
 
@@ -290,7 +290,7 @@ class RuntimePolicyTest(unittest.TestCase):
         self.assertNotIn("agnostic_nms", call)
 
     def test_modern_end2end_forced_nms_when_iou_setting_present(self):
-        self.fake_trex.settings["detect_iou_threshold"] = "0.4"
+        self.fake_trex.settings["detect_iou_threshold"] = 0.4
         model, backend = self._make_model(modern=True, end2end=True)
         self.assertEqual(model.runtime_profile, self.trex_yolo.RUNTIME_PROFILE_MODERN_END2END_FORCED_NMS)
         self.assertFalse(backend.head.end2end)
@@ -336,12 +336,12 @@ class RuntimePolicyTest(unittest.TestCase):
 
         self.bbx_saved_model.model = CaptureModel()
 
-        self.fake_trex.settings["detect_iou_threshold"] = "null"
+        self.fake_trex.settings["detect_iou_threshold"] = None
         result = self.bbx_saved_model.predict("frame")
         self.assertEqual(result, ["ok"])
         self.assertIsNone(calls[-1]["kwargs"]["iou_threshold"])
 
-        self.fake_trex.settings["detect_iou_threshold"] = "0.55"
+        self.fake_trex.settings["detect_iou_threshold"] = 0.55
         self.bbx_saved_model.predict("frame")
         self.assertEqual(calls[-1]["kwargs"]["iou_threshold"], 0.55)
 

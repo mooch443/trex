@@ -143,12 +143,12 @@
 
             {
                 "type":"label",
-                "text":"<sym>🖰</sym> {i.clid} <c>{if:{equal:{i.type}:1}:POSE:{if:{equal:{i.type}:0}:BOX:UNKNOWN}}</c> annotation <c>[{int:{i.x}},{int:{i.y}} {int:{i.w}}x{int:{i.h}}]</c>",
+                "text":"<sym>🖰</sym> {i.clid} <c>{if:{equal:{i.type}:1}:POSE:{if:{equal:{i.type}:0}:BOX:UNKNOWN}}</c> annotation <c>[{int:{i.x}},{int:{i.y}} {int:{i.w}}x{int:{i.h}}]</c> {+:{i.x}:{*:0.5:{i.w}}},{+:{i.y}:{*:0.5:{i.h}}}",
                 "length":120,
                 "color":[255,0,0],
                 "font":{"size":0.6},
                 "line":[255,0,0,100],
-                "center":"{2hud:[{+:{-:{i.x}:0}:{*:0.5:{i.w}}},{+:{-:{i.y}:20}:{*:0.5:{i.h}}}]}"
+                "center":"{2hud:[{+:{i.x}:{*:0.5:{i.w}}},{+:{i.y}:{*:0.0:{i.h}}}]}"
             },
 
             {
@@ -907,7 +907,7 @@
 
         {
             "type":"hlayout",
-            "z-index":1,
+            "z-index":0,
             "pad":[5,0,0,0],
             "outer_pad":[0,0,0,0],
             "pos":"[{-:{window_size.x}:10},6]",
@@ -923,12 +923,12 @@
                         {
                             "type":"button",
                             "corners":["left"],
-                            "text":"<sym>⭍</sym> Tracked",
+                            "text":"<sym>⭍</sym> Track",
                             "font":{"size":0.6},
                             "fill":"{if:{equal:{global.gui_mode}:tracking}:[10,10,10,220]:[40,40,40,220]}",
                             "color":"{if:{equal:{global.gui_mode}:tracking}:[100,100,100,220]:[250,250,250,220]}",
                             "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
-                            "size":[95,30],
+                            "size":[75,30],
                             "action":"set:gui_mode:tracking"
                         },
 
@@ -1469,7 +1469,7 @@
         {
             "type":"condition",
             "var":"{||:{hovered:timeline}:{hovered:button_thing}}",
-            "z-index":1,
+            "z-index":0,
             "then": {
                 "type":"collection",
                 "children":[

@@ -173,7 +173,9 @@ public:
                     *current_use,
                     computed_size,
                     _resized_buffer,
-                    cmn::ImageResizeMode::letterbox);
+                    BOOL_SETTING(detect_requires_exact_input_size)
+                        ? cmn::ImageResizeMode::stretch
+                        : cmn::ImageResizeMode::letterbox);
                 current_use = &_resized_buffer;
                 tiled = TileImage(*current_use, std::move(image.ptr), detector_size, source_size, detect_tile_overlap);
                 tiled.set_tile_geometries({

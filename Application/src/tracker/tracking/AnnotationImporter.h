@@ -2,7 +2,7 @@
 
 #include <commons.pc.h>
 #include <core/AnnotationDataset.h>
-#include <core/AnnotationExporter.h>
+#include <core/annotation.h>
 #include <core/DetectionTypes.h>
 #include <file/PathArray.h>
 
@@ -68,7 +68,7 @@ struct ImportPreview {
     std::vector<std::string> source_choices;
     std::string auto_source_basename;
     std::string selected_source_basename;
-    annotation_export::TypeCounts counts;
+    AnnotationTypeCounts counts;
     size_t image_count{0};
     size_t annotated_frames{0};
     size_t mapped_from_filenames{0};

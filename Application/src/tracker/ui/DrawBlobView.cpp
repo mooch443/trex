@@ -842,7 +842,11 @@ void BlobView::draw(const DisplayParameters& parm)
                     
                     if(blob_bounds) {
                         FrameTag tag{
-                            .name = std::pair<Bounds, std::string>(*blob_bounds, name.get_name())
+                            .name = IdentifiedTag{
+                                .fdx = (uint32_t)bdx,
+                                .bds = *blob_bounds,
+                                .name = (std::string)name.get_name()
+                            }
                         };
                         safely_change_setting("track_frame_tags", [&](track::FrameTags& tags){
                             tags[frame].insert(std::move(tag));
@@ -1003,8 +1007,18 @@ void BlobView::draw(const DisplayParameters& parm)
                    it != track_frame_tags.end()
                    && blob_pos.has_value())
                 {
+                    auto _bdx = _clicked_blob_id.load();
+                    
                     for(auto &tag : it->second) {
-                        if(tag.has_location()) {
+                        if(tag.has_identity()
+                           && _bdx.valid())
+                        {
+                            auto bdx = tag.get_identity();
+                            if(bdx == (uint32_t)_bdx) {
+                                current_tags.emplace_back(tag);
+                            }
+                        }
+                        else if(tag.has_location()) {
                             auto bds = tag.get_location();
                             if(bds.contains(*blob_pos))
                                 current_tags.emplace_back(tag);

@@ -1,7 +1,5 @@
 set(TREX_CORE_PUBLIC_HEADERS
     ${CMAKE_CURRENT_LIST_DIR}/core/AbstractVideoSource.h
-    ${CMAKE_CURRENT_LIST_DIR}/core/AnnotationExporter.h
-    ${CMAKE_CURRENT_LIST_DIR}/core/AnnotationImporter.h
     ${CMAKE_CURRENT_LIST_DIR}/core/AnnotationDataset.h
     ${CMAKE_CURRENT_LIST_DIR}/core/BaslerVideoSource.h
     ${CMAKE_CURRENT_LIST_DIR}/core/BackgroundTask.h
@@ -45,8 +43,6 @@ set(TREX_CORE_PRIVATE_HEADERS
 
 set(TREX_CORE_SOURCES
     ${CMAKE_CURRENT_LIST_DIR}/core/AbstractVideoSource.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/core/AnnotationExporter.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/core/AnnotationImporter.cpp
     ${CMAKE_CURRENT_LIST_DIR}/core/AnnotationDataset.cpp
     ${CMAKE_CURRENT_LIST_DIR}/core/BaslerVideoSource.cpp
     ${CMAKE_CURRENT_LIST_DIR}/core/BackgroundTask.cpp
@@ -91,6 +87,8 @@ set(TREX_DATA_SOURCES
 )
 
 set(TREX_TRACKING_PUBLIC_HEADERS
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/AnnotationExporter.h
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/AnnotationImporter.h
     ${CMAKE_CURRENT_LIST_DIR}/tracking/AutomaticMatches.h
     ${CMAKE_CURRENT_LIST_DIR}/tracking/BlobReceiver.h
     ${CMAKE_CURRENT_LIST_DIR}/tracking/ConnectedTasks.h
@@ -131,6 +129,8 @@ set(TREX_TRACKING_PRIVATE_HEADERS
 )
 
 set(TREX_TRACKING_SOURCES
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/AnnotationExporter.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/AnnotationImporter.cpp
     ${CMAKE_CURRENT_LIST_DIR}/tracking/AutomaticMatches.cpp
     ${CMAKE_CURRENT_LIST_DIR}/tracking/BlobReceiver.cpp
     ${CMAKE_CURRENT_LIST_DIR}/tracking/ConnectedTasks.cpp

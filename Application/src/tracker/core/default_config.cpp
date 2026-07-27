@@ -1132,14 +1132,21 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("detect_sam3_prompt", std::optional<track::detect::Sam3Prompts>{}, "Frame-indexed SAM3 prompt repository. C++ resolves this map into per-image prompt arrays before dispatching batches to the Python SAM3 adapter.", PUBLIC, {std::move(example_prompts)});
         CONFIG("yolo_tracking_enabled", false, "If set to true, the program will try to use yolov8s internal tracking routine to improve results. This can be significantly slower and disables batching.");
         CONFIG("yolo_region_tracking_enabled", false, "If set to true, the program will try to use yolov8s internal tracking routine to improve results for region tracking. This can be significantly slower and disables batching.");
-        CONFIG("detect_model", file::Path(), "The path to a .pt file that contains a valid PyTorch object detection model (currently only YOLO networks are supported).");
+        CONFIG("detect_model", file::Path(), "The path to a .pt or .pth file that contains a supported PyTorch object detection model (such as YOLO or RF-DETR).");
         CONFIG("detect_precomputed_file", file::PathArray{}, "If `detect_type` is set to `precomputed`, this should point to a csv file (or npz files) containing the necessary tracking data for the given `source` video.");
         CONFIG("detect_only_classes", track::detect::PredictionFilter{}, "An array of class ids that you would like to detect (as returned from the model). If left empty, no class will be filtered out.", PUBLIC, {track::detect::PredictionFilter{.detect_only = {0, 1}, ._inverted_from = std::nullopt}});
-        CONFIG("region_model", file::Path(), "The path to a .pt file that contains a valid PyTorch object detection model used for region proposal (currently only YOLO networks are supported).");
+        CONFIG("region_model", file::Path(), "The path to a .pt or .pth file that contains a supported PyTorch object detection model used for region proposal (at the moment only YOLO).");
         CONFIG("region_resolution", track::detect::DetectResolution{}, "The resolution of the region proposal network (`region_model`).", SYSTEM, {track::detect::DetectResolution{640, 640}});
         CONFIG("detect_resolution", track::detect::DetectResolution{}, "The input resolution of the object detection model (`detect_model`).", SYSTEM, {track::detect::DetectResolution{640, 640}});
+        CONFIG("detect_requires_exact_input_size", false, "Whether C++ must prepare detector images at exactly `detect_resolution` rather than preserving the source aspect ratio. Set from loaded model metadata.", SYSTEM);
         CONFIG("detect_iou_threshold", std::optional<Float2_t>{0.5_F}, "Optional IoU threshold override for object detection / segmentation networks. If unset, TRex preserves the upstream model's default postprocessing behaviour. If set, TRex forwards the IoU threshold explicitly and may disable end-to-end NMS-free inference so the override can affect the outcome.");
         CONFIG("detect_conf_threshold", Float2_t(0.1), "Confidence threshold (`0<=value<1`) for object detection / segmentation networks. Confidence is higher if the network is more *sure* about the object. Anything with a confidence level below `detect_conf_threshold` will not be considered an object and not saved to the PV file during conversion.");
+        CONFIG("detect_keypoint_threshold", Float2_t(0.1), "Minimum per-keypoint confidence for pose networks. Keypoints below this threshold are marked as absent independently of `detect_conf_threshold`.");
+        CONFIG("detect_try_optimize_model", true, "If enabled, loaded detection models may try their backend-specific high-performance inference optimization. Each model receives this value as `ModelConfig.try_optimize` and decides how to use it. Changing it requires reloading the model.");
+
+        CONFIG("track_behavior_window", uchar(50), "A window (in frames) around any annotated localized behavior that will be exported alongside the actually labeled frame. Surrounding labels ranges might be merged.");
+        CONFIG("track_behavior_window_step", uchar(0), "If 0 or 1, every frame of an individual is extracted and included in the exported dataset. Values > 1 will skip frames surrounding the labeled frame(s) in order to decrease dataset complexity.");
+
         CONFIG("gpu_min_iterations", uchar(100), "Minimum number of iterations per epoch for training a recognition network.");
         CONFIG("gpu_max_cache", float(2), "Size of the image cache (transferring to GPU) in GigaBytes when applying the network.");
         CONFIG("gpu_max_sample_gb", float(2), "Maximum size of per-individual sample images in GigaBytes. If the collected images are too many, they will be sub-sampled in regular intervals.");
@@ -1319,6 +1326,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             exclude_fields.push_back("detect_iou_threshold");
             exclude_fields.push_back("detect_skeleton");
             exclude_fields.push_back("detect_conf_threshold");
+            exclude_fields.push_back("detect_keypoint_threshold");
             exclude_fields.push_back("detect_model");
             exclude_fields.push_back("detect_format");
             exclude_fields.push_back("detect_classes");

@@ -244,12 +244,13 @@ else
 fi
 
 common_packages=(
-    "torch>=2.0.0,<3.0.0"
-    "torchvision>=0.15.1"
+    "torch>=2.2.0,<3.0.0"
+    "torchvision>=0.17.0"
     "torchmetrics"
     "tqdm"
     "opencv-python>=4,<5"
     "ultralytics>=8.3.0,<9"
+    "rfdetr==1.8.3"
     "dill"
     "timm"
     "scikit-learn"
@@ -314,7 +315,7 @@ fi
 log "Testing installation..."
 announce_progress "TRex is running a short YOLO smoke test to verify the Python install."
 
-CMD_STRING="from ultralytics import YOLO; import numpy as np; YOLO('yolo26n.yaml').to('cpu').predict(np.zeros((640, 480, 3), dtype=np.uint8))"
+CMD_STRING="from ultralytics import YOLO; from rfdetr import RFDETR; from torchvision.ops import nms; import numpy as np, torch; assert nms(torch.tensor([[0.,0.,1.,1.]]), torch.tensor([1.]), 0.5).tolist() == [0]; YOLO('yolo26n.yaml').to('cpu').predict(np.zeros((640, 480, 3), dtype=np.uint8))"
 log_command python -c "${CMD_STRING}"
 
 if TREX_PROGRESS_LABEL="YOLO smoke test..." run_with_reporting python -c "${CMD_STRING}"; then

@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
-#include <core/AnnotationExporter.h>
-#include <core/AnnotationImporter.h>
+#include <tracking/AnnotationExporter.h>
+#include <tracking/AnnotationImporter.h>
 #include <core/DetectionTypes.h>
 #include <core/default_config.h>
 #include <misc/GlobalSettings.h>

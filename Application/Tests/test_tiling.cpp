@@ -836,6 +836,22 @@ TEST(OverlayedVideoTiling, NoTilingKeepsDetectorSize) {
     EXPECT_EQ(tile_size, detector_size);
 }
 
+TEST(DetectorImageSizeTest, ExactInputMetadataDoesNotChangeYoloDefault) {
+    resetGlobalSettings();
+    SETTING(detect_type) = track::detect::ObjectDetectionType_t{
+        track::detect::ObjectDetectionType::yolo
+    };
+    SETTING(meta_video_size) = Size2(1280, 720);
+    SETTING(detect_resolution) = track::detect::DetectResolution{640, 640};
+    SETTING(region_model) = file::Path{};
+
+    EXPECT_FALSE(BOOL_SETTING(detect_requires_exact_input_size));
+    EXPECT_EQ(track::detect::get_model_image_size(), Size2(640, 360));
+
+    SETTING(detect_requires_exact_input_size) = true;
+    EXPECT_EQ(track::detect::get_model_image_size(), Size2(640, 640));
+}
+
 TEST(OverlayedVideoTiling, TargetWidthGeneratesExpectedTiles) {
     Size2 frame_size(960, 640);
     Size2 detector_size(640, 640);

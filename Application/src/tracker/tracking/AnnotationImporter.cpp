@@ -1108,7 +1108,7 @@ ImportPreview preview_yolo_import(const ImportOptions& options, ImportScope scop
 
         require_any_mapped_image(images, preview);
 
-        preview.counts = annotation_export::count_types(preview.annotations);
+        preview.counts = count_annotation_types(preview.annotations);
         update_detect_format_metadata(preview, options);
         preview.annotated_frames = preview.annotations.size();
         if(preview.source_annotations.empty() && preview.errors.empty())
@@ -1344,7 +1344,7 @@ ImportPreview preview_coco_import(const ImportOptions& options) {
             }
         }
 
-        preview.counts = annotation_export::count_types(preview.annotations);
+        preview.counts = count_annotation_types(preview.annotations);
         update_detect_format_metadata(preview, options);
         preview.annotated_frames = preview.annotations.size();
         if(preview.source_annotations.empty() && preview.errors.empty())

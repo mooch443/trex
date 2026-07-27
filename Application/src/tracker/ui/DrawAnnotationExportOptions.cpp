@@ -1,5 +1,5 @@
 #include "DrawAnnotationExportOptions.h"
-#include <core/AnnotationExporter.h>
+#include <tracking/AnnotationExporter.h>
 #include <core/DetectionTypes.h>
 #include <file/DataLocation.h>
 #include <gui/DrawStructure.h>
@@ -47,9 +47,11 @@ struct DrawAnnotationExportOptions::Data {
 
     Summary _summary;
     glz::json_t _info;
+    
+    std::shared_ptr<pv::File> _video;
 
-    Data()
-        : parent(Box(120, 90, 0, 0))
+    Data(std::shared_ptr<pv::File>&& video)
+        : parent(Box(120, 90, 0, 0)), _video(std::move(video))
     {
         parent.set_draggable();
         parent.update([&](Entangled& e) {
@@ -107,7 +109,7 @@ struct DrawAnnotationExportOptions::Data {
     Options make_options(const AnnotationMap& map) const {
         Options options;
         options.format = _format;
-        options.annotations = filter_types(map, _export_boxes, _export_segmentations, _export_poses);
+        options.annotations = filter_annotation_types(map, _export_boxes, _export_segmentations, _export_poses);
         options.source = export_source();
         options.output_directory = output_directory();
         options.video_source_basename = file::Path(file::find_basename(options.source)).filename();
@@ -150,7 +152,7 @@ struct DrawAnnotationExportOptions::Data {
 
     void update_info() {
         auto map = annotations();
-        auto raw_counts = count_types(map);
+        auto raw_counts = count_annotation_types(map);
         auto options = make_options(map);
 
         std::optional<Frame_t> source_length;
@@ -262,6 +264,33 @@ struct DrawAnnotationExportOptions::Data {
                                 show_error("Unknown annotation export error.");
                             }
                         });
+                    }),
+                    ActionFunc("export-behavior", [this](const Action&) {
+                        auto options = make_options(annotations());
+
+                        WorkProgress::add_queue("Exporting behavior annotations...", [this, options]() {
+                            auto show_error = [](std::string message) {
+                                SETTING(gui_show_annotation_export_options) = true;
+
+                                SceneManager::enqueue([message = std::move(message)](IMGUIBase*, DrawStructure& graph) {
+                                    graph.dialog(
+                                        "Export failed.\n\n" + settings::htmlify(message),
+                                        "Export Error",
+                                        "Okay"
+                                    );
+                                });
+                            };
+
+                            try {
+                                export_tag_annotations(TagDatasetConfig{.video_file = _video});
+                                //Print("Exported annotation dataset to ", summary.output_directory, ".");
+                                SETTING(gui_show_annotation_export_options) = false;
+                            } catch(const std::exception& e) {
+                                show_error(e.what());
+                            } catch(...) {
+                                show_error("Unknown annotation export error.");
+                            }
+                        });
                     })
                 };
 
@@ -287,8 +316,8 @@ struct DrawAnnotationExportOptions::Data {
     }
 };
 
-DrawAnnotationExportOptions::DrawAnnotationExportOptions()
-    : _data(new Data)
+DrawAnnotationExportOptions::DrawAnnotationExportOptions(std::shared_ptr<pv::File> video)
+    : _data(new Data(std::move(video)))
 {
 }
 

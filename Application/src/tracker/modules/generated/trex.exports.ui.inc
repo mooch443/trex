@@ -47,6 +47,8 @@ using ::cmn::gui::HUDRect;
 using ::cmn::gui::to_bowl;
 // ui/DrawAnnotationExportOptions.h
 using ::cmn::gui::DrawAnnotationExportOptions;
+// ui/DrawAnnotationImportOptions.h
+using ::cmn::gui::DrawAnnotationImportOptions;
 // ui/DrawBlobView.h
 using ::cmn::gui::Dropdown;
 using ::cmn::gui::SectionInterface;
@@ -185,11 +187,6 @@ export namespace cmn::gui::heatmap {
 using ::cmn::gui::heatmap::grid_t;
 }
 
-export namespace cmn::gui::terminal {
-// ui/Terminal.h
-using ::cmn::gui::terminal::open_terminal;
-}
-
 export namespace cmn::gui::tracker {
 // ui/DrawBlobView.h
 using ::cmn::gui::tracker::DisplayParameters;
@@ -216,6 +213,11 @@ using ::cmn::pattern::UnresolvedStringPattern;
 export namespace cmn::settings {
 // ui/SettingsInitializer.h
 using ::cmn::settings::write_config;
+}
+
+export namespace cmn::terminal {
+// ui/Terminal.h
+using ::cmn::terminal::open_terminal;
 }
 
 export namespace track {

@@ -712,12 +712,18 @@ void TrackingScene::settings_callback(std::string_view key) {
         auto stats = _data->_timing_stats;
         _data->_waiting_handle = std::make_unique<TimingStatsCollector::HandleGuard>(stats, stats->startEvent(TimingMetric_t::FrameWaiting, READ_SETTING(gui_frame, Frame_t)));
     }*/
-    if(key == "track_annotations") {
+    if(key == "track_annotations"
+       || key == "track_frame_tags")
+    {
         auto track_annotations = READ_SETTING_WITH_DEFAULT(track_annotations, track::AnnotationMap{});
+        auto track_frame_tags = READ_SETTING_WITH_DEFAULT(track_frame_tags, track::FrameTags{});
         
         static const std::string manual_annotations_foi_name = "annotated";
         std::set<FOI> fois;
         for(auto &[frame, annotations]: track_annotations) {
+            fois.emplace(frame, manual_annotations_foi_name, true, "Frame with manual annotations");
+        }
+        for(auto &[frame, tags] : track_frame_tags) {
             fois.emplace(frame, manual_annotations_foi_name, true, "Frame with manual annotations");
         }
 
@@ -1623,7 +1629,7 @@ void TrackingScene::_draw(DrawStructure& graph) {
 
     if(GUI_SETTINGS(gui_show_annotation_export_options)) {
         if(not _data->_annotation_export_options)
-            _data->_annotation_export_options = std::make_unique<DrawAnnotationExportOptions>();
+            _data->_annotation_export_options = std::make_unique<DrawAnnotationExportOptions>(_state->video);
         _data->_annotation_export_options->draw(graph);
 
     } else if(_data->_annotation_export_options) {

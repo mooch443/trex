@@ -24,13 +24,17 @@ struct TREX_EXPORT ModelConfig {
                 std::string model_path,
                 DetectResolution trained_resolution = {},
                 ObjectDetectionFormat::data::values output = ObjectDetectionFormat::none,
-                std::optional<KeypointFormat> keypoints = std::nullopt)
+                std::optional<KeypointFormat> keypoints = std::nullopt,
+                bool requires_exact_input_size = false,
+                bool try_optimize = false)
         : task(task),
           use_tracking(use_tracking),
+          try_optimize(try_optimize),
           model_path(std::move(model_path)),
           trained_resolution(trained_resolution),
           output_format(output),
-          keypoint_format(keypoints)
+          keypoint_format(keypoints),
+          requires_exact_input_size(requires_exact_input_size)
     {
         if(!yolo::is_valid_default_model(this->model_path)) {
             std::ifstream f(this->model_path.c_str());
@@ -45,8 +49,10 @@ struct TREX_EXPORT ModelConfig {
             "ModelConfig<task=" + Meta::toStr(static_cast<int>(task)) +
             " format=" + Meta::toStr(ObjectDetectionFormat::values.at((size_t)output_format)) +
             " use_tracking=" + Meta::toStr(use_tracking) +
+            " try_optimize=" + Meta::toStr(try_optimize) +
             " model_path='" + model_path +
-            "' trained_resolution=" + Meta::toStr(trained_resolution);
+            "' trained_resolution=" + Meta::toStr(trained_resolution) +
+            " requires_exact_input_size=" + Meta::toStr(requires_exact_input_size);
 
         if(keypoint_format) {
             s += " keypoints=" + Meta::toStr(keypoint_format->n_points) +
@@ -63,11 +69,13 @@ struct TREX_EXPORT ModelConfig {
 
     ModelTaskType task;
     bool use_tracking;
+    bool try_optimize{false};
     std::string model_path;
     DetectResolution trained_resolution;
     ObjectDetectionFormat::data::values output_format;
     detect::yolo::names::owner_map_t classes;
     std::optional<KeypointFormat> keypoint_format;
+    bool requires_exact_input_size;
 };
 
 struct TREX_EXPORT Rect {

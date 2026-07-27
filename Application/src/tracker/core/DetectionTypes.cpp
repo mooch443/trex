@@ -269,7 +269,8 @@ bool valid_model(const file::Path& path, const file::FilesystemInterface& fs) {
     if(is_default_model(path))
         return true;
     
-    if(fs.exists(path) && path.has_extension("pt"))
+    if(fs.exists(path)
+       && (path.has_extension("pt") || path.has_extension("pth")))
         return true;
     
     return false;
@@ -312,6 +313,10 @@ Size2 get_model_image_size() {
         
     } else if (detection_type() == ObjectDetectionType::yolo) {
         const auto region_resolution = READ_SETTING(region_resolution, track::detect::DetectResolution);
+
+        if(BOOL_SETTING(detect_requires_exact_input_size)) {
+            return Size2(detect_resolution.width, detect_resolution.height);
+        }
         
         Size2 size;
         const double ratio = double(meta_video_size.height) / double(meta_video_size.width);

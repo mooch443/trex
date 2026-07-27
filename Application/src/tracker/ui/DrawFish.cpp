@@ -11,7 +11,6 @@
 #include <gui/DrawBase.h>
 #include <tracking/DetectTag.h>
 #include <ui/GUICache.h>
-//#include <gui.h>
 #include <core/IdentifiedTag.h>
 #include <ui/Skelett.h>
 #include <tracking/Individual.h>

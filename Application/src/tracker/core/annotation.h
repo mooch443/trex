@@ -48,6 +48,18 @@ struct Annotation {
     static consteval std::string_view class_name() { return "Annotation"; }
 };
 
+struct AnnotationTypeCounts {
+    size_t boxes{0};
+    size_t segmentations{0};
+    size_t poses{0};
+    size_t total() const { return boxes + segmentations + poses; }
+};
+
+class AnnotationMap;
+
+AnnotationTypeCounts count_annotation_types(const AnnotationMap&);
+AnnotationMap filter_annotation_types(const AnnotationMap&, bool boxes, bool segmentations, bool poses);
+
 class AnnotationMap : public std::map<cmn::Frame_t, std::vector<Annotation>> {
 public:
     using Map_t = std::map<cmn::Frame_t, std::vector<Annotation>>;

@@ -39,7 +39,7 @@ TEST(FrameTagTest, RejectsSymbolsAndNamesWithoutLettersOrNumbers) {
 TEST(FrameTagTest, ValidatesAndRoundTripsLocalizedTags) {
     const Bounds bounds{10, 20, 30, 40};
     const FrameTag original{
-        .name = std::pair{bounds, std::string("review-later_2")}
+        .name = SpatialTag{bounds, std::string("review-later_2")}
     };
 
     const auto parsed = FrameTag::fromStr(original.toStr());
@@ -48,7 +48,7 @@ TEST(FrameTagTest, ValidatesAndRoundTripsLocalizedTags) {
     EXPECT_EQ(parsed.get_name(), "review-later_2");
 
     const FrameTag invalid{
-        .name = std::pair{bounds, std::string("[review]")}
+        .name = SpatialTag{bounds, std::string("[review]")}
     };
     EXPECT_THROW((void)FrameTag::fromStr(invalid.toStr()), std::exception);
 }

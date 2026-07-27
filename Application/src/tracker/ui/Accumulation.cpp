@@ -180,8 +180,11 @@ void apply_network(const std::shared_ptr<pv::File>& video_source) {
     
     ImageExtractor e{
         std::shared_ptr{video_source},
-        [](const Query& q)->bool {
-            return !q.basic->blob.split();
+        [](const Query& q) -> std::unique_ptr<AcceptedQuery> {
+            if(!q.basic->blob.split()) {
+                return std::make_unique<AcceptedQuery>();
+            }
+            return nullptr;
         },
         [&](std::vector<Result>&& results) {
             // partial_apply

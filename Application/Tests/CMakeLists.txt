@@ -91,6 +91,7 @@ if(NOT TREX_CONDA_PACKAGE_INSTALL)
     target_compile_definitions(test_headless_convert_exit PRIVATE
         -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}"
         -DTREX_TEST_EXECUTABLE="$<TARGET_FILE:${TREX_TEST_APP_TARGET}>"
+        -DTREX_PYTHON_EXECUTABLE="${PYTHON_EXECUTABLE}"
     )
     add_dependencies(test_headless_convert_exit ${TREX_TEST_APP_TARGET})
 
@@ -343,7 +344,7 @@ target_link_libraries(test_sam3promptpayload PUBLIC
 trex_link_static_python_impl(test_sam3promptpayload)
 
 target_link_libraries(test_annotation_exporter PUBLIC
-    trex_core
+    trex_tracking
     commons
     pv
 )

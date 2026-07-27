@@ -113,6 +113,11 @@ namespace trex_module_smoke::trex_ui::cmn::gui {
 using ::cmn::gui::DrawAnnotationExportOptions;
 }
 
+// ui/DrawAnnotationImportOptions.h
+namespace trex_module_smoke::trex_ui::cmn::gui {
+using ::cmn::gui::DrawAnnotationImportOptions;
+}
+
 // ui/DrawDataset.h
 namespace trex_module_smoke::trex_ui::cmn::gui {
 using ::cmn::gui::DrawDataset;
@@ -334,8 +339,8 @@ using ::cmn::gui::StartingScene;
 }
 
 // ui/Terminal.h
-namespace trex_module_smoke::trex_ui::cmn::gui::terminal {
-using ::cmn::gui::terminal::open_terminal;
+namespace trex_module_smoke::trex_ui::cmn::terminal {
+using ::cmn::terminal::open_terminal;
 }
 
 // ui/TimingStatsElement.h

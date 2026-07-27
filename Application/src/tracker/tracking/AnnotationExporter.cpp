@@ -3,6 +3,10 @@
 #include <thirdparty/fkYAML/node.hpp>
 #include <core/DetectionTypes.h>
 #include <misc/zipper.h>
+#include <tracking/ImageExtractor.h>
+#include <core/FrameTags.h>
+#include <tracking/IndividualManager.h>
+#include <core/idx_t.h>
 
 namespace track::annotation_export {
 namespace {
@@ -239,6 +243,242 @@ void append_yolo_metadata(YamlNode& yaml, const AnnotationMap& annotations, cons
 
 }
 
+struct CustomAcceptedQuery : public extract::AcceptedQuery {
+    std::set<FrameTag> tags;
+    CustomAcceptedQuery(std::set<FrameTag> tags) : tags(std::move(tags)) {}
+    ~CustomAcceptedQuery() {
+        Print("Destroyed");
+    }
+};
+
+void export_tag_annotations(TagDatasetConfig config) {
+    /// there are two types of annotations inside `track_frame_tags`:
+    ///     1. full-frame classification annotations
+    ///     2. localized annotations of behavior / some text label
+    /// these can be turned into:
+    ///     1. YOLO classification dataset
+    ///     2. overlapping, multi-label localized annotations
+    ///
+    /// first case is clear.
+    /// second case might require more thought. we can export surrounding frames as well, as a window for
+    /// training video-aware setups. "spatial-temporal action localization" is what this is called.
+    /// or a "tube" across time (tracklet/tubelet).
+    ///
+    /// The exported dataset consists of independent labeled training instances.
+    ///
+    /// Each instance contains:
+    ///     - a temporal window of tracklet images centered around the labeled frame(s),
+    ///       configured by `track_behavior_window(uint)` and subsampled by
+    ///       `track_behavior_window_step(uint)`
+    ///     - source metadata (individual id, source frame start/end, etc.),
+    ///       primarily for debugging and provenance
+    ///     - per-frame positions and optional derived metrics (e.g. motion or
+    ///       neighbor-related features)
+    ///     - one or more behavior labels together with their temporal range within
+    ///       the exported window (approximate ranges may later be converted into
+    ///       soft targets, e.g. Gaussian-distributed temporal labels)
+    ///
+    /// Each exported instance is self-contained and independent of all others.
+    ///
+    /// If the same label occurs for the same individual again within the `track_behavior_window`,
+    /// we should merge them.
+    ///
+    /// We should always export both dataset types, whenever there is data to support them.
+    /// Otherwise they are omitted. Terminal should state as much.
+    
+    auto track_frame_tags = READ_SETTING_WITH_DEFAULT(track_frame_tags, track::FrameTags{});
+    const auto track_behavior_window = READ_SETTING_WITH_DEFAULT(track_behavior_window, uchar(0));
+    const auto track_behavior_window_step = READ_SETTING_WITH_DEFAULT(track_behavior_window_step, uchar(1));
+    
+    // actual representation
+    struct Tags {
+        track::Idx_t fdx;
+        Frame_t source;
+        std::set<FrameTag> tags;
+        
+        std::string toStr() const {
+            return "("+source.toStr() + "," + Meta::toStr(tags)+")";
+        }
+    };
+    
+    Print("* original ", extract_keys(track_frame_tags));
+    
+    std::vector<std::tuple<Range<Frame_t>, std::vector<Tags>>> ranges;
+    for(auto &[frame, tags] : track_frame_tags) {
+        ranges.emplace_back(Range<Frame_t>{
+            frame.try_sub(Frame_t(track_behavior_window)),
+            frame + Frame_t(track_behavior_window) + 1_f
+        }, std::vector<Tags>{
+            Tags{.fdx = {}, .source = frame, .tags = tags}
+        });
+    }
+    
+    std::vector<Range<Frame_t>> keys;
+    for(auto &[range, tags] : ranges)
+        keys.push_back(range);
+    Print("* pre-merged ranges ", keys);
+    
+    for(size_t i = 0; i + 1 < ranges.size();) {
+        auto& [range, tags] = ranges.at(i);
+        auto&& [next, next_tags] = ranges.at(i + 1);
+        
+        if(range.overlaps(next)) {
+            // have to merge them
+            range.end = next.end;
+            tags.insert(tags.end(), next_tags.begin(), next_tags.end());
+            ranges.erase(ranges.begin() + (i + 1));
+        } else
+            ++i;
+    }
+    
+    keys.clear();
+    for(auto &[range, tags] : ranges)
+        keys.push_back(range);
+    Print("* merged ranges ", keys);
+    
+    // just the fast cached version
+    std::map<Idx_t, std::unordered_set<Frame_t>> selected;
+    for(auto &[range, tags_collection] : ranges) {
+        for(auto &coll : tags_collection) {
+            auto frame = coll.source;
+            for(auto &tag : coll.tags) {
+                if(tag.has_identity()) {
+                    auto bid = tag.get_identity();
+                    track::IndividualManager::transform_all([bid, frame, &coll, &tag](track::Idx_t fdx, const Individual* fish)
+                    {
+                        if(auto basic = fish->find_frame(frame);
+                            basic)
+                        {
+                            if(basic->blob.blob_id() == pv::bid(bid)) {
+                                if(coll.fdx.valid()
+                                   && coll.fdx != fdx)
+                                {
+                                    FormatWarning("Multiple individuals assigned to ", tag, ": ", coll.fdx, " and ", fdx);
+                                } else {
+                                    coll.fdx = fdx;
+                                }
+                            }
+                        }
+                    });
+                    
+                } else if(tag.has_location()) {
+                    auto bds = tag.get_location();
+                    track::IndividualManager::transform_all([bds, frame, &coll, &tag](track::Idx_t fdx, const Individual* fish)
+                    {
+                        if(auto basic = fish->find_frame(frame);
+                            basic)
+                        {
+                            if(bds.contains(basic->centroid.pos<Units::PX_AND_SECONDS>()))
+                            {
+                                if(coll.fdx.valid()
+                                   && coll.fdx != fdx)
+                                {
+                                    FormatWarning("Multiple individuals assigned to ", tag, ": ", coll.fdx, " and ", fdx);
+                                } else {
+                                    coll.fdx = fdx;
+                                }
+                            }
+                        }
+                    });
+                }
+            }
+        }
+    }
+    
+    std::unordered_map<Frame_t, std::set<FrameTag>> without_fdx;
+    for(auto& [range, collection] : ranges) {
+        for(auto &coll : collection) {
+            if(not coll.fdx.valid())
+                without_fdx[coll.source].insert(coll.tags.begin(), coll.tags.end());
+        }
+    }
+    Print("* did not find fdx for ", without_fdx, " (these are likely global properties)");
+    
+    using namespace extract;
+    uint8_t max_threads = 5u;
+    extract::Settings settings{
+        .flags = (uint32_t)Flag::RemoveSmallFrames,
+        .max_size_bytes = uint64_t((double)READ_SETTING_WITH_DEFAULT(gpu_max_cache, float(2)) * 1000.0 * 1000.0 * 1000.0 / double(max_threads)),
+        .image_size = READ_SETTING(individual_image_size, Size2),
+        .num_threads = max_threads,
+        .normalization = default_config::valid_individual_image_normalization()
+    };
+    
+    ImageExtractor e{
+        std::shared_ptr{config.video_file},
+        [&](const Query& q)->std::unique_ptr<AcceptedQuery> {
+            /// selector
+            for(auto& [range, collection] : ranges) {
+                if(not range.contains(q.basic->frame))
+                    continue;
+                for(auto &coll : collection) {
+                    if(coll.fdx.valid()
+                        && coll.fdx == q.fdx)
+                    {
+                        return std::make_unique<CustomAcceptedQuery>(coll.tags);
+                    } else {
+                        for(auto &tag : coll.tags) {
+                            if(tag.has_identity()) {
+                                if(auto bdx = pv::bid(tag.get_identity());
+                                   bdx == q.basic->blob.blob_id()
+                                   || bdx == q.basic->blob.parent_id)
+                                {
+                                    return std::make_unique<CustomAcceptedQuery>(coll.tags);
+                                }
+                                
+                            } else if(tag.has_location()) {
+                                if(auto bds = tag.get_location();
+                                   bds.contains(q.basic->centroid.pos<Units::PX_AND_SECONDS>()))
+                                {
+                                    return std::make_unique<CustomAcceptedQuery>(coll.tags);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            return nullptr;
+        },
+        [&](std::vector<Result>&& results) {
+            // partial_apply (chunked results)
+            std::vector<Image::Ptr> images;
+            images.reserve(results.size());
+            
+            for(auto &&r : results)
+                images.emplace_back(std::move(r.image));
+            
+            std::vector<Idx_t> ids; ids.reserve(results.size());
+            std::vector<Frame_t> frames;
+            for (auto &r : results) {
+                ids.push_back(r.fdx);
+                frames.push_back(r.frame);
+            }
+            
+            std::vector<std::set<FrameTag>> tags; tags.reserve(results.size());
+            for(auto &r : results) {
+                tags.push_back(std::move(static_cast<const CustomAcceptedQuery*>(r.query.get())->tags));
+            }
+            
+#ifndef NDEBUG
+            Print("ImageExtractor has ", images.size(), " images and ", results.size(), " results, ids ", ids.size(), ".");
+#endif
+        },
+        [](auto extractor, double percent, bool finished) {
+            // callback
+            if(finished) {
+                Print("[Apply] All done extracting. Overall pushed ", extractor->pushed_items());
+                
+            } else {
+                Print("[Apply] Percent: ", percent * 100, "%");
+            }
+        },
+        std::move(settings)
+    };
+    
+    e.future().get();
+}
+
+
 std::string frame_stem(Frame_t frame) {
     std::ostringstream ss;
     ss << "frame_" << std::setw(6) << std::setfill('0') << frame.get();
@@ -268,50 +508,6 @@ std::string build_frame_mapping_csv(const Options& options, const std::vector<Fr
     return text;
 }
 
-TypeCounts count_types(const AnnotationMap& annotations) {
-    TypeCounts counts;
-    for(const auto& [frame, frame_annotations] : annotations) {
-        (void)frame;
-        for(const auto& annotation : frame_annotations) {
-            switch(annotation.type) {
-                case AnnotationType::BOX:
-                    ++counts.boxes;
-                    break;
-                case AnnotationType::SEGMENTATION:
-                    ++counts.segmentations;
-                    break;
-                case AnnotationType::POSE:
-                    ++counts.poses;
-                    break;
-            }
-        }
-    }
-    return counts;
-}
-
-AnnotationMap filter_types(const AnnotationMap& annotations, bool boxes, bool segmentations, bool poses) {
-    AnnotationMap result;
-    for(const auto& [frame, frame_annotations] : annotations) {
-        std::vector<Annotation> kept;
-        for(const auto& annotation : frame_annotations) {
-            switch(annotation.type) {
-                case AnnotationType::BOX:
-                    if(boxes) kept.push_back(annotation);
-                    break;
-                case AnnotationType::SEGMENTATION:
-                    if(segmentations) kept.push_back(annotation);
-                    break;
-                case AnnotationType::POSE:
-                    if(poses) kept.push_back(annotation);
-                    break;
-            }
-        }
-        if(!kept.empty())
-            result.emplace(frame, std::move(kept));
-    }
-    return result;
-}
-
 std::vector<std::string> default_keypoint_names(const AnnotationMap& annotations, const std::vector<std::string>& configured_names) {
     size_t max_points = 0;
     for(const auto& [frame, frame_annotations] : annotations) {
@@ -338,7 +534,7 @@ Summary summarize(const Options& options, std::optional<Frame_t> source_length, 
         .format = options.format,
         .output_directory = options.output_directory,
         .annotated_frames = annotated_frames(options.annotations).size(),
-        .counts = count_types(options.annotations),
+        .counts = count_annotation_types(options.annotations),
         .keypoint_names = options.keypoint_names
     };
     summary.background_frames = background_count(summary.annotated_frames, options.background_percent);

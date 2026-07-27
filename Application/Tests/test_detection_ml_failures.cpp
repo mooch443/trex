@@ -125,8 +125,11 @@ public:
             model = root / "dummy.pt";
 
             write_text_file(root / "trex_init.py", "import TRex\n");
-            write_text_file(root / "trex_yolo.py", "# Module presence is required by the YOLO reload path.\n");
-            write_text_file(root / "trex_detection_model.py", "# Module presence is required by the YOLO reload path.\n");
+            write_text_file(root / "trex_yolo.py", "# Module presence is required by the detector reload path.\n");
+            write_text_file(root / "trex_detection_model.py", "# Module presence is required by the detector reload path.\n");
+            fs::create_hard_link(
+                root / "trex_detection_model.py",
+                root / "trex_rfdetr.py");
             write_text_file(model, "test model placeholder\n");
             write_bbx("return configs", "return [_empty_result(i) for i in range(_result_count(input))]");
 

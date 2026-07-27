@@ -4,7 +4,7 @@
 // core/AnnotationDataset.h
 namespace trex_module_smoke::trex_core::track::annotation_dataset {
 using ::track::annotation_dataset::clean_filename_suffix;
-using ::track::annotation_dataset::Format;
+using ::track::annotation_dataset::format_from_dataset_file;
 using ::track::annotation_dataset::normalize_source_name;
 using ::track::annotation_dataset::source_basename_from_paths;
 using ::track::annotation_dataset::source_prefix_candidates;
@@ -12,22 +12,6 @@ using ::track::annotation_dataset::source_prefix_candidates;
 
 namespace trex_module_smoke::trex_core::track::annotation_dataset::format_t {
 using ::track::annotation_dataset::format_t::Class;
-}
-
-// core/AnnotationExporter.h
-namespace trex_module_smoke::trex_core::track::annotation_export {
-using ::track::annotation_export::Options;
-using ::track::annotation_export::Summary;
-using ::track::annotation_export::TypeCounts;
-using ::track::annotation_export::annotation_to_yolo;
-using ::track::annotation_export::build_coco_json;
-using ::track::annotation_export::build_frame_mapping_csv;
-using ::track::annotation_export::default_keypoint_names;
-using ::track::annotation_export::export_dataset;
-using ::track::annotation_export::Format;
-using ::track::annotation_export::frame_stem;
-using ::track::annotation_export::sample_background_frames;
-using ::track::annotation_export::summarize;
 }
 
 // core/BackgroundTask.h
@@ -96,6 +80,11 @@ namespace trex_module_smoke::trex_core::track::vi {
 using ::track::vi::VIWeights;
 }
 
+// core/FrameTags.h
+namespace trex_module_smoke::trex_core::track {
+using ::track::FrameTags;
+}
+
 // core/FOI.h
 namespace trex_module_smoke::trex_core::track {
 using ::track::FOI;
@@ -121,6 +110,30 @@ using ::track::Identity;
 // core/idx_t.h
 namespace trex_module_smoke::trex_core::track {
 using ::track::Idx_t;
+}
+
+// core/TerminalProgress.h
+namespace trex_module_smoke::trex_core::cmn::terminal::progress {
+using ::cmn::terminal::progress::ConsoleCursorGuard;
+using ::cmn::terminal::progress::ProgressBar;
+using ::cmn::terminal::progress::ProgressBarConfig;
+using ::cmn::terminal::progress::advance_progress_bar_spinner;
+using ::cmn::terminal::progress::clean_progress_status;
+using ::cmn::terminal::progress::finish_progress_bar_line;
+using ::cmn::terminal::progress::interval;
+using ::cmn::terminal::progress::interval_seconds;
+using ::cmn::terminal::progress::make_progress_bar;
+using ::cmn::terminal::progress::print_progress_bar_line;
+using ::cmn::terminal::progress::restore_cursor_newline;
+using ::cmn::terminal::progress::spinner_states;
+}
+
+namespace trex_module_smoke::trex_core::cmn::terminal::progress::detail {
+using ::cmn::terminal::progress::detail::clear_progress_line;
+using ::cmn::terminal::progress::detail::hide_cursor;
+using ::cmn::terminal::progress::detail::progress_duration_text;
+using ::cmn::terminal::progress::detail::restore_cursor;
+using ::cmn::terminal::progress::detail::spinner_state;
 }
 
 // core/GPURecognitionTypes.h
@@ -197,4 +210,7 @@ namespace trex_module_smoke::trex_core::track {
 using ::track::Annotation;
 using ::track::AnnotationMap;
 using ::track::AnnotationType;
+using ::track::AnnotationTypeCounts;
+using ::track::count_annotation_types;
+using ::track::filter_annotation_types;
 }

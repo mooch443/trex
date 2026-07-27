@@ -3,7 +3,6 @@
 
 #include <core/AbstractVideoSource.h>
 #include <core/AnnotationDataset.h>
-#include <core/AnnotationExporter.h>
 #include <core/BaslerVideoSource.h>
 #include <core/BackgroundTask.h>
 #include <core/BlurryVideoLoop.h>
@@ -11,11 +10,13 @@
 #include <core/default_config.h>
 #include <core/DetectionImageTypes.h>
 #include <core/DetectionTypes.h>
+#include <core/FrameTags.h>
 #include <core/FOI.h>
 #include <core/IdentifiedTag.h>
 #include <core/Identity.h>
 #include <core/idx_t.h>
 #include <core/indicators.h>
+#include <core/TerminalProgress.h>
 #include <core/GPURecognitionTypes.h>
 #include <core/NetworkStats.h>
 #include <core/PVVideoSource.h>

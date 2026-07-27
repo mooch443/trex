@@ -328,7 +328,7 @@
                                 "var":"{machine_learning}",
                                 "then": {
                                     "type":"gridlayout",
-                                    "pad":[0,0,15,0],
+                                    "pad":[0,0,5,0],
                                     "cellfillclr":[60,60,60,150],
                                     "celllineclr":[100,100,100,50],
                                     "cellfillinterval":2,
@@ -337,7 +337,8 @@
                                             {
                                                 "type":"stext",
                                                 "text":"<b>IOU Threshold</b>\n<gray>Max. object overlap.</gray>",
-                                                "pad":[10,3,10,4]
+                                                "pad":[10,3,10,4],
+                                                "max_size":"[{-:{inside_label_w}:20},0]"
                                             },
                                             {
                                                 "type":"settings",
@@ -359,12 +360,36 @@
                                             {
                                                 "type":"stext",
                                                 "text":"<b>Confidence threshold</b>\n<gray>Minimum detect confidence.</gray>",
-                                                "pad":[10,3,10,4]
+                                                "pad":[10,3,10,4],
+                                                "max_size":"[{-:{inside_label_w}:20},45]"
+                                            },
+                                            {
+                                                "type":"settings",
+                                                "corners":["topright"],
+                                                "var":"detect_conf_threshold",
+                                                "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                                                "list":{
+                                                    "line":[220,220,220,200],
+                                                    "fill":[25,25,25,220],
+                                                    "size":"[{element_w},200]",
+                                                    "font":{"size":0.6},
+                                                    "color":[255,255,255]
+                                                },
+                                                "size":"[{max:50:{*:{textfield_w}:0.1}},45]",
+                                                "desc":""
+                                            },
+
+                                            {
+                                                "type":"stext",
+                                                "text":"<b>Keypoint threshold</b>\n<gray>Minimum pose-point confidence.</gray>",
+                                                "pad":[10,3,10,4],
+                                                "max_size":"[{-:{inside_label_w}:20},45]"
                                             },
                                             {
                                                 "type":"settings",
                                                 "corners":["right"],
-                                                "var":"detect_conf_threshold",
+                                                "var":"detect_keypoint_threshold",
                                                 "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
                                                 "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
                                                 "list":{
@@ -381,17 +406,49 @@
 
 
                                         [
+                                            
+
                                             {
                                                 "type":"stext",
                                                 "text":"<b>Acceptable Sizes</b>\n<gray>Min./max. object sizes.</gray>",
                                                 "pad":[10,0,0,0],
                                                 "origin":[0,0.5], "pos":[0,20],
-                                                "max_size":"[{-:{inside_label_w}:20},0]"
+                                                "max_size":"[{-:{inside_label_w}:20},45]"
                                             },
                                             {
                                                 "type":"settings",
                                                 "corners":["bottomright"],
                                                 "var":"detect_size_filter",
+                                                "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                                                "size":"[{max:50:{*:{textfield_w}:0.1}},45]",
+                                                "desc":""
+                                            },
+
+                                            {
+                                                "type":"stext",
+                                                "text":"<b>Try optimization</b>\n<gray>Let models try their faster load path.</gray>",
+                                                "pad":[10,3,10,4],
+                                                "max_size":"[{-:{inside_label_w}:20},45]"
+                                            },
+                                            {
+                                                "type":"settings",
+                                                "corners":["bottomright"],
+                                                "var":"detect_try_optimize_model",
+                                                "label":{
+                                                    "corners":["bottomright"],
+                                                    "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,250]}",
+                                                    "fill":"{if:{||:{selected}:{hovered}}:[10,80,110,240]:[10,50,80,240]}",
+                                                    "font":{"size":0.65},
+                                                    "color":[255,255,255]
+                                                },
+                                                "list":{
+                                                    "line":[220,220,220,200],
+                                                    "fill":[25,25,25,220],
+                                                    "size":"[{element_w},200]",
+                                                    "font":{"size":0.6},
+                                                    "color":[255,255,255]
+                                                },
                                                 "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
                                                 "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
                                                 "size":"[{max:50:{*:{textfield_w}:0.1}},45]",
@@ -488,7 +545,7 @@
                                                 "size":0.8,
                                                 "style":"bold"
                                             },
-                                            "action": "choose-file:detect_model:{folder:{detect_model}}:model file:*.pt"
+                                            "action": "choose-file:detect_model:{folder:{detect_model}}:model file:*.pt *.pth"
                                         }
                                     ]
                                 },
@@ -692,7 +749,7 @@
                                                 "size":0.8,
                                                 "style":"bold"
                                             },
-                                            "action": "choose-file:region_model:{folder:{region_model}}:model file:*.pt"
+                                            "action": "choose-file:region_model:{folder:{region_model}}:model file:*.pt *.pth"
                                         }
                                     }
                                 ]

@@ -88,7 +88,7 @@ class DetectionModel:
             if device_from_settings == "automatic":
                 device_from_settings = ""
             else:
-                device_index = eval(TRex.setting("gpu_torch_device_index"))
+                device_index = int(TRex.setting("gpu_torch_device_index"))
                 if device_index >= 0:
                     device_from_settings = f"{device_from_settings}:{device_index}"
                 print(f"Using device {device_from_settings} from settings for {self}.")
@@ -124,6 +124,19 @@ class DetectionModel:
         """
 
         TRex.log("Loaded model: {}".format(self))
+
+    def preprocess_image(self, image: Image) -> np.ndarray:
+        """
+        Convert one C++ detector image to the array expected by this backend.
+
+        Ultralytics expects BGR numpy inputs and performs its own BGR-to-RGB
+        conversion. The existing TRex path therefore swaps the RGB(A) video
+        buffer here before handing it to YOLO.
+        """
+        return cv2.cvtColor(
+            trex_utils.asarray(image, copy=False),
+            cv2.COLOR_BGR2RGB,
+        )
 
     def predict_boxes(self, images: List[np.ndarray], **kwargs) -> List[BBox]:
         """
@@ -406,7 +419,7 @@ class TRexDetection:
 
     def preprocess(self, images : List[Image]):
         """
-        Preprocesses an input list of images by converting each image from BGR color space to RGB.
+        Preprocess input images according to the selected detector backend.
 
         Parameters:
         images (list): Input list of images
@@ -414,7 +427,19 @@ class TRexDetection:
         Returns:
         list: A list of preprocessed images
         """
-        return [cv2.cvtColor(trex_utils.asarray(i, copy=False), cv2.COLOR_BGR2RGB) for i in images]
+        selected_model = self.detection_model()
+        preprocess_image = getattr(selected_model, "preprocess_image", None)
+        if preprocess_image is None:
+            # Preserve the historical behavior for test doubles and external
+            # DetectionModel implementations which predate this hook.
+            return [
+                cv2.cvtColor(
+                    trex_utils.asarray(image, copy=False),
+                    cv2.COLOR_BGR2RGB,
+                )
+                for image in images
+            ]
+        return [preprocess_image(image) for image in images]
 
     def inference(self, input, max_det = 1000, conf_threshold=0.1, iou_threshold: Optional[float] = None) -> list[TRex.Result]:
         """

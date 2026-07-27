@@ -83,15 +83,14 @@ class FakeTRexModule(types.ModuleType):
         self.KeypointData = CapturedKeypoints
         self.ObbData = CapturedObbs
         self.PointData = CapturedPoints
-
-    @staticmethod
-    def setting(name: str) -> str:
-        settings = {
+        self.settings = {
             "gpu_torch_device": "",
             "gpu_torch_device_index": "-1",
             "detect_point_radii": "{}",
         }
-        return settings[name]
+
+    def setting(self, name: str):
+        return self.settings[name]
 
     @staticmethod
     def log(message: str) -> None:
@@ -244,6 +243,15 @@ class TrexDetectionModelEdgeCaseTest(unittest.TestCase):
 
     def make_detection(self, responses):
         return self.module.TRexDetection([FakeDetectionModel(responses)])
+
+    def test_device_index_accepts_typed_setting_from_cpp(self):
+        fake_trex = sys.modules["TRex"]
+        fake_trex.settings["gpu_torch_device"] = "cpu"
+        fake_trex.settings["gpu_torch_device_index"] = -1
+
+        model = self.module.DetectionModel(FakeModelConfig())
+
+        self.assertEqual(model.device.type, "cpu")
 
     def assert_downstream_ready_empty_results(self, results, expected_count: int):
         self.assertEqual(

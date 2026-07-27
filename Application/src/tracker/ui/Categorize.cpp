@@ -308,8 +308,14 @@ void start_applying(std::weak_ptr<pv::File> video_source) {
     if(not ptr)
         throw InvalidArgumentException("No valid pointer to video source.");
     
-    ImageExtractor(std::move(ptr), [normalize](const Query& q) -> bool {
-        return !q.basic->blob.split() && (normalize != default_config::individual_image_normalization_t::posture || q.posture) && not DataStore::_label_unsafe(q.basic->frame, q.basic->blob.blob_id()).has_value();
+    ImageExtractor(std::move(ptr), [normalize](const Query& q) -> std::unique_ptr<AcceptedQuery> {
+        if(!q.basic->blob.split()
+           && (normalize != default_config::individual_image_normalization_t::posture || q.posture)
+           && not DataStore::_label_unsafe(q.basic->frame, q.basic->blob.blob_id()).has_value())
+        {
+            return std::make_unique<AcceptedQuery>();
+        }
+        return nullptr;
         
     }, [](std::vector<Result>&& results) {
 #ifndef NDEBUG
