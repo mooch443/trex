@@ -200,7 +200,6 @@ MANUAL_SYMBOL_EXCLUSIONS = {
     ("gui/DrawSFBase.h", "cmn::gui::SpriteWithTexture"): "sfml_build_gated",
     ("gui/DrawSFBase.h", "cmn::gui::SpriteWithRenderTexture"): "sfml_build_gated",
     ("gui/DrawSFBase.h", "cmn::gui::SFBase"): "sfml_build_gated",
-    ("gui/HttpClient.h", "cmn::gui::HttpClient"): "http_build_gated",
     ("gui/LabeledField.h", "cmn::gui::has_set"): "wrong_namespace_parser_artifact",
     ("gui/dyn/Context.h", "cmn::gui::dyn::COMMONS_EXPORT"): "export_macro_parser_artifact",
     ("gui/dyn/Context.h", "cmn::gui::dyn::detail::local_setting_from_json"): "internal_detail_helper",
@@ -894,7 +893,7 @@ def generate_smoke_file(module_name: str, inventory: dict) -> str:
         "",
     ]
     if module_name == "commons.http":
-        lines.append("#if WITH_MHD")
+        lines.append("#if COMMONS_HAS_HTTPD")
         lines.append("")
     namespace_name = module_name.replace(".", "_")
     current_guard: tuple[str, str] | None = None
@@ -1007,9 +1006,6 @@ def generate_include_file(module_name: str, inventory: dict) -> str:
         if any(excluded["kind"] == "header" and excluded["reason"] == MODULE_HEADER_EXCLUSIONS.get(header["path"]) for excluded in header["excluded"]):
             continue
         include_lines = [f"#include <{header['path']}>"]
-        if header["path"] == "http/httpd.h":
-            include_lines = ["#if WITH_MHD", *include_lines, "#endif"]
-
         guard = PLATFORM_HEADER_GUARDS.get(header["path"])
         if guard is not None:
             include_lines = [guard[0], *include_lines, guard[1]]

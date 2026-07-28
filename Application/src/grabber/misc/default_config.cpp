@@ -98,7 +98,7 @@ namespace default_config {
         CONFIG("detect_threshold", int(15), "Threshold to be applied to the input image to find blobs.");
         CONFIG("threshold_maximum", int(255), "");
         
-        CONFIG("web_quality", int(75), "Quality for images transferred over the web interface (0-100).");
+        CONFIG("web_quality", int(75), "Quality for images transferred over the web interface (0-100).", STARTUP);
         CONFIG("save_raw_movie", false, "Saves a RAW movie (.mov) with a similar name in the same folder, while also recording to a PV file. This might reduce the maximum framerate slightly, but it gives you the best of both worlds.", INIT);
         CONFIG("save_raw_movie_path", file::Path(), "The path to the raw movie file. If empty, the same path as the PV file will be used (but as a .mov).", INIT);
         

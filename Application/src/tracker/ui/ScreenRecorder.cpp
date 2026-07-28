@@ -380,6 +380,10 @@ void ScreenRecorder::update_recording(Image::Ptr&& image, Base *base, Frame_t fr
 }
 
 void ScreenRecorder::start_recording(Base*base, Frame_t frame) {
+    auto native = dynamic_cast<IMGUIBase*>(base);
+    if(not native)
+        throw InvalidArgumentException("Screen recording requires a native GUI window and is unavailable in browser-only mode.");
+
     _data->start_recording(base, frame);
     
     Frame_t video_length;
@@ -401,7 +405,7 @@ void ScreenRecorder::start_recording(Base*base, Frame_t frame) {
         };
     }
     
-    ((IMGUIBase*)base)->platform()->set_frame_buffer_receiver([this, base, video_length, current_frame](Image::Ptr&& image){
+    native->platform()->set_frame_buffer_receiver([this, base, video_length, current_frame](Image::Ptr&& image){
         update_recording(std::move(image), base, current_frame(), video_length);
     });
 }

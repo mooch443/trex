@@ -367,7 +367,7 @@ struct DrawAnnotationImportOptions::Data {
                         WorkProgress::add_queue("Importing annotations...", [options, apply_metadata, scope]() {
                             auto show_error = [](std::string message) {
                                 SETTING(gui_show_annotation_import_options) = true;
-                                SceneManager::enqueue([message = std::move(message)](IMGUIBase*, DrawStructure& graph) {
+                                SceneManager::enqueue([message = std::move(message)](Base*, DrawStructure& graph) {
                                     graph.dialog(
                                         "Annotation import failed.\n\n" + settings::htmlify(message),
                                         "Import Error",

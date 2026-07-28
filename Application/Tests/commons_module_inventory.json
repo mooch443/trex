@@ -460,6 +460,42 @@
       ]
     },
     {
+      "excluded": [],
+      "module": "commons.misc",
+      "path": "misc/FrameTag.h",
+      "sha256": "dcaae56bbd19be75d7249746c60bac1105a0d85d45c457e219b7a492b458d8e2",
+      "symbols": [
+        {
+          "kind": "struct",
+          "name": "IdentifiedTag",
+          "namespace": "cmn",
+          "qualified": "cmn::IdentifiedTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "SpatialTag",
+          "namespace": "cmn",
+          "qualified": "cmn::SpatialTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "SimpleTag",
+          "namespace": "cmn",
+          "qualified": "cmn::SimpleTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "FrameTag",
+          "namespace": "cmn",
+          "qualified": "cmn::FrameTag",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
       "excluded": [
         {
           "header": "misc/GlobalSettings.h",
@@ -2503,7 +2539,7 @@
       "excluded": [],
       "module": "commons.misc",
       "path": "misc/vec2.h",
-      "sha256": "02f97cd6604556e035c3daeaf233ab82696b5329cc6a199f548008ce2236708c",
+      "sha256": "904679acaefd8fd3eea88cf2e5d8dff314ac404928b2d9f49fa3cd0849d91716",
       "symbols": [
         {
           "kind": "alias",
@@ -3286,8 +3322,207 @@
     {
       "excluded": [],
       "module": "commons.gui",
+      "path": "gui/BrowserBase.h",
+      "sha256": "33c99a2fc8ab986c43e2d789c16a2f0adc2d4eebf60cd67a1c273b75a47e8596",
+      "symbols": [
+        {
+          "kind": "struct",
+          "name": "EncodedImage",
+          "namespace": "cmn::gui::browser",
+          "qualified": "cmn::gui::browser::EncodedImage",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "encode_image",
+          "namespace": "cmn::gui::browser",
+          "qualified": "cmn::gui::browser::encode_image",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "logical_viewport_size",
+          "namespace": "cmn::gui::browser",
+          "qualified": "cmn::gui::browser::logical_viewport_size",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "font_face_style",
+          "namespace": "cmn::gui::browser",
+          "qualified": "cmn::gui::browser::font_face_style",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "BrowserBaseConfig",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::BrowserBaseConfig",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "BrowserBase",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::BrowserBase",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.gui",
+      "path": "gui/BrowserProtocol.h",
+      "sha256": "e5599a66a55d89d82942a5cd287d0b5e3e5bbc413caae1b47ed48de852bac91e",
+      "symbols": [
+        {
+          "kind": "variable",
+          "name": "x58525442",
+          "namespace": "cmn::gui::browser",
+          "qualified": "cmn::gui::browser::x58525442",
+          "smoke": "using"
+        },
+        {
+          "kind": "variable",
+          "name": "protocol_version",
+          "namespace": "cmn::gui::browser",
+          "qualified": "cmn::gui::browser::protocol_version",
+          "smoke": "using"
+        },
+        {
+          "kind": "enum_class",
+          "name": "MessageType",
+          "namespace": "cmn::gui::browser",
+          "qualified": "cmn::gui::browser::MessageType",
+          "smoke": "using"
+        },
+        {
+          "kind": "enum_class",
+          "name": "PrimitiveKind",
+          "namespace": "cmn::gui::browser",
+          "qualified": "cmn::gui::browser::PrimitiveKind",
+          "smoke": "using"
+        },
+        {
+          "kind": "enum_class",
+          "name": "InputKind",
+          "namespace": "cmn::gui::browser",
+          "qualified": "cmn::gui::browser::InputKind",
+          "smoke": "using"
+        },
+        {
+          "kind": "enum",
+          "name": "Modifier",
+          "namespace": "cmn::gui::browser",
+          "qualified": "cmn::gui::browser::Modifier",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "ImageJob",
+          "namespace": "cmn::gui::browser",
+          "qualified": "cmn::gui::browser::ImageJob",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "FrameUpdate",
+          "namespace": "cmn::gui::browser",
+          "qualified": "cmn::gui::browser::FrameUpdate",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "InputPacket",
+          "namespace": "cmn::gui::browser",
+          "qualified": "cmn::gui::browser::InputPacket",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "ClientMessage",
+          "namespace": "cmn::gui::browser",
+          "qualified": "cmn::gui::browser::ClientMessage",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "SceneEncoder",
+          "namespace": "cmn::gui::browser",
+          "qualified": "cmn::gui::browser::SceneEncoder",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "image_message",
+          "namespace": "cmn::gui::browser",
+          "qualified": "cmn::gui::browser::image_message",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "clients_message",
+          "namespace": "cmn::gui::browser",
+          "qualified": "cmn::gui::browser::clients_message",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "error_message",
+          "namespace": "cmn::gui::browser",
+          "qualified": "cmn::gui::browser::error_message",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "decode_client_message",
+          "namespace": "cmn::gui::browser",
+          "qualified": "cmn::gui::browser::decode_client_message",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "browser_key_code",
+          "namespace": "cmn::gui::browser",
+          "qualified": "cmn::gui::browser::browser_key_code",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.gui",
+      "path": "gui/BrowserTransport.h",
+      "sha256": "24560cc20e3d570ad67690e6b282e7ca756e2eb5f3fdabcd0c17ee8fb4dca888",
+      "symbols": [
+        {
+          "kind": "struct",
+          "name": "Asset",
+          "namespace": "cmn::gui::browser",
+          "qualified": "cmn::gui::browser::Asset",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "TransportConfig",
+          "namespace": "cmn::gui::browser",
+          "qualified": "cmn::gui::browser::TransportConfig",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "BrowserTransport",
+          "namespace": "cmn::gui::browser",
+          "qualified": "cmn::gui::browser::BrowserTransport",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.gui",
       "path": "gui/ControlsAttributes.h",
-      "sha256": "06afa9376918bfdbd3465260393bf8e3b3f3b8ffbc482a8ce6034510834aafeb",
+      "sha256": "4a1c6dd163055c84e033d27c8266ef718b1499b6bf5fb040e5b190e964ac38d2",
       "symbols": [
         {
           "kind": "alias",
@@ -3599,6 +3834,20 @@
         },
         {
           "kind": "alias",
+          "name": "PointerEvents",
+          "namespace": "cmn::gui::attr",
+          "qualified": "cmn::gui::attr::PointerEvents",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "PointerEventsTag",
+          "namespace": "cmn::gui::attr",
+          "qualified": "cmn::gui::attr::PointerEventsTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
           "name": "Radius",
           "namespace": "cmn::gui::attr",
           "qualified": "cmn::gui::attr::Radius",
@@ -3796,7 +4045,7 @@
       "excluded": [],
       "module": "commons.gui",
       "path": "gui/DrawBase.h",
-      "sha256": "9d0937e3aceaeb30261f90e230a2bb42a8115f992643d207b9a702d96f373af9",
+      "sha256": "9d3ba1156bb6df6e28fa36ad056b48d6c071372ae27a3c45d6fccdcf7d707b39",
       "symbols": [
         {
           "kind": "typedef",
@@ -3930,7 +4179,7 @@
       "excluded": [],
       "module": "commons.gui",
       "path": "gui/DrawStructure.h",
-      "sha256": "af373dc05c77db0b5c719450bec32c273390a6efdc0d610d2feccb5d39c56274",
+      "sha256": "ec1310811bcfba0eed0e999388db1d401255ea1a55726d542476c3e8e2395c06",
       "symbols": [
         {
           "kind": "function",
@@ -4145,8 +4394,15 @@
       "excluded": [],
       "module": "commons.gui",
       "path": "gui/Event.h",
-      "sha256": "a710abdbf5991f97c7a3e0f956c4a55de8e791b7afcd70d98410e5f1e0bf0cb9",
+      "sha256": "102691fbf5b5e50a96c3e08b3ae4bbbf012e01b87879dec808e3da3b982f683f",
       "symbols": [
+        {
+          "kind": "class",
+          "name": "Events",
+          "namespace": "cmn::gui::pointer",
+          "qualified": "cmn::gui::pointer::Events",
+          "smoke": "using"
+        },
         {
           "kind": "enum",
           "name": "Codes",
@@ -4267,13 +4523,13 @@
       "excluded": [],
       "module": "commons.gui",
       "path": "gui/GUITaskQueue.h",
-      "sha256": "cf1bfdb771dafa28e6d120f4fcf72533f8115e15ff95faf797d0e0aef69bbbd6",
+      "sha256": "b60502a6e618a34d8b6e194fc0dd12124c2b4d27355064b9e33c939f78fd8bdd",
       "symbols": [
         {
           "kind": "class",
-          "name": "IMGUIBase",
+          "name": "Base",
           "namespace": "cmn::gui",
-          "qualified": "cmn::gui::IMGUIBase",
+          "qualified": "cmn::gui::Base",
           "smoke": "using"
         },
         {
@@ -4451,30 +4707,16 @@
     {
       "excluded": [
         {
-          "header": "gui/HttpClient.h",
-          "kind": "symbol",
-          "name": "cmn::gui::HttpClient",
-          "reason": "http_build_gated"
-        }
-      ],
-      "module": "commons.gui",
-      "path": "gui/HttpClient.h",
-      "sha256": "d9d9cde42557aba7f307793e0a523e9489cc1e63be3fcfda7c7edd9180ddab3b",
-      "symbols": []
-    },
-    {
-      "excluded": [
-        {
           "header": "gui/IMGUIBase.h",
           "kind": "group",
-          "line": "43",
+          "line": "44",
           "name": "cmn::gui::Effects::helpers",
           "reason": "internal_linkage_enum_helpers"
         }
       ],
       "module": "commons.gui",
       "path": "gui/IMGUIBase.h",
-      "sha256": "f7cb69010a28a61456638cfc0d85af147373f28eae3b2f5928e313cac0d60815",
+      "sha256": "34f5c88e62b8f6c44b9b5ccaf51b87275edadecd504b476721fd3090281635f0",
       "symbols": [
         {
           "kind": "enum_class",
@@ -4540,7 +4782,7 @@
       "excluded": [],
       "module": "commons.gui",
       "path": "gui/ListAttributes.h",
-      "sha256": "d2d231ed5296f8d5c506c63af56e141bbc513aee1fcbe2ff64555b4e8d124634",
+      "sha256": "8c070b2239d274405f50df4f443a629397013cf47f43b70697b6031b19b0e013",
       "symbols": [
         {
           "kind": "alias",
@@ -4782,6 +5024,20 @@
         },
         {
           "kind": "alias",
+          "name": "ListCornerFlags",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::ListCornerFlags",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "ListCornerFlagsTag",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::ListCornerFlagsTag",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
           "name": "LabelLineColor_t",
           "namespace": "cmn::gui",
           "qualified": "cmn::gui::LabelLineColor_t",
@@ -4879,7 +5135,7 @@
       "excluded": [],
       "module": "commons.gui",
       "path": "gui/ParseLayoutTypes.h",
-      "sha256": "1033c161f674c650b690f2b4b3dd334b2a3db36561c72018ecbc10188e1a90b8",
+      "sha256": "4d539bed15c8268f1af79abfcbe116609987455b94b6dd40e295dcc74e942d90",
       "symbols": [
         {
           "kind": "function",
@@ -4950,6 +5206,49 @@
     {
       "excluded": [],
       "module": "commons.gui",
+      "path": "gui/RenderTraversal.h",
+      "sha256": "5c8d800854c13e24a0cd53351f6d5ffd1c58f2571e20538a6dfc4e6a1cfd8748",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "DrawStructure",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::DrawStructure",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "Drawable",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::Drawable",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "RenderCommand",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::RenderCommand",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "RenderTraversalOptions",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::RenderTraversalOptions",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "RenderTraversal",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::RenderTraversal",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "commons.gui",
       "path": "gui/SFLoop.h",
       "sha256": "adc1bc1c60b4c5b551bb3771fc6dd2ed693154b1a6547c5787dce4ac3c4e4c03",
       "symbols": [
@@ -4981,7 +5280,7 @@
       "excluded": [],
       "module": "commons.gui",
       "path": "gui/Section.h",
-      "sha256": "1f224f40a280a1d9d9f585a8f34890421386cfd9c1f6de2a23438eae4c3bc2b8",
+      "sha256": "3cbbabd48e36dd8b025c9117f8aecf3dd0973e2203af94036cb3a145cbcbab2e",
       "symbols": [
         {
           "kind": "class",
@@ -5109,7 +5408,7 @@
       ],
       "module": "commons.gui.dyn",
       "path": "gui/dyn/Context.h",
-      "sha256": "60c24df820a75f164dc4f5e034f366cbb46da2c69a01790015a557975e36caf5",
+      "sha256": "e8e2be7ffc663dd40fd1c08e779a0428f5f89c03f82eae903999622f3a7dad5a",
       "symbols": [
         {
           "kind": "class",
@@ -5500,7 +5799,7 @@
       "excluded": [],
       "module": "commons.gui.dyn",
       "path": "gui/dyn/binders.h",
-      "sha256": "56aac32cb147ec9a5db30e0fb1073169bb410df9d1f223aed1c18ae2f4321b5c",
+      "sha256": "a0dad347debb53dbb6491d8bec8ff26da52a3a40b10c0568ccd8cf1cb60ec5ec",
       "symbols": [
         {
           "kind": "function_template",
@@ -5645,7 +5944,7 @@
       ],
       "module": "commons.gui",
       "path": "gui/types/Drawable.h",
-      "sha256": "d97b0529f361e9cda96b8a3da4511598d7c83e735d0554644370498bc1047e9e",
+      "sha256": "5a610ae9f436c7f8a6a543449699fb47384d67ae6c76d0e772109616e4f011cc",
       "symbols": [
         {
           "kind": "enum_class",
@@ -5738,7 +6037,7 @@
       "excluded": [],
       "module": "commons.gui",
       "path": "gui/types/Dropdown.h",
-      "sha256": "d3960946dd5382e67a388bf047697abe2b1ddf6fd3790b3c4f8076ab9b7336f3",
+      "sha256": "ac7379e09cf68da1f9ac0c85018df550a6738547a9e710d2e05a4d8e0be888d7",
       "symbols": [
         {
           "kind": "struct",
@@ -5767,7 +6066,7 @@
       ],
       "module": "commons.gui",
       "path": "gui/types/Entangled.h",
-      "sha256": "8b6e642f3dc406f15809b9f8c9dcab3ee62dfd12cf13be72d050bd124da43aa7",
+      "sha256": "0d84fe4de6ea32377a2777b6579970e6d48284b0e4f88e33e4086095d72f4008",
       "symbols": [
         {
           "kind": "enum_class",
@@ -6103,7 +6402,7 @@
       "excluded": [],
       "module": "commons.gui",
       "path": "gui/types/ScrollableList.h",
-      "sha256": "177b0f8b634982d8e01eb7defde600656f78c6d6be11dbb6f2a9d737f84df087",
+      "sha256": "ab012867a6db669e6e36d2323a06a03ca3c080082964c88f19c9bff0dc3a02ae",
       "symbols": [
         {
           "kind": "concept",
@@ -6264,7 +6563,7 @@
       "excluded": [],
       "module": "commons.gui",
       "path": "gui/types/TagList.h",
-      "sha256": "99fce5259e7b2816b5cf01e0669736a1d2dadc9fa905c7388f712f8cb4ac4338",
+      "sha256": "328a49bdf8aa7ce3083172f4a6f9173872f5dd2fe11eb02e412843a9f4ddd84e",
       "symbols": [
         {
           "kind": "alias",
@@ -6453,21 +6752,6 @@
       ]
     },
     {
-      "excluded": [],
-      "module": "commons.http",
-      "path": "http/httpd.h",
-      "sha256": "e6c1076c5c26bc01dbb140dfa1f254c72d2a2280a23bf8e975214be39807e0f9",
-      "symbols": [
-        {
-          "kind": "class",
-          "name": "Httpd",
-          "namespace": "cmn",
-          "qualified": "cmn::Httpd",
-          "smoke": "using"
-        }
-      ]
-    },
-    {
       "excluded": [
         {
           "header": "modules/commons.exports.hpp",
@@ -6478,7 +6762,7 @@
       ],
       "module": "commons.types",
       "path": "modules/commons.exports.hpp",
-      "sha256": "6e6882bd67b665da3a6e579559c69ba4cc9df18cc2e21e48eb35408f8ebefbc6",
+      "sha256": "528d8cec3eb3472f8b805d681d681aef03474e4111a0749dd7e9d8b4f1fe977e",
       "symbols": []
     }
   ],
@@ -6528,9 +6812,9 @@
   ],
   "source": "COMMONS_PUBLIC_HEADERS",
   "summary": {
-    "excluded": 45,
-    "headers": 163,
-    "symbols": 697
+    "excluded": 44,
+    "headers": 166,
+    "symbols": 735
   },
   "version": 1
 }

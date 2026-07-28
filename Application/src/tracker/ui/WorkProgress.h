@@ -9,6 +9,7 @@
 
 namespace cmn::gui {
 class IMGUIBase;
+class Base;
 
 struct WorkItem {
     std::function<void()> fn;
@@ -63,7 +64,7 @@ public:
     
     static void set_item_abortable(bool abortable);
     static void set_custom_button(const std::string& text);
-    static void update(IMGUIBase*, gui::DrawStructure &base, gui::Section *section, Size2 screen_size);
+    static void update(Base*, gui::DrawStructure &base, gui::Section *section, Size2 screen_size);
     
     static void set_progress(const std::string& title, float value, const std::string& description = "");
     
@@ -82,7 +83,7 @@ public:
     static bool is_this_in_queue();
     
     static void update_additional(std::function<void(Entangled&)> fn);
-    static void update_taskbar(IMGUIBase*);
+    static void update_taskbar(Base*);
 };
 
 }

@@ -269,13 +269,70 @@ conda build -c conda-forge .
 - The `Application/src/grabber/` subtree is deprecated. Do not treat it as a
   reference implementation for GUI structure or best practices.
 
+## TRex runtime, CLI, and browser-backend notes
+- TRex's command-line parser expects separate key/value arguments:
+  `-key value`. Do not use `-key=value`; that form can be ignored or
+  misparsed. For example:
+  ```bash
+  conda run -n trex --no-capture-output \
+    Application/build/Release/TRex.app/Contents/MacOS/TRex \
+    -nowindow true -httpd true \
+    -httpd_bind_address 127.0.0.1 -httpd_port 18080
+  ```
+  `--no-capture-output` is useful for live logs during manual runtime checks.
+- GUI/backend activation is intentionally split across `nowindow` and `httpd`:
+
+  | `nowindow` | `httpd` | Runtime mode |
+  | --- | --- | --- |
+  | `false` | `false` | Native GUI only |
+  | `false` | `true` | Native GUI plus browser mirror/control |
+  | `true` | `true` | Browser-only GUI |
+  | `true` | `false` | Terminal/headless mode |
+
+  `has_gui` is therefore `!nowindow || httpd`. Use `nowindow` itself when
+  guarding capabilities that specifically require a native OS window.
+- Backend selection happens before the later settings-file reload. Startup
+  settings that choose or configure the backend (`nowindow`, `has_gui`,
+  `httpd`, bind address, port, maximum browser width, and web quality) must
+  retain the command-line-selected values across that reload. Keep
+  `web_quality` startup-only.
+- `DrawStructure` is the canonical GUI primitive buffer.
+  `RenderTraversal` turns it into a shared `RenderCommand` stream consumed by
+  both native `IMGUIBase::paint` and browser `BrowserBase::paint`. Keep new
+  primitive behavior in the shared traversal when both backends should match.
+- The browser frontend is deliberately narrow: only allowlisted
+  `Application/src/html/index.html`, `app.css`, `app.js`, and font assets are
+  served. The WebSocket endpoint is `/ws`; legacy settings and filesystem
+  endpoints must remain unavailable.
+- In browser-only mode the logical viewport follows `video_size`, falls back
+  to 1280x720, and scales down to `httpd_max_width`. In native-plus-browser
+  mode the browser mirrors the native logical size.
+- The browser wire format is a versioned binary protocol. On every WebSocket
+  open, reset the frontend sequence state before requesting a snapshot; this
+  permits reconnection after a server restart whose sequence numbers begin
+  lower than the prior process.
+- cpp-httplib is pinned and vendored under
+  `Application/src/commons/third_party/cpp-httplib`. The TRex and commons
+  HTTPD CMake switches normalize together: enabling either enables both, and
+  both must be disabled for an HTTPD-free build.
+- A manual Ctrl-C shutdown sets `error_terminate` and may exit with status 1;
+  treat that as the expected smoke-test shutdown unless preceding logs show a
+  separate failure.
+
 ## Agent execution constraints
-- Do not run builds, CMake configure/generate commands, or CMake build commands.
-  The user will run builds/tests after the agent has inspected the code and is
-  confident the changes are ready.
+- Builds and tests may be run only in build directories that already exist.
+  Do not create new build directories.
+- Known reusable local build trees are:
+  - `Application/build`: Xcode/Release, normally configured with HTTPD and
+    tests enabled. Use the `trex` Conda environment.
+  - `Application/tmp-httpd-debug`: Xcode/Debug, normally configured with HTTPD
+    disabled and tests enabled. Use the `trex` Conda environment.
+  Inspect each tree's `CMakeCache.txt` before relying on those options because
+  an existing tree may have been reconfigured. Reconfigure in place when
+  needed; never create a replacement build directory.
 - Optimize for fewer, higher-confidence iterations. Think and inspect longer
   before responding or editing, because each exchange has a monetary cost.
-- do not run commands in the build directory and dont delete the existing project files there
+- Do not delete existing project files from build directories.
 - do not run commands outside the root directory of the project, or commands that affect the outside
 - stay in scope for the task you were asked to do. only edit files directly relevant to that task, plus the minimal wiring required to make those edits work.
 - if the task is to add or edit tests, edit tests and only the smallest necessary test wiring (for example `Application/Tests/CMakeLists.txt`). do not edit unrelated production/source files unless the user explicitly asks for that too.

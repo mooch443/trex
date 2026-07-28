@@ -216,11 +216,11 @@ void CalibrateScene::_draw(DrawStructure &graph) {
         };
         
         _data->gui.context.custom_elements["video"] = std::unique_ptr<GUIVideoAdapterElement>{
-            new GUIVideoAdapterElement((IMGUIBase*)_window, []() -> Size2 {
+            new GUIVideoAdapterElement(_window, []() -> Size2 {
                 return FindCoord::get().screen_size();
             }, [this](VideoInfo info) {
                 _data->_next_video_size = info.size;
-            }, [this](const file::PathArray& path, IMGUIBase* window, std::function<void(VideoInfo)> callback) -> Layout::Ptr {
+            }, [this](const file::PathArray& path, Base* window, std::function<void(VideoInfo)> callback) -> Layout::Ptr {
                 if(_data->_adapter) {
                     _data->_adapter.to<GUIVideoAdapter>()->set(path);
                     return _data->_adapter;

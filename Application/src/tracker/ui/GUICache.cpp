@@ -549,7 +549,7 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
                 _video_resolution = lock->size();
         }
         
-        if(not GUI_SETTINGS(nowindow)) {
+        if(BOOL_SETTING(has_gui)) {
             //! Calculate average pixel values. This is not a high-priority action, especially if the GUI is disabled. Only used for `gui_equalize_blob_histograms`.
             std::call_once(_percentile_once, [this](){
                 percentile_ptr = std::make_unique<std::thread>([this](){

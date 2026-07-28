@@ -586,7 +586,7 @@ void Interface::reset() {
     clear_rows();
 }
 
-void Interface::init(std::weak_ptr<pv::File> video, IMGUIBase* window, DrawStructure& base) {
+void Interface::init(std::weak_ptr<pv::File> video, Base* window, DrawStructure& base) {
     if (!_initialized && window) {
         //PythonIntegration::ensure_started();
         //PythonIntegration::async_python_function([]()->bool{return true;});
@@ -715,7 +715,7 @@ void Interface::reshuffle() {
     }
 }
 
-void Interface::draw(const std::weak_ptr<pv::File>& video, IMGUIBase* window, DrawStructure& base) {
+void Interface::draw(const std::weak_ptr<pv::File>& video, Base* window, DrawStructure& base) {
     {
         std::lock_guard guard(DataStore::mutex());
         /*if(_labels.empty()) {

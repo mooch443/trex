@@ -779,6 +779,11 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
          */
         CONFIG("meta_mass_mg", float(200), "Used for exporting event-energy levels.");
         CONFIG("nowindow", false, "If set to true, no GUI will be created on startup (e.g. when starting from SSH).", STARTUP);
+        CONFIG("has_gui", true, "Whether this process has an active native or browser GUI backend.", STARTUP);
+        CONFIG("httpd", false, "Enable the browser GUI HTTP/WebSocket server.", STARTUP);
+        CONFIG("httpd_bind_address", std::string("0.0.0.0"), "Address on which the browser GUI server listens. The server is unauthenticated, so only bind to trusted networks.", STARTUP);
+        CONFIG("httpd_port", int(8080), "TCP port on which the browser GUI server listens (1-65535).", STARTUP);
+        CONFIG("httpd_max_width", int(1280), "Maximum logical browser-only GUI width in pixels.", STARTUP);
         CONFIG("track_background_subtraction", false, "If enabled, objects in .pv videos will first be contrasted against the background before thresholding (background_colors - object_colors). `track_threshold_is_absolute` then decides whether this term is evaluated in an absolute or signed manner.");
         CONFIG("use_differences", false, "This should be set to false unless when using really old files.");
         //config["debug_probabilities"] = false;
@@ -1241,6 +1246,11 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             "gui_run",
             //"settings_file",
             "nowindow",
+            "has_gui",
+            "httpd",
+            "httpd_bind_address",
+            "httpd_port",
+            "httpd_max_width",
             "task",
             "wd",
             "gui_show_fish",
@@ -1265,7 +1275,6 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
 
             "cmd_line",
             "ffmpeg_path",
-            "httpd_port",
             "cam_undistort1",
             "cam_undistort2",
             

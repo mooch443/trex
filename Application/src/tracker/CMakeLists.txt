@@ -179,10 +179,6 @@ target_link_libraries(trex_tracking PUBLIC
     trex_data
     trex_core
 )
-if(WITH_HTTPD)
-    add_dependencies(trex_tracking Commons::HTTPD)
-endif()
-
 trex_add_semantic_library(trex_ml
     TYPE ${TREX_INTERNAL_LIBRARY_TYPE}
     SOURCES ${TREX_ML_SOURCES}

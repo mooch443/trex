@@ -14,7 +14,7 @@
 namespace cmn::gui {
 class Graph;
 class HorizontalLayout;
-class IMGUIBase;
+class Base;
 class StaticText;
 class ExternalImage;
 }
@@ -139,12 +139,12 @@ protected:
     std::mutex _coverage_mutex;
     Image::Ptr _raw_coverage;
     std::shared_ptr<pv::File> _video{nullptr};
-    gui::IMGUIBase* _base{nullptr};
+    gui::Base* _base{nullptr};
     std::vector<Range<Frame_t>> _global_tracklet_order;
     cmn::gui::GUITaskQueue_t* _gui{nullptr};
     
 public:
-    Accumulation(cmn::gui::GUITaskQueue_t*, std::shared_ptr<pv::File>&& video, std::vector<Range<Frame_t>>&& global_tracklet_order, gui::IMGUIBase* base, TrainingMode::Class);
+    Accumulation(cmn::gui::GUITaskQueue_t*, std::shared_ptr<pv::File>&& video, std::vector<Range<Frame_t>>&& global_tracklet_order, gui::Base* base, TrainingMode::Class);
     ~Accumulation();
     bool start();
 

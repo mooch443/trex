@@ -69,7 +69,7 @@ void StartingScene::activate() {
     window()->set_title(window_title());
     //_recents.show(*_recent_items);
     
-    ((IMGUIBase*)window())->center({});
+    window()->center({});
     
     update_recent_items();
 }
@@ -276,7 +276,7 @@ void StartingScene::_draw(DrawStructure& graph) {
                 };
 
                 context.custom_elements["video"] = std::unique_ptr<GUIVideoAdapterElement>(new GUIVideoAdapterElement{
-                    (IMGUIBase*)window(),
+                    window(),
                     []() {
                         return FindCoord::get().screen_size();
                     }

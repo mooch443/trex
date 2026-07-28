@@ -207,7 +207,7 @@ void WorkProgress::start() {
                 } catch(const std::exception& ex) {
                     FormatWarning("Caught an exception in the work queue: ", ex.what());
 
-                    if(BOOL_SETTING(nowindow) || BOOL_SETTING(auto_train_on_startup)) {
+                    if(not BOOL_SETTING(has_gui) || BOOL_SETTING(auto_train_on_startup)) {
                         /// Startup automation has no interactive recovery path;
                         /// all wait conditions must observe the failed state.
                         SETTING(error_terminate) = true;
@@ -350,7 +350,8 @@ void WorkProgress::set_item_abortable(bool abortable) {
     });
 }
 
-void WorkProgress::update_taskbar(IMGUIBase* base) {
+void WorkProgress::update_taskbar(Base* window) {
+    auto base = dynamic_cast<IMGUIBase*>(window);
     if (not base)
         return;
 
@@ -489,7 +490,7 @@ void WorkProgress::set_progress(const std::string& title, float value, const std
 
 
 using namespace gui;
-void WorkProgress::update(IMGUIBase* window, gui::DrawStructure &base, gui::Section *section, Size2 screen_dimensions) {
+void WorkProgress::update(Base* window, gui::DrawStructure &base, gui::Section *section, Size2 screen_dimensions) {
     work::check([&, &gui = instance().gui](){
         std::lock_guard<std::mutex> wlock(_queue_lock);
         if(_item.empty())

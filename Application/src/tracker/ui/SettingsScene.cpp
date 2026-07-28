@@ -80,7 +80,7 @@ struct SettingsScene::Data {
     sprite::Map _defaults;
     std::stack<std::string> _last_layouts;
     
-    IMGUIBase *_window{nullptr};
+    Base *_window{nullptr};
     
     file::PathArray _initial_source;
     std::atomic<Size2> _next_video_size;
@@ -883,7 +883,7 @@ struct SettingsScene::Data {
                     return FindCoord::get().screen_size();
                 }, [this](VideoInfo info) {
                     _next_video_size = info.size;
-                }, [this](const file::PathArray& path, IMGUIBase* window, std::function<void(VideoInfo)> callback) {
+                }, [this](const file::PathArray& path, Base* window, std::function<void(VideoInfo)> callback) {
                     if(_video_adapters.contains(path.source())) {
                         return _video_adapters[path.source()];
                     } else {
@@ -1130,7 +1130,7 @@ void SettingsScene::activate() {
     WorkProgress::instance().start();
     
     _data = std::make_unique<Data>();
-    _data->_window = (IMGUIBase*)window();
+    _data->_window = window();
 
     _data->_initial_source = READ_SETTING(source, file::PathArray);
     _data->register_callbacks();

@@ -119,7 +119,7 @@ public:
         _callback(callback),
         _on_select_callback(on_select_callback)
     {
-        auto dpi = ((const IMGUIBase*)&window)->dpi_scale();
+        auto dpi = window.dpi_scale();
         Print(window.window_dimensions().mul(dpi));
         _default_tab.extension = extension;
         
@@ -128,7 +128,7 @@ public:
     void activate() override {
         set_tab("");
 
-        ((IMGUIBase*)window())->set_open_files_fn([this](const std::vector<file::Path>& paths) -> bool {
+        window()->set_open_files_fn([this](const std::vector<file::Path>& paths) -> bool {
             if (paths.size() != 1)
                 return false;
 

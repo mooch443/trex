@@ -14,7 +14,7 @@ using Alpha = cmn::gui::attr::Alpha;
 
 namespace cmn::gui {
 
-class IMGUIBase;
+class Base;
 
 NUMBER_ALIAS(Blur, double);
 NUMBER_ALIAS(FrameTime, double);
@@ -23,7 +23,7 @@ class GUIVideoAdapter : public Entangled {
 private:
     GETTER(BlurryVideoLoop, video_loop);
     ExternalImage _image;
-    IMGUIBase *_queue;
+    Base *_queue;
     Margins _margins;
     
     double _fade_percent{0.0};
@@ -42,7 +42,7 @@ private:
     file::PathArray _array;
     
 public:
-    GUIVideoAdapter(const file::PathArray& array, IMGUIBase* queue, std::function<void(VideoInfo)> callback);
+    GUIVideoAdapter(const file::PathArray& array, Base* queue, std::function<void(VideoInfo)> callback);
     
     ~GUIVideoAdapter();
     
@@ -63,7 +63,7 @@ public:
 
 namespace detail {
 template<>
-struct AllowDirectMakeArgs<GUIVideoAdapter, file::PathArray, IMGUIBase*, std::function<void(VideoInfo)>> : std::true_type {};
+struct AllowDirectMakeArgs<GUIVideoAdapter, file::PathArray, Base*, std::function<void(VideoInfo)>> : std::true_type {};
 }
 
 namespace attr {

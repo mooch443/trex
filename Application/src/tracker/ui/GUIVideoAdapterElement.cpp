@@ -1,7 +1,7 @@
 #include "GUIVideoAdapterElement.h"
 
 #include <file/PathArray.h>
-#include <gui/IMGUIBase.h>
+#include <gui/DrawBase.h>
 #include <gui/dyn/ParseText.h>
 #include <gui/ParseLayoutTypes.h>
 #include <ui/GUIVideoAdapter.h>
@@ -11,10 +11,10 @@ namespace cmn::gui {
 using namespace dyn;
 
 GUIVideoAdapterElement::GUIVideoAdapterElement(
-   IMGUIBase* window,
+   Base* window,
    std::function<Size2()> size_function,
    std::function<void(VideoInfo)> open_callback,
-   std::function<Layout::Ptr(const file::PathArray&, IMGUIBase*, std::function<void(VideoInfo)>)> create_object)
+   std::function<Layout::Ptr(const file::PathArray&, Base*, std::function<void(VideoInfo)>)> create_object)
     :   _size_function(size_function),
         _open_callback(open_callback),
         _create_object(create_object),

@@ -1,11 +1,11 @@
 #include "GUIVideoAdapter.h"
 #include <file/PathArray.h>
-#include <gui/IMGUIBase.h>
+#include <gui/DrawBase.h>
 
 namespace cmn::gui {
 
 GUIVideoAdapter::GUIVideoAdapter(const file::PathArray& array, 
-                                 IMGUIBase* queue,
+                                 Base* queue,
                                  std::function<void(VideoInfo)> callback)
     : _video_loop(Meta::toStr((uint64_t)&array) /*file::find_basename(array)*/),
       _queue{queue},
@@ -26,7 +26,7 @@ GUIVideoAdapter::GUIVideoAdapter(const file::PathArray& array,
             // its still active, dont need to
             return;
         }
-        _executed = q->exec_main_queue([this](){
+        _executed = q->enqueue_main([this](){
             set_content_changed(true);
             set_animating(true);
             set_dirty();

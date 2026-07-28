@@ -431,7 +431,7 @@ void TrackingScene::Data::handle_zooming(Event e) {
 TrackingScene::TrackingScene(Base& window)
 : Scene(window, "tracking-scene", [this](auto&, DrawStructure& graph){ _draw(graph); })
 {
-    auto dpi = ((const IMGUIBase*)&window)->dpi_scale();
+    auto dpi = window.dpi_scale();
     Print("window dimensions", window.window_dimensions().mul(dpi));
 }
 
@@ -674,7 +674,7 @@ bool TrackingScene::on_global_event(Event event) {
             }
                 
             case Keyboard::F: {
-                SceneManager::enqueue([](IMGUIBase* base, DrawStructure& graph){
+                SceneManager::enqueue([](Base* base, DrawStructure& graph){
                     if(graph.is_system_pressed())
                     {
                         base->toggle_fullscreen(graph);
@@ -683,13 +683,13 @@ bool TrackingScene::on_global_event(Event event) {
                 break;
             }
             case Keyboard::F11:
-                SceneManager::enqueue([](IMGUIBase* base, DrawStructure& graph){
+                SceneManager::enqueue([](Base* base, DrawStructure& graph){
                     base->toggle_fullscreen(graph);
                 });
                 break;
             case Keyboard::R: {
                 if(_data) {
-                    SceneManager::enqueue([this](IMGUIBase* base, DrawStructure& graph){
+                    SceneManager::enqueue([this](Base* base, DrawStructure& graph){
                         if(_data->_recorder.recording()) {
                             _data->_recorder.stop_recording(base, &graph);
                             _data->_background->set_strict(false);
@@ -1371,7 +1371,7 @@ void TrackingScene::_draw(DrawStructure& graph) {
        //|| _data->_cache->is_animating()
        || graph.root().is_animating())
     {
-        if(((IMGUIBase*)window())->focussed()) {
+        if(window()->focussed()) {
             //_data->_cache->set_blobs_dirty();
             //_data->_cache->set_tracking_dirty();
             _data->_zoom_dirty = true;
@@ -1594,7 +1594,7 @@ void TrackingScene::_draw(DrawStructure& graph) {
     
     _data->dynGUI.update(graph, nullptr);
     
-    Categorize::draw(_state->video, (IMGUIBase*)window(), graph);
+    Categorize::draw(_state->video, window(), graph);
     
     //DrawPreviewImage::draw(_state->tracker->background(), _data->_cache->processed_frame(), GUI_SETTINGS(gui_frame), graph);
     

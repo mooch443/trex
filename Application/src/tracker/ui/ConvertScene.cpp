@@ -536,7 +536,7 @@ void ConvertScene::activate()  {
     window()->set_title(window_title());
     _data->bar.set_progress(0);
     
-    SceneManager::enqueue([this](IMGUIBase*, DrawStructure& graph) {
+    SceneManager::enqueue([this](Base*, DrawStructure& graph) {
         if(not _data || not _data->_segmenter)
             return;
         if(not _data->_segmenter->output_size().empty())
@@ -891,7 +891,7 @@ dyn::DynamicGUI ConvertScene::Data::init_gui(Base* window) {
     
     context.actions = {
         ActionFunc("terminate", [this](auto) {
-            SceneManager::enqueue([&](IMGUIBase*, DrawStructure& graph){
+            SceneManager::enqueue([&](Base*, DrawStructure& graph){
                 graph.dialog([&](Dialog::Result result){
                     if(result == Dialog::OKAY) {
                         if (_segmenter)

@@ -1249,7 +1249,7 @@ void Work::set_state(const std::shared_ptr<pv::File>& video, State state) {
     Work::state() = state;
 }
 
-void draw(const std::shared_ptr<pv::File>& video, IMGUIBase* window, gui::DrawStructure& base) {
+void draw(const std::shared_ptr<pv::File>& video, Base* window, gui::DrawStructure& base) {
     if(!Work::visible())
         return;
     

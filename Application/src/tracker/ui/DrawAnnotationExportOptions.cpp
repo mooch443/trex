@@ -245,7 +245,7 @@ struct DrawAnnotationExportOptions::Data {
                             auto show_error = [](std::string message) {
                                 SETTING(gui_show_annotation_export_options) = true;
 
-                                SceneManager::enqueue([message = std::move(message)](IMGUIBase*, DrawStructure& graph) {
+                                SceneManager::enqueue([message = std::move(message)](Base*, DrawStructure& graph) {
                                     graph.dialog(
                                         "Annotation export failed.\n\n" + settings::htmlify(message),
                                         "Export Error",
@@ -272,7 +272,7 @@ struct DrawAnnotationExportOptions::Data {
                             auto show_error = [](std::string message) {
                                 SETTING(gui_show_annotation_export_options) = true;
 
-                                SceneManager::enqueue([message = std::move(message)](IMGUIBase*, DrawStructure& graph) {
+                                SceneManager::enqueue([message = std::move(message)](Base*, DrawStructure& graph) {
                                     graph.dialog(
                                         "Export failed.\n\n" + settings::htmlify(message),
                                         "Export Error",

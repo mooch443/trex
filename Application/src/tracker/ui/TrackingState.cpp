@@ -870,7 +870,7 @@ std::future<void> TrackingState::load_state(GUITaskQueue_t* gui, file::Path from
             
             auto what = std::string(e.what());
             if(gui)
-                gui->enqueue([from, what](IMGUIBase*, DrawStructure& graph) {
+                gui->enqueue([from, what](Base*, DrawStructure& graph) {
                     graph.dialog([](Dialog::Result){}, "Cannot load results from '"+from.str()+"'. Loading crashed with this message:\n<i>"+what+"</i>", "<sym>☣</sym> Error");
                 });
             

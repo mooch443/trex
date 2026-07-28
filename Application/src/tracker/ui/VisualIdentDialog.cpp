@@ -35,7 +35,7 @@ void check_global_tracklets_available(GUITaskQueue_t* gui,
             throw U_EXCEPTION(message);
             
         } else if(gui) {
-            gui->enqueue([message = std::string(message)](IMGUIBase*, DrawStructure& graph){
+            gui->enqueue([message = std::string(message)](Base*, DrawStructure& graph){
                 graph.dialog("Initialization of the training process failed.\n\n"+settings::htmlify(message), "<sym>☣</sym> Error");
             });
             
@@ -78,7 +78,7 @@ void generate_training_data(GUITaskQueue_t* gui, bool force_load, std::shared_pt
     
     auto global_tracklet_order = tracker->global_tracklet_order();
 
-    auto fn = [gui, controller](TrainingMode::Class load, IMGUIBase* window, DrawStructure* graph, std::vector<Range<Frame_t>> global_tracklet_order) -> bool {
+    auto fn = [gui, controller](TrainingMode::Class load, Base* window, DrawStructure* graph, std::vector<Range<Frame_t>> global_tracklet_order) -> bool {
         std::vector<Rangel> trained;
 
         WorkProgress::set_progress("Initializing VI...", 0);
@@ -170,7 +170,7 @@ void generate_training_data(GUITaskQueue_t* gui, bool force_load, std::shared_pt
         };
 
         // In your dialog code, change the mapping to use DialogAction.
-        gui->enqueue([global_tracklet_order, fn, avail, message, controller, gui](IMGUIBase* window, DrawStructure& graph) mutable {
+        gui->enqueue([global_tracklet_order, fn, avail, message, controller, gui](Base* window, DrawStructure& graph) mutable {
             // Build an array of button-action pairs.
             using ButtonAction = std::pair<std::string_view, DialogAction>;
             std::vector<ButtonAction> buttonActions;
@@ -428,7 +428,7 @@ void training_data_dialog(GUITaskQueue_t* gui, bool force_load, std::function<vo
 
 void VIController::auto_correct(std::shared_ptr<VIController> controller, GUITaskQueue_t* gui, bool force_correct) {
     if(gui && not force_correct) {
-        gui->enqueue([controller = std::weak_ptr(controller), gui](IMGUIBase*, DrawStructure& graph){
+        gui->enqueue([controller = std::weak_ptr(controller), gui](Base*, DrawStructure& graph){
             const char* message_only_ml = "Automatic correction uses machine learning based predictions to correct potential tracking mistakes. Make sure that you have trained the visual identification network prior to using auto-correct.\n<i>Apply and retrack</i> will overwrite your <key>manual_matches</key> and replace any previous automatic matches based on new predictions made by the visual identification network. If you just want to see averages for the predictions without changing your tracks, click the <i>review</i> button.";
             const char* message_both = "Automatic correction uses machine learning based predictions to correct potential tracking mistakes (visual identification, or physical tag data). Make sure that you have trained the visual identification network prior to using auto-correct, or that tag information is available.\n<i>Visual identification</i> and <i>Tags</i> will overwrite your <key>manual_matches</key> and replace any previous automatic matches based on new predictions made by the visual identification network/the tag data. If you just want to see averages for the visual identification predictions without changing your tracks, click the <i>Review VI</i> button.";
             const bool tags_available = tags::available();
