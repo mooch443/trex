@@ -76,14 +76,18 @@ void ImageExtractor::collect(selector_t&& selector) {
                && i++ % _settings.item_step != 0)
                 return true;
             
+            q.fdx = fdx;
             q.basic = basic;
             q.posture = posture;
             
-            if(selector(q)) {
+            if(auto accepted = selector(q);
+               (bool)accepted)
+            {
                 // initialize task lazily
                 task.fdx = fdx;
                 task.bdx = basic->blob.blob_id();
                 task.tracklet = seg->range;
+                task.query = std::move(accepted);
                 ++_collected_items;
                 
                 _tasks[frame].emplace_back(std::move(task));
@@ -225,7 +229,7 @@ uint64_t ImageExtractor::retrieve_image_data(partial_apply_t&& apply, callback_t
                 continue;
             }
             
-            for(const auto &[fdx, bdx, range] : samples) {
+            for(auto &[fdx, bdx, range, query] : samples) {
                 auto blob = pp.bdx_to_ptr(bdx);
                 if(!blob) {
                     //! TODO: original_blobs
@@ -283,7 +287,8 @@ uint64_t ImageExtractor::retrieve_image_data(partial_apply_t&& apply, callback_t
                     .frame = index,
                     .fdx = fdx,
                     .bdx = bdx,
-                    .image = std::move(image)
+                    .image = std::move(image),
+                    .query = std::move(query)
                 });
                 
                 if(results.size() >= max_images_per_step)

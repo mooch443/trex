@@ -13,6 +13,7 @@
 #include <file/DataLocation.h>
 #include <core/TileBuffers.h>
 #include <processing/ResizeImage.h>
+#include <ui/Coordinates.h>
 
 #include <opencv2/core.hpp>
 
@@ -31,6 +32,9 @@
 using namespace cmn;
 using namespace track;
 using namespace track::yolo_detail;
+
+static_assert(!std::is_convertible_v<track::SourceCoord, track::TileCoord>);
+static_assert(!std::is_convertible_v<track::TileCoord, track::SourceCoord>);
 
 namespace {
 
@@ -138,7 +142,8 @@ cv::Mat makeMask(int rows, int cols, std::initializer_list<Bounds> rects) {
     return mask;
 }
 
-void expectOffsetsWithinBounds(const std::vector<Vec2>& offsets,
+template<typename Coord>
+void expectOffsetsWithinBounds(const std::vector<Coord>& offsets,
                                Size2 tile_size,
                                Size2 frame_size)
 {
@@ -157,17 +162,17 @@ void expectOffsetsWithinBounds(const std::vector<Vec2>& offsets,
         EXPECT_TRUE(inserted.second) << "Duplicate offset " << off.toStr();
     }
 
-    EXPECT_EQ(offsets.front(), Vec2(0, 0));
+    EXPECT_EQ(offsets.front(), Coord(0, 0));
 
     if(frame_size.width > tile_size.width) {
-        bool found_last = std::any_of(offsets.begin(), offsets.end(), [&](const Vec2& v){
+        bool found_last = std::any_of(offsets.begin(), offsets.end(), [&](const auto& v){
             return static_cast<int>(v.x) == frame_size.width - tile_size.width;
         });
         EXPECT_TRUE(found_last) << "Missing right-most tile";
     }
 
     if(frame_size.height > tile_size.height) {
-        bool found_last = std::any_of(offsets.begin(), offsets.end(), [&](const Vec2& v){
+        bool found_last = std::any_of(offsets.begin(), offsets.end(), [&](const auto& v){
             return static_cast<int>(v.y) == frame_size.height - tile_size.height;
         });
         EXPECT_TRUE(found_last) << "Missing bottom-most tile";
@@ -399,6 +404,15 @@ TEST(YoloTileMergeGroupsTest, GreedyChainUsesRepresentativeOnly) {
     ASSERT_EQ(groups.size(), 2u);
     EXPECT_EQ(groups[0].source_indices, DetectionRowSelection(0u, 1u));
     EXPECT_EQ(groups[1].source_indices, DetectionRowSelection(2u));
+
+    // Double-check the full result against real SAHI GreedyNMM output.
+    // Regenerate with Application/Tests/generate_sahi_references.py
+    // (case: greedy_chain).
+    ASSERT_EQ(groups.size(), 2u);
+    EXPECT_EQ(groups[0].representative_index, 0u);
+    EXPECT_EQ(groups[0].source_indices, DetectionRowSelection(0u, 1u));
+    EXPECT_EQ(groups[1].representative_index, 2u);
+    EXPECT_EQ(groups[1].source_indices, DetectionRowSelection(2u));
 }
 
 TEST(YoloTileMergeGroupsTest, MatchesSahiGreedyNmmIosReferenceForFourWayOverlap) {
@@ -595,6 +609,10 @@ TEST(YoloTileMergeGroupsTest, NmsIndicesKeepsBoxesBelowIouThreshold) {
     const auto indices = compute_tile_nms_indices(boxes, 0.55f);
 
     EXPECT_EQ(indices, DetectionRowSelection(0u, 1u));
+
+    // Double-check against real SAHI NMS output. Regenerate with
+    // Application/Tests/generate_sahi_references.py (case: nms_below_threshold).
+    EXPECT_EQ(indices, DetectionRowSelection(0u, 1u));
 }
 
 // --- Gap coverage: compute_tile_nms_indices_for_rotated_rects edge paths --
@@ -662,15 +680,15 @@ TEST(TileImageTest, GeneratesExpectedOffsetsWithoutOverlap) {
     const int tile_edge = 320;
 
     cv::Mat source(height, width, CV_8UC3, cv::Scalar(0));
-    auto original = makeImage(width, height);
+    auto source_image = makeImage(width, height);
 
-    TileImage tile(source, std::move(original), Size2(tile_edge, tile_edge), Size2(width, height), 0.0f);
+    TileImage tile(source, std::move(source_image), Size2(tile_edge, tile_edge), Size2(width, height), 0.0f);
 
-    auto offsets = tile.offsets();
+    auto offsets = tile.tile_origins();
     ASSERT_EQ(offsets.size(), 4u);
-    std::vector<Vec2> expected{
-        Vec2(0, 0), Vec2(tile_edge, 0),
-        Vec2(0, tile_edge), Vec2(tile_edge, tile_edge)
+    std::vector<track::SourceCoord> expected{
+        track::SourceCoord(0, 0), track::SourceCoord(tile_edge, 0),
+        track::SourceCoord(0, tile_edge), track::SourceCoord(tile_edge, tile_edge)
     };
 
     for(size_t idx = 0; idx < offsets.size(); ++idx) {
@@ -683,6 +701,131 @@ TEST(TileImageTest, GeneratesExpectedOffsetsWithoutOverlap) {
     EXPECT_EQ(tile.images.size(), offsets.size());
 }
 
+TEST(TileImageTest, ComputeTileBoundsClampsFrameSmallerThanTile) {
+    const auto bounds = compute_tile_bounds(
+        Size2(100, 80),
+        Size2(320, 320),
+        320,
+        1,
+        0.f);
+
+    ASSERT_EQ(bounds.size(), 1u);
+    EXPECT_EQ(bounds.front(), track::SourceRect(0, 0, 100, 80));
+}
+
+TEST(TileImageTest, ComputeTileBoundsClampsEdgeTilesToSourceFrame) {
+    const auto bounds = compute_tile_bounds(
+        Size2(500, 300),
+        Size2(320, 320),
+        320,
+        1,
+        0.f);
+
+    ASSERT_EQ(bounds.size(), 2u);
+    EXPECT_EQ(bounds[0], track::SourceRect(0, 0, 320, 300));
+    EXPECT_EQ(bounds[1], track::SourceRect(180, 0, 320, 300));
+}
+
+TEST(TileCoordinateUnitsTest, CropGeometryConvertsTilePointAndRectToSource) {
+    const track::TileGeometry geometry{
+        .source_region = track::SourceRect(320, 120, 320, 320),
+        .tile_content = track::TileRect(0, 0, 320, 320),
+        .tile_size = Size2(320, 320)
+    };
+
+    const auto source_point = geometry.to_source(track::TileCoord(10, 20));
+    EXPECT_FLOAT_EQ(source_point.x, 330.f);
+    EXPECT_FLOAT_EQ(source_point.y, 140.f);
+
+    const auto source_rect = geometry.to_source(track::TileRect(5, 6, 30, 40));
+    EXPECT_FLOAT_EQ(source_rect.x, 325.f);
+    EXPECT_FLOAT_EQ(source_rect.y, 126.f);
+    EXPECT_FLOAT_EQ(source_rect.width, 30.f);
+    EXPECT_FLOAT_EQ(source_rect.height, 40.f);
+
+    const auto tile_point = geometry.to_tile(track::SourceCoord(330, 140));
+    EXPECT_FLOAT_EQ(tile_point.x, 10.f);
+    EXPECT_FLOAT_EQ(tile_point.y, 20.f);
+}
+
+TEST(TileCoordinateUnitsTest, ResizedTileGeometryScalesToSource) {
+    const track::TileGeometry geometry{
+        .source_region = track::SourceRect(0, 0, 200, 100),
+        .tile_content = track::TileRect(0, 0, 400, 400),
+        .tile_size = Size2(400, 400)
+    };
+
+    const auto source_point = geometry.to_source(track::TileCoord(200, 200));
+    EXPECT_FLOAT_EQ(source_point.x, 100.f);
+    EXPECT_FLOAT_EQ(source_point.y, 50.f);
+
+    const auto tile_rect = geometry.to_tile(track::SourceRect(50, 25, 100, 50));
+    EXPECT_FLOAT_EQ(tile_rect.x, 100.f);
+    EXPECT_FLOAT_EQ(tile_rect.y, 100.f);
+    EXPECT_FLOAT_EQ(tile_rect.width, 200.f);
+    EXPECT_FLOAT_EQ(tile_rect.height, 200.f);
+}
+
+TEST(TileCoordinateUnitsTest, LetterboxGeometryHandlesPaddedTileContent) {
+    const track::TileGeometry geometry{
+        .source_region = track::SourceRect(0, 0, 8, 4),
+        .tile_content = track::TileRect(0, 2, 8, 4),
+        .tile_size = Size2(8, 8)
+    };
+
+    const auto top_left = geometry.to_source(track::TileCoord(0, 2));
+    EXPECT_FLOAT_EQ(top_left.x, 0.f);
+    EXPECT_FLOAT_EQ(top_left.y, 0.f);
+
+    const auto bottom_right = geometry.to_source(track::TileCoord(8, 6));
+    EXPECT_FLOAT_EQ(bottom_right.x, 8.f);
+    EXPECT_FLOAT_EQ(bottom_right.y, 4.f);
+
+    const auto padded = geometry.to_source(track::TileCoord(0, 0));
+    EXPECT_FLOAT_EQ(padded.x, 0.f);
+    EXPECT_FLOAT_EQ(padded.y, -2.f);
+}
+
+TEST(TileCoordinateUnitsTest, BatchAffineUsesCentralTileGeometryMath) {
+    const std::vector<track::TileGeometry> geometries{
+        track::TileGeometry{
+            .source_region = track::SourceRect(320, 120, 320, 320),
+            .tile_content = track::TileRect(0, 0, 320, 320),
+            .tile_size = Size2(320, 320)
+        },
+        track::TileGeometry{
+            .source_region = track::SourceRect(0, 0, 8, 4),
+            .tile_content = track::TileRect(0, 2, 8, 4),
+            .tile_size = Size2(8, 8)
+        }
+    };
+
+    const auto affines = track::tile_to_source_affines(geometries);
+    ASSERT_EQ(affines.size(), 2u);
+
+    EXPECT_FLOAT_EQ(affines[0].scale.x, 1.f);
+    EXPECT_FLOAT_EQ(affines[0].scale.y, 1.f);
+    EXPECT_FLOAT_EQ(affines[0].tile_offset.x, 320.f);
+    EXPECT_FLOAT_EQ(affines[0].tile_offset.y, 120.f);
+
+    EXPECT_FLOAT_EQ(affines[1].scale.x, 1.f);
+    EXPECT_FLOAT_EQ(affines[1].scale.y, 1.f);
+    EXPECT_FLOAT_EQ(affines[1].tile_offset.x, 0.f);
+    EXPECT_FLOAT_EQ(affines[1].tile_offset.y, -2.f);
+}
+
+TEST(TileCoordinateUnitsTest, SourceUnitsExplicitlyBridgeToBowlUnits) {
+    const auto bowl_point = cmn::gui::to_bowl(track::SourceCoord(12, 34));
+    EXPECT_FLOAT_EQ(bowl_point.x, 12.f);
+    EXPECT_FLOAT_EQ(bowl_point.y, 34.f);
+
+    const auto bowl_rect = cmn::gui::to_bowl(track::SourceRect(1, 2, 3, 4));
+    EXPECT_FLOAT_EQ(bowl_rect.x, 1.f);
+    EXPECT_FLOAT_EQ(bowl_rect.y, 2.f);
+    EXPECT_FLOAT_EQ(bowl_rect.width, 3.f);
+    EXPECT_FLOAT_EQ(bowl_rect.height, 4.f);
+}
+
 TEST(OverlayedVideoTiling, NoTilingKeepsDetectorSize) {
     Size2 frame_size(640, 480);
     Size2 detector_size(640, 640);
@@ -691,6 +834,22 @@ TEST(OverlayedVideoTiling, NoTilingKeepsDetectorSize) {
 
     EXPECT_EQ(new_size, detector_size);
     EXPECT_EQ(tile_size, detector_size);
+}
+
+TEST(DetectorImageSizeTest, ExactInputMetadataDoesNotChangeYoloDefault) {
+    resetGlobalSettings();
+    SETTING(detect_type) = track::detect::ObjectDetectionType_t{
+        track::detect::ObjectDetectionType::yolo
+    };
+    SETTING(meta_video_size) = Size2(1280, 720);
+    SETTING(detect_resolution) = track::detect::DetectResolution{640, 640};
+    SETTING(region_model) = file::Path{};
+
+    EXPECT_FALSE(BOOL_SETTING(detect_requires_exact_input_size));
+    EXPECT_EQ(track::detect::get_model_image_size(), Size2(640, 360));
+
+    SETTING(detect_requires_exact_input_size) = true;
+    EXPECT_EQ(track::detect::get_model_image_size(), Size2(640, 640));
 }
 
 TEST(OverlayedVideoTiling, TargetWidthGeneratesExpectedTiles) {
@@ -759,11 +918,11 @@ TEST(ImageResizeTest, LetterboxRectangularInputCentersPaddingAndReportsGeometry)
     EXPECT_EQ(dst.at<cv::Vec3b>(2, 0), cv::Vec3b(7, 9, 11));
 
     const Vec2 model_point(3.f, 3.f);
-    const Vec2 original_point(
+    const Vec2 source_point(
         (model_point.x + geometry.offset.x) * geometry.scale.x,
         (model_point.y + geometry.offset.y) * geometry.scale.y);
-    EXPECT_FLOAT_EQ(original_point.x, 3.f);
-    EXPECT_FLOAT_EQ(original_point.y, 1.f);
+    EXPECT_FLOAT_EQ(source_point.x, 3.f);
+    EXPECT_FLOAT_EQ(source_point.y, 1.f);
 }
 
 TEST(ImageResizeTest, LetterboxReusesDestinationAllocationForMatchingTargetSize) {
@@ -825,17 +984,17 @@ TEST(TileImageTest, HandlesIncompleteTilesAndOverlap) {
     const float overlap = 0.15f;
 
     cv::Mat source(height, width, CV_8UC3, cv::Scalar(0));
-    auto original = makeImage(width, height);
+    auto source_image = makeImage(width, height);
 
-    TileImage tile(source, std::move(original), Size2(tile_edge, tile_edge), Size2(width, height), overlap);
+    TileImage tile(source, std::move(source_image), Size2(tile_edge, tile_edge), Size2(width, height), overlap);
 
-    auto offsets = tile.offsets();
+    auto offsets = tile.tile_origins();
     // With this frame size and overlap we expect four tiles after clamping.
     ASSERT_EQ(offsets.size(), 4u);
 
-    std::vector<Vec2> expected{
-        Vec2(0, 0), Vec2(180, 0),
-        Vec2(0, 60), Vec2(180, 60)
+    std::vector<track::SourceCoord> expected{
+        track::SourceCoord(0, 0), track::SourceCoord(180, 0),
+        track::SourceCoord(0, 60), track::SourceCoord(180, 60)
     };
 
     ASSERT_EQ(offsets.size(), expected.size());
@@ -857,12 +1016,12 @@ TEST(TileImageTest, FrameSmallerThanTileProducesSingleTile) {
     const int tile_edge = 320;
 
     cv::Mat source(height, width, CV_8UC3, cv::Scalar(0));
-    auto original = makeImage(width, height);
+    auto source_image = makeImage(width, height);
 
-    TileImage tile(source, std::move(original), Size2(tile_edge, tile_edge), Size2(width, height), 0.3f);
-    auto offsets = tile.offsets();
+    TileImage tile(source, std::move(source_image), Size2(tile_edge, tile_edge), Size2(width, height), 0.3f);
+    auto offsets = tile.tile_origins();
     ASSERT_EQ(offsets.size(), 1u);
-    EXPECT_EQ(offsets.front(), Vec2(0, 0));
+    EXPECT_EQ(offsets.front(), track::SourceCoord(0, 0));
     expectOffsetsWithinBounds(offsets, Size2(tile_edge, tile_edge), Size2(width, height));
 }
 
@@ -873,12 +1032,12 @@ TEST(TileImageTest, ExactMultiplesWithoutOverlap) {
     const int tile_edge = 320;
 
     cv::Mat source(height, width, CV_8UC3, cv::Scalar(0));
-    auto original = makeImage(width, height);
+    auto source_image = makeImage(width, height);
 
-    TileImage tile(source, std::move(original), Size2(tile_edge, tile_edge), Size2(width, height), 0.0f);
-    auto offsets = tile.offsets();
+    TileImage tile(source, std::move(source_image), Size2(tile_edge, tile_edge), Size2(width, height), 0.0f);
+    auto offsets = tile.tile_origins();
     ASSERT_EQ(offsets.size(), 2u);
-    std::vector<Vec2> expected{Vec2(0, 0), Vec2(320, 0)};
+    std::vector<track::SourceCoord> expected{track::SourceCoord(0, 0), track::SourceCoord(320, 0)};
     EXPECT_EQ(offsets, expected);
     expectOffsetsWithinBounds(offsets, Size2(tile_edge, tile_edge), Size2(width, height));
 }
@@ -891,10 +1050,10 @@ TEST(TileImageTest, HighOverlapStillProgressesAcrossFrame) {
     const float overlap = 0.9f;
 
     cv::Mat source(height, width, CV_8UC3, cv::Scalar(0));
-    auto original = makeImage(width, height);
+    auto source_image = makeImage(width, height);
 
-    TileImage tile(source, std::move(original), Size2(tile_edge, tile_edge), Size2(width, height), overlap);
-    auto offsets = tile.offsets();
+    TileImage tile(source, std::move(source_image), Size2(tile_edge, tile_edge), Size2(width, height), overlap);
+    auto offsets = tile.tile_origins();
 
     ASSERT_GE(offsets.size(), 3u);
     expectOffsetsWithinBounds(offsets, Size2(tile_edge, tile_edge), Size2(width, height));
@@ -916,9 +1075,9 @@ TEST(TileImageTest, TargetWidthProducesExpectedTileCountAndSize) {
     ASSERT_EQ(tile_size, Size2(320, 320));
 
     cv::Mat resized(resized_size.height, resized_size.width, CV_8UC3, cv::Scalar(0));
-    auto original = makeImage(frame_size.width, frame_size.height);
+    auto source_image = makeImage(frame_size.width, frame_size.height);
 
-    TileImage tile(resized, std::move(original), tile_size, frame_size, 0.0f);
+    TileImage tile(resized, std::move(source_image), tile_size, frame_size, 0.0f);
 
     const size_t expected_tiles = (resized_size.width / tile_size.width) * (resized_size.height / tile_size.height);
     ASSERT_EQ(tile.images.size(), expected_tiles);
@@ -943,9 +1102,9 @@ TEST(TileImageTest, LegacyMultiplierGeneratesGrid) {
     ASSERT_EQ(resized_size, Size2(expected_width, expected_height));
 
     cv::Mat resized(resized_size.height, resized_size.width, CV_8UC3, cv::Scalar(0));
-    auto original = makeImage(frame_size.width, frame_size.height);
+    auto source_image = makeImage(frame_size.width, frame_size.height);
 
-    TileImage tile(resized, std::move(original), tile_size, frame_size, 0.0f);
+    TileImage tile(resized, std::move(source_image), tile_size, frame_size, 0.0f);
 
     ASSERT_EQ(tile.images.size(), (resized_size.width / tile_size.width) * (resized_size.height / tile_size.height));
     for(const auto& img : tile.images) {
@@ -963,8 +1122,8 @@ TEST(YoloReceiveTest, SuppressesDuplicatesAcrossOverlappingTiles) {
     const int height = 640;
 
     SegmentationData data(cmn::Image::Zeros(height, width, 3));
-    data.tiles.emplace_back(0, 0, 320, 320);
-    data.tiles.emplace_back(320, 0, 320, 320);
+    data.tiles.emplace_back(track::SourceRect(0, 0, 320, 320));
+    data.tiles.emplace_back(track::SourceRect(320, 0, 320, 320));
     data.image->set_index(0);
 
     // Two overlapping detections of the same class.
@@ -1000,10 +1159,10 @@ TEST(YoloReceiveTest, FourWayDuplicateBoxesMergeToOneObject) {
     const int height = 640;
 
     SegmentationData data(cmn::Image::Zeros(height, width, 3));
-    data.tiles.emplace_back(0, 0, 320, 320);
-    data.tiles.emplace_back(272, 0, 320, 320);
-    data.tiles.emplace_back(0, 272, 320, 320);
-    data.tiles.emplace_back(272, 272, 320, 320);
+    data.tiles.emplace_back(track::SourceRect(0, 0, 320, 320));
+    data.tiles.emplace_back(track::SourceRect(272, 0, 320, 320));
+    data.tiles.emplace_back(track::SourceRect(0, 272, 320, 320));
+    data.tiles.emplace_back(track::SourceRect(272, 272, 320, 320));
     data.image->set_index(0);
 
     auto boxes = makeBoxes({
@@ -1038,8 +1197,8 @@ TEST(YoloReceiveTest, MergedInstanceMasksRenderOrAndLabelOneObject) {
     const int height = 160;
 
     SegmentationData data(cmn::Image::Zeros(height, width, 3));
-    data.tiles.emplace_back(0, 0, 100, 100);
-    data.tiles.emplace_back(40, 0, 100, 100);
+    data.tiles.emplace_back(track::SourceRect(0, 0, 100, 100));
+    data.tiles.emplace_back(track::SourceRect(40, 0, 100, 100));
     data.image->set_index(0);
 
     auto boxes = makeBoxes({
@@ -1075,8 +1234,8 @@ TEST(YoloReceiveTest, MergedInstanceMasksKeepLargestConnectedComponent) {
     const int height = 160;
 
     SegmentationData data(cmn::Image::Zeros(height, width, 3));
-    data.tiles.emplace_back(0, 0, 100, 100);
-    data.tiles.emplace_back(40, 0, 100, 100);
+    data.tiles.emplace_back(track::SourceRect(0, 0, 100, 100));
+    data.tiles.emplace_back(track::SourceRect(40, 0, 100, 100));
     data.image->set_index(0);
 
     auto boxes = makeBoxes({
@@ -1120,8 +1279,8 @@ TEST(YoloReceiveTest, MergedInstanceMasksMatchActualSahiMaskGoldenBounds) {
     const int height = 160;
 
     SegmentationData data(cmn::Image::Zeros(height, width, 3));
-    data.tiles.emplace_back(0, 0, 100, 100);
-    data.tiles.emplace_back(40, 0, 100, 100);
+    data.tiles.emplace_back(track::SourceRect(0, 0, 100, 100));
+    data.tiles.emplace_back(track::SourceRect(40, 0, 100, 100));
     data.image->set_index(0);
 
     auto boxes = makeBoxes({
@@ -1170,8 +1329,8 @@ TEST(YoloReceiveTest, MergedInstanceMaskClampsSingleBoxBeyondRightFrameEdge) {
     const int height = 160;
 
     SegmentationData data(cmn::Image::Zeros(height, width, 3));
-    data.tiles.emplace_back(0, 0, 100, 100);
-    data.tiles.emplace_back(60, 0, 160, 100);
+    data.tiles.emplace_back(track::SourceRect(0, 0, 100, 100));
+    data.tiles.emplace_back(track::SourceRect(60, 0, 160, 100));
     data.image->set_index(0);
 
     // Box spans x:[130,190) -> well past the right edge; mask covers the full
@@ -1212,8 +1371,8 @@ TEST(YoloReceiveTest, MergedInstanceMaskClampsOverlappingUnionBeyondFrameEdge) {
     const int height = 160;
 
     SegmentationData data(cmn::Image::Zeros(height, width, 3));
-    data.tiles.emplace_back(0, 0, 100, 100);
-    data.tiles.emplace_back(60, 0, 160, 100);
+    data.tiles.emplace_back(track::SourceRect(0, 0, 100, 100));
+    data.tiles.emplace_back(track::SourceRect(60, 0, 160, 100));
     data.image->set_index(0);
 
     // Two same-class overlapping detections (IOS ~= 0.67 >= 0.5 default) whose
@@ -1265,7 +1424,7 @@ TEST(YoloReceiveTest, NonMergeSingleTileInstanceMaskRoutesThroughProcessInstance
     const int height = 160;
 
     SegmentationData data(cmn::Image::Zeros(height, width, 3));
-    data.tiles.emplace_back(0, 0, 160, 160);   // single tile -> merge gate false
+    data.tiles.emplace_back(track::SourceRect(0, 0, 160, 160));   // single tile -> merge gate false
     data.image->set_index(0);
 
     auto boxes = makeBoxes({
@@ -1302,7 +1461,7 @@ TEST(YoloReceiveTest, NonMergeSingleTileBoxesUseAllRowFallback) {
     const int height = 160;
 
     SegmentationData data(cmn::Image::Zeros(height, width, 3));
-    data.tiles.emplace_back(0, 0, 160, 160);   // single tile -> merge gate false
+    data.tiles.emplace_back(track::SourceRect(0, 0, 160, 160));   // single tile -> merge gate false
     data.image->set_index(0);
 
     // Two distinct in-frame boxes. With no tiling there is no dedup pass, so
@@ -1336,8 +1495,8 @@ TEST(YoloReceiveTest, ObbTileDuplicatesUseRepresentativeFiltering) {
     const int height = 160;
 
     SegmentationData data(cmn::Image::Zeros(height, width, 3));
-    data.tiles.emplace_back(0, 0, 100, 100);
-    data.tiles.emplace_back(40, 0, 100, 100);
+    data.tiles.emplace_back(track::SourceRect(0, 0, 100, 100));
+    data.tiles.emplace_back(track::SourceRect(40, 0, 100, 100));
     data.image->set_index(0);
 
     track::detect::Result result(
@@ -1368,8 +1527,8 @@ TEST(YoloReceiveTest, PointTileDuplicatesUseRepresentativeFiltering) {
     const int height = 160;
 
     SegmentationData data(cmn::Image::Zeros(height, width, 3));
-    data.tiles.emplace_back(0, 0, 100, 100);
-    data.tiles.emplace_back(40, 0, 100, 100);
+    data.tiles.emplace_back(track::SourceRect(0, 0, 100, 100));
+    data.tiles.emplace_back(track::SourceRect(40, 0, 100, 100));
     data.image->set_index(0);
 
     track::detect::Result result(
@@ -1406,8 +1565,8 @@ TEST(YoloReceiveTest, PoseKeypointsKeepRepresentativeFromActualSahiNmsGolden) {
     const int height = 160;
 
     SegmentationData data(cmn::Image::Zeros(height, width, 3));
-    data.tiles.emplace_back(0, 0, 100, 100);
-    data.tiles.emplace_back(40, 0, 100, 100);
+    data.tiles.emplace_back(track::SourceRect(0, 0, 100, 100));
+    data.tiles.emplace_back(track::SourceRect(40, 0, 100, 100));
     data.image->set_index(0);
 
     auto boxes = makeBoxes({
@@ -1448,8 +1607,8 @@ TEST(YoloReceiveTest, PoseKeypointsGoldenInputUnderKeypointModeKeepsDistinctPose
     const int height = 160;
 
     SegmentationData data(cmn::Image::Zeros(height, width, 3));
-    data.tiles.emplace_back(0, 0, 100, 100);
-    data.tiles.emplace_back(40, 0, 100, 100);
+    data.tiles.emplace_back(track::SourceRect(0, 0, 100, 100));
+    data.tiles.emplace_back(track::SourceRect(40, 0, 100, 100));
     data.image->set_index(0);
 
     auto boxes = makeBoxes({
@@ -1482,8 +1641,8 @@ TEST(YoloReceiveTest, PoseKeypointRotatedBoxesKeepDistinctThinPoses) {
     const int height = 160;
 
     SegmentationData data(cmn::Image::Zeros(height, width, 3));
-    data.tiles.emplace_back(0, 0, 100, 100);
-    data.tiles.emplace_back(40, 0, 100, 100);
+    data.tiles.emplace_back(track::SourceRect(0, 0, 100, 100));
+    data.tiles.emplace_back(track::SourceRect(40, 0, 100, 100));
     data.image->set_index(0);
 
     auto boxes = makeBoxes({
@@ -1519,8 +1678,8 @@ TEST(YoloReceiveTest, PoseYoloBoxesStillSuppressWhenConfigured) {
     const int height = 160;
 
     SegmentationData data(cmn::Image::Zeros(height, width, 3));
-    data.tiles.emplace_back(0, 0, 100, 100);
-    data.tiles.emplace_back(40, 0, 100, 100);
+    data.tiles.emplace_back(track::SourceRect(0, 0, 100, 100));
+    data.tiles.emplace_back(track::SourceRect(40, 0, 100, 100));
     data.image->set_index(0);
 
     auto boxes = makeBoxes({
@@ -1556,8 +1715,8 @@ TEST(YoloReceiveTest, SuppressesContainedBoxesAcrossTiles) {
     const int height = 320;
 
     SegmentationData data(cmn::Image::Zeros(height, width, 3));
-    data.tiles.emplace_back(0, 0, 320, 320);
-    data.tiles.emplace_back(320, 0, 320, 320);
+    data.tiles.emplace_back(track::SourceRect(0, 0, 320, 320));
+    data.tiles.emplace_back(track::SourceRect(320, 0, 320, 320));
     data.image->set_index(0);
 
     std::vector<float> raw_boxes{
@@ -1592,8 +1751,8 @@ TEST(YoloReceiveTest, EmptyTileMergeResultDoesNotFallBackToAllBoxes) {
     const int height = 320;
 
     SegmentationData data(cmn::Image::Zeros(height, width, 3));
-    data.tiles.emplace_back(0, 0, 320, 320);
-    data.tiles.emplace_back(320, 0, 320, 320);
+    data.tiles.emplace_back(track::SourceRect(0, 0, 320, 320));
+    data.tiles.emplace_back(track::SourceRect(320, 0, 320, 320));
     data.image->set_index(0);
 
     auto boxes = makeBoxes({
@@ -1623,8 +1782,8 @@ TEST(YoloReceiveTest, KeepsDetectionsWithDifferentClasses) {
     const int height = 320;
 
     SegmentationData data(cmn::Image::Zeros(height, width, 3));
-    data.tiles.emplace_back(0, 0, 320, 320);
-    data.tiles.emplace_back(320, 0, 320, 320);
+    data.tiles.emplace_back(track::SourceRect(0, 0, 320, 320));
+    data.tiles.emplace_back(track::SourceRect(320, 0, 320, 320));
     data.image->set_index(0);
 
     std::vector<float> raw_boxes{
@@ -1656,8 +1815,8 @@ TEST(YoloReceiveTest, KeepsNonOverlappingDetectionsSeparate) {
     const int height = 320;
 
     SegmentationData data(cmn::Image::Zeros(height, width, 3));
-    data.tiles.emplace_back(0, 0, 320, 320);
-    data.tiles.emplace_back(320, 0, 320, 320);
+    data.tiles.emplace_back(track::SourceRect(0, 0, 320, 320));
+    data.tiles.emplace_back(track::SourceRect(320, 0, 320, 320));
     data.image->set_index(0);
 
     std::vector<float> raw_boxes{

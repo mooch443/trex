@@ -289,10 +289,15 @@ void RecentItems::write() {
         
         {
             auto f = path.fopen("wb");
-            auto dump = glz::write_json(_file);
-            if(not dump.has_value())
-                throw U_EXCEPTION("Cannot write recent files to ", path);
-            fwrite(dump->c_str(), sizeof(uchar), dump->length(), f.get());
+            if (f) {
+                auto dump = glz::write_json(_file);
+                if (not dump.has_value())
+                    throw U_EXCEPTION("Cannot write recent files to ", path);
+                f.write(dump->c_str(), dump->length());
+            }
+            else {
+                FormatExcept("Cannot write recent files to ", path);
+            }
         }
 
         //Print("Updated recent files: ", dump.c_str());

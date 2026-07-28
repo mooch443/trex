@@ -77,6 +77,8 @@ function(trex_log_selected_options)
         TREX_ENABLE_SHARED_INTERNAL_LIBS
         TREX_ENABLE_MODULES
         WITH_GITSHA1
+        WITH_HTTPD
+        COMMONS_BUILD_HTTPD
         BUILD_LEGACY_TREX
         TREX_ENABLE_PROTOTYPES
     )
@@ -101,8 +103,21 @@ option(TREX_CONDA_PACKAGE_INSTALL OFF)
 option(TREX_ENABLE_SHARED_INTERNAL_LIBS "Build TRex internal libraries as shared libraries on macOS for dependency hardening." OFF)
 option(TREX_ENABLE_MODULES "Build TRex semantic libraries with C++ named module interfaces." OFF)
 option(WITH_GITSHA1 "include git hash" ON)
+option(WITH_HTTPD "Enable the browser HTTP/WebSocket backend." OFF)
+option(COMMONS_BUILD_HTTPD "Build commons HTTP/WebSocket support." OFF)
 option(BUILD_LEGACY_TREX "Build the TRex (legacy) target" OFF)
 option(TREX_ENABLE_PROTOTYPES "Enable prototype features that are not yet fully tested or may be subject to change." OFF)
+
+# TRex and commons historically exposed separate HTTPD switches. Normalize
+# them before adding commons so either public switch enables the complete
+# feature, while both must be disabled to exclude it.
+if(WITH_HTTPD OR COMMONS_BUILD_HTTPD)
+    set(WITH_HTTPD ON CACHE BOOL "Enable the browser HTTP/WebSocket backend." FORCE)
+    set(COMMONS_BUILD_HTTPD ON CACHE BOOL "Build commons HTTP/WebSocket support." FORCE)
+else()
+    set(WITH_HTTPD OFF CACHE BOOL "Enable the browser HTTP/WebSocket backend." FORCE)
+    set(COMMONS_BUILD_HTTPD OFF CACHE BOOL "Build commons HTTP/WebSocket support." FORCE)
+endif()
 
 if(TREX_ENABLE_MODULES)
     if(NOT COMMONS_ENABLE_MODULES)

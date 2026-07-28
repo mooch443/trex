@@ -129,6 +129,8 @@ class Segmenter {
     std::atomic<double> _write_fps{0};
     std::atomic<Frame_t> _current_frame;
     
+    GETTER_NCONST(read_once<bool>, start_over);
+    
 #if WITH_FFMPEG
     std::unique_ptr<FFMPEGQueue> _queue;
     ThreadGroupId _ffmpeg_group;
@@ -160,6 +162,8 @@ public:
     Frame_t current_frame() const;
     
 private:
+    void open_output_file();
+    
     void generator_thread();
     void serialize_thread();
     void perform_tracking(SegmentationData&&);

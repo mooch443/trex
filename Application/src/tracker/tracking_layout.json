@@ -1,4 +1,4 @@
-{ 
+{
 "defaults": {
 "vars":{
     "start":"{analysis_range.start}",
@@ -30,6 +30,145 @@
 }
 },
 "objects": [
+
+{
+"type":"condition",
+"var":"{&&:{not:{equal:{global.gui_mode}:raw}}:{||:{global.gui_show_timeline}:{equal:{global.gui_mode}:annotate}}}",
+"then":
+{
+    "type": "each",
+    "var": "{annotations}",
+    "do": {
+        "type":"collection",
+        "children":[
+
+            {
+                "type": "rect",
+                "line": [255,0,0,150],
+                "fill":[255,0,0, 20],
+                "pos":"{addVector:[-25,-25]:{2hud:[{i.x},{i.y}]}}",
+                "size":"{addSize:[50,50]:{size2hud:[{i.w},{i.h}]}}",
+                "corners":["all", 8]
+            },
+
+            /* draggable area over the whole annotation for easy dragging */
+            {
+                "type":"collection",
+                "pos":"{addVector:[-25,-25]:{2hud:[{i.x},{i.y}]}}",
+                "size":"{addSize:[50,50]:{size2hud:[{i.w},{i.h}]}}",
+                "line": [255,0,0,100],
+                "fill":[255,0,0, 10],
+                "corners":["all", 8],
+                "modules":["draggable"],
+                "drag":"move_whole_annotation:{i.id}",
+                "children":[
+                    {
+                        "type":"condition",
+                        "var":"{equal:{i.type}:1}",
+                        "then": {
+                            "type":"each",
+                            "var":"{i.pts}",
+                            "as":"j",
+                            "do": {
+                                "type":"condition",
+                                "var":"{||:{>:{j.x}:0}:{>:{j.y}:0}}",
+                                "then": {
+                                    "type":"collection",
+                                    "children":[
+                                        {
+                                            "type":"circle",
+                                            "radius":5,
+                                            "pos":"{addVector:{subVector:{2hud:[{j.x},{j.y}]}:{2hud:[{i.x},{i.y}]}}:[25,25]}",
+                                            "origin":[0.5,0.5],
+                                            "fill": [255,255,255,50],
+                                            "color":[255,255,255,50]
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                ]
+            },
+
+            {
+                "type":"condition",
+                "var":"{equal:{i.type}:0}",
+                "then": {
+                    "type":"rect",
+                    "line": [255,255,255,150],
+                    "pos":"{2hud:[{i.x},{i.y}]}",
+                    "size":"{size2hud:[{i.w},{i.h}]}",
+                    "corners":["none", 8]
+                }
+            },
+
+            {
+                "type":"condition",
+                "var":"{||:{equal:{i.type}:1}:{equal:{i.type}:0}}",
+                "then": {
+                    "type":"each",
+                    "var":"{i.pts}",
+                    "as":"j",
+                    "do": {
+                        "type":"condition",
+                        "var":"{||:{>:{j.x}:0}:{>:{j.y}:0}}",
+                        "then": {
+                        "type":"collection",
+                        "children":[
+                            {
+                                "type":"circle",
+                                "radius":8,
+                                "modules":["draggable"],
+                                "pos":"{2hud:[{j.x},{j.y}]}",
+                                "origin":[0.5,0.5],
+                                "fill": [255,255,255,125],
+                                "line":"{if:{||:{selected}:{hovered}}:[25,25,25,200]:[100,100,100,150]}",
+                                "color":[255,255,255,255],
+                                "drag":"move_annotation:{i.id}:{index}"
+                            },
+                            {
+                                "type":"stext",
+                                "text":"{index}",
+                                "pos":"{2hud:[{j.x},{j.y}]}",
+                                "origin":[0.5,0.5],
+                                "color":[50,50,50,255],
+                                "font":{"size":0.5,"align":"center"}
+                            }
+                        ]
+                        }
+                    }
+                }
+            },
+
+            {
+                "type":"label",
+                "text":"<sym>🖰</sym> {i.clid} <c>{if:{equal:{i.type}:1}:POSE:{if:{equal:{i.type}:0}:BOX:UNKNOWN}}</c> annotation <c>[{int:{i.x}},{int:{i.y}} {int:{i.w}}x{int:{i.h}}]</c> {+:{i.x}:{*:0.5:{i.w}}},{+:{i.y}:{*:0.5:{i.h}}}",
+                "length":120,
+                "color":[255,0,0],
+                "font":{"size":0.6},
+                "line":[255,0,0,100],
+                "center":"{2hud:[{+:{i.x}:{*:0.5:{i.w}}},{+:{i.y}:{*:0.0:{i.h}}}]}"
+            },
+
+            {
+                "type":"button",
+                "action":"remove_annotation:{i.id}",
+                "text":"<sym>⮿</sym>",
+                "size":[25,30],
+                "corners":["all", 18],
+                "origin":[0.5,0.5],
+                "color":"{if:{||:{selected}:{hovered}}:[255,255,255,255]:[255,125,125,150]}",
+                "font":{"size":1.2,"align":"center"},
+                "pos":"{addVector:[15,-15]:{2hud:{addVector:[{i.w},0]:[{i.x},{i.y}]}}}",
+                "fill":[1,0,0,0],
+                "line":[1,0,0,0]
+            }
+        ]
+    }
+}
+},
+
 {
 "type":"condition",
 "var":"{global.gui_show_timeline}",
@@ -45,15 +184,224 @@
                 "size":"{window_size}"
             }
         },
+
+        {
+            "type": "each",
+            "var": "{annotations}",
+            "as":"a",
+            "do": {
+                "type":"condition",
+                "var":"{&&:{global.detect_skeleton}:{equal:{a.type}:1}}",
+                "then":{
+                    "type":"each",
+                    "var":"{at:{at:{a.clid}:{global.detect_classes}}:{global.detect_skeleton}}",
+                    "do":  {
+                        "type":"condition",
+                        "var":"{&&:{nequal:{i}:null}:{<:{at:0:{i}}:{array_length:{a.pts}}}:{<:{at:1:{i}}:{array_length:{a.pts}}}:{||:{>:{at:0:{at:{at:0:{i}}:{a.pts}}}:0}:{>:{at:1:{at:{at:0:{i}}:{a.pts}}}:0}}:{||:{>:{at:0:{at:{at:1:{i}}:{a.pts}}}:0}:{>:{at:1:{at:{at:1:{i}}:{a.pts}}}:0}}}",
+                        "then":{
+                            "type":"line",
+                            "from":"{2hud:{at:{at:0:{i}}:{a.pts}}}",
+                            "to":"{2hud:{at:{at:1:{i}}:{a.pts}}}",
+                            "line":[255,0,255,150],
+                            "thickness":3
+                        }
+                    }
+                }
+            }
+        },
+
         {
             "type":"condition",
-            "var":"{&&:{global.gui_show_infocard}:{global.gui_focus_group}}",
+            "var":"{global.gui_show_number_individuals}",
+            "then":{
+                "type":"graph",
+                "size":[800,300],
+                "xrange":"[0,{global.video_length}]",
+                "yrange":"[0,{+:0:100}]",
+                "center":"{global.gui_frame}",
+                "draggable":true,
+                "lines": [ {
+                    "name": "mouse_line",
+                    "extrapolate": false,
+                    "display_points": false,
+                    "pts": "{num_individuals}"
+                }]
+            }
+        },
+
+        {
+            "type":"condition",
+            "var":"{&&:{bool:{drag_box}}:{equal:{global.detect_format}:boxes}}",
+            "then":{
+                "type":"rect",
+                "pos":"{2hud:[{drag_box.x},{drag_box.y}]}",
+                "size":"{size2hud:[{drag_box.w},{drag_box.h}]}",
+                "line":[255,0,0,255],
+                "fill":[1,1,1,0],
+                "corners":["all", 8]
+            }
+        },
+
+        {
+            "type":"condition",
+            "var":"{equal:{global.gui_mode}:annotate}",
+            "then":{
+                "type":"vlayout",
+                "pos":[10,90],
+                "fill":[30,30,30,220],
+                "outer_pad":[10,0,10,0],
+                "pad":[0,5,0,5],
+                "clickable":true,
+                "name":"info_box",
+                "children":[
+                    {
+                        "type":"stext",
+                        "text":"<c><h4>annotation mode</h4></c>",
+                        "pad":[5,15,5,0],
+                        "font":{"size":0.6}
+                    },
+
+                    {
+                        "type":"gridlayout",
+                        "outer_pad":[5,15,5,10],
+                        "pad":[0,0,0,10],
+                        "children":[
+                            [
+                                {
+                                    "type":"stext",
+                                    "text":"<c>tag frame <nr>{global.gui_displayed_frame}</nr></c>\n<gray>tags can be converted to frame-level annotations or used as simple markers for you or collaborators</gray>",
+                                    "font":{"size":0.5},
+                                    "max_size":"[{-:{infocard_width}:0}, -1]"
+                                }
+                            ],
+                            [
+                                {
+                                    "type": "taglist",
+                                    "var": "current_frame_tags",
+                                    "catalog": "{unique_frame_tags}",
+                                    "add_action": "add_tag",
+                                    "remove_action": "remove_tag",
+                                    "allow_new": true,
+                                    "match_threshold": 1.0,
+                                    "max_size": "[{infocard_width},200]",
+                                    "outer_pad":[0,0,0,0],
+                                    "pad": [0,0,4,4],
+                                    "clickable": true,
+                                    "item": {
+                                        "pad": [6,4],
+                                        "corners": [8]
+                                    },
+                                    "input": {
+                                        "size": [213, 28],
+                                        "list_size": [220, 180],
+                                        "placeholder": "Add tag...",
+                                        "fill": [50, 50, 50, 200],
+                                        "color": [225, 225, 225, 255]
+                                    }
+                                }
+                            ],
+                            [
+                                 {
+                                    "type":"stext",
+                                    "text":"<c><gray>detect_format</gray></c>\nhere you can choose to annotate boxes, keypoints, or bounding boxes",
+                                    "font":{"size":0.5},
+                                    "max_size":"[{-:{infocard_width}:0}, 0]"
+                                }
+                            ],
+                            [
+                                {
+                                    "type":"settings",
+                                    "var":"detect_format",
+                                    "desc":"",
+                                    "list":{
+                                        "font":{"size":0.5}
+                                    },
+                                    "label":{
+                                        "corners":["all"],
+                                        "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
+                                        "font":{"size":0.5}
+                                    },
+                                    "pad":[0,0,-1,-1],
+                                    "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                    "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
+                                    "size":[205,30]
+                                }
+                            ],
+
+                            [
+                                 {
+                                    "type":"stext",
+                                    "text":"<c><gray>detect_classes</gray></c>\nwhich classes do you want to annotate?",
+                                    "font":{"size":0.5},
+                                    "max_size":"[{-:{infocard_width}:0}, 0]"
+                                }
+                            ],
+                            [
+                                {
+                                    "type":"settings",
+                                    "var":"detect_classes",
+                                    "desc":"",
+                                    "list":{
+                                        "font":{"size":0.5}
+                                    },
+                                    "label":{
+                                        "corners":["all"],
+                                        "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
+                                        "font":{"size":0.5}
+                                    },
+                                    "pad":[0,0,-1,-1],
+                                    "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                    "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
+                                    "size":[205,30]
+                                }
+                            ],
+
+                            [
+                                 {
+                                    "type":"stext",
+                                    "text":"<c><gray>detect_skeleton</gray></c>\njust for visualization, not used for tracking",
+                                    "font":{"size":0.5},
+                                    "max_size":"[{-:{infocard_width}:0}, 0]"
+                                }
+                            ],
+                            [
+                                {
+                                    "type":"settings",
+                                    "var":"detect_skeleton",
+                                    "desc":"",
+                                    "list":{
+                                        "font":{"size":0.5}
+                                    },
+                                    "label":{
+                                        "corners":["all"],
+                                        "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
+                                        "font":{"size":0.5}
+                                    },
+                                    "pad":[0,0,-1,-1],
+                                    "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                    "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
+                                    "size":[205,30]
+                                }
+                            ]
+                        ]
+                    }
+                ]
+            }
+        },
+
+        {
+            "type":"condition",
+            "var":"{&&:{global.gui_show_infocard}:{global.gui_focus_group}:{not:{equal:{global.gui_mode}:annotate}}}",
             "then":{
                 "type":"vlayout",
                 "pos":[10,90],
                 "fill":[30,30,30,220],
                 "line":"{primary_selection.color}",
-                "pad":[10,5,10,5],
+                "outer_pad":[10,0,10,0],
+                "pad":[0,5,0,5],
                 "clickable":true,
                 "name":"info_box",
                 "children": [
@@ -92,11 +440,6 @@
                             "type":"vlayout",
                             "pad":[5,0,0,-1],
                             "children":[
-                                {
-                                    "type":"rect",
-                                    "size":[0,5],
-                                    "fill":[0,0,0,0]
-                                },
                                 {
                                     "type":"stext",
                                     "text":"<c><white>categorization</white></c>",
@@ -153,7 +496,7 @@
                                     "var":"{primary_selection.is_automatic}",
                                     "then": {
                                         "type":"vlayout",
-                                        "pad":[5,0,5,2],
+                                        "outer_pad":[5,0,5,5],
                                         "max_size":"[{infocard_width},0]",
                                         "fill":"{if:{||:{selected}:{hovered}}:[20,50,20,200]:[20,50,20,200]}",
                                         "children":[
@@ -192,17 +535,12 @@
                                                 "fill":"{if:{||:{selected}:{hovered}}:[20,20,20,200]:[10,10,10,200]}",
                                                 "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
                                                 "color":"{if:{||:{selected}:{hovered}}:[225,225,225,255]:[200,200,200,255]}"
-                                            },
-                                            {
-                                                "type":"rect",
-                                                "size":[0,5],
-                                                "fill":[0,0,0,0]
                                             }
                                         ]
                                     },
                                     "else": {
                                         "type":"vlayout",
-                                        "pad":[5,0,5,2],
+                                        "outer_pad":[5,0,5,5],
                                         "max_size":"[{infocard_width},0]",
                                         "corners":["bottom"],
                                         "clickable":true,
@@ -243,11 +581,6 @@
                                                 "fill":"{if:{||:{selected}:{hovered}}:[20,20,20,200]:[10,10,10,200]}",
                                                 "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
                                                 "color":"{if:{||:{selected}:{hovered}}:[225,225,225,255]:[200,200,200,255]}"
-                                            },
-                                            {
-                                                "type":"rect",
-                                                "size":[0,5],
-                                                "fill":[0,0,0,0]
                                             }
                                         ]
                                     }
@@ -289,6 +622,7 @@
                                             "vertical_clr":[0,0,0,30],
                                             "horizontal_clr":[10,50,80,80],
                                             "halign":"left",
+                                            "outer_pad":[5,0,0,5],
                                             "children": [
                                                 [
                                                     {
@@ -427,6 +761,7 @@
                                             "children":[
                                                 {
                                                     "type":"gridlayout",
+                                                    "pad":[0,0,0,-1],
                                                     "children":[
                                                         [
                                                             {
@@ -545,7 +880,8 @@
                                             },
                                             "then": {
                                                 "type":"vlayout",
-                                                "pad":[0,5,0,0],
+                                                "outer_pad":[5,3,0,3],
+                                                "pad":[0,0,0,5],
                                                 "children":[
                                                     {
                                                         "type":"each",
@@ -556,10 +892,6 @@
                                                             "max_size":"[{infocard_width}, 0]",
                                                             "text":" {if:{equal:{index}:0}:<gray><sym>⮩</sym></gray> :'<small>   </small>'}{if:{>=:{index}:{global.match_topk}}:<gray>:''}bdx[<lightgray>{round:{at:0:{i}}:2}</lightgray>]: <cyan>{round:{at:1:{i}}:2}</cyan>{if:{global.gui_show_detailed_probabilities}:' t=<cyan>{round:{at:2:{i}}:2}</cyan>':''}{if:{>=:{index}:{global.match_topk}}:</gray>:''}"
                                                         }
-                                                    },
-                                                    {
-                                                        "type":"rect",
-                                                        "size":[0,5]
                                                     }
                                                 ]
                                             }
@@ -575,8 +907,9 @@
 
         {
             "type":"hlayout",
-            "z-index":1,
+            "z-index":0,
             "pad":[5,0,0,0],
+            "outer_pad":[0,0,0,0],
             "pos":"[{-:{window_size.x}:10},6]",
             "origin":[1,0],
             "children":[
@@ -590,13 +923,25 @@
                         {
                             "type":"button",
                             "corners":["left"],
-                            "text":"<sym>⭍</sym> Tracked",
+                            "text":"<sym>⭍</sym> Track",
                             "font":{"size":0.6},
                             "fill":"{if:{equal:{global.gui_mode}:tracking}:[10,10,10,220]:[40,40,40,220]}",
                             "color":"{if:{equal:{global.gui_mode}:tracking}:[100,100,100,220]:[250,250,250,220]}",
                             "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
-                            "size":[95,30],
+                            "size":[75,30],
                             "action":"set:gui_mode:tracking"
+                        },
+
+                        {
+                            "type":"button",
+                            "corners":["none"],
+                            "text":"<sym>🖰</sym> Annotate",
+                            "font":{"size":0.6},
+                            "fill":"{if:{equal:{global.gui_mode}:annotate}:[10,10,10,220]:[40,40,40,220]}",
+                            "color":"{if:{equal:{global.gui_mode}:annotate}:[100,100,100,220]:[250,250,250,220]}",
+                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                            "size":[95,30],
+                            "action":"set:gui_mode:annotate"
                         },
                         
                         {
@@ -604,11 +949,11 @@
                             "corners":["right"],
                             "text":"<sym>🎞</sym> Raw",
                             "font":{"size":0.6},
-                            "fill":"{if:{equal:{global.gui_mode}:blobs}:[10,10,10,220]:[40,40,40,220]}",
-                            "color":"{if:{equal:{global.gui_mode}:blobs}:[100,100,100,220]:[250,250,250,220]}",
+                            "fill":"{if:{equal:{global.gui_mode}:raw}:[10,10,10,220]:[40,40,40,220]}",
+                            "color":"{if:{equal:{global.gui_mode}:raw}:[100,100,100,220]:[250,250,250,220]}",
                             "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
                             "size":[65,30],
-                            "action":"set:gui_mode:blobs"
+                            "action":"set:gui_mode:raw"
                         }
                     ]
                 },
@@ -648,6 +993,7 @@
                                 "pad":[8,0],
                                 "font":{"size":0.6,"align":"vcenter"}
                             },
+                            "corners":["bottom","topleft"],
                             "foldable":true,
                             "folded":true,
                             "var":"{concat:[\"uniqueness\"]:{global.gui_foi_types}}",
@@ -685,6 +1031,7 @@
                             },
                             "foldable":true,
                             "folded":true,
+                            "corners":["bottom","topleft"],
                             "items":[
                                 {
                                     "text":"{if:{global.gui_show_selections}:'<sym>☑</sym> ':'<sym>☐</sym> <gray>'}Selection Circles{if:{global.gui_show_selections}:'':</gray>}",
@@ -801,6 +1148,16 @@
                                     "action":"export_data"
                                 },
                                 {
+                                    "text":"Export annotations",
+                                    "detail":"exports YOLO/COCO annotation datasets",
+                                    "action":"export_annotations"
+                                },
+                                {
+                                    "text":"Import annotations",
+                                    "detail":"imports YOLO or COCO annotation datasets into track_annotations",
+                                    "action":"import_annotations"
+                                },
+                                {
                                     "text":"<sym>🛠</sym> Save config",
                                     "detail":"writes parameters to a .settings file",
                                     "action":"write_config"
@@ -864,14 +1221,26 @@
         
         {
             "type":"vlayout",
-            "pad":[0,10,0,0],
+            "outer_pad":[0,10,0,0],
+            "pad":[0,0,0,9],
             "children":[
                 
                 {
                     "type":"hlayout",
-                    "pad":[10,-7,0,5],
+                    "outer_pad":[15,0,0,0],
+                    "pad":[0,0,10,0],
                     "children":[
-                        
+
+                        {
+                            "type":"stext",
+                            "clickable":true,
+                            "name":"info_symbol",
+                            "text":"<sym>🛈</sym>",
+                            "shadow":0.5,
+                            "color":"{if:{hovered}:[250,250,250,250]:[200,200,200,100]}",
+                            "pad":[0,-1,0,7.5]
+                        },
+
                         {
                             "type":"condition",
                             "var":"{equal:{global.video_length}:{tracker.end}}",
@@ -891,16 +1260,6 @@
                                 "line":[100,100,100,0],
                                 "color":"{if:{is_paused}:[30,80,30,100]:[200,120,80,100]}"
                             }
-                        },
-
-                        {
-                            "type":"stext",
-                            "clickable":true,
-                            "name":"info_symbol",
-                            "text":"<sym>🛈</sym>",
-                            "shadow":0.5,
-                            "color":"{if:{hovered}:[250,250,250,250]:[200,200,200,100]}",
-                            "pad":[-5,0,0,7.5]
                         },
                         
                         {
@@ -935,6 +1294,7 @@
                             "line": [255,255,255,220],
                             "clickable":true,
                             "name":"timeline_outline",
+                            "click": "set:gui_frame:{min:{length}:{*:{/:{-:{mouse.x}:10}:{-:{window_size.x}:22}}:{-:{global.video_length}:0.5}}}",
                             "drag": "set:gui_frame:{min:{length}:{*:{/:{-:{mouse.x}:10}:{-:{window_size.x}:22}}:{-:{global.video_length}:0.5}}}"
                         },
                         {
@@ -945,7 +1305,7 @@
                             "line": [0,0,0,0],
                             "name":"timeline_left_border",
                             "clickable":true,
-                            "drag": "set:gui_frame:0"
+                            "click": "set:gui_frame:0"
                         },
                         {
                             "type": "rect",
@@ -955,7 +1315,7 @@
                             "line": [255,255,255,0],
                             "name": "timeline_right_border",
                             "clickable":true,
-                            "drag": "set:gui_frame:{length}"
+                            "click": "set:gui_frame:{length}"
                         },
                         
                         {
@@ -1052,7 +1412,7 @@
             "type":"hlayout",
             "pos":"{addVector:[0,{-:{window_size.y}:5}]:0}",
             "origin":[0,1],
-            "pad":[10,10,0,0],
+            "outer_pad":[10,10,0,0],
             "children":[
                 
                 {
@@ -1067,7 +1427,7 @@
                         "size":[700,300],
                         "font":{"size":0.6}
                     },
-                    "size":[700,40],
+                    "size":"[{min:{-:{window_size.x}:20}:700},40]",
                     "color":[225,225,225],
                     "desc":"",
                     "placeholder":"<sym>🔍</sym> Parameters",
@@ -1109,7 +1469,7 @@
         {
             "type":"condition",
             "var":"{||:{hovered:timeline}:{hovered:button_thing}}",
-            "z-index":1,
+            "z-index":0,
             "then": {
                 "type":"collection",
                 "children":[
@@ -1172,6 +1532,22 @@
                 "size":"[{*:0.75:{window_size.x}},200]",
                 "row_height":30,
                 "line":"{if:{hovered}:[100,175,250,230]:[100,100,100,50]}"
+            }
+        },
+
+        {
+            "type":"condition",
+            "var":"{global.gui_show_tiles}",
+            "then":{
+                "type":"each",
+                "var":"{tiles}",
+                "do":{
+                    "type":"rect",
+                    "pos":"{2hud:[{i.x},{i.y}]}",
+                    "size":"{size2hud:[{i.w},{i.h}]}",
+                    "fill":[255,255,255,0],
+                    "line":[255,255,255,220]
+                }
             }
         }
     ]

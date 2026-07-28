@@ -55,8 +55,9 @@ start_progress() {
     PROGRESS_STOP="${TMPDIR:-/tmp}/trex_post_link_stop_$$_${RANDOM:-0}"
     rm -f "${PROGRESS_STOP}" 2>/dev/null
 
+    progress_stream "$(printf '\033[?25l')"
     (
-        frames='|/-\'
+        frames=("⠋" "⠙" "⠚" "⠞" "⠖" "⠦" "⠴" "⠲" "⠳" "⠓")
         i=0
         start_time=$(date +%s)
         while [ ! -f "${PROGRESS_STOP}" ]; do
@@ -64,17 +65,17 @@ start_progress() {
             elapsed=$((now - start_time))
             minutes=$((elapsed / 60))
             seconds=$((elapsed % 60))
-            frame=$(printf '%s' "${frames}" | cut -c $((i % 4 + 1)))
+            frame="${frames[$((i % ${#frames[@]}))]}"
             info=$(last_progress_line "${log_path}")
             if [ -n "${info}" ]; then
-                progress_stream "$(printf '\r  %s %s  %02d:%02d   ' "${frame}" "${info}" "${minutes}" "${seconds}")"
+                progress_stream "$(printf '\r\033[34m%s\033[0m %s  %02d:%02d   ' "${frame}" "${info}" "${minutes}" "${seconds}")"
             else
-                progress_stream "$(printf '\r  %s %s  %02d:%02d   ' "${frame}" "${label}" "${minutes}" "${seconds}")"
+                progress_stream "$(printf '\r\033[34m%s\033[0m %s  %02d:%02d   ' "${frame}" "${label}" "${minutes}" "${seconds}")"
             fi
             i=$((i + 1))
-            sleep 1
+            sleep 0.1
         done
-        progress_stream "$(printf '\r%*s\r' 120 '')"
+        progress_stream "$(printf '\r\033[2K\033[?25h')"
     ) &
     PROGRESS_PID=$!
 }
@@ -243,12 +244,13 @@ else
 fi
 
 common_packages=(
-    "torch>=2.0.0,<3.0.0"
-    "torchvision>=0.15.1"
+    "torch>=2.2.0,<3.0.0"
+    "torchvision>=0.17.0"
     "torchmetrics"
     "tqdm"
     "opencv-python>=4,<5"
     "ultralytics>=8.3.0,<9"
+    "rfdetr==1.8.3"
     "dill"
     "timm"
     "scikit-learn"
@@ -313,7 +315,7 @@ fi
 log "Testing installation..."
 announce_progress "TRex is running a short YOLO smoke test to verify the Python install."
 
-CMD_STRING="from ultralytics import YOLO; import numpy as np; YOLO('yolo26n.yaml').to('cpu').predict(np.zeros((640, 480, 3), dtype=np.uint8))"
+CMD_STRING="from ultralytics import YOLO; from rfdetr import RFDETR; from torchvision.ops import nms; import numpy as np, torch; assert nms(torch.tensor([[0.,0.,1.,1.]]), torch.tensor([1.]), 0.5).tolist() == [0]; YOLO('yolo26n.yaml').to('cpu').predict(np.zeros((640, 480, 3), dtype=np.uint8))"
 log_command python -c "${CMD_STRING}"
 
 if TREX_PROGRESS_LABEL="YOLO smoke test..." run_with_reporting python -c "${CMD_STRING}"; then

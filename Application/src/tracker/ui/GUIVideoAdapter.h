@@ -4,6 +4,7 @@
 #include <gui/ControlsAttributes.h>
 #include <core/BlurryVideoLoop.h>
 #include <gui/types/Entangled.h>
+#include <gui/types/Layout.h>
 #include <gui/GuiTypes.h>
 #include <file/PathArray.h>
 #include <misc/Image.h>
@@ -13,7 +14,7 @@ using Alpha = cmn::gui::attr::Alpha;
 
 namespace cmn::gui {
 
-class IMGUIBase;
+class Base;
 
 NUMBER_ALIAS(Blur, double);
 NUMBER_ALIAS(FrameTime, double);
@@ -22,7 +23,7 @@ class GUIVideoAdapter : public Entangled {
 private:
     GETTER(BlurryVideoLoop, video_loop);
     ExternalImage _image;
-    IMGUIBase *_queue;
+    Base *_queue;
     Margins _margins;
     
     double _fade_percent{0.0};
@@ -41,7 +42,7 @@ private:
     file::PathArray _array;
     
 public:
-    GUIVideoAdapter(const file::PathArray& array, IMGUIBase* queue, std::function<void(VideoInfo)> callback);
+    GUIVideoAdapter(const file::PathArray& array, Base* queue, std::function<void(VideoInfo)> callback);
     
     ~GUIVideoAdapter();
     
@@ -59,6 +60,11 @@ public:
     Alpha alpha() const;
     void set_scale(const Vec2& scale) override;
 };
+
+namespace detail {
+template<>
+struct AllowDirectMakeArgs<GUIVideoAdapter, file::PathArray, Base*, std::function<void(VideoInfo)>> : std::true_type {};
+}
 
 namespace attr {
 CMN_GUI_REGISTER_ATTRIBUTE_MEMBER(GUIVideoAdapter, Blur);

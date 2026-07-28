@@ -269,7 +269,8 @@
 			"pos":[10,100],
 			"fill":[30,30,30,220],
 			"line":"{primary_selection.color}",
-			"pad":[5,5,5,5],
+			"outer_pad":[5,5,5,0],
+			"pad":[0,0,0,5],
 			"clickable":true,
 			"name":"info_box",
 			"children": [
@@ -280,7 +281,7 @@
 						{
 							"type":"stext",
 							"text":"<c><h4>{global.individual_prefix}_{at:0:{global.gui_focus_group}}</h4>{if:{primary_selection.bdx}:: <gray>(hidden)</gray>}</c>",
-							"pad":[10,15,5,0],
+							"pad":[10,10,5,15],
 							"font":{"size":0.6}
 						},
 						{

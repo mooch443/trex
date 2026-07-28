@@ -6,7 +6,7 @@
 #include <file/DataFormat.h>
 
 namespace cmn::gui {
-class IMGUIBase;
+class Base;
 }
 
 namespace cmn::gui {
@@ -87,7 +87,7 @@ Sample::Ptr front_sample();
 
 void show(const std::shared_ptr<pv::File>& video, const std::function<void()>& auto_quit, const std::function<void(std::string, double)>& set_status);
 void hide();
-void draw(const std::shared_ptr<pv::File>&, gui::IMGUIBase*, gui::DrawStructure&);
+void draw(const std::shared_ptr<pv::File>&, gui::Base*, gui::DrawStructure&);
 void terminate();
 file::Path output_location();
 void clear_labels();

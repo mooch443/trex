@@ -274,17 +274,27 @@ std::unique_ptr<PPFrame> GUICache::PPFrameMaker::operator()() const {
         if(mode != _mode) {
             _mode = mode;
             
-            if(mode == mode_t::blobs)
+            if(mode == mode_t::raw)
                 set_blobs_dirty();
             else if(mode == mode_t::tracking)
                 set_tracking_dirty();
+            else if(mode == mode_t::annotate)
+                set_blobs_dirty();
+            else
+                throw InvalidArgumentException("Unknown mode ", mode, " in GUICache::set_mode().");
+            
             set_raw_blobs_dirty();
         }
     }
     
     bool GUICache::must_redraw() const {
-        if(raw_blobs_dirty() || _dirty || (_mode == mode_t::tracking && _tracking_dirty) || (_mode == mode_t::blobs && _blobs_dirty))
+        if(raw_blobs_dirty() 
+            || _dirty 
+            || (is_in(_mode, mode_t::tracking, mode_t::annotate) && _tracking_dirty) 
+            || (_mode == mode_t::raw && _blobs_dirty))
+        {
             return true;
+        }
         return false;
     }
 
@@ -539,7 +549,7 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
                 _video_resolution = lock->size();
         }
         
-        if(not GUI_SETTINGS(nowindow)) {
+        if(BOOL_SETTING(has_gui)) {
             //! Calculate average pixel values. This is not a high-priority action, especially if the GUI is disabled. Only used for `gui_equalize_blob_histograms`.
             std::call_once(_percentile_once, [this](){
                 percentile_ptr = std::make_unique<std::thread>([this](){
@@ -1200,7 +1210,7 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
             //for(auto &b : raw_blobs)
             //    b->ptr->updated_source();
             
-            const uint8_t max_alpha = _graph->is_key_pressed(Codes::LSystem) ? 200 : 255;
+            const uint8_t max_alpha = _graph->is_system_pressed() ? 200 : 255;
             for(auto &b : display_blobs) {
                 b.second->ptr->set_pos(b.second->image_pos);
                 b.second->ptr->updated_source();

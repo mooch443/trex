@@ -24,6 +24,7 @@
 #include <python/PythonWrapper.h>
 
 #include <ui/TrackingScene.h>
+#include <ui/ConvertScene.h>
 
 #include <portable-file-dialogs.h>
 #include <misc/ProtectedProperty.h>
@@ -79,7 +80,7 @@ struct SettingsScene::Data {
     sprite::Map _defaults;
     std::stack<std::string> _last_layouts;
     
-    IMGUIBase *_window{nullptr};
+    Base *_window{nullptr};
     
     file::PathArray _initial_source;
     std::atomic<Size2> _next_video_size;
@@ -524,7 +525,7 @@ struct SettingsScene::Data {
                                                     dynGUI = {};
                                                 });
                                             }
-                                        }, "The model file <c><cyan>"+path.str() + "</cyan></c> does not seem to exist and is not a default Yolo model name. Please choose a valid model file (a Yolo saved model <c><cyan>.pt</cyan></c>).", "Invalid model", "Okay");
+                                        }, "The model file <c><cyan>"+path.str() + "</cyan></c> does not seem to exist and is not a default YOLO model name. Please choose a valid saved model (<c><cyan>.pt</cyan></c> or <c><cyan>.pth</cyan></c>).", "Invalid model", "Okay");
                                         return;
                                     }
                                 }
@@ -543,6 +544,12 @@ struct SettingsScene::Data {
                                     ](Dialog::Result result) mutable {
                                         if(result == Dialog::Result::OKAY) {
                                             /// continue on to converting!
+                                            bool force_start_over = true;
+                                            ConvertScene::force_start_over.set(force_start_over);
+                                            SceneManager::getInstance().set_active("convert-scene");
+                                        } else if(result == Dialog::Result::SECOND) {
+                                            /// continue but overwrite file:
+
                                             SceneManager::getInstance().set_active("convert-scene");
                                             
                                         } else {
@@ -554,7 +561,7 @@ struct SettingsScene::Data {
                                             GlobalSettings::set_current_defaults_with_config(std::move(defaults_with_config));
                                         }
                                         
-                                    }, "Starting the conversion would overwrite <cyan><c>"+filename.str()+"</c></cyan>, which already exists. Are you sure?", "Overwrite file", "Overwrite", "Cancel");
+                                    }, "Starting the conversion would overwrite <cyan><c>"+filename.str()+"</c></cyan>, which already exists. Are you sure?", "Overwrite file", "Start over (overwrite)", "Cancel", "Continue (if possible)");
                                 } else
                                     SceneManager::getInstance().set_active("convert-scene");
                             });
@@ -693,7 +700,7 @@ struct SettingsScene::Data {
                         REQUIRE_AT_LEAST(1, action);
                         WorkProgress::add_queue("Selecting folder", [action](){
                             auto parm = action.parameters.front();
-                            auto folder = action.parameters.size() == 1 ? action.parameters.back() : file::cwd().str();
+                            auto folder = action.parameters.size() > 1 ? action.parameters.at(1) : std::string{};
                             if(not file::Path{folder}.is_folder())
                                 folder = {};
                             
@@ -706,7 +713,7 @@ struct SettingsScene::Data {
                         REQUIRE_AT_LEAST(1, action);
                         WorkProgress::add_queue("Selecting file", [action](){
                             auto parm = action.parameters.front();
-                            auto folder = action.parameters.size() > 1 ? action.parameters.at(1) : file::cwd().str();
+                            auto folder = action.parameters.size() > 1 ? action.parameters.at(1) : std::string{};
                             if(not file::Path{folder}.is_folder())
                                 folder = {};
                             
@@ -731,7 +738,7 @@ struct SettingsScene::Data {
                     }),
                     ActionFunc("choose-settings", [this](const Action& action) {
                         WorkProgress::add_queue("Selecting file", [this, action](){
-                            auto folder = action.parameters.size() > 0 ? action.parameters.at(0) : file::cwd().str();
+                            auto folder = action.parameters.size() > 0 ? action.parameters.at(0) : std::string{};
                             if(not file::Path{folder}.is_folder())
                                 folder = {};
                             
@@ -876,11 +883,11 @@ struct SettingsScene::Data {
                     return FindCoord::get().screen_size();
                 }, [this](VideoInfo info) {
                     _next_video_size = info.size;
-                }, [this](const file::PathArray& path, IMGUIBase* window, std::function<void(VideoInfo)> callback) {
+                }, [this](const file::PathArray& path, Base* window, std::function<void(VideoInfo)> callback) {
                     if(_video_adapters.contains(path.source())) {
                         return _video_adapters[path.source()];
                     } else {
-                        Layout::Ptr ptr = Layout::Make<GUIVideoAdapter>(path, window, callback);
+                        Layout::Ptr ptr = Layout::Make<GUIVideoAdapter>{path, window, callback};
                         //Print("Making new video adapter for ", path);
                         if(_video_adapters.size() >= 2) {
                             Print("Clearing video adapter history...");
@@ -1123,7 +1130,7 @@ void SettingsScene::activate() {
     WorkProgress::instance().start();
     
     _data = std::make_unique<Data>();
-    _data->_window = (IMGUIBase*)window();
+    _data->_window = window();
 
     _data->_initial_source = READ_SETTING(source, file::PathArray);
     _data->register_callbacks();

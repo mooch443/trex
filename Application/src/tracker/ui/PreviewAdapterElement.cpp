@@ -101,7 +101,7 @@ PreviewAdapterElement::~PreviewAdapterElement() {
 
 Layout::Ptr PreviewAdapterElement::_create(LayoutContext& context) {
     [[maybe_unused]] auto fdx = context.get(Idx_t(), "fdx");
-    return Layout::Make<IndividualImage>();
+    return Layout::Make<IndividualImage>{};
 }
 
 bool PreviewAdapterElement::_update(Layout::Ptr& o,

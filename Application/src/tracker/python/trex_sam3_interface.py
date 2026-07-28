@@ -21,7 +21,6 @@ import numpy as np
 import numpy.typing as npt
 import torch
 from torch.nn import functional as F
-from tqdm import tqdm
 from ultralytics.models.sam.predict import SAM3VideoSemanticPredictor
 from ultralytics.utils.checks import check_imgsz
 
@@ -29,6 +28,9 @@ try:
     import TRex  # type: ignore
 except Exception:  # pragma: no cover
     TRex = None
+
+if TRex is None:
+    from tqdm import tqdm as _standalone_tqdm
 
 
 class GenericOkResponse(TypedDict):
@@ -205,7 +207,7 @@ class Sam3VideoSession:
 
 _SESSION: Sam3VideoSession | None = None
 _SESSION_LOG_PREFIX = "[py][sam3-session]"
-_REPLAY_PROGRESS: tqdm | None = None
+_REPLAY_PROGRESS: object | None = None
 
 
 def _choose_device() -> str:
@@ -385,49 +387,28 @@ def _denormalize_boxes(
     return boxes_px
 
 
-def _scale_components(scale: object) -> tuple[float, float]:
-    return float(getattr(scale, "x", 1.0)), float(getattr(scale, "y", 1.0))
-
-
 def _offset_components(offset: object) -> tuple[float, float]:
     return float(getattr(offset, "x", 0.0)), float(getattr(offset, "y", 0.0))
 
 
-def _estimate_original_image_shape(
-    model_shape: tuple[int, int],
-    scale: object,
-    offset: object,
-) -> tuple[int, int]:
-    scale_x, scale_y = _scale_components(scale)
-    offset_x, offset_y = _offset_components(offset)
-    content_w = max(1, int(round(float(model_shape[1]) + 2.0 * offset_x)))
-    content_h = max(1, int(round(float(model_shape[0]) + 2.0 * offset_y)))
-    original_w = max(1, int(round(content_w * scale_x)))
-    original_h = max(1, int(round(content_h * scale_y)))
-    return original_h, original_w
-
-
-def _restore_mask_to_original(
+def _restore_mask_to_source_region(
     mask: npt.NDArray[np.uint8],
-    model_shape: tuple[int, int],
-    scale: object,
-    offset: object,
+    geometry: object,
 ) -> npt.NDArray[np.uint8]:
-    original_h, original_w = _estimate_original_image_shape(model_shape, scale, offset)
-    scale_x, scale_y = _scale_components(scale)
-    offset_x, offset_y = _offset_components(offset)
-    pad_left = max(0, int(round(-offset_x)))
-    pad_top = max(0, int(round(-offset_y)))
-    content_w = max(1, int(round(original_w / scale_x)))
-    content_h = max(1, int(round(original_h / scale_y)))
+    pad_left = max(0, int(round(float(getattr(geometry, "tile_x", 0.0)))))
+    pad_top = max(0, int(round(float(getattr(geometry, "tile_y", 0.0)))))
+    content_w = max(1, int(round(float(getattr(geometry, "tile_width", mask.shape[1])))))
+    content_h = max(1, int(round(float(getattr(geometry, "tile_height", mask.shape[0])))))
+    source_w = max(1, int(round(float(getattr(geometry, "source_width", content_w)))))
+    source_h = max(1, int(round(float(getattr(geometry, "source_height", content_h)))))
     pad_right = min(mask.shape[1], pad_left + content_w)
     pad_bottom = min(mask.shape[0], pad_top + content_h)
     cropped = np.ascontiguousarray(mask[pad_top:pad_bottom, pad_left:pad_right])
     if cropped.size == 0:
-        return np.zeros((original_h, original_w), dtype=np.uint8)
+        return np.zeros((source_h, source_w), dtype=np.uint8)
     if cropped.shape != (content_h, content_w):
         cropped = _resize_mask(cropped, content_h, content_w)
-    return _resize_mask(cropped, original_h, original_w)
+    return _resize_mask(cropped, source_h, source_w)
 
 
 def _mask_contains_point(mask: npt.NDArray[np.uint8], x: float, y: float, radius: int = 2) -> bool:
@@ -501,8 +482,7 @@ def _select_masks_matching_points(
 
 def _build_result(
     frame_index: int,
-    scale: object,
-    offset: object,
+    geometry: object,
     image_shape: tuple[int, int],
     masks_np: npt.NDArray[np.uint8],
     conf_np: npt.NDArray[np.float32],
@@ -522,10 +502,15 @@ def _build_result(
         if pred_boxes_np is not None:
             pred_boxes_np = pred_boxes_np[keep_indices]
 
+    scale = geometry.scale()
+    offset = geometry.offset()
     scale_x = float(getattr(scale, "x", 1.0))
     scale_y = float(getattr(scale, "y", 1.0))
     offset_x, offset_y = _offset_components(offset)
-    target_h, target_w = _estimate_original_image_shape(image_shape, scale, offset)
+    source_x = float(getattr(geometry, "source_x", 0.0))
+    source_y = float(getattr(geometry, "source_y", 0.0))
+    target_w = max(1, int(round(float(getattr(geometry, "source_width", image_shape[1])))))
+    target_h = max(1, int(round(float(getattr(geometry, "source_height", image_shape[0])))))
 
     n = masks_np.shape[0]
     trex_masks: list[npt.NDArray[np.uint8]] = []
@@ -533,11 +518,12 @@ def _build_result(
 
     _session_log(
         f"frame={frame_index} masks={n} target={target_w}x{target_h} "
-        f"scale=({scale_x:.3f},{scale_y:.3f}) offset=({offset_x:.3f},{offset_y:.3f})"
+        f"source=({source_x:.1f},{source_y:.1f}) scale=({scale_x:.3f},{scale_y:.3f}) "
+        f"offset=({offset_x:.3f},{offset_y:.3f})"
     )
 
     for idx, mask in enumerate(masks_np):
-        resized_mask = _restore_mask_to_original(mask * np.uint8(255), image_shape, scale, offset)
+        resized_mask = _restore_mask_to_source_region(mask * np.uint8(255), geometry)
 
         if pred_boxes_np is not None and idx < len(pred_boxes_np):
             x0 = float((pred_boxes_np[idx, 0] + offset_x) * scale_x)
@@ -548,20 +534,26 @@ def _build_result(
             boxes[idx, 1] = y0
             boxes[idx, 2] = max(0.0, x1 - x0)
             boxes[idx, 3] = max(0.0, y1 - y0)
+            lx0 = max(0, int(round(x0 - source_x)))
+            ly0 = max(0, int(round(y0 - source_y)))
+            lx1 = min(resized_mask.shape[1], max(lx0, int(round(x1 - source_x))))
+            ly1 = min(resized_mask.shape[0], max(ly0, int(round(y1 - source_y))))
+            if lx1 > lx0 and ly1 > ly0:
+                resized_mask = resized_mask[ly0:ly1, lx0:lx1].copy()
         else:
             ys, xs = np.where(resized_mask > 0)
             if xs.size and ys.size:
-                boxes[idx, 0] = float(xs.min())
-                boxes[idx, 1] = float(ys.min())
-                boxes[idx, 2] = float(xs.max() + 1) - boxes[idx, 0]
-                boxes[idx, 3] = float(ys.max() + 1) - boxes[idx, 1]
+                boxes[idx, 0] = source_x + float(xs.min())
+                boxes[idx, 1] = source_y + float(ys.min())
+                boxes[idx, 2] = float(xs.max() + 1 - xs.min())
+                boxes[idx, 3] = float(ys.max() + 1 - ys.min())
                 cropped = resized_mask[int(ys.min()) : int(ys.max()) + 1, int(xs.min()) : int(xs.max()) + 1].copy()
                 resized_mask = cropped
                 boxes[idx, 2] = cropped.shape[1] - 1
                 boxes[idx, 3] = cropped.shape[0] - 1
             else:
-                boxes[idx, 0] = 0
-                boxes[idx, 1] = 0
+                boxes[idx, 0] = source_x
+                boxes[idx, 1] = source_y
                 boxes[idx, 2] = target_w - 1
                 boxes[idx, 3] = target_h - 1
 
@@ -756,8 +748,7 @@ def _run_one_frame(
     frame_index: int,
     image: npt.NDArray[np.uint8],
     prompt_state: PromptState,
-    scale: object,
-    offset: object,
+    geometry: object,
 ) -> "TRex.Result":
     """Run one frame through the active SAM3 video predictor runtime."""
     _sync_runtime_settings(session)
@@ -825,8 +816,7 @@ def _run_one_frame(
     session.last_processed_frame = frame_index
     return _build_result(
         frame_index=frame_index,
-        scale=scale,
-        offset=offset,
+        geometry=geometry,
         image_shape=image.shape[:2],
         masks_np=masks_np,
         conf_np=conf_np,
@@ -936,7 +926,8 @@ def begin_replay_progress(request: Mapping[str, object]) -> GenericOkResponse:
     if total_steps <= 0:
         return {"ok": True}
 
-    _REPLAY_PROGRESS = tqdm(
+    progress_factory = TRex.tqdm if TRex is not None else _standalone_tqdm
+    _REPLAY_PROGRESS = progress_factory(
         total=total_steps,
         desc=f"SAM3 replay {start_frame}->{target_frame}",
         unit="frame",
@@ -980,12 +971,11 @@ def predict_frame(input: object) -> list["TRex.Result"]:
     base = input.base()
     images = list(base.images())
     orig_ids = list(base.orig_id())
-    offsets = list(base.offsets())
-    scales = list(base.scales())
+    geometries = list(base.tile_geometries())
     prompts_per_image = list(input.prompts_per_image()) if hasattr(input, "prompts_per_image") else []
 
-    if len(images) != len(orig_ids) or len(images) != len(scales) or len(images) != len(offsets):
-        raise ValueError("SAM3 predict_frame received mismatched images/orig_id/scales/offsets lengths.")
+    if len(images) != len(orig_ids) or len(images) != len(geometries):
+        raise ValueError("SAM3 predict_frame received mismatched images/orig_id/tile_geometries lengths.")
     if prompts_per_image and len(prompts_per_image) != len(images):
         raise ValueError("SAM3 predict_frame received prompts_per_image with a different length than images().")
 
@@ -993,10 +983,10 @@ def predict_frame(input: object) -> list["TRex.Result"]:
         prompts_per_image = [[] for _ in images]
 
     results: list["TRex.Result"] = []
-    for frame_index, image, scale, offset, prompt_list in zip(orig_ids, images, scales, offsets, prompts_per_image):
+    for frame_index, image, geometry, prompt_list in zip(orig_ids, images, geometries, prompts_per_image):
         idx = int(frame_index)
         normalized_image = _normalize_frame(image)
         prompt_state = _collect_prompt_state(cast(Sequence[object], prompt_list))
-        results.append(_run_one_frame(session, idx, normalized_image, prompt_state, scale, offset))
+        results.append(_run_one_frame(session, idx, normalized_image, prompt_state, geometry))
 
     return results

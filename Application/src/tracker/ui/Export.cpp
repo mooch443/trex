@@ -13,6 +13,7 @@
 #include <processing/PadImage.h>
 #include <ui/DrawGraph.h>
 #include <core/DetectionTypes.h>
+#include <core/TerminalProgress.h>
 
 #if WIN32
 #include <io.h>
@@ -292,6 +293,7 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
         std::vector<std::shared_ptr<PropertiesGraph>> fish_graphs;
         std::vector<Output::LibraryCache::Ptr> library_cache;
         float last_percent = -1;
+        size_t progress_spinner_index = 0;
         
         auto work_item = [&](size_t thread_index, Idx_t id, const Individual* fish){
             if(fdx.valid() && fdx != id)
@@ -300,7 +302,7 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
             //if(SETTING(terminate))
             //    return;
             
-            std::function<void(float)> callback = [id, &percent_mutex, &all_percents, &last_percent, &fishdata, output_posture_data, &progress_callback](float percent) {
+            std::function<void(float)> callback = [id, &percent_mutex, &all_percents, &last_percent, &progress_spinner_index, &fishdata, output_posture_data, &progress_callback](float percent) {
                 float overall_percent = 0;
                 
                 {
@@ -332,17 +334,10 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                 {
                     last_percent = overall_percent;
                     overall_percent *= 100;
-                    
-                    size_t i;
-                    printf("[");
-                    for(i=0; i<overall_percent * 0.5; ++i) {
-                        printf("=");
-                    }
-                    for(; i<100 * 0.5; ++i) {
-                        printf(" ");
-                    }
-                    printf("] %.2f%% exported (to '%s/...)\r", overall_percent, fishdata.str().c_str());
-                    fflush(stdout);
+                    cmn::terminal::progress::print_progress_bar_line(
+                        overall_percent,
+                        "exported (to '" + fishdata.str() + "/...)",
+                        progress_spinner_index);
                 }
             };
             
@@ -781,6 +776,10 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
             IndividualManager::transform_all([&](auto fdx, const auto fish){
                 work_item(0, fdx, fish);
             });
+        }
+
+        if(progress_spinner_index > 0) {
+            cmn::terminal::progress::finish_progress_bar_line();
         }
         
         if(tracker.has_vi_predictions()) {

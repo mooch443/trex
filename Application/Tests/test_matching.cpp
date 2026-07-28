@@ -911,6 +911,29 @@ TEST(TestValidModels, ExistingPtPathWithSpaces) {
         model_path.str()));
 }
 
+TEST(TestValidModels, ExistingRfdetrPthPath) {
+    const auto native_path = std::filesystem::temp_directory_path() / "rf-detr-small.pth";
+    {
+        std::ofstream model_file(native_path, std::ios::binary);
+        ASSERT_TRUE(model_file.good());
+    }
+
+    struct Cleanup {
+        std::filesystem::path path;
+        ~Cleanup() {
+            std::error_code ec;
+            std::filesystem::remove(path, ec);
+        }
+    } cleanup{native_path};
+
+    const file::Path model_path(native_path.string());
+    ASSERT_TRUE(yolo::valid_model(model_path));
+    EXPECT_NO_THROW(track::detect::ModelConfig(
+        track::detect::ModelTaskType::detect,
+        false,
+        model_path.str()));
+}
+
 TEST(TestValidModels, Invalid) {
     struct MockFilesystem : public file::FilesystemInterface {
         std::set<file::Path> find_files(const file::Path&) const { throw std::exception(); }

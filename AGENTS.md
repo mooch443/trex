@@ -13,11 +13,18 @@ library for shared utilities and GUI infrastructure.
 - `docs/`: Sphinx docs.
 - `website/`, `images/`, `videos/`: site + assets.
 
+Do not use whitespace cleanup tools if they produce lots of diff, never commit huge diff that is just whitespace changes.
+When creating commits, match recent repository style: use bullet-style,
+past-tense messages where each line starts with `* Added`, `* Updated`,
+`* Modified`, or similar wording.
+
 ## Commons library overview
 - Core GUI headers live under `Application/src/commons/common/gui/`.
 - The dynamic GUI system is `Application/src/commons/common/gui/DynamicGUI.h`
   and `Application/src/commons/common/gui/dyn/`.
-- Most source files include the precompiled header `commons.pc.h`.
+- Do not include individual C++ standard-library headers; they are provided by
+  `commons.pc.h`. When it is included, `commons.pc.h` must be the first include
+  in the file for consistency.
 - Start with the dynamic GUI walkthrough in `Application/src/commons/README.md`.
 
 ## Creating GUIs with commons (how it should be used)
@@ -38,6 +45,52 @@ library for shared utilities and GUI infrastructure.
    - Each frame: call `dynGUI.update(graph, parent)` then process queued tasks.
    - Use `file::DataLocation::parse(...)` when layouts/assets are installed
      outside the build tree.
+
+### Dynamic GUI capabilities in this repo
+- Layout files use a top-level `"objects"` array plus optional `"defaults"`.
+  Most TRex layouts live beside `Application/src/tracker/tracking_layout.json`
+  and are good references for production patterns.
+- Built-in object types include `vlayout`, `hlayout`, `gridlayout`,
+  `collection`, `button`, `textfield`, `checkbox`, `settings`, `combobox`,
+  `list`, `each`, `condition`, `text`, `stext`, `rect`, `circle`, `line`, and
+  `image`. Some layouts also use custom registered module/object names; check
+  the owning scene/widget before assuming a type is globally built in.
+- Common object fields are `name`, `pos`, `size`, `scale`, `origin`, `pad`,
+  `outer_pad`, `fill`, `line`, `corners`, `color`, `font`, `max_size`,
+  `clickable`, `z-index`, and `modules`. Containers use `children`;
+  `gridlayout` uses row/cell child arrays.
+- `font` supports at least `size`, `style` (`regular`, `bold`, `italic`,
+  `mono`), and `align` (`left`, `right`, `center`, `vcenter`).
+- Text and most fields can contain dynamic expressions in `{...}`. Variables
+  come from `Context` `VarFunc`s, global settings are normally exposed as
+  `{global.setting_name}`, list/loop items default to `{i}`, and object fields
+  can be accessed with dotted paths like `{i.name}` or `{window_size.x}`.
+- Expression syntax is prefix-style and nestable. Existing layouts use
+  conditionals (`{if:cond:then:else}`), boolean operators (`{&&:...}`,
+  `{||:...}`, `{not:...}`), comparisons (`{equal:a:b}`, `{nequal:a:b}`,
+  `{<:a:b}`, `{>:a:b}`, `{>=:a:b}`), arithmetic (`{+:...}`, `{-:...}`,
+  `{*:...}`, `{/:...}`, `{mod:...}`, `{min:...}`, `{max:...}`), collection
+  access (`{at:index:value}`, `{array_length:value}`, `{concat:a:b}`), and
+  string/path helpers (`{lower:x}`, `{filename:x}`, `{basename:x}`,
+  `{shorten:x:n}`).
+- Actions are declared as strings such as `"action":"set:gui_run:true"` or
+  `"action":"import_annotations"`. The parser resolves expressions inside the
+  action name and parameters before calling the matching `ActionFunc`.
+- `button` triggers `action` on click. `textfield` triggers `action` on Enter
+  and `on_text_changed` while editing; the current text is available to the
+  action as `{text}`.
+- `condition` uses `"var"` plus `"then"` and optional `"else"` objects. `each`
+  uses `"var"` and `"do"`, with optional `"as"` to rename the loop item.
+- `list` supports either dynamic `"var"` plus `"template"` or static `"items"`.
+  Dynamic templates commonly expose `text`, `detail`, `tooltip`, `disabled`,
+  and `action`; if a list action has no explicit parameter, the selected row
+  index is passed by the list implementation.
+- `settings` binds directly to an existing setting named by `"var"` and can
+  render setting-specific controls. For new widget-local state, prefer exposing
+  a JSON object via a `VarFunc` and mutating C++ state through actions.
+- DynamicGUI is a renderer/action layer, not an ownership model. The C++
+  scene/widget should own state, validate inputs, catch exceptions from actions,
+  and expose derived preview/status data back to the layout via `VarFunc`.
 4. Scene workflow (TRex UI):
    - Implement `gui::Scene` objects that own state, draw UI, and respond to
      global events.
@@ -216,15 +269,90 @@ conda build -c conda-forge .
 - The `Application/src/grabber/` subtree is deprecated. Do not treat it as a
   reference implementation for GUI structure or best practices.
 
+## TRex runtime, CLI, and browser-backend notes
+- TRex's command-line parser expects separate key/value arguments:
+  `-key value`. Do not use `-key=value`; that form can be ignored or
+  misparsed. For example:
+  ```bash
+  conda run -n trex --no-capture-output \
+    Application/build/Release/TRex.app/Contents/MacOS/TRex \
+    -nowindow true -httpd true \
+    -httpd_bind_address 127.0.0.1 -httpd_port 18080
+  ```
+  `--no-capture-output` is useful for live logs during manual runtime checks.
+- GUI/backend activation is intentionally split across `nowindow` and `httpd`:
+
+  | `nowindow` | `httpd` | Runtime mode |
+  | --- | --- | --- |
+  | `false` | `false` | Native GUI only |
+  | `false` | `true` | Native GUI plus browser mirror/control |
+  | `true` | `true` | Browser-only GUI |
+  | `true` | `false` | Terminal/headless mode |
+
+  `has_gui` is therefore `!nowindow || httpd`. Use `nowindow` itself when
+  guarding capabilities that specifically require a native OS window.
+- Backend selection happens before the later settings-file reload. Startup
+  settings that choose or configure the backend (`nowindow`, `has_gui`,
+  `httpd`, bind address, port, maximum browser width, and web quality) must
+  retain the command-line-selected values across that reload. Keep
+  `web_quality` startup-only.
+- `DrawStructure` is the canonical GUI primitive buffer.
+  `RenderTraversal` turns it into a shared `RenderCommand` stream consumed by
+  both native `IMGUIBase::paint` and browser `BrowserBase::paint`. Keep new
+  primitive behavior in the shared traversal when both backends should match.
+- The browser frontend is deliberately narrow: only allowlisted
+  `Application/src/html/index.html`, `app.css`, `app.js`, and font assets are
+  served. The WebSocket endpoint is `/ws`; legacy settings and filesystem
+  endpoints must remain unavailable.
+- In browser-only mode the logical viewport follows `video_size`, falls back
+  to 1280x720, and scales down to `httpd_max_width`. In native-plus-browser
+  mode the browser mirrors the native logical size.
+- The browser wire format is a versioned binary protocol. On every WebSocket
+  open, reset the frontend sequence state before requesting a snapshot; this
+  permits reconnection after a server restart whose sequence numbers begin
+  lower than the prior process.
+- cpp-httplib is pinned and vendored under
+  `Application/src/commons/third_party/cpp-httplib`. The TRex and commons
+  HTTPD CMake switches normalize together: enabling either enables both, and
+  both must be disabled for an HTTPD-free build.
+- A manual Ctrl-C shutdown sets `error_terminate` and may exit with status 1;
+  treat that as the expected smoke-test shutdown unless preceding logs show a
+  separate failure.
+
 ## Agent execution constraints
-- do not run commands in the build directory and dont delete the existing project files there
+- Builds and tests may be run only in build directories that already exist.
+  Do not create new build directories.
+- Known reusable local build trees are:
+  - `Application/build`: Xcode/Release, normally configured with HTTPD and
+    tests enabled. Use the `trex` Conda environment.
+  - `Application/tmp-httpd-debug`: Xcode/Debug, normally configured with HTTPD
+    disabled and tests enabled. Use the `trex` Conda environment.
+  Inspect each tree's `CMakeCache.txt` before relying on those options because
+  an existing tree may have been reconfigured. Reconfigure in place when
+  needed; never create a replacement build directory.
+- Optimize for fewer, higher-confidence iterations. Think and inspect longer
+  before responding or editing, because each exchange has a monetary cost.
+- Do not delete existing project files from build directories.
 - do not run commands outside the root directory of the project, or commands that affect the outside
 - stay in scope for the task you were asked to do. only edit files directly relevant to that task, plus the minimal wiring required to make those edits work.
 - if the task is to add or edit tests, edit tests and only the smallest necessary test wiring (for example `Application/Tests/CMakeLists.txt`). do not edit unrelated production/source files unless the user explicitly asks for that too.
 - when fixing a bug, first reproduce the actual failure with a minimal viable test or local repro that matches the real issue. make sure that repro fails before changing production code, then fix the code until that same repro passes.
 - do not add speculative, broad, or low-value tests just to increase coverage. prefer the smallest targeted regression test for a real bug, and skip adding tests when they do not materially validate the reported failure.
 - Only use the Conda environment `trex` for environment-specific commands or instructions, or the `trex-modules` environment. Do not access or assume any other environment.
+- When building in `Application/build`, always use the Conda environment `trex` from the project root. Do not use `trex-modules` for `Application/build`.
 - when running Python commands in the `trex` environment for this repo, prefer `KMP_DUPLICATE_LIB_OK=TRUE conda run -n trex python ...` because duplicate `libomp` initialization can otherwise abort the process on macOS.
 - For commons monolith + modules work, run CMake/Ninja from `Application/tmp-modules-osx-tests-nolto` with the `trex-modules` Conda environment.
 - For commons shared-library split testing with modules disabled, use `tmp-shared-split-osx-tests-nolto` with Ninja in the `trex-modules` Conda environment.
 - For commons shared-library split testing with modules enabled, use `tmp-shared-split-osx-tests-nolto` with Ninja in the `trex-modules` Conda environment.
+
+## Release/tag workflow notes
+- Before release work, preserve any dirty user worktree state first. If the
+  user approves, stash tracked and untracked files before switching branches.
+- For quick-fix releases from `main`, fetch remotes and tags, fast-forward
+  `main`, create an annotated `vX.Y.Z` tag, push only that tag, then create the
+  GitHub release with the same title as the tag.
+- Use the previous GitHub release as the naming/body template and include a
+  `Full Changelog` compare link.
+- If `gh` is unavailable, install/use GitHub CLI when the user approves it.
+  Authenticate with `gh auth login -h github.com -w` so the user can approve
+  the device-code flow.

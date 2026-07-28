@@ -15,6 +15,11 @@ if [ ! $(which git) ]; then
     exit 1
 fi
 
+TREX_BUILD_TYPE=${TREX_BUILD_TYPE:-Release}
+TREX_WITH_HTTPD=${TREX_WITH_HTTPD:-ON}
+echo "Building configuration: ${TREX_BUILD_TYPE}"
+echo "Browser HTTPD support: ${TREX_WITH_HTTPD}"
+
 git submodule update --recursive --init
 
 IN_CONDA=$(printenv CONDA_PREFIX_1)
@@ -62,7 +67,8 @@ if [ "$(uname)" == "Linux" ]; then
             -DPYTHON_INCLUDE_DIR:FILEPATH=$(python3 -c "from distutils.sysconfig import get_python_inc; print(get_python_inc())") \
             -DPYTHON_LIBRARY:FILEPATH=$(python3 ../find_library.py) \
             -DPYTHON_EXECUTABLE:FILEPATH=$(which python3) \
-            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_BUILD_TYPE=${TREX_BUILD_TYPE} \
+            -DWITH_HTTPD=${TREX_WITH_HTTPD} \
             -DWITH_FFMPEG=ON \
             -DCOMMONS_BUILD_ZLIB=ON \
             -DCOMMONS_BUILD_ZIP=ON \
@@ -85,7 +91,8 @@ if [ "$(uname)" == "Linux" ]; then
             -DPYTHON_INCLUDE_DIR:FILEPATH=$(python3 -c "from distutils.sysconfig import get_python_inc; print(get_python_inc())") \
             -DPYTHON_LIBRARY:FILEPATH=$(python3 ../find_library.py) \
             -DPYTHON_EXECUTABLE:FILEPATH=$(which python3) \
-            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_BUILD_TYPE=${TREX_BUILD_TYPE} \
+            -DWITH_HTTPD=${TREX_WITH_HTTPD} \
             -DWITH_FFMPEG=ON \
             -DCOMMONS_BUILD_ZLIB=ON \
             -DCOMMONS_BUILD_ZIP=ON \
@@ -103,7 +110,10 @@ else
 
     MACOSX_DEPLOYMENT_TARGET=$(printenv MACOSX_DEPLOYMENT_TARGET)
     if [ ! $MACOSX_DEPLOYMENT_TARGET ]; then
-        MACOSX_DEPLOYMENT_TARGET="26.2"
+        MACOSX_DEPLOYMENT_TARGET=$(xcrun --sdk macosx --show-sdk-version 2>/dev/null)
+        if [ ! "$MACOSX_DEPLOYMENT_TARGET" ]; then
+            MACOSX_DEPLOYMENT_TARGET=$(sw_vers -productVersion | cut -d. -f1-2)
+        fi
         export MACOSX_DEPLOYMENT_TARGET=$MACOSX_DEPLOYMENT_TARGET
     fi
     echo "MACOSX_DEPLOYMENT_TARGET=$MACOSX_DEPLOYMENT_TARGET"
@@ -118,7 +128,8 @@ else
             -DPYTHON_INCLUDE_DIR:FILEPATH=$(python3 -c "from distutils.sysconfig import get_python_inc; print(get_python_inc())") \
             -DPYTHON_LIBRARY:FILEPATH=$(python3 ../find_library.py) \
             -DPYTHON_EXECUTABLE:FILEPATH=$(which python3) \
-            -DCMAKE_BUILD_TYPE=Release  \
+            -DCMAKE_BUILD_TYPE=${TREX_BUILD_TYPE}  \
+            -DWITH_HTTPD=${TREX_WITH_HTTPD} \
             -G Xcode \
             -DWITH_FFMPEG=ON \
             -DPYTHON3_PACKAGES_PATH=$(python3 -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())") \
@@ -143,7 +154,8 @@ else
             -DPYTHON_INCLUDE_DIR:FILEPATH=$(python3 -c "from distutils.sysconfig import get_python_inc; print(get_python_inc())") \
             -DPYTHON_LIBRARY:FILEPATH=$(python3 ../find_library.py) \
             -DPYTHON_EXECUTABLE:FILEPATH=$(which python3) \
-            -DCMAKE_BUILD_TYPE=Release  \
+            -DCMAKE_BUILD_TYPE=${TREX_BUILD_TYPE}  \
+            -DWITH_HTTPD=${TREX_WITH_HTTPD} \
             -DCOMMONS_BUILD_ZLIB=ON \
             -DCOMMONS_BUILD_ZIP=ON \
             -DCOMMONS_BUILD_PNG=ON \
@@ -170,10 +182,10 @@ fi
 echo "NPROC=$NPROC"
 
 # Build targets with cmake
-CMAKE_BUILD_PARALLEL_LEVEL=$NPROC cmake --build . --target Z_LIB --config Release --parallel ${NPROC}
-CMAKE_BUILD_PARALLEL_LEVEL=$NPROC cmake --build . --target libzip --config Release --parallel ${NPROC}
-CMAKE_BUILD_PARALLEL_LEVEL=$NPROC cmake --build . --target libpng_custom --config Release --parallel ${NPROC}
+CMAKE_BUILD_PARALLEL_LEVEL=$NPROC cmake --build . --target Z_LIB --config ${TREX_BUILD_TYPE} --parallel ${NPROC}
+CMAKE_BUILD_PARALLEL_LEVEL=$NPROC cmake --build . --target libzip --config ${TREX_BUILD_TYPE} --parallel ${NPROC}
+CMAKE_BUILD_PARALLEL_LEVEL=$NPROC cmake --build . --target libpng_custom --config ${TREX_BUILD_TYPE} --parallel ${NPROC}
 cmake ..
-CMAKE_BUILD_PARALLEL_LEVEL=$NPROC cmake --build . --target CustomOpenCV --config Release --parallel ${NPROC}
+CMAKE_BUILD_PARALLEL_LEVEL=$NPROC cmake --build . --target CustomOpenCV --config ${TREX_BUILD_TYPE} --parallel ${NPROC}
 cmake ..
-CMAKE_BUILD_PARALLEL_LEVEL=$NPROC cmake --build . --config Release --parallel ${NPROC}
+CMAKE_BUILD_PARALLEL_LEVEL=$NPROC cmake --build . --config ${TREX_BUILD_TYPE} --parallel ${NPROC}

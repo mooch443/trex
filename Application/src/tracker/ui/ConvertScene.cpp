@@ -16,6 +16,7 @@
 #include <misc/CommandLine.h>
 #include <gui/dyn/Action.h>
 #include <gui/dyn/ParseText.h>
+#include <core/TerminalProgress.h>
 #include <core/TileBuffers.h>
 #include <core/DetectionTypes.h>
 #include <python/OverlayedVideo.h>
@@ -127,37 +128,20 @@ struct ConvertScene::Data {
     
     ScreenRecorder _recorder;
     
-    ind::ProgressBar bar{
-        ind::option::BarWidth{50},
-        ind::option::Start{"["},
-/*#ifndef _WIN32
-        ind::option::Fill{"█"},
-        ind::option::Lead{"▂"},
-        ind::option::Remainder{"▁"},
-#else*/
-        ind::option::Fill{"="},
-        ind::option::Lead{">"},
-        ind::option::Remainder{" "},
-//#endif
-        ind::option::End{"]"},
-        ind::option::PostfixText{"Converting video..."},
-        ind::option::ShowPercentage{true},
-        ind::option::ForegroundColor{ind::Color::white},
-        ind::option::FontStyles{std::vector<ind::FontStyle>{ind::FontStyle::bold}}
-    };
+    cmn::terminal::progress::ProgressBar bar = cmn::terminal::progress::make_progress_bar({
+        .width = 50,
+        .postfix = "Converting video..."
+    });
 
     ind::ProgressSpinner spinner{
         ind::option::PostfixText{""},
         ind::option::ForegroundColor{ind::Color::white},
-#ifndef _WIN32
-        ind::option::SpinnerStates{std::vector<std::string>{"⠈", "⠐", "⠠", "⢀", "⡀", "⠄", "⠂", "⠁"}},
-#else
-        ind::option::SpinnerStates{std::vector<std::string>{".","..","..."}},
-#endif
+        ind::option::SpinnerStates{cmn::terminal::progress::spinner_states()},
         ind::option::FontStyles{std::vector<ind::FontStyle>{ind::FontStyle::bold}}
     };
     
     double dt = 0;
+    size_t bar_spinner_index = 0;
     std::atomic<double> _time{0};
     std::unique_ptr<Bowl> _bowl;
     
@@ -353,14 +337,15 @@ void ConvertScene::update_progress_callback() {
                 fps = samples > 0 ? fps / samples : 0;
             }
             
+            cmn::terminal::progress::advance_progress_bar_spinner(_data->bar, _data->bar_spinner_index);
             _data->bar.set_progress(percent);
             if(fps > 0) {
                 auto video_length = Meta::toStr(_video_length.load());
                 
-                _data->bar.set_option(ind::option::PostfixText{"Converting "+Meta::toStr(_data->_actual_frame.load())+"/"+video_length+" @ "+dec<1>(fps).toStr()+"fps..."});
+                _data->bar.set_postfix("Converting "+Meta::toStr(_data->_actual_frame.load())+"/"+video_length+" @ "+dec<1>(fps).toStr()+"fps...");
             }
             
-        } else if(last_tick.elapsed() > 1) {
+        } else if(last_tick.elapsed() > cmn::terminal::progress::interval_seconds()) {
             _data->spinner.set_option(ind::option::PrefixText{"Recording ("+Meta::toStr(_data->_video_frame.load())+")"});
             _data->spinner.tick();
             last_tick.reset();
@@ -447,7 +432,6 @@ void ConvertScene::Data::check_video_info(bool wait, std::set<std::string_view>*
 
 void ConvertScene::open_video() {
     _data->bar.set_progress(0);
-    _data->bar.set_option(ind::option::ShowPercentage{true});
     segmenter().open_video();
     
     _video_info.resolution = segmenter().size();
@@ -503,6 +487,13 @@ void ConvertScene::activate()  {
         SETTING(filename) = default_filename;
     }
     
+    auto start_over = force_start_over.read();
+    if(start_over
+       && start_over.value())
+    {
+        segmenter().start_over().set(true);
+    }
+    
     Print("Loading source = ", no_quotes(utils::ShortenText(source.toStr(), 1000)));
     SETTING(meta_source_path) = source.source();
     try {
@@ -545,7 +536,7 @@ void ConvertScene::activate()  {
     window()->set_title(window_title());
     _data->bar.set_progress(0);
     
-    SceneManager::enqueue([this](IMGUIBase*, DrawStructure& graph) {
+    SceneManager::enqueue([this](Base*, DrawStructure& graph) {
         if(not _data || not _data->_segmenter)
             return;
         if(not _data->_segmenter->output_size().empty())
@@ -900,7 +891,7 @@ dyn::DynamicGUI ConvertScene::Data::init_gui(Base* window) {
     
     context.actions = {
         ActionFunc("terminate", [this](auto) {
-            SceneManager::enqueue([&](IMGUIBase*, DrawStructure& graph){
+            SceneManager::enqueue([&](Base*, DrawStructure& graph){
                 graph.dialog([&](Dialog::Result result){
                     if(result == Dialog::OKAY) {
                         if (_segmenter)
@@ -1086,7 +1077,7 @@ dyn::DynamicGUI ConvertScene::Data::init_gui(Base* window) {
             return _primary_selection;
         }),
         VarFunc("tiles", [this](const VarProps&) -> std::vector<Bounds> {
-            return _current_data.tiles;
+            return std::vector<Bounds>(_current_data.tiles.begin(), _current_data.tiles.end());
         }),
         VarFunc("video_error", [this](const VarProps&) -> std::string {
             if(_recovered_error.empty())
@@ -1336,7 +1327,7 @@ void ConvertScene::Data::draw_scene(DrawStructure& graph, const detect::yolo::na
         }
 
         for (auto &box : _current_data.tiles)
-            graph.rect(Box(box), attr::FillClr{Transparent}, attr::LineClr{Red.alpha(200)});
+            graph.rect(Box(to_bowl(box)), attr::FillClr{Transparent}, attr::LineClr{Red.alpha(200)});
         
         ColorWheel wheel;
         size_t pose_index{ 0 };

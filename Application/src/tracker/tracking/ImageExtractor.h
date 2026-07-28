@@ -15,10 +15,13 @@ using namespace track;
 
 namespace extract {
 
+struct AcceptedQuery {};
+
 struct Task {
     Idx_t fdx;
     pv::bid bdx;
     Range<Frame_t> tracklet;
+    std::unique_ptr<AcceptedQuery> query;
     
     std::string toStr() const {
         return "task<"+Meta::toStr(fdx)+","+Meta::toStr(bdx)+">";
@@ -26,6 +29,7 @@ struct Task {
 };
 
 struct Query {
+    Idx_t fdx;
     const BasicStuff* basic;
     const PostureStuff* posture;
 };
@@ -35,6 +39,7 @@ struct Result {
     Idx_t fdx;
     pv::bid bdx;
     Image::Ptr image;
+    std::unique_ptr<AcceptedQuery> query;
 };
 
 enum class Flag {
@@ -75,6 +80,9 @@ struct Settings {
     }
 };
 
+template<typename T, typename K>
+concept explicitly_convertible = std::constructible_from<K, T>;
+
 class ImageExtractor {
 public:
     static bool is(uint32_t flags, Flag flag);
@@ -92,7 +100,7 @@ private:
     
     std::thread _thread;
     
-    using selector_sig = bool(const Query&);
+    using selector_sig = std::unique_ptr<AcceptedQuery>(const Query&);
     using partial_apply_sig = void(std::vector<Result>&&);
     using callback_sig = void(ImageExtractor*, double p, bool finished);
     
@@ -107,7 +115,7 @@ public:
                    auto && partial_apply,
                    auto && callback,
                    Settings&& settings = {})
-        requires requires (Query q, F && selector) { { selector(q) } -> std::convertible_to<bool>; }
+        requires requires (Query q, F && selector) { { selector(q) } -> explicitly_convertible<bool>; }
                       && similar_args<decltype(partial_apply), partial_apply_sig>
                       && similar_args<decltype(callback), callback_sig>
                       && similar_args<decltype(selector), selector_sig>

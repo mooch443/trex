@@ -98,6 +98,8 @@ namespace globals {
         (bool, gui_show_visualfield),
         (bool, gui_show_visualfield_ts),
         (bool, gui_show_export_options),
+        (bool, gui_show_annotation_export_options),
+        (bool, gui_show_annotation_import_options),
         (bool, gui_show_recognition_bounds),
         (bool, gui_show_midline_histogram),
         (bool, gui_show_histograms),
@@ -176,6 +178,8 @@ namespace globals {
         LOGGED_MUTEX_VAR(vector_mutex, "GUICache::vector_mutex");
         
     public:
+        gui::DrawStructure* graph() { return _graph; }
+        
         Size2 _video_resolution;
         int last_threshold = -1;
         Bounds boundary;

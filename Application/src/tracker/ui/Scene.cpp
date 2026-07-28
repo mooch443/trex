@@ -5,7 +5,6 @@
 #include <gui/DrawStructure.h>
 #include <gui/DrawBase.h>
 #include <ui/Coordinates.h>
-#include <gui/IMGUIBase.h>
 #include <ui/WorkProgress.h>
 
 namespace cmn::gui {
@@ -204,7 +203,7 @@ void SceneManager::clear() {
     }
 }
 
-void SceneManager::update(IMGUIBase* window, DrawStructure& graph) {
+void SceneManager::update(Base* window, DrawStructure& graph) {
     //FindCoord::set_screen_size(graph, *window);
     update_queue();
     _gui_queue->processTasks(window, graph);
@@ -238,7 +237,7 @@ void SceneManager::update(IMGUIBase* window, DrawStructure& graph) {
         if (error_str && not error_str->empty()) {
             graph.dialog(
                 [](auto){ _displaying_error = false; },
-                settings::htmlify(*error_str),
+                settings::htmlify(utils::ShortenText(*error_str, 1000)),
                 "Error"
             );
         } else {
@@ -275,7 +274,7 @@ void SceneManager::update_queue() {
 
 bool SceneManager::on_global_event(Event event) {
     if(event.type == EventType::WINDOW_RESIZED) {
-        _enqueue([](gui::IMGUIBase* base, gui::DrawStructure& graph) {
+        _enqueue([](gui::Base* base, gui::DrawStructure& graph) {
             FindCoord::set_screen_size(graph, *base);
         });
     }

@@ -76,9 +76,7 @@ DrawSegments::~DrawSegments() {
     /// since we only forward declare stuff
 }
 
-DrawSegments::DrawSegments()
-    : _tooltip(std::make_unique<Tooltip>(nullptr))
-{
+DrawSegments::DrawSegments() {
     on_click([this](auto){
         for(size_t i = 0; i < tracklet_texts.size(); ++i) {
             auto &[text, tooltip_text] = tracklet_texts.at(i);
@@ -108,8 +106,9 @@ DrawSegments::DrawSegments()
                         }
                         _target_bounds = text->bounds();
                         
-                        _tooltip->set_other(text);
-                        _tooltip->set_text(tooltip_text);
+                        add_custom_data("tooltip", static_cast<void*>(new std::string(tooltip_text)), [](void* ptr) {
+                            delete static_cast<std::string*>(ptr);
+                        });
                         _selected = text;
                         set_content_changed(true);
                         
@@ -125,7 +124,7 @@ DrawSegments::DrawSegments()
             if(auto s = _selected.lock();
                s != nullptr)
             {
-                _tooltip->set_other({});
+                remove_custom_data("tooltip");
                 _selected = {};
                 _previous_bounds = {};
                 _target_bounds = {};
@@ -146,6 +145,14 @@ void DrawSegments::set(Idx_t fdx, Frame_t frame, const IllegalArray<ShadowTrackl
         _tracklets = tracklets;
         set_content_changed(true);
     }
+}
+
+const Drawable* DrawSegments::tooltip_object() const {
+    return this;
+}
+
+const Drawable* InfoCard::tooltip_object() const {
+    return this;
 }
 
 Float2_t DrawSegments::add_segments(bool display_hints, float)
@@ -347,11 +354,6 @@ void DrawSegments::update() {
     OpenContext([this]{
         if(_frame.valid())
             add_segments(true, 0);
-        if(auto s = _selected.lock();
-           s != nullptr)
-        {
-            advance_wrap(*_tooltip);
-        }
     });
     
     auto_size({_margins.width, _margins.height});

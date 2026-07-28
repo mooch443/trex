@@ -122,6 +122,7 @@ void PPFrame::write_log(std::string str) {
 
 inline void insert_line(grid::ProximityGrid& grid, const HorizontalLine* ptr, pv::bid blob_id, ptr_safe_t step_size)
 {
+    assert(ptr_safe_t(ptr->x0) <= ptr_safe_t(ptr->x1));
     auto d = ptr_safe_t(ptr->x1) - ptr_safe_t(ptr->x0);
     grid.insert(ptr->x0, ptr->y, blob_id);
     grid.insert(ptr->x1, ptr->y, blob_id);

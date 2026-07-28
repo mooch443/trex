@@ -653,6 +653,45 @@ TEST(PreparseTest, SubItemsExtended) {
     ASSERT_EQ(realized, "[1024,768] 1024");
 }
 
+TEST(PreparseTest, EmptyConditionsInIf) {
+    using namespace cmn::pattern;
+    
+    auto str = "{if:{global.gui_show_selections}:'string':}";
+    auto result = UnresolvedStringPattern::prepare(str);
+    
+    Print(result);
+    
+    using namespace gui::dyn;
+
+    {
+        SETTING(gui_show_selections) = true;
+
+        Context context{};
+        State state;
+        
+        std::string realized;
+        EXPECT_NO_THROW((realized = result.realize(context, state)));
+        
+        Print(no_quotes(realized));
+        
+        ASSERT_EQ(realized, "string");
+    }
+
+    {
+        SETTING(gui_show_selections) = false;
+
+        Context context{};
+        State state;
+        
+        std::string realized;
+        EXPECT_NO_THROW((realized = result.realize(context, state)));
+        
+        Print(no_quotes(realized));
+        
+        ASSERT_EQ(realized, "");
+    }
+}
+
 TEST(PreparseTest, SpecialCase) {
     using namespace cmn::pattern;
     
@@ -2238,6 +2277,217 @@ TEST(FindReplaceTest, ReplaceSubstringsWithDifferentLengths) {
     EXPECT_EQ(find_replace(input, search_strings), expected);
 }
 
+// find_replace with single char pair
+
+TEST(FindReplaceCharTest, BasicTest) {
+    std::string input = "banana";
+    std::pair<char, char> search_replace = {'a', 'o'};
+    EXPECT_EQ(find_replace(input, search_replace), "bonono");
+}
+
+TEST(FindReplaceCharTest, EmptyInput) {
+    std::string input = "";
+    std::pair<char, char> search_replace = {'a', 'o'};
+    EXPECT_EQ(find_replace(input, search_replace), "");
+}
+
+TEST(FindReplaceCharTest, NoMatches) {
+    std::string input = "banana";
+    std::pair<char, char> search_replace = {'x', 'y'};
+    EXPECT_EQ(find_replace(input, search_replace), "banana");
+}
+
+TEST(FindReplaceCharTest, IdenticalReplacement) {
+    std::string input = "banana";
+    std::pair<char, char> search_replace = {'a', 'a'};
+    EXPECT_EQ(find_replace(input, search_replace), "banana");
+}
+
+TEST(FindReplaceCharTest, AllCharactersMatch) {
+    std::string input = "aaaa";
+    std::pair<char, char> search_replace = {'a', 'b'};
+    EXPECT_EQ(find_replace(input, search_replace), "bbbb");
+}
+
+TEST(FindReplaceCharTest, SpecialCharacters) {
+    std::string input = "path/to/file";
+    std::pair<char, char> search_replace = {'/', '\\'};
+    EXPECT_EQ(find_replace(input, search_replace), "path\\to\\file");
+}
+
+TEST(FindReplaceCharTest, StringViewInput) {
+    std::string_view input = "banana";
+    std::pair<char, char> search_replace = {'n', 'm'};
+    EXPECT_EQ(find_replace(input, search_replace), "bamama");
+}
+
+TEST(FindReplaceCharTest, MultipleInstancesOfSearchChar) {
+    std::string input = "abcdeabc";
+    std::pair<char, char> search_replace = {'a', 'x'};
+    EXPECT_EQ(find_replace(input, search_replace), "xbcdexbc");
+}
+
+TEST(FindReplaceCharTest, CaseSensitivity) {
+    std::string input = "AbaB";
+    std::pair<char, char> search_replace = {'a', 'x'};
+    EXPECT_EQ(find_replace(input, search_replace), "AbxB");
+}
+
+TEST(FindReplaceCharTest, UnicodeCharacters) {
+    // multibyte utf-8 sequences must pass through untouched when
+    // replacing a plain ascii char
+    std::string input = "こんにちは 世界";
+    std::pair<char, char> search_replace = {' ', '_'};
+    EXPECT_EQ(find_replace(input, search_replace), "こんにちは_世界");
+}
+
+// find_replace with multiple char pairs
+
+TEST(FindReplaceCharPairsTest, BasicTest) {
+    std::string input = "banana";
+    std::vector<std::pair<char, char>> search_replace_pairs = {
+        {'b', 'c'},
+        {'a', 'o'}
+    };
+    EXPECT_EQ(find_replace(input, search_replace_pairs), "conono");
+}
+
+TEST(FindReplaceCharPairsTest, EmptyInput) {
+    std::string input = "";
+    std::vector<std::pair<char, char>> search_replace_pairs = {
+        {'a', 'o'}
+    };
+    EXPECT_EQ(find_replace(input, search_replace_pairs), "");
+}
+
+TEST(FindReplaceCharPairsTest, EmptyPairs) {
+    std::string input = "banana";
+    std::vector<std::pair<char, char>> search_replace_pairs;
+    EXPECT_EQ(find_replace(input, search_replace_pairs), "banana");
+}
+
+TEST(FindReplaceCharPairsTest, EmptyInputAndPairs) {
+    std::string input = "";
+    std::vector<std::pair<char, char>> search_replace_pairs;
+    EXPECT_EQ(find_replace(input, search_replace_pairs), "");
+}
+
+TEST(FindReplaceCharPairsTest, NoMatches) {
+    std::string input = "banana";
+    std::vector<std::pair<char, char>> search_replace_pairs = {
+        {'x', 'y'},
+        {'z', 'w'}
+    };
+    EXPECT_EQ(find_replace(input, search_replace_pairs), "banana");
+}
+
+TEST(FindReplaceCharPairsTest, FirstMatchingPairWins) {
+    std::string input = "banana";
+    std::vector<std::pair<char, char>> search_replace_pairs = {
+        {'a', 'x'},
+        {'a', 'y'}
+    };
+    EXPECT_EQ(find_replace(input, search_replace_pairs), "bxnxnx");
+}
+
+TEST(FindReplaceCharPairsTest, ReplacementsDoNotCascade) {
+    // once a char is replaced, later pairs must not be applied to the result,
+    // so swapping two chars works in a single pass
+    std::string input = "abba";
+    std::vector<std::pair<char, char>> search_replace_pairs = {
+        {'a', 'b'},
+        {'b', 'a'}
+    };
+    EXPECT_EQ(find_replace(input, search_replace_pairs), "baab");
+}
+
+TEST(FindReplaceCharPairsTest, SpecialCharactersAndDigits) {
+    std::string input = "a$b%c123";
+    std::vector<std::pair<char, char>> search_replace_pairs = {
+        {'$', 'X'},
+        {'%', 'Y'},
+        {'1', '2'}
+    };
+    EXPECT_EQ(find_replace(input, search_replace_pairs), "aXbYc223");
+}
+
+TEST(FindReplaceCharPairsTest, SomeMatchingPairs) {
+    std::string input = "abcdefgh";
+    std::vector<std::pair<char, char>> search_replace_pairs = {
+        {'a', 'x'},
+        {'z', 'y'}
+    };
+    EXPECT_EQ(find_replace(input, search_replace_pairs), "xbcdefgh");
+}
+
+TEST(FindReplaceCharPairsTest, AllMatchingPairs) {
+    std::string input = "abab";
+    std::vector<std::pair<char, char>> search_replace_pairs = {
+        {'a', 'x'},
+        {'b', 'y'}
+    };
+    EXPECT_EQ(find_replace(input, search_replace_pairs), "xyxy");
+}
+
+TEST(FindReplaceCharPairsTest, MultipleInstancesOfSearchChars) {
+    std::string input = "abcdeabc";
+    std::vector<std::pair<char, char>> search_replace_pairs = {
+        {'a', 'x'}
+    };
+    EXPECT_EQ(find_replace(input, search_replace_pairs), "xbcdexbc");
+}
+
+TEST(FindReplaceCharPairsTest, IdenticalReplacements) {
+    std::string input = "abcabc";
+    std::vector<std::pair<char, char>> search_replace_pairs = {
+        {'a', 'a'},
+        {'b', 'b'}
+    };
+    EXPECT_EQ(find_replace(input, search_replace_pairs), "abcabc");
+}
+
+TEST(FindReplaceCharPairsTest, CaseSensitivity) {
+    std::string input = "The Quick Brown";
+    std::vector<std::pair<char, char>> search_replace_pairs = {
+        {'T', 't'},
+        {'Q', 'q'},
+        {'B', 'b'}
+    };
+    EXPECT_EQ(find_replace(input, search_replace_pairs), "the quick brown");
+}
+
+TEST(FindReplaceCharPairsTest, UnicodeCharacters) {
+    // multibyte utf-8 sequences must pass through untouched when
+    // replacing plain ascii chars
+    std::string input = "こんにちは 世界!";
+    std::vector<std::pair<char, char>> search_replace_pairs = {
+        {' ', '_'},
+        {'!', '?'}
+    };
+    EXPECT_EQ(find_replace(input, search_replace_pairs), "こんにちは_世界?");
+}
+
+TEST(FindReplaceCharPairsTest, MultipleReplacementsInARow) {
+    std::string input = "abc";
+    std::vector<std::pair<char, char>> search_replace_pairs = {
+        {'a', 'x'},
+        {'b', 'y'},
+        {'c', 'z'}
+    };
+    EXPECT_EQ(find_replace(input, search_replace_pairs), "xyz");
+}
+
+TEST(FindReplaceCharPairsTest, RespectOrderOfPairs) {
+    // like RespectOrderOfSearchStrings: an earlier pair takes precedence
+    // over a later pair with the same search char
+    std::string input = "aaa";
+    std::vector<std::pair<char, char>> search_replace_pairs = {
+        {'a', 'b'},
+        {'a', 'c'}
+    };
+    EXPECT_EQ(find_replace(input, search_replace_pairs), "bbb");
+}
+
 
 // more complex parsing
 
@@ -2908,6 +3158,97 @@ TEST(ParseArrayPartsBehaviorTest, HugeInputWithoutDelimiters)
     auto tokens = parse_array_parts(big);
     ASSERT_EQ(tokens.size(), 1u);
     EXPECT_EQ(tokens.front().size(), big.size());
+}
+
+// === Meta::fromStr<container<...>> empty-element contract ====================
+//
+// Contract ("allow trailing only"): when parsing a container string, a single
+// trailing empty element (from a trailing delimiter, e.g. "[a,b,]") is tolerated
+// and dropped. Any other empty element is illegal and throws illegal_syntax:
+//   * interior empties      -> "[a,,b]"
+//   * leading empties       -> "[,a]"
+//   * a second trailing one -> "[a,b,,]"
+//   * the only token empty   -> "[,]"
+// This contract is enforced uniformly across vector, deque, array, set and map.
+
+TEST(ContainerEmptyElementContract, VectorTrailingCommaAllowed) {
+    EXPECT_EQ(Meta::fromStr<std::vector<int>>("[1,2,]"),
+              (std::vector<int>{1, 2}));
+}
+
+TEST(ContainerEmptyElementContract, VectorInteriorEmptyThrows) {
+    EXPECT_THROW(Meta::fromStr<std::vector<int>>("[1,,2]"), illegal_syntax);
+}
+
+TEST(ContainerEmptyElementContract, VectorLeadingEmptyThrows) {
+    EXPECT_THROW(Meta::fromStr<std::vector<int>>("[,1,2]"), illegal_syntax);
+}
+
+TEST(ContainerEmptyElementContract, VectorDoubleTrailingThrows) {
+    EXPECT_THROW(Meta::fromStr<std::vector<int>>("[1,2,,]"), illegal_syntax);
+}
+
+TEST(ContainerEmptyElementContract, VectorOnlyCommaThrows) {
+    EXPECT_THROW(Meta::fromStr<std::vector<int>>("[,]"), illegal_syntax);
+}
+
+TEST(ContainerEmptyElementContract, VectorEmptyContainerOk) {
+    EXPECT_EQ(Meta::fromStr<std::vector<int>>("[]"),
+              (std::vector<int>{}));
+}
+
+TEST(ContainerEmptyElementContract, DequeTrailingCommaAllowed) {
+    EXPECT_EQ(Meta::fromStr<std::deque<int>>("[1,2,]"),
+              (std::deque<int>{1, 2}));
+}
+
+TEST(ContainerEmptyElementContract, DequeInteriorEmptyThrows) {
+    EXPECT_THROW(Meta::fromStr<std::deque<int>>("[1,,2]"), illegal_syntax);
+}
+
+TEST(ContainerEmptyElementContract, ArrayTrailingCommaAllowed) {
+    EXPECT_EQ((Meta::fromStr<std::array<int, 2>>("[1,2,]")),
+              (std::array<int, 2>{1, 2}));
+}
+
+TEST(ContainerEmptyElementContract, ArrayInteriorEmptyThrows) {
+    EXPECT_THROW((Meta::fromStr<std::array<int, 2>>("[1,,2]")), illegal_syntax);
+}
+
+TEST(ContainerEmptyElementContract, SetTrailingCommaAllowed) {
+    EXPECT_EQ(Meta::fromStr<std::set<int>>("[1,2,]"),
+              (std::set<int>{1, 2}));
+}
+
+TEST(ContainerEmptyElementContract, SetInteriorEmptyThrows) {
+    EXPECT_THROW(Meta::fromStr<std::set<int>>("[1,,2]"), illegal_syntax);
+}
+
+TEST(ContainerEmptyElementContract, MapTrailingCommaAllowed) {
+    EXPECT_EQ((Meta::fromStr<std::map<std::string, int>>(R"({"a":1,"b":2,})")),
+              (std::map<std::string, int>{{"a", 1}, {"b", 2}}));
+}
+
+TEST(ContainerEmptyElementContract, MapInteriorEmptyThrows) {
+    EXPECT_THROW((Meta::fromStr<std::map<std::string, int>>(R"({"a":1,,"b":2})")),
+                 illegal_syntax);
+}
+
+TEST(ContainerEmptyElementContract, MapEmptyContainerOk) {
+    EXPECT_EQ((Meta::fromStr<std::map<std::string, int>>("{}")),
+              (std::map<std::string, int>{}));
+}
+
+// The literal example from the contract request: interior empty must throw,
+// while the trailing-only variant parses cleanly (whitespace is trimmed).
+TEST(ContainerEmptyElementContract, StringVectorInteriorEmptyThrows) {
+    EXPECT_THROW(Meta::fromStr<std::vector<std::string>>("[element,element 2,,last,]"),
+                 illegal_syntax);
+}
+
+TEST(ContainerEmptyElementContract, StringVectorTrailingOnlyAllowed) {
+    EXPECT_EQ(Meta::fromStr<std::vector<std::string>>("[element,element 2,last,]"),
+              (std::vector<std::string>{"element", "element 2", "last"}));
 }
 
 // === truncate – defensive programming ======================================
@@ -4007,6 +4348,10 @@ TEST(IsInIndexTest, ReturnsNposWhenMissing) {
     EXPECT_EQ(missing_index, npos);
 }
 
+TEST(Serialize, TupleName) {
+    ASSERT_EQ((Meta::name<std::tuple<int,float>>()), "tuple<int,float>");
+}
+
 namespace {
 struct ThrowIfCompared {
     bool* was_compared = nullptr;
@@ -4036,4 +4381,55 @@ TEST(IsInIndexTest, StopsEvaluatingAfterLaterMatch) {
         EXPECT_EQ(is_in_index(2, 1, 2, ThrowIfCompared{&compared_after_match}), 1u);
     });
     EXPECT_FALSE(compared_after_match);
+}
+
+
+namespace meter {
+
+template<typename Q>
+requires is_instantiation<std::optional, Q>::value
+constexpr std::string_view name() {
+    static constexpr util::ConstString_t ret("optional<", _Meta::name<typename cmn::remove_cvref<typename Q::value_type>::type>(), ">" );
+    return ret.view();
+}
+}
+
+TEST(MetaTest, OptionalSerializesProperly) {
+    ASSERT_EQ(meter::name<cmn::blob::MaybeObjectClass_t>(), "optional<map<uint16,string>>");
+    ASSERT_EQ(Meta::name<cmn::blob::MaybeObjectClass_t>(), "optional<map<uint16,string>>");
+}
+
+TEST(MetaTest, FunctionNameSerializesArgumentsAndReturnType) {
+    using Function = std::function<int(uint16_t, std::string)>;
+
+    ASSERT_EQ(utils::get_name(Function{}), "function<int(uint16,string)>");
+}
+
+TEST(MetaTest, FunctionNameSerializesRecursiveTypes) {
+    using Function = std::function<
+        std::optional<std::map<uint16_t, std::string>>(
+            std::vector<int>,
+            std::pair<uint16_t, std::string>,
+            std::tuple<int, float>
+        )
+    >;
+
+    ASSERT_EQ(
+        utils::get_name(Function{}),
+        "function<optional<map<uint16,string>>(array<int>,pair<uint16,string>,tuple<int,float>)>"
+    );
+}
+
+TEST(MetaTest, RecursiveTypeNamesSerializeProperly) {
+    using VectorOfPairs = std::vector<std::pair<uint16_t, std::string>>;
+    using MapOfVectors = std::map<uint16_t, std::vector<std::string>>;
+    using Tuple = std::tuple<
+        int,
+        std::optional<std::map<uint16_t, std::string>>,
+        std::vector<std::pair<uint16_t, std::string>>
+    >;
+
+    ASSERT_EQ(Meta::name<VectorOfPairs>(), "array<pair<uint16,string>>");
+    ASSERT_EQ(Meta::name<MapOfVectors>(), "map<uint16,array<string>>");
+    ASSERT_EQ(Meta::name<Tuple>(), "tuple<int,optional<map<uint16,string>>,array<pair<uint16,string>>>");
 }

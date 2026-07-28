@@ -23,7 +23,8 @@
         "valid_pv_file":"{file_exists:{resulting_path}.pv}",
 
         "circles":"[○,◔,◑,◕,●]",
-        "animation":"<sym>{at:{mod:{time}:{array_length:{circles}}}:{circles}}</sym>"
+        "animation":"<sym>{at:{mod:{time}:{array_length:{circles}}}:{circles}}</sym>",
+        "source_is_set":"{bool:{global.source}}"
     }
   },
   "objects":[
@@ -46,11 +47,12 @@
     "fill":"{if:{is_small_window}:[0,0,0,0]:[0,0,0,50]}",
     "pos":"{if:{is_small_window}:[0,0]:[{*:{window_size.x}:0.5},20]}",
     "origin":"{if:{is_small_window}:[0,0]:[0.5,0]}",
-    "pad":[20,0,0,5],
+    "outer_pad":[20,5,0,0],
+    "pad":[0,-1,0,0],
     "children":[
         {
             "type":"vlayout",
-            "pad":[0,20,0,-1],
+            "outer_pad":[0,5,0,5],
             "children":[
                 { "type":"stext",
                 "name":"title",
@@ -65,7 +67,7 @@
         },
         {
             "type":"hlayout",
-            "pad":[0,-10,-36,-1.5],
+            "outer_pad":[0,-10,-36,-1.5],
             "children":[
                 {
                     "type":"hlayout",
@@ -73,8 +75,7 @@
                     "corners" :["top"],
                     "origin":[0,0],
                     "clickable":true,
-                    "pad":[0,0,-1,0],
-                    "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
+                    "outer_pad":[0,0,-1,0],
                     "children":[
                         {
                             "type":"collection",
@@ -103,29 +104,34 @@
                         },
                         {
                             "type":"button",
+                            "disabled":"{not:{source_is_set}}",
                             "corners":["none"],
+                            "tooltip":"{if:{source_is_set}:<lightgray>Detection settings</lightgray>:<lightgray>please select an input file first</lightgray>}",
                             "text":"<sym>💻</sym> Detection",
-                            "fill":[40,40,40,220],
-                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
+                            "color":"{if:{not:{source_is_set}}:[100,100,100,150]:[220,220,220,200]}",
+                            "fill":"{if:{not:{source_is_set}}:[40,40,40,100]:[40,40,40,220]}",
+                            "line":"{if:{not:{source_is_set}}:[100,100,100,150]:{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}}",
                             "size":[249,50],
                             "font":{
                                 "align":"center",
                                 "size":0.75
                             },
-                            "action": "change_layout:settings_layout"
+                            "action": "{if:{source_is_set}:'change_layout:settings_layout':'show-message:<lightgray>please select an input file first</lightgray>'}"
                         },
                         {
                             "type":"button",
+                            "disabled":"{not:{source_is_set}}",
                             "corners":["topright"],
                             "text":"<sym>🐟</sym> Tracking",
-                            "fill":[40,40,40,220],
-                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
+                            "color":"{if:{not:{source_is_set}}:[100,100,100,150]:[220,220,220,200]}",
+                            "fill":"{if:{not:{source_is_set}}:[40,40,40,100]:[40,40,40,220]}",
+                            "line":"{if:{not:{source_is_set}}:[100,100,100,150]:{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}}",
                             "size":[249,50],
                             "font":{
                                 "align":"center",
                                 "size":0.75
                             },
-                            "action": "change_layout:tracking_settings_layout"
+                            "action": "{if:{source_is_set}:'change_layout:tracking_settings_layout':'show-message:<lightgray>please select an input file first</lightgray>'}"
                         }
                     ]
                 }
@@ -139,7 +145,8 @@
             "cellfillclr":[20,20,20,180],
             "line":[100,100,100,150],
             "mincellsize":[227,0],
-            "pad":[10,0,10,0],
+            "pad":[5,0,0,0],
+            "outer_pad":[0,0,0,0],
             "clickable":true,
             "halign":"left",
             "valign":"top",
@@ -167,8 +174,12 @@
                                 "align":"top",
                                 "children":[
                                     {
+
                                         "type":"settings",
-                                        "label":{ "corners":["left"], "color":[255,255,255] },
+                                        "label":{
+                                            "corners":"{if:{not:{source_is_set}}:[\"left\"]:[\"all\"]}", 
+                                            "color":[255,255,255] 
+                                        },
                                         "var":"source",
                                         "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
                                         "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
@@ -179,7 +190,7 @@
                                             "font":{"size":0.6},
                                             "color":[255,0,0]
                                         },
-                                        "size":"[{-:{element_w}:35},40]",
+                                        "size":"[{-:{element_w}:{if:{not:{source_is_set}}:35:0}},40]",
                                         "desc":"",
                                         "preview":{
                                             "font":{"size":0.35},
@@ -189,25 +200,29 @@
                                         }
                                     },
                                     {
-                                        "type":"button",
-                                        "corners":["right"],
-                                        "text":"<sym>🗁</sym>",
-                                        "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
-                                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
-                                        "size":[40,40],
-                                        "pad":[1,0,0,0],
-                                        "font":{
-                                            "align":"center",
-                                            "size":0.8,
-                                            "style":"bold"
-                                        },
-                                        "action": "choose-file:source:{folder:{source}}:Videos:*.pv *.mp4 *.avi *.mov *.mkv *.flv *.wmv *.webm *.m4v *.mpg *.mpeg *.m2v *.m4v *.ts *.mts *.m2ts *.vob *.3gp *.3g2 *.asf *.ogv *.ogg *.rm *.rmvb *.divx *.xvid *.flv *.f4v *.h264 *.h265 *.hevc *.mxf *.m2p *.m2v *.m2t *.m2ts *.m4p *.m4v *.m4a *.m4b *.m4r *.m4v *.m4p *.m4a *.m4b *.m4r *.m4v *.m4p *.m4a *.m4b *.m4r *.m4v *.m4p *.m4a *.m4b *.m4r *.m4v *.m4p *.m4a *.m4b *.m4r *.m4v *.m4p *.m4a *.m4b *.m4r *.m4v *.m4p *.m4a *.m4b *.m4r *.jpg"
+                                        "type":"condition",
+                                        "var":"{not:{source_is_set}}",
+                                        "then": {
+                                            "type":"button",
+                                            "corners":["right"],
+                                            "text":"<sym>🗁</sym>",
+                                            "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                                            "size":[40,40],
+                                            "pad":[1,0,0,0],
+                                            "font":{
+                                                "align":"center",
+                                                "size":0.8,
+                                                "style":"bold"
+                                            },
+                                            "action": "choose-file:source:{folder:{source}}:Videos:*.pv *.mp4 *.avi *.mov *.mkv *.flv *.wmv *.webm *.m4v *.mpg *.mpeg *.m2v *.m4v *.ts *.mts *.m2ts *.vob *.3gp *.3g2 *.asf *.ogv *.ogg *.rm *.rmvb *.divx *.xvid *.flv *.f4v *.h264 *.h265 *.hevc *.mxf *.m2p *.m2v *.m2t *.m2ts *.m4p *.m4v *.m4a *.m4b *.m4r *.m4v *.m4p *.m4a *.m4b *.m4r *.m4v *.m4p *.m4a *.m4b *.m4r *.m4v *.m4p *.m4a *.m4b *.m4r *.m4v *.m4p *.m4a *.m4b *.m4r *.m4v *.m4p *.m4a *.m4b *.m4r *.m4v *.m4p *.m4a *.m4b *.m4r *.jpg"
+                                        }
                                     }
                                 ]
                             },
                             {
                                 "type":"gridlayout",
-                                "pad":[0,5,5,0],
+                                "pad":[0,2,5,5],
                                 "halign":"left",
                                 "children":[
                                     [
@@ -328,7 +343,8 @@
                             },
                             {
                                 "type":"gridlayout",
-                                "pad":[0,0,0,0],
+                                "pad":[0,0,0,-1],
+                                "outer_pad":[5,0,10,0],
                                 "vertical_clr":[0,0,0,0],
                                 "horizontal_clr":[10,50,80,0],
                                 "cellfillclr":[60,60,60,150],
@@ -446,7 +462,8 @@
                         "children":[
                             {
                                 "type":"hlayout",
-                                "pad":[0,30,20,20],
+                                "outer_pad":[0,10,0,10],
+                                "pad":[10,10,0,0],
                                 "align":"top",
                                 "children":[
                                     {

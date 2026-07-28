@@ -275,7 +275,7 @@ std::future<VersionStatus> perform(bool manually_triggered) {
     auto promise = std::make_shared<std::promise<VersionStatus>>();
     auto future = promise->get_future();
     
-    if(manually_triggered && !GUI_SETTINGS(nowindow)) {
+    if(manually_triggered && BOOL_SETTING(has_gui)) {
         gui::WorkProgress::add_queue("Initializing python...", [](){
             py::init().get();
         });

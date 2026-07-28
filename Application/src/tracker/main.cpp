@@ -18,6 +18,7 @@ static void (*windowsEarlyEnvSetup)(void) = []() {
 #include <gui/DrawStructure.h>
 #include <gui/Dispatcher.h>
 #include <gui/IMGUIBase.h>
+#include <gui/BrowserBase.h>
 #include <gui/SFLoop.h>
 #include <gui/types/Button.h>
 #include <video/VideoSource.h>
@@ -44,6 +45,7 @@ static void (*windowsEarlyEnvSetup)(void) = []() {
 #include <ui/Scene.h>
 
 #include <core/AbstractVideoSource.h>
+#include <core/TerminalProgress.h>
 #include <core/VideoVideoSource.h>
 #include <core/WebcamVideoSource.h>
 
@@ -99,7 +101,7 @@ void save_rst_files() {
     auto f = path.fopen("wb");
     if(!f)
         throw U_EXCEPTION("Cannot open ",path.str());
-    fwrite(rst.data(), sizeof(char), rst.length(), f.get());
+    f.write(rst.data(), rst.length());
     
     //printf("%s\n", rst.c_str());
     Print("Saved at ",path,".");
@@ -168,6 +170,33 @@ TRexTask determineTaskType() {
     return TRexTask_t::convert;
 }
 
+std::optional<std::string> validate_httpd_startup_settings() {
+    if(not BOOL_SETTING(httpd))
+        return std::nullopt;
+
+#if !COMMONS_HAS_HTTPD
+    return "Browser GUI support was requested with -httpd=true, but this binary was built without HTTPD support. Rebuild with -DWITH_HTTPD=ON.";
+#else
+    const auto bind_address = READ_SETTING(httpd_bind_address, std::string);
+    if(bind_address.empty())
+        return "httpd_bind_address must not be empty.";
+
+    const auto port = READ_SETTING(httpd_port, int);
+    if(port < 1 || port > 65535)
+        return "httpd_port must be between 1 and 65535.";
+
+    const auto max_width = READ_SETTING(httpd_max_width, int);
+    if(max_width < 1)
+        return "httpd_max_width must be greater than zero.";
+
+    const auto quality = READ_SETTING(web_quality, int);
+    if(quality < 0 || quality > 100)
+        return "web_quality must be between 0 and 100.";
+
+    return std::nullopt;
+#endif
+}
+
 void check_pause() {
     if(not pause_stuff)
         return;
@@ -178,11 +207,22 @@ void check_pause() {
 }
 
 void launch_gui(std::future<void>& f) {
-    IMGUIBase base(window_title(), {1024,850}, [&, ptr = &base](DrawStructure&)->bool {
-        UNUSED(ptr);
-        //graph.draw_log_messages(Bounds(Vec2(0, 80), graph.dialog_window_size()));
-        return true;
-    }, [ptr = &base](DrawStructure&g, Event e) {
+    const bool native_enabled = not BOOL_SETTING(nowindow);
+    const bool browser_enabled = BOOL_SETTING(httpd);
+
+    std::unique_ptr<BrowserBase> browser;
+    std::unique_ptr<IMGUIBase> native;
+    Base* primary = nullptr;
+    DrawStructure* graph = nullptr;
+
+    auto browser_logical_size = [&](std::optional<Size2> native_size = std::nullopt) {
+        return gui::browser::logical_viewport_size(
+            native_size,
+            READ_SETTING(video_size, Size2),
+            Float2_t(READ_SETTING(httpd_max_width, int)));
+    };
+
+    auto handle_event = [](Base* source, DrawStructure& g, Event e) {
         if(not SceneManager::getInstance().on_global_event(e)) {
             if(e.type == EventType::KEY) {
                 if(e.key.code == Keyboard::Escape) {
@@ -195,7 +235,7 @@ void launch_gui(std::future<void>& f) {
 #if defined(WIN32)
                 Float2_t dpi = 1_F;
 #else
-                Float2_t dpi = ptr->dpi_scale();
+                Float2_t dpi = source ? source->dpi_scale() : 1_F;
 #endif
                 assert(not std::isinf(dpi));
                 auto min_width = 1350_F * dpi;
@@ -204,14 +244,86 @@ void launch_gui(std::future<void>& f) {
                 auto scale = max(0.9_F, sqrt(min_width / w));
                 auto yscale = max(0.9_F, sqrt(min_height / h));
                 
-                SETTING(gui_interface_scale) = Float2_t(yscale > scale ? yscale : yscale);
-                //Print("scale=",scale, " yscale=",yscale, " w=",w," h=",h, " dpi=", dpi, " (", ptr->dpi_scale(), ")");
+                SETTING(gui_interface_scale) = Float2_t(
+                    dynamic_cast<IMGUIBase*>(source) ? yscale : max(scale, yscale));
             }
         }
-    });
+    };
+
+    if(browser_enabled) {
+#if COMMONS_HAS_HTTPD
+        const auto logical_size = browser_logical_size(
+            native_enabled ? std::optional<Size2>{Size2{1024, 850}} : std::nullopt);
+
+        auto read_asset = [](std::string path, std::string mime, const file::Path& source) {
+            auto bytes = source.retrieve_data();
+            return browser::Asset{
+                .path = std::move(path),
+                .mime = std::move(mime),
+                .contents = std::string(bytes.begin(), bytes.end())
+            };
+        };
+        const auto app = file::DataLocation::parse("app");
+        BrowserBaseConfig config{
+            .title = window_title(),
+            .logical_size = logical_size,
+            .transport = {
+                .bind_address = READ_SETTING(httpd_bind_address, std::string),
+                .port = narrow_cast<uint16_t>(READ_SETTING(httpd_port, int)),
+                .assets = {
+                    read_asset("/index.html", "text/html; charset=utf-8", app / "html/index.html"),
+                    read_asset("/app.css", "text/css; charset=utf-8", app / "html/app.css"),
+                    read_asset("/app.js", "text/javascript; charset=utf-8", app / "html/app.js"),
+                    read_asset("/fonts/Quicksand.ttf", "font/ttf", app / "fonts/Quicksand.ttf"),
+                    read_asset("/fonts/Quicksand-b.ttf", "font/ttf", app / "fonts/Quicksand-b.ttf"),
+                    read_asset("/fonts/Quicksand-i.ttf", "font/ttf", app / "fonts/Quicksand-i.ttf"),
+                    read_asset("/fonts/Quicksand-bi.ttf", "font/ttf", app / "fonts/Quicksand-bi.ttf"),
+                    read_asset("/fonts/PTMono.ttf", "font/ttf", app / "fonts/PTMono.ttf"),
+                    read_asset("/fonts/PTMono-Bold.ttf", "font/ttf", app / "fonts/PTMono-Bold.ttf"),
+                    read_asset("/fonts/NotoSansSymbols2-Regular.ttf", "font/ttf", app / "fonts/NotoSansSymbols2-Regular.ttf")
+                }
+            },
+            .image_quality = READ_SETTING(web_quality, int),
+            .regular_font = app / "fonts/Quicksand.ttf",
+            .italic_font = app / "fonts/Quicksand-i.ttf",
+            .bold_font = app / "fonts/Quicksand-b.ttf",
+            .bold_italic_font = app / "fonts/Quicksand-bi.ttf",
+            .monospace_font = app / "fonts/PTMono.ttf",
+            .monospace_bold_font = app / "fonts/PTMono-Bold.ttf",
+            .symbols_font = app / "fonts/NotoSansSymbols2-Regular.ttf",
+            .event_callback = [&](DrawStructure& g, const Event& e) { handle_event(browser.get(), g, e); }
+        };
+        browser = std::make_unique<BrowserBase>(std::move(config));
+        primary = browser.get();
+        graph = browser->graph();
+        if(not native_enabled) {
+            Event event(EventType::WINDOW_RESIZED);
+            event.size = {logical_size.width, logical_size.height};
+            handle_event(browser.get(), *graph, event);
+        }
+
+        const auto bind = READ_SETTING(httpd_bind_address, std::string);
+        if(bind != "127.0.0.1" && bind != "::1" && bind != "localhost")
+            FormatWarning("Browser GUI is unauthenticated and listening on ", bind, ":", READ_SETTING(httpd_port, int), ". Only expose it on a trusted network.");
+        Print("Browser GUI available at http://", bind == "0.0.0.0" ? "127.0.0.1" : bind, ":", READ_SETTING(httpd_port, int), "/");
+#else
+        throw U_EXCEPTION("Browser GUI was requested, but HTTPD support is unavailable in this build.");
+#endif
+    }
+
+    if(native_enabled) {
+        native = std::make_unique<IMGUIBase>(window_title(), Size2{1024, 850},
+            [](DrawStructure&) { return true; },
+            [&](DrawStructure& g, Event e) { handle_event(native.get(), g, e); });
+        primary = native.get();
+        graph = native->graph().get();
+    }
+
+    if(not primary || not graph)
+        throw U_EXCEPTION("No GUI backend was selected.");
     
 #if !COMMONS_NO_PYTHON
-    CheckUpdates::init(base.graph().get());
+    CheckUpdates::init(graph);
 #endif
     
     /**
@@ -223,7 +335,7 @@ void launch_gui(std::future<void>& f) {
     std::unique_ptr<Segmenter> segmenter;
     bool errored_out{false};
     
-    ConvertScene converting(base, [&](ConvertScene& scene){
+    ConvertScene converting(*primary, [&](ConvertScene& scene){
         segmenter = std::make_unique<Segmenter>(
         [&manager, &errored_out, &segmenter]() {
             if(errored_out) {
@@ -252,7 +364,7 @@ void launch_gui(std::future<void>& f) {
             }
         },
         [&manager, &errored_out](std::string error) {
-            if(BOOL_SETTING(nowindow))
+            if(not BOOL_SETTING(has_gui))
                 throw U_EXCEPTION("Error converting: ", error);
             
             errored_out = true;
@@ -271,7 +383,7 @@ void launch_gui(std::future<void>& f) {
         
         // on activate
         if(not segmenter->output_size().empty())
-            base.graph()->set_size(Size2(1024, segmenter->output_size().height / segmenter->output_size().width * 1024));
+            graph->set_size(Size2(1024, segmenter->output_size().height / segmenter->output_size().width * 1024));
         
     }, [&](auto&){
         // on deactivate
@@ -279,29 +391,29 @@ void launch_gui(std::future<void>& f) {
     });
     manager.register_scene(&converting);
 
-    StartingScene start{ base };
+    StartingScene start{ *primary };
     manager.register_scene(&start);
     manager.set_fallback(start.name());
     
-    TrackingScene tracking_scene{ base };
+    TrackingScene tracking_scene{ *primary };
     manager.register_scene(&tracking_scene);
     if(wants_to_load) {
         wants_to_load = false;
         tracking_scene.request_load();
     }
     
-    SettingsScene settings_scene{ base };
+    SettingsScene settings_scene{ *primary };
     manager.register_scene(&settings_scene);
-    TrackingSettingsScene tsettings_scene{ base };
+    TrackingSettingsScene tsettings_scene{ *primary };
     manager.register_scene(&tsettings_scene);
     
-    AnnotationScene annotations{base};
+    AnnotationScene annotations{*primary};
     manager.register_scene(&annotations);
     
-    CalibrateScene calibrate{base};
+    CalibrateScene calibrate{*primary};
     manager.register_scene(&calibrate);
 
-    LoadingScene loading(base, file::DataLocation::parse("output"), ".pv", [](const file::Path&, std::string) {
+    LoadingScene loading(*primary, file::DataLocation::parse("output"), ".pv", [](const file::Path&, std::string) {
         }, [](const file::Path&, std::string) {
 
         });
@@ -349,6 +461,9 @@ void launch_gui(std::future<void>& f) {
                     .source_map = cmd_options
                 });
                 
+                /// if we explicitly set -task convert, we want to force the override
+                ConvertScene::force_start_over.set(true);
+                
             } else if(it->second == &tracking_scene) {
                 settings::load(settings::LoadContext{
                     .source = READ_SETTING(source, file::PathArray),
@@ -378,18 +493,20 @@ void launch_gui(std::future<void>& f) {
         }
 	}
     
-    base.platform()->set_icons({
-        //file::DataLocation::parse("app", "gfx/"+READ_SETTING(app_name, std::string)+"_16.png"),
-        file::DataLocation::parse("app", "gfx/"+READ_SETTING(app_name, std::string)+"_32.png"),
-        file::DataLocation::parse("app", "gfx/"+READ_SETTING(app_name, std::string)+"_48.png"),
-        file::DataLocation::parse("app", "gfx/"+READ_SETTING(app_name, std::string)+"_64.png"),
-        file::DataLocation::parse("app", "gfx/"+READ_SETTING(app_name, std::string)+"_128.png"),
-        file::DataLocation::parse("app", "gfx/"+READ_SETTING(app_name, std::string)+"_256.png")
-    });
+    if(native) {
+        native->platform()->set_icons({
+            //file::DataLocation::parse("app", "gfx/"+READ_SETTING(app_name, std::string)+"_16.png"),
+            file::DataLocation::parse("app", "gfx/"+READ_SETTING(app_name, std::string)+"_32.png"),
+            file::DataLocation::parse("app", "gfx/"+READ_SETTING(app_name, std::string)+"_48.png"),
+            file::DataLocation::parse("app", "gfx/"+READ_SETTING(app_name, std::string)+"_64.png"),
+            file::DataLocation::parse("app", "gfx/"+READ_SETTING(app_name, std::string)+"_128.png"),
+            file::DataLocation::parse("app", "gfx/"+READ_SETTING(app_name, std::string)+"_256.png")
+        });
+    }
     
     file::cd(file::DataLocation::parse("app"));
     
-    gui::SFLoop loop(*base.graph(), &base, [&](gui::SFLoop&, LoopStatus) {
+    gui::SFLoop loop(*graph, primary, [&](gui::SFLoop&, LoopStatus) {
         if(f.valid()
            && f.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready)
         {
@@ -399,7 +516,24 @@ void launch_gui(std::future<void>& f) {
                 SceneManager::set_switching_error(ex.what());
             }
         }
-        manager.update(&base, *base.graph());
+        if(browser) {
+            const auto logical_size = browser_logical_size(
+                native ? std::optional<Size2>{native->real_dimensions()} : std::nullopt);
+            if(browser->window_dimensions() != logical_size) {
+                browser->set_window_size(logical_size);
+                if(not native) {
+                    Event event(EventType::WINDOW_RESIZED);
+                    event.size = {logical_size.width, logical_size.height};
+                    handle_event(browser.get(), *graph, event);
+                }
+            }
+            browser->process_input(*graph);
+        }
+        manager.update(primary, *graph);
+        if(browser) {
+            graph->before_paint(browser.get());
+            browser->paint(*graph);
+        }
         
         check_pause();
     });
@@ -412,7 +546,7 @@ void launch_gui(std::future<void>& f) {
     CheckUpdates::cleanup();
 #endif
     
-    base.graph()->root().set_stage(nullptr);
+    graph->root().set_stage(nullptr);
 }
 
 void panic(const char *fmt, ...) {
@@ -556,11 +690,20 @@ std::string start_tracking(std::future<void>& f) {
     if(f.valid())
         f.get();
     
-    while(not terminate && not BOOL_SETTING(terminate))
+    while(not terminate
+          && not BOOL_SETTING(terminate)
+          && not BOOL_SETTING(error_terminate))
+    {
         std::this_thread::sleep_for(std::chrono::seconds(1));
-    
-    while(BOOL_SETTING(auto_quit))
+    }
+
+    /// Asynchronous startup failures can set error_terminate before the
+    /// workflow reaches the state transition that clears auto_quit.
+    while(BOOL_SETTING(auto_quit)
+          && not BOOL_SETTING(error_terminate))
+    {
         std::this_thread::sleep_for(std::chrono::seconds(1));
+    }
     
     WorkProgress::stop();
     return {};
@@ -576,24 +719,10 @@ std::string start_converting(std::future<void>& f) {
     
     /// this needs to go first so it gets destroyed last
     /// since we have callbacks in segmenter
-    ind::ProgressBar bar{
-        ind::option::BarWidth{50},
-        ind::option::Start{"["},
-/*#ifndef _WIN32
-        ind::option::Fill{"█"},
-        ind::option::Lead{"▂"},
-        ind::option::Remainder{"▁"},
-#else*/
-        ind::option::Fill{"="},
-        ind::option::Lead{">"},
-        ind::option::Remainder{" "},
-//#endif
-        ind::option::End{"]"},
-        ind::option::PostfixText{"Converting video..."},
-        ind::option::ShowPercentage{true},
-        ind::option::ForegroundColor{ind::Color::white},
-        ind::option::FontStyles{std::vector<ind::FontStyle>{ind::FontStyle::bold}}
-    };
+    auto bar = cmn::terminal::progress::make_progress_bar({
+        .width = 50,
+        .postfix = "Converting video..."
+    });
     
     std::string last_error;
     Segmenter segmenter(
@@ -606,6 +735,9 @@ std::string start_converting(std::future<void>& f) {
             last_error = error;
         });
     
+    /// if we explicitly set -task convert, we want to force the override
+    segmenter.start_over().set(true);
+    
     Print("Loading source = ",
           utils::ShortenText(READ_SETTING(source, file::PathArray).toStr(), 1000));
     
@@ -614,17 +746,12 @@ std::string start_converting(std::future<void>& f) {
     ind::ProgressSpinner spinner{
         ind::option::PostfixText{"Recording..."},
         ind::option::ForegroundColor{ind::Color::white},
-        ind::option::SpinnerStates{std::vector<std::string>{
-            //"⣾","⣽","⣻","⢿","⡿","⣟","⣯","⣷"
-            //"◢","◣","◤","◥",
-            //"◜◞", "◟◝", "◜◞", "◟◝"
-            " ◴"," ◷"," ◶"," ◵"
-            //"⠈", "⠐", "⠠", "⢀", "⡀", "⠄", "⠂", "⠁"
-        }},
+        ind::option::SpinnerStates{cmn::terminal::progress::spinner_states()},
         ind::option::FontStyles{std::vector<ind::FontStyle>{ind::FontStyle::bold}}
     };
     
     Timer last_tick;
+    size_t bar_spinner_index = 0;
     
     if (READ_SETTING(source, file::PathArray) == file::PathArray("webcam")) {
         segmenter.open_camera();
@@ -653,11 +780,12 @@ std::string start_converting(std::future<void>& f) {
         
         if(percent >= 0) {
             percent = saturate(percent, 0.f, 100.f);
+            cmn::terminal::progress::advance_progress_bar_spinner(bar, bar_spinner_index);
             bar.set_progress(percent);
             
             auto frame = segmenter.current_frame();
-            bar.set_option(ind::option::PostfixText{"Converting "+Meta::toStr(frame)+"/"+video_length+" @ "+dec<1>(segmenter.fps()).toStr()+"fps..."});
-        } else if(last_tick.elapsed() > 1) {
+            bar.set_postfix("Converting "+Meta::toStr(frame)+"/"+video_length+" @ "+dec<1>(segmenter.fps()).toStr()+"fps...");
+        } else if(last_tick.elapsed() > cmn::terminal::progress::interval_seconds()) {
             spinner.set_option(ind::option::PostfixText{"Recording ("+Meta::toStr(Tracker::end_frame())+")..."});
             spinner.set_option(ind::option::ShowPercentage{false});
             spinner.tick();
@@ -665,7 +793,8 @@ std::string start_converting(std::future<void>& f) {
         }
     });
     
-    while(not BOOL_SETTING(terminate))
+    while(not BOOL_SETTING(terminate)
+          && not BOOL_SETTING(error_terminate))
         std::this_thread::sleep_for(std::chrono::seconds(1));
     
     if(not BOOL_SETTING(error_terminate)) {
@@ -863,6 +992,13 @@ int main(int argc, char**argv) {
 #endif
 
     CommandLine::instance().load_settings();
+
+    if(auto error = validate_httpd_startup_settings(); error.has_value()) {
+        FormatError(error.value());
+        return 1;
+    }
+
+    SETTING(has_gui) = not BOOL_SETTING(nowindow) || BOOL_SETTING(httpd);
     
     if (not READ_SETTING(filename, file::Path).empty()) {
         auto path = READ_SETTING(filename, file::Path);
@@ -872,7 +1008,7 @@ int main(int argc, char**argv) {
     }
     
     std::string last_error;
-    if(BOOL_SETTING(nowindow)) {
+    if(BOOL_SETTING(nowindow) && not BOOL_SETTING(httpd)) {
         auto task = READ_SETTING(task, TRexTask);
         if(task == TRexTask_t::none)
             task = determineTaskType();
@@ -905,37 +1041,43 @@ int main(int argc, char**argv) {
         if(f.valid())
             f.get();
 
-        if(task == TRexTask_t::convert) {
-            last_error = start_converting(f);
-            
-            if(last_error.empty() && BOOL_SETTING(auto_train)) {
+        try {
+            if(task == TRexTask_t::convert) {
+                last_error = start_converting(f);
                 
-                try {
-                    if (f.valid())
-                        f.get();
+                if(last_error.empty() && BOOL_SETTING(auto_train)) {
 
-                    Detection::deinit();
-                    Accumulation::on_terminate();
-                    WorkProgress::stop();
+                    try {
+                        if (f.valid())
+                            f.get();
+
+                        Detection::deinit();
+                        Accumulation::on_terminate();
+                        WorkProgress::stop();
+
+                    } catch(const std::exception& e) {
+                        FormatExcept("Unknown deinit() error, quitting normally anyways. ", e.what());
+                    }
                     
-                } catch(const std::exception& e) {
-                    FormatExcept("Unknown deinit() error, quitting normally anyways. ", e.what());
+                    wants_to_load = true;
+                    SETTING(terminate) = false;
+                    SETTING(auto_quit) = true;
+                    start_tracking(f);
+                } else {
+                    WorkProgress::stop();
                 }
                 
-                wants_to_load = true;
-                SETTING(terminate) = false;
-                SETTING(auto_quit) = true;
-                start_tracking(f);
+            } else if(task == TRexTask_t::track) {
+                last_error = start_tracking(f);
+            } else if(task == TRexTask_t::rst) {
+                save_rst_files();
             } else {
-                WorkProgress::stop();
+                throw U_EXCEPTION("Unknown task type: ", task);
             }
-            
-        } else if(task == TRexTask_t::track) {
-            last_error = start_tracking(f);
-        } else if(task == TRexTask_t::rst) {
-            save_rst_files();
-        } else {
-            throw U_EXCEPTION("Unknown task type: ", task);
+        } catch(const std::exception& ex) {
+            SETTING(error_terminate) = true;
+            SETTING(terminate) = true;
+            last_error = ex.what();
         }
         
     } else {

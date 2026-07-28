@@ -151,7 +151,7 @@ public:
             image.ptr->set_index(image.index.get());
             
             // could use image here
-            const Size2 original_size(current_use->cols, current_use->rows);
+            const Size2 source_size(current_use->cols, current_use->rows);
             Size2 detector_size = track::detect::get_model_image_size();
             const uint16_t detect_tile_target_width = READ_SETTING(detect_tile_target_width, uint16_t);
             const size_t detect_tile_image = READ_SETTING(detect_tile_image, uchar);
@@ -173,14 +173,25 @@ public:
                     *current_use,
                     computed_size,
                     _resized_buffer,
-                    cmn::ImageResizeMode::letterbox);
+                    BOOL_SETTING(detect_requires_exact_input_size)
+                        ? cmn::ImageResizeMode::stretch
+                        : cmn::ImageResizeMode::letterbox);
                 current_use = &_resized_buffer;
-                tiled = TileImage(*current_use, std::move(image.ptr), detector_size, original_size, detect_tile_overlap);
-                tiled._offsets = {geometry.offset};
-                tiled.source_size = geometry.content_size;
+                tiled = TileImage(*current_use, std::move(image.ptr), detector_size, source_size, detect_tile_overlap);
+                tiled.set_tile_geometries({
+                    track::TileGeometry{
+                        .source_region = track::SourceRect(0, 0, source_size.width, source_size.height),
+                        .tile_content = track::TileRect(
+                            -geometry.offset.x,
+                            -geometry.offset.y,
+                            geometry.content_size.width,
+                            geometry.content_size.height),
+                        .tile_size = detector_size
+                    }
+                });
             } else {
                 // In tiled mode, crop tiles directly from the source frame instead of pre-resizing it.
-                tiled = TileImage(*current_use, std::move(image.ptr), detector_size, original_size, detect_tile_overlap);
+                tiled = TileImage(*current_use, std::move(image.ptr), detector_size, source_size, detect_tile_overlap);
             }
             tiled.callback = callback;
             _source->move_back(std::move(image.buffer));

@@ -123,7 +123,7 @@ std::vector<std::pair<std::string, std::vector<std::string>>> add_missing_pose_f
 }
 
 namespace cmn::gui {
-ENUM_CLASS(mode_t, blobs, tracking, optical_flow)
+ENUM_CLASS(mode_t, raw, tracking, annotate)
 
 }
 

@@ -12,7 +12,7 @@ import commons.processing;
 import commons.video;
 import commons.gui;
 import commons.gui.dyn;
-#if WITH_MHD
+#if COMMONS_HAS_HTTPD
 import commons.http;
 #endif
 

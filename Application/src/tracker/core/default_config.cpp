@@ -14,6 +14,7 @@
 #include <misc/CropOffsets.h>
 #include <core/GPURecognitionTypes.h>
 #include <core/annotation.h>
+#include <core/FrameTags.h>
 
 #ifndef WIN32
 #include <unistd.h>
@@ -778,6 +779,11 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
          */
         CONFIG("meta_mass_mg", float(200), "Used for exporting event-energy levels.");
         CONFIG("nowindow", false, "If set to true, no GUI will be created on startup (e.g. when starting from SSH).", STARTUP);
+        CONFIG("has_gui", true, "Whether this process has an active native or browser GUI backend.", STARTUP);
+        CONFIG("httpd", false, "Enable the browser GUI HTTP/WebSocket server.", STARTUP);
+        CONFIG("httpd_bind_address", std::string("0.0.0.0"), "Address on which the browser GUI server listens. The server is unauthenticated, so only bind to trusted networks.", STARTUP);
+        CONFIG("httpd_port", int(8080), "TCP port on which the browser GUI server listens (1-65535).", STARTUP);
+        CONFIG("httpd_max_width", int(1280), "Maximum logical browser-only GUI width in pixels.", STARTUP);
         CONFIG("track_background_subtraction", false, "If enabled, objects in .pv videos will first be contrasted against the background before thresholding (background_colors - object_colors). `track_threshold_is_absolute` then decides whether this term is evaluated in an absolute or signed manner.");
         CONFIG("use_differences", false, "This should be set to false unless when using really old files.");
         //config["debug_probabilities"] = false;
@@ -795,6 +801,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("gui_max_path_time", float(3), "Length (in time) of the trails shown in GUI.");
         
         CONFIG("gui_draw_only_filtered_out", false, "Only show filtered out blob texts.");
+        CONFIG("gui_show_tiles", false, "If enabled, the gui will show red lines representing the tiles used during detection (if e.g. `detect_tile_target_width` is set). The visuals will depend on the current setting - i.e. how it would tile the image if the conversion were to be run again under the current settings.");
         CONFIG("gui_show_timeline", true, "If enabled, the timeline (top of the screen) will be shown in the tracking view.");
         CONFIG("gui_show_fish", std::tuple<pv::bid, Frame_t>{pv::bid::invalid, Frame_t()}, "Show debug output for {blob_id, fish_id}.");
         CONFIG("gui_source_video_frame", Frame_t(0u), "Best information the system has on which frame index in the original video the given `gui_frame` corresponds to (integrated into the pv file starting from V_9).", SYSTEM);
@@ -846,6 +853,8 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("gui_show_histograms", false, "Equivalent to the checkbox visible in GUI on the bottom-left.");
         CONFIG("gui_show_posture", false, "Show/hide the posture window on the top-right.");
         CONFIG("gui_show_export_options", false, "Show/hide the export options widget.");
+        CONFIG("gui_show_annotation_export_options", false, "Show/hide the annotation dataset export widget.");
+        CONFIG("gui_show_annotation_import_options", false, "Show/hide the annotation dataset import widget.");
         CONFIG("gui_show_visualfield_ts", false, "Show/hide the visual field time series.");
         CONFIG("gui_show_visualfield", false, "Show/hide the visual field rays.");
         CONFIG("gui_show_uniqueness", false, "Show/hide uniqueness overview after training.");
@@ -906,7 +915,12 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         
         using namespace track;
         AnnotationMap annotation_example = AnnotationMap::fromStr("{100:[[0,1,[[100,120],[200,300],[350,400]]]]}");
-        CONFIG("track_annotations", track::AnnotationMap{}, "This is a map of {frame:[[clid,type,[points...]],...]} that can be used to export annotations per frame. These can be added in the graphical user interface by CMD+clicking on the video and selecting 'add annotation'.", PUBLIC, {std::move(annotation_example)});
+        CONFIG("track_annotations", track::AnnotationMap{}, "This is a map of `{frame:[[clid,type,[points...]],...]}` that can be used to export annotations per frame. These can be added in the graphical user interface by CMD+clicking on the video and selecting 'add annotation'.", PUBLIC, {std::move(annotation_example)});
+        
+        FrameTags tags{
+            {123_f, std::set<FrameTag>{FrameTag("blue"), FrameTag("green")}}
+        };
+        CONFIG("track_frame_tags", track::FrameTags{}, "This is a map of `{frame:[tag1,...],frame2:...}` ", PUBLIC, {std::move(tags)});
         
         CONFIG("match_mode", matching_mode_t::automatic, "Changes the default algorithm to be used for matching blobs in one frame with blobs in the next frame. The accurate algorithm performs best, but also scales less well for more individuals than the approximate one. However, if it is too slow (temporarily) in a few frames, the program falls back to using the approximate one that doesnt slow down.");
         CONFIG("match_min_probability", float(0.1), "The probability below which a possible connection between blob and identity is considered too low. The probability depends largely upon settings like `track_max_speed`.");
@@ -1123,14 +1137,21 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("detect_sam3_prompt", std::optional<track::detect::Sam3Prompts>{}, "Frame-indexed SAM3 prompt repository. C++ resolves this map into per-image prompt arrays before dispatching batches to the Python SAM3 adapter.", PUBLIC, {std::move(example_prompts)});
         CONFIG("yolo_tracking_enabled", false, "If set to true, the program will try to use yolov8s internal tracking routine to improve results. This can be significantly slower and disables batching.");
         CONFIG("yolo_region_tracking_enabled", false, "If set to true, the program will try to use yolov8s internal tracking routine to improve results for region tracking. This can be significantly slower and disables batching.");
-        CONFIG("detect_model", file::Path(), "The path to a .pt file that contains a valid PyTorch object detection model (currently only YOLO networks are supported).");
+        CONFIG("detect_model", file::Path(), "The path to a .pt or .pth file that contains a supported PyTorch object detection model (such as YOLO or RF-DETR).");
         CONFIG("detect_precomputed_file", file::PathArray{}, "If `detect_type` is set to `precomputed`, this should point to a csv file (or npz files) containing the necessary tracking data for the given `source` video.");
         CONFIG("detect_only_classes", track::detect::PredictionFilter{}, "An array of class ids that you would like to detect (as returned from the model). If left empty, no class will be filtered out.", PUBLIC, {track::detect::PredictionFilter{.detect_only = {0, 1}, ._inverted_from = std::nullopt}});
-        CONFIG("region_model", file::Path(), "The path to a .pt file that contains a valid PyTorch object detection model used for region proposal (currently only YOLO networks are supported).");
+        CONFIG("region_model", file::Path(), "The path to a .pt or .pth file that contains a supported PyTorch object detection model used for region proposal (at the moment only YOLO).");
         CONFIG("region_resolution", track::detect::DetectResolution{}, "The resolution of the region proposal network (`region_model`).", SYSTEM, {track::detect::DetectResolution{640, 640}});
         CONFIG("detect_resolution", track::detect::DetectResolution{}, "The input resolution of the object detection model (`detect_model`).", SYSTEM, {track::detect::DetectResolution{640, 640}});
-        CONFIG("detect_iou_threshold", std::optional<Float2_t>{}, "Optional IoU threshold override for object detection / segmentation networks. If unset, TRex preserves the upstream model's default postprocessing behaviour. If set, TRex forwards the IoU threshold explicitly and may disable end-to-end NMS-free inference so the override can affect the outcome.");
+        CONFIG("detect_requires_exact_input_size", false, "Whether C++ must prepare detector images at exactly `detect_resolution` rather than preserving the source aspect ratio. Set from loaded model metadata.", SYSTEM);
+        CONFIG("detect_iou_threshold", std::optional<Float2_t>{0.5_F}, "Optional IoU threshold override for object detection / segmentation networks. If unset, TRex preserves the upstream model's default postprocessing behaviour. If set, TRex forwards the IoU threshold explicitly and may disable end-to-end NMS-free inference so the override can affect the outcome.");
         CONFIG("detect_conf_threshold", Float2_t(0.1), "Confidence threshold (`0<=value<1`) for object detection / segmentation networks. Confidence is higher if the network is more *sure* about the object. Anything with a confidence level below `detect_conf_threshold` will not be considered an object and not saved to the PV file during conversion.");
+        CONFIG("detect_keypoint_threshold", Float2_t(0.1), "Minimum per-keypoint confidence for pose networks. Keypoints below this threshold are marked as absent independently of `detect_conf_threshold`.");
+        CONFIG("detect_try_optimize_model", true, "If enabled, loaded detection models may try their backend-specific high-performance inference optimization. Each model receives this value as `ModelConfig.try_optimize` and decides how to use it. Changing it requires reloading the model.");
+
+        CONFIG("track_behavior_window", uchar(50), "A window (in frames) around any annotated localized behavior that will be exported alongside the actually labeled frame. Surrounding labels ranges might be merged.");
+        CONFIG("track_behavior_window_step", uchar(0), "If 0 or 1, every frame of an individual is extracted and included in the exported dataset. Values > 1 will skip frames surrounding the labeled frame(s) in order to decrease dataset complexity.");
+
         CONFIG("gpu_min_iterations", uchar(100), "Minimum number of iterations per epoch for training a recognition network.");
         CONFIG("gpu_max_cache", float(2), "Size of the image cache (transferring to GPU) in GigaBytes when applying the network.");
         CONFIG("gpu_max_sample_gb", float(2), "Maximum size of per-individual sample images in GigaBytes. If the collected images are too many, they will be sub-sampled in regular intervals.");
@@ -1225,6 +1246,11 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             "gui_run",
             //"settings_file",
             "nowindow",
+            "has_gui",
+            "httpd",
+            "httpd_bind_address",
+            "httpd_port",
+            "httpd_max_width",
             "task",
             "wd",
             "gui_show_fish",
@@ -1249,7 +1275,6 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
 
             "cmd_line",
             "ffmpeg_path",
-            "httpd_port",
             "cam_undistort1",
             "cam_undistort2",
             
@@ -1283,7 +1308,8 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         };
         
         if(auto type = READ_SETTING(detect_type, track::detect::ObjectDetectionType_t);
-           type == track::detect::ObjectDetectionType::yolo)
+           type == track::detect::ObjectDetectionType::yolo
+           || READ_SETTING_WITH_DEFAULT(track_annotations, track::AnnotationMap{}))
         {
             explicitly_include.emplace("detect_classes");
             explicitly_include.emplace("detect_format");
@@ -1309,6 +1335,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             exclude_fields.push_back("detect_iou_threshold");
             exclude_fields.push_back("detect_skeleton");
             exclude_fields.push_back("detect_conf_threshold");
+            exclude_fields.push_back("detect_keypoint_threshold");
             exclude_fields.push_back("detect_model");
             exclude_fields.push_back("detect_format");
             exclude_fields.push_back("detect_classes");

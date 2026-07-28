@@ -200,9 +200,14 @@ MANUAL_SYMBOL_EXCLUSIONS = {
     ("gui/DrawSFBase.h", "cmn::gui::SpriteWithTexture"): "sfml_build_gated",
     ("gui/DrawSFBase.h", "cmn::gui::SpriteWithRenderTexture"): "sfml_build_gated",
     ("gui/DrawSFBase.h", "cmn::gui::SFBase"): "sfml_build_gated",
-    ("gui/HttpClient.h", "cmn::gui::HttpClient"): "http_build_gated",
     ("gui/LabeledField.h", "cmn::gui::has_set"): "wrong_namespace_parser_artifact",
+    ("gui/dyn/Context.h", "cmn::gui::dyn::COMMONS_EXPORT"): "export_macro_parser_artifact",
+    ("gui/dyn/Context.h", "cmn::gui::dyn::detail::local_setting_from_json"): "internal_detail_helper",
     ("gui/types/Entangled.h", "cmn::gui::detail::set"): "requires_expression_parser_artifact",
+    ("gui/types/Layout.h", "cmn::gui::HasSetEach"): "wrong_namespace_parser_artifact",
+    ("gui/types/Layout.h", "cmn::gui::HasCreateSetArgs"): "wrong_namespace_parser_artifact",
+    ("gui/types/Layout.h", "cmn::gui::AllowDirectMakeArgs"): "wrong_namespace_parser_artifact",
+    ("gui/types/Layout.h", "cmn::gui::HasMakeArgs"): "wrong_namespace_parser_artifact",
     ("gui/types/Drawable.h", "cmn::gui::Handler"): "internal_forward_decl_only",
     ("gui/types/ListItemTypes.h", "cmn::gui::TREX_TYPE_EXPORT"): "macro_parser_artifact",
     ("misc/colors.h", "cmn::gui::cmn::cmap::Viridis"): "wrong_namespace_parser_artifact",
@@ -244,6 +249,20 @@ MANUAL_SYMBOLS = {
     ],
     "gui/LabeledField.h": [
         Symbol("gui/LabeledField.h", "commons.gui", "cmn::gui::dyn", "has_set", "class_template", "using"),
+    ],
+    "gui/dyn/Context.h": [
+        Symbol("gui/dyn/Context.h", "commons.gui.dyn", "cmn::gui::dyn", "LocalSettingTypes", "class", "using"),
+        Symbol("gui/dyn/Context.h", "commons.gui.dyn", "cmn::gui::dyn", "CurrentObjectHandler", "struct", "using"),
+        Symbol("gui/dyn/Context.h", "commons.gui.dyn", "cmn::gui::dyn", "Context", "struct", "using"),
+    ],
+    "gui/types/Layout.h": [
+        Symbol("gui/types/Layout.h", "commons.gui", "cmn::gui", "Layout", "class", "using"),
+        Symbol("gui/types/Layout.h", "commons.gui", "cmn::gui", "PlaceinLayout", "class", "using"),
+        Symbol("gui/types/Layout.h", "commons.gui", "cmn::gui", "HorizontalLayout", "class", "using"),
+        Symbol("gui/types/Layout.h", "commons.gui", "cmn::gui", "VerticalLayout", "class", "using"),
+        Symbol("gui/types/Layout.h", "commons.gui", "cmn::gui", "FloatingLayout", "class", "using"),
+        Symbol("gui/types/Layout.h", "commons.gui", "cmn::gui", "GridInfo", "class", "using"),
+        Symbol("gui/types/Layout.h", "commons.gui", "cmn::gui", "GridLayout", "class", "using"),
     ],
     "misc/colors.h": [
         Symbol("misc/colors.h", "commons.misc", "cmn::cmap", "Viridis", "class", "using"),
@@ -874,7 +893,7 @@ def generate_smoke_file(module_name: str, inventory: dict) -> str:
         "",
     ]
     if module_name == "commons.http":
-        lines.append("#if WITH_MHD")
+        lines.append("#if COMMONS_HAS_HTTPD")
         lines.append("")
     namespace_name = module_name.replace(".", "_")
     current_guard: tuple[str, str] | None = None
@@ -987,9 +1006,6 @@ def generate_include_file(module_name: str, inventory: dict) -> str:
         if any(excluded["kind"] == "header" and excluded["reason"] == MODULE_HEADER_EXCLUSIONS.get(header["path"]) for excluded in header["excluded"]):
             continue
         include_lines = [f"#include <{header['path']}>"]
-        if header["path"] == "http/httpd.h":
-            include_lines = ["#if WITH_MHD", *include_lines, "#endif"]
-
         guard = PLATFORM_HEADER_GUARDS.get(header["path"])
         if guard is not None:
             include_lines = [guard[0], *include_lines, guard[1]]

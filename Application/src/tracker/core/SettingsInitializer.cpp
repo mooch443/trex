@@ -323,6 +323,23 @@ void LoadContext::init() {
         }
     }
 
+    static constexpr std::array backend_startup_settings{
+        "nowindow",
+        "has_gui",
+        "httpd",
+        "httpd_bind_address",
+        "httpd_port",
+        "httpd_max_width",
+        "web_quality"
+    };
+    for(const auto key : backend_startup_settings) {
+        if(auto current = GlobalSettings::read_value<NoType>(key);
+           current.valid())
+        {
+            current.get().copy_to(combined.values);
+        }
+    }
+
     /// append cmd parameters so they wont be overwritten
     exclude += startup_variables;
 }

@@ -163,7 +163,9 @@ about:
       - licenses/flat_hash_map/LICENSE
       - licenses/libpng/LICENSE
       - licenses/libzip/LICENSE
+      - Application/src/commons/third_party/cpp-httplib/LICENSE
       - licenses/zlib/README
+      - Application/src/tracker/thirdparty/fkYAML/LICENSE.txt
       - Application/src/fonts/OTF-PTMono.txt
       - Application/src/fonts/OTF-NotoSansSymbols2.txt
       - Application/src/fonts/OTF-Quicksand.txt

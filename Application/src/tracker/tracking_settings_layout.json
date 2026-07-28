@@ -43,11 +43,12 @@
     "fill":"{if:{is_small_window}:[0,0,0,0]:[0,0,0,50]}",
     "pos":"{if:{is_small_window}:[0,0]:[{*:{window_size.x}:0.5},20]}",
     "origin":"{if:{is_small_window}:[0,0]:[0.5,0]}",
-    "pad":[20,0,0,5],
+    "outer_pad":[20,5,0,0],
+    "pad":[0,-1,0,0],
     "children":[
         {
             "type":"vlayout",
-            "pad":[0,20,0,-1],
+            "outer_pad":[0,5,0,5],
             "children":[
                 { "type":"stext",
                 "name":"title",
@@ -62,7 +63,7 @@
         },
         {
             "type":"hlayout",
-            "pad":[0,-10,-36,-1.5],
+            "outer_pad":[0,-10,-36,-1.5],
             "children":[
                 {
                     "type":"hlayout",
@@ -134,7 +135,8 @@
             "cellfillclr":[20,20,20,180],
             "line":[100,100,100,150],
             "mincellsize":[227,0],
-            "pad":[10,0,10,0],
+            "pad":[5,0,0,0],
+            "outer_pad":[0,0,10,0],
             "clickable":true,
             "halign":"left",
             "valign":"top",
@@ -151,15 +153,13 @@
                     [
                     {
                         "type":"vlayout",
+                        "outer_pad":[0,15,0,-10],
+                        "pad":[0,0,0,10],
                         "children":[
                             {
-                                "type":"rect",
-                                "fill":[0,0,0,0],
-                                "size":"[{-:{element_w}:0},20]"
-                            },
-                            {
                                 "type":"gridlayout",
-                                "pad":[0,0,15,0],
+                                "outer_pad":[5,0,5,0],
+                                "pad":[0,0,-1,0],
                                 "cellfillclr":[60,60,60,150],
                                 "celllineclr":[100,100,100,50],
                                 "cellfillinterval":2,
@@ -194,7 +194,7 @@
                                             "var":"track_threshold",
                                             "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
                                             "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
-                                            "size":"[{+:25:{max:50:{*:{textfield_w}:0.1}}},40]",
+                                            "size":"[{+:25:{max:150:{*:{textfield_w}:0.1}}},40]",
                                             "desc":""
                                         }
                                     ],
@@ -234,7 +234,7 @@
                                             },
                                             "auto_limit_size": false,
                                             "var":"track_do_history_split",
-                                            "size":"[{+:25:{max:50:{*:{textfield_w}:0.1}}},40]",
+                                            "size":"[{+:25:{max:150:{*:{textfield_w}:0.1}}},40]",
                                             "desc":""
                                         }
                                     ],
@@ -260,7 +260,7 @@
                                             "text":"conversion <i>(cm/px)</i>",
                                             "origin":[0,0.5], "pos":[0,20],
                                             "pad":[10,0,0,0],
-                                            "max_size":"[{-:{inside_label_w}:20},0]"
+                                            "max_size":"[{-:{inside_label_w}:10},0]"
                                         },
                                         [
                                             {
@@ -269,7 +269,7 @@
                                                 "var":"cm_per_pixel",
                                                 "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
                                                 "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
-                                                "size":"[{max:50:{*:{textfield_w}:0.05}},40]",
+                                                "size":"[{max:150:{*:{textfield_w}:0.05}},40]",
                                                 "desc":""
                                             },
                                             {
@@ -277,8 +277,8 @@
                                                 "corners":["bottomright"],
                                                 "text":"Calibrate",
                                                 "fill":[50,90,50],
-                                                "pos":"[{max:50:{*:{textfield_w}:0.05}},0]",
-                                                "size":"[{max:50:{*:{textfield_w}:0.073}},40]",
+                                                "pos":"[{max:80:{*:{textfield_w}:0.05}},0]",
+                                                "size":"[{max:95:{*:{textfield_w}:0.073}},40]",
                                                 "action":"change_scene:'calibrate-scene'"
                                             }
                                         ]
@@ -313,12 +313,9 @@
                     },
                     {
                         "type":"vlayout",
+                        "outer_pad":[5,15,5,15],
+                        "pad":[0,5,0,0],
                         "children":[
-                            {
-                                "type":"rect",
-                                "fill":[0,0,0,0],
-                                "size":[1,10]
-                            },
                             {
                                 "type":"hlayout",
                                 "pad":[0,0,0,20],
@@ -469,95 +466,14 @@
                                 }
                             },
 
-
-                            {
-                                "type":"rect",
-                                "fill":[0,0,0,0],
-                                "size":[1,15]
-                            },
-
                             {
                                 "type":"stext",
                                 "max_size": "[{min:700:{element_w}},80]",
                                 "text": "<c><cyan>Posture estimation</cyan></c> is used to determine an outline around the individual, as well as a centerline at the ends of which are the head and tail positions. This only works <i>properly</i> for bilateral individuals and should only be enabled if needed. <orange><b>Required for visual fields.</b></orange>",
                                 "font":{"size":0.5}
-                            },
-
-
-                            {
-                                "type":"rect",
-                                "fill":[0,0,0,0],
-                                "size":[1,20]
                             }
                         ]
                     }
-                ],
-
-                [ 
-                    {
-                        "type":"stext",
-                        "text":"<b>Storage format</b>\n<small><gray>Which data is stored. Simpler is sometimes better.</gray></small>",
-                        "font":{"size":0.75},
-                        "origin":"{label_origin}", "pos":"{label_offset}",
-                        "max_size":"[{label_w},0]",
-                        "pad":"{label_padding}"
-                    },
-                    [
-                    {
-                        "type":"vlayout",
-                        "children":[
-                            {
-                                "type":"rect",
-                                "fill":[0,0,0,0],
-                                "size":[1,20]
-                            },
-                            {
-                                "type":"gridlayout",
-                                "pad":[0,0,15,10],
-                                "cellfillclr":[60,60,60,150],
-                                "celllineclr":[100,100,100,50],
-                                "cellfillinterval":2,
-                                "children":[
-                                    [
-                                        {
-                                            "type":"stext",
-                                            "text":"encoding",
-                                            "origin":[0,0.5], "pos":[0,20],
-                                            "pad":[10,0,-5,0],
-                                            "max_size":"[{-:{inside_label_w}:20},0]"
-                                        },
-                                        {
-                                            "type":"settings",
-                                            "var":"meta_encoding",
-                                            "label":{
-                                                "corners":["right"],
-                                                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,250]}",
-                                                "fill":"{if:{||:{selected}:{hovered}}:[10,80,110,240]:[10,50,80,240]}",
-                                                "font":{"size":0.65},
-                                                "color":[255,255,255]
-                                            },
-                                            "size":"[{max:50:{*:{textfield_w}:0.1}},40]",
-                                            "desc":""
-                                        }
-                                    ]
-    
-                                ]
-                            },
-
-                            {
-                                "type":"stext",
-                                "max_size": "[{min:500:{element_w}},80]",
-                                "text": "The <cyan><c>meta_encoding</c></cyan> setting is used to determine how the tracking data is stored. This can play a role for example in general tracking and overlap resolution, as well as visual identification.",
-                                "font":{"size":0.5}
-                            },
-
-                            {
-                                "type":"rect",
-                                "fill":[0,0,0,0],
-                                "size":[1,20]
-                            }
-                        ]
-                    }]
                 ]
             ]
         }

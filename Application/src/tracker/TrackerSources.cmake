@@ -1,5 +1,6 @@
 set(TREX_CORE_PUBLIC_HEADERS
     ${CMAKE_CURRENT_LIST_DIR}/core/AbstractVideoSource.h
+    ${CMAKE_CURRENT_LIST_DIR}/core/AnnotationDataset.h
     ${CMAKE_CURRENT_LIST_DIR}/core/BaslerVideoSource.h
     ${CMAKE_CURRENT_LIST_DIR}/core/BackgroundTask.h
     ${CMAKE_CURRENT_LIST_DIR}/core/BlurryVideoLoop.h
@@ -7,11 +8,13 @@ set(TREX_CORE_PUBLIC_HEADERS
     ${CMAKE_CURRENT_LIST_DIR}/core/default_config.h
     ${CMAKE_CURRENT_LIST_DIR}/core/DetectionImageTypes.h
     ${CMAKE_CURRENT_LIST_DIR}/core/DetectionTypes.h
+    ${CMAKE_CURRENT_LIST_DIR}/core/FrameTags.h
     ${CMAKE_CURRENT_LIST_DIR}/core/FOI.h
     ${CMAKE_CURRENT_LIST_DIR}/core/IdentifiedTag.h
     ${CMAKE_CURRENT_LIST_DIR}/core/Identity.h
     ${CMAKE_CURRENT_LIST_DIR}/core/idx_t.h
     ${CMAKE_CURRENT_LIST_DIR}/core/indicators.h
+    ${CMAKE_CURRENT_LIST_DIR}/core/TerminalProgress.h
     ${CMAKE_CURRENT_LIST_DIR}/core/GPURecognitionTypes.h
     ${CMAKE_CURRENT_LIST_DIR}/core/NetworkStats.h
     ${CMAKE_CURRENT_LIST_DIR}/core/PVVideoSource.h
@@ -21,6 +24,7 @@ set(TREX_CORE_PUBLIC_HEADERS
     ${CMAKE_CURRENT_LIST_DIR}/core/TaskPipeline.h
     ${CMAKE_CURRENT_LIST_DIR}/core/SettingsPaths.h
     ${CMAKE_CURRENT_LIST_DIR}/core/SettingsInitializer.h
+    ${CMAKE_CURRENT_LIST_DIR}/core/TileCoordinates.h
     ${CMAKE_CURRENT_LIST_DIR}/core/TileImage.h
     ${CMAKE_CURRENT_LIST_DIR}/core/TileBuffers.h
     ${CMAKE_CURRENT_LIST_DIR}/core/TimingStatsCollector.h
@@ -39,12 +43,14 @@ set(TREX_CORE_PRIVATE_HEADERS
 
 set(TREX_CORE_SOURCES
     ${CMAKE_CURRENT_LIST_DIR}/core/AbstractVideoSource.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/core/AnnotationDataset.cpp
     ${CMAKE_CURRENT_LIST_DIR}/core/BaslerVideoSource.cpp
     ${CMAKE_CURRENT_LIST_DIR}/core/BackgroundTask.cpp
     ${CMAKE_CURRENT_LIST_DIR}/core/BlurryVideoLoop.cpp
     ${CMAKE_CURRENT_LIST_DIR}/core/Border.cpp
     ${CMAKE_CURRENT_LIST_DIR}/core/default_config.cpp
     ${CMAKE_CURRENT_LIST_DIR}/core/DetectionTypes.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/core/FrameTags.cpp
     ${CMAKE_CURRENT_LIST_DIR}/core/FOI.cpp
     ${CMAKE_CURRENT_LIST_DIR}/core/IdentifiedTag.cpp
     ${CMAKE_CURRENT_LIST_DIR}/core/Identity.cpp
@@ -81,6 +87,8 @@ set(TREX_DATA_SOURCES
 )
 
 set(TREX_TRACKING_PUBLIC_HEADERS
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/AnnotationExporter.h
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/AnnotationImporter.h
     ${CMAKE_CURRENT_LIST_DIR}/tracking/AutomaticMatches.h
     ${CMAKE_CURRENT_LIST_DIR}/tracking/BlobReceiver.h
     ${CMAKE_CURRENT_LIST_DIR}/tracking/ConnectedTasks.h
@@ -121,6 +129,8 @@ set(TREX_TRACKING_PRIVATE_HEADERS
 )
 
 set(TREX_TRACKING_SOURCES
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/AnnotationExporter.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/AnnotationImporter.cpp
     ${CMAKE_CURRENT_LIST_DIR}/tracking/AutomaticMatches.cpp
     ${CMAKE_CURRENT_LIST_DIR}/tracking/BlobReceiver.cpp
     ${CMAKE_CURRENT_LIST_DIR}/tracking/ConnectedTasks.cpp
@@ -183,6 +193,8 @@ set(TREX_UI_PUBLIC_HEADERS
     ${CMAKE_CURRENT_LIST_DIR}/ui/Coordinates.h
     ${CMAKE_CURRENT_LIST_DIR}/ui/DrawBlobView.h
     ${CMAKE_CURRENT_LIST_DIR}/ui/DrawBorder.h
+    ${CMAKE_CURRENT_LIST_DIR}/ui/DrawAnnotationExportOptions.h
+    ${CMAKE_CURRENT_LIST_DIR}/ui/DrawAnnotationImportOptions.h
     ${CMAKE_CURRENT_LIST_DIR}/ui/DrawDataset.h
     ${CMAKE_CURRENT_LIST_DIR}/ui/DrawExportOptions.h
     ${CMAKE_CURRENT_LIST_DIR}/ui/DrawFish.h
@@ -250,6 +262,8 @@ set(TREX_UI_SOURCES
     ${CMAKE_CURRENT_LIST_DIR}/ui/Coordinates.cpp
     ${CMAKE_CURRENT_LIST_DIR}/ui/DrawBlobView.cpp
     ${CMAKE_CURRENT_LIST_DIR}/ui/DrawBorder.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/ui/DrawAnnotationExportOptions.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/ui/DrawAnnotationImportOptions.cpp
     ${CMAKE_CURRENT_LIST_DIR}/ui/DrawDataset.cpp
     ${CMAKE_CURRENT_LIST_DIR}/ui/DrawExportOptions.cpp
     ${CMAKE_CURRENT_LIST_DIR}/ui/DrawFish.cpp

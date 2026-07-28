@@ -12,7 +12,6 @@ namespace attr {
 class Dispatcher;
 }
 class DrawStructure;
-class IMGUIBase;
 class Base;
 class Drawable;
 
@@ -91,7 +90,7 @@ public:
 
     ~SceneManager();
 
-    void update(IMGUIBase*, DrawStructure& graph);
+    void update(Base*, DrawStructure& graph);
 
     void update_queue();
     bool on_global_event(Event);
@@ -113,7 +112,7 @@ public:
     
 private:
     template<typename F>
-        requires (not std::is_invocable_v<F, IMGUIBase*, DrawStructure&>)
+        requires (not std::is_invocable_v<F, Base*, DrawStructure&>)
     void _enqueue(F&& task) {
         if(is_gui_thread()) {
             execute_task(std::move(task));
@@ -124,7 +123,7 @@ private:
     }
     
     template<typename F>
-        requires (not std::is_invocable_v<F, IMGUIBase*, DrawStructure&>)
+        requires (not std::is_invocable_v<F, Base*, DrawStructure&>)
     void _enqueue(AlwaysAsync, F&& task) {
         std::unique_lock guard(_mutex);
         _queue.emplace(active_scene, package::F<void()>(std::move(task)));
@@ -134,13 +133,13 @@ private:
     }
     
     template<typename F>
-        requires (std::is_invocable_v<F, IMGUIBase*, DrawStructure&>)
+        requires (std::is_invocable_v<F, Base*, DrawStructure&>)
     void _enqueue(F&& task) {
         std::unique_lock guard(_mutex);
         if(not _gui_queue)
             return;
         
-        _gui_queue->enqueue([this, scene = active_scene, task = std::move(task)](IMGUIBase* gui, DrawStructure& base) mutable {
+        _gui_queue->enqueue([this, scene = active_scene, task = std::move(task)](Base* gui, DrawStructure& base) mutable {
             if(scene && active_scene != scene) {
 #ifndef NDEBUG
                 FormatWarning("Will not execute task for scene ", scene->name(), " as it is no longer active.");
