@@ -1,13 +1,21 @@
-#include "AnnotationImporter.h"
+#include "DetectAnnotationImporter.h"
 
 #include <file/CSVReader.h>
 #include <thirdparty/fkYAML/node.hpp>
 
-namespace track::annotation_import {
+namespace track::detect::annotation_import {
 namespace {
 
 using namespace cmn;
-namespace dataset = track::annotation_dataset;
+namespace dataset = track::detect::annotation_dataset;
+
+static constexpr std::array<std::string_view, 4> video_source_extensions{
+    "mp4", "avi", "mov", "mkv"
+};
+
+std::string source_name_key(std::string_view name) {
+    return file::normalized_filename_key(name, video_source_extensions);
+}
 
 struct DatasetConfig {
     file::Path yaml_dir;
@@ -479,9 +487,9 @@ void add_source_choice(std::vector<std::string>& choices, std::string source) {
     source = file::Path(trim_source_separators(source)).filename();
     if(source.empty())
         return;
-    const auto normalized = dataset::normalize_source_name(source);
+    const auto normalized = source_name_key(source);
     auto exists = std::find_if(choices.begin(), choices.end(), [&](const auto& choice) {
-        return dataset::normalize_source_name(choice) == normalized;
+        return source_name_key(choice) == normalized;
     });
     if(exists == choices.end())
         choices.push_back(std::move(source));
@@ -519,11 +527,11 @@ SourceSelection choose_source(
         : source_choices_from_images(images);
     std::sort(selection.choices.begin(), selection.choices.end());
 
-    const auto current_normalized = dataset::normalize_source_name(options.current_source_basename);
+    const auto current_normalized = source_name_key(options.current_source_basename);
     auto find_matching = [&](const std::string& source) -> std::optional<std::string> {
-        const auto normalized = dataset::normalize_source_name(source);
+        const auto normalized = source_name_key(source);
         for(const auto& choice : selection.choices) {
-            if(dataset::normalize_source_name(choice) == normalized)
+            if(source_name_key(choice) == normalized)
                 return choice;
         }
         return std::nullopt;
@@ -531,7 +539,7 @@ SourceSelection choose_source(
 
     if(!current_normalized.empty()) {
         for(const auto& choice : selection.choices) {
-            if(dataset::normalize_source_name(choice) == current_normalized) {
+            if(source_name_key(choice) == current_normalized) {
                 selection.automatic = choice;
                 break;
             }
@@ -566,13 +574,13 @@ std::optional<ImageMapping> map_image_to_source_index(
     bool has_csv_mapping,
     ImportPreview& preview)
 {
-    const auto selected_normalized = dataset::normalize_source_name(selected_source);
+    const auto selected_normalized = source_name_key(selected_source);
     // With a CSV, do not guess: unmapped images are skipped so unrelated
     // videos in the dataset can round-trip without being imported into view.
     if(has_csv_mapping) {
         if(auto from_csv = lookup_csv_frame(image, config, csv_mapping); from_csv) {
             const bool current = selected_normalized.empty()
-                              || dataset::normalize_source_name(from_csv->video_source) == selected_normalized;
+                              || source_name_key(from_csv->video_source) == selected_normalized;
             ++preview.mapped_from_csv;
             if(!current)
                 ++preview.skipped_other_sources;
@@ -592,7 +600,7 @@ std::optional<ImageMapping> map_image_to_source_index(
     // source prefix.
     if(auto inferred = infer_source_from_image_name(image.path); inferred) {
         const bool current = selected_normalized.empty()
-                          || dataset::normalize_source_name(inferred->video_source) == selected_normalized;
+                          || source_name_key(inferred->video_source) == selected_normalized;
         ++preview.mapped_from_filenames;
         if(!current)
             ++preview.skipped_other_sources;
@@ -630,7 +638,7 @@ std::optional<ImageMapping> map_image_to_source_index(
 
 std::optional<std::string> strip_current_source_prefix(const file::Path& image, const std::string& current_source_basename) {
     auto stem = stem_of(image);
-    auto candidates = dataset::source_prefix_candidates(current_source_basename);
+    auto candidates = file::filename_prefix_candidates(current_source_basename);
     if(candidates.empty())
         return stem;
 
@@ -1381,7 +1389,7 @@ AnnotationMap apply_dataset_import(const ImportPreview& preview, const Annotatio
     // The flat map above already holds the current video's annotations (the ones
     // that get displayed/edited). Only fan the dataset out into the per-source
     // store when the user asked to import every video; "current video only" keeps
-    // other videos' annotations out of track_annotations entirely.
+    // other videos' annotations out of track_detect_annotations entirely.
     if(scope == import_scope_t::all_videos) {
         for(const auto& [source, frames] : preview.source_annotations) {
             auto& destination_source = sources[source];

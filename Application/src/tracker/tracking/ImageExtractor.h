@@ -63,6 +63,7 @@ struct Settings {
     uint32_t flags{0u};
     uint64_t max_size_bytes{1000u * 1000u * 1000u};
     Size2 image_size{Float2_t(80), Float2_t(80)};
+    uint8_t channels{1};
     uint8_t num_threads{5u};
     default_config::individual_image_normalization_t::Class normalization{default_config::individual_image_normalization_t::none};
     uint64_t item_step{1u};
@@ -73,6 +74,7 @@ struct Settings {
         return "settings<flags:"+Meta::toStr(flags)
             +" max:"+FileSize{max_size_bytes}.toStr()
             +" res:"+Meta::toStr(image_size)
+            +" channels:"+Meta::toStr(channels)
             +" threads:"+Meta::toStr(num_threads)
             +" step:"+Meta::toStr(item_step)
             +" min_samples:"+Meta::toStr(tracklet_min_samples)

@@ -343,7 +343,8 @@ constexpr std::array<const char*, 8> ReasonsNames {
         static Match::prob_t position_probability(const CachedSettings& settings, const IndividualCache, Frame_t frameIndex, size_t size, const Vec2& position, const Vec2& blob_center);
         
     public:
-        const BasicStuff* find_frame(Frame_t frameIndex) const;
+        const BasicStuff* find_frame(Frame_t frameIndex) const noexcept(not cmn::is_debug_mode());
+        std::optional<std::pair<const track::BasicStuff*, const track::TrackletInformation*>> find_tracklet_for(Frame_t frameIndex) const noexcept(not cmn::is_debug_mode());
         bool evaluate_fitness() const;
         
         //void recognition_segment(Frame_t frame, const std::tuple<size_t, std::map<long_t, float>>&);

@@ -3,14 +3,17 @@
 #include <commons.pc.h>
 #include <misc/frame_t.h>
 
-namespace track {
+namespace track::detect {
 
+/// Geometric representation stored for one manually authored detection.
 enum class AnnotationType {
     BOX,
     POSE,
     SEGMENTATION
 };
 
+/// One detect annotation in source-image pixel coordinates. `uid` is unique
+/// only within its frame, while `clid` identifies the configured detect class.
 struct Annotation {
     using Point_t = cmn::blob::Pose::Point;
     
@@ -48,6 +51,7 @@ struct Annotation {
     static consteval std::string_view class_name() { return "Annotation"; }
 };
 
+/// Aggregate counts grouped by geometric detect-annotation representation.
 struct AnnotationTypeCounts {
     size_t boxes{0};
     size_t segmentations{0};
@@ -57,9 +61,13 @@ struct AnnotationTypeCounts {
 
 class AnnotationMap;
 
+/// Counts box, segmentation, and pose annotations across all frame entries.
 AnnotationTypeCounts count_annotation_types(const AnnotationMap&);
+/// Copies only the enabled annotation types while retaining their frame keys.
 AnnotationMap filter_annotation_types(const AnnotationMap&, bool boxes, bool segmentations, bool poses);
 
+/// Detect annotations indexed by converted frame, with optional source-nested
+/// maps used while importing multi-video datasets.
 class AnnotationMap : public std::map<cmn::Frame_t, std::vector<Annotation>> {
 public:
     using Map_t = std::map<cmn::Frame_t, std::vector<Annotation>>;

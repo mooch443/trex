@@ -131,8 +131,8 @@ void ImageExtractor::update_thread(selector_t&& selector, partial_apply_t&& part
         _pushed_items = retrieve_image_data(std::move(partial_apply), callback);
         
         //! we are done.
-        _promise.set_value();
         callback(this, 1.0, true);
+        _promise.set_value();
         
     } catch(const std::exception& ex) {
         FormatWarning("[update_thread] Rethrowing exception for main: ", ex.what());

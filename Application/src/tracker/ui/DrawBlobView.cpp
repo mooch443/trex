@@ -18,7 +18,7 @@
 #include <ui/Scene.h>
 #include <gui/DynamicGUI.h>
 #include <gui/dyn/ParseText.h>
-#include <core/annotation.h>
+#include <core/DetectAnnotation.h>
 #include <gui/types/TagList.h>
 #include <core/FrameTags.h>
 
@@ -1489,14 +1489,14 @@ void BlobView::draw_boundary_selection(DrawStructure& base, Base* window, GUICac
                             if(_current_boundary.size() == 1
                                && _current_boundary.front().size() >= 1)
                             {
-                                auto track_annotations = READ_SETTING_WITH_DEFAULT(track_annotations, track::AnnotationMap{});
-                                if(not track_annotations)
-                                    track_annotations.init();
+                                auto detect_annotations = READ_SETTING_WITH_DEFAULT(track_detect_annotations, track::detect::AnnotationMap{});
+                                if(not detect_annotations)
+                                    detect_annotations.init();
                                 auto current = READ_SETTING_WITH_DEFAULT(gui_frame, Frame_t());
-                                auto &field = track_annotations[current];
+                                auto &field = detect_annotations[current];
                                 
                                 using namespace track::detect;
-                                using Point = track::Annotation::Point_t;
+                                using Point = Annotation::Point_t;
                                 std::vector<Point> points;
                                 for(auto &pt : _current_boundary.front()) {
                                     points.emplace_back(pt);
@@ -1545,7 +1545,7 @@ void BlobView::draw_boundary_selection(DrawStructure& base, Base* window, GUICac
                                     field.push_back(std::move(annotation));
                                 }
                                 
-                                SETTING(track_annotations) = std::move(track_annotations);
+                                SETTING(track_detect_annotations) = std::move(detect_annotations);
                                 _current_boundary.clear();
                             }
                         });

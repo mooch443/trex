@@ -117,49 +117,8 @@ using ::track::Match::pairing_map_t;
 
 export namespace track::annotation_export {
 // tracking/AnnotationExporter.h
-using ::track::annotation_export::Format;
-using ::track::annotation_export::Options;
-using ::track::annotation_export::Summary;
 using ::track::annotation_export::TagDatasetConfig;
-using ::track::annotation_export::annotation_to_yolo;
-using ::track::annotation_export::build_coco_json;
-using ::track::annotation_export::build_frame_mapping_csv;
-using ::track::annotation_export::default_keypoint_names;
-using ::track::annotation_export::export_dataset;
 using ::track::annotation_export::export_tag_annotations;
-using ::track::annotation_export::frame_stem;
-using ::track::annotation_export::sample_background_frames;
-using ::track::annotation_export::summarize;
-}
-
-export namespace track::annotation_import {
-// tracking/AnnotationImporter.h
-using ::track::annotation_import::Format;
-using ::track::annotation_import::FrameIndexParseResult;
-using ::track::annotation_import::ImportOptions;
-using ::track::annotation_import::ImportPreview;
-using ::track::annotation_import::MetadataChanges;
-using ::track::annotation_import::apply_dataset_import;
-using ::track::annotation_import::apply_yolo_import;
-using ::track::annotation_import::parse_source_index_from_image_stem;
-using ::track::annotation_import::preview_coco_import;
-using ::track::annotation_import::preview_dataset_import;
-using ::track::annotation_import::preview_yolo_import;
-}
-
-export namespace track::annotation_import::import_scope_t {
-// tracking/AnnotationImporter.h
-using ::track::annotation_import::import_scope_t::Class;
-}
-
-export namespace track::annotation_import::merge_mode_t {
-// tracking/AnnotationImporter.h
-using ::track::annotation_import::merge_mode_t::Class;
-}
-
-export namespace track::annotation_import::task_t {
-// tracking/AnnotationImporter.h
-using ::track::annotation_import::task_t::Class;
 }
 
 export namespace track::constraints {
@@ -167,6 +126,51 @@ export namespace track::constraints {
 using ::track::constraints::FilterCache;
 using ::track::constraints::diff_image;
 using ::track::constraints::local_midline_length;
+}
+
+export namespace track::detect::annotation_export {
+// tracking/AnnotationExporter.h
+using ::track::detect::annotation_export::Format;
+using ::track::detect::annotation_export::Options;
+using ::track::detect::annotation_export::Summary;
+using ::track::detect::annotation_export::annotation_to_yolo;
+using ::track::detect::annotation_export::build_coco_json;
+using ::track::detect::annotation_export::build_frame_mapping_csv;
+using ::track::detect::annotation_export::default_keypoint_names;
+using ::track::detect::annotation_export::export_dataset;
+using ::track::detect::annotation_export::frame_stem;
+using ::track::detect::annotation_export::sample_background_frames;
+using ::track::detect::annotation_export::summarize;
+}
+
+export namespace track::detect::annotation_import {
+// tracking/DetectAnnotationImporter.h
+using ::track::detect::annotation_import::Format;
+using ::track::detect::annotation_import::FrameIndexParseResult;
+using ::track::detect::annotation_import::ImportOptions;
+using ::track::detect::annotation_import::ImportPreview;
+using ::track::detect::annotation_import::MetadataChanges;
+using ::track::detect::annotation_import::apply_dataset_import;
+using ::track::detect::annotation_import::apply_yolo_import;
+using ::track::detect::annotation_import::parse_source_index_from_image_stem;
+using ::track::detect::annotation_import::preview_coco_import;
+using ::track::detect::annotation_import::preview_dataset_import;
+using ::track::detect::annotation_import::preview_yolo_import;
+}
+
+export namespace track::detect::annotation_import::import_scope_t {
+// tracking/DetectAnnotationImporter.h
+using ::track::detect::annotation_import::import_scope_t::Class;
+}
+
+export namespace track::detect::annotation_import::merge_mode_t {
+// tracking/DetectAnnotationImporter.h
+using ::track::detect::annotation_import::merge_mode_t::Class;
+}
+
+export namespace track::detect::annotation_import::task_t {
+// tracking/DetectAnnotationImporter.h
+using ::track::detect::annotation_import::task_t::Class;
 }
 
 export namespace track::image {

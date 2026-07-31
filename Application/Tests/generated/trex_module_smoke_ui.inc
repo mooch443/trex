@@ -6,16 +6,16 @@ namespace trex_module_smoke::trex_ui::cmn::gui {
 using ::cmn::gui::AnimatedBackground;
 }
 
-// ui/AnnotationScene.h
+// ui/DetectAnnotationScene.h
 namespace trex_module_smoke::trex_ui::cmn {
 using ::cmn::VideoSource;
 }
 
 namespace trex_module_smoke::trex_ui::cmn::gui {
-using ::cmn::gui::AnnotationScene;
-using ::cmn::gui::AnnotationView;
 using ::cmn::gui::Bowl;
 using ::cmn::gui::Circle;
+using ::cmn::gui::DetectAnnotationScene;
+using ::cmn::gui::DetectAnnotationView;
 using ::cmn::gui::DrawStructure;
 using ::cmn::gui::ExternalImage;
 using ::cmn::gui::Pose;
@@ -113,9 +113,9 @@ namespace trex_module_smoke::trex_ui::cmn::gui {
 using ::cmn::gui::DrawAnnotationExportOptions;
 }
 
-// ui/DrawAnnotationImportOptions.h
+// ui/DrawDetectAnnotationImportOptions.h
 namespace trex_module_smoke::trex_ui::cmn::gui {
-using ::cmn::gui::DrawAnnotationImportOptions;
+using ::cmn::gui::DrawDetectAnnotationImportOptions;
 }
 
 // ui/DrawDataset.h

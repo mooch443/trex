@@ -54,7 +54,7 @@ static void (*windowsEarlyEnvSetup)(void) = []() {
 #include <ui/SettingsScene.h>
 #include <ui/TrackingSettingsScene.h>
 #include <ui/TrackingScene.h>
-#include <ui/AnnotationScene.h>
+#include <ui/DetectAnnotationScene.h>
 #include <ui/TrackingState.h>
 #include <ui/WorkProgress.h>
 #include <ui/Accumulation.h>
@@ -296,8 +296,8 @@ void launch_gui(std::future<void>& f) {
     TrackingSettingsScene tsettings_scene{ base };
     manager.register_scene(&tsettings_scene);
     
-    AnnotationScene annotations{base};
-    manager.register_scene(&annotations);
+    DetectAnnotationScene detect_annotations{base};
+    manager.register_scene(&detect_annotations);
     
     CalibrateScene calibrate{base};
     manager.register_scene(&calibrate);
@@ -316,7 +316,7 @@ void launch_gui(std::future<void>& f) {
         { TRexTask_t::none, &start },
 		{ TRexTask_t::convert, &converting },
 		{ TRexTask_t::track, &tracking_scene },
-        { TRexTask_t::annotate, &annotations },
+        { TRexTask_t::annotate, &detect_annotations },
         { TRexTask_t::rst, &start }
 	};
 

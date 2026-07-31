@@ -40,6 +40,8 @@ using ::cmn::gui::attr::ParmName;
 using ::cmn::gui::attr::ParmNameTag;
 using ::cmn::gui::attr::Placeholder_t;
 using ::cmn::gui::attr::Placeholder_tTag;
+using ::cmn::gui::attr::PointerEvents;
+using ::cmn::gui::attr::PointerEventsTag;
 using ::cmn::gui::attr::Postfix;
 using ::cmn::gui::attr::PostfixTag;
 using ::cmn::gui::attr::Prefix;
@@ -176,6 +178,10 @@ namespace commons_module_smoke::commons_gui::cmn::gui::Keyboard {
 using ::cmn::gui::Keyboard::Codes;
 }
 
+namespace commons_module_smoke::commons_gui::cmn::gui::pointer {
+using ::cmn::gui::pointer::Events;
+}
+
 // gui/FileChooser.h
 namespace commons_module_smoke::commons_gui::cmn::gui {
 using ::cmn::gui::FileChooser;
@@ -277,6 +283,8 @@ using ::cmn::gui::LabelFont_t;
 using ::cmn::gui::LabelFont_tTag;
 using ::cmn::gui::LabelLineColor_t;
 using ::cmn::gui::LabelLineColor_tTag;
+using ::cmn::gui::ListCornerFlags;
+using ::cmn::gui::ListCornerFlagsTag;
 using ::cmn::gui::ListDims_t;
 using ::cmn::gui::ListDims_tTag;
 using ::cmn::gui::ListFillClr_t;

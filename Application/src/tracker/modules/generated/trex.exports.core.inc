@@ -87,29 +87,8 @@ using ::track::tile_to_source_affines;
 using ::track::Individual;
 using ::track::Settings;
 using ::track::mmatches_t;
-// core/annotation.h
-using ::track::Annotation;
-using ::track::AnnotationMap;
-using ::track::AnnotationType;
-using ::track::AnnotationTypeCounts;
-using ::track::count_annotation_types;
-using ::track::filter_annotation_types;
 // core/idx_t.h
 using ::track::Idx_t;
-}
-
-export namespace track::annotation_dataset {
-// core/AnnotationDataset.h
-using ::track::annotation_dataset::clean_filename_suffix;
-using ::track::annotation_dataset::format_from_dataset_file;
-using ::track::annotation_dataset::normalize_source_name;
-using ::track::annotation_dataset::source_basename_from_paths;
-using ::track::annotation_dataset::source_prefix_candidates;
-}
-
-export namespace track::annotation_dataset::format_t {
-// core/AnnotationDataset.h
-using ::track::annotation_dataset::format_t::Class;
 }
 
 export namespace track::background_task {
@@ -121,6 +100,13 @@ using ::track::background_task::register_queue_runner;
 }
 
 export namespace track::detect {
+// core/DetectAnnotation.h
+using ::track::detect::Annotation;
+using ::track::detect::AnnotationMap;
+using ::track::detect::AnnotationType;
+using ::track::detect::AnnotationTypeCounts;
+using ::track::detect::count_annotation_types;
+using ::track::detect::filter_annotation_types;
 // core/DetectionTypes.h
 using ::track::detect::Bone;
 using ::track::detect::DetectResolution;
@@ -145,6 +131,16 @@ using ::track::detect::ObjectDetectionFormat::Class;
 export namespace track::detect::ObjectDetectionType {
 // core/DetectionTypes.h
 using ::track::detect::ObjectDetectionType::Class;
+}
+
+export namespace track::detect::annotation_dataset {
+// core/DetectAnnotationDataset.h
+using ::track::detect::annotation_dataset::format_from_dataset_file;
+}
+
+export namespace track::detect::annotation_dataset::format_t {
+// core/DetectAnnotationDataset.h
+using ::track::detect::annotation_dataset::format_t::Class;
 }
 
 export namespace track::detect::yolo {

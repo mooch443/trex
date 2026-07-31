@@ -74,7 +74,7 @@ past-tense messages where each line starts with `* Added`, `* Updated`,
   string/path helpers (`{lower:x}`, `{filename:x}`, `{basename:x}`,
   `{shorten:x:n}`).
 - Actions are declared as strings such as `"action":"set:gui_run:true"` or
-  `"action":"import_annotations"`. The parser resolves expressions inside the
+  `"action":"import_detect_annotations"`. The parser resolves expressions inside the
   action name and parameters before calling the matching `ActionFunc`.
 - `button` triggers `action` on click. `textfield` triggers `action` on Enter
   and `on_text_changed` while editing; the current text is available to the

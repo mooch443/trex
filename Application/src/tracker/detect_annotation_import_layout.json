@@ -17,7 +17,7 @@
       "children": [
         {
           "type": "stext",
-          "text": "<h3>Import annotation dataset</h3>\n<i><lightgray>Import YOLO or COCO annotations into <c>track_annotations</c>.</lightgray></i>",
+          "text": "<h3>Import detect-annotation dataset</h3>\n<i><lightgray>Import YOLO or COCO annotations into <c>track_detect_annotations</c>.</lightgray></i>",
           "max_size": "[{content_width}, 60]",
           "font": {"size": 0.55},
           "color": [255, 255, 255]
@@ -314,7 +314,7 @@
               {
                 "type":"stext",
                 "max_size":"[{-:{content_width}:50},-1]",
-                "text":"<h4>Summary</h4>\nImporting <c>{info.format}</c> annotations from {if:{equal:{info.scope}:all_videos}:<b>all sources</b>:<b>the current video</b>}. {if:{equal:{info.mode}:add}:Will merge existing annotations with the imported ones:Will replace everything in <c>track_annotations</c>. Make sure you have saved your config}.",
+                "text":"<h4>Summary</h4>\nImporting <c>{info.format}</c> annotations from {if:{equal:{info.scope}:all_videos}:<b>all sources</b>:<b>the current video</b>}. {if:{equal:{info.mode}:add}:Will merge existing annotations with the imported ones:Will replace everything in <c>track_detect_annotations</c>. Make sure you have saved your config}.",
                 "font":{"size":0.55}
               },
               {

@@ -174,6 +174,7 @@ TEST(PointerEventsTest, MaskIsIndependentFromClickableAndDraggable) {
 
     Rect drawable(Box(0, 0, 40, 40));
     EXPECT_EQ(drawable.pointer_events(), Events::All);
+    EXPECT_FALSE(drawable.does_receive(Events::Hover));
 
     const auto drag_hover = Events::Drag | Events::Hover;
     drawable.set(PointerEvents{drag_hover});
@@ -186,6 +187,7 @@ TEST(PointerEventsTest, MaskIsIndependentFromClickableAndDraggable) {
 
     drawable.set_clickable(false);
     EXPECT_FALSE(drawable.does_receive(Events::Drag));
+    EXPECT_TRUE(drawable.does_receive(Events::Hover));
     EXPECT_EQ(drawable.pointer_events(), drag_hover);
 
     drawable.set_draggable(true);
@@ -217,6 +219,86 @@ TEST(PointerEventsTest, EventSpecificHitTestingTraversesContainers) {
     EXPECT_EQ(graph.find(20, 20, Events::Drag), &drag_overlay);
     EXPECT_EQ(graph.find(20, 20, Events::Hover), &drag_overlay);
     EXPECT_EQ(graph.find(20, 20, Events::Scroll), nullptr);
+}
+
+namespace {
+struct CirclePointerScene {
+    DrawStructure graph{200, 200};
+    Rect click_target{Box(0, 0, 100, 100)};
+    Entangled skeleton;
+    Circle circle;
+    Entangled parent;
+
+    CirclePointerScene(pointer::Events events, bool clickable, int updates = 1) {
+        click_target.set_clickable(true);
+        click_target.set(PointerEvents{pointer::Events::Click});
+
+        for(int i = 0; i < updates; ++i)
+            update_circle(events, clickable);
+
+        parent.update([&](Entangled& layout) {
+            layout.advance_wrap(click_target);
+            layout.advance_wrap(skeleton);
+        });
+        graph.wrap_object(parent);
+    }
+
+    void update_circle(pointer::Events events, bool clickable) {
+        circle.create(
+            Loc{20, 20},
+            Radius{5},
+            PointerEvents{events},
+            Clickable{clickable});
+        skeleton.update([&](Entangled& layout) {
+            layout.advance_wrap(circle);
+        });
+    }
+};
+}
+
+TEST(PointerEventsTest, NonClickableHoverCirclePassesClicksThroughAfterAdvanceWrap) {
+    using pointer::Events;
+
+    CirclePointerScene scene(Events::Hover, false, 3);
+    int clicks = 0;
+    scene.click_target.on_click([&](Event) {
+        ++clicks;
+    });
+
+    EXPECT_FALSE(scene.circle.clickable());
+    EXPECT_EQ(scene.circle.pointer_events(), Events::Hover);
+    EXPECT_TRUE(scene.circle.does_receive(Events::Hover));
+    EXPECT_FALSE(scene.circle.does_receive(Events::Click));
+    EXPECT_EQ(scene.graph.find(20, 20, Events::Hover), &scene.circle);
+    EXPECT_EQ(scene.graph.find(20, 20, Events::Click), &scene.click_target);
+
+    EXPECT_EQ(scene.graph.mouse_move(20, 20), &scene.circle);
+    EXPECT_TRUE(scene.circle.hovered());
+    EXPECT_EQ(scene.graph.mouse_down(true), &scene.click_target);
+    EXPECT_EQ(scene.graph.selected_object(), &scene.click_target);
+    EXPECT_FALSE(scene.circle.selected());
+    EXPECT_EQ(scene.graph.mouse_up(true), &scene.click_target);
+    EXPECT_EQ(clicks, 1);
+}
+
+TEST(PointerEventsTest, RetainedCircleKeepsHoverButClearsSelection) {
+    using pointer::Events;
+
+    CirclePointerScene scene(Events::All, true);
+
+    ASSERT_EQ(scene.graph.mouse_move(20, 20), &scene.circle);
+    ASSERT_EQ(scene.graph.mouse_down(true), &scene.circle);
+    ASSERT_EQ(scene.graph.mouse_up(true), &scene.circle);
+    ASSERT_TRUE(scene.circle.hovered());
+    ASSERT_TRUE(scene.circle.selected());
+
+    scene.update_circle(Events::Hover, false);
+
+    EXPECT_TRUE(scene.circle.hovered());
+    EXPECT_FALSE(scene.circle.selected());
+    EXPECT_EQ(scene.graph.mouse_position(), Vec2(20, 20));
+    EXPECT_EQ(scene.graph.find(20, 20, Events::Hover), &scene.circle);
+    EXPECT_EQ(scene.graph.find(20, 20, Events::Click), &scene.click_target);
 }
 
 TEST(PointerEventsTest, ShortSplitGestureCommitsUnderlyingClick) {
@@ -261,6 +343,54 @@ TEST(PointerEventsTest, ShortSplitGestureCommitsUnderlyingClick) {
     EXPECT_EQ(graph.selected_object(), &click_target);
     EXPECT_FALSE(click_target.pressed());
     EXPECT_FALSE(drag_overlay.pressed());
+}
+
+TEST(PointerEventsTest, ClickReleaseUsesDragThreshold) {
+    using pointer::Events;
+
+    DrawStructure graph(200, 200);
+    Rect background(Box(0, 0, 100, 100));
+    background.set_clickable(true);
+    background.set(PointerEvents{Events::Click});
+
+    int mouse_downs = 0;
+    int mouse_ups = 0;
+    int clicks = 0;
+    bool release_started_here = true;
+    background.add_event_handler(MBUTTON, [&](Event event) {
+        if(event.mbutton.pressed) {
+            ++mouse_downs;
+            EXPECT_TRUE(event.mbutton.started_here);
+        } else {
+            ++mouse_ups;
+            release_started_here = event.mbutton.started_here;
+        }
+    });
+    background.on_click([&](Event) {
+        ++clicks;
+    });
+    graph.wrap_object(background);
+
+    ASSERT_EQ(graph.mouse_move(20, 20), &background);
+    ASSERT_EQ(graph.mouse_down(true), &background);
+    ASSERT_EQ(graph.mouse_move(30, 20), &background);
+    ASSERT_EQ(graph.mouse_move(20, 20), &background);
+    ASSERT_EQ(graph.mouse_up(true), &background);
+
+    EXPECT_EQ(mouse_downs, 1);
+    EXPECT_EQ(mouse_ups, 1);
+    EXPECT_FALSE(release_started_here);
+    EXPECT_EQ(clicks, 0);
+
+    ASSERT_EQ(graph.mouse_move(20, 20), &background);
+    ASSERT_EQ(graph.mouse_down(true), &background);
+    ASSERT_EQ(graph.mouse_move(23, 20), &background);
+    ASSERT_EQ(graph.mouse_up(true), &background);
+
+    EXPECT_EQ(mouse_downs, 2);
+    EXPECT_EQ(mouse_ups, 2);
+    EXPECT_TRUE(release_started_here);
+    EXPECT_EQ(clicks, 1);
 }
 
 TEST(PointerEventsTest, ShortSplitGestureDoesNotClickAfterLeavingTarget) {

@@ -10,57 +10,29 @@
     {
       "excluded": [
         {
-          "header": "core/AnnotationDataset.h",
+          "header": "core/DetectAnnotationDataset.h",
           "kind": "group",
-          "line": "12",
-          "name": "track::annotation_dataset::format_t::helpers",
+          "line": "7",
+          "name": "track::detect::annotation_dataset::format_t::helpers",
           "reason": "internal_linkage_enum_helpers"
         }
       ],
       "module": "trex.core",
-      "path": "core/AnnotationDataset.h",
-      "sha256": "2db2f3704a5bd7955cae296c6f33bde46f88c29c6b4009305533b9cdb32d291c",
+      "path": "core/DetectAnnotationDataset.h",
+      "sha256": "3e242b478724b75d6e4dd5bced55724b51f0b751b7761b48917e5903bc1fb930",
       "symbols": [
         {
           "kind": "enum_class",
           "name": "Class",
-          "namespace": "track::annotation_dataset::format_t",
-          "qualified": "track::annotation_dataset::format_t::Class",
-          "smoke": "using"
-        },
-        {
-          "kind": "function",
-          "name": "clean_filename_suffix",
-          "namespace": "track::annotation_dataset",
-          "qualified": "track::annotation_dataset::clean_filename_suffix",
-          "smoke": "using"
-        },
-        {
-          "kind": "function",
-          "name": "normalize_source_name",
-          "namespace": "track::annotation_dataset",
-          "qualified": "track::annotation_dataset::normalize_source_name",
-          "smoke": "using"
-        },
-        {
-          "kind": "function",
-          "name": "source_prefix_candidates",
-          "namespace": "track::annotation_dataset",
-          "qualified": "track::annotation_dataset::source_prefix_candidates",
-          "smoke": "using"
-        },
-        {
-          "kind": "function",
-          "name": "source_basename_from_paths",
-          "namespace": "track::annotation_dataset",
-          "qualified": "track::annotation_dataset::source_basename_from_paths",
+          "namespace": "track::detect::annotation_dataset::format_t",
+          "qualified": "track::detect::annotation_dataset::format_t::Class",
           "smoke": "using"
         },
         {
           "kind": "function",
           "name": "format_from_dataset_file",
-          "namespace": "track::annotation_dataset",
-          "qualified": "track::annotation_dataset::format_from_dataset_file",
+          "namespace": "track::detect::annotation_dataset",
+          "qualified": "track::detect::annotation_dataset::format_from_dataset_file",
           "smoke": "using"
         }
       ]
@@ -727,7 +699,7 @@
       "excluded": [],
       "module": "trex.core",
       "path": "core/GPURecognitionTypes.h",
-      "sha256": "e788f4e073372b735c524dbc7e6877967fd2c5dd61aedd507a8fa8bfe48f4deb",
+      "sha256": "4129c521914cc80113b6cf6bbb7fc33060a8ce8a5e96965e4882feaf094d5ac4",
       "symbols": [
         {
           "kind": "class",
@@ -1093,49 +1065,49 @@
     {
       "excluded": [],
       "module": "trex.core",
-      "path": "core/annotation.h",
-      "sha256": "814712833778e432c23a2bcb3173fc733137400fce42451c03c707032f9de1d3",
+      "path": "core/DetectAnnotation.h",
+      "sha256": "d316d18a587b05b83041b5fef28d5950ed56de0837ea01f82b126dc31c374d0b",
       "symbols": [
         {
           "kind": "enum_class",
           "name": "AnnotationType",
-          "namespace": "track",
-          "qualified": "track::AnnotationType",
+          "namespace": "track::detect",
+          "qualified": "track::detect::AnnotationType",
           "smoke": "using"
         },
         {
           "kind": "struct",
           "name": "Annotation",
-          "namespace": "track",
-          "qualified": "track::Annotation",
+          "namespace": "track::detect",
+          "qualified": "track::detect::Annotation",
           "smoke": "using"
         },
         {
           "kind": "struct",
           "name": "AnnotationTypeCounts",
-          "namespace": "track",
-          "qualified": "track::AnnotationTypeCounts",
+          "namespace": "track::detect",
+          "qualified": "track::detect::AnnotationTypeCounts",
           "smoke": "using"
         },
         {
           "kind": "class",
           "name": "AnnotationMap",
-          "namespace": "track",
-          "qualified": "track::AnnotationMap",
+          "namespace": "track::detect",
+          "qualified": "track::detect::AnnotationMap",
           "smoke": "using"
         },
         {
           "kind": "function",
           "name": "count_annotation_types",
-          "namespace": "track",
-          "qualified": "track::count_annotation_types",
+          "namespace": "track::detect",
+          "qualified": "track::detect::count_annotation_types",
           "smoke": "using"
         },
         {
           "kind": "function",
           "name": "filter_annotation_types",
-          "namespace": "track",
-          "qualified": "track::filter_annotation_types",
+          "namespace": "track::detect",
+          "qualified": "track::detect::filter_annotation_types",
           "smoke": "using"
         }
       ]
@@ -1209,22 +1181,8 @@
       "excluded": [],
       "module": "trex.tracking",
       "path": "tracking/AnnotationExporter.h",
-      "sha256": "32329405277f556b057cee81b80743d934f973f39f9612728a7f653b28d1a0a2",
+      "sha256": "3d8775a6c60529ebe0a801609230a5110739202de0ebbf601de7115d558ec191",
       "symbols": [
-        {
-          "kind": "alias",
-          "name": "Format",
-          "namespace": "track::annotation_export",
-          "qualified": "track::annotation_export::Format",
-          "smoke": "using"
-        },
-        {
-          "kind": "struct",
-          "name": "Options",
-          "namespace": "track::annotation_export",
-          "qualified": "track::annotation_export::Options",
-          "smoke": "using"
-        },
         {
           "kind": "struct",
           "name": "TagDatasetConfig",
@@ -1240,66 +1198,80 @@
           "smoke": "using"
         },
         {
+          "kind": "alias",
+          "name": "Format",
+          "namespace": "track::detect::annotation_export",
+          "qualified": "track::detect::annotation_export::Format",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "Options",
+          "namespace": "track::detect::annotation_export",
+          "qualified": "track::detect::annotation_export::Options",
+          "smoke": "using"
+        },
+        {
           "kind": "struct",
           "name": "Summary",
-          "namespace": "track::annotation_export",
-          "qualified": "track::annotation_export::Summary",
+          "namespace": "track::detect::annotation_export",
+          "qualified": "track::detect::annotation_export::Summary",
           "smoke": "using"
         },
         {
           "kind": "function",
           "name": "frame_stem",
-          "namespace": "track::annotation_export",
-          "qualified": "track::annotation_export::frame_stem",
+          "namespace": "track::detect::annotation_export",
+          "qualified": "track::detect::annotation_export::frame_stem",
           "smoke": "using"
         },
         {
           "kind": "function",
           "name": "default_keypoint_names",
-          "namespace": "track::annotation_export",
-          "qualified": "track::annotation_export::default_keypoint_names",
+          "namespace": "track::detect::annotation_export",
+          "qualified": "track::detect::annotation_export::default_keypoint_names",
           "smoke": "using"
         },
         {
           "kind": "function",
           "name": "summarize",
-          "namespace": "track::annotation_export",
-          "qualified": "track::annotation_export::summarize",
+          "namespace": "track::detect::annotation_export",
+          "qualified": "track::detect::annotation_export::summarize",
           "smoke": "using"
         },
         {
           "kind": "function",
           "name": "sample_background_frames",
-          "namespace": "track::annotation_export",
-          "qualified": "track::annotation_export::sample_background_frames",
+          "namespace": "track::detect::annotation_export",
+          "qualified": "track::detect::annotation_export::sample_background_frames",
           "smoke": "using"
         },
         {
           "kind": "function",
           "name": "annotation_to_yolo",
-          "namespace": "track::annotation_export",
-          "qualified": "track::annotation_export::annotation_to_yolo",
+          "namespace": "track::detect::annotation_export",
+          "qualified": "track::detect::annotation_export::annotation_to_yolo",
           "smoke": "using"
         },
         {
           "kind": "function",
           "name": "build_frame_mapping_csv",
-          "namespace": "track::annotation_export",
-          "qualified": "track::annotation_export::build_frame_mapping_csv",
+          "namespace": "track::detect::annotation_export",
+          "qualified": "track::detect::annotation_export::build_frame_mapping_csv",
           "smoke": "using"
         },
         {
           "kind": "function",
           "name": "build_coco_json",
-          "namespace": "track::annotation_export",
-          "qualified": "track::annotation_export::build_coco_json",
+          "namespace": "track::detect::annotation_export",
+          "qualified": "track::detect::annotation_export::build_coco_json",
           "smoke": "using"
         },
         {
           "kind": "function",
           "name": "export_dataset",
-          "namespace": "track::annotation_export",
-          "qualified": "track::annotation_export::export_dataset",
+          "namespace": "track::detect::annotation_export",
+          "qualified": "track::detect::annotation_export::export_dataset",
           "smoke": "using"
         }
       ]
@@ -1307,127 +1279,127 @@
     {
       "excluded": [
         {
-          "header": "tracking/AnnotationImporter.h",
+          "header": "tracking/DetectAnnotationImporter.h",
           "kind": "group",
           "line": "11",
-          "name": "track::annotation_import::merge_mode_t::helpers",
+          "name": "track::detect::annotation_import::merge_mode_t::helpers",
           "reason": "internal_linkage_enum_helpers"
         },
         {
-          "header": "tracking/AnnotationImporter.h",
+          "header": "tracking/DetectAnnotationImporter.h",
           "kind": "group",
           "line": "16",
-          "name": "track::annotation_import::import_scope_t::helpers",
+          "name": "track::detect::annotation_import::import_scope_t::helpers",
           "reason": "internal_linkage_enum_helpers"
         },
         {
-          "header": "tracking/AnnotationImporter.h",
+          "header": "tracking/DetectAnnotationImporter.h",
           "kind": "group",
           "line": "21",
-          "name": "track::annotation_import::task_t::helpers",
+          "name": "track::detect::annotation_import::task_t::helpers",
           "reason": "internal_linkage_enum_helpers"
         }
       ],
       "module": "trex.tracking",
-      "path": "tracking/AnnotationImporter.h",
-      "sha256": "788e76991f7d0f3ea400426f67185e079cc66e38cbf04e9880d0efc2bf54c989",
+      "path": "tracking/DetectAnnotationImporter.h",
+      "sha256": "1759d58422a8e75c3306b970ad341ddcfb2261ded984bb842a7d954e044b2a81",
       "symbols": [
         {
           "kind": "enum_class",
           "name": "Class",
-          "namespace": "track::annotation_import::merge_mode_t",
-          "qualified": "track::annotation_import::merge_mode_t::Class",
+          "namespace": "track::detect::annotation_import::merge_mode_t",
+          "qualified": "track::detect::annotation_import::merge_mode_t::Class",
           "smoke": "using"
         },
         {
           "kind": "enum_class",
           "name": "Class",
-          "namespace": "track::annotation_import::import_scope_t",
-          "qualified": "track::annotation_import::import_scope_t::Class",
+          "namespace": "track::detect::annotation_import::import_scope_t",
+          "qualified": "track::detect::annotation_import::import_scope_t::Class",
           "smoke": "using"
         },
         {
           "kind": "enum_class",
           "name": "Class",
-          "namespace": "track::annotation_import::task_t",
-          "qualified": "track::annotation_import::task_t::Class",
+          "namespace": "track::detect::annotation_import::task_t",
+          "qualified": "track::detect::annotation_import::task_t::Class",
           "smoke": "using"
         },
         {
           "kind": "alias",
           "name": "Format",
-          "namespace": "track::annotation_import",
-          "qualified": "track::annotation_import::Format",
+          "namespace": "track::detect::annotation_import",
+          "qualified": "track::detect::annotation_import::Format",
           "smoke": "using"
         },
         {
           "kind": "struct",
           "name": "FrameIndexParseResult",
-          "namespace": "track::annotation_import",
-          "qualified": "track::annotation_import::FrameIndexParseResult",
+          "namespace": "track::detect::annotation_import",
+          "qualified": "track::detect::annotation_import::FrameIndexParseResult",
           "smoke": "using"
         },
         {
           "kind": "struct",
           "name": "ImportOptions",
-          "namespace": "track::annotation_import",
-          "qualified": "track::annotation_import::ImportOptions",
+          "namespace": "track::detect::annotation_import",
+          "qualified": "track::detect::annotation_import::ImportOptions",
           "smoke": "using"
         },
         {
           "kind": "struct",
           "name": "MetadataChanges",
-          "namespace": "track::annotation_import",
-          "qualified": "track::annotation_import::MetadataChanges",
+          "namespace": "track::detect::annotation_import",
+          "qualified": "track::detect::annotation_import::MetadataChanges",
           "smoke": "using"
         },
         {
           "kind": "struct",
           "name": "ImportPreview",
-          "namespace": "track::annotation_import",
-          "qualified": "track::annotation_import::ImportPreview",
+          "namespace": "track::detect::annotation_import",
+          "qualified": "track::detect::annotation_import::ImportPreview",
           "smoke": "using"
         },
         {
           "kind": "function",
           "name": "parse_source_index_from_image_stem",
-          "namespace": "track::annotation_import",
-          "qualified": "track::annotation_import::parse_source_index_from_image_stem",
+          "namespace": "track::detect::annotation_import",
+          "qualified": "track::detect::annotation_import::parse_source_index_from_image_stem",
           "smoke": "using"
         },
         {
           "kind": "function",
           "name": "preview_yolo_import",
-          "namespace": "track::annotation_import",
-          "qualified": "track::annotation_import::preview_yolo_import",
+          "namespace": "track::detect::annotation_import",
+          "qualified": "track::detect::annotation_import::preview_yolo_import",
           "smoke": "using"
         },
         {
           "kind": "function",
           "name": "preview_coco_import",
-          "namespace": "track::annotation_import",
-          "qualified": "track::annotation_import::preview_coco_import",
+          "namespace": "track::detect::annotation_import",
+          "qualified": "track::detect::annotation_import::preview_coco_import",
           "smoke": "using"
         },
         {
           "kind": "function",
           "name": "preview_dataset_import",
-          "namespace": "track::annotation_import",
-          "qualified": "track::annotation_import::preview_dataset_import",
+          "namespace": "track::detect::annotation_import",
+          "qualified": "track::detect::annotation_import::preview_dataset_import",
           "smoke": "using"
         },
         {
           "kind": "function",
           "name": "apply_dataset_import",
-          "namespace": "track::annotation_import",
-          "qualified": "track::annotation_import::apply_dataset_import",
+          "namespace": "track::detect::annotation_import",
+          "qualified": "track::detect::annotation_import::apply_dataset_import",
           "smoke": "using"
         },
         {
           "kind": "function",
           "name": "apply_yolo_import",
-          "namespace": "track::annotation_import",
-          "qualified": "track::annotation_import::apply_yolo_import",
+          "namespace": "track::detect::annotation_import",
+          "qualified": "track::detect::annotation_import::apply_yolo_import",
           "smoke": "using"
         }
       ]
@@ -1881,7 +1853,7 @@
       "excluded": [],
       "module": "trex.tracking",
       "path": "tracking/ImageExtractor.h",
-      "sha256": "6a85fb670b0f7b1dfcd6c9707785aed5a806f7c960d82c77d6ded8a2f54c1241",
+      "sha256": "338a328a43fc95f3a7f961a53066fe13fc699f14c9674f83ff774ad6a02466f3",
       "symbols": []
     },
     {
@@ -2452,8 +2424,8 @@
     {
       "excluded": [],
       "module": "trex.ui",
-      "path": "ui/AnnotationScene.h",
-      "sha256": "4448ccab659af3e8971740bf909245b16826b53102836aaeea228bf3bb0aa368",
+      "path": "ui/DetectAnnotationScene.h",
+      "sha256": "0efc6aba7a7b00d629da2391d0581f275ae85712c8c7c6190c21a01b650e595b",
       "symbols": [
         {
           "kind": "class",
@@ -2513,16 +2485,16 @@
         },
         {
           "kind": "class",
-          "name": "AnnotationView",
+          "name": "DetectAnnotationView",
           "namespace": "cmn::gui",
-          "qualified": "cmn::gui::AnnotationView",
+          "qualified": "cmn::gui::DetectAnnotationView",
           "smoke": "using"
         },
         {
           "kind": "class",
-          "name": "AnnotationScene",
+          "name": "DetectAnnotationScene",
           "namespace": "cmn::gui",
-          "qualified": "cmn::gui::AnnotationScene",
+          "qualified": "cmn::gui::DetectAnnotationScene",
           "smoke": "using"
         }
       ]
@@ -3004,7 +2976,7 @@
       "excluded": [],
       "module": "trex.ui",
       "path": "ui/DrawAnnotationExportOptions.h",
-      "sha256": "c28be10db8345aaa0c88c019de73412c74d60dd73d2952dc1ed67561632b44be",
+      "sha256": "9d510dcbb61f561920c6458408de500b9ea54365532d80bba92284839cadc098",
       "symbols": [
         {
           "kind": "class",
@@ -3025,8 +2997,8 @@
     {
       "excluded": [],
       "module": "trex.ui",
-      "path": "ui/DrawAnnotationImportOptions.h",
-      "sha256": "1a1e5cc5c2d243bd324d5163b262b5ad70bc35d0990bfe10a1cd270c34c3f06a",
+      "path": "ui/DrawDetectAnnotationImportOptions.h",
+      "sha256": "30b2017eb951e11547bcd5635e6321640ee505ace14111ddfae77282a0b0588f",
       "symbols": [
         {
           "kind": "class",
@@ -3037,9 +3009,9 @@
         },
         {
           "kind": "struct",
-          "name": "DrawAnnotationImportOptions",
+          "name": "DrawDetectAnnotationImportOptions",
           "namespace": "cmn::gui",
-          "qualified": "cmn::gui::DrawAnnotationImportOptions",
+          "qualified": "cmn::gui::DrawDetectAnnotationImportOptions",
           "smoke": "using"
         }
       ]
@@ -3422,7 +3394,7 @@
       ],
       "module": "trex.ui",
       "path": "ui/GUICache.h",
-      "sha256": "f468508f3fbe484f17569e2858813f84af0b90355896f46708009899216346a9",
+      "sha256": "58893f916abdc03b878321a878f3b2b620bd78dcf932c79df93435fdeae79ae5",
       "symbols": [
         {
           "kind": "class",
@@ -3674,7 +3646,7 @@
       "excluded": [],
       "module": "trex.ui",
       "path": "ui/InfoCard.h",
-      "sha256": "d9108423fad72eafa1952cd9b6e0874735c1a9177cb02c3f945c1e075f5f11f1",
+      "sha256": "b610347317451a739a612dc95bd5f9d510b706e2ca93102dce377a107b32d26c",
       "symbols": [
         {
           "kind": "class",
@@ -4691,7 +4663,7 @@
   "summary": {
     "excluded": 58,
     "headers": 128,
-    "symbols": 469
+    "symbols": 465
   },
   "version": 1
 }

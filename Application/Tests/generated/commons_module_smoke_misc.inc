@@ -67,6 +67,14 @@ using ::cmn::FormatColor_t;
 using ::cmn::FormatterType;
 }
 
+// misc/FrameTag.h
+namespace commons_module_smoke::commons_misc::cmn {
+using ::cmn::FrameTag;
+using ::cmn::IdentifiedTag;
+using ::cmn::SimpleTag;
+using ::cmn::SpatialTag;
+}
+
 // misc/GlobalSettings.h
 namespace commons_module_smoke::commons_misc::cmn {
 using ::cmn::Configuration;

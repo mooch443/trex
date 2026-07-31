@@ -2,7 +2,7 @@
 // Do not edit by hand.
 
 #include <tracking/AnnotationExporter.h>
-#include <tracking/AnnotationImporter.h>
+#include <tracking/DetectAnnotationImporter.h>
 #include <tracking/AutomaticMatches.h>
 #include <tracking/BlobReceiver.h>
 #include <tracking/ConnectedTasks.h>

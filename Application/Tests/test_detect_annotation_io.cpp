@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 #include <tracking/AnnotationExporter.h>
-#include <tracking/AnnotationImporter.h>
+#include <tracking/DetectAnnotationImporter.h>
 #include <core/DetectionTypes.h>
 #include <core/default_config.h>
 #include <misc/GlobalSettings.h>
@@ -11,8 +11,9 @@
 
 using namespace cmn;
 using namespace track;
-using namespace track::annotation_export;
-using namespace track::annotation_import;
+using namespace track::detect;
+using namespace track::detect::annotation_export;
+using namespace track::detect::annotation_import;
 
 namespace {
 
@@ -59,21 +60,21 @@ ImportOptions default_import_options(const file::Path& dataset_file) {
 
 }
 
-TEST(AnnotationExporter, ConvertsBoxToYolo) {
+TEST(DetectAnnotationExporter, ConvertsBoxToYolo) {
     auto annotation = make_annotation(2, AnnotationType::BOX, {{100, 50}, {300, 150}});
 
     EXPECT_EQ("2 0.5 0.5 0.5 0.5",
               annotation_to_yolo(annotation, Size2(400, 200), {}));
 }
 
-TEST(AnnotationExporter, ConvertsSegmentationToYolo) {
+TEST(DetectAnnotationExporter, ConvertsSegmentationToYolo) {
     auto annotation = make_annotation(1, AnnotationType::SEGMENTATION, {{0, 0}, {400, 0}, {400, 200}});
 
     EXPECT_EQ("1 0 0 1 0 1 1",
               annotation_to_yolo(annotation, Size2(400, 200), {}));
 }
 
-TEST(AnnotationExporter, ConvertsPoseToYoloAndPadsMissingKeypoints) {
+TEST(DetectAnnotationExporter, ConvertsPoseToYoloAndPadsMissingKeypoints) {
     auto annotation = make_annotation(3, AnnotationType::POSE, {{100, 50}, {300, 150}});
     std::vector<std::string> keypoints{"nose", "tail", "left"};
 
@@ -81,7 +82,7 @@ TEST(AnnotationExporter, ConvertsPoseToYoloAndPadsMissingKeypoints) {
               annotation_to_yolo(annotation, Size2(400, 200), keypoints));
 }
 
-TEST(AnnotationExporter, BuildsYoloFrameMappingCsvWithSourceIndex) {
+TEST(DetectAnnotationExporter, BuildsYoloFrameMappingCsvWithSourceIndex) {
     Options options;
     options.source = file::PathArray("current_video.mp4");
     options.video_source_basename = "current_video.mp4";
@@ -95,7 +96,7 @@ TEST(AnnotationExporter, BuildsYoloFrameMappingCsvWithSourceIndex) {
               build_frame_mapping_csv(options, {10_f, 12_f}));
 }
 
-TEST(AnnotationDataset, DetectsFormatFromImportFileExtension) {
+TEST(DetectAnnotationDataset, DetectsFormatFromImportFileExtension) {
     EXPECT_EQ(annotation_dataset::format_t::yolo,
               annotation_dataset::format_from_dataset_file(file::Path("data.yaml")));
     EXPECT_EQ(annotation_dataset::format_t::yolo,
@@ -105,7 +106,7 @@ TEST(AnnotationDataset, DetectsFormatFromImportFileExtension) {
     EXPECT_FALSE(annotation_dataset::format_from_dataset_file(file::Path("labels.txt")));
 }
 
-TEST(AnnotationImporter, AnnotationMapAcceptsFlatAndSourceNestedText) {
+TEST(DetectAnnotationImporter, AnnotationMapAcceptsFlatAndSourceNestedText) {
     auto flat = AnnotationMap::fromStr("{100:[[0,1,[[100,120],[200,300],[350,400]]]]}");
     ASSERT_TRUE(flat.contains(100_f));
     EXPECT_FALSE(flat.has_sources());
@@ -119,7 +120,7 @@ TEST(AnnotationImporter, AnnotationMapAcceptsFlatAndSourceNestedText) {
     ASSERT_TRUE(reparsed.contains(100_f));
 }
 
-TEST(AnnotationExporter, BuildsCocoJsonForMixedAnnotationsAndBackgroundImages) {
+TEST(DetectAnnotationExporter, BuildsCocoJsonForMixedAnnotationsAndBackgroundImages) {
     auto annotations = mixed_annotations();
     std::vector<Frame_t> frames{1_f, 2_f, 3_f, 5_f};
     auto json = build_coco_json(annotations, frames, Size2(100, 100), {"nose", "tail"});
@@ -131,7 +132,7 @@ TEST(AnnotationExporter, BuildsCocoJsonForMixedAnnotationsAndBackgroundImages) {
     EXPECT_NE(std::string::npos, text.find("\"categories\""));
 }
 
-TEST(AnnotationExporter, ExportsUnlabeledPoseKeypointsAsZeroVisibility) {
+TEST(DetectAnnotationExporter, ExportsUnlabeledPoseKeypointsAsZeroVisibility) {
     // Index 1 is an unlabeled keypoint, stored as an invalid (0,0) placeholder
     // (as produced by COCO/YOLO import of a keypoint with visibility 0).
     AnnotationMap annotations;
@@ -168,7 +169,7 @@ TEST(AnnotationExporter, ExportsUnlabeledPoseKeypointsAsZeroVisibility) {
     EXPECT_EQ(100, bbox.at(3).get_number());
 }
 
-TEST(AnnotationExporter, SummarizesCountsAndBackgroundPercentage) {
+TEST(DetectAnnotationExporter, SummarizesCountsAndBackgroundPercentage) {
     Options options;
     options.annotations = mixed_annotations();
     options.keypoint_names = {"nose", "tail"};
@@ -186,7 +187,7 @@ TEST(AnnotationExporter, SummarizesCountsAndBackgroundPercentage) {
     EXPECT_EQ(1u, summary.counts.poses);
 }
 
-TEST(AnnotationExporter, SamplesBackgroundFramesDeterministicallyAndExcludesAnnotations) {
+TEST(DetectAnnotationExporter, SamplesBackgroundFramesDeterministicallyAndExcludesAnnotations) {
     auto annotations = mixed_annotations();
 
     auto first = sample_background_frames(annotations, 10_f, 4, 1337);
@@ -200,7 +201,7 @@ TEST(AnnotationExporter, SamplesBackgroundFramesDeterministicallyAndExcludesAnno
     EXPECT_TRUE(std::is_sorted(first.begin(), first.end()));
 }
 
-TEST(AnnotationExporter, RejectsInvalidKeypointNamesAndTooManyPosePoints) {
+TEST(DetectAnnotationExporter, RejectsInvalidKeypointNamesAndTooManyPosePoints) {
     Options options;
     options.annotations[1_f].push_back(make_annotation(0, AnnotationType::POSE, {{10, 10}, {20, 20}, {30, 30}}));
     options.keypoint_names = {"nose", "nose"};
@@ -214,7 +215,7 @@ TEST(AnnotationExporter, RejectsInvalidKeypointNamesAndTooManyPosePoints) {
     EXPECT_FALSE(too_many_summary.can_export());
 }
 
-TEST(AnnotationExporter, RejectsEmptyAnnotationsAndOutOfBoundsPoints) {
+TEST(DetectAnnotationExporter, RejectsEmptyAnnotationsAndOutOfBoundsPoints) {
     Options empty;
     empty.output_directory = file::Path("annotations");
     EXPECT_FALSE(summarize(empty, 10_f, Size2(100, 100)).can_export());
@@ -225,7 +226,7 @@ TEST(AnnotationExporter, RejectsEmptyAnnotationsAndOutOfBoundsPoints) {
     EXPECT_FALSE(summarize(out_of_bounds, 10_f, Size2(100, 100)).can_export());
 }
 
-TEST(AnnotationExporter, FailsPredictablyForMissingSource) {
+TEST(DetectAnnotationExporter, FailsPredictablyForMissingSource) {
     Options options;
     options.annotations[1_f].push_back(make_annotation(0, AnnotationType::BOX, {{10, 10}, {20, 20}}));
     options.output_directory = file::Path("annotations");
@@ -234,7 +235,7 @@ TEST(AnnotationExporter, FailsPredictablyForMissingSource) {
     EXPECT_THROW((void)export_dataset(options), std::exception);
 }
 
-TEST(AnnotationImporter, ParsesSupportedSourceIndexFilenameFormats) {
+TEST(DetectAnnotationImporter, ParsesSupportedSourceIndexFilenameFormats) {
     const std::vector<std::string> names{
         "frame_000123.jpg",
         "frame-000123.jpg",
@@ -254,13 +255,13 @@ TEST(AnnotationImporter, ParsesSupportedSourceIndexFilenameFormats) {
     }
 }
 
-TEST(AnnotationImporter, RejectsAmbiguousAndUnrecognizedSourceIndexFilenameFormats) {
+TEST(DetectAnnotationImporter, RejectsAmbiguousAndUnrecognizedSourceIndexFilenameFormats) {
     EXPECT_FALSE(parse_source_index_from_image_stem("frame_000123_000456.jpg").has_value());
     EXPECT_FALSE(parse_source_index_from_image_stem("image_000123.jpg").has_value());
     EXPECT_FALSE(parse_source_index_from_image_stem("frame_-1.jpg").has_value());
 }
 
-TEST(AnnotationImporter, ImportsBoxesAndMapsSourceIndexThroughConversionStart) {
+TEST(DetectAnnotationImporter, ImportsBoxesAndMapsSourceIndexThroughConversionStart) {
     auto root = make_temp_dataset("boxes");
     write_file(root / "data.yaml", "path: .\ntrain: images\nnames:\n  0: fish\n");
     write_file(root / "images" / "frame_000110.jpg");
@@ -282,7 +283,7 @@ TEST(AnnotationImporter, ImportsBoxesAndMapsSourceIndexThroughConversionStart) {
     EXPECT_EQ(Annotation::Point_t(150, 75), annotation.points.at(2));
 }
 
-TEST(AnnotationImporter, ImportsSegmentationPolygons) {
+TEST(DetectAnnotationImporter, ImportsSegmentationPolygons) {
     auto root = make_temp_dataset("segmentation");
     write_file(root / "data.yaml", "path: .\ntrain: images\nnames: [fish]\n");
     write_file(root / "images" / "source-000101.jpg");
@@ -299,7 +300,7 @@ TEST(AnnotationImporter, ImportsSegmentationPolygons) {
     EXPECT_EQ(Annotation::Point_t(200, 100), annotation.points.at(2));
 }
 
-TEST(AnnotationImporter, DoesNotSuggestDetectFormatForMixedImportedTypes) {
+TEST(DetectAnnotationImporter, DoesNotSuggestDetectFormatForMixedImportedTypes) {
     auto root = make_temp_dataset("mixed_detect_format");
     write_file(root / "data.yaml", "path: .\ntrain: images\nnames: [fish]\n");
     write_file(root / "images" / "frame_000100.jpg");
@@ -315,7 +316,7 @@ TEST(AnnotationImporter, DoesNotSuggestDetectFormatForMixedImportedTypes) {
     EXPECT_EQ(track::detect::ObjectDetectionFormat::none, preview.metadata.imported_detect_format);
 }
 
-TEST(AnnotationImporter, ImportsPoseWithKeypointMetadata) {
+TEST(DetectAnnotationImporter, ImportsPoseWithKeypointMetadata) {
     auto root = make_temp_dataset("pose");
     write_file(root / "data.yaml",
                "path: .\ntrain: images\nnames: [fish]\nkpt_shape: [2, 3]\nkeypoint_names:\n  - nose\n  - tail\n");
@@ -336,7 +337,7 @@ TEST(AnnotationImporter, ImportsPoseWithKeypointMetadata) {
     EXPECT_FALSE(annotation.points.at(1).valid());
 }
 
-TEST(AnnotationImporter, ImportsYoloClassAndKeypointNamesFromDataYaml) {
+TEST(DetectAnnotationImporter, ImportsYoloClassAndKeypointNamesFromDataYaml) {
     auto root = make_temp_dataset("yolo_metadata");
     write_file(root / "data.yaml",
                "path: .\n"
@@ -373,7 +374,7 @@ TEST(AnnotationImporter, ImportsYoloClassAndKeypointNamesFromDataYaml) {
     EXPECT_EQ("Locusta", preview.metadata.imported_class_names.at(preview.annotations.at(0_f).front().clid));
 }
 
-TEST(AnnotationImporter, UsesCsvMappingForArbitraryImageNames) {
+TEST(DetectAnnotationImporter, UsesCsvMappingForArbitraryImageNames) {
     auto root = make_temp_dataset("csv");
     write_file(root / "data.yaml", "path: .\ntrain: images\nnames: [fish]\n");
     write_file(root / "images" / "arbitrary_name.jpg");
@@ -390,7 +391,7 @@ TEST(AnnotationImporter, UsesCsvMappingForArbitraryImageNames) {
     EXPECT_TRUE(preview.annotations.contains(12_f));
 }
 
-TEST(AnnotationImporter, UsesSplitRelativeCsvMappingBeforeBasenameFallback) {
+TEST(DetectAnnotationImporter, UsesSplitRelativeCsvMappingBeforeBasenameFallback) {
     auto root = make_temp_dataset("csv_split_paths");
     write_file(root / "data.yaml", "path: .\ntrain: train/images\nval: val/images\nnames: [fish]\n");
     write_file(root / "train" / "images" / "duplicate.jpg");
@@ -417,7 +418,7 @@ TEST(AnnotationImporter, UsesSplitRelativeCsvMappingBeforeBasenameFallback) {
     EXPECT_EQ(Annotation::Point_t(130, 65), preview.annotations.at(13_f).front().points.at(0));
 }
 
-TEST(AnnotationImporter, UsesAbsoluteImagePathInCsvMapping) {
+TEST(DetectAnnotationImporter, UsesAbsoluteImagePathInCsvMapping) {
     auto root = make_temp_dataset("csv_absolute_paths");
     write_file(root / "data.yaml", "path: .\ntrain: train/images\nnames: [fish]\n");
     auto image = root / "train" / "images" / "absolute_name.jpg";
@@ -437,7 +438,7 @@ TEST(AnnotationImporter, UsesAbsoluteImagePathInCsvMapping) {
     EXPECT_TRUE(preview.annotations.contains(12_f));
 }
 
-TEST(AnnotationImporter, WarnsAndKeepsSourceAnnotationsOutsideConvertedRange) {
+TEST(DetectAnnotationImporter, WarnsAndKeepsSourceAnnotationsOutsideConvertedRange) {
     auto root = make_temp_dataset("outside_range");
     write_file(root / "data.yaml", "path: .\ntrain: images\nnames: [fish]\n");
     write_file(root / "images" / "source_index_000099.jpg");
@@ -456,7 +457,7 @@ TEST(AnnotationImporter, WarnsAndKeepsSourceAnnotationsOutsideConvertedRange) {
     EXPECT_TRUE(preview.source_annotations.at("current").contains(151_f));
 }
 
-TEST(AnnotationImporter, FiltersCsvRowsByCurrentVideoSource) {
+TEST(DetectAnnotationImporter, FiltersCsvRowsByCurrentVideoSource) {
     auto root = make_temp_dataset("csv_sources");
     write_file(root / "data.yaml", "path: .\ntrain: images\nnames: [fish]\n");
     write_file(root / "images" / "current_image.jpg");
@@ -493,7 +494,7 @@ TEST(AnnotationImporter, FiltersCsvRowsByCurrentVideoSource) {
     EXPECT_FALSE(overridden.annotations.contains(12_f));
 }
 
-TEST(AnnotationImporter, RequiresVideoSourceColumnInCsvMapping) {
+TEST(DetectAnnotationImporter, RequiresVideoSourceColumnInCsvMapping) {
     auto root = make_temp_dataset("csv_missing_source");
     write_file(root / "data.yaml", "path: .\ntrain: images\nnames: [fish]\n");
     write_file(root / "images" / "arbitrary_name.jpg");
@@ -508,7 +509,7 @@ TEST(AnnotationImporter, RequiresVideoSourceColumnInCsvMapping) {
     EXPECT_FALSE(preview.errors.empty());
 }
 
-TEST(AnnotationImporter, StripsCurrentVideoPrefixBeforeParsingFrameIndex) {
+TEST(DetectAnnotationImporter, StripsCurrentVideoPrefixBeforeParsingFrameIndex) {
     auto root = make_temp_dataset("video_prefix");
     write_file(root / "data.yaml", "path: .\ntrain: images\nnames: [fish]\n");
     write_file(root / "images" / "cam2024_run7_frame_000110.jpg");
@@ -527,7 +528,7 @@ TEST(AnnotationImporter, StripsCurrentVideoPrefixBeforeParsingFrameIndex) {
     EXPECT_FALSE(preview.annotations.contains(11_f));
 }
 
-TEST(AnnotationImporter, AutoDetectsAndOverridesSourceFileFromFilenames) {
+TEST(DetectAnnotationImporter, AutoDetectsAndOverridesSourceFileFromFilenames) {
     auto root = make_temp_dataset("source_choice");
     write_file(root / "data.yaml", "path: .\ntrain: images\nnames: [fish]\n");
     write_file(root / "images" / "current_video_frame_000112.jpg");
@@ -557,7 +558,7 @@ TEST(AnnotationImporter, AutoDetectsAndOverridesSourceFileFromFilenames) {
     EXPECT_TRUE(overridden.annotations.contains(13_f));
 }
 
-TEST(AnnotationImporter, StripsEncodedVideoExtensionPrefixBeforeParsingFrameIndex) {
+TEST(DetectAnnotationImporter, StripsEncodedVideoExtensionPrefixBeforeParsingFrameIndex) {
     auto root = make_temp_dataset("encoded_video_prefix");
     write_file(root / "data.yaml", "path: .\ntrain: images\nnames: [fish]\n");
     write_file(root / "images" / "20250129_hexbug_5_long_mp4-0086_jpg.rf.d092af8a1bcf290c06af89399f4e46a4.jpg");
@@ -575,7 +576,7 @@ TEST(AnnotationImporter, StripsEncodedVideoExtensionPrefixBeforeParsingFrameInde
     EXPECT_TRUE(preview.annotations.contains(86_f));
 }
 
-TEST(AnnotationImporter, KeepsPlainFrameNamesWhenCurrentVideoSourceIsKnown) {
+TEST(DetectAnnotationImporter, KeepsPlainFrameNamesWhenCurrentVideoSourceIsKnown) {
     auto root = make_temp_dataset("plain_with_source");
     write_file(root / "data.yaml", "path: .\ntrain: images\nnames: [fish]\n");
     write_file(root / "images" / "frame_000110.jpg");
@@ -591,7 +592,7 @@ TEST(AnnotationImporter, KeepsPlainFrameNamesWhenCurrentVideoSourceIsKnown) {
     EXPECT_TRUE(preview.annotations.contains(10_f));
 }
 
-TEST(AnnotationImporter, BlocksImportAndRequestsCsvWhenNoImagesMap) {
+TEST(DetectAnnotationImporter, BlocksImportAndRequestsCsvWhenNoImagesMap) {
     auto root = make_temp_dataset("no_mapping");
     write_file(root / "data.yaml", "path: .\ntrain: images\nnames: [fish]\n");
     write_file(root / "images" / "other_video_arbitrary_name.jpg");
@@ -606,7 +607,7 @@ TEST(AnnotationImporter, BlocksImportAndRequestsCsvWhenNoImagesMap) {
     EXPECT_NE(std::string::npos, preview.errors.back().find("CSV mapping"));
 }
 
-TEST(AnnotationImporter, ReportsMissingDataYamlAndMalformedLabels) {
+TEST(DetectAnnotationImporter, ReportsMissingDataYamlAndMalformedLabels) {
     auto missing = preview_yolo_import(default_import_options(file::Path("/tmp/trex_missing_data_yaml.yaml")), import_scope_t::all_videos);
     EXPECT_FALSE(missing.errors.empty());
 
@@ -619,7 +620,7 @@ TEST(AnnotationImporter, ReportsMissingDataYamlAndMalformedLabels) {
     EXPECT_FALSE(malformed.warnings.empty());
 }
 
-TEST(AnnotationImporter, AppliesAddAndReplaceModesWithRenumberedUids) {
+TEST(DetectAnnotationImporter, AppliesAddAndReplaceModesWithRenumberedUids) {
     auto root = make_temp_dataset("merge");
     write_file(root / "data.yaml", "path: .\ntrain: images\nnames: [fish]\n");
     write_file(root / "images" / "frame_000110.jpg");
@@ -642,7 +643,7 @@ TEST(AnnotationImporter, AppliesAddAndReplaceModesWithRenumberedUids) {
     EXPECT_EQ(0u, replaced.at(10_f).front().clid);
 }
 
-TEST(AnnotationImporter, AppliesSourceAnnotationsInsideAnnotationMapWithRenumberedUids) {
+TEST(DetectAnnotationImporter, AppliesSourceAnnotationsInsideAnnotationMapWithRenumberedUids) {
     ImportPreview preview;
     preview.annotations[1_f].push_back(make_annotation(0, AnnotationType::BOX, {{0, 0}, {10, 10}}));
     preview.source_annotations["current_video.mp4"][101_f].push_back(make_annotation(0, AnnotationType::BOX, {{0, 0}, {10, 10}}));
@@ -662,7 +663,7 @@ TEST(AnnotationImporter, AppliesSourceAnnotationsInsideAnnotationMapWithRenumber
     EXPECT_EQ(1u, replaced.sources().at("other_video.mp4").at(202_f).front().clid);
 }
 
-TEST(AnnotationImporter, ReportsMetadataDifferencesInPreview) {
+TEST(DetectAnnotationImporter, ReportsMetadataDifferencesInPreview) {
     auto root = make_temp_dataset("metadata");
     write_file(root / "data.yaml", "path: .\ntrain: images\nnames:\n  0: imported\n");
     write_file(root / "images" / "frame_000100.jpg");
@@ -677,7 +678,7 @@ TEST(AnnotationImporter, ReportsMetadataDifferencesInPreview) {
     ASSERT_FALSE(preview.warnings.empty());
 }
 
-TEST(AnnotationImporter, ImportsCocoBoundingBoxes) {
+TEST(DetectAnnotationImporter, ImportsCocoBoundingBoxes) {
     auto root = make_temp_dataset("coco_boxes");
     write_file(root / "_annotations.coco.json",
                R"({"images":[{"id":1,"file_name":"frame_000110.jpg","width":200,"height":100}],)"
@@ -700,7 +701,7 @@ TEST(AnnotationImporter, ImportsCocoBoundingBoxes) {
     EXPECT_TRUE(preview.metadata.class_names_changed);
 }
 
-TEST(AnnotationImporter, ImportsCocoWithCurrentVideoPrefixFrameNames) {
+TEST(DetectAnnotationImporter, ImportsCocoWithCurrentVideoPrefixFrameNames) {
     auto root = make_temp_dataset("coco_video_prefix");
     write_file(root / "_annotations.coco.json",
                R"({"images":[{"id":1,"file_name":"20250129_hexbug_5_long_mp4-0086_jpg.rf.d092af8a1bcf290c06af89399f4e46a4.jpg","width":200,"height":100}],)"
@@ -720,7 +721,7 @@ TEST(AnnotationImporter, ImportsCocoWithCurrentVideoPrefixFrameNames) {
     EXPECT_TRUE(preview.annotations.contains(86_f));
 }
 
-TEST(AnnotationImporter, ImportsCocoWithCsvVideoSourceMapping) {
+TEST(DetectAnnotationImporter, ImportsCocoWithCsvVideoSourceMapping) {
     auto root = make_temp_dataset("coco_csv_sources");
     write_file(root / "_annotations.coco.json",
                R"({"images":[)"
@@ -750,7 +751,7 @@ TEST(AnnotationImporter, ImportsCocoWithCsvVideoSourceMapping) {
     EXPECT_TRUE(preview.source_annotations.at("other_video.mp4").contains(113_f));
 }
 
-TEST(AnnotationImporter, ImportsCocoClassAndKeypointNamesFromRoboflowStyleJson) {
+TEST(DetectAnnotationImporter, ImportsCocoClassAndKeypointNamesFromRoboflowStyleJson) {
     auto root = make_temp_dataset("coco_metadata");
     write_file(root / "_annotations.coco.json",
                R"({"images":[{"id":0,"file_name":"LEMRA02-MaNa-20250117143515-0-0082_jpg.rf.1dcffa832c7739c8a764a25d72b5116a.jpg","height":3000,"width":4096,"extra":{"name":"LEMRA02-MaNa-20250117143515-0-0082.jpg"}}],)"
@@ -778,7 +779,7 @@ TEST(AnnotationImporter, ImportsCocoClassAndKeypointNamesFromRoboflowStyleJson) 
     EXPECT_EQ(AnnotationType::POSE, preview.annotations.at(82_f).front().type);
 }
 
-TEST(AnnotationImporter, ImportsCocoPoseKeypointsAsAbsoluteXyvPixels) {
+TEST(DetectAnnotationImporter, ImportsCocoPoseKeypointsAsAbsoluteXyvPixels) {
     auto root = make_temp_dataset("coco_absolute_keypoints");
     write_file(root / "_annotations.coco.json",
                R"({"images":[{"id":4,"file_name":"source_index_000004.jpg","width":4096,"height":3000}],)"
@@ -825,7 +826,7 @@ TEST(AnnotationImporter, ImportsCocoPoseKeypointsAsAbsoluteXyvPixels) {
     EXPECT_EQ(1u, skeleton->connections().at(1).to);
 }
 
-TEST(AnnotationImporter, ImportsCocoSegmentationPolygons) {
+TEST(DetectAnnotationImporter, ImportsCocoSegmentationPolygons) {
     auto root = make_temp_dataset("coco_segmentation");
     write_file(root / "_annotations.coco.json",
                R"({"images":[{"id":1,"file_name":"source-000101.jpg","width":200,"height":100}],)"
@@ -845,7 +846,7 @@ TEST(AnnotationImporter, ImportsCocoSegmentationPolygons) {
     EXPECT_EQ(Annotation::Point_t(200, 100), annotation.points.at(2));
 }
 
-TEST(AnnotationImporter, ImportsCocoPoseAndKeypointMetadata) {
+TEST(DetectAnnotationImporter, ImportsCocoPoseAndKeypointMetadata) {
     auto root = make_temp_dataset("coco_pose");
     write_file(root / "_annotations.coco.json",
                R"({"images":[{"id":1,"file_name":"source_index_000102.jpg","width":200,"height":100}],)"
@@ -868,7 +869,7 @@ TEST(AnnotationImporter, ImportsCocoPoseAndKeypointMetadata) {
     EXPECT_FALSE(annotation.points.at(1).valid());
 }
 
-TEST(AnnotationImporter, RejectsUnsupportedCocoRleSegmentation) {
+TEST(DetectAnnotationImporter, RejectsUnsupportedCocoRleSegmentation) {
     auto root = make_temp_dataset("coco_rle");
     write_file(root / "_annotations.coco.json",
                R"({"images":[{"id":1,"file_name":"frame_000100.jpg","width":200,"height":100}],)"
@@ -882,7 +883,7 @@ TEST(AnnotationImporter, RejectsUnsupportedCocoRleSegmentation) {
     EXPECT_FALSE(preview.errors.empty());
 }
 
-TEST(AnnotationImporter, RoundTripsCocoUnlabeledKeypointVisibility) {
+TEST(DetectAnnotationImporter, RoundTripsCocoUnlabeledKeypointVisibility) {
     // The middle keypoint is unlabeled (visibility 0). Import must keep it as an
     // invalid placeholder so the indices stay aligned with the schema/skeleton,
     // and a subsequent export must keep that slot unlabeled rather than emitting
@@ -924,7 +925,7 @@ TEST(AnnotationImporter, RoundTripsCocoUnlabeledKeypointVisibility) {
     EXPECT_EQ(50, bbox.at(1).get_number());
 }
 
-TEST(AnnotationImporter, MalformedRowDropsImageAtomicallyKeepingSourceAndFrameConsistent) {
+TEST(DetectAnnotationImporter, MalformedRowDropsImageAtomicallyKeepingSourceAndFrameConsistent) {
     // A label file with a valid row followed by a malformed one must contribute
     // nothing: previously the valid row was kept in source_annotations while the
     // frame was dropped from annotations, desyncing the two views (and making the
@@ -969,7 +970,7 @@ TEST(AnnotationImporter, MalformedRowDropsImageAtomicallyKeepingSourceAndFrameCo
     EXPECT_TRUE(reported) << Meta::toStr(preview.warnings);
 }
 
-TEST(AnnotationExporter, CocoExportsAllDetectClassesEvenWhenAbsentFromDataset) {
+TEST(DetectAnnotationExporter, CocoExportsAllDetectClassesEvenWhenAbsentFromDataset) {
     // When detect_classes is set it is authoritative: every configured class must
     // be exported as a category, even classes that never appear in the dataset,
     // so COCO/YOLO outputs stay consistent across datasets of the same type.

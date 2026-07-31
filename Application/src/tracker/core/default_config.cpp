@@ -13,7 +13,7 @@
 #include <pv.h>
 #include <misc/CropOffsets.h>
 #include <core/GPURecognitionTypes.h>
-#include <core/annotation.h>
+#include <core/DetectAnnotation.h>
 #include <core/FrameTags.h>
 
 #ifndef WIN32
@@ -849,7 +849,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("gui_show_posture", false, "Show/hide the posture window on the top-right.");
         CONFIG("gui_show_export_options", false, "Show/hide the export options widget.");
         CONFIG("gui_show_annotation_export_options", false, "Show/hide the annotation dataset export widget.");
-        CONFIG("gui_show_annotation_import_options", false, "Show/hide the annotation dataset import widget.");
+        CONFIG("gui_show_detect_annotation_import_options", false, "Show/hide the detect-annotation dataset import widget.");
         CONFIG("gui_show_visualfield_ts", false, "Show/hide the visual field time series.");
         CONFIG("gui_show_visualfield", false, "Show/hide the visual field rays.");
         CONFIG("gui_show_uniqueness", false, "Show/hide uniqueness overview after training.");
@@ -909,8 +909,8 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("track_ignore_bdx", std::map<Frame_t, std::set<pv::bid>>{}, "This is a map of frame -> [bdx0, bdx1, ...] of blob ids that are specifically set to be ignored in the given frame. Can be reached using the GUI by clicking on a blob in raw mode.");
         
         using namespace track;
-        AnnotationMap annotation_example = AnnotationMap::fromStr("{100:[[0,1,[[100,120],[200,300],[350,400]]]]}");
-        CONFIG("track_annotations", track::AnnotationMap{}, "This is a map of `{frame:[[clid,type,[points...]],...]}` that can be used to export annotations per frame. These can be added in the graphical user interface by CMD+clicking on the video and selecting 'add annotation'.", PUBLIC, {std::move(annotation_example)});
+        detect::AnnotationMap annotation_example = detect::AnnotationMap::fromStr("{100:[[0,1,[[100,120],[200,300],[350,400]]]]}");
+        CONFIG("track_detect_annotations", detect::AnnotationMap{}, "This is a map of `{frame:[[clid,type,[points...]],...]}` containing detect annotations that can be exported per frame. These can be added in the graphical user interface by CMD+clicking on the video and selecting 'add annotation'.", PUBLIC, {std::move(annotation_example)});
         
         FrameTags tags{
             {123_f, std::set<FrameTag>{FrameTag("blue"), FrameTag("green")}}
@@ -1238,6 +1238,9 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             "gui_zoom_polygon",
             "gui_displayed_frame",
             "gui_source_video_frame",
+            "gui_show_annotation_export_options",
+            "gui_show_detect_annotation_import_options",
+            "gui_show_export_options",
             "gui_run",
             //"settings_file",
             "nowindow",
@@ -1300,7 +1303,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         
         if(auto type = READ_SETTING(detect_type, track::detect::ObjectDetectionType_t);
            type == track::detect::ObjectDetectionType::yolo
-           || READ_SETTING_WITH_DEFAULT(track_annotations, track::AnnotationMap{}))
+           || READ_SETTING_WITH_DEFAULT(track_detect_annotations, track::detect::AnnotationMap{}))
         {
             explicitly_include.emplace("detect_classes");
             explicitly_include.emplace("detect_format");

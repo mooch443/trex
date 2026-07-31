@@ -7,12 +7,66 @@
 #include <core/FrameTags.h>
 #include <tracking/IndividualManager.h>
 #include <core/idx_t.h>
+#include <file/DataLocation.h>
+#include <misc/cnpy_wrapper.h>
 
 namespace track::annotation_export {
+
+// a set of tags that were annotated on the same object
+// in the same frame in the video. so we have to merge some stuff from track_frame_tags
+struct Tags {
+    std::optional<uint64_t> id; /// will be initialized later
+    std::optional<uint64_t> source_tracklet; /// this should hold a tracklet this source frame + fdx produces
+    std::optional<Range<Frame_t>> source_tracklet_range;
+    track::Idx_t fdx;
+    Frame_t source;
+    std::set<FrameTag> tags;
+    
+    std::string toStr() const {
+        return "<"+source.toStr() + "," + fdx.toStr() + "," + Meta::toStr(source_tracklet) + "," + Meta::toStr(tags) +">";
+    }
+    glz::json_t to_json() const {
+        glz::json_t j;
+        j["id"] = id ? glz::json_t(*id) : glz::json_t();
+        j["source_tracklet"] = source_tracklet ? glz::json_t(*source_tracklet) : glz::json_t();
+        j["source_tracklet_range"] = source_tracklet_range ? glz::json_t({source_tracklet_range->start.get(), source_tracklet_range->end.get()}) : glz::json_t();
+        j["fdx"] = fdx.get();
+        j["source"] = source.get();
+        std::vector<glz::json_t> tag_jsons;
+        for(const auto& tag : tags)
+            tag_jsons.emplace_back(tag.to_json());
+        j["tags"] = std::move(tag_jsons);
+        return j;
+    }
+    
+    auto operator<=>(const Tags&) const = default;
+};
+
+struct CustomAcceptedQuery : public extract::AcceptedQuery {
+    std::set<Tags> tags;
+    std::map<track::Idx_t, uint64_t> frame_tracklet_ids;
+};
+
+
+struct Metadata {
+    std::string path;
+    uint32_t width;
+    uint32_t height;
+    uint8_t channels;
+    std::string encoding;
+    std::set<std::string_view> tag_names;
+    glz::json_t meta_tags_json;
+};
+
+}
+
+namespace track::detect::annotation_export {
+
+namespace dataset = track::detect::annotation_dataset;
+
 namespace {
 
 using namespace cmn;
-namespace dataset = track::annotation_dataset;
 using YamlNode = fkyaml::node;
 
 constexpr std::string_view kSplitDir = "train";
@@ -130,7 +184,7 @@ Frame_t exported_source_index(Frame_t frame, const Options& options) {
 std::string export_video_source(const Options& options) {
     if(!options.video_source_basename.empty())
         return file::Path(options.video_source_basename).filename();
-    return dataset::source_basename_from_paths(options.source);
+    return file::Path(file::find_basename(options.source)).filename();
 }
 
 void ensure_folder(const file::Path& path) {
@@ -243,13 +297,9 @@ void append_yolo_metadata(YamlNode& yaml, const AnnotationMap& annotations, cons
 
 }
 
-struct CustomAcceptedQuery : public extract::AcceptedQuery {
-    std::set<FrameTag> tags;
-    CustomAcceptedQuery(std::set<FrameTag> tags) : tags(std::move(tags)) {}
-    ~CustomAcceptedQuery() {
-        Print("Destroyed");
-    }
-};
+}
+
+namespace track::annotation_export {
 
 void export_tag_annotations(TagDatasetConfig config) {
     /// there are two types of annotations inside `track_frame_tags`:
@@ -290,34 +340,77 @@ void export_tag_annotations(TagDatasetConfig config) {
     const auto track_behavior_window = READ_SETTING_WITH_DEFAULT(track_behavior_window, uchar(0));
     const auto track_behavior_window_step = READ_SETTING_WITH_DEFAULT(track_behavior_window_step, uchar(1));
     
-    // actual representation
-    struct Tags {
-        track::Idx_t fdx;
-        Frame_t source;
-        std::set<FrameTag> tags;
-        
-        std::string toStr() const {
-            return "("+source.toStr() + "," + Meta::toStr(tags)+")";
-        }
-    };
-    
     Print("* original ", extract_keys(track_frame_tags));
     
+    /// a collection of tags associated with a frame range
+    /// each range will be associated with a number of tags (or at least one)
+    /// and each of them has a natural center, fdx, and tracklet id.
     std::vector<std::tuple<Range<Frame_t>, std::vector<Tags>>> ranges;
-    for(auto &[frame, tags] : track_frame_tags) {
-        ranges.emplace_back(Range<Frame_t>{
+    
+    /// go through manual annotations and add them to the ranges
+    /// we assume that `track_frame_tags` iteration is ordered
+    static_assert(is_ordered_map<decltype(track_frame_tags)>,
+                    "Has to be an ordered map to work with this.");
+    
+    for(const auto &[frame, tags] : track_frame_tags) {
+        const Range<Frame_t> range{
             frame.try_sub(Frame_t(track_behavior_window)),
             frame + Frame_t(track_behavior_window) + 1_f
-        }, std::vector<Tags>{
-            Tags{.fdx = {}, .source = frame, .tags = tags}
-        });
+        };
+        std::vector<Tags> collections;
+        
+        auto copy = tags;
+        while(not copy.empty()) {
+            auto tag = *copy.begin();
+            copy.erase(copy.begin());
+            
+            if(not tag.has_location()
+               && not tag.has_identity())
+            {
+                Print("Tag ", tag, " is a global tag and will not be exported here.");
+                continue;
+            }
+
+            Tags collection{
+                .fdx = {},
+                .source = frame,
+                .tags = {tag}
+            };
+
+            for(auto it = copy.begin(); it != copy.end();) {
+                if(tag.has_identity() && it->has_identity()
+                    && it->get_identity() == tag.get_identity()) 
+                {
+                    Print("Merging identical tags ", tag, " and ", *it, " because they have the same identity.");
+                    collection.tags.insert(*it);
+                    it = copy.erase(it);
+                } else if(it->has_location() && tag.has_location()
+                            && it->get_location().overlaps(tag.get_location()))
+                {
+                    Print("Merging overlapping tags ", tag, " and ", *it, " because they have overlapping locations.");
+                    collection.tags.insert(*it);
+                    it = copy.erase(it);
+                } else {
+                    ++it;
+                }
+            }
+
+            collections.push_back(std::move(collection));
+        }
+
+        if(collections.empty())
+            continue;
+        ranges.emplace_back(range, std::move(collections));
     }
     
-    std::vector<Range<Frame_t>> keys;
-    for(auto &[range, tags] : ranges)
-        keys.push_back(range);
-    Print("* pre-merged ranges ", keys);
+    {
+        std::vector<Range<Frame_t>> keys;
+        for(auto &[range, tags] : ranges)
+            keys.push_back(range);
+        Print("* pre-merged ranges ", keys);
+    }
     
+    /// try to merge consecutive ranges
     for(size_t i = 0; i + 1 < ranges.size();) {
         auto& [range, tags] = ranges.at(i);
         auto&& [next, next_tags] = ranges.at(i + 1);
@@ -331,91 +424,226 @@ void export_tag_annotations(TagDatasetConfig config) {
             ++i;
     }
     
-    keys.clear();
-    for(auto &[range, tags] : ranges)
-        keys.push_back(range);
-    Print("* merged ranges ", keys);
+    {
+        std::vector<Range<Frame_t>> keys;
+        for(auto &[range, tags] : ranges)
+            keys.push_back(range);
+        Print("* merged ranges ", keys);
+    }
     
-    // just the fast cached version
-    std::map<Idx_t, std::unordered_set<Frame_t>> selected;
+    /// a long list of all tracklets by all individuals
+    /// (arbitrary but consistent ordering -> only appending)
+    std::vector<const track::TrackletInformation*> collected_tracklets;
+    auto insert_tracklet_id = [&](const track::TrackletInformation* ptr) -> uint64_t {
+        if(auto it = std::find(collected_tracklets.begin(), collected_tracklets.end(), ptr);
+           it == collected_tracklets.end())
+        {
+            it = collected_tracklets.insert(collected_tracklets.end(), ptr);
+            assert(std::distance(collected_tracklets.begin(), it) == int64_t(collected_tracklets.size()) - 1);
+            return std::distance(collected_tracklets.begin(), it);
+        } else {
+            return std::distance(collected_tracklets.begin(), it);
+        }
+    };
+    
+    /// go through all the merged ranges and update the fdx
+    /// they belong to if available:
     for(auto &[range, tags_collection] : ranges) {
         for(auto &coll : tags_collection) {
-            auto frame = coll.source;
-            for(auto &tag : coll.tags) {
-                if(tag.has_identity()) {
-                    auto bid = tag.get_identity();
-                    track::IndividualManager::transform_all([bid, frame, &coll, &tag](track::Idx_t fdx, const Individual* fish)
-                    {
-                        if(auto basic = fish->find_frame(frame);
-                            basic)
-                        {
-                            if(basic->blob.blob_id() == pv::bid(bid)) {
-                                if(coll.fdx.valid()
-                                   && coll.fdx != fdx)
-                                {
-                                    FormatWarning("Multiple individuals assigned to ", tag, ": ", coll.fdx, " and ", fdx);
-                                } else {
-                                    coll.fdx = fdx;
-                                }
-                            }
-                        }
-                    });
-                    
-                } else if(tag.has_location()) {
-                    auto bds = tag.get_location();
-                    track::IndividualManager::transform_all([bds, frame, &coll, &tag](track::Idx_t fdx, const Individual* fish)
-                    {
-                        if(auto basic = fish->find_frame(frame);
-                            basic)
-                        {
-                            if(bds.contains(basic->centroid.pos<Units::PX_AND_SECONDS>()))
-                            {
-                                if(coll.fdx.valid()
-                                   && coll.fdx != fdx)
-                                {
-                                    FormatWarning("Multiple individuals assigned to ", tag, ": ", coll.fdx, " and ", fdx);
-                                } else {
-                                    coll.fdx = fdx;
-                                }
-                            }
-                        }
-                    });
+            track::IndividualManager::transform_all([source_frame = coll.source, &coll, &insert_tracklet_id]
+                        (track::Idx_t fdx, const Individual* fish)
+            {
+                auto result = fish->find_tracklet_for(source_frame);
+                if(not result)
+                    return;
+                
+                auto [basic, tracklet] = result.value();
+                if(not tracklet) {
+                    FormatError("Tracklet not found for ", fdx, " at ", source_frame, ".");
+                    return;
                 }
-            }
+                
+                for(auto &tag : coll.tags) {
+                    if(tag.has_identity()) {
+                        if(auto bid = pv::bid(tag.get_identity());
+                           basic->blob.blob_id() == bid)
+                        {
+                            if(coll.fdx.valid()
+                               && coll.fdx != fdx)
+                            {
+                                FormatWarning("Multiple individuals assigned to ", tag, ": ", coll.fdx, " and ", fdx);
+                            } else {
+                                coll.fdx = fdx;
+                                coll.source_tracklet = insert_tracklet_id(tracklet);
+                                coll.source_tracklet_range = tracklet->range;
+                            }
+                        }
+                        
+                    } else if(tag.has_location()) {
+                        if(auto bds = tag.get_location();
+                           bds.contains(basic->centroid.pos<Units::PX_AND_SECONDS>()))
+                        {
+                            if(coll.fdx.valid()
+                               && coll.fdx != fdx)
+                            {
+                                FormatWarning("Multiple individuals assigned to ", tag, ": ", coll.fdx, " and ", fdx);
+                            } else {
+                                coll.fdx = fdx;
+                                coll.source_tracklet = insert_tracklet_id(tracklet);
+                                coll.source_tracklet_range = tracklet->range;
+                            }
+                        }
+                    }
+                }
+            });
         }
     }
     
-    std::unordered_map<Frame_t, std::set<FrameTag>> without_fdx;
+    std::unordered_map<Frame_t, std::vector<Tags>> without_fdx;
+    std::unordered_map<Frame_t, std::vector<Tags>> without_tracklet;
+    
+    uint64_t coll_id = 0;
+    
+    std::vector<Tags> meta_tags;
     for(auto& [range, collection] : ranges) {
         for(auto &coll : collection) {
             if(not coll.fdx.valid())
-                without_fdx[coll.source].insert(coll.tags.begin(), coll.tags.end());
+                without_fdx[coll.source].push_back(coll);
+            if(not coll.source_tracklet.has_value())
+                without_tracklet[coll.source].push_back(coll);
+            coll.id = coll_id++;
+            meta_tags.push_back(coll);
         }
     }
-    Print("* did not find fdx for ", without_fdx, " (these are likely global properties)");
+
+    glz::json_t meta_tag_json = cvt2json(meta_tags);
+    
+    if(not without_fdx.empty())
+        Print("* did not find fdx for ", without_fdx, ". these are likely global properties or SpatialTags - exporting arbitrary crops from the video is not supported yet :(");
+    if(not without_tracklet.empty())
+        Print("* did not find source_tracklet for ", without_tracklet, " (these are likely global properties)");
     
     using namespace extract;
     uint8_t max_threads = 5u;
+    const auto meta_encoding = Background::meta_encoding();
     extract::Settings settings{
-        .flags = (uint32_t)Flag::RemoveSmallFrames,
+        .flags = (uint32_t)Flag::None,
         .max_size_bytes = uint64_t((double)READ_SETTING_WITH_DEFAULT(gpu_max_cache, float(2)) * 1000.0 * 1000.0 * 1000.0 / double(max_threads)),
         .image_size = READ_SETTING(individual_image_size, Size2),
+        .channels = uint8_t(required_image_channels(meta_encoding)),
         .num_threads = max_threads,
         .normalization = default_config::valid_individual_image_normalization()
+    };
+    
+    auto data_prefix = READ_SETTING(data_prefix, file::Path);
+    auto fishdata = file::DataLocation::parse("output", data_prefix);
+    if(not fishdata.exists())
+        if(not fishdata.create_folder())
+            throw U_EXCEPTION("Cannot create folder ",fishdata.str()," for saving fishdata.");
+    
+    file::Path input = READ_SETTING(filename, file::Path).filename();
+    if(input.has_extension("pv"))
+        input = input.remove_extension();
+    
+    std::string filename = input.str();
+    file::Path output_image_path{ fishdata / (filename + "_behaviordata") };
+    
+    std::mutex index_mutex;
+    size_t index{0u};
+    size_t current_written{0u};
+    
+    const auto unique = track_frame_tags.unique();
+    
+    /// will be filled up to 2GB
+    /// then written
+    /// then cleared again
+    std::vector<uchar> images;
+    std::vector<uint32_t> ids;
+    std::vector<uint32_t> frames;
+    std::vector<uint32_t> bids;
+    std::vector<uint64_t> frame_tracklet_ids;
+    
+    std::vector<size_t> tag_offsets{0u};
+    std::vector<uint64_t> tags;
+    
+    /// write one package
+    auto write_npz_file = [&]() {
+        if(images.empty())
+            return; /// empty??
+        
+        auto path = file::Path(output_image_path.str() + "_" + Meta::toStr(index) + ".npz");
+        
+        npz_save(path.str(), "images", images.data(), std::vector<size_t>{
+            ids.size(), /// some size that is equivalent to the entries 1:1
+            narrow_cast<size_t>(settings.image_size.height),
+            narrow_cast<size_t>(settings.image_size.width),
+            narrow_cast<size_t>(settings.channels)
+        }, "w");
+        npz_save(path.str(), "ids", ids, "a");
+        npz_save(path.str(), "frames", frames, "a");
+        npz_save(path.str(), "bids", bids, "a");
+        npz_save(path.str(), "frame_tracklet_ids", frame_tracklet_ids, "a");
+        npz_save(path.str(), "tag_offsets", tag_offsets, "a");
+        npz_save(path.str(), "tag_idx", tags, "a");
+        
+        Metadata metadata{
+            .path = input.str(),
+            .width = uint32_t(settings.image_size.width),
+            .height = uint32_t(settings.image_size.height),
+            .channels = settings.channels,
+            .encoding = (std::string)Background::meta_encoding().name(),
+            .tag_names = unique,
+            .meta_tags_json = std::move(meta_tag_json)
+        };
+        
+        std::string json;
+        auto error = glz::write_json(metadata, json);
+        if (error) {
+            RuntimeError(
+                "Failed to serialize video metadata: ",
+                no_quotes(glz::format_error(error, json))
+            );
+        }
+        npz_save(path.str(), "metadata", json.data(), std::vector<size_t>{json.size()}, "a");
+        
+        Print("ImageExtractor has ", ids.size(), ", written ", FileSize(current_written), " => ", path);
+        
+        ++index;
+        current_written = 0;
+        
+        images.clear();
+        ids.clear();
+        tags.clear();
+        bids.clear();
+        frame_tracklet_ids.clear();
+        
+        tag_offsets.clear();
+        /// start at zero
+        tag_offsets.push_back(0);
     };
     
     ImageExtractor e{
         std::shared_ptr{config.video_file},
         [&](const Query& q)->std::unique_ptr<AcceptedQuery> {
             /// selector
+            std::map<track::Idx_t, uint64_t> frame_tracklet_ids;
+            IndividualManager::transform_all([&](Idx_t fdx, Individual *fish) {
+                auto result = fish->find_tracklet_for(q.basic->frame);
+                if(result)
+                    frame_tracklet_ids[fdx] = insert_tracklet_id(result->second);
+            });
+            
             for(auto& [range, collection] : ranges) {
                 if(not range.contains(q.basic->frame))
                     continue;
+                
+                std::set<Tags> tags;
                 for(auto &coll : collection) {
                     if(coll.fdx.valid()
                         && coll.fdx == q.fdx)
                     {
-                        return std::make_unique<CustomAcceptedQuery>(coll.tags);
+                        tags.insert(coll);
+                        //return std::make_unique<CustomAcceptedQuery>(coll.source_tracklet, coll.source_tracklet_range, q.fdx, coll.source, coll.tags);
                     } else {
                         for(auto &tag : coll.tags) {
                             if(tag.has_identity()) {
@@ -423,49 +651,98 @@ void export_tag_annotations(TagDatasetConfig config) {
                                    bdx == q.basic->blob.blob_id()
                                    || bdx == q.basic->blob.parent_id)
                                 {
-                                    return std::make_unique<CustomAcceptedQuery>(coll.tags);
+                                    tags.insert(coll);
+                                    break;
+                                    //return std::make_unique<CustomAcceptedQuery>(coll.source_tracklet, coll.source_tracklet_range, q.fdx, coll.source, coll.tags);
                                 }
                                 
                             } else if(tag.has_location()) {
                                 if(auto bds = tag.get_location();
                                    bds.contains(q.basic->centroid.pos<Units::PX_AND_SECONDS>()))
                                 {
-                                    return std::make_unique<CustomAcceptedQuery>(coll.tags);
+                                    //return std::make_unique<CustomAcceptedQuery>(coll.source_tracklet, coll.source_tracklet_range, q.fdx, coll.source, coll.tags);
+                                    tags.insert(coll);
+                                    break;
                                 }
                             }
                         }
                     }
                 }
+                
+                if(not tags.empty()) {
+                    return std::unique_ptr<CustomAcceptedQuery>(new CustomAcceptedQuery{
+                        .tags = std::move(tags),
+                        .frame_tracklet_ids = std::move(frame_tracklet_ids)
+                    });
+                }
             }
             return nullptr;
         },
         [&](std::vector<Result>&& results) {
+            /// actual saving to npz-ready data is happening here for each chunk
+            size_t current_size = results.size() * narrow_cast<size_t>(settings.image_size.height) * narrow_cast<size_t>(settings.image_size.width) * narrow_cast<size_t>(settings.channels);
+            
+            std::unique_lock guard{index_mutex};
+            if(current_written + current_size >= 2u * 1000u * 1000u * 1000u * 1000u) {
+                write_npz_file();
+            }
+            
+            /// append our current arrays
+            current_written += current_size;
+            
             // partial_apply (chunked results)
-            std::vector<Image::Ptr> images;
-            images.reserve(results.size());
+            images.reserve(images.size() + results.size()
+                                            * narrow_cast<size_t>(settings.image_size.width)
+                                            * narrow_cast<size_t>(settings.image_size.height)
+                                            * narrow_cast<size_t>(settings.channels));
+            ids.reserve(ids.size() + results.size());
+            frames.reserve(frames.size() + results.size());
+            bids.reserve(bids.size() + results.size());
+            frame_tracklet_ids.reserve(frame_tracklet_ids.size() + results.size());
             
-            for(auto &&r : results)
-                images.emplace_back(std::move(r.image));
+            tag_offsets.reserve(tag_offsets.size() + results.size());
+            tags.reserve(tags.size() + results.size());
             
-            std::vector<Idx_t> ids; ids.reserve(results.size());
-            std::vector<Frame_t> frames;
             for (auto &r : results) {
-                ids.push_back(r.fdx);
-                frames.push_back(r.frame);
+                /// save image-centric information
+                assert(r.frame.valid());
+                ids.push_back(r.fdx.get());
+                bids.push_back((uint32_t)r.bdx);
+                frames.push_back(r.frame.get());
+                
+                auto query = static_cast<const CustomAcceptedQuery*>(r.query.get());
+                //qids.push_back(query->id);
+                
+                if(auto it = query->frame_tracklet_ids.find(r.fdx);
+                   it != query->frame_tracklet_ids.end())
+                {
+                    frame_tracklet_ids.push_back(it->second);
+                } else {
+                    frame_tracklet_ids.push_back(uint64_t(-1));
+                }
+                
+                for(const Tags& coll : query->tags) {
+                    if(coll.tags.empty())
+                        FormatWarning("Tags empty for source:", coll.source, " at ", r.frame);
+                    tags.push_back(coll.id.value());
+                }
+                
+                tag_offsets.push_back(tags.size());
+                
+                assert(r.image->cols == settings.image_size.width);
+                assert(r.image->size() == narrow_cast<size_t>(settings.image_size.width)
+                                          * narrow_cast<size_t>(settings.image_size.height)
+                                          * narrow_cast<size_t>(settings.channels));
+                
+                images.insert(images.end(), (const uchar*)r.image->data(), (const uchar*)r.image->data() + r.image->size());
             }
-            
-            std::vector<std::set<FrameTag>> tags; tags.reserve(results.size());
-            for(auto &r : results) {
-                tags.push_back(std::move(static_cast<const CustomAcceptedQuery*>(r.query.get())->tags));
-            }
-            
-#ifndef NDEBUG
-            Print("ImageExtractor has ", images.size(), " images and ", results.size(), " results, ids ", ids.size(), ".");
-#endif
         },
-        [](auto extractor, double percent, bool finished) {
+        [&](auto extractor, double percent, bool finished) {
             // callback
             if(finished) {
+                std::unique_lock guard{index_mutex};
+                write_npz_file();
+                
                 Print("[Apply] All done extracting. Overall pushed ", extractor->pushed_items());
                 
             } else {
@@ -476,8 +753,12 @@ void export_tag_annotations(TagDatasetConfig config) {
     };
     
     e.future().get();
+    Print("Done");
 }
 
+}
+
+namespace track::detect::annotation_export {
 
 std::string frame_stem(Frame_t frame) {
     std::ostringstream ss;
@@ -541,7 +822,7 @@ Summary summarize(const Options& options, std::optional<Frame_t> source_length, 
     summary.total_images = summary.annotated_frames + summary.background_frames;
 
     if(options.annotations.empty())
-        summary.errors.emplace_back("No track_annotations are available to export.");
+        summary.errors.emplace_back("No track_detect_annotations are available to export.");
     if(options.output_directory.empty())
         summary.errors.emplace_back("Output dataset folder is empty.");
     if(options.background_percent < 0.f)

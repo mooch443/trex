@@ -331,42 +331,27 @@ bool Individual::has(Frame_t frame) const {
 }
 
 decltype(Individual::_tracklets)::const_iterator Individual::iterator_for(Frame_t frameIndex) const {
-    if(empty())
-        return _tracklets.end();
-    
-    if(not frameIndex.valid()
+    if(empty()
+       || not frameIndex.valid()
        || frameIndex < _startFrame)
-       //|| frameIndex > _endFrame)
     {
         return _tracklets.end();
     }
-    if(frameIndex == _startFrame) {
-        return _tracklets.begin();
-    }
-    if(frameIndex == _endFrame)
-        return --_tracklets.end();
-    
-    auto begin = _tracklets.begin();
-    auto end = _tracklets.end();
-    //assert(frameIndex <= (*--_tracklets.end())->range.end);
-    
-    auto it = std::lower_bound(begin, end, frameIndex, [](const auto& ptr, Frame_t frame){
-        return ptr->start() < frame;
+
+    const auto begin = _tracklets.begin();
+    const auto end = _tracklets.end();
+
+    if(frameIndex >= _endFrame)
+        return std::prev(end);
+    if(frameIndex == _startFrame)
+        return begin;
+
+    const auto it = std::upper_bound(begin, end, frameIndex,
+                                    [](Frame_t frame, const auto& tracklet) {
+        return frame < tracklet->start();
     });
-    if(it != end) {
-        if((*it)->start() > frameIndex) {
-            if(it == begin)
-                it = end;
-            else
-                --it;
-        }
-        
-    } else if(!_tracklets.empty()) {
-        --it;
-    }
-    
-    assert(it == _tracklets.end() || (*it)->start() <= frameIndex);
-    return it;
+
+    return it == begin ? end : std::prev(it);
 }
 
 std::shared_ptr<TrackletInformation> Individual::tracklet_for(Frame_t frameIndex) const {
@@ -2236,61 +2221,66 @@ Probability Individual::probability(const CachedSettings& settings, MaybeLabel l
     //};
 }
 
-const BasicStuff* Individual::find_frame(Frame_t frameIndex) const
+std::optional<std::pair<const track::BasicStuff*, const track::TrackletInformation*>> Individual::find_tracklet_for(Frame_t frameIndex) const noexcept(not cmn::is_debug_mode())
 {
-    if(empty()) {
+    if(empty())
+        return std::nullopt;
+
+    if(frameIndex <= _startFrame) {
+        return std::pair(
+            _basic_stuff.front().get(),
+            _tracklets.front().get()
+        );
+    }
+    if(frameIndex >= _endFrame) {
+        return std::pair(
+            _basic_stuff.back().get(),
+            _tracklets.back().get()
+        );
+    }
+    
+    const auto begin = _tracklets.begin();
+    const auto end = _tracklets.end();
+    const auto last = std::prev(end);
+
+    auto it = last;
+    if(frameIndex < (*last)->start()) {
+        const auto upper = std::upper_bound(
+            begin, end, frameIndex,
+            [](Frame_t frame, const auto& tracklet) {
+                return frame < tracklet->start();
+            });
+
+#ifndef NDEBUG
+        if(upper == begin) {
+            throw U_EXCEPTION("(", identity().ID(), ") frame ", frameIndex,
+                              ": cannot find basic_stuff after finding tracklet ",
+                              (*upper)->start(), "-", (*upper)->end(), "");
+        }
+#endif
+
+        it = std::prev(upper);
+    }
+
+    const auto& tracklet = **it;
+    const auto index =
+        tracklet.basic_stuff(cmn::min(frameIndex, tracklet.end()));
+
+    assert(index >= 0
+           && static_cast<size_t>(index) < _basic_stuff.size());
+
+    return std::pair(
+        _basic_stuff[static_cast<size_t>(index)].get(),
+        it->get()
+    );
+}
+
+const BasicStuff* Individual::find_frame(Frame_t frameIndex) const noexcept(not cmn::is_debug_mode())
+{
+    auto t = find_tracklet_for(frameIndex);
+    if(not t)
         return nullptr;
-    }
-    
-    if(frameIndex <= _startFrame)
-        return _basic_stuff.front().get();
-    if(frameIndex >= _endFrame)
-        return _basic_stuff.back().get();
-    
-    auto end = _tracklets.end();
-    auto it = std::lower_bound(_tracklets.begin(), end, frameIndex, [](const auto& ptr, Frame_t frame){
-        return ptr->start() < frame;
-    });
-    
-    if(it == end) { // we are out of range, return last
-        auto idx = _tracklets.back()->basic_stuff(frameIndex);
-        if(idx != -1)
-            return _basic_stuff[ idx ].get();
-        else
-            return _basic_stuff.back().get();
-    }
-    
-    int32_t index = (int32_t)_basic_stuff.size()-1;
-    if((*it)->start() > frameIndex) {
-        if(it != _tracklets.begin()) {
-            // it is either in between tracklets (no frame)
-            // or inside the previous segment
-            --it;
-            
-            if((*it)->contains(frameIndex)) {
-                index = (*it)->basic_stuff(frameIndex);
-            } else {
-                index = (*it)->basic_index.back();
-            }
-            
-        } else {
-            // it is located before our first startFrame
-            // this should not happen
-            //index = it->second->basic_index.front();
-            throw U_EXCEPTION("(",identity().ID(),") frame ",frameIndex,": cannot find basic_stuff after finding tracklet ",(*it)->start(),"-",(*it)->end(),"");
-        }
-        
-    } else {
-        if((*it)->contains(frameIndex)) {
-            index = (*it)->basic_stuff(frameIndex);
-        } else {
-            assert((*it)->start() == frameIndex);
-            index = (*it)->basic_index.front();
-        }
-    }
-    
-    assert(index >= 0 && (uint64_t)index < _basic_stuff.size());
-    return _basic_stuff[ index ].get();
+    return t->first;
 }
 
 MovementInformation Individual::calculate_previous_vector(Frame_t frameIndex) const {

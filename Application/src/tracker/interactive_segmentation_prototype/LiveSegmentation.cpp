@@ -113,7 +113,7 @@ struct LiveSegmentation::Data {
     std::unique_ptr<pv::File> _output_file;
     std::optional<track::detect::Sam3Prompts> _last_prompt_repository;
     
-    bool has_annotations(Frame_t index) const {
+    bool has_detect_annotations(Frame_t index) const {
         auto detect_sam3_prompt = READ_SETTING_WITH_DEFAULT(detect_sam3_prompt, std::optional<track::detect::Sam3Prompts>{});
         if(not detect_sam3_prompt)
             return false;
@@ -199,7 +199,7 @@ struct LiveSegmentation::Data {
 
     void store_frame_if_annotated(SegmentationData&& data, uint64_t prompt_revision) {
         auto index = data.original_index();
-        if(not has_annotations(index)) {
+        if(not has_detect_annotations(index)) {
             return; /// no need to store
         }
         
@@ -678,7 +678,7 @@ void LiveSegmentation::_draw(DrawStructure& graph) {
                     VarFunc("frame_requested", [this](const VarProps&) -> std::optional<Frame_t> {
                         return _last_requested_frame;
                     }),
-                    VarFunc("annotations", [this](const VarProps&) -> std::vector<glz::json_t> {
+                    VarFunc("detect_annotations", [this](const VarProps&) -> std::vector<glz::json_t> {
                         std::vector<glz::json_t> result;
                         auto detect_sam3_prompt = READ_SETTING_WITH_DEFAULT(detect_sam3_prompt, std::optional<track::detect::Sam3Prompts>{});
                         if(not detect_sam3_prompt)
@@ -737,7 +737,7 @@ void LiveSegmentation::_draw(DrawStructure& graph) {
                         _playback = Meta::fromStr<bool>(action.parameters.front());
                         Print("Playback = ", _playback.load());
                     }),
-                    ActionFunc("remove_annotation", [this](const Action& action) {
+                    ActionFunc("remove_detect_annotation", [this](const Action& action) {
                         REQUIRE_EXACTLY(1, action);
                         auto object_id = Meta::fromStr<uint64_t>(action.parameters.front());
                         Print("Remove annotation ", object_id);

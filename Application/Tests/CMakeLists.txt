@@ -16,7 +16,7 @@ FetchContent_MakeAvailable(googletest)
 include_directories(../src/tracker)
 include_directories(../src/ProcessedVideo)
 
-add_executable(test_matching test_matching.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
+add_executable(test_matching test_matching.cpp test_individual.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
 target_compile_definitions(test_matching PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
 
 add_executable(test_commandline test_commandline.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
@@ -75,8 +75,8 @@ target_compile_definitions(test_dispatcher PRIVATE -DTREX_TEST_FOLDER="${CMAKE_C
 add_executable(test_sam3promptpayload test_sam3promptpayload.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
 target_compile_definitions(test_sam3promptpayload PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
 
-add_executable(test_annotation_exporter test_annotation_exporter.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
-target_compile_definitions(test_annotation_exporter PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
+add_executable(test_detect_annotation_io test_detect_annotation_io.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
+target_compile_definitions(test_detect_annotation_io PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
 
 if(NOT TREX_CONDA_PACKAGE_INSTALL)
     add_executable(test_detection_ml_failures test_detection_ml_failures.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
@@ -157,7 +157,7 @@ set(TARGETS
     test_tracking_export_e2e
     test_dispatcher
     test_sam3promptpayload
-    test_annotation_exporter
+    test_detect_annotation_io
 )
 if(NOT TREX_CONDA_PACKAGE_INSTALL)
     list(APPEND TARGETS test_detection_ml_failures)
@@ -213,7 +213,7 @@ target_link_libraries(test_detection_pipeline_failures PUBLIC gtest)
 target_link_libraries(test_tracking_export_e2e PUBLIC gtest)
 target_link_libraries(test_dispatcher PUBLIC gtest)
 target_link_libraries(test_sam3promptpayload PUBLIC gtest)
-target_link_libraries(test_annotation_exporter PUBLIC gtest)
+target_link_libraries(test_detect_annotation_io PUBLIC gtest)
 if(NOT TREX_CONDA_PACKAGE_INSTALL)
     target_link_libraries(test_detection_ml_failures PUBLIC gtest)
     target_link_libraries(test_headless_convert_exit PUBLIC gtest)
@@ -343,7 +343,7 @@ target_link_libraries(test_sam3promptpayload PUBLIC
 )
 trex_link_static_python_impl(test_sam3promptpayload)
 
-target_link_libraries(test_annotation_exporter PUBLIC
+target_link_libraries(test_detect_annotation_io PUBLIC
     trex_tracking
     commons
     pv
@@ -422,7 +422,7 @@ set_target_properties(test_detection_pipeline_failures PROPERTIES XCODE_ATTRIBUT
 set_target_properties(test_tracking_export_e2e PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 set_target_properties(test_dispatcher PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 set_target_properties(test_sam3promptpayload PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
-set_target_properties(test_annotation_exporter PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
+set_target_properties(test_detect_annotation_io PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 if(NOT TREX_CONDA_PACKAGE_INSTALL)
     set_target_properties(test_detection_ml_failures PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
     set_target_properties(test_headless_convert_exit PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
@@ -481,7 +481,7 @@ trex_prepend_test_path(test-tracking-export-e2e trex_check_python)
 set_tests_properties(test-tracking-export-e2e PROPERTIES TIMEOUT 600)
 add_test(NAME test-dispatcher COMMAND test_dispatcher)
 add_test(NAME test-sam3promptpayload COMMAND test_sam3promptpayload)
-add_test(NAME test-annotation-exporter COMMAND test_annotation_exporter)
+add_test(NAME test-detect-annotation-io COMMAND test_detect_annotation_io)
 if(NOT TREX_CONDA_PACKAGE_INSTALL)
     add_test(NAME test-detection-ml-failures COMMAND test_detection_ml_failures)
     trex_prepend_test_path(test-detection-ml-failures trex_check_python)

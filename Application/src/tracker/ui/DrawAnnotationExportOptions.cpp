@@ -18,8 +18,9 @@ namespace {
 
 using namespace dyn;
 using namespace track;
-using namespace track::annotation_export;
-namespace dataset = track::annotation_dataset;
+using namespace track::detect;
+using namespace track::detect::annotation_export;
+namespace dataset = track::detect::annotation_dataset;
 
 std::string join(const std::vector<std::string>& parts, const std::string& separator) {
     std::string out;
@@ -67,7 +68,7 @@ struct DrawAnnotationExportOptions::Data {
     }
 
     AnnotationMap annotations() const {
-        auto map = READ_SETTING_WITH_DEFAULT(track_annotations, AnnotationMap{});
+        auto map = READ_SETTING_WITH_DEFAULT(track_detect_annotations, AnnotationMap{});
         if(!map)
             map.init();
         return map;
@@ -93,7 +94,7 @@ struct DrawAnnotationExportOptions::Data {
             input = file::Path("annotation_dataset");
 
         std::string folder = (std::string)input.filename() + "_annotations_" + _format.str();
-        auto suffix = dataset::clean_filename_suffix(_suffix_text);
+        auto suffix = file::sanitize_filename(_suffix_text, '_');
         if(!suffix.empty())
             folder += "_" + suffix;
         return file::DataLocation::parse("output", folder);
@@ -282,7 +283,8 @@ struct DrawAnnotationExportOptions::Data {
                             };
 
                             try {
-                                export_tag_annotations(TagDatasetConfig{.video_file = _video});
+                                track::annotation_export::export_tag_annotations(
+                                    track::annotation_export::TagDatasetConfig{.video_file = _video});
                                 //Print("Exported annotation dataset to ", summary.output_directory, ".");
                                 SETTING(gui_show_annotation_export_options) = false;
                             } catch(const std::exception& e) {

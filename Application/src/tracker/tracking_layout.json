@@ -37,7 +37,7 @@
 "then":
 {
     "type": "each",
-    "var": "{annotations}",
+    "var": "{detect_annotations}",
     "do": {
         "type":"collection",
         "children":[
@@ -60,7 +60,7 @@
                 "fill":[255,0,0, 10],
                 "corners":["all", 8],
                 "modules":["draggable"],
-                "drag":"move_whole_annotation:{i.id}",
+                "drag":"move_whole_detect_annotation:{i.id}",
                 "children":[
                     {
                         "type":"condition",
@@ -125,7 +125,7 @@
                                 "fill": [255,255,255,125],
                                 "line":"{if:{||:{selected}:{hovered}}:[25,25,25,200]:[100,100,100,150]}",
                                 "color":[255,255,255,255],
-                                "drag":"move_annotation:{i.id}:{index}"
+                                "drag":"move_detect_annotation:{i.id}:{index}"
                             },
                             {
                                 "type":"stext",
@@ -153,7 +153,7 @@
 
             {
                 "type":"button",
-                "action":"remove_annotation:{i.id}",
+                "action":"remove_detect_annotation:{i.id}",
                 "text":"<sym>⮿</sym>",
                 "size":[25,30],
                 "corners":["all", 18],
@@ -187,7 +187,7 @@
 
         {
             "type": "each",
-            "var": "{annotations}",
+            "var": "{detect_annotations}",
             "as":"a",
             "do": {
                 "type":"condition",
@@ -1153,9 +1153,9 @@
                                     "action":"export_annotations"
                                 },
                                 {
-                                    "text":"Import annotations",
-                                    "detail":"imports YOLO or COCO annotation datasets into track_annotations",
-                                    "action":"import_annotations"
+                                    "text":"Import detect annotations",
+                                    "detail":"imports YOLO or COCO detect-annotation datasets into track_detect_annotations",
+                                    "action":"import_detect_annotations"
                                 },
                                 {
                                     "text":"<sym>🛠</sym> Save config",

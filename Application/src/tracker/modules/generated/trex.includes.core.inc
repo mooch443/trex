@@ -2,7 +2,7 @@
 // Do not edit by hand.
 
 #include <core/AbstractVideoSource.h>
-#include <core/AnnotationDataset.h>
+#include <core/DetectAnnotationDataset.h>
 #include <core/BaslerVideoSource.h>
 #include <core/BackgroundTask.h>
 #include <core/BlurryVideoLoop.h>
@@ -36,4 +36,4 @@
 #include <core/VideoVideoSource.h>
 #include <core/WebcamVideoSource.h>
 #include <core/Network.h>
-#include <core/annotation.h>
+#include <core/DetectAnnotation.h>

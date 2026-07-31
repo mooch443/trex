@@ -3,46 +3,49 @@
 
 // tracking/AnnotationExporter.h
 namespace trex_module_smoke::trex_tracking::track::annotation_export {
-using ::track::annotation_export::Format;
-using ::track::annotation_export::Options;
-using ::track::annotation_export::Summary;
 using ::track::annotation_export::TagDatasetConfig;
-using ::track::annotation_export::annotation_to_yolo;
-using ::track::annotation_export::build_coco_json;
-using ::track::annotation_export::build_frame_mapping_csv;
-using ::track::annotation_export::default_keypoint_names;
-using ::track::annotation_export::export_dataset;
 using ::track::annotation_export::export_tag_annotations;
-using ::track::annotation_export::frame_stem;
-using ::track::annotation_export::sample_background_frames;
-using ::track::annotation_export::summarize;
 }
 
-// tracking/AnnotationImporter.h
-namespace trex_module_smoke::trex_tracking::track::annotation_import {
-using ::track::annotation_import::Format;
-using ::track::annotation_import::FrameIndexParseResult;
-using ::track::annotation_import::ImportOptions;
-using ::track::annotation_import::ImportPreview;
-using ::track::annotation_import::MetadataChanges;
-using ::track::annotation_import::apply_dataset_import;
-using ::track::annotation_import::apply_yolo_import;
-using ::track::annotation_import::parse_source_index_from_image_stem;
-using ::track::annotation_import::preview_coco_import;
-using ::track::annotation_import::preview_dataset_import;
-using ::track::annotation_import::preview_yolo_import;
+namespace trex_module_smoke::trex_tracking::track::detect::annotation_export {
+using ::track::detect::annotation_export::Format;
+using ::track::detect::annotation_export::Options;
+using ::track::detect::annotation_export::Summary;
+using ::track::detect::annotation_export::annotation_to_yolo;
+using ::track::detect::annotation_export::build_coco_json;
+using ::track::detect::annotation_export::build_frame_mapping_csv;
+using ::track::detect::annotation_export::default_keypoint_names;
+using ::track::detect::annotation_export::export_dataset;
+using ::track::detect::annotation_export::frame_stem;
+using ::track::detect::annotation_export::sample_background_frames;
+using ::track::detect::annotation_export::summarize;
 }
 
-namespace trex_module_smoke::trex_tracking::track::annotation_import::import_scope_t {
-using ::track::annotation_import::import_scope_t::Class;
+// tracking/DetectAnnotationImporter.h
+namespace trex_module_smoke::trex_tracking::track::detect::annotation_import {
+using ::track::detect::annotation_import::Format;
+using ::track::detect::annotation_import::FrameIndexParseResult;
+using ::track::detect::annotation_import::ImportOptions;
+using ::track::detect::annotation_import::ImportPreview;
+using ::track::detect::annotation_import::MetadataChanges;
+using ::track::detect::annotation_import::apply_dataset_import;
+using ::track::detect::annotation_import::apply_yolo_import;
+using ::track::detect::annotation_import::parse_source_index_from_image_stem;
+using ::track::detect::annotation_import::preview_coco_import;
+using ::track::detect::annotation_import::preview_dataset_import;
+using ::track::detect::annotation_import::preview_yolo_import;
 }
 
-namespace trex_module_smoke::trex_tracking::track::annotation_import::merge_mode_t {
-using ::track::annotation_import::merge_mode_t::Class;
+namespace trex_module_smoke::trex_tracking::track::detect::annotation_import::import_scope_t {
+using ::track::detect::annotation_import::import_scope_t::Class;
 }
 
-namespace trex_module_smoke::trex_tracking::track::annotation_import::task_t {
-using ::track::annotation_import::task_t::Class;
+namespace trex_module_smoke::trex_tracking::track::detect::annotation_import::merge_mode_t {
+using ::track::detect::annotation_import::merge_mode_t::Class;
+}
+
+namespace trex_module_smoke::trex_tracking::track::detect::annotation_import::task_t {
+using ::track::detect::annotation_import::task_t::Class;
 }
 
 // tracking/AutomaticMatches.h

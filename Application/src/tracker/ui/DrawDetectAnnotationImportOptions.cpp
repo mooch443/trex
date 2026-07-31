@@ -1,6 +1,6 @@
-#include "DrawAnnotationImportOptions.h"
+#include "DrawDetectAnnotationImportOptions.h"
 
-#include <tracking/AnnotationImporter.h>
+#include <tracking/DetectAnnotationImporter.h>
 #include <file/PathArray.h>
 #include <gui/DrawStructure.h>
 #include <gui/DynamicGUI.h>
@@ -17,8 +17,9 @@ namespace {
 
 using namespace dyn;
 using namespace track;
-using namespace track::annotation_import;
-namespace dataset = track::annotation_dataset;
+using namespace track::detect;
+using namespace track::detect::annotation_import;
+namespace dataset = track::detect::annotation_dataset;
 
 std::string join(const std::vector<std::string>& parts, const std::string& separator) {
     std::string out;
@@ -62,7 +63,7 @@ struct SourceChoiceItems {
 
 }
 
-struct DrawAnnotationImportOptions::Data {
+struct DrawDetectAnnotationImportOptions::Data {
     PlaceinLayout _layout;
     Entangled parent;
     DynamicGUI _gui;
@@ -87,7 +88,7 @@ struct DrawAnnotationImportOptions::Data {
     }
 
     AnnotationMap annotations() const {
-        auto map = READ_SETTING_WITH_DEFAULT(track_annotations, AnnotationMap{});
+        auto map = READ_SETTING_WITH_DEFAULT(track_detect_annotations, AnnotationMap{});
         if(!map)
             map.init();
         return map;
@@ -172,7 +173,7 @@ struct DrawAnnotationImportOptions::Data {
                 }
                 text += ".";
             }
-            text += "\nMode: <c>" + _mode.str() + "</c> current <c>track_annotations</c>.";
+            text += "\nMode: <c>" + _mode.str() + "</c> current <c>track_detect_annotations</c>.";
         } else {
             text = "<gray>No importable annotations have been parsed yet.</gray>";
         }
@@ -311,7 +312,7 @@ struct DrawAnnotationImportOptions::Data {
 
         _gui = DynamicGUI{
             .gui = SceneManager::getInstance().gui_task_queue(),
-            .path = "annotation_import_layout.json",
+            .path = "detect_annotation_import_layout.json",
             .context = [&]() {
                 dyn::Context context;
                 context.actions = {
@@ -357,7 +358,7 @@ struct DrawAnnotationImportOptions::Data {
                         _metadata_confirmed = !_metadata_confirmed;
                     }),
                     ActionFunc("close", [](const Action&) {
-                        SETTING(gui_show_annotation_import_options) = false;
+                        SETTING(gui_show_detect_annotation_import_options) = false;
                     }),
                     ActionFunc("import", [this](const Action&) {
                         auto options = make_options();
@@ -366,7 +367,7 @@ struct DrawAnnotationImportOptions::Data {
 
                         WorkProgress::add_queue("Importing annotations...", [options, apply_metadata, scope]() {
                             auto show_error = [](std::string message) {
-                                SETTING(gui_show_annotation_import_options) = true;
+                                SETTING(gui_show_detect_annotation_import_options) = true;
                                 SceneManager::enqueue([message = std::move(message)](IMGUIBase*, DrawStructure& graph) {
                                     graph.dialog(
                                         "Annotation import failed.\n\n" + settings::htmlify(message),
@@ -381,7 +382,7 @@ struct DrawAnnotationImportOptions::Data {
                                     throw InvalidArgumentException("Select a .yaml/.yml YOLO data.yaml file or a .json COCO annotations file.");
                                 auto preview = preview_dataset_import(options, scope);
                                 auto imported = apply_dataset_import(preview, options.existing_annotations, options.mode, scope);
-                                SETTING(track_annotations) = std::move(imported);
+                                SETTING(track_detect_annotations) = std::move(imported);
                                 if(apply_metadata) {
                                     if(preview.metadata.class_names_changed)
                                         SETTING(detect_classes) = cmn::blob::MaybeObjectClass_t{preview.metadata.imported_class_names};
@@ -393,7 +394,7 @@ struct DrawAnnotationImportOptions::Data {
                                         SETTING(detect_format) = preview.metadata.imported_detect_format;
                                 }
                                 Print("Imported annotation dataset from ", options.dataset_file, ".");
-                                SETTING(gui_show_annotation_import_options) = false;
+                                SETTING(gui_show_detect_annotation_import_options) = false;
                             } catch(const std::exception& e) {
                                 show_error(e.what());
                             } catch(...) {
@@ -428,16 +429,16 @@ struct DrawAnnotationImportOptions::Data {
     }
 };
 
-DrawAnnotationImportOptions::DrawAnnotationImportOptions()
+DrawDetectAnnotationImportOptions::DrawDetectAnnotationImportOptions()
     : _data(new Data)
 {
 }
 
-DrawAnnotationImportOptions::~DrawAnnotationImportOptions() {
+DrawDetectAnnotationImportOptions::~DrawDetectAnnotationImportOptions() {
     delete _data;
 }
 
-void DrawAnnotationImportOptions::draw(DrawStructure& graph) {
+void DrawDetectAnnotationImportOptions::draw(DrawStructure& graph) {
     _data->draw(graph);
 }
 

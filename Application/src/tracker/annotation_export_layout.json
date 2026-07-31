@@ -261,7 +261,7 @@
                 },
                 "else": {
                   "type": "stext",
-                  "text": "<gray>There are no annotations to export yet. Draw annotations in the tracking view first (<c>track_annotations</c> is empty).</gray>",
+                  "text": "<gray>There are no detect annotations to export yet. Draw annotations in the tracking view first (<c>track_detect_annotations</c> is empty).</gray>",
                   "max_size": "[{content_width}, 150]",
                   "pad": [8, 12, 8, 8],
                   "font": {"size": 0.48},
