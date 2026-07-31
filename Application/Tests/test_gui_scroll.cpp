@@ -351,7 +351,7 @@ TEST(PointerEventsTest, ClickReleaseUsesDragThreshold) {
     DrawStructure graph(200, 200);
     Rect background(Box(0, 0, 100, 100));
     background.set_clickable(true);
-    background.set(PointerEvents{Events::Click});
+    //background.set(PointerEvents{Events::Click});
 
     int mouse_downs = 0;
     int mouse_ups = 0;
