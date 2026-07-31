@@ -66,6 +66,9 @@ echo findlib is %findlib%
 echo CMakeGen %CMAKE_GEN%
 echo Generator %CMAKE_GENERATOR%
 
+rem Use the generator matching the installed Visual Studio host while retaining
+rem the toolset selected by Conda's compiler activation (for example v143).
+if not "%CMAKE_GEN%" == "" set "CMAKE_GENERATOR=%CMAKE_GEN%"
 if "%CMAKE_GENERATOR%" == "" (
     set CMAKE_GENERATOR=Visual Studio 17 2022
 )
@@ -77,6 +80,7 @@ if "%CMAKE_GENERATOR%" == "Visual Studio 16 2019 Win64" set CMAKE_GENERATOR=Visu
 if "%CMAKE_GENERATOR%" == "Visual Studio 17 2022 Win64" set CMAKE_GENERATOR=Visual Studio 17 2022
 if "%CMAKE_GENERATOR%" == "Visual Studio 18 2026 Win64" set CMAKE_GENERATOR=Visual Studio 18 2026
 set GENERATOR=-G "%CMAKE_GENERATOR%"
+if not "%CMAKE_GENERATOR_TOOLSET%" == "" set GENERATOR=%GENERATOR% -T "%CMAKE_GENERATOR_TOOLSET%"
 echo GENERATOR %GENERATOR%
 
 rem --------------------------------------------------------------------------
