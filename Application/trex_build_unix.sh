@@ -17,6 +17,20 @@ fi
 
 git submodule update --recursive --init
 
+TREX_CONFIGURE=${TREX_CONFIGURE-buildall}
+case "${TREX_CONFIGURE}" in
+    buildall|minimal|"") ;;
+    *)
+        echo "Invalid TREX_CONFIGURE='${TREX_CONFIGURE}'; expected buildall, minimal, or an empty value." >&2
+        exit 2
+        ;;
+esac
+TREX_CONFIGURE_ARGS=()
+if [ -n "${TREX_CONFIGURE}" ]; then
+    TREX_CONFIGURE_ARGS+=("-DTREX_CONFIGURE=${TREX_CONFIGURE}")
+fi
+echo "TREX_CONFIGURE=${TREX_CONFIGURE:-<individual COMMONS_BUILD_* switches>}"
+
 IN_CONDA=$(printenv CONDA_PREFIX_1)
 if [ ! $IN_CONDA ]; then
     IN_CONDA=${CONDA_PREFIX}
@@ -63,12 +77,9 @@ if [ "$(uname)" == "Linux" ]; then
             -DPYTHON_LIBRARY:FILEPATH=$(python3 ../find_library.py) \
             -DPYTHON_EXECUTABLE:FILEPATH=$(which python3) \
             -DCMAKE_BUILD_TYPE=Release \
+            "${TREX_CONFIGURE_ARGS[@]}" \
             -DWITH_FFMPEG=ON \
-            -DCOMMONS_BUILD_ZLIB=ON \
-            -DCOMMONS_BUILD_ZIP=ON \
-            -DCOMMONS_BUILD_PNG=ON \
             -DTREX_WITH_TESTS=ON \
-            -DCOMMONS_BUILD_OPENCV=ON \
             -DCMAKE_PREFIX_PATH="$CONDA_PREFIX;$CONDA_PREFIX/lib/pkgconfig;$CONDA_PREFIX/lib" \
             -DWITH_PYLON=ON
     else
@@ -86,12 +97,9 @@ if [ "$(uname)" == "Linux" ]; then
             -DPYTHON_LIBRARY:FILEPATH=$(python3 ../find_library.py) \
             -DPYTHON_EXECUTABLE:FILEPATH=$(which python3) \
             -DCMAKE_BUILD_TYPE=Release \
+            "${TREX_CONFIGURE_ARGS[@]}" \
             -DWITH_FFMPEG=ON \
-            -DCOMMONS_BUILD_ZLIB=ON \
-            -DCOMMONS_BUILD_ZIP=ON \
-            -DCOMMONS_BUILD_PNG=ON \
             -DTREX_WITH_TESTS=ON \
-            -DCOMMONS_BUILD_OPENCV=ON \
             -DCMAKE_PREFIX_PATH="$PKG_CONFIG_PATH" \
             -DWITH_PYLON=ON
     fi
@@ -122,13 +130,10 @@ else
             -DPYTHON_LIBRARY:FILEPATH=$(python3 ../find_library.py) \
             -DPYTHON_EXECUTABLE:FILEPATH=$(which python3) \
             -DCMAKE_BUILD_TYPE=Release  \
+            "${TREX_CONFIGURE_ARGS[@]}" \
             -G Xcode \
             -DWITH_FFMPEG=ON \
             -DPYTHON3_PACKAGES_PATH=$(python3 -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())") \
-            -DCOMMONS_BUILD_ZLIB=ON \
-            -DCOMMONS_BUILD_ZIP=ON \
-            -DCOMMONS_BUILD_PNG=ON \
-            -DCOMMONS_BUILD_OPENCV=ON \
             -DCMAKE_OSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET} \
             -DCMAKE_OSX_SYSROOT=/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX${MACOSX_DEPLOYMENT_TARGET}.sdk \
             -DCMAKE_PREFIX_PATH="$CONDA_PREFIX;$CONDA_PREFIX/lib/pkgconfig;$CONDA_PREFIX/lib"
@@ -147,10 +152,7 @@ else
             -DPYTHON_LIBRARY:FILEPATH=$(python3 ../find_library.py) \
             -DPYTHON_EXECUTABLE:FILEPATH=$(which python3) \
             -DCMAKE_BUILD_TYPE=Release  \
-            -DCOMMONS_BUILD_ZLIB=ON \
-            -DCOMMONS_BUILD_ZIP=ON \
-            -DCOMMONS_BUILD_PNG=ON \
-            -DCOMMONS_BUILD_OPENCV=ON \
+            "${TREX_CONFIGURE_ARGS[@]}" \
             -DCMAKE_OSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET} \
             -DCMAKE_OSX_SYSROOT=/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX${MACOSX_DEPLOYMENT_TARGET}.sdk \
             -G Xcode \
@@ -172,11 +174,5 @@ fi
 
 echo "NPROC=$NPROC"
 
-# Build targets with cmake
-CMAKE_BUILD_PARALLEL_LEVEL=$NPROC cmake --build . --target Z_LIB --config Release --parallel ${NPROC}
-CMAKE_BUILD_PARALLEL_LEVEL=$NPROC cmake --build . --target libzip --config Release --parallel ${NPROC}
-CMAKE_BUILD_PARALLEL_LEVEL=$NPROC cmake --build . --target libpng_custom --config Release --parallel ${NPROC}
-cmake ..
-CMAKE_BUILD_PARALLEL_LEVEL=$NPROC cmake --build . --target CustomOpenCV --config Release --parallel ${NPROC}
-cmake ..
+# The normal target graph builds any selected custom dependencies first.
 CMAKE_BUILD_PARALLEL_LEVEL=$NPROC cmake --build . --config Release --parallel ${NPROC}

@@ -110,6 +110,9 @@ jobs:
       shell: pwsh
       working-directory: ${{ env.SHORT_WORKSPACE }}\conda
       run: |
+        cmake -P "$env:SHORT_WORKSPACE\Application\cmake\test_trex_dependency_profiles.cmake"
+        python test_select_config.py
+        python select_config.py minimal
         $branch = "${{ github.ref_name }}"
         $branchSanitized = $branch -replace '/', '_' -replace '-', '_'
 
@@ -171,7 +174,43 @@ jobs:
         conda create -y -p $env:TEST_PREFIX --override-channels -c "$env:CONDA_BLD_PATH" -c conda-forge trex
 
         conda run -p $env:TEST_PREFIX pvinfo -opencv_ffmpeg_support
-        conda run -p $env:TEST_PREFIX pvinfo -opencv_opencl_support
+        $savedErrorPreference = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        $openclOutput = (& conda run -p $env:TEST_PREFIX pvinfo -opencv_opencl_support 2>&1 | Out-String)
+        $openclStatus = $LASTEXITCODE
+        $ErrorActionPreference = $savedErrorPreference
+        Write-Host $openclOutput
+        if ($openclStatus -eq 0) {
+          throw "Minimal OpenCV unexpectedly reports OpenCL support."
+        }
+        conda run -p $env:TEST_PREFIX python "$env:SHORT_WORKSPACE\conda\validate_minimal.py"
+
+        $trexCandidates = @(
+          (Join-Path $env:TEST_PREFIX "bin\trex.exe")
+          (Join-Path $env:TEST_PREFIX "Library\bin\trex.exe")
+          (Join-Path $env:TEST_PREFIX "Scripts\trex.exe")
+        )
+        $trexExe = $trexCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+        if (-not $trexExe) { throw "Could not locate the installed trex.exe." }
+        $dumpbinPath = (Get-Command dumpbin.exe -ErrorAction SilentlyContinue).Source
+        if (-not $dumpbinPath) {
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio\Installer\vswhere.exe"
+          if (Test-Path $vswhere) {
+            $dumpbinPath = (& $vswhere -latest -products '*' -find 'VC\Tools\MSVC\**\bin\Hostx64\x64\dumpbin.exe' | Select-Object -First 1)
+          }
+        }
+        if (-not $dumpbinPath) { throw "Could not locate dumpbin.exe." }
+        $dependencies = (& $dumpbinPath /DEPENDENTS $trexExe | Out-String)
+        if ($LASTEXITCODE -ne 0) { throw "dumpbin failed for $trexExe" }
+        Write-Host $dependencies
+        foreach ($pattern in @('opencv_(core|imgproc)', 'libpng|png16', 'libzip|zip\.dll', 'zlib|zlib1', 'avcodec')) {
+          if ($dependencies -notmatch $pattern) {
+            throw "TRex is missing expected DLL dependency pattern '$pattern'."
+          }
+        }
+        if ($dependencies -notmatch 'VCRUNTIME|MSVCP') {
+          throw "TRex does not appear to use the dynamic MSVC runtime (/MD)."
+        }
 
     - name: TestFunctions
       continue-on-error: true

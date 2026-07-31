@@ -101,7 +101,10 @@ jobs:
         conda list
         echo "::endgroup::"
         echo "::group::Fix Meta"
+        cmake -P $GITHUB_WORKSPACE/Application/cmake/test_trex_dependency_profiles.cmake
         cd $GITHUB_WORKSPACE/conda
+        python test_select_config.py
+        python select_config.py minimal
         p=${GITHUB_REF_NAME}
         p_sanitized=${p//\//_}
         p_sanitized=${p_sanitized//-/_}
@@ -129,7 +132,25 @@ jobs:
         conda activate test
         conda install -y git
         pvinfo -opencv_ffmpeg_support
-        pvinfo -opencv_opencl_support
+        if pvinfo -opencv_opencl_support; then
+          echo "Minimal OpenCV unexpectedly reports OpenCL support." >&2
+          exit 1
+        fi
+        python $GITHUB_WORKSPACE/conda/validate_minimal.py
+        trex_binary="$CONDA_PREFIX/bin/TRex.app/Contents/MacOS/TRex"
+        linkage=$(otool -L "$trex_binary")
+        echo "$linkage"
+        for dependency in 'libopencv_(core|imgproc)' libpng libzip 'libz\.' libavcodec; do
+          line=$(echo "$linkage" | grep -E "$dependency" | head -n 1)
+          if [ -z "$line" ] || [[ "$line" != *"@rpath"* && "$line" != *"$CONDA_PREFIX"* ]]; then
+            echo "Dependency '$dependency' does not use the installed Conda RPATH: $line" >&2
+            exit 1
+          fi
+        done
+        if ! otool -l "$trex_binary" | grep -A2 LC_RPATH | grep -q "$CONDA_PREFIX/lib"; then
+          echo "TRex does not contain the active Conda prefix RPATH." >&2
+          exit 1
+        fi
         echo "::endgroup::"
         echo "::group::TestFunctions"
         conda install -y unzip

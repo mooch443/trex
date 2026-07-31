@@ -112,10 +112,24 @@ Change them to the correct location within your filesystem. You may also have to
 
 Finally, you can build the package using::
 
+	# Default: bundled OpenCV/libpng/libzip/zlib
+	python select_config.py buildall
 	conda build .
 
+To use the faster environment-provider profile instead, select it before the build::
+
+	python select_config.py minimal
+	conda build .
+
+The selector reports the active recipe with ``python select_config.py status`` and
+refuses to overwrite an unrecognized, locally modified ``meta.yaml`` unless
+``--force`` is supplied. Restore the repository default with
+``python select_config.py buildall``. The minimal recipe uses Conda's headless
+OpenCV 4, libpng, libzip and zlib packages; FFmpeg remains a shared Conda
+dependency below version 8 in both profiles.
+
 .. NOTE::
-	Note that if you want to enable/disable certain features (e.g. use a locally installed OpenCV library, enable the Pylon SDK, etc.) the build script (namely ``build.sh`` or ``bld.bat`` on Windows) is the place where you can do that. You may need to add absolute paths to the cmake call (e.g. adding folders to ``CMAKE_PREFIX_PATH`` in ``build.sh``) so that it can find all your locally installed libraries -- in which case your conda package will probably not be portable.
+	The Conda selector is the canonical way to choose bundled or environment-provided native dependencies. For other features such as the Pylon SDK, adjust the CMake arguments in ``build.sh`` or ``bld.bat``. Locally supplied absolute dependency paths can make the resulting package non-portable.
 
 After compilation is successful, |trex| can be installed using:
 
@@ -197,7 +211,20 @@ Now we have to generate the project files for the given platform and compiler. T
 
 Regarding switches, TRex offers a couple of additional options, with which you can decide to either compile libraries on your own or use existing ones in your system/environment path -- see next section.
 
-The compile scripts will attempt to compile the software in Release mode and compile sub packages in a specific order, *since I was too lazy to make the CMakeLists work by themselves*. To compile in a different mode, let this run and then simply run ``cmake --build . --config Debug``, for example. If compilation succeeds, you should now be able to run |trex| from the command-line, within the environment selected during compilation.
+The compile scripts default to ``TREX_CONFIGURE=buildall``. Select the faster
+environment-provider build when the active environment contains OpenCV 4,
+libpng, libzip and zlib::
+
+	# Linux/macOS
+	TREX_CONFIGURE=minimal ../trex_build_unix.sh
+
+	# Windows (cmd.exe)
+	set TREX_CONFIGURE=minimal
+	..\trex_build_windows.bat
+
+The normal CMake target graph builds any selected bundled dependencies in the
+required order. If compilation succeeds, |trex| can be run from the environment
+selected during compilation.
 
 .. NOTE::
 
@@ -218,10 +245,12 @@ Special needs
 
 * **WITH_PYLON**: Activates Pylon compatibility, enabling support for machine vision cameras from Basler (using USB interfaces). We tested this with versions 5 and 6. See `Basler Pylon support`_ below.
 * **WITH_FFMPEG**: Enabled by default, but can be forcibly turned off. This enables the streaming of MP4 video when recording from a camera in |grabs|. See `FFMPEG support`_.
-* **TREX_BUILD_OPENCV**: If set to ``ON``, |trex| builds its own version of OpenCV with OpenCL support enabled, but otherwise limited features. Avoids using system provided binaries (or binaries in the conda environment) if enabled. See `Use an existing OpenCV distribution`_.
-* **TREX_BUILD_ZIP**: Builds libzip and libz.
-* **TREX_BUILD_PNG**: Builds libpng. If set to ``OFF``, then both libraries have to be provided in a way that CMake can find them.
-* **TREX_BUILD_GLFW**: In order to display windows and graphics inside these windows, GLFW is required. You can use a custom build by enabling this option.
+* **TREX_CONFIGURE**: ``buildall`` builds bundled OpenCV, libpng, libzip and zlib; ``minimal`` requires and dynamically links environment-provided versions. An explicit profile is authoritative and conflicts with individual switches are configuration errors. If this option is omitted, all four dependencies default to bundled builds while the individual switches below remain independently overridable.
+* **COMMONS_BUILD_OPENCV**: Build the bundled OpenCV 4 with OpenCL enabled. ``OFF`` requires a discoverable OpenCV 4 config package containing the modules used by |trex|. Conda's headless OpenCV is supported; its lack of OpenCL is an expected minimal-profile tradeoff.
+* **COMMONS_BUILD_ZLIB**: Build bundled zlib. ``OFF`` requires ``ZLIB::ZLIB`` from the environment.
+* **COMMONS_BUILD_ZIP**: Build bundled libzip. ``OFF`` requires the libzip config package or a discoverable ``ZIP::ZIP`` fallback.
+* **COMMONS_BUILD_PNG**: Build bundled libpng. ``OFF`` requires ``PNG::PNG`` from the environment.
+* **COMMONS_BUILD_GLFW**: Build bundled GLFW. Both dependency profiles leave this enabled.
 * **TREX_WITH_TESTS**: Build or don't build additional test executables.
 
 Basler Pylon support

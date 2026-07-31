@@ -53,7 +53,14 @@ rem fbgemm.dll). Both are installed here via pip so DLL ownership is consistent.
 set "PIP_ARGS="
 call :add_package "torchmetrics"
 call :add_package "tqdm"
-call :add_package "opencv-python>=4,<5"
+set "HAS_CONDA_PY_OPENCV=0"
+if exist "%PREFIX%\conda-meta\py-opencv-*.json" set "HAS_CONDA_PY_OPENCV=1"
+if "!HAS_CONDA_PY_OPENCV!"=="1" (
+    call :log "Conda py-opencv detected; keeping its cv2 module and skipping the PyPI OpenCV wheel."
+) else (
+    call :log "Conda py-opencv not detected; adding opencv-python^>=4,^<5 for the buildall profile."
+    call :add_package "opencv-python>=4,<5"
+)
 call :add_package "ultralytics>=8.3.0,<9"
 call :add_package "rfdetr==1.8.3"
 call :add_package "dill"
@@ -200,8 +207,8 @@ timeout /t 1 /nobreak >nul 2>&1
 del "%PROGRESS_PY%" "%PROGRESS_LOG%" 2>nul
 
 call :log "Testing installation..."
-call :log_command python -X utf8 -c "from ultralytics import YOLO; from rfdetr import RFDETR; from torchvision.ops import nms; import numpy as np, torch; assert nms(torch.tensor([[0.,0.,1.,1.]]), torch.tensor([1.]), 0.5).tolist() == [0]; YOLO('yolo26n.yaml').to('cpu').predict(np.zeros((640, 480, 3), dtype=np.uint8))"
-call :run_with_reporting python -X utf8 -c "from ultralytics import YOLO; from rfdetr import RFDETR; from torchvision.ops import nms; import numpy as np, torch; assert nms(torch.tensor([[0.,0.,1.,1.]]), torch.tensor([1.]), 0.5).tolist() == [0]; YOLO('yolo26n.yaml').to('cpu').predict(np.zeros((640, 480, 3), dtype=np.uint8))"
+call :log_command python -X utf8 -c "from ultralytics import YOLO; from rfdetr import RFDETR; from torchvision.ops import nms; from importlib.metadata import version; import cv2, numpy as np, torch; assert version('opencv-python').split('.')[0] == '4'; assert nms(torch.tensor([[0.,0.,1.,1.]]), torch.tensor([1.]), 0.5).tolist() == [0]; YOLO('yolo26n.yaml').to('cpu').predict(np.zeros((640, 480, 3), dtype=np.uint8))"
+call :run_with_reporting python -X utf8 -c "from ultralytics import YOLO; from rfdetr import RFDETR; from torchvision.ops import nms; from importlib.metadata import version; import cv2, numpy as np, torch; assert version('opencv-python').split('.')[0] == '4'; assert nms(torch.tensor([[0.,0.,1.,1.]]), torch.tensor([1.]), 0.5).tolist() == [0]; YOLO('yolo26n.yaml').to('cpu').predict(np.zeros((640, 480, 3), dtype=np.uint8))"
 if errorlevel 1 (
     call :record_failure "[post-link] YOLO smoke test failed (exit !LAST_COMMAND_STATUS!)."
 )

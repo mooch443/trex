@@ -17,6 +17,13 @@ if not defined TREX_DESCRIBE_TAG set "TREX_DESCRIBE_TAG=vuntagged"
 echo TREX_DESCRIBE_TAG=%TREX_DESCRIBE_TAG%
 rem --------------------------------------------------------------------------
 
+if not defined TREX_CONFIGURE set "TREX_CONFIGURE=buildall"
+if /I not "%TREX_CONFIGURE%"=="buildall" if /I not "%TREX_CONFIGURE%"=="minimal" (
+    echo Invalid TREX_CONFIGURE='%TREX_CONFIGURE%'; expected buildall or minimal.
+    exit /b 2
+)
+echo TREX_CONFIGURE=%TREX_CONFIGURE%
+
 rem --------------------------------------------------------------------------
 rem FetchContent patch steps in nested MSBuild projects can lose access to bare
 rem "git" on PATH. Create a wrapper in the build directory that forwards to the
@@ -92,12 +99,8 @@ if defined LIBRARY_BIN (
 echo DEBUG: PATH modification complete
 rem --------------------------------------------------------------------------
 
-cmake .. %GENERATOR% -DWITH_GITSHA1=ON -DCONDA_PREFIX:FILEPATH=%PREFIX% -DPYTHON_INCLUDE_DIR:FILEPATH=%pythoninclude% -DPYTHON_LIBRARY:FILEPATH=%findlib% -DPYTHON_EXECUTABLE:FILEPATH=%PREFIX%\python -DWITH_PYLON=OFF -DCOMMONS_BUILD_OPENCV=ON -DCMAKE_INSTALL_PREFIX=%PREFIX% -DCMAKE_SKIP_RPATH=ON -DCOMMONS_BUILD_PNG=ON -DCOMMONS_BUILD_ZIP=ON -DTREX_CONDA_PACKAGE_INSTALL=ON -DCMAKE_INSTALL_RPATH_USE_LINK_PATH:BOOL=TRUE -DTREX_WITH_TESTS:BOOL=ON -DCOMMONS_BUILD_GLFW=ON -DCOMMONS_BUILD_ZLIB=ON -DCMAKE_BUILD_TYPE=Release -DBUILD_LEGACY_TREX:BOOL=OFF -DBUILD_LEGACY_TGRABS:BOOL=OFF -DCOMMONS_BUILD_EXAMPLES:BOOL=OFF
+cmake .. %GENERATOR% -DWITH_GITSHA1=ON -DCONDA_PREFIX:FILEPATH=%PREFIX% -DCMAKE_PREFIX_PATH:PATH=%LIBRARY_PREFIX% -DPYTHON_INCLUDE_DIR:FILEPATH=%pythoninclude% -DPYTHON_LIBRARY:FILEPATH=%findlib% -DPYTHON_EXECUTABLE:FILEPATH=%PREFIX%\python -DWITH_PYLON=OFF -DTREX_CONFIGURE=%TREX_CONFIGURE% -DCMAKE_INSTALL_PREFIX=%PREFIX% -DCMAKE_SKIP_RPATH=ON -DTREX_CONDA_PACKAGE_INSTALL=ON -DCMAKE_INSTALL_RPATH_USE_LINK_PATH:BOOL=TRUE -DTREX_WITH_TESTS:BOOL=ON -DCOMMONS_BUILD_GLFW=ON -DCMAKE_BUILD_TYPE=Release -DBUILD_LEGACY_TREX:BOOL=OFF -DBUILD_LEGACY_TGRABS:BOOL=OFF -DCOMMONS_BUILD_EXAMPLES:BOOL=OFF
 
-cmake --build . --target Z_LIB --config Release
-cmake --build . --target libzip --config Release
-cmake --build . --target libpng_custom --config Release
-cmake --build . --target CustomOpenCV --config Release
 cmake --build . --target gladex --config Release
 cmake ..
 if errorlevel 1 exit 1
