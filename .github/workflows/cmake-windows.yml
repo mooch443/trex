@@ -16,7 +16,8 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        os: ["windows-2025-vs2026"]
+        # Conda-forge's OpenCV 4.x Windows package currently targets the VS 2022 toolchain.
+        os: ["windows-2022"]
         python-version: ["3.12"]
 
     steps:
