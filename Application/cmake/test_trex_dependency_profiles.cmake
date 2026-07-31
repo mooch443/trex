@@ -71,6 +71,4 @@ trex_expect_profile_failure(invalid_profile
     "Invalid TREX_CONFIGURE='invalid'"
     -DTREX_CONFIGURE=invalid)
 
-include("${CMAKE_CURRENT_LIST_DIR}/test_trex_generated_include_paths.cmake")
-
 message(STATUS "TREX dependency profile semantics passed.")
