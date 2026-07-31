@@ -119,13 +119,31 @@ jobs:
         trex_binary="$CONDA_PREFIX/bin/TRex.app/Contents/MacOS/TRex"
         linkage=$(otool -L "$trex_binary")
         echo "$linkage"
-        for dependency in 'libopencv_(core|imgproc)' libpng libzip 'libz\.' libavcodec; do
-          line=$(echo "$linkage" | grep -E "$dependency" | head -n 1)
+        for dependency in 'libopencv_(core|imgproc)' libpng libzip libavcodec; do
+          line=$(echo "$linkage" | grep -E "$dependency" | head -n 1 || true)
           if [ -z "$line" ] || [[ "$line" != *"@rpath"* && "$line" != *"$CONDA_PREFIX"* ]]; then
             echo "Dependency '$dependency' does not use the installed Conda RPATH: $line" >&2
             exit 1
           fi
         done
+        transitive_libraries=()
+        while IFS= read -r linked_path; do
+          linked_name=${linked_path#@rpath/}
+          linked_library="$CONDA_PREFIX/lib/$linked_name"
+          if [ -f "$linked_library" ]; then
+            transitive_libraries+=("$linked_library")
+          fi
+        done < <(echo "$linkage" | awk '$1 ~ /^@rpath\// { print $1 }')
+        if [ "${#transitive_libraries[@]}" -eq 0 ]; then
+          echo "Could not resolve any direct Conda dylibs for transitive linkage inspection." >&2
+          exit 1
+        fi
+        transitive_linkage=$(otool -L "${transitive_libraries[@]}")
+        zlib_line=$(echo "$transitive_linkage" | grep -E 'libz\.' | head -n 1 || true)
+        if [ -z "$zlib_line" ] || [[ "$zlib_line" != *"@rpath"* && "$zlib_line" != *"$CONDA_PREFIX"* ]]; then
+          echo "Transitive zlib dependency does not use the installed Conda RPATH: $zlib_line" >&2
+          exit 1
+        fi
         if ! otool -l "$trex_binary" | grep -A2 LC_RPATH | grep -q "$CONDA_PREFIX/lib"; then
           echo "TRex does not contain the active Conda prefix RPATH." >&2
           exit 1

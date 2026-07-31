@@ -1,5 +1,10 @@
 include_guard(GLOBAL)
 
+cmake_policy(PUSH)
+if(POLICY CMP0012)
+    cmake_policy(SET CMP0012 NEW)
+endif()
+
 set(TREX_NATIVE_DEPENDENCY_OPTIONS
     COMMONS_BUILD_OPENCV
     COMMONS_BUILD_PNG
@@ -55,3 +60,5 @@ function(trex_apply_dependency_profile)
     set(TREX_CONFIGURE_EXPLICIT ${_trex_profile_explicit} PARENT_SCOPE)
     set(TREX_NATIVE_DEPENDENCY_OPTIONS ${TREX_NATIVE_DEPENDENCY_OPTIONS} PARENT_SCOPE)
 endfunction()
+
+cmake_policy(POP)
