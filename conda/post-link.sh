@@ -158,6 +158,115 @@ log_command() {
     log "[post-link] Running: ${formatted[*]}"
 }
 
+# nvidia-smi reports the newest CUDA runtime accepted by the installed driver.
+# NVIDIA drivers are backwards-compatible with applications built for older
+# CUDA runtimes, so every official channel at or below this version is safe to
+# offer to pip. Pip can then select the newest PyTorch release present across
+# all of those compatible channels.
+detect_driver_cuda_version() {
+    if ! command -v nvidia-smi >/dev/null 2>&1; then
+        return 1
+    fi
+
+    local smi_output
+    smi_output=$(nvidia-smi 2>>"${OUT_STREAM}")
+    local smi_status=$?
+    if [ ${smi_status} -ne 0 ]; then
+        log "[post-link] nvidia-smi failed while checking driver compatibility (exit ${smi_status})."
+        return 1
+    fi
+
+    local cuda_version
+    cuda_version=$(printf '%s\n' "${smi_output}" \
+        | sed -nE 's/.*CUDA Version:[[:space:]]*([0-9]+\.[0-9]+).*/\1/p' \
+        | head -n 1)
+    if [ -z "${cuda_version}" ]; then
+        log "[post-link] nvidia-smi did not report a maximum supported CUDA version."
+        return 1
+    fi
+
+    printf '%s' "${cuda_version}"
+}
+
+build_compatible_torch_indexes() {
+    local driver_cuda_version="$1"
+    local driver_major driver_minor
+    IFS=. read -r driver_major driver_minor <<EOF
+${driver_cuda_version}
+EOF
+
+    if ! [[ "${driver_major}" =~ ^[0-9]+$ && "${driver_minor}" =~ ^[0-9]+$ ]]; then
+        return 1
+    fi
+
+    local driver_cuda_code=$((driver_major * 100 + driver_minor))
+    local first_index=true
+    local channel channel_digits channel_major channel_minor channel_code
+    torch_index_args=()
+    compatible_torch_channels=()
+
+    # Keep this list aligned with the official channels documented at
+    # https://pytorch.org/get-started/previous-versions/.
+    for channel in cu132 cu130 cu129 cu128 cu126 cu124 cu121 cu118; do
+        channel_digits=${channel#cu}
+        channel_major=${channel_digits%?}
+        channel_minor=${channel_digits#${channel_major}}
+        channel_code=$((channel_major * 100 + channel_minor))
+        if [ "${channel_code}" -gt "${driver_cuda_code}" ]; then
+            continue
+        fi
+
+        if ${first_index}; then
+            torch_index_args+=(--index-url "https://download.pytorch.org/whl/${channel}")
+            first_index=false
+        else
+            torch_index_args+=(--extra-index-url "https://download.pytorch.org/whl/${channel}")
+        fi
+        compatible_torch_channels+=("${channel}")
+    done
+
+    [ ${#torch_index_args[@]} -gt 0 ]
+}
+
+install_oldest_cuda_torch() {
+    local fallback_packages=("torch==2.2.0" "torchvision==0.17.0")
+    local fallback_index="https://download.pytorch.org/whl/cu118"
+
+    log "[post-link] Falling back to the oldest officially available CUDA pair within TRex's supported range: torch 2.2.0 + torchvision 0.17.0 (CUDA 11.8)."
+    log_command python -m pip install "${pip_flags[@]}" --upgrade --force-reinstall \
+        --index-url "${fallback_index}" "${fallback_packages[@]}"
+    TREX_PROGRESS_LABEL="pip install PyTorch CUDA fallback..." run_with_reporting \
+        python -m pip install "${pip_flags[@]}" --upgrade --force-reinstall \
+        --index-url "${fallback_index}" "${fallback_packages[@]}"
+}
+
+install_driver_compatible_torch() {
+    local driver_cuda_version
+    driver_cuda_version=$(detect_driver_cuda_version)
+
+    if [ -n "${driver_cuda_version}" ] \
+        && build_compatible_torch_indexes "${driver_cuda_version}"
+    then
+        log "[post-link] NVIDIA driver accepts CUDA ${driver_cuda_version}; selecting the newest PyTorch release from compatible official indexes."
+        log "[post-link] Compatible PyTorch CUDA channels: ${compatible_torch_channels[*]}."
+        log_command python -m pip install "${pip_flags[@]}" --upgrade --force-reinstall \
+            "${torch_index_args[@]}" "${torch_packages[@]}"
+        if TREX_PROGRESS_LABEL="pip install compatible PyTorch..." run_with_reporting \
+            python -m pip install "${pip_flags[@]}" --upgrade --force-reinstall \
+            "${torch_index_args[@]}" "${torch_packages[@]}"
+        then
+            check_nvidia_support
+            return 0
+        fi
+
+        log "[post-link] No PyTorch wheel could be resolved from the driver-compatible CUDA indexes (exit ${LAST_COMMAND_STATUS})."
+    else
+        log "[post-link] No usable NVIDIA driver was detected for PyTorch package selection."
+    fi
+
+    install_oldest_cuda_torch
+}
+
 # After installations succeed, report CUDA and NVIDIA GPU availability.
 check_nvidia_support() {
     if [ "$(uname)" = "Darwin" ]; then
@@ -243,9 +352,12 @@ else
     numpy_requirement=("numpy")
 fi
 
-common_packages=(
+torch_packages=(
     "torch>=2.2.0,<3.0.0"
     "torchvision>=0.17.0"
+)
+
+common_packages=(
     "torchmetrics"
     "tqdm"
     "ultralytics>=8.3.0,<9"
@@ -285,44 +397,36 @@ pip_flags=(
 
 announce_progress "TRex is installing Python ML packages. This can take several minutes; progress below shows the latest pip activity."
 
+all_packages=("${torch_packages[@]}" "${common_packages[@]}")
+
 # Explicitly describe channel decisions per platform.
 if [ "${arch}" = "arm" ]; then
     log "ARM architecture detected; using default pip index (no custom channels)."
-    log_command python -m pip install "${pip_flags[@]}" "${common_packages[@]}"
-    if TREX_PROGRESS_LABEL="pip install..." run_with_reporting python -m pip install "${pip_flags[@]}" "${common_packages[@]}"; then
+    log_command python -m pip install "${pip_flags[@]}" "${all_packages[@]}"
+    if TREX_PROGRESS_LABEL="pip install..." run_with_reporting python -m pip install "${pip_flags[@]}" "${all_packages[@]}"; then
         check_nvidia_support
     else
         record_failure "[post-link] pip package installation failed on ARM (exit ${LAST_COMMAND_STATUS})."
     fi
 elif [ "${system}" = "Darwin" ]; then
     log "macOS detected; using default pip index (no custom channels)."
-    log_command python -m pip install "${pip_flags[@]}" "${common_packages[@]}"
-    if TREX_PROGRESS_LABEL="pip install..." run_with_reporting python -m pip install "${pip_flags[@]}" "${common_packages[@]}"; then
+    log_command python -m pip install "${pip_flags[@]}" "${all_packages[@]}"
+    if TREX_PROGRESS_LABEL="pip install..." run_with_reporting python -m pip install "${pip_flags[@]}" "${all_packages[@]}"; then
         check_nvidia_support
     else
         record_failure "[post-link] pip package installation failed on macOS (exit ${LAST_COMMAND_STATUS})."
     fi
 else
-    log "Linux architecture detected; checking CUDA availability to document channel choice."
-    gpu_check=$(python - <<'PY'
-try:
-    import torch
-    print(torch.cuda.is_available())
-except Exception:
-    print("False")
-PY
-)
-    if [ "${gpu_check}" = "True" ]; then
-        log "[post-link] torch.cuda.is_available() -> True; installing from default pip channels to let torch pick CUDA wheels."
-    else
-        log "[post-link] torch.cuda.is_available() -> ${gpu_check:-False}; installing from default pip channels."
+    log "Linux architecture detected; selecting PyTorch against the installed NVIDIA driver."
+    if ! install_driver_compatible_torch; then
+        record_failure "[post-link] PyTorch installation failed for both compatible CUDA indexes and the CUDA 11.8 fallback (exit ${LAST_COMMAND_STATUS})."
     fi
 
-    log_command python -m pip install "${pip_flags[@]}" "${common_packages[@]}"
-    if TREX_PROGRESS_LABEL="pip install..." run_with_reporting python -m pip install "${pip_flags[@]}" "${common_packages[@]}"; then
-        check_nvidia_support
-    else
-        record_failure "[post-link] pip package installation failed on Linux (exit ${LAST_COMMAND_STATUS})."
+    log_command python -m pip install "${pip_flags[@]}" --index-url https://pypi.org/simple "${common_packages[@]}"
+    if ! TREX_PROGRESS_LABEL="pip install remaining packages..." run_with_reporting \
+        python -m pip install "${pip_flags[@]}" --index-url https://pypi.org/simple "${common_packages[@]}"
+    then
+        record_failure "[post-link] Non-PyTorch package installation failed on Linux (exit ${LAST_COMMAND_STATUS})."
     fi
 fi
 

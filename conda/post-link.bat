@@ -39,11 +39,9 @@ if errorlevel 1 (
     )
 )
 
-rem Compose pip argument lists. Non-torch packages are installed from PyPI first so
-rem they are never resolved against the PyTorch CUDA channel index. torch and
-rem torchvision are installed separately from the CUDA channel so the GPU-accelerated
-rem wheels are chosen; installing them together with ordinary packages risks pulling
-rem a mismatched CPU-only wheel from PyPI when the CUDA channel is the primary index.
+rem Compose pip argument lists. torch and torchvision are installed first from
+rem compatible official CUDA indexes; non-torch packages are then installed from
+rem PyPI so ordinary dependencies are never resolved against a CUDA-only index.
 rem
 rem numpy and scikit-learn are intentionally excluded from conda run deps on Windows
 rem (see meta.yaml) to prevent conda from installing a conda-managed numpy whose DLL
@@ -75,17 +73,18 @@ call :add_package "torch>=2.2.0,<3.0.0"
 call :add_package "torchvision>=0.17.0"
 set "PIP_ARGS_TORCH=!PIP_ARGS!"
 
-call :log "Windows detected; checking CUDA availability to document channel choice."
+set "PIP_ARGS="
+call :add_package "torch==2.2.0"
+call :add_package "torchvision==0.17.0"
+set "PIP_ARGS_TORCH_FALLBACK=!PIP_ARGS!"
 
-set "GPU_CHECK=None"
-for /f "usebackq delims=" %%i in (`python -c "try: import torch; print(torch.cuda.is_available())\nexcept: print('None')"` ) do (
-    set "GPU_CHECK=%%i"
-)
-
-if /i "!GPU_CHECK!"=="True" (
-    call :log "[post-link] torch.cuda.is_available() -> True; selecting PyTorch CUDA wheel channel accordingly."
+call :log "Windows detected; selecting PyTorch against the installed NVIDIA driver."
+call :detect_driver_cuda_version
+if defined CUDA_MAX_VERSION (
+    call :log "[post-link] NVIDIA driver accepts CUDA !CUDA_MAX_VERSION!; selecting the newest PyTorch release from compatible official indexes."
+    call :log "[post-link] Compatible PyTorch CUDA channels: !CUDA_CHANNELS!."
 ) else (
-    call :log "[post-link] torch.cuda.is_available() -> !GPU_CHECK!; still selecting a PyTorch CUDA wheel channel for Windows."
+    call :log "[post-link] No usable NVIDIA driver was detected for PyTorch package selection."
 )
 
 rem Spin up a background progress indicator that writes directly to CONOUT$ via
@@ -156,32 +155,46 @@ rem Verbose flags for pip: no --quiet so Collecting/Downloading/Installing lines
 rem in PROGRESS_LOG for the live display. The log is appended to OUT_STREAM afterwards.
 set "PIP_FLAGS_LOG=--disable-pip-version-check --no-input --no-color --progress-bar off"
 
-rem Step 1: install torch + torchvision from the appropriate CUDA channel so the
-rem GPU-accelerated wheels are selected. This must happen first because the packages
-rem in Step 2 (ultralytics, torchmetrics, etc.) declare torch as a dependency; having
-rem torch already present prevents pip from pulling a CPU-only build from PyPI.
-set "CUDA_CHANNEL_SUFFIX="
-set "CUDA_CHANNELS=cu128 cu126 cu124 cu122 cu121 cu118"
-
-for %%C in (!CUDA_CHANNELS!) do (
-    set "CUDA_CHANNEL_SUFFIX=%%C"
-    set "PIP_INDEX_URL=https://download.pytorch.org/whl/%%C"
-    call :log "[post-link] Trying torch+torchvision install with CUDA channel %%C (!PIP_INDEX_URL!)."
-    call :log_command python -X utf8 -m pip install !PIP_FLAGS_LOG! --index-url !PIP_INDEX_URL! !PIP_ARGS_TORCH!
-    python -X utf8 -m pip install !PIP_FLAGS_LOG! --index-url !PIP_INDEX_URL! !PIP_ARGS_TORCH! > "%PROGRESS_LOG%" 2>&1
+rem Step 1: offer pip every official CUDA index accepted by the driver. Pip then
+rem chooses the newest PyTorch release available across those compatible indexes.
+rem Installing torch first prevents ordinary PyPI dependencies from selecting an
+rem incompatible default wheel.
+set "TORCH_INSTALLED=0"
+if defined CUDA_MAX_VERSION (
+    call :log_command python -X utf8 -m pip install !PIP_FLAGS_LOG! --upgrade --force-reinstall !PIP_TORCH_INDEX_ARGS! !PIP_ARGS_TORCH!
+    python -X utf8 -m pip install !PIP_FLAGS_LOG! --upgrade --force-reinstall !PIP_TORCH_INDEX_ARGS! !PIP_ARGS_TORCH! > "%PROGRESS_LOG%" 2>&1
     set "LAST_COMMAND_STATUS=!ERRORLEVEL!"
     if defined OUT_STREAM (
         type "%PROGRESS_LOG%" >> "%OUT_STREAM%" 2>nul
     )
     if "!LAST_COMMAND_STATUS!"=="0" (
-        call :log "[post-link] torch install succeeded using CUDA channel %%C."
+        set "TORCH_INSTALLED=1"
+        call :log "[post-link] PyTorch installation succeeded using driver-compatible CUDA indexes."
         call :check_nvidia_support
-        goto torch_install_done
+    ) else (
+        call :log "[post-link] No PyTorch wheel could be resolved from the driver-compatible CUDA indexes (exit !LAST_COMMAND_STATUS!)."
     )
-    call :log "[post-link] torch install failed for CUDA channel %%C (exit !LAST_COMMAND_STATUS!); trying next option."
 )
 
-call :record_failure "[post-link] torch+torchvision installation failed for all CUDA channels (last exit !LAST_COMMAND_STATUS!)."
+if "!TORCH_INSTALLED!"=="0" (
+    set "PIP_INDEX_URL=https://download.pytorch.org/whl/cu118"
+    call :log "[post-link] Falling back to the oldest officially available CUDA pair within TRex's supported range: torch 2.2.0 + torchvision 0.17.0 (CUDA 11.8)."
+    call :log_command python -X utf8 -m pip install !PIP_FLAGS_LOG! --upgrade --force-reinstall --index-url !PIP_INDEX_URL! !PIP_ARGS_TORCH_FALLBACK!
+    python -X utf8 -m pip install !PIP_FLAGS_LOG! --upgrade --force-reinstall --index-url !PIP_INDEX_URL! !PIP_ARGS_TORCH_FALLBACK! > "%PROGRESS_LOG%" 2>&1
+    set "LAST_COMMAND_STATUS=!ERRORLEVEL!"
+    if defined OUT_STREAM (
+        type "%PROGRESS_LOG%" >> "%OUT_STREAM%" 2>nul
+    )
+    if "!LAST_COMMAND_STATUS!"=="0" (
+        set "TORCH_INSTALLED=1"
+        call :log "[post-link] PyTorch CUDA 11.8 fallback installation succeeded."
+        call :check_nvidia_support
+    )
+)
+
+if "!TORCH_INSTALLED!"=="0" (
+    call :record_failure "[post-link] PyTorch installation failed for both compatible CUDA indexes and the CUDA 11.8 fallback (exit !LAST_COMMAND_STATUS!)."
+)
 
 :torch_install_done
 
@@ -306,6 +319,52 @@ if defined PIP_ARGS (
     set "PIP_ARGS=!__PIP_PACKAGE!"
 )
 set "__PIP_PACKAGE="
+exit /b 0
+
+:detect_driver_cuda_version
+set "CUDA_MAX_VERSION="
+set "CUDA_MAX_CODE="
+set "CUDA_CHANNELS="
+set "PIP_TORCH_INDEX_ARGS="
+
+where /q nvidia-smi
+if errorlevel 1 exit /b 1
+
+for /f "usebackq delims=" %%i in (`python -X utf8 -c "import re,subprocess; p=subprocess.run(['nvidia-smi'],capture_output=True,text=True,errors='replace'); m=re.search(r'CUDA Version:\s*([0-9]+\.[0-9]+)',p.stdout); print(m.group(1) if p.returncode == 0 and m else '')"`) do (
+    set "CUDA_MAX_VERSION=%%i"
+)
+if not defined CUDA_MAX_VERSION exit /b 1
+
+for /f "tokens=1,2 delims=." %%a in ("!CUDA_MAX_VERSION!") do (
+    set /a CUDA_MAX_CODE=%%a*100+%%b
+)
+
+rem Keep this list aligned with https://pytorch.org/get-started/previous-versions/.
+call :add_compatible_cuda_channel cu132 1302
+call :add_compatible_cuda_channel cu130 1300
+call :add_compatible_cuda_channel cu129 1209
+call :add_compatible_cuda_channel cu128 1208
+call :add_compatible_cuda_channel cu126 1206
+call :add_compatible_cuda_channel cu124 1204
+call :add_compatible_cuda_channel cu121 1201
+call :add_compatible_cuda_channel cu118 1108
+
+if not defined CUDA_CHANNELS (
+    set "CUDA_MAX_VERSION="
+    exit /b 1
+)
+exit /b 0
+
+:add_compatible_cuda_channel
+if %2 GTR !CUDA_MAX_CODE! exit /b 0
+
+if defined CUDA_CHANNELS (
+    set "CUDA_CHANNELS=!CUDA_CHANNELS! %1"
+    set "PIP_TORCH_INDEX_ARGS=!PIP_TORCH_INDEX_ARGS! --extra-index-url https://download.pytorch.org/whl/%1"
+) else (
+    set "CUDA_CHANNELS=%1"
+    set "PIP_TORCH_INDEX_ARGS=--index-url https://download.pytorch.org/whl/%1"
+)
 exit /b 0
 
 :check_nvidia_support
