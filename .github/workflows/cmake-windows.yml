@@ -203,10 +203,28 @@ jobs:
         $dependencies = (& $dumpbinPath /DEPENDENTS $trexExe | Out-String)
         if ($LASTEXITCODE -ne 0) { throw "dumpbin failed for $trexExe" }
         Write-Host $dependencies
-        foreach ($pattern in @('opencv_(core|imgproc)', 'libpng|png16', 'libzip|zip\.dll', 'zlib|zlib1', 'avcodec')) {
+        foreach ($pattern in @('opencv_(core|imgproc)', 'libpng|png16', 'libzip|zip\.dll', 'avcodec')) {
           if ($dependencies -notmatch $pattern) {
             throw "TRex is missing expected DLL dependency pattern '$pattern'."
           }
+        }
+        $dependencyNames = [regex]::Matches($dependencies, '(?im)^\s*([^\s]+\.dll)\s*$') |
+          ForEach-Object { $_.Groups[1].Value } |
+          Select-Object -Unique
+        $zlibFound = $false
+        foreach ($dependencyName in ($dependencyNames | Where-Object { $_ -match '(?i)png|zip' })) {
+          $dependencyPath = Join-Path $env:TEST_PREFIX "Library\bin\$dependencyName"
+          if (-not (Test-Path $dependencyPath)) { continue }
+          $transitiveDependencies = (& $dumpbinPath /DEPENDENTS $dependencyPath | Out-String)
+          if ($LASTEXITCODE -ne 0) { throw "dumpbin failed for $dependencyPath" }
+          Write-Host $transitiveDependencies
+          if ($transitiveDependencies -match '(?i)zlib[^\s]*\.dll') {
+            $zlibFound = $true
+            break
+          }
+        }
+        if (-not $zlibFound) {
+          throw "Environment-provided zlib is not reachable through TRex's PNG/ZIP DLL dependencies."
         }
         if ($dependencies -notmatch 'VCRUNTIME|MSVCP') {
           throw "TRex does not appear to use the dynamic MSVC runtime (/MD)."
