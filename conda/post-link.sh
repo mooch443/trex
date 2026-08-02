@@ -229,18 +229,14 @@ EOF
 }
 
 install_oldest_cuda_torch() {
-    local fallback_packages=("torch==2.2.0" "torchvision==0.17.0")
+    local fallback_packages=("torch==2.5.0" "torchvision==0.20.0")
     local fallback_index="https://download.pytorch.org/whl/cu118"
 
-    if ! ensure_legacy_torch_numpy; then
-        return 1
-    fi
-
-    log "[post-link] Falling back to the oldest officially available CUDA pair within TRex's supported range: torch 2.2.0 + torchvision 0.17.0 (CUDA 11.8)."
-    log_command python -m pip install "${pip_flags[@]}" --upgrade \
+    log "[post-link] Falling back to the oldest CUDA pair compatible with the supported NumPy 1.x/2.x range: torch 2.5.0 + torchvision 0.20.0 (CUDA 11.8)."
+    log_command python -m pip install "${pip_flags[@]}" \
         "${numpy_constraint_args[@]}" --index-url "${fallback_index}" "${fallback_packages[@]}"
     TREX_PROGRESS_LABEL="pip install PyTorch CUDA fallback..." run_with_reporting \
-        python -m pip install "${pip_flags[@]}" --upgrade \
+        python -m pip install "${pip_flags[@]}" \
         "${numpy_constraint_args[@]}" --index-url "${fallback_index}" "${fallback_packages[@]}"
 }
 
@@ -253,10 +249,10 @@ install_driver_compatible_torch() {
     then
         log "[post-link] NVIDIA driver accepts CUDA ${driver_cuda_version}; selecting the newest PyTorch release from compatible official indexes."
         log "[post-link] Compatible PyTorch CUDA channels: ${compatible_torch_channels[*]}."
-        log_command python -m pip install "${pip_flags[@]}" --upgrade \
+        log_command python -m pip install "${pip_flags[@]}" \
             "${numpy_constraint_args[@]}" "${torch_index_args[@]}" "${torch_packages[@]}"
         if TREX_PROGRESS_LABEL="pip install compatible PyTorch..." run_with_reporting \
-            python -m pip install "${pip_flags[@]}" --upgrade \
+            python -m pip install "${pip_flags[@]}" \
             "${numpy_constraint_args[@]}" "${torch_index_args[@]}" "${torch_packages[@]}"
         then
             check_nvidia_support
@@ -324,13 +320,12 @@ PY
     fi
 }
 
-# Ensure pip is present on all supported platforms before installation.
+# pip is a Conda run dependency. Do not invoke Conda recursively while its
+# transaction is still linking this environment.
 if [ "$(uname -p)" = "arm" ] || [ "${OSTYPE}" = "linux-gnu" ] || [ "$(uname)" = "Linux" ] || [ "$(uname)" = "Darwin" ]; then
-    if ! command -v pip &>/dev/null; then
-        log "pip could not be found, installing via conda..."
-        if ! run_with_reporting conda install pip -y; then
-            record_failure "[post-link] Unable to install pip via conda (exit ${LAST_COMMAND_STATUS}); continuing without pip-managed extras."
-        fi
+    if ! python -m pip --version >/dev/null 2>&1; then
+        record_failure "[post-link] pip is unavailable; skipping pip-managed extras."
+        exit 0
     fi
 fi
 
@@ -356,26 +351,6 @@ configure_numpy_constraint() {
     printf 'numpy==%s\n' "${numpy_version}" > "${numpy_constraint_file}" || return 1
     numpy_constraint_args=(--constraint "${numpy_constraint_file}")
     log "[post-link] Constraining pip to Conda-owned NumPy ${numpy_version}."
-}
-
-ensure_legacy_torch_numpy() {
-    local numpy_major=${numpy_version%%.*}
-    if ! [[ "${numpy_major}" =~ ^[0-9]+$ ]]; then
-        return 1
-    fi
-    if [ "${numpy_major}" -lt 2 ]; then
-        return 0
-    fi
-
-    log "[post-link] PyTorch 2.2 requires NumPy 1.x; asking Conda to switch NumPy before the CUDA fallback."
-    log_command conda install --prefix "${PREFIX}" --yes "numpy=1.26.4"
-    if ! TREX_PROGRESS_LABEL="conda install compatible NumPy..." run_with_reporting \
-        conda install --prefix "${PREFIX}" --yes "numpy=1.26.4"
-    then
-        record_failure "[post-link] Conda could not install the NumPy version required by the PyTorch CUDA fallback (exit ${LAST_COMMAND_STATUS})."
-        return 1
-    fi
-    configure_numpy_constraint
 }
 
 if ! configure_numpy_constraint; then
@@ -449,15 +424,19 @@ else
     # also replace Conda-owned transitive dependencies such as NumPy.
     log_command python -m pip uninstall --yes torch torchvision
     run_with_reporting python -m pip uninstall --yes torch torchvision
+    torch_installed=true
     if ! install_driver_compatible_torch; then
+        torch_installed=false
         record_failure "[post-link] PyTorch installation failed for both compatible CUDA indexes and the CUDA 11.8 fallback (exit ${LAST_COMMAND_STATUS})."
     fi
 
-    log_command python -m pip install "${pip_flags[@]}" "${numpy_constraint_args[@]}" --index-url https://pypi.org/simple "${common_packages[@]}"
-    if ! TREX_PROGRESS_LABEL="pip install remaining packages..." run_with_reporting \
-        python -m pip install "${pip_flags[@]}" "${numpy_constraint_args[@]}" --index-url https://pypi.org/simple "${common_packages[@]}"
-    then
-        record_failure "[post-link] Non-PyTorch package installation failed on Linux (exit ${LAST_COMMAND_STATUS})."
+    if ${torch_installed}; then
+        log_command python -m pip install "${pip_flags[@]}" "${numpy_constraint_args[@]}" --index-url https://pypi.org/simple "${common_packages[@]}"
+        if ! TREX_PROGRESS_LABEL="pip install remaining packages..." run_with_reporting \
+            python -m pip install "${pip_flags[@]}" "${numpy_constraint_args[@]}" --index-url https://pypi.org/simple "${common_packages[@]}"
+        then
+            record_failure "[post-link] Non-PyTorch package installation failed on Linux (exit ${LAST_COMMAND_STATUS})."
+        fi
     fi
 fi
 

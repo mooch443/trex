@@ -28,15 +28,12 @@ if defined PREFIX (
 set "POST_LINK_FAILED=0"
 set "LAST_COMMAND_STATUS=0"
 
-rem Ensure pip is available on Windows so subsequent installs succeed.
-where /q pip
+rem pip is a Conda run dependency. Do not invoke Conda recursively while its
+rem transaction is still linking this environment.
+python -X utf8 -m pip --version >nul 2>&1
 if errorlevel 1 (
-    call :log "pip could not be found, installing via conda..."
-    call :log_command conda install pip -y
-    call :run_with_reporting conda install pip -y
-    if errorlevel 1 (
-        call :record_failure "[post-link] Unable to install pip via conda (exit !LAST_COMMAND_STATUS!); continuing without pip-managed extras."
-    )
+    call :record_failure "[post-link] pip is unavailable; skipping pip-managed extras."
+    goto post_link_finish
 )
 
 rem Compose pip argument lists. torch and torchvision are installed first from
@@ -77,8 +74,8 @@ call :add_package "torchvision>=0.17.0"
 set "PIP_ARGS_TORCH=!PIP_ARGS!"
 
 set "PIP_ARGS="
-call :add_package "torch==2.2.0"
-call :add_package "torchvision==0.17.0"
+call :add_package "torch==2.5.0"
+call :add_package "torchvision==0.20.0"
 set "PIP_ARGS_TORCH_FALLBACK=!PIP_ARGS!"
 
 rem Remove only the pip-managed torch pair before resolving against the selected
@@ -170,8 +167,8 @@ rem Installing torch first prevents ordinary PyPI dependencies from selecting an
 rem incompatible default wheel.
 set "TORCH_INSTALLED=0"
 if defined CUDA_MAX_VERSION (
-    call :log_command python -X utf8 -m pip install !PIP_FLAGS_LOG! --upgrade --constraint "!NUMPY_CONSTRAINT_FILE!" !PIP_TORCH_INDEX_ARGS! !PIP_ARGS_TORCH!
-    python -X utf8 -m pip install !PIP_FLAGS_LOG! --upgrade --constraint "!NUMPY_CONSTRAINT_FILE!" !PIP_TORCH_INDEX_ARGS! !PIP_ARGS_TORCH! > "%PROGRESS_LOG%" 2>&1
+    call :log_command python -X utf8 -m pip install !PIP_FLAGS_LOG! --constraint "!NUMPY_CONSTRAINT_FILE!" !PIP_TORCH_INDEX_ARGS! !PIP_ARGS_TORCH!
+    python -X utf8 -m pip install !PIP_FLAGS_LOG! --constraint "!NUMPY_CONSTRAINT_FILE!" !PIP_TORCH_INDEX_ARGS! !PIP_ARGS_TORCH! > "%PROGRESS_LOG%" 2>&1
     set "LAST_COMMAND_STATUS=!ERRORLEVEL!"
     if defined OUT_STREAM (
         type "%PROGRESS_LOG%" >> "%OUT_STREAM%" 2>nul
@@ -186,12 +183,10 @@ if defined CUDA_MAX_VERSION (
 )
 
 if "!TORCH_INSTALLED!"=="0" (
-    call :ensure_legacy_torch_numpy
-    if errorlevel 1 goto torch_fallback_done
     set "PIP_INDEX_URL=https://download.pytorch.org/whl/cu118"
-    call :log "[post-link] Falling back to the oldest officially available CUDA pair within TRex's supported range: torch 2.2.0 + torchvision 0.17.0 (CUDA 11.8)."
-    call :log_command python -X utf8 -m pip install !PIP_FLAGS_LOG! --upgrade --constraint "!NUMPY_CONSTRAINT_FILE!" --index-url !PIP_INDEX_URL! !PIP_ARGS_TORCH_FALLBACK!
-    python -X utf8 -m pip install !PIP_FLAGS_LOG! --upgrade --constraint "!NUMPY_CONSTRAINT_FILE!" --index-url !PIP_INDEX_URL! !PIP_ARGS_TORCH_FALLBACK! > "%PROGRESS_LOG%" 2>&1
+    call :log "[post-link] Falling back to the oldest CUDA pair compatible with the supported NumPy 1.x/2.x range: torch 2.5.0 + torchvision 0.20.0 (CUDA 11.8)."
+    call :log_command python -X utf8 -m pip install !PIP_FLAGS_LOG! --constraint "!NUMPY_CONSTRAINT_FILE!" --index-url !PIP_INDEX_URL! !PIP_ARGS_TORCH_FALLBACK!
+    python -X utf8 -m pip install !PIP_FLAGS_LOG! --constraint "!NUMPY_CONSTRAINT_FILE!" --index-url !PIP_INDEX_URL! !PIP_ARGS_TORCH_FALLBACK! > "%PROGRESS_LOG%" 2>&1
     set "LAST_COMMAND_STATUS=!ERRORLEVEL!"
     if defined OUT_STREAM (
         type "%PROGRESS_LOG%" >> "%OUT_STREAM%" 2>nul
@@ -202,10 +197,9 @@ if "!TORCH_INSTALLED!"=="0" (
         call :check_nvidia_support
     )
 )
-:torch_fallback_done
-
 if "!TORCH_INSTALLED!"=="0" (
     call :record_failure "[post-link] PyTorch installation failed for both compatible CUDA indexes and the CUDA 11.8 fallback (exit !LAST_COMMAND_STATUS!)."
+    goto pip_install_after
 )
 
 :torch_install_done
@@ -263,22 +257,6 @@ if not defined NUMPY_VERSION exit /b 1
 >"!NUMPY_CONSTRAINT_FILE!" echo numpy==!NUMPY_VERSION!
 call :log "[post-link] Constraining pip to Conda-owned NumPy !NUMPY_VERSION!."
 exit /b 0
-
-:ensure_legacy_torch_numpy
-set "NUMPY_MAJOR="
-for /f "tokens=1 delims=." %%i in ("!NUMPY_VERSION!") do set "NUMPY_MAJOR=%%i"
-if not defined NUMPY_MAJOR exit /b 1
-if !NUMPY_MAJOR! LSS 2 exit /b 0
-
-call :log "[post-link] PyTorch 2.2 requires NumPy 1.x on Windows; asking Conda to switch NumPy before the CUDA fallback."
-call :log_command conda install --prefix "!PREFIX!" --yes "numpy=1.26.4"
-call :run_with_reporting conda install --prefix "!PREFIX!" --yes "numpy=1.26.4"
-if errorlevel 1 (
-    call :record_failure "[post-link] Conda could not install the NumPy version required by the PyTorch CUDA fallback (exit !LAST_COMMAND_STATUS!)."
-    exit /b 1
-)
-call :configure_numpy_constraint
-exit /b !ERRORLEVEL!
 
 :log
 setlocal EnableDelayedExpansion
@@ -377,7 +355,7 @@ if errorlevel 1 (
     exit /b 1
 )
 
-for /f "usebackq delims=" %%i in (`python -X utf8 -c "import re,sys; text=open(sys.argv[1],encoding='utf-8',errors='replace').read(); match=re.search(r'CUDA Version:\s*([0-9]+\.[0-9]+)',text); print(match.group(1) if match else '')" "!CUDA_SMI_TMP!"`) do (
+for /f "usebackq delims=" %%i in (`python -X utf8 -c "import re,sys; text=open(sys.argv[1],encoding='utf-8',errors='replace').read(); match=re.search(r'CUDA(?:\s+UMD)?\s+Version:\s*([0-9]+\.[0-9]+)',text); print(match.group(1) if match else '')" "!CUDA_SMI_TMP!"`) do (
     set "CUDA_MAX_VERSION=%%i"
 )
 if defined OUT_STREAM type "!CUDA_SMI_TMP!" >>"!OUT_STREAM!" 2>nul
