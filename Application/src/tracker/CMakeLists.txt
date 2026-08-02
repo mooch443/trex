@@ -507,6 +507,16 @@ if(TREX_ENABLE_PROTOTYPES)
     )
 endif()
 
+if(TREX_CONDA_PACKAGE_INSTALL AND CONDA_PREFIX)
+    foreach(trex_install_target IN LISTS TREX_APP_TARGETS TREX_TOOL_TARGETS)
+        set_target_properties(${trex_install_target} PROPERTIES
+            BUILD_RPATH "${CONDA_PREFIX}/lib"
+            INSTALL_RPATH "${CONDA_PREFIX}/lib"
+            INSTALL_RPATH_USE_LINK_PATH TRUE
+        )
+    endforeach()
+endif()
+
 message("TRACKER PATH ${TRACKER_PATH}")
 
 if(NOT APPLE)
