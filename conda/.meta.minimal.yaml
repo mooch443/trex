@@ -135,6 +135,7 @@ requirements:
     - py-opencv >=4,<5 *headless*
     - {{ pin_compatible('openh264', min_pin='x.x', max_pin='x.x') }} # [osx]
     - {{ pin_compatible('numpy', min_pin='x.x', max_pin='x.x') }} # [not win]
+    - numpy >=1.26,<3 # [win]
     - {{ pin_compatible('openblas', min_pin='x.x', max_pin='x.x') }} # [arm64]
     - {{ pin_compatible('icu', min_pin='x.x', max_pin='x.x') }}
     #- scikit-learn # [not win]

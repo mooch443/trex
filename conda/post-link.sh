@@ -232,12 +232,16 @@ install_oldest_cuda_torch() {
     local fallback_packages=("torch==2.2.0" "torchvision==0.17.0")
     local fallback_index="https://download.pytorch.org/whl/cu118"
 
+    if ! ensure_legacy_torch_numpy; then
+        return 1
+    fi
+
     log "[post-link] Falling back to the oldest officially available CUDA pair within TRex's supported range: torch 2.2.0 + torchvision 0.17.0 (CUDA 11.8)."
-    log_command python -m pip install "${pip_flags[@]}" --upgrade --force-reinstall \
-        --index-url "${fallback_index}" "${fallback_packages[@]}"
+    log_command python -m pip install "${pip_flags[@]}" --upgrade \
+        "${numpy_constraint_args[@]}" --index-url "${fallback_index}" "${fallback_packages[@]}"
     TREX_PROGRESS_LABEL="pip install PyTorch CUDA fallback..." run_with_reporting \
-        python -m pip install "${pip_flags[@]}" --upgrade --force-reinstall \
-        --index-url "${fallback_index}" "${fallback_packages[@]}"
+        python -m pip install "${pip_flags[@]}" --upgrade \
+        "${numpy_constraint_args[@]}" --index-url "${fallback_index}" "${fallback_packages[@]}"
 }
 
 install_driver_compatible_torch() {
@@ -249,11 +253,11 @@ install_driver_compatible_torch() {
     then
         log "[post-link] NVIDIA driver accepts CUDA ${driver_cuda_version}; selecting the newest PyTorch release from compatible official indexes."
         log "[post-link] Compatible PyTorch CUDA channels: ${compatible_torch_channels[*]}."
-        log_command python -m pip install "${pip_flags[@]}" --upgrade --force-reinstall \
-            "${torch_index_args[@]}" "${torch_packages[@]}"
+        log_command python -m pip install "${pip_flags[@]}" --upgrade \
+            "${numpy_constraint_args[@]}" "${torch_index_args[@]}" "${torch_packages[@]}"
         if TREX_PROGRESS_LABEL="pip install compatible PyTorch..." run_with_reporting \
-            python -m pip install "${pip_flags[@]}" --upgrade --force-reinstall \
-            "${torch_index_args[@]}" "${torch_packages[@]}"
+            python -m pip install "${pip_flags[@]}" --upgrade \
+            "${numpy_constraint_args[@]}" "${torch_index_args[@]}" "${torch_packages[@]}"
         then
             check_nvidia_support
             return 0
@@ -333,23 +337,50 @@ fi
 arch=$(uname -p)
 system=$(uname)
 
-# Detect the currently bundled numpy version so pip sees a compatible build.
-numpy_requirement=()
-numpy_version=$(python -c "import numpy; print(numpy.__version__)" 2>>"${OUT_STREAM}")
-numpy_status=$?
-if [ "${system}" = "Darwin" ] && [ "${arch}" != "arm" ] && [ "${arch}" != "arm64" ]; then
-    numpy_requirement=("numpy>=1.26,<2")
-    if [ ${numpy_status} -eq 0 ] && [ -n "${numpy_version}" ]; then
-        log "macOS Intel detected; installing pip packages with numpy>=1.26,<2 (currently ${numpy_version})."
-    else
-        log "macOS Intel detected; installing pip packages with numpy>=1.26,<2."
+# NumPy is Conda-owned. Constrain every pip resolution to the exact installed
+# version without making NumPy a pip installation target.
+numpy_version=""
+numpy_constraint_file=""
+numpy_constraint_args=()
+
+configure_numpy_constraint() {
+    numpy_version=$(python -c "import numpy; print(numpy.__version__)" 2>>"${OUT_STREAM}")
+    local numpy_status=$?
+    if [ ${numpy_status} -ne 0 ] || [ -z "${numpy_version}" ]; then
+        return 1
     fi
-elif [ ${numpy_status} -eq 0 ] && [ -n "${numpy_version}" ]; then
-    numpy_requirement=("numpy==${numpy_version}")
-    log "Installing pip packages (numpy=${numpy_version})..."
-else
-    log "[post-link] Could not determine numpy version; will install latest numpy."
-    numpy_requirement=("numpy")
+
+    if [ -z "${numpy_constraint_file}" ]; then
+        numpy_constraint_file=$(mktemp "${TMPDIR:-/tmp}/trex_numpy_constraint.XXXXXX") || return 1
+    fi
+    printf 'numpy==%s\n' "${numpy_version}" > "${numpy_constraint_file}" || return 1
+    numpy_constraint_args=(--constraint "${numpy_constraint_file}")
+    log "[post-link] Constraining pip to Conda-owned NumPy ${numpy_version}."
+}
+
+ensure_legacy_torch_numpy() {
+    local numpy_major=${numpy_version%%.*}
+    if ! [[ "${numpy_major}" =~ ^[0-9]+$ ]]; then
+        return 1
+    fi
+    if [ "${numpy_major}" -lt 2 ]; then
+        return 0
+    fi
+
+    log "[post-link] PyTorch 2.2 requires NumPy 1.x; asking Conda to switch NumPy before the CUDA fallback."
+    log_command conda install --prefix "${PREFIX}" --yes "numpy=1.26.4"
+    if ! TREX_PROGRESS_LABEL="conda install compatible NumPy..." run_with_reporting \
+        conda install --prefix "${PREFIX}" --yes "numpy=1.26.4"
+    then
+        record_failure "[post-link] Conda could not install the NumPy version required by the PyTorch CUDA fallback (exit ${LAST_COMMAND_STATUS})."
+        return 1
+    fi
+    configure_numpy_constraint
+}
+
+if ! configure_numpy_constraint; then
+    record_failure "[post-link] Could not constrain pip to the Conda-installed NumPy; skipping pip-managed extras."
+    exit 0
 fi
 
 torch_packages=(
@@ -383,10 +414,6 @@ else
     common_packages+=("opencv-python>=4,<5")
 fi
 
-if [ ${#numpy_requirement[@]} -gt 0 ]; then
-    common_packages+=("${numpy_requirement[@]}")
-fi
-
 pip_flags=(
     --disable-pip-version-check
     --no-input
@@ -402,29 +429,33 @@ all_packages=("${torch_packages[@]}" "${common_packages[@]}")
 # Explicitly describe channel decisions per platform.
 if [ "${arch}" = "arm" ]; then
     log "ARM architecture detected; using default pip index (no custom channels)."
-    log_command python -m pip install "${pip_flags[@]}" "${all_packages[@]}"
-    if TREX_PROGRESS_LABEL="pip install..." run_with_reporting python -m pip install "${pip_flags[@]}" "${all_packages[@]}"; then
+    log_command python -m pip install "${pip_flags[@]}" "${numpy_constraint_args[@]}" "${all_packages[@]}"
+    if TREX_PROGRESS_LABEL="pip install..." run_with_reporting python -m pip install "${pip_flags[@]}" "${numpy_constraint_args[@]}" "${all_packages[@]}"; then
         check_nvidia_support
     else
         record_failure "[post-link] pip package installation failed on ARM (exit ${LAST_COMMAND_STATUS})."
     fi
 elif [ "${system}" = "Darwin" ]; then
     log "macOS detected; using default pip index (no custom channels)."
-    log_command python -m pip install "${pip_flags[@]}" "${all_packages[@]}"
-    if TREX_PROGRESS_LABEL="pip install..." run_with_reporting python -m pip install "${pip_flags[@]}" "${all_packages[@]}"; then
+    log_command python -m pip install "${pip_flags[@]}" "${numpy_constraint_args[@]}" "${all_packages[@]}"
+    if TREX_PROGRESS_LABEL="pip install..." run_with_reporting python -m pip install "${pip_flags[@]}" "${numpy_constraint_args[@]}" "${all_packages[@]}"; then
         check_nvidia_support
     else
         record_failure "[post-link] pip package installation failed on macOS (exit ${LAST_COMMAND_STATUS})."
     fi
 else
     log "Linux architecture detected; selecting PyTorch against the installed NVIDIA driver."
+    # Replace only the pip-managed torch pair. Using --force-reinstall here would
+    # also replace Conda-owned transitive dependencies such as NumPy.
+    log_command python -m pip uninstall --yes torch torchvision
+    run_with_reporting python -m pip uninstall --yes torch torchvision
     if ! install_driver_compatible_torch; then
         record_failure "[post-link] PyTorch installation failed for both compatible CUDA indexes and the CUDA 11.8 fallback (exit ${LAST_COMMAND_STATUS})."
     fi
 
-    log_command python -m pip install "${pip_flags[@]}" --index-url https://pypi.org/simple "${common_packages[@]}"
+    log_command python -m pip install "${pip_flags[@]}" "${numpy_constraint_args[@]}" --index-url https://pypi.org/simple "${common_packages[@]}"
     if ! TREX_PROGRESS_LABEL="pip install remaining packages..." run_with_reporting \
-        python -m pip install "${pip_flags[@]}" --index-url https://pypi.org/simple "${common_packages[@]}"
+        python -m pip install "${pip_flags[@]}" "${numpy_constraint_args[@]}" --index-url https://pypi.org/simple "${common_packages[@]}"
     then
         record_failure "[post-link] Non-PyTorch package installation failed on Linux (exit ${LAST_COMMAND_STATUS})."
     fi
@@ -433,7 +464,7 @@ fi
 log "Testing installation..."
 announce_progress "TRex is running a short YOLO smoke test to verify the Python install."
 
-CMD_STRING="from ultralytics import YOLO; from rfdetr import RFDETR; from torchvision.ops import nms; from importlib.metadata import version; import cv2, numpy as np, torch; assert version('opencv-python').split('.')[0] == '4'; assert nms(torch.tensor([[0.,0.,1.,1.]]), torch.tensor([1.]), 0.5).tolist() == [0]; YOLO('yolo26n.yaml').to('cpu').predict(np.zeros((640, 480, 3), dtype=np.uint8))"
+CMD_STRING="from ultralytics import YOLO; from rfdetr import RFDETR; from torchvision.ops import nms; from importlib.metadata import version; import cv2, numpy as np, torch; assert version('numpy') == '${numpy_version}'; assert version('opencv-python').split('.')[0] == '4'; assert nms(torch.tensor([[0.,0.,1.,1.]]), torch.tensor([1.]), 0.5).tolist() == [0]; YOLO('yolo26n.yaml').to('cpu').predict(np.zeros((640, 480, 3), dtype=np.uint8))"
 log_command python -c "${CMD_STRING}"
 
 if TREX_PROGRESS_LABEL="YOLO smoke test..." run_with_reporting python -c "${CMD_STRING}"; then
@@ -449,6 +480,10 @@ if [ "${POST_LINK_FAILED}" -ne 0 ]; then
         echo "[post-link] Dumping post-link log due to failures:" >&2
         cat "${OUT_STREAM}" >&2
     fi
+fi
+
+if [ -n "${numpy_constraint_file}" ]; then
+    rm -f "${numpy_constraint_file}"
 fi
 
 exit 0
