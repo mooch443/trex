@@ -61,6 +61,8 @@ build:
         - bin/trex # [not win]
         - bin/pvinfo # [not win]
         - bin/pvconvert # [not win]
+        - bin/interactive_segmentation_prototype # [linux]
+        - bin/interactive_segmentation_prototype.app/Contents/MacOS/interactive_segmentation_prototype # [osx]
         - bin/TRex.app/Contents/MacOS/TRex # [osx]
 
 requirements:
