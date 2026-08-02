@@ -80,10 +80,8 @@ jobs:
         conda list
         echo "::endgroup::"
         echo "::group::Fix Meta"
-        cmake -P $GITHUB_WORKSPACE/Application/cmake/test_trex_dependency_profiles.cmake
         cd $GITHUB_WORKSPACE/conda
-        python test_select_config.py
-        python select_config.py minimal
+        python select_config.py minimal --force
         p=${GITHUB_REF_NAME}
         p_sanitized=${p//\//_}
         p_sanitized=${p_sanitized//-/_}

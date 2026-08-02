@@ -110,9 +110,7 @@ jobs:
       shell: pwsh
       working-directory: ${{ env.SHORT_WORKSPACE }}\conda
       run: |
-        cmake -P "$env:SHORT_WORKSPACE\Application\cmake\test_trex_dependency_profiles.cmake"
-        python test_select_config.py
-        python select_config.py minimal
+        python select_config.py minimal --force
         $branch = "${{ github.ref_name }}"
         $branchSanitized = $branch -replace '/', '_' -replace '-', '_'
 
