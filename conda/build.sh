@@ -38,6 +38,16 @@ echo "GIT_DESCRIBE_NUMBER=${GIT_DESCRIBE_NUMBER}"
 echo "GIT_DESCRIBE_HASH=${GIT_DESCRIBE_HASH}"
 echo "TREX_DESCRIBE_NUMBER=${GIT_DESCRIBE_NUMBER}"
 
+TREX_CONFIGURE="${TREX_CONFIGURE:-buildall}"
+case "${TREX_CONFIGURE}" in
+    buildall|minimal) ;;
+    *)
+        echo "Invalid TREX_CONFIGURE='${TREX_CONFIGURE}'; expected buildall or minimal." >&2
+        exit 2
+        ;;
+esac
+echo "TREX_CONFIGURE=${TREX_CONFIGURE}"
+
 cd Application
 mkdir build
 cd build
@@ -203,13 +213,11 @@ cmake .. \
     -DCMAKE_BUILD_TYPE=Release \
     -DWITH_GITSHA1=ON \
     -DWITH_FFMPEG=ON \
+    -DTREX_ENABLE_PROTOTYPES=ON \
+    -DTREX_CONFIGURE=${TREX_CONFIGURE} \
     -DCMAKE_INSTALL_PREFIX=$PREFIX \
     -DWITH_PYLON=OFF \
-    -DCOMMONS_BUILD_OPENCV=ON \
     -DCOMMONS_BUILD_GLFW=${BUILD_GLFW} \
-    -DCOMMONS_BUILD_ZLIB=ON \
-    -DCOMMONS_BUILD_PNG=ON \
-    -DCOMMONS_BUILD_ZIP=ON \
     -DCOMMONS_BUILD_EXAMPLES=OFF \
     -DTREX_CONDA_PACKAGE_INSTALL=ON \
     -DCOMMONS_CONDA_PACKAGE_INSTALL=ON \
@@ -241,11 +249,6 @@ else
 fi
 
 echo "Choose processor number = ${PROCS}"
-
-CMAKE_BUILD_PARALLEL_LEVEL=${PROCS} cmake --build . --target Z_LIB --parallel ${PROCS}
-CMAKE_BUILD_PARALLEL_LEVEL=${PROCS} cmake --build . --target libzip --parallel ${PROCS}
-CMAKE_BUILD_PARALLEL_LEVEL=${PROCS} cmake --build . --target libpng_custom --parallel ${PROCS}
-CMAKE_BUILD_PARALLEL_LEVEL=${PROCS} cmake --build . --target CustomOpenCV --parallel ${PROCS}
 
 if [ "$(uname)" == "Linux" ]; then
     CMAKE_BUILD_PARALLEL_LEVEL=${PROCS} cmake --build . --target gladex --parallel ${PROCS}

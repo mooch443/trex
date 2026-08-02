@@ -1130,12 +1130,21 @@ void Segmenter::generator_thread() {
         Detection::manager().set_weight_limit(1);
 
         if (std::unique_lock vlock(_mutex_video);
-            _overlayed_video->eof())
+            _overlayed_video->eof() && result.error() == "EOF")
         {
 #if !defined(NDEBUG) && defined(DEBUG_TM_ITEMS)
             thread_print("TM EOF: ", result.error());
 #endif
             _writing_step.notify();
+
+            /// Reaching the source EOF does not mean that every queued
+            /// detection future has completed. Let GeneratorStep consume the
+            /// pending results first so that a late pipeline exception is
+            /// reported through error_stop instead of being masked as EOF.
+            if(_generating_step.has_data()) {
+                _generating_step.notify();
+                return;
+            }
             
             if(std::unique_lock vlock(_mutex_general);
                _output_file && _output_file->length() == 0_f

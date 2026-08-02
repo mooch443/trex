@@ -248,7 +248,6 @@ common_packages=(
     "torchvision>=0.17.0"
     "torchmetrics"
     "tqdm"
-    "opencv-python>=4,<5"
     "ultralytics>=8.3.0,<9"
     "rfdetr==1.8.3"
     "dill"
@@ -256,6 +255,21 @@ common_packages=(
     "scikit-learn"
     "git+https://github.com/ultralytics/CLIP.git"
 )
+
+has_conda_py_opencv=false
+for conda_record in "${PREFIX}"/conda-meta/py-opencv-*.json; do
+    if [ -f "${conda_record}" ]; then
+        has_conda_py_opencv=true
+        break
+    fi
+done
+
+if ${has_conda_py_opencv}; then
+    log "Conda py-opencv detected; keeping its cv2 module and skipping the PyPI OpenCV wheel."
+else
+    log "Conda py-opencv not detected; adding opencv-python>=4,<5 for the buildall profile."
+    common_packages+=("opencv-python>=4,<5")
+fi
 
 if [ ${#numpy_requirement[@]} -gt 0 ]; then
     common_packages+=("${numpy_requirement[@]}")
@@ -315,7 +329,7 @@ fi
 log "Testing installation..."
 announce_progress "TRex is running a short YOLO smoke test to verify the Python install."
 
-CMD_STRING="from ultralytics import YOLO; from rfdetr import RFDETR; from torchvision.ops import nms; import numpy as np, torch; assert nms(torch.tensor([[0.,0.,1.,1.]]), torch.tensor([1.]), 0.5).tolist() == [0]; YOLO('yolo26n.yaml').to('cpu').predict(np.zeros((640, 480, 3), dtype=np.uint8))"
+CMD_STRING="from ultralytics import YOLO; from rfdetr import RFDETR; from torchvision.ops import nms; from importlib.metadata import version; import cv2, numpy as np, torch; assert version('opencv-python').split('.')[0] == '4'; assert nms(torch.tensor([[0.,0.,1.,1.]]), torch.tensor([1.]), 0.5).tolist() == [0]; YOLO('yolo26n.yaml').to('cpu').predict(np.zeros((640, 480, 3), dtype=np.uint8))"
 log_command python -c "${CMD_STRING}"
 
 if TREX_PROGRESS_LABEL="YOLO smoke test..." run_with_reporting python -c "${CMD_STRING}"; then

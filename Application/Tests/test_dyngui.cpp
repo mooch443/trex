@@ -932,6 +932,114 @@ TYPED_TEST(ParseAndResolveTest, LazyEvalReplacement)
     ASSERT_FALSE(ran);
 }
 
+TYPED_TEST(ParseAndResolveTest, ConditionalAndLogicalExpressionsEvaluateLazily)
+{
+    struct TestCase {
+        std::string_view expression;
+        std::string_view expected;
+        size_t expected_probes;
+    };
+
+    constexpr std::array cases{
+        TestCase{"{if:{probe:condition:true}:yes:{unreachable}}", "yes", 1},
+        TestCase{"{if:{probe:condition:false}:{unreachable}:no}", "no", 1},
+        TestCase{"{if:{probe:condition:true}:yes}", "yes", 1},
+        TestCase{"{if:{probe:condition:false}:{unreachable}}", "", 1},
+        TestCase{"{&&:{probe:first:false}:{unreachable}}", "false", 1},
+        TestCase{"{&&:{probe:first:true}:{probe:second:true}}", "true", 2},
+        TestCase{"{&&:{probe:first:true}:{probe:second:false}:{unreachable}}", "false", 2},
+        TestCase{"{||:{probe:first:true}:{unreachable}}", "true", 1},
+        TestCase{"{||:{probe:first:false}:{probe:second:false}}", "false", 2},
+        TestCase{"{||:{probe:first:false}:{probe:second:true}:{unreachable}}", "true", 2},
+        TestCase{"{&&:{not:{probe:first:true}}:{unreachable}}", "false", 1},
+        TestCase{"{||:{not:{probe:first:false}}:{unreachable}}", "true", 1},
+        TestCase{"{&&:{||:{probe:first:true}:{unreachable}}:{||:{probe:second:false}:{probe:third:true}}}", "true", 3},
+        TestCase{"{||:{&&:{probe:first:false}:{unreachable}}:{&&:{probe:second:true}:{probe:third:true}}}", "true", 3}
+    };
+
+    for(const auto& test : cases) {
+        SCOPED_TRACE(test.expression);
+
+        State state;
+        size_t probes = 0;
+        bool unreachable_ran = false;
+        Context ctx{
+            VarFunc("probe", [&](const VarProps& props) -> bool {
+                ++probes;
+                return convert_to_bool(props.last());
+            }),
+            VarFunc("unreachable", [&](const VarProps&) -> bool {
+                unreachable_ran = true;
+                throw std::invalid_argument("Expression should have been short-circuited.");
+            })
+        };
+
+        EXPECT_EQ(run_parser<TypeParam>(std::string(test.expression), ctx, state), std::string(test.expected));
+        EXPECT_EQ(probes, test.expected_probes);
+        EXPECT_FALSE(unreachable_ran);
+    }
+}
+
+TEST(ConditionElementTest, EvaluatesOnlySelectedBranch)
+{
+    constexpr std::string_view json = R"json(
+{
+  "type": "condition",
+  "var": "{show_then}",
+  "then": {
+    "type": "stext",
+    "text": "{then_value}"
+  },
+  "else": {
+    "type": "stext",
+    "text": "{else_value}"
+  }
+}
+)json";
+
+    glz::json_t object;
+    auto parse_error = glz::read_json(object, json);
+    ASSERT_EQ(parse_error, glz::error_code::none) << glz::format_error(parse_error, json);
+    ASSERT_TRUE(object.is_object());
+
+    for(const bool show_then : {false, true}) {
+        SCOPED_TRACE(show_then);
+
+        size_t then_reads = 0;
+        size_t else_reads = 0;
+        Context context{
+            VarFunc("show_then", [show_then](const VarProps&) -> bool {
+                return show_then;
+            }),
+            VarFunc("then_value", [&](const VarProps&) -> std::string {
+                ++then_reads;
+                return "then";
+            }),
+            VarFunc("else_value", [&](const VarProps&) -> std::string {
+                ++else_reads;
+                return "else";
+            })
+        };
+
+        State state;
+        auto handler = std::make_shared<CurrentObjectHandler>();
+        state._current_object_handler = handler;
+
+        DrawStructure graph(640, 480);
+        auto root = parse_object(nullptr, object.get_object(), context, state, context.defaults);
+        ASSERT_TRUE(root);
+        ASSERT_NO_THROW((void)DynamicGUI::update_objects(nullptr, graph, root, context, state));
+
+        if(show_then) {
+            EXPECT_GT(then_reads, 0u);
+            EXPECT_EQ(else_reads, 0u);
+        } else {
+            EXPECT_EQ(then_reads, 0u);
+            EXPECT_GT(else_reads, 0u);
+        }
+    }
+}
+
 TYPED_TEST(ParseAndResolveTest, NoReplacement)
 {
     State   state;

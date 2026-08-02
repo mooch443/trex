@@ -81,6 +81,7 @@ jobs:
         echo "::endgroup::"
         echo "::group::Fix Meta"
         cd $GITHUB_WORKSPACE/conda
+        python select_config.py minimal --force
         p=${GITHUB_REF_NAME}
         p_sanitized=${p//\//_}
         p_sanitized=${p_sanitized//-/_}
@@ -103,7 +104,24 @@ jobs:
         conda create -y -n test --override-channels -c $CONDA_PREFIX/conda-bld/ -c conda-forge trex
         conda activate test
         pvinfo -opencv_ffmpeg_support
-        pvinfo -opencv_opencl_support
+        if pvinfo -opencv_opencl_support; then
+          echo "Minimal OpenCV unexpectedly reports OpenCL support." >&2
+          exit 1
+        fi
+        python $GITHUB_WORKSPACE/conda/validate_minimal.py
+        linkage=$(ldd "$(command -v trex)")
+        echo "$linkage"
+        for dependency in 'libopencv_(core|imgproc)' libpng libzip 'libz\.so' libavcodec; do
+          line=$(echo "$linkage" | grep -E "$dependency" | head -n 1)
+          if [ -z "$line" ] || [[ "$line" != *"$CONDA_PREFIX"* ]]; then
+            echo "Dependency '$dependency' did not resolve from $CONDA_PREFIX: $line" >&2
+            exit 1
+          fi
+        done
+        if ! echo "$linkage" | grep -q 'libstdc++\.so'; then
+          echo "TRex does not dynamically link libstdc++; a static runtime may be embedded." >&2
+          exit 1
+        fi
         echo "::endgroup::"
         echo "::group::TestFunctions"
         conda install -y -n test unzip

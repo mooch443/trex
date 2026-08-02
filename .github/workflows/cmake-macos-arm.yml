@@ -102,6 +102,7 @@ jobs:
         echo "::endgroup::"
         echo "::group::Fix Meta"
         cd $GITHUB_WORKSPACE/conda
+        python select_config.py minimal --force
         p=${GITHUB_REF_NAME}
         p_sanitized=${p//\//_}
         p_sanitized=${p_sanitized//-/_}
@@ -129,7 +130,71 @@ jobs:
         conda activate test
         conda install -y git
         pvinfo -opencv_ffmpeg_support
-        pvinfo -opencv_opencl_support
+        if pvinfo -opencv_opencl_support; then
+          echo "Minimal OpenCV unexpectedly reports OpenCL support." >&2
+          exit 1
+        fi
+        python $GITHUB_WORKSPACE/conda/validate_minimal.py
+        trex_binary="$CONDA_PREFIX/bin/TRex.app/Contents/MacOS/TRex"
+        linkage=$(otool -L "$trex_binary")
+        echo "$linkage"
+        for dependency in 'libopencv_(core|imgproc)' libpng libzip libavcodec; do
+          line=$(echo "$linkage" | grep -E "$dependency" | head -n 1 || true)
+          if [ -z "$line" ] || [[ "$line" != *"@rpath"* && "$line" != *"$CONDA_PREFIX"* ]]; then
+            echo "Dependency '$dependency' does not use the installed Conda RPATH: $line" >&2
+            exit 1
+          fi
+        done
+        transitive_libraries=()
+        while IFS= read -r linked_path; do
+          linked_name=${linked_path#@rpath/}
+          linked_library="$CONDA_PREFIX/lib/$linked_name"
+          if [ -f "$linked_library" ]; then
+            transitive_libraries+=("$linked_library")
+          fi
+        done < <(echo "$linkage" | awk '$1 ~ /^@rpath\// { print $1 }')
+        if [ "${#transitive_libraries[@]}" -eq 0 ]; then
+          echo "Could not resolve any direct Conda dylibs for transitive linkage inspection." >&2
+          exit 1
+        fi
+        transitive_linkage=$(otool -L "${transitive_libraries[@]}")
+        zlib_line=$(echo "$transitive_linkage" | grep -E 'libz\.' | head -n 1 || true)
+        if [ -z "$zlib_line" ] || [[ "$zlib_line" != *"@rpath"* && "$zlib_line" != *"$CONDA_PREFIX"* ]]; then
+          echo "Transitive zlib dependency does not use the installed Conda RPATH: $zlib_line" >&2
+          exit 1
+        fi
+        rpaths=$(otool -l "$trex_binary" | awk '
+          $1 == "cmd" && $2 == "LC_RPATH" { read_path = 1; next }
+          read_path && $1 == "path" { print $2; read_path = 0 }
+        ')
+        echo "LC_RPATH entries:"
+        printf '%s\n' "$rpaths"
+        expected_rpath=$(cd "$CONDA_PREFIX/lib" && pwd -P)
+        rpath_ok=false
+        while IFS= read -r rpath; do
+          [ -n "$rpath" ] || continue
+          candidate=""
+          case "$rpath" in
+            /*) candidate="$rpath" ;;
+            @loader_path|@loader_path/*)
+              candidate="$(dirname "$trex_binary")/${rpath#@loader_path}"
+              ;;
+            @executable_path|@executable_path/*)
+              candidate="$(dirname "$trex_binary")/${rpath#@executable_path}"
+              ;;
+          esac
+          if [ -n "$candidate" ] && [ -d "$candidate" ]; then
+            resolved_rpath=$(cd "$candidate" && pwd -P)
+            if [ "$resolved_rpath" = "$expected_rpath" ]; then
+              rpath_ok=true
+              break
+            fi
+          fi
+        done <<< "$rpaths"
+        if [ "$rpath_ok" != true ]; then
+          echo "TRex has no LC_RPATH resolving to the installed Conda lib directory: $expected_rpath" >&2
+          exit 1
+        fi
         echo "::endgroup::"
         echo "::group::TestFunctions"
         conda install -y unzip

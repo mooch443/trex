@@ -270,6 +270,8 @@ conda build -c conda-forge .
   reference implementation for GUI structure or best practices.
 
 ## Agent execution constraints
+- When creating a new branch, use a concise descriptive name without a
+  ``codex/`` or other agent-specific prefix.
 - Do not run builds, CMake configure/generate commands, or CMake build commands.
   The user will run builds/tests after the agent has inspected the code and is
   confident the changes are ready.
@@ -284,6 +286,9 @@ conda build -c conda-forge .
 - Only use the Conda environment `trex` for environment-specific commands or instructions, or the `trex-modules` environment. Do not access or assume any other environment.
 - When building in `Application/build`, always use the Conda environment `trex` from the project root. Do not use `trex-modules` for `Application/build`.
 - when running Python commands in the `trex` environment for this repo, prefer `KMP_DUPLICATE_LIB_OK=TRUE conda run -n trex python ...` because duplicate `libomp` initialization can otherwise abort the process on macOS.
+- Run authenticated `gh` commands with escalated access. A sandboxed `gh auth`
+  failure does not establish that credentials have expired; retry with
+  escalation before asking the user to authenticate again.
 - For commons monolith + modules work, run CMake/Ninja from `Application/tmp-modules-osx-tests-nolto` with the `trex-modules` Conda environment.
 - For commons shared-library split testing with modules disabled, use `tmp-shared-split-osx-tests-nolto` with Ninja in the `trex-modules` Conda environment.
 - For commons shared-library split testing with modules enabled, use `tmp-shared-split-osx-tests-nolto` with Ninja in the `trex-modules` Conda environment.
