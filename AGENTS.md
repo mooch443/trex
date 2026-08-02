@@ -270,6 +270,8 @@ conda build -c conda-forge .
   reference implementation for GUI structure or best practices.
 
 ## Agent execution constraints
+- When creating a new branch, use a concise descriptive name without a
+  ``codex/`` or other agent-specific prefix.
 - Do not run builds, CMake configure/generate commands, or CMake build commands.
   The user will run builds/tests after the agent has inspected the code and is
   confident the changes are ready.
