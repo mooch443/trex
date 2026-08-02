@@ -37,6 +37,7 @@ public:
     
     static void set_settings(GlobalSettings*, file::DataLocation*, void* python_wrapper, void* tile_buffers);
     static void set_display_function(std::function<void(const std::string&, const cv::Mat&)>, std::function<void()>);
+    static void set_runtime_warning_function(std::function<void(const std::string&)>);
     
     static bool exists(const std::string&, const std::string& m = "");
     static bool valid(const std::string&, const std::string& m = "");

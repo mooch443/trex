@@ -88,6 +88,24 @@ using namespace default_config;
 bool wants_to_load{false};
 bool pause_stuff{false};
 
+std::mutex python_runtime_warning_mutex;
+std::queue<std::string> python_runtime_warnings;
+
+void queue_python_runtime_warning(std::string message) {
+    std::lock_guard guard(python_runtime_warning_mutex);
+    python_runtime_warnings.emplace(std::move(message));
+}
+
+std::optional<std::string> next_python_runtime_warning() {
+    std::lock_guard guard(python_runtime_warning_mutex);
+    if(python_runtime_warnings.empty())
+        return std::nullopt;
+
+    auto message = std::move(python_runtime_warnings.front());
+    python_runtime_warnings.pop();
+    return message;
+}
+
 static_assert(_has_tostr_method<file::Path>, "Expecting Path to have toStr");
 
 void save_rst_files() {
@@ -404,6 +422,13 @@ void launch_gui(std::future<void>& f) {
             }
         }
         manager.update(&base, *base.graph());
+
+        if(auto warning = next_python_runtime_warning()) {
+            base.graph()->dialog(
+                settings::htmlify(*warning),
+                "<sym>⚠</sym> GPU acceleration unavailable"
+            );
+        }
         
         check_pause();
     });
@@ -828,6 +853,11 @@ int main(int argc, char**argv) {
                 },
                 []() {
                     tf::destroyAllWindows();
+                },
+                [](const std::string& message) {
+                    FormatWarning("[py] ", message);
+                    if(not BOOL_SETTING(nowindow))
+                        queue_python_runtime_warning(message);
                 }
             );
         //});

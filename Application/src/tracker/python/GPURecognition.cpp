@@ -386,6 +386,9 @@ MESSAGE_TYPE(PythonWarn, TYPE_WARNING, false, YELLOW, "python");*/
 
 std::function<void(const std::string&, const cv::Mat&)> _mat_display = [](auto&, auto&) { };
 std::function<void()> _destroy_all_windows = []() {};
+std::function<void(const std::string&)> _display_runtime_warning = [](const std::string& message) {
+    FormatWarning(message);
+};
 
 #include "GPURecognition.h"
 #include <pybind11/stl.h>
@@ -1006,6 +1009,10 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
         FormatWarning(fmt::clr<FormatColor::DARK_GRAY>("[py "), fmt::clr<FormatColor::DARK_YELLOW>(no_quotes(filename)), fmt::clr<FormatColor::DARK_GRAY>(":"), fmt::clr<FormatColor::GREEN>(Meta::toStr(line_no)), fmt::clr<FormatColor::DARK_GRAY>("] "), text.c_str());
     });
 
+    m.def("show_runtime_warning", [](std::string text) {
+        _display_runtime_warning(text);
+    });
+
     m.def("video_size", []() -> pybind11::dict {
         using namespace pybind11::literals;
         
@@ -1160,6 +1167,14 @@ void set_function_internal(const char* name_, T&& f, const std::string& m);
 void PythonIntegration::set_display_function(std::function<void(const std::string&, const cv::Mat&)> fn, std::function<void()> destroy_all_windows) {
     _mat_display = fn;
     _destroy_all_windows = destroy_all_windows;
+}
+
+void PythonIntegration::set_runtime_warning_function(
+    std::function<void(const std::string&)> display_runtime_warning
+) {
+    _display_runtime_warning = display_runtime_warning
+        ? std::move(display_runtime_warning)
+        : [](const std::string& message) { FormatWarning(message); };
 }
 
 void PythonIntegration::init() {
