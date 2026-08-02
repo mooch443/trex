@@ -191,7 +191,7 @@
             "as":"a",
             "do": {
                 "type":"condition",
-                "var":"{&&:{global.detect_skeleton}:{equal:{a.type}:1}}",
+                "var":"{&&:{equal:{a.type}:1}:{global.detect_skeleton}:{contains:{a.clid}:{global.detect_classes}}:{contains:{at:{a.clid}:{global.detect_classes}}:{global.detect_skeleton}}}",
                 "then":{
                     "type":"each",
                     "var":"{at:{at:{a.clid}:{global.detect_classes}}:{global.detect_skeleton}}",
