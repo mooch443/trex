@@ -36,6 +36,8 @@ enum class SelectedSettingType {
 };
 
 struct BlobView {
+    static constexpr Float2_t annotation_menu_max_height = 400_F;
+
     std::vector<std::vector<Vec2>> _current_boundary;
     std::string _selected_setting_name;
     SelectedSettingType _selected_setting_type;
@@ -50,7 +52,9 @@ struct BlobView {
     Entangled _mousedock_collection;
     NumericTextfield<double> cm_per_pixel_text{1.0, Bounds(0, 0, 200,30), arange<double>{0, infinity<double>()}};
     
-    std::unique_ptr<VerticalLayout> combine = std::make_unique<VerticalLayout>(ZIndex{1});
+    std::unique_ptr<FloatingLayout> combine = std::make_unique<FloatingLayout>(
+        FloatingLayout::Policy::HorizontalFirst,
+        ZIndex{1});
     derived_ptr<Button> button = nullptr;
     std::vector<derived_ptr<Button>> annotation_buttons;
     derived_ptr<Dropdown> dropdown = nullptr;
@@ -1464,6 +1468,7 @@ void BlobView::draw_boundary_selection(DrawStructure& base, Base* window, GUICac
                 
                 if(!button) {
                     button = Layout::Make<Button>{Str(name), Box(Vec2(), bds.size()), Font(0.6, Align::Center), FillClr{60,60,60,200}, LineClr{100,175,250,200}, TextClr{225,225,225}};
+                    button->set_scroll_enabled(false);
                     button->on_click([&](auto){
                         clicked_background(base, cache, Vec2(), true, "");
                     });
@@ -1473,7 +1478,15 @@ void BlobView::draw_boundary_selection(DrawStructure& base, Base* window, GUICac
                 }
                 
                 auto detect_classes = READ_SETTING_WITH_DEFAULT(detect_classes, cmn::blob::MaybeObjectClass_t{});
+                auto detect_type = READ_SETTING_WITH_DEFAULT(detect_type, track::detect::ObjectDetectionType_t{});
+                const bool show_annotation_classes = detect_type != track::detect::ObjectDetectionType::background_subtraction;
+
+                /// we already had it before, so we have to clear it now:
+                if(not show_annotation_classes)
+                    annotation_buttons.clear();
+
                 if(annotation_buttons.empty()
+                   && show_annotation_classes
                    && (bdry.size() == 1 && bdry.front().size() >= 1))
                 {
                     auto create_button = [this](StringLike auto&& name, size_t id) -> derived_ptr<Button> {
@@ -1485,6 +1498,8 @@ void BlobView::draw_boundary_selection(DrawStructure& base, Base* window, GUICac
                             TextClr{225,225,225},
                             CornerFlags_t::Bottom()
                         }();
+                        // Let wheel input reach the capped annotation menu.
+                        annotation_button->set_scroll_enabled(false);
                         annotation_button->on_click([&, id](auto){
                             if(_current_boundary.size() == 1
                                && _current_boundary.front().size() >= 1)
@@ -1567,7 +1582,7 @@ void BlobView::draw_boundary_selection(DrawStructure& base, Base* window, GUICac
                 std::vector<Layout::Ptr> children;
                 children.push_back(button);
                 
-                if(not annotation_buttons.empty()) {
+                if(show_annotation_classes && not annotation_buttons.empty()) {
                     if(detect_classes
                        && detect_classes->size() == annotation_buttons.size())
                     {
@@ -1595,6 +1610,7 @@ void BlobView::draw_boundary_selection(DrawStructure& base, Base* window, GUICac
                     dropdown->on_select([&](auto, const Dropdown::TextItem & item){
                         clicked_background(base, cache, Vec2(), true, item.name());
                     });
+                    dropdown->textfield()->set_scroll_enabled(false);
                     dropdown->textfield()->set_placeholder("Add shape to...");
                 }
                 
@@ -1609,7 +1625,7 @@ void BlobView::draw_boundary_selection(DrawStructure& base, Base* window, GUICac
                     }
                 }
                 
-                if(not annotation_buttons.empty()) {
+                if(show_annotation_classes && not annotation_buttons.empty()) {
                     const auto detect_format = READ_SETTING_WITH_DEFAULT(detect_format, track::detect::ObjectDetectionFormat::none);
                     auto text = Layout::Make<StaticText>{
                         Str{"<c><b>Annotating ("+Meta::toStr(detect_format)+")</b></c>"},
@@ -1645,8 +1661,12 @@ void BlobView::draw_boundary_selection(DrawStructure& base, Base* window, GUICac
                     button->set(CornerFlags_t::Top());
                 }
                 
-                button->set_size(Size2(bds.width, button->height()));
-                dropdown->set_size(Size2(bds.width, dropdown->height()));
+                for(auto& child : children)
+                    child->set_size(Size2(bds.width, child->height()));
+
+                combine->set(attr::SizeLimit{
+                    Size2{bds.width, annotation_menu_max_height}
+                });
                 combine->set_children(children);
                 
                 base.wrap_object(*combine);
