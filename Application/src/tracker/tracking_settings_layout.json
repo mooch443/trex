@@ -581,7 +581,7 @@
                     },
                     {
                         "type":"condition",
-                        "var":"{not:{checks_running}}",
+                        "var":"{&&:{valid_detection_model}:{not:{checks_running}}}",
                         "then":{
                             "type":"button",
                             "text":"Convert <sym>⮞</sym>",

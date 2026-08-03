@@ -75,16 +75,15 @@ struct SettingsScene::Data {
     std::vector<std::future<void>> _running_tasks;
     std::atomic<size_t> _are_python_tasks_running{0};
     std::atomic<bool> _are_video_checks_running{false};
+    std::mutex _detection_model_task_mutex;
 
     struct DetectionModelRequest {
-        uint64_t generation;
         track::detect::ObjectDetectionType_t type;
         file::Path detect_model;
         file::Path region_model;
 
-        bool is_current(uint64_t current_generation) const {
-            return generation == current_generation
-                && type == READ_SETTING_WITH_DEFAULT(detect_type, track::detect::ObjectDetectionType_t{})
+        bool is_current() const {
+            return type == READ_SETTING_WITH_DEFAULT(detect_type, track::detect::ObjectDetectionType_t{})
                 && detect_model == READ_SETTING_WITH_DEFAULT(detect_model, file::Path{})
                 && region_model == READ_SETTING_WITH_DEFAULT(region_model, file::Path{});
         }
@@ -98,8 +97,6 @@ struct SettingsScene::Data {
         bool requires_exact_input_size{false};
     };
 
-    std::atomic<uint64_t> _detection_model_request_generation{0};
-    
     std::unordered_map<std::string, DetectionModelMetadata> _cached_model_metadata;
     sprite::Map _defaults;
     std::stack<std::string> _last_layouts;
@@ -171,7 +168,7 @@ struct SettingsScene::Data {
     }
 
     bool is_current(const DetectionModelRequest& request) const {
-        return request.is_current(_detection_model_request_generation.load());
+        return request.is_current();
     }
 
     void clear_invalid_model_metadata() {
@@ -189,7 +186,6 @@ struct SettingsScene::Data {
         update_running_tasks();
 
         const auto type = READ_SETTING_WITH_DEFAULT(detect_type, track::detect::ObjectDetectionType_t{});
-        const auto generation = ++_detection_model_request_generation;
         // A new model request owns all derived metadata. Clear the previous
         // model before loading either a different YOLO or RF-DETR checkpoint.
         clear_invalid_model_metadata();
@@ -198,11 +194,16 @@ struct SettingsScene::Data {
         }
 
         const DetectionModelRequest request{
-            .generation = generation,
             .type = type,
             .detect_model = READ_SETTING_WITH_DEFAULT(detect_model, file::Path{}),
             .region_model = READ_SETTING_WITH_DEFAULT(region_model, file::Path{})
         };
+
+        // Text fields may briefly publish incomplete paths while they are
+        // edited. Do not start Python, or accept an arbitrary regular file,
+        // until the detector path is a supported model.
+        if(not track::detect::yolo::valid_model(request.detect_model))
+            return;
         
         std::unique_lock guard(_task_lock);
         ++_are_python_tasks_running;
@@ -212,16 +213,15 @@ struct SettingsScene::Data {
             ._network = nullptr,
             ._task = [this, request]()
             {
+                std::unique_lock model_guard(_detection_model_task_mutex);
+
                 static const auto is_ml_backend = [](){
                     return READ_SETTING_WITH_DEFAULT(detect_type, track::detect::ObjectDetectionType_t{})
                         == track::detect::ObjectDetectionType::yolo;
                 };
 
                 try {
-                    if(is_current(request)
-                       && not request.detect_model.empty()
-                       && (track::detect::yolo::is_valid_default_model(request.detect_model.str())
-                           || request.detect_model.is_regular()))
+                    if(is_current(request))
                     {
                         /// check whether we either 1. have no *region_model* active,
                         /// or both region model and detect model exit and are
@@ -312,9 +312,9 @@ struct SettingsScene::Data {
                     }
 
                     /// A YOLO init writes its metadata through GlobalSettings.
-                    /// Clear it again only if the user left the model-backed
-                    /// YOLO/RF-DETR path while this request was running.
-                    if(not is_ml_backend())
+                    /// Clear it again if the user left the model-backed path or
+                    /// selected a newer model while this request was running.
+                    if(not is_ml_backend() || not is_current(request))
                         clear_invalid_model_metadata();
                     
                     --_are_python_tasks_running;
@@ -378,7 +378,6 @@ struct SettingsScene::Data {
                 
             } else if(name == "detect_type") {
                 auto detect_type = READ_SETTING(detect_type, track::detect::ObjectDetectionType_t);
-                ++_detection_model_request_generation;
                 
                 ExtendableVector exclude;
                 if(not READ_SETTING(detect_model, file::Path).empty()
@@ -400,8 +399,13 @@ struct SettingsScene::Data {
 
                 if(detect_type == track::detect::ObjectDetectionType::yolo)
                     detection_models_updated();
-                else
+                else {
+                    if(detect_type == track::detect::ObjectDetectionType::background_subtraction) {
+                        SETTING(detect_model) = file::Path{};
+                        SETTING(region_model) = file::Path{};
+                    }
                     clear_invalid_model_metadata();
+                }
                 
             } else if(name == "detect_model" || name == "region_model") {
                 detection_models_updated();
@@ -948,7 +952,16 @@ struct SettingsScene::Data {
                         return last_output_name.value();
                     }),
                     VarFunc("checks_running", [this](const VarProps&) -> bool {
-                        return _are_python_tasks_running.load() > 0 || _are_video_checks_running;
+                        return _are_python_tasks_running.load() > 0
+                            || _are_video_checks_running.load();
+                    }),
+                    VarFunc("valid_detection_model", [](const VarProps&) -> bool {
+                        const auto type = READ_SETTING_WITH_DEFAULT(
+                            detect_type,
+                            track::detect::ObjectDetectionType_t{});
+                        return type != track::detect::ObjectDetectionType::yolo
+                            || track::detect::yolo::valid_model(
+                                READ_SETTING_WITH_DEFAULT(detect_model, file::Path{}));
                     }),
                     VarFunc("season", [](const VarProps&) {
                         return GlobalSettings::currentSeason().toStr();

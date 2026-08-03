@@ -691,6 +691,8 @@ TEST(YOLOFilenameTest, ValidFilenames) {
     EXPECT_TRUE(yolo::is_default_model("yolo11x.pt"));
     EXPECT_TRUE(yolo::is_default_model("yolo11x-pose.pt"));
     EXPECT_TRUE(yolo::is_default_model("yolo11x-seg.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolo26n"));
+    EXPECT_TRUE(yolo::is_default_model("yolo26n.pt"));
     EXPECT_TRUE(yolo::is_default_model("yolov10b.pt"));
     EXPECT_TRUE(yolo::is_default_model("yolov10l.pt"));
     EXPECT_TRUE(yolo::is_default_model("yolov10m.pt"));
@@ -760,7 +762,6 @@ TEST(YOLOFilenameTest, ValidFilenames) {
     EXPECT_TRUE(yolo::is_default_model("yolov9m.pt"));
     EXPECT_TRUE(yolo::is_default_model("yolov9s.pt"));
     EXPECT_TRUE(yolo::is_default_model("yolov9t.pt"));
-    EXPECT_TRUE(yolo::is_default_model("yolo12.pt"));
     EXPECT_TRUE(yolo::is_default_model("yolo12345m.pt")); // larger versions drop the v
     EXPECT_TRUE(yolo::is_default_model("yolo80x.pt"));
     EXPECT_TRUE(yolo::is_default_model("yolo22b.pt"));
@@ -784,6 +785,9 @@ TEST(YOLOFilenameTest, InvalidFilenames) {
     
     EXPECT_FALSE(yolo::is_default_model("yolov7a.pt"));
     EXPECT_FALSE(yolo::is_default_model("yolo10.pt")); // Missing 'v'
+    EXPECT_FALSE(yolo::is_default_model("yolo12.pt")); // Missing model size
+    EXPECT_FALSE(yolo::is_default_model("yolo26")); // Missing model size
+    EXPECT_FALSE(yolo::is_default_model("yolo26.pt")); // Missing model size
     EXPECT_FALSE(yolo::is_default_model("yolov.pt")); // Missing version number
     EXPECT_FALSE(yolo::is_default_model("yolov10.ptx")); // Extra characters after .pt
     EXPECT_FALSE(yolo::is_default_model("yolov10_b.pt")); // Underscore not allowed

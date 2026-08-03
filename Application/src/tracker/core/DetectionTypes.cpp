@@ -249,12 +249,16 @@ bool is_valid_default_model(const std::string& filename) {
                 "|\\d{3,}"         // Any version number with 3 or more digits
             "))"
         ")"
-        "([blmnxsucet]|x6|sp|lu|mu|xu)?"  // Optional suffixes
         "("
-            "(\\d|[sn])+u"                // Optional pattern
+            "([blmnxsucet]|x6|sp|lu|mu|xu)" // Model size or variant
+            "("
+                "(\\d|[sn])+u"
+                "|"
+                "-(tinyu|cls|sppu|human|obb|oiv7|pose-p6|pose|seg|v8loader|\\d+)+"
+            ")?"
             "|"
             "-(tinyu|cls|sppu|human|obb|oiv7|pose-p6|pose|seg|v8loader|\\d+)+"
-        ")?"
+        ")"
         "(\\.pt)?"
         "$"
     );
