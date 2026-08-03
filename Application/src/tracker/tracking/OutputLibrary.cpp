@@ -1419,56 +1419,184 @@ cached_output_fields_t Library::get_cached_fields() {
         
         return cached_fields;
     }
+
+    namespace {
+        struct OutputSeries {
+            std::string name;
+            std::string units;
+            bool points{false};
+            std::function<double(Frame_t::number_t)> value;
+        };
+
+        std::vector<OutputSeries> make_output_series(
+            const cached_output_fields_t& options_map,
+            const Individual* fish,
+            LibraryCache::Ptr cache)
+        {
+            if(!cache)
+                cache = _default_cache;
+
+            const auto annotations = READ_SETTING(output_annotations, std::map<std::string, std::string>);
+            std::vector<OutputSeries> result;
+
+            for(const auto& [fname, instances] : options_map) {
+                const auto annotation = annotations.find(fname);
+                const std::string units = annotation != annotations.end() ? annotation->second : "";
+
+                for(const auto& instance : instances) {
+                    Library::LibInfo info(fish, instance.first, cache);
+                    auto mod_name = fname;
+
+                    if(const auto properties = properties_for(fname);
+                       not properties.centroid_only
+                       && not properties.posture_only
+                       && not properties.is_global)
+                    {
+                        if(info.modifiers.is(Modifiers::SMOOTH))
+                            mod_name += "#smooth";
+                        if(info.modifiers.is(Modifiers::CENTROID))
+                            mod_name += "#centroid";
+                        else if(info.modifiers.is(Modifiers::POSTURE_CENTROID))
+                            mod_name += "#pcentroid";
+                        else if(info.modifiers.is(Modifiers::WEIGHTED_CENTROID))
+                            mod_name += "#wcentroid";
+                    }
+
+                    auto value = [fname, info, calculation = instance.second](Frame_t::number_t frame) {
+                        return calculation.apply(Library::get(fname, info, Frame_t(frame)));
+                    };
+
+                    result.push_back({
+                        .name = mod_name,
+                        .units = units,
+                        .points = info.modifiers.is(Modifiers::POINTS),
+                        .value = value
+                    });
+
+                    if(info.modifiers.is(Modifiers::PLUSMINUS)) {
+                        result.push_back({
+                            .name = mod_name,
+                            .units = units,
+                            .points = info.modifiers.is(Modifiers::POINTS),
+                            .value = [value = std::move(value)](Frame_t::number_t frame) {
+                                return -value(frame);
+                            }
+                        });
+                    }
+                }
+            }
+
+            return result;
+        }
+
+        void report_export_progress(const Range<Frame_t>& range,
+                                    Frame_t frame,
+                                    std::function<void(float)>* percent_callback)
+        {
+            if(not percent_callback || frame.get() % 100 != 0)
+                return;
+
+            const auto total = (range.end - range.start).get();
+            const auto completed = (frame - range.start).get();
+            (*percent_callback)(total > 0 ? float(completed) / float(total) : 1.f);
+        }
+    }
     
     void Library::init_graph(const cached_output_fields_t& options_map, Graph &graph, const Individual *fish, LibraryCache::Ptr cache) {
-        if(!cache)
-            cache = _default_cache;
-        
-        auto annotations = READ_SETTING(output_annotations, std::map<std::string, std::string>);
-        
-        for (auto &[fname, instances] : options_map) {
-            std::string units = "";
-            if (annotations.count(fname)) {
-                units = annotations.at(fname);
+        for(auto& series : make_output_series(options_map, fish, std::move(cache))) {
+            graph.add_function(Graph::Function(
+                series.name,
+                series.points ? Graph::POINTS : Graph::DISCRETE,
+                std::move(series.value),
+                gui::Color(),
+                series.units));
+        }
+    }
+
+    void Library::save_csv(const cached_output_fields_t& output_fields,
+                           const Range<Frame_t>& range,
+                           const Individual* fish,
+                           LibraryCache::Ptr cache,
+                           const file::Path& filename,
+                           std::function<void(float)>* percent_callback)
+    {
+        const auto series = make_output_series(output_fields, fish, std::move(cache));
+
+        std::vector<std::string> header{"frame"};
+        header.reserve(series.size() + 1);
+        for(const auto& item : series) {
+            header.push_back(item.units.empty()
+                ? item.name
+                : item.name + " (" + item.units + ")");
+        }
+
+        file::Table table(header);
+        table.reserve(sign_cast<size_t>((range.end - range.start).get()) + 1);
+
+        file::Row row;
+        for(auto frame = range.start; frame <= range.end; ++frame) {
+            row.clear();
+            row.add(float(frame.get()));
+            for(const auto& item : series)
+                row.add(item.value(frame.get()));
+            table.add(row);
+            report_export_progress(range, frame, percent_callback);
+        }
+
+        file::CSVExport(table).save(filename);
+    }
+
+    void Library::save_npz(const cached_output_fields_t& output_fields,
+                           const Range<Frame_t>& range,
+                           const Individual* fish,
+                           LibraryCache::Ptr cache,
+                           const file::Path& filename,
+                           std::function<void(float)>* percent_callback,
+                           bool quiet)
+    {
+        if(not filename.has_extension("npz"))
+            throw U_EXCEPTION("Can only save to NPZ with save_npz (",filename,")");
+
+        if(filename.exists())
+            filename.delete_file();
+
+        const auto series = make_output_series(output_fields, fish, std::move(cache));
+        std::vector<std::vector<float>> results(series.size());
+        const auto sample_count = sign_cast<size_t>((range.end - range.start).get()) + 1;
+        for(auto& values : results)
+            values.reserve(sample_count);
+
+#ifndef NDEBUG
+        const auto frame_count = (range.end - range.start).get();
+        const int print_step = max(1, int(frame_count * 0.1f));
+#else
+        UNUSED(quiet);
+#endif
+
+        for(auto frame = range.start; frame <= range.end; ++frame) {
+            for(size_t i = 0; i < series.size(); ++i) {
+                const auto value = series[i].value(frame.get());
+                results[i].push_back(GlobalSettings::is_invalid(value)
+                    ? GlobalSettings::invalid()
+                    : float(value));
             }
-            
-            for (auto &e : instances) {
-                LibInfo info(fish, e.first, cache);
-                auto mod_name = fname;
-                
-                if(auto p = properties_for(fname);
-                   not p.centroid_only
-                   && not p.posture_only
-                   && not p.is_global)
-                {
-                    if (info.modifiers.is(Modifiers::SMOOTH))
-                        mod_name += "#smooth";
-                    if(info.modifiers.is(Modifiers::CENTROID))
-                        mod_name += "#centroid";
-                    else if(info.modifiers.is(Modifiers::POSTURE_CENTROID))
-                        mod_name += "#pcentroid";
-                    else if(info.modifiers.is(Modifiers::WEIGHTED_CENTROID))
-                        mod_name += "#wcentroid";
-                }
-                
-                auto func = Graph::Function(mod_name,
-                    info.modifiers.is(Modifiers::POINTS) ? Graph::POINTS : Graph::DISCRETE,
-                    [fname, mod_name, info, e](Frame_t::number_t x) {
-                        return e.second.apply(Library::get(fname, info, Frame_t(x)));
-                        
-                    }, gui::Color(), units);
-                
-                graph.add_function(func);
-                
-                if(info.modifiers.is(Modifiers::PLUSMINUS)) {
-                    graph.add_function(Graph::Function(mod_name,
-                       info.modifiers.is(Modifiers::POINTS) ? Graph::POINTS : Graph::DISCRETE,
-                       [fname, mod_name, info, e](Frame_t::number_t x) {
-                           return -e.second.apply(Library::get(fname, info, Frame_t(x)));
-                           
-                       }, func._color, units));
-                }
+
+#ifndef NDEBUG
+            if(frame.get() % print_step == 0 && frame_count > 10000 && not quiet)
+                Print(frame,"/",range.end," done");
+#endif
+
+            report_export_progress(range, frame, percent_callback);
+        }
+
+        bool first = true;
+        for(size_t i = 0; i < series.size(); ++i) {
+            try {
+                cmn::npz_save(filename.str(), series[i].name, results[i], first ? "w" : "a");
+            } catch(...) {
+                throw U_EXCEPTION("Giving up (",results[i].size()," floats for ",series[i].name,", ",first ? "first" : "",") trying to save ",filename,".");
             }
+            first = false;
         }
     }
     

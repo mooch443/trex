@@ -11,7 +11,6 @@
 #include <ml/VisualIdentification.h>
 #include <tracking/IndividualManager.h>
 #include <processing/PadImage.h>
-#include <ui/DrawGraph.h>
 #include <core/DetectionTypes.h>
 #include <core/TerminalProgress.h>
 
@@ -290,7 +289,6 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
         std::map<Frame_t, std::map<Idx_t, ImageData>> waiting_pixels;
         std::mutex sync;
         
-        std::vector<std::shared_ptr<PropertiesGraph>> fish_graphs;
         std::vector<Output::LibraryCache::Ptr> library_cache;
         float last_percent = -1;
         size_t progress_spinner_index = 0;
@@ -343,17 +341,15 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
             
             if (fish->frame_count() >= output_min_frames) {
                 if(!no_tracking_data) {
-                    if(!range.empty())
-                        fish_graphs.at(thread_index)->setup_graph(cached_output_fields, range.start, range, fish, library_cache.at(thread_index));
-                    else
-                        fish_graphs.at(thread_index)->setup_graph(
-                                                                  cached_output_fields, fish->start_frame(),
-                              Range<Frame_t>{
-                                  fish->start_frame(),
-                                  fish->end_frame()
-                              },
-                              fish,
-                              library_cache.at(thread_index));
+                    const Range<Frame_t> export_range = !range.empty()
+                        ? Range<Frame_t>{
+                            max(range.start, fish->start_frame()),
+                            min(range.end, fish->end_frame())
+                        }
+                        : Range<Frame_t>{
+                            fish->start_frame(),
+                            fish->end_frame()
+                        };
                     
                     file::Path path = (filename + "_" + fish->identity().name() + "." + output_format.str());
                     file::Path final_path = fishdata / path;
@@ -361,7 +357,14 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                     try {
                         if(output_format == default_config::output_format_t::npz) {
                             temporary_save(final_path, [&](file::Path use_path) {
-                                fish_graphs.at(thread_index)->graph().save_npz(use_path.str(), &callback, true);
+                                Output::Library::save_npz(
+                                    cached_output_fields,
+                                    export_range,
+                                    fish,
+                                    library_cache.at(thread_index),
+                                    use_path,
+                                    &callback,
+                                    true);
                                 
                                 std::vector<Frame_t::number_t> tracklets;
                                 std::vector<float> vxy;
@@ -406,8 +409,15 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                                 }, "a");
                             });
                             
-                        } else
-                            fish_graphs.at(thread_index)->graph().export_data(final_path.str(), &callback);
+                        } else {
+                            Output::Library::save_csv(
+                                cached_output_fields,
+                                export_range,
+                                fish,
+                                library_cache.at(thread_index),
+                                final_path,
+                                &callback);
+                        }
                         
                     } catch(const UtilsException&) {
                         FormatExcept("Failed to save data for individual ",fish->identity()," to location ",final_path,".");
@@ -713,13 +723,12 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
             }
         };
         
-        auto max_threads = hardware_concurrency();
+        auto max_threads = max(1u, hardware_concurrency());
+        library_cache.reserve(max_threads);
+        for(size_t i = 0; i < max_threads; ++i)
+            library_cache.push_back(std::make_shared<Output::LibraryCache>());
+
         if(max_threads > 1) {
-            for(size_t i=0; i<max_threads; ++i) {
-                fish_graphs.push_back(std::make_shared<PropertiesGraph>());
-                library_cache.push_back(std::make_shared<Output::LibraryCache>());
-            }
-            
             size_t current_thread_id = 0;
             std::vector<std::thread*> threads;
             threads.resize(max_threads);

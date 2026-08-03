@@ -64,6 +64,19 @@ namespace Output {
         
         static cached_output_fields_t get_cached_fields();
         static void init_graph(const cached_output_fields_t& output_fields, cmn::gui::Graph &graph, const track::Individual *fish, LibraryCache::Ptr cache = nullptr);
+        static void save_csv(const cached_output_fields_t& output_fields,
+                             const cmn::Range<cmn::Frame_t>& range,
+                             const track::Individual* fish,
+                             LibraryCache::Ptr cache,
+                             const cmn::file::Path& filename,
+                             std::function<void(float)>* percent_callback = nullptr);
+        static void save_npz(const cached_output_fields_t& output_fields,
+                             const cmn::Range<cmn::Frame_t>& range,
+                             const track::Individual* fish,
+                             LibraryCache::Ptr cache,
+                             const cmn::file::Path& filename,
+                             std::function<void(float)>* percent_callback = nullptr,
+                             bool quiet = false);
         static cached_output_fields_t parse_output_fields(const output_fields_t&);
         static bool has(const std::string& name);
         static std::vector<std::string_view> functions();
