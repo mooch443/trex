@@ -1,0 +1,37 @@
+name: PostLinkSimulation
+
+on:
+  push:
+    paths:
+      - "conda/post-link.sh"
+      - "conda/post-link.bat"
+      - "conda/test_post_link_simulation.py"
+      - ".github/workflows/post-link-simulation.yml"
+  pull_request:
+    paths:
+      - "conda/post-link.sh"
+      - "conda/post-link.bat"
+      - "conda/test_post_link_simulation.py"
+      - ".github/workflows/post-link-simulation.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  simulate:
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-24.04
+          - macos-13
+          - macos-26
+          - windows-2025-vs2026
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - name: Simulate post-link configurations
+        run: python conda/test_post_link_simulation.py

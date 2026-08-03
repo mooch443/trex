@@ -257,6 +257,8 @@ bool is_valid_default_model(const std::string& filename) {
                 "-(tinyu|cls|sppu|human|obb|oiv7|pose-p6|pose|seg|v8loader|\\d+)+"
             ")?"
             "|"
+            "(\\d|[sn])+u"
+            "|"
             "-(tinyu|cls|sppu|human|obb|oiv7|pose-p6|pose|seg|v8loader|\\d+)+"
         ")"
         "(\\.pt)?"
