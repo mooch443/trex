@@ -167,10 +167,6 @@ struct SettingsScene::Data {
         }
     }
 
-    bool is_current(const DetectionModelRequest& request) const {
-        return request.is_current();
-    }
-
     void clear_invalid_model_metadata() {
         SETTING(detect_classes) = blob::MaybeObjectClass_t{};
         SETTING(detect_format) = track::detect::ObjectDetectionFormat::none;
@@ -221,7 +217,7 @@ struct SettingsScene::Data {
                 };
 
                 try {
-                    if(is_current(request))
+                    if(request.is_current())
                     {
                         /// check whether we either 1. have no *region_model* active,
                         /// or both region model and detect model exit and are
@@ -232,7 +228,7 @@ struct SettingsScene::Data {
                                    && _cached_model_metadata.contains(request.region_model.str()))))
                         {
                             const auto metadata = _cached_model_metadata.at(request.detect_model.str());
-                            if(is_current(request)) {
+                            if(request.is_current()) {
                                 SETTING(detect_resolution) = metadata.resolution;
                                 SETTING(detect_format) = metadata.format;
                                 SETTING(detect_classes) = metadata.classes;
@@ -273,7 +269,7 @@ struct SettingsScene::Data {
                                     hooks->deinit();
                                 }
 
-                                if(is_current(request)) {
+                                if(request.is_current()) {
                                     _cached_model_metadata[request.detect_model.str()] = {
                                         .resolution = loaded_resolution,
                                         .format = format,
@@ -302,7 +298,7 @@ struct SettingsScene::Data {
                                 
                             } catch(...) {
                                 if(not is_ml_backend()
-                                    || is_current(request))
+                                    || request.is_current())
                                 {
                                     clear_invalid_model_metadata();
                                 }
@@ -314,7 +310,7 @@ struct SettingsScene::Data {
                     /// A YOLO init writes its metadata through GlobalSettings.
                     /// Clear it again if the user left the model-backed path or
                     /// selected a newer model while this request was running.
-                    if(not is_ml_backend() || not is_current(request))
+                    if(not is_ml_backend() || not request.is_current())
                         clear_invalid_model_metadata();
                     
                     --_are_python_tasks_running;
@@ -322,7 +318,7 @@ struct SettingsScene::Data {
                     
                 } catch(...) {
                     if(not is_ml_backend()
-                        || is_current(request))
+                        || request.is_current())
                     {
                         clear_invalid_model_metadata();
                     }
