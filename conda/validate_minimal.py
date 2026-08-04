@@ -14,7 +14,6 @@ REQUIRED_CONDA_PACKAGES = {
     "libopencv",
     "libpng",
     "libzip",
-    "py-opencv",
     "zlib",
 }
 PYPI_OPENCV_NAMES = {
@@ -36,33 +35,41 @@ def main() -> int:
     if missing:
         raise RuntimeError(f"Conda does not own required minimal packages: {missing}")
 
-    conda_list = json.loads(
-        subprocess.check_output(
-            ["conda", "list", "--json", "--prefix", str(prefix)], text=True
+    if "py-opencv" in owned_names:
+        raise RuntimeError(
+            "Conda py-opencv is present alongside the required pip cv2 provider"
         )
-    )
-    pypi_opencv = [
-        item
-        for item in conda_list
-        if item.get("name") in PYPI_OPENCV_NAMES
-        and str(item.get("channel", "")).lower() == "pypi"
-    ]
-    if pypi_opencv:
-        raise RuntimeError(f"A PyPI OpenCV wheel was installed: {pypi_opencv}")
 
     import cv2  # type: ignore[import-not-found]
+    import numpy  # type: ignore[import-not-found]
     import ultralytics  # type: ignore[import-not-found]
-    from importlib.metadata import version
+    from importlib.metadata import PackageNotFoundError, version
+
+    installed_opencv = []
+    for name in sorted(PYPI_OPENCV_NAMES):
+        try:
+            installed_opencv.append((name, version(name)))
+        except PackageNotFoundError:
+            pass
+    if [name for name, _ in installed_opencv] != ["opencv-python"]:
+        raise RuntimeError(
+            "Exactly one pip OpenCV provider is required: "
+            f"expected opencv-python, found {installed_opencv}"
+        )
 
     if cv2.__version__.split(".", 1)[0] != "4":
         raise RuntimeError(f"Expected OpenCV 4.x, found {cv2.__version__}")
     if version("opencv-python").split(".", 1)[0] != "4":
-        raise RuntimeError("Conda py-opencv does not provide OpenCV 4 pip metadata")
+        raise RuntimeError("Expected opencv-python 4.x pip metadata")
+    if version("numpy") != numpy.__version__:
+        raise RuntimeError("Imported NumPy does not match its pip distribution metadata")
 
     subprocess.run([sys.executable, "-m", "pip", "check"], check=True)
     print(f"cv2 {cv2.__version__}: {cv2.__file__}")
     print(f"Ultralytics {ultralytics.__version__}: {ultralytics.__file__}")
-    print("Conda minimal dependency ownership and Python metadata checks passed.")
+    numpy_owner = "Conda (preserved exactly)" if "numpy" in owned_names else "pip"
+    print(f"NumPy {numpy.__version__} [{numpy_owner}]: {numpy.__file__}")
+    print("Conda native-library and pip Python-package ownership checks passed.")
     return 0
 
 

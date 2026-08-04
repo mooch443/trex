@@ -97,19 +97,8 @@ log() {
     printf '%s\n' "$1" >>"${OUT_STREAM}"
 }
 
-# Mark the script as having failed while still allowing execution to continue.
-SUPPRESS_FAILURES=0
-
-# Conda build/test prefixes operate without network and the conda CLI; just log issues.
-if [ -n "${GITHUB_WORKSPACE:-}" ]; then
-    SUPPRESS_FAILURES=1
-    log "[post-link] Conda-build context detected; ignoring optional post-link failures."
-fi
-
 record_failure() {
-    if [ "${SUPPRESS_FAILURES}" -eq 0 ]; then
-        POST_LINK_FAILED=1
-    fi
+    POST_LINK_FAILED=1
     log "$1"
 }
 
@@ -249,91 +238,72 @@ resolve_torch_target() {
     [ -n "${torch_candidate_pairs}" ]
 }
 
-# Select exactly one target before wheel installation. A missing or obsolete CUDA
-# index falls back to CPU during this metadata-only probe, before either wheel is
-# downloaded. Ordinary package resolution is never given multiple Torch indexes.
-select_torch_target() {
-    torch_target="CPU"
-    torch_index_url="https://download.pytorch.org/whl/cpu"
-    torch_index_args=(--index-url "${torch_index_url}")
-    torch_dependency_index_args=(--extra-index-url "https://pypi.org/simple")
+# Build an ordered target list. Each pip resolution still sees exactly one Torch
+# index: compatible CUDA channels from newest to oldest, then CPU, then PyPI.
+torch_target_names=()
+torch_target_urls=()
+torch_target_dependency_urls=()
 
+add_torch_target() {
+    torch_target_names+=("$1")
+    torch_target_urls+=("$2")
+    torch_target_dependency_urls+=("$3")
+}
+
+build_torch_target_candidates() {
     if [ "${system}" = "Darwin" ]; then
-        torch_target="macOS/PyPI"
-        torch_index_url="https://pypi.org/simple"
-        torch_index_args=(--index-url "${torch_index_url}")
-        torch_dependency_index_args=()
-        log "[post-link] macOS detected; selecting the native PyTorch distribution."
+        add_torch_target "macOS/PyPI" "https://pypi.org/simple" ""
+        log "[post-link] macOS detected; using the normal PyPI distribution with native MPS support."
         return 0
     fi
 
-    case "${arch}" in
-        arm|arm64|aarch64)
-            torch_target="Linux ARM/PyPI"
-            torch_index_url="https://pypi.org/simple"
-            torch_index_args=(--index-url "${torch_index_url}")
-            torch_dependency_index_args=()
-            log "[post-link] ARM architecture detected; selecting the native CPU PyTorch distribution."
-            return 0
-            ;;
-    esac
-
-    if [ "${system}" != "Linux" ]; then
-        torch_target="PyPI CPU"
-        torch_index_url="https://pypi.org/simple"
-        torch_index_args=(--index-url "${torch_index_url}")
-        torch_dependency_index_args=()
-        log "[post-link] ${system} detected; selecting the native CPU PyTorch distribution."
-        return 0
-    fi
-
-    local driver_cuda_version driver_major driver_minor driver_cuda_code channel=""
-    if ! detect_driver_cuda_version; then
-        log "[post-link] No usable NVIDIA driver detected; selecting the CPU-only PyTorch distribution."
-        return 0
-    fi
-    driver_cuda_version="${detected_cuda_version}"
-
-    IFS=. read -r driver_major driver_minor <<EOF
-${driver_cuda_version}
+    if [ "${system}" = "Linux" ] && [[ "${arch}" == "x86_64" || "${arch}" == "amd64" ]]; then
+        local driver_major driver_minor driver_cuda_code
+        if detect_driver_cuda_version; then
+            IFS=. read -r driver_major driver_minor <<EOF
+${detected_cuda_version}
 EOF
-    if ! [[ "${driver_major}" =~ ^[0-9]+$ && "${driver_minor}" =~ ^[0-9]+$ ]]; then
-        log "[post-link] Could not parse NVIDIA CUDA compatibility '${driver_cuda_version}'; selecting CPU-only PyTorch."
-        return 0
-    fi
-    driver_cuda_code=$((driver_major * 100 + driver_minor))
-
-    if [ "${driver_cuda_code}" -ge 1302 ]; then channel="cu132"
-    elif [ "${driver_cuda_code}" -ge 1300 ]; then channel="cu130"
-    elif [ "${driver_cuda_code}" -ge 1209 ]; then channel="cu129"
-    elif [ "${driver_cuda_code}" -ge 1208 ]; then channel="cu128"
-    elif [ "${driver_cuda_code}" -ge 1206 ]; then channel="cu126"
-    elif [ "${driver_cuda_code}" -ge 1204 ]; then channel="cu124"
-    elif [ "${driver_cuda_code}" -ge 1201 ]; then channel="cu121"
-    elif [ "${driver_cuda_code}" -ge 1108 ]; then channel="cu118"
+            if [[ "${driver_major}" =~ ^[0-9]+$ && "${driver_minor}" =~ ^[0-9]+$ ]]; then
+                driver_cuda_code=$((driver_major * 100 + driver_minor))
+                log "[post-link] NVIDIA driver accepts CUDA ${detected_cuda_version}; trying every compatible PyTorch CUDA channel newest-first."
+                if [ "${driver_cuda_code}" -ge 1302 ]; then add_torch_target "CUDA 13.2" "https://download.pytorch.org/whl/cu132" "https://pypi.org/simple"; fi
+                if [ "${driver_cuda_code}" -ge 1300 ]; then add_torch_target "CUDA 13.0" "https://download.pytorch.org/whl/cu130" "https://pypi.org/simple"; fi
+                if [ "${driver_cuda_code}" -ge 1209 ]; then add_torch_target "CUDA 12.9" "https://download.pytorch.org/whl/cu129" "https://pypi.org/simple"; fi
+                if [ "${driver_cuda_code}" -ge 1208 ]; then add_torch_target "CUDA 12.8" "https://download.pytorch.org/whl/cu128" "https://pypi.org/simple"; fi
+                if [ "${driver_cuda_code}" -ge 1206 ]; then add_torch_target "CUDA 12.6" "https://download.pytorch.org/whl/cu126" "https://pypi.org/simple"; fi
+                if [ "${driver_cuda_code}" -ge 1204 ]; then add_torch_target "CUDA 12.4" "https://download.pytorch.org/whl/cu124" "https://pypi.org/simple"; fi
+                if [ "${driver_cuda_code}" -ge 1201 ]; then add_torch_target "CUDA 12.1" "https://download.pytorch.org/whl/cu121" "https://pypi.org/simple"; fi
+                if [ "${driver_cuda_code}" -ge 1108 ]; then add_torch_target "CUDA 11.8" "https://download.pytorch.org/whl/cu118" "https://pypi.org/simple"; fi
+                if [ "${driver_cuda_code}" -lt 1108 ]; then
+                    log "[post-link] Driver compatibility is below CUDA 11.8; skipping CUDA distributions."
+                fi
+            else
+                log "[post-link] Could not parse NVIDIA CUDA compatibility '${detected_cuda_version}'; skipping CUDA distributions."
+            fi
+        else
+            log "[post-link] No usable NVIDIA driver detected; skipping CUDA distributions."
+        fi
+    elif [ "${system}" = "Linux" ]; then
+        log "[post-link] Linux ${arch} detected; CUDA wheel channels are not applicable."
     else
-        log "[post-link] NVIDIA driver supports CUDA ${driver_cuda_version}, below the supported CUDA 11.8 baseline; selecting CPU-only PyTorch."
-        return 0
+        log "[post-link] ${system} ${arch} detected; CUDA wheel channels are not applicable."
     fi
 
-    torch_target="CUDA ${channel#cu}"
-    torch_index_url="https://download.pytorch.org/whl/${channel}"
-    torch_index_args=(--index-url "${torch_index_url}")
-    log "[post-link] NVIDIA driver accepts CUDA ${driver_cuda_version}; selecting the single ${torch_target} PyTorch distribution."
+    # Plain PyPI is not guaranteed CPU-only on Linux or Windows, so try the
+    # dedicated CPU distribution first and keep default PyPI as the last resort.
+    add_torch_target "CPU-only" "https://download.pytorch.org/whl/cpu" "https://pypi.org/simple"
+    add_torch_target "PyPI fallback" "https://pypi.org/simple" ""
 }
 
-select_cpu_torch_target() {
-    torch_target="CPU fallback"
-    torch_index_url="https://download.pytorch.org/whl/cpu"
-    torch_index_args=(--index-url "${torch_index_url}")
-    torch_dependency_index_args=(--extra-index-url "https://pypi.org/simple")
-}
-
-select_pypi_torch_target() {
-    torch_target="PyPI fallback"
-    torch_index_url="https://pypi.org/simple"
+select_torch_candidate() {
+    local candidate_index="$1"
+    torch_target="${torch_target_names[${candidate_index}]}"
+    torch_index_url="${torch_target_urls[${candidate_index}]}"
     torch_index_args=(--index-url "${torch_index_url}")
     torch_dependency_index_args=()
+    if [ -n "${torch_target_dependency_urls[${candidate_index}]}" ]; then
+        torch_dependency_index_args=(--extra-index-url "${torch_target_dependency_urls[${candidate_index}]}")
+    fi
 }
 
 install_selected_torch() {
@@ -425,26 +395,39 @@ PY
     fi
 }
 
-# pip is a Conda run dependency. Do not invoke Conda recursively while its
-# transaction is still linking this environment.
-if ! python -m pip --version >/dev/null 2>&1; then
-    record_failure "[post-link] pip is unavailable; skipping pip-managed extras."
-    exit 0
-fi
-
 arch=$(uname -m)
 system=$(uname)
 
-# NumPy is Conda-owned. Constrain every pip resolution to the exact installed
-# version without making NumPy a pip installation target.
+# A Conda-owned NumPy is immutable. If Conda does not own NumPy, add it to the
+# complete pip solve with the rest of the Python ML stack.
 numpy_version=""
 numpy_constraint_file=""
 numpy_constraint_args=()
+conda_numpy_owned=false
+setup_ready=true
+torch_installed=false
 
-configure_numpy_constraint() {
+configure_numpy_policy() {
+    local conda_record metadata_numpy_version
+    for conda_record in "${PREFIX}"/conda-meta/numpy-*.json; do
+        if [ -f "${conda_record}" ]; then
+            conda_numpy_owned=true
+            break
+        fi
+    done
+
+    if ! ${conda_numpy_owned}; then
+        log "[post-link] Conda does not own NumPy; pip will solve numpy>=1.26,<3 with the complete ML dependency set."
+        return 0
+    fi
+
     numpy_version=$(python -c "import numpy; print(numpy.__version__)" 2>>"${OUT_STREAM}")
     local numpy_status=$?
     if [ ${numpy_status} -ne 0 ] || [ -z "${numpy_version}" ]; then
+        return 1
+    fi
+    metadata_numpy_version=$(python -c "from importlib.metadata import version; print(version('numpy'))" 2>>"${OUT_STREAM}")
+    if [ -z "${metadata_numpy_version}" ] || [ "${metadata_numpy_version}" != "${numpy_version}" ]; then
         return 1
     fi
 
@@ -453,19 +436,33 @@ configure_numpy_constraint() {
     fi
     printf 'numpy==%s\n' "${numpy_version}" > "${numpy_constraint_file}" || return 1
     numpy_constraint_args=(--constraint "${numpy_constraint_file}")
-    log "[post-link] Constraining pip to Conda-owned NumPy ${numpy_version}."
+    log "[post-link] Conda owns NumPy ${numpy_version}; every pip solve is constrained to that exact version."
 }
 
-if ! configure_numpy_constraint; then
-    record_failure "[post-link] Could not constrain pip to the Conda-installed NumPy; skipping pip-managed extras."
-    exit 0
+# pip is a Conda run dependency. Do not invoke Conda recursively while its
+# transaction is still linking this environment.
+if ! python -m pip --version >/dev/null 2>&1; then
+    record_failure "[post-link] pip is unavailable; Python ML packages were not installed."
+    setup_ready=false
 fi
 
-torch_packages=()
+for conda_record in "${PREFIX}"/conda-meta/py-opencv-*.json; do
+    if [ -f "${conda_record}" ]; then
+        record_failure "[post-link] Conda py-opencv is still present; refusing to install a second cv2 provider."
+        setup_ready=false
+        break
+    fi
+done
+
+if ${setup_ready} && ! configure_numpy_policy; then
+    record_failure "[post-link] Conda owns NumPy but its exact version could not be read; refusing to let pip modify it."
+    setup_ready=false
+fi
 
 common_packages=(
     "torchmetrics"
     "tqdm"
+    "opencv-python>=4.6,<5"
     "ultralytics>=8.3.0,<9"
     "rfdetr==1.8.3"
     "dill"
@@ -474,19 +471,8 @@ common_packages=(
     "git+https://github.com/ultralytics/CLIP.git"
 )
 
-has_conda_py_opencv=false
-for conda_record in "${PREFIX}"/conda-meta/py-opencv-*.json; do
-    if [ -f "${conda_record}" ]; then
-        has_conda_py_opencv=true
-        break
-    fi
-done
-
-if ${has_conda_py_opencv}; then
-    log "Conda py-opencv detected; keeping its cv2 module and skipping the PyPI OpenCV wheel."
-else
-    log "Conda py-opencv not detected; adding opencv-python>=4,<5 for the buildall profile."
-    common_packages+=("opencv-python>=4,<5")
+if ! ${conda_numpy_owned}; then
+    common_packages+=("numpy>=1.26,<3")
 fi
 
 pip_flags=(
@@ -497,43 +483,25 @@ pip_flags=(
     off
 )
 
-announce_progress "TRex is installing Python ML packages. This can take several minutes; progress below shows the latest pip activity."
+if ${setup_ready}; then
+    announce_progress "TRex is installing Python ML packages. This can take several minutes; progress below shows the latest pip activity."
+    build_torch_target_candidates
 
-# Resolve exact variants from one target before installation. Exact pins prevent
-# PyPI dependency lookup from substituting a different Torch distribution, while
-# the normal resolver still validates and installs the pair's dependencies.
-select_torch_target
-torch_installed=false
-torch_resolved=false
-if resolve_torch_target; then
-    torch_resolved=true
-elif [[ "${torch_target}" == CUDA* ]]; then
-    log "[post-link] The ${torch_target} index has no compatible torch/torchvision pair; selecting the newest CPU-only distribution."
-    select_cpu_torch_target
-    if resolve_torch_target; then torch_resolved=true; fi
-fi
-if ! ${torch_resolved} && [[ "${torch_target}" != *PyPI* ]]; then
-    log "[post-link] The ${torch_target} index has no compatible pair; selecting the newest PyTorch distribution on PyPI."
-    select_pypi_torch_target
-    if resolve_torch_target; then torch_resolved=true; fi
-fi
-
-if ${torch_resolved} && install_selected_torch; then
-    torch_installed=true
-elif [[ "${torch_target}" == CUDA* ]]; then
-    log "[post-link] The ${torch_target} install failed; falling back to the newest CPU-only PyTorch distribution."
-    select_cpu_torch_target
-    if resolve_torch_target && install_selected_torch; then
-        torch_installed=true
-    fi
-fi
-
-if ! ${torch_installed} && [[ "${torch_target}" != *PyPI* ]]; then
-    log "[post-link] The ${torch_target} install failed; falling back to the newest PyTorch distribution on PyPI."
-    select_pypi_torch_target
-    if resolve_torch_target && install_selected_torch; then
-        torch_installed=true
-    fi
+    # Resolve and install from one target at a time. Missing, deprecated, or
+    # incompatible channels simply advance to the next ordered target.
+    for candidate_index in "${!torch_target_names[@]}"; do
+        select_torch_candidate "${candidate_index}"
+        log "[post-link] Trying ${torch_target} from ${torch_index_url}."
+        if ! resolve_torch_target; then
+            log "[post-link] ${torch_target} has no compatible torch/torchvision pair for this Python; trying the next target."
+            continue
+        fi
+        if install_selected_torch; then
+            torch_installed=true
+            break
+        fi
+        log "[post-link] ${torch_target} could not be installed with a consistent dependency set; trying the next target."
+    done
 fi
 
 if ${torch_installed}; then
@@ -542,26 +510,38 @@ if ${torch_installed}; then
     log "[post-link] Installed and verified PyTorch ${installed_torch_version} + torchvision ${installed_torchvision_version} from the single ${torch_target} target."
     check_nvidia_support
 else
-    record_failure "[post-link] The selected ${torch_target} PyTorch pair could not be installed or verified (exit ${LAST_COMMAND_STATUS})."
+    if ${setup_ready}; then
+        record_failure "[post-link] No CUDA, CPU-only, or default PyPI torch/torchvision pair could be installed with a consistent dependency set."
+    fi
 fi
 
-log "Testing installation..."
-announce_progress "TRex is running a short YOLO smoke test to verify the Python install."
+if ${torch_installed}; then
+    log "Testing installation..."
+    announce_progress "TRex is running a short YOLO smoke test to verify the Python install."
+    numpy_ownership_assert=""
+    if ${conda_numpy_owned}; then
+        numpy_ownership_assert="assert version('numpy') == '${numpy_version}'; "
+    fi
+    CMD_STRING="from ultralytics import YOLO; from rfdetr import RFDETR; from torchvision.ops import nms; from importlib.metadata import version; import cv2, numpy as np, torch; ${numpy_ownership_assert}assert cv2.__version__.split('.')[0] == '4'; assert nms(torch.tensor([[0.,0.,1.,1.]]), torch.tensor([1.]), 0.5).tolist() == [0]; YOLO('yolo26n.yaml').to('cpu').predict(np.zeros((640, 480, 3), dtype=np.uint8))"
+    log_command python -c "${CMD_STRING}"
 
-CMD_STRING="from ultralytics import YOLO; from rfdetr import RFDETR; from torchvision.ops import nms; from importlib.metadata import version; import cv2, numpy as np, torch; assert version('numpy') == '${numpy_version}'; assert cv2.__version__.split('.')[0] == '4'; assert nms(torch.tensor([[0.,0.,1.,1.]]), torch.tensor([1.]), 0.5).tolist() == [0]; YOLO('yolo26n.yaml').to('cpu').predict(np.zeros((640, 480, 3), dtype=np.uint8))"
-log_command python -c "${CMD_STRING}"
-
-if TREX_PROGRESS_LABEL="YOLO smoke test..." run_with_reporting python -c "${CMD_STRING}"; then
-    log "[post-link] YOLO smoke test succeeded."
-else
-    record_failure "[post-link] YOLO smoke test failed (exit ${LAST_COMMAND_STATUS})."
+    if TREX_PROGRESS_LABEL="YOLO smoke test..." run_with_reporting python -c "${CMD_STRING}"; then
+        log "[post-link] YOLO smoke test succeeded."
+    else
+        record_failure "[post-link] YOLO smoke test failed (exit ${LAST_COMMAND_STATUS})."
+    fi
 fi
 
 if [ "${POST_LINK_FAILED}" -ne 0 ]; then
-    log "[post-link] Completed with issues; conda installation will continue."
-    echo "post-link.sh completed with issues; see ${OUT_STREAM} for details." >&2
+    log "============================================================"
+    log "WARNING: TRex PYTHON ML SETUP IS INCOMPLETE"
+    log "The Conda package installation will continue successfully."
+    log "TRex itself is installed, but Python ML features may be unavailable."
+    log "After installation, repair the environment and run: python -m pip check"
+    log "============================================================"
+    echo "WARNING: TRex Python ML setup is incomplete; Conda installation will continue. See ${OUT_STREAM}." >&2
     if [ -n "${OUT_STREAM}" ] && [ "${OUT_STREAM}" != "/dev/stdout" ] && [ -f "${OUT_STREAM}" ]; then
-        echo "[post-link] Dumping post-link log due to failures:" >&2
+        echo "[post-link] Dumping post-link log due to incomplete Python ML setup:" >&2
         cat "${OUT_STREAM}" >&2
     fi
 fi

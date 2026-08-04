@@ -54,7 +54,6 @@ build:
         - {{ pin_compatible('libstdcxx-ng', min_pin='x.x.x', max_pin='x.x.x') }} # [linux]
     ignore_run_exports:
         - {{ pin_compatible('libstdcxx-ng', min_pin='x.x.x', max_pin='x.x.x') }} # [linux]
-        - numpy
     detect_binary_files_with_prefix: False # [win]
     detect_binary_files_with_prefix: True # [not win]
     files_with_prefix:
@@ -116,17 +115,16 @@ requirements:
     #- openblas # [arm64]
     - ffmpeg >=3,<8=*lgpl*
     #- openh264 # [osx]
-    #- numpy >=1.26,<3
     #- libvorbis
     #- libogg
     #- libavif
 
   run:
+    # NumPy and the cv2 binding are resolved together with the pip ML stack.
+    # An already installed Conda NumPy is detected and preserved by post-link.
     - {{ pin_compatible('python', min_pin='x.x', max_pin='x.x') }}
     - {{ pin_compatible('ffmpeg', min_pin='x.x', max_pin='x.x') }}
     - {{ pin_compatible('openh264', min_pin='x.x', max_pin='x.x') }} # [osx]
-    - {{ pin_compatible('numpy', min_pin='x.x', max_pin='x.x') }} # [not win]
-    - numpy >=1.26,<3 # [win]
     - {{ pin_compatible('openblas', min_pin='x.x', max_pin='x.x') }} # [arm64]
     - {{ pin_compatible('icu', min_pin='x.x', max_pin='x.x') }}
     #- scikit-learn # [not win]

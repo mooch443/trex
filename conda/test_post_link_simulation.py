@@ -105,6 +105,8 @@ if args and args[0] == "-c":
     code = args[1] if len(args) > 1 else ""
     if "numpy.__version__" in code:
         print("2.4.6", end="")
+    elif "version('numpy')" in code:
+        print("2.4.6", end="")
     elif "version('torchvision')" in code:
         print("0.22.1")
     elif "version('torch')" in code:
@@ -212,11 +214,19 @@ def _make_wheel(
 
 
 class PostLinkSimulationMixin:
-    def assert_safe_installs(self, installs: list[dict[str, object]]) -> None:
+    def assert_safe_installs(
+        self,
+        installs: list[dict[str, object]],
+        *,
+        conda_numpy: bool,
+    ) -> None:
         self.assertTrue(installs, "the simulation did not attempt a Torch installation")
         for install in installs:
             arguments = list(install["args"])
-            self.assertEqual(install["constraint"], "numpy==2.4.6")
+            self.assertEqual(
+                install["constraint"],
+                "numpy==2.4.6" if conda_numpy else "",
+            )
             self.assertNotIn("--no-deps", arguments)
             self.assertNotIn("--force-reinstall", arguments)
             self.assertNotIn("uninstall", arguments)
@@ -232,8 +242,13 @@ class PostLinkSimulationMixin:
                 "scikit-learn",
                 "timm",
                 "git+https://github.com/ultralytics/CLIP.git",
+                "opencv-python>=4.6,<5",
             ):
                 self.assertIn(requirement, arguments)
+            if conda_numpy:
+                self.assertNotIn("numpy>=1.26,<3", arguments)
+            else:
+                self.assertIn("numpy>=1.26,<3", arguments)
             pytorch_extra_indexes = [
                 arguments[position + 1]
                 for position, value in enumerate(arguments[:-1])
@@ -394,6 +409,9 @@ class UnixPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
         cuda: str = "",
         missing_indexes: tuple[str, ...] = (),
         outcomes: tuple[str, ...] = ("success",),
+        conda_numpy: bool = True,
+        conda_opencv: bool = False,
+        expect_installs: bool = True,
     ) -> tuple[list[dict[str, object]], str]:
         with tempfile.TemporaryDirectory(prefix="trex-post-link-") as temporary:
             root = Path(temporary)
@@ -403,7 +421,14 @@ class UnixPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
             fake_bin.mkdir()
             state.mkdir()
             (prefix / "conda-meta").mkdir(parents=True)
-            (prefix / "conda-meta" / "py-opencv-simulated.json").write_text("{}", encoding="utf-8")
+            if conda_numpy:
+                (prefix / "conda-meta" / "numpy-2.4.6-simulated.json").write_text(
+                    "{}", encoding="utf-8"
+                )
+            if conda_opencv:
+                (prefix / "conda-meta" / "py-opencv-4.12-simulated.json").write_text(
+                    "{}", encoding="utf-8"
+                )
 
             driver = root / "fake_python.py"
             _write_executable(driver, FAKE_PYTHON)
@@ -446,23 +471,26 @@ class UnixPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
             messages = messages_path.read_text(encoding="utf-8") if messages_path.exists() else ""
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr + messages)
             installs = _install_events(state)
-            if not installs:
+            if expect_installs and not installs:
                 self.fail(result.stdout + result.stderr + messages)
-            self.assert_safe_installs(installs)
+            if expect_installs:
+                self.assert_safe_installs(installs, conda_numpy=conda_numpy)
+            else:
+                self.assertEqual(installs, [])
             return installs, messages
 
-    def test_native_cpu_platforms_use_only_pypi(self) -> None:
+    def test_macos_uses_pypi_and_other_cpu_platforms_use_cpu_index(self) -> None:
         cases = (
-            ("Darwin", "arm64", "13.2"),
-            ("Darwin", "x86_64", "13.2"),
-            ("Linux", "aarch64", "13.2"),
-            ("Linux", "arm64", "13.2"),
-            ("FreeBSD", "amd64", "13.2"),
+            ("Darwin", "arm64", "13.2", PYPI_INDEX),
+            ("Darwin", "x86_64", "13.2", PYPI_INDEX),
+            ("Linux", "aarch64", "13.2", CPU_INDEX),
+            ("Linux", "arm64", "13.2", CPU_INDEX),
+            ("FreeBSD", "amd64", "13.2", CPU_INDEX),
         )
-        for system, machine, cuda in cases:
+        for system, machine, cuda, expected_index in cases:
             with self.subTest(system=system, machine=machine):
                 installs, _ = self.run_scenario(system=system, machine=machine, cuda=cuda)
-                self.assertEqual([item["index"] for item in installs], [PYPI_INDEX])
+                self.assertEqual([item["index"] for item in installs], [expected_index])
                 self.assertFalse(any("+cu" in str(value) for value in installs[0]["args"]))
 
     def test_linux_without_a_usable_nvidia_driver_uses_cpu_index(self) -> None:
@@ -522,9 +550,27 @@ class UnixPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
             cuda="12.4",
             missing_indexes=("cu124",),
         )
-        self.assertEqual([item["index"] for item in installs], [CPU_INDEX])
+        self.assertEqual(
+            [item["index"] for item in installs],
+            ["https://download.pytorch.org/whl/cu121"],
+        )
 
-    def test_failed_cuda_install_falls_back_to_cpu_not_another_cuda(self) -> None:
+    def test_failed_cuda_install_falls_back_to_next_compatible_cuda(self) -> None:
+        installs, _ = self.run_scenario(
+            system="Linux",
+            machine="x86_64",
+            cuda="12.4",
+            outcomes=("network", "success"),
+        )
+        self.assertEqual(
+            [item["index"] for item in installs],
+            [
+                "https://download.pytorch.org/whl/cu124",
+                "https://download.pytorch.org/whl/cu121",
+            ],
+        )
+
+    def test_failed_cuda_118_install_falls_back_to_cpu(self) -> None:
         installs, _ = self.run_scenario(
             system="Linux",
             machine="x86_64",
@@ -553,9 +599,38 @@ class UnixPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
         )
         self.assertEqual(
             [item["index"] for item in installs],
-            ["https://download.pytorch.org/whl/cu124", CPU_INDEX, PYPI_INDEX],
+            [
+                "https://download.pytorch.org/whl/cu124",
+                "https://download.pytorch.org/whl/cu121",
+                "https://download.pytorch.org/whl/cu118",
+                CPU_INDEX,
+                PYPI_INDEX,
+            ],
         )
         self.assertNotIn("pip uninstall", messages)
+        self.assertIn("WARNING: TRex PYTHON ML SETUP IS INCOMPLETE", messages)
+
+    def test_pip_owns_and_solves_numpy_when_conda_does_not(self) -> None:
+        installs, messages = self.run_scenario(
+            system="Linux",
+            machine="x86_64",
+            conda_numpy=False,
+        )
+        self.assertEqual([item["index"] for item in installs], [CPU_INDEX])
+        self.assertEqual(installs[0]["constraint"], "")
+        self.assertIn("numpy>=1.26,<3", installs[0]["args"])
+        self.assertIn("Conda does not own NumPy", messages)
+
+    def test_existing_conda_opencv_never_gets_a_second_cv2_provider(self) -> None:
+        installs, messages = self.run_scenario(
+            system="Linux",
+            machine="x86_64",
+            conda_opencv=True,
+            expect_installs=False,
+        )
+        self.assertEqual(installs, [])
+        self.assertIn("refusing to install a second cv2 provider", messages)
+        self.assertIn("WARNING: TRex PYTHON ML SETUP IS INCOMPLETE", messages)
 
 
 @unittest.skipUnless(os.name == "nt", "native Windows batch simulation")
@@ -566,6 +641,9 @@ class WindowsPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
         cuda: str = "",
         missing_indexes: tuple[str, ...] = (),
         outcomes: tuple[str, ...] = ("success",),
+        conda_numpy: bool = True,
+        conda_opencv: bool = False,
+        expect_installs: bool = True,
     ) -> tuple[list[dict[str, object]], str]:
         with tempfile.TemporaryDirectory(prefix="trex-post-link-") as temporary:
             root = Path(temporary)
@@ -575,7 +653,14 @@ class WindowsPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
             fake_bin.mkdir()
             state.mkdir()
             (prefix / "conda-meta").mkdir(parents=True)
-            (prefix / "conda-meta" / "py-opencv-simulated.json").write_text("{}", encoding="utf-8")
+            if conda_numpy:
+                (prefix / "conda-meta" / "numpy-2.4.6-simulated.json").write_text(
+                    "{}", encoding="utf-8"
+                )
+            if conda_opencv:
+                (prefix / "conda-meta" / "py-opencv-4.12-simulated.json").write_text(
+                    "{}", encoding="utf-8"
+                )
 
             fake_site = root / "fake-site"
             fake_site.mkdir()
@@ -628,9 +713,12 @@ class WindowsPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
             messages = messages_path.read_text(encoding="utf-8", errors="replace") if messages_path.exists() else ""
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr + messages)
             installs = _install_events(state)
-            if not installs:
+            if expect_installs and not installs:
                 self.fail(result.stdout + result.stderr + messages)
-            self.assert_safe_installs(installs)
+            if expect_installs:
+                self.assert_safe_installs(installs, conda_numpy=conda_numpy)
+            else:
+                self.assertEqual(installs, [])
             return installs, messages
 
     def test_windows_without_nvidia_uses_cpu_index(self) -> None:
@@ -662,9 +750,22 @@ class WindowsPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
 
     def test_windows_missing_cuda_index_falls_back_to_cpu(self) -> None:
         installs, _ = self.run_scenario(cuda="12.4", missing_indexes=("cu124",))
-        self.assertEqual([item["index"] for item in installs], [CPU_INDEX])
+        self.assertEqual(
+            [item["index"] for item in installs],
+            ["https://download.pytorch.org/whl/cu121"],
+        )
 
-    def test_windows_failed_cuda_install_falls_back_to_cpu(self) -> None:
+    def test_windows_failed_cuda_install_falls_back_to_next_cuda(self) -> None:
+        installs, _ = self.run_scenario(cuda="12.4", outcomes=("network", "success"))
+        self.assertEqual(
+            [item["index"] for item in installs],
+            [
+                "https://download.pytorch.org/whl/cu124",
+                "https://download.pytorch.org/whl/cu121",
+            ],
+        )
+
+    def test_windows_failed_cuda_118_install_falls_back_to_cpu(self) -> None:
         installs, _ = self.run_scenario(cuda="11.8", outcomes=("network", "success"))
         self.assertEqual(
             [item["index"] for item in installs],
@@ -674,6 +775,36 @@ class WindowsPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
     def test_windows_missing_cpu_index_falls_back_to_pypi(self) -> None:
         installs, _ = self.run_scenario(missing_indexes=("cpu",))
         self.assertEqual([item["index"] for item in installs], [PYPI_INDEX])
+
+    def test_windows_pip_owns_numpy_when_conda_does_not(self) -> None:
+        installs, _ = self.run_scenario(conda_numpy=False)
+        self.assertEqual(installs[0]["constraint"], "")
+        self.assertIn("numpy>=1.26,<3", installs[0]["args"])
+
+    def test_windows_existing_conda_opencv_never_gets_second_provider(self) -> None:
+        installs, messages = self.run_scenario(
+            conda_opencv=True,
+            expect_installs=False,
+        )
+        self.assertEqual(installs, [])
+        self.assertIn("refusing to install a second cv2 provider", messages)
+
+    def test_windows_total_failure_warns_but_returns_success(self) -> None:
+        installs, messages = self.run_scenario(
+            cuda="12.4",
+            outcomes=("network",),
+        )
+        self.assertEqual(
+            [item["index"] for item in installs],
+            [
+                "https://download.pytorch.org/whl/cu124",
+                "https://download.pytorch.org/whl/cu121",
+                "https://download.pytorch.org/whl/cu118",
+                CPU_INDEX,
+                PYPI_INDEX,
+            ],
+        )
+        self.assertIn("WARNING: TRex PYTHON ML SETUP IS INCOMPLETE", messages)
 
 
 if __name__ == "__main__":

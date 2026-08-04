@@ -40,42 +40,38 @@ rem Compose pip argument lists. A compatible torch/torchvision pair is selected
 rem from exactly one platform-appropriate index while the complete ML dependency
 rem set is resolved from PyPI in the same transaction.
 rem
-rem NumPy is Conda-owned. Capture its exact installed version in a pip constraint
-rem so no pip command can replace it with a wheel from PyPI or a PyTorch index.
+rem A Conda-owned NumPy is immutable. Otherwise NumPy joins the complete pip
+rem transaction so the resolver can choose one version for the whole ML stack.
 set "NUMPY_CONSTRAINT_FILE=%TEMP%\trex_numpy_constraint_%RANDOM%.txt"
-call :configure_numpy_constraint
+set "NUMPY_CONSTRAINT_ARG="
+set "CONDA_NUMPY_OWNED=0"
+call :configure_numpy_policy
 if errorlevel 1 (
-    call :record_failure "[post-link] Could not constrain pip to the Conda-installed NumPy; skipping pip-managed extras."
+    call :record_failure "[post-link] Conda owns NumPy but its exact version could not be read; refusing to let pip modify it."
+    goto post_link_finish
+)
+
+if exist "%PREFIX%\conda-meta\py-opencv-*.json" (
+    call :record_failure "[post-link] Conda py-opencv is still present; refusing to install a second cv2 provider."
     goto post_link_finish
 )
 
 set "PIP_ARGS="
 call :add_package "torchmetrics"
 call :add_package "tqdm"
-set "HAS_CONDA_PY_OPENCV=0"
-if exist "%PREFIX%\conda-meta\py-opencv-*.json" set "HAS_CONDA_PY_OPENCV=1"
-if "!HAS_CONDA_PY_OPENCV!"=="1" (
-    call :log "Conda py-opencv detected; keeping its cv2 module and skipping the PyPI OpenCV wheel."
-) else (
-    call :log "Conda py-opencv not detected; adding opencv-python^>=4,^<5 for the buildall profile."
-    call :add_package "opencv-python>=4,<5"
-)
+call :add_package "opencv-python>=4.6,<5"
 call :add_package "ultralytics>=8.3.0,<9"
 call :add_package "rfdetr==1.8.3"
 call :add_package "dill"
 call :add_package "scikit-learn"
 call :add_package "timm"
 call :add_package "git+https://github.com/ultralytics/CLIP.git"
+if "!CONDA_NUMPY_OWNED!"=="0" call :add_package "numpy>=1.26,<3"
 set "PIP_ARGS_SIMPLE=!PIP_ARGS!"
 
-rem Select one usable index before downloading a wheel. If the driver-specific
-rem index cannot supply both packages for this Python, select the CPU index.
-call :select_torch_target
-call :resolve_torch_target_with_fallback
-if errorlevel 1 (
-    call :record_failure "[post-link] No compatible torch/torchvision pair could be resolved from CUDA, CPU, or PyPI."
-    goto post_link_finish
-)
+rem Build the ordered list now; each actual pip command receives exactly one
+rem Torch index from this list.
+call :build_torch_target_candidates
 
 rem Spin up a background progress indicator that writes directly to CONOUT$ via
 rem ctypes, bypassing conda's pipe that holds .messages.txt until the script exits.
@@ -145,42 +141,28 @@ rem Verbose flags for pip: no --quiet so Collecting/Downloading/Installing lines
 rem in PROGRESS_LOG for the live display. The log is appended to OUT_STREAM afterwards.
 set "PIP_FLAGS_LOG=--disable-pip-version-check --no-input --no-color --progress-bar off"
 
-rem Step 1: install the exact pair discovered on one selected index. The exact
-rem variants prevent PyPI dependency lookup from substituting another Torch build,
-rem while normal dependency resolution validates the pair and keeps NumPy pinned.
-rem Keeping an existing pair until this succeeds avoids a no-Torch window.
+rem Try every target in policy order. Missing or deprecated indexes, dependency
+rem conflicts, and download failures all advance to the next target.
 set "TORCH_INSTALLED=0"
-call :install_resolved_torch_target
-if not errorlevel 1 set "TORCH_INSTALLED=1"
-
-rem A failed CUDA transaction gets one CPU fallback, never another CUDA channel.
-rem pip resolves and downloads before replacing an existing installation, so the
-rem earlier pair remains available until a replacement is ready to install.
-if "!TORCH_INSTALLED!"=="0" if /I "!TORCH_TARGET:~0,4!"=="CUDA" (
-    call :log "[post-link] The !TORCH_TARGET! install failed; falling back to the newest CPU-only PyTorch distribution."
-    call :select_cpu_torch_target
-    call :resolve_torch_target
-    if not errorlevel 1 (
-        call :install_resolved_torch_target
-        if not errorlevel 1 set "TORCH_INSTALLED=1"
+for %%c in (!TORCH_TARGET_CODES!) do (
+    if "!TORCH_INSTALLED!"=="0" (
+        call :select_torch_candidate "%%c"
+        call :log "[post-link] Trying !TORCH_TARGET! from !TORCH_INDEX_URL!."
+        call :resolve_torch_target
+        if errorlevel 1 (
+            call :log "[post-link] !TORCH_TARGET! has no compatible torch/torchvision pair for this Python; trying the next target."
+        ) else (
+            call :install_resolved_torch_target
+            if errorlevel 1 (
+                call :log "[post-link] !TORCH_TARGET! could not be installed with a consistent dependency set; trying the next target."
+            ) else (
+                set "TORCH_INSTALLED=1"
+            )
+        )
     )
 )
-
-rem If the dedicated CPU index is unavailable in the future, use the default
-rem package index as the final distribution source.
-if "!TORCH_INSTALLED!"=="0" if /I not "!TORCH_TARGET:PyPI=!"=="!TORCH_TARGET!" goto torch_fallback_done
 if "!TORCH_INSTALLED!"=="0" (
-    call :log "[post-link] The !TORCH_TARGET! install failed; falling back to the newest PyTorch distribution on PyPI."
-    call :select_pypi_torch_target
-    call :resolve_torch_target
-    if not errorlevel 1 (
-        call :install_resolved_torch_target
-        if not errorlevel 1 set "TORCH_INSTALLED=1"
-    )
-)
-:torch_fallback_done
-if "!TORCH_INSTALLED!"=="0" (
-    call :record_failure "[post-link] The selected !TORCH_TARGET! PyTorch pair could not be installed or verified (exit !LAST_COMMAND_STATUS!)."
+    call :record_failure "[post-link] No CUDA, CPU-only, or default PyPI torch/torchvision pair could be installed with a consistent dependency set."
     goto pip_install_after
 )
 
@@ -199,24 +181,33 @@ copy nul "%PROGRESS_STOP%" >nul 2>&1
 timeout /t 1 /nobreak >nul 2>&1
 del "%PROGRESS_PY%" "%PROGRESS_LOG%" 2>nul
 
+if not "!TORCH_INSTALLED!"=="1" goto post_link_finish
+
 call :log "Testing installation..."
-call :log_command python -X utf8 -c "from ultralytics import YOLO; from rfdetr import RFDETR; from torchvision.ops import nms; from importlib.metadata import version; import cv2, numpy as np, torch; assert version('numpy') == '!NUMPY_VERSION!'; assert cv2.__version__.split('.')[0] == '4'; assert nms(torch.tensor([[0.,0.,1.,1.]]), torch.tensor([1.]), 0.5).tolist() == [0]; YOLO('yolo26n.yaml').to('cpu').predict(np.zeros((640, 480, 3), dtype=np.uint8))"
-call :run_with_reporting python -X utf8 -c "from ultralytics import YOLO; from rfdetr import RFDETR; from torchvision.ops import nms; from importlib.metadata import version; import cv2, numpy as np, torch; assert version('numpy') == '!NUMPY_VERSION!'; assert cv2.__version__.split('.')[0] == '4'; assert nms(torch.tensor([[0.,0.,1.,1.]]), torch.tensor([1.]), 0.5).tolist() == [0]; YOLO('yolo26n.yaml').to('cpu').predict(np.zeros((640, 480, 3), dtype=np.uint8))"
+set "NUMPY_OWNERSHIP_ASSERT="
+if "!CONDA_NUMPY_OWNED!"=="1" set "NUMPY_OWNERSHIP_ASSERT=assert version('numpy') == '!NUMPY_VERSION!'; "
+call :log_command python -X utf8 -c "from ultralytics import YOLO; from rfdetr import RFDETR; from torchvision.ops import nms; from importlib.metadata import version; import cv2, numpy as np, torch; !NUMPY_OWNERSHIP_ASSERT!assert cv2.__version__.split('.')[0] == '4'; assert nms(torch.tensor([[0.,0.,1.,1.]]), torch.tensor([1.]), 0.5).tolist() == [0]; YOLO('yolo26n.yaml').to('cpu').predict(np.zeros((640, 480, 3), dtype=np.uint8))"
+call :run_with_reporting python -X utf8 -c "from ultralytics import YOLO; from rfdetr import RFDETR; from torchvision.ops import nms; from importlib.metadata import version; import cv2, numpy as np, torch; !NUMPY_OWNERSHIP_ASSERT!assert cv2.__version__.split('.')[0] == '4'; assert nms(torch.tensor([[0.,0.,1.,1.]]), torch.tensor([1.]), 0.5).tolist() == [0]; YOLO('yolo26n.yaml').to('cpu').predict(np.zeros((640, 480, 3), dtype=np.uint8))"
 if errorlevel 1 (
     call :record_failure "[post-link] YOLO smoke test failed (exit !LAST_COMMAND_STATUS!)."
 )
 
 :post_link_finish
 if not "!POST_LINK_FAILED!"=="0" (
-    call :log "[post-link] Completed with issues; conda installation will continue."
+    call :log "============================================================"
+    call :log "WARNING: TRex PYTHON ML SETUP IS INCOMPLETE"
+    call :log "The Conda package installation will continue successfully."
+    call :log "TRex itself is installed, but Python ML features may be unavailable."
+    call :log "After installation, repair the environment and run: python -m pip check"
+    call :log "============================================================"
     if defined OUT_STREAM (
-        >&2 echo post-link.bat completed with issues; see "%OUT_STREAM%" for details.
+        >&2 echo WARNING: TRex Python ML setup is incomplete; Conda installation will continue. See "%OUT_STREAM%".
         if exist "%OUT_STREAM%" (
-            >&2 echo [post-link] Dumping post-link log due to failures:
+            >&2 echo [post-link] Dumping post-link log due to incomplete Python ML setup:
             type "%OUT_STREAM%" 1>&2
         )
     ) else (
-        >&2 echo post-link.bat completed with issues; see stdout for details.
+        >&2 echo WARNING: TRex Python ML setup is incomplete; Conda installation will continue. See stdout.
     )
 )
 
@@ -225,12 +216,22 @@ if defined TORCH_CANDIDATES_FILE del /q "!TORCH_CANDIDATES_FILE!" >nul 2>&1
 
 exit /b 0
 
-:configure_numpy_constraint
+:configure_numpy_policy
+if not exist "%PREFIX%\conda-meta\numpy-*.json" (
+    set "CONDA_NUMPY_OWNED=0"
+    call :log "[post-link] Conda does not own NumPy; pip will solve numpy^>=1.26,^<3 with the complete ML dependency set."
+    exit /b 0
+)
+set "CONDA_NUMPY_OWNED=1"
 set "NUMPY_VERSION="
 for /f "usebackq delims=" %%i in (`python -X utf8 -c "import numpy,sys; sys.stdout.write(numpy.__version__)" 2^>NUL`) do set "NUMPY_VERSION=%%i"
 if not defined NUMPY_VERSION exit /b 1
+set "NUMPY_METADATA_VERSION="
+for /f "usebackq delims=" %%i in (`python -X utf8 -c "from importlib.metadata import version; print(version('numpy'),end='')" 2^>NUL`) do set "NUMPY_METADATA_VERSION=%%i"
+if not "!NUMPY_METADATA_VERSION!"=="!NUMPY_VERSION!" exit /b 1
 >"!NUMPY_CONSTRAINT_FILE!" echo numpy==!NUMPY_VERSION!
-call :log "[post-link] Constraining pip to Conda-owned NumPy !NUMPY_VERSION!."
+set NUMPY_CONSTRAINT_ARG=--constraint "!NUMPY_CONSTRAINT_FILE!"
+call :log "[post-link] Conda owns NumPy !NUMPY_VERSION!; every pip solve is constrained to that exact version."
 exit /b 0
 
 :log
@@ -313,77 +314,64 @@ if defined PIP_ARGS (
 set "__PIP_PACKAGE="
 exit /b 0
 
-:select_torch_target
-set "TORCH_TARGET=CPU"
-set "TORCH_INDEX_URL=https://download.pytorch.org/whl/cpu"
-set "TORCH_DEPENDENCY_INDEX_ARG=--extra-index-url https://pypi.org/simple"
-
+:build_torch_target_candidates
+set "TORCH_TARGET_CODES="
 call :detect_driver_cuda_version
 if not defined CUDA_MAX_VERSION (
-    call :log "[post-link] No usable NVIDIA driver detected; selecting the CPU-only PyTorch distribution."
-    exit /b 0
+    call :log "[post-link] No usable NVIDIA driver detected; skipping CUDA distributions."
+) else (
+    call :log "[post-link] NVIDIA driver accepts CUDA !CUDA_MAX_VERSION!; trying every compatible PyTorch CUDA channel newest-first."
+    if !CUDA_MAX_CODE! GEQ 1302 set "TORCH_TARGET_CODES=!TORCH_TARGET_CODES! cu132"
+    if !CUDA_MAX_CODE! GEQ 1300 set "TORCH_TARGET_CODES=!TORCH_TARGET_CODES! cu130"
+    if !CUDA_MAX_CODE! GEQ 1209 set "TORCH_TARGET_CODES=!TORCH_TARGET_CODES! cu129"
+    if !CUDA_MAX_CODE! GEQ 1208 set "TORCH_TARGET_CODES=!TORCH_TARGET_CODES! cu128"
+    if !CUDA_MAX_CODE! GEQ 1206 set "TORCH_TARGET_CODES=!TORCH_TARGET_CODES! cu126"
+    if !CUDA_MAX_CODE! GEQ 1204 set "TORCH_TARGET_CODES=!TORCH_TARGET_CODES! cu124"
+    if !CUDA_MAX_CODE! GEQ 1201 set "TORCH_TARGET_CODES=!TORCH_TARGET_CODES! cu121"
+    if !CUDA_MAX_CODE! GEQ 1108 set "TORCH_TARGET_CODES=!TORCH_TARGET_CODES! cu118"
+    if !CUDA_MAX_CODE! LSS 1108 call :log "[post-link] Driver compatibility is below CUDA 11.8; skipping CUDA distributions."
 )
+set "TORCH_TARGET_CODES=!TORCH_TARGET_CODES! cpu pypi"
+exit /b 0
 
-if !CUDA_MAX_CODE! GEQ 1302 (
+:select_torch_candidate
+set "TORCH_CODE=%~1"
+set "TORCH_DEPENDENCY_INDEX_ARG=--extra-index-url https://pypi.org/simple"
+if /I "!TORCH_CODE!"=="cu132" (
     set "TORCH_TARGET=CUDA 13.2"
     set "TORCH_INDEX_URL=https://download.pytorch.org/whl/cu132"
-) else if !CUDA_MAX_CODE! GEQ 1300 (
+) else if /I "!TORCH_CODE!"=="cu130" (
     set "TORCH_TARGET=CUDA 13.0"
     set "TORCH_INDEX_URL=https://download.pytorch.org/whl/cu130"
-) else if !CUDA_MAX_CODE! GEQ 1209 (
+) else if /I "!TORCH_CODE!"=="cu129" (
     set "TORCH_TARGET=CUDA 12.9"
     set "TORCH_INDEX_URL=https://download.pytorch.org/whl/cu129"
-) else if !CUDA_MAX_CODE! GEQ 1208 (
+) else if /I "!TORCH_CODE!"=="cu128" (
     set "TORCH_TARGET=CUDA 12.8"
     set "TORCH_INDEX_URL=https://download.pytorch.org/whl/cu128"
-) else if !CUDA_MAX_CODE! GEQ 1206 (
+) else if /I "!TORCH_CODE!"=="cu126" (
     set "TORCH_TARGET=CUDA 12.6"
     set "TORCH_INDEX_URL=https://download.pytorch.org/whl/cu126"
-) else if !CUDA_MAX_CODE! GEQ 1204 (
+) else if /I "!TORCH_CODE!"=="cu124" (
     set "TORCH_TARGET=CUDA 12.4"
     set "TORCH_INDEX_URL=https://download.pytorch.org/whl/cu124"
-) else if !CUDA_MAX_CODE! GEQ 1201 (
+) else if /I "!TORCH_CODE!"=="cu121" (
     set "TORCH_TARGET=CUDA 12.1"
     set "TORCH_INDEX_URL=https://download.pytorch.org/whl/cu121"
-) else if !CUDA_MAX_CODE! GEQ 1108 (
+) else if /I "!TORCH_CODE!"=="cu118" (
     set "TORCH_TARGET=CUDA 11.8"
     set "TORCH_INDEX_URL=https://download.pytorch.org/whl/cu118"
+) else if /I "!TORCH_CODE!"=="cpu" (
+    set "TORCH_TARGET=CPU-only"
+    set "TORCH_INDEX_URL=https://download.pytorch.org/whl/cpu"
+) else if /I "!TORCH_CODE!"=="pypi" (
+    set "TORCH_TARGET=PyPI fallback"
+    set "TORCH_INDEX_URL=https://pypi.org/simple"
+    set "TORCH_DEPENDENCY_INDEX_ARG="
 ) else (
-    call :log "[post-link] NVIDIA driver supports CUDA !CUDA_MAX_VERSION!, below the supported CUDA 11.8 baseline; selecting CPU-only PyTorch."
-    exit /b 0
+    exit /b 1
 )
-
-call :log "[post-link] NVIDIA driver accepts CUDA !CUDA_MAX_VERSION!; selecting the single !TORCH_TARGET! PyTorch distribution."
 exit /b 0
-
-:select_cpu_torch_target
-set "TORCH_TARGET=CPU fallback"
-set "TORCH_INDEX_URL=https://download.pytorch.org/whl/cpu"
-set "TORCH_DEPENDENCY_INDEX_ARG=--extra-index-url https://pypi.org/simple"
-exit /b 0
-
-:select_pypi_torch_target
-set "TORCH_TARGET=PyPI fallback"
-set "TORCH_INDEX_URL=https://pypi.org/simple"
-set "TORCH_DEPENDENCY_INDEX_ARG="
-exit /b 0
-
-:resolve_torch_target_with_fallback
-call :resolve_torch_target
-if not errorlevel 1 exit /b 0
-
-if /I "!TORCH_TARGET:~0,4!"=="CUDA" (
-    call :log "[post-link] The !TORCH_TARGET! index has no compatible torch/torchvision pair; selecting the newest CPU-only distribution."
-    call :select_cpu_torch_target
-    call :resolve_torch_target
-    if not errorlevel 1 exit /b 0
-)
-
-if /I not "!TORCH_TARGET:PyPI=!"=="!TORCH_TARGET!" exit /b 1
-call :log "[post-link] The !TORCH_TARGET! index has no compatible pair; selecting the newest PyTorch distribution on PyPI."
-call :select_pypi_torch_target
-call :resolve_torch_target
-exit /b !ERRORLEVEL!
 
 :resolve_torch_target
 if not defined TORCH_CANDIDATES_FILE set "TORCH_CANDIDATES_FILE=%TEMP%\trex_torch_candidates_%RANDOM%.txt"
@@ -391,7 +379,11 @@ if exist "!TORCH_CANDIDATES_FILE!" del /q "!TORCH_CANDIDATES_FILE!" >nul 2>&1
 python -X utf8 -c "import re,subprocess,sys; from pip._vendor.packaging.version import Version; flavor=sys.argv[1].rstrip('/').rsplit('/',1)[-1]; required_flavor=flavor if flavor == 'cpu' or flavor.startswith('cu') else None; results=[subprocess.run([sys.executable,'-m','pip','index','versions',package,'--index-url',sys.argv[1]],capture_output=True,text=True,errors='replace') for package in ('torch','torchvision')]; matches=[re.search(r'^Available versions:\s*(.+)$',result.stdout,re.M) for result in results]; assert all(result.returncode == 0 for result in results) and all(matches); lists=[sorted({item.strip() for item in match.group(1).split(',') if item.strip()},key=Version,reverse=True) for match in matches]; lists=[[item for item in items if Version(item) >= minimum and (required_flavor is None or Version(item).local == required_flavor)] for items,minimum in zip(lists,(Version('2.2'),Version('0.17')))]; print('\n'.join(torch_version+'|'+vision_version for torch_version,vision_version in zip(*lists)))" "!TORCH_INDEX_URL!" >"!TORCH_CANDIDATES_FILE!" 2>nul
 if errorlevel 1 exit /b 1
 for %%i in ("!TORCH_CANDIDATES_FILE!") do if %%~zi EQU 0 exit /b 1
-call :log "[post-link] Found compatible-version candidates on the !TORCH_TARGET! index; pip will validate them newest-first with NumPy !NUMPY_VERSION! pinned."
+if "!CONDA_NUMPY_OWNED!"=="1" (
+    call :log "[post-link] Found candidates on !TORCH_TARGET!; pip will validate them newest-first with Conda NumPy !NUMPY_VERSION! fixed."
+) else (
+    call :log "[post-link] Found candidates on !TORCH_TARGET!; pip will solve NumPy and the complete dependency set newest-first."
+)
 exit /b 0
 
 :install_resolved_torch_target
@@ -403,8 +395,8 @@ for /f "usebackq tokens=1,2 delims=|" %%a in ("!TORCH_CANDIDATES_FILE!") do (
         call :add_package "torchvision===%%b"
         set "PIP_ARGS_TORCH=!PIP_ARGS!"
         call :log "[post-link] Resolving !TORCH_TARGET! pair: torch %%a, torchvision %%b."
-        call :log_command python -X utf8 -m pip install !PIP_FLAGS_LOG! --constraint "!NUMPY_CONSTRAINT_FILE!" --index-url !TORCH_INDEX_URL! !TORCH_DEPENDENCY_INDEX_ARG! !PIP_ARGS_TORCH! !PIP_ARGS_SIMPLE!
-        python -X utf8 -m pip install !PIP_FLAGS_LOG! --constraint "!NUMPY_CONSTRAINT_FILE!" --index-url !TORCH_INDEX_URL! !TORCH_DEPENDENCY_INDEX_ARG! !PIP_ARGS_TORCH! !PIP_ARGS_SIMPLE! > "%PROGRESS_LOG%" 2>&1
+        call :log_command python -X utf8 -m pip install !PIP_FLAGS_LOG! !NUMPY_CONSTRAINT_ARG! --index-url !TORCH_INDEX_URL! !TORCH_DEPENDENCY_INDEX_ARG! !PIP_ARGS_TORCH! !PIP_ARGS_SIMPLE!
+        python -X utf8 -m pip install !PIP_FLAGS_LOG! !NUMPY_CONSTRAINT_ARG! --index-url !TORCH_INDEX_URL! !TORCH_DEPENDENCY_INDEX_ARG! !PIP_ARGS_TORCH! !PIP_ARGS_SIMPLE! > "%PROGRESS_LOG%" 2>&1
         set "LAST_COMMAND_STATUS=!ERRORLEVEL!"
         if defined OUT_STREAM type "%PROGRESS_LOG%" >> "%OUT_STREAM%" 2>nul
         if "!LAST_COMMAND_STATUS!"=="0" (
@@ -431,6 +423,10 @@ exit /b 1
 :verify_torch_environment
 python -X utf8 -c "import torch,torchvision" >nul 2>&1
 if errorlevel 1 exit /b 1
+if "!CONDA_NUMPY_OWNED!"=="1" (
+    python -X utf8 -c "from importlib.metadata import version; assert version('numpy') == '!NUMPY_VERSION!'" >nul 2>&1
+    if errorlevel 1 exit /b 1
+)
 if defined OUT_STREAM (
     python -X utf8 -m pip check >> "%OUT_STREAM%" 2>&1
 ) else (

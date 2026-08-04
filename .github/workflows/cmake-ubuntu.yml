@@ -88,7 +88,6 @@ jobs:
         sed -i -e '/^{% set git_tag =/ s+{% set git_tag = "[^"]*" %}+{% set git_tag = "'"$p"'" %}+g' meta.yaml
         sed -i -e '/^{% set git_tag_sanitized =/ s+{% set git_tag_sanitized = "[^"]*" %}+{% set git_tag_sanitized = "'"$p_sanitized"'" %}+g' meta.yaml
         sed -i -e 's/_cuda[0-9.]*/\*/g' -e 's/_cudnn/\*/g' -e 's/_cu[0-9.]*/\*/g' meta.yaml
-        sed -i.bak 's|--index-url https://download.pytorch.org/whl/cu118||g' post-link.sh
         cat meta.yaml
         echo "::endgroup::"
         echo "::group::Build"
@@ -129,7 +128,7 @@ jobs:
         ./run_unix.bash
         echo "::endgroup::"
     - name: Collect conda package artifacts
-      if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
+      if: ${{ !cancelled() }}
       working-directory: ${{ github.workspace }}
       run: |
         set -euo pipefail
@@ -140,19 +139,19 @@ jobs:
           packages+=("$pkg")
         done < <(find "$CONDA_PREFIX/conda-bld" -type f -name 'trex-*.conda' -print0)
         if [ "${#packages[@]}" -eq 0 ]; then
-          echo "No trex .conda packages found under $CONDA_PREFIX/conda-bld" >&2
-          exit 1
+          echo "No completed trex .conda package was available to upload." >&2
+          exit 0
         fi
         latest=$(ls -t "${packages[@]}" | head -n 1)
         cp "$latest" "$out/$(basename "$latest")"
         ls -lh "$out"
     - name: Upload conda packages
-      if: github.ref == 'refs/heads/main'
+      if: ${{ !cancelled() }}
       uses: actions/upload-artifact@v4
       with:
         name: trex-conda-linux-64
         path: ${{ github.workspace }}/conda-artifacts/*.conda
-        if-no-files-found: error
+        if-no-files-found: ignore
         retention-days: 14
         compression-level: 0
     - name: Attach conda packages to GitHub release

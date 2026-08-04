@@ -119,12 +119,6 @@ jobs:
         $meta = $meta -replace '(\{% set git_tag_sanitized = ")([^"]+)(" %\})', "`$1$branchSanitized`$3"
         Set-Content meta.yaml $meta -Encoding utf8
 
-        if (Test-Path post-link.bat) {
-          $bat = Get-Content post-link.bat -Raw
-          $bat = $bat -replace '--index-url https://download\.pytorch\.org/whl/cu118', ''
-          Set-Content post-link.bat $bat -Encoding utf8
-        }
-
         Get-Content meta.yaml
         if (Test-Path post-link.sh) { Get-Content post-link.sh }
 
@@ -279,7 +273,7 @@ jobs:
         exit $env:TEST_EXIT_CODE
 
     - name: Collect conda package artifacts
-      if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
+      if: ${{ !cancelled() }}
       shell: pwsh
       working-directory: ${{ env.SHORT_WORKSPACE }}
       run: |
@@ -288,7 +282,8 @@ jobs:
 
         $packages = Get-ChildItem -Path $env:CONDA_BLD_PATH -Recurse -Filter "trex-*.conda" -File
         if (-not $packages) {
-          throw "No trex .conda packages found under $env:CONDA_BLD_PATH"
+          Write-Warning "No completed trex .conda package was available to upload."
+          exit 0
         }
 
         $latest = $packages | Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1
@@ -297,12 +292,12 @@ jobs:
         Get-ChildItem -Path $out | Format-Table Name,Length
 
     - name: Upload conda packages
-      if: github.ref == 'refs/heads/main'
+      if: ${{ !cancelled() }}
       uses: actions/upload-artifact@v4
       with:
         name: trex-conda-win-64
         path: ${{ github.workspace }}/conda-artifacts/*.conda
-        if-no-files-found: error
+        if-no-files-found: ignore
         retention-days: 14
         compression-level: 0
 
