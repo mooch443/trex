@@ -442,7 +442,7 @@
               "then": {
                 "type": "button",
                 "text": "Export",
-                "action": "{if:{equals:{tab}:0}:export:export-behavior}",
+                "action": "{if:{equals:{local.tab}:0}:export:export-behavior}",
                 "disabled": "{not:{info.can_export}}",
                 "font": {"size": 0.5, "style": "bold"},
                 "fill": "{if:{||:{selected}:{hovered}}:[55,90,60,230]:[45,75,50,220]}",
