@@ -151,6 +151,25 @@ def _write_executable(path: Path, contents: str) -> None:
     path.chmod(0o755)
 
 
+def _fake_python_sitecustomize() -> str:
+    return textwrap.dedent(
+        f'''\
+        import os
+        import sys
+
+        if os.environ.get("TREX_FAKE_PYTHON_SITE") == "1":
+            sys.argv = list(sys.orig_argv)
+            try:
+                exec({FAKE_PYTHON!r}, {{"__name__": "__main__"}})
+            except SystemExit as error:
+                sys.stdout.flush()
+                sys.stderr.flush()
+                status = error.code if isinstance(error.code, int) else (0 if error.code is None else 1)
+                os._exit(status)
+        '''
+    )
+
+
 def _events(state: Path) -> list[dict[str, object]]:
     path = state / "events.jsonl"
     if not path.exists():
@@ -225,6 +244,67 @@ class PostLinkSimulationMixin:
 
 
 class RealPipResolverSimulation(unittest.TestCase):
+    def test_sitecustomize_intercepts_the_real_python_executable(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="trex-python-shim-") as temporary:
+            root = Path(temporary)
+            state = root / "state"
+            fake_site = root / "fake-site"
+            state.mkdir()
+            fake_site.mkdir()
+            (fake_site / "sitecustomize.py").write_text(
+                _fake_python_sitecustomize(),
+                encoding="utf-8",
+            )
+            constraint = root / "constraints.txt"
+            constraint.write_text("numpy==2.4.6\n", encoding="utf-8")
+            environment = os.environ.copy()
+            environment.update(
+                {
+                    "PYTHONPATH": str(fake_site),
+                    "TREX_FAKE_PYTHON_SITE": "1",
+                    "TREX_FAKE_STATE": str(state),
+                    "TREX_FAKE_INSTALL_OUTCOMES": "success",
+                }
+            )
+
+            version_result = subprocess.run(
+                [sys.executable, "-X", "utf8", "-m", "pip", "--version"],
+                env=environment,
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=False,
+            )
+            self.assertEqual(version_result.returncode, 0, version_result.stdout + version_result.stderr)
+            self.assertIn("pip 99.0 (simulated)", version_result.stdout)
+
+            install_result = subprocess.run(
+                [
+                    sys.executable,
+                    "-X",
+                    "utf8",
+                    "-m",
+                    "pip",
+                    "install",
+                    "--constraint",
+                    str(constraint),
+                    "--index-url",
+                    CPU_INDEX,
+                    "torch===2.7.1+cpu",
+                    "torchvision===0.22.1+cpu",
+                ],
+                env=environment,
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=False,
+            )
+            self.assertEqual(install_result.returncode, 0, install_result.stdout + install_result.stderr)
+            installs = _install_events(state)
+            self.assertEqual(len(installs), 1)
+            self.assertEqual(installs[0]["index"], CPU_INDEX)
+            self.assertEqual(installs[0]["constraint"], "numpy==2.4.6")
+
     def test_pip_retries_a_pair_without_relaxing_numpy(self) -> None:
         with tempfile.TemporaryDirectory(prefix="trex-pip-resolver-") as temporary:
             root = Path(temporary)
@@ -366,6 +446,8 @@ class UnixPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
             messages = messages_path.read_text(encoding="utf-8") if messages_path.exists() else ""
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr + messages)
             installs = _install_events(state)
+            if not installs:
+                self.fail(result.stdout + result.stderr + messages)
             self.assert_safe_installs(installs)
             return installs, messages
 
@@ -495,10 +577,10 @@ class WindowsPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
             (prefix / "conda-meta").mkdir(parents=True)
             (prefix / "conda-meta" / "py-opencv-simulated.json").write_text("{}", encoding="utf-8")
 
-            driver = root / "fake_python.py"
-            driver.write_text(FAKE_PYTHON, encoding="utf-8")
-            (fake_bin / "python.cmd").write_text(
-                f'@echo off\r\n"{sys.executable}" "{driver}" %*\r\nexit /b %ERRORLEVEL%\r\n',
+            fake_site = root / "fake-site"
+            fake_site.mkdir()
+            (fake_site / "sitecustomize.py").write_text(
+                _fake_python_sitecustomize(),
                 encoding="utf-8",
             )
             if cuda:
@@ -521,10 +603,12 @@ class WindowsPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
             environment.pop("GITHUB_WORKSPACE", None)
             environment.update(
                 {
-                    "PATH": str(fake_bin) + os.pathsep + str(system32),
+                    "PATH": os.pathsep.join((str(fake_bin), str(Path(sys.executable).parent), str(system32))),
+                    "PYTHONPATH": str(fake_site),
                     "PREFIX": str(prefix),
                     "TEMP": str(root),
                     "TMP": str(root),
+                    "TREX_FAKE_PYTHON_SITE": "1",
                     "TREX_FAKE_STATE": str(state),
                     "TREX_FAKE_CUDA_VERSION": cuda,
                     "TREX_FAKE_MISSING_INDEXES": ",".join(missing_indexes),
@@ -544,6 +628,8 @@ class WindowsPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
             messages = messages_path.read_text(encoding="utf-8", errors="replace") if messages_path.exists() else ""
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr + messages)
             installs = _install_events(state)
+            if not installs:
+                self.fail(result.stdout + result.stderr + messages)
             self.assert_safe_installs(installs)
             return installs, messages
 

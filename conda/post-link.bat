@@ -447,7 +447,7 @@ set "CUDA_SMI_TMP=%TEMP%\trex_nvidia_smi_%RANDOM%.txt"
 where /q nvidia-smi
 if errorlevel 1 exit /b 1
 
-nvidia-smi >"!CUDA_SMI_TMP!" 2>&1
+call nvidia-smi >"!CUDA_SMI_TMP!" 2>&1
 if errorlevel 1 (
     if defined OUT_STREAM type "!CUDA_SMI_TMP!" >>"!OUT_STREAM!" 2>nul
     del /q "!CUDA_SMI_TMP!" >nul 2>&1
@@ -497,7 +497,7 @@ if defined TEMP (
 
 del /q "!GPU_TMP!" >nul 2>&1
 call :log_command nvidia-smi --query-gpu=name --format=csv,noheader
-nvidia-smi --query-gpu=name --format=csv,noheader >"!GPU_TMP!" 2>&1
+call nvidia-smi --query-gpu=name --format=csv,noheader >"!GPU_TMP!" 2>&1
 set "GPU_CMD_STATUS=!ERRORLEVEL!"
 
 if defined OUT_STREAM (
