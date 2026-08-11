@@ -9,6 +9,7 @@
 #include <python/PythonWrapper.h>
 #include <python/YOLO.h>
 #include <ui/Segmenter.h>
+#include <ui/SettingsScene.h>
 
 #include <atomic>
 #include <chrono>
@@ -341,9 +342,9 @@ protected:
     }
 };
 
-TEST_F(MLFailures, ModelLoadFailureThrowsFromInit) {
+TEST_F(MLFailures, UnsupportedModelTaskDisablesSettingsConversion) {
     python_environment->write_bbx(
-        "raise RuntimeError('CUDA out of memory while loading model')",
+        "raise RuntimeError('Unknown task semantic')",
         "return []");
 
     std::string message;
@@ -354,7 +355,8 @@ TEST_F(MLFailures, ModelLoadFailureThrowsFromInit) {
         message = ex.what();
     }
 
-    EXPECT_NE(message.find("CUDA out of memory"), std::string::npos) << message;
+    EXPECT_NE(message.find("Unknown task semantic"), std::string::npos) << message;
+    EXPECT_FALSE(gui::SettingsScene::detection_model_ready());
     const auto error = deinit_detection();
     EXPECT_FALSE(error.has_value()) << (error ? *error : "");
 }

@@ -33,6 +33,21 @@ namespace cmn::gui {
 
 ProtectedProperty<std::string> last_opened_tab{"choose_settings_layout.json"};
 
+bool SettingsScene::detection_model_ready() {
+    const auto type = READ_SETTING_WITH_DEFAULT(
+        detect_type,
+        track::detect::ObjectDetectionType_t{});
+    if(type != track::detect::ObjectDetectionType::yolo)
+        return true;
+
+    const auto format = READ_SETTING_WITH_DEFAULT(
+        detect_format,
+        track::detect::ObjectDetectionFormat_t{});
+    return format != track::detect::ObjectDetectionFormat::none
+        && track::detect::yolo::valid_model(
+            READ_SETTING_WITH_DEFAULT(detect_model, file::Path{}));
+}
+
 void SettingsScene::reset_last_opened_tab() {
     last_opened_tab.set("choose_settings_layout.json");
 }
@@ -297,6 +312,18 @@ struct SettingsScene::Data {
                                 }
                                 
                             } catch(...) {
+                                try {
+                                    if(const auto* hooks = track::detect::ensure_backend(track::detect::ObjectDetectionType::yolo);
+                                       hooks && hooks->deinit)
+                                    {
+                                        hooks->deinit();
+                                    }
+                                } catch(const std::exception& ex) {
+                                    FormatWarning("Failed to clean up the detection model after initialization failed: ", ex.what());
+                                } catch(...) {
+                                    FormatWarning("Failed to clean up the detection model after initialization failed.");
+                                }
+
                                 if(not is_ml_backend()
                                     || request.is_current())
                                 {
@@ -527,6 +554,14 @@ struct SettingsScene::Data {
                         });
                     }),
                     ActionFunc("convert", [this](auto){
+                        if(_are_python_tasks_running.load() > 0
+                           || _are_video_checks_running.load()
+                           || not SettingsScene::detection_model_ready())
+                        {
+                            FormatWarning("Ignoring conversion request while the selected detection model is not ready.");
+                            return;
+                        }
+
                         DebugHeader("Converting ", utils::ShortenText(READ_SETTING(source, file::PathArray).toStr(), 100));
                         
                         auto f = WorkProgress::add_queue("", [this, copy = get_changed_props()]() {
@@ -952,12 +987,7 @@ struct SettingsScene::Data {
                             || _are_video_checks_running.load();
                     }),
                     VarFunc("valid_detection_model", [](const VarProps&) -> bool {
-                        const auto type = READ_SETTING_WITH_DEFAULT(
-                            detect_type,
-                            track::detect::ObjectDetectionType_t{});
-                        return type != track::detect::ObjectDetectionType::yolo
-                            || track::detect::yolo::valid_model(
-                                READ_SETTING_WITH_DEFAULT(detect_model, file::Path{}));
+                        return SettingsScene::detection_model_ready();
                     }),
                     VarFunc("season", [](const VarProps&) {
                         return GlobalSettings::currentSeason().toStr();
