@@ -90,7 +90,6 @@ jobs:
         cat meta.yaml
         echo "::endgroup::"
         echo "::group::Fix PostLink"
-        sed -i.bak '/from ultralytics import YOLO/d' post-link.sh
         cat post-link.sh
         echo "::endgroup::"
         echo "::group::Build"
@@ -108,6 +107,7 @@ jobs:
         conda create -y -n test --override-channels -c $CONDA_PREFIX/conda-bld/ -c conda-forge trex
         conda activate test
         conda install -y git
+        python $GITHUB_WORKSPACE/conda/validate_post_link_installation.py
         pvinfo -opencv_ffmpeg_support
         if pvinfo -opencv_opencl_support; then
           echo "Minimal OpenCV unexpectedly reports OpenCL support." >&2

@@ -1,4 +1,4 @@
-name: PostLinkSimulation
+name: PostLinkTests
 
 on:
   push:
@@ -6,12 +6,22 @@ on:
       - "conda/post-link.sh"
       - "conda/post-link.bat"
       - "conda/test_post_link_simulation.py"
+      - "conda/test_post_link_real_resolver.py"
+      - "conda/validate_post_link_installation.py"
+      - "conda/meta.yaml"
+      - "conda/.meta.minimal.yaml"
+      - "conda/.meta.buildall.yaml"
       - ".github/workflows/post-link-simulation.yml"
   pull_request:
     paths:
       - "conda/post-link.sh"
       - "conda/post-link.bat"
       - "conda/test_post_link_simulation.py"
+      - "conda/test_post_link_real_resolver.py"
+      - "conda/validate_post_link_installation.py"
+      - "conda/meta.yaml"
+      - "conda/.meta.minimal.yaml"
+      - "conda/.meta.buildall.yaml"
       - ".github/workflows/post-link-simulation.yml"
 
 permissions:
@@ -35,3 +45,37 @@ jobs:
           python-version: "3.11"
       - name: Simulate post-link configurations
         run: python conda/test_post_link_simulation.py
+
+  real-offline-resolution:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-24.04, system: Linux, machine: x86_64, cuda: "", profile: minimal }
+          - { os: ubuntu-24.04, system: Linux, machine: x86_64, cuda: "", profile: buildall }
+          - { os: ubuntu-24.04, system: Linux, machine: x86_64, cuda: "11.7" }
+          - { os: ubuntu-24.04, system: Linux, machine: x86_64, cuda: "11.8" }
+          - { os: ubuntu-24.04, system: Linux, machine: x86_64, cuda: "12.1" }
+          - { os: ubuntu-24.04, system: Linux, machine: x86_64, cuda: "12.4" }
+          - { os: ubuntu-24.04, system: Linux, machine: x86_64, cuda: "12.6" }
+          - { os: ubuntu-24.04, system: Linux, machine: x86_64, cuda: "12.8" }
+          - { os: ubuntu-24.04, system: Linux, machine: x86_64, cuda: "12.9" }
+          - { os: ubuntu-24.04, system: Linux, machine: x86_64, cuda: "13.0" }
+          - { os: ubuntu-24.04, system: Linux, machine: x86_64, cuda: "13.3" }
+          - { os: macos-26, system: Darwin, machine: arm64, cuda: "" }
+          - { os: macos-13, system: Darwin, machine: x86_64, cuda: "" }
+          - { os: windows-2025-vs2026, system: Windows, machine: AMD64, cuda: "" }
+          - { os: windows-2025-vs2026, system: Windows, machine: AMD64, cuda: "13.3" }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - name: Resolve and install once with real pip and offline wheels
+        run: >-
+          python conda/test_post_link_real_resolver.py
+          --system "${{ matrix.system }}"
+          --machine "${{ matrix.machine }}"
+          --cuda "${{ matrix.cuda }}"
+          --profile "${{ matrix.profile || 'minimal' }}"

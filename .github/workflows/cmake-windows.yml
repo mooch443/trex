@@ -176,6 +176,7 @@ jobs:
           throw "Minimal OpenCV unexpectedly reports OpenCL support."
         }
         conda run -p $env:TEST_PREFIX python "$env:SHORT_WORKSPACE\conda\validate_minimal.py"
+        conda run -p $env:TEST_PREFIX python "$env:SHORT_WORKSPACE\conda\validate_post_link_installation.py"
 
         $trexCandidates = @(
           (Join-Path $env:TEST_PREFIX "bin\trex.exe")

@@ -12,7 +12,6 @@ import sys
 import tempfile
 import textwrap
 import unittest
-import zipfile
 
 
 REPOSITORY = Path(__file__).resolve().parents[1]
@@ -48,29 +47,9 @@ def index_value(arguments):
         return ""
 
 
-def candidate_versions(index_url):
-    flavor = index_url.rstrip("/").rsplit("/", 1)[-1]
-    missing = set(filter(None, os.environ.get("TREX_FAKE_MISSING_INDEXES", "").split(",")))
-    if flavor in missing or index_url in missing:
-        return 1
-    if flavor.startswith("cu"):
-        print(f"2.7.1+{flavor}|0.22.1+{flavor}")
-        print(f"2.7.0+{flavor}|0.22.0+{flavor}")
-    elif flavor == "cpu":
-        print("2.7.1+cpu|0.22.1+cpu")
-        print("2.7.0+cpu|0.22.0+cpu")
-    else:
-        print("2.7.1|0.22.1")
-        print("2.7.0|0.22.0")
-    return 0
-
-
 if args[:3] == ["-m", "pip", "--version"]:
     print("pip 99.0 (simulated)")
     raise SystemExit(0)
-
-if args and args[0] == "-":
-    raise SystemExit(candidate_versions(args[1]))
 
 if args[:3] == ["-m", "pip", "install"]:
     counter_path = state / "install-count"
@@ -97,26 +76,15 @@ if args[:3] == ["-m", "pip", "install"]:
         raise SystemExit(1)
     raise SystemExit(0)
 
-if args[:3] == ["-m", "pip", "check"]:
-    event("pip-check")
-    raise SystemExit(0)
-
 if args and args[0] == "-c":
     code = args[1] if len(args) > 1 else ""
-    if "numpy.__version__" in code:
+    if "json.load" in code and "['version']" in code:
         print("2.4.6", end="")
-    elif "version('numpy')" in code:
-        print("2.4.6", end="")
-    elif "version('torchvision')" in code:
-        print("0.22.1")
-    elif "version('torch')" in code:
-        print("2.7.1")
-    elif "torch.cuda.is_available" in code:
-        print("False")
-    elif "pip','index','versions'" in code or 'pip", "index", "versions' in code:
-        raise SystemExit(candidate_versions(args[-1]))
     elif "CUDA(?:" in code:
         print(os.environ.get("TREX_FAKE_CUDA_VERSION", ""))
+    elif "from ultralytics import YOLO" in code and os.environ.get("TREX_FAKE_WARM_OUTCOME") == "failure":
+        print("simulated cache warm-up failure", file=sys.stderr)
+        raise SystemExit(1)
     raise SystemExit(0)
 
 # The Windows progress helper is launched through python as a temporary .py file.
@@ -183,42 +151,13 @@ def _install_events(state: Path) -> list[dict[str, object]]:
     return [item for item in _events(state) if item["kind"] == "install"]
 
 
-def _make_wheel(
-    wheelhouse: Path,
-    *,
-    distribution: str,
-    version: str,
-    requirements: tuple[str, ...] = (),
-) -> Path:
-    normalized = distribution.replace("-", "_")
-    wheel = wheelhouse / f"{normalized}-{version}-py3-none-any.whl"
-    dist_info = f"{normalized}-{version}.dist-info"
-    metadata = [
-        "Metadata-Version: 2.1",
-        f"Name: {distribution}",
-        f"Version: {version}",
-    ]
-    metadata.extend(f"Requires-Dist: {requirement}" for requirement in requirements)
-    with zipfile.ZipFile(wheel, "w", compression=zipfile.ZIP_DEFLATED) as archive:
-        archive.writestr(f"{normalized}/__init__.py", f'__version__ = "{version}"\n')
-        archive.writestr(f"{dist_info}/METADATA", "\n".join(metadata) + "\n")
-        archive.writestr(
-            f"{dist_info}/WHEEL",
-            "Wheel-Version: 1.0\n"
-            "Generator: trex-post-link-simulation\n"
-            "Root-Is-Purelib: true\n"
-            "Tag: py3-none-any\n",
-        )
-        archive.writestr(f"{dist_info}/RECORD", "")
-    return wheel
-
-
 class PostLinkSimulationMixin:
     def assert_safe_installs(
         self,
         installs: list[dict[str, object]],
         *,
         conda_numpy: bool,
+        conda_opencv: bool,
     ) -> None:
         self.assertTrue(installs, "the simulation did not attempt a Torch installation")
         for install in installs:
@@ -231,8 +170,8 @@ class PostLinkSimulationMixin:
             self.assertNotIn("--force-reinstall", arguments)
             self.assertNotIn("uninstall", arguments)
             self.assertEqual(arguments.count("--index-url"), 1)
-            self.assertTrue(any(str(value).startswith("torch===") for value in arguments))
-            self.assertTrue(any(str(value).startswith("torchvision===") for value in arguments))
+            self.assertTrue(any(str(value).startswith("torch") for value in arguments))
+            self.assertTrue(any(str(value).startswith("torchvision") for value in arguments))
             for requirement in (
                 "torchmetrics",
                 "tqdm",
@@ -242,13 +181,16 @@ class PostLinkSimulationMixin:
                 "scikit-learn",
                 "timm",
                 "git+https://github.com/ultralytics/CLIP.git",
-                "opencv-python>=4.6,<5",
             ):
                 self.assertIn(requirement, arguments)
             if conda_numpy:
                 self.assertNotIn("numpy>=1.26,<3", arguments)
             else:
                 self.assertIn("numpy>=1.26,<3", arguments)
+            if conda_opencv:
+                self.assertNotIn("opencv-python>=4.6,<5", arguments)
+            else:
+                self.assertIn("opencv-python>=4.6,<5", arguments)
             pytorch_extra_indexes = [
                 arguments[position + 1]
                 for position, value in enumerate(arguments[:-1])
@@ -256,147 +198,6 @@ class PostLinkSimulationMixin:
                 and "download.pytorch.org" in str(arguments[position + 1])
             ]
             self.assertEqual(pytorch_extra_indexes, [])
-
-
-class RealPipResolverSimulation(unittest.TestCase):
-    def test_sitecustomize_intercepts_the_real_python_executable(self) -> None:
-        with tempfile.TemporaryDirectory(prefix="trex-python-shim-") as temporary:
-            root = Path(temporary)
-            state = root / "state"
-            fake_site = root / "fake-site"
-            state.mkdir()
-            fake_site.mkdir()
-            (fake_site / "sitecustomize.py").write_text(
-                _fake_python_sitecustomize(),
-                encoding="utf-8",
-            )
-            constraint = root / "constraints.txt"
-            constraint.write_text("numpy==2.4.6\n", encoding="utf-8")
-            environment = os.environ.copy()
-            environment.update(
-                {
-                    "PYTHONPATH": str(fake_site),
-                    "TREX_FAKE_PYTHON_SITE": "1",
-                    "TREX_FAKE_STATE": str(state),
-                    "TREX_FAKE_INSTALL_OUTCOMES": "success",
-                }
-            )
-
-            version_result = subprocess.run(
-                [sys.executable, "-X", "utf8", "-m", "pip", "--version"],
-                env=environment,
-                capture_output=True,
-                text=True,
-                timeout=10,
-                check=False,
-            )
-            self.assertEqual(version_result.returncode, 0, version_result.stdout + version_result.stderr)
-            self.assertIn("pip 99.0 (simulated)", version_result.stdout)
-
-            install_result = subprocess.run(
-                [
-                    sys.executable,
-                    "-X",
-                    "utf8",
-                    "-m",
-                    "pip",
-                    "install",
-                    "--constraint",
-                    str(constraint),
-                    "--index-url",
-                    CPU_INDEX,
-                    "torch===2.7.1+cpu",
-                    "torchvision===0.22.1+cpu",
-                ],
-                env=environment,
-                capture_output=True,
-                text=True,
-                timeout=10,
-                check=False,
-            )
-            self.assertEqual(install_result.returncode, 0, install_result.stdout + install_result.stderr)
-            installs = _install_events(state)
-            self.assertEqual(len(installs), 1)
-            self.assertEqual(installs[0]["index"], CPU_INDEX)
-            self.assertEqual(installs[0]["constraint"], "numpy==2.4.6")
-
-    def test_pip_retries_a_pair_without_relaxing_numpy(self) -> None:
-        with tempfile.TemporaryDirectory(prefix="trex-pip-resolver-") as temporary:
-            root = Path(temporary)
-            wheelhouse = root / "wheels"
-            wheelhouse.mkdir()
-            constraint = root / "constraints.txt"
-            constraint.write_text("numpy==2.4.6\n", encoding="utf-8")
-
-            _make_wheel(wheelhouse, distribution="numpy", version="2.4.6")
-            _make_wheel(
-                wheelhouse,
-                distribution="torch",
-                version="2.7.1+cpu",
-                requirements=("numpy>=3",),
-            )
-            _make_wheel(
-                wheelhouse,
-                distribution="torchvision",
-                version="0.22.1+cpu",
-                requirements=("torch==2.7.1",),
-            )
-            _make_wheel(
-                wheelhouse,
-                distribution="torch",
-                version="2.7.0+cpu",
-                requirements=("numpy>=2",),
-            )
-            _make_wheel(
-                wheelhouse,
-                distribution="torchvision",
-                version="0.22.0+cpu",
-                requirements=("torch==2.7.0",),
-            )
-            _make_wheel(
-                wheelhouse,
-                distribution="trex-ml-stack",
-                version="1.0",
-                requirements=("numpy>=2",),
-            )
-
-            results: list[subprocess.CompletedProcess[str]] = []
-            for torch_version, vision_version in (
-                ("2.7.1+cpu", "0.22.1+cpu"),
-                ("2.7.0+cpu", "0.22.0+cpu"),
-            ):
-                results.append(
-                    subprocess.run(
-                        [
-                            sys.executable,
-                            "-m",
-                            "pip",
-                            "install",
-                            "--dry-run",
-                            "--ignore-installed",
-                            "--no-index",
-                            "--find-links",
-                            str(wheelhouse),
-                            "--constraint",
-                            str(constraint),
-                            f"torch==={torch_version}",
-                            f"torchvision==={vision_version}",
-                            "trex-ml-stack==1.0",
-                        ],
-                        capture_output=True,
-                        text=True,
-                        timeout=20,
-                        check=False,
-                    )
-                )
-
-            first_output = results[0].stdout + results[0].stderr
-            second_output = results[1].stdout + results[1].stderr
-            self.assertNotEqual(results[0].returncode, 0, first_output)
-            self.assertIn("ResolutionImpossible", first_output)
-            self.assertEqual(results[1].returncode, 0, second_output)
-            self.assertIn("numpy-2.4.6", second_output)
-            self.assertEqual(constraint.read_text(encoding="utf-8"), "numpy==2.4.6\n")
 
 
 @unittest.skipIf(os.name == "nt", "Unix post-link simulation")
@@ -407,10 +208,10 @@ class UnixPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
         system: str,
         machine: str,
         cuda: str = "",
-        missing_indexes: tuple[str, ...] = (),
         outcomes: tuple[str, ...] = ("success",),
         conda_numpy: bool = True,
-        conda_opencv: bool = False,
+        conda_opencv: bool = True,
+        warm_outcome: str = "success",
         expect_installs: bool = True,
     ) -> tuple[list[dict[str, object]], str]:
         with tempfile.TemporaryDirectory(prefix="trex-post-link-") as temporary:
@@ -423,7 +224,7 @@ class UnixPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
             (prefix / "conda-meta").mkdir(parents=True)
             if conda_numpy:
                 (prefix / "conda-meta" / "numpy-2.4.6-simulated.json").write_text(
-                    "{}", encoding="utf-8"
+                    '{"version":"2.4.6"}', encoding="utf-8"
                 )
             if conda_opencv:
                 (prefix / "conda-meta" / "py-opencv-4.12-simulated.json").write_text(
@@ -454,8 +255,8 @@ class UnixPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
                     "TREX_FAKE_SYSTEM": system,
                     "TREX_FAKE_MACHINE": machine,
                     "TREX_FAKE_CUDA_VERSION": cuda,
-                    "TREX_FAKE_MISSING_INDEXES": ",".join(missing_indexes),
                     "TREX_FAKE_INSTALL_OUTCOMES": ",".join(outcomes),
+                    "TREX_FAKE_WARM_OUTCOME": warm_outcome,
                 }
             )
             result = subprocess.run(
@@ -474,7 +275,11 @@ class UnixPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
             if expect_installs and not installs:
                 self.fail(result.stdout + result.stderr + messages)
             if expect_installs:
-                self.assert_safe_installs(installs, conda_numpy=conda_numpy)
+                self.assert_safe_installs(
+                    installs,
+                    conda_numpy=conda_numpy,
+                    conda_opencv=conda_opencv,
+                )
             else:
                 self.assertEqual(installs, [])
             return installs, messages
@@ -483,34 +288,34 @@ class UnixPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
         cases = (
             ("Darwin", "arm64", "13.2", PYPI_INDEX),
             ("Darwin", "x86_64", "13.2", PYPI_INDEX),
-            ("Linux", "aarch64", "13.2", CPU_INDEX),
-            ("Linux", "arm64", "13.2", CPU_INDEX),
-            ("FreeBSD", "amd64", "13.2", CPU_INDEX),
+            ("Linux", "aarch64", "13.2", PYPI_INDEX),
+            ("Linux", "arm64", "13.2", PYPI_INDEX),
+            ("FreeBSD", "amd64", "13.2", PYPI_INDEX),
         )
         for system, machine, cuda, expected_index in cases:
             with self.subTest(system=system, machine=machine):
                 installs, _ = self.run_scenario(system=system, machine=machine, cuda=cuda)
                 self.assertEqual([item["index"] for item in installs], [expected_index])
                 self.assertFalse(any("+cu" in str(value) for value in installs[0]["args"]))
+                if system == "Darwin":
+                    self.assertIn("torch==2.6.0", installs[0]["args"])
+                    self.assertIn("torchvision==0.21.0", installs[0]["args"])
 
     def test_linux_without_a_usable_nvidia_driver_uses_cpu_index(self) -> None:
         installs, messages = self.run_scenario(system="Linux", machine="x86_64")
         self.assertEqual([item["index"] for item in installs], [CPU_INDEX])
         self.assertIn("No usable NVIDIA driver detected", messages)
 
-    def test_original_no_nvidia_cpu_numpy_conflict_retries_cpu_pair(self) -> None:
+    def test_resolution_failure_is_not_retried(self) -> None:
         installs, messages = self.run_scenario(
             system="Linux",
             machine="x86_64",
-            outcomes=("resolution", "success"),
+            outcomes=("resolution",),
         )
-        self.assertEqual([item["index"] for item in installs], [CPU_INDEX, CPU_INDEX])
-        self.assertIn("torch===2.7.1+cpu", installs[0]["args"])
-        self.assertIn("torchvision===0.22.1+cpu", installs[0]["args"])
-        self.assertIn("torch===2.7.0+cpu", installs[1]["args"])
-        self.assertIn("torchvision===0.22.0+cpu", installs[1]["args"])
-        self.assertEqual({item["constraint"] for item in installs}, {"numpy==2.4.6"})
-        self.assertNotIn("Completed with issues", messages)
+        self.assertEqual([item["index"] for item in installs], [CPU_INDEX])
+        self.assertIn("torch>=2.2", installs[0]["args"])
+        self.assertIn("torchvision>=0.17", installs[0]["args"])
+        self.assertIn("no retry was attempted", messages)
 
     def test_linux_selects_exactly_one_compatible_cuda_index(self) -> None:
         cases = {
@@ -518,97 +323,32 @@ class UnixPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
             "11.8": "https://download.pytorch.org/whl/cu118",
             "12.0": "https://download.pytorch.org/whl/cu118",
             "12.1": "https://download.pytorch.org/whl/cu121",
+            "12.2": "https://download.pytorch.org/whl/cu121",
             "12.4": "https://download.pytorch.org/whl/cu124",
             "12.6": "https://download.pytorch.org/whl/cu126",
             "12.8": "https://download.pytorch.org/whl/cu128",
             "12.9": "https://download.pytorch.org/whl/cu129",
             "13.0": "https://download.pytorch.org/whl/cu130",
             "13.2": "https://download.pytorch.org/whl/cu132",
+            "13.3": "https://download.pytorch.org/whl/cu132",
         }
         for cuda, expected_index in cases.items():
             with self.subTest(cuda=cuda):
                 installs, _ = self.run_scenario(system="Linux", machine="x86_64", cuda=cuda)
                 self.assertEqual([item["index"] for item in installs], [expected_index])
 
-    def test_resolution_conflict_retries_older_pair_with_same_constraints(self) -> None:
-        installs, _ = self.run_scenario(
-            system="Linux",
-            machine="x86_64",
-            cuda="12.4",
-            outcomes=("resolution", "success"),
-        )
-        expected_index = "https://download.pytorch.org/whl/cu124"
-        self.assertEqual([item["index"] for item in installs], [expected_index, expected_index])
-        self.assertIn("torch===2.7.1+cu124", installs[0]["args"])
-        self.assertIn("torch===2.7.0+cu124", installs[1]["args"])
-        self.assertEqual({item["constraint"] for item in installs}, {"numpy==2.4.6"})
-
-    def test_missing_cuda_index_falls_back_before_installing(self) -> None:
-        installs, _ = self.run_scenario(
-            system="Linux",
-            machine="x86_64",
-            cuda="12.4",
-            missing_indexes=("cu124",),
-        )
-        self.assertEqual(
-            [item["index"] for item in installs],
-            ["https://download.pytorch.org/whl/cu121"],
-        )
-
-    def test_failed_cuda_install_falls_back_to_next_compatible_cuda(self) -> None:
-        installs, _ = self.run_scenario(
-            system="Linux",
-            machine="x86_64",
-            cuda="12.4",
-            outcomes=("network", "success"),
-        )
-        self.assertEqual(
-            [item["index"] for item in installs],
-            [
-                "https://download.pytorch.org/whl/cu124",
-                "https://download.pytorch.org/whl/cu121",
-            ],
-        )
-
-    def test_failed_cuda_118_install_falls_back_to_cpu(self) -> None:
-        installs, _ = self.run_scenario(
-            system="Linux",
-            machine="x86_64",
-            cuda="11.8",
-            outcomes=("network", "success"),
-        )
-        self.assertEqual(
-            [item["index"] for item in installs],
-            ["https://download.pytorch.org/whl/cu118", CPU_INDEX],
-        )
-
-    def test_missing_cpu_index_falls_back_to_default_pypi(self) -> None:
-        installs, _ = self.run_scenario(
-            system="Linux",
-            machine="x86_64",
-            missing_indexes=("cpu",),
-        )
-        self.assertEqual([item["index"] for item in installs], [PYPI_INDEX])
-
-    def test_no_attempt_ever_uninstalls_the_existing_torch(self) -> None:
+    def test_failed_cuda_install_is_not_retried_or_downgraded(self) -> None:
         installs, messages = self.run_scenario(
             system="Linux",
             machine="x86_64",
             cuda="12.4",
-            outcomes=("network", "network", "network"),
+            outcomes=("network",),
         )
         self.assertEqual(
             [item["index"] for item in installs],
-            [
-                "https://download.pytorch.org/whl/cu124",
-                "https://download.pytorch.org/whl/cu121",
-                "https://download.pytorch.org/whl/cu118",
-                CPU_INDEX,
-                PYPI_INDEX,
-            ],
+            ["https://download.pytorch.org/whl/cu124"],
         )
-        self.assertNotIn("pip uninstall", messages)
-        self.assertIn("WARNING: TRex PYTHON ML SETUP IS INCOMPLETE", messages)
+        self.assertIn("no retry was attempted", messages)
 
     def test_pip_owns_and_solves_numpy_when_conda_does_not(self) -> None:
         installs, messages = self.run_scenario(
@@ -621,17 +361,24 @@ class UnixPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
         self.assertIn("numpy>=1.26,<3", installs[0]["args"])
         self.assertIn("Conda does not own NumPy", messages)
 
-    def test_existing_conda_opencv_never_gets_a_second_cv2_provider(self) -> None:
+    def test_buildall_uses_one_pip_opencv_provider(self) -> None:
         installs, messages = self.run_scenario(
             system="Linux",
             machine="x86_64",
-            conda_opencv=True,
-            expect_installs=False,
+            conda_opencv=False,
         )
-        self.assertEqual(installs, [])
-        self.assertIn("refusing to install a second cv2 provider", messages)
-        self.assertIn("WARNING: TRex PYTHON ML SETUP IS INCOMPLETE", messages)
+        self.assertIn("opencv-python>=4.6,<5", installs[0]["args"])
+        self.assertIn("non-minimal profile", messages)
 
+    def test_yolo_cache_warm_failure_is_warning_only(self) -> None:
+        installs, messages = self.run_scenario(
+            system="Darwin",
+            machine="arm64",
+            warm_outcome="failure",
+        )
+        self.assertEqual(len(installs), 1)
+        self.assertIn("WARNING: YOLO runtime warm-up failed", messages)
+        self.assertNotIn("TRex PYTHON ML SETUP IS INCOMPLETE", messages)
 
 @unittest.skipUnless(os.name == "nt", "native Windows batch simulation")
 class WindowsPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
@@ -639,10 +386,10 @@ class WindowsPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
         self,
         *,
         cuda: str = "",
-        missing_indexes: tuple[str, ...] = (),
         outcomes: tuple[str, ...] = ("success",),
         conda_numpy: bool = True,
-        conda_opencv: bool = False,
+        conda_opencv: bool = True,
+        warm_outcome: str = "success",
         expect_installs: bool = True,
     ) -> tuple[list[dict[str, object]], str]:
         with tempfile.TemporaryDirectory(prefix="trex-post-link-") as temporary:
@@ -655,7 +402,7 @@ class WindowsPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
             (prefix / "conda-meta").mkdir(parents=True)
             if conda_numpy:
                 (prefix / "conda-meta" / "numpy-2.4.6-simulated.json").write_text(
-                    "{}", encoding="utf-8"
+                    '{"version":"2.4.6"}', encoding="utf-8"
                 )
             if conda_opencv:
                 (prefix / "conda-meta" / "py-opencv-4.12-simulated.json").write_text(
@@ -696,8 +443,8 @@ class WindowsPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
                     "TREX_FAKE_PYTHON_SITE": "1",
                     "TREX_FAKE_STATE": str(state),
                     "TREX_FAKE_CUDA_VERSION": cuda,
-                    "TREX_FAKE_MISSING_INDEXES": ",".join(missing_indexes),
                     "TREX_FAKE_INSTALL_OUTCOMES": ",".join(outcomes),
+                    "TREX_FAKE_WARM_OUTCOME": warm_outcome,
                 }
             )
             result = subprocess.run(
@@ -716,7 +463,11 @@ class WindowsPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
             if expect_installs and not installs:
                 self.fail(result.stdout + result.stderr + messages)
             if expect_installs:
-                self.assert_safe_installs(installs, conda_numpy=conda_numpy)
+                self.assert_safe_installs(
+                    installs,
+                    conda_numpy=conda_numpy,
+                    conda_opencv=conda_opencv,
+                )
             else:
                 self.assertEqual(installs, [])
             return installs, messages
@@ -725,69 +476,53 @@ class WindowsPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
         installs, _ = self.run_scenario()
         self.assertEqual([item["index"] for item in installs], [CPU_INDEX])
 
-    def test_original_windows_no_nvidia_cpu_numpy_conflict_retries_cpu_pair(self) -> None:
-        installs, messages = self.run_scenario(outcomes=("resolution", "success"))
-        self.assertEqual([item["index"] for item in installs], [CPU_INDEX, CPU_INDEX])
-        self.assertIn("torch===2.7.1+cpu", installs[0]["args"])
-        self.assertIn("torchvision===0.22.1+cpu", installs[0]["args"])
-        self.assertIn("torch===2.7.0+cpu", installs[1]["args"])
-        self.assertIn("torchvision===0.22.0+cpu", installs[1]["args"])
-        self.assertEqual({item["constraint"] for item in installs}, {"numpy==2.4.6"})
-        self.assertNotIn("Completed with issues", messages)
+    def test_windows_resolution_failure_is_not_retried(self) -> None:
+        installs, messages = self.run_scenario(outcomes=("resolution",))
+        self.assertEqual([item["index"] for item in installs], [CPU_INDEX])
+        self.assertIn("no retry was attempted", messages)
 
-    def test_windows_uses_one_driver_compatible_cuda_index(self) -> None:
-        installs, _ = self.run_scenario(cuda="12.4")
+    def test_windows_selects_exactly_one_compatible_cuda_index(self) -> None:
+        cases = {
+            "11.7": CPU_INDEX,
+            "11.8": "https://download.pytorch.org/whl/cu118",
+            "12.0": "https://download.pytorch.org/whl/cu118",
+            "12.1": "https://download.pytorch.org/whl/cu121",
+            "12.4": "https://download.pytorch.org/whl/cu124",
+            "12.6": "https://download.pytorch.org/whl/cu126",
+            "12.8": "https://download.pytorch.org/whl/cu128",
+            "12.9": "https://download.pytorch.org/whl/cu129",
+            "13.0": "https://download.pytorch.org/whl/cu130",
+            "13.2": "https://download.pytorch.org/whl/cu132",
+            "13.3": "https://download.pytorch.org/whl/cu132",
+        }
+        for cuda, expected_index in cases.items():
+            with self.subTest(cuda=cuda):
+                installs, _ = self.run_scenario(cuda=cuda)
+                self.assertEqual([item["index"] for item in installs], [expected_index])
+
+    def test_windows_failed_cuda_install_is_not_retried(self) -> None:
+        installs, messages = self.run_scenario(cuda="12.4", outcomes=("network",))
         self.assertEqual(
             [item["index"] for item in installs],
             ["https://download.pytorch.org/whl/cu124"],
         )
-
-    def test_windows_retries_pair_without_changing_numpy_or_cuda(self) -> None:
-        installs, _ = self.run_scenario(cuda="12.4", outcomes=("resolution", "success"))
-        expected_index = "https://download.pytorch.org/whl/cu124"
-        self.assertEqual([item["index"] for item in installs], [expected_index, expected_index])
-        self.assertEqual({item["constraint"] for item in installs}, {"numpy==2.4.6"})
-
-    def test_windows_missing_cuda_index_falls_back_to_cpu(self) -> None:
-        installs, _ = self.run_scenario(cuda="12.4", missing_indexes=("cu124",))
-        self.assertEqual(
-            [item["index"] for item in installs],
-            ["https://download.pytorch.org/whl/cu121"],
-        )
-
-    def test_windows_failed_cuda_install_falls_back_to_next_cuda(self) -> None:
-        installs, _ = self.run_scenario(cuda="12.4", outcomes=("network", "success"))
-        self.assertEqual(
-            [item["index"] for item in installs],
-            [
-                "https://download.pytorch.org/whl/cu124",
-                "https://download.pytorch.org/whl/cu121",
-            ],
-        )
-
-    def test_windows_failed_cuda_118_install_falls_back_to_cpu(self) -> None:
-        installs, _ = self.run_scenario(cuda="11.8", outcomes=("network", "success"))
-        self.assertEqual(
-            [item["index"] for item in installs],
-            ["https://download.pytorch.org/whl/cu118", CPU_INDEX],
-        )
-
-    def test_windows_missing_cpu_index_falls_back_to_pypi(self) -> None:
-        installs, _ = self.run_scenario(missing_indexes=("cpu",))
-        self.assertEqual([item["index"] for item in installs], [PYPI_INDEX])
+        self.assertIn("no retry was attempted", messages)
 
     def test_windows_pip_owns_numpy_when_conda_does_not(self) -> None:
         installs, _ = self.run_scenario(conda_numpy=False)
         self.assertEqual(installs[0]["constraint"], "")
         self.assertIn("numpy>=1.26,<3", installs[0]["args"])
 
-    def test_windows_existing_conda_opencv_never_gets_second_provider(self) -> None:
-        installs, messages = self.run_scenario(
-            conda_opencv=True,
-            expect_installs=False,
-        )
-        self.assertEqual(installs, [])
-        self.assertIn("refusing to install a second cv2 provider", messages)
+    def test_windows_buildall_uses_one_pip_opencv_provider(self) -> None:
+        installs, messages = self.run_scenario(conda_opencv=False)
+        self.assertIn("opencv-python>=4.6,<5", installs[0]["args"])
+        self.assertIn("non-minimal profile", messages)
+
+    def test_windows_yolo_cache_warm_failure_is_warning_only(self) -> None:
+        installs, messages = self.run_scenario(warm_outcome="failure")
+        self.assertEqual(len(installs), 1)
+        self.assertIn("WARNING: YOLO runtime warm-up failed", messages)
+        self.assertNotIn("TRex PYTHON ML SETUP IS INCOMPLETE", messages)
 
     def test_windows_total_failure_warns_but_returns_success(self) -> None:
         installs, messages = self.run_scenario(
@@ -796,13 +531,7 @@ class WindowsPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
         )
         self.assertEqual(
             [item["index"] for item in installs],
-            [
-                "https://download.pytorch.org/whl/cu124",
-                "https://download.pytorch.org/whl/cu121",
-                "https://download.pytorch.org/whl/cu118",
-                CPU_INDEX,
-                PYPI_INDEX,
-            ],
+            ["https://download.pytorch.org/whl/cu124"],
         )
         self.assertIn("WARNING: TRex PYTHON ML SETUP IS INCOMPLETE", messages)
 

@@ -120,8 +120,7 @@ requirements:
     #- libavif
 
   run:
-    # NumPy and the cv2 binding are resolved together with the pip ML stack.
-    # An already installed Conda NumPy is detected and preserved by post-link.
+    # The buildall profile bundles native OpenCV; its Python binding remains pip-owned.
     - {{ pin_compatible('python', min_pin='x.x', max_pin='x.x') }}
     - {{ pin_compatible('ffmpeg', min_pin='x.x', max_pin='x.x') }}
     - {{ pin_compatible('openh264', min_pin='x.x', max_pin='x.x') }} # [osx]

@@ -102,6 +102,7 @@ jobs:
         conda index $CONDA_PREFIX/conda-bld/
         conda create -y -n test --override-channels -c $CONDA_PREFIX/conda-bld/ -c conda-forge trex
         conda activate test
+        python $GITHUB_WORKSPACE/conda/validate_post_link_installation.py
         pvinfo -opencv_ffmpeg_support
         if pvinfo -opencv_opencl_support; then
           echo "Minimal OpenCV unexpectedly reports OpenCL support." >&2
