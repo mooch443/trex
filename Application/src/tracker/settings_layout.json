@@ -545,7 +545,7 @@
                                                 "size":0.8,
                                                 "style":"bold"
                                             },
-                                            "action": "choose-file:detect_model:{folder:{detect_model}}:model file:*.pt *.pth"
+                                            "action": "choose-file:detect_model:{folder:{global.detect_model}}:model file:*.pt *.pth"
                                         }
                                     ]
                                 },
@@ -749,7 +749,7 @@
                                                 "size":0.8,
                                                 "style":"bold"
                                             },
-                                            "action": "choose-file:region_model:{folder:{region_model}}:model file:*.pt *.pth"
+                                            "action": "choose-file:region_model:{folder:{global.region_model}}:model file:*.pt *.pth"
                                         }
                                     }
                                 ]
