@@ -14,10 +14,16 @@ export RICH_FORCE_TERMINAL=0
 export FORCE_COLOR=0
 
 echo "PREFIX=${PREFIX}"
-OUT_STREAM="${PREFIX}/.messages.txt"
-if [ -z "${PREFIX}" ]; then
+# CI can request stdout so its caller can tee and validate the transaction log.
+if [ "${TREX_POST_LINK_OUTPUT:-}" = "stdout" ]; then
+    OUT_STREAM=""
+elif [ -n "${TREX_POST_LINK_OUTPUT:-}" ]; then
+    OUT_STREAM="${TREX_POST_LINK_OUTPUT}"
+elif [ -z "${PREFIX}" ]; then
     echo "PREFIX is not set. Using stdout."
-    OUT_STREAM="/dev/stdout"
+    OUT_STREAM=""
+else
+    OUT_STREAM="${PREFIX}/.messages.txt"
 fi
 
 POST_LINK_FAILED=0
@@ -94,7 +100,11 @@ trap stop_progress EXIT
 
 # Append a single log line to the conda post-link message stream.
 log() {
-    printf '%s\n' "$1" >>"${OUT_STREAM}"
+    if [ -n "${OUT_STREAM}" ]; then
+        printf '%s\n' "$1" >>"${OUT_STREAM}"
+    else
+        printf '%s\n' "$1"
+    fi
 }
 
 record_failure() {
@@ -104,7 +114,7 @@ record_failure() {
 
 # Run a command while teeing stdout/stderr into the log file and retain exit status.
 run_with_reporting() {
-    if [ -z "${OUT_STREAM}" ] || [ "${OUT_STREAM}" = "/dev/stdout" ]; then
+    if [ -z "${OUT_STREAM}" ]; then
         local stdout_progress_log=""
         if [ -n "${TREX_PROGRESS_LABEL:-}" ] && command -v tee >/dev/null 2>&1; then
             stdout_progress_log="${TMPDIR:-/tmp}/trex_post_link_$$_${RANDOM:-0}.log"
@@ -166,7 +176,11 @@ detect_driver_cuda_version() {
     fi
 
     local smi_output
-    smi_output=$(nvidia-smi 2>>"${OUT_STREAM}")
+    if [ -n "${OUT_STREAM}" ]; then
+        smi_output=$(nvidia-smi 2>>"${OUT_STREAM}")
+    else
+        smi_output=$(nvidia-smi)
+    fi
     local smi_status=$?
     if [ ${smi_status} -ne 0 ]; then
         log "[post-link] nvidia-smi failed while checking driver compatibility (exit ${smi_status})."
@@ -309,7 +323,11 @@ configure_numpy_policy() {
     # Read Conda's package record instead of importing NumPy in production.
     # The exact constraint prevents pip from replacing a Conda-owned package;
     # runtime/import validation belongs to the real-install CI jobs.
-    numpy_version=$(python -c "import json,sys; print(json.load(open(sys.argv[1], encoding='utf-8'))['version'])" "${conda_record}" 2>>"${OUT_STREAM}")
+    if [ -n "${OUT_STREAM}" ]; then
+        numpy_version=$(python -c "import json,sys; print(json.load(open(sys.argv[1], encoding='utf-8'))['version'])" "${conda_record}" 2>>"${OUT_STREAM}")
+    else
+        numpy_version=$(python -c "import json,sys; print(json.load(open(sys.argv[1], encoding='utf-8'))['version'])" "${conda_record}")
+    fi
     if [ $? -ne 0 ] || [ -z "${numpy_version}" ]; then
         return 1
     fi
@@ -398,8 +416,12 @@ if [ "${POST_LINK_FAILED}" -ne 0 ]; then
     log "TRex itself is installed, but Python ML features may be unavailable."
     log "After installation, inspect this log. Dependency diagnostic: python -m pip check"
     log "============================================================"
-    echo "WARNING: TRex Python ML setup is incomplete; Conda installation will continue. See ${OUT_STREAM}." >&2
-    if [ -n "${OUT_STREAM}" ] && [ "${OUT_STREAM}" != "/dev/stdout" ] && [ -f "${OUT_STREAM}" ]; then
+    if [ -n "${OUT_STREAM}" ]; then
+        echo "WARNING: TRex Python ML setup is incomplete; Conda installation will continue. See ${OUT_STREAM}." >&2
+    else
+        echo "WARNING: TRex Python ML setup is incomplete; Conda installation will continue. See stdout." >&2
+    fi
+    if [ -n "${OUT_STREAM}" ] && [ -f "${OUT_STREAM}" ]; then
         echo "[post-link] Dumping post-link log due to incomplete Python ML setup:" >&2
         cat "${OUT_STREAM}" >&2
     fi

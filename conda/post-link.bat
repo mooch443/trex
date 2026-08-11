@@ -20,8 +20,12 @@ if not defined TREX_CLIP_REQUIREMENT set "TREX_CLIP_REQUIREMENT=git+https://gith
 
 echo PREFIX=%PREFIX%
 
-rem Decide where to stream post-link log messages.
-if defined PREFIX (
+rem CI can request stdout so its caller can tee and validate the transaction log.
+if /I "%TREX_POST_LINK_OUTPUT%"=="stdout" (
+    set "OUT_STREAM="
+) else if defined TREX_POST_LINK_OUTPUT (
+    set "OUT_STREAM=%TREX_POST_LINK_OUTPUT%"
+) else if defined PREFIX (
     set "OUT_STREAM=%PREFIX%\.messages.txt"
 ) else (
     echo PREFIX is not set. Using stdout.
@@ -334,7 +338,11 @@ call :log "[post-link] Running one resolver transaction for !TORCH_TARGET!; no v
 call :log_command python -X utf8 -m pip install !PIP_FLAGS_LOG! !NUMPY_CONSTRAINT_ARG! --index-url !TORCH_INDEX_URL! !TORCH_DEPENDENCY_INDEX_ARG! !PIP_ARGS_TORCH! !PIP_ARGS_SIMPLE!
 python -X utf8 -m pip install !PIP_FLAGS_LOG! !NUMPY_CONSTRAINT_ARG! --index-url !TORCH_INDEX_URL! !TORCH_DEPENDENCY_INDEX_ARG! !PIP_ARGS_TORCH! !PIP_ARGS_SIMPLE! > "%PROGRESS_LOG%" 2>&1
 set "LAST_COMMAND_STATUS=!ERRORLEVEL!"
-if defined OUT_STREAM type "%PROGRESS_LOG%" >> "%OUT_STREAM%" 2>nul
+if defined OUT_STREAM (
+    type "%PROGRESS_LOG%" >> "%OUT_STREAM%" 2>nul
+) else (
+    type "%PROGRESS_LOG%" 2>nul
+)
 if not "!LAST_COMMAND_STATUS!"=="0" exit /b 1
 exit /b 0
 
@@ -348,7 +356,11 @@ if errorlevel 1 exit /b 1
 
 call nvidia-smi >"!CUDA_SMI_TMP!" 2>&1
 if errorlevel 1 (
-    if defined OUT_STREAM type "!CUDA_SMI_TMP!" >>"!OUT_STREAM!" 2>nul
+    if defined OUT_STREAM (
+        type "!CUDA_SMI_TMP!" >>"!OUT_STREAM!" 2>nul
+    ) else (
+        type "!CUDA_SMI_TMP!" 2>nul
+    )
     del /q "!CUDA_SMI_TMP!" >nul 2>&1
     exit /b 1
 )
@@ -356,7 +368,11 @@ if errorlevel 1 (
 for /f "usebackq delims=" %%i in (`python -X utf8 -c "import re,sys; text=open(sys.argv[1],encoding='utf-8',errors='replace').read(); match=re.search(r'CUDA(?:\s+UMD)?\s+Version:\s*([0-9]+\.[0-9]+)',text); print(match.group(1) if match else '')" "!CUDA_SMI_TMP!"`) do (
     set "CUDA_MAX_VERSION=%%i"
 )
-if defined OUT_STREAM type "!CUDA_SMI_TMP!" >>"!OUT_STREAM!" 2>nul
+if defined OUT_STREAM (
+    type "!CUDA_SMI_TMP!" >>"!OUT_STREAM!" 2>nul
+) else (
+    type "!CUDA_SMI_TMP!" 2>nul
+)
 del /q "!CUDA_SMI_TMP!" >nul 2>&1
 if not defined CUDA_MAX_VERSION (
     call :log "[post-link] nvidia-smi did not report a maximum supported CUDA version."

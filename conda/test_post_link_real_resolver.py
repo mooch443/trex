@@ -258,6 +258,7 @@ def run() -> None:
                 "TREX_REAL_SYSTEM": options.system,
                 "TREX_REAL_MACHINE": options.machine,
                 "TREX_REAL_CUDA": options.cuda,
+                "TREX_POST_LINK_OUTPUT": "stdout",
                 "TREX_PYPI_INDEX_URL": pypi.as_uri(),
                 "TREX_TORCH_INDEX_ROOT": torch_root.as_uri(),
                 "TREX_CLIP_REQUIREMENT": "clip==1.0",
@@ -265,8 +266,9 @@ def run() -> None:
             }
         )
         result = subprocess.run(command, env=environment, capture_output=True, text=True, timeout=120)
-        messages = (Path(sys.prefix) / ".messages.txt").read_text(encoding="utf-8", errors="replace")
-        output = result.stdout + result.stderr + messages
+        output = result.stdout + result.stderr
+        sys.stdout.write(result.stdout)
+        sys.stderr.write(result.stderr)
         if result.returncode:
             raise AssertionError(output)
         events = [json.loads(line) for line in state.read_text(encoding="utf-8").splitlines()]
@@ -295,8 +297,8 @@ def run() -> None:
             ],
             check=True,
         )
-        if "installation transaction completed successfully" not in messages:
-            raise AssertionError(messages)
+        if "installation transaction completed successfully" not in output:
+            raise AssertionError(output)
         print(
             "Real offline pip transaction passed for "
             f"{options.system}/{options.machine}/{channel}/{options.profile}."

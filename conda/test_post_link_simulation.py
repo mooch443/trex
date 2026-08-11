@@ -257,6 +257,7 @@ class UnixPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
                     "TREX_FAKE_CUDA_VERSION": cuda,
                     "TREX_FAKE_INSTALL_OUTCOMES": ",".join(outcomes),
                     "TREX_FAKE_WARM_OUTCOME": warm_outcome,
+                    "TREX_POST_LINK_OUTPUT": "stdout",
                 }
             )
             result = subprocess.run(
@@ -268,12 +269,13 @@ class UnixPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
                 timeout=20,
                 check=False,
             )
-            messages_path = prefix / ".messages.txt"
-            messages = messages_path.read_text(encoding="utf-8") if messages_path.exists() else ""
-            self.assertEqual(result.returncode, 0, result.stdout + result.stderr + messages)
+            output = result.stdout + result.stderr
+            sys.stdout.write(result.stdout)
+            sys.stderr.write(result.stderr)
+            self.assertEqual(result.returncode, 0, output)
             installs = _install_events(state)
             if expect_installs and not installs:
-                self.fail(result.stdout + result.stderr + messages)
+                self.fail(output)
             if expect_installs:
                 self.assert_safe_installs(
                     installs,
@@ -282,7 +284,7 @@ class UnixPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
                 )
             else:
                 self.assertEqual(installs, [])
-            return installs, messages
+            return installs, output
 
     def test_macos_uses_pypi_and_other_cpu_platforms_use_cpu_index(self) -> None:
         cases = (
@@ -302,12 +304,12 @@ class UnixPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
                     self.assertIn("torchvision==0.21.0", installs[0]["args"])
 
     def test_linux_without_a_usable_nvidia_driver_uses_cpu_index(self) -> None:
-        installs, messages = self.run_scenario(system="Linux", machine="x86_64")
+        installs, output = self.run_scenario(system="Linux", machine="x86_64")
         self.assertEqual([item["index"] for item in installs], [CPU_INDEX])
-        self.assertIn("No usable NVIDIA driver detected", messages)
+        self.assertIn("No usable NVIDIA driver detected", output)
 
     def test_resolution_failure_is_not_retried(self) -> None:
-        installs, messages = self.run_scenario(
+        installs, output = self.run_scenario(
             system="Linux",
             machine="x86_64",
             outcomes=("resolution",),
@@ -315,7 +317,7 @@ class UnixPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
         self.assertEqual([item["index"] for item in installs], [CPU_INDEX])
         self.assertIn("torch>=2.2", installs[0]["args"])
         self.assertIn("torchvision>=0.17", installs[0]["args"])
-        self.assertIn("no retry was attempted", messages)
+        self.assertIn("no retry was attempted", output)
 
     def test_linux_selects_exactly_one_compatible_cuda_index(self) -> None:
         cases = {
@@ -338,7 +340,7 @@ class UnixPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
                 self.assertEqual([item["index"] for item in installs], [expected_index])
 
     def test_failed_cuda_install_is_not_retried_or_downgraded(self) -> None:
-        installs, messages = self.run_scenario(
+        installs, output = self.run_scenario(
             system="Linux",
             machine="x86_64",
             cuda="12.4",
@@ -348,10 +350,10 @@ class UnixPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
             [item["index"] for item in installs],
             ["https://download.pytorch.org/whl/cu124"],
         )
-        self.assertIn("no retry was attempted", messages)
+        self.assertIn("no retry was attempted", output)
 
     def test_pip_owns_and_solves_numpy_when_conda_does_not(self) -> None:
-        installs, messages = self.run_scenario(
+        installs, output = self.run_scenario(
             system="Linux",
             machine="x86_64",
             conda_numpy=False,
@@ -359,26 +361,26 @@ class UnixPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
         self.assertEqual([item["index"] for item in installs], [CPU_INDEX])
         self.assertEqual(installs[0]["constraint"], "")
         self.assertIn("numpy>=1.26,<3", installs[0]["args"])
-        self.assertIn("Conda does not own NumPy", messages)
+        self.assertIn("Conda does not own NumPy", output)
 
     def test_buildall_uses_one_pip_opencv_provider(self) -> None:
-        installs, messages = self.run_scenario(
+        installs, output = self.run_scenario(
             system="Linux",
             machine="x86_64",
             conda_opencv=False,
         )
         self.assertIn("opencv-python>=4.6,<5", installs[0]["args"])
-        self.assertIn("non-minimal profile", messages)
+        self.assertIn("non-minimal profile", output)
 
     def test_yolo_cache_warm_failure_is_warning_only(self) -> None:
-        installs, messages = self.run_scenario(
+        installs, output = self.run_scenario(
             system="Darwin",
             machine="arm64",
             warm_outcome="failure",
         )
         self.assertEqual(len(installs), 1)
-        self.assertIn("WARNING: YOLO runtime warm-up failed", messages)
-        self.assertNotIn("TRex PYTHON ML SETUP IS INCOMPLETE", messages)
+        self.assertIn("WARNING: YOLO runtime warm-up failed", output)
+        self.assertNotIn("TRex PYTHON ML SETUP IS INCOMPLETE", output)
 
 @unittest.skipUnless(os.name == "nt", "native Windows batch simulation")
 class WindowsPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
@@ -445,6 +447,7 @@ class WindowsPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
                     "TREX_FAKE_CUDA_VERSION": cuda,
                     "TREX_FAKE_INSTALL_OUTCOMES": ",".join(outcomes),
                     "TREX_FAKE_WARM_OUTCOME": warm_outcome,
+                    "TREX_POST_LINK_OUTPUT": "stdout",
                 }
             )
             result = subprocess.run(
@@ -456,12 +459,13 @@ class WindowsPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
                 timeout=30,
                 check=False,
             )
-            messages_path = prefix / ".messages.txt"
-            messages = messages_path.read_text(encoding="utf-8", errors="replace") if messages_path.exists() else ""
-            self.assertEqual(result.returncode, 0, result.stdout + result.stderr + messages)
+            output = result.stdout + result.stderr
+            sys.stdout.write(result.stdout)
+            sys.stderr.write(result.stderr)
+            self.assertEqual(result.returncode, 0, output)
             installs = _install_events(state)
             if expect_installs and not installs:
-                self.fail(result.stdout + result.stderr + messages)
+                self.fail(output)
             if expect_installs:
                 self.assert_safe_installs(
                     installs,
@@ -470,16 +474,16 @@ class WindowsPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
                 )
             else:
                 self.assertEqual(installs, [])
-            return installs, messages
+            return installs, output
 
     def test_windows_without_nvidia_uses_cpu_index(self) -> None:
         installs, _ = self.run_scenario()
         self.assertEqual([item["index"] for item in installs], [CPU_INDEX])
 
     def test_windows_resolution_failure_is_not_retried(self) -> None:
-        installs, messages = self.run_scenario(outcomes=("resolution",))
+        installs, output = self.run_scenario(outcomes=("resolution",))
         self.assertEqual([item["index"] for item in installs], [CPU_INDEX])
-        self.assertIn("no retry was attempted", messages)
+        self.assertIn("no retry was attempted", output)
 
     def test_windows_selects_exactly_one_compatible_cuda_index(self) -> None:
         cases = {
@@ -501,12 +505,12 @@ class WindowsPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
                 self.assertEqual([item["index"] for item in installs], [expected_index])
 
     def test_windows_failed_cuda_install_is_not_retried(self) -> None:
-        installs, messages = self.run_scenario(cuda="12.4", outcomes=("network",))
+        installs, output = self.run_scenario(cuda="12.4", outcomes=("network",))
         self.assertEqual(
             [item["index"] for item in installs],
             ["https://download.pytorch.org/whl/cu124"],
         )
-        self.assertIn("no retry was attempted", messages)
+        self.assertIn("no retry was attempted", output)
 
     def test_windows_pip_owns_numpy_when_conda_does_not(self) -> None:
         installs, _ = self.run_scenario(conda_numpy=False)
@@ -514,18 +518,18 @@ class WindowsPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
         self.assertIn("numpy>=1.26,<3", installs[0]["args"])
 
     def test_windows_buildall_uses_one_pip_opencv_provider(self) -> None:
-        installs, messages = self.run_scenario(conda_opencv=False)
+        installs, output = self.run_scenario(conda_opencv=False)
         self.assertIn("opencv-python>=4.6,<5", installs[0]["args"])
-        self.assertIn("non-minimal profile", messages)
+        self.assertIn("non-minimal profile", output)
 
     def test_windows_yolo_cache_warm_failure_is_warning_only(self) -> None:
-        installs, messages = self.run_scenario(warm_outcome="failure")
+        installs, output = self.run_scenario(warm_outcome="failure")
         self.assertEqual(len(installs), 1)
-        self.assertIn("WARNING: YOLO runtime warm-up failed", messages)
-        self.assertNotIn("TRex PYTHON ML SETUP IS INCOMPLETE", messages)
+        self.assertIn("WARNING: YOLO runtime warm-up failed", output)
+        self.assertNotIn("TRex PYTHON ML SETUP IS INCOMPLETE", output)
 
     def test_windows_total_failure_warns_but_returns_success(self) -> None:
-        installs, messages = self.run_scenario(
+        installs, output = self.run_scenario(
             cuda="12.4",
             outcomes=("network",),
         )
@@ -533,7 +537,7 @@ class WindowsPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
             [item["index"] for item in installs],
             ["https://download.pytorch.org/whl/cu124"],
         )
-        self.assertIn("WARNING: TRex PYTHON ML SETUP IS INCOMPLETE", messages)
+        self.assertIn("WARNING: TRex PYTHON ML SETUP IS INCOMPLETE", output)
 
 
 if __name__ == "__main__":

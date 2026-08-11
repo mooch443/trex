@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import argparse
 from importlib.metadata import PackageNotFoundError, distribution, version
 from pathlib import Path
 import subprocess
@@ -14,15 +15,26 @@ def require(condition: bool, message: str) -> None:
         raise AssertionError(message)
 
 
+parser = argparse.ArgumentParser()
+parser.add_argument(
+    "--post-link-output",
+    required=True,
+    type=Path,
+    help="Output captured while Conda ran the post-link script.",
+)
+options = parser.parse_args()
+
 prefix = Path(sys.prefix)
-messages_path = prefix / ".messages.txt"
-require(messages_path.is_file(), f"post-link did not create {messages_path}")
-messages = messages_path.read_text(encoding="utf-8", errors="replace")
+require(
+    options.post_link_output.is_file(),
+    f"post-link output was not captured at {options.post_link_output}",
+)
+output = options.post_link_output.read_text(encoding="utf-8", errors="replace")
 
 install_commands = [
-    line
-    for line in messages.splitlines()
-    if line.startswith("[post-link] Running:") and " -m pip install " in line
+    line.strip()
+    for line in output.splitlines()
+    if line.strip().startswith("[post-link] Running:") and " -m pip install " in line
 ]
 require(
     len(install_commands) == 1,
@@ -36,14 +48,14 @@ for forbidden in (
     "Attempting uninstall: torch",
     "Attempting uninstall: torchvision",
 ):
-    require(forbidden.lower() not in messages.lower(), f"forbidden retry behavior: {forbidden}")
+    require(forbidden.lower() not in output.lower(), f"forbidden retry behavior: {forbidden}")
 require(
-    "installation transaction completed successfully" in messages,
-    "post-link did not report a successful transaction:\n" + messages,
+    "installation transaction completed successfully" in output,
+    "post-link did not report a successful transaction:\n" + output,
 )
 require(
-    "WARNING: YOLO runtime warm-up failed" not in messages,
-    "the production warm-up failed:\n" + messages,
+    "WARNING: YOLO runtime warm-up failed" not in output,
+    "the production warm-up failed:\n" + output,
 )
 
 py_opencv_records = list((prefix / "conda-meta").glob("py-opencv-*.json"))
