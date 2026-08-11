@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Edge-case tests for trex_detection_model aggregation behavior."""
+"""Edge-case tests for trex_detection_model per-tile result behavior."""
 
 from __future__ import annotations
 
@@ -257,8 +257,8 @@ class TrexDetectionModelEdgeCaseTest(unittest.TestCase):
         self.assertEqual(
             len(results),
             expected_count,
-            "TRexDetection must return exactly one TRex.Result per original image "
-            "after tile grouping; mismatched counts make C++ receive() index the wrong frame.",
+            "TRexDetection must return exactly one TRex.Result per detector tile; "
+            "C++ retains the parallel tile geometry and frame-index vectors.",
         )
         for result_index, result in enumerate(results):
             self.assertIsInstance(
@@ -338,7 +338,7 @@ class TrexDetectionModelEdgeCaseTest(unittest.TestCase):
 
         self.assert_downstream_ready_empty_results(results, expected_count=len(images))
 
-    def test_multiple_tiles_for_one_image_return_one_downstream_ready_result(self):
+    def test_multiple_tiles_for_one_image_return_one_result_per_tile(self):
         images = [make_image(4, 4), make_image(4, 4)]
         detections = self.make_detection(
             [self.stripped(boxes=np.zeros((0, 6), dtype=np.float32)) for _ in images]
@@ -346,7 +346,8 @@ class TrexDetectionModelEdgeCaseTest(unittest.TestCase):
 
         results = detections.inference(FakeYoloInput(images, orig_ids=[0, 0]))
 
-        self.assert_downstream_ready_empty_results(results, expected_count=1)
+        self.assert_downstream_ready_empty_results(results, expected_count=2)
+        self.assertEqual([result.index for result in results], [0, 0])
 
     def test_empty_tile_does_not_drop_nonempty_tile_boxes(self):
         images = [make_image(4, 4), make_image(4, 4)]
@@ -360,19 +361,44 @@ class TrexDetectionModelEdgeCaseTest(unittest.TestCase):
 
         results = detections.inference(FakeYoloInput(images, orig_ids=[0, 0]))
 
-        self.assertEqual(
-            len(results),
-            1,
-            "TRexDetection must return one grouped result for two tiles with the same orig_id.",
-        )
+        self.assertEqual(len(results), 2)
         self.assertEqual(
             results[0].boxes.data.shape,
-            (1, 6),
-            "Empty tile boxes must not cause non-empty tile boxes in the same image group to be dropped.",
+            (0, 6),
         )
-        self.assertEqual(results[0].boxes.data.dtype, np.float32)
-        self.assertTrue(results[0].boxes.data.flags["C_CONTIGUOUS"])
-        np.testing.assert_array_equal(results[0].boxes.data, nonempty_boxes)
+        self.assertEqual(
+            results[1].boxes.data.shape,
+            (1, 6),
+            "Each tile must retain its own flat payload for C++ postprocessing.",
+        )
+        self.assertEqual(results[1].boxes.data.dtype, np.float32)
+        self.assertTrue(results[1].boxes.data.flags["C_CONTIGUOUS"])
+        np.testing.assert_array_equal(results[1].boxes.data, nonempty_boxes)
+
+    def test_per_tile_pose_payloads_preserve_row_alignment_and_float_layout(self):
+        images = [make_image(4, 4), make_image(4, 4)]
+        boxes = [
+            np.asarray([[1.0, 1.0, 3.0, 3.0, 0.9, 1.0]], dtype=np.float32),
+            np.asarray([[2.0, 1.0, 4.0, 3.0, 0.8, 1.0]], dtype=np.float32),
+        ]
+        keypoints = [
+            np.asarray([[[1.0, 2.0], [0.0, 0.0]]], dtype=np.float32),
+            np.asarray([[[2.0, 2.0], [3.0, 3.0]]], dtype=np.float32),
+        ]
+        detections = self.make_detection([
+            self.stripped(boxes=boxes[0], keypoints=[keypoints[0]]),
+            self.stripped(boxes=boxes[1], keypoints=[keypoints[1]]),
+        ])
+
+        results = detections.inference(FakeYoloInput(images, orig_ids=[3, 3]))
+
+        self.assertEqual(len(results), 2)
+        self.assertEqual([result.index for result in results], [3, 3])
+        for index, result in enumerate(results):
+            np.testing.assert_array_equal(result.boxes.data, boxes[index])
+            np.testing.assert_array_equal(result.keypoints.data, keypoints[index])
+            self.assertEqual(result.keypoints.data.dtype, np.float32)
+            self.assertTrue(result.keypoints.data.flags["C_CONTIGUOUS"])
 
     def test_missing_tile_boxes_do_not_drop_neighboring_valid_boxes(self):
         images = [make_image(4, 4) for _ in range(4)]
@@ -395,20 +421,16 @@ class TrexDetectionModelEdgeCaseTest(unittest.TestCase):
 
         results = detections.inference(FakeYoloInput(images, orig_ids=[0, 0, 0, 0]))
 
-        self.assertEqual(
-            len(results),
-            1,
-            "TRexDetection must return one grouped result for tile results sharing one orig_id.",
-        )
-        self.assertEqual(
-            results[0].boxes.data.shape,
-            (3, 6),
-            "A tile result with boxes=None must be treated as zero detections without "
-            "dropping valid neighboring tile boxes.",
-        )
-        self.assertEqual(results[0].boxes.data.dtype, np.float32)
-        self.assertTrue(results[0].boxes.data.flags["C_CONTIGUOUS"])
-        np.testing.assert_array_equal(results[0].boxes.data, expected_boxes)
+        self.assertEqual(len(results), 4)
+        self.assertEqual([result.boxes.data.shape for result in results], [
+            (1, 6), (1, 6), (0, 6), (1, 6)
+        ])
+        for result in results:
+            self.assertEqual(result.boxes.data.dtype, np.float32)
+            self.assertTrue(result.boxes.data.flags["C_CONTIGUOUS"])
+        np.testing.assert_array_equal(results[0].boxes.data, expected_boxes[0:1])
+        np.testing.assert_array_equal(results[1].boxes.data, expected_boxes[1:2])
+        np.testing.assert_array_equal(results[3].boxes.data, expected_boxes[2:3])
 
     def test_too_few_model_outputs_is_explicit_error(self):
         detections = self.make_detection(

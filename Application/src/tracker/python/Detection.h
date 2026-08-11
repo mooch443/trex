@@ -1,6 +1,7 @@
 #pragma once
 
 #include <commons.pc.h>
+#include <core/GPURecognitionTypes.h>
 #include <core/DetectionTypes.h>
 #include <core/TaskPipeline.h>
 #include <core/TileImage.h>

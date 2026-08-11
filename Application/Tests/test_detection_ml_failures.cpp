@@ -102,8 +102,7 @@ def _empty_result(index):
     )
 
 def _result_count(input):
-    original_ids = input.orig_id()
-    return max(original_ids) + 1 if original_ids else 0
+    return len(input.images())
 
 def predict(input):
 )PY";

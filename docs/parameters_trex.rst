@@ -566,12 +566,30 @@ TRex parameters
 
 
 
+.. function:: detect_keypoint_threshold(float)
+
+	**default value:** 0.1
+
+
+	Minimum per-joint confidence for pose models. YOLO and RF-DETR convert joints below this threshold to the existing ``(0,0)`` missing-joint sentinel before sending the contiguous ``float32`` ``[N,K,2]`` payload to C++.
+
+
+
 .. function:: detect_model(path)
 
 	**default value:** ""
 
 
 	The path to a .pt file that contains a valid PyTorch object detection model (currently only YOLO networks are supported).
+
+
+
+.. function:: detect_pose_bbx(detect_pose_bbx_t)
+
+	**default value:** keypoints
+
+
+	Pose duplicate matching mode for TRex-owned SAHI-style tile postprocessing. ``yolo`` uses model-box IoU/containment only. ``keypoints`` requires the same box gate and also requires the median distance between mutually present same-index joints to be no greater than :param:`detect_tile_pose_match_distance` after normalization by the smaller model-box diagonal.
 
 
 
@@ -646,7 +664,7 @@ TRex parameters
 	**default value:** 0
 
 
-	Desired horizontal resolution (in pixels) to target when preparing SAHI tiles. The number of tiles is derived from this value while honouring the detector's native ``detect_resolution``. A value of ``0`` disables the override and falls back to :param:`detect_tile_image`.
+	Desired horizontal resolution (in pixels) to target when preparing detector tiles. The number of tiles is derived from this value while honouring the detector's native ``detect_resolution``. A value of ``0`` disables the override and falls back to :param:`detect_tile_image`. If only one frame axis is shorter than the tile, TRex tiles the long axis and pads the short axis instead of stretching the frame.
 
 
 .. function:: detect_tile_overlap(float)
@@ -654,7 +672,7 @@ TRex parameters
 	**default value:** 0
 
 
-	Relative overlap (``0`` - ``0.95``) between neighbouring tiles when SAHI tiling is active. Increasing this value recovers objects that sit on tile borders at the cost of evaluating more tiles per frame.
+	Relative overlap (``0`` - ``0.95``) between neighbouring detector tiles. Exactly ``0`` retains tiling but disables all TRex-owned SAHI-style duplicate association, suppression, ownership selection, pose filling, and mask stitching. Positive values enable the shared postprocessor for frames containing multiple tiles and provide additional model context around tile seams.
 
 
 .. function:: detect_tile_merge_iou(float)
@@ -662,15 +680,23 @@ TRex parameters
 	**default value:** 0.55
 
 
-	Intersection-over-union threshold used when merging predictions created on overlapping tiles. Lower values keep more duplicates; higher values collapse more boxes into a single detection.
+	Mode-native overlap threshold used to associate same-class predictions from different overlapping tiles. Lower values merge more aggressively; higher values retain more detections. Boxes use axis-aligned IoU, masks use source-aligned mask IoU, OBBs use rotated IoU, and points use circle IoU.
 
 
 .. function:: detect_tile_merge_containment(float)
 
-	**default value:** 0.9
+	**default value:** 0.5
 
 
-	Containment threshold that drops smaller boxes largely overlapped by a neighbouring tile (ratio of intersection area to the smaller box). Helps remove cut-in-half detections right on tile seams.
+	Intersection-over-smaller-area fallback used to associate same-class predictions from different overlapping tiles. Lower values merge more aggressively.
+
+
+.. function:: detect_tile_pose_match_distance(float)
+
+	**default value:** 0.5
+
+
+	Maximum median distance between mutually present same-index joints, normalized by the smaller model-box diagonal. Used only when :param:`detect_pose_bbx` is ``keypoints``. Joints represented by ``(0,0)`` or non-finite coordinates do not participate; after association, missing joints may be filled from another candidate, while existing valid joints are never averaged or replaced.
 
 
 .. function:: detect_type(ObjectDetectionType)

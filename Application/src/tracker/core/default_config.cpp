@@ -124,8 +124,8 @@ ENUM_CLASS_DOCS(gpu_verbosity_t,
 )
 
 ENUM_CLASS_DOCS(detect_pose_bbx_t,
-    "Use the model-provided YOLO bounding boxes for pose tile duplicate matching.",
-    "Use a padded minimum-area rotated rectangle around pose keypoints for tile duplicate matching."
+    "Use model-provided bounding-box overlap for pose tile duplicate matching.",
+    "Require model-box overlap plus normalized common-joint distance for pose tile duplicate matching."
 )
 
 ENUM_CLASS_DOCS(app_update_check_t,
@@ -1117,14 +1117,15 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("detect_format", track::detect::ObjectDetectionFormat::none, "The type of data returned by the `detect_model`, which can be an instance segmentation", AccessLevelType::INIT);
         CONFIG("detect_keypoint_format", track::detect::KeypointFormat{}, "When a keypoint (pose) type model is loaded, this variable will be set to [n_points,n_dims].", AccessLevelType::INIT, {track::detect::KeypointFormat{.n_points = 17, .n_dims = 2}});
         CONFIG("detect_keypoint_names", track::detect::KeypointNames{}, "An array of names in the correct keypoint index order for the given model.", AccessLevelType::INIT, {track::detect::KeypointNames{.names = std::vector<std::string>{"nose", "left_eye", "right_eye", "left_ear", "right_ear"}}});
-        CONFIG("detect_pose_bbx", detect_pose_bbx_t::keypoints, "Bounding-box geometry used for pose tile duplicate matching. `yolo` uses model boxes; `keypoints` uses padded minimum-area rotated rectangles around keypoints.");
+        CONFIG("detect_pose_bbx", detect_pose_bbx_t::keypoints, "Pose tile duplicate matching mode. `yolo` uses model-box overlap only; `keypoints` additionally requires common joints to satisfy `detect_tile_pose_match_distance`.");
         CONFIG("detect_point_radii", std::map<int, float>{}, "An array of radii for a given point class in a POLO network.", PUBLIC, {std::map<int, float>{{0, 3.f}, {1, 2.5f}}});
         CONFIG("detect_batch_size", uchar(1), "The batching size for object detection.");
-        CONFIG("detect_tile_image", uchar(0), "Legacy tile multiplier for SAHI detection. If > 1, this will tile the input image into that many multiples of `detect_resolution`. Retained for backwards compatibility; prefer `detect_tile_target_width`.");
-        CONFIG("detect_tile_target_width", uint16_t(0), "Desired horizontal resolution (in pixels) used when preparing tiles for SAHI detection. We derive the number of tiles from this width; set to 0 to disable or fall back to `detect_tile_image`.");
-        CONFIG("detect_tile_overlap", float(0.f), "Relative overlap (0-0.95) between adjacent tiles when tiling detection inputs. Enables SAHI-style inference without losing objects on tile borders.");
-        CONFIG("detect_tile_merge_iou", Float2_t(0.55f), "IoU threshold used by representative NMS fallback paths after SAHI tiling.");
-        CONFIG("detect_tile_merge_containment", Float2_t(0.5f), "IOS threshold (intersection over smaller box area) used by SAHI-style GreedyNMM tile prediction merging.");
+        CONFIG("detect_tile_image", uchar(0), "Legacy tile multiplier for TRex-owned SAHI-style detection. If > 1, this will tile the input image into that many multiples of `detect_resolution`. Retained for backwards compatibility; prefer `detect_tile_target_width`.");
+        CONFIG("detect_tile_target_width", uint16_t(0), "Desired horizontal resolution (in pixels) used when preparing detector tiles. We derive the number of tiles from this width; set to 0 to disable or fall back to `detect_tile_image`. A short axis is padded rather than stretched.");
+        CONFIG("detect_tile_overlap", float(0.f), "Relative overlap (0-0.95) between adjacent detector tiles. Exactly 0 disables all TRex-owned SAHI-style cross-tile filtering and fusion while retaining tiling.");
+        CONFIG("detect_tile_merge_iou", Float2_t(0.55f), "Mode-native overlap threshold for same-class predictions from different overlapping tiles. Lower values merge more aggressively.");
+        CONFIG("detect_tile_merge_containment", Float2_t(0.5f), "Intersection-over-smaller-area fallback threshold for same-class predictions from different overlapping tiles. Lower values merge more aggressively.");
+        CONFIG("detect_tile_pose_match_distance", Float2_t(0.5f), "Maximum median common-joint distance, normalized by the smaller model-box diagonal, when `detect_pose_bbx=keypoints`.");
         
         std::optional<track::detect::Sam3Prompts> example_prompts = track::detect::Sam3Prompts{{
             {Frame_t{}, track::detect::Sam3PromptList{track::detect::Sam3PromptPayload::fromStr("shark")}}

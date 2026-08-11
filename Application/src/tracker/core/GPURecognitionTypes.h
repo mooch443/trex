@@ -159,6 +159,8 @@ private:
 
 class TREX_EXPORT MaskData {
 private:
+    friend class DetectionMaskAccess;
+
     std::vector<uint8_t> ptr;
     MaskData(std::vector<uint8_t>&& ptr, int rows, int cols, int dims = 1)
         : ptr(std::move(ptr)), mat(rows, cols, CV_8UC(dims), this->ptr.data())
@@ -321,6 +323,8 @@ public:
 };
 
 class TREX_EXPORT Result {
+    friend class DetectionMaskAccess;
+
 public:
     Result(int index,
            Boxes&& boxes,

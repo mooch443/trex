@@ -186,20 +186,26 @@ class StrippedYoloResults(StrippedResults):
             self.keypoints: List[np.ndarray] = []
             #print(f"keypoints={keypoints_attr}")
 
-            keys = keypoints_attr.cpu().data[..., :2].numpy()
+            keypoint_tensor = keypoints_attr.cpu().data
+            keys = np.ascontiguousarray(
+                keypoint_tensor[..., :2].numpy(),
+                dtype=np.float32,
+            )
             #print("keys=",keys.shape, keypoints_attr.cpu())
             if len(keys) > 0 and len(keys[0]):
-                # Scale and offset the keypoints, but leave out
-                # the ones where both X and Y are zero (invalid)
-                zero_elements : np.ndarray = np.logical_and(keys[..., 0] == 0, 
-                                                            keys[..., 1] == 0)
+                valid_elements = np.isfinite(keys).all(axis=-1)
+                valid_elements &= np.logical_or(keys[..., 0] != 0, keys[..., 1] != 0)
+                if keypoint_tensor.shape[-1] >= 3:
+                    threshold = float(TRex.setting("detect_keypoint_threshold"))
+                    confidence = keypoint_tensor[..., 2].numpy()
+                    valid_elements &= np.isfinite(confidence)
+                    valid_elements &= confidence >= threshold
 
                 keys[..., 0] = (keys[..., 0] + offset[0] + box_offset[0]) * scale[0]
                 keys[..., 1] = (keys[..., 1] + offset[1] + box_offset[1]) * scale[1]
 
-                if zero_elements.any():
-                    keys[..., 0] = np.where(zero_elements, 0, keys[..., 0])
-                    keys[..., 1] = np.where(zero_elements, 0, keys[..., 1])
+                keys[..., 0] = np.where(valid_elements, keys[..., 0], 0)
+                keys[..., 1] = np.where(valid_elements, keys[..., 1], 0)
 
                 # Append scaled keypoints if any valid points exist
                 self.keypoints.append(keys) # bones * 3 elements
@@ -232,6 +238,7 @@ class StrippedYoloResults(StrippedResults):
 
         # Process segmentation masks: crop, validate, resize, and store for each box
         masks_attr = getattr(results, 'masks', None)
+        mask_source_bounds = None
         if masks_attr is not None:
             # masks: list of 2D numpy arrays corresponding to each box
             self.masks: List[np.ndarray] = []
@@ -266,16 +273,24 @@ class StrippedYoloResults(StrippedResults):
 
             # Ensure each box has a corresponding mask
             assert len(coords) == len(masks_attr.data)
-            index :int = 0
+            source_bounds = np.empty((len(coords), 4), dtype=np.int64)
+            source_bounds[:, :2] = np.floor(coords[:, :2]).astype(np.int64)
+            source_bounds[:, 2:4] = np.ceil(coords[:, 2:4]).astype(np.int64)
+            valid_indices = []
 
             # For each box-mask pair: crop mask, validate, resize, and store
             # convert coords to int for indexing pixels properly (no float needed)
             # convert the returned masks data to uint8 as well, since its image data
-            for orig, unscale, k in zip(coords.round().astype(int),
-                                        unscaled,
-                                        (masks_attr.data * 255).byte()):
+            for row_index, (orig, unscale, k) in enumerate(zip(
+                    source_bounds,
+                    unscaled,
+                    (masks_attr.data * 255).byte())):
                 # Crop mask within its bounding box
-                sub = k[max(0, int(unscale[1])):max(0, int(unscale[3])), max(0,int(unscale[0])):max(0, int(unscale[2]))]
+                ux0 = max(0, int(np.floor(unscale[0])))
+                uy0 = max(0, int(np.floor(unscale[1])))
+                ux1 = max(ux0, int(np.ceil(unscale[2])))
+                uy1 = max(uy0, int(np.ceil(unscale[3])))
+                sub = k[uy0:uy1, ux0:ux1]
 
                 # If mask is invalid or empty, remove its box and skip
                 if orig[3] - orig[1] <= 0 or orig[2] - orig[0] <= 0 or sub.shape[0] <= 0 or sub.shape[1] <= 0:
@@ -284,16 +299,19 @@ class StrippedYoloResults(StrippedResults):
                           => unscale={unscale} \n\
                           => k={k.shape}\n\
                           => orig={orig}")
-                    self.boxes = np.delete(self.boxes, index, axis=0)
                     continue
 
-                index += 1
+                valid_indices.append(row_index)
 
                 # Resize valid mask to box's size
                 ssub = F.interpolate(sub.unsqueeze(0).unsqueeze(0), size=(int(orig[3] - orig[1]), int(orig[2] - orig[0]))).squeeze(0).squeeze(0)
                 # Store processed mask
                 self.masks.append(ssub.cpu().numpy())
                 assert self.masks[-1].flags['C_CONTIGUOUS']
+
+            if len(valid_indices) != len(self.boxes):
+                self.boxes = self.boxes[valid_indices]
+            mask_source_bounds = source_bounds[valid_indices]
 
         # If we're dealing with a POLO model here we have point predictions
         locs = getattr(results, 'locations', None)
@@ -353,6 +371,9 @@ class StrippedYoloResults(StrippedResults):
             self.boxes[:, 1] = (self.boxes[:, 1] + offset_y + box_dy) * scale[1]
             self.boxes[:, 2] = (self.boxes[:, 2] + offset_x + box_dx) * scale[0]
             self.boxes[:, 3] = (self.boxes[:, 3] + offset_y + box_dy) * scale[1]
+
+            if mask_source_bounds is not None:
+                self.boxes[:, :4] = mask_source_bounds.astype(np.float32, copy=False)
 
             # If coords has more than 6 columns, it contains tracking information
             # We remove that tracking information by deleting the id-column (at index 4)

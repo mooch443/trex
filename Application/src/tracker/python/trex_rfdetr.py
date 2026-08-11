@@ -339,10 +339,16 @@ class StrippedRFDETRResults(StrippedResults):
         masks = result.get("masks")
         if masks is not None and tile_boxes.shape[0] > 0:
             tile_height, tile_width = image_shape
-            tile_bounds = tile_boxes.round().to(dtype=torch.int64).cpu()
+            tile_bounds = torch.cat(
+                [torch.floor(tile_boxes[:, :2]), torch.ceil(tile_boxes[:, 2:4])],
+                dim=1,
+            ).to(dtype=torch.int64).cpu()
             tile_bounds[:, [0, 2]].clamp_(0, tile_width)
             tile_bounds[:, [1, 3]].clamp_(0, tile_height)
-            source_bounds = source_boxes.round().to(dtype=torch.int64).cpu()
+            source_bounds = torch.cat(
+                [torch.floor(source_boxes[:, :2]), torch.ceil(source_boxes[:, 2:4])],
+                dim=1,
+            ).to(dtype=torch.int64).cpu()
             valid = (
                 (tile_bounds[:, 2] > tile_bounds[:, 0])
                 & (tile_bounds[:, 3] > tile_bounds[:, 1])
@@ -361,6 +367,11 @@ class StrippedRFDETRResults(StrippedResults):
                 if "keypoints" in result:
                     result = dict(result)
                     result["keypoints"] = result["keypoints"][valid_device]
+
+            source_boxes = source_bounds.to(
+                device=source_boxes.device,
+                dtype=torch.float32,
+            )
 
         if source_boxes.shape[0] == 0:
             self.boxes = np.empty((0, 6), dtype=np.float32)

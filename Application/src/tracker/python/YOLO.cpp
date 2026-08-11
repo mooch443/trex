@@ -1,5 +1,6 @@
 #include "YOLO.h"
 #include <processing/PixelTree.h>
+#include <python/DetectionPostprocess.h>
 #include <python/PythonWrapper.h>
 #include <grabber/misc/default_config.h>
 #include <video/Video.h>
@@ -37,279 +38,6 @@ struct AcceptanceSettings {
         };
     }
 };
-
-namespace {
-
-float rect_area(const track::detect::Rect& rect) {
-    const float width = std::max(0.f, rect.x1 - rect.x0);
-    const float height = std::max(0.f, rect.y1 - rect.y0);
-    if(width <= 0.f || height <= 0.f)
-        return 0.f;
-    return width * height;
-}
-
-float intersection_area(const track::detect::Rect& a, const track::detect::Rect& b) {
-    const float x0 = std::max(a.x0, b.x0);
-    const float y0 = std::max(a.y0, b.y0);
-    const float x1 = std::min(a.x1, b.x1);
-    const float y1 = std::min(a.y1, b.y1);
-
-    const float w = std::max(0.f, x1 - x0);
-    const float h = std::max(0.f, y1 - y0);
-    if(w <= 0.f || h <= 0.f)
-        return 0.f;
-    return w * h;
-}
-
-float rotated_rect_area(const cv::RotatedRect& rect) {
-    return std::max(0.f, rect.size.width) * std::max(0.f, rect.size.height);
-}
-
-float rotated_intersection_area(const cv::RotatedRect& a, const cv::RotatedRect& b) {
-    std::vector<cv::Point2f> intersection;
-    const int status = cv::rotatedRectangleIntersection(a, b, intersection);
-    if(status == cv::INTERSECT_NONE || intersection.size() < 3u)
-        return 0.f;
-    return static_cast<float>(std::max(0.0, cv::contourArea(intersection)));
-}
-
-} // namespace
-
-namespace yolo_detail {
-
-std::vector<TileMergeGroup> compute_tile_merge_groups(const track::detect::Boxes& boxes, float ios_threshold) {
-    const size_t num_rows = boxes.num_rows();
-    if(num_rows == 0)
-        return {};
-
-    ios_threshold = std::clamp(ios_threshold, 0.f, 1.f);
-
-    // Tile detections arrive in source-image coordinates, but without row-level tile provenance.
-    // GreedyNMM mirrors SAHI's sliced prediction postprocess: per-class, confidence-sorted
-    // matching by intersection-over-smaller-area (IOS), with geometry/mask merging later.
-    // Source indices stay result row indices so masks/keypoints remain aligned.
-    // This can merge duplicate/partial seam detections when boxes overlap strongly,
-    // but it deliberately cannot fuse two non-overlapping left/right seam halves into a new object.
-    std::unordered_map<int, std::vector<size_t>> by_class;
-    by_class.reserve(num_rows);
-    for(size_t idx = 0; idx < num_rows; ++idx) {
-        const auto& row = boxes[idx];
-        if(rect_area(row.box) <= 0.f)
-            continue;
-        by_class[static_cast<int>(row.clid)].push_back(idx);
-    }
-
-    std::vector<TileMergeGroup> keep;
-    keep.reserve(num_rows);
-
-    for(auto& [clid, indices] : by_class) {
-        std::sort(indices.begin(), indices.end(), [&](size_t lhs, size_t rhs) {
-            if(boxes[lhs].conf == boxes[rhs].conf)
-                return lhs < rhs;
-            return boxes[lhs].conf > boxes[rhs].conf;
-        });
-
-        std::vector<bool> suppressed(indices.size(), false);
-        for(size_t i = 0; i < indices.size(); ++i) {
-            if(suppressed[i])
-                continue;
-
-            TileMergeGroup group{
-                .representative = boxes[indices[i]],
-                .representative_index = indices[i],
-                .source_indices = DetectionRowSelection{ indices[i] }
-            };
-            const auto& ref_row = boxes[indices[i]];
-            const float ref_area = rect_area(ref_row.box);
-
-            for(size_t j = i + 1; j < indices.size(); ++j) {
-                if(suppressed[j])
-                    continue;
-
-                const auto& candidate_row = boxes[indices[j]];
-                const float intersection = intersection_area(ref_row.box, candidate_row.box);
-                if(intersection <= 0.f)
-                    continue;
-
-                float containment = 0.f;
-                const float candidate_area = rect_area(candidate_row.box);
-                const float min_area = std::min(ref_area, candidate_area);
-                if(min_area > 0.f)
-                    containment = intersection / min_area;
-
-                if(containment >= ios_threshold) {
-                    suppressed[j] = true;
-                    group.source_indices.push_back(indices[j]);
-                }
-            }
-
-            std::sort(group.source_indices.begin(), group.source_indices.end());
-            keep.push_back(std::move(group));
-        }
-    }
-
-    std::sort(keep.begin(), keep.end(), [](const TileMergeGroup& lhs, const TileMergeGroup& rhs) {
-        return lhs.representative_index < rhs.representative_index;
-    });
-    return keep;
-}
-
-DetectionRowSelection DetectionRowSelection::sequential(size_t count) {
-    DetectionRowSelection selection;
-    selection.indices.resize(count);
-    std::iota(selection.indices.begin(), selection.indices.end(), size_t{0});
-    return selection;
-}
-
-DetectionRowSelection compute_tile_nms_indices(
-    const track::detect::Boxes& boxes, 
-    float iou_threshold
-) {
-    const size_t num_rows = boxes.num_rows();
-    if(num_rows == 0)
-        return {};
-
-    iou_threshold = std::clamp(iou_threshold, 0.f, 1.f);
-
-    std::unordered_map<int, std::vector<size_t>> by_class;
-    by_class.reserve(num_rows);
-    for(size_t idx = 0; idx < num_rows; ++idx) {
-        const auto& row = boxes[idx];
-        if(rect_area(row.box) <= 0.f)
-            continue;
-        by_class[static_cast<int>(row.clid)].push_back(idx);
-    }
-
-    std::vector<size_t> keep;
-    keep.reserve(num_rows);
-
-    for(auto& [clid, indices] : by_class) {
-        std::sort(indices.begin(), indices.end(), [&](size_t lhs, size_t rhs) {
-            if(boxes[lhs].conf == boxes[rhs].conf)
-                return lhs < rhs;
-            return boxes[lhs].conf > boxes[rhs].conf;
-        });
-
-        std::vector<bool> suppressed(indices.size(), false);
-        for(size_t i = 0; i < indices.size(); ++i) {
-            if(suppressed[i])
-                continue;
-
-            keep.push_back(indices[i]);
-            const auto& ref_row = boxes[indices[i]];
-            const float ref_area = rect_area(ref_row.box);
-
-            for(size_t j = i + 1; j < indices.size(); ++j) {
-                if(suppressed[j])
-                    continue;
-
-                const auto& candidate_row = boxes[indices[j]];
-                const float intersection = intersection_area(ref_row.box, candidate_row.box);
-                if(intersection <= 0.f)
-                    continue;
-
-                const float candidate_area = rect_area(candidate_row.box);
-                const float union_area = ref_area + candidate_area - intersection;
-                const float iou = union_area > 0.f ? intersection / union_area : 0.f;
-                if(iou >= iou_threshold)
-                    suppressed[j] = true;
-            }
-        }
-    }
-
-    std::sort(keep.begin(), keep.end());
-    keep.erase(std::unique(keep.begin(), keep.end()), keep.end());
-    return DetectionRowSelection{ std::move(keep) };
-}
-
-DetectionRowSelection compute_tile_nms_indices_for_rotated_rects(
-    const std::vector<cv::RotatedRect>& rects,
-    const std::vector<float>& confidences,
-    const std::vector<float>& classes,
-    float iou_threshold
-) {
-    const size_t num_rows = rects.size();
-    if(num_rows == 0)
-        return {};
-    if(confidences.size() != num_rows || classes.size() != num_rows)
-        throw InvalidArgumentException("Rotated pose NMS expects matching rect/confidence/class counts.");
-
-    iou_threshold = std::clamp(iou_threshold, 0.f, 1.f);
-
-    std::unordered_map<int, std::vector<size_t>> by_class;
-    by_class.reserve(num_rows);
-    for(size_t idx = 0; idx < num_rows; ++idx) {
-        if(rotated_rect_area(rects[idx]) <= 0.f)
-            continue;
-        by_class[static_cast<int>(classes[idx])].push_back(idx);
-    }
-
-    std::vector<size_t> keep;
-    keep.reserve(num_rows);
-
-    for(auto& [clid, indices] : by_class) {
-        std::sort(indices.begin(), indices.end(), [&](size_t lhs, size_t rhs) {
-            if(confidences[lhs] == confidences[rhs])
-                return lhs < rhs;
-            return confidences[lhs] > confidences[rhs];
-        });
-
-        std::vector<bool> suppressed(indices.size(), false);
-        for(size_t i = 0; i < indices.size(); ++i) {
-            if(suppressed[i])
-                continue;
-
-            keep.push_back(indices[i]);
-            const float ref_area = rotated_rect_area(rects[indices[i]]);
-            for(size_t j = i + 1; j < indices.size(); ++j) {
-                if(suppressed[j])
-                    continue;
-
-                const float intersection = rotated_intersection_area(rects[indices[i]], rects[indices[j]]);
-                if(intersection <= 0.f)
-                    continue;
-
-                const float candidate_area = rotated_rect_area(rects[indices[j]]);
-                const float union_area = ref_area + candidate_area - intersection;
-                const float iou = union_area > 0.f ? intersection / union_area : 0.f;
-                if(iou >= iou_threshold)
-                    suppressed[j] = true;
-            }
-        }
-    }
-
-    std::sort(keep.begin(), keep.end());
-    keep.erase(std::unique(keep.begin(), keep.end()), keep.end());
-    return DetectionRowSelection{ std::move(keep) };
-}
-
-std::optional<cv::RotatedRect> compute_pose_tile_rect(const track::detect::Keypoint& keypoint) {
-    std::vector<cv::Point2f> points;
-    points.reserve(keypoint.bones.size());
-    for(const auto& bone : keypoint.bones) {
-        if(std::isfinite(bone.x) && std::isfinite(bone.y))
-            points.emplace_back(bone.x, bone.y);
-    }
-
-    if(points.empty())
-        return std::nullopt;
-
-    cv::RotatedRect rect;
-    if(points.size() == 1u) {
-        rect = cv::RotatedRect(points.front(), cv::Size2f(1.f, 1.f), 0.f);
-    } else {
-        rect = cv::minAreaRect(points);
-    }
-
-    static constexpr float min_padding = 2.f;
-    const float span = std::max(rect.size.width, rect.size.height);
-    const float padding = std::max(min_padding, span * 0.02f);
-    rect.size.width = std::max(min_padding, rect.size.width) + padding * 2.f;
-    rect.size.height = std::max(min_padding, rect.size.height) + padding * 2.f;
-    return rect;
-}
-
-} // namespace yolo_detail
 
 std::mutex running_mutex;
 std::shared_future<void> running_prediction;
@@ -629,114 +357,8 @@ void YOLO::receive(SegmentationData& data, track::detect::Result&& result) {
     const coord_t w = max(0, r3.cols - 1);
     const coord_t h = max(0, r3.rows - 1);
 
-    using namespace yolo_detail;
-    DetectionRowSelection tile_selection;      // filled iff NMS tiling ran
-    DetectionRowSelection sequential_storage;  // lazily filled for the non-tiled path
-    std::vector<TileMergeGroup> merge_groups_storage;
-    const std::vector<TileMergeGroup>* merge_groups = nullptr;
-    bool have_tile_selection = false;
-    if(const float detect_tile_overlap = READ_SETTING(detect_tile_overlap, float);
-       detect_tile_overlap > 0.f && data.tiles.size() > 1) 
-    {
-        const Float2_t detect_tile_merge_iou = READ_SETTING(detect_tile_merge_iou, Float2_t);
-        const Float2_t detect_tile_merge_containment = READ_SETTING(detect_tile_merge_containment, Float2_t);
-
-        if(result.boxes().num_rows() > 0 && (not result.masks().empty() || result.keypoints().empty())) {
-            merge_groups_storage = compute_tile_merge_groups(result.boxes(), detect_tile_merge_containment);
-            merge_groups = &merge_groups_storage;
-
-        } else if(result.boxes().num_rows() > 0) {
-            if(READ_SETTING(detect_pose_bbx, default_config::detect_pose_bbx_t::Class) == default_config::detect_pose_bbx_t::keypoints
-               && result.keypoints().size() == result.boxes().num_rows())
-            {
-                std::vector<cv::RotatedRect> rects;
-                std::vector<float> confidences;
-                std::vector<float> classes;
-                rects.reserve(result.keypoints().size());
-                confidences.reserve(result.keypoints().size());
-                classes.reserve(result.keypoints().size());
-
-                for(size_t idx = 0; idx < result.keypoints().size(); ++idx) {
-                    auto rect = compute_pose_tile_rect(result.keypoints()[idx]);
-                    if(rect) {
-                        rects.push_back(*rect);
-                        confidences.push_back(result.boxes()[idx].conf);
-                        classes.push_back(result.boxes()[idx].clid);
-                    } else {
-                        Bounds bounds = result.boxes()[idx].box;
-                        rects.emplace_back(
-                            cv::Point2f(bounds.x + bounds.width * 0.5f, bounds.y + bounds.height * 0.5f),
-                            cv::Size2f(bounds.width, bounds.height),
-                            0.f);
-                        confidences.push_back(result.boxes()[idx].conf);
-                        classes.push_back(result.boxes()[idx].clid);
-                    }
-                }
-
-                tile_selection = compute_tile_nms_indices_for_rotated_rects(rects, confidences, classes, detect_tile_merge_iou);
-            } else {
-                tile_selection = compute_tile_nms_indices(result.boxes(), detect_tile_merge_iou);
-            }
-            have_tile_selection = true;
-
-        } else if(not result.obbdata().empty()) {
-            std::vector<float> raw_boxes;
-            raw_boxes.reserve(result.obbdata().size() * 6u);
-            for(size_t idx = 0; idx < result.obbdata().size(); ++idx) {
-                const auto row = result.obbdata()[idx];
-                const Bounds bounds = row.bounding_box();
-                raw_boxes.insert(raw_boxes.end(), {
-                    bounds.x,
-                    bounds.y,
-                    bounds.x + bounds.width,
-                    bounds.y + bounds.height,
-                    row.conf,
-                    row.clid
-                });
-            }
-            const size_t raw_size = raw_boxes.size();
-            track::detect::Boxes boxes(std::move(raw_boxes), raw_size);
-            tile_selection = compute_tile_nms_indices(boxes, detect_tile_merge_iou);
-            have_tile_selection = true;
-
-        } else if(not result.points().empty()) {
-            std::vector<float> raw_boxes;
-            raw_boxes.reserve(result.points().size() * 6u);
-
-            for(size_t idx = 0; idx < result.points().size(); ++idx) {
-                const auto row = result.points()[idx];
-                const Bounds bounds = row.bounding_box();
-                raw_boxes.insert(raw_boxes.end(), {
-                    bounds.x,
-                    bounds.y,
-                    bounds.x + bounds.width,
-                    bounds.y + bounds.height,
-                    row.conf,
-                    row.clid
-                });
-            }
-
-            const size_t raw_size = raw_boxes.size();
-            track::detect::Boxes boxes(std::move(raw_boxes), raw_size);
-            tile_selection = compute_tile_nms_indices(boxes, detect_tile_merge_iou);
-            have_tile_selection = true;
-        }
-    }
-
     //! cache some of the high-level settings into a struct, to avoid repeated setting reads and conversions in the hot loop below
     const auto settings = AcceptanceSettings::Make();
-
-    //! resolve the explicit set of rows each consumer should process: the tile
-    //! NMS result if tiling ran, otherwise the full [0..count) row range. The
-    //! merge-group path ignores the row view, so skip materializing it there.
-    auto select_rows = [&](size_t count) -> DetectionRowView {
-        if(merge_groups)
-            return {};
-        if(have_tile_selection)
-            return tile_selection;
-        sequential_storage = DetectionRowSelection::sequential(count);
-        return sequential_storage;
-    };
 
     //! decide on whether to use masks (if available), or bounding boxes
     //! if masks are not available. for the boxes we simply copy over all
@@ -744,15 +366,15 @@ void YOLO::receive(SegmentationData& data, track::detect::Result&& result) {
     //! the pixels that are inside the mask.
     if (not result.masks().empty()) {
         /// yes we have masks!
-        process_instance_segmentation(detect_only_classes, w, h, r3, data, result, settings, select_rows(result.boxes().num_rows()), merge_groups);
+        process_instance_segmentation(detect_only_classes, w, h, r3, data, result, settings);
     } else if (not result.obbdata().empty()) {
         /// we have obb data, but no masks
-        process_obbs(detect_only_classes, w, h, r3, data, result, settings, select_rows(result.obbdata().size()));
+        process_obbs(detect_only_classes, w, h, r3, data, result, settings);
     } else if(not result.points().empty()) {
-        process_points(detect_only_classes, w, h, r3, data, result, settings, select_rows(result.points().size()));
+        process_points(detect_only_classes, w, h, r3, data, result, settings);
     } else {
         /// we had no instance segmentation...
-        process_boxes_only(detect_only_classes, w, h, r3, data, result, settings, select_rows(result.boxes().num_rows()), merge_groups);
+        process_boxes_only(detect_only_classes, w, h, r3, data, result, settings);
     }
 }
 
@@ -763,8 +385,7 @@ void YOLO::process_points(
        const cv::Mat& r3,
        SegmentationData &data,
        track::detect::Result &result,
-       const AcceptanceSettings &settings,
-       yolo_detail::DetectionRowView rows)
+       const AcceptanceSettings &settings)
 {
     size_t N_rows = result.points().size();
     auto& points = result.points();
@@ -838,7 +459,7 @@ void YOLO::process_points(
         });
     };
 
-    for(size_t idx : rows)
+    for(size_t idx = 0; idx < N_rows; ++idx)
         process_index(idx);
 }
 
@@ -849,8 +470,7 @@ void YOLO::process_obbs(
        const cv::Mat& r3,
        SegmentationData &data,
        track::detect::Result &result,
-       const AcceptanceSettings &settings,
-       yolo_detail::DetectionRowView rows)
+       const AcceptanceSettings &settings)
 {
     size_t N_rows = result.obbdata().size();
     auto& obbdata = result.obbdata();
@@ -986,7 +606,7 @@ void YOLO::process_obbs(
             data.keypoints.push_back(result.keypoints()[idx]);
     };
 
-    for(size_t idx : rows) {
+    for(size_t idx = 0; idx < N_rows; ++idx) {
         try {
             process_index(idx);
         } catch(const std::exception& ex) {
@@ -1008,9 +628,7 @@ void YOLO::process_boxes_only(
        const cv::Mat& r3,
        SegmentationData &data,
        track::detect::Result &result,
-       const AcceptanceSettings &settings,
-       yolo_detail::DetectionRowView rows,
-       const std::vector<yolo_detail::TileMergeGroup>* merge_groups)
+       const AcceptanceSettings &settings)
 {
     auto& boxes = result.boxes();
     const size_t total_rows = boxes.num_rows();
@@ -1076,39 +694,8 @@ void YOLO::process_boxes_only(
         process_row(boxes[idx], idx);
     };
 
-    if(merge_groups) {
-        for(const auto& group : *merge_groups) {
-            auto row = group.representative;
-            Bounds bounds = row.box;
-            bool have_bounds = false;
-            for(size_t idx : group.source_indices) {
-                if(idx >= total_rows)
-                    continue;
-                Bounds source_bounds = boxes[idx].box;
-                if(source_bounds.width <= 0 || source_bounds.height <= 0)
-                    continue;
-                if(!have_bounds) {
-                    bounds = source_bounds;
-                    have_bounds = true;
-                } else {
-                    bounds.combine(source_bounds);
-                }
-            }
-            if(!have_bounds)
-                continue;
-            row.box = track::detect::Rect{
-                .x0 = bounds.x,
-                .y0 = bounds.y,
-                .x1 = bounds.x + bounds.width,
-                .y1 = bounds.y + bounds.height
-            };
-            process_row(row, std::nullopt);
-        }
-    } else {
-        for(size_t idx : rows) {
-            process_index(idx);
-        }
-    }
+    for(size_t idx = 0; idx < total_rows; ++idx)
+        process_index(idx);
 }
 
 void YOLO::process_instance_segmentation(
@@ -1118,9 +705,7 @@ void YOLO::process_instance_segmentation(
       const cv::Mat& r3,
       SegmentationData &data,
       track::detect::Result &result,
-      const AcceptanceSettings &settings,
-      yolo_detail::DetectionRowView rows,
-      const std::vector<yolo_detail::TileMergeGroup>* merge_groups)
+      const AcceptanceSettings &settings)
 {
     size_t N_rows = result.boxes().num_rows();
     auto& boxes = result.boxes();
@@ -1151,109 +736,19 @@ void YOLO::process_instance_segmentation(
         }
     };
 
-    auto process_group = [&](const yolo_detail::TileMergeGroup& group, cmn::CPULabeling::DLList& list) {
-        if (not detect_only_classes.allowed(group.representative.clid)) {
-            return;
-        }
-
-        Bounds merged_bounds;
-        bool have_bounds = false;
-        for(size_t idx : group.source_indices) {
-            if(idx >= N_rows || idx >= result.masks().size())
-                continue;
-            Bounds source_bounds = boxes[idx].box;
-            source_bounds.restrict_to(Bounds(0, 0, w, h));
-            if(source_bounds.width <= 0 || source_bounds.height <= 0)
-                continue;
-            if(!have_bounds) {
-                merged_bounds = source_bounds;
-                have_bounds = true;
-            } else {
-                merged_bounds.combine(source_bounds);
-            }
-        }
-        if(!have_bounds || merged_bounds.width <= 0 || merged_bounds.height <= 0)
-            return;
-
-        const int merged_cols = std::max(0, static_cast<int>(std::ceil(merged_bounds.width)));
-        const int merged_rows = std::max(0, static_cast<int>(std::ceil(merged_bounds.height)));
-        if(merged_cols <= 0 || merged_rows <= 0)
-            return;
-
-        cv::Mat merged_mask = cv::Mat::zeros(merged_rows, merged_cols, CV_8UC1);
-        for(size_t idx : group.source_indices) {
-            if(idx >= N_rows || idx >= result.masks().size())
-                continue;
-
-            const auto& mask = result.masks()[idx];
-            if(mask.mat.empty())
-                continue;
-
-            Bounds source_bounds = boxes[idx].box;
-            source_bounds.restrict_to(Bounds(0, 0, w, h));
-            const int dst_x = static_cast<int>(source_bounds.x - merged_bounds.x);
-            const int dst_y = static_cast<int>(source_bounds.y - merged_bounds.y);
-            const int copy_cols = std::min({mask.mat.cols, merged_cols - dst_x, static_cast<int>(std::ceil(source_bounds.width))});
-            const int copy_rows = std::min({mask.mat.rows, merged_rows - dst_y, static_cast<int>(std::ceil(source_bounds.height))});
-            if(dst_x < 0 || dst_y < 0 || copy_cols <= 0 || copy_rows <= 0)
-                continue;
-
-            cv::Mat src_roi = mask.mat(cv::Rect(0, 0, copy_cols, copy_rows));
-            cv::Mat dst_roi = merged_mask(cv::Rect(dst_x, dst_y, copy_cols, copy_rows));
-            cv::bitwise_or(dst_roi, src_roi, dst_roi);
-        }
-
-        auto row = group.representative;
-        row.box = track::detect::Rect{
-            .x0 = merged_bounds.x,
-            .y0 = merged_bounds.y,
-            .x1 = merged_bounds.x + merged_bounds.width,
-            .y1 = merged_bounds.y + merged_bounds.height
-        };
-
-        auto r = process_instance_image(list, w, h, r3, row, merged_bounds, merged_mask, settings);
-        if(r) {
-            auto&& [assign, pair] = r.value();
-
-            std::unique_lock guard(mutex);
-            data.predictions.emplace_back(std::move(assign));
-            data.frame.add_object(std::move(pair));
-        }
-    };
-
     auto fn = [&](auto, size_t start, size_t end, auto) {
         cmn::CPULabeling::DLList list;
-        for(size_t pos = start; pos != end; ++pos) {
-            const size_t idx = rows[pos];
+        for(size_t idx = start; idx != end; ++idx)
             process_idx(idx, list);
-        }
     };
 
-    auto fn_groups = [&](auto, size_t start, size_t end, auto) {
-        cmn::CPULabeling::DLList list;
-        for(size_t pos = start; pos != end; ++pos) {
-            process_group(merge_groups->at(pos), list);
-        }
-    };
-
-    if(merge_groups) {
-        if(merge_groups->empty())
-            return;
-        if(merge_groups->size() > 1 && _pool) {
-            distribute_indexes(fn_groups, *_pool, size_t(0), merge_groups->size());
-        } else {
-            fn_groups(0, size_t(0), merge_groups->size(), 0);
-        }
-        return;
-    }
-
-    if(rows.empty())
+    if(N_rows == 0u)
         return;
 
-    if(rows.size() > 1 && _pool) {
-        distribute_indexes(fn, *_pool, size_t(0), rows.size());
+    if(N_rows > 1u && _pool) {
+        distribute_indexes(fn, *_pool, size_t(0), N_rows);
     } else {
-        fn(0, size_t(0), rows.size(), 0);
+        fn(0, size_t(0), N_rows, 0);
     }
 }
 
@@ -1617,8 +1112,8 @@ void YOLO::StartPythonProcess(TransferData&& transfer) {
     try {
         track::detect::YoloInput input{
             std::move(transfer.images),
-            std::move(transfer.tile_geometries),
-            std::move(transfer.orig_id),
+            transfer.tile_geometries,
+            transfer.orig_id,
             [](std::vector<Image::Ptr>&& images)
             {
                 for (auto&& image : images)
@@ -1665,12 +1160,30 @@ void YOLO::ReceivePackage(TransferData&& transfer, std::vector<track::detect::Re
     //for(auto &t : transfer.oimages)
     //    TileImage::buffers.move_back(std::move(t));
 
-    if(results.size() != transfer.datas.size()) {
-        const auto message = "YOLO predict returned " + Meta::toStr(results.size())
-            + " result(s) for " + Meta::toStr(transfer.datas.size()) + " request(s).";
+    if(transfer.tile_geometries.size() != transfer.orig_id.size()) {
+        const auto message = "YOLO input retained " + Meta::toStr(transfer.tile_geometries.size())
+            + " tile geometries for " + Meta::toStr(transfer.orig_id.size()) + " tile frame indices.";
         FormatError(message);
         transfer.fail_all(message);
         return;
+    }
+
+    if(results.size() != transfer.tile_geometries.size()) {
+        const auto message = "YOLO predict returned " + Meta::toStr(results.size())
+            + " result(s) for " + Meta::toStr(transfer.tile_geometries.size()) + " detector tile(s).";
+        FormatError(message);
+        transfer.fail_all(message);
+        return;
+    }
+
+    for(const auto frame : transfer.orig_id) {
+        if(frame >= transfer.datas.size()) {
+            const auto message = "YOLO retained an invalid frame index " + Meta::toStr(frame)
+                + " for " + Meta::toStr(transfer.datas.size()) + " request(s).";
+            FormatError(message);
+            transfer.fail_all(message);
+            return;
+        }
     }
     
     std::unique_lock guard(transfer_done_mutex);
@@ -1682,11 +1195,33 @@ void YOLO::ReceivePackage(TransferData&& transfer, std::vector<track::detect::Re
     /// this will move all the post-processing into a different
     /// thread:
     auto p = pack<void()>([transfer = std::move(transfer), results = std::move(results)]() mutable {
+        std::vector<size_t> tile_counts(transfer.datas.size(), 0u);
+        for(const auto frame : transfer.orig_id)
+            ++tile_counts[frame];
+
+        std::vector<std::vector<detect::Result>> grouped_results(transfer.datas.size());
+        std::vector<std::vector<TileGeometry>> grouped_geometries(transfer.datas.size());
+        for(size_t frame = 0; frame < transfer.datas.size(); ++frame) {
+            grouped_results[frame].reserve(tile_counts[frame]);
+            grouped_geometries[frame].reserve(tile_counts[frame]);
+        }
+        for(size_t tile = 0; tile < transfer.orig_id.size(); ++tile) {
+            const auto frame = transfer.orig_id[tile];
+            grouped_results[frame].emplace_back(std::move(results[tile]));
+            grouped_geometries[frame].emplace_back(std::move(transfer.tile_geometries[tile]));
+        }
+
         for (size_t i = 0; i < transfer.datas.size(); ++i) {
             auto& data = transfer.datas.at(i);
 
             try {
-                receive(data, std::move(results.at(i)));
+                if(grouped_results[i].empty()) {
+                    throw U_EXCEPTION("YOLO returned no detector tiles for request ", i, ".");
+                }
+
+                auto result = detail::DetectionPostprocess::apply(
+                    std::move(grouped_results[i]), grouped_geometries[i]);
+                receive(data, std::move(result));
                 transfer.set_value(i, std::move(data));
             }
             catch (...) {

@@ -91,7 +91,15 @@ class FakeTRexDetection:
 
 
 class FakeStrippedResults:
-    pass
+    def __init__(self, scale, offset):
+        self.scale = scale
+        self.offset = offset
+        self.boxes = None
+        self.keypoints = None
+        self.masks = None
+        self.orig_shape = None
+        self.obb = None
+        self.points = None
 
 
 class FakeTRexModule(types.ModuleType):
@@ -109,6 +117,7 @@ class FakeTRexModule(types.ModuleType):
             "detect_conf_threshold": 0.1,
             "detect_iou_threshold": None,
             "detect_point_radii": "{}",
+            "detect_keypoint_threshold": 0.1,
         }
 
     def setting(self, name: str):
@@ -135,9 +144,10 @@ class FakeTensorLike:
 
 
 class FakeBoxes:
-    def __init__(self):
-        self.data = FakeTensorLike(np.zeros((0, 6), dtype=np.float32))
-        self.xyxy = FakeTensorLike(np.zeros((0, 4), dtype=np.float32))
+    def __init__(self, data=None):
+        array = np.zeros((0, 6), dtype=np.float32) if data is None else data
+        self.data = FakeTensorLike(array)
+        self.xyxy = FakeTensorLike(np.asarray(array, dtype=np.float32)[:, :4])
 
 
 class FakePredictionResult:
@@ -253,6 +263,7 @@ class RuntimePolicyTest(unittest.TestCase):
         sys.modules.pop("bbx_saved_model", None)
 
         cls.trex_yolo = importlib.import_module("trex_yolo")
+        cls.stripped_yolo_results = cls.trex_yolo.StrippedYoloResults
         cls.trex_yolo.YOLO = FakeYOLO
         cls.trex_yolo.StrippedYoloResults = lambda result, scale, offset: types.SimpleNamespace(
             result=result, scale=scale, offset=offset
@@ -266,6 +277,7 @@ class RuntimePolicyTest(unittest.TestCase):
             "detect_conf_threshold": 0.1,
             "detect_iou_threshold": None,
             "detect_point_radii": "{}",
+            "detect_keypoint_threshold": 0.1,
         }
 
     def _make_model(self, *, modern: bool, end2end: bool, use_tracking: bool = False):
@@ -344,6 +356,65 @@ class RuntimePolicyTest(unittest.TestCase):
         self.fake_trex.settings["detect_iou_threshold"] = 0.55
         self.bbx_saved_model.predict("frame")
         self.assertEqual(calls[-1]["kwargs"]["iou_threshold"], 0.55)
+
+    def test_keypoint_threshold_uses_missing_sentinel_and_keeps_float32_layout(self):
+        torch = self.trex_yolo.torch
+
+        class FakeKeypoints:
+            def __init__(self, data):
+                self.data = data
+
+            def cpu(self):
+                return self
+
+        result = FakePredictionResult()
+        result.keypoints = FakeKeypoints(torch.tensor(
+            [[[1.0, 2.0, 0.2], [3.0, 4.0, 0.8], [0.0, 0.0, 0.9]]],
+            dtype=torch.float32,
+        ))
+        self.fake_trex.settings["detect_keypoint_threshold"] = 0.5
+
+        stripped = self.stripped_yolo_results(
+            result,
+            scale=np.array([2.0, 3.0], dtype=np.float32),
+            offset=np.array([10.0, 20.0], dtype=np.float32),
+        )
+
+        self.assertIsNotNone(stripped.keypoints)
+        self.assertEqual(len(stripped.keypoints), 1)
+        keypoints = stripped.keypoints[0]
+        self.assertEqual(keypoints.shape, (1, 3, 2))
+        self.assertEqual(keypoints.dtype, np.float32)
+        self.assertTrue(keypoints.flags["C_CONTIGUOUS"])
+        np.testing.assert_array_equal(keypoints[0, 0], [0.0, 0.0])
+        np.testing.assert_array_equal(keypoints[0, 1], [26.0, 72.0])
+        np.testing.assert_array_equal(keypoints[0, 2], [0.0, 0.0])
+
+    def test_mask_box_uses_floor_ceil_xyxy_and_exact_raster_size(self):
+        torch = self.trex_yolo.torch
+        result = FakePredictionResult()
+        result.orig_shape = (8, 8)
+        result.boxes = FakeBoxes(np.asarray(
+            [[1.2, 1.4, 4.1, 5.2, 0.9, 1.0]],
+            dtype=np.float32,
+        ))
+        result.masks = types.SimpleNamespace(
+            data=torch.ones((1, 8, 8), dtype=torch.float32)
+        )
+
+        stripped = self.stripped_yolo_results(
+            result,
+            scale=np.array([1.0, 1.0], dtype=np.float32),
+            offset=np.array([0.0, 0.0], dtype=np.float32),
+        )
+
+        np.testing.assert_array_equal(
+            stripped.boxes[0, :4],
+            np.asarray([1.0, 1.0, 5.0, 6.0], dtype=np.float32),
+        )
+        self.assertEqual(stripped.masks[0].shape, (5, 4))
+        self.assertEqual(stripped.boxes.dtype, np.float32)
+        self.assertTrue(stripped.boxes.flags["C_CONTIGUOUS"])
 
 
 if __name__ == "__main__":

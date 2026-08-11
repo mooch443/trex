@@ -216,7 +216,7 @@ TileImage::TileImage(const useMat_t& prepared, Image::Ptr&& source, Size2 tile_s
         };
     }
     else if (tile_size.width > prepared.cols
-        || tile_size.height > prepared.rows)
+        && tile_size.height > prepared.rows)
     {
         cv::resize(prepared, resized_image(), tile_size);
 

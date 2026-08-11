@@ -980,6 +980,29 @@ class RFDETRAdapterTest(unittest.TestCase):
         np.testing.assert_allclose(stripped_pose.keypoints[0][0, 0], [14.0, 30.0])
         np.testing.assert_array_equal(stripped_pose.keypoints[0][0, 1], [0.0, 0.0])
 
+    def test_mask_box_uses_floor_ceil_source_bounds_and_exact_raster_size(self):
+        result = {
+            "scores": torch.tensor([0.9]),
+            "labels": torch.tensor([1]),
+            "boxes": torch.tensor([[1.2, 1.4, 4.1, 5.2]]),
+            "masks": torch.ones((1, 1, 8, 8), dtype=torch.bool),
+        }
+
+        stripped = self.module.StrippedRFDETRResults(
+            result,
+            scale=np.array([2.0, 3.0], dtype=np.float32),
+            offset=np.array([5.0, 7.0], dtype=np.float32),
+            image_shape=(8, 8),
+        )
+
+        np.testing.assert_array_equal(
+            stripped.boxes[0, :4],
+            np.array([12.0, 25.0, 19.0, 37.0], dtype=np.float32),
+        )
+        self.assertEqual(stripped.masks[0].shape, (12, 7))
+        self.assertEqual(stripped.boxes.dtype, np.float32)
+        self.assertTrue(stripped.boxes.flags["C_CONTIGUOUS"])
+
 
 if __name__ == "__main__":
     unittest.main()

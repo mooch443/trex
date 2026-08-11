@@ -8,7 +8,6 @@ import torch
 from functools import lru_cache
 import platform
 from typing import Optional, List, Any, Tuple
-from itertools import groupby
 import numpy as np
 import cv2
 
@@ -540,67 +539,50 @@ class TRexDetection:
 
         if len(results) != len(tensor):
             raise ValueError(
-                "TRexDetection.inference expected one model result per input tile/image before "
-                f"orig_id grouping, got {len(results)} result(s) for {len(tensor)} input image(s). "
+                "TRexDetection.inference expected one model result per input tile/image, "
+                f"got {len(results)} result(s) for {len(tensor)} input image(s). "
                 "Check DetectionModel.predict for dropped or extra results."
             )
 
-        # use groupby to group the list elements by id
-        results = [[x[1] for x in group] for _, group in groupby(list(zip(orig_id, results)), lambda x: x[0])]
-        #print(f"len(results) = {len(results)} len(offsets) = {len(offsets)} len(scales) = {len(scales)}")
+        # Keep tile provenance implicit in result-vector position. C++ retains the
+        # matching TileGeometry/orig_id arrays and performs frame-level postprocess.
+        for index, tile in enumerate(results):
+            coords = TRexDetection.normalize_boxes(
+                tile.boxes,
+                f"TRexDetection.inference tile {index}",
+            )
+            masks = list(tile.masks) if tile.masks is not None else []
 
-        index = 0
-        for i, tiles in enumerate(results):
-            coords = []
-            masks = []
-            keypoints = []
-            obbs = []
-            points = []
-            for j, tile in enumerate(tiles):
-                if True:
-                #try:
-                    #c, m, k = self.postprocess_result(index, tile)
-                    #print("c.shape= ",c.shape, " len(m)=", len(m))
-                    coords.append(TRexDetection.normalize_boxes(
-                        tile.boxes,
-                        f"TRexDetection.inference result group {i}, tile {j}"
-                    ))
-                    if tile.masks is not None and len(tile.masks) > 0:
-                        masks.extend(tile.masks)
-                    if tile.keypoints is not None and len(tile.keypoints) > 0:
-                        keypoints.extend(tile.keypoints)
-                    if tile.obb is not None and len(tile.obb) > 0:
-                        obbs.extend(tile.obb)
-                    if tile.points is not None and len(tile.points) > 0:
-                        points.extend(tile.points)
+            keypoints = (
+                np.ascontiguousarray(
+                    np.concatenate(tile.keypoints, axis=0, dtype=np.float32),
+                    dtype=np.float32,
+                )
+                if tile.keypoints is not None and len(tile.keypoints) > 0
+                else np.empty((0, 1, 2), dtype=np.float32)
+            )
+            obbs = (
+                np.ascontiguousarray(tile.obb, dtype=np.float32)
+                if tile.obb is not None and len(tile.obb) > 0
+                else np.empty((0, 7), dtype=np.float32)
+            )
+            points = (
+                np.ascontiguousarray(tile.points, dtype=np.float32)
+                if tile.points is not None and len(tile.points) > 0
+                else np.empty((0, 5), dtype=np.float32)
+            )
 
-                    #print("appended keypoints: ", len(keypoints), " at ", index, "with", tile)
-
-                    #r = result.cpu().plot(img=im[i], line_width=1)
-                    #TRex.imshow("result"+str(i), r)
-                    '''except Exception as e:
-                        print("Exception when postprocessing result", e," at ",index, "with", tile)
-                        #print("result.boxes.data.cpu().numpy() = ", result.boxes.data.cpu().numpy())
-                        #r = tile.cpu().plot(img=im[i], line_width=1)
-                        #TRex.imshow("result"+str(i), r)
-                        raise e
-                    finally:'''
-                    index += 1
-            
-            if len(keypoints) > 0:
-                keypoints = np.concatenate(keypoints, axis=0, dtype=np.float32)
-            if len(obbs) > 0:
-                obbs = np.concatenate(obbs, axis=0, dtype=np.float32)
-                coords = TRexDetection.empty_boxes()
-            elif len(points) > 0:
-                points = np.concatenate(points, axis=0, dtype=np.float32)
-                coords = TRexDetection.empty_boxes()
-            elif len(coords) > 0:
-                coords = np.concatenate(coords, axis=0)
-            else:
+            if len(obbs) > 0 or len(points) > 0:
                 coords = TRexDetection.empty_boxes()
 
-            rexsults.append(TRex.Result(index, TRex.Boxes(coords), masks, TRex.KeypointData(keypoints), TRex.ObbData(obbs), TRex.PointData(points)))
+            rexsults.append(TRex.Result(
+                int(orig_id[index]),
+                TRex.Boxes(np.ascontiguousarray(coords, dtype=np.float32)),
+                masks,
+                TRex.KeypointData(keypoints),
+                TRex.ObbData(obbs),
+                TRex.PointData(points),
+            ))
 
         return rexsults
 

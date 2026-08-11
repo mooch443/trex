@@ -5,6 +5,7 @@
 #include <misc/Timer.h>
 #include <core/TrackingSettings.h>
 #include <python/Detection.h>
+#include <python/DetectionPostprocess.h>
 #include <python/PipelineRegistry.h>
 #include <python/YOLO.h>
 #include <python/ModuleProxy.h>
@@ -156,6 +157,7 @@ void SAM3::apply(std::vector<TileImage>&& tiled) {
                         : int64_t(0);
                     const int64_t frame_index = raw_frame_index < 0 ? 0 : raw_frame_index;
                     const auto tile_image_count = tile.images.size();
+                    const auto tile_geometries = tile.tile_geometries();
                     std::vector<size_t> orig_id;
                     orig_id.reserve(tile_image_count);
                     
@@ -166,7 +168,7 @@ void SAM3::apply(std::vector<TileImage>&& tiled) {
 
                     track::detect::YoloInput input{
                         std::move(tile.images),
-                        tile.tile_geometries(),
+                        tile_geometries,
                         std::move(orig_id),
                         [](std::vector<Image::Ptr>&& images) {
                             for(auto&& image : images) {
@@ -194,9 +196,9 @@ void SAM3::apply(std::vector<TileImage>&& tiled) {
                                 " images in frame ", frame_index, ".");
                         }
 
-                        for(auto& result : results) {
-                            YOLO::receive(tile.data, std::move(result));
-                        }
+                        auto result = detail::DetectionPostprocess::apply(
+                            std::move(results), tile_geometries);
+                        YOLO::receive(tile.data, std::move(result));
 
                         if(tile.promise) {
                             tile.promise->set_value(std::move(tile.data));

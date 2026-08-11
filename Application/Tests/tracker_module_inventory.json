@@ -699,7 +699,7 @@
       "excluded": [],
       "module": "trex.core",
       "path": "core/GPURecognitionTypes.h",
-      "sha256": "4129c521914cc80113b6cf6bbb7fc33060a8ce8a5e96965e4882feaf094d5ac4",
+      "sha256": "2c12541c251443942353de02338f4710e1e026890ca463c1f55e9a7d5a580bcb",
       "symbols": [
         {
           "kind": "class",

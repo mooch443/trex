@@ -511,10 +511,15 @@ def _build_result(
     source_y = float(getattr(geometry, "source_y", 0.0))
     target_w = max(1, int(round(float(getattr(geometry, "source_width", image_shape[1])))))
     target_h = max(1, int(round(float(getattr(geometry, "source_height", image_shape[0])))))
+    source_left = int(np.floor(source_x))
+    source_top = int(np.floor(source_y))
+    source_right = source_left + target_w
+    source_bottom = source_top + target_h
 
     n = masks_np.shape[0]
     trex_masks: list[npt.NDArray[np.uint8]] = []
     boxes = np.zeros((n, 6), dtype=np.float32)
+    valid_indices: list[int] = []
 
     _session_log(
         f"frame={frame_index} masks={n} target={target_w}x{target_h} "
@@ -530,36 +535,44 @@ def _build_result(
             y0 = float((pred_boxes_np[idx, 1] + offset_y) * scale_y)
             x1 = float((pred_boxes_np[idx, 2] + offset_x) * scale_x)
             y1 = float((pred_boxes_np[idx, 3] + offset_y) * scale_y)
-            boxes[idx, 0] = x0
-            boxes[idx, 1] = y0
-            boxes[idx, 2] = max(0.0, x1 - x0)
-            boxes[idx, 3] = max(0.0, y1 - y0)
-            lx0 = max(0, int(round(x0 - source_x)))
-            ly0 = max(0, int(round(y0 - source_y)))
-            lx1 = min(resized_mask.shape[1], max(lx0, int(round(x1 - source_x))))
-            ly1 = min(resized_mask.shape[0], max(ly0, int(round(y1 - source_y))))
+            bx0 = max(source_left, int(np.floor(x0)))
+            by0 = max(source_top, int(np.floor(y0)))
+            bx1 = min(source_right, int(np.ceil(x1)))
+            by1 = min(source_bottom, int(np.ceil(y1)))
+            if bx1 <= bx0 or by1 <= by0:
+                continue
+            boxes[idx, :4] = (bx0, by0, bx1, by1)
+            lx0 = max(0, bx0 - source_left)
+            ly0 = max(0, by0 - source_top)
+            lx1 = min(resized_mask.shape[1], bx1 - source_left)
+            ly1 = min(resized_mask.shape[0], by1 - source_top)
             if lx1 > lx0 and ly1 > ly0:
                 resized_mask = resized_mask[ly0:ly1, lx0:lx1].copy()
         else:
             ys, xs = np.where(resized_mask > 0)
             if xs.size and ys.size:
-                boxes[idx, 0] = source_x + float(xs.min())
-                boxes[idx, 1] = source_y + float(ys.min())
-                boxes[idx, 2] = float(xs.max() + 1 - xs.min())
-                boxes[idx, 3] = float(ys.max() + 1 - ys.min())
+                bx0 = source_left + int(xs.min())
+                by0 = source_top + int(ys.min())
+                bx1 = source_left + int(xs.max()) + 1
+                by1 = source_top + int(ys.max()) + 1
+                boxes[idx, :4] = (bx0, by0, bx1, by1)
                 cropped = resized_mask[int(ys.min()) : int(ys.max()) + 1, int(xs.min()) : int(xs.max()) + 1].copy()
                 resized_mask = cropped
-                boxes[idx, 2] = cropped.shape[1] - 1
-                boxes[idx, 3] = cropped.shape[0] - 1
             else:
-                boxes[idx, 0] = source_x
-                boxes[idx, 1] = source_y
-                boxes[idx, 2] = target_w - 1
-                boxes[idx, 3] = target_h - 1
+                boxes[idx, :4] = (
+                    source_left,
+                    source_top,
+                    source_right,
+                    source_bottom,
+                )
 
         trex_masks.append(resized_mask)
+        valid_indices.append(idx)
         boxes[idx, 4] = float(conf_np[idx]) if idx < len(conf_np) else 0.0
         boxes[idx, 5] = float(cls_np[idx]) if idx < len(cls_np) else 0.0
+
+    if len(valid_indices) != n:
+        boxes = np.ascontiguousarray(boxes[valid_indices], dtype=np.float32)
 
     return TRex.Result(  # type: ignore[attr-defined]
         int(frame_index),

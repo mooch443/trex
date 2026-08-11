@@ -262,9 +262,11 @@ class FakeOffset:
 
 
 class FakeTileGeometry:
-    def __init__(self, offset=None, scale=None):
+    def __init__(self, offset=None, scale=None, **values):
         self._offset = offset or FakeOffset()
         self._scale = scale or FakeScale()
+        for name, value in values.items():
+            setattr(self, name, value)
 
     def offset(self):
         return self._offset
@@ -515,28 +517,35 @@ class Sam3InterfaceTest(unittest.TestCase):
         self.assertEqual(masks_np.shape[0], 2)
         self.assertEqual(FakePredictor.non_overlap_calls, 1)
 
-    def test_build_result_inverse_maps_letterboxed_masks(self):
+    def test_build_result_emits_integer_xyxy_with_exact_local_mask_size(self):
+        geometry = FakeTileGeometry(
+            offset=FakeOffset(5.0, 7.0),
+            scale=FakeScale(2.0, 3.0),
+            source_x=10.0,
+            source_y=20.0,
+            source_width=20.0,
+            source_height=30.0,
+            tile_x=0.0,
+            tile_y=0.0,
+            tile_width=8.0,
+            tile_height=8.0,
+        )
         result = sam3._build_result(
             frame_index=0,
-            scale=FakeScale(2.0, 2.0),
-            offset=FakeOffset(-2.0, 0.0),
-            image_shape=(6, 8),
-            masks_np=np.asarray(
-                [[[0, 0, 1, 1, 1, 1, 0, 0],
-                  [0, 0, 1, 1, 1, 1, 0, 0],
-                  [0, 0, 1, 1, 1, 1, 0, 0],
-                  [0, 0, 1, 1, 1, 1, 0, 0],
-                  [0, 0, 1, 1, 1, 1, 0, 0],
-                  [0, 0, 1, 1, 1, 1, 0, 0]]],
-                dtype=np.uint8,
-            ),
+            geometry=geometry,
+            image_shape=(8, 8),
+            masks_np=np.ones((1, 8, 8), dtype=np.uint8),
             conf_np=np.asarray([0.9], dtype=np.float32),
             cls_np=np.asarray([3.0], dtype=np.float32),
+            pred_boxes_np=np.asarray([[1.2, 1.4, 4.1, 5.2]], dtype=np.float32),
         )
 
         self.assertEqual(result.boxes.shape, (1, 6))
-        self.assertAlmostEqual(float(result.boxes[0, 0]), 0.0, places=5)
-        self.assertAlmostEqual(float(result.boxes[0, 2]), 7.0, places=5)
+        np.testing.assert_array_equal(
+            result.boxes[0, :4],
+            np.asarray([12.0, 25.0, 19.0, 37.0], dtype=np.float32),
+        )
+        self.assertEqual(result.masks[0].shape, (12, 7))
 
     def test_predict_frame_uses_live_thresholds_from_trex_settings(self):
         FakePredictor.box_detection_score_overrides[(0, 0)] = 0.6
