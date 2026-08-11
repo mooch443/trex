@@ -98,6 +98,50 @@ def selected_channel(system: str, machine: str, cuda: str) -> str:
     return "cpu"
 
 
+def emit_resolver_diagnostics(
+    *,
+    system: str,
+    machine: str,
+    cuda: str,
+    profile: str,
+    channel: str,
+    wheels: Path,
+    installs: list[list[str]],
+    result: subprocess.CompletedProcess[str],
+) -> None:
+    """Expose the exact offline resolver inputs and pip results in CI logs."""
+    case = f"{system}/{machine}/cuda={cuda or 'none'}/{profile}/{channel}"
+    print(f"Resolver case: {case}")
+    if os.environ.get("GITHUB_ACTIONS") == "true":
+        print(f"::group::Offline pip resolver details ({case})")
+    print("Recorded pip invocation(s):")
+    if installs:
+        for install in installs:
+            print(json.dumps(install))
+    else:
+        print("<none>")
+    print("Offline wheel set:")
+    for wheel in sorted(wheels.glob("*.whl")):
+        print(f"  {wheel.name}")
+    print("Captured post-link stdout:")
+    print(result.stdout.rstrip() or "<empty>")
+    print("Captured post-link stderr:")
+    print(result.stderr.rstrip() or "<empty>")
+    installed = subprocess.run(
+        [sys.executable, "-m", "pip", "list", "--format=freeze"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    print("Installed distributions after the resolver transaction:")
+    print(installed.stdout.rstrip() or "<empty>")
+    if installed.stderr:
+        print(installed.stderr.rstrip())
+    if os.environ.get("GITHUB_ACTIONS") == "true":
+        print("::endgroup::")
+    sys.stdout.flush()
+
+
 def run() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--system", required=True)
@@ -297,12 +341,24 @@ def run() -> None:
         )
         result = subprocess.run(command, env=environment, capture_output=True, text=True, timeout=120)
         output = result.stdout + result.stderr
-        sys.stdout.write(result.stdout)
-        sys.stderr.write(result.stderr)
+        events = (
+            [json.loads(line) for line in state.read_text(encoding="utf-8").splitlines()]
+            if state.exists()
+            else []
+        )
+        installs = [event for event in events if "install" in event]
+        emit_resolver_diagnostics(
+            system=options.system,
+            machine=options.machine,
+            cuda=options.cuda,
+            profile=options.profile,
+            channel=channel,
+            wheels=wheels,
+            installs=installs,
+            result=result,
+        )
         if result.returncode:
             raise AssertionError(output)
-        events = [json.loads(line) for line in state.read_text(encoding="utf-8").splitlines()]
-        installs = [event for event in events if "install" in event]
         if len(installs) != 1:
             raise AssertionError(f"expected one real pip install, got {installs}\n{output}")
         install = installs[0]
