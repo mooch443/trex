@@ -7,6 +7,7 @@
 #include <gui/DynamicGUI.h>
 #include <gui/DynamicVariable.h>
 #include <gui/LabeledField.h>
+#include <gui/Passthrough.h>
 #include <gui/dyn/ParseText.h>
 #include <gui/dyn/ResolveVariable.h>
 #include <gui/types/ListItemTypes.h>
@@ -86,9 +87,28 @@ static void collect_rendered_text_strings(const Layout::Ptr& node, std::vector<s
     }
 }
 
+/// Local settings are only readable as strings now, so parse the value back
+/// into the declared type for the typed expectations below.
+template<typename T>
+static T local_value(const Context& context, std::string_view name) {
+    return Meta::fromStr<T>(context.local_setting_value_string(name));
+}
+
 static Vec2 center_of(Drawable& drawable) {
     const auto bounds = drawable.global_bounds();
     return Vec2(bounds.x + bounds.width * 0.5, bounds.y + bounds.height * 0.5);
+}
+
+template<typename Fn>
+static std::pair<std::string, std::string> capture_stdout(Fn&& fn) {
+    testing::internal::CaptureStdout();
+    try {
+        auto result = fn();
+        return {std::move(result), testing::internal::GetCapturedStdout()};
+    } catch(...) {
+        (void)testing::internal::GetCapturedStdout();
+        throw;
+    }
 }
 
 static std::shared_ptr<Drawable> update_until_named(
@@ -183,14 +203,14 @@ TEST(DynamicGUILocalSettings, ParsesPredefinedAliasesAndDefaults) {
     Context context;
     ASSERT_NO_THROW(context.apply_local_settings(defaults));
 
-    EXPECT_TRUE(context.local_setting_ref("local.enabled").value<bool>());
-    EXPECT_EQ(context.local_setting_ref("local.count").value<int>(), 4);
-    EXPECT_DOUBLE_EQ(context.local_setting_ref("local.ratio").value<double>(), 0.5);
-    EXPECT_EQ(context.local_setting_ref("local.label").value<std::string>(), "hello");
-    EXPECT_EQ(context.local_setting_ref("local.dataset").value<file::Path>(), file::Path("/tmp/data.yaml"));
-    EXPECT_THAT(context.local_setting_ref("local.selected_ids").value<std::vector<int>>(), ::testing::ElementsAre(1, 2, 3));
-    EXPECT_EQ(context.local_setting_ref("local.origin").value<Vec2>(), Vec2(2, 3));
-    EXPECT_EQ(context.local_setting_ref("local.panel_size").value<Size2>(), Size2(100, 40));
+    EXPECT_TRUE(local_value<bool>(context, "local.enabled"));
+    EXPECT_EQ(local_value<int>(context, "local.count"), 4);
+    EXPECT_DOUBLE_EQ(local_value<double>(context, "local.ratio"), 0.5);
+    EXPECT_EQ(local_value<std::string>(context, "local.label"), "hello");
+    EXPECT_EQ(local_value<file::Path>(context, "local.dataset"), file::Path("/tmp/data.yaml"));
+    EXPECT_THAT(local_value<std::vector<int>>(context, "local.selected_ids"), ::testing::ElementsAre(1, 2, 3));
+    EXPECT_EQ(local_value<Vec2>(context, "local.origin"), Vec2(2, 3));
+    EXPECT_EQ(local_value<Size2>(context, "local.panel_size"), Size2(100, 40));
 }
 
 TEST(DynamicGUILocalSettings, SettingsWidgetsBindToLocalValuesWithoutGlobalSettings) {
@@ -237,8 +257,8 @@ TEST(DynamicGUILocalSettings, SettingsWidgetsBindToLocalValuesWithoutGlobalSetti
 
     EXPECT_FALSE(GlobalSettings::has_value("local_string"));
     EXPECT_FALSE(GlobalSettings::has_value("local_bool"));
-    EXPECT_EQ(context.local_setting_ref("local.local_string").value<std::string>(), "abc");
-    EXPECT_EQ(context.local_setting_ref("local.local_ids").value<std::vector<int>>(), std::vector<int>({5, 6}));
+    EXPECT_EQ(local_value<std::string>(context, "local.local_string"), "abc");
+    EXPECT_EQ(local_value<std::vector<int>>(context, "local.local_ids"), std::vector<int>({5, 6}));
 }
 
 TEST(DynamicGUILocalSettings, LocalExpressionsResolveCurrentValues) {
@@ -261,12 +281,18 @@ TEST(DynamicGUILocalSettings, LocalExpressionsResolveCurrentValues) {
     context.apply_local_settings(defaults);
     context.defaults = std::move(defaults);
     State state;
+    auto handler = std::make_shared<CurrentObjectHandler>();
+    state._current_object_handler = handler;
 
     EXPECT_EQ(parse_text("{local.title}", context, state), "before");
     EXPECT_EQ(parse_text("{if:{local.enabled}:yes:no}", context, state), "yes");
 
-    context.local_setting_ref("local.title").get().set_value_from_string("after");
-    context.local_setting_ref("local.enabled").get() = false;
+    context.update_local_setting(handler.get(), "local.title", [](sprite::Reference& ref) {
+        ref.get().set_value_from_string("after");
+    });
+    context.update_local_setting(handler.get(), "local.enabled", [](sprite::Reference& ref) {
+        ref.get() = false;
+    });
     EXPECT_EQ(parse_text("{local.title}", context, state), "after");
     EXPECT_EQ(parse_text("{if:{local.enabled}:yes:no}", context, state), "no");
 }
@@ -282,14 +308,162 @@ TEST(DynamicGUILocalSettings, SetLocalSystemActionUpdatesDeclaredValue) {
     ASSERT_TRUE(button);
     graph.wrap_object(parent);
 
-    EXPECT_EQ(gui.context.local_setting_ref("local.tab").value<int>(), 0);
+    EXPECT_EQ(local_value<int>(gui.context, "local.tab"), 0);
 
     const auto button_center = center_of(*button);
     ASSERT_NO_THROW(graph.mouse_move(button_center.x, button_center.y));
     ASSERT_NO_THROW(graph.mouse_down(true));
     ASSERT_NO_THROW(graph.mouse_up(true));
 
-    EXPECT_EQ(gui.context.local_setting_ref("local.tab").value<int>(), 1);
+    EXPECT_EQ(local_value<int>(gui.context, "local.tab"), 1);
+}
+
+TEST(DynamicGUIButtonTest, RoutesConditionalActionFromCurrentLocalValue) {
+    constexpr std::string_view json = R"json(
+{
+  "locals": {
+    "tab": { "type": "int", "value": 0 }
+  },
+  "objects": [
+    {
+      "type": "button",
+      "name": "export-button",
+      "text": "Export",
+      "size": [160, 40],
+      "action": "{if:{equal:{local.tab}:0}:export:export-behavior}"
+    }
+  ]
+}
+)json";
+
+    auto loaded = load(std::string(json));
+    ASSERT_TRUE(loaded.has_value()) << loaded.error();
+
+    auto [defaults, objects] = std::move(loaded.value());
+    size_t export_actions = 0;
+    size_t behavior_actions = 0;
+    Context context{
+        ActionFunc("export", [&](const Action&) {
+            ++export_actions;
+        }),
+        ActionFunc("export-behavior", [&](const Action&) {
+            ++behavior_actions;
+        })
+    };
+    context.apply_local_settings(defaults);
+    context.defaults = std::move(defaults);
+
+    State state;
+    auto handler = std::make_shared<CurrentObjectHandler>();
+    state._current_object_handler = handler;
+
+    DrawStructure graph(640, 480);
+    auto root = parse_object(nullptr, objects.get_array().front().get_object(), context, state, context.defaults);
+    ASSERT_TRUE(root.is<Button>());
+    ASSERT_NO_THROW((void)DynamicGUI::update_objects(nullptr, graph, root, context, state));
+
+    auto click_button = [&]() {
+        graph.wrap_object(*root);
+        const auto button_center = center_of(*root);
+        EXPECT_NO_THROW(graph.mouse_move(button_center.x, button_center.y));
+        EXPECT_NO_THROW(graph.mouse_down(true));
+        EXPECT_NO_THROW(graph.mouse_up(true));
+    };
+
+    /// reset counters
+    export_actions = behavior_actions = 0;
+    click_button();
+    EXPECT_EQ(export_actions, 1u);
+    EXPECT_EQ(behavior_actions, 0u);
+
+    context.update_local_setting(handler.get(), "local.tab", [](auto&ref) {
+        ref.get() = 1;
+    });
+
+    /// reset counters, we have a local setting called "local.tab" now with value int(1).
+    /// before, it was 0. so next we should select behavior:
+    export_actions = behavior_actions = 0;
+
+    click_button();
+    EXPECT_EQ(export_actions, 0u);
+    EXPECT_EQ(behavior_actions, 1u);
+}
+
+TEST(DynamicGUIButtonTest, KeepsInlineConditionTextAndActionInSyncAcrossMissingScopeChanges) {
+    constexpr std::string_view json = R"json(
+{
+  "type": "button",
+  "name": "conditional-button",
+  "text": "{if:{not:{.missing}}:primary:fallback}",
+  "size": [160, 40],
+  "action": "{if:{not:{.missing}}:primary:fallback}"
+}
+)json";
+
+    glz::json_t object;
+    const auto parse_error = glz::read_json(object, json);
+    ASSERT_EQ(parse_error, glz::error_code::none) << glz::format_error(parse_error, json);
+
+    size_t primary_actions = 0;
+    size_t fallback_actions = 0;
+    Context context{
+        ActionFunc("primary", [&](const Action&) { ++primary_actions; }),
+        ActionFunc("fallback", [&](const Action&) { ++fallback_actions; })
+    };
+    State state;
+    auto handler = std::make_shared<CurrentObjectHandler>();
+    state._current_object_handler = handler;
+
+    DrawStructure graph(640, 480);
+    auto root = parse_object(nullptr, object.get_object(), context, state, context.defaults);
+    ASSERT_TRUE(root.is<Button>());
+    auto button = root.to<Button>();
+
+    auto update_button = [&]() {
+        EXPECT_NO_THROW((void)DynamicGUI::update_objects(nullptr, graph, root, context, state));
+        graph.wrap_object(*root);
+    };
+    auto click_button = [&]() {
+        const auto button_center = center_of(*root);
+        EXPECT_NO_THROW(graph.mouse_move(button_center.x, button_center.y));
+        EXPECT_NO_THROW(graph.mouse_down(true));
+        EXPECT_NO_THROW(graph.mouse_up(true));
+    };
+
+    /// reset actions counter
+    primary_actions = fallback_actions = 0;
+
+    update_button();
+    EXPECT_EQ(button->txt(), "primary");
+    click_button();
+    EXPECT_EQ(primary_actions, 1u);
+    EXPECT_EQ(fallback_actions, 0u);
+
+    {
+        auto scope = handler->scope();
+        scope.set("missing", VarFunc("missing", [](const VarProps&) -> bool {
+            return true;
+        }).second);
+
+        /// reset actions counter. now we should get fallback because missing is true
+        primary_actions = fallback_actions = 0;
+
+        update_button();
+        EXPECT_EQ(button->txt(), "fallback");
+        click_button();
+        EXPECT_EQ(primary_actions, 0u);
+        EXPECT_EQ(fallback_actions, 1u);
+    }
+
+    /// reset actions counter. we should get primary again because
+    /// the scope should have been destroyed
+    primary_actions = fallback_actions = 0;
+
+    update_button();
+    EXPECT_EQ(button->txt(), "primary");
+    click_button();
+    EXPECT_EQ(primary_actions, 1u);
+    EXPECT_EQ(fallback_actions, 0u);
 }
 
 TEST(DynamicGUISystemVariables, RelativeMouseUsesCurrentOrNamedElementTransform) {
@@ -318,7 +492,7 @@ TEST(DynamicGUISystemVariables, RelativeMouseUsesCurrentOrNamedElementTransform)
     ASSERT_NO_THROW(graph.mouse_move(event_global_mouse.x, event_global_mouse.y));
     ASSERT_NO_THROW(graph.mouse_down(true));
     ASSERT_NO_THROW(graph.mouse_up(true));
-    EXPECT_EQ(gui.context.local_setting_ref("local.tab").value<int>(), 31);
+    EXPECT_EQ(local_value<int>(gui.context, "local.tab"), 31);
 
     EXPECT_EQ(
         parse_text("{mouse_relative}", gui.context, gui.state),
@@ -527,7 +701,10 @@ TEST(DynamicGUILocalSettings, LocalValuesSurviveReloadWhenAliasMatches) {
 
     Context context;
     context.apply_local_settings(defaults);
-    context.local_setting_ref("local.title").get().set_value_from_string("edited");
+    auto handler = std::make_shared<CurrentObjectHandler>();
+    context.update_local_setting(handler.get(), "local.title", [](sprite::Reference& ref) {
+        ref.get().set_value_from_string("edited");
+    });
 
     auto second = load(std::string(json));
     ASSERT_TRUE(second.has_value()) << second.error();
@@ -535,7 +712,7 @@ TEST(DynamicGUILocalSettings, LocalValuesSurviveReloadWhenAliasMatches) {
     (void)reloaded_objects;
     context.apply_local_settings(reloaded_defaults);
 
-    EXPECT_EQ(context.local_setting_ref("local.title").value<std::string>(), "edited");
+    EXPECT_EQ(local_value<std::string>(context, "local.title"), "edited");
 }
 
 TEST(DynamicGUILocalSettings, ChangedAliasReinitializesLocalValue) {
@@ -563,7 +740,10 @@ TEST(DynamicGUILocalSettings, ChangedAliasReinitializesLocalValue) {
 
     Context context;
     context.apply_local_settings(defaults);
-    context.local_setting_ref("local.value").get().set_value_from_string("edited");
+    auto handler = std::make_shared<CurrentObjectHandler>();
+    context.update_local_setting(handler.get(), "local.value", [](sprite::Reference& ref) {
+        ref.get().set_value_from_string("edited");
+    });
 
     auto second = load(std::string(int_json));
     ASSERT_TRUE(second.has_value()) << second.error();
@@ -571,7 +751,7 @@ TEST(DynamicGUILocalSettings, ChangedAliasReinitializesLocalValue) {
     (void)reloaded_objects;
     context.apply_local_settings(reloaded_defaults);
 
-    EXPECT_EQ(context.local_setting_ref("local.value").value<int>(), 7);
+    EXPECT_EQ(local_value<int>(context, "local.value"), 7);
 }
 
 TEST(DynamicGUILocalSettings, InvalidAliasReportsAvailableAliases) {
@@ -914,6 +1094,68 @@ TYPED_TEST(ParseAndResolveTest, IfReplacement)
     ASSERT_EQ(result, "correct");
 }
 
+TYPED_TEST(ParseAndResolveTest, UnknownFunctionInConditionalRaises)
+{
+    constexpr std::string_view json = R"json(
+{
+  "locals": {
+    "tab": { "type": "int", "value": 0 }
+  },
+  "objects": []
+}
+)json";
+
+    auto loaded = load(std::string(json));
+    ASSERT_TRUE(loaded.has_value()) << loaded.error();
+
+    auto [defaults, objects] = std::move(loaded.value());
+    (void)objects;
+    Context context;
+    context.apply_local_settings(defaults);
+    State state;
+
+    EXPECT_THROW(
+        run_parser<TypeParam>(
+            "{if:{equals:{local.tab}:0}:export:export-behavior}",
+            context,
+            state),
+        std::exception);
+}
+
+TYPED_TEST(ParseAndResolveTest, InlineIfRaisesForMissingRequiredTerms)
+{
+    constexpr std::array cases{
+        std::string_view{"{if:{not:{missing}}:yes:no}"},
+        std::string_view{"{if:{||:{missing}:true}:yes:no}"},
+        std::string_view{"{if:{&&:{missing}:true}:yes:no}"},
+        std::string_view{"{if:{equal:{missing}:null}:yes:no}"}
+    };
+
+    for(const auto expression : cases) {
+        SCOPED_TRACE(expression);
+        State state;
+        Context context;
+        EXPECT_THROW(
+            run_parser<TypeParam>(std::string(expression), context, state),
+            std::exception);
+    }
+}
+
+TYPED_TEST(ParseAndResolveTest, OptionalMissingInlineConditionIsSilent)
+{
+    State state;
+    Context context;
+    auto [result, diagnostics] = capture_stdout([&]() {
+        return run_parser<TypeParam>(
+            "{if:{.missing_optional}:yes:no}",
+            context,
+            state);
+    });
+
+    EXPECT_EQ(result, "no");
+    EXPECT_THAT(diagnostics, ::testing::Not(::testing::HasSubstr("missing_optional")));
+}
+
 TYPED_TEST(ParseAndResolveTest, LazyEvalReplacement)
 {
     State    state;
@@ -1040,16 +1282,78 @@ TEST(ConditionElementTest, EvaluatesOnlySelectedBranch)
     }
 }
 
-TYPED_TEST(ParseAndResolveTest, NoReplacement)
+TEST(ConditionElementTest, ResolutionFailurePropagates)
+{
+    constexpr std::string_view json = R"json(
+{
+  "type": "condition",
+  "var": "{condition_value}",
+  "then": {
+    "type": "stext",
+    "text": "then"
+  },
+  "else": {
+    "type": "stext",
+    "text": "else"
+  }
+}
+)json";
+
+    glz::json_t object;
+    const auto parse_error = glz::read_json(object, json);
+    ASSERT_EQ(parse_error, glz::error_code::none) << glz::format_error(parse_error, json);
+
+    enum class ConditionMode {
+        True,
+        False,
+        Fail
+    };
+
+    ConditionMode mode = ConditionMode::True;
+    Context context{
+        VarFunc("condition_value", [&](const VarProps&) -> bool {
+            if(mode == ConditionMode::Fail)
+                throw std::runtime_error("condition variable failed");
+            return mode == ConditionMode::True;
+        })
+    };
+    State state;
+    auto handler = std::make_shared<CurrentObjectHandler>();
+    state._current_object_handler = handler;
+
+    DrawStructure graph(640, 480);
+    auto root = parse_object(nullptr, object.get_object(), context, state, context.defaults);
+    ASSERT_TRUE(root.is<Fallthrough>());
+    auto pass = root.to<Fallthrough>();
+
+    mode = ConditionMode::True;
+    ASSERT_NO_THROW((void)DynamicGUI::update_objects(nullptr, graph, root, context, state));
+    ASSERT_TRUE(pass->object().is<StaticText>());
+    EXPECT_EQ(pass->object().to<StaticText>()->text(), "then");
+
+    mode = ConditionMode::False;
+    ASSERT_NO_THROW((void)DynamicGUI::update_objects(nullptr, graph, root, context, state));
+    ASSERT_TRUE(pass->object().is<StaticText>());
+    EXPECT_EQ(pass->object().to<StaticText>()->text(), "else");
+
+    mode = ConditionMode::Fail;
+    ASSERT_THROW(
+        (void)DynamicGUI::update_objects(nullptr, graph, root, context, state),
+        std::exception);
+
+    mode = ConditionMode::True;
+    ASSERT_NO_THROW((void)DynamicGUI::update_objects(nullptr, graph, root, context, state));
+    ASSERT_TRUE(pass->object().is<StaticText>());
+    EXPECT_EQ(pass->object().to<StaticText>()->text(), "then");
+}
+
+TYPED_TEST(ParseAndResolveTest, MissingRequiredVariableRaises)
 {
     State   state;
     Context ctx;
-    if constexpr(std::is_same_v<TypeParam, ParseTextTag>) {
-        auto result = run_parser<TypeParam>("{missing_variable}", ctx, state);
-        ASSERT_EQ(result, "null");
-    } else {
-        ASSERT_THROW(run_parser<TypeParam>("{missing_variable}", ctx, state), std::exception);
-    }
+    ASSERT_THROW(run_parser<TypeParam>("{missing_variable}", ctx, state), std::exception);
+
+    EXPECT_EQ(run_parser<TypeParam>("{.missing_variable}", ctx, state), "");
 }
 
 TYPED_TEST(ParseAndResolveTest, EscapeCharacters)
@@ -1385,7 +1689,7 @@ TYPED_TEST(ParseAndResolveTest, HtmlifySyntax)
     ASSERT_EQ(result, "classname::value&lt;<key>int</key>&gt;(parm)<br/><a>https://address/</a>");
 }
 
-TYPED_TEST(ParseAndResolveTest, ExceptionHandling)
+TYPED_TEST(ParseAndResolveTest, VariableExceptionPropagates)
 {
     State   state;
     Context ctx{
@@ -1393,8 +1697,7 @@ TYPED_TEST(ParseAndResolveTest, ExceptionHandling)
             throw std::runtime_error("An exception"); // NOLINT
         })
     };
-    auto result = run_parser<TypeParam>("{exception_var}", ctx, state);
-    ASSERT_EQ(result, "null");
+    ASSERT_THROW(run_parser<TypeParam>("{exception_var}", ctx, state), std::exception);
 }
 
 TYPED_TEST(ParseAndResolveTest, NestedForKeepsOuterState)
@@ -1437,12 +1740,13 @@ TYPED_TEST(ParseAndResolveTest, AtLooksUpObjectValueWithWhitespace)
     ASSERT_EQ(result, "value");
 }
 
-TYPED_TEST(ParseAndResolveTest, AtReturnsNullForMissingObjectKey)
+TYPED_TEST(ParseAndResolveTest, AtRaisesForMissingObjectKey)
 {
     State   state;
     Context ctx;
-    auto result = run_parser<TypeParam>("{at:missing:\\{key:value,other:ignored\\}}", ctx, state);
-    ASSERT_EQ(result, "null");
+    ASSERT_THROW(
+        run_parser<TypeParam>("{at:missing:\\{key:value,other:ignored\\}}", ctx, state),
+        std::exception);
 }
 
 /*TYPED_TEST(ParseAndResolveTest, AtReturnsNullForMalformedObjectEntry)
@@ -1495,8 +1799,6 @@ TYPED_TEST(ParseAndResolveTest, ArithmeticMultipleNestedOperations)
     ASSERT_EQ(result, "110");
 }
 
-// Invalid variable inside a nested operation – ParseText returns "null",
-// ResolveTag raises (same semantics as the NoReplacement test)
 TYPED_TEST(ParseAndResolveTest, InvalidNestedOperation)
 {
     State   state;
@@ -1505,12 +1807,9 @@ TYPED_TEST(ParseAndResolveTest, InvalidNestedOperation)
         VarFunc("video_length",[](const VarProps&) -> int  { return 50; }),
         VarFunc("window_size", [](const VarProps&) -> Size2{ return Size2(100, 20); })
     };
-    if constexpr(std::is_same_v<TypeParam, ParseTextTag>) {
-        auto result = run_parser<TypeParam>("{*: {+: {invalid}:{video_length}}: {/: {window_size.w} : {video_length}}}", ctx, state);
-        ASSERT_EQ(result, "null");
-    } else {
-        ASSERT_THROW(run_parser<TypeParam>("{*: {+: {invalid}:{video_length}}: {/: {window_size.w} : {video_length}}}", ctx, state), std::exception);
-    }
+    ASSERT_THROW(
+        run_parser<TypeParam>("{*: {+: {invalid}:{video_length}}: {/: {window_size.w} : {video_length}}}", ctx, state),
+        std::exception);
 }
 
 // Same invalid sub‑expression, but embedded in a literal string context
@@ -1523,12 +1822,7 @@ TYPED_TEST(ParseAndResolveTest, InvalidNestedString)
         VarFunc("window_size", [](const VarProps&) -> Size2{ return Size2(100, 20); })
     };
     constexpr const char* pattern = "This is a string: {*: {+: {invalid}:{video_length}}: {/: {window_size.w} : {video_length}}}";
-    if constexpr(std::is_same_v<TypeParam, ParseTextTag>) {
-        auto result = run_parser<TypeParam>(pattern, ctx, state);
-        ASSERT_EQ(result, "This is a string: null");
-    } else {
-        ASSERT_THROW(run_parser<TypeParam>(pattern, ctx, state), std::exception);
-    }
+    ASSERT_THROW(run_parser<TypeParam>(pattern, ctx, state), std::exception);
 }
 
 // ---------------------------------------------------------------------------
@@ -2749,6 +3043,108 @@ TEST(EventBindingTest, ClickActionsOnlyFireOnMouseButtonWithScopedContext) {
 
     ASSERT_NO_THROW(graph.mouse_up(true));
     ASSERT_EQ(received_actions.size(), 1u);
+}
+
+TEST(EventBindingTest, NestedEachClickPreservesOuterAndInnerScopedContext) {
+    constexpr std::string_view json = R"json(
+{
+  "type": "each",
+  "var": "outer_items",
+  "as": "outer",
+  "do": {
+    "type": "each",
+    "var": "inner_items",
+    "as": "inner",
+    "do": {
+      "type": "rect",
+      "name": "cell-{outer.name}-{inner.name}",
+      "pos": "[{*:40:{index}},{*:40:{pindex}}]",
+      "size": [30, 30],
+      "origin": [0, 0],
+      "clickable": true,
+      "click": "select:{outer.name}:{inner.name}:{index}:{pindex}:{runtime_value}"
+    }
+  }
+}
+)json";
+
+    glz::json_t obj;
+    const auto parse_error = glz::read_json(obj, json);
+    ASSERT_EQ(parse_error, glz::error_code::none) << glz::format_error(parse_error, json);
+
+    std::vector<sprite::Map> outer_data(2);
+    outer_data[0]["name"] = std::string("outer-alpha");
+    outer_data[1]["name"] = std::string("outer-beta");
+    std::vector<std::shared_ptr<VarBase_t>> outer_items;
+    for(size_t idx = 0; idx < outer_data.size(); ++idx) {
+        outer_items.emplace_back(std::shared_ptr<VarBase_t>(new Variable([idx, &outer_data](const VarProps&) -> sprite::Map& {
+            return outer_data[idx];
+        })));
+    }
+
+    std::vector<sprite::Map> inner_data(2);
+    inner_data[0]["name"] = std::string("inner-alpha");
+    inner_data[1]["name"] = std::string("inner-beta");
+    std::vector<std::shared_ptr<VarBase_t>> inner_items;
+    for(size_t idx = 0; idx < inner_data.size(); ++idx) {
+        inner_items.emplace_back(std::shared_ptr<VarBase_t>(new Variable([idx, &inner_data](const VarProps&) -> sprite::Map& {
+            return inner_data[idx];
+        })));
+    }
+
+    std::vector<Action> received_actions;
+    Context context{
+        VarFunc("outer_items", [&outer_items](const VarProps&) -> std::vector<std::shared_ptr<VarBase_t>>& {
+            return outer_items;
+        }),
+        VarFunc("inner_items", [&inner_items](const VarProps&) -> std::vector<std::shared_ptr<VarBase_t>>& {
+            return inner_items;
+        })
+    };
+    context.actions["select"] = [&received_actions](Action action) {
+        received_actions.push_back(std::move(action));
+    };
+
+    State state;
+    auto handler = std::make_shared<CurrentObjectHandler>();
+    state._current_object_handler = handler;
+
+    DrawStructure graph(640, 480);
+    auto root = parse_object(nullptr, obj.get_object(), context, state, context.defaults);
+    ASSERT_TRUE(root);
+
+    ASSERT_NO_THROW((void)DynamicGUI::update_objects(nullptr, graph, root, context, state));
+    graph.wrap_object(*root);
+
+    ASSERT_TRUE(handler->capture_scoped_variable_values().empty());
+
+    auto* target = graph.find("cell-outer-beta-inner-alpha");
+    ASSERT_NE(target, (Drawable*)NULL);
+
+    const auto target_center = center_of(*target);
+    ASSERT_NO_THROW(graph.mouse_move(target_center.x, target_center.y));
+
+    {
+        auto ambient_scope = handler->scope();
+        ambient_scope.set("runtime_value", "ambient");
+        ambient_scope.set("index", "99");
+        ambient_scope.set("pindex", "98");
+        const auto ambient_snapshot = handler->capture_scoped_variable_values();
+
+        ASSERT_NO_THROW(graph.mouse_down(true));
+
+        ASSERT_EQ(received_actions.size(), 1u);
+        EXPECT_EQ(received_actions.front().name, "select");
+        EXPECT_THAT(
+            received_actions.front().parameters,
+            ::testing::ElementsAre("outer-beta", "inner-alpha", "0", "1", "ambient"));
+
+        ASSERT_NO_THROW(graph.mouse_up(true));
+        EXPECT_EQ(handler->capture_scoped_variable_values().values, ambient_snapshot.values);
+        EXPECT_EQ(parse_text("{runtime_value}:{index}:{pindex}", context, state), "ambient:99:98");
+    }
+
+    EXPECT_TRUE(handler->capture_scoped_variable_values().empty());
 }
 
 TEST(LineElementTest, ParsesLineFromEndpoints)

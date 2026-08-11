@@ -934,7 +934,7 @@ struct SettingsScene::Data {
                             return _done_exist_checks.at(path);
                         }
                         
-                        throw std::runtime_error("Still checking status...");
+                        return false;
                     }),
                     VarFunc("resulting_path", [this](const VarProps&) -> file::Path {
                         if(not last_output_name
