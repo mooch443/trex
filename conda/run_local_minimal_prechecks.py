@@ -156,6 +156,10 @@ def main() -> int:
         )
 
     run(
+        "workflow runner configuration tests",
+        [sys.executable, str(CONDA_DIR / "test_workflow_configuration.py")],
+    )
+    run(
         "minimal validator unit tests",
         [sys.executable, str(CONDA_DIR / "test_validate_minimal.py")],
     )

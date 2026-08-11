@@ -8,6 +8,7 @@ on:
       - "conda/test_post_link_simulation.py"
       - "conda/test_post_link_real_resolver.py"
       - "conda/test_validate_minimal.py"
+      - "conda/test_workflow_configuration.py"
       - "conda/validate_minimal.py"
       - "conda/validate_post_link_installation.py"
       - "conda/run_local_minimal_prechecks.py"
@@ -22,6 +23,7 @@ on:
       - "conda/test_post_link_simulation.py"
       - "conda/test_post_link_real_resolver.py"
       - "conda/test_validate_minimal.py"
+      - "conda/test_workflow_configuration.py"
       - "conda/validate_minimal.py"
       - "conda/validate_post_link_installation.py"
       - "conda/run_local_minimal_prechecks.py"
@@ -51,6 +53,7 @@ jobs:
           python-version: "3.11"
       - name: Simulate post-link configurations
         run: |
+          python conda/test_workflow_configuration.py
           python conda/test_validate_minimal.py
           python conda/test_post_link_simulation.py
 
@@ -71,7 +74,7 @@ jobs:
           - { os: ubuntu-24.04, system: Linux, machine: x86_64, cuda: "13.0" }
           - { os: ubuntu-24.04, system: Linux, machine: x86_64, cuda: "13.3" }
           - { os: macos-26, system: Darwin, machine: arm64, cuda: "" }
-          - { os: macos-13, system: Darwin, machine: x86_64, cuda: "" }
+          - { os: macos-15-intel, system: Darwin, machine: x86_64, cuda: "" }
           - { os: windows-2025-vs2026, system: Windows, machine: AMD64, cuda: "" }
           - { os: windows-2025-vs2026, system: Windows, machine: AMD64, cuda: "13.3" }
     runs-on: ${{ matrix.os }}
