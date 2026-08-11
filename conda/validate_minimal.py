@@ -14,6 +14,8 @@ REQUIRED_CONDA_PACKAGES = {
     "libopencv",
     "libpng",
     "libzip",
+    "numpy",
+    "py-opencv",
     "zlib",
 }
 PYPI_OPENCV_NAMES = {
@@ -34,6 +36,43 @@ def opencv_api_version(raw_version: str) -> tuple[str, ...]:
     return tuple(raw_version.split(".")[:3])
 
 
+def validate_required_conda_packages(owned_names: set[str | None]) -> None:
+    """Require every native and Python package owned by the minimal recipe."""
+    missing = sorted(REQUIRED_CONDA_PACKAGES - owned_names)
+    if missing:
+        raise RuntimeError(f"Conda does not own required minimal packages: {missing}")
+
+
+def validate_opencv_providers(
+    conda_cv2_owners: list[str],
+    installed_opencv: list[tuple[str, str, str]],
+) -> list[tuple[str, str, str]]:
+    """Validate that exactly one implementation owns the imported cv2 module."""
+    external_opencv = [item for item in installed_opencv if item[2] != "conda"]
+    if len(conda_cv2_owners) > 1:
+        raise RuntimeError(
+            f"Multiple Conda packages own the imported cv2: {conda_cv2_owners}"
+        )
+    if conda_cv2_owners:
+        if external_opencv:
+            raise RuntimeError(
+                "cv2 is owned by Conda and an external OpenCV wheel is also "
+                f"present: Conda={conda_cv2_owners}, external={external_opencv}"
+            )
+    else:
+        if len(external_opencv) != 1:
+            raise RuntimeError(
+                "Exactly one external cv2 provider is required when Conda does "
+                f"not own cv2: found {external_opencv}"
+            )
+        if external_opencv[0][0] != "opencv-python":
+            raise RuntimeError(
+                "The only permitted external cv2 provider is opencv-python: "
+                f"found {external_opencv}"
+            )
+    return external_opencv
+
+
 def main() -> int:
     prefix = Path(sys.prefix).resolve()
     records = []
@@ -41,15 +80,7 @@ def main() -> int:
         records.append(json.loads(record_path.read_text(encoding="utf-8")))
 
     owned_names = {record.get("name") for record in records}
-    missing = sorted(REQUIRED_CONDA_PACKAGES - owned_names)
-    if missing:
-        raise RuntimeError(f"Conda does not own required minimal packages: {missing}")
-
-    if "py-opencv" in owned_names:
-        raise RuntimeError(
-            "Conda py-opencv is present; the minimal recipe must not add a "
-            "second Python OpenCV package"
-        )
+    validate_required_conda_packages(owned_names)
 
     import cv2  # type: ignore[import-not-found]
     import numpy  # type: ignore[import-not-found]
@@ -91,30 +122,7 @@ def main() -> int:
             for path in record.get("files", [])
         }
     )
-    external_opencv = [
-        item for item in installed_opencv if item[2] != "conda"
-    ]
-    if len(conda_cv2_owners) > 1:
-        raise RuntimeError(
-            f"Multiple Conda packages own the imported cv2: {conda_cv2_owners}"
-        )
-    if conda_cv2_owners:
-        if external_opencv:
-            raise RuntimeError(
-                "cv2 is owned by Conda and an external OpenCV wheel is also "
-                f"present: Conda={conda_cv2_owners}, external={external_opencv}"
-            )
-    else:
-        if len(external_opencv) != 1:
-            raise RuntimeError(
-                "Exactly one external cv2 provider is required when Conda does "
-                f"not own cv2: found {external_opencv}"
-            )
-        if external_opencv[0][0] != "opencv-python":
-            raise RuntimeError(
-                "The only permitted external cv2 provider is opencv-python: "
-                f"found {external_opencv}"
-            )
+    external_opencv = validate_opencv_providers(conda_cv2_owners, installed_opencv)
 
     if cv2.__version__.split(".", 1)[0] != "4":
         raise RuntimeError(f"Expected OpenCV 4.x, found {cv2.__version__}")

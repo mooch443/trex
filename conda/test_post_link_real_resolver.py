@@ -16,6 +16,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+import sysconfig
 import tempfile
 import textwrap
 from urllib.parse import quote
@@ -25,6 +26,8 @@ import zipfile
 REPOSITORY = Path(__file__).resolve().parents[1]
 POST_LINK_SH = REPOSITORY / "conda" / "post-link.sh"
 POST_LINK_BAT = REPOSITORY / "conda" / "post-link.bat"
+VALIDATE_MINIMAL = REPOSITORY / "conda" / "validate_minimal.py"
+VALIDATE_POST_LINK = REPOSITORY / "conda" / "validate_post_link_installation.py"
 
 
 def make_wheel(
@@ -142,6 +145,7 @@ def run() -> None:
         opencv_files = {"cv2/__init__.py": '__version__ = "4.12.0"\n'}
         ultralytics_files = {
             "ultralytics/__init__.py": (
+                '__version__ = "8.3.0"\n'
                 "class YOLO:\n"
                 "    def __init__(self, *args): pass\n"
                 "    def to(self, *args): return self\n"
@@ -205,10 +209,36 @@ def run() -> None:
                 ],
                 check=True,
             )
-            (conda_meta / "numpy-2.4.6-ci.json").write_text(
-                '{"version":"2.4.6"}', encoding="utf-8"
-            )
-            (conda_meta / "py-opencv-4.12.0-ci.json").write_text("{}", encoding="utf-8")
+            site_packages = Path(sysconfig.get_paths()["purelib"])
+            numpy_file = site_packages / "numpy" / "__init__.py"
+            cv2_file = site_packages / "cv2" / "__init__.py"
+            for installer in (
+                *site_packages.glob("numpy-*.dist-info/INSTALLER"),
+                *site_packages.glob("opencv_python-*.dist-info/INSTALLER"),
+            ):
+                installer.write_text("conda\n", encoding="utf-8")
+
+            def write_conda_record(
+                name: str,
+                version: str,
+                files: tuple[Path, ...] = (),
+            ) -> None:
+                relative_files = [
+                    path.resolve().relative_to(Path(sys.prefix).resolve()).as_posix()
+                    for path in files
+                ]
+                (conda_meta / f"{name}-{version}-ci.json").write_text(
+                    json.dumps(
+                        {"name": name, "version": version, "files": relative_files}
+                    ),
+                    encoding="utf-8",
+                )
+
+            write_conda_record("numpy", "2.4.6", (numpy_file,))
+            write_conda_record("py-opencv", "4.12.0")
+            for native_package in ("ffmpeg", "libopencv", "libpng", "libzip", "zlib"):
+                files = (cv2_file,) if native_package == "libopencv" else ()
+                write_conda_record(native_package, "1.0", files)
 
         sitecustomize = root / "sitecustomize"
         sitecustomize.mkdir()
@@ -297,6 +327,9 @@ def run() -> None:
             ],
             check=True,
         )
+        if options.profile == "minimal":
+            subprocess.run([sys.executable, str(VALIDATE_POST_LINK)], check=True)
+            subprocess.run([sys.executable, str(VALIDATE_MINIMAL)], check=True)
         if "installation transaction completed successfully" not in output:
             raise AssertionError(output)
         print(
