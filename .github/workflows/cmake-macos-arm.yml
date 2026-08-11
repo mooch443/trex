@@ -125,13 +125,10 @@ jobs:
         echo "::group::Test"
         echo $CONDA_PREFIX
         conda search --override-channels -c conda-forge numpy
-        post_link_output="$GITHUB_WORKSPACE/post-link-output.log"
-        rm -f "$post_link_output"
-        set -o pipefail
-        TREX_POST_LINK_OUTPUT=stdout conda create -y -n test --override-channels -c $CONDA_PREFIX/conda-bld/ -c conda-forge trex 2>&1 | tee "$post_link_output"
+        conda create -y -n test --override-channels -c $CONDA_PREFIX/conda-bld/ -c conda-forge trex
         conda activate test
         conda install -y git
-        python $GITHUB_WORKSPACE/conda/validate_post_link_installation.py --post-link-output "$post_link_output"
+        python $GITHUB_WORKSPACE/conda/validate_post_link_installation.py
         pvinfo -opencv_ffmpeg_support
         if pvinfo -opencv_opencl_support; then
           echo "Minimal OpenCV unexpectedly reports OpenCL support." >&2
@@ -258,7 +255,6 @@ jobs:
           ${{ github.workspace }}/videos/**/*.npz
           ${{ github.workspace }}/videos/**/*.results
           ${{ github.workspace }}/videos/**/*.pv
-          ${{ github.workspace }}/post-link-output.log
         if-no-files-found: ignore
         retention-days: 7
         compression-level: 9
