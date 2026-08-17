@@ -3993,7 +3993,7 @@
       "excluded": [],
       "module": "trex.ui",
       "path": "ui/SettingsScene.h",
-      "sha256": "e2756c9292b9eba57c56a62e127338c6cf4b8326682e6da05ead1758e8bf25ad",
+      "sha256": "2af0bb1ed402edb60a9523ccb4aa48c7cbed9f40bcf8f45e9836f87f9efe6bdf",
       "symbols": [
         {
           "kind": "class",

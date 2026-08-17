@@ -354,7 +354,8 @@ static inline const Deprecations deprecated = Deprecations({
         {"categories_min_sample_images", "categories_apply_min_tracklet_length"},
         {"enable_live_tracking", ""},
         {"export_visual_fields", "output_visual_fields"},
-        {"output_image_per_tracklet", "output_tracklet_images"}
+        {"output_image_per_tracklet", "output_tracklet_images"},
+        {"track_annotations", "track_detect_annotations"}
 });
 
 /**
