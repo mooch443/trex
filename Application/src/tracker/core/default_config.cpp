@@ -1530,9 +1530,9 @@ inline bool isRunningInAppBundle() {
                 return filename;
             }
             
-            auto path = map.at("wd").value<file::Path>();
+            auto path = map.has("wd") ? map.at("wd").value<file::Path>() : file::Path{};
             if(path.empty()) {
-                auto d = map.at("output_dir").value<file::Path>();
+                auto d = map.has("output_dir") ? map.at("output_dir").value<file::Path>() : file::Path{};
                 if(d.empty())
                     return filename;
                 else
@@ -1546,15 +1546,21 @@ inline bool isRunningInAppBundle() {
             if(filename.empty())
                 return {};
             
-            auto prefix = map.at("output_prefix").value<std::string>();
-            auto output_path = map.at("output_dir").value<file::Path>();
+            auto prefix = map.has("output_prefix")
+                            ? map.at("output_prefix").value<std::string>()
+                            : std::string{};
+            auto output_path = map.has("output_dir")
+                            ? map.at("output_dir").value<file::Path>()
+                            : file::Path{};
             auto absolute = filename.is_absolute();
             
             if(output_path.empty()) {
-                auto source = map.at("source").value<file::PathArray>();
+                auto source = map.has("source")
+                            ? map.at("source").value<file::PathArray>()
+                            : file::PathArray{};
                 auto base = file::find_parent(source);
                 if(not base) {
-                    output_path = map.at("wd").value<file::Path>();
+                    output_path = map.has("wd") ? map.at("wd").value<file::Path>() : file::Path{};
                 } else {
                     output_path = base.value();
                 }
@@ -1569,8 +1575,11 @@ inline bool isRunningInAppBundle() {
                 } else {
                     /// QUESTIONABLE: we might want to include / and \ again, but
                     /// right now this is turning it into /webcam a lot of the time.
-                    if(not is_in(map.at("wd").value<file::Path>(), "", "/", "\\"))
-                        filename = map.at("wd").value<file::Path>() / filename;
+                    if(auto wd = map.has("wd") ? map.at("wd").value<file::Path>() : file::Path{};
+                       not is_in(wd, "", "/", "\\"))
+                    {
+                        filename = wd / filename;
+                    }
                 }
                 
             } else if(not filename.has_extension("pv")) {
