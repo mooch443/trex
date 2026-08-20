@@ -1,7 +1,11 @@
 #include "DatasetQuality.h"
+#include <misc/Image.h>
 #include <tracking/Individual.h>
 #include <tracking/FilterCache.h>
 #include <tracking/IndividualManager.h>
+#include <tracking/Stuffs.h>
+#include <tracking/TrackletInformation.h>
+#include <tracking/LockGuard.h>
 
 namespace track {
 namespace DatasetQuality {

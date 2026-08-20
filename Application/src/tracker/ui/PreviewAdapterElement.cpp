@@ -1,4 +1,6 @@
 #include "PreviewAdapterElement.h"
+#include <misc/Image.h>
+#include <processing/Background.h>
 #include <gui/dyn/ParseText.h>
 #include <gui/ParseLayoutTypes.h>
 #include <core/idx_t.h>

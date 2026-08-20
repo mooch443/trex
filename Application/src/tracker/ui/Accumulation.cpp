@@ -2,7 +2,13 @@
 
 #if !COMMONS_NO_PYTHON
 #include <ml/AccumulationRuntime.h>
+#include <misc/Image.h>
 #include <tracking/DatasetQuality.h>
+#include <tracking/Individual.h>
+#include <tracking/PPFrame.h>
+#include <tracking/Stuffs.h>
+#include <tracking/TrackletInformation.h>
+#include <tracking/LockGuard.h>
 #include <tracking/TrainingData.h>
 #include <ui/WorkProgress.h>
 #include <misc/cnpy_wrapper.h>

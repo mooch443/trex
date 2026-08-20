@@ -109,8 +109,10 @@ set(TREX_TRACKING_PUBLIC_HEADERS
     ${CMAKE_CURRENT_LIST_DIR}/tracking/OutputLibraryTypes.h
     ${CMAKE_CURRENT_LIST_DIR}/tracking/PairingGraph.h
     ${CMAKE_CURRENT_LIST_DIR}/tracking/PPFrame.h
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/PPFrameTypes.h
     ${CMAKE_CURRENT_LIST_DIR}/tracking/PrefilterBlobs.h
     ${CMAKE_CURRENT_LIST_DIR}/tracking/RecTask.h
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/SplitExpectation.h
     ${CMAKE_CURRENT_LIST_DIR}/tracking/SplitBlob.h
     ${CMAKE_CURRENT_LIST_DIR}/tracking/Stuffs.h
 )
@@ -228,7 +230,6 @@ set(TREX_UI_PUBLIC_HEADERS
     ${CMAKE_CURRENT_LIST_DIR}/ui/ScreenRecorder.h
     ${CMAKE_CURRENT_LIST_DIR}/ui/SettingsDropdown.h
     ${CMAKE_CURRENT_LIST_DIR}/ui/SettingsScene.h
-    ${CMAKE_CURRENT_LIST_DIR}/ui/SettingsInitializer.h
     ${CMAKE_CURRENT_LIST_DIR}/ui/Skelett.h
     ${CMAKE_CURRENT_LIST_DIR}/ui/StartingScene.h
     ${CMAKE_CURRENT_LIST_DIR}/ui/Terminal.h
@@ -295,7 +296,6 @@ set(TREX_UI_SOURCES
     ${CMAKE_CURRENT_LIST_DIR}/ui/RecentItems.cpp
     ${CMAKE_CURRENT_LIST_DIR}/ui/Scene.cpp
     ${CMAKE_CURRENT_LIST_DIR}/ui/ScreenRecorder.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/ui/SettingsInitializer.cpp
     ${CMAKE_CURRENT_LIST_DIR}/ui/Segmenter.cpp
     ${CMAKE_CURRENT_LIST_DIR}/ui/SettingsDropdown.cpp
     ${CMAKE_CURRENT_LIST_DIR}/ui/SettingsScene.cpp

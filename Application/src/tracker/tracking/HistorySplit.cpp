@@ -1,4 +1,6 @@
 #include "HistorySplit.h"
+#include <tracking/Individual.h>
+#include <tracking/TrackletInformation.h>
 #include <tracking/Tracker.h>
 #include <tracking/BlobReceiver.h>
 #include <tracking/IndividualManager.h>
@@ -47,7 +49,7 @@ Settings::manual_splits_t::mapped_type HistorySplit::apply_manual_matches(PPFram
     return manual_splits_frame;
 }
 
-HistorySplit::HistorySplit(PPFrame &frame, PPFrame::NeedGrid need, GenericThreadPool* pool)
+HistorySplit::HistorySplit(PPFrame &frame, NeedGrid need, GenericThreadPool* pool)
 {
     PPFrame::Log("FRAME ", frame.index());
     

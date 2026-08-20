@@ -1,4 +1,7 @@
 #include "DrawDataset.h"
+#include <processing/PVBlob.h>
+#include <tracking/Individual.h>
+#include <tracking/LockGuard.h>
 #include <tracking/Tracker.h>
 #include <gui/types/StaticText.h>
 #include <tracking/IndividualManager.h>

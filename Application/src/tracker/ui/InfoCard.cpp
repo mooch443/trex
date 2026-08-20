@@ -1,4 +1,8 @@
 #include "InfoCard.h"
+#include <tracking/Individual.h>
+#include <tracking/LockGuard.h>
+#include <tracking/Stuffs.h>
+#include <tracking/TrackletInformation.h>
 #include <tracking/Tracker.h>
 #include <gui/types/Tooltip.h>
 #include <ui/GUICache.h>

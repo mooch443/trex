@@ -1,4 +1,5 @@
 #include "OutputLibrary.h"
+#include <misc/Image.h>
 #include <tracking/Tracker.h>
 #include <tracking/EventAnalysis.h>
 #include <file/CSVExport.h>
@@ -8,6 +9,11 @@
 #include <core/IdentifiedTag.h>
 #include <tracking/IndividualManager.h>
 #include <tracking/Individual.h>
+#include <tracking/LockGuard.h>
+#include <data/MotionRecord.h>
+#include <processing/PVBlob.h>
+#include <tracking/Stuffs.h>
+#include <tracking/TrackletInformation.h>
 #include <gui/Graph.h>
 
 #define _LIBFNC(CONTENT) LIBPARAM -> Float2_t \

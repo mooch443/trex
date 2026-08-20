@@ -1,4 +1,9 @@
 #include "PPFrame.h"
+#include <misc/Image.h>
+#include <tracking/Individual.h>
+#include <tracking/LockGuard.h>
+#include <tracking/Stuffs.h>
+#include <tracking/TrackletInformation.h>
 #include <tracking/Tracker.h>
 #include <tracking/CategorizeDatastore.h>
 #include <misc/default_settings.h>

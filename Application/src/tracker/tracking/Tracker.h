@@ -1,21 +1,29 @@
 #pragma once
 
 #include <commons.pc.h>
-#include <processing/PVBlob.h>
-#include "Individual.h"
-#include <pv.h>
+#include <misc/ranges.h>
+#include <misc/bid.h>
 #include <misc/ThreadPool.h>
-#include <processing/Background.h>
-#include <core/Border.h>
-#include <misc/Timer.h>
-#include <core/SizeFilters.h>
+#include <misc/Image.h>
+#include <processing/encoding.h>
+#include <data/MotionRecord.h>
 #include <core/idx_t.h>
-#include <misc/create_struct.h>
-#include <core/default_config.h>
+#include <core/Border.h>
 #include <core/TrackingSettings.h>
 #include <tracking/CacheHints.h>
-#include <tracking/BlobReceiver.h>
-#include <tracking/LockGuard.h>
+#include <tracking/PPFrameTypes.h>
+#include <tracking/SplitExpectation.h>
+#include <tracking/Individual.h>
+
+namespace cmn {
+class Background;
+class Image;
+}
+
+namespace pv {
+class File;
+class Frame;
+}
 
 namespace Output {
     class TrackingResults;
@@ -27,8 +35,15 @@ namespace track {
 
 class TrainingData;
 class FOI;
+class PPFrame;
+struct BlobReceiver;
+struct PrefilterBlobs;
 struct SplitData;
 struct CachedSettings;
+
+namespace Match {
+class PairedProbabilities;
+}
 
 struct IndividualStatus {
     const MotionRecord* prev;
@@ -206,18 +221,8 @@ public:
         _add_frame_callbacks.unregisterCallback(id);
     }
     
-    void set_average(Image::Ptr&& average, meta_encoding_t::Class encoding) {
-        _background = new Background(std::move(average), encoding);
-        _average = Image::Make(_background->image());
-        _border = Border(_background);
-    }
-    static const Image& average(cmn::source_location loc = cmn::source_location::current()) {
-        if(not instance())
-            throw _U_EXCEPTION(loc, "Instance is nullptr.");
-        if(!instance()->_average)
-            throw _U_EXCEPTION(loc, "Pointer to average image is nullptr.");
-        return *instance()->_average;
-    }
+    void set_average(Image::Ptr&& average, meta_encoding_t::Class encoding);
+    static const Image& average(cmn::source_location loc = cmn::source_location::current());
     
     
     decltype(_added_frames)::const_iterator properties_iterator(Frame_t frameIndex);
@@ -237,7 +242,7 @@ public:
     static size_t number_frames() { return instance()->_added_frames.size(); }
     
     // filters a given frames blobs for size and splits them if necessary
-    static void preprocess_frame(pv::Frame&&, PPFrame &frame, GenericThreadPool* pool, PPFrame::NeedGrid, const Size2& resolution, bool do_history_split = true);
+    static void preprocess_frame(pv::Frame&&, PPFrame &frame, GenericThreadPool* pool, NeedGrid, const Size2& resolution, bool do_history_split = true);
     
     friend class VisualField;
     
@@ -308,5 +313,3 @@ public:
     void print_memory();
 };
 }
-
-STRUCT_META_EXTENSIONS(track::Settings)

@@ -1,5 +1,10 @@
 #include "CategorizeDatastore.h"
+#include <pv.h>
 #include <gui/Transform.h>
+#include <processing/Background.h>
+#include <tracking/LockGuard.h>
+#include <tracking/PPFrame.h>
+#include <tracking/Stuffs.h>
 #include <tracking/Tracker.h>
 #include <tracking/IndividualManager.h>
 #include <tracking/FilterCache.h>

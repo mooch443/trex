@@ -1239,10 +1239,16 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const PixelArray
     }
 
 const cv::Size& File::size() const {
+    if(not bool(_mode & FileMode::WRITE))
+        _check_opened();
+    
     std::unique_lock lock(_lock);
     return _header.resolution;
 }
 Frame_t File::length() const {
+    if(not bool(_mode & FileMode::WRITE))
+        _check_opened();
+    
     std::unique_lock lock(_lock);
     return Frame_t(_header.num_frames);
 }

@@ -1,6 +1,9 @@
 #include "IdentityHeatmap.h"
+#include <misc/Image.h>
 #include <tracking/Tracker.h>
 #include <tracking/Individual.h>
+#include <tracking/Stuffs.h>
+#include <tracking/TrackletInformation.h>
 #include <misc/cnpy_wrapper.h>
 #include <ui/Export.h>
 #include <file/DataLocation.h>

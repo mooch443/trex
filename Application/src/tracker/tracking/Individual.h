@@ -3,31 +3,24 @@
 
 #include <commons.pc.h>
 #include <core/idx_t.h>
-#include <misc/colors.h>
-#include <misc/Blob.h>
-#include "Posture.h"
-#include <data/MotionRecord.h>
-#include <misc/Median.h>
-#include <misc/Image.h>
-#include <pv.h>
-
-#include <tracking/DetectTag.h>
-#include <misc/Timer.h>
-
-#include <tracking/PairingGraph.h>
-#include <data/IndividualCache.h>
-#include <tracking/PPFrame.h>
-#include <tracking/CacheHints.h>
-#include <misc/ranges.h>
-#include <tracking/Stuffs.h>
-#include <tracking/TrackletInformation.h>
-
+#include <core/TrackingSettings.h>
 #include <core/Identity.h>
+#include <misc/bid.h>
+#include <misc/ranges.h>
+#include <misc/Timer.h>
+#include <tracking/Outline.h>
+#include <tracking/DetectTag.h>
+#include <tracking/CacheHints.h>
+#include <data/IndividualCache.h>
 
 #define DEBUG_ORIENTATION false
 
 namespace cmn::gui { class Fish; }
-namespace cmn { class Data; }
+namespace cmn {
+class Data;
+namespace file { class Path; }
+}
+namespace cmn::blob { struct Pose; }
 namespace Output { class ResultsFormat; class TrackingResults; }
 namespace track { class Individual; struct TrackingHelper; }
 namespace mem { struct IndividualMemoryStats; }
@@ -35,6 +28,10 @@ namespace mem { struct IndividualMemoryStats; }
 namespace track {
 
 struct CachedSettings;
+class MotionRecord;
+struct BasicStuff;
+struct PostureStuff;
+struct TrackletInformation;
 
 enum class Reasons {
     None = 0,
@@ -195,6 +192,13 @@ constexpr std::array<const char*, 8> ReasonsNames {
         struct QRCode {
             Frame_t frame;
             pv::BlobPtr _blob;
+
+            QRCode(Frame_t, pv::BlobPtr&&);
+            QRCode(QRCode&&) noexcept;
+            QRCode& operator=(QRCode&&) noexcept;
+            QRCode(const QRCode&) = delete;
+            QRCode& operator=(const QRCode&) = delete;
+            ~QRCode();
         };
 
         static void shutdown();
@@ -403,11 +407,6 @@ constexpr std::array<const char*, 8> ReasonsNames {
         Midline::Ptr update_frame_with_posture(BasicStuff& basic, const decltype(Individual::_posture_stuff)::const_iterator& posture_it, const CacheHints* hints);
         //Vec2 add_current_velocity(Frame_t frameIndex, const MotionRecord* p);
     };
-}
-
-inline bool operator<(const std::shared_ptr<track::TrackletInformation>& ptr, cmn::Frame_t frame) {
-    assert(ptr != nullptr);
-    return ptr->start() < frame;
 }
 
 #endif

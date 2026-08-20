@@ -1,6 +1,13 @@
 #include "Individual.h"
+#include <data/MotionRecord.h>
 #include <misc/GlobalSettings.h>
+#include <misc/Median.h>
 #include <misc/Timer.h>
+#include <processing/PVBlob.h>
+#include <tracking/Posture.h>
+#include <tracking/Stuffs.h>
+#include <tracking/TrackletInformation.h>
+#include <tracking/LockGuard.h>
 #include <tracking/Tracker.h>
 #include <tracking/DebugDrawing.h>
 #include <algorithm>
@@ -32,6 +39,14 @@
 
 using namespace track;
 using prob_t = track::Match::prob_t;
+
+Individual::QRCode::QRCode(Frame_t frame, pv::BlobPtr&& blob)
+    : frame(frame), _blob(std::move(blob))
+{ }
+
+Individual::QRCode::QRCode(QRCode&&) noexcept = default;
+Individual::QRCode& Individual::QRCode::operator=(QRCode&&) noexcept = default;
+Individual::QRCode::~QRCode() = default;
 
 void Individual::shutdown() {
     

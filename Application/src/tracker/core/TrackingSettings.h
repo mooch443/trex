@@ -304,3 +304,5 @@ struct IDaverage {
 std::map<Idx_t, float> prediction2map(const std::vector<float>& pred);
 
 }
+
+STRUCT_META_EXTENSIONS(track::Settings)

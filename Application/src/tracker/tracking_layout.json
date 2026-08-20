@@ -1121,7 +1121,7 @@
                                 "corners":["right"]
                             },
                             "item":{
-                                "pad":[8,5],
+                                "pad":[10,6],
                                 "font":{"size":0.6},
                                 "color":[60,60,60,100]
                             },
@@ -1148,19 +1148,19 @@
                                     "action":"export_data"
                                 },
                                 {
-                                    "text":"Export annotations",
-                                    "detail":"exports YOLO/COCO annotation datasets",
-                                    "action":"export_annotations"
-                                },
-                                {
-                                    "text":"Import detect annotations",
-                                    "detail":"imports YOLO or COCO detect-annotation datasets into track_detect_annotations",
-                                    "action":"import_detect_annotations"
-                                },
-                                {
                                     "text":"<sym>🛠</sym> Save config",
                                     "detail":"writes parameters to a .settings file",
                                     "action":"write_config"
+                                },
+                                {
+                                    "text":"<sym>📤</sym> Export annotations",
+                                    "detail":"exports YOLO/COCO datasets",
+                                    "action":"export_annotations"
+                                },
+                                {
+                                    "text":"<sym>📥</sym> Import detect annotations",
+                                    "detail":"imports YOLO or COCO datasets",
+                                    "action":"import_detect_annotations"
                                 },
                                 {
                                     "text":"<sym>🎭</sym> Train visual identification (VI)",

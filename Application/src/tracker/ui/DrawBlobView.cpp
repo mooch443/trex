@@ -1,6 +1,7 @@
 #include <commons.pc.h>
 
 #include "DrawBlobView.h"
+#include <misc/Image.h>
 #include <gui/DrawStructure.h>
 #include <ui/GUICache.h>
 #include <gui/Section.h>

@@ -1,5 +1,6 @@
 #include "Segmenter.h"
 #include <file/DataLocation.h>
+#include <processing/Background.h>
 #include <grabber/misc/default_config.h>
 #include <file/PathArray.h>
 #include <tracking/IndividualManager.h>
@@ -7,12 +8,15 @@
 #include <python/Detection.h>
 #include <python/OverlayedVideo.h>
 #include <misc/CommandLine.h>
+#include <core/DetectionTypes.h>
 #include <core/SettingsPaths.h>
 #include <core/SettingsInitializer.h>
 #include <python/BackgroundSubtraction.h>
+#include <tracking/PPFrame.h>
 #include <tracking/Tracker.h>
 #include <ui/Export.h>
 #include <python/PrecomuptedDetection.h>
+#include <python/PipelineRegistry.h>
 #include <grabber/misc/PylonCamera.h>
 
 //#define DEBUG_TM_ITEMS

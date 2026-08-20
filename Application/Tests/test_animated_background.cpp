@@ -84,10 +84,10 @@ protected:
 };
 
 TEST_F(AnimatedBackgroundTest, BasicBehaviorMovedLocation) {
-    const auto meta_source_path = file::Path("/Users/test/video.mp4");
+    const auto meta_source_path = file::Path("/Users/test/video.mp4").absolute();
     SETTING(meta_source_path) = meta_source_path.str();
 
-    const auto source = file::Path("/Users/test/Downloads/converted_video.pv");
+    const auto source = file::Path("/Users/test/Downloads/converted_video.pv").absolute();
     SETTING(source) = file::PathArray{source};
 
     auto result = AnimatedBackground::configure_video_source(nullptr);
@@ -102,13 +102,13 @@ TEST_F(AnimatedBackgroundTest, BasicBehaviorMovedLocation) {
 TEST_F(AnimatedBackgroundTest, MovedEverythingSetManualSourcePath) {
     /// Video used to be at /Users/aalbi/video.mp4
     /// it was converted using video_conversion_range [10,1000]
-    const auto meta_source_path = file::Path("/Users/aalbi/video.mp4");
+    const auto meta_source_path = file::Path("/Users/aalbi/video.mp4").absolute();
 
     /// Downloaded video to my PC at /Users/test/Downloads/converted_video.pv
-    const auto source = file::Path("/Users/test/Downloads/converted_video.pv");
+    const auto source = file::Path("/Users/test/Downloads/converted_video.pv").absolute();
 
     /// We set source path manually to /Users/test/share/videos/video.mp4
-    const auto manual_source_path = file::Path("/Users/test/share/videos/video.mp4");
+    const auto manual_source_path = file::Path("/Users/test/share/videos/video.mp4").absolute();
 
     auto video = make_artificial_pv_file(source, meta_source_path, "", std::nullopt, 10u, 1000u);
 
@@ -129,10 +129,10 @@ TEST_F(AnimatedBackgroundTest, MovedEverythingSetRelativePathPrefix) {
     /// Video used to be at /Users/aalbi/video.mp4
     /// it was converted using video_conversion_range [10,1000]
     /// with a prefix path inside the root folder that was zipped
-    const auto meta_source_path = file::Path("/Users/aalbi/Videos/2026/video.mp4");
+    const auto meta_source_path = file::Path("/Users/aalbi/Videos/2026/video.mp4").absolute();
 
     /// Downloaded video to my PC at /Users/test/Downloads/2026/prefix/converted_video.pv
-    const auto source = file::Path("/Users/test/Downloads/2026/prefix/converted_video.pv");
+    const auto source = file::Path("/Users/test/Downloads/2026/prefix/converted_video.pv").absolute();
 
     auto video = make_artificial_pv_file(source, meta_source_path, "prefix", std::nullopt, 10u, 1000u);
 
@@ -144,7 +144,7 @@ TEST_F(AnimatedBackgroundTest, MovedEverythingSetRelativePathPrefix) {
     std::set<std::pair<std::string, std::optional<int>>> expected = {
         { meta_source_path.str(), 10 },
         { (source.remove_filename() / original_video_name).str(), 10 },
-        { (file::Path("/Users/test/Downloads/2026/") / original_video_name).str(), 10 }
+        { (file::Path("/Users/test/Downloads/2026/").absolute() / original_video_name).str(), 10 }
     };
 
     auto result = AnimatedBackground::configure_video_source(&video);
@@ -154,13 +154,13 @@ TEST_F(AnimatedBackgroundTest, MovedEverythingSetRelativePathPrefix) {
 TEST_F(AnimatedBackgroundTest, MovedEverythingSetRelativePathPrefixButPrefixIsNotStored) {
     /// Video used to be here on the pc where it was created
     /// it was converted using video_conversion_range [10,1000]
-    const auto meta_source_path = file::Path("/Users/aalbi/Videos/2026/video.mp4");
+    const auto meta_source_path = file::Path("/Users/aalbi/Videos/2026/video.mp4").absolute();
     
     /// We directly set the output dir instead of the output prefix to create the video in
-    const auto output_dir = file::Path("/Users/aalbi/Videos/2026/prefix");
+    const auto output_dir = file::Path("/Users/aalbi/Videos/2026/prefix").absolute();
 
     /// Downloaded video to my PC at `/Users/test/Downloads/2026/prefix/converted_video.pv`
-    const auto source = file::Path("/Users/test/Downloads/2026/prefix/converted_video.pv");
+    const auto source = file::Path("/Users/test/Downloads/2026/prefix/converted_video.pv").absolute();
 
     auto video = make_artificial_pv_file(source, meta_source_path, "", output_dir, 10u, 1000u);
 

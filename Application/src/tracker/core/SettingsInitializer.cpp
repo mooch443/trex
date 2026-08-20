@@ -18,47 +18,6 @@ using namespace default_config;
 
 namespace cmn::settings {
 
-void initialize_filename_for_tracking() {
-    file::Path path;
-    
-    if(not READ_SETTING(filename, file::Path).empty()) {
-        path = READ_SETTING(filename, file::Path);
-    } else {
-        path = GlobalSettings::read([](const Configuration& config){
-            return settings::find_output_name(config.values);
-        });
-    }
-    
-    if(not path.has_extension()
-       || path.extension() != "pv")
-    {
-        path = path.add_extension("pv");
-    }
-    
-    if(not path.is_absolute())
-        path = file::DataLocation::parse("output", path);
-    
-    if(path.is_regular()) {
-        SETTING(filename) = path.remove_extension();
-        
-    } else if(auto source = READ_SETTING(source, file::PathArray);
-              source.size() == 1
-              && ((source.get_paths().front().is_regular()
-                   && source.get_paths().front().has_extension("pv"))
-                || source.get_paths().front().add_extension("pv").is_regular())
-              )
-    {
-        auto path = source.get_paths().front();
-        if(path.has_extension("pv"))
-            path = path.remove_extension();
-        
-        SETTING(filename) = file::Path(path);
-        
-    } else {
-        throw U_EXCEPTION("Cannot find the file ", path, " and nothing in ", READ_SETTING(source, file::PathArray)," seems to be a .pv file.");
-    }
-}
-
 std::unordered_set<std::string_view>
 set_defaults_for(detect::ObjectDetectionType_t detect_type,
                  cmn::sprite::Map& output,

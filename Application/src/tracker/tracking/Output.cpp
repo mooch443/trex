@@ -1,4 +1,6 @@
 #include "Output.h"
+#include <misc/Image.h>
+#include <tracking/TrackletInformation.h>
 #include <misc/Timer.h>
 #include <core/FOI.h>
 #include <core/default_config.h>

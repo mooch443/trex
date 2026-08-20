@@ -1,4 +1,10 @@
 #include "ConvertScene.h"
+#include <python/Detection.h>
+#include <core/indicators.h>
+#include <core/TaskPipeline.h>
+#include <core/tomp4.h>
+#include <gui/GuiTypes.h>
+#include <misc/Image.h>
 #include <gui/IMGUIBase.h>
 #include <video/VideoSource.h>
 #include <file/DataLocation.h>
@@ -21,6 +27,8 @@
 #include <core/DetectionTypes.h>
 #include <python/OverlayedVideo.h>
 #include <tracking/Individual.h>
+#include <tracking/Stuffs.h>
+#include <tracking/TrackletInformation.h>
 #include <tracking/LockGuard.h>
 #include <ui/Segmenter.h>
 #include <ui/ScreenRecorder.h>
@@ -35,9 +43,12 @@
 #include <tracking/FilterCache.h>
 #include <ui/LabelWrapper.h>
 #include <ui/LabelElement.h>
+#include <ui/Skelett.h>
+#include <ui/Bowl.h>
 #include <ml/ClosedLoop.h>
 
 namespace cmn::gui {
+namespace ind = indicators;
 using namespace dyn;
 using Skeleton = blob::Pose::Skeleton;
 

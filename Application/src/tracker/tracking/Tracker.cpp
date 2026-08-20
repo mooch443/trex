@@ -1,7 +1,17 @@
 #include "Tracker.h"
+#include <pv.h>
+#include <data/MotionRecord.h>
 #include <misc/GlobalSettings.h>
+#include <misc/Image.h>
 #include <misc/Timer.h>
+#include <processing/Background.h>
 #include "PairingGraph.h"
+#include <tracking/BlobReceiver.h>
+#include <tracking/Individual.h>
+#include <tracking/LockGuard.h>
+#include <tracking/PPFrame.h>
+#include <tracking/Stuffs.h>
+#include <tracking/TrackletInformation.h>
 #include <tracking/OutputLibrary.h>
 #include <tracking/DetectTag.h>
 #include <misc/cnpy_wrapper.h>
@@ -351,6 +361,20 @@ void Tracker::analysis_state(AnalysisState pause) {
     }
 }
 
+void Tracker::set_average(Image::Ptr&& average, meta_encoding_t::Class encoding) {
+    _background = new Background(std::move(average), encoding);
+    _average = Image::Make(_background->image());
+    _border = Border(_background);
+}
+
+const Image& Tracker::average(cmn::source_location loc) {
+    if(not instance())
+        throw _U_EXCEPTION(loc, "Instance is nullptr.");
+    if(!instance()->_average)
+        throw _U_EXCEPTION(loc, "Pointer to average image is nullptr.");
+    return *instance()->_average;
+}
+
 Tracker::Tracker(const pv::File& video)
     : Tracker(video.header().average ? Image::Make(*video.header().average) :  Image::Make(video.average()), video.header().encoding, settings::infer_meta_real_width_from(video))
 { }
@@ -630,7 +654,7 @@ void Tracker::update_history_log() {
     PPFrame::UpdateLogs();
 }
 
-void Tracker::preprocess_frame(pv::Frame&& frame, PPFrame& pp, GenericThreadPool* pool, PPFrame::NeedGrid need, const Size2& resolution, bool do_history_split)
+void Tracker::preprocess_frame(pv::Frame&& frame, PPFrame& pp, GenericThreadPool* pool, NeedGrid need, const Size2& resolution, bool do_history_split)
 {
     //! Free old memory
     pp.clear();
@@ -1775,7 +1799,7 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
     //! E.g.: We know there should be two individuals where we only
     //! find one object -> split the object in order to try to split
     //! the potentially overlapping individuals apart.
-    HistorySplit{frame, PPFrame::NeedGrid::NoNeed, &_thread_pool};
+    HistorySplit{frame, NeedGrid::NoNeed, &_thread_pool};
     
     //! Initialize helper structure that encapsulates the substeps
     //! of the Tracker::add method:

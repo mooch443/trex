@@ -1,4 +1,6 @@
 #include "CategorizeInterface.h"
+#include <misc/Image.h>
+#include <processing/Background.h>
 #include <ui/Categorize.h>
 #include <tracking/Tracker.h>
 #include <misc/default_settings.h>

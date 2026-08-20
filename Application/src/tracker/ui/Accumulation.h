@@ -2,6 +2,7 @@
 
 #if !TREX_NO_PYTHON
 #include <commons.pc.h>
+#include <misc/Image.h>
 #include <tracking/Tracker.h>
 #include <tracking/DatasetQuality.h>
 #include <gui/types/Layout.h>

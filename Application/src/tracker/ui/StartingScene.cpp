@@ -1,5 +1,9 @@
 #include "StartingScene.h"
+#include <gui/DynamicGUI.h>
+#include <gui/DynamicVariable.h>
 #include <misc/GlobalSettings.h>
+#include <misc/SpriteMap.h>
+#include <misc/stringutils.h>
 #include <file/DataLocation.h>
 #include <gui/IMGUIBase.h>
 #include <gui/types/ListItemTypes.h>
@@ -13,6 +17,7 @@
 #include <ui/Coordinates.h>
 #include <gui/GUITaskQueue.h>
 #include <ui/GuiSettings.h>
+#include <ui/RecentItems.h>
 #include <core/default_config.h>
 #include <grabber/misc/default_config.h>
 
@@ -20,8 +25,19 @@
 
 namespace cmn::gui {
 
+struct StartingScene::Data {
+    RecentItems recents;
+    std::string search_text;
+    std::vector<std::string> corpus;
+    PreprocessedData preprocessed_corpus;
+    std::vector<std::shared_ptr<dyn::VarBase_t>> recents_list, filtered_recents;
+    std::vector<sprite::Map> data;
+    dyn::DynamicGUI dyn_gui;
+};
+
 StartingScene::StartingScene(Base& window)
-: Scene(window, "starting-scene", [this](auto&, DrawStructure& graph){ _draw(graph); })
+: Scene(window, "starting-scene", [this](auto&, DrawStructure& graph){ _draw(graph); }),
+  _data(std::make_unique<Data>())
 {
 }
 
@@ -76,14 +92,14 @@ void StartingScene::activate() {
 
 void StartingScene::update_recent_items() {
     // Fill list variable
-    _recents = RecentItems::read();
+    _data->recents = RecentItems::read();
     
-    _recents_list.clear();
-    _data.clear();
-    _corpus.clear();
+    _data->recents_list.clear();
+    _data->data.clear();
+    _data->corpus.clear();
     
     size_t i=0;
-    for(auto& item : _recents.file().entries) {
+    for(auto& item : _data->recents.file().entries) {
         auto detail = (DetailTooltipItem)item;
         sprite::Map tmp;
         tmp["name"] = detail.name();
@@ -91,7 +107,7 @@ void StartingScene::update_recent_items() {
         tmp["tooltip"] = detail.tooltip();
         tmp["index"] = i;
         
-        _corpus.emplace_back(detail.name()+" "+detail.detail()+" "+detail.tooltip());
+        _data->corpus.emplace_back(detail.name()+" "+detail.detail()+" "+detail.tooltip());
         
         file::PathArray array;
         if(item._options.has("source"))
@@ -99,18 +115,18 @@ void StartingScene::update_recent_items() {
         
         tmp["pv_exists"] = pv_file_path_for(array);
         
-        _data.push_back(std::move(tmp));
+        _data->data.push_back(std::move(tmp));
         
-        _recents_list.emplace_back(new dyn::Variable{
+        _data->recents_list.emplace_back(new dyn::Variable{
             [i, this](const dyn::VarProps&) -> sprite::Map& {
-                return _data[i];
+                return _data->data[i];
             }
         });
         
         ++i;
     }
     
-    _preprocessed_corpus = preprocess_corpus(_corpus);
+    _data->preprocessed_corpus = preprocess_corpus(_data->corpus);
     
     /// perform a search in all the texts
     update_search_filters();
@@ -119,11 +135,11 @@ void StartingScene::update_recent_items() {
 void StartingScene::update_search_filters() {
     
     /// perform a search in all the texts
-    _filtered_recents.clear();
-    auto indexes = text_search(_search_text, _corpus, _preprocessed_corpus);
+    _data->filtered_recents.clear();
+    auto indexes = text_search(_data->search_text, _data->corpus, _data->preprocessed_corpus);
     
     for(auto index : indexes) {
-        _filtered_recents.emplace_back(_recents_list.at(index));
+        _data->filtered_recents.emplace_back(_data->recents_list.at(index));
     }
 }
 
@@ -132,14 +148,14 @@ void StartingScene::deactivate() {
     
     // Logic to clear or save state if needed
     RecentItems::set_select_callback(nullptr);
-    dynGUI.clear();
+    _data->dyn_gui.clear();
 }
 
 void StartingScene::_draw(DrawStructure& graph) {
     using namespace dyn;
     
-    if(not dynGUI)
-        dynGUI = {
+    if(not _data->dyn_gui)
+        _data->dyn_gui = {
             .path = "welcome_layout.json",
             .context = [&](){
                 dyn::Context context;
@@ -148,10 +164,10 @@ void StartingScene::_draw(DrawStructure& graph) {
                         Print("open_recent got ", str);
                         assert(str.parameters.size() == 1u);
                         auto index = Meta::fromStr<size_t>(str.first());
-                        if(_recents.file().entries.size() <= index)
+                        if(_data->recents.file().entries.size() <= index)
                             return; /// invalid index
 
-                        auto& item = _recents.file().entries.at(index);
+                        auto& item = _data->recents.file().entries.at(index);
                         DetailTooltipItem details{item};
                         
                         file::PathArray array;
@@ -239,7 +255,7 @@ void StartingScene::_draw(DrawStructure& graph) {
                 context.variables = {
                     VarFunc("recent_items", [this](const VarProps&) -> std::vector<std::shared_ptr<dyn::VarBase_t>>&
                     {
-                        return _filtered_recents;
+                        return _data->filtered_recents;
                     }),
                     VarFunc("season", [](const VarProps&) {
                         return GlobalSettings::currentSeason().toStr();
@@ -298,7 +314,7 @@ void StartingScene::_draw(DrawStructure& graph) {
                             if(not ptr)
                                 return;
                             
-                            _search_text = ptr->text();
+                            _data->search_text = ptr->text();
                             update_search_filters();
                         });
                         
@@ -313,7 +329,7 @@ void StartingScene::_draw(DrawStructure& graph) {
             }()
         };
     
-    dynGUI.update(graph, nullptr);
+    _data->dyn_gui.update(graph, nullptr);
 }
 
 bool StartingScene::on_global_event(Event) {

@@ -1,4 +1,5 @@
 #include "RecognitionSummary.h"
+#include <misc/Image.h>
 #include <tracking/Tracker.h>
 #include <ml/VisualIdentification.h>
 #include <ui/GUICache.h>

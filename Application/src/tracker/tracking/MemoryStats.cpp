@@ -1,5 +1,10 @@
 #include "MemoryStats.h"
+#include <data/MotionRecord.h>
+#include <misc/Image.h>
 #include <misc/pretty.h>
+#include <processing/PVBlob.h>
+#include <tracking/Stuffs.h>
+#include <tracking/TrackletInformation.h>
 #include <tracking/Tracker.h>
 #include <tracking/OutputLibrary.h>
 #include <core/FOI.h>

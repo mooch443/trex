@@ -10,7 +10,7 @@
 #include <python/PipelineRegistry.h>
 #include <python/GPURecognition.h>
 #include <gui/GuiTypes.h>
-#include <opencv2/imgproc.hpp>
+#include <python/BackendRegistry.h>
 
 namespace track {
 

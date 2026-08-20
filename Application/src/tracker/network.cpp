@@ -1,7 +1,9 @@
 #include <commons.pc.h>
+#include <pv.h>
 #include <misc/Image.h>
 
 #include <tracking/Individual.h>
+#include <tracking/PPFrame.h>
 #include <tracking/Tracker.h>
 #include <core/default_config.h>
 #include <tracking/Output.h>

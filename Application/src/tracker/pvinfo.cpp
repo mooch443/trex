@@ -2,6 +2,7 @@
 #include <pv.h>
 #include <iomanip>
 #include <misc/CommandLine.h>
+#include <misc/Image.h>
 #include <misc/Timer.h>
 #include <processing/PVBlob.h>
 #include <misc/GlobalSettings.h>

@@ -1,5 +1,12 @@
 #include "Export.h"
 
+#include <misc/Image.h>
+#include <processing/Background.h>
+#include <tracking/Individual.h>
+#include <tracking/LockGuard.h>
+#include <tracking/PPFrame.h>
+#include <tracking/Stuffs.h>
+#include <tracking/TrackletInformation.h>
 #include <tracking/Tracker.h>
 #include <tracking/OutputLibrary.h>
 #include <misc/cnpy_wrapper.h>

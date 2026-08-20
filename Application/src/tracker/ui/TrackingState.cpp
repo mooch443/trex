@@ -1,4 +1,7 @@
 #include "TrackingState.h"
+#include <misc/Image.h>
+#include <tracking/Individual.h>
+#include <tracking/LockGuard.h>
 #include <file/PathArray.h>
 #include <tracking/Tracker.h>
 #include <file/DataLocation.h>
@@ -10,7 +13,6 @@
 #include <tracking/OutputLibrary.h>
 #include <ui/WorkProgress.h>
 #include <core/default_config.h>
-#include <ui/SettingsInitializer.h>
 #include <core/IdentifiedTag.h>
 #include <core/TerminalProgress.h>
 #include <ui/Categorize.h>

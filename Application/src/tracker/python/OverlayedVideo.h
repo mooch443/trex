@@ -2,6 +2,7 @@
 #include <commons.pc.h>
 #include <core/AbstractVideoSource.h>
 #include <core/BaslerVideoSource.h>
+#include <core/DetectionTypes.h>
 #include <core/TileImage.h>
 #include <processing/ResizeImage.h>
 #include <python/Detection.h>

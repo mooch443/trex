@@ -13,7 +13,9 @@
 #include <ui/LabelElement.h>
 #include <processing/Background.h>
 #include <core/idx_t.h>
+#include <core/DetectionTypes.h>
 #include <core/GPURecognitionTypes.h>
+#include <core/TileImage.h>
 #include <file/DataLocation.h>
 #include <pv.h>
 #include <core/TileBuffers.h>

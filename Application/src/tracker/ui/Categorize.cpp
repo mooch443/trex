@@ -1,4 +1,9 @@
 #include "Categorize.h"
+#include <pv.h>
+#include <misc/Image.h>
+#include <tracking/LockGuard.h>
+#include <tracking/Stuffs.h>
+#include <tracking/TrackletInformation.h>
 
 #include <tracking/Tracker.h>
 #include <tracking/Individual.h>

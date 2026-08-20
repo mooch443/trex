@@ -1,34 +1,44 @@
 #pragma once
 
 #include <commons.pc.h>
-//#include <gui/GuiTypes.h>
-//#include <ui/ConfirmedCrossings.h>
-#include <ui/FramePreloader.h>
-#include <misc/Buffers.h>
+#include <misc/ranges.h>
+#include <misc/bid.h>
+#include <misc/Timer.h>
+#include <core/idx_t.h>
 #include <core/default_config.h>
-#include <pv.h>
 #include <core/TrackingSettings.h>
-#include <misc/ThreadPool.h>
+#include <core/DetectionTypes.h>
 #include <data/MotionRecord.h>
-#include <processing/Background.h>
 #include <processing/BlobWeakPtr.h>
-#include <core/Border.h>
-#include <tracking/Stuffs.h>
 #include <gui/Event.h>
 #include <ui/ShadowTracklet.h>
 #include <data/IndividualCache.h>
 #include <ui/BdxAndPred.h>
-#include <core/TimingStatsCollector.h>
-#include <core/DetectionTypes.h>
-#include <gui/dyn/UnresolvedStringPattern.h>
 
-class Timer;
+class TimingStatsCollector;
+
+namespace pv {
+class File;
+}
+
 namespace track {
+class Border;
 class Individual;
 class PPFrame;
 struct TrackletInformation;
 namespace constraints {
 struct FilterCache;
+}
+}
+
+namespace cmn {
+class Background;
+class GenericThreadPool;
+namespace grid {
+class ProximityGrid;
+}
+namespace pattern {
+struct UnresolvedStringPattern;
 }
 }
 
@@ -136,6 +146,7 @@ namespace globals {
         Frame_t frame;
         
         SimpleBlob(std::unique_ptr<ExternalImage>&& available, pv::BlobWeakPtr b, int t);
+        ~SimpleBlob();
         void convert();
     };
     
@@ -145,8 +156,14 @@ namespace globals {
     using namespace track;
     
     class GUICache {
-        GETTER_NCONST(GenericThreadPool, pool);
+        struct LoadingState;
+
+        std::unique_ptr<GenericThreadPool> _pool;
+    public:
+        const GenericThreadPool& pool() const;
+        GenericThreadPool& pool();
         
+    private:
         mutable std::shared_mutex _next_frame_cache_mutex;
         mutable std::shared_mutex _tracklet_cache_mutex;
         std::unordered_map<Idx_t, IndividualCache> _next_frame_caches;
@@ -158,19 +175,12 @@ namespace globals {
             return _tracklet_cache_mutex;
         }
     protected:
-        struct PPFrameMaker {
-            std::unique_ptr<PPFrame> operator()() const;
-        };
-        
         std::unique_ptr<PPFrame> _current_processed_frame;
-        Buffers< std::unique_ptr<PPFrame>, PPFrameMaker > buffers;
         std::weak_ptr<pv::File> _video;
         gui::DrawStructure* _graph{ nullptr };
         std::unique_ptr<gui::Posture> _posture_window;
-        using FramePtr = std::unique_ptr<PPFrame>;
         std::shared_ptr<TimingStatsCollector> _timing_stats;
-        FramePreloader<FramePtr> _preloader;
-        Timer _last_success;
+        std::unique_ptr<LoadingState> _loading;
         std::unique_ptr<PPFrame> _next_processed_frame;
         GETTER_SETTER(bool, load_frames_blocking){false};
         size_t _mistakes_count{0};
@@ -194,8 +204,8 @@ namespace globals {
         std::optional<std::size_t> _delete_frame_callback;
         
         bool _frame_contained{false};
-        std::optional<FrameProperties> _props;
-        std::optional<FrameProperties> _next_props;
+        FrameProperties::Ptr _props;
+        FrameProperties::Ptr _next_props;
         
         std::vector<float> pixel_value_percentiles;
         bool _equalize_histograms = true;
@@ -213,7 +223,6 @@ namespace globals {
         
         GETTER_PTR(const Background*, background){nullptr};
         
-        Timer _last_consecutive_update;
         std::atomic<bool> _updating_consecutive;
         std::future<std::vector<Range<Frame_t>>> _next_tracklet;
         
@@ -298,13 +307,16 @@ namespace globals {
         std::once_flag _percentile_once;
         std::atomic<bool> done_calculating{false};
         
-        GETTER(Border, border){nullptr};
+    public:
+        const Border& border() const;
+    protected:
+        std::unique_ptr<Border> _border;
         
     protected:
         std::shared_mutex label_mutex;
         std::string _label_text;
         cmn::CallbackFuture _settings_callback;
-        GETTER_NCONST(std::optional<pattern::UnresolvedStringPattern>, prepared_label_text);
+        std::unique_ptr<pattern::UnresolvedStringPattern> _prepared_label_text;
         
     public:
         bool has_selection() const;

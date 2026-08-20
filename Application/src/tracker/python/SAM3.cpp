@@ -10,6 +10,7 @@
 #include <python/YOLO.h>
 #include <python/ModuleProxy.h>
 #include <python/ResponseValidation.h>
+#include <python/BackendRegistry.h>
 
 namespace track {
 

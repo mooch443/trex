@@ -10,6 +10,7 @@
 #include <processing/ProximityGrid.h>
 #include <core/TrackingSettings.h>
 #include <tracking/CacheHints.h>
+#include <tracking/PPFrameTypes.h>
 #include <data/MotionRecord.h>
 
 #ifndef NDEBUG
@@ -23,43 +24,6 @@ class GenericThreadPool;
 }
 
 namespace track {
-
-
-template<typename T, typename... Args>
-concept AnyTransformer =
-    (std::invocable<T, Args...>)
-    ||  (std::invocable<T, Args&...>)
-    ||  (std::invocable<T, Args&&...>);
-
-template<typename T, typename... Args>
-concept VoidTransformer =
-    (std::invocable<T, Args...>
-        && std::is_same<std::invoke_result_t<T, Args...>, void>::value)
-    ||  (std::invocable<T, Args&...>
-            && std::is_same<std::invoke_result_t<T, Args&...>, void>::value)
-    ||  (std::invocable<T, Args&&...>
-            && std::is_same<std::invoke_result_t<T, Args&&...>, void>::value);
-
-template<typename T, typename... Args>
-concept Predicate =
-        (std::invocable<T, Args&...>
-            && std::is_same<std::invoke_result_t<T, Args&...>, bool>::value)
-    ||  (std::invocable<T, Args&&...>
-            && std::is_same<std::invoke_result_t<T, Args&&...>, bool>::value);
-
-template<typename T, typename... Args>
-concept IndexedTransformer =
-    (std::invocable<T, size_t, Args...>
-        && std::is_same<std::invoke_result_t<T, size_t, Args...>, void>::value)
-    ||  (std::invocable<T, size_t, Args&...>
-            && std::is_same<std::invoke_result_t<T, size_t, Args&...>, void>::value)
-    ||  (std::invocable<T, size_t, Args&&...>
-            && std::is_same<std::invoke_result_t<T, size_t, Args&&...>, void>::value);
-
-template<typename T, typename... Args>
-concept Transformer = VoidTransformer<T, Args...>
-                   || Predicate<T, Args...>
-                   || IndexedTransformer<T, Args...>;
 
 class PPFrame {
 public:
@@ -137,9 +101,7 @@ private:
 public:
     const IndividualCache* cached(Idx_t) const;
     
-    enum class NeedGrid {
-        Need, NoNeed
-    };
+    using NeedGrid = track::NeedGrid;
     void init_cache(GenericThreadPool* pool, NeedGrid);
     
 private:

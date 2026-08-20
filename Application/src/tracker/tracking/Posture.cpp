@@ -15,6 +15,7 @@
 #include <processing/DLList.h>
 #include <misc/ObjectCache.h>
 #include <gui/GuiTypes.h>
+#include <tracking/Stuffs.h>
 
 namespace track {
     static const std::vector<Vec2> neighbors = {

@@ -19,9 +19,11 @@
 #include <ui/GUIVideoAdapter.h>
 #include <ui/WorkProgress.h>
 #include <ui/Coordinates.h>
+#include <core/DetectionTypes.h>
 #include <python/Detection.h>
 #include <tracking/Output.h>
 #include <python/PythonWrapper.h>
+#include <python/BackendRegistry.h>
 
 #include <ui/TrackingScene.h>
 #include <ui/ConvertScene.h>

@@ -1,7 +1,9 @@
 #pragma once
 
+#include <data/MotionRecord.h>
 #include <tracking/Individual.h>
 #include <tracking/Stuffs.h>
+#include <tracking/PairingGraph.h>
 #include <processing/PVBlob.h>
 #include <core/default_config.h>
 #include <core/TrackingSettings.h>

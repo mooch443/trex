@@ -14,6 +14,8 @@ library for shared utilities and GUI infrastructure.
 - `website/`, `images/`, `videos/`: site + assets.
 
 Do not use whitespace cleanup tools if they produce lots of diff, never commit huge diff that is just whitespace changes.
+Write inline code comments in terms of current invariants, responsibilities,
+and behavior. Do not use them to narrate code history or earlier implementations.
 When creating commits, match recent repository style: use bullet-style,
 past-tense messages where each line starts with `* Added`, `* Updated`,
 `* Modified`, or similar wording.
@@ -277,6 +279,11 @@ conda build -c conda-forge .
   confident the changes are ready.
 - Optimize for fewer, higher-confidence iterations. Think and inspect longer
   before responding or editing, because each exchange has a monetary cost.
+- For GitHub CI diagnosis or repair, inspect every failing check in the latest
+  relevant run(s) across all operating systems before editing. List every
+  distinct failure and its root cause first; do not stop after the first error.
+  Then address the complete in-scope failure set together in one coordinated
+  pass whenever possible.
 - do not run commands in the build directory and dont delete the existing project files there
 - do not run commands outside the root directory of the project, or commands that affect the outside
 - stay in scope for the task you were asked to do. only edit files directly relevant to that task, plus the minimal wiring required to make those edits work.

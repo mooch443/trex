@@ -1,5 +1,8 @@
 #include "DrawFish.h"
 #include <gui/DrawSFBase.h>
+#include <core/Border.h>
+#include <misc/Image.h>
+#include <misc/ThreadPool.h>
 #include <tracking/OutputLibrary.h>
 #include <tracking/Individual.h>
 #include <tracking/VisualField.h>

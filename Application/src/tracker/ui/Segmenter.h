@@ -1,6 +1,7 @@
 #pragma once
 
 #include <commons.pc.h>
+#include <misc/Image.h>
 #include <misc/frame_t.h>
 #include <core/TaskPipeline.h>
 #include <pv.h>
