@@ -262,7 +262,7 @@ TEST_P(SegmenterMetaEncodingTest, ResumesUnlessStartOverIsRequested) {
     const auto source_paths = create_synthetic_sequence(ws.root / "source", 7);
     const Path output_base((ws.root / "output" / "synthetic_segment").string());
     const Path reference_base((ws.root / "output" / "synthetic_reference").string());
-    const fs::path output_pv = output_base.add_extension("pv").str();
+    const Path output_pv = output_base.add_extension("pv");
     const fs::path output_average = ws.root / "output" / "average_synthetic_segment.png";
     const fs::path reference_average = ws.root / "output" / "average_synthetic_reference.png";
 
@@ -339,14 +339,14 @@ TEST_P(SegmenterMetaEncodingTest, ResumesUnlessStartOverIsRequested) {
         output_base, reference_base, 7, GetParam(), "resumed conversion");
     expect_averages_match_reference("resumed conversion");
 
-    ASSERT_TRUE(file::Path(output_pv).delete_file());
+    ASSERT_TRUE(output_pv.delete_file());
 
     run_case(output_base, true, Range<long_t>{0, 3});
     expect_pv_frames_match_reference(
         output_base, reference_base, 4, GetParam(), "start-over conversion");
     expect_averages_match_reference("start-over conversion");
 
-    ASSERT_TRUE(file::Path(output_pv).delete_file());
+    ASSERT_TRUE(output_pv.delete_file());
 }
 
 TEST(SegmenterExistingOutputTest, LoadContextLoadsExistingPvAndClearsDerivedFilename) {

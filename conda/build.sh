@@ -231,7 +231,7 @@ cmake .. \
     -DTREX_ENABLE_SHARED_INTERNAL_LIBS=OFF \
     -DTREX_ENABLE_MODULES=OFF \
     -DCOMMONS_ENABLE_MODULES=OFF \
-    ${CMAKE_PLATFORM_FLAGS[@]}
+    ${CMAKE_PLATFORM_FLAGS[@]} || exit $?
     #-DPython_INCLUDE_DIRS:FILEPATH=$(python3 -c "from distutils.sysconfig import get_python_inc; print(get_python_inc())") \
     #-DPython_LIBRARIES:FILEPATH=$(python3 ../find_library.py) \
 
@@ -251,16 +251,17 @@ fi
 echo "Choose processor number = ${PROCS}"
 
 if [ "$(uname)" == "Linux" ]; then
-    CMAKE_BUILD_PARALLEL_LEVEL=${PROCS} cmake --build . --target gladex --parallel ${PROCS}
+    CMAKE_BUILD_PARALLEL_LEVEL=${PROCS} cmake --build . --target gladex --parallel ${PROCS} || exit $?
 fi 
-CMAKE_BUILD_PARALLEL_LEVEL=${PROCS} cmake --build . --target imgui --parallel ${PROCS}
+CMAKE_BUILD_PARALLEL_LEVEL=${PROCS} cmake --build . --target imgui --parallel ${PROCS} || exit $?
 
-cmake ..
+cmake .. || exit $?
 
-CMAKE_BUILD_PARALLEL_LEVEL=${PROCS} cmake --build . --parallel ${PROCS} --target runAllTests --config Release
+CMAKE_BUILD_PARALLEL_LEVEL=${PROCS} cmake --build . --parallel ${PROCS} --target runAllTests --config Release || exit $?
 
-cmake .. -DTREX_WITH_TESTS=OFF
-CMAKE_BUILD_PARALLEL_LEVEL=${PROCS} cmake --build . --parallel ${PROCS} && cmake --install .
+cmake .. -DTREX_WITH_TESTS=OFF || exit $?
+CMAKE_BUILD_PARALLEL_LEVEL=${PROCS} cmake --build . --parallel ${PROCS} || exit $?
+cmake --install . || exit $?
 
 echo "Build complete. Checking Git SHA1..."
 if [ -f src/GitSHA1.cpp ]; then

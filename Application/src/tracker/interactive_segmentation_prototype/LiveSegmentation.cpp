@@ -7,6 +7,7 @@
 #include <gui/DrawStructure.h>
 #include <video/VideoSource.h>
 #include <processing/encoding.h>
+#include <python/BackendRegistry.h>
 #include <python/Detection.h>
 #include <python/PythonWrapper.h>
 #include <ui/ImageDisplayElement.h>
