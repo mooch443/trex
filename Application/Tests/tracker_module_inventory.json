@@ -822,13 +822,20 @@
       "excluded": [],
       "module": "trex.core",
       "path": "core/SettingsPaths.h",
-      "sha256": "b5fdfea022575a5179be7a855cdbc1e17fef96a0737d605f7b6911934bed4248",
+      "sha256": "9faab09674c6759bbb356836fb636ba33884c13efb0dcdbbd4c003dfe86ebf91",
       "symbols": [
         {
           "kind": "function",
           "name": "find_output_name",
           "namespace": "cmn::settings",
           "qualified": "cmn::settings::find_output_name",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "find_existing_output_name",
+          "namespace": "cmn::settings",
+          "qualified": "cmn::settings::find_existing_output_name",
           "smoke": "using"
         },
         {
@@ -851,20 +858,13 @@
       "excluded": [],
       "module": "trex.core",
       "path": "core/SettingsInitializer.h",
-      "sha256": "cbf887c3551d68dada385e0560d08952d3c5aa708ad8ef2836a1f9491c2b4131",
+      "sha256": "ce6e81b8fe854c4e86d60674d18761285172707c16713ca55540462d9ff96dd3",
       "symbols": [
         {
           "kind": "class",
           "name": "Map",
           "namespace": "cmn::sprite",
           "qualified": "cmn::sprite::Map",
-          "smoke": "using"
-        },
-        {
-          "kind": "function",
-          "name": "initialize_filename_for_tracking",
-          "namespace": "cmn::settings",
-          "qualified": "cmn::settings::initialize_filename_for_tracking",
           "smoke": "using"
         },
         {

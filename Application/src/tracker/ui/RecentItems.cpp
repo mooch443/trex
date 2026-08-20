@@ -5,7 +5,8 @@
 #include <file/DataLocation.h>
 #include <core/default_config.h>
 #include <grabber/misc/default_config.h>
-#include <ui/SettingsInitializer.h>
+#include <ui/GuiSettings.h>
+#include <core/SettingsPaths.h>
 
 using namespace cmn::gui;
 using namespace cmn;
@@ -85,7 +86,7 @@ void RecentItems::open(const file::PathArray& name, const sprite::Map& options) 
     //    return;
     //}
     auto basename = GlobalSettings::read([](const Configuration& config) {
-        return settings::find_output_name(config.values, config.values.at("source"), config.values.at("filename"), true);
+        return settings::find_output_name(config.values, config.values.at("source"), true);
     });
     
     if(basename.empty())

@@ -183,7 +183,7 @@ void BackgroundSubtraction::apply(std::vector<TileImage> &&tiled) {
                         cv::cvtColor(image->get(), r3, cv::COLOR_BGRA2BGR);
                     else
                         throw U_EXCEPTION("Invalid number of channels (",image->dims,") in input image for the network.");
-                    
+
                 } else
                     throw U_EXCEPTION("Invalid image mode ", mode);
                 
@@ -215,6 +215,12 @@ void BackgroundSubtraction::apply(std::vector<TileImage> &&tiled) {
             #endif
                         rawblobs = CPULabeling::run(r3, cache, true);
 
+                    if(mode == meta_encoding_t::binary) {
+                        for(auto &pair : rawblobs) {
+                            pair.pixels = nullptr;
+                        }
+                    }
+
                     const uint8_t flags = pv::Blob::flag(pv::Blob::Flags::is_tag)
                             | pv::Blob::flag(pv::Blob::Flags::is_instance_segmentation)
                             | (mode == meta_encoding_t::rgb8 ? pv::Blob::flag(pv::Blob::Flags::is_rgb) : 0)
@@ -223,7 +229,7 @@ void BackgroundSubtraction::apply(std::vector<TileImage> &&tiled) {
                     for (auto& blob : tag.tags) {
                         rawblobs.emplace_back(
                             std::make_unique<blob::line_ptr_t::element_type>(*blob->lines()),
-                            std::make_unique<blob::pixel_ptr_t::element_type>(*blob->pixels()),
+                            (mode != meta_encoding_t::binary) ? std::make_unique<blob::pixel_ptr_t::element_type>(*blob->pixels()) : nullptr,
                             flags);
                     }
 

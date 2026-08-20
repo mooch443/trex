@@ -9,7 +9,6 @@ namespace cmn::settings {
 
 file::Path find_output_name(const sprite::Map& map,
                             file::PathArray source,
-                            file::Path filename,
                             bool respect_user_choice)
 {
     const auto source_ref = map.at("source");
@@ -26,43 +25,31 @@ file::Path find_output_name(const sprite::Map& map,
         }
     }
 
-    filename = name.empty()
-        ? file::Path()
+    auto filename = name.empty()
+        ? file::Path{}
         : file::DataLocation::parse("output", name, &map);
 
-    if(not filename.empty()) {
-        if(filename.has_extension("pv")) {
-            filename = filename.remove_extension();
-        }
-        return filename;
-    }
-
-    if(_source.get_paths().empty()) {
-        return filename;
-    }
-
-    if(_source.get_paths().size() == 1
-       && _source.get_paths().front().has_extension("pv"))
-    {
-        file::Path path = _source.get_paths().front();
-        if(not path.empty()) {
-            filename = path.absolute();
+    if(filename.empty()) {
+        if(_source.get_paths().size() == 1
+           && _source.get_paths().front().has_extension("pv"))
+        {
+            file::Path path = _source.get_paths().front();
+            if(not path.empty()) {
+                filename = path.absolute();
+            } else {
+                filename = {};
+            }
         } else {
+            filename = file::find_basename(_source);
+        }
+
+        if(not filename.empty()
+           && not filename.has_extension("pv"))
+        {
+            filename = file::DataLocation::parse("output", filename, &map);
+        } else if(filename.empty()) {
             filename = {};
         }
-    } else {
-        filename = file::find_basename(_source);
-        if(filename.has_extension() && filename.exists()) {
-            filename = filename.remove_extension();
-        }
-    }
-
-    if(not filename.empty()
-       && not filename.has_extension("pv"))
-    {
-        filename = file::DataLocation::parse("output", filename, &map);
-    } else if(filename.empty()) {
-        filename = {};
     }
 
     if(filename.has_extension("pv")) {
@@ -70,6 +57,62 @@ file::Path find_output_name(const sprite::Map& map,
     }
 
     return filename;
+}
+
+file::Path find_existing_output_name(const sprite::Map& map,
+                                     file::PathArray source)
+{
+    if(source.empty()) {
+        if(auto source_ref = map.at("source"); source_ref.valid())
+            source = source_ref.value<file::PathArray>();
+    }
+
+    file::Path path;
+    if(auto filename_ref = map.at("filename");
+       filename_ref.valid() && not filename_ref.value<file::Path>().empty())
+    {
+        path = filename_ref.value<file::Path>();
+    } else if(source.size() == 1
+              && source.get_paths().front().has_extension("pv"))
+    {
+        path = find_output_name(map, source, false);
+    } else {
+        const auto basename = file::Path(file::find_basename(source));
+        if(not basename.empty()) {
+            path = file::DataLocation::parse("input", basename, &map);
+            if(not path.is_regular()
+               && not path.add_extension("pv").is_regular())
+            {
+                path = find_output_name(map, source, false);
+            }
+        }
+    }
+
+    if(not path.has_extension()
+       || path.extension() != "pv")
+    {
+        path = path.add_extension("pv");
+    }
+
+    if(not path.is_absolute())
+        path = file::DataLocation::parse("output", path, &map);
+
+    if(path.is_regular()) {
+        return path.remove_extension();
+
+    } else if(source.size() == 1
+              && ((source.get_paths().front().is_regular()
+                   && source.get_paths().front().has_extension("pv"))
+                  || source.get_paths().front().add_extension("pv").is_regular()))
+    {
+        auto path = source.get_paths().front();
+        if(path.has_extension("pv"))
+            path = path.remove_extension();
+        return path;
+
+    } else {
+        throw U_EXCEPTION("Cannot find the file ", path, " and nothing in ", source, " seems to be a .pv file.");
+    }
 }
 
 Float2_t infer_cm_per_pixel(const sprite::Map* map) {

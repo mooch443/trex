@@ -27,12 +27,12 @@ using ::cmn::gui::mode_t::Class;
 export namespace cmn::settings {
 // core/SettingsInitializer.h
 using ::cmn::settings::LoadContext;
-using ::cmn::settings::initialize_filename_for_tracking;
 using ::cmn::settings::load;
 using ::cmn::settings::reset;
 using ::cmn::settings::set_defaults_for;
 using ::cmn::settings::write_config;
 // core/SettingsPaths.h
+using ::cmn::settings::find_existing_output_name;
 using ::cmn::settings::find_output_name;
 using ::cmn::settings::infer_cm_per_pixel;
 using ::cmn::settings::infer_meta_real_width_from;

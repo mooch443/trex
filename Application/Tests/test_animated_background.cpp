@@ -62,7 +62,7 @@ pv::File make_artificial_pv_file(const file::Path& path,
         conversion_start,
         conversion_end);
     
-    metadata["filename"] = settings::find_output_name(metadata, {}, {}, false);
+    metadata["filename"] = settings::find_output_name(metadata, {}, false);
     
     video.set_metadata(std::move(metadata));
     return video;

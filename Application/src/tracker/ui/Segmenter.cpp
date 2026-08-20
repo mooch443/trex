@@ -377,10 +377,15 @@ Image::Ptr Segmenter::finalize_bg_image(const cv::Mat& bg) {
     Image::Ptr ptr = Image::Make(_output_size.height, _output_size.width, max(1u, channels));
     _crop_offsets.apply_copy(bg, input);
     
-    if(input.channels() == 3
-        && input.cols == _output_size.width
-        && input.rows == _output_size.height
-    ) {
+    if(input.cols != _output_size.width
+       || input.rows != _output_size.height)
+    {
+        FormatWarning("Background has wrong format: ", input.cols, "x", input.rows, "x", input.channels(), " vs. ", _output_size.width, "x", _output_size.height, "x", channels);
+
+    } else if(input.channels() != 3) {
+        throw InvalidArgumentException("Background images should always be loaded and created as 3-channel images to make it possible to switch between meta_encodings later on. Was given ", input.cols, "x", input.rows, "x", input.channels(), ".");
+
+    } else if(input.channels() == 3) {
         if(meta_encoding == meta_encoding_t::r3g3b2) {
             assert(channels == 1);
             auto tmp = ptr->get();
@@ -402,17 +407,14 @@ Image::Ptr Segmenter::finalize_bg_image(const cv::Mat& bg) {
         } else {
             throw InvalidArgumentException("Invalid meta_encoding: ", meta_encoding, " to convert the background image.");
         }
-
-    } else {
-        FormatWarning("Background has wrong format: ", input.cols, "x", input.rows, "x", input.channels(), " vs. ", _output_size.width, "x", _output_size.height, "x", channels);
     }
 
     return ptr;
 }
 
 std::tuple<bool, cv::Mat> Segmenter::get_preliminary_background(Size2 size) {
-    const uint8_t channels = required_storage_channels(Background::meta_encoding());
-    cv::Mat bg = cv::Mat::zeros(_output_size_before_crop.height, _output_size_before_crop.width, CV_8UC(channels));
+    constexpr uint8_t average_channels = 3;
+    cv::Mat bg = cv::Mat::zeros(_output_size_before_crop.height, _output_size_before_crop.width, CV_8UC3);
     bg.setTo(255);
 
     bool do_generate_average { BOOL_SETTING(reset_average) };
@@ -421,15 +423,16 @@ std::tuple<bool, cv::Mat> Segmenter::get_preliminary_background(Size2 size) {
     }
     else {
         Print("Loading average from file ",average_name(),"...");
-        bg = cv::imread(average_name().str());
+        bg = cv::imread(average_name().str(), cv::IMREAD_COLOR);
 
-        /// we expect an RGB image here so we can convert to any format
-        if (bg.cols == size.width && bg.rows == size.height && bg.channels() == 3) {
+        /// External averages are always three-channel so they can be converted
+        /// to whichever storage encoding is selected for the PV.
+        if (bg.cols == size.width && bg.rows == size.height && bg.channels() == average_channels) {
             Print("Background image is valid ", size, " with RGB channels.");
             
         } else {
-            FormatWarning("Background has wrong format: ", bg.cols, "x", bg.rows, "x", bg.channels(), " vs. ", _output_size_before_crop.width, "x", _output_size_before_crop.height, "x", channels);
-            bg = cv::Mat::zeros(_output_size_before_crop.height, _output_size_before_crop.width, CV_8UC(channels));
+            FormatWarning("Background has wrong format: ", bg.cols, "x", bg.rows, "x", bg.channels(), " vs. ", _output_size_before_crop.width, "x", _output_size_before_crop.height, "x", average_channels);
+            bg = cv::Mat::zeros(_output_size_before_crop.height, _output_size_before_crop.width, CV_8UC3);
             do_generate_average = true;
         }
     }
@@ -555,13 +558,13 @@ void Segmenter::open_output_file() {
 
 void Segmenter::trigger_average_generator(bool do_generate_average, cv::Mat& bg) {
     const auto encoding = Background::meta_encoding();
-    const auto channels = required_image_channels(encoding);
+    const auto processing_channels = required_image_channels(encoding);
     
     // procrastinate on generating the average async because
     // otherwise the GUI stops responding...
     if(do_generate_average) {
         std::unique_lock guard(average_generator_mutex);
-        average_generator = std::async(std::launch::async, [this, size = _output_size_before_crop, channels]()
+        average_generator = std::async(std::launch::async, [this, size = _output_size_before_crop]()
         {
             struct NotifyGuard {
                 std::mutex& mutex;
@@ -575,7 +578,9 @@ void Segmenter::trigger_average_generator(bool do_generate_average, cv::Mat& bg)
                 }
             } guard(average_variable, average_generator_mutex);
             
-            cv::Mat bg = cv::Mat::zeros(size.height, size.width, CV_8UC(channels));
+            /// Keep the external average in full three-channel form. VideoSource
+            /// expands inherently grayscale inputs to three equal channels.
+            cv::Mat bg = cv::Mat::zeros(size.height, size.width, CV_8UC3);
             bg.setTo(255);
             
             try {
@@ -584,8 +589,8 @@ void Segmenter::trigger_average_generator(bool do_generate_average, cv::Mat& bg)
                 
                 VideoSource tmp(READ_SETTING(source, file::PathArray));
                 
-                /// for future purposes everything in rgb, so if the
-                /// user switches to gray later on it still works:
+                /// Keep the source average in RGB so it remains reusable for
+                /// every PV meta encoding.
                 tmp.set_colors(ImageMode::RGB);
                 tmp.generate_average(bg, 0, [&last_percent, this](float percent) {
                     if(percent > last_percent + 10
@@ -610,12 +615,6 @@ void Segmenter::trigger_average_generator(bool do_generate_average, cv::Mat& bg)
                 FormatExcept("Exception when generating the average image: ", ex.what());
             } catch(...) {
                 FormatExcept("Unknown exception when generating the average image.");
-            }
-            
-            if(Background::meta_encoding() == meta_encoding_t::r3g3b2) {
-                cv::Mat tmp;
-                convert_to_r3g3b2<3>(bg, tmp);
-                std::swap(tmp, bg);
             }
             
             Image::Ptr ptr;
@@ -658,7 +657,7 @@ void Segmenter::trigger_average_generator(bool do_generate_average, cv::Mat& bg)
             {
                 std::unique_lock guard(_mutex_tracker);
                 auto image_size = _output_size_before_crop;
-                _tracker = std::make_unique<Tracker>(Image::Make(image_size.height, image_size.width, channels), Background::meta_encoding(), READ_SETTING(meta_real_width, Float2_t));
+                _tracker = std::make_unique<Tracker>(Image::Make(image_size.height, image_size.width, processing_channels), Background::meta_encoding(), READ_SETTING(meta_real_width, Float2_t));
             }
 
             open_output_file();
@@ -795,8 +794,11 @@ void Segmenter::open_camera() {
     //const auto encoding = Background::meta_encoding();
     //const uint8_t channels = required_image_channels(encoding);
 
-    if (READ_SETTING(filename, file::Path).empty())
-        SETTING(filename) = file::DataLocation::parse("output", file::Path(file::find_basename(READ_SETTING(source, file::PathArray))));
+    if(READ_SETTING(filename, file::Path).empty()) {
+        SETTING(filename) = GlobalSettings::read([](const Configuration& config) {
+            return settings::find_output_name(config.values);
+        });
+    }
     
     if(source == file::PathArray("webcam") || use_basler) {
         //if(not CommandLine::instance().settings_keys().contains("detect_model"))

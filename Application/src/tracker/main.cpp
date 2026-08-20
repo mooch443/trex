@@ -15,6 +15,7 @@ static void (*windowsEarlyEnvSetup)(void) = []() {
 };
 #endif
 
+#include <core/indicators.h>
 #include <gui/DrawStructure.h>
 #include <gui/Dispatcher.h>
 #include <gui/IMGUIBase.h>
@@ -39,6 +40,7 @@ static void (*windowsEarlyEnvSetup)(void) = []() {
 #include <GitSHA1.h>
 #include <grabber/misc/Webcam.h>
 #include <opencv2/core/utils/logger.hpp>
+#include <python/Detection.h>
 
 #include <core/TaskPipeline.h>
 #include <ui/Scene.h>
@@ -67,7 +69,8 @@ static void (*windowsEarlyEnvSetup)(void) = []() {
 //#include <python/Yolo7ObjectDetection.h>
 
 #include <file/PathArray.h>
-#include <ui/SettingsInitializer.h>
+#include <core/SettingsInitializer.h>
+#include <ui/RecentItems.h>
 
 #include <signal.h>
 #include <misc/default_settings.h>
@@ -197,7 +200,7 @@ void check_pause() {
 }
 
 void launch_gui(std::future<void>& f) {
-    IMGUIBase base(window_title(), {1024,850}, [&, ptr = &base](DrawStructure&)->bool {
+    IMGUIBase base(cmn::settings::window_title(), {1024,850}, [&, ptr = &base](DrawStructure&)->bool {
         UNUSED(ptr);
         //graph.draw_log_messages(Bounds(Vec2(0, 80), graph.dialog_window_size()));
         return true;
@@ -549,7 +552,9 @@ void init_signals() {
 }
 
 std::string start_tracking(std::future<void>& f) {
-    settings::initialize_filename_for_tracking();
+    SETTING(filename) = GlobalSettings::read([](const Configuration& config) {
+        return settings::find_existing_output_name(config.values);
+    });
     
     std::atomic<bool> terminate{false};
     TrackingState state{nullptr};
@@ -821,11 +826,8 @@ int main(int argc, char**argv) {
         else if(a.name == "o"
                 && a.value)
         {
-            auto path = file::Path(*a.value);
-            if(path.has_extension() && path.has_extension("pv"))
-                path = path.remove_extension();
-            SETTING(filename) = path;
-            CommandLine::instance().add_setting("filename", path.str());
+            SETTING(filename) = file::Path(*a.value);
+            CommandLine::instance().add_setting("filename", *a.value);
         }
         else if(a.name == "p"
                 && a.value)
@@ -892,13 +894,6 @@ int main(int argc, char**argv) {
 #endif
 
     CommandLine::instance().load_settings();
-    
-    if (not READ_SETTING(filename, file::Path).empty()) {
-        auto path = READ_SETTING(filename, file::Path);
-        if(path.has_extension("pv"))
-            path = path.remove_extension();
-        SETTING(filename) = file::DataLocation::parse("output", path);
-    }
     
     std::string last_error;
     if(BOOL_SETTING(nowindow)) {

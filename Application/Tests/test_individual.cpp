@@ -1,6 +1,8 @@
 #include <commons.pc.h>
 #include <gtest/gtest.h>
 #include <tracking/Individual.h>
+#include <tracking/TrackletInformation.h>
+#include <tracking/Stuffs.h>
 
 using namespace cmn;
 using namespace track;

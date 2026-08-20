@@ -70,10 +70,10 @@ inline void reset_global_settings() {
         Python::get_instance(),
         &testTileBuffers(),
         [](auto& name, auto& mat) {
-            tf::imshow(name, mat);
+            cmn::tf::imshow(name, mat);
         },
         []() {
-            tf::destroyAllWindows();
+            cmn::tf::destroyAllWindows();
         }
     );
 	Python::ensure_python_impl_loaded();
@@ -89,7 +89,39 @@ inline void register_data_locations_once() {
     (void)registered;
 }
 
-inline std::vector<std::string> create_synthetic_sequence(const fs::path& source_dir, size_t frame_count) {
+#ifdef TREX_TEST_SEGMENTER_DEBUG_PLAYBACK
+inline void debug_play_synthetic_sequence_once(const std::vector<std::string>& paths,
+                                                bool grayscale)
+{
+    static std::once_flag color_once;
+    static std::once_flag grayscale_once;
+    auto& once = grayscale ? grayscale_once : color_once;
+
+    std::call_once(once, [&] {
+        const std::string window_name = grayscale
+            ? "Synthetic Segmenter input (grayscale)"
+            : "Synthetic Segmenter input (color)";
+
+        for(const auto& path : paths) {
+            const auto frame = cv::imread(path, cv::IMREAD_UNCHANGED);
+            if(frame.empty())
+                continue;
+
+            cv::imshow(window_name, frame);
+            const int key = cv::waitKey(140);
+            if(key == 27 || key == 'q' || key == 'Q')
+                break;
+        }
+
+        cv::destroyWindow(window_name);
+    });
+}
+#endif
+
+inline std::vector<std::string> create_synthetic_sequence(const fs::path& source_dir,
+                                                          size_t frame_count,
+                                                          bool grayscale = false)
+{
     std::vector<std::string> paths;
     paths.reserve(frame_count);
 
@@ -100,15 +132,27 @@ inline std::vector<std::string> create_synthetic_sequence(const fs::path& source
     constexpr int start_y = 18;
 
     for (size_t i = 0; i < frame_count; ++i) {
-        cv::Mat frame(height, width, CV_8UC3, cv::Scalar(0, 0, 0));
+        cv::Mat frame(height, width, grayscale ? CV_8UC1 : CV_8UC3, cv::Scalar::all(0));
         const int x = start_x + static_cast<int>(i) * 3;
 
-        cv::rectangle(frame, cv::Rect(x, start_y, square_size, square_size), cv::Scalar(255, 255, 255), cv::FILLED);
-        frame.at<cv::Vec3b>(0, 0) = cv::Vec3b(
-            static_cast<uchar>(i),
-            static_cast<uchar>(255 - i),
-            static_cast<uchar>((i * 37) % 256)
-        );
+        if(grayscale) {
+            cv::rectangle(frame, cv::Rect(x, start_y, square_size, square_size),
+                          cv::Scalar::all(255), cv::FILLED);
+            frame.at<uchar>(0, 0) = static_cast<uchar>(i);
+        } else {
+            const cv::Scalar object_color(
+                64 + (i * 13) % 128,
+                128 + (i * 17) % 96,
+                192 + (i * 19) % 64
+            );
+            cv::rectangle(frame, cv::Rect(x, start_y, square_size, square_size),
+                          object_color, cv::FILLED);
+            frame.at<cv::Vec3b>(0, 0) = cv::Vec3b(
+                static_cast<uchar>(i),
+                static_cast<uchar>(255 - i),
+                static_cast<uchar>((i * 37) % 256)
+            );
+        }
 
         std::ostringstream name;
         name << "frame_" << std::setw(4) << std::setfill('0') << i << ".png";
@@ -118,6 +162,10 @@ inline std::vector<std::string> create_synthetic_sequence(const fs::path& source
         }
         paths.push_back(file_path.string());
     }
+
+#ifdef TREX_TEST_SEGMENTER_DEBUG_PLAYBACK
+    debug_play_synthetic_sequence_once(paths, grayscale);
+#endif
 
     return paths;
 }

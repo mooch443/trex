@@ -11,7 +11,6 @@
 #include <misc/CommandLine.h>
 #include <file/PathArray.h>
 #include <gui/dyn/Action.h>
-#include <ui/SettingsInitializer.h>
 #include <ui/GUIVideoAdapterElement.h>
 #include <ui/WorkProgress.h>
 #include <ui/Coordinates.h>
@@ -20,6 +19,7 @@
 #include <ui/RecentItems.h>
 #include <core/default_config.h>
 #include <grabber/misc/default_config.h>
+#include <core/SettingsInitializer.h>
 
 #include <ui/SettingsScene.h>
 
@@ -45,34 +45,6 @@ StartingScene::~StartingScene() {
     
 }
 
-file::Path pv_file_path_for(const file::PathArray& array) {
-    file::Path output_file;
-    //bool pv_exists = false;
-    
-    if(array.empty()) {
-        // no source file?
-    } else if (auto front = array.get_paths().front();
-                array.size() == 1 /// TODO: not sure how this deals with patterns
-             )
-    {
-        front = front.filename();
-        output_file =
-            not front.has_extension()
-                ? file::DataLocation::parse("output", front.add_extension("pv"))
-                : file::DataLocation::parse("output", front.replace_extension("pv"));
-
-        if (output_file.exists()) {
-            //SETTING(source) = file::PathArray({ output_file });
-            //pv_exists = true;
-        }
-        else {
-            //manager.set_active(&converting);
-            output_file = "";
-        }
-    }
-    return output_file;
-}
-
 void StartingScene::activate() {
     WorkProgress::instance().start();
     settings::load(settings::LoadContext{
@@ -82,7 +54,7 @@ void StartingScene::activate() {
     using namespace dyn;
     // Fill the recent items list
 //    _recents = RecentItems::read();
-    window()->set_title(window_title());
+    window()->set_title(settings::window_title());
     //_recents.show(*_recent_items);
     
     ((IMGUIBase*)window())->center({});
@@ -108,12 +80,6 @@ void StartingScene::update_recent_items() {
         tmp["index"] = i;
         
         _data->corpus.emplace_back(detail.name()+" "+detail.detail()+" "+detail.tooltip());
-        
-        file::PathArray array;
-        if(item._options.has("source"))
-            array = item._options.at("source").value<file::PathArray>();
-        
-        tmp["pv_exists"] = pv_file_path_for(array);
         
         _data->data.push_back(std::move(tmp));
         

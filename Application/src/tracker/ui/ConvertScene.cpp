@@ -33,7 +33,6 @@
 #include <ui/Segmenter.h>
 #include <ui/ScreenRecorder.h>
 #include <gui/DynamicGUI.h>
-#include <ui/SettingsInitializer.h>
 #include <python/PythonWrapper.h>
 #include <ui/WorkProgress.h>
 #include <misc/CTCollection.h>
@@ -46,6 +45,8 @@
 #include <ui/Skelett.h>
 #include <ui/Bowl.h>
 #include <ml/ClosedLoop.h>
+#include <core/SettingsPaths.h>
+#include <ui/GuiSettings.h>
 
 namespace cmn::gui {
 namespace ind = indicators;
@@ -544,7 +545,7 @@ void ConvertScene::activate()  {
     _data->output_size = _data->_segmenter->output_size();
     buffers::TileBuffers::get().set_image_size(detect::get_model_image_size());
     
-    window()->set_title(window_title());
+    window()->set_title(settings::window_title());
     _data->bar.set_progress(0);
     
     SceneManager::enqueue([this](IMGUIBase*, DrawStructure& graph) {

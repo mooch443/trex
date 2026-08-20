@@ -29,11 +29,10 @@
 #include <gui/types/Button.h>
 #include <gui/types/Layout.h>
 #include <ui/TrackingState.h>
-#include <ui/SettingsInitializer.h>
 #include <ui/CategorizeInterface.h>
 #include <ui/DrawPreviewImage.h>
 #include <ui/DrawPosture.h>
-#include <ui/SettingsInitializer.h>
+#include <core/SettingsPaths.h>
 #include <tracking/FilterCache.h>
 #include <core/FOI.h>
 #include <gui/dyn/ParseText.h>
@@ -856,14 +855,16 @@ void TrackingScene::settings_callback(std::string_view key) {
     }
     
     if(key == "output_prefix") {
-        window()->set_title(window_title());
+        window()->set_title(settings::window_title());
     }
 }
 
 void TrackingScene::activate() {
     WorkProgress::instance().start();
-    
-    settings::initialize_filename_for_tracking();
+
+    SETTING(filename) = GlobalSettings::read([](const Configuration& config) {
+        return settings::find_existing_output_name(config.values);
+    });
     
     _state = std::make_unique<TrackingState>(SceneManager::getInstance().gui_task_queue());
     

@@ -328,11 +328,6 @@ namespace trex_module_smoke::trex_ui::cmn::gui {
 using ::cmn::gui::SettingsScene;
 }
 
-// ui/SettingsInitializer.h
-namespace trex_module_smoke::trex_ui::cmn::settings {
-using ::cmn::settings::write_config;
-}
-
 // ui/StartingScene.h
 namespace trex_module_smoke::trex_ui::cmn::gui {
 using ::cmn::gui::StartingScene;

@@ -8,11 +8,9 @@
 //#include <gui/types/Checkbox.h>
 #include <gui/dyn/Action.h>
 #include <video/VideoSource.h>
-//#include <core/AbstractVideoSource.h>
-//#include <core/VideoVideoSource.h>
-//#include <core/WebcamVideoSource.h>
+#include <core/SettingsPaths.h>
 #include <gui/DynamicGUI.h>
-#include <ui/SettingsInitializer.h>
+#include <core/SettingsInitializer.h>
 #include <core/BlurryVideoLoop.h>
 #include <ui/GUIVideoAdapterElement.h>
 #include <core/VideoInfo.h>
@@ -730,24 +728,11 @@ struct SettingsScene::Data {
                             
                             Print("changed props = ", copy.keys());
                             auto array = READ_SETTING(source, file::PathArray);
-                            //auto front = file::Path(file::find_basename(array));
-                            
-                            auto output_file = settings::find_output_name(before);
-                            if(not output_file.has_extension() || output_file.extension() != "pv")
-                            {
-                                output_file = output_file.add_extension("pv");
-                            }
-                            /*auto output_file = (not front.has_extension() || front.extension() != "pv") ?
-                            file::DataLocation::parse("output", front.add_extension("pv")) :
-                            file::DataLocation::parse("output", front.replace_extension("pv"));*/
-                            //if (output_file.exists())
-                            {
-                                SETTING(filename) = file::Path(output_file);
-                            }
+                            auto output_file = settings::find_output_name(before, array);
                             
                             settings::load(settings::LoadContext{
                                 .source = array,
-                                .filename = SETTING(filename),
+                                .filename = output_file,
                                 .task = default_config::TRexTask_t::track,
                                 .type = {},
                                 .source_map = copy,

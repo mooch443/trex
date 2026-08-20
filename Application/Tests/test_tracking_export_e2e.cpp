@@ -13,7 +13,7 @@
 #include <tracking/IndividualManager.h>
 #include <tracking/Tracker.h>
 #include <ui/TrackingState.h>
-#include <ui/SettingsInitializer.h>
+#include <core/SettingsPaths.h>
 #include <ui/WorkProgress.h>
 
 #include <algorithm>
@@ -291,7 +291,9 @@ TEST(HeadlessTrackingExport, TracksFixtureAndExportsParseableCsv) {
     SETTING(output_recognition_data) = false;
     SETTING(output_statistics) = false;
 
-    settings::initialize_filename_for_tracking();
+    SETTING(filename) = GlobalSettings::read([](const Configuration& config) {
+        return settings::find_existing_output_name(config.values);
+    });
 
     auto tracking_done = std::make_shared<std::promise<void>>();
     auto tracking_done_future = tracking_done->get_future();

@@ -72,6 +72,8 @@ target_compile_definitions(test_detection_pipeline_failures PRIVATE -DTREX_TEST_
 add_executable(test_tracking_export_e2e test_tracking_export_e2e.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
 target_compile_definitions(test_tracking_export_e2e PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
 
+add_executable(test_tracking_filename_resolution test_tracking_filename_resolution.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
+
 add_executable(test_dispatcher test_dispatcher.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
 target_compile_definitions(test_dispatcher PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
 
@@ -159,6 +161,7 @@ set(TARGETS
     test_segmenter
     test_detection_pipeline_failures
     test_tracking_export_e2e
+    test_tracking_filename_resolution
     test_dispatcher
     test_sam3promptpayload
     test_detect_annotation_io
@@ -216,6 +219,7 @@ target_link_libraries(test_tiling PUBLIC gtest gmock)
 target_link_libraries(test_segmenter PUBLIC gtest)
 target_link_libraries(test_detection_pipeline_failures PUBLIC gtest)
 target_link_libraries(test_tracking_export_e2e PUBLIC gtest)
+target_link_libraries(test_tracking_filename_resolution PUBLIC gtest)
 target_link_libraries(test_dispatcher PUBLIC gtest)
 target_link_libraries(test_sam3promptpayload PUBLIC gtest)
 target_link_libraries(test_detect_annotation_io PUBLIC gtest)
@@ -336,6 +340,12 @@ target_link_libraries(test_tracking_export_e2e PUBLIC
 )
 trex_link_static_python_impl(test_tracking_export_e2e)
 
+target_link_libraries(test_tracking_filename_resolution PUBLIC
+    tracker_misc
+    pv
+    commons
+)
+
 target_link_libraries(test_dispatcher PUBLIC
     tracker_gui
     tracker_misc
@@ -432,6 +442,7 @@ set_target_properties(test_tiling PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "Y
 set_target_properties(test_segmenter PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 set_target_properties(test_detection_pipeline_failures PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 set_target_properties(test_tracking_export_e2e PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
+set_target_properties(test_tracking_filename_resolution PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 set_target_properties(test_dispatcher PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 set_target_properties(test_sam3promptpayload PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 set_target_properties(test_detect_annotation_io PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
@@ -492,6 +503,7 @@ set_tests_properties(test-detection-pipeline-failures PROPERTIES TIMEOUT 300)
 add_test(NAME test-tracking-export-e2e COMMAND test_tracking_export_e2e)
 trex_prepend_test_path(test-tracking-export-e2e trex_check_python)
 set_tests_properties(test-tracking-export-e2e PROPERTIES TIMEOUT 600)
+add_test(NAME test-tracking-filename-resolution COMMAND test_tracking_filename_resolution)
 add_test(NAME test-dispatcher COMMAND test_dispatcher)
 add_test(NAME test-sam3promptpayload COMMAND test_sam3promptpayload)
 add_test(NAME test-detect-annotation-io COMMAND test_detect_annotation_io)

@@ -159,6 +159,7 @@ using ::cmn::SegmentationData;
 
 // core/SettingsPaths.h
 namespace trex_module_smoke::trex_core::cmn::settings {
+using ::cmn::settings::find_existing_output_name;
 using ::cmn::settings::find_output_name;
 using ::cmn::settings::infer_cm_per_pixel;
 using ::cmn::settings::infer_meta_real_width_from;
@@ -167,7 +168,6 @@ using ::cmn::settings::infer_meta_real_width_from;
 // core/SettingsInitializer.h
 namespace trex_module_smoke::trex_core::cmn::settings {
 using ::cmn::settings::LoadContext;
-using ::cmn::settings::initialize_filename_for_tracking;
 using ::cmn::settings::load;
 using ::cmn::settings::reset;
 using ::cmn::settings::set_defaults_for;

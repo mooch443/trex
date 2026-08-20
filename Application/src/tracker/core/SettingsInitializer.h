@@ -14,8 +14,6 @@ namespace pv {
 
 namespace cmn::settings {
 
-void initialize_filename_for_tracking();
-
 struct LoadContext {
     file::PathArray source{};
     file::Path filename{};
@@ -64,8 +62,6 @@ struct LoadContext {
     void init();
     bool set_config_if_different(const std::string_view& key, const sprite::Map& from, bool do_print = false);
     void init_filename();
-    void fix_empty_source();
-    void fix_empty_filename();
     void reset_default_filenames();
     
     void load_settings_from_source();
