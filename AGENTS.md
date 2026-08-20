@@ -297,6 +297,11 @@ conda build -c conda-forge .
 - Run authenticated `gh` commands with escalated access. A sandboxed `gh auth`
   failure does not establish that credentials have expired; retry with
   escalation before asking the user to authenticate again.
+- When a commit fully resolves a specific GitHub issue and is intended to reach
+  the default branch, include an appropriate closing keyword such as
+  `Fixes #257` in the commit message so merging it closes the issue
+  automatically. For partial or not-yet-verified work, use a non-closing issue
+  reference instead.
 - For commons monolith + modules work, run CMake/Ninja from `Application/tmp-modules-osx-tests-nolto` with the `trex-modules` Conda environment.
 - For commons shared-library split testing with modules disabled, use `tmp-shared-split-osx-tests-nolto` with Ninja in the `trex-modules` Conda environment.
 - For commons shared-library split testing with modules enabled, use `tmp-shared-split-osx-tests-nolto` with Ninja in the `trex-modules` Conda environment.
