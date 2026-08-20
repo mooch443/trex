@@ -102,7 +102,7 @@ namespace default_config {
         CONFIG("save_raw_movie", false, "Saves a RAW movie (.mov) with a similar name in the same folder, while also recording to a PV file. This might reduce the maximum framerate slightly, but it gives you the best of both worlds.", INIT);
         CONFIG("save_raw_movie_path", file::Path(), "The path to the raw movie file. If empty, the same path as the PV file will be used (but as a .mov).", INIT);
         
-        CONFIG("video_conversion_range", Range<long_t>(-1, -1), "This determines which part of the video will be converted. By default (`[-1,-1]`) the entire video will be converted. If set to a valid value (not -1), start and end values determine the range converted (each one can be valid independently of the other).", INIT);
+        CONFIG("video_conversion_range", Range<long_t>(-1, -1), "This determines which part of the video will be converted. By default (`[-1,-1]`) the entire video will be converted. If set to a valid value (not -1), start and end values determine the range converted (each one can be valid independently of the other). Both bounds are inclusive when they fall within the source, so `[0,80]` converts 81 source frames.", INIT);
         
         CONFIG("output_dir", Path(""), "Default output-/input-directory. Change this in order to omit paths in front of filenames for open and save.", INIT);
         CONFIG("output_prefix", std::string(), "A prefix that is added as a folder between `output_dir` and any subsequent filenames (`output_dir`/`output_prefix`/[filename]) or omitted if empty (default).", INIT);

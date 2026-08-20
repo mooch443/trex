@@ -9,9 +9,11 @@ File formats
 Positional Data
 ===============
 
-Upon hitting the ``S`` key/clicking the export tracking data button in the menu, or when using the ``auto_quit`` option, 
-|trex| will save one file per individual. They are, by default, saved to ``data/[VIDEONAME]_fish[NUMBER].npz`` and contain 
+Upon hitting the ``S`` key/clicking the export tracking data button in the menu, or when using the ``auto_quit`` option,
+|trex| will save one file per individual. With the current default :param:`individual_prefix` of ``id``, they are saved to ``data/[VIDEONAME]_id[NUMBER].npz`` and contain
 all of the data fields selected from the export options.
+
+CSV exports always contain exactly one leading ``frame`` column. This column is structural rather than selectable in the export GUI; manually listing ``frame`` in :param:`output_fields` does not add another CSV column. NPZ exports retain one ``frame`` array when it is configured.
 
 .. NOTE::
 
@@ -82,7 +84,7 @@ If one metric (such as anything posture-related) is not available in a frame -- 
     import numpy as np
     import matplotlib.pyplot as plt
     
-    with np.load("video_fish0.npz") as npz:
+    with np.load("video_id0.npz") as npz:
         # sample output: ['threshold_reached', 'num_pixels', 'time',     \
         #     'midline_length', 'frame', 'Y#wcentroid', 'Y', 'missing',  \
         #     'X', 'SPEED', 'SPEED#pcentroid', 'MIDLINE_OFFSET',         \
@@ -93,7 +95,7 @@ If one metric (such as anything posture-related) is not available in a frame -- 
         Y = npz["Y#wcentroid"]
         
         # sample output: (30269,)
-        # just a stream of X positions for fish0
+        # just a stream of X positions for id0
         print(X.shape)
         
         # using the mask gets rid of np.inf values (otherwise the plot
@@ -101,7 +103,7 @@ If one metric (such as anything posture-related) is not available in a frame -- 
         # not tracked in that frame:
         mask = ~npz["missing"].astype(np.bool)
         
-        # plot a connected trajectory for fish0:
+        # plot a connected trajectory for id0:
         plt.figure(figsize=(5,5))
         plt.plot(X[mask], Y[mask])
         plt.show()
@@ -246,7 +248,7 @@ Please have a look `here <https://github.com/mooch443/trex/blob/806805333f53739a
 Visual fields
 =============
 
-Visual fields are saved by clicking enabling the "Save visual field data" switch in the export options dialog (see :numref:`save_visual_field`). This will save one or multiple files, depending on file size. If the files are bigger than ~3GB, then they have to be saved separately in individual .npy files - otherwise they will all be merged into one .npz container called e.g. ``data/<VIDEONAME>_visual_field_fish0.npz``.
+Visual fields are saved by enabling the "Save visual field data" switch in the export options dialog (see :numref:`save_visual_field`). This will save one or multiple files, depending on file size. If the files are bigger than ~3GB, then they have to be saved separately in individual .npy files - otherwise they will all be merged into one .npz container called e.g. ``data/<VIDEONAME>_visual_field_id0.npz`` with the default :param:`individual_prefix`.
 
 .. _save_visual_field:
 

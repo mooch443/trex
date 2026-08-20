@@ -163,7 +163,7 @@ As well as the general requirements:
 
 The easiest way to ensure that all requirements are met, is by using conda to create a new environment::
 
-	conda create -n trex git cmake ffmpeg pip numpy==1.26.4 python=3.11 nasm
+	conda create -n trex git cmake ffmpeg pip numpy python=3.11 nasm
 
 You can also bootstrap a fresh environment directly from the repository root::
 

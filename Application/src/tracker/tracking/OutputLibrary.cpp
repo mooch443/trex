@@ -50,6 +50,24 @@ namespace Output {
     std::unordered_map<std::string, LibraryFuncProperties, MultiStringHash, MultiStringEqual> func_properties;
     std::mutex properties_mutex;
 
+    namespace {
+        bool same_calculation(const Calculation& lhs, const Calculation& rhs) {
+            if(lhs._operation != rhs._operation)
+                return false;
+            if(lhs._operation == Calculation::Operation::NONE)
+                return true;
+            return lhs._factor == rhs._factor;
+        }
+
+        bool same_output_instance(
+            const std::pair<Options_t, Calculation>& lhs,
+            const std::pair<Options_t, Calculation>& rhs)
+        {
+            return lhs.first == rhs.first
+                && same_calculation(lhs.second, rhs.second);
+        }
+    }
+
     void set_function_to_global(const std::string& name) {
         std::lock_guard guard(properties_mutex);
         func_properties[name].is_global = true;
@@ -203,7 +221,8 @@ const track::MotionRecord* Library::retrieve_props(
         std::vector<std::string_view> ret;
         
         for (auto &p : _cache_func) {
-            ret.push_back(p.first);
+            if(p.first != "frame")
+                ret.push_back(p.first);
         }
         
         return ret;
@@ -1416,7 +1435,15 @@ cached_output_fields_t Library::get_cached_fields() {
                     }
                 }
                 
-                cached_fields[fname].push_back({ modifiers, func });
+                auto& instances = cached_fields[fname];
+                const std::pair<Options_t, Calculation> instance{modifiers, func};
+                const auto duplicate = std::find_if(
+                    instances.begin(), instances.end(),
+                    [&](const auto& existing) {
+                        return same_output_instance(existing, instance);
+                    });
+                if(duplicate == instances.end())
+                    instances.push_back(instance);
                 
             } catch(const std::exception& ex) {
                 FormatExcept("Cannot parse option ", fname, ": ", ex.what());
@@ -1448,8 +1475,18 @@ cached_output_fields_t Library::get_cached_fields() {
             for(const auto& [fname, instances] : options_map) {
                 const auto annotation = annotations.find(fname);
                 const std::string units = annotation != annotations.end() ? annotation->second : "";
+                std::vector<std::pair<Options_t, Calculation>> unique_instances;
 
                 for(const auto& instance : instances) {
+                    const auto duplicate = std::find_if(
+                        unique_instances.begin(), unique_instances.end(),
+                        [&](const auto& existing) {
+                            return same_output_instance(existing, instance);
+                        });
+                    if(duplicate != unique_instances.end())
+                        continue;
+                    unique_instances.push_back(instance);
+
                     Library::LibInfo info(fish, instance.first, cache);
                     auto mod_name = fname;
 
@@ -1526,7 +1563,10 @@ cached_output_fields_t Library::get_cached_fields() {
                            const file::Path& filename,
                            std::function<void(float)>* percent_callback)
     {
-        const auto series = make_output_series(output_fields, fish, std::move(cache));
+        auto series = make_output_series(output_fields, fish, std::move(cache));
+        std::erase_if(series, [](const auto& item) {
+            return item.name == "frame";
+        });
 
         std::vector<std::string> header{"frame"};
         header.reserve(series.size() + 1);

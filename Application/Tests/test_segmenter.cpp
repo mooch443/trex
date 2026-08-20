@@ -217,13 +217,20 @@ void run_headless_segmenter_case(meta_encoding_t::Class encoding,
     pv::File output(output_base);
     EXPECT_EQ(output.header().encoding, encoding);
 
-    const size_t expected_output_frames = conversion_range.has_value()
-        ? frame_count - static_cast<size_t>(conversion_range->start)
-        : frame_count;
+    const size_t source_offset = conversion_range.has_value() && conversion_range->start >= 0
+        ? static_cast<size_t>(conversion_range->start)
+        : 0u;
+    const size_t source_end = frame_count == 0
+        ? 0u
+        : conversion_range.has_value() && conversion_range->end >= 0
+            ? min(frame_count - 1, static_cast<size_t>(conversion_range->end))
+            : frame_count - 1;
+    const size_t expected_output_frames = frame_count > 0 && source_end >= source_offset
+        ? source_end - source_offset + 1
+        : 0u;
     ASSERT_EQ(output.length().get(), expected_output_frames)
         << "PV frame count should match the selected source range exactly.";
 
-    const size_t source_offset = conversion_range.has_value() ? static_cast<size_t>(conversion_range->start) : 0u;
     for (size_t i = 0; i < expected_output_frames; ++i) {
         pv::Frame frame;
         output.read_frame(frame, Frame_t(i));
@@ -252,6 +259,10 @@ TEST_P(SegmenterMetaEncodingTest, HeadlessSyntheticSequenceIsExact) {
 
 TEST_P(SegmenterMetaEncodingTest, HeadlessSyntheticSequenceWithConversionRangeKeepsSourceOffset) {
     run_headless_segmenter_case(GetParam(), 12, Range<long_t>(4,-1));
+}
+
+TEST_P(SegmenterMetaEncodingTest, BoundedConversionRangeIncludesBothEndpoints) {
+    run_headless_segmenter_case(GetParam(), 12, Range<long_t>(4,7));
 }
 
 TEST_P(SegmenterMetaEncodingTest, ResumesUnlessStartOverIsRequested) {

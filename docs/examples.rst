@@ -24,13 +24,13 @@ As you may know, simply starting the program without any arguments will open the
 
 .. raw:: html
 
-   <p>This will open the webcam, if you have one installed and allow the program to use it, and use <code class="docutils literal notranslate"><span class="pre">yolov8n-pose</span></code> (see <a href="https://docs.ultralytics.com/models/yolov11/#supported-tasks-and-modes" target="_blank">YOLOv11 models</a>) to find you in the picture.</p>
+   <p>This will open the webcam, if you have one installed and allow the program to use it, and use the current default <code class="docutils literal notranslate"><span class="pre">yolo26n.pt</span></code> model to find you in the picture.</p>
    
-Just for fun, we also set a different :param:`detect_iou_threshold` which will change the IOU threshold for YOLO object detection - the higher the percentage, the more overlap between bounding boxes is allowed. The default is 70%, but we set it to 35%::
+Just for fun, we also set a different :param:`detect_iou_threshold` which will change the IOU threshold for YOLO object detection - the higher the percentage, the more overlap between bounding boxes is allowed. The default is 50%, but we set it to 35%::
 
 	trex -i webcam -detect_iou_threshold 0.35
 
-You may have already noticed that, by default, |trex| will see if a PV file already exists for the video you're trying to open. If it does, it will open it and you will end up in the tracking view immediately. However, we want to start over from scratch here - which can be enforced by adding the ``-task convert`` option in the same way::
+You may have already noticed that, by default, |trex| will see if a PV file already exists for the video you're trying to open. If it does, it will open it and you will end up in the tracking view immediately. To request conversion explicitly, add the ``-task convert`` option::
 
 	trex -i webcam -task convert -detect_iou_threshold 0.35
 
@@ -40,7 +40,7 @@ For example, we can also limit the number of individuals to track::
 
 	trex -i webcam -task convert -detect_iou_threshold 0.35 -track_max_individuals 1
 
-This will force |trex| to (re-)convert the video to PV format, overwriting an existing ``VIDEO.pv`` file in the current folder.
+For an existing compatible partial PV with the same source-range start, this resumes conversion at the next source frame. To discard existing converted frames and apply changed detection settings from the beginning, choose the start-over/overwrite option in the configuration dialog.
 
 If you want the program to quit after it's done, you can use the ``-auto_quit`` option, which also exports trajectory data (if not disabled by ``-auto_no_tracking_data``). Other options omitted, this would look like this::
 
@@ -68,7 +68,7 @@ Open a video::
 
 	trex -i <VIDEO> -track_max_individuals 8
 
-Open a video, track it using the parameters set in command-line and the settings file at path <SETTINGS>, and save all selected output options to ``/data/<VIDEO_NAME>_fish*.npz``, etc.::
+Open a video, track it using the parameters set in command-line and the settings file at path <SETTINGS>, and save all selected output options to ``data/<VIDEO_NAME>_id*.npz``, etc. The ``id`` portion is controlled by :param:`individual_prefix`::
 
 	trex -i <VIDEO> -s <SETTINGS> -auto_quit
 

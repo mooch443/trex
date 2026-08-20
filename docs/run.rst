@@ -15,15 +15,15 @@ The following sections, however, address directly providing parameters using the
 
 	trex [...] -PARAMETER VALUE
 
-For example, in order to set the number of individuals to 5 and prefix all individuals names/files with "termite" instead of "fish", just change the values of ``track_max_individuals`` and ``individual_prefix`` when launching the application like so (we are also opening a file called "example.mp4" and use a specific settings file)::
+For example, in order to set the number of individuals to 5 and prefix all individual names/files with "termite" instead of the current default "id", change ``track_max_individuals`` and ``individual_prefix`` when launching the application like so (we are also opening a file called "example.mp4" and using a specific settings file)::
 
 	trex -i example.mp4 -s tmp.settings -track_max_individuals 5 -individual_prefix "termite"
 
-If you've never run the program before on that specific video file, it'll first convert the mp4 file to a pv file and save an ``example.settings`` file. Conversion might take a bit - especially if its a particularly long video. Next time, however, it will open any existing pv files in tracking mode directly - if you want to generate the pv file again, you'd have to add force the task to ``convert`` like this::
+If you've never run the program before on that specific video file, it'll first convert the mp4 file to a pv file and save an ``example.settings`` file. Conversion might take a bit - especially if its a particularly long video. Next time, however, it will open an existing pv file in tracking mode directly. To request conversion explicitly, set the task to ``convert``::
 
 	trex -i example.mp4 [...] -task convert
 
-This will overwrite an existing ``example.pv`` (and ``example.settings``) file in that same folder.
+For a compatible partial PV with the same conversion-range start, this continues at the next source frame and updates the stored inclusive end rather than unconditionally overwriting the file. Use the configuration dialog's start-over/overwrite option when you intentionally need to replace the PV, such as after changing destructive detection settings.
 
 Most parameters (except system-variables) can be adjusted after loading a video. A full reference of them is at :doc:`parameters_trex`.
 
@@ -161,7 +161,7 @@ But it has many other uses, too! For example, it can be used to save heatmap inf
 	
 Or to display information about objects inside the saved frames::
 
-	$ pvinfo -i <VIDEO> -blob_detail -quiet
+	$ pvinfo -i <VIDEO> -blob_detail
 	[15:24:07] 190315246 bytes (190.32MB) of blob data
 	[15:24:07] Images average at 512.654519 px / blob and the range is [2-2154] with a median of 616.
 	[15:24:07] There are 10 blobs in each frame (median).

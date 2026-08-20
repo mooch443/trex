@@ -79,6 +79,7 @@ namespace Output {
                              bool quiet = false);
         static cached_output_fields_t parse_output_fields(const output_fields_t&);
         static bool has(const std::string& name);
+        //! Functions available for selection as output series. Structural fields are excluded.
         static std::vector<std::string_view> functions();
         
         static double pose(uint8_t index, uint8_t component, LibInfo info, cmn::Frame_t frame);

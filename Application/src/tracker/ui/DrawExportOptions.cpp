@@ -106,10 +106,6 @@ std::unordered_map<std::string, Description> options_doc_strings = {
         "Timestamp",
         "The exact timestamp of the current frame."
     }},
-    {"frame", {
-        "Frame number",
-        "The sequential index of the current frame in the dataset."
-    }},
     {"missing", {
         "Missing data flag",
         "Indicates whether data is missing for the current frame (1 if missing, 0 if available)."

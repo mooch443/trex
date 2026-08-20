@@ -200,6 +200,8 @@ void expect_parseable_export_csv(const fs::path& csv_path, const Range<long_t>& 
     ASSERT_TRUE(static_cast<bool>(std::getline(input, line))) << csv_path;
     const auto header = split_csv_line(line);
     ASSERT_FALSE(header.empty()) << csv_path;
+    EXPECT_EQ(header.front(), "frame") << csv_path;
+    EXPECT_EQ(std::count(header.begin(), header.end(), "frame"), 1u) << csv_path;
 
     const auto frame_column = find_header(header, "frame");
     const auto x_column = find_header(header, "x#wcentroid");
