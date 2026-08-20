@@ -427,6 +427,36 @@ TEST_F(TrackingFilenameResolutionTest, LoadContextTracksPrefixAndCmd) {
     ASSERT_FALSE(changed_defaults.has("filename"));
 }
 
+TEST_F(TrackingFilenameResolutionTest, LoadContextTracksPrefixAndCmdNoOverrides) {
+    create_regular_file((input_dir / "test_video").add_extension("mp4"));
+    auto input_file = (input_dir / "test_video").add_extension("mp4");
+    CommandLine::instance().add_setting("source", input_file.str());
+    CommandLine::instance().add_setting("output_prefix", "tmp");
+    CommandLine::instance().add_setting("output_dir", output_dir.str());
+    CommandLine::instance().load_settings();
+
+    settings::load(settings::LoadContext{
+        .source = file::PathArray{input_file},
+        .task = default_config::TRexTask_t::none,
+        .type = track::detect::ObjectDetectionType::yolo,
+        .source_map = {},
+        .quiet = true
+    });
+
+    const auto changed_defaults = GlobalSettings::read(
+        [](const sprite::Map&, const sprite::Map& with_config) {
+            return with_config;
+        });
+    // Input-first tracking records the selected basename locally even though
+    // the final global filename is cleared as a derived default.
+    EXPECT_EQ(GlobalSettings::read([](const Configuration& config) {
+                  return settings::find_output_name(config.values);
+              }),
+              output_dir / "tmp" / "test_video");
+
+    ASSERT_FALSE(changed_defaults.has("filename"));
+}
+
 TEST_F(TrackingFilenameResolutionTest, LoadContextTrackingPrefersInputPvOverPrefixedOutputPv) {
     const auto source = input_dir / "recording.mp4";
     create_regular_file(input_dir / "recording.pv");
