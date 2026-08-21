@@ -39,12 +39,10 @@ jobs:
     - uses: conda-incubator/setup-miniconda@fc2d68f6413eb2d87b895e92f8584b5b94a10167 # v3.3.0
       with:
         miniforge-version: ${{ env.MINIFORGE_VERSION }}
-        activate-environment: base
-        python-version: ${{ matrix.python-version }}
+        activate-environment: ""
         channels: conda-forge
-        auto-activate: false
+        auto-activate: true
         auto-update-conda: false
-        use-only-tar-bz2: true
         conda-remove-defaults: true
 
     - name: Prepare short paths
@@ -332,13 +330,13 @@ jobs:
       with:
         name: windows-failure-artifacts
         path: |
-          ${{ env.SHORT_WORKSPACE }}/videos/corrected/data/*.csv
-          ${{ env.SHORT_WORKSPACE }}/videos/**/*.html
-          ${{ env.SHORT_WORKSPACE }}/videos/**/*.log
-          ${{ env.SHORT_WORKSPACE }}/videos/**/*.npz
-          ${{ env.SHORT_WORKSPACE }}/videos/**/*.results
-          ${{ env.SHORT_WORKSPACE }}/videos/**/*.pv
-          ${{ env.SHORT_WORKSPACE }}/**/deps-scan.txt
+          ${{ github.workspace }}/videos/corrected/data/*.csv
+          ${{ github.workspace }}/videos/**/*.html
+          ${{ github.workspace }}/videos/**/*.log
+          ${{ github.workspace }}/videos/**/*.npz
+          ${{ github.workspace }}/videos/**/*.results
+          ${{ github.workspace }}/videos/**/*.pv
+          ${{ github.workspace }}/**/deps-scan.txt
         if-no-files-found: ignore
         retention-days: 7
         compression-level: 9
@@ -347,4 +345,6 @@ jobs:
       if: always()
       shell: pwsh
       run: |
-        subst W: /D
+        if (Test-Path 'W:\') {
+          subst W: /D
+        }

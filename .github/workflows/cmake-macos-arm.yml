@@ -54,13 +54,15 @@ jobs:
     - uses: conda-incubator/setup-miniconda@fc2d68f6413eb2d87b895e92f8584b5b94a10167 # v3.3.0
       with:
         miniforge-version: ${{ env.MINIFORGE_VERSION }}
-        environment-file: .github/macos-environment-arm64.yml
-        activate-environment: base
+        activate-environment: ""
         channels: conda-forge
         conda-remove-defaults: true
+        auto-activate: true
         auto-update-conda: false
         pkgs-dirs: ~/conda_pkgs_dir
-        use-only-tar-bz2: true
+    - name: Install build environment into base
+      shell: bash -el {0}
+      run: conda env update --name base --file .github/macos-environment-arm64.yml
     - name: Verify fresh base build environment
       shell: bash -el {0}
       run: |
