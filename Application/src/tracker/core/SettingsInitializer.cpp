@@ -297,27 +297,31 @@ void LoadContext::init_filename() {
             CommandLine::instance().settings_keys().at("filename"));
     }
 
+    const bool has_absolute_requested_filename =
+        not requested_filename.empty() && requested_filename.is_absolute();
+
     if(not requested_filename.empty()) {
-        if(requested_filename.is_absolute()
-           && requested_filename.remove_filename().exists())
-        {
+        if(has_absolute_requested_filename) {
             auto output_dir = requested_filename.remove_filename();
-            
-            /// check whether the directory contains the *output_prefix*
-            /// if so then we need to remove it:
-            if(auto output_prefix = combined.at("output_prefix").value<std::string>();
-               not output_prefix.empty()
-               && output_dir.filename() == output_prefix)
-            {
-                output_dir = output_dir.remove_filename();
-            }
-            
             combined.values["output_dir"] = output_dir;
             set_config_if_different("output_dir", combined.values);
+
+            combined.values["output_prefix"] = std::string{};
+            set_config_if_different("output_prefix", combined.values);
+
+            requested_filename = requested_filename.filename();
+        } else {
+            if(not requested_filename.remove_filename().empty()
+               && BOOL_SETTING(nowindow))
+            {
+                throw InvalidArgumentException(
+                    "Relative output filename ", requested_filename,
+                    " contains directory components. Use a basename with "
+                    "output_dir/output_prefix, or provide an absolute filename.");
+            }
+            requested_filename = requested_filename.filename();
         }
 
-        /// Keep the complete requested path until DataLocation routing has
-        /// finished. In particular, relative subdirectories are meaningful.
         combined.values["filename"] = requested_filename;
     }
     
@@ -355,10 +359,10 @@ void LoadContext::init_filename() {
     /// ---------------------------------------------------------------------
     /// 7. set the `output_dir` / `output_prefix` properties from parameters:
     /// ---------------------------------------------------------------------
-    if(source_map.has("output_dir")) {
+    if(not has_absolute_requested_filename && source_map.has("output_dir")) {
         set_config_if_different("output_dir", source_map);
     }
-    if(source_map.has("output_prefix")) {
+    if(not has_absolute_requested_filename && source_map.has("output_prefix")) {
         set_config_if_different("output_prefix", source_map);
     }
     
@@ -526,9 +530,10 @@ void LoadContext::load_settings_from_source() {
                     if(f.header().metadata.has_value()) {
                         const auto& meta = f.header().metadata.value();
                         sprite::parse_values(sprite::MapSource{ path }, tmp, meta, & combined.values,
-                                             changed_model_manually
-                                             ? (exclude + exclude_from_external).toVector()
-                                             : exclude.toVector(),
+                                             exclude + (changed_model_manually
+                                                            ? ExtendableVector{exclude_automatic_for_models}
+                                                            : ExtendableVector{})
+                                             + exclude_external,
                                              default_config::deprecations());
                     }
                     
@@ -586,9 +591,10 @@ void LoadContext::load_settings_from_source() {
                         const auto& meta = f.header().metadata.value();
                         sprite::parse_values(sprite::MapSource{ path },
                                              tmp, meta, &combined.values,
-                                             changed_model_manually
-                                                 ? (exclude + exclude_from_external).toVector()
-                                                 : exclude.toVector(),
+                                             exclude + (changed_model_manually
+                                                            ? ExtendableVector{exclude_automatic_for_models}
+                                                            : ExtendableVector{})
+                                             + exclude_external,
                                              default_config::deprecations());
                     }
                     
@@ -751,9 +757,10 @@ void LoadContext::load_settings_file() {
             sprite::Map map;
             map.set_print_by_default(false);
             
-            auto manual_exclude = changed_model_manually
-                    ? (exclude + exclude_from_external).toVector()
-                    : exclude.toVector();
+            auto manual_exclude = exclude + exclude_external
+                                    + (changed_model_manually
+                                        ? ExtendableVector{exclude_automatic_for_models}
+                                        : ExtendableVector{});
             if(not quiet)
                 Print("// Excluding ", manual_exclude, " from settings file.");
 
@@ -1155,16 +1162,14 @@ void load(LoadContext ctx) {
     
     // Step 2: Monitor changes to 'calculate_posture'. If manually disabled,
     // record this fact to avoid automatic re-enabling later.
-    /*ctx.combined.map.register_callbacks<sprite::RegisterInit::DONT_TRIGGER>({"calculate_posture", "filename"}, [&](auto key) {
+    ctx.combined.values.register_callbacks<sprite::RegisterInit::DONT_TRIGGER>({"output_prefix", "filename"}, [&](auto key) {
         //if(was_different
-        if(key == "calculate_posture")
-        {
-            bool calculate_posture = ctx.combined.map.at("calculate_posture").value<bool>();
-            ctx.did_set_calculate_posture_to_false = not calculate_posture;
+        if(key == "output_prefix") {
+            Print("Changed prefix to ", ctx.combined.values.at("output_prefix"));
         } else if(key == "filename") {
-            Print("Changed filename to ", ctx.combined.map.at("filename"));
+            Print("Changed filename to ", ctx.combined.values.at("filename"));
         }
-    });*/
+    });
     
     // Step 3: Initialize the output filename from parameters or derive from source/defaults.
     ctx.init_filename();

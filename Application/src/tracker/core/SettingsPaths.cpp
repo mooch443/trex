@@ -25,9 +25,12 @@ file::Path find_output_name(const sprite::Map& map,
         }
     }
 
-    auto filename = name.empty()
-        ? file::Path{}
-        : file::DataLocation::parse("output", name, &map);
+    file::Path filename;
+    if(not name.empty()) {
+        filename = name.is_absolute()
+            ? name
+            : file::DataLocation::parse("output", name.filename(), &map);
+    }
 
     if(filename.empty()) {
         if(_source.get_paths().size() == 1
@@ -72,6 +75,8 @@ file::Path find_existing_output_name(const sprite::Map& map,
        filename_ref.valid() && not filename_ref.value<file::Path>().empty())
     {
         path = filename_ref.value<file::Path>();
+        if(not path.is_absolute())
+            path = path.filename();
     } else if(source.size() == 1
               && source.get_paths().front().has_extension("pv"))
     {

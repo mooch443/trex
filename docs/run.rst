@@ -161,7 +161,7 @@ But it has many other uses, too! For example, it can be used to save heatmap inf
 	
 Or to display information about objects inside the saved frames::
 
-	$ pvinfo -i <VIDEO> -blob_detail
+	$ pvinfo -i <VIDEO> -blob_detail -quiet
 	[15:24:07] 190315246 bytes (190.32MB) of blob data
 	[15:24:07] Images average at 512.654519 px / blob and the range is [2-2154] with a median of 616.
 	[15:24:07] There are 10 blobs in each frame (median).

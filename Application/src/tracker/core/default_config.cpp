@@ -719,7 +719,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("ffmpeg_path", file::Path(), "Path to an ffmpeg executable file. This is used for converting videos after recording them (from the GUI). It is not a critical component of the software, but mostly for convenience.");
         CONFIG("blobs_per_thread", 150.f, "Number of blobs for which properties will be calculated per thread.");
         CONFIG("history_matching_log", file::Path(), "If this is set to a valid html file path, a detailed matching history log will be written to the given file for each frame.");
-        CONFIG("filename", Path(""), "The converted video file (.pv file) or target for video conversion. Typically it would have the same basename as the video source (i.e. an MP4 file), but a different extension: pv.", LOAD);
+        CONFIG("filename", Path(""), "The converted video file (.pv file) or target for video conversion. A basename is placed below `output_dir` / `output_prefix`. In the GUI, directory components in a relative value are removed; a headless run rejects such a value. An absolute value selects its exact destination and overrides `output_dir` and `output_prefix`.", LOAD);
         CONFIG("source", file::PathArray(), "This is the (video) source for the current session. Typically this would point to the original video source of `filename`.", LOAD);
         CONFIG("output_dir", Path(""), "Default output-/input-directory. Change this in order to omit paths in front of filenames for open and save.", INIT);
         CONFIG("data_prefix", Path("data"), "Subfolder (below `output_dir`) where the exported NPZ or CSV files will be saved (see `output_fields`).");
@@ -944,7 +944,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("track_speed_decay", float(1.0), "The amount the expected speed is reduced over time when an individual is lost. When individuals collide, depending on the expected behavior for the given species, one should choose different values for this variable. If the individuals usually stop when they collide, this should be set to 1. If the individuals are expected to move over one another, the value should be set to `0.7 > value > 0`.");
         CONFIG("track_max_speed", Float2_t(0), "The maximum speed an individual can have (=> the maximum distance an individual can travel within one second) in cm/s. Uses and is influenced by `meta_real_width` and `cm_per_pixel` as follows: `speed(px/s) * cm_per_pixel(cm/px) -> cm/s`.");
         CONFIG("posture_direction_smoothing", uint16_t(0), "Enables or disables smoothing of the posture orientation based on previous frames (not good for fast turns).");
-        CONFIG("track_threshold", int(0), "Constant used in background subtraction. Pixels with grey values above this threshold will be interpreted as potential individuals, while pixels below this threshold will be ignored.");
+        CONFIG("track_threshold", int(0), "Constant used in background subtraction. Pixels with grey values above this threshold will be interpreted as potential individuals, while pixels below this threshold will be ignored. The base parameter default is 0; when a new background-subtraction configuration is initialized, TRex uses a default of 15.");
         CONFIG("threshold_ratio_range", Rangef(0.5, 1.0), "If `track_threshold_2` is not equal to zero, this ratio will be multiplied by the number of pixels present before the second threshold. If the resulting size falls within the given range, the blob is deemed okay.");
         CONFIG("track_threshold_2", int(0), "If not zero, a second threshold will be applied to all objects after they have been deemed do be theoretically large enough. Then they are compared to #before_pixels * `threshold_ratio_range` to see how much they have been shrunk).");
         CONFIG("track_posture_threshold", int(0), "Same as `track_threshold`, but for posture estimation.");
@@ -1056,7 +1056,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("analysis_range", Range<long_t>(-1, -1), "Sets start and end of the analysed frames.");
         CONFIG("output_min_frames", uint16_t(1), "Filters all individual with less than N frames when exporting. Individuals with fewer than N frames will also be hidden in the GUI unless `gui_show_inactive_individuals` is enabled (default).");
         CONFIG("output_interpolate_positions", bool(false), "If turned on this function will linearly interpolate X/Y, and SPEED values, for all frames in which an individual is missing.");
-        CONFIG("output_prefix", std::string(), "If this is not empty, all output files will go into `output_dir` / `output_prefix` / ... instead of just into `output_dir`. The output directory is usually the folder where the video is, unless set to a different folder by you.");
+        CONFIG("output_prefix", std::string(), "If this is not empty, all output files will go into `output_dir` / `output_prefix` / ... instead of just into `output_dir`. The output directory is usually the folder where the video is, unless set to a different folder by you. An explicit absolute `filename` overrides this value.");
         CONFIG("output_auto_pose", true, "If this is set to false, then no poseX[n] and poseY[n] fields will automatically be added to the `output_fields` based on what the keypoint model reports. You can still manually add them if you like.");
         CONFIG("output_auto_detection_fields", true, "If set to true then this will automatically add fields like `detection_p` to the output files saved by TRex. You can also set this to false and add them manually if you like.");
         CONFIG("output_fields", output_fields, "The functions that will be exported when saving to CSV or NPZ, or shown in the graph. `[['X',[option], ...]]` Exact duplicate field, modifier, and calculation selections are used once; modifier order does not make an otherwise identical selection distinct. CSV always contains exactly one leading `frame` column, regardless of whether `frame` is listed here. NPZ contains one `frame` array when it is configured.");
@@ -1122,7 +1122,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("detect_point_radii", std::map<int, float>{}, "An array of radii for a given point class in a POLO network.", PUBLIC, {std::map<int, float>{{0, 3.f}, {1, 2.5f}}});
         CONFIG("detect_batch_size", uchar(1), "The batching size for object detection.");
         CONFIG("detect_tile_image", uchar(0), "Legacy tile multiplier for TRex-owned SAHI-style detection. If > 1, this will tile the input image into that many multiples of `detect_resolution`. Retained for backwards compatibility; prefer `detect_tile_target_width`.");
-        CONFIG("detect_tile_target_width", uint16_t(0), "Desired horizontal resolution (in pixels) used when preparing detector tiles. We derive the number of tiles from this width; set to 0 to disable or fall back to `detect_tile_image`. A short axis is padded rather than stretched.");
+        CONFIG("detect_tile_target_width", uint16_t(0), "Width and height of each square detector tile in pixels. TRex chooses how many tiles are needed to cover the frame. Set this to 0 to use `detect_tile_image`, or to disable tiling when `detect_tile_image` is also disabled. If the frame is shorter than a tile on one axis, that axis is padded. If the entire frame is smaller than one tile, the frame is resized to the tile size.");
         CONFIG("detect_tile_overlap", float(0.f), "Relative overlap (0-0.95) between adjacent detector tiles. Exactly 0 disables all TRex-owned SAHI-style cross-tile filtering and fusion while retaining tiling.");
         CONFIG("detect_tile_merge_iou", Float2_t(0.55f), "Mode-native overlap threshold for same-class predictions from different overlapping tiles. Lower values merge more aggressively.");
         CONFIG("detect_tile_merge_containment", Float2_t(0.5f), "Intersection-over-smaller-area fallback threshold for same-class predictions from different overlapping tiles. Lower values merge more aggressively.");
@@ -1143,7 +1143,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("detect_requires_exact_input_size", false, "Whether C++ must prepare detector images at exactly `detect_resolution` rather than preserving the source aspect ratio. Set from loaded model metadata.", SYSTEM);
         CONFIG("detect_iou_threshold", std::optional<Float2_t>{0.5_F}, "Optional IoU threshold override for object detection / segmentation networks. If unset, TRex preserves the upstream model's default postprocessing behaviour. If set, TRex forwards the IoU threshold explicitly and may disable end-to-end NMS-free inference so the override can affect the outcome.");
         CONFIG("detect_conf_threshold", Float2_t(0.1), "Confidence threshold (`0<=value<1`) for object detection / segmentation networks. Confidence is higher if the network is more *sure* about the object. Anything with a confidence level below `detect_conf_threshold` will not be considered an object and not saved to the PV file during conversion.");
-        CONFIG("detect_keypoint_threshold", Float2_t(0.1), "Minimum per-keypoint confidence for pose networks. Keypoints below this threshold are marked as absent independently of `detect_conf_threshold`.");
+        CONFIG("detect_keypoint_threshold", Float2_t(0.1), "For pose models that provide a confidence value for each keypoint, points below this value are treated as missing. This is separate from `detect_conf_threshold`, which filters whole detections.");
         CONFIG("detect_try_optimize_model", true, "If enabled, loaded detection models may try their backend-specific high-performance inference optimization. Each model receives this value as `ModelConfig.try_optimize` and decides how to use it. Changing it requires reloading the model.");
 
         CONFIG("track_behavior_window", uchar(50), "A window (in frames) around any annotated localized behavior that will be exported alongside the actually labeled frame. Surrounding labels ranges might be merged.");
@@ -1288,8 +1288,10 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             "merge_overlapping_blobs",
             "merge_mode",
             "exec",
-            
-            "gpu_torch_no_fixes"
+
+            "gpu_torch_no_fixes",
+
+            //"video_conversion_range"
         };
         
         std::set<std::string_view> explicitly_include{
@@ -1415,6 +1417,8 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
                        && !contains(additional_exclusions, key)))
                 {
                     result[key] = &value.get();
+                    //if(explicitly_include.contains(key))
+                        //Print("// saving ", key, " explicitly");
                 } else {
                     //Print("// ",key," not part of delta");
                 }

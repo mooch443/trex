@@ -26,6 +26,34 @@ ENUM_CLASS(Arguments,
 
 ENUM_CLASS(parameter_format_t, settings, minimal)
 
+namespace {
+
+class ExplicitReportScope {
+    bool previous_quiet;
+
+public:
+    ExplicitReportScope()
+        : previous_quiet(GlobalSettings::is_runtime_quiet())
+    {
+        set_runtime_quiet(false);
+    }
+
+    ~ExplicitReportScope() {
+        set_runtime_quiet(previous_quiet);
+    }
+
+    ExplicitReportScope(const ExplicitReportScope&) = delete;
+    ExplicitReportScope& operator=(const ExplicitReportScope&) = delete;
+};
+
+template<typename... Args>
+void print_explicit(Args&&... args) {
+    ExplicitReportScope report;
+    Print(std::forward<Args>(args)...);
+}
+
+}
+
 int handle_opencv_ffmpeg_support() {
     std::string build_info = cv::getBuildInformation();
     std::string line = "";
@@ -35,10 +63,10 @@ int handle_opencv_ffmpeg_support() {
         if(build_info[i] == '\n') {
             if(utils::contains(line, "FFMPEG:")) {
                 if(utils::contains(line, "YES")) {
-                    Print("Has FFMPEG support.");
+                    print_explicit("Has FFMPEG support.");
                     return 0;
                 } else {
-                    Print("Does not have FFMPEG support.");
+                    print_explicit("Does not have FFMPEG support.");
                 }
             }
 
@@ -60,10 +88,10 @@ int handle_opencv_opencl_support() {
         if(build_info[i] == '\n') {
             if(utils::contains(line, "OpenCL:")) {
                 if(utils::contains(line, "YES")) {
-                    Print("Has OpenCL support.");
+                    print_explicit("Has OpenCL support.");
                     return 0;
                 } else {
-                    Print("Does not have OpenCL support.");
+                    print_explicit("Does not have OpenCL support.");
                 }
             }
 
@@ -660,9 +688,9 @@ int main(int argc, char** argv) {
                 }
             }
 
-            Print(overall, " bytes (", dec<2>(double(overall) / 1000.0 / 1000.0), "MB) of blob data");
-            Print("Images average at ", double(pixels_per_blob) / double(pixels_samples), " px / blob and the range is [", min_pixels, "-", max_pixels, "] with a median of ", pixels_median.getValue(), ".");
-            Print("There are ", blobs_per_frame.empty() ? 0 : blobs_per_frame.getValue(), " blobs in each frame (median).");
+            print_explicit(overall, " bytes (", dec<2>(double(overall) / 1000.0 / 1000.0), "MB) of blob data");
+            print_explicit("Images average at ", double(pixels_per_blob) / double(pixels_samples), " px / blob and the range is [", min_pixels, "-", max_pixels, "] with a median of ", pixels_median.getValue(), ".");
+            print_explicit("There are ", blobs_per_frame.empty() ? 0 : blobs_per_frame.getValue(), " blobs in each frame (median).");
         }
 
     } else {

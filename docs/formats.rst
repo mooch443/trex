@@ -6,6 +6,20 @@
 File formats
 ************
 
+.. _project-files:
+
+Project files and exported data
+===============================
+
+A normal conversion and tracking workflow can create several files with different purposes:
+
+- ``[VIDEONAME].pv`` is the preprocessed video cache. It contains the detected objects and the image information needed for tracking.
+- ``[VIDEONAME].settings`` stores the video's configuration so it can be reopened or reused.
+- ``[VIDEONAME].results`` stores TRex's analysis state, including information needed to reload tracked results. When the GUI continues directly from conversion into tracking, this file can be created and populated before a manual data export. It is a project file, not the primary interchange format for trajectory analysis.
+- Files below ``data/`` are the exported analysis data, normally one CSV or NPZ file per individual. These are written when data is saved or by an automated export workflow.
+
+The exact directories are determined by :param:`output_dir`, :param:`output_prefix`, and the relevant data-output settings. A non-empty prefix applies to all outputs, including the PV.
+
 Positional Data
 ===============
 

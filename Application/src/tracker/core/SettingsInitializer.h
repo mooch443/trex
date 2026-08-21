@@ -50,13 +50,21 @@ struct LoadContext {
         "source"
     };
 
-    static constexpr auto exclude_from_external = std::array{
+    static constexpr auto exclude_automatic_for_models = std::array{
         "detect_model",
         "region_model",
         "detect_resolution",
         "region_resolution"
     };
-    
+
+    static constexpr auto exclude_external = std::array{
+        "video_conversion_range",
+        "settings_file",
+        "output_dir",
+        "filename",
+        "source"
+    };
+
     bool changed_model_manually{false};
     
     void init();

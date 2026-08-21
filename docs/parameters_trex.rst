@@ -80,15 +80,6 @@ TRex parameters
 
 
 
-.. function:: app_last_update_version(string)
-
-	**default value:** ""
-
-
-	
-
-
-
 .. function:: approximate_length_minutes(uint)
 
 	**default value:** 0
@@ -483,15 +474,6 @@ TRex parameters
 
 
 
-.. function:: crop_window(bool)
-
-	**default value:** false
-
-
-	If set to true, the grabber will open a window before the analysis starts where the user can drag+drop points defining the crop_offsets.
-
-
-
 .. function:: data_prefix(path)
 
 	**default value:** "data"
@@ -548,12 +530,21 @@ TRex parameters
 	.. seealso:: :param:`detect_model`
 
 
-.. function:: detect_iou_threshold(float)
+.. function:: detect_iou_threshold(optional<float>)
 
 	**default value:** 0.5
 
 
-	Higher (==1) indicates that all overlaps are allowed, while lower values (>0) will filter out more of the overlaps. This depends strongly on the situation, but values between 0.25 and 0.7 are common.
+	Optional IoU threshold override for object detection / segmentation networks. If unset, TRex preserves the upstream model's default postprocessing behaviour. If set, TRex forwards the IoU threshold explicitly and may disable end-to-end NMS-free inference so the override can affect the outcome.
+
+
+
+.. function:: detect_keypoint_format(KeypointFormat)
+
+	**default value:** null
+
+
+	When a keypoint (pose) type model is loaded, this variable will be set to [n_points,n_dims].
 
 
 
@@ -571,8 +562,9 @@ TRex parameters
 	**default value:** 0.1
 
 
-	Minimum per-joint confidence for pose models. YOLO and RF-DETR convert joints below this threshold to the existing ``(0,0)`` missing-joint sentinel before sending the contiguous ``float32`` ``[N,K,2]`` payload to C++.
+	For pose models that provide a confidence value for each keypoint, points below this value are treated as missing. This is separate from ``detect_conf_threshold``, which filters whole detections.
 
+	.. seealso:: :param:`detect_conf_threshold`
 
 
 .. function:: detect_model(path)
@@ -580,7 +572,25 @@ TRex parameters
 	**default value:** ""
 
 
-	The path to a .pt file that contains a valid PyTorch object detection model (currently only YOLO networks are supported).
+	The path to a .pt or .pth file that contains a supported PyTorch object detection model (such as YOLO or RF-DETR).
+
+
+
+.. function:: detect_only_classes(PredictionFilter)
+
+	**default value:** []
+
+
+	An array of class ids that you would like to detect (as returned from the model). If left empty, no class will be filtered out.
+
+
+
+.. function:: detect_point_radii(map<int,float>)
+
+	**default value:** {}
+
+
+	An array of radii for a given point class in a POLO network.
 
 
 
@@ -588,18 +598,14 @@ TRex parameters
 
 	**default value:** keypoints
 
+	**possible values:**
+		- `yolo`: Use model-provided bounding-box overlap for pose tile duplicate matching.
+		- `keypoints`: Require model-box overlap plus normalized common-joint distance for pose tile duplicate matching.
 
-	Pose duplicate matching mode for TRex-owned SAHI-style tile postprocessing. ``yolo`` uses model-box IoU/containment only. ``keypoints`` requires the same box gate and also requires the median distance between mutually present same-index joints to be no greater than :param:`detect_tile_pose_match_distance` after normalization by the smaller model-box diagonal.
-
-
-
-.. function:: detect_only_classes(array<uchar>)
-
-	**default value:** []
+	Pose tile duplicate matching mode. ``yolo`` uses model-box overlap only; ``keypoints`` additionally requires common joints to satisfy ``detect_tile_pose_match_distance``.
 
 
-	An array of class ids that you would like to detect (as returned from the model). If left empty, no class will be filtered out.
-
+	.. seealso:: :param:`detect_tile_pose_match_distance`
 
 
 .. function:: detect_precomputed_file(PathArray)
@@ -610,6 +616,15 @@ TRex parameters
 	If ``detect_type`` is set to ``precomputed``, this should point to a csv file (or npz files) containing the necessary tracking data for the given ``source`` video.
 
 	.. seealso:: :param:`detect_type`, :param:`source`
+
+
+.. function:: detect_sam3_prompt(optional<Sam3Prompts>)
+
+	**default value:** null
+
+
+	Frame-indexed SAM3 prompt repository. C++ resolves this map into per-image prompt arrays before dispatching batches to the Python SAM3 adapter.
+
 
 
 .. function:: detect_size_filter(SizeFilters)
@@ -626,8 +641,9 @@ TRex parameters
 	**default value:** null
 
 
-	Skeleton to be used when displaying pose data.
+	Skeletons to be used when displaying pose data. It maps class names (from ``detect_classes``) to skeletons (e.g. ``{'shark':[[1,2]], ...}``). Each skeleton is an array of pairs ``[<joint_id_1>,<joint_id_2>]``.
 
+	.. seealso:: :param:`detect_classes`
 
 
 .. function:: detect_threshold(int)
@@ -654,33 +670,9 @@ TRex parameters
 	**default value:** 0
 
 
-	Legacy tiling control. If > 1, the input image will be tiled into that many multiples of ``detect_resolution`` before passing it to the detection network. Retained for backwards compatibility; prefer :param:`detect_tile_target_width` for new projects.
+	Legacy tile multiplier for TRex-owned SAHI-style detection. If > 1, this will tile the input image into that many multiples of ``detect_resolution``. Retained for backwards compatibility; prefer ``detect_tile_target_width``.
 
 	.. seealso:: :param:`detect_resolution`, :param:`detect_tile_target_width`
-
-
-.. function:: detect_tile_target_width(uint16)
-
-	**default value:** 0
-
-
-	Desired horizontal resolution (in pixels) to target when preparing detector tiles. The number of tiles is derived from this value while honouring the detector's native ``detect_resolution``. A value of ``0`` disables the override and falls back to :param:`detect_tile_image`. If only one frame axis is shorter than the tile, TRex tiles the long axis and pads the short axis instead of stretching the frame.
-
-
-.. function:: detect_tile_overlap(float)
-
-	**default value:** 0
-
-
-	Relative overlap (``0`` - ``0.95``) between neighbouring detector tiles. Exactly ``0`` retains tiling but disables all TRex-owned SAHI-style duplicate association, suppression, ownership selection, pose filling, and mask stitching. Positive values enable the shared postprocessor for frames containing multiple tiles and provide additional model context around tile seams.
-
-
-.. function:: detect_tile_merge_iou(float)
-
-	**default value:** 0.55
-
-
-	Mode-native overlap threshold used to associate same-class predictions from different overlapping tiles. Lower values merge more aggressively; higher values retain more detections. Boxes use axis-aligned IoU, masks use source-aligned mask IoU, OBBs use rotated IoU, and points use circle IoU.
 
 
 .. function:: detect_tile_merge_containment(float)
@@ -688,7 +680,26 @@ TRex parameters
 	**default value:** 0.5
 
 
-	Intersection-over-smaller-area fallback used to associate same-class predictions from different overlapping tiles. Lower values merge more aggressively.
+	Intersection-over-smaller-area fallback threshold for same-class predictions from different overlapping tiles. Lower values merge more aggressively.
+
+
+
+.. function:: detect_tile_merge_iou(float)
+
+	**default value:** 0.55
+
+
+	Mode-native overlap threshold for same-class predictions from different overlapping tiles. Lower values merge more aggressively.
+
+
+
+.. function:: detect_tile_overlap(float)
+
+	**default value:** 0
+
+
+	Relative overlap (0-0.95) between adjacent detector tiles. Exactly 0 disables all TRex-owned SAHI-style cross-tile filtering and fusion while retaining tiling.
+
 
 
 .. function:: detect_tile_pose_match_distance(float)
@@ -696,12 +707,32 @@ TRex parameters
 	**default value:** 0.5
 
 
-	Maximum median distance between mutually present same-index joints, normalized by the smaller model-box diagonal. Used only when :param:`detect_pose_bbx` is ``keypoints``. Joints represented by ``(0,0)`` or non-finite coordinates do not participate; after association, missing joints may be filled from another candidate, while existing valid joints are never averaged or replaced.
+	Maximum median common-joint distance, normalized by the smaller model-box diagonal, when ``detect_pose_bbx=keypoints``.
 
 
-.. function:: detect_type(ObjectDetectionType)
 
-	**default value:** none
+.. function:: detect_tile_target_width(uint16)
+
+	**default value:** 0
+
+
+	Width and height of each square detector tile in pixels. TRex chooses how many tiles are needed to cover the frame. Set this to 0 to use ``detect_tile_image``, or to disable tiling when ``detect_tile_image`` is also disabled. If the frame is shorter than a tile on one axis, that axis is padded. If the entire frame is smaller than one tile, the frame is resized to the tile size.
+
+	.. seealso:: :param:`detect_tile_image`, :param:`detect_tile_image`
+
+
+.. function:: detect_try_optimize_model(bool)
+
+	**default value:** true
+
+
+	If enabled, loaded detection models may try their backend-specific high-performance inference optimization. Each model receives this value as ``ModelConfig.try_optimize`` and decides how to use it. Changing it requires reloading the model.
+
+
+
+.. function:: detect_type(optional<ObjectDetectionType>)
+
+	**default value:** null
 
 
 	The method used to separate background from foreground when converting videos.
@@ -749,7 +780,7 @@ TRex parameters
 	**default value:** 0.15
 
 
-	
+	Minimum peak offset used by tailbeat event detection.
 
 
 
@@ -785,8 +816,9 @@ TRex parameters
 	**default value:** ""
 
 
-	The converted video file (.pv file) or target for video conversion. Typically it would have the same basename as the video source (i.e. an MP4 file), but a different extension: pv.
+	The converted video file (.pv file) or target for video conversion. A basename is placed below ``output_dir`` / ``output_prefix``. In the GUI, directory components in a relative value are removed; a headless run rejects such a value. An absolute value selects its exact destination and overrides ``output_dir`` and ``output_prefix``.
 
+	.. seealso:: :param:`output_dir`, :param:`output_prefix`, :param:`output_dir`, :param:`output_prefix`
 
 
 .. function:: frame_rate(uint)
@@ -831,15 +863,6 @@ TRex parameters
 
 
 	Maximum size of per-individual sample images in GigaBytes. If the collected images are too many, they will be sub-sampled in regular intervals.
-
-
-
-.. function:: gpu_min_elements(uint)
-
-	**default value:** 25000
-
-
-	Minimum number of images being collected, before sending them to the GPU.
 
 
 
@@ -958,10 +981,10 @@ TRex parameters
 
 .. function:: gui_blob_label(string)
 
-	**default value:** "{if:{dock}:{name} :''}{if:{active}:<a>:''}{real_size}{if:{split}: <gray>split</gray>:''}{if:{tried_to_split}: <orange>split tried</orange>:''}{if:{prediction}: {prediction}:''}{if:{instance}: <gray>instance</gray>:''}{if:{dock}:{if:{filter_reason}: [<gray>{filter_reason}</gray>]:''}:''}{if:{active}:</a>:''}{if:{category}: {category}:''}"
+	**default value:** "{if:{dock}:{name} :''}{if:{active}:<a>:''}{real_size}<white>{if:{equal:1:{global.cm_per_pixel}}:px:cm}²</white>{if:{split}: <gray>split</gray>:''}{if:{tried_to_split}: <orange>split tried</orange>:''}{if:{prediction}: {prediction}:''}{if:{instance}: <gray>instance</gray>:''}{if:{dock}:{if:{filter_reason}: [<gray>{filter_reason}</gray>]:''}:''}{if:{active}:</a>:''}{if:{category}: {category}:''} {if:{p_for_primary}:'p:<nr>{round:{*:{p_for_primary}:100}}</nr>%':''}"
 
 
-	This is what the graphical user interfaces displays as a label for each blob in raw view. Replace this with {help} to see available variables.
+	This is what the graphical user interface displays as a label for each blob in raw view. Replace this with {help} to see available variables.
 
 
 
@@ -1034,7 +1057,7 @@ TRex parameters
 	**default value:** "identity"
 
 
-	
+	Color source for individuals in tracking view. Use ``identity`` for ID colors, ``viridis`` for difference-image coloring, or an output field name (for example ``SPEED``, ``X``, ``Y``).
 
 
 
@@ -1172,6 +1195,15 @@ TRex parameters
 
 
 
+.. function:: gui_show_annotation_export_options(bool)
+
+	**default value:** false
+
+
+	Show/hide the annotation dataset export widget.
+
+
+
 .. function:: gui_show_autoident_controls(bool)
 
 	**default value:** false
@@ -1196,6 +1228,15 @@ TRex parameters
 
 
 	If set to true (and the number of individuals is set to a number > 0), the tracker will show whenever an individual enters the recognition boundary. Indicated by an expanding cyan circle around it.
+
+
+
+.. function:: gui_show_centroid(bool)
+
+	**default value:** true
+
+
+	Showing or hiding the centroid of tracked objects.
 
 
 
@@ -1226,6 +1267,15 @@ TRex parameters
 
 
 
+.. function:: gui_show_detect_annotation_import_options(bool)
+
+	**default value:** false
+
+
+	Show/hide the detect-annotation dataset import widget.
+
+
+
 .. function:: gui_show_export_options(bool)
 
 	**default value:** false
@@ -1235,7 +1285,7 @@ TRex parameters
 
 
 
-.. function:: gui_show_fish(tuple<blob,frame,>)
+.. function:: gui_show_fish(tuple<blob,frame>)
 
 	**default value:** [null,null]
 
@@ -1481,6 +1531,16 @@ TRex parameters
 
 
 
+.. function:: gui_show_tiles(bool)
+
+	**default value:** false
+
+
+	If enabled, the gui will show red lines representing the tiles used during detection (if e.g. ``detect_tile_target_width`` is set). The visuals will depend on the current setting - i.e. how it would tile the image if the conversion were to be run again under the current settings.
+
+	.. seealso:: :param:`detect_tile_target_width`
+
+
 .. function:: gui_show_timeline(bool)
 
 	**default value:** true
@@ -1577,7 +1637,7 @@ TRex parameters
 	**default value:** [300,300]
 
 
-	
+	Minimum zoom-box size in pixels ``[width,height]`` used by auto zoom and polygon zoom.
 
 
 
@@ -1684,7 +1744,7 @@ TRex parameters
 	**default value:** 0.2
 
 
-	Defaults to 0.5s (500ms), can be set to any value that should be recognized as being huge.
+	Time delta threshold in seconds that is considered huge and can force tracklet splitting.
 
 
 
@@ -1787,15 +1847,6 @@ TRex parameters
 
 
 
-.. function:: individuals_per_thread(float)
-
-	**default value:** 1
-
-
-	Number of individuals for which positions will be estimated per thread.
-
-
-
 .. function:: limit(float)
 
 	**default value:** 0.09
@@ -1877,6 +1928,15 @@ TRex parameters
 
 
 
+.. function:: match_topk(optional<uchar>)
+
+	**default value:** null
+
+
+	If not null, the matching algorithm will consider only the top k elements with the highest probability.
+
+
+
 .. function:: meta_age_days(int)
 
 	**default value:** -1
@@ -1909,10 +1969,10 @@ TRex parameters
 	**default value:** rgb8
 
 	**possible values:**
-		- `gray`: No color information is stored. This makes .pv video files very small, but loses all greyscale or color information.
-		- `r3g3b2`: Grayscale video, calculated by simply extracting one channel (default R) from the video.
-		- `rgb8`: Encode all colors into a 256-colors unsigned 8-bit integer. The top 2 bits are blue (4 shades), the following 3 bits green (8 shades) and the last 3 bits red (8 shades).
-		- `binary`: Encode all colors into a full color 8-bit R8G8B8 array.
+		- `gray`: Grayscale video, calculated by simply extracting one channel (default R) from the video.
+		- `r3g3b2`: Encode all colors into a 256-colors unsigned 8-bit integer. The top 2 bits are blue (4 shades), the following 3 bits green (8 shades) and the last 3 bits red (8 shades).
+		- `rgb8`: Encode all colors into a full color 8-bit R8G8B8 array.
+		- `binary`: Pixels are either 0 or 1, no shades or colors in between.
 
 	The encoding used for the given .pv video.
 
@@ -1985,7 +2045,7 @@ TRex parameters
 
 .. function:: meta_write_these(array<string>)
 
-	**default value:** ["meta_species","meta_age_days","meta_conditions","meta_misc","cam_limit_exposure","meta_real_width","meta_source_path","meta_cmd","meta_build","meta_conversion_time","meta_video_scale","meta_video_size","detect_classes","meta_encoding","detect_skeleton","frame_rate","calculate_posture","cam_undistort_vector","cam_matrix","cm_per_pixel","track_size_filter","track_threshold","track_posture_threshold","track_do_history_split","track_max_individuals","track_background_subtraction","track_max_speed","detect_model","region_model","detect_resolution","region_resolution","detect_batch_size","detect_type","detect_iou_threshold","detect_conf_threshold","video_conversion_range","detect_batch_size","detect_threshold","output_dir","output_prefix","filename"]
+	**default value:** ["meta_species","meta_age_days","meta_conditions","meta_misc","cam_limit_exposure","meta_real_width","meta_source_path","meta_cmd","meta_build","meta_conversion_time","meta_video_scale","meta_video_size","detect_classes","meta_encoding","detect_skeleton","frame_rate","calculate_posture","cam_undistort_vector","cam_matrix","cm_per_pixel","track_size_filter","track_threshold","track_posture_threshold","track_do_history_split","track_max_individuals","track_background_subtraction","track_max_speed","detect_model","region_model","detect_resolution","region_resolution","detect_batch_size","detect_type","detect_iou_threshold","detect_conf_threshold","detect_keypoint_format","detect_keypoint_names","video_conversion_range","detect_batch_size","detect_threshold","output_dir","output_prefix","filename"]
 
 
 	The given settings values will be written to the video file.
@@ -2168,7 +2228,7 @@ TRex parameters
 
 .. function:: output_dir(path)
 
-	**default value:** ""
+	**default value:** "/Users/tristan/trex/docs"
 
 
 	Default output-/input-directory. Change this in order to omit paths in front of filenames for open and save.
@@ -2177,10 +2237,10 @@ TRex parameters
 
 .. function:: output_fields(array<pair<string,array<string>>>)
 
-	**default value:** [["X",["RAW","WCENTROID"]],["Y",["RAW","WCENTROID"]],["X",["RAW","HEAD"]],["Y",["RAW","HEAD"]],["VX",["RAW","HEAD"]],["VY",["RAW","HEAD"]],["AX",["RAW","HEAD"]],["AY",["RAW","HEAD"]],["ANGLE",["RAW"]],["ANGULAR_V",["RAW"]],["ANGULAR_A",["RAW"]],["MIDLINE_OFFSET",["RAW"]],["normalized_midline",["RAW"]],["midline_length",["RAW"]],["midline_x",["RAW"]],["midline_y",["RAW"]],["midline_segment_length",["RAW"]],["SPEED",["RAW","WCENTROID"]],["SPEED",["RAW","PCENTROID"]],["SPEED",["RAW","HEAD"]],["BORDER_DISTANCE",["PCENTROID"]],["time",[]],["timestamp",[]],["frame",[]],["missing",[]],["num_pixels",[]],["ACCELERATION",["RAW","PCENTROID"]],["ACCELERATION",["RAW","WCENTROID"]]]
+	**default value:** [["X",["RAW","WCENTROID"]],["Y",["RAW","WCENTROID"]],["X",["RAW","HEAD"]],["Y",["RAW","HEAD"]],["VX",["RAW","HEAD"]],["VY",["RAW","HEAD"]],["AX",["RAW","HEAD"]],["AY",["RAW","HEAD"]],["ANGLE",["RAW"]],["ANGULAR_V",["RAW"]],["ANGULAR_A",["RAW"]],["MIDLINE_OFFSET",["RAW"]],["normalized_midline",["RAW"]],["midline_length",["RAW"]],["midline_x",["RAW"]],["midline_y",["RAW"]],["midline_segment_length",["RAW"]],["SPEED",["RAW","WCENTROID"]],["SPEED",["RAW","PCENTROID"]],["SPEED",["RAW","HEAD"]],["BORDER_DISTANCE",["PCENTROID"]],["time",[]],["timestamp",[]],["frame",[]],["missing",[]],["num_pixels",[]],["ACCELERATION",["RAW","PCENTROID"]],["ACCELERATION",["RAW","WCENTROID"]],["visual_identification_p",["RAW"]]]
 
 
-	The functions that will be exported when saving to CSV, or shown in the graph. ``[['X',[option], ...]]``
+	The functions that will be exported when saving to CSV or NPZ, or shown in the graph. ``[['X',[option], ...]]`` Exact duplicate field, modifier, and calculation selections are used once; modifier order does not make an otherwise identical selection distinct. CSV always contains exactly one leading ``frame`` column, regardless of whether ``frame`` is listed here. NPZ contains one ``frame`` array when it is configured.
 
 
 
@@ -2203,7 +2263,7 @@ TRex parameters
 	**default value:** 100
 
 
-	If an individual is selected during CSV output, use these number of frames around it (or -1 for all frames).
+	Half-window size (in frames) used for per-selection graph/output context around the current frame.
 
 
 
@@ -2283,9 +2343,9 @@ TRex parameters
 	**default value:** ""
 
 
-	If this is not empty, all output files will go into ``output_dir`` /  / ... instead of just into ``output_dir``. The output directory is usually the folder where the video is, unless set to a different folder by you.
+	If this is not empty, all output files will go into ``output_dir`` /  / ... instead of just into ``output_dir``. The output directory is usually the folder where the video is, unless set to a different folder by you. An explicit absolute ``filename`` overrides this value.
 
-	.. seealso:: :param:`output_dir`, :param:`output_dir`
+	.. seealso:: :param:`output_dir`, :param:`output_dir`, :param:`filename`
 
 
 .. function:: output_recognition_data(bool)
@@ -2396,18 +2456,9 @@ TRex parameters
 
 
 
-.. function:: postures_per_thread(float)
-
-	**default value:** 1
-
-
-	Number of individuals for which postures will be estimated per thread.
-
-
-
 .. function:: python_path(path)
 
-	**default value:** "/Users/tristan/miniforge3/envs/trex/bin/python3.11"
+	**default value:** "/Users/tristan/miniforge3/envs/trex/bin/python3.12"
 
 
 	Path to the python home folder. If left empty, the user is required to make sure that all necessary libraries are in-scope the PATH environment variable.
@@ -2499,21 +2550,12 @@ TRex parameters
 	.. seealso:: :param:`recognition_border`, :param:`recognition_border`, :param:`outline_smooth_samples`
 
 
-.. function:: recording(bool)
-
-	**default value:** true
-
-
-	If set to true, the program will record frames whenever individuals are found.
-
-
-
 .. function:: region_model(path)
 
 	**default value:** ""
 
 
-	The path to a .pt file that contains a valid PyTorch object detection model used for region proposal (currently only YOLO networks are supported).
+	The path to a .pt or .pth file that contains a supported PyTorch object detection model used for region proposal (at the moment only YOLO).
 
 
 
@@ -2581,15 +2623,6 @@ TRex parameters
 	This is the (video) source for the current session. Typically this would point to the original video source of ``filename``.
 
 	.. seealso:: :param:`filename`
-
-
-.. function:: speed_extrapolation(float)
-
-	**default value:** 3
-
-
-	Used for matching when estimating the next position of an individual. Smaller values are appropriate for lower frame rates. The higher this value is, the more previous frames will have significant weight in estimating the next position (with an exponential decay).
-
 
 
 .. function:: stop_after_minutes(uint)
@@ -2752,7 +2785,7 @@ TRex parameters
 
 .. function:: task(TRexTask_t)
 
-	**default value:** none
+	**default value:** rst
 
 	**possible values:**
 		- `none`: No task forced. Auto-select.
@@ -2814,6 +2847,24 @@ TRex parameters
 	.. seealso:: :param:`track_threshold_is_absolute`
 
 
+.. function:: track_behavior_window(uchar)
+
+	**default value:** 50
+
+
+	A window (in frames) around any annotated localized behavior that will be exported alongside the actually labeled frame. Surrounding labels ranges might be merged.
+
+
+
+.. function:: track_behavior_window_step(uchar)
+
+	**default value:** 0
+
+
+	If 0 or 1, every frame of an individual is extracted and included in the exported dataset. Values > 1 will skip frames surrounding the labeled frame(s) in order to decrease dataset complexity.
+
+
+
 .. function:: track_conf_threshold(float)
 
 	**default value:** 0.1
@@ -2829,6 +2880,15 @@ TRex parameters
 
 
 	Utilise categories (if present) when tracking. This may break trajectories in places with imperfect categorization, but only applies once categories have been applied.
+
+
+
+.. function:: track_detect_annotations(AnnotationMap)
+
+	**default value:** null
+
+
+	This is a map of ``{frame:[[clid,type,[points...]],...]}`` containing detect annotations that can be exported per frame. These can be added in the graphical user interface by CMD+clicking on the video and selecting 'add annotation'.
 
 
 
@@ -2849,6 +2909,15 @@ TRex parameters
 	Enforce the ``frame_rate`` and override the frame_rate provided by the video file for calculating kinematic properties and probabilities. If this is not enabled, ``frame_rate`` is only a cosmetic property that influences the GUI and not exported data (for example).
 
 	.. seealso:: :param:`frame_rate`, :param:`frame_rate`
+
+
+.. function:: track_frame_tags(FrameTags)
+
+	**default value:** {}
+
+
+	This is a map of ``{frame:[tag1,...],frame2:...}``
+
 
 
 .. function:: track_history_split_threshold(frame)
@@ -2886,15 +2955,6 @@ TRex parameters
 	If this is not empty, objects within the given rectangles or polygons (>= 3 points) ``[[x0,y0],[x1,y1](, ...)], ...]`` will be the only objects being tracked. (overwrites ``track_ignore``)
 
 	.. seealso:: :param:`track_ignore`
-
-
-.. function:: track_intensity_range(range<int>)
-
-	**default value:** [-1,-1]
-
-
-	When set to valid values, objects will be filtered to have an average pixel intensity within the given range.
-
 
 
 .. function:: track_max_individuals(uint)
@@ -2996,7 +3056,7 @@ TRex parameters
 	**default value:** 0
 
 
-	Constant used in background subtraction. Pixels with grey values above this threshold will be interpreted as potential individuals, while pixels below this threshold will be ignored.
+	Constant used in background subtraction. Pixels with grey values above this threshold will be interpreted as potential individuals, while pixels below this threshold will be ignored. The base parameter default is 0; when a new background-subtraction configuration is initialized, TRex uses a default of 15.
 
 
 
@@ -3015,9 +3075,9 @@ TRex parameters
 	**default value:** true
 
 
-	If enabled, uses absolute difference values and disregards any pixel |p| < ``threshold`` during conversion. Otherwise the equation is p < ``threshold``, meaning that e.g. bright spots may not be considered trackable when dark spots would. Same as ``detect_threshold_is_absolute``, but during tracking instead of converting.
+	If enabled, tracking uses absolute pixel differences and disregards any pixel |p| < ``track_threshold``. Otherwise, tracking uses signed differences (p < ``track_threshold``). This is the tracking-stage equivalent of ``detect_threshold_is_absolute``.
 
-	.. seealso:: :param:`detect_threshold_is_absolute`
+	.. seealso:: :param:`track_threshold`, :param:`track_threshold`, :param:`detect_threshold_is_absolute`
 
 
 .. function:: track_time_probability_enabled(bool)
@@ -3025,7 +3085,7 @@ TRex parameters
 	**default value:** true
 
 
-	
+	If enabled, the tracker incorporates elapsed time into matching probabilities.
 
 
 
@@ -3128,7 +3188,7 @@ TRex parameters
 	**default value:** [-1,-1]
 
 
-	This determines which part of the video will be converted. By default (``[-1,-1]``) the entire video will be converted. If set to a valid value (not -1), start and end values determine the range converted (each one can be valid independently of the other).
+	This determines which part of the video will be converted. By default (``[-1,-1]``) the entire video will be converted. If set to a valid value (not -1), start and end values determine the range converted (each one can be valid independently of the other). Both bounds are inclusive when they fall within the source, so ``[0,80]`` converts 81 source frames.
 
 
 
@@ -3254,7 +3314,7 @@ TRex parameters
 	**default value:** 75
 
 
-	JPEG quality of images transferred over the web interface.
+	Quality for images transferred over the web interface (0-100).
 
 
 

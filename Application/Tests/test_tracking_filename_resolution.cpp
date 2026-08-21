@@ -10,6 +10,7 @@
 #include <grabber/misc/default_config.h>
 #include <misc/CommandLine.h>
 #include <misc/GlobalSettings.h>
+#include <misc/ranges.h>
 
 using namespace cmn;
 
@@ -61,6 +62,50 @@ void reset_global_settings() {
     });
     GlobalSettings::set_current_defaults({});
     GlobalSettings::set_current_defaults_with_config({});
+}
+
+file::Path guppies_video_fixture() {
+    const auto path = fs::path(TREX_TEST_FOLDER)
+        .parent_path()
+        .parent_path()
+        / "videos"
+        / "8guppies_20s.mp4";
+    if(not fs::is_regular_file(path))
+        throw std::runtime_error("Missing video fixture: " + path.string());
+    return file::Path(path.string());
+}
+
+file::Path processed_video_fixture() {
+    const auto path = fs::path(TREX_TEST_FOLDER)
+        .parent_path()
+        .parent_path()
+        / "videos"
+        / "test.pv";
+    if(not fs::is_regular_file(path))
+        throw std::runtime_error("Missing processed-video fixture: " + path.string());
+    return file::Path(path.string());
+}
+
+file::Path copy_guppies_video_fixture(const file::Path& destination) {
+    fs::create_directories(fs::path(destination.str()).parent_path());
+    fs::copy_file(
+        guppies_video_fixture().str(),
+        destination.str(),
+        fs::copy_options::overwrite_existing);
+    return destination;
+}
+
+file::Path copy_processed_video_fixture(const file::Path& destination) {
+    fs::create_directories(fs::path(destination.str()).parent_path());
+    fs::copy_file(
+        processed_video_fixture().str(),
+        destination.str(),
+        fs::copy_options::overwrite_existing);
+    return destination;
+}
+
+file::Path basename_without_extension(const file::Path& path) {
+    return file::Path(fs::path(path.str()).stem().string());
 }
 
 void resolve_tracking_filename() {
@@ -140,6 +185,17 @@ TEST_F(TrackingFilenameResolutionTest, ExplicitRelativeFilenameUsesOutputDirecto
 
     SETTING(filename) = file::Path("chosen.pv");
     resolve_tracking_filename();
+    expect_configured_filename(expected);
+}
+
+TEST_F(TrackingFilenameResolutionTest, ExplicitRelativeFilenameSubpathUsesBasename) {
+    const auto expected = output_dir / "session" / "chosen";
+    create_regular_file(expected.add_extension("pv"));
+    SETTING(output_prefix) = std::string("session");
+    SETTING(filename) = file::Path("nested/chosen.pv");
+
+    resolve_tracking_filename();
+
     expect_configured_filename(expected);
 }
 
@@ -274,18 +330,24 @@ TEST_F(TrackingFilenameResolutionTest, FindOutputNameUsesMapFilenameAndCanIgnore
               output_dir / "session" / "recording");
 }
 
-TEST_F(TrackingFilenameResolutionTest, FindOutputNameRoutesAbsoluteMapNamesByExtension) {
+TEST_F(TrackingFilenameResolutionTest, FindOutputNameReducesRelativeMapSubpathToBasename) {
+    const auto source = input_dir / "recording.mp4";
+    const auto map = settings_map(
+        file::PathArray(source), file::Path("nested/manual.pv"), "session");
+
+    EXPECT_EQ(settings::find_output_name(map), output_dir / "session" / "manual");
+}
+
+TEST_F(TrackingFilenameResolutionTest, FindOutputNamePreservesAbsoluteMapNamesRegardlessOfExtension) {
     const auto source = input_dir / "recording.mp4";
     const auto absolute = input_dir / "chosen";
 
-    // The pure output resolver routes map-selected absolute names, while the
-    // existing-file resolver keeps an absolute selected tracking path intact.
     EXPECT_EQ(settings::find_output_name(
                   settings_map(file::PathArray(source), absolute, "session")),
-              output_dir / "session" / "chosen");
+              input_dir / "chosen");
     EXPECT_EQ(settings::find_output_name(
                   settings_map(file::PathArray(source), absolute.add_extension("pv"), "session")),
-              input_dir / "session" / "chosen");
+              input_dir / "chosen");
 }
 
 TEST_F(TrackingFilenameResolutionTest, FindOutputNameUsesExplicitSourceAndSinglePvSource) {
@@ -368,7 +430,7 @@ TEST_F(TrackingFilenameResolutionTest, LoadContextPreservesExplicitRecentFilenam
 }
 
 TEST_F(TrackingFilenameResolutionTest, LoadContextTracksInputSideWebcamFilename) {
-    create_regular_file((input_dir / "webcam").add_extension("pv"));
+    copy_processed_video_fixture((input_dir / "webcam").add_extension("pv"));
     CommandLine::instance().add_setting("wd", input_dir.str());
     CommandLine::instance().load_settings();
 
@@ -396,8 +458,8 @@ TEST_F(TrackingFilenameResolutionTest, LoadContextTracksInputSideWebcamFilename)
 }
 
 TEST_F(TrackingFilenameResolutionTest, LoadContextTracksPrefixAndCmd) {
-    create_regular_file((input_dir / "test_video").add_extension("mp4"));
-    auto input_file = (input_dir / "test_video").add_extension("mp4");
+    const auto input_file = guppies_video_fixture();
+    const auto input_basename = basename_without_extension(input_file);
     CommandLine::instance().add_setting("source", input_file.str());
     CommandLine::instance().load_settings();
 
@@ -422,14 +484,14 @@ TEST_F(TrackingFilenameResolutionTest, LoadContextTracksPrefixAndCmd) {
     EXPECT_EQ(GlobalSettings::read([](const Configuration& config) {
                   return settings::find_output_name(config.values);
               }),
-              output_dir / "tmp" / "test_video");
+              output_dir / "tmp" / input_basename);
 
     ASSERT_FALSE(changed_defaults.has("filename"));
 }
 
 TEST_F(TrackingFilenameResolutionTest, LoadContextTracksPrefixAndCmdNoOverrides) {
-    create_regular_file((input_dir / "test_video").add_extension("mp4"));
-    auto input_file = (input_dir / "test_video").add_extension("mp4");
+    const auto input_file = guppies_video_fixture();
+    const auto input_basename = basename_without_extension(input_file);
     CommandLine::instance().add_setting("source", input_file.str());
     CommandLine::instance().add_setting("output_prefix", "tmp");
     CommandLine::instance().add_setting("output_dir", output_dir.str());
@@ -452,15 +514,323 @@ TEST_F(TrackingFilenameResolutionTest, LoadContextTracksPrefixAndCmdNoOverrides)
     EXPECT_EQ(GlobalSettings::read([](const Configuration& config) {
                   return settings::find_output_name(config.values);
               }),
-              output_dir / "tmp" / "test_video");
+              output_dir / "tmp" / input_basename);
 
     ASSERT_FALSE(changed_defaults.has("filename"));
 }
 
+TEST_F(TrackingFilenameResolutionTest, SettingsFileMatrixCoversNonModelExclusions) {
+    const std::set<std::string_view> expected_default_excludes{
+        "nowindow",
+        "gui_interface_scale",
+        "load",
+        "task",
+        "filename",
+        "source"
+    };
+    const std::set<std::string_view> expected_external_excludes{
+        "video_conversion_range",
+        "settings_file",
+        "output_dir",
+        "filename",
+        "source"
+    };
+
+    const std::set<std::string_view> actual_default_excludes(
+        settings::LoadContext::default_excludes.begin(),
+        settings::LoadContext::default_excludes.end());
+    const std::set<std::string_view> actual_external_excludes(
+        settings::LoadContext::exclude_external.begin(),
+        settings::LoadContext::exclude_external.end());
+
+    EXPECT_EQ(actual_default_excludes, expected_default_excludes)
+        << "Update VideoSettingsHonorSourceAndAccessLevelExclusions for every changed entry.";
+    EXPECT_EQ(actual_external_excludes, expected_external_excludes)
+        << "Update the external-field behavior tests for every changed entry.";
+}
+
+TEST_F(TrackingFilenameResolutionTest, VideoSettingsHonorSourceAndAccessLevelExclusions) {
+    const ScopedCurrentPath current_path(root);
+    const auto input_file = guppies_video_fixture();
+    const auto input_basename = basename_without_extension(input_file);
+    const auto per_video_settings = output_dir / "session" / input_basename.add_extension("settings");
+    const auto initial_app_name = READ_SETTING(app_name, std::string);
+    const auto initial_interface_scale = READ_SETTING(gui_interface_scale, Float2_t);
+    const auto initial_python_path = READ_SETTING(python_path, file::Path);
+
+    {
+        fs::create_directories(fs::path(per_video_settings.str()).parent_path());
+        std::ofstream stream(per_video_settings.str());
+        stream << "track_threshold = 37\n"
+               << "auto_quit = true\n"
+               << "settings_file = \"nested.settings\"\n"
+               << "nowindow = true\n"
+               << "gui_interface_scale = 2\n"
+               << "load = true\n"
+               << "task = track\n"
+               << "filename = \"from-settings.pv\"\n"
+               << "source = \"webcam\"\n"
+               << "output_dir = \"forbidden-output\"\n"
+               << "output_prefix = \"forbidden-prefix\"\n"
+               << "app_name = \"Hijacked TRex\"\n"
+               << "python_path = \"forbidden-python\"\n";
+        stream.close();
+        ASSERT_TRUE(stream) << per_video_settings.str();
+    }
+
+    sprite::Map overrides;
+    overrides["output_dir"] = output_dir;
+    overrides["output_prefix"] = std::string("session");
+
+    settings::load(settings::LoadContext{
+        .source = file::PathArray{input_file},
+        .task = default_config::TRexTask_t::convert,
+        .type = track::detect::ObjectDetectionType::yolo,
+        .source_map = std::move(overrides),
+        .quiet = true
+    });
+
+    EXPECT_EQ(READ_SETTING(track_threshold, int), 37)
+        << "The settings file itself was not loaded.";
+    EXPECT_TRUE(BOOL_SETTING(auto_quit));
+    EXPECT_EQ(READ_SETTING(settings_file, file::Path), file::Path(""));
+
+    EXPECT_FALSE(BOOL_SETTING(nowindow));
+    EXPECT_EQ(READ_SETTING(gui_interface_scale, Float2_t), initial_interface_scale);
+    EXPECT_FALSE(GlobalSettings::has_value("load"));
+    EXPECT_EQ(READ_SETTING(task, default_config::TRexTask), default_config::TRexTask_t::none);
+    EXPECT_NE(READ_SETTING(filename, file::Path), input_basename);
+    EXPECT_EQ(READ_SETTING(source, file::PathArray), file::PathArray{input_file});
+    EXPECT_EQ(READ_SETTING(output_dir, file::Path), output_dir);
+    EXPECT_EQ(READ_SETTING(output_prefix, std::string), "session");
+    EXPECT_EQ(READ_SETTING(app_name, std::string), initial_app_name);
+    EXPECT_EQ(READ_SETTING(python_path, file::Path), initial_python_path);
+}
+
+TEST_F(TrackingFilenameResolutionTest, VideoSettingsApplyAllExternalFieldRules) {
+    const ScopedCurrentPath current_path(root);
+    const auto input_file = guppies_video_fixture();
+    const auto per_video_settings = output_dir
+        / basename_without_extension(input_file).add_extension("settings");
+    const auto default_model = file::Path(track::detect::yolo::default_model());
+    ASSERT_TRUE(track::detect::yolo::valid_model(default_model));
+
+    {
+        std::ofstream stream(per_video_settings.str());
+        stream << "detect_model = \"" << default_model.str() << "\"\n"
+               << "region_model = \"" << default_model.str() << "\"\n"
+               << "video_conversion_range = [0,80]\n";
+        stream.close();
+        ASSERT_TRUE(stream) << per_video_settings.str();
+    }
+
+    sprite::Map overrides;
+    overrides["output_dir"] = output_dir;
+    settings::load(settings::LoadContext{
+        .source = file::PathArray{input_file},
+        .task = default_config::TRexTask_t::convert,
+        .type = track::detect::ObjectDetectionType::yolo,
+        .source_map = std::move(overrides),
+        .quiet = true
+    });
+
+    EXPECT_EQ(READ_SETTING(detect_model, file::Path), default_model);
+    EXPECT_EQ(READ_SETTING(region_model, file::Path), default_model);
+    const Range<long_t> full_video_range{-1, -1};
+    EXPECT_EQ(READ_SETTING(video_conversion_range, Range<long_t>), full_video_range)
+        << "A saved conversion range must not constrain a later conversion.";
+}
+
+TEST_F(TrackingFilenameResolutionTest, ManualModelExcludesExternalModelPaths) {
+    const ScopedCurrentPath current_path(root);
+    const auto input_file = guppies_video_fixture();
+    const auto per_video_settings = output_dir
+        / basename_without_extension(input_file).add_extension("settings");
+    const auto manual_model = file::Path(track::detect::yolo::default_model());
+
+    {
+        std::ofstream stream(per_video_settings.str());
+        stream << "detect_model = \"yolo26n-seg.pt\"\n"
+               << "region_model = \"yolo26n-seg.pt\"\n"
+               << "video_conversion_range = [0,80]\n";
+        stream.close();
+        ASSERT_TRUE(stream) << per_video_settings.str();
+    }
+
+    CommandLine::instance().add_setting("detect_model", manual_model.str());
+    CommandLine::instance().load_settings();
+
+    sprite::Map overrides;
+    overrides["output_dir"] = output_dir;
+    settings::load(settings::LoadContext{
+        .source = file::PathArray{input_file},
+        .task = default_config::TRexTask_t::convert,
+        .type = track::detect::ObjectDetectionType::yolo,
+        .source_map = std::move(overrides),
+        .quiet = true
+    });
+
+    EXPECT_EQ(READ_SETTING(detect_model, file::Path), manual_model);
+    EXPECT_TRUE(READ_SETTING(region_model, file::Path).empty());
+    const Range<long_t> full_video_range{-1, -1};
+    EXPECT_EQ(READ_SETTING(video_conversion_range, Range<long_t>), full_video_range);
+}
+
+TEST_F(TrackingFilenameResolutionTest, InitialCommandLineValuesOverrideDefaultsAndSettingsFile) {
+    const ScopedCurrentPath current_path(root);
+    const auto input_file = guppies_video_fixture();
+    const auto per_video_settings = output_dir
+        / basename_without_extension(input_file).add_extension("settings");
+
+    {
+        std::ofstream stream(per_video_settings.str());
+        stream << "track_max_individuals = 99\n"
+               << "track_threshold = 37\n"
+               << "individual_prefix = \"from-settings\"\n"
+               << "calculate_posture = true\n"
+               << "track_max_speed = 99\n"
+               << "output_csv_decimals = 1\n"
+               << "auto_quit = true\n";
+        stream.close();
+        ASSERT_TRUE(stream) << per_video_settings.str();
+    }
+
+    CommandLine::instance().add_setting("output_dir", output_dir.str());
+    CommandLine::instance().add_setting("track_max_individuals", "5");
+    CommandLine::instance().add_setting("track_threshold", "21");
+    CommandLine::instance().add_setting("individual_prefix", "from-command-line");
+    CommandLine::instance().add_setting("calculate_posture", "false");
+    CommandLine::instance().add_setting("track_max_speed", "12.5");
+    CommandLine::instance().add_setting("output_csv_decimals", "7");
+    sprite::Map overrides;
+    CommandLine::instance().load_settings(overrides);
+    settings::load(settings::LoadContext{
+        .source = file::PathArray{input_file},
+        .task = default_config::TRexTask_t::convert,
+        .type = track::detect::ObjectDetectionType::yolo,
+        .source_map = std::move(overrides),
+        .quiet = true
+    });
+
+    EXPECT_EQ(READ_SETTING(track_max_individuals, uint32_t), 5u);
+    EXPECT_EQ(READ_SETTING(track_threshold, int), 21);
+    EXPECT_EQ(READ_SETTING(individual_prefix, std::string), "from-command-line");
+    EXPECT_FALSE(BOOL_SETTING(calculate_posture));
+    EXPECT_FLOAT_EQ(READ_SETTING(track_max_speed, Float2_t), Float2_t(12.5));
+    EXPECT_EQ(READ_SETTING(output_csv_decimals, uint8_t), uint8_t(7));
+    EXPECT_TRUE(BOOL_SETTING(auto_quit))
+        << "The settings file must be loaded before command-line precedence is evaluated.";
+}
+
+TEST_F(TrackingFilenameResolutionTest, CallerExclusionsApplyToFileAndSourceMap) {
+    const ScopedCurrentPath current_path(root);
+    const auto input_file = guppies_video_fixture();
+    const auto per_video_settings = output_dir
+        / basename_without_extension(input_file).add_extension("settings");
+
+    {
+        std::ofstream stream(per_video_settings.str());
+        stream << "individual_prefix = \"from-settings\"\n"
+               << "track_threshold = 37\n";
+        stream.close();
+        ASSERT_TRUE(stream) << per_video_settings.str();
+    }
+
+    sprite::Map overrides;
+    overrides["output_dir"] = output_dir;
+    overrides["individual_prefix"] = std::string("from-source-map");
+    overrides["track_threshold"] = 44;
+    settings::load(settings::LoadContext{
+        .source = file::PathArray{input_file},
+        .task = default_config::TRexTask_t::convert,
+        .type = track::detect::ObjectDetectionType::yolo,
+        .exclude_parameters = ExtendableVector{"individual_prefix"},
+        .source_map = std::move(overrides),
+        .quiet = true
+    });
+
+    EXPECT_EQ(READ_SETTING(individual_prefix, std::string), "id");
+    EXPECT_EQ(READ_SETTING(track_threshold, int), 44);
+}
+
+TEST_F(TrackingFilenameResolutionTest, LaterLoadMayReplaceConsumedCommandLineValues) {
+    const ScopedCurrentPath current_path(root);
+    const auto input_file = guppies_video_fixture();
+    const file::Path command_line_output_dir(
+        (root / "command-line-output").string());
+    fs::create_directories(command_line_output_dir.str());
+
+    CommandLine::instance().add_setting("output_dir", command_line_output_dir.str());
+    CommandLine::instance().add_setting("output_prefix", "from-command-line");
+    CommandLine::instance().add_setting("track_threshold", "21");
+    CommandLine::instance().add_setting("individual_prefix", "from-command-line");
+
+    sprite::Map initial;
+    CommandLine::instance().load_settings(initial);
+    settings::load(settings::LoadContext{
+        .source = file::PathArray{input_file},
+        .task = default_config::TRexTask_t::convert,
+        .type = track::detect::ObjectDetectionType::yolo,
+        .source_map = std::move(initial),
+        .quiet = true
+    });
+
+    EXPECT_EQ(READ_SETTING(output_dir, file::Path), command_line_output_dir);
+    EXPECT_EQ(READ_SETTING(output_prefix, std::string), "from-command-line");
+    EXPECT_EQ(READ_SETTING(track_threshold, int), 21);
+    EXPECT_EQ(READ_SETTING(individual_prefix, std::string), "from-command-line");
+    EXPECT_FALSE(CommandLine::instance().settings_keys().contains("output_dir"));
+    EXPECT_FALSE(CommandLine::instance().settings_keys().contains("output_prefix"));
+    EXPECT_FALSE(CommandLine::instance().settings_keys().contains("track_threshold"));
+    EXPECT_FALSE(CommandLine::instance().settings_keys().contains("individual_prefix"));
+
+    sprite::Map later;
+    later["output_dir"] = output_dir;
+    later["output_prefix"] = std::string("from-source-map");
+    later["track_threshold"] = 44;
+    later["individual_prefix"] = std::string("from-source-map");
+    settings::load(settings::LoadContext{
+        .source = file::PathArray{input_file},
+        .task = default_config::TRexTask_t::convert,
+        .type = track::detect::ObjectDetectionType::yolo,
+        .source_map = std::move(later),
+        .quiet = true
+    });
+
+    EXPECT_EQ(READ_SETTING(output_dir, file::Path), output_dir);
+    EXPECT_EQ(READ_SETTING(output_prefix, std::string), "from-source-map");
+    EXPECT_EQ(READ_SETTING(track_threshold, int), 44);
+    EXPECT_EQ(READ_SETTING(individual_prefix, std::string), "from-source-map");
+}
+
+TEST_F(TrackingFilenameResolutionTest, LoadContextAppliesDetectorSpecificThresholdDefaults) {
+    const ScopedCurrentPath current_path(root);
+    const auto input_file = guppies_video_fixture();
+
+    const auto load_for = [&](track::detect::ObjectDetectionType::Class type) {
+        reset_global_settings();
+        CommandLine::instance() = CommandLine{};
+
+        sprite::Map overrides;
+        overrides["output_dir"] = output_dir;
+        settings::load(settings::LoadContext{
+            .source = file::PathArray{input_file},
+            .task = default_config::TRexTask_t::convert,
+            .type = track::detect::ObjectDetectionType_t{type},
+            .source_map = std::move(overrides),
+            .quiet = true
+        });
+        return READ_SETTING(track_threshold, int);
+    };
+
+    EXPECT_EQ(load_for(track::detect::ObjectDetectionType::yolo), 0);
+    EXPECT_EQ(load_for(track::detect::ObjectDetectionType::background_subtraction), 15);
+}
+
 TEST_F(TrackingFilenameResolutionTest, LoadContextTrackingPrefersInputPvOverPrefixedOutputPv) {
-    const auto source = input_dir / "recording.mp4";
-    create_regular_file(input_dir / "recording.pv");
-    create_regular_file(output_dir / "session" / "recording.pv");
+    const auto source = copy_guppies_video_fixture(input_dir / "recording.mp4");
+    copy_processed_video_fixture(input_dir / "recording.pv");
+    copy_processed_video_fixture(output_dir / "session" / "recording.pv");
     CommandLine::instance().add_setting("wd", input_dir.str());
     CommandLine::instance().load_settings();
 
@@ -491,8 +861,10 @@ TEST_F(TrackingFilenameResolutionTest, LoadContextTrackingPrefersInputPvOverPref
 }
 
 TEST_F(TrackingFilenameResolutionTest, LoadContextTrackingFallsBackToPrefixedOutputPv) {
-    const auto source = input_dir / "recording.mp4";
-    create_regular_file(output_dir / "session" / "recording.pv");
+    const auto source = guppies_video_fixture();
+    const auto source_basename = basename_without_extension(source);
+    copy_processed_video_fixture(
+        output_dir / "session" / source_basename.add_extension("pv"));
     CommandLine::instance().add_setting("wd", input_dir.str());
     CommandLine::instance().load_settings();
 
@@ -519,10 +891,11 @@ TEST_F(TrackingFilenameResolutionTest, LoadContextTrackingFallsBackToPrefixedOut
     EXPECT_EQ(GlobalSettings::read([](const Configuration& config) {
                   return settings::find_existing_output_name(config.values);
               }),
-              output_dir / "session" / "recording");
+              output_dir / "session" / source_basename);
 }
 
 TEST_F(TrackingFilenameResolutionTest, CommandLineSettingsFlowThroughLoadContext) {
+    SETTING(nowindow) = false;
     CommandLine::instance().add_setting("source", "webcam");
     CommandLine::instance().add_setting("filename", "nested/chosen.pv");
     CommandLine::instance().add_setting("output_dir", output_dir.str());
@@ -542,13 +915,13 @@ TEST_F(TrackingFilenameResolutionTest, CommandLineSettingsFlowThroughLoadContext
     });
 
     EXPECT_EQ(READ_SETTING(source, file::PathArray), file::PathArray("webcam"));
-    EXPECT_EQ(READ_SETTING(filename, file::Path), file::Path("nested/chosen"));
+    EXPECT_EQ(READ_SETTING(filename, file::Path), file::Path("chosen"));
     EXPECT_EQ(READ_SETTING(output_dir, file::Path), output_dir);
     EXPECT_EQ(READ_SETTING(output_prefix, std::string), "session");
     EXPECT_EQ(GlobalSettings::read([](const Configuration& config) {
                   return settings::find_output_name(config.values);
               }),
-              output_dir / "nested" / "session" / "chosen");
+              output_dir / "session" / "chosen");
 
     const auto changed_defaults = GlobalSettings::read(
         [](const sprite::Map&, const sprite::Map& with_config) {
@@ -556,7 +929,27 @@ TEST_F(TrackingFilenameResolutionTest, CommandLineSettingsFlowThroughLoadContext
         });
     ASSERT_TRUE(changed_defaults.has("filename"));
     EXPECT_EQ(changed_defaults.at("filename").value<file::Path>(),
-              file::Path("nested/chosen"));
+              file::Path("chosen"));
+}
+
+TEST_F(TrackingFilenameResolutionTest, HeadlessLoadContextRejectsRelativeFilenameSubpath) {
+    SETTING(nowindow) = true;
+    sprite::Map overrides;
+    overrides["output_dir"] = output_dir;
+    overrides["output_prefix"] = std::string("session");
+
+    const auto load = [&] {
+        settings::load(settings::LoadContext{
+            .source = file::PathArray("webcam"),
+            .filename = file::Path("nested/chosen.pv"),
+            .task = default_config::TRexTask_t::convert,
+            .type = track::detect::ObjectDetectionType::yolo,
+            .source_map = std::move(overrides),
+            .quiet = true
+        });
+    };
+
+    EXPECT_THROW(load(), std::exception);
 }
 
 TEST_F(TrackingFilenameResolutionTest, AbsoluteCommandLineFilenameRemainsAbsoluteDuringResolution) {
@@ -583,6 +976,37 @@ TEST_F(TrackingFilenameResolutionTest, AbsoluteCommandLineFilenameRemainsAbsolut
                   return settings::find_output_name(config.values);
               }),
               input_dir / "chosen");
+}
+
+TEST_F(TrackingFilenameResolutionTest, AbsoluteCommandLineFilenameOverridesOutputDirectoryAndPrefix) {
+    const auto absolute = input_dir / "chosen.pv";
+    CommandLine::instance().add_setting("source", "webcam");
+    CommandLine::instance().add_setting("filename", absolute.str());
+    CommandLine::instance().add_setting("output_dir", output_dir.str());
+    CommandLine::instance().add_setting("output_prefix", "session");
+    CommandLine::instance().load_settings();
+
+    sprite::Map command_line;
+    CommandLine::instance().load_settings(command_line);
+
+    settings::load(settings::LoadContext{
+        .source = READ_SETTING(source, file::PathArray),
+        .filename = READ_SETTING(filename, file::Path),
+        .task = default_config::TRexTask_t::convert,
+        .type = track::detect::ObjectDetectionType::yolo,
+        .source_map = std::move(command_line),
+        .quiet = true
+    });
+
+    EXPECT_EQ(READ_SETTING(filename, file::Path), file::Path("chosen"));
+    EXPECT_EQ(READ_SETTING(output_dir, file::Path), input_dir);
+    EXPECT_TRUE(READ_SETTING(output_prefix, std::string).empty());
+    EXPECT_EQ(GlobalSettings::read([](const Configuration& config) {
+                  return settings::find_output_name(config.values);
+              }),
+              input_dir / "chosen");
+    EXPECT_EQ(file::DataLocation::parse("output", file::Path("data")),
+              input_dir / "data");
 }
 
 TEST_F(TrackingFilenameResolutionTest, EmptyConversionContextUsesCommandLineFilename) {

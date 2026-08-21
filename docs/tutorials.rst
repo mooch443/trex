@@ -132,6 +132,10 @@ Let's set an input file first and then go through a few more steps to get starte
    The other modes load detections from a file (``precomputed``), use prompt-based SAM3 segmentation (``sam3``), or deliberately disable detection (``none``).
 
    For this tutorial, we'll use *background subtraction*. YOLO is selected by default, so navigate to the **Detection** tab to change it. In the same tab we can also change the :param:`detect_threshold` value, which is the minimum greyscale intensity value ``[0-255]`` for a pixel to be considered part of an individual. The default value is ``15``, but you can adjust it to better fit your video: in our case we'll go with ``50``. Unlike :param:`track_threshold`, this value acts *destructively* and could actually be regarded as a lower bound for :param:`track_threshold`.
+
+   .. NOTE::
+
+      Parameter defaults and configuration suggestions are two different layers. The base :param:`track_threshold` default is ``0``. Selecting background subtraction for a new configuration applies the task-specific suggested value ``15``. An explicitly supplied value takes precedence over both.
    
    We will check back on thresholds later.
 
@@ -153,7 +157,7 @@ Let's set an input file first and then go through a few more steps to get starte
 
    - :param:`track_threshold` we can set to `80`, but if we change our minds later on, we can decrease this after conversion down to the value of :param:`detect_threshold` (which we set to `50` earlier).
    - :param:`calculate_posture` make sure we are calculating posture by turning this on (otherwise you won't see the outlines around your individuals later)
-   - :param:`cm_per_pixel` is the conversion factor for any pixel to cm conversion (and vice-versa). You can either set this to `0.0257` now because you magically know this number - or you can click on "Calibrate". This gets you to this screen here:
+   - **Calibrate the spatial scale:** :param:`cm_per_pixel` is the conversion factor for any pixel to cm conversion (and vice-versa). You can either set this to `0.0257` now because you magically know this number - or you can click on **Calibrate**. This gets you to this screen here:
 
    .. _calibrate_view:
 

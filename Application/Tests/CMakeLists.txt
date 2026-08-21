@@ -76,6 +76,7 @@ add_executable(test_tracking_export_e2e test_tracking_export_e2e.cpp test_main.c
 target_compile_definitions(test_tracking_export_e2e PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
 
 add_executable(test_tracking_filename_resolution test_tracking_filename_resolution.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
+target_compile_definitions(test_tracking_filename_resolution PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
 
 add_executable(test_dispatcher test_dispatcher.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
 target_compile_definitions(test_dispatcher PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
@@ -523,6 +524,33 @@ add_test(NAME test-tracking-export-e2e COMMAND test_tracking_export_e2e)
 trex_prepend_test_path(test-tracking-export-e2e trex_check_python)
 set_tests_properties(test-tracking-export-e2e PROPERTIES TIMEOUT 600)
 add_test(NAME test-tracking-filename-resolution COMMAND test_tracking_filename_resolution)
+add_test(NAME test-pvinfo-blob-detail-quiet
+    COMMAND $<TARGET_FILE:pvinfo>
+        -i "${CMAKE_SOURCE_DIR}/../videos/test.pv"
+        -blob_detail
+        -quiet
+)
+set_tests_properties(test-pvinfo-blob-detail-quiet PROPERTIES
+    PASS_REGULAR_EXPRESSION "bytes .* of blob data"
+    FAIL_REGULAR_EXPRESSION "Finding blobs"
+    TIMEOUT 180
+)
+add_test(NAME test-pvinfo-ffmpeg-support-quiet
+    COMMAND ${CMAKE_COMMAND}
+        "-DPVINFO_EXECUTABLE=$<TARGET_FILE:pvinfo>"
+        "-DPVINFO_OPTION=-opencv_ffmpeg_support"
+        "-DEXPECTED_OUTPUT=FFMPEG support"
+        "-DUNEXPECTED_OUTPUT=General configuration for OpenCV"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/check_pvinfo_report.cmake"
+)
+add_test(NAME test-pvinfo-opencl-support-quiet
+    COMMAND ${CMAKE_COMMAND}
+        "-DPVINFO_EXECUTABLE=$<TARGET_FILE:pvinfo>"
+        "-DPVINFO_OPTION=-opencv_opencl_support"
+        "-DEXPECTED_OUTPUT=OpenCL support"
+        "-DUNEXPECTED_OUTPUT=General configuration for OpenCV"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/check_pvinfo_report.cmake"
+)
 add_test(NAME test-dispatcher COMMAND test_dispatcher)
 add_test(NAME test-sam3promptpayload COMMAND test_sam3promptpayload)
 add_test(NAME test-detect-annotation-io COMMAND test_detect_annotation_io)
