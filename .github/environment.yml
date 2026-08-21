@@ -5,5 +5,10 @@ channels:
 dependencies:
     - conda=26.7.0
     - conda-build=26.7.0
+    - conda-libmamba-solver=26.4.2
     - git
+    - libmamba=2.5.0
+    - libmamba-spdlog=2.5.0
+    - libmambapy=2.5.0
+    - mamba=2.5.0
     - python=3.13.13
