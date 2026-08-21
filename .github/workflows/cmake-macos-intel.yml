@@ -12,6 +12,7 @@ env:
   CONDA_BUILD_SYSROOT: /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk
   SDKROOT: /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk
   GITHUB_WORKFLOW: CondaBuildMacOS
+  MINIFORGE_VERSION: 26.5.3-0
 
 jobs:
   build:
@@ -24,7 +25,7 @@ jobs:
       fail-fast: false
       matrix:
         os: ["macos-15-intel"]
-        python-version: ["3.11"]
+        python-version: ["3.11.15"]
     steps:
     - uses: actions/checkout@v4
       with:
@@ -42,17 +43,27 @@ jobs:
         CACHE_NUMBER: 0
       with:
         path: ~/conda_pkgs_dir
-        key: ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{ hashFiles('.github/macos-environment.yml') }}
-    - uses: conda-incubator/setup-miniconda@v3
+        key: ${{ runner.os }}-${{ runner.arch }}-conda-${{ env.MINIFORGE_VERSION }}-${{ env.CACHE_NUMBER }}-${{ hashFiles('.github/macos-environment.yml') }}
+    - uses: conda-incubator/setup-miniconda@fc2d68f6413eb2d87b895e92f8584b5b94a10167 # v3.3.0
       with:
-        miniforge-version: latest
+        miniforge-version: ${{ env.MINIFORGE_VERSION }}
         environment-file: .github/macos-environment.yml
         activate-environment: tracking
         python-version: ${{ matrix.python-version }}
         channels: conda-forge
-        auto-activate-base: true
-        auto-update-conda: true
+        conda-remove-defaults: true
+        auto-update-conda: false
+        pkgs-dirs: ~/conda_pkgs_dir
         use-only-tar-bz2: true
+    - name: Verify isolated build environment
+      shell: bash -el {0}
+      run: |
+        if [[ "${CONDA_DEFAULT_ENV:-}" != "tracking" || "$CONDA_PREFIX" == "$CONDA" ]]; then
+          echo "Conda build tooling must run from the disposable tracking environment, not base." >&2
+          exit 1
+        fi
+        conda info
+        conda list
     - name: Create .condarc file
       run: |
         conda config --show channels
@@ -71,7 +82,7 @@ jobs:
     - name: Show current conda channels
       run: conda config --show channels
     - name: Build
-      shell: bash -l {0}
+      shell: bash -el {0}
       working-directory: ${{github.workspace}}
       run: |
         echo "::group::Info"
@@ -93,12 +104,11 @@ jobs:
         cat post-link.sh
         echo "::endgroup::"
         echo "::group::Build"
-        conda update --all --override-channels -c conda-forge -y
         conda build . --override-channels -c conda-forge
         echo "::endgroup::"
         echo $CONDA_PREFIX
     - name: Test
-      shell: bash -l {0}
+      shell: bash -el {0}
       working-directory: ${{github.workspace}}
       run: |
         echo "::group::Test"

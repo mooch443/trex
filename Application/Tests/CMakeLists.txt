@@ -571,10 +571,16 @@ if(TREX_ENABLE_MODULES AND NOT CMAKE_VERSION VERSION_LESS "3.28.0")
     add_test(NAME test-trex-modules COMMAND test_trex_modules)
 endif()
 
+# Executables invoked directly by add_test must exist before CTest starts.
+set(TEST_RUNTIME_TARGETS
+    pvinfo
+)
+
 # Add a custom target to build and run all tests
 add_custom_target(runAllTests
         COMMAND ${CMAKE_CTEST_COMMAND} -C $<CONFIG> --output-on-failure
         DEPENDS ${TARGETS}
 )
+add_dependencies(runAllTests ${TEST_RUNTIME_TARGETS})
 
 endif()

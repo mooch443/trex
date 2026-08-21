@@ -9,6 +9,7 @@ env:
   # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
   BUILD_TYPE: Release
   GITHUB_WORKFLOW: CondaBuildUbuntu
+  MINIFORGE_VERSION: 26.5.3-0
 
 jobs:
   build:
@@ -36,37 +37,25 @@ jobs:
         CACHE_NUMBER: 1
       with:
         path: ~/conda_pkgs_dir
-        key: ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{ hashFiles('.github/environment.yml') }}
-    - uses: conda-incubator/setup-miniconda@v3
+        key: ${{ runner.os }}-${{ runner.arch }}-conda-${{ env.MINIFORGE_VERSION }}-${{ env.CACHE_NUMBER }}-${{ hashFiles('.github/environment.yml') }}
+    - uses: conda-incubator/setup-miniconda@fc2d68f6413eb2d87b895e92f8584b5b94a10167 # v3.3.0
       with:
-        miniforge-version: latest
+        miniforge-version: ${{ env.MINIFORGE_VERSION }}
+        environment-file: .github/environment.yml
+        activate-environment: tracking
         channels: conda-forge
         conda-remove-defaults: true
-        auto-activate: true
         auto-update-conda: false
-        activate-environment: base
         pkgs-dirs: ~/conda_pkgs_dir
-    - name: Get conda prefix and cache date
-      id: conda-prefix
-      shell: bash
+        use-only-tar-bz2: true
+    - name: Verify isolated build environment
       run: |
-        echo "path=$CONDA" >> $GITHUB_OUTPUT
-        echo "month=$(date +%Y-%m)" >> $GITHUB_OUTPUT
-    - name: Cache conda base environment
-      id: conda-env-cache
-      uses: actions/cache@v4
-      with:
-        path: ${{ steps.conda-prefix.outputs.path }}
-        key: ${{ runner.os }}-conda-env-${{ steps.conda-prefix.outputs.month }}-${{ hashFiles('.github/environment.yml') }}
-    - name: Install environment into base
-      if: steps.conda-env-cache.outputs.cache-hit != 'true'
-      working-directory: ${{github.workspace}}
-      run: |
-        echo "::group::Install environment into base"
-        conda env update --name base -f .github/environment.yml
+        if [[ "${CONDA_DEFAULT_ENV:-}" != "tracking" || "$CONDA_PREFIX" == "$CONDA" ]]; then
+          echo "Conda build tooling must run from the disposable tracking environment, not base." >&2
+          exit 1
+        fi
         conda info
         conda list
-        echo "::endgroup::"
     - name: Free up disk space
       run: |
         sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc || true

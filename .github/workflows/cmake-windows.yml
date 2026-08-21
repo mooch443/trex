@@ -8,7 +8,8 @@ permissions:
 env:
   BUILD_TYPE: Release
   GITHUB_WORKFLOW: CondaBuildWindows
-  WINDOWS_CONDA_CACHE_ENABLED: 'false'
+  MINIFORGE_VERSION: 26.5.3-0
+  WINDOWS_CONDA_PACKAGE_CACHE_ENABLED: 'false'
 
 jobs:
   build:
@@ -17,7 +18,7 @@ jobs:
       fail-fast: true
       matrix:
         os: ["windows-2025-vs2026"]
-        python-version: ["3.12"]
+        python-version: ["3.12.13"]
 
     steps:
     - uses: actions/checkout@v4
@@ -26,17 +27,17 @@ jobs:
         submodules: recursive
 
     - name: Cache conda
-      if: env.WINDOWS_CONDA_CACHE_ENABLED == 'true'
+      if: env.WINDOWS_CONDA_PACKAGE_CACHE_ENABLED == 'true'
       uses: actions/cache@v4
       env:
         CACHE_NUMBER: 2
       with:
         path: C:\cpkgs
-        key: ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{ hashFiles('.github/environment.yml') }}
+        key: ${{ runner.os }}-${{ runner.arch }}-conda-${{ env.MINIFORGE_VERSION }}-${{ env.CACHE_NUMBER }}-${{ hashFiles('.github/environment.yml') }}
 
-    - uses: conda-incubator/setup-miniconda@v3
+    - uses: conda-incubator/setup-miniconda@fc2d68f6413eb2d87b895e92f8584b5b94a10167 # v3.3.0
       with:
-        miniforge-version: latest
+        miniforge-version: ${{ env.MINIFORGE_VERSION }}
         activate-environment: base
         python-version: ${{ matrix.python-version }}
         channels: conda-forge
@@ -80,19 +81,7 @@ jobs:
         Get-Content "$HOME\.condarc"
         conda --no-plugins config --show channels
 
-    - name: Get conda prefix
-      id: conda-prefix
-      shell: pwsh
-      run: echo "path=$env:CONDA" >> $env:GITHUB_OUTPUT
-    - name: Cache conda base environment
-      if: env.WINDOWS_CONDA_CACHE_ENABLED == 'true'
-      id: conda-env-cache
-      uses: actions/cache@v4
-      with:
-        path: ${{ steps.conda-prefix.outputs.path }}
-        key: ${{ runner.os }}-conda-env-2-${{ matrix.python-version }}-${{ hashFiles('.github/environment.yml') }}
     - name: Install environment into base
-      if: env.WINDOWS_CONDA_CACHE_ENABLED != 'true' || steps.conda-env-cache.outputs.cache-hit != 'true'
       shell: pwsh
       working-directory: ${{ env.SHORT_WORKSPACE }}
       env:
@@ -101,7 +90,8 @@ jobs:
       run: |
         mamba install --name base --override-channels -c conda-forge -y `
           python=${{ matrix.python-version }} `
-          "conda-build>=24" `
+          conda=26.7.0 `
+          conda-build=26.7.1 `
           git
         conda --no-plugins info
         conda --no-plugins list
@@ -131,12 +121,11 @@ jobs:
       run: |
         # Packaging validates Menu/*.json, which imports jsonschema and its
         # compiled rpds-py dependency from the base conda environment.
-        # Refresh that stack explicitly instead of relying on a cached base
-        # prefix plus a broad "conda update --all". Do not reinstall conda
-        # itself here; mutating the running package manager can leave the base
+        # Keep that stack explicit, but do not reinstall conda in this second
+        # transaction; mutating the running package manager can leave the base
         # prefix in a partially linked state on Windows.
         mamba install --name base --override-channels -c conda-forge -y `
-          conda-build `
+          conda-build=26.7.1 `
           jsonschema `
           referencing `
           rpds-py `
