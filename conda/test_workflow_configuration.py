@@ -36,6 +36,19 @@ class WorkflowConfigurationTests(unittest.TestCase):
         self.assertIn("Developer/SDKs/MacOSX.sdk", workflow)
         self.assertNotIn("Developer/SDKs/MacOSX14.2.sdk", workflow)
 
+    def test_windows_build_preserves_the_miniforge_base_python_abi(self) -> None:
+        workflow = (WORKFLOWS / "cmake-windows.yml").read_text(encoding="utf-8")
+        install_step = workflow.split(
+            "- name: Install packaging tools into base", maxsplit=1
+        )[1].split("- name: Fix Meta", maxsplit=1)[0]
+
+        self.assertNotIn("python=", install_step)
+        self.assertIn("from rpds import HashTrieMap", workflow)
+        self.assertLess(
+            workflow.index("from rpds import HashTrieMap"),
+            workflow.index("conda-build . --override-channels"),
+        )
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

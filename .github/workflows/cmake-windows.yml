@@ -19,7 +19,6 @@ jobs:
       fail-fast: true
       matrix:
         os: ["windows-2025-vs2026"]
-        python-version: ["3.12.13"]
 
     steps:
     - uses: actions/checkout@v4
@@ -80,7 +79,7 @@ jobs:
         Get-Content "$HOME\.condarc"
         conda --no-plugins config --show channels
 
-    - name: Install environment into base
+    - name: Install packaging tools into base
       shell: pwsh
       working-directory: ${{ env.SHORT_WORKSPACE }}
       env:
@@ -88,10 +87,12 @@ jobs:
         CONDA_PKGS_DIRS: ${{ env.CONDA_PKGS_DIRS }}
       run: |
         mamba install --name base --override-channels -c conda-forge -y `
-          python=${{ matrix.python-version }} `
-          conda=26.7.0 `
           conda-build=26.7.1 `
-          git
+          git `
+          jsonschema `
+          referencing `
+          rpds-py `
+          typing_extensions
         conda --no-plugins info
         conda --no-plugins list
 
@@ -111,26 +112,16 @@ jobs:
         Get-Content meta.yaml
         if (Test-Path post-link.sh) { Get-Content post-link.sh }
 
-    - name: Refresh conda-build runtime
+    - name: Verify conda-build runtime
       shell: pwsh
       working-directory: ${{ env.SHORT_WORKSPACE }}\conda
       env:
         CONDA_BLD_PATH: ${{ env.CONDA_BLD_PATH }}
         CONDA_PKGS_DIRS: ${{ env.CONDA_PKGS_DIRS }}
       run: |
-        # Packaging validates Menu/*.json, which imports jsonschema and its
-        # compiled rpds-py dependency from the base conda environment.
-        # Keep that stack explicit, but do not reinstall conda in this second
-        # transaction; mutating the running package manager can leave the base
-        # prefix in a partially linked state on Windows.
-        mamba install --name base --override-channels -c conda-forge -y `
-          conda-build=26.7.1 `
-          jsonschema `
-          referencing `
-          rpds-py `
-          typing_extensions
-
-        conda --no-plugins list -n base
+        python --version
+        conda-build --version
+        python -c "import jsonschema, referencing; from rpds import HashTrieMap; print(HashTrieMap)"
         python -c "from conda.base.context import context; assert not context.repodata_use_shards"
 
     - name: Build
