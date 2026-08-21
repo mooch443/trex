@@ -55,21 +55,21 @@ jobs:
       with:
         miniforge-version: ${{ env.MINIFORGE_VERSION }}
         environment-file: .github/macos-environment-arm64.yml
-        activate-environment: tracking
+        activate-environment: base
         channels: conda-forge
         conda-remove-defaults: true
         auto-update-conda: false
         pkgs-dirs: ~/conda_pkgs_dir
         use-only-tar-bz2: true
-    - name: Verify isolated build environment
+    - name: Verify fresh base build environment
       shell: bash -el {0}
       run: |
         python_path=$(command -v python || true)
         conda_build_path=$(command -v conda-build || true)
-        if [[ "${CONDA_DEFAULT_ENV:-}" != "tracking" || "$CONDA_PREFIX" == "$CONDA" \
+        if [[ "${CONDA_DEFAULT_ENV:-}" != "base" || "$CONDA_PREFIX" != "$CONDA" \
               || "$python_path" != "$CONDA_PREFIX/bin/python" \
               || "$conda_build_path" != "$CONDA_PREFIX/bin/conda-build" ]]; then
-          echo "Conda build tooling must run from the disposable tracking environment, not base." >&2
+          echo "Conda build tooling must run from the fresh, uncached base prefix." >&2
           echo "python: ${python_path:-missing}" >&2
           echo "conda-build: ${conda_build_path:-missing}" >&2
           exit 1

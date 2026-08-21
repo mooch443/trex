@@ -284,6 +284,10 @@ conda build -c conda-forge .
   distinct failure and its root cause first; do not stop after the first error.
   Then address the complete in-scope failure set together in one coordinated
   pass whenever possible.
+- Do not wait for a full CI build to finish. Inspect completed failures and,
+  when useful, monitor only short setup or targeted reproduction boundaries.
+  Once a long build is underway, report its current status to the user and stop
+  polling.
 - do not run commands in the build directory and dont delete the existing project files there
 - do not run commands outside the root directory of the project, or commands that affect the outside
 - stay in scope for the task you were asked to do. only edit files directly relevant to that task, plus the minimal wiring required to make those edits work.

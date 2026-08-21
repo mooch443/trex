@@ -1,4 +1,4 @@
-name: tracking
+name: base
 channels:
     - conda-forge
     - nodefaults
