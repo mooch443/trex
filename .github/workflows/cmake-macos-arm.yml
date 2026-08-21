@@ -9,6 +9,7 @@ env:
   # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
   BUILD_TYPE: Release
   MACOSX_DEPLOYMENT_TARGET: 11.0
+  CONDA_BLD_PATH: ${{ github.workspace }}/conda-bld
   CONDA_BUILD_SYSROOT: /Applications/Xcode_26.3.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk
   SDKROOT: /Applications/Xcode_26.3.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk
   GITHUB_WORKFLOW: CondaBuildMacOS
@@ -62,11 +63,19 @@ jobs:
     - name: Verify isolated build environment
       shell: bash -el {0}
       run: |
-        if [[ "${CONDA_DEFAULT_ENV:-}" != "tracking" || "$CONDA_PREFIX" == "$CONDA" ]]; then
+        python_path=$(command -v python || true)
+        conda_build_path=$(command -v conda-build || true)
+        if [[ "${CONDA_DEFAULT_ENV:-}" != "tracking" || "$CONDA_PREFIX" == "$CONDA" \
+              || "$python_path" != "$CONDA_PREFIX/bin/python" \
+              || "$conda_build_path" != "$CONDA_PREFIX/bin/conda-build" ]]; then
           echo "Conda build tooling must run from the disposable tracking environment, not base." >&2
+          echo "python: ${python_path:-missing}" >&2
+          echo "conda-build: ${conda_build_path:-missing}" >&2
           exit 1
         fi
         conda info
+        python --version
+        conda-build --version
         conda list
     - name: Create .condarc file
       run: |
@@ -108,7 +117,7 @@ jobs:
         cat post-link.sh
         echo "::endgroup::"
         echo "::group::Build"
-        conda build . --override-channels -c conda-forge
+        conda-build . --override-channels -c conda-forge
         echo "::endgroup::"
         echo $CONDA_PREFIX
     - name: Test
@@ -118,7 +127,7 @@ jobs:
         echo "::group::Test"
         echo $CONDA_PREFIX
         conda search --override-channels -c conda-forge numpy
-        conda create -y -n test --override-channels -c $CONDA_PREFIX/conda-bld/ -c conda-forge trex
+        conda create -y -n test --override-channels -c "$CONDA_BLD_PATH/" -c conda-forge trex
         conda activate test
         conda install -y git
         python $GITHUB_WORKSPACE/conda/validate_post_link_installation.py
@@ -205,9 +214,9 @@ jobs:
         packages=()
         while IFS= read -r -d '' pkg; do
           packages+=("$pkg")
-        done < <(find "$CONDA_PREFIX/conda-bld" -type f -name 'trex-*.conda' -print0)
+        done < <(find "$CONDA_BLD_PATH" -type f -name 'trex-*.conda' -print0)
         if [ "${#packages[@]}" -eq 0 ]; then
-          echo "No trex .conda packages found under $CONDA_PREFIX/conda-bld" >&2
+          echo "No trex .conda packages found under $CONDA_BLD_PATH" >&2
           exit 1
         fi
         latest=$(ls -t "${packages[@]}" | head -n 1)
