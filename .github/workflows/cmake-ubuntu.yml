@@ -53,20 +53,18 @@ jobs:
       run: |
         python_path=$(command -v python || true)
         conda_build_path=$(command -v conda-build || true)
-        conda_index_path=$(command -v conda-index || true)
         if [[ "${CONDA_DEFAULT_ENV:-}" != "tracking" || "$CONDA_PREFIX" == "$CONDA" \
               || "$python_path" != "$CONDA_PREFIX/bin/python" \
-              || "$conda_build_path" != "$CONDA_PREFIX/bin/conda-build" \
-              || "$conda_index_path" != "$CONDA_PREFIX/bin/conda-index" ]]; then
+              || "$conda_build_path" != "$CONDA_PREFIX/bin/conda-build" ]]; then
           echo "Conda build tooling must run from the disposable tracking environment, not base." >&2
           echo "python: ${python_path:-missing}" >&2
           echo "conda-build: ${conda_build_path:-missing}" >&2
-          echo "conda-index: ${conda_index_path:-missing}" >&2
           exit 1
         fi
         conda info
         python --version
         conda-build --version
+        python -c "import conda_index"
         conda list
     - name: Free up disk space
       run: |
@@ -100,7 +98,7 @@ jobs:
       run: |
         echo "::group::Test"
         echo $CONDA_PREFIX
-        conda-index "$CONDA_BLD_PATH/"
+        python -m conda_index "$CONDA_BLD_PATH/"
         conda create -y -n test --override-channels -c "$CONDA_BLD_PATH/" -c conda-forge trex
         conda activate test
         python $GITHUB_WORKSPACE/conda/validate_post_link_installation.py
@@ -131,6 +129,7 @@ jobs:
         echo "::endgroup::"
     - name: Collect conda package artifacts
       if: ${{ !cancelled() }}
+      shell: bash --noprofile --norc -e -o pipefail {0}
       working-directory: ${{ github.workspace }}
       run: |
         set -euo pipefail
