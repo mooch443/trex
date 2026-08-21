@@ -9,6 +9,7 @@ env:
   # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
   BUILD_TYPE: Release
   CONDA_BLD_PATH: ${{ github.workspace }}/conda-bld
+  CONDA_REPODATA_USE_SHARDS: 'false'
   GITHUB_WORKFLOW: CondaBuildUbuntu
   MINIFORGE_VERSION: 26.5.3-0
 
@@ -64,6 +65,7 @@ jobs:
         conda info
         python --version
         conda-build --version
+        python -c "from conda.base.context import context; assert not context.repodata_use_shards"
         python -c "import conda_index"
         conda list
     - name: Free up disk space

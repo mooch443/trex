@@ -7,6 +7,7 @@ permissions:
 
 env:
   BUILD_TYPE: Release
+  CONDA_REPODATA_USE_SHARDS: 'false'
   GITHUB_WORKFLOW: CondaBuildWindows
   MINIFORGE_VERSION: 26.5.3-0
   WINDOWS_CONDA_PACKAGE_CACHE_ENABLED: 'false'
@@ -132,6 +133,7 @@ jobs:
           typing_extensions
 
         conda --no-plugins list -n base
+        python -c "from conda.base.context import context; assert not context.repodata_use_shards"
 
     - name: Build
       shell: pwsh

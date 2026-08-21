@@ -10,6 +10,7 @@ env:
   BUILD_TYPE: Release
   MACOSX_DEPLOYMENT_TARGET: 11.0
   CONDA_BLD_PATH: ${{ github.workspace }}/conda-bld
+  CONDA_REPODATA_USE_SHARDS: 'false'
   CONDA_BUILD_SYSROOT: /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk
   SDKROOT: /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk
   GITHUB_WORKFLOW: CondaBuildMacOS
@@ -72,6 +73,7 @@ jobs:
         conda info
         python --version
         conda-build --version
+        python -c "from conda.base.context import context; assert not context.repodata_use_shards"
         conda list
     - name: Create .condarc file
       run: |
