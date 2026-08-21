@@ -65,8 +65,6 @@ int handle_opencv_ffmpeg_support() {
                 if(utils::contains(line, "YES")) {
                     print_explicit("Has FFMPEG support.");
                     return 0;
-                } else {
-                    print_explicit("Does not have FFMPEG support.");
                 }
             }
 
@@ -76,6 +74,7 @@ int handle_opencv_ffmpeg_support() {
         line += build_info[i];
     }
 
+    print_explicit("Does not have FFMPEG support.");
     return 1;
 }
 
@@ -90,8 +89,6 @@ int handle_opencv_opencl_support() {
                 if(utils::contains(line, "YES")) {
                     print_explicit("Has OpenCL support.");
                     return 0;
-                } else {
-                    print_explicit("Does not have OpenCL support.");
                 }
             }
 
@@ -101,6 +98,7 @@ int handle_opencv_opencl_support() {
         line += build_info[i];
     }
 
+    print_explicit("Does not have OpenCL support.");
     return 1;
 }
 
