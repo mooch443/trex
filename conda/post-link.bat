@@ -1,5 +1,6 @@
 @echo off
 setlocal EnableDelayedExpansion
+if /I "%~1"=="--install-progress" goto install_progress_worker
 
 chcp 65001 >nul 2>&1
 set "PYTHONUTF8=1"
@@ -64,28 +65,15 @@ if errorlevel 1 (
     goto post_link_finish
 )
 
-set "PIP_ARGS="
-call :add_package "torchmetrics"
-call :add_package "tqdm"
-call :add_package "ultralytics>=8.3.0,<9"
-call :add_package "rfdetr==1.8.3"
-call :add_package "dill"
-call :add_package "scikit-learn"
-call :add_package "timm"
-call :add_package "%TREX_CLIP_REQUIREMENT%"
+set PIP_ARGS_SIMPLE="torchmetrics" "tqdm" "ultralytics^>=8.3.0,^<9" "rfdetr==1.8.3" "dill" "scikit-learn" "timm" "%TREX_CLIP_REQUIREMENT%"
 if not exist "%PREFIX%\conda-meta\py-opencv-*.json" (
-    call :add_package "opencv-python>=4.6,<5"
+    set PIP_ARGS_SIMPLE=!PIP_ARGS_SIMPLE! "opencv-python^>=4.6,^<5"
     call :log "[post-link] No Conda py-opencv binding detected; pip will provide cv2 for the non-minimal profile."
 ) else (
     call :log "[post-link] Conda owns cv2 through py-opencv; pip will not install an OpenCV wheel."
 )
-if "!CONDA_NUMPY_OWNED!"=="0" call :add_package "numpy>=1.26,<3"
-set "PIP_ARGS_SIMPLE=!PIP_ARGS!"
-
-set "PIP_ARGS="
-call :add_package "torch>=2.2"
-call :add_package "torchvision>=0.17"
-set "PIP_ARGS_TORCH=!PIP_ARGS!"
+if "!CONDA_NUMPY_OWNED!"=="0" set PIP_ARGS_SIMPLE=!PIP_ARGS_SIMPLE! "numpy^>=1.26,^<3"
+set PIP_ARGS_TORCH="torch^>=2.2" "torchvision^>=0.17"
 call :select_torch_target
 call :log "[post-link] Selected !TORCH_TARGET! from !TORCH_INDEX_URL!."
 
@@ -107,8 +95,11 @@ if "!TORCH_INSTALLED!"=="1" (
     if errorlevel 1 call :log "[post-link] WARNING: Could not inspect the installed PyTorch CUDA status."
     call :log "[post-link] Warming the Ultralytics runtime and model cache."
     call :log_command python -X utf8 -c "from ultralytics import YOLO; from rfdetr import RFDETR; from torchvision.ops import nms; import cv2, numpy as np, torch; assert cv2.__version__.split('.')[0] == '4'; assert nms(torch.tensor([[0.,0.,1.,1.]]), torch.tensor([1.]), 0.5).tolist() == [0]; YOLO('yolo26n.yaml').to('cpu').predict(np.zeros((640, 480, 3), dtype=np.uint8))"
+    set "PROGRESS_LABEL=Warming the Python ML runtime"
     call :run_with_reporting python -X utf8 -c "from ultralytics import YOLO; from rfdetr import RFDETR; from torchvision.ops import nms; import cv2, numpy as np, torch; assert cv2.__version__.split('.')[0] == '4'; assert nms(torch.tensor([[0.,0.,1.,1.]]), torch.tensor([1.]), 0.5).tolist() == [0]; YOLO('yolo26n.yaml').to('cpu').predict(np.zeros((640, 480, 3), dtype=np.uint8))"
-    if errorlevel 1 call :log "[post-link] WARNING: YOLO runtime warm-up failed; installation remains successful."
+    set "LAST_COMMAND_STATUS=!ERRORLEVEL!"
+    set "PROGRESS_LABEL="
+    if not "!LAST_COMMAND_STATUS!"=="0" call :log "[post-link] WARNING: YOLO runtime warm-up failed; installation remains successful."
 )
 
 :post_link_finish
@@ -167,39 +158,11 @@ call :log %*
 exit /b 0
 
 :log_command
-setlocal EnableDelayedExpansion
-set "cmd="
-:log_command_args
-if "%~1"=="" goto log_command_emit
-if defined cmd (
-    set "cmd=!cmd! %~1"
+if defined OUT_STREAM (
+    >>"%OUT_STREAM%" echo([post-link] Running: %*
 ) else (
-    set "cmd=%~1"
+    echo([post-link] Running: %*
 )
-shift
-goto log_command_args
-:log_command_emit
-if not defined cmd set "cmd="
-set "log_line=!cmd!"
-if defined log_line (
-    set "log_line=!log_line:^>=^>!"
-    set "log_line=!log_line:^<=^<!"
-    set "log_line=!log_line:&=^&!"
-    set "log_line=!log_line:|=^|!"
-)
-call :log "[post-link] Running: !log_line!"
-endlocal
-exit /b 0
-:add_package
-rem Helper to accumulate quoted pip package arguments.
-set "__PIP_PACKAGE=%~1"
-set "__PIP_PACKAGE="!__PIP_PACKAGE!""
-if defined PIP_ARGS (
-    set "PIP_ARGS=!PIP_ARGS! !__PIP_PACKAGE!"
-) else (
-    set "PIP_ARGS=!__PIP_PACKAGE!"
-)
-set "__PIP_PACKAGE="
 exit /b 0
 
 :select_torch_target
@@ -283,17 +246,16 @@ for /f "tokens=1,2 delims=|" %%a in ("!TORCH_PAIR!") do (
 )
 if not defined TORCH_VERSION exit /b 1
 if not defined TORCHVISION_VERSION exit /b 1
-set "PIP_ARGS="
-call :add_package "torch===!TORCH_VERSION!"
-call :add_package "torchvision===!TORCHVISION_VERSION!"
-set "PIP_ARGS_TORCH=!PIP_ARGS!"
+set PIP_ARGS_TORCH="torch===!TORCH_VERSION!" "torchvision===!TORCHVISION_VERSION!"
 exit /b 0
 
 :install_selected_torch
 call :log "[post-link] Running one resolver transaction for !TORCH_TARGET!; no version or index retries are permitted."
 call :log_command python -X utf8 -m pip install !PIP_FLAGS! !NUMPY_CONSTRAINT_ARG! --index-url !TORCH_INDEX_URL! !TORCH_DEPENDENCY_INDEX_ARG! !PIP_ARGS_TORCH! !PIP_ARGS_SIMPLE!
+set "PROGRESS_LABEL=Installing Python ML packages"
 call :run_with_reporting python -X utf8 -m pip install !PIP_FLAGS! !NUMPY_CONSTRAINT_ARG! --index-url !TORCH_INDEX_URL! !TORCH_DEPENDENCY_INDEX_ARG! !PIP_ARGS_TORCH! !PIP_ARGS_SIMPLE!
 set "LAST_COMMAND_STATUS=!ERRORLEVEL!"
+set "PROGRESS_LABEL="
 if not "!LAST_COMMAND_STATUS!"=="0" exit /b 1
 exit /b 0
 
@@ -337,11 +299,52 @@ exit /b 0
 
 :run_with_reporting
 setlocal EnableDelayedExpansion
-if defined OUT_STREAM (
+if defined PROGRESS_LABEL if defined OUT_STREAM (
+    set "progress_log=%TEMP%\trex_post_link_progress_!RANDOM!.log"
+    set "progress_stop=%TEMP%\trex_post_link_progress_!RANDOM!.stop"
+    break >"!progress_log!"
+    if exist "!progress_stop!" del /q "!progress_stop!" >nul 2>&1
+    start "" /b "%ComSpec%" /d /c ""%~f0" --install-progress "!progress_stop!" "!progress_log!" "!PROGRESS_LABEL!""
+    cmd /c %* >"!progress_log!" 2>&1
+    set "status=!ERRORLEVEL!"
+    type "!progress_log!" >>"!OUT_STREAM!" 2>nul
+    >"!progress_stop!" echo stop
+) else if defined PROGRESS_LABEL (
+    echo([post-link] !PROGRESS_LABEL!...
+    cmd /c %*
+    set "status=!ERRORLEVEL!"
+    echo([post-link] !PROGRESS_LABEL! finished.
+) else if defined OUT_STREAM (
     >>"%OUT_STREAM%" 2>&1 cmd /c %*
+    set "status=!ERRORLEVEL!"
 ) else (
     cmd /c %*
+    set "status=!ERRORLEVEL!"
 )
-set "status=%ERRORLEVEL%"
 endlocal & set "LAST_COMMAND_STATUS=%status%"
 exit /b %status%
+
+:install_progress_worker
+set "progress_stop=%~2"
+set "progress_log=%~3"
+set "progress_label=%~4"
+set /a progress_elapsed=0
+>CONOUT$ echo([post-link] !progress_label!...
+:install_progress_wait
+if exist "!progress_stop!" goto install_progress_done
+>nul 2>&1 ping -n 2 127.0.0.1
+set /a progress_elapsed+=1
+set /a progress_tick=progress_elapsed%%10
+if not "!progress_tick!"=="0" goto install_progress_wait
+set "progress_detail="
+if exist "!progress_log!" for /f "usebackq delims=" %%L in ("!progress_log!") do if not "%%L"=="" set "progress_detail=%%L"
+if defined progress_detail (
+    >CONOUT$ echo([post-link] !progress_label! ^(!progress_elapsed!s^): !progress_detail!
+) else (
+    >CONOUT$ echo([post-link] !progress_label! ^(!progress_elapsed!s^)
+)
+goto install_progress_wait
+:install_progress_done
+>CONOUT$ echo([post-link] !progress_label! finished.
+del /q "!progress_stop!" "!progress_log!" >nul 2>&1
+exit /b 0

@@ -197,6 +197,8 @@ if args[:3] == ["-m", "pip", "install"]:
         channel_discovery_count=prior_events.count('"kind": "channels"'),
         sources=source_environment(),
     )
+    if os.environ.get("TREX_FAKE_EMIT_INSTALL_OUTPUT") == "1":
+        print("[fake-pip] resolver output captured by Conda")
     if outcome == "resolution":
         print("ERROR: ResolutionImpossible: simulated dependency conflict", file=sys.stderr)
         raise SystemExit(1)
@@ -284,6 +286,17 @@ def _index_events(state: Path) -> list[dict[str, object]]:
     return [item for item in _events(state) if item["kind"] == "index"]
 
 
+class PostLinkProgressWiring(unittest.TestCase):
+    def test_install_progress_bypasses_conda_captured_output(self) -> None:
+        shell_hook = POST_LINK_SH.read_text(encoding="utf-8")
+        windows_hook = POST_LINK_BAT.read_text(encoding="utf-8")
+
+        self.assertIn("/dev/tty", shell_hook)
+        self.assertIn("start_install_progress", shell_hook)
+        self.assertIn("CONOUT$", windows_hook)
+        self.assertIn(":install_progress_worker", windows_hook)
+
+
 class PostLinkSimulationMixin:
     def assert_explicit_sources(self, events: list[dict[str, object]]) -> None:
         self.assertTrue(events, "the simulation did not record a pip operation")
@@ -359,6 +372,7 @@ class UnixPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
         discovered_channels: tuple[str, ...] = (),
         unavailable_channels: tuple[str, ...] = (),
         expect_installs: bool = True,
+        verify_progress_bypass: bool = False,
     ) -> tuple[list[dict[str, object]], str]:
         with tempfile.TemporaryDirectory(prefix="trex-post-link-") as temporary:
             root = Path(temporary)
@@ -407,7 +421,10 @@ class UnixPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
                     "TREX_FAKE_ROOT_OUTCOME": root_outcome,
                     "TREX_FAKE_DISCOVERED_CHANNELS": ",".join(discovered_channels),
                     "TREX_FAKE_UNAVAILABLE_CHANNELS": ",".join(unavailable_channels),
-                    "TREX_POST_LINK_OUTPUT": "stdout",
+                    "TREX_FAKE_EMIT_INSTALL_OUTPUT": "1" if verify_progress_bypass else "0",
+                    "TREX_POST_LINK_OUTPUT": (
+                        str(prefix / ".messages.txt") if verify_progress_bypass else "stdout"
+                    ),
                     "PIP_CONFIG_FILE": str(root / "ambient-pip.conf"),
                     "PIP_INDEX_URL": AMBIENT_INDEX,
                     "PIP_EXTRA_INDEX_URL": AMBIENT_INDEX,
@@ -427,6 +444,13 @@ class UnixPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
             sys.stdout.write(result.stdout)
             sys.stderr.write(result.stderr)
             self.assertEqual(result.returncode, 0, output)
+            if verify_progress_bypass:
+                post_link_log = (prefix / ".messages.txt").read_text(encoding="utf-8")
+                self.assertIn("[fake-pip] resolver output captured by Conda", post_link_log)
+                self.assertNotIn("[fake-pip] resolver output captured by Conda", output)
+                self.assertIn("[post-link] Installing Python ML packages", output)
+                self.assertIn("[post-link] Installing Python ML packages finished", output)
+                self.assertEqual(list(root.glob("trex_post_link_progress.*")), [])
             installs = _install_events(state)
             pip_events = _index_events(state) + installs
             if expect_installs and not installs:
@@ -441,6 +465,14 @@ class UnixPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
             else:
                 self.assertEqual(installs, [])
             return installs, output
+
+    def test_install_progress_bypasses_captured_pip_output(self) -> None:
+        self.run_scenario(
+            system="Linux",
+            machine="x86_64",
+            cuda="12.4",
+            verify_progress_bypass=True,
+        )
 
     def test_non_cuda_platforms_use_unqualified_pypi(self) -> None:
         cases = (
@@ -617,6 +649,7 @@ class WindowsPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
         discovered_channels: tuple[str, ...] = (),
         unavailable_channels: tuple[str, ...] = (),
         expect_installs: bool = True,
+        verify_progress_capture: bool = False,
     ) -> tuple[list[dict[str, object]], str]:
         with tempfile.TemporaryDirectory(prefix="trex-post-link-") as temporary:
             root = Path(temporary)
@@ -675,7 +708,10 @@ class WindowsPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
                     "TREX_FAKE_ROOT_OUTCOME": root_outcome,
                     "TREX_FAKE_DISCOVERED_CHANNELS": ",".join(discovered_channels),
                     "TREX_FAKE_UNAVAILABLE_CHANNELS": ",".join(unavailable_channels),
-                    "TREX_POST_LINK_OUTPUT": "stdout",
+                    "TREX_FAKE_EMIT_INSTALL_OUTPUT": "1" if verify_progress_capture else "0",
+                    "TREX_POST_LINK_OUTPUT": (
+                        str(prefix / ".messages.txt") if verify_progress_capture else "stdout"
+                    ),
                     "PIP_CONFIG_FILE": str(root / "ambient-pip.ini"),
                     "PIP_INDEX_URL": AMBIENT_INDEX,
                     "PIP_EXTRA_INDEX_URL": AMBIENT_INDEX,
@@ -695,6 +731,11 @@ class WindowsPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
             sys.stdout.write(result.stdout)
             sys.stderr.write(result.stderr)
             self.assertEqual(result.returncode, 0, output)
+            if verify_progress_capture:
+                post_link_log = (prefix / ".messages.txt").read_text(encoding="utf-8")
+                self.assertIn("[fake-pip] resolver output captured by Conda", post_link_log)
+                self.assertNotIn("[fake-pip] resolver output captured by Conda", output)
+                self.assertEqual(list(root.glob("trex_post_link_progress_*")), [])
             installs = _install_events(state)
             pip_events = _index_events(state) + installs
             if expect_installs and not installs:
@@ -709,6 +750,9 @@ class WindowsPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
             else:
                 self.assertEqual(installs, [])
             return installs, output
+
+    def test_windows_progress_preserves_captured_pip_output(self) -> None:
+        self.run_scenario(cuda="12.4", verify_progress_capture=True)
 
     def test_windows_without_nvidia_uses_pypi(self) -> None:
         installs, _ = self.run_scenario()

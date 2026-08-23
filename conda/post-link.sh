@@ -33,6 +33,60 @@ fi
 
 POST_LINK_FAILED=0
 LAST_COMMAND_STATUS=0
+INSTALL_PROGRESS_PID=""
+INSTALL_PROGRESS_LABEL=""
+INSTALL_PROGRESS_STARTED=0
+
+write_install_progress() {
+    if [ -w /dev/tty ]; then
+        printf '%s\n' "$1" >/dev/tty 2>/dev/null || printf '%s\n' "$1" >&2
+    else
+        printf '%s\n' "$1" >&2
+    fi
+}
+
+install_progress_worker() {
+    local label="$1"
+    local progress_log="$2"
+    local elapsed=0
+    local detail=""
+    local sleeper=""
+    trap '[ -n "${sleeper}" ] && kill "${sleeper}" 2>/dev/null; exit 0' TERM INT
+
+    while true; do
+        if [ -n "${progress_log}" ] && [ -f "${progress_log}" ]; then
+            detail=$(tail -n 20 "${progress_log}" 2>/dev/null \
+                | awk 'NF { line=$0 } END { print substr(line, 1, 100) }')
+        fi
+        if [ -n "${detail}" ]; then
+            write_install_progress "[post-link] ${label} (${elapsed}s): ${detail}"
+        else
+            write_install_progress "[post-link] ${label} (${elapsed}s)"
+        fi
+        sleep 10 &
+        sleeper=$!
+        wait "${sleeper}"
+        sleeper=""
+        elapsed=$((elapsed + 10))
+    done
+}
+
+start_install_progress() {
+    INSTALL_PROGRESS_LABEL="$1"
+    INSTALL_PROGRESS_STARTED=$(date +%s)
+    install_progress_worker "$1" "$2" &
+    INSTALL_PROGRESS_PID=$!
+}
+
+stop_install_progress() {
+    [ -n "${INSTALL_PROGRESS_PID}" ] || return 0
+    kill "${INSTALL_PROGRESS_PID}" 2>/dev/null
+    wait "${INSTALL_PROGRESS_PID}" 2>/dev/null
+    write_install_progress "[post-link] ${INSTALL_PROGRESS_LABEL} finished after $(( $(date +%s) - INSTALL_PROGRESS_STARTED ))s."
+    INSTALL_PROGRESS_PID=""
+}
+
+trap stop_install_progress EXIT
 
 # Append a single log line to the conda post-link message stream.
 log() {
@@ -48,19 +102,34 @@ record_failure() {
     log "$1"
 }
 
-# Run a command while teeing stdout/stderr into the log file and retain exit status.
+# Run a command while retaining its output and exit status. Long operations use
+# a direct terminal heartbeat because Conda captures normal post-link output.
 run_with_reporting() {
-    if [ -z "${OUT_STREAM}" ]; then
+    local progress_log=""
+    if [ -n "${TREX_PROGRESS_LABEL:-}" ] && [ -n "${OUT_STREAM}" ]; then
+        progress_log=$(mktemp "${TMPDIR:-/tmp}/trex_post_link_progress.XXXXXX")
+        if [ -n "${progress_log}" ]; then
+            start_install_progress "${TREX_PROGRESS_LABEL}" "${progress_log}"
+            "$@" >"${progress_log}" 2>&1
+            LAST_COMMAND_STATUS=$?
+            stop_install_progress
+            cat "${progress_log}" >>"${OUT_STREAM}"
+            rm -f "${progress_log}"
+            return "${LAST_COMMAND_STATUS}"
+        fi
+    elif [ -n "${TREX_PROGRESS_LABEL:-}" ]; then
+        start_install_progress "${TREX_PROGRESS_LABEL}" ""
         "$@"
         LAST_COMMAND_STATUS=$?
+        stop_install_progress
         return "${LAST_COMMAND_STATUS}"
     fi
 
-    if command -v tee >/dev/null 2>&1; then
-        "$@" 2>&1 | tee -a "${OUT_STREAM}"
-        LAST_COMMAND_STATUS=${PIPESTATUS[0]}
-    else
+    if [ -n "${OUT_STREAM}" ]; then
         "$@" >>"${OUT_STREAM}" 2>&1
+        LAST_COMMAND_STATUS=$?
+    else
+        "$@"
         LAST_COMMAND_STATUS=$?
     fi
     return "${LAST_COMMAND_STATUS}"
@@ -109,46 +178,21 @@ query_cuda_channel_metadata() {
 # TREX_TORCH_CHANNEL_SELECTOR
 import re
 import sys
-from html.parser import HTMLParser
-from urllib.parse import urljoin, urlparse
 from urllib.request import Request, urlopen
 
 root_url, driver_code_text = sys.argv[2:4]
-driver_code = int(driver_code_text)
 channels = {"cu118", "cu121", "cu124", "cu126", "cu128", "cu129", "cu130", "cu132"}
-
-
-class LinkParser(HTMLParser):
-    def handle_starttag(self, tag, attrs):
-        if tag != "a":
-            return
-        href = dict(attrs).get("href")
-        if not href:
-            return
-        name = urlparse(urljoin(root_url.rstrip("/") + "/", href)).path.rstrip("/").rsplit("/", 1)[-1]
-        if re.fullmatch(r"cu[0-9]{3,}", name):
-            channels.add(name)
-
-
 try:
     request = Request(root_url.rstrip("/") + "/", headers={"User-Agent": "TRex post-link"})
     with urlopen(request, timeout=10) as response:
-        contents = response.read().decode("utf-8", errors="replace")
-    parser = LinkParser()
-    parser.feed(contents)
+        contents = response.read().decode(errors="replace")
 except Exception:
-    pass
-
-
-def channel_code(channel):
-    digits = channel[2:]
-    return int(digits[:2]) * 100 + int(digits[2:])
-
-
-for channel in sorted(channels, key=channel_code, reverse=True):
-    code = channel_code(channel)
-    if 1108 <= code <= driver_code:
-        print(channel)
+    contents = ""
+for href in re.findall(r'''href=["']?([^ >"']+)''', contents, re.IGNORECASE):
+    channel = href.rstrip("/").rsplit("/", 1)[-1]
+    if re.fullmatch(r"cu[0-9]{3,}", channel): channels.add(channel)
+code = lambda channel: int(channel[2:4]) * 100 + int(channel[4:])
+print("\n".join(sorted((item for item in channels if 1108 <= code(item) <= int(driver_code_text)), key=code, reverse=True)))
 PY
 }
 
@@ -158,60 +202,32 @@ query_cuda_pair_metadata() {
 import re
 import subprocess
 import sys
-
 try:
     from packaging.version import Version
 except ImportError:
     from pip._vendor.packaging.version import Version
 
 index_url, flavor = sys.argv[2:4]
-
-
 def available_versions(package, minimum):
     result = subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "pip",
-            "index",
-            "versions",
-            package,
-            "--index-url",
-            index_url,
-        ],
-        capture_output=True,
-        text=True,
-        errors="replace",
+        [sys.executable, "-m", "pip", "index", "versions", package,
+         "--index-url", index_url],
+        capture_output=True, text=True, errors="replace",
     )
     match = re.search(r"^Available versions:\s*(.+)$", result.stdout, re.MULTILINE)
     if result.returncode or not match:
-        sys.stderr.write(result.stdout)
-        sys.stderr.write(result.stderr)
+        sys.stderr.write(result.stdout + result.stderr)
         raise SystemExit(1)
-    versions = {
-        item.strip()
-        for item in match.group(1).split(",")
-        if item.strip()
-    }
-    return sorted(
-        (
-            item
-            for item in versions
-            if Version(item) >= minimum and Version(item).local == flavor
-        ),
-        key=Version,
-        reverse=True,
-    )
-
+    versions = (item.strip() for item in match.group(1).split(","))
+    return sorted({item for item in versions if item and Version(item) >= minimum
+                   and Version(item).local == flavor}, key=Version, reverse=True)
 
 torch_versions = available_versions("torch", Version("2.2"))
 vision_versions = available_versions("torchvision", Version("0.17"))
 vision_by_release = {Version(item).release: item for item in vision_versions}
-
 for torch_version in torch_versions:
     release = Version(torch_version).release
-    if len(release) < 2 or release[0] != 2:
-        continue
+    if len(release) < 2 or release[0] != 2: continue
     patch = release[2] if len(release) > 2 else 0
     vision_version = vision_by_release.get((0, release[1] + 15, patch))
     if vision_version:
@@ -319,22 +335,13 @@ EOF
 }
 
 install_selected_torch() {
-    torch_index_args=(--index-url "${torch_index_url}")
+    local pip_install_command=(python -m pip install "${pip_flags[@]}"
+        "${numpy_constraint_args[@]}" --index-url "${torch_index_url}"
+        "${torch_dependency_index_args[@]}" "${torch_packages[@]}"
+        "${common_packages[@]}")
     log "[post-link] Running one resolver transaction for ${torch_target}; no version or index retries are permitted."
-    log_command python -m pip install "${pip_flags[@]}" \
-        "${numpy_constraint_args[@]}" "${torch_index_args[@]}" \
-        "${torch_dependency_index_args[@]}" "${torch_packages[@]}" \
-        "${common_packages[@]}"
-    if ! run_with_reporting \
-        python -m pip install "${pip_flags[@]}" \
-        "${numpy_constraint_args[@]}" "${torch_index_args[@]}" \
-        "${torch_dependency_index_args[@]}" "${torch_packages[@]}" \
-        "${common_packages[@]}"
-    then
-        return 1
-    fi
-
-    return 0
+    log_command "${pip_install_command[@]}"
+    TREX_PROGRESS_LABEL="Installing Python ML packages" run_with_reporting "${pip_install_command[@]}"
 }
 
 arch=$(uname -m)
@@ -407,16 +414,8 @@ for conda_record in "${PREFIX}"/conda-meta/py-opencv-*.json; do
     fi
 done
 
-common_packages=(
-    "torchmetrics"
-    "tqdm"
-    "ultralytics>=8.3.0,<9"
-    "rfdetr==1.8.3"
-    "dill"
-    "timm"
-    "scikit-learn"
-    "${clip_requirement}"
-)
+common_packages=("torchmetrics" "tqdm" "ultralytics>=8.3.0,<9" "rfdetr==1.8.3"
+    "dill" "timm" "scikit-learn" "${clip_requirement}")
 
 if ! ${conda_opencv_owned}; then
     common_packages+=("opencv-python>=4.6,<5")
@@ -427,13 +426,7 @@ if ! ${conda_numpy_owned}; then
     common_packages+=("numpy>=1.26,<3")
 fi
 
-pip_flags=(
-    --disable-pip-version-check
-    --no-input
-    --no-color
-    --progress-bar
-    off
-)
+pip_flags=(--disable-pip-version-check --no-input --no-color --progress-bar off)
 
 if ${setup_ready}; then
     select_torch_target
@@ -455,7 +448,7 @@ if ${torch_installed}; then
     log "[post-link] Warming the Ultralytics runtime and model cache."
     CMD_STRING="from ultralytics import YOLO; from rfdetr import RFDETR; from torchvision.ops import nms; import cv2, numpy as np, torch; assert cv2.__version__.split('.')[0] == '4'; assert nms(torch.tensor([[0.,0.,1.,1.]]), torch.tensor([1.]), 0.5).tolist() == [0]; YOLO('yolo26n.yaml').to('cpu').predict(np.zeros((640, 480, 3), dtype=np.uint8))"
     log_command python -c "${CMD_STRING}"
-    if ! run_with_reporting python -c "${CMD_STRING}"; then
+    if ! TREX_PROGRESS_LABEL="Warming the Python ML runtime" run_with_reporting python -c "${CMD_STRING}"; then
         log "[post-link] WARNING: YOLO runtime warm-up failed (exit ${LAST_COMMAND_STATUS}); installation remains successful."
     fi
 fi
