@@ -1,487 +1,341 @@
 #!/usr/bin/env python3
-"""Run post-link with real pip against tiny offline package indexes.
-
-This intentionally installs into the ephemeral GitHub Actions interpreter. It
-does not create a second Conda prefix, contact a package server, or use pip's
-dry-run mode.
-"""
+"""Verify the native post-link hook against live pip metadata without installing."""
 
 from __future__ import annotations
 
-import argparse
-from email.message import Message
+import difflib
+import hashlib
 import json
 import os
 from pathlib import Path
-import shutil
+import platform
+import re
 import subprocess
 import sys
-import sysconfig
 import tempfile
-import textwrap
-from urllib.parse import quote
-import zipfile
+from urllib.parse import urljoin, urlparse
+from urllib.request import Request, urlopen
 
 
 REPOSITORY = Path(__file__).resolve().parents[1]
 POST_LINK_SH = REPOSITORY / "conda" / "post-link.sh"
 POST_LINK_BAT = REPOSITORY / "conda" / "post-link.bat"
-VALIDATE_MINIMAL = REPOSITORY / "conda" / "validate_minimal.py"
-VALIDATE_POST_LINK = REPOSITORY / "conda" / "validate_post_link_installation.py"
+PYPI = "https://pypi.org/simple"
+TORCH_ROOT = "https://download.pytorch.org/whl"
+PUBLISHED_CHANNEL_SNAPSHOT = {
+    "cu118", "cu121", "cu124", "cu126", "cu128", "cu129", "cu130", "cu132"
+}
+
+EXPECTED_PAIRS = {
+    "pypi": ("2.13.0", "0.28.0"),
+    "cu118": ("2.7.1+cu118", "0.22.1+cu118"),
+    "cu121": ("2.5.1+cu121", "0.20.1+cu121"),
+    "cu124": ("2.6.0+cu124", "0.21.0+cu124"),
+    "cu126": ("2.13.0+cu126", "0.28.0+cu126"),
+    "cu128": ("2.11.0+cu128", "0.26.0+cu128"),
+    "cu129": ("2.13.0+cu129", "0.28.0+cu129"),
+    "cu130": ("2.13.0+cu130", "0.28.0+cu130"),
+    "cu132": ("2.13.0+cu132", "0.28.0+cu132"),
+}
+
+# These compact snapshots intentionally contain only Torch/Torchvision and the
+# CUDA/NVIDIA closure. Unrelated resolver movement does not create alert noise.
+LINUX_SNAPSHOT_LINES = {
+    "pypi": "cuda-bindings==13.3.1 cuda-pathfinder==1.6.1 cuda-toolkit==13.0.3.0 nvidia-cublas==13.1.1.3 nvidia-cuda-cupti==13.0.85 nvidia-cuda-nvrtc==13.0.88 nvidia-cuda-runtime==13.0.96 nvidia-cudnn-cu13==9.20.0.48 nvidia-cufft==12.0.0.61 nvidia-cufile==1.15.1.6 nvidia-curand==10.4.0.35 nvidia-cusolver==12.0.4.66 nvidia-cusparse==12.6.3.3 nvidia-cusparselt-cu13==0.8.1 nvidia-nccl-cu13==2.29.7 nvidia-nvjitlink==13.3.33 nvidia-nvshmem-cu13==3.4.5 nvidia-nvtx==13.0.85 torch==2.13.0 torchvision==0.28.0",
+    "cu118": "nvidia-cublas-cu11==11.11.3.6 nvidia-cuda-cupti-cu11==11.8.87 nvidia-cuda-nvrtc-cu11==11.8.89 nvidia-cuda-runtime-cu11==11.8.89 nvidia-cudnn-cu11==9.1.0.70 nvidia-cufft-cu11==10.9.0.58 nvidia-curand-cu11==10.3.0.86 nvidia-cusolver-cu11==11.4.1.48 nvidia-cusparse-cu11==11.7.5.86 nvidia-nccl-cu11==2.21.5 nvidia-nvtx-cu11==11.8.86 torch==2.7.1+cu118 torchvision==0.22.1+cu118",
+    "cu121": "nvidia-cublas-cu12==12.1.3.1 nvidia-cuda-cupti-cu12==12.1.105 nvidia-cuda-nvrtc-cu12==12.1.105 nvidia-cuda-runtime-cu12==12.1.105 nvidia-cudnn-cu12==9.1.0.70 nvidia-cufft-cu12==11.0.2.54 nvidia-curand-cu12==10.3.2.106 nvidia-cusolver-cu12==11.4.5.107 nvidia-cusparse-cu12==12.1.0.106 nvidia-nccl-cu12==2.21.5 nvidia-nvjitlink-cu12==12.9.86 nvidia-nvtx-cu12==12.1.105 torch==2.5.1+cu121 torchvision==0.20.1+cu121",
+    "cu124": "nvidia-cublas-cu12==12.4.5.8 nvidia-cuda-cupti-cu12==12.4.127 nvidia-cuda-nvrtc-cu12==12.4.127 nvidia-cuda-runtime-cu12==12.4.127 nvidia-cudnn-cu12==9.1.0.70 nvidia-cufft-cu12==11.2.1.3 nvidia-curand-cu12==10.3.5.147 nvidia-cusolver-cu12==11.6.1.9 nvidia-cusparse-cu12==12.3.1.170 nvidia-cusparselt-cu12==0.6.2 nvidia-nccl-cu12==2.21.5 nvidia-nvjitlink-cu12==12.4.127 nvidia-nvtx-cu12==12.4.127 torch==2.6.0+cu124 torchvision==0.21.0+cu124",
+    "cu126": "cuda-bindings==12.9.7 cuda-pathfinder==1.6.1 cuda-toolkit==12.6.3 nvidia-cublas-cu12==12.6.4.1 nvidia-cuda-cupti-cu12==12.6.80 nvidia-cuda-nvrtc-cu12==12.6.85 nvidia-cuda-runtime-cu12==12.6.77 nvidia-cudnn-cu12==9.10.2.21 nvidia-cufft-cu12==11.3.0.4 nvidia-cufile-cu12==1.11.1.6 nvidia-curand-cu12==10.3.7.77 nvidia-cusolver-cu12==11.7.1.2 nvidia-cusparse-cu12==12.5.4.2 nvidia-cusparselt-cu12==0.7.1 nvidia-nccl-cu12==2.29.3 nvidia-nvjitlink-cu12==12.6.85 nvidia-nvshmem-cu12==3.4.5 nvidia-nvtx-cu12==12.6.77 torch==2.13.0+cu126 torchvision==0.28.0+cu126",
+    "cu128": "cuda-bindings==12.9.7 cuda-pathfinder==1.6.1 cuda-toolkit==12.8.1 nvidia-cublas-cu12==12.8.4.1 nvidia-cuda-cupti-cu12==12.8.90 nvidia-cuda-nvrtc-cu12==12.8.93 nvidia-cuda-runtime-cu12==12.8.90 nvidia-cudnn-cu12==9.19.0.56 nvidia-cufft-cu12==11.3.3.83 nvidia-cufile-cu12==1.13.1.3 nvidia-curand-cu12==10.3.9.90 nvidia-cusolver-cu12==11.7.3.90 nvidia-cusparse-cu12==12.5.8.93 nvidia-cusparselt-cu12==0.7.1 nvidia-nccl-cu12==2.28.9 nvidia-nvjitlink-cu12==12.8.93 nvidia-nvshmem-cu12==3.4.5 nvidia-nvtx-cu12==12.8.90 torch==2.11.0+cu128 torchvision==0.26.0+cu128",
+    "cu129": "cuda-bindings==12.9.7 cuda-pathfinder==1.6.1 cuda-toolkit==12.9.1 nvidia-cublas-cu12==12.9.1.4 nvidia-cuda-cupti-cu12==12.9.79 nvidia-cuda-nvrtc-cu12==12.9.86 nvidia-cuda-runtime-cu12==12.9.79 nvidia-cudnn-cu12==9.20.0.48 nvidia-cufft-cu12==11.4.1.4 nvidia-cufile-cu12==1.14.1.1 nvidia-curand-cu12==10.3.10.19 nvidia-cusolver-cu12==11.7.5.82 nvidia-cusparse-cu12==12.5.10.65 nvidia-cusparselt-cu12==0.8.1 nvidia-nccl-cu12==2.29.7 nvidia-nvjitlink-cu12==12.9.86 nvidia-nvshmem-cu12==3.4.5 nvidia-nvtx-cu12==12.9.79 torch==2.13.0+cu129 torchvision==0.28.0+cu129",
+    "cu130": "cuda-bindings==13.3.1 cuda-pathfinder==1.6.1 cuda-toolkit==13.0.3.0 nvidia-cublas==13.1.1.3 nvidia-cuda-cupti==13.0.85 nvidia-cuda-nvrtc==13.0.88 nvidia-cuda-runtime==13.0.96 nvidia-cudnn-cu13==9.20.0.48 nvidia-cufft==12.0.0.61 nvidia-cufile==1.15.1.6 nvidia-curand==10.4.0.35 nvidia-cusolver==12.0.4.66 nvidia-cusparse==12.6.3.3 nvidia-cusparselt-cu13==0.8.1 nvidia-nccl-cu13==2.29.7 nvidia-nvjitlink==13.3.33 nvidia-nvshmem-cu13==3.4.5 nvidia-nvtx==13.0.85 torch==2.13.0+cu130 torchvision==0.28.0+cu130",
+    "cu132": "cuda-bindings==13.3.1 cuda-pathfinder==1.6.1 cuda-toolkit==13.2.1 nvidia-cublas==13.4.0.1 nvidia-cuda-cupti==13.2.75 nvidia-cuda-nvrtc==13.2.78 nvidia-cuda-runtime==13.2.75 nvidia-cudnn-cu13==9.20.0.48 nvidia-cufft==12.2.0.46 nvidia-cufile==1.17.1.22 nvidia-curand==10.4.2.55 nvidia-cusolver==12.2.0.1 nvidia-cusparse==12.7.10.1 nvidia-cusparselt-cu13==0.8.1 nvidia-nccl-cu13==2.29.7 nvidia-nvjitlink==13.3.33 nvidia-nvshmem-cu13==3.4.5 nvidia-nvtx==13.2.75 torch==2.13.0+cu132 torchvision==0.28.0+cu132",
+}
 
 
-def make_wheel(
-    directory: Path,
-    distribution: str,
-    version: str,
-    *,
-    requirements: tuple[str, ...] = (),
-    files: dict[str, str] | None = None,
-) -> Path:
-    normalized = distribution.replace("-", "_")
-    wheel = directory / f"{normalized}-{version}-py3-none-any.whl"
-    dist_info = f"{normalized}-{version}.dist-info"
-    metadata = Message()
-    metadata["Metadata-Version"] = "2.1"
-    metadata["Name"] = distribution
-    metadata["Version"] = version
-    for requirement in requirements:
-        metadata["Requires-Dist"] = requirement
-    package_files = files or {f"{normalized}/__init__.py": f'__version__ = "{version}"\n'}
-    with zipfile.ZipFile(wheel, "w", compression=zipfile.ZIP_DEFLATED) as archive:
-        for name, contents in package_files.items():
-            archive.writestr(name, contents)
-        archive.writestr(f"{dist_info}/METADATA", metadata.as_string())
-        archive.writestr(
-            f"{dist_info}/WHEEL",
-            "Wheel-Version: 1.0\nGenerator: trex-post-link-ci\n"
-            "Root-Is-Purelib: true\nTag: py3-none-any\n",
+def canonical_name(name: str) -> str:
+    return re.sub(r"[-_.]+", "-", name).lower()
+
+
+def parse_snapshot(line: str) -> dict[str, str]:
+    return dict(item.rsplit("==", 1) for item in line.split())
+
+
+def channel_code(channel: str) -> int:
+    digits = channel[2:]
+    return int(digits[:2]) * 100 + int(digits[2:])
+
+
+def report_diff(expected: dict[str, str], actual: dict[str, str]) -> str:
+    before = json.dumps(expected, indent=2, sort_keys=True).splitlines()
+    after = json.dumps(actual, indent=2, sort_keys=True).splitlines()
+    return "\n".join(difflib.unified_diff(before, after, "snapshot", "resolved", lineterm=""))
+
+
+def dispatch_python(arguments: list[str]) -> int:
+    """Intercept the hook's sole install; delegate all metadata-only commands."""
+    real_python = os.environ["TREX_REAL_PYTHON"]
+    is_pip = "-m" in arguments and arguments[arguments.index("-m") + 1 :][:1] == ["pip"]
+    if is_pip and "install" in arguments:
+        requirements = [
+            value for value in arguments
+            if re.fullmatch(r"torch(?:vision)?(?:[<>=!~].*)?", value)
+        ]
+        sources: list[str] = []
+        for option in ("--index-url", "--extra-index-url"):
+            if option in arguments:
+                offset = arguments.index(option)
+                sources.extend((option, arguments[offset + 1]))
+        if len(requirements) != 2 or "--index-url" not in sources:
+            raise SystemExit(f"could not isolate Torch request: {arguments}")
+
+        cache = Path(os.environ["TREX_RESOLVER_CACHE"])
+        key = hashlib.sha256(json.dumps([sources, requirements]).encode()).hexdigest()[:16]
+        report_path = cache / f"{key}.json"
+        output_path = cache / f"{key}.txt"
+        status_path = cache / f"{key}.status"
+        if not status_path.exists():
+            pending = report_path.with_suffix(".pending.json")
+            command = [
+                real_python, "-m", "pip", "install", "--dry-run",
+                "--ignore-installed", "--only-binary=:all:",
+                "--disable-pip-version-check", "--no-input", "--no-color",
+                "--progress-bar", "off", "--report", str(pending),
+                *sources, *requirements,
+            ]
+            result = subprocess.run(command, capture_output=True, text=True, timeout=900)
+            output_path.write_text(result.stdout + result.stderr, encoding="utf-8")
+            status_path.write_text(str(result.returncode), encoding="ascii")
+            if result.returncode == 0:
+                pending.replace(report_path)
+
+        status = int(status_path.read_text(encoding="ascii"))
+        output = output_path.read_text(encoding="utf-8")
+        event = {
+            "arguments": arguments,
+            "case": os.environ["TREX_RESOLVER_CASE"],
+            "report": str(report_path),
+            "requirements": requirements,
+            "sources": {
+                name: os.environ.get(name, "")
+                for name in ("PIP_CONFIG_FILE", "PIP_INDEX_URL", "PIP_EXTRA_INDEX_URL", "PIP_FIND_LINKS")
+            },
+            "status": status,
+        }
+        with Path(os.environ["TREX_RESOLVER_EVENTS"]).open("a", encoding="utf-8") as stream:
+            stream.write(json.dumps(event) + "\n")
+        sys.stdout.write(output)
+        return status
+
+    if "-c" in arguments:
+        code = arguments[arguments.index("-c") + 1]
+        if "import torch" in code or "from ultralytics" in code:
+            return 0
+    return subprocess.call([real_python, *arguments])
+
+
+def discover_published_channels() -> set[str]:
+    request = Request(TORCH_ROOT + "/", headers={"User-Agent": "TRex resolver CI"})
+    text = urlopen(request, timeout=30).read().decode("utf-8", errors="replace")
+    found = set()
+    for href in re.findall(r"href=[\"']([^\"']+)", text, re.I):
+        name = urlparse(urljoin(TORCH_ROOT + "/", href)).path.rstrip("/").rsplit("/", 1)[-1]
+        if re.fullmatch(r"cu[0-9]{3,}", name) and channel_code(name) >= 1108:
+            found.add(name)
+    return found
+
+
+def make_shims(root: Path, cuda: str) -> Path:
+    fake_bin = root / "bin"
+    fake_bin.mkdir()
+    dispatcher = Path(__file__).resolve()
+    if os.name == "nt":
+        (fake_bin / "python.cmd").write_text(
+            f'@"%TREX_REAL_PYTHON%" "{dispatcher}" --dispatch %*\n', encoding="utf-8"
         )
-        archive.writestr(f"{dist_info}/RECORD", "")
-    return wheel
+        smi = "@echo off\n"
+        smi += (
+            f"echo NVIDIA-SMI 999 Driver Version: 999 CUDA Version: {cuda}\n"
+            if cuda else "echo NVIDIA-SMI unavailable 1>&2\nexit /b 1\n"
+        )
+        (fake_bin / "nvidia-smi.cmd").write_text(smi, encoding="utf-8")
+    else:
+        (fake_bin / "python").write_text(
+            f'#!/bin/sh\nexec "$TREX_REAL_PYTHON" "{dispatcher}" --dispatch "$@"\n', encoding="utf-8"
+        )
+        (fake_bin / "python").chmod(0o755)
+        smi = "#!/bin/sh\n"
+        smi += (
+            f"echo 'NVIDIA-SMI 999 Driver Version: 999 CUDA Version: {cuda}'\n"
+            if cuda else "echo 'NVIDIA-SMI unavailable' >&2\nexit 1\n"
+        )
+        (fake_bin / "nvidia-smi").write_text(smi, encoding="utf-8")
+        (fake_bin / "nvidia-smi").chmod(0o755)
+    return fake_bin
 
 
-def add_to_index(root: Path, wheel: Path, distribution: str) -> None:
-    package = distribution.lower().replace("_", "-").replace(".", "-")
-    package_dir = root / package
-    package_dir.mkdir(parents=True, exist_ok=True)
-    destination = package_dir / wheel.name
-    shutil.copy2(wheel, destination)
-    index = package_dir / "index.html"
-    existing = index.read_text(encoding="utf-8") if index.exists() else ""
-    index.write_text(
-        existing + f'<a href="{quote(destination.name)}">{destination.name}</a>\n',
+def expected_snapshot(system: str, channel: str) -> dict[str, str]:
+    if system == "Linux":
+        return parse_snapshot(LINUX_SNAPSHOT_LINES[channel])
+    torch_version, vision_version = EXPECTED_PAIRS[channel]
+    return {"torch": torch_version, "torchvision": vision_version}
+
+
+def resolved_snapshot(report_path: Path) -> tuple[dict[str, str], dict[str, str]]:
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    packages: dict[str, str] = {}
+    urls: dict[str, str] = {}
+    for item in report["install"]:
+        name = canonical_name(item["metadata"]["name"])
+        if name in {"torch", "torchvision"} or name.startswith(("cuda-", "nvidia-")):
+            packages[name] = item["metadata"]["version"]
+            urls[name] = item["download_info"]["url"]
+    return dict(sorted(packages.items())), urls
+
+
+def version_code(version: str) -> int | None:
+    match = re.match(r"(\d+)\.(\d+)", version)
+    return int(match.group(1)) * 100 + int(match.group(2)) if match else None
+
+
+def run_case(root: Path, cuda: str, expected_channel: str) -> list[str]:
+    label = cuda or "no-driver"
+    case_root = root / label.replace(".", "-")
+    prefix = case_root / "prefix"
+    metadata = prefix / "conda-meta"
+    metadata.mkdir(parents=True)
+    (metadata / "numpy-2.4.6-ci.json").write_text(
+        json.dumps({"name": "numpy", "version": "2.4.6", "files": []}), encoding="utf-8"
+    )
+    (metadata / "py-opencv-4.12-ci.json").write_text(
+        json.dumps({"name": "py-opencv", "version": "4.12", "files": []}), encoding="utf-8"
+    )
+    fake_bin = make_shims(case_root, cuda)
+    events_path = case_root / "events.jsonl"
+    ambient = case_root / "ambient-pip.conf"
+    ambient.write_text(
+        "[global]\nindex-url = https://ambient.invalid/simple\n"
+        "extra-index-url = https://ambient-extra.invalid/simple\n"
+        "find-links = https://ambient-links.invalid/\n",
         encoding="utf-8",
     )
-
-
-def selected_channel(system: str, machine: str, cuda: str) -> str:
-    if system == "Darwin" or machine in {"arm", "arm64", "aarch64"}:
-        return "pypi"
-    if system != "Linux" and os.name != "nt":
-        return "pypi"
-    if cuda:
-        major, minor = cuda.split(".", 1)
-        code = int(major) * 100 + int(minor)
+    environment = os.environ.copy()
+    environment.update({
+        "PATH": str(fake_bin) + os.pathsep + environment["PATH"],
+        "PREFIX": str(prefix),
+        "TREX_POST_LINK_OUTPUT": "stdout",
+        "TREX_PYPI_INDEX_URL": PYPI,
+        "TREX_TORCH_INDEX_ROOT": TORCH_ROOT,
+        "TREX_REAL_PYTHON": sys.executable,
+        "TREX_RESOLVER_CACHE": str(root / "cache"),
+        "TREX_RESOLVER_CASE": label,
+        "TREX_RESOLVER_EVENTS": str(events_path),
+        "PIP_CONFIG_FILE": str(ambient),
+        "PIP_INDEX_URL": "https://ambient.invalid/simple",
+        "PIP_EXTRA_INDEX_URL": "https://ambient-extra.invalid/simple",
+        "PIP_FIND_LINKS": "https://ambient-links.invalid/",
+    })
+    if os.name == "nt":
+        command = [os.environ.get("COMSPEC", "cmd.exe"), "/d", "/c", str(POST_LINK_BAT)]
     else:
-        code = 0
-    for minimum, channel in (
-        (1302, "cu132"),
-        (1300, "cu130"),
-        (1209, "cu129"),
-        (1208, "cu128"),
-        (1206, "cu126"),
-        (1204, "cu124"),
-        (1201, "cu121"),
-        (1108, "cu118"),
+        command = ["bash", str(POST_LINK_SH)]
+    result = subprocess.run(command, env=environment, capture_output=True, text=True, timeout=1200)
+    output = result.stdout + result.stderr
+    events = [json.loads(line) for line in events_path.read_text(encoding="utf-8").splitlines()] if events_path.exists() else []
+    errors: list[str] = []
+    if result.returncode != 0:
+        errors.append(f"{label}: hook returned {result.returncode}\n{output}")
+    if len(events) != 1:
+        errors.append(f"{label}: expected one pip install, recorded {len(events)}\n{output}")
+        return errors
+    event = events[0]
+    if event["status"] != 0:
+        errors.append(f"{label}: pip dry-run failed\n{output}")
+        return errors
+    sources = event["sources"]
+    null_config = {"nul"} if os.name == "nt" else {"/dev/null"}
+    if sources["PIP_CONFIG_FILE"].casefold() not in null_config or any(
+        sources[name] for name in ("PIP_INDEX_URL", "PIP_EXTRA_INDEX_URL", "PIP_FIND_LINKS")
     ):
-        if code >= minimum:
-            return channel
-    return "pypi"
+        errors.append(f"{label}: ambient pip configuration leaked: {sources}")
 
-
-def emit_resolver_diagnostics(
-    *,
-    system: str,
-    machine: str,
-    cuda: str,
-    profile: str,
-    channel: str,
-    wheels: Path,
-    installs: list[dict[str, object]],
-    result: subprocess.CompletedProcess[str],
-) -> None:
-    """Expose the exact offline resolver inputs and pip results in CI logs."""
-    case = f"{system}/{machine}/cuda={cuda or 'none'}/{profile}/{channel}"
-    print(f"Resolver case: {case}")
-    if os.environ.get("GITHUB_ACTIONS") == "true":
-        print(f"::group::Offline pip resolver details ({case})")
-    print("Recorded pip invocation(s):")
-    if installs:
-        for install in installs:
-            print(json.dumps(install))
-    else:
-        print("<none>")
-    print("Offline wheel set:")
-    for wheel in sorted(wheels.glob("*.whl")):
-        print(f"  {wheel.name}")
-    print("Captured post-link stdout:")
-    print(result.stdout.rstrip() or "<empty>")
-    print("Captured post-link stderr:")
-    print(result.stderr.rstrip() or "<empty>")
-    installed = subprocess.run(
-        [sys.executable, "-m", "pip", "list", "--format=freeze"],
-        check=False,
-        capture_output=True,
-        text=True,
+    requirements = event["requirements"]
+    torch_requirement = next(
+        value for value in requirements if re.match(r"^torch(?:[<>=!~]|$)", value)
     )
-    print("Installed distributions after the resolver transaction:")
-    print(installed.stdout.rstrip() or "<empty>")
-    if installed.stderr:
-        print(installed.stderr.rstrip())
-    if os.environ.get("GITHUB_ACTIONS") == "true":
-        print("::endgroup::")
-    sys.stdout.flush()
+    flavor_match = re.search(r"\+(cu\d+)$", torch_requirement)
+    selected = flavor_match.group(1) if flavor_match else "pypi"
+    if selected != expected_channel:
+        errors.append(f"{label}: expected {expected_channel}, selected {selected}: {requirements}")
+    arguments = event["arguments"]
+    primary_index = arguments[arguments.index("--index-url") + 1]
+    expected_index = PYPI if selected == "pypi" else f"{TORCH_ROOT}/{selected}"
+    if primary_index != expected_index:
+        errors.append(f"{label}: expected source {expected_index}, selected {primary_index}")
+    if selected != "pypi":
+        if "--extra-index-url" not in arguments or arguments[arguments.index("--extra-index-url") + 1] != PYPI:
+            errors.append(f"{label}: CUDA solve did not retain PyPI for non-Torch dependencies")
+    if selected != "pypi" and not all(value.endswith("+" + selected) for value in requirements):
+        errors.append(f"{label}: CUDA requirements were not exact flavored pins: {requirements}")
+
+    snapshot, urls = resolved_snapshot(Path(event["report"]))
+    expected = expected_snapshot(platform.system(), expected_channel)
+    if snapshot != expected:
+        errors.append(f"{label}/{expected_channel}: resolver snapshot changed\n{report_diff(expected, snapshot)}")
+    if selected != "pypi" and "+" + selected not in snapshot.get("torch", ""):
+        errors.append(f"{label}: generic PyPI Torch competed with {selected}: {snapshot.get('torch')} {urls.get('torch')}")
+    if selected != "pypi" and cuda:
+        driver_code = version_code(cuda)
+        for name, version in snapshot.items():
+            if name == "cuda-toolkit" or "cuda-runtime" in name:
+                runtime_code = version_code(version)
+                if driver_code is not None and runtime_code is not None and runtime_code > driver_code:
+                    errors.append(f"{label}: resolved {name} {version} newer than simulated driver {cuda}")
+    print(f"{label}: {selected} -> {snapshot.get('torch')} / {snapshot.get('torchvision')}")
+    return errors
 
 
-def run() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--system", required=True)
-    parser.add_argument("--machine", required=True)
-    parser.add_argument("--cuda", default="")
-    parser.add_argument("--profile", choices=("minimal", "buildall"), default="minimal")
-    options = parser.parse_args()
-    if os.environ.get("GITHUB_ACTIONS") != "true":
-        raise SystemExit("This integration test mutates its interpreter and is restricted to GitHub Actions.")
+def run_live_matrix() -> None:
+    if os.environ.get("GITHUB_ACTIONS") != "true" and os.environ.get("TREX_ALLOW_LIVE_RESOLVER") != "1":
+        raise SystemExit("live resolver is restricted to CI; set TREX_ALLOW_LIVE_RESOLVER=1 to run manually")
+    system = platform.system()
+    published = discover_published_channels()
+    failures: list[str] = []
+    if published != PUBLISHED_CHANNEL_SNAPSHOT:
+        failures.append(
+            "official CUDA channel set changed\n"
+            + report_diff(
+                {name: "published" for name in sorted(PUBLISHED_CHANNEL_SNAPSHOT)},
+                {name: "published" for name in sorted(published)},
+            )
+        )
+    newest = max(published or PUBLISHED_CHANNEL_SNAPSHOT, key=channel_code)
+    if system in {"Linux", "Windows"}:
+        cases = [
+            ("", "pypi"), ("11.7", "pypi"), ("11.8", "cu118"), ("12.0", "cu118"),
+            ("12.1", "cu121"), ("12.2", "cu121"), ("12.3", "cu121"),
+            ("12.4", "cu124"), ("12.6", "cu126"), ("12.8", "cu128"),
+            ("12.9", "cu129"), ("13.0", "cu130"), ("13.2", "cu132"),
+            ("13.3", "cu132"), ("99.0", newest),
+        ]
+    elif system == "Darwin":
+        cases = [("", "pypi")]
+    else:
+        raise SystemExit(f"unsupported native CI platform: {system}")
 
-    with tempfile.TemporaryDirectory(prefix="trex-real-post-link-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="trex-live-resolver-") as temporary:
         root = Path(temporary)
-        wheels = root / "wheels"
-        pypi = root / "pypi"
-        torch_root = root / "torch"
-        state = root / "pip-events.jsonl"
-        wheels.mkdir()
-        pypi.mkdir()
-        torch_root.mkdir()
-
-        channel = selected_channel(options.system, options.machine, options.cuda)
-        selected_torch_version = f"2.7.1+{channel}" if channel.startswith("cu") else "2.13.0"
-        selected_vision_version = f"0.22.1+{channel}" if channel.startswith("cu") else "0.28.0"
-
-        def torch_files(version: str) -> dict[str, str]:
-            return {
-                "torch/__init__.py": textwrap.dedent(
-                    f'''\
-                __version__ = "{version}"
-                class Tensor:
-                    def __init__(self, value): self.value = value
-                    def tolist(self): return self.value
-                def tensor(value): return Tensor(value)
-                class cuda:
-                    @staticmethod
-                    def is_available(): return False
-                class version:
-                    cuda = None
-                '''
-                )
-            }
-
-        def vision_files(version: str) -> dict[str, str]:
-            return {
-                "torchvision/__init__.py": f'__version__ = "{version}"\n',
-                "torchvision/ops.py": "from torch import Tensor\ndef nms(*args): return Tensor([0])\n",
-            }
-        numpy_files = {
-            "numpy/__init__.py": '__version__ = "2.4.6"\nuint8 = int\ndef zeros(shape, dtype=None): return 0\n'
-        }
-        opencv_files = {"cv2/__init__.py": '__version__ = "4.12.0"\n'}
-        ultralytics_files = {
-            "ultralytics/__init__.py": (
-                '__version__ = "8.3.0"\n'
-                "class YOLO:\n"
-                "    def __init__(self, *args): pass\n"
-                "    def to(self, *args): return self\n"
-                "    def predict(self, *args, **kwargs): return []\n"
-            )
-        }
-
-        created: dict[str, Path] = {}
-
-        def wheel(name: str, version: str, **kwargs: object) -> Path:
-            result = make_wheel(wheels, name, version, **kwargs)
-            created[name] = result
-            return result
-
-        wheel("numpy", "2.4.6", files=numpy_files)
-        wheel("opencv-python", "4.12.0", requirements=("numpy>=1.26",), files=opencv_files)
-        wheel("torchmetrics", "1.0", requirements=("torch>=2.2",))
-        wheel("tqdm", "1.0")
-        wheel(
-            "ultralytics",
-            "8.3.0",
-            requirements=("torch>=2.2", "torchvision>=0.17", "opencv-python>=4.6", "numpy>=1.26"),
-            files=ultralytics_files,
-        )
-        wheel("rfdetr", "1.8.3", requirements=("torch>=2.2",), files={"rfdetr/__init__.py": "class RFDETR: pass\n"})
-        wheel("dill", "1.0")
-        wheel("timm", "1.0", requirements=("torch>=2.2", "torchvision>=0.17"))
-        wheel("scikit-learn", "1.0", requirements=("numpy>=1.26",), files={"sklearn/__init__.py": ""})
-        wheel("clip", "1.0", requirements=("torch>=2.2",))
-
-        for name, path in created.items():
-            add_to_index(pypi, path, name)
-
-        generic_torch = make_wheel(
-            wheels,
-            "torch",
-            "2.13.0",
-            requirements=("numpy>=1.26",),
-            files=torch_files("2.13.0"),
-        )
-        generic_vision = make_wheel(
-            wheels,
-            "torchvision",
-            "0.28.0",
-            requirements=("torch==2.13.0", "numpy>=1.26"),
-            files=vision_files("0.28.0"),
-        )
-        add_to_index(pypi, generic_torch, "torch")
-        add_to_index(pypi, generic_vision, "torchvision")
-
-        if channel.startswith("cu"):
-            channel_index = torch_root / channel
-            for torch_version, vision_version in (
-                (f"2.6.0+{channel}", f"0.21.0+{channel}"),
-                (selected_torch_version, selected_vision_version),
-            ):
-                cuda_torch = make_wheel(
-                    wheels,
-                    "torch",
-                    torch_version,
-                    requirements=("numpy>=1.26",),
-                    files=torch_files(torch_version),
-                )
-                cuda_vision = make_wheel(
-                    wheels,
-                    "torchvision",
-                    vision_version,
-                    requirements=(f"torch=={torch_version}", "numpy>=1.26"),
-                    files=vision_files(vision_version),
-                )
-                add_to_index(channel_index, cuda_torch, "torch")
-                add_to_index(channel_index, cuda_vision, "torchvision")
-
-        conda_meta = Path(sys.prefix) / "conda-meta"
-        conda_meta.mkdir(exist_ok=True)
-        if options.profile == "minimal":
-            # Simulate packages linked by the minimal Conda recipe. The wheels
-            # are genuinely installed once, and post-link must leave them alone.
-            subprocess.run(
-                [
-                    sys.executable,
-                    "-m",
-                    "pip",
-                    "install",
-                    "--no-index",
-                    "--no-deps",
-                    str(created["numpy"]),
-                    str(created["opencv-python"]),
-                ],
-                check=True,
-            )
-            site_packages = Path(sysconfig.get_paths()["purelib"])
-            numpy_file = site_packages / "numpy" / "__init__.py"
-            cv2_file = site_packages / "cv2" / "__init__.py"
-            for installer in (
-                *site_packages.glob("numpy-*.dist-info/INSTALLER"),
-                *site_packages.glob("opencv_python-*.dist-info/INSTALLER"),
-            ):
-                installer.write_text("conda\n", encoding="utf-8")
-
-            def write_conda_record(
-                name: str,
-                version: str,
-                files: tuple[Path, ...] = (),
-            ) -> None:
-                relative_files = [
-                    path.resolve().relative_to(Path(sys.prefix).resolve()).as_posix()
-                    for path in files
-                ]
-                (conda_meta / f"{name}-{version}-ci.json").write_text(
-                    json.dumps(
-                        {"name": name, "version": version, "files": relative_files}
-                    ),
-                    encoding="utf-8",
-                )
-
-            write_conda_record("numpy", "2.4.6", (numpy_file,))
-            write_conda_record("py-opencv", "4.12.0")
-            for native_package in ("ffmpeg", "libopencv", "libpng", "libzip", "zlib"):
-                files = (cv2_file,) if native_package == "libopencv" else ()
-                write_conda_record(native_package, "1.0", files)
-
-        sitecustomize = root / "sitecustomize"
-        sitecustomize.mkdir()
-        (sitecustomize / "sitecustomize.py").write_text(
-            textwrap.dedent(
-                """\
-                import json, os, sys
-                args = list(sys.orig_argv)
-                if '-m' in args and 'pip' in args:
-                    with open(os.environ['TREX_REAL_PIP_EVENTS'], 'a', encoding='utf-8') as stream:
-                        stream.write(json.dumps({
-                            'args': args,
-                            'sources': {
-                                name: os.environ.get(name, '')
-                                for name in (
-                                    'PIP_CONFIG_FILE',
-                                    'PIP_INDEX_URL',
-                                    'PIP_EXTRA_INDEX_URL',
-                                    'PIP_FIND_LINKS',
-                                )
-                            },
-                        }) + '\\n')
-                """
-            ),
-            encoding="utf-8",
-        )
-        fake_bin = root / "bin"
-        fake_bin.mkdir()
-        if os.name == "nt":
-            if options.cuda:
-                (fake_bin / "nvidia-smi.cmd").write_text(
-                    f"@echo off\necho NVIDIA-SMI 999 Driver Version: 999 CUDA Version: {options.cuda}\n",
-                    encoding="utf-8",
-                )
-            command = [os.environ.get("COMSPEC", "cmd.exe"), "/d", "/c", str(POST_LINK_BAT)]
-        else:
-            (fake_bin / "uname").write_text(
-                "#!/bin/sh\nif [ \"$1\" = \"-m\" ]; then echo \"$TREX_REAL_MACHINE\"; else echo \"$TREX_REAL_SYSTEM\"; fi\n",
-                encoding="utf-8",
-            )
-            (fake_bin / "uname").chmod(0o755)
-            (fake_bin / "nvidia-smi").write_text(
-                "#!/bin/sh\n"
-                "if [ -z \"$TREX_REAL_CUDA\" ]; then exit 1; fi\n"
-                "echo \"NVIDIA-SMI 999 Driver Version: 999 CUDA Version: $TREX_REAL_CUDA\"\n",
-                encoding="utf-8",
-            )
-            (fake_bin / "nvidia-smi").chmod(0o755)
-            command = ["bash", str(POST_LINK_SH)]
-
-        ambient = root / "ambient"
-        ambient.mkdir()
-        ambient_config = root / "ambient-pip.conf"
-        ambient_config.write_text(
-            "[global]\n"
-            f"index-url = {ambient.as_uri()}\n"
-            f"extra-index-url = {ambient.as_uri()}\n"
-            f"find-links = {ambient.as_uri()}\n",
-            encoding="utf-8",
-        )
-
-        environment = os.environ.copy()
-        environment.update(
-            {
-                "PATH": str(fake_bin) + os.pathsep + environment["PATH"],
-                "PREFIX": sys.prefix,
-                "PYTHONPATH": str(sitecustomize),
-                "TREX_REAL_PIP_EVENTS": str(state),
-                "TREX_REAL_SYSTEM": options.system,
-                "TREX_REAL_MACHINE": options.machine,
-                "TREX_REAL_CUDA": options.cuda,
-                "TREX_POST_LINK_OUTPUT": "stdout",
-                "TREX_PYPI_INDEX_URL": pypi.as_uri(),
-                "TREX_TORCH_INDEX_ROOT": torch_root.as_uri(),
-                "TREX_CLIP_REQUIREMENT": "clip==1.0",
-                "PIP_CONFIG_FILE": str(ambient_config),
-                "PIP_INDEX_URL": ambient.as_uri(),
-                "PIP_EXTRA_INDEX_URL": ambient.as_uri(),
-                "PIP_FIND_LINKS": ambient.as_uri(),
-            }
-        )
-        result = subprocess.run(command, env=environment, capture_output=True, text=True, timeout=120)
-        output = result.stdout + result.stderr
-        events = (
-            [json.loads(line) for line in state.read_text(encoding="utf-8").splitlines()]
-            if state.exists()
-            else []
-        )
-        installs = [event for event in events if "install" in event["args"]]
-        emit_resolver_diagnostics(
-            system=options.system,
-            machine=options.machine,
-            cuda=options.cuda,
-            profile=options.profile,
-            channel=channel,
-            wheels=wheels,
-            installs=installs,
-            result=result,
-        )
-        if result.returncode:
-            raise AssertionError(output)
-        if len(installs) != 1:
-            raise AssertionError(f"expected one real pip install, got {installs}\n{output}")
-        index_queries = [event for event in events if "index" in event["args"]]
-        expected_queries = 2 if channel.startswith("cu") else 0
-        if len(index_queries) != expected_queries:
-            raise AssertionError(
-                f"expected {expected_queries} metadata queries, got {index_queries}\n{output}"
-            )
-        for event in events:
-            sources = event["sources"]
-            if sources["PIP_CONFIG_FILE"].casefold() not in {"/dev/null", "nul"}:
-                raise AssertionError(f"pip configuration leaked into post-link: {event}")
-            if any(sources[name] for name in ("PIP_INDEX_URL", "PIP_EXTRA_INDEX_URL", "PIP_FIND_LINKS")):
-                raise AssertionError(f"pip source environment leaked into post-link: {event}")
-
-        install = installs[0]["args"]
-        expected_index = pypi.as_uri() if channel == "pypi" else (torch_root / channel).as_uri()
-        actual_index = install[install.index("--index-url") + 1]
-        if actual_index != expected_index:
-            raise AssertionError(f"expected {expected_index}, got {actual_index}")
-        if channel.startswith("cu"):
-            expected_requirements = {
-                f"torch==={selected_torch_version}",
-                f"torchvision==={selected_vision_version}",
-            }
-            missing_requirements = expected_requirements - set(install)
-            if missing_requirements:
-                raise AssertionError(
-                    f"CUDA install did not pin the newest flavored pair: {missing_requirements}\n{output}"
-                )
-        elif not {"torch>=2.2", "torchvision>=0.17"}.issubset(install):
-            raise AssertionError(f"PyPI fallback was unexpectedly pinned: {install}")
-        requested_opencv = any("opencv-python" in argument for argument in install)
-        if options.profile == "minimal" and requested_opencv:
-            raise AssertionError("minimal post-link explicitly requested opencv-python")
-        if options.profile == "buildall" and not requested_opencv:
-            raise AssertionError("buildall post-link did not request its pip OpenCV binding")
-        if "Attempting uninstall" in output or "no retry was attempted" in output:
-            raise AssertionError(output)
-        subprocess.run([sys.executable, "-m", "pip", "check"], check=True)
-        subprocess.run(
-            [
-                sys.executable,
-                "-c",
-                "import clip,cv2,dill,numpy,rfdetr,sklearn,timm,torch,torchmetrics,torchvision,tqdm,ultralytics; "
-                "from torchvision.ops import nms; "
-                "assert nms(torch.tensor([]),torch.tensor([]),0.5).tolist()==[0]; "
-                f"assert torch.__version__ == {selected_torch_version!r}; "
-                f"assert torchvision.__version__ == {selected_vision_version!r}",
-            ],
-            check=True,
-        )
-        if options.profile == "minimal":
-            subprocess.run([sys.executable, str(VALIDATE_POST_LINK)], check=True)
-            subprocess.run([sys.executable, str(VALIDATE_MINIMAL)], check=True)
-        if "installation transaction completed successfully" not in output:
-            raise AssertionError(output)
-        print(
-            "Real offline pip transaction passed for "
-            f"{options.system}/{options.machine}/{channel}/{options.profile}."
-        )
+        (root / "cache").mkdir()
+        for cuda, channel in cases:
+            try:
+                failures.extend(run_case(root, cuda, channel))
+            except Exception as error:
+                failures.append(f"{cuda or 'no-driver'}: {type(error).__name__}: {error}")
+    if failures:
+        raise AssertionError("\n\n".join(failures))
 
 
 if __name__ == "__main__":
-    run()
+    if len(sys.argv) > 1 and sys.argv[1] == "--dispatch":
+        raise SystemExit(dispatch_python(sys.argv[2:]))
+    run_live_matrix()

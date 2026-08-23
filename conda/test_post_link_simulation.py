@@ -59,6 +59,38 @@ def source_environment():
     }
 
 
+KNOWN_CHANNELS = ("cu118", "cu121", "cu124", "cu126", "cu128", "cu129", "cu130", "cu132")
+
+
+def channel_code(channel):
+    digits = channel[2:]
+    return int(digits[:2]) * 100 + int(digits[2:])
+
+
+def simulate_channel_selection(root, driver):
+    event(
+        "channels",
+        root=root,
+        driver=driver,
+        sources=source_environment(),
+    )
+    channels = set(KNOWN_CHANNELS)
+    if os.environ.get("TREX_FAKE_ROOT_OUTCOME", "success") == "success":
+        channels.update(
+            channel
+            for channel in os.environ.get("TREX_FAKE_DISCOVERED_CHANNELS", "").split(",")
+            if channel.startswith("cu") and channel[2:].isdigit()
+        )
+    driver_code = int(driver)
+    selected = sorted(
+        (channel for channel in channels if 1108 <= channel_code(channel) <= driver_code),
+        key=channel_code,
+        reverse=True,
+    )
+    print("\n".join(selected))
+    raise SystemExit(0)
+
+
 def simulate_pair_selection(index, flavor):
     for package in ("torch", "torchvision"):
         event(
@@ -68,7 +100,10 @@ def simulate_pair_selection(index, flavor):
             package=package,
             sources=source_environment(),
         )
+    unavailable = set(filter(None, os.environ.get("TREX_FAKE_UNAVAILABLE_CHANNELS", "").split(",")))
     outcome = os.environ.get("TREX_FAKE_INDEX_OUTCOME", "success")
+    if flavor in unavailable:
+        outcome = "missing"
     if outcome == "missing":
         print("ERROR: simulated index lookup failure", file=sys.stderr)
         raise SystemExit(1)
@@ -83,8 +118,11 @@ if args[:3] == ["-m", "pip", "--version"]:
     print("pip 99.0 (simulated)")
     raise SystemExit(0)
 
-if args and args[0] == "-" and len(args) >= 3:
-    simulate_pair_selection(args[1], args[2])
+if args[:2] == ["-", "channels"] and len(args) >= 4:
+    simulate_channel_selection(args[2], args[3])
+
+if args[:2] == ["-", "pair"] and len(args) >= 4:
+    simulate_pair_selection(args[2], args[3])
 
 if args[:4] == ["-m", "pip", "index", "versions"]:
     package = args[4] if len(args) > 4 else ""
@@ -127,12 +165,36 @@ if args[:3] == ["-m", "pip", "install"]:
     if "--constraint" in args:
         constraint_path = Path(args[args.index("--constraint") + 1])
         constraint = constraint_path.read_text(encoding="utf-8").strip()
+    torch_requirement = next((value for value in args if value.startswith("torch") and not value.startswith("torchvision")), "")
+    if "===" in torch_requirement and "+cu" in torch_requirement:
+        resolved_torch = torch_requirement.split("===", 1)[1]
+        flavor = resolved_torch.rsplit("+", 1)[-1]
+        compiled_code = channel_code(flavor)
+        compiled_cuda = f"{compiled_code // 100}.{compiled_code % 100}"
+        runtime_packages = [f"nvidia-cuda-runtime-{flavor[:4]}"]
+    else:
+        resolved_torch = "2.13.0"
+        compiled_code = 1300
+        compiled_cuda = "13.0"
+        runtime_packages = ["cuda-toolkit==13.0.3", "nvidia-cuda-runtime==13.0.96"]
+    driver = os.environ.get("TREX_FAKE_CUDA_VERSION", "")
+    driver_code = 0
+    if driver and "." in driver:
+        major, minor = driver.split(".", 1)
+        if major.isdigit() and minor.isdigit():
+            driver_code = int(major) * 100 + int(minor)
+    prior_events = events_path.read_text(encoding="utf-8") if events_path.exists() else ""
     event(
         "install",
         args=args,
         index=index_value(args),
         constraint=constraint,
         outcome=outcome,
+        resolved_torch=resolved_torch,
+        compiled_cuda=compiled_cuda,
+        runtime_packages=runtime_packages,
+        driver_warning=bool(driver_code and compiled_code > driver_code),
+        channel_discovery_count=prior_events.count('"kind": "channels"'),
         sources=source_environment(),
     )
     if outcome == "resolution":
@@ -145,7 +207,9 @@ if args[:3] == ["-m", "pip", "install"]:
 
 if args and args[0] == "-c":
     code = args[1] if len(args) > 1 else ""
-    if "TREX_TORCH_PAIR_SELECTOR" in code and len(args) >= 4:
+    if "TREX_TORCH_CHANNEL_SELECTOR" in code and len(args) >= 4:
+        simulate_channel_selection(args[2], args[3])
+    elif "TREX_TORCH_PAIR_SELECTOR" in code and len(args) >= 4:
         simulate_pair_selection(args[2], args[3])
     elif "json.load" in code and "['version']" in code:
         print("2.4.6", end="")
@@ -154,10 +218,6 @@ if args and args[0] == "-c":
     elif "from ultralytics import YOLO" in code and os.environ.get("TREX_FAKE_WARM_OUTCOME") == "failure":
         print("simulated cache warm-up failure", file=sys.stderr)
         raise SystemExit(1)
-    raise SystemExit(0)
-
-# The Windows progress helper is launched through python as a temporary .py file.
-if args and args[0].lower().endswith(".py"):
     raise SystemExit(0)
 
 event("unhandled-python", args=args)
@@ -295,6 +355,9 @@ class UnixPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
         conda_opencv: bool = True,
         warm_outcome: str = "success",
         index_outcome: str = "success",
+        root_outcome: str = "success",
+        discovered_channels: tuple[str, ...] = (),
+        unavailable_channels: tuple[str, ...] = (),
         expect_installs: bool = True,
     ) -> tuple[list[dict[str, object]], str]:
         with tempfile.TemporaryDirectory(prefix="trex-post-link-") as temporary:
@@ -341,6 +404,9 @@ class UnixPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
                     "TREX_FAKE_INSTALL_OUTCOMES": ",".join(outcomes),
                     "TREX_FAKE_WARM_OUTCOME": warm_outcome,
                     "TREX_FAKE_INDEX_OUTCOME": index_outcome,
+                    "TREX_FAKE_ROOT_OUTCOME": root_outcome,
+                    "TREX_FAKE_DISCOVERED_CHANNELS": ",".join(discovered_channels),
+                    "TREX_FAKE_UNAVAILABLE_CHANNELS": ",".join(unavailable_channels),
                     "TREX_POST_LINK_OUTPUT": "stdout",
                     "PIP_CONFIG_FILE": str(root / "ambient-pip.conf"),
                     "PIP_INDEX_URL": AMBIENT_INDEX,
@@ -395,6 +461,7 @@ class UnixPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
     def test_linux_without_a_usable_nvidia_driver_uses_pypi(self) -> None:
         installs, output = self.run_scenario(system="Linux", machine="x86_64")
         self.assertEqual([item["index"] for item in installs], [PYPI_INDEX])
+        self.assertEqual(installs[0]["channel_discovery_count"], 0)
         self.assertIn("No usable NVIDIA driver detected", output)
 
     def test_resolution_failure_is_not_retried(self) -> None:
@@ -431,6 +498,52 @@ class UnixPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
                     flavor = expected_index.rsplit("/", 1)[-1]
                     self.assertIn(f"torch===2.7.1+{flavor}", installs[0]["args"])
                     self.assertIn(f"torchvision===0.22.1+{flavor}", installs[0]["args"])
+                    self.assertFalse(installs[0]["driver_warning"])
+                else:
+                    self.assertEqual(installs[0]["channel_discovery_count"], 0)
+
+    def test_future_driver_selects_newest_discovered_channel(self) -> None:
+        installs, _ = self.run_scenario(
+            system="Linux",
+            machine="x86_64",
+            cuda="99.0",
+            discovered_channels=("cu135", "cu140", "cu140-full"),
+        )
+        self.assertEqual(installs[0]["index"], "https://download.pytorch.org/whl/cu140")
+        self.assertIn("torch===2.7.1+cu140", installs[0]["args"])
+
+    def test_unavailable_newest_channel_uses_next_compatible_channel(self) -> None:
+        installs, output = self.run_scenario(
+            system="Linux",
+            machine="x86_64",
+            cuda="13.3",
+            unavailable_channels=("cu132",),
+        )
+        self.assertEqual(installs[0]["index"], "https://download.pytorch.org/whl/cu130")
+        self.assertIn("checking older compatible CUDA channels", output)
+
+    def test_all_compatible_cuda_channels_unavailable_falls_back_to_pypi(self) -> None:
+        installs, output = self.run_scenario(
+            system="Linux",
+            machine="x86_64",
+            cuda="12.4",
+            unavailable_channels=("cu124", "cu121", "cu118"),
+        )
+        self.assertEqual(installs[0]["index"], PYPI_INDEX)
+        self.assertIn("torch>=2.2", installs[0]["args"])
+        self.assertIn("No compatible CUDA channel", output)
+
+    def test_root_discovery_failure_keeps_known_channels(self) -> None:
+        for outcome in ("missing", "malformed"):
+            with self.subTest(outcome=outcome):
+                installs, _ = self.run_scenario(
+                    system="Linux",
+                    machine="x86_64",
+                    cuda="12.4",
+                    root_outcome=outcome,
+                )
+                self.assertEqual(installs[0]["index"], "https://download.pytorch.org/whl/cu124")
+                self.assertEqual(installs[0]["channel_discovery_count"], 1)
 
     def test_cuda_metadata_failure_falls_back_to_one_unqualified_pypi_install(self) -> None:
         for outcome in ("missing", "malformed"):
@@ -500,6 +613,9 @@ class WindowsPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
         conda_opencv: bool = True,
         warm_outcome: str = "success",
         index_outcome: str = "success",
+        root_outcome: str = "success",
+        discovered_channels: tuple[str, ...] = (),
+        unavailable_channels: tuple[str, ...] = (),
         expect_installs: bool = True,
     ) -> tuple[list[dict[str, object]], str]:
         with tempfile.TemporaryDirectory(prefix="trex-post-link-") as temporary:
@@ -556,6 +672,9 @@ class WindowsPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
                     "TREX_FAKE_INSTALL_OUTCOMES": ",".join(outcomes),
                     "TREX_FAKE_WARM_OUTCOME": warm_outcome,
                     "TREX_FAKE_INDEX_OUTCOME": index_outcome,
+                    "TREX_FAKE_ROOT_OUTCOME": root_outcome,
+                    "TREX_FAKE_DISCOVERED_CHANNELS": ",".join(discovered_channels),
+                    "TREX_FAKE_UNAVAILABLE_CHANNELS": ",".join(unavailable_channels),
                     "TREX_POST_LINK_OUTPUT": "stdout",
                     "PIP_CONFIG_FILE": str(root / "ambient-pip.ini"),
                     "PIP_INDEX_URL": AMBIENT_INDEX,
@@ -623,6 +742,33 @@ class WindowsPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
                     flavor = expected_index.rsplit("/", 1)[-1]
                     self.assertIn(f"torch===2.7.1+{flavor}", installs[0]["args"])
                     self.assertIn(f"torchvision===0.22.1+{flavor}", installs[0]["args"])
+                    self.assertFalse(installs[0]["driver_warning"])
+                else:
+                    self.assertEqual(installs[0]["channel_discovery_count"], 0)
+
+    def test_windows_future_driver_selects_newest_discovered_channel(self) -> None:
+        installs, _ = self.run_scenario(
+            cuda="99.0",
+            discovered_channels=("cu135", "cu140", "cu140-full"),
+        )
+        self.assertEqual(installs[0]["index"], "https://download.pytorch.org/whl/cu140")
+
+    def test_windows_unavailable_newest_channel_uses_older_channel(self) -> None:
+        installs, _ = self.run_scenario(cuda="13.3", unavailable_channels=("cu132",))
+        self.assertEqual(installs[0]["index"], "https://download.pytorch.org/whl/cu130")
+
+    def test_windows_all_cuda_channels_unavailable_falls_back(self) -> None:
+        installs, output = self.run_scenario(
+            cuda="12.4",
+            unavailable_channels=("cu124", "cu121", "cu118"),
+        )
+        self.assertEqual(installs[0]["index"], PYPI_INDEX)
+        self.assertIn("No compatible CUDA channel", output)
+
+    def test_windows_root_discovery_failure_keeps_known_channels(self) -> None:
+        installs, _ = self.run_scenario(cuda="12.4", root_outcome="missing")
+        self.assertEqual(installs[0]["index"], "https://download.pytorch.org/whl/cu124")
+        self.assertEqual(installs[0]["channel_discovery_count"], 1)
 
     def test_windows_cuda_metadata_failure_falls_back_to_pypi(self) -> None:
         for outcome in ("missing", "malformed"):

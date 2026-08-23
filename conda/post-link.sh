@@ -33,75 +33,6 @@ fi
 
 POST_LINK_FAILED=0
 LAST_COMMAND_STATUS=0
-PROGRESS_PID=""
-PROGRESS_STOP=""
-
-progress_stream() {
-    if [ -w /dev/tty ]; then
-        printf '%s' "$1" >/dev/tty
-    else
-        printf '%s' "$1" >&2
-    fi
-}
-
-announce_progress() {
-    progress_stream "$(printf '\n[post-link] %s\n' "$1")"
-}
-
-last_progress_line() {
-    local path="$1"
-    if [ -f "${path}" ]; then
-        tail -n 20 "${path}" 2>/dev/null | awk 'NF { line=$0 } END { if (line) print substr(line, 1, 90) }'
-    fi
-}
-
-start_progress() {
-    local label="$1"
-    local log_path="$2"
-
-    if [ -n "${PROGRESS_PID}" ]; then
-        return 0
-    fi
-
-    PROGRESS_STOP="${TMPDIR:-/tmp}/trex_post_link_stop_$$_${RANDOM:-0}"
-    rm -f "${PROGRESS_STOP}" 2>/dev/null
-
-    progress_stream "$(printf '\033[?25l')"
-    (
-        frames=("⠋" "⠙" "⠚" "⠞" "⠖" "⠦" "⠴" "⠲" "⠳" "⠓")
-        i=0
-        start_time=$(date +%s)
-        while [ ! -f "${PROGRESS_STOP}" ]; do
-            now=$(date +%s)
-            elapsed=$((now - start_time))
-            minutes=$((elapsed / 60))
-            seconds=$((elapsed % 60))
-            frame="${frames[$((i % ${#frames[@]}))]}"
-            info=$(last_progress_line "${log_path}")
-            if [ -n "${info}" ]; then
-                progress_stream "$(printf '\r\033[34m%s\033[0m %s  %02d:%02d   ' "${frame}" "${info}" "${minutes}" "${seconds}")"
-            else
-                progress_stream "$(printf '\r\033[34m%s\033[0m %s  %02d:%02d   ' "${frame}" "${label}" "${minutes}" "${seconds}")"
-            fi
-            i=$((i + 1))
-            sleep 0.1
-        done
-        progress_stream "$(printf '\r\033[2K\033[?25h')"
-    ) &
-    PROGRESS_PID=$!
-}
-
-stop_progress() {
-    if [ -n "${PROGRESS_PID}" ]; then
-        touch "${PROGRESS_STOP}" 2>/dev/null
-        wait "${PROGRESS_PID}" 2>/dev/null
-        rm -f "${PROGRESS_STOP}" 2>/dev/null
-        PROGRESS_PID=""
-        PROGRESS_STOP=""
-    fi
-}
-
-trap stop_progress EXIT
 
 # Append a single log line to the conda post-link message stream.
 log() {
@@ -120,46 +51,18 @@ record_failure() {
 # Run a command while teeing stdout/stderr into the log file and retain exit status.
 run_with_reporting() {
     if [ -z "${OUT_STREAM}" ]; then
-        local stdout_progress_log=""
-        if [ -n "${TREX_PROGRESS_LABEL:-}" ] && command -v tee >/dev/null 2>&1; then
-            stdout_progress_log="${TMPDIR:-/tmp}/trex_post_link_$$_${RANDOM:-0}.log"
-            : >"${stdout_progress_log}" 2>/dev/null
-            start_progress "${TREX_PROGRESS_LABEL}" "${stdout_progress_log}"
-            "$@" 2>&1 | tee "${stdout_progress_log}"
-            LAST_COMMAND_STATUS=${PIPESTATUS[0]}
-            stop_progress
-            rm -f "${stdout_progress_log}" 2>/dev/null
-        else
-            "$@"
-            LAST_COMMAND_STATUS=$?
-        fi
+        "$@"
+        LAST_COMMAND_STATUS=$?
         return "${LAST_COMMAND_STATUS}"
     fi
 
-    local progress_log=""
-    if [ -n "${TREX_PROGRESS_LABEL:-}" ]; then
-        progress_log="${TMPDIR:-/tmp}/trex_post_link_$$_${RANDOM:-0}.log"
-        : >"${progress_log}" 2>/dev/null
-        start_progress "${TREX_PROGRESS_LABEL}" "${progress_log}"
-    fi
-
     if command -v tee >/dev/null 2>&1; then
-        if [ -n "${progress_log}" ]; then
-            "$@" 2>&1 | tee -a "${OUT_STREAM}" "${progress_log}" >/dev/null
-        else
-            "$@" 2>&1 | tee -a "${OUT_STREAM}"
-        fi
+        "$@" 2>&1 | tee -a "${OUT_STREAM}"
         LAST_COMMAND_STATUS=${PIPESTATUS[0]}
     else
         "$@" >>"${OUT_STREAM}" 2>&1
         LAST_COMMAND_STATUS=$?
     fi
-
-    stop_progress
-    if [ -n "${progress_log}" ]; then
-        rm -f "${progress_log}" 2>/dev/null
-    fi
-
     return "${LAST_COMMAND_STATUS}"
 }
 
@@ -201,8 +104,56 @@ detect_driver_cuda_version() {
     fi
 }
 
+query_cuda_channel_metadata() {
+    python - channels "$1" "$2" <<'PY'
+# TREX_TORCH_CHANNEL_SELECTOR
+import re
+import sys
+from html.parser import HTMLParser
+from urllib.parse import urljoin, urlparse
+from urllib.request import Request, urlopen
+
+root_url, driver_code_text = sys.argv[2:4]
+driver_code = int(driver_code_text)
+channels = {"cu118", "cu121", "cu124", "cu126", "cu128", "cu129", "cu130", "cu132"}
+
+
+class LinkParser(HTMLParser):
+    def handle_starttag(self, tag, attrs):
+        if tag != "a":
+            return
+        href = dict(attrs).get("href")
+        if not href:
+            return
+        name = urlparse(urljoin(root_url.rstrip("/") + "/", href)).path.rstrip("/").rsplit("/", 1)[-1]
+        if re.fullmatch(r"cu[0-9]{3,}", name):
+            channels.add(name)
+
+
+try:
+    request = Request(root_url.rstrip("/") + "/", headers={"User-Agent": "TRex post-link"})
+    with urlopen(request, timeout=10) as response:
+        contents = response.read().decode("utf-8", errors="replace")
+    parser = LinkParser()
+    parser.feed(contents)
+except Exception:
+    pass
+
+
+def channel_code(channel):
+    digits = channel[2:]
+    return int(digits[:2]) * 100 + int(digits[2:])
+
+
+for channel in sorted(channels, key=channel_code, reverse=True):
+    code = channel_code(channel)
+    if 1108 <= code <= driver_code:
+        print(channel)
+PY
+}
+
 query_cuda_pair_metadata() {
-    python - "$1" "$2" <<'PY'
+    python - pair "$1" "$2" <<'PY'
 # TREX_TORCH_PAIR_SELECTOR
 import re
 import subprocess
@@ -213,7 +164,7 @@ try:
 except ImportError:
     from pip._vendor.packaging.version import Version
 
-index_url, flavor = sys.argv[1:3]
+index_url, flavor = sys.argv[2:4]
 
 
 def available_versions(package, minimum):
@@ -334,26 +285,24 @@ ${detected_cuda_version}
 EOF
             if [[ "${driver_major}" =~ ^[0-9]+$ && "${driver_minor}" =~ ^[0-9]+$ ]]; then
                 driver_cuda_code=$((driver_major * 100 + driver_minor))
-                local channel=""
-                if [ "${driver_cuda_code}" -ge 1302 ]; then channel="cu132"
-                elif [ "${driver_cuda_code}" -ge 1300 ]; then channel="cu130"
-                elif [ "${driver_cuda_code}" -ge 1209 ]; then channel="cu129"
-                elif [ "${driver_cuda_code}" -ge 1208 ]; then channel="cu128"
-                elif [ "${driver_cuda_code}" -ge 1206 ]; then channel="cu126"
-                elif [ "${driver_cuda_code}" -ge 1204 ]; then channel="cu124"
-                elif [ "${driver_cuda_code}" -ge 1201 ]; then channel="cu121"
-                elif [ "${driver_cuda_code}" -ge 1108 ]; then channel="cu118"
-                fi
-                if [ -n "${channel}" ]; then
-                    local cuda_index_url="${torch_index_root}/${channel}"
-                    log "[post-link] NVIDIA driver accepts CUDA ${detected_cuda_version}; checking ${channel} package metadata."
-                    if discover_cuda_pair "${cuda_index_url}" "${channel}"; then
-                        torch_target="CUDA ${channel}"
-                        torch_index_url="${cuda_index_url}"
-                        torch_dependency_index_args=(--extra-index-url "${pypi_index_url}")
-                        return 0
-                    fi
-                    log "[post-link] WARNING: No compatible ${channel} Torch/Torchvision pair was discoverable; falling back to PyPI."
+                if [ "${driver_cuda_code}" -ge 1108 ]; then
+                    local channel_candidates channel
+                    channel_candidates=$(query_cuda_channel_metadata "${torch_index_root}" "${driver_cuda_code}")
+                    while IFS= read -r channel; do
+                        [ -n "${channel}" ] || continue
+                        local cuda_index_url="${torch_index_root}/${channel}"
+                        log "[post-link] NVIDIA driver accepts CUDA ${detected_cuda_version}; checking ${channel} package metadata."
+                        if discover_cuda_pair "${cuda_index_url}" "${channel}"; then
+                            torch_target="CUDA ${channel}"
+                            torch_index_url="${cuda_index_url}"
+                            torch_dependency_index_args=(--extra-index-url "${pypi_index_url}")
+                            return 0
+                        fi
+                        log "[post-link] No compatible ${channel} pair was found; checking older compatible CUDA channels."
+                    done <<EOF
+${channel_candidates}
+EOF
+                    log "[post-link] WARNING: No compatible CUDA channel was discoverable; falling back to PyPI."
                     return 0
                 fi
                 log "[post-link] Driver compatibility is below CUDA 11.8; falling back to PyPI."
@@ -376,7 +325,7 @@ install_selected_torch() {
         "${numpy_constraint_args[@]}" "${torch_index_args[@]}" \
         "${torch_dependency_index_args[@]}" "${torch_packages[@]}" \
         "${common_packages[@]}"
-    if ! TREX_PROGRESS_LABEL="pip install ${torch_target} PyTorch..." run_with_reporting \
+    if ! run_with_reporting \
         python -m pip install "${pip_flags[@]}" \
         "${numpy_constraint_args[@]}" "${torch_index_args[@]}" \
         "${torch_dependency_index_args[@]}" "${torch_packages[@]}" \
@@ -489,7 +438,6 @@ pip_flags=(
 if ${setup_ready}; then
     select_torch_target
     log "[post-link] Selected ${torch_target} from ${torch_index_url}."
-    announce_progress "TRex is installing Python ML packages in one resolver transaction."
     if install_selected_torch; then
         torch_installed=true
     else
@@ -507,7 +455,7 @@ if ${torch_installed}; then
     log "[post-link] Warming the Ultralytics runtime and model cache."
     CMD_STRING="from ultralytics import YOLO; from rfdetr import RFDETR; from torchvision.ops import nms; import cv2, numpy as np, torch; assert cv2.__version__.split('.')[0] == '4'; assert nms(torch.tensor([[0.,0.,1.,1.]]), torch.tensor([1.]), 0.5).tolist() == [0]; YOLO('yolo26n.yaml').to('cpu').predict(np.zeros((640, 480, 3), dtype=np.uint8))"
     log_command python -c "${CMD_STRING}"
-    if ! TREX_PROGRESS_LABEL="YOLO runtime warm-up..." run_with_reporting python -c "${CMD_STRING}"; then
+    if ! run_with_reporting python -c "${CMD_STRING}"; then
         log "[post-link] WARNING: YOLO runtime warm-up failed (exit ${LAST_COMMAND_STATUS}); installation remains successful."
     fi
 fi

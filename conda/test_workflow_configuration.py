@@ -49,6 +49,20 @@ class WorkflowConfigurationTests(unittest.TestCase):
             workflow.index("conda-build . --override-channels"),
         )
 
+    def test_post_link_resolver_runs_in_the_four_native_targets(self) -> None:
+        workflow = (WORKFLOWS / "post-link-simulation.yml").read_text(encoding="utf-8")
+
+        for runner in (
+            "ubuntu-24.04",
+            "windows-2025-vs2026",
+            "macos-26",
+            "macos-15-intel",
+        ):
+            self.assertIn(runner, workflow)
+        self.assertIn("workflow_dispatch:", workflow)
+        self.assertIn("python conda/test_post_link_real_resolver.py", workflow)
+        self.assertNotIn("real-offline-resolution:", workflow)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

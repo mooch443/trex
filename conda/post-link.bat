@@ -7,7 +7,7 @@ set "PYTHONIOENCODING=utf-8"
 set "PIP_DISABLE_PIP_VERSION_CHECK=1"
 set "PIP_PROGRESS_BAR=off"
 set "PIP_NO_INPUT=1"
-set "PIP_INSTALL_FLAGS=--disable-pip-version-check --no-input --progress-bar off --no-color --quiet"
+set "PIP_FLAGS=--disable-pip-version-check --no-input --progress-bar off --no-color"
 set "ULTRALYTICS_HUB_NO_PROGRESS=1"
 set "HF_HUB_DISABLE_PROGRESS_BAR=1"
 set "DISABLE_TQDM=1"
@@ -89,74 +89,6 @@ set "PIP_ARGS_TORCH=!PIP_ARGS!"
 call :select_torch_target
 call :log "[post-link] Selected !TORCH_TARGET! from !TORCH_INDEX_URL!."
 
-rem Spin up a background progress indicator that writes directly to CONOUT$ via
-rem ctypes, bypassing conda's pipe that holds .messages.txt until the script exits.
-rem The script polls a sentinel file; we create it when the pip install finishes.
-rem Note: | and & must be escaped as ^| and ^& in echo outside a paren block.
-set "PROGRESS_PY=%TEMP%\trex_pip_progress_%RANDOM%.py"
-set "PROGRESS_STOP=%TEMP%\trex_pip_stop_%RANDOM%.flag"
-set "PROGRESS_LOG=%TEMP%\trex_pip_log_%RANDOM%.txt"
-if exist "%PROGRESS_STOP%" del "%PROGRESS_STOP%" 2>nul
-if exist "%PROGRESS_LOG%" del "%PROGRESS_LOG%" 2>nul
-
-rem Python progress script: reads the last non-empty line from the live pip log
-rem and displays it on the console via CONOUT$ (bypasses conda's stdout pipe).
-rem Indentation uses 1 space throughout to keep echo escaping simple.
-rem Batch special chars in echo outside paren blocks: | -> ^|  & -> ^&
-echo import ctypes,time,os,sys > "%PROGRESS_PY%"
-echo k=ctypes.windll.kernel32 >> "%PROGRESS_PY%"
-echo h=k.CreateFileW("CONOUT$",0x40000000,3,None,3,0,None) >> "%PROGRESS_PY%"
-echo if h==-1:sys.exit(0) >> "%PROGRESS_PY%"
-echo ENABLE_PROCESSED_OUTPUT=1 >> "%PROGRESS_PY%"
-echo ENABLE_VIRTUAL_TERMINAL_PROCESSING=4 >> "%PROGRESS_PY%"
-echo mode=ctypes.c_ulong(0) >> "%PROGRESS_PY%"
-echo vt=False >> "%PROGRESS_PY%"
-echo if k.GetConsoleMode(h,ctypes.byref(mode)):vt=bool(k.SetConsoleMode(h,mode.value ^| ENABLE_PROCESSED_OUTPUT ^| ENABLE_VIRTUAL_TERMINAL_PROCESSING)) >> "%PROGRESS_PY%"
-echo stop=sys.argv[1] >> "%PROGRESS_PY%"
-echo log=sys.argv[2] >> "%PROGRESS_PY%"
-echo s=time.time() >> "%PROGRESS_PY%"
-echo i=0 >> "%PROGRESS_PY%"
-echo w=ctypes.c_ulong(0) >> "%PROGRESS_PY%"
-echo frames=["⠋","⠙","⠚","⠞","⠖","⠦","⠴","⠲","⠳","⠓"] >> "%PROGRESS_PY%"
-echo BLUE="\033[34m" if vt else "" >> "%PROGRESS_PY%"
-echo RESET="\033[0m" if vt else "" >> "%PROGRESS_PY%"
-echo HIDE="\033[?25l" if vt else "" >> "%PROGRESS_PY%"
-echo CLEAR="\r\033[2K\033[?25h" if vt else "\r"+" "*120+"\r" >> "%PROGRESS_PY%"
-echo if HIDE:k.WriteConsoleW(h,HIDE,len(HIDE),ctypes.byref(w),None) >> "%PROGRESS_PY%"
-echo def last(p): >> "%PROGRESS_PY%"
-echo  try: >> "%PROGRESS_PY%"
-echo   with open(p,"rb") as f: >> "%PROGRESS_PY%"
-echo    f.seek(0,2) >> "%PROGRESS_PY%"
-echo    sz=f.tell() >> "%PROGRESS_PY%"
-echo    f.seek(max(0,sz-2048)) >> "%PROGRESS_PY%"
-echo    chunk=f.read(2048) >> "%PROGRESS_PY%"
-echo   lines=chunk.decode("utf-8",errors="replace").splitlines() >> "%PROGRESS_PY%"
-echo   for ln in reversed(lines): >> "%PROGRESS_PY%"
-echo    ln=ln.strip() >> "%PROGRESS_PY%"
-echo    if ln:return ln[:60] >> "%PROGRESS_PY%"
-echo  except:pass >> "%PROGRESS_PY%"
-echo  return "" >> "%PROGRESS_PY%"
-echo while not os.path.exists(stop): >> "%PROGRESS_PY%"
-echo  e=int(time.time()-s) >> "%PROGRESS_PY%"
-echo  m,r=divmod(e,60) >> "%PROGRESS_PY%"
-echo  info=last(log) >> "%PROGRESS_PY%"
-echo  frame=frames[i%%len(frames)] >> "%PROGRESS_PY%"
-echo  if info: >> "%PROGRESS_PY%"
-echo   msg="\r"+BLUE+frame+RESET+" "+info+"  "+str(m).zfill(2)+":"+str(r).zfill(2)+"   " >> "%PROGRESS_PY%"
-echo  else: >> "%PROGRESS_PY%"
-echo   msg="\r"+BLUE+frame+RESET+" pip install...  "+str(m).zfill(2)+":"+str(r).zfill(2)+"   " >> "%PROGRESS_PY%"
-echo  k.WriteConsoleW(h,msg,len(msg),ctypes.byref(w),None) >> "%PROGRESS_PY%"
-echo  i=i+1 >> "%PROGRESS_PY%"
-echo  time.sleep(0.1) >> "%PROGRESS_PY%"
-echo k.WriteConsoleW(h,CLEAR,len(CLEAR),ctypes.byref(w),None) >> "%PROGRESS_PY%"
-echo k.CloseHandle(h) >> "%PROGRESS_PY%"
-
-start "" /b python -X utf8 "%PROGRESS_PY%" "%PROGRESS_STOP%" "%PROGRESS_LOG%"
-
-rem Verbose flags for pip: no --quiet so Collecting/Downloading/Installing lines appear
-rem in PROGRESS_LOG for the live display. The log is appended to OUT_STREAM afterwards.
-set "PIP_FLAGS_LOG=--disable-pip-version-check --no-input --no-color --progress-bar off"
-
 set "TORCH_INSTALLED=0"
 call :install_selected_torch
 if not errorlevel 1 set "TORCH_INSTALLED=1"
@@ -168,12 +100,6 @@ if "!TORCH_INSTALLED!"=="0" (
 call :log "[post-link] The single !TORCH_TARGET! Python ML installation transaction completed successfully."
 
 :pip_install_after
-
-rem Signal the progress indicator to stop. The sentinel is left in %TEMP% (harmless random-named
-rem file) so the Python polling loop cannot miss it by racing against a delete.
-copy nul "%PROGRESS_STOP%" >nul 2>&1
-timeout /t 1 /nobreak >nul 2>&1
-del "%PROGRESS_PY%" "%PROGRESS_LOG%" 2>nul
 
 if "!TORCH_INSTALLED!"=="1" (
     call :log_command python -X utf8 -c "import torch; print('[post-link] Installed PyTorch:', torch.__version__); print('[post-link] Compiled CUDA:', torch.version.cuda); print('[post-link] GPU available:', torch.cuda.is_available())"
@@ -226,20 +152,6 @@ exit /b 0
 
 :log
 setlocal EnableDelayedExpansion
-
-chcp 65001 >nul 2>&1
-set "PYTHONUTF8=1"
-set "PYTHONIOENCODING=utf-8"
-set "PIP_DISABLE_PIP_VERSION_CHECK=1"
-set "PIP_PROGRESS_BAR=off"
-set "PIP_NO_INPUT=1"
-set "PIP_INSTALL_FLAGS=--disable-pip-version-check --no-input --progress-bar off --no-color --quiet"
-set "ULTRALYTICS_HUB_NO_PROGRESS=1"
-set "HF_HUB_DISABLE_PROGRESS_BAR=1"
-set "DISABLE_TQDM=1"
-set "RICH_NO_COLOR=1"
-set "RICH_FORCE_TERMINAL=0"
-set "FORCE_COLOR=0"
 set "message=%~1"
 if defined OUT_STREAM (
     >>"%OUT_STREAM%" echo(!message!
@@ -256,20 +168,6 @@ exit /b 0
 
 :log_command
 setlocal EnableDelayedExpansion
-
-chcp 65001 >nul 2>&1
-set "PYTHONUTF8=1"
-set "PYTHONIOENCODING=utf-8"
-set "PIP_DISABLE_PIP_VERSION_CHECK=1"
-set "PIP_PROGRESS_BAR=off"
-set "PIP_NO_INPUT=1"
-set "PIP_INSTALL_FLAGS=--disable-pip-version-check --no-input --progress-bar off --no-color --quiet"
-set "ULTRALYTICS_HUB_NO_PROGRESS=1"
-set "HF_HUB_DISABLE_PROGRESS_BAR=1"
-set "DISABLE_TQDM=1"
-set "RICH_NO_COLOR=1"
-set "RICH_FORCE_TERMINAL=0"
-set "FORCE_COLOR=0"
 set "cmd="
 :log_command_args
 if "%~1"=="" goto log_command_emit
@@ -314,40 +212,50 @@ if not defined CUDA_MAX_VERSION (
     exit /b 0
 )
 
-set "TORCH_CODE="
-if !CUDA_MAX_CODE! GEQ 1302 (
-    set "TORCH_CODE=cu132"
-) else if !CUDA_MAX_CODE! GEQ 1300 (
-    set "TORCH_CODE=cu130"
-) else if !CUDA_MAX_CODE! GEQ 1209 (
-    set "TORCH_CODE=cu129"
-) else if !CUDA_MAX_CODE! GEQ 1208 (
-    set "TORCH_CODE=cu128"
-) else if !CUDA_MAX_CODE! GEQ 1206 (
-    set "TORCH_CODE=cu126"
-) else if !CUDA_MAX_CODE! GEQ 1204 (
-    set "TORCH_CODE=cu124"
-) else if !CUDA_MAX_CODE! GEQ 1201 (
-    set "TORCH_CODE=cu121"
-) else if !CUDA_MAX_CODE! GEQ 1108 (
-    set "TORCH_CODE=cu118"
-)
-if not defined TORCH_CODE (
+if !CUDA_MAX_CODE! LSS 1108 (
     call :log "[post-link] NVIDIA driver supports CUDA !CUDA_MAX_VERSION!, below the supported CUDA 11.8 baseline; selected unqualified PyTorch from PyPI."
     exit /b 0
 )
 
-set "CUDA_INDEX_URL=%TREX_TORCH_INDEX_ROOT%/!TORCH_CODE!"
-call :discover_cuda_pair
+call :discover_cuda_channels
 if errorlevel 1 (
-    call :log "[post-link] WARNING: No compatible PyTorch/torchvision !TORCH_CODE! pair was found at !CUDA_INDEX_URL!; falling back to unqualified PyTorch from PyPI."
+    call :log "[post-link] WARNING: CUDA channel discovery failed; falling back to unqualified PyTorch from PyPI."
+    exit /b 0
+)
+set "SELECTED_TORCH_CODE="
+for /f "usebackq delims=" %%c in ("!CUDA_CHANNELS_FILE!") do (
+    if not defined SELECTED_TORCH_CODE (
+        set "TORCH_CODE=%%c"
+        set "CUDA_INDEX_URL=%TREX_TORCH_INDEX_ROOT%/!TORCH_CODE!"
+        call :log "[post-link] NVIDIA driver accepts CUDA !CUDA_MAX_VERSION!; checking !TORCH_CODE! package metadata."
+        call :discover_cuda_pair
+        if errorlevel 1 (
+            call :log "[post-link] No compatible !TORCH_CODE! pair was found; checking older compatible CUDA channels."
+        ) else (
+            set "SELECTED_TORCH_CODE=!TORCH_CODE!"
+        )
+    )
+)
+del /q "!CUDA_CHANNELS_FILE!" >nul 2>&1
+if not defined SELECTED_TORCH_CODE (
+    call :log "[post-link] WARNING: No compatible CUDA channel was discoverable; falling back to unqualified PyTorch from PyPI."
     exit /b 0
 )
 
+set "TORCH_CODE=!SELECTED_TORCH_CODE!"
 set "TORCH_TARGET=CUDA !TORCH_CODE!"
 set "TORCH_INDEX_URL=!CUDA_INDEX_URL!"
 set "TORCH_DEPENDENCY_INDEX_ARG=--extra-index-url %TREX_PYPI_INDEX_URL%"
 call :log "[post-link] NVIDIA driver accepts CUDA !CUDA_MAX_VERSION!; selected !TORCH_VERSION! with !TORCHVISION_VERSION! from the single !TORCH_TARGET! distribution."
+exit /b 0
+
+:discover_cuda_channels
+set "CUDA_CHANNELS_FILE=%TEMP%\trex_cuda_channels_%RANDOM%.txt"
+python -X utf8 -c "TREX_TORCH_CHANNEL_SELECTOR=1; import re,sys; from urllib.request import Request,urlopen; root,driver=sys.argv[1:3]; channels={'cu118','cu121','cu124','cu126','cu128','cu129','cu130','cu132'}; data=''; exec('try:\n data=urlopen(Request(root.rstrip(chr(47))+chr(47),headers={chr(85)+chr(115)+chr(101)+chr(114)+chr(45)+chr(65)+chr(103)+chr(101)+chr(110)+chr(116):chr(84)+chr(82)+chr(101)+chr(120)}),timeout=10).read().decode(chr(117)+chr(116)+chr(102)+chr(45)+chr(56),errors=chr(114)+chr(101)+chr(112)+chr(108)+chr(97)+chr(99)+chr(101))\nexcept Exception:\n pass'); names={value.strip(chr(34)+chr(39)).rstrip(chr(47)).rsplit(chr(47),1)[-1] for value in re.findall(r'href=([^ >]+)',data,re.I)}; channels.update(name for name in names if re.fullmatch(r'cu[0-9]{3,}',name)); code=lambda channel:int(channel[2:4])*100+int(channel[4:]); print(chr(10).join(sorted((channel for channel in channels if 1108<=code(channel)<=int(driver)),key=code,reverse=True)))" "%TREX_TORCH_INDEX_ROOT%" "!CUDA_MAX_CODE!" >"!CUDA_CHANNELS_FILE!" 2>nul
+if errorlevel 1 (
+    del /q "!CUDA_CHANNELS_FILE!" >nul 2>&1
+    exit /b 1
+)
 exit /b 0
 
 :discover_cuda_pair
@@ -383,14 +291,9 @@ exit /b 0
 
 :install_selected_torch
 call :log "[post-link] Running one resolver transaction for !TORCH_TARGET!; no version or index retries are permitted."
-call :log_command python -X utf8 -m pip install !PIP_FLAGS_LOG! !NUMPY_CONSTRAINT_ARG! --index-url !TORCH_INDEX_URL! !TORCH_DEPENDENCY_INDEX_ARG! !PIP_ARGS_TORCH! !PIP_ARGS_SIMPLE!
-python -X utf8 -m pip install !PIP_FLAGS_LOG! !NUMPY_CONSTRAINT_ARG! --index-url !TORCH_INDEX_URL! !TORCH_DEPENDENCY_INDEX_ARG! !PIP_ARGS_TORCH! !PIP_ARGS_SIMPLE! > "%PROGRESS_LOG%" 2>&1
+call :log_command python -X utf8 -m pip install !PIP_FLAGS! !NUMPY_CONSTRAINT_ARG! --index-url !TORCH_INDEX_URL! !TORCH_DEPENDENCY_INDEX_ARG! !PIP_ARGS_TORCH! !PIP_ARGS_SIMPLE!
+call :run_with_reporting python -X utf8 -m pip install !PIP_FLAGS! !NUMPY_CONSTRAINT_ARG! --index-url !TORCH_INDEX_URL! !TORCH_DEPENDENCY_INDEX_ARG! !PIP_ARGS_TORCH! !PIP_ARGS_SIMPLE!
 set "LAST_COMMAND_STATUS=!ERRORLEVEL!"
-if defined OUT_STREAM (
-    type "%PROGRESS_LOG%" >> "%OUT_STREAM%" 2>nul
-) else (
-    type "%PROGRESS_LOG%" 2>nul
-)
 if not "!LAST_COMMAND_STATUS!"=="0" exit /b 1
 exit /b 0
 
@@ -434,20 +337,6 @@ exit /b 0
 
 :run_with_reporting
 setlocal EnableDelayedExpansion
-
-chcp 65001 >nul 2>&1
-set "PYTHONUTF8=1"
-set "PYTHONIOENCODING=utf-8"
-set "PIP_DISABLE_PIP_VERSION_CHECK=1"
-set "PIP_PROGRESS_BAR=off"
-set "PIP_NO_INPUT=1"
-set "PIP_INSTALL_FLAGS=--disable-pip-version-check --no-input --progress-bar off --no-color --quiet"
-set "ULTRALYTICS_HUB_NO_PROGRESS=1"
-set "HF_HUB_DISABLE_PROGRESS_BAR=1"
-set "DISABLE_TQDM=1"
-set "RICH_NO_COLOR=1"
-set "RICH_FORCE_TERMINAL=0"
-set "FORCE_COLOR=0"
 if defined OUT_STREAM (
     >>"%OUT_STREAM%" 2>&1 cmd /c %*
 ) else (
