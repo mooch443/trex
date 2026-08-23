@@ -146,13 +146,40 @@ def discover_published_channels() -> set[str]:
     return found
 
 
+def windows_dispatch_sitecustomize(dispatcher: Path) -> str:
+    return f'''\
+import os
+import runpy
+import sys
+import traceback
+
+if os.environ.get("TREX_RESOLVER_DISPATCH") == "1":
+    os.environ["TREX_RESOLVER_DISPATCH"] = "0"
+    dispatcher = {str(dispatcher)!r}
+    sys.argv = [dispatcher, "--dispatch", *sys.orig_argv[1:]]
+    try:
+        runpy.run_path(dispatcher, run_name="__main__")
+    except SystemExit as error:
+        status = error.code if isinstance(error.code, int) else (0 if error.code is None else 1)
+    except BaseException:
+        traceback.print_exc()
+        status = 1
+    else:
+        status = 0
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os._exit(status)
+'''
+
+
 def make_shims(root: Path, cuda: str) -> Path:
     fake_bin = root / "bin"
     fake_bin.mkdir()
     dispatcher = Path(__file__).resolve()
     if os.name == "nt":
-        (fake_bin / "python.cmd").write_text(
-            f'@"%TREX_REAL_PYTHON%" "{dispatcher}" --dispatch %*\n', encoding="utf-8"
+        (fake_bin / "sitecustomize.py").write_text(
+            windows_dispatch_sitecustomize(dispatcher),
+            encoding="utf-8",
         )
         smi = "@echo off\n"
         smi += (
@@ -240,6 +267,11 @@ def run_case(root: Path, cuda: str, expected_channel: str) -> list[str]:
         "PIP_FIND_LINKS": "https://ambient-links.invalid/",
     })
     if os.name == "nt":
+        existing_pythonpath = environment.get("PYTHONPATH")
+        environment["PYTHONPATH"] = (
+            str(fake_bin) + (os.pathsep + existing_pythonpath if existing_pythonpath else "")
+        )
+        environment["TREX_RESOLVER_DISPATCH"] = "1"
         command = [os.environ.get("COMSPEC", "cmd.exe"), "/d", "/c", str(POST_LINK_BAT)]
     else:
         command = ["bash", str(POST_LINK_SH)]

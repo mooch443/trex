@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -17,6 +19,7 @@ import unittest
 REPOSITORY = Path(__file__).resolve().parents[1]
 POST_LINK_SH = REPOSITORY / "conda" / "post-link.sh"
 POST_LINK_BAT = REPOSITORY / "conda" / "post-link.bat"
+REAL_RESOLVER = REPOSITORY / "conda" / "test_post_link_real_resolver.py"
 PYPI_INDEX = "https://pypi.org/simple"
 AMBIENT_INDEX = "https://ambient.invalid/simple"
 
@@ -304,6 +307,136 @@ class PostLinkProgressWiring(unittest.TestCase):
         ]
         self.assertTrue(requirement_lines)
         self.assertTrue(all("^" not in line for line in requirement_lines))
+
+    def test_windows_live_resolver_intercepts_python_exe_without_batch_shim(self) -> None:
+        resolver_source = REAL_RESOLVER.read_text(encoding="utf-8")
+        self.assertNotIn('fake_bin / "python.cmd"', resolver_source)
+        self.assertIn('fake_bin / "sitecustomize.py"', resolver_source)
+
+        spec = importlib.util.spec_from_file_location("trex_real_resolver", REAL_RESOLVER)
+        self.assertIsNotNone(spec)
+        self.assertIsNotNone(spec.loader)
+        resolver = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(resolver)
+
+        with tempfile.TemporaryDirectory(prefix="trex-windows-dispatch-") as temporary:
+            fake_site = Path(temporary)
+            cache = fake_site / "cache"
+            cache.mkdir()
+            events_path = fake_site / "events.jsonl"
+            (fake_site / "sitecustomize.py").write_text(
+                resolver.windows_dispatch_sitecustomize(REAL_RESOLVER),
+                encoding="utf-8",
+            )
+            environment = os.environ.copy()
+            existing_pythonpath = environment.get("PYTHONPATH")
+            environment.update(
+                {
+                    "PYTHONPATH": str(fake_site)
+                    + (os.pathsep + existing_pythonpath if existing_pythonpath else ""),
+                    "TREX_REAL_PYTHON": sys.executable,
+                    "TREX_RESOLVER_CACHE": str(cache),
+                    "TREX_RESOLVER_CASE": "sitecustomize-test",
+                    "TREX_RESOLVER_DISPATCH": "1",
+                    "TREX_RESOLVER_EVENTS": str(events_path),
+                }
+            )
+
+            delegated = subprocess.run(
+                [sys.executable, "-X", "utf8", "-c", "print('delegated once')"],
+                env=environment,
+                capture_output=True,
+                text=True,
+                timeout=20,
+                check=False,
+            )
+            self.assertEqual(delegated.returncode, 0, delegated.stderr)
+            self.assertEqual(delegated.stdout.strip(), "delegated once")
+
+            pip_probe = subprocess.run(
+                [sys.executable, "-X", "utf8", "-m", "pip", "--version"],
+                env=environment,
+                capture_output=True,
+                text=True,
+                timeout=20,
+                check=False,
+            )
+            self.assertEqual(pip_probe.returncode, 0, pip_probe.stderr)
+            self.assertIn("pip ", pip_probe.stdout)
+
+            intercepted = subprocess.run(
+                [
+                    sys.executable,
+                    "-X",
+                    "utf8",
+                    "-c",
+                    "import torch; print('probe was not intercepted')",
+                ],
+                env=environment,
+                capture_output=True,
+                text=True,
+                timeout=20,
+                check=False,
+            )
+            self.assertEqual(intercepted.returncode, 0, intercepted.stderr)
+            self.assertEqual(intercepted.stdout, "")
+
+            failed = subprocess.run(
+                [sys.executable, "-X", "utf8", "-c", "raise SystemExit(7)"],
+                env=environment,
+                capture_output=True,
+                text=True,
+                timeout=20,
+                check=False,
+            )
+            self.assertEqual(failed.returncode, 7, failed.stderr)
+
+            sources = [
+                "--index-url",
+                "https://download.pytorch.org/whl/cu124",
+                "--extra-index-url",
+                PYPI_INDEX,
+            ]
+            requirements = ["torch===2.6.0+cu124", "torchvision===0.21.0+cu124"]
+            cache_key = hashlib.sha256(
+                json.dumps([sources, requirements]).encode()
+            ).hexdigest()[:16]
+            (cache / f"{cache_key}.status").write_text("0", encoding="ascii")
+            (cache / f"{cache_key}.txt").write_text(
+                "pre-seeded pip dry-run\n", encoding="utf-8"
+            )
+
+            pip_arguments = [
+                "-X",
+                "utf8",
+                "-m",
+                "pip",
+                "install",
+                "--disable-pip-version-check",
+                "--no-input",
+                "--progress-bar",
+                "off",
+                "--no-color",
+                *sources,
+                *requirements,
+            ]
+            installed = subprocess.run(
+                [sys.executable, *pip_arguments],
+                env=environment,
+                capture_output=True,
+                text=True,
+                timeout=20,
+                check=False,
+            )
+            self.assertEqual(installed.returncode, 0, installed.stderr)
+            self.assertEqual(installed.stdout, "pre-seeded pip dry-run\n")
+            events = [
+                json.loads(line)
+                for line in events_path.read_text(encoding="utf-8").splitlines()
+            ]
+            self.assertEqual(len(events), 1)
+            self.assertEqual(events[0]["requirements"], requirements)
+            self.assertEqual(events[0]["arguments"], pip_arguments)
 
 
 class PostLinkSimulationMixin:
