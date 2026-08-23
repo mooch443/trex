@@ -17,6 +17,12 @@ set "FORCE_COLOR=0"
 if not defined TREX_PYPI_INDEX_URL set "TREX_PYPI_INDEX_URL=https://pypi.org/simple"
 if not defined TREX_TORCH_INDEX_ROOT set "TREX_TORCH_INDEX_ROOT=https://download.pytorch.org/whl"
 if not defined TREX_CLIP_REQUIREMENT set "TREX_CLIP_REQUIREMENT=git+https://github.com/ultralytics/CLIP.git"
+rem Ignore ambient pip indexes and find-links. Only the explicit TRex source
+rem overrides above participate in metadata discovery and installation.
+set "PIP_CONFIG_FILE=NUL"
+set "PIP_INDEX_URL="
+set "PIP_EXTRA_INDEX_URL="
+set "PIP_FIND_LINKS="
 
 echo PREFIX=%PREFIX%
 
@@ -170,6 +176,9 @@ timeout /t 1 /nobreak >nul 2>&1
 del "%PROGRESS_PY%" "%PROGRESS_LOG%" 2>nul
 
 if "!TORCH_INSTALLED!"=="1" (
+    call :log_command python -X utf8 -c "import torch; print('[post-link] Installed PyTorch:', torch.__version__); print('[post-link] Compiled CUDA:', torch.version.cuda); print('[post-link] GPU available:', torch.cuda.is_available())"
+    call :run_with_reporting python -X utf8 -c "import torch; print('[post-link] Installed PyTorch:', torch.__version__); print('[post-link] Compiled CUDA:', torch.version.cuda); print('[post-link] GPU available:', torch.cuda.is_available())"
+    if errorlevel 1 call :log "[post-link] WARNING: Could not inspect the installed PyTorch CUDA status."
     call :log "[post-link] Warming the Ultralytics runtime and model cache."
     call :log_command python -X utf8 -c "from ultralytics import YOLO; from rfdetr import RFDETR; from torchvision.ops import nms; import cv2, numpy as np, torch; assert cv2.__version__.split('.')[0] == '4'; assert nms(torch.tensor([[0.,0.,1.,1.]]), torch.tensor([1.]), 0.5).tolist() == [0]; YOLO('yolo26n.yaml').to('cpu').predict(np.zeros((640, 480, 3), dtype=np.uint8))"
     call :run_with_reporting python -X utf8 -c "from ultralytics import YOLO; from rfdetr import RFDETR; from torchvision.ops import nms; import cv2, numpy as np, torch; assert cv2.__version__.split('.')[0] == '4'; assert nms(torch.tensor([[0.,0.,1.,1.]]), torch.tensor([1.]), 0.5).tolist() == [0]; YOLO('yolo26n.yaml').to('cpu').predict(np.zeros((640, 480, 3), dtype=np.uint8))"
@@ -296,12 +305,12 @@ set "__PIP_PACKAGE="
 exit /b 0
 
 :select_torch_target
-set "TORCH_TARGET=CPU-only"
-set "TORCH_INDEX_URL=%TREX_TORCH_INDEX_ROOT%/cpu"
-set "TORCH_DEPENDENCY_INDEX_ARG=--extra-index-url %TREX_PYPI_INDEX_URL%"
+set "TORCH_TARGET=PyPI"
+set "TORCH_INDEX_URL=%TREX_PYPI_INDEX_URL%"
+set "TORCH_DEPENDENCY_INDEX_ARG="
 call :detect_driver_cuda_version
 if not defined CUDA_MAX_VERSION (
-    call :log "[post-link] No usable NVIDIA driver detected; selected the CPU-only distribution."
+    call :log "[post-link] No usable NVIDIA driver detected; selected unqualified PyTorch from PyPI."
     exit /b 0
 )
 
@@ -324,13 +333,52 @@ if !CUDA_MAX_CODE! GEQ 1302 (
     set "TORCH_CODE=cu118"
 )
 if not defined TORCH_CODE (
-    call :log "[post-link] NVIDIA driver supports CUDA !CUDA_MAX_VERSION!, below the supported CUDA 11.8 baseline; selected CPU-only."
+    call :log "[post-link] NVIDIA driver supports CUDA !CUDA_MAX_VERSION!, below the supported CUDA 11.8 baseline; selected unqualified PyTorch from PyPI."
+    exit /b 0
+)
+
+set "CUDA_INDEX_URL=%TREX_TORCH_INDEX_ROOT%/!TORCH_CODE!"
+call :discover_cuda_pair
+if errorlevel 1 (
+    call :log "[post-link] WARNING: No compatible PyTorch/torchvision !TORCH_CODE! pair was found at !CUDA_INDEX_URL!; falling back to unqualified PyTorch from PyPI."
     exit /b 0
 )
 
 set "TORCH_TARGET=CUDA !TORCH_CODE!"
-set "TORCH_INDEX_URL=%TREX_TORCH_INDEX_ROOT%/!TORCH_CODE!"
-call :log "[post-link] NVIDIA driver accepts CUDA !CUDA_MAX_VERSION!; selected the single !TORCH_TARGET! distribution."
+set "TORCH_INDEX_URL=!CUDA_INDEX_URL!"
+set "TORCH_DEPENDENCY_INDEX_ARG=--extra-index-url %TREX_PYPI_INDEX_URL%"
+call :log "[post-link] NVIDIA driver accepts CUDA !CUDA_MAX_VERSION!; selected !TORCH_VERSION! with !TORCHVISION_VERSION! from the single !TORCH_TARGET! distribution."
+exit /b 0
+
+:discover_cuda_pair
+set "TORCH_PAIR="
+set "TORCH_VERSION="
+set "TORCHVISION_VERSION="
+set "TORCH_CANDIDATES_FILE=%TEMP%\trex_torch_candidates_%RANDOM%.txt"
+set "TORCH_DISCOVERY_ERROR=%TEMP%\trex_torch_discovery_%RANDOM%.txt"
+python -X utf8 -c "TREX_TORCH_PAIR_SELECTOR=1; import re,subprocess,sys; from pip._vendor.packaging.version import Version; index,flavor=sys.argv[1:3]; packages=('torch','torchvision'); minimum={'torch':Version('2.2'),'torchvision':Version('0.17')}; outputs=[subprocess.run([sys.executable,'-m','pip','index','versions',package,'--index-url',index,'--disable-pip-version-check','--no-color'],text=True,capture_output=True,check=True).stdout for package in packages]; matches=[re.search(r'^Available versions:\s*(.+)$',output,re.MULTILINE) for output in outputs]; assert all(matches),'malformed index metadata'; parsed=[[item.strip() for item in match.group(1).split(',') if item.strip() and Version(item.strip()).local==flavor and not Version(item.strip()) < minimum[package]] for package,match in zip(packages,matches)]; parsed=[sorted(set(items),key=Version,reverse=True) for items in parsed]; visions={Version(item).release:item for item in parsed[1]}; pairs=[(item,visions.get((0,Version(item).release[1]+15,Version(item).release[2] if len(Version(item).release)>2 else 0))) for item in parsed[0] if len(Version(item).release)>1 and Version(item).release[0]==2]; pairs=[pair for pair in pairs if pair[1]]; assert pairs,'no compatible flavored release pair'; print(pairs[0][0]+'|'+pairs[0][1])" "!CUDA_INDEX_URL!" "!TORCH_CODE!" >"!TORCH_CANDIDATES_FILE!" 2>"!TORCH_DISCOVERY_ERROR!"
+set "TORCH_DISCOVERY_STATUS=!ERRORLEVEL!"
+if not "!TORCH_DISCOVERY_STATUS!"=="0" (
+    if defined OUT_STREAM (
+        type "!TORCH_DISCOVERY_ERROR!" >>"!OUT_STREAM!" 2>nul
+    ) else (
+        type "!TORCH_DISCOVERY_ERROR!" 2>nul
+    )
+    del /q "!TORCH_CANDIDATES_FILE!" "!TORCH_DISCOVERY_ERROR!" >nul 2>&1
+    exit /b 1
+)
+set /p "TORCH_PAIR=" <"!TORCH_CANDIDATES_FILE!"
+del /q "!TORCH_CANDIDATES_FILE!" "!TORCH_DISCOVERY_ERROR!" >nul 2>&1
+for /f "tokens=1,2 delims=|" %%a in ("!TORCH_PAIR!") do (
+    set "TORCH_VERSION=%%a"
+    set "TORCHVISION_VERSION=%%b"
+)
+if not defined TORCH_VERSION exit /b 1
+if not defined TORCHVISION_VERSION exit /b 1
+set "PIP_ARGS="
+call :add_package "torch===!TORCH_VERSION!"
+call :add_package "torchvision===!TORCHVISION_VERSION!"
+set "PIP_ARGS_TORCH=!PIP_ARGS!"
 exit /b 0
 
 :install_selected_torch

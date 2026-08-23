@@ -12,6 +12,11 @@ export DISABLE_TQDM=1
 export RICH_NO_COLOR=1
 export RICH_FORCE_TERMINAL=0
 export FORCE_COLOR=0
+# Package sources are part of the post-link policy. Ignore ambient pip indexes
+# such as those added by nvidia-pyindex; callers can use the TREX_* URL
+# overrides below when an explicit mirror is required.
+export PIP_CONFIG_FILE=/dev/null
+unset PIP_INDEX_URL PIP_EXTRA_INDEX_URL PIP_FIND_LINKS
 
 echo "PREFIX=${PREFIX}"
 # CI can request stdout so its caller can tee and validate the transaction log.
@@ -196,15 +201,119 @@ detect_driver_cuda_version() {
     fi
 }
 
-# Select one distribution source before pip runs. The NVIDIA driver is backward
-# compatible with older CUDA runtimes, so cap selection at a broadly published
-# channel instead of probing or retrying every channel the driver could accept.
-select_torch_target() {
+query_cuda_pair_metadata() {
+    python - "$1" "$2" <<'PY'
+# TREX_TORCH_PAIR_SELECTOR
+import re
+import subprocess
+import sys
+
+try:
+    from packaging.version import Version
+except ImportError:
+    from pip._vendor.packaging.version import Version
+
+index_url, flavor = sys.argv[1:3]
+
+
+def available_versions(package, minimum):
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pip",
+            "index",
+            "versions",
+            package,
+            "--index-url",
+            index_url,
+        ],
+        capture_output=True,
+        text=True,
+        errors="replace",
+    )
+    match = re.search(r"^Available versions:\s*(.+)$", result.stdout, re.MULTILINE)
+    if result.returncode or not match:
+        sys.stderr.write(result.stdout)
+        sys.stderr.write(result.stderr)
+        raise SystemExit(1)
+    versions = {
+        item.strip()
+        for item in match.group(1).split(",")
+        if item.strip()
+    }
+    return sorted(
+        (
+            item
+            for item in versions
+            if Version(item) >= minimum and Version(item).local == flavor
+        ),
+        key=Version,
+        reverse=True,
+    )
+
+
+torch_versions = available_versions("torch", Version("2.2"))
+vision_versions = available_versions("torchvision", Version("0.17"))
+vision_by_release = {Version(item).release: item for item in vision_versions}
+
+for torch_version in torch_versions:
+    release = Version(torch_version).release
+    if len(release) < 2 or release[0] != 2:
+        continue
+    patch = release[2] if len(release) > 2 else 0
+    vision_version = vision_by_release.get((0, release[1] + 15, patch))
+    if vision_version:
+        print(f"{torch_version}|{vision_version}")
+        raise SystemExit(0)
+
+raise SystemExit(1)
+PY
+}
+
+# Query package metadata without downloading wheels, then select the newest
+# synchronized release pair carrying the requested CUDA local-version label.
+discover_cuda_pair() {
+    local index_url="$1"
+    local flavor="$2"
+    local pair=""
+
+    if [ -n "${OUT_STREAM}" ]; then
+        pair=$(query_cuda_pair_metadata "${index_url}" "${flavor}" 2>>"${OUT_STREAM}")
+    else
+        pair=$(query_cuda_pair_metadata "${index_url}" "${flavor}")
+    fi
+    local discovery_status=$?
+    if [ ${discovery_status} -ne 0 ] || [[ "${pair}" != *"|"* ]]; then
+        return 1
+    fi
+
+    local torch_version vision_version
+    IFS='|' read -r torch_version vision_version <<EOF
+${pair}
+EOF
+    if [ -z "${torch_version}" ] || [ -z "${vision_version}" ]; then
+        return 1
+    fi
+    torch_packages=("torch===${torch_version}" "torchvision===${vision_version}")
+    log "[post-link] Selected newest compatible ${flavor} pair: torch ${torch_version}, torchvision ${vision_version}."
+}
+
+select_pypi_target() {
+    torch_target="PyPI"
+    torch_index_url="${pypi_index_url}"
     torch_dependency_index_args=()
+    torch_packages=("torch>=2.2" "torchvision>=0.17")
+}
+
+# Select one distribution source before pip installs anything. The NVIDIA
+# driver is backward compatible with older CUDA runtimes, so choose the newest
+# supported channel not newer than the driver's advertised CUDA API.
+select_torch_target() {
+    select_pypi_target
 
     if [ "${system}" = "Darwin" ]; then
         torch_target="macOS/PyPI"
-        torch_index_url="${pypi_index_url}"
         log "[post-link] macOS detected; using the normal PyPI distribution with native MPS support."
         return 0
     fi
@@ -212,7 +321,6 @@ select_torch_target() {
     case "${arch}" in
         arm|arm64|aarch64)
             torch_target="native PyPI"
-            torch_index_url="${pypi_index_url}"
             log "[post-link] ${system} ${arch} detected; using its native PyPI distribution."
             return 0
             ;;
@@ -237,41 +345,31 @@ EOF
                 elif [ "${driver_cuda_code}" -ge 1108 ]; then channel="cu118"
                 fi
                 if [ -n "${channel}" ]; then
-                    torch_target="CUDA ${channel}"
-                    torch_index_url="${torch_index_root}/${channel}"
-                    torch_dependency_index_args=(--extra-index-url "${pypi_index_url}")
-                    log "[post-link] NVIDIA driver accepts CUDA ${detected_cuda_version}; selected the single ${torch_target} distribution."
+                    local cuda_index_url="${torch_index_root}/${channel}"
+                    log "[post-link] NVIDIA driver accepts CUDA ${detected_cuda_version}; checking ${channel} package metadata."
+                    if discover_cuda_pair "${cuda_index_url}" "${channel}"; then
+                        torch_target="CUDA ${channel}"
+                        torch_index_url="${cuda_index_url}"
+                        torch_dependency_index_args=(--extra-index-url "${pypi_index_url}")
+                        return 0
+                    fi
+                    log "[post-link] WARNING: No compatible ${channel} Torch/Torchvision pair was discoverable; falling back to PyPI."
                     return 0
                 fi
-                log "[post-link] Driver compatibility is below CUDA 11.8; selecting the CPU-only distribution."
+                log "[post-link] Driver compatibility is below CUDA 11.8; falling back to PyPI."
             else
-                log "[post-link] Could not parse NVIDIA CUDA compatibility '${detected_cuda_version}'; selecting the CPU-only distribution."
+                log "[post-link] Could not parse NVIDIA CUDA compatibility '${detected_cuda_version}'; falling back to PyPI."
             fi
         else
-            log "[post-link] No usable NVIDIA driver detected; selecting the CPU-only distribution."
+            log "[post-link] No usable NVIDIA driver detected; falling back to PyPI."
         fi
     else
         log "[post-link] ${system} ${arch} detected; selecting the default PyPI distribution."
-        torch_target="PyPI"
-        torch_index_url="${pypi_index_url}"
         return 0
     fi
-
-    torch_target="CPU-only"
-    torch_index_url="${torch_index_root}/cpu"
-    torch_dependency_index_args=(--extra-index-url "${pypi_index_url}")
 }
 
 install_selected_torch() {
-    if [ "${system}" = "Darwin" ]; then
-        # This pair is already proven on both supported macOS architectures.
-        # macOS has no CUDA wheel choice, so it never needs version probing.
-        torch_packages=("torch==2.6.0" "torchvision==0.21.0")
-    else
-        # Torchvision declares its exact compatible torch dependency. Let pip
-        # solve that relationship once instead of zipping index version lists.
-        torch_packages=("torch>=2.2" "torchvision>=0.17")
-    fi
     torch_index_args=(--index-url "${torch_index_url}")
     log "[post-link] Running one resolver transaction for ${torch_target}; no version or index retries are permitted."
     log_command python -m pip install "${pip_flags[@]}" \
@@ -401,6 +499,11 @@ fi
 
 if ${torch_installed}; then
     log "[post-link] The single ${torch_target} Python ML installation transaction completed successfully."
+    TORCH_INFO_STRING="import torch; print(f'[post-link] Installed PyTorch {torch.__version__}; compiled CUDA {torch.version.cuda}; torch.cuda.is_available() -> {torch.cuda.is_available()}')"
+    log_command python -c "${TORCH_INFO_STRING}"
+    if ! run_with_reporting python -c "${TORCH_INFO_STRING}"; then
+        log "[post-link] WARNING: Unable to report the installed PyTorch CUDA status; installation remains successful."
+    fi
     log "[post-link] Warming the Ultralytics runtime and model cache."
     CMD_STRING="from ultralytics import YOLO; from rfdetr import RFDETR; from torchvision.ops import nms; import cv2, numpy as np, torch; assert cv2.__version__.split('.')[0] == '4'; assert nms(torch.tensor([[0.,0.,1.,1.]]), torch.tensor([1.]), 0.5).tolist() == [0]; YOLO('yolo26n.yaml').to('cpu').predict(np.zeros((640, 480, 3), dtype=np.uint8))"
     log_command python -c "${CMD_STRING}"

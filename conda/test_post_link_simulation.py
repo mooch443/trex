@@ -17,8 +17,8 @@ import unittest
 REPOSITORY = Path(__file__).resolve().parents[1]
 POST_LINK_SH = REPOSITORY / "conda" / "post-link.sh"
 POST_LINK_BAT = REPOSITORY / "conda" / "post-link.bat"
-CPU_INDEX = "https://download.pytorch.org/whl/cpu"
 PYPI_INDEX = "https://pypi.org/simple"
+AMBIENT_INDEX = "https://ambient.invalid/simple"
 
 
 FAKE_PYTHON = r'''#!/usr/bin/env python3
@@ -47,8 +47,74 @@ def index_value(arguments):
         return ""
 
 
+def source_environment():
+    return {
+        name: os.environ.get(name, "")
+        for name in (
+            "PIP_CONFIG_FILE",
+            "PIP_INDEX_URL",
+            "PIP_EXTRA_INDEX_URL",
+            "PIP_FIND_LINKS",
+        )
+    }
+
+
+def simulate_pair_selection(index, flavor):
+    for package in ("torch", "torchvision"):
+        event(
+            "index",
+            args=["-m", "pip", "index", "versions", package, "--index-url", index],
+            index=index,
+            package=package,
+            sources=source_environment(),
+        )
+    outcome = os.environ.get("TREX_FAKE_INDEX_OUTCOME", "success")
+    if outcome == "missing":
+        print("ERROR: simulated index lookup failure", file=sys.stderr)
+        raise SystemExit(1)
+    if outcome == "malformed":
+        print("simulated malformed index response")
+        raise SystemExit(0)
+    print(f"2.7.1+{flavor}|0.22.1+{flavor}")
+    raise SystemExit(0)
+
+
 if args[:3] == ["-m", "pip", "--version"]:
     print("pip 99.0 (simulated)")
+    raise SystemExit(0)
+
+if args and args[0] == "-" and len(args) >= 3:
+    simulate_pair_selection(args[1], args[2])
+
+if args[:4] == ["-m", "pip", "index", "versions"]:
+    package = args[4] if len(args) > 4 else ""
+    index = index_value(args)
+    event(
+        "index",
+        args=args,
+        index=index,
+        package=package,
+        sources=source_environment(),
+    )
+    outcome = os.environ.get("TREX_FAKE_INDEX_OUTCOME", "success")
+    if outcome == "missing":
+        print("ERROR: simulated index lookup failure", file=sys.stderr)
+        raise SystemExit(1)
+    if outcome == "malformed":
+        print("simulated malformed index response")
+        raise SystemExit(0)
+    flavor = index.rstrip("/").rsplit("/", 1)[-1]
+    if not flavor.startswith("cu"):
+        print(f"ERROR: no simulated flavored releases for {index}", file=sys.stderr)
+        raise SystemExit(1)
+    versions = {
+        "torch": [f"2.7.1+{flavor}", f"2.6.0+{flavor}"],
+        "torchvision": [f"0.22.1+{flavor}", f"0.21.0+{flavor}"],
+    }.get(package, [])
+    if not versions:
+        raise SystemExit(1)
+    print(f"{package} ({versions[0]})")
+    print("Available versions: " + ", ".join(versions))
     raise SystemExit(0)
 
 if args[:3] == ["-m", "pip", "install"]:
@@ -67,6 +133,7 @@ if args[:3] == ["-m", "pip", "install"]:
         index=index_value(args),
         constraint=constraint,
         outcome=outcome,
+        sources=source_environment(),
     )
     if outcome == "resolution":
         print("ERROR: ResolutionImpossible: simulated dependency conflict", file=sys.stderr)
@@ -78,7 +145,9 @@ if args[:3] == ["-m", "pip", "install"]:
 
 if args and args[0] == "-c":
     code = args[1] if len(args) > 1 else ""
-    if "json.load" in code and "['version']" in code:
+    if "TREX_TORCH_PAIR_SELECTOR" in code and len(args) >= 4:
+        simulate_pair_selection(args[2], args[3])
+    elif "json.load" in code and "['version']" in code:
         print("2.4.6", end="")
     elif "CUDA(?:" in code:
         print(os.environ.get("TREX_FAKE_CUDA_VERSION", ""))
@@ -151,7 +220,20 @@ def _install_events(state: Path) -> list[dict[str, object]]:
     return [item for item in _events(state) if item["kind"] == "install"]
 
 
+def _index_events(state: Path) -> list[dict[str, object]]:
+    return [item for item in _events(state) if item["kind"] == "index"]
+
+
 class PostLinkSimulationMixin:
+    def assert_explicit_sources(self, events: list[dict[str, object]]) -> None:
+        self.assertTrue(events, "the simulation did not record a pip operation")
+        for event in events:
+            sources = dict(event["sources"])
+            self.assertIn(sources["PIP_CONFIG_FILE"].casefold(), {"/dev/null", "nul"})
+            self.assertEqual(sources["PIP_INDEX_URL"], "")
+            self.assertEqual(sources["PIP_EXTRA_INDEX_URL"], "")
+            self.assertEqual(sources["PIP_FIND_LINKS"], "")
+
     def assert_safe_installs(
         self,
         installs: list[dict[str, object]],
@@ -159,7 +241,7 @@ class PostLinkSimulationMixin:
         conda_numpy: bool,
         conda_opencv: bool,
     ) -> None:
-        self.assertTrue(installs, "the simulation did not attempt a Torch installation")
+        self.assertEqual(len(installs), 1, "post-link must perform exactly one installation")
         for install in installs:
             arguments = list(install["args"])
             self.assertEqual(
@@ -212,6 +294,7 @@ class UnixPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
         conda_numpy: bool = True,
         conda_opencv: bool = True,
         warm_outcome: str = "success",
+        index_outcome: str = "success",
         expect_installs: bool = True,
     ) -> tuple[list[dict[str, object]], str]:
         with tempfile.TemporaryDirectory(prefix="trex-post-link-") as temporary:
@@ -257,7 +340,12 @@ class UnixPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
                     "TREX_FAKE_CUDA_VERSION": cuda,
                     "TREX_FAKE_INSTALL_OUTCOMES": ",".join(outcomes),
                     "TREX_FAKE_WARM_OUTCOME": warm_outcome,
+                    "TREX_FAKE_INDEX_OUTCOME": index_outcome,
                     "TREX_POST_LINK_OUTPUT": "stdout",
+                    "PIP_CONFIG_FILE": str(root / "ambient-pip.conf"),
+                    "PIP_INDEX_URL": AMBIENT_INDEX,
+                    "PIP_EXTRA_INDEX_URL": AMBIENT_INDEX,
+                    "PIP_FIND_LINKS": AMBIENT_INDEX,
                 }
             )
             result = subprocess.run(
@@ -274,6 +362,7 @@ class UnixPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
             sys.stderr.write(result.stderr)
             self.assertEqual(result.returncode, 0, output)
             installs = _install_events(state)
+            pip_events = _index_events(state) + installs
             if expect_installs and not installs:
                 self.fail(output)
             if expect_installs:
@@ -282,11 +371,12 @@ class UnixPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
                     conda_numpy=conda_numpy,
                     conda_opencv=conda_opencv,
                 )
+                self.assert_explicit_sources(pip_events)
             else:
                 self.assertEqual(installs, [])
             return installs, output
 
-    def test_macos_uses_pypi_and_other_cpu_platforms_use_cpu_index(self) -> None:
+    def test_non_cuda_platforms_use_unqualified_pypi(self) -> None:
         cases = (
             ("Darwin", "arm64", "13.2", PYPI_INDEX),
             ("Darwin", "x86_64", "13.2", PYPI_INDEX),
@@ -299,13 +389,12 @@ class UnixPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
                 installs, _ = self.run_scenario(system=system, machine=machine, cuda=cuda)
                 self.assertEqual([item["index"] for item in installs], [expected_index])
                 self.assertFalse(any("+cu" in str(value) for value in installs[0]["args"]))
-                if system == "Darwin":
-                    self.assertIn("torch==2.6.0", installs[0]["args"])
-                    self.assertIn("torchvision==0.21.0", installs[0]["args"])
+                self.assertIn("torch>=2.2", installs[0]["args"])
+                self.assertIn("torchvision>=0.17", installs[0]["args"])
 
-    def test_linux_without_a_usable_nvidia_driver_uses_cpu_index(self) -> None:
+    def test_linux_without_a_usable_nvidia_driver_uses_pypi(self) -> None:
         installs, output = self.run_scenario(system="Linux", machine="x86_64")
-        self.assertEqual([item["index"] for item in installs], [CPU_INDEX])
+        self.assertEqual([item["index"] for item in installs], [PYPI_INDEX])
         self.assertIn("No usable NVIDIA driver detected", output)
 
     def test_resolution_failure_is_not_retried(self) -> None:
@@ -314,14 +403,14 @@ class UnixPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
             machine="x86_64",
             outcomes=("resolution",),
         )
-        self.assertEqual([item["index"] for item in installs], [CPU_INDEX])
+        self.assertEqual([item["index"] for item in installs], [PYPI_INDEX])
         self.assertIn("torch>=2.2", installs[0]["args"])
         self.assertIn("torchvision>=0.17", installs[0]["args"])
         self.assertIn("no retry was attempted", output)
 
     def test_linux_selects_exactly_one_compatible_cuda_index(self) -> None:
         cases = {
-            "11.7": CPU_INDEX,
+            "11.7": PYPI_INDEX,
             "11.8": "https://download.pytorch.org/whl/cu118",
             "12.0": "https://download.pytorch.org/whl/cu118",
             "12.1": "https://download.pytorch.org/whl/cu121",
@@ -338,6 +427,24 @@ class UnixPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
             with self.subTest(cuda=cuda):
                 installs, _ = self.run_scenario(system="Linux", machine="x86_64", cuda=cuda)
                 self.assertEqual([item["index"] for item in installs], [expected_index])
+                if "/cu" in expected_index:
+                    flavor = expected_index.rsplit("/", 1)[-1]
+                    self.assertIn(f"torch===2.7.1+{flavor}", installs[0]["args"])
+                    self.assertIn(f"torchvision===0.22.1+{flavor}", installs[0]["args"])
+
+    def test_cuda_metadata_failure_falls_back_to_one_unqualified_pypi_install(self) -> None:
+        for outcome in ("missing", "malformed"):
+            with self.subTest(outcome=outcome):
+                installs, output = self.run_scenario(
+                    system="Linux",
+                    machine="x86_64",
+                    cuda="12.4",
+                    index_outcome=outcome,
+                )
+                self.assertEqual([item["index"] for item in installs], [PYPI_INDEX])
+                self.assertIn("torch>=2.2", installs[0]["args"])
+                self.assertIn("torchvision>=0.17", installs[0]["args"])
+                self.assertIn("falling back to PyPI", output)
 
     def test_failed_cuda_install_is_not_retried_or_downgraded(self) -> None:
         installs, output = self.run_scenario(
@@ -358,7 +465,7 @@ class UnixPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
             machine="x86_64",
             conda_numpy=False,
         )
-        self.assertEqual([item["index"] for item in installs], [CPU_INDEX])
+        self.assertEqual([item["index"] for item in installs], [PYPI_INDEX])
         self.assertEqual(installs[0]["constraint"], "")
         self.assertIn("numpy>=1.26,<3", installs[0]["args"])
         self.assertIn("Conda does not own NumPy", output)
@@ -392,6 +499,7 @@ class WindowsPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
         conda_numpy: bool = True,
         conda_opencv: bool = True,
         warm_outcome: str = "success",
+        index_outcome: str = "success",
         expect_installs: bool = True,
     ) -> tuple[list[dict[str, object]], str]:
         with tempfile.TemporaryDirectory(prefix="trex-post-link-") as temporary:
@@ -447,7 +555,12 @@ class WindowsPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
                     "TREX_FAKE_CUDA_VERSION": cuda,
                     "TREX_FAKE_INSTALL_OUTCOMES": ",".join(outcomes),
                     "TREX_FAKE_WARM_OUTCOME": warm_outcome,
+                    "TREX_FAKE_INDEX_OUTCOME": index_outcome,
                     "TREX_POST_LINK_OUTPUT": "stdout",
+                    "PIP_CONFIG_FILE": str(root / "ambient-pip.ini"),
+                    "PIP_INDEX_URL": AMBIENT_INDEX,
+                    "PIP_EXTRA_INDEX_URL": AMBIENT_INDEX,
+                    "PIP_FIND_LINKS": AMBIENT_INDEX,
                 }
             )
             result = subprocess.run(
@@ -464,6 +577,7 @@ class WindowsPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
             sys.stderr.write(result.stderr)
             self.assertEqual(result.returncode, 0, output)
             installs = _install_events(state)
+            pip_events = _index_events(state) + installs
             if expect_installs and not installs:
                 self.fail(output)
             if expect_installs:
@@ -472,25 +586,27 @@ class WindowsPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
                     conda_numpy=conda_numpy,
                     conda_opencv=conda_opencv,
                 )
+                self.assert_explicit_sources(pip_events)
             else:
                 self.assertEqual(installs, [])
             return installs, output
 
-    def test_windows_without_nvidia_uses_cpu_index(self) -> None:
+    def test_windows_without_nvidia_uses_pypi(self) -> None:
         installs, _ = self.run_scenario()
-        self.assertEqual([item["index"] for item in installs], [CPU_INDEX])
+        self.assertEqual([item["index"] for item in installs], [PYPI_INDEX])
 
     def test_windows_resolution_failure_is_not_retried(self) -> None:
         installs, output = self.run_scenario(outcomes=("resolution",))
-        self.assertEqual([item["index"] for item in installs], [CPU_INDEX])
+        self.assertEqual([item["index"] for item in installs], [PYPI_INDEX])
         self.assertIn("no retry was attempted", output)
 
     def test_windows_selects_exactly_one_compatible_cuda_index(self) -> None:
         cases = {
-            "11.7": CPU_INDEX,
+            "11.7": PYPI_INDEX,
             "11.8": "https://download.pytorch.org/whl/cu118",
             "12.0": "https://download.pytorch.org/whl/cu118",
             "12.1": "https://download.pytorch.org/whl/cu121",
+            "12.2": "https://download.pytorch.org/whl/cu121",
             "12.4": "https://download.pytorch.org/whl/cu124",
             "12.6": "https://download.pytorch.org/whl/cu126",
             "12.8": "https://download.pytorch.org/whl/cu128",
@@ -503,6 +619,19 @@ class WindowsPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
             with self.subTest(cuda=cuda):
                 installs, _ = self.run_scenario(cuda=cuda)
                 self.assertEqual([item["index"] for item in installs], [expected_index])
+                if "/cu" in expected_index:
+                    flavor = expected_index.rsplit("/", 1)[-1]
+                    self.assertIn(f"torch===2.7.1+{flavor}", installs[0]["args"])
+                    self.assertIn(f"torchvision===0.22.1+{flavor}", installs[0]["args"])
+
+    def test_windows_cuda_metadata_failure_falls_back_to_pypi(self) -> None:
+        for outcome in ("missing", "malformed"):
+            with self.subTest(outcome=outcome):
+                installs, output = self.run_scenario(cuda="12.4", index_outcome=outcome)
+                self.assertEqual([item["index"] for item in installs], [PYPI_INDEX])
+                self.assertIn("torch>=2.2", installs[0]["args"])
+                self.assertIn("torchvision>=0.17", installs[0]["args"])
+                self.assertIn("falling back to PyPI", output)
 
     def test_windows_failed_cuda_install_is_not_retried(self) -> None:
         installs, output = self.run_scenario(cuda="12.4", outcomes=("network",))
