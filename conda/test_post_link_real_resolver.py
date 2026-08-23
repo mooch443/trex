@@ -37,6 +37,7 @@ EXPECTED_PAIRS = {
     "cu130": ("2.13.0+cu130", "0.28.0+cu130"),
     "cu132": ("2.13.0+cu132", "0.28.0+cu132"),
 }
+INTEL_MACOS_PYPI_PAIR = ("2.2.2", "0.17.2")
 
 # These compact snapshots intentionally contain only Torch/Torchvision and the
 # CUDA/NVIDIA closure. Unrelated resolver movement does not create alert noise.
@@ -174,10 +175,13 @@ def make_shims(root: Path, cuda: str) -> Path:
     return fake_bin
 
 
-def expected_snapshot(system: str, channel: str) -> dict[str, str]:
+def expected_snapshot(system: str, machine: str, channel: str) -> dict[str, str]:
     if system == "Linux":
         return parse_snapshot(LINUX_SNAPSHOT_LINES[channel])
-    torch_version, vision_version = EXPECTED_PAIRS[channel]
+    if system == "Darwin" and machine.casefold() in {"x86_64", "amd64"} and channel == "pypi":
+        torch_version, vision_version = INTEL_MACOS_PYPI_PAIR
+    else:
+        torch_version, vision_version = EXPECTED_PAIRS[channel]
     return {"torch": torch_version, "torchvision": vision_version}
 
 
@@ -279,7 +283,7 @@ def run_case(root: Path, cuda: str, expected_channel: str) -> list[str]:
         errors.append(f"{label}: CUDA requirements were not exact flavored pins: {requirements}")
 
     snapshot, urls = resolved_snapshot(Path(event["report"]))
-    expected = expected_snapshot(platform.system(), expected_channel)
+    expected = expected_snapshot(platform.system(), platform.machine(), expected_channel)
     if snapshot != expected:
         errors.append(f"{label}/{expected_channel}: resolver snapshot changed\n{report_diff(expected, snapshot)}")
     if selected != "pypi" and "+" + selected not in snapshot.get("torch", ""):
