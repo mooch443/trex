@@ -65,15 +65,15 @@ if errorlevel 1 (
     goto post_link_finish
 )
 
-set PIP_ARGS_SIMPLE="torchmetrics" "tqdm" "ultralytics^>=8.3.0,^<9" "rfdetr==1.8.3" "dill" "scikit-learn" "timm" "%TREX_CLIP_REQUIREMENT%"
+set PIP_ARGS_SIMPLE="torchmetrics" "tqdm" "ultralytics>=8.3.0,<9" "rfdetr==1.8.3" "dill" "scikit-learn" "timm" "%TREX_CLIP_REQUIREMENT%"
 if not exist "%PREFIX%\conda-meta\py-opencv-*.json" (
-    set PIP_ARGS_SIMPLE=!PIP_ARGS_SIMPLE! "opencv-python^>=4.6,^<5"
+    set PIP_ARGS_SIMPLE=!PIP_ARGS_SIMPLE! "opencv-python>=4.6,<5"
     call :log "[post-link] No Conda py-opencv binding detected; pip will provide cv2 for the non-minimal profile."
 ) else (
     call :log "[post-link] Conda owns cv2 through py-opencv; pip will not install an OpenCV wheel."
 )
-if "!CONDA_NUMPY_OWNED!"=="0" set PIP_ARGS_SIMPLE=!PIP_ARGS_SIMPLE! "numpy^>=1.26,^<3"
-set PIP_ARGS_TORCH="torch^>=2.2" "torchvision^>=0.17"
+if "!CONDA_NUMPY_OWNED!"=="0" set PIP_ARGS_SIMPLE=!PIP_ARGS_SIMPLE! "numpy>=1.26,<3"
+set PIP_ARGS_TORCH="torch>=2.2" "torchvision>=0.17"
 call :select_torch_target
 call :log "[post-link] Selected !TORCH_TARGET! from !TORCH_INDEX_URL!."
 

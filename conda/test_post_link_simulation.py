@@ -296,6 +296,15 @@ class PostLinkProgressWiring(unittest.TestCase):
         self.assertIn("CONOUT$", windows_hook)
         self.assertIn(":install_progress_worker", windows_hook)
 
+    def test_windows_requirement_variables_do_not_store_cmd_escape_characters(self) -> None:
+        requirement_lines = [
+            line
+            for line in POST_LINK_BAT.read_text(encoding="utf-8").splitlines()
+            if line.lstrip().casefold().startswith("set pip_args_")
+        ]
+        self.assertTrue(requirement_lines)
+        self.assertTrue(all("^" not in line for line in requirement_lines))
+
 
 class PostLinkSimulationMixin:
     def assert_explicit_sources(self, events: list[dict[str, object]]) -> None:
