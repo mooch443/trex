@@ -830,7 +830,7 @@ class WindowsPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
                 self.assertEqual([item["index"] for item in installs], [PYPI_INDEX])
                 self.assertIn("torch>=2.2", installs[0]["args"])
                 self.assertIn("torchvision>=0.17", installs[0]["args"])
-                self.assertIn("falling back to PyPI", output)
+                self.assertIn("No compatible CUDA channel", output)
 
     def test_windows_failed_cuda_install_is_not_retried(self) -> None:
         installs, output = self.run_scenario(cuda="12.4", outcomes=("network",))
