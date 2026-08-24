@@ -445,7 +445,7 @@ struct SettingsScene::Data {
             "detect_model",
             "region_model",
             "averaging_method"
-            
+
         }, fn);
         
         fn("source");
