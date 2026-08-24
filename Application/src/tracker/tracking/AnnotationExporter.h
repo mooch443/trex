@@ -56,7 +56,7 @@ struct Summary {
 };
 
 /// Formats a frame index as the stable dataset stem `frame_NNNNNN`.
-std::string frame_stem(cmn::Frame_t);
+std::string frame_stem(const cmn::file::PathArray&, cmn::Frame_t);
 /// Returns a keypoint schema large enough for every pose, preferring configured
 /// names and filling missing entries with deterministic `kp_N` names.
 std::vector<std::string> default_keypoint_names(const AnnotationMap&, const std::vector<std::string>& configured_names);
@@ -68,12 +68,12 @@ Summary summarize(const Options&, std::optional<cmn::Frame_t> source_length = st
 std::vector<cmn::Frame_t> sample_background_frames(const AnnotationMap&, cmn::Frame_t source_length, size_t count, uint32_t seed);
 /// Serializes one box, segmentation, or pose annotation as a normalized YOLO
 /// label row, validating coordinates and the pose keypoint schema.
-std::string annotation_to_yolo(const Annotation&, const cmn::Size2&, const std::vector<std::string>& keypoint_names);
+std::string annotation_to_yolo(const cmn::file::PathArray& source, const Annotation&, const cmn::Size2&, const std::vector<std::string>& keypoint_names);
 /// Emits the CSV sidecar used by importers to recover original source frames
 /// after conversion ranges have shifted annotation frame keys.
 std::string build_frame_mapping_csv(const Options&, const std::vector<cmn::Frame_t>& image_frames);
 /// Builds a COCO document for the selected frames without writing it to disk.
-glz::json_t build_coco_json(const AnnotationMap&, const std::vector<cmn::Frame_t>& image_frames, const cmn::Size2&, const std::vector<std::string>& keypoint_names);
+glz::json_t build_coco_json(const cmn::file::PathArray& source, const AnnotationMap&, const std::vector<cmn::Frame_t>& image_frames, const cmn::Size2&, const std::vector<std::string>& keypoint_names);
 /// Validates the options, writes the selected YOLO or COCO dataset and mapping
 /// sidecar, and returns the completed export summary.
 Summary export_dataset(const Options&);

@@ -155,16 +155,16 @@ size_t background_count(size_t annotated_count, float percent) {
     return narrow_cast<size_t>(std::round(float(annotated_count) * percent / 100.f));
 }
 
-file::Path coco_image_path(const file::Path& root, Frame_t frame) {
-    return root / kSplitDir / (frame_stem(frame) + ".jpg");
+file::Path coco_image_path(const file::PathArray& source, const file::Path& root, Frame_t frame) {
+    return root / kSplitDir / (frame_stem(source, frame) + ".jpg");
 }
 
-file::Path yolo_image_path(const file::Path& root, Frame_t frame) {
-    return root / kSplitDir / kImagesDir / (frame_stem(frame) + ".jpg");
+file::Path yolo_image_path(const file::PathArray& source, const file::Path& root, Frame_t frame) {
+    return root / kSplitDir / kImagesDir / (frame_stem(source, frame) + ".jpg");
 }
 
-file::Path yolo_label_path(const file::Path& root, Frame_t frame) {
-    return root / kSplitDir / kLabelsDir / (frame_stem(frame) + ".txt");
+file::Path yolo_label_path(const file::PathArray& source, const file::Path& root, Frame_t frame) {
+    return root / kSplitDir / kLabelsDir / (frame_stem(source, frame) + ".txt");
 }
 
 void write_text(const file::Path& path, const std::string& text) {
@@ -760,20 +760,26 @@ void export_tag_annotations(TagDatasetConfig config) {
 
 namespace track::detect::annotation_export {
 
-std::string frame_stem(Frame_t frame) {
+std::string frame_stem(const file::PathArray& source, Frame_t frame) {
+    auto basename = file::Path(file::find_basename(source)).filename();
+    
     std::ostringstream ss;
+    if(not basename.empty())
+        ss << basename << "_";
+    
     ss << "frame_" << std::setw(6) << std::setfill('0') << frame.get();
+    
     return ss.str();
 }
 
 namespace {
 
-std::string yolo_frame_mapping_image_path(Frame_t frame) {
-    return (file::Path(std::string(kSplitDir)) / kImagesDir / (frame_stem(frame) + ".jpg")).str();
+std::string yolo_frame_mapping_image_path(const file::PathArray& video, Frame_t frame) {
+    return (file::Path(std::string(kSplitDir)) / kImagesDir / (frame_stem(video, frame) + ".jpg")).str();
 }
 
-std::string coco_frame_mapping_image_path(Frame_t frame) {
-    return (file::Path(std::string(kSplitDir)) / (frame_stem(frame) + ".jpg")).str();
+std::string coco_frame_mapping_image_path(const file::PathArray& video, Frame_t frame) {
+    return (file::Path(std::string(kSplitDir)) / (frame_stem(video, frame) + ".jpg")).str();
 }
 
 }
@@ -782,7 +788,10 @@ std::string build_frame_mapping_csv(const Options& options, const std::vector<Fr
     std::string text = "image,video_source,source_index\n";
     const auto video_source = export_video_source(options);
     for(const auto& frame : image_frames) {
-        text += (options.format == annotation_dataset::format_t::yolo ? yolo_frame_mapping_image_path(frame) : coco_frame_mapping_image_path(frame)) + ","
+        text += (options.format == annotation_dataset::format_t::yolo
+                 ? yolo_frame_mapping_image_path(options.source, frame)
+                 : coco_frame_mapping_image_path(options.source, frame))
+              + ","
               + video_source + ","
               + exported_source_index(frame, options).toStr() + "\n";
     }
@@ -893,7 +902,7 @@ std::vector<Frame_t> sample_background_frames(const AnnotationMap& annotations, 
     return candidates;
 }
 
-std::string annotation_to_yolo(const Annotation& annotation, const Size2& image_size, const std::vector<std::string>& keypoint_names) {
+std::string annotation_to_yolo([[maybe_unused]] const file::PathArray&, const Annotation& annotation, const Size2& image_size, const std::vector<std::string>& keypoint_names) {
     validate_annotation(annotation, image_size, keypoint_names);
 
     std::string output = Meta::toStr(uint16_t(annotation.clid));
@@ -924,7 +933,7 @@ std::string annotation_to_yolo(const Annotation& annotation, const Size2& image_
     return output;
 }
 
-glz::json_t build_coco_json(const AnnotationMap& annotations, const std::vector<Frame_t>& image_frames, const Size2& image_size, const std::vector<std::string>& keypoint_names) {
+glz::json_t build_coco_json(const cmn::file::PathArray& source, const AnnotationMap& annotations, const std::vector<Frame_t>& image_frames, const Size2& image_size, const std::vector<std::string>& keypoint_names) {
     std::vector<glz::json_t> images;
     std::vector<glz::json_t> annotation_json;
     std::map<uint16_t, std::vector<std::string>> category_keypoints;
@@ -932,7 +941,7 @@ glz::json_t build_coco_json(const AnnotationMap& annotations, const std::vector<
     for(const auto& frame : image_frames) {
         images.push_back(glz::json_t::object_t{
             {"id", glz::json_t(frame.get())},
-            {"file_name", glz::json_t(frame_stem(frame) + ".jpg")},
+            {"file_name", glz::json_t(frame_stem(source, frame) + ".jpg")},
             {"width", glz::json_t(image_size.width)},
             {"height", glz::json_t(image_size.height)}
         });
@@ -1057,16 +1066,16 @@ Summary export_dataset(const Options& options) {
 
     if(options.format == dataset::format_t::yolo) {
         for(const auto& frame : image_frames)
-            write_jpeg(source, frame, yolo_image_path(options.output_directory, frame), options.jpeg_quality);
+            write_jpeg(source, frame, yolo_image_path(options.source, options.output_directory, frame), options.jpeg_quality);
 
         for(const auto& [frame, frame_annotations] : options.annotations) {
             std::string text;
             for(const auto& annotation : frame_annotations)
-                text += annotation_to_yolo(annotation, source.size(), options.keypoint_names) + "\n";
-            write_text(yolo_label_path(options.output_directory, frame), text);
+                text += annotation_to_yolo(options.source, annotation, source.size(), options.keypoint_names) + "\n";
+            write_text(yolo_label_path(options.source, options.output_directory, frame), text);
         }
         for(const auto& frame : background_frames)
-            write_text(yolo_label_path(options.output_directory, frame), "");
+            write_text(yolo_label_path(options.source, options.output_directory, frame), "");
 
         auto yaml = YamlNode::mapping();
         yaml["train"] = "./train";
@@ -1075,9 +1084,9 @@ Summary export_dataset(const Options& options) {
 
     } else {
         for(const auto& frame : image_frames)
-            write_jpeg(source, frame, coco_image_path(options.output_directory, frame), options.jpeg_quality);
+            write_jpeg(source, frame, coco_image_path(options.source, options.output_directory, frame), options.jpeg_quality);
 
-        auto json = build_coco_json(options.annotations, image_frames, source.size(), options.keypoint_names);
+        auto json = build_coco_json(options.source, options.annotations, image_frames, source.size(), options.keypoint_names);
         auto text = glz::write_json(json).value_or("{}");
         text = glz::prettify_json(text);
         write_text(options.output_directory / kSplitDir / "_annotations.coco.json", text);

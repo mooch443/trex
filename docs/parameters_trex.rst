@@ -220,21 +220,12 @@ TRex parameters
 
 	**possible values:**
 		- `mean`: Sum all samples and divide by N.
-		- `mode`: Calculate a per-pixel median of the samples to avoid noise. More computationally involved than mean, but often better results.
-		- `max`: Use a per-pixel minimum across samples. Usually a good choice for short videos with black backgrounds and individuals that do not move much.
-		- `min`: Use a per-pixel maximum across samples. Usually a good choice for short videos with white backgrounds and individuals that do not move much.
+		- `mode`: Select the most frequent 8-bit sample value independently for each pixel and color channel (a per-channel mode).
+		- `max`: Use the maximum sample value for each pixel and channel. Usually a good choice for short videos with white backgrounds and individuals that do not move much.
+		- `min`: Use the minimum sample value for each pixel and channel. Usually a good choice for short videos with black backgrounds and individuals that do not move much.
 
 	Determines the way in which the background samples are combined. The background generated in the process will be used to subtract background from foreground objects during conversion.
 
-
-
-
-.. function:: blob_size_range(range<float>)
-
-	**default value:** [0.01,500000]
-
-
-	Minimum or maximum size of the individuals on screen after thresholding. Anything smaller or bigger than these values will be disregarded as noise.
 
 
 
@@ -632,7 +623,7 @@ TRex parameters
 	**default value:** []
 
 
-	During the detection phase, objects outside this size range will be filtered out. If empty, no objects will be filtered out.
+	During video conversion, detections whose effective area (``num_pixels * cm_per_pixel^2``) falls outside this range are discarded and are not stored in the PV file. If empty, no detections are filtered by size. Reconversion is required to recover detections rejected here.
 
 
 
@@ -2102,7 +2093,7 @@ TRex parameters
 	**default value:** false
 
 
-	If set to true, no GUI will be created on startup (e.g. when starting from SSH).
+	Prevents TRex from creating a GUI. This is a startup-only command-line option, for example ``trex -i video.pv -nowindow``. A  value in a ``.settings`` file is intentionally ignored so that opening a saved configuration cannot unexpectedly suppress the GUI.
 
 
 
@@ -2897,7 +2888,7 @@ TRex parameters
 	**default value:** true
 
 
-	If disabled, blobs will not be split automatically in order to separate overlapping individuals. This usually happens based on their history.
+	Uses established individual histories to estimate how many individuals overlap in a blob and split it accordingly. Disable this to prevent automatic history-based splitting.
 
 
 
@@ -2916,7 +2907,7 @@ TRex parameters
 	**default value:** {}
 
 
-	This is a map of ``{frame:[tag1,...],frame2:...}``
+	This is a map of ``{frame:[tag1,...],frame2:...}`` 
 
 
 
@@ -2925,7 +2916,7 @@ TRex parameters
 	**default value:** null
 
 
-	If this is greater than 0, then individuals with tracklets < this threshold will not be considered for the splitting algorithm. That means that objects have to be detected for at least ``N`` frames in a row to play a role in history splitting.
+	Histories shorter than this number of consecutive frames are ignored when deciding how many individuals an overlapping blob should contain. If unset, all available histories may contribute. Essentially means that objects have to be detected for at least ``N`` frames consecutively to be considered a real object.
 
 
 
@@ -2980,9 +2971,9 @@ TRex parameters
 	**default value:** 0
 
 
-	The maximum speed an individual can have (=> the maximum distance an individual can travel within one second) in cm/s. Uses and is influenced by ``meta_real_width`` and ``cm_per_pixel`` as follows: ``speed(px/s) * cm_per_pixel(cm/px) -> cm/s``.
+	The maximum speed an individual can have (=> the maximum distance an individual can travel within one second) in cm/s. Exceeding this distance limit can prevent assignment or end a tracklet. Conversion uses ``speed(px/s) * cm_per_pixel(cm/px) -> cm/s``. Changing ``cm_per_pixel`` directly influences what this value means (and is thus normally auto-adjusted in the graphical interface).
 
-	.. seealso:: :param:`meta_real_width`, :param:`cm_per_pixel`
+	.. seealso:: :param:`cm_per_pixel`
 
 
 .. function:: track_only_categories(array<string>)
@@ -3037,9 +3028,8 @@ TRex parameters
 	**default value:** []
 
 
-	Blobs below the lower bound are recognized as noise instead of individuals. Blobs bigger than the upper bound are considered to potentially contain more than one individual. You can look these values up by pressing ``D`` in TRex to get to the raw view (see `<https://trex.run/docs/gui.html>`_ for details). The unit is #pixels * (cm/px)^2. ``cm_per_pixel`` is used for this conversion.
+	During tracking, a blob's effective area is ``num_pixels * cm_per_pixel^2``. Objects below the lower bound are recognized as noise; blobs above the upper bound are candidates for splitting. Press ``D`` to inspect blobs in RAW view, where filtered blob labels show the rejection reason in brackets.
 
-	.. seealso:: :param:`cm_per_pixel`
 
 
 .. function:: track_speed_decay(float)
@@ -3352,3 +3342,6 @@ TRex parameters
 
 
 	If set to true, the program will try to use yolov8s internal tracking routine to improve results. This can be significantly slower and disables batching.
+
+
+

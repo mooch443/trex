@@ -284,6 +284,13 @@ conda build -c conda-forge .
   distinct failure and its root cause first; do not stop after the first error.
   Then address the complete in-scope failure set together in one coordinated
   pass whenever possible.
+- When opening a GitHub issue for a reproduced defect, include the complete
+  path used to reach the failure so it can be repeated later: the exact
+  revision and build configuration, platform and environment, launch command,
+  input artifact and settings, relevant UI actions and timing, the final
+  triggering action, and the expected and actual results. Include useful logs
+  or a crash stack, and identify or attach the exact input when possible; do
+  not document only the final action if earlier steps contributed to the state.
 - Do not wait for a full CI build to finish. Inspect completed failures and,
   when useful, monitor only short setup or targeted reproduction boundaries.
   Once a long build is underway, report its current status to the user and stop

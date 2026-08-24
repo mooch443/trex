@@ -84,7 +84,7 @@ Same as above, but also save stuff and quit (e.g. for batch processing)::
 
 	trex -i <VIDEO> -track_max_individuals 10 -auto_train -auto_quit
 
-Don't show the graphical user-interface (really only useful when combined with ``auto_`` options or some serious terminal-based hacking). It can be quit using CTRL+C (or whatever is the equivalent in your system/terminal)::
+Run |trex| without a graphical interface. ``nowindow`` must be supplied on the command line and is primarily useful for SSH sessions and automated runs using options such as :param:`auto_quit`::
 
 	trex -i <VIDEO> -nowindow
 

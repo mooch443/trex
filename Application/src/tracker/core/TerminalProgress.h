@@ -85,11 +85,11 @@ inline void clear_progress_line() {
 }
 
 inline void hide_cursor() {
-    std::printf("\033[?25l");
+    //std::printf("\033[?25l");
 }
 
 inline void restore_cursor() {
-    std::printf("\033[?25h");
+    //std::printf("\033[?25h");
 }
 
 } // namespace detail

@@ -273,6 +273,21 @@ Press the ``D`` key, or alternatively click on **Raw** on the top-right, to swit
 
 Currently, :param:`track_size_filter` is an empty range and so does not filter out any objects based on size. However, we can use the information we just gained to filter out unwanted small particles and reflections by setting the filter to ``[4,10]`` instead. Typically, the lower bound (``4``) should be a bit below the smallest individual size, and the upper bound (``10``) a bit above the largest individual size. This will filter out most of the particles, but keep the individuals. You'll hopefully see that some of the particles font turns grey while all the to-be-tracked individuals fonts are cyan (this means they are considered by the tracker).
 
+Diagnosing filtered blobs
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The exported ``num_pixels`` value is the raw number of foreground pixels in a blob. Size filters use the calibrated area::
+
+	effective area = num_pixels * cm_per_pixel^2
+
+With :param:`cm_per_pixel` set to ``1``, the raw count and effective area have the same numeric value. After calibration, the number shown beside a blob in RAW view is the effective area in cm².
+
+:param:`detect_size_filter` is applied while converting the source video. Objects rejected there are not stored in the PV file and require reconversion to recover. :param:`track_size_filter` is applied during tracking. Blobs below its lower bound become noise, while blobs above its upper bound are candidates for splitting.
+
+Press ``D`` to enter RAW view and hover or dock the blob label. Filtered blobs are shown in grey or white, and the text in brackets gives the rejection reason. A blob with a valid size can still show ``history_split`` or ``Split failed`` when history-based splitting expected multiple individuals but could not produce acceptable components.
+
+In tracking view, select the individual and hover its tracklet entries in the info card to see why a tracklet ended. :param:`track_max_speed` affects whether a blob can be assigned to an individual and can end a tracklet; it does not produce a size-filter rejection.
+
 Now press ``D`` again to switch back to tracking view. As you can see, nothing has been applied yet, so click on **🔄 Reanalyse** on the top-right to apply your changes by retracking the video.
 
 Once it's done analysing, scrub through the video by clicking on (or dragging across) the timeline at the top to get an idea of the results. Tracking should be nice now! 

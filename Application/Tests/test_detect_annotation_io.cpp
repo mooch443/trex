@@ -62,16 +62,16 @@ ImportOptions default_import_options(const file::Path& dataset_file) {
 
 TEST(DetectAnnotationExporter, ConvertsBoxToYolo) {
     auto annotation = make_annotation(2, AnnotationType::BOX, {{100, 50}, {300, 150}});
-
+    
     EXPECT_EQ("2 0.5 0.5 0.5 0.5",
-              annotation_to_yolo(annotation, Size2(400, 200), {}));
+              annotation_to_yolo({}, annotation, Size2(400, 200), {}));
 }
 
 TEST(DetectAnnotationExporter, ConvertsSegmentationToYolo) {
     auto annotation = make_annotation(1, AnnotationType::SEGMENTATION, {{0, 0}, {400, 0}, {400, 200}});
 
     EXPECT_EQ("1 0 0 1 0 1 1",
-              annotation_to_yolo(annotation, Size2(400, 200), {}));
+              annotation_to_yolo({}, annotation, Size2(400, 200), {}));
 }
 
 TEST(DetectAnnotationExporter, ConvertsPoseToYoloAndPadsMissingKeypoints) {
@@ -79,7 +79,7 @@ TEST(DetectAnnotationExporter, ConvertsPoseToYoloAndPadsMissingKeypoints) {
     std::vector<std::string> keypoints{"nose", "tail", "left"};
 
     EXPECT_EQ("3 0.5 0.5 0.5 0.5 0.25 0.25 2 0.75 0.75 2 0 0 0",
-              annotation_to_yolo(annotation, Size2(400, 200), keypoints));
+              annotation_to_yolo({}, annotation, Size2(400, 200), keypoints));
 }
 
 TEST(DetectAnnotationExporter, BuildsYoloFrameMappingCsvWithSourceIndex) {
@@ -88,8 +88,8 @@ TEST(DetectAnnotationExporter, BuildsYoloFrameMappingCsvWithSourceIndex) {
     options.video_source_basename = "current_video.mp4";
     options.source_start = 100_f;
 
-    const auto frame_10 = (file::Path("train") / "images" / "frame_000010.jpg").str();
-    const auto frame_12 = (file::Path("train") / "images" / "frame_000012.jpg").str();
+    const auto frame_10 = (file::Path("train") / "images" / "current_video_frame_000010.jpg").str();
+    const auto frame_12 = (file::Path("train") / "images" / "current_video_frame_000012.jpg").str();
     EXPECT_EQ(std::string("image,video_source,source_index\n")
               + frame_10 + ",current_video.mp4,110\n"
               + frame_12 + ",current_video.mp4,112\n",
@@ -123,10 +123,22 @@ TEST(DetectAnnotationImporter, AnnotationMapAcceptsFlatAndSourceNestedText) {
 TEST(DetectAnnotationExporter, BuildsCocoJsonForMixedAnnotationsAndBackgroundImages) {
     auto annotations = mixed_annotations();
     std::vector<Frame_t> frames{1_f, 2_f, 3_f, 5_f};
-    auto json = build_coco_json(annotations, frames, Size2(100, 100), {"nose", "tail"});
+    auto json = build_coco_json({}, annotations, frames, Size2(100, 100), {"nose", "tail"});
     auto text = glz::write_json(json).value();
 
     EXPECT_NE(std::string::npos, text.find("\"file_name\":\"frame_000002.jpg\""));
+    EXPECT_NE(std::string::npos, text.find("\"annotations\""));
+    EXPECT_NE(std::string::npos, text.find("\"keypoints\""));
+    EXPECT_NE(std::string::npos, text.find("\"categories\""));
+}
+
+TEST(DetectAnnotationExporter, BuildsCocoJsonForMixedAnnotationsAndBackgroundImagesUsesVideoPrefix) {
+    auto annotations = mixed_annotations();
+    std::vector<Frame_t> frames{1_f, 2_f, 3_f, 5_f};
+    auto json = build_coco_json(file::PathArray{file::Path("/path/to/videoname.mp4")}, annotations, frames, Size2(100, 100), {"nose", "tail"});
+    auto text = glz::write_json(json).value();
+
+    EXPECT_NE(std::string::npos, text.find("\"file_name\":\"videoname_frame_000002.jpg\""));
     EXPECT_NE(std::string::npos, text.find("\"annotations\""));
     EXPECT_NE(std::string::npos, text.find("\"keypoints\""));
     EXPECT_NE(std::string::npos, text.find("\"categories\""));
@@ -142,10 +154,10 @@ TEST(DetectAnnotationExporter, ExportsUnlabeledPoseKeypointsAsZeroVisibility) {
     // YOLO: the unlabeled keypoint serializes as "0 0 0" and must not drag the
     // bounding box (the first four floats) to the image origin.
     EXPECT_EQ("0 0.5 0.5 0.5 0.5 0.25 0.25 2 0 0 0 0.75 0.75 2",
-              annotation_to_yolo(annotations.at(1_f).front(), Size2(400, 200), keypoints));
+              annotation_to_yolo({}, annotations.at(1_f).front(), Size2(400, 200), keypoints));
 
     // COCO: same expectations as absolute-pixel x/y/visibility triples.
-    auto json = build_coco_json(annotations, {1_f}, Size2(400, 200), keypoints);
+    auto json = build_coco_json({}, annotations, {1_f}, Size2(400, 200), keypoints);
     const auto& annotation = json.get_object().at("annotations").get_array().front().get_object();
 
     const auto& kpts = annotation.at("keypoints").get_array();
@@ -909,7 +921,7 @@ TEST(DetectAnnotationImporter, RoundTripsCocoUnlabeledKeypointVisibility) {
     EXPECT_FALSE(imported.points.at(1).valid());
     EXPECT_TRUE(imported.points.at(2).valid());
 
-    auto json = build_coco_json(preview.annotations, {3_f}, Size2(400, 200),
+    auto json = build_coco_json({}, preview.annotations, {3_f}, Size2(400, 200),
                                 preview.metadata.imported_keypoint_names);
     const auto& annotation = json.get_object().at("annotations").get_array().front().get_object();
     const auto& kpts = annotation.at("keypoints").get_array();
@@ -986,7 +998,7 @@ TEST(DetectAnnotationExporter, CocoExportsAllDetectClassesEvenWhenAbsentFromData
     AnnotationMap annotations;
     annotations[1_f].push_back(make_annotation(0, AnnotationType::BOX, {{10, 20}, {50, 80}})); // only class 0 is used
 
-    auto json = build_coco_json(annotations, {1_f}, Size2(100, 100), {});
+    auto json = build_coco_json({}, annotations, {1_f}, Size2(100, 100), {});
 
     const auto& categories = json.get_object().at("categories").get_array();
     std::set<std::string> names;

@@ -31,7 +31,7 @@ using namespace cmn::file;
 namespace default_config {
 
     static const std::map<std::string, std::string> deprecated = {
-        {"fish_minmax_size", "blob_size_range"},
+        {"fish_minmax_size", "detect_size_filter"},
         {"use_dilation", "dilation_size"},
         {"threshold_constant", "detect_threshold"},
         {"threshold", "detect_threshold"},
@@ -89,7 +89,6 @@ namespace default_config {
         CONFIG("system_memory_limit", uint64_t(0), "Custom override of how many bytes of system RAM the program is allowed to fill. If `approximate_length_minutes` or `stop_after_minutes` are set, this might help to increase the resulting RAW video footage frame_rate.");
         
         CONFIG("frame_rate", uint32_t(0), "Frame rate of the video will be set according to `cam_framerate` or, for video conversion, the metadata of a given video. If you want to modify your frame rate, please set either `cam_framerate` or `frame_rate` during conversion.", LOAD);
-        CONFIG("blob_size_range", Rangef(0.01f, 500000.f), "Minimum or maximum size of the individuals on screen after thresholding. Anything smaller or bigger than these values will be disregarded as noise.");
         //CONFIG("crop_window", false, "If set to true, the grabber will open a window before the analysis starts where the user can drag+drop points defining the crop_offsets.");
         
         CONFIG("approximate_length_minutes", uint32_t(0), "If available, please provide the approximate length of the video in minutes here, so that the encoding strategy can be chosen intelligently. If set to 0, infinity is assumed. This setting is overwritten by `stop_after_minutes`.");

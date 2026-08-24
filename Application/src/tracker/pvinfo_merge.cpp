@@ -10,6 +10,7 @@
 #include <file/DataLocation.h>
 #include <processing/DLList.h>
 #include <core/default_config.h>
+#include <core/SizeFilters.h>
 
 using namespace cmn;
 
@@ -219,7 +220,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
 
             Vec2 offset = merge_mode == merge_mode_t::centered ? Vec2((Size2(average) - Size2(file->average())) * 0.5) : Vec2(0);
             Vec2 scale = merge_mode == merge_mode_t::centered ? Vec2(1) : Vec2(Size2(average).div(Size2(file->average())));
-            auto blob_size_range = configs.at(vdx).at("blob_size_range").value<Rangef>();
+            auto track_size_filter = configs.at(vdx).at("track_size_filter").value<SizeFilters>();
             const int track_threshold = configs.at(vdx).at("track_threshold").value<int>();
             SETTING(cm_per_pixel) = cms_per_pixel[file.get()];
 
@@ -227,7 +228,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
                 auto b = f.steal_blob(i);
                 auto recount = b->recount(track_threshold, *backgrounds.at(vdx));
 
-                if(recount < blob_size_range.start * 0.1 || recount > blob_size_range.end * 5)
+                if(not track_size_filter.in_range_of_one(recount, 0.1, 5.0))
                     continue;
 
                 auto id = b->blob_id();
