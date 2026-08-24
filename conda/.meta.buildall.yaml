@@ -112,7 +112,7 @@ requirements:
     - python =3.11 # [osx and not arm64]
     - python =3.11 # [win]
     - python =3.11 # [linux]
-    #- openblas # [arm64]
+    - libopenblas * *pthreads* # [osx]
     - ffmpeg >=3,<8=*lgpl*
     #- openh264 # [osx]
     #- libvorbis
@@ -124,7 +124,7 @@ requirements:
     - {{ pin_compatible('python', min_pin='x.x', max_pin='x.x') }}
     - {{ pin_compatible('ffmpeg', min_pin='x.x', max_pin='x.x') }}
     - {{ pin_compatible('openh264', min_pin='x.x', max_pin='x.x') }} # [osx]
-    - {{ pin_compatible('openblas', min_pin='x.x', max_pin='x.x') }} # [arm64]
+    - libopenblas * *pthreads* # [osx]
     - {{ pin_compatible('icu', min_pin='x.x', max_pin='x.x') }}
     #- scikit-learn # [not win]
     - pip

@@ -10,6 +10,11 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOWS = ROOT / ".github" / "workflows"
 SUPPORTED_INTEL_MACOS_RUNNERS = {"macos-15-intel", "macos-26-intel"}
+CONDA_RECIPES = (
+    ROOT / "conda" / ".meta.minimal.yaml",
+    ROOT / "conda" / ".meta.buildall.yaml",
+    ROOT / "conda" / "meta.yaml",
+)
 
 
 class WorkflowConfigurationTests(unittest.TestCase):
@@ -62,6 +67,14 @@ class WorkflowConfigurationTests(unittest.TestCase):
         self.assertIn("workflow_dispatch:", workflow)
         self.assertIn("python conda/test_post_link_real_resolver.py", workflow)
         self.assertNotIn("real-offline-resolution:", workflow)
+
+    def test_macos_recipes_use_pthread_openblas(self) -> None:
+        requirement = "libopenblas * *pthreads* # [osx]"
+        for recipe in CONDA_RECIPES:
+            with self.subTest(recipe=recipe.name):
+                contents = recipe.read_text(encoding="utf-8")
+                self.assertEqual(contents.count(requirement), 2)
+                self.assertNotIn("pin_compatible('openblas'", contents)
 
 
 if __name__ == "__main__":

@@ -289,6 +289,15 @@ def _index_events(state: Path) -> list[dict[str, object]]:
     return [item for item in _events(state) if item["kind"] == "index"]
 
 
+def _load_real_resolver():
+    spec = importlib.util.spec_from_file_location("trex_real_resolver", REAL_RESOLVER)
+    if spec is None or spec.loader is None:
+        raise AssertionError(f"could not load {REAL_RESOLVER}")
+    resolver = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(resolver)
+    return resolver
+
+
 class PostLinkProgressWiring(unittest.TestCase):
     def test_install_progress_bypasses_conda_captured_output(self) -> None:
         shell_hook = POST_LINK_SH.read_text(encoding="utf-8")
@@ -313,11 +322,7 @@ class PostLinkProgressWiring(unittest.TestCase):
         self.assertNotIn('fake_bin / "python.cmd"', resolver_source)
         self.assertIn('fake_bin / "sitecustomize.py"', resolver_source)
 
-        spec = importlib.util.spec_from_file_location("trex_real_resolver", REAL_RESOLVER)
-        self.assertIsNotNone(spec)
-        self.assertIsNotNone(spec.loader)
-        resolver = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(resolver)
+        resolver = _load_real_resolver()
 
         with tempfile.TemporaryDirectory(prefix="trex-windows-dispatch-") as temporary:
             fake_site = Path(temporary)
@@ -438,6 +443,62 @@ class PostLinkProgressWiring(unittest.TestCase):
             self.assertEqual(events[0]["requirements"], requirements)
             self.assertEqual(events[0]["arguments"], pip_arguments)
 
+    def test_live_resolver_accepts_os_specific_pairs_above_compatibility_floor(self) -> None:
+        resolver = _load_real_resolver()
+        cases = (
+            ("Windows", "12.9", "cu129", "cu129", "2.8.0+cu129", "0.23.0+cu129"),
+            ("Linux", "99.0", "cu132", "cu140", "2.14.0+cu140", "0.29.0+cu140"),
+        )
+        for system, cuda, minimum, selected, torch, vision in cases:
+            with self.subTest(system=system, selected=selected):
+                errors = resolver.compatibility_errors(
+                    system=system,
+                    label=cuda,
+                    cuda=cuda,
+                    minimum_channel=minimum,
+                    selected=selected,
+                    requirements=[f"torch==={torch}", f"torchvision==={vision}"],
+                    packages={"torch": torch, "torchvision": vision},
+                    urls={
+                        "torch": f"https://download.pytorch.org/whl/{selected}/torch.whl",
+                        "torchvision": f"https://download.pytorch.org/whl/{selected}/torchvision.whl",
+                    },
+                )
+                self.assertEqual(errors, [])
+
+    def test_live_resolver_flags_lost_channel_or_newer_runtime_requirement(self) -> None:
+        resolver = _load_real_resolver()
+        fallback_errors = resolver.compatibility_errors(
+            system="Windows",
+            label="12.9",
+            cuda="12.9",
+            minimum_channel="cu129",
+            selected="pypi",
+            requirements=["torch>=2.2", "torchvision>=0.17"],
+            packages={"torch": "2.13.0", "torchvision": "0.28.0"},
+            urls={},
+        )
+        self.assertTrue(any("lost the guaranteed cu129 GPU path" in error for error in fallback_errors))
+
+        runtime_errors = resolver.compatibility_errors(
+            system="Linux",
+            label="12.9",
+            cuda="12.9",
+            minimum_channel="cu129",
+            selected="cu129",
+            requirements=["torch===2.13.0+cu129", "torchvision===0.28.0+cu129"],
+            packages={
+                "torch": "2.13.0+cu129",
+                "torchvision": "0.28.0+cu129",
+                "nvidia-cuda-runtime": "13.0.96",
+            },
+            urls={
+                "torch": "https://download.pytorch.org/whl/cu129/torch.whl",
+                "torchvision": "https://download.pytorch.org/whl/cu129/torchvision.whl",
+            },
+        )
+        self.assertTrue(any("newer than the simulated driver's CUDA 12.9" in error for error in runtime_errors))
+
 
 class PostLinkSimulationMixin:
     def assert_explicit_sources(self, events: list[dict[str, object]]) -> None:
@@ -532,7 +593,6 @@ class UnixPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
                 (prefix / "conda-meta" / "py-opencv-4.12-simulated.json").write_text(
                     "{}", encoding="utf-8"
                 )
-
             driver = root / "fake_python.py"
             _write_executable(driver, FAKE_PYTHON)
             _write_executable(
