@@ -364,7 +364,10 @@ struct SettingsScene::Data {
             GlobalSettings::unregister_callbacks(std::move(callback));
         
         auto fn = [this](std::string_view name) {
-            if(name == "filename") {
+            if(name == "averaging_method") {
+                SETTING(reset_average) = true;
+                
+            } else if(name == "filename") {
                 auto path = GlobalSettings::read_value<file::Path>("filename");
                 if(path && not path->empty() && not path->remove_filename().empty()) {
                     if(path->has_extension("pv"))
@@ -440,7 +443,8 @@ struct SettingsScene::Data {
             "source",
             "detect_type",
             "detect_model",
-            "region_model"
+            "region_model",
+            "averaging_method"
             
         }, fn);
         

@@ -129,7 +129,7 @@ namespace default_config {
         CONFIG("quit_after_average", false, "If set to true, this will terminate the program directly after generating (or loading) a background average image.", STARTUP);
         CONFIG("averaging_method", averaging_method_t::mean, "Determines the way in which the background samples are combined. The background generated in the process will be used to subtract background from foreground objects during conversion.");
         CONFIG("average_samples", uint32_t(25), "Number of samples taken to generate an average image. Usually fewer are necessary for `averaging_method`'s max, and min.");
-        CONFIG("reset_average", false, "If set to true, the average will be regenerated using the live stream of images (video or camera).");
+        CONFIG("reset_average", false, "If set to true, the average will be regenerated in the mode selected in `averaging_method`. You should set this to true when changing the averaging method. The generated average image will be saved to `average_<videoname>.png` in the same folder as the output video file.", STARTUP);
         CONFIG("solid_background_color", uchar(255), "A greyscale value in case `enable_difference` is set to false - TGrabs will automatically generate a background image with the given color.");
         CONFIG("video_size", Size2(-1,-1), "Is set to the dimensions of the resulting image.", LOAD);
         CONFIG("cam_resolution", Size2(-1, -1), "Defines the dimensions of the camera image.", LOAD);

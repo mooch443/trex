@@ -662,37 +662,67 @@
                         "else":
                         {
                             "type":"vlayout",
+                            "outer_pad":[0,30,0,10],
                             "children":[
                                 {
-                                    "type":"rect",
-                                    "fill":[0,0,0,0],
-                                    "size":[1,30]
-                                },
-                                {
-                                    "type":"settings",
-                                    "var":"averaging_method",
-                                    "label":{
-                                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,250]}",
-                                        "fill":"{if:{||:{selected}:{hovered}}:[10,80,110,240]:[10,50,80,240]}",
-                                        "font":{"size":0.65},
-                                        "color":[255,255,255]
-                                    },
-                                    "list":{
-                                        "line":[220,220,220,200],
-                                        "fill":[25,25,25,220],
-                                        "size":"[{element_w},200]",
-                                        "font":{"size":0.6}
-                                    },
-                                    "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,50]}",
-                                    "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,40]:[50,50,50,240]}",
-                                    "size":[250,45],
-                                    "desc":""
-                                },
+                                    "type":"hlayout",
+                                    "pad":[5,0,5,0],
+                                    "children": [
+                                        {
+                                            "type":"settings",
+                                            "var":"averaging_method",
+                                            "label":{
+                                                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,250]}",
+                                                "fill":"{if:{||:{selected}:{hovered}}:[10,80,110,240]:[10,50,80,240]}",
+                                                "font":{"size":0.65},
+                                                "color":[255,255,255]
+                                            },
+                                            "list":{
+                                                "line":[220,220,220,200],
+                                                "fill":[25,25,25,220],
+                                                "size":"[{element_w},200]",
+                                                "font":{"size":0.6}
+                                            },
+                                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,50]}",
+                                            "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,40]:[50,50,50,240]}",
+                                            "size":[250,45],
+                                            "desc":""
+                                        },
 
-                                {
-                                    "type":"rect",
-                                    "fill":[0,0,0,0],
-                                    "size":[1,10]
+                                        {
+                                            "type":"gridlayout",
+                                            "pad":[0,0,10,0],
+                                            "outer_pad":[0,0,0,0],
+                                            "cellfillclr":[60,60,60,150],
+                                            "celllineclr":[100,100,100,50],
+                                            "cellfillinterval":2,
+                                            "children":[
+                                                [
+                                                    {
+                                                        "type":"stext",
+                                                        "text":"reset average",
+                                                        "origin":[0,0.5], "pos":[0,22],
+                                                        "pad":[10,0,0,0],
+                                                        "max_size":"[{-:{inside_label_w}:20},0]"
+                                                    },
+                                                    {
+                                                        "type":"settings",
+                                                        "var":"reset_average",
+                                                        "label":{
+                                                            "corners":["right"],
+                                                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,250]}",
+                                                            "fill":"{if:{||:{selected}:{hovered}}:[10,80,110,240]:[10,50,80,240]}",
+                                                            "font":{"size":0.65},
+                                                            "color":[255,255,255]
+                                                        },
+                                                        "size":"[{max:150:{*:{textfield_w}:0.1}},45]",
+                                                        "desc":""
+                                                    }
+                                                ]
+
+                                            ]
+                                        }
+                                    ]
                                 }
                             ]
                         }
