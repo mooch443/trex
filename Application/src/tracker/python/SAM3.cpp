@@ -5,7 +5,7 @@
 #include <misc/Timer.h>
 #include <core/TrackingSettings.h>
 #include <python/Detection.h>
-#include <python/DetectionPostprocess.h>
+#include <python/DetectionTilePostprocess.h>
 #include <python/PipelineRegistry.h>
 #include <python/YOLO.h>
 #include <python/ModuleProxy.h>
@@ -197,7 +197,7 @@ void SAM3::apply(std::vector<TileImage>&& tiled) {
                                 " images in frame ", frame_index, ".");
                         }
 
-                        auto result = detail::DetectionPostprocess::apply(
+                        auto result = detail::DetectionTilePostprocess::apply(
                             std::move(results), tile_geometries);
                         YOLO::receive(tile.data, std::move(result));
 

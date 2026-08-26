@@ -1127,6 +1127,11 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("detect_tile_merge_iou", Float2_t(0.55f), "Mode-native overlap threshold for same-class predictions from different overlapping tiles. Lower values merge more aggressively.");
         CONFIG("detect_tile_merge_containment", Float2_t(0.5f), "Intersection-over-smaller-area fallback threshold for same-class predictions from different overlapping tiles. Lower values merge more aggressively.");
         CONFIG("detect_tile_pose_match_distance", Float2_t(0.5f), "Maximum median common-joint distance, normalized by the smaller model-box diagonal, when `detect_pose_bbx=keypoints`.");
+        CONFIG("detect_mask_postprocess_mode", MaskPostprocessMode::none, "Optional same-class mask-overlap handling after tile aggregation. `none` preserves the rows, `greedy_nms` suppresses eligible overlapping masks, and `merge_masks` unions transitively overlapping masks.");
+        CONFIG("detect_mask_postprocess_iou", Float2_t(0.5f), "Mask intersection-over-union threshold used to associate same-class predictions during the optional mask postprocess pass. Lower values associate masks more aggressively.");
+        CONFIG("detect_mask_postprocess_containment", std::optional<Float2_t>{}, "Optional intersection-over-smaller-mask-area threshold used alongside `detect_mask_postprocess_iou`. Unset disables containment-based association.");
+        CONFIG("yolo_instance_mask_closing", uint8_t(0), "Closing radius, in mask pixels, applied to each binarized YOLO instance mask before cropping. The closing kernel size is `2 * radius + 1`; zero disables closing. When `yolo_instance_mask_expand` is enabled, crop bounds are calculated from the closed mask so added positive pixels are retained.");
+        CONFIG("yolo_instance_mask_expand", false, "Expand each YOLO instance mask's bounding box to enclose all positive mask pixels before cropping. This changes the crop bounds, not the mask pixels. Expanded predictions may overlap; setting `detect_mask_postprocess_mode` to `merge_masks` can combine eligible same-class overlaps.");
         
         std::optional<track::detect::Sam3Prompts> example_prompts = track::detect::Sam3Prompts{{
             {Frame_t{}, track::detect::Sam3PromptList{track::detect::Sam3PromptPayload::fromStr("shark")}}

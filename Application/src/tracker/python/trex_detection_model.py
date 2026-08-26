@@ -37,6 +37,8 @@ class StrippedResults:
 
             masks: List of 2D numpy arrays (uint8) representing segmentation masks aligned to source-image boxes. Same length as boxes.
 
+            semantic_mask: One 2D uint8 class-ID map in detector-tile coordinates. It is mutually exclusive with all instance payloads and is converted to masks in C++.
+
             obb: Array of oriented bounding boxes, with each row formatted as [class_id, confidence, x_center, y_center, width, height, angle] in source-image coordinates. Note: if obb is set, boxes is not required and has to be empty.
 
             points: Array of point detections, with each row formatted as [class_id, confidence, x, y, radius]
@@ -46,6 +48,7 @@ class StrippedResults:
         self.boxes: Optional[np.ndarray] = None
         self.keypoints: Optional[List[np.ndarray]] = None
         self.masks: Optional[List[np.ndarray]] = None
+        self.semantic_mask: Optional[np.ndarray] = None
         self.orig_shape: Optional[Any] = None
         self.scale: np.ndarray = scale
         self.offset: np.ndarray = offset
@@ -54,7 +57,7 @@ class StrippedResults:
         self.locations: Optional[np.ndarray] = None
 
     def __str__(self) -> str:
-        return f"StrippedResults<boxes={self.boxes}, keypoints={self.keypoints}, orig_shape={self.orig_shape}, scale={self.scale}, offset={self.offset}, obb={self.obb}, points={self.points}>"
+        return f"StrippedResults<boxes={self.boxes}, keypoints={self.keypoints}, semantic_mask={None if self.semantic_mask is None else self.semantic_mask.shape}, orig_shape={self.orig_shape}, scale={self.scale}, offset={self.offset}, obb={self.obb}, points={self.points}>"
 
     def __repr__(self) -> str:
         return self.__str__()
@@ -552,6 +555,7 @@ class TRexDetection:
                 f"TRexDetection.inference tile {index}",
             )
             masks = list(tile.masks) if tile.masks is not None else []
+            semantic_mask = getattr(tile, "semantic_mask", None)
 
             keypoints = (
                 np.ascontiguousarray(
@@ -582,6 +586,7 @@ class TRexDetection:
                 TRex.KeypointData(keypoints),
                 TRex.ObbData(obbs),
                 TRex.PointData(points),
+                semantic_mask,
             ))
 
         return rexsults

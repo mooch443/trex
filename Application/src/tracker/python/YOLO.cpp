@@ -1,6 +1,7 @@
 #include "YOLO.h"
 #include <processing/PixelTree.h>
-#include <python/DetectionPostprocess.h>
+#include <python/DetectionTilePostprocess.h>
+#include <python/SegmentationPostprocess.h>
 #include <python/PythonWrapper.h>
 #include <grabber/misc/default_config.h>
 #include <video/Video.h>
@@ -784,6 +785,9 @@ std::optional<std::tuple<SegmentationData::Assignment, blob::Pair>> YOLO::proces
     if(mask_image.empty())
         return std::nullopt;
     assert(mask_image.isContinuous());
+    
+    //tf::imshow("mask", mask_image);
+    
     // Perform CPU-based connected-component labeling on the mask
     auto blobs = CPULabeling::run(list, mask_image);
     if(blobs.empty())
@@ -854,10 +858,11 @@ std::optional<std::tuple<SegmentationData::Assignment, blob::Pair>> YOLO::proces
     
     //pv::Blob blob(*pair.lines, *pair.pixels, pair.extra_flags, pair.pred);
     // Convert the blob outline into actual pixel values from the image
-    auto [o, px] = blob.calculate_pixels(r3);
-    blob.set_pixels(std::make_unique<PixelArray_t>(*px));
-    pair.pixels = std::move(px);
-    
+    if(meta_encoding != meta_encoding_t::binary) {
+        auto [o, px] = blob.calculate_pixels(r3);
+        blob.set_pixels(std::make_unique<PixelArray_t>(*px));
+        pair.pixels = std::move(px);
+    }
     
     //auto &&[_, test_image] = blob.color_image();
     //auto _m = test_image->get();
@@ -1195,6 +1200,10 @@ void YOLO::ReceivePackage(TransferData&& transfer, std::vector<track::detect::Re
     /// this will move all the post-processing into a different
     /// thread:
     auto p = pack<void()>([transfer = std::move(transfer), results = std::move(results)]() mutable {
+        const auto semantic_filter = READ_SETTING_WITH_DEFAULT(
+            detect_only_classes,
+            track::detect::PredictionFilter{});
+        const float semantic_confidence = 1.f;//static_cast<float>(READ_SETTING(detect_conf_threshold, Float2_t));
         std::vector<size_t> tile_counts(transfer.datas.size(), 0u);
         for(const auto frame : transfer.orig_id)
             ++tile_counts[frame];
@@ -1207,9 +1216,25 @@ void YOLO::ReceivePackage(TransferData&& transfer, std::vector<track::detect::Re
         }
         for(size_t tile = 0; tile < transfer.orig_id.size(); ++tile) {
             const auto frame = transfer.orig_id[tile];
-            grouped_results[frame].emplace_back(std::move(results[tile]));
+            grouped_results[frame].emplace_back(
+                detail::SegmentationPostprocess::convert_semantic(
+                    std::move(results[tile]),
+                    transfer.tile_geometries[tile],
+                    semantic_filter,
+                    semantic_confidence));
             grouped_geometries[frame].emplace_back(std::move(transfer.tile_geometries[tile]));
         }
+        
+        const auto detect_mask_postprocess_containment = READ_SETTING_WITH_DEFAULT(detect_mask_postprocess_containment, std::optional<Float2_t>{});
+        detail::SegmentationPostprocess::Settings mask_nms_settings{
+            .overlap = {
+                .iou = static_cast<float>(READ_SETTING(detect_mask_postprocess_iou, Float2_t)),
+                .containment = detect_mask_postprocess_containment.value_or(Float2_t{2.f})
+            },
+            .class_agnostic = false,
+            .mode = READ_SETTING_WITH_DEFAULT(detect_mask_postprocess_mode, MaskPostprocessMode::none),
+            .frame = {}
+        };
 
         for (size_t i = 0; i < transfer.datas.size(); ++i) {
             auto& data = transfer.datas.at(i);
@@ -1219,8 +1244,16 @@ void YOLO::ReceivePackage(TransferData&& transfer, std::vector<track::detect::Re
                     throw U_EXCEPTION("YOLO returned no detector tiles for request ", i, ".");
                 }
 
-                auto result = detail::DetectionPostprocess::apply(
-                    std::move(grouped_results[i]), grouped_geometries[i]);
+                auto result = detail::DetectionTilePostprocess::apply(
+                    std::move(grouped_results[i]),
+                    grouped_geometries[i]
+                );
+                
+                if(mask_nms_settings.mode != MaskPostprocessMode::none) {
+                    mask_nms_settings.frame = Frame_t(data.image->index());
+                    result = detail::SegmentationPostprocess::apply(std::move(result), mask_nms_settings);
+                }
+
                 receive(data, std::move(result));
                 transfer.set_value(i, std::move(data));
             }

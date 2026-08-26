@@ -693,6 +693,8 @@ TEST(YOLOFilenameTest, ValidFilenames) {
     EXPECT_TRUE(yolo::is_default_model("yolo11x-seg.pt"));
     EXPECT_TRUE(yolo::is_default_model("yolo26n"));
     EXPECT_TRUE(yolo::is_default_model("yolo26n.pt"));
+    EXPECT_TRUE(yolo::is_default_model("yolo26n-sem"));
+    EXPECT_TRUE(yolo::is_default_model("yolo26n-sem.pt"));
     EXPECT_TRUE(yolo::is_default_model("yolov10b.pt"));
     EXPECT_TRUE(yolo::is_default_model("yolov10l.pt"));
     EXPECT_TRUE(yolo::is_default_model("yolov10m.pt"));

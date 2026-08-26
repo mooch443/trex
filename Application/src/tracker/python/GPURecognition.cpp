@@ -453,6 +453,10 @@ namespace track::detect {
     public:
         Mask(py::array_t<uint8_t, py::array::c_style | py::array::forcecast> mask) {
             py::buffer_info buf_info = mask.request();
+            if(buf_info.ndim != 2) {
+                throw std::invalid_argument(
+                    "Detection masks must be two-dimensional arrays.");
+            }
             int rows = narrow_cast<int>(buf_info.shape[0]);
             int cols = narrow_cast<int>(buf_info.shape[1]);
             auto ptr = move_array<uint8_t>(mask);
@@ -495,6 +499,28 @@ public:
             result.emplace_back(std::move(Mask(mask).data));
         }
         return result;
+    }
+
+    std::optional<MaskData> transfer_semantic_mask(py::object semantic_mask) {
+        if(CHECK_NONE(semantic_mask))
+            return std::nullopt;
+
+        const auto input = semantic_mask.cast<py::array>();
+        const auto input_info = input.request();
+        if(input_info.ndim != 2) {
+            throw std::invalid_argument(
+                "A semantic mask must be a two-dimensional class-ID array.");
+        }
+        if(input_info.itemsize != sizeof(uint8_t)
+           || input_info.format != py::format_descriptor<uint8_t>::format())
+        {
+            throw std::invalid_argument(
+                "Semantic class IDs must be validated and provided as uint8 values in [0, 255].");
+        }
+
+        auto mask = semantic_mask.cast<
+            py::array_t<uint8_t, py::array::c_style | py::array::forcecast>>();
+        return std::move(Mask(mask).data);
     }
 
 std::vector<KeypointData> transfer_keypoints(py::list keypoints) {
@@ -728,7 +754,7 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
         .def(py::init([](int index,
                          track::detect::Boxes boxes_and_scores,
                          py::list masks, track::detect::KeypointData keypoints, track::detect::ObbData obb,
-                             track::detect::PointData points)
+                             track::detect::PointData points, py::object semantic_mask)
                 -> Result
             {
                 auto _masks = transfer_masks(masks);
@@ -738,9 +764,17 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
                     std::move(_masks),
                     std::move(keypoints),
                     std::move(obb),
-                    std::move(points)
+                    std::move(points),
+                    transfer_semantic_mask(std::move(semantic_mask))
                 };
-            })
+            }),
+            py::arg("index"),
+            py::arg("boxes_and_scores"),
+            py::arg("masks"),
+            py::arg("keypoints"),
+            py::arg("obb"),
+            py::arg("points"),
+            py::arg("semantic_mask") = py::none()
         )
         .def("__repr__", [](const track::detect::Result& result) -> std::string {
             return result.toStr();

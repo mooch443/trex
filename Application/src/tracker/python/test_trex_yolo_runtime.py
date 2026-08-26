@@ -118,6 +118,8 @@ class FakeTRexModule(types.ModuleType):
             "detect_iou_threshold": None,
             "detect_point_radii": "{}",
             "detect_keypoint_threshold": 0.1,
+            "yolo_instance_mask_closing": 0,
+            "yolo_instance_mask_expand": False,
         }
 
     def setting(self, name: str):
@@ -278,10 +280,23 @@ class RuntimePolicyTest(unittest.TestCase):
             "detect_iou_threshold": None,
             "detect_point_radii": "{}",
             "detect_keypoint_threshold": 0.1,
+            "yolo_instance_mask_closing": 0,
+            "yolo_instance_mask_expand": False,
         }
 
-    def _make_model(self, *, modern: bool, end2end: bool, use_tracking: bool = False):
-        FakeYOLO.active_scenario = FakeYOLOScenario(modern=modern, end2end=end2end)
+    def _make_model(
+        self,
+        *,
+        modern: bool,
+        end2end: bool,
+        use_tracking: bool = False,
+        task: str = "detect",
+    ):
+        FakeYOLO.active_scenario = FakeYOLOScenario(
+            modern=modern,
+            end2end=end2end,
+            task=task,
+        )
         config = FakeModelConfig(use_tracking=use_tracking, model_path="fake.pt")
         model = self.trex_yolo.YOLOModel(config)
         model.load()
@@ -337,6 +352,26 @@ class RuntimePolicyTest(unittest.TestCase):
         call = backend.track_calls[-1]["kwargs"]
         self.assertNotIn("iou", call)
         self.assertNotIn("agnostic_nms", call)
+
+    def test_semantic_model_uses_mask_format_and_prediction_path(self):
+        model, backend = self._make_model(
+            modern=False,
+            end2end=False,
+            use_tracking=True,
+            task="semantic",
+        )
+        self.assertEqual(model.config.output_format, FakeObjectDetectionFormat.masks)
+
+        image = np.zeros((32, 48, 3), dtype=np.uint8)
+        results = model.predict(
+            [image],
+            scales=[np.ones(2, dtype=np.float32)],
+            offsets=[np.zeros(2, dtype=np.float32)],
+        )
+
+        self.assertEqual(len(results), 1)
+        self.assertEqual(len(backend.predict_calls), 1)
+        self.assertEqual(backend.track_calls, [])
 
     def test_bbx_saved_model_only_passes_iou_when_explicitly_set(self):
         calls = []
@@ -415,6 +450,81 @@ class RuntimePolicyTest(unittest.TestCase):
         self.assertEqual(stripped.masks[0].shape, (5, 4))
         self.assertEqual(stripped.boxes.dtype, np.float32)
         self.assertTrue(stripped.boxes.flags["C_CONTIGUOUS"])
+
+    def test_mask_expansion_setting_preserves_positive_pixels_outside_model_box(self):
+        torch = self.trex_yolo.torch
+        protos = torch.full((1, 4, 4), -1.0, dtype=torch.float32)
+        protos[0, 0, 0] = 1.0
+        protos[0, 3, 3] = 1.0
+        coefficients = torch.ones((1, 1), dtype=torch.float32)
+        boxes = torch.tensor([[0.0, 0.0, 1.0, 1.0]], dtype=torch.float32)
+
+        self.fake_trex.settings["yolo_instance_mask_expand"] = False
+        cropped = self.trex_yolo.process_mask(
+            protos, coefficients, boxes.clone(), (4, 4))
+        self.assertEqual(int(cropped.count_nonzero()), 1)
+
+        self.fake_trex.settings["yolo_instance_mask_expand"] = True
+        expanded = self.trex_yolo.process_mask(
+            protos, coefficients, boxes.clone(), (4, 4))
+        self.assertEqual(int(expanded.count_nonzero()), 2)
+
+    def test_mask_closing_setting_changes_returned_mask(self):
+        torch = self.trex_yolo.torch
+        masks = torch.zeros((1, 7, 7), dtype=torch.uint8)
+        masks[0, :, 1:3] = 1
+        masks[0, :, 4:6] = 1
+        boxes = torch.tensor([[0.0, 0.0, 7.0, 7.0]], dtype=torch.float32)
+        self.fake_trex.settings["yolo_instance_mask_closing"] = 1
+
+        processed, processed_boxes = self.trex_yolo.postprocess_masks(
+            masks, boxes.clone())
+
+        self.assertEqual(int(masks[0, 3, 3]), 0)
+        self.assertEqual(int(processed[0, 3, 3]), 1)
+        self.assertEqual(processed.dtype, masks.dtype)
+        self.assertTrue(torch.equal(processed_boxes, boxes))
+
+    def test_semantic_result_preserves_one_contiguous_class_map(self):
+        torch = self.trex_yolo.torch
+        result = FakePredictionResult()
+        result.boxes = None
+        result.semantic_mask = types.SimpleNamespace(
+            data=torch.tensor(
+                [[0, 1, 1], [0, 2, 1]],
+                dtype=torch.int16,
+            )
+        )
+
+        stripped = self.stripped_yolo_results(
+            result,
+            scale=np.array([2.0, 3.0], dtype=np.float32),
+            offset=np.array([10.0, 20.0], dtype=np.float32),
+        )
+
+        self.assertIsNone(stripped.boxes)
+        self.assertIsNone(stripped.masks)
+        self.assertEqual(stripped.semantic_mask.dtype, np.uint8)
+        self.assertTrue(stripped.semantic_mask.flags["C_CONTIGUOUS"])
+        np.testing.assert_array_equal(
+            stripped.semantic_mask,
+            np.asarray([[0, 1, 1], [0, 2, 1]], dtype=np.uint8),
+        )
+
+    def test_semantic_result_rejects_class_ids_outside_uint8(self):
+        torch = self.trex_yolo.torch
+        result = FakePredictionResult()
+        result.boxes = None
+        result.semantic_mask = types.SimpleNamespace(
+            data=torch.tensor([[0, 256]], dtype=torch.int32)
+        )
+
+        with self.assertRaisesRegex(ValueError, "uint8 class range"):
+            self.stripped_yolo_results(
+                result,
+                scale=np.ones(2, dtype=np.float32),
+                offset=np.zeros(2, dtype=np.float32),
+            )
 
 
 if __name__ == "__main__":

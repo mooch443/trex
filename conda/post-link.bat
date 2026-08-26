@@ -65,7 +65,7 @@ if errorlevel 1 (
     goto post_link_finish
 )
 
-set PIP_ARGS_SIMPLE="torchmetrics" "tqdm" "ultralytics>=8.3.0,<9" "rfdetr==1.8.3" "dill" "scikit-learn" "timm" "%TREX_CLIP_REQUIREMENT%"
+set PIP_ARGS_SIMPLE="torchmetrics" "tqdm" "ultralytics>=8.4.52,<9" "rfdetr==1.8.3" "dill" "scikit-learn" "timm" "%TREX_CLIP_REQUIREMENT%"
 if not exist "%PREFIX%\conda-meta\py-opencv-*.json" (
     set PIP_ARGS_SIMPLE=!PIP_ARGS_SIMPLE! "opencv-python>=4.6,<5"
     call :log "[post-link] No Conda py-opencv binding detected; pip will provide cv2 for the non-minimal profile."

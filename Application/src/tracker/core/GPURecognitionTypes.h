@@ -331,13 +331,15 @@ public:
            std::vector<MaskData>&& masks,
            KeypointData&& keypoints,
            track::detect::ObbData&& obbdata,
-           track::detect::PointData&& points)
+           track::detect::PointData&& points,
+           std::optional<MaskData> semantic_mask = std::nullopt)
         : _index(index),
           _boxes(std::move(boxes)),
           _masks(std::move(masks)),
           _keypoints(std::move(keypoints)),
           _obbdata(std::move(obbdata)),
-          _points(std::move(points))
+          _points(std::move(points)),
+          _semantic_mask(std::move(semantic_mask))
     {
         if(_boxes.num_rows() != 0) {
             if(!_masks.empty() && _masks.size() != _boxes.num_rows())
@@ -347,10 +349,20 @@ public:
             throw std::invalid_argument("Boxes must be empty if obb data is set.");
         if(!_points.empty() && _boxes.num_rows() > 0)
             throw std::invalid_argument("Boxes must be empty if points data is set.");
+        if(_semantic_mask
+           && (_boxes.num_rows() > 0
+               || !_masks.empty()
+               || !_keypoints.empty()
+               || !_obbdata.empty()
+               || !_points.empty()))
+        {
+            throw std::invalid_argument(
+                "A semantic mask cannot be combined with another detection payload.");
+        }
     }
 
     std::string toStr() const {
-        return "Result<" + std::to_string(index()) + "," + _boxes.toStr() + "," + Meta::toStr(_masks) + "," + Meta::toStr(_keypoints) + "," + Meta::toStr(_obbdata) + "," + Meta::toStr(_points) + ">";
+        return "Result<" + std::to_string(index()) + "," + _boxes.toStr() + "," + Meta::toStr(_masks) + "," + Meta::toStr(_keypoints) + "," + Meta::toStr(_obbdata) + "," + Meta::toStr(_points) + ",semantic=" + Meta::toStr(_semantic_mask) + ">";
     }
 
     static consteval std::string_view class_name() {
@@ -364,6 +376,7 @@ protected:
     GETTER(KeypointData, keypoints);
     GETTER(ObbData, obbdata);
     GETTER(PointData, points);
+    GETTER(std::optional<MaskData>, semantic_mask);
 };
 
 class TREX_EXPORT YoloInput {

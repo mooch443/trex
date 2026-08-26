@@ -6,7 +6,10 @@
 #include <misc/GlobalSettings.h>
 #include <core/default_config.h>
 #include <grabber/misc/default_config.h>
-#include <python/DetectionPostprocess.h>
+#include <python/DetectionAssociation.h>
+#include <python/DetectionMaskAccess.h>
+#include <python/DetectionTilePostprocess.h>
+#include <python/SegmentationPostprocess.h>
 #include <python/YOLO.h>
 #include <python/OverlayedVideo.h>
 #include <python/PythonWrapper.h>
@@ -69,6 +72,9 @@ void resetGlobalSettings() {
     SETTING(detect_tile_merge_iou) = Float2_t{0.55f};
     SETTING(detect_tile_merge_containment) = Float2_t{0.5f};
     SETTING(detect_tile_pose_match_distance) = Float2_t{0.5f};
+    SETTING(detect_mask_postprocess_mode) = track::MaskPostprocessMode::none;
+    SETTING(detect_mask_postprocess_iou) = Float2_t{0.5f};
+    SETTING(detect_mask_postprocess_containment) = std::optional<Float2_t>{};
     // Pin every receive()-path variable explicitly rather than inheriting
     // default_config's default. detect_pose_bbx selects the pose dedup path;
     // tests needing the keypoint-rect path override this to `keypoints`.
@@ -221,6 +227,36 @@ cv::Mat makeMask(int rows, int cols, std::initializer_list<Bounds> rects) {
         }
     }
     return mask;
+}
+
+track::detect::MaskData makeOwnedMaskData(
+    int rows,
+    int cols,
+    std::initializer_list<Bounds> rects)
+{
+    const auto mask = makeMask(rows, cols, rects);
+    std::vector<uint8_t> bytes(mask.total());
+    std::copy_n(mask.ptr<uint8_t>(), mask.total(), bytes.begin());
+    return track::detect::DetectionMaskAccess::make_mask(
+        std::move(bytes), rows, cols);
+}
+
+track::detect::Result makeSemanticResult(int index, const cv::Mat& class_map) {
+    CV_Assert(class_map.type() == CV_8UC1);
+    CV_Assert(class_map.isContinuous());
+    std::vector<uint8_t> bytes(class_map.total());
+    std::copy_n(class_map.ptr<uint8_t>(), class_map.total(), bytes.begin());
+    return track::detect::Result{
+        index,
+        track::detect::Boxes(std::vector<float>{}, 0u),
+        {},
+        track::detect::KeypointData{},
+        track::detect::ObbData{},
+        track::detect::PointData{},
+        std::optional<track::detect::MaskData>{
+            track::detect::DetectionMaskAccess::make_mask(
+                std::move(bytes), class_map.rows, class_map.cols)}
+    };
 }
 
 template<typename Coord>
@@ -402,7 +438,7 @@ TEST(TileImageTest, ComputeTileBoundsClampsEdgeTilesToSourceFrame) {
     EXPECT_EQ(bounds[1], track::SourceRect(180, 0, 320, 300));
 }
 
-TEST(DetectionPostprocessTest, ZeroOverlapCollectsWithoutFilteringDuplicates) {
+TEST(DetectionTilePostprocessTest, ZeroOverlapCollectsWithoutFilteringDuplicates) {
     resetGlobalSettings();
     SETTING(detect_tile_overlap) = 0.f;
 
@@ -410,7 +446,7 @@ TEST(DetectionPostprocessTest, ZeroOverlapCollectsWithoutFilteringDuplicates) {
     results.emplace_back(makeBoxResult(0, {{70.f, 20.f, 110.f, 70.f, 0.9f, 1.f}}));
     results.emplace_back(makeBoxResult(1, {{72.f, 20.f, 112.f, 70.f, 0.8f, 1.f}}));
 
-    auto combined = track::detail::DetectionPostprocess::apply(
+    auto combined = track::detail::DetectionTilePostprocess::apply(
         std::move(results), horizontalOverlapGeometries());
 
     ASSERT_EQ(combined.boxes().num_rows(), 2u);
@@ -418,22 +454,299 @@ TEST(DetectionPostprocessTest, ZeroOverlapCollectsWithoutFilteringDuplicates) {
     EXPECT_FLOAT_EQ(combined.boxes()[1].conf, 0.8f);
 }
 
-TEST(DetectionPostprocessTest, PositiveOverlapFiltersCrossTileDuplicates) {
+TEST(DetectionTilePostprocessTest, PositiveOverlapFiltersCrossTileDuplicates) {
     resetGlobalSettings();
     SETTING(detect_tile_overlap) = 0.2f;
+
+    const std::array<Bounds, 2> bounds{
+        Bounds(70.f, 20.f, 40.f, 50.f),
+        Bounds(72.f, 20.f, 40.f, 50.f)
+    };
+    const auto similarity = track::detect::association::accepted_similarity(
+        track::detect::association::overlap(bounds[0], bounds[1]),
+        track::detect::association::OverlapThresholds{
+            .iou = static_cast<float>(READ_SETTING(detect_tile_merge_iou, Float2_t)),
+            .containment = static_cast<float>(READ_SETTING(
+                detect_tile_merge_containment,
+                Float2_t))
+        });
+    ASSERT_TRUE(similarity.has_value());
+
+    const std::array<track::detect::association::AssociationCandidate, 2> candidates{
+        track::detect::association::AssociationCandidate{.stable = 0u, .source = 0u},
+        track::detect::association::AssociationCandidate{.stable = 1u, .source = 1u}
+    };
+    const std::array<track::detect::association::AssociationMatch, 1> matches{
+        track::detect::association::AssociationMatch{
+            .lhs = 0u,
+            .rhs = 1u,
+            .similarity = *similarity
+        }
+    };
+    const std::array<float, 2> confidences{0.9f, 0.8f};
+    const auto selection = track::detect::association::greedy_nms(
+        candidates,
+        matches,
+        [&](size_t lhs, size_t rhs) {
+            return confidences[lhs] > confidences[rhs];
+        });
+    ASSERT_EQ(selection.size(), 1u);
+    EXPECT_EQ(selection[0], 0u);
 
     std::vector<track::detect::Result> results;
     results.emplace_back(makeBoxResult(0, {{70.f, 20.f, 110.f, 70.f, 0.9f, 1.f}}));
     results.emplace_back(makeBoxResult(1, {{72.f, 20.f, 112.f, 70.f, 0.8f, 1.f}}));
 
-    auto combined = track::detail::DetectionPostprocess::apply(
+    auto combined = track::detail::DetectionTilePostprocess::apply(
         std::move(results), horizontalOverlapGeometries());
 
     ASSERT_EQ(combined.boxes().num_rows(), 1u);
     EXPECT_FLOAT_EQ(combined.boxes()[0].conf, 0.9f);
 }
 
-TEST(DetectionPostprocessTest, PositiveOverlapNeverAssociatesRowsFromTheSameTile) {
+TEST(SemanticPostprocessTest, ConvertsClassesWithinTileContentToSourceMasks) {
+    cv::Mat class_map = cv::Mat::zeros(6, 8, CV_8UC1);
+    class_map(cv::Rect(2, 2, 2, 2)).setTo(1);
+    class_map(cv::Rect(5, 1, 1, 1)).setTo(2);
+    class_map.row(0).setTo(3);
+    class_map.col(7).setTo(3);
+    const track::TileGeometry geometry{
+        .source_region = track::SourceRect(10, 20, 12, 8),
+        .tile_content = track::TileRect(1, 1, 6, 4),
+        .tile_size = Size2(8, 6)
+    };
+
+    auto converted = track::detail::SegmentationPostprocess::convert_semantic(
+        makeSemanticResult(4, class_map),
+        geometry,
+        track::detect::PredictionFilter{},
+        0.37f);
+
+    EXPECT_FALSE(converted.semantic_mask().has_value());
+    ASSERT_EQ(converted.boxes().num_rows(), 2u);
+    ASSERT_EQ(converted.masks().size(), 2u);
+    EXPECT_FLOAT_EQ(converted.boxes()[0].clid, 1.f);
+    EXPECT_FLOAT_EQ(converted.boxes()[0].conf, 0.37f);
+    EXPECT_FLOAT_EQ(converted.boxes()[0].box.x0, 12.f);
+    EXPECT_FLOAT_EQ(converted.boxes()[0].box.y0, 22.f);
+    EXPECT_FLOAT_EQ(converted.boxes()[0].box.x1, 16.f);
+    EXPECT_FLOAT_EQ(converted.boxes()[0].box.y1, 26.f);
+    EXPECT_EQ(converted.masks()[0].mat.size(), cv::Size(4, 4));
+    EXPECT_EQ(cv::countNonZero(converted.masks()[0].mat), 16);
+    EXPECT_FLOAT_EQ(converted.boxes()[1].clid, 2.f);
+    EXPECT_FLOAT_EQ(converted.boxes()[1].box.x0, 18.f);
+    EXPECT_FLOAT_EQ(converted.boxes()[1].box.y0, 20.f);
+    EXPECT_FLOAT_EQ(converted.boxes()[1].box.x1, 20.f);
+    EXPECT_FLOAT_EQ(converted.boxes()[1].box.y1, 22.f);
+    EXPECT_EQ(converted.masks()[1].mat.size(), cv::Size(2, 2));
+
+    auto explicit_background = track::detail::SegmentationPostprocess::convert_semantic(
+        makeSemanticResult(4, class_map),
+        geometry,
+        track::detect::PredictionFilter{
+            .detect_only = {0},
+            ._inverted_from = std::nullopt
+        },
+        0.37f);
+    ASSERT_EQ(explicit_background.boxes().num_rows(), 1u);
+    EXPECT_FLOAT_EQ(explicit_background.boxes()[0].clid, 0.f);
+
+    auto inverted = track::detail::SegmentationPostprocess::convert_semantic(
+        makeSemanticResult(4, class_map),
+        geometry,
+        track::detect::PredictionFilter{
+            .detect_only = {},
+            ._inverted_from = std::vector<uint16_t>{1}
+        },
+        0.37f);
+    ASSERT_EQ(inverted.boxes().num_rows(), 2u);
+    EXPECT_FLOAT_EQ(inverted.boxes()[0].clid, 0.f);
+    EXPECT_FLOAT_EQ(inverted.boxes()[1].clid, 2.f);
+}
+
+TEST(SegmentationPostprocessTest, ResultsWithoutMasksPassThroughUnchanged) {
+    auto result = track::detail::SegmentationPostprocess::apply(
+        makeBoxResult(5, {{10.f, 20.f, 30.f, 40.f, 0.8f, 2.f}}),
+        track::detail::SegmentationPostprocess::Settings{
+            .overlap = {.iou = 0.5f, .containment = 2.f},
+            .class_agnostic = false,
+            .mode = track::MaskPostprocessMode::merge_masks,
+            .frame = {}
+        });
+
+    EXPECT_EQ(result.index(), 5);
+    ASSERT_EQ(result.boxes().num_rows(), 1u);
+    EXPECT_FLOAT_EQ(result.boxes()[0].clid, 2.f);
+    EXPECT_TRUE(result.masks().empty());
+}
+
+TEST(SegmentationPostprocessTest, NoneModeLeavesMaskRowsUnchanged) {
+    auto boxes = makeBoxes({
+        {20.f, 30.f, 40.f, 50.f, 0.9f, 1.f},
+        {20.f, 30.f, 40.f, 50.f, 0.8f, 1.f}
+    });
+    std::vector<track::detect::MaskData> masks;
+    masks.emplace_back(makeOwnedMaskData(
+        20, 20, {Bounds(0.f, 0.f, 20.f, 20.f)}));
+    masks.emplace_back(makeOwnedMaskData(
+        20, 20, {Bounds(0.f, 0.f, 20.f, 20.f)}));
+    track::detect::Result input{
+        9,
+        std::move(boxes),
+        std::move(masks),
+        track::detect::KeypointData{},
+        track::detect::ObbData{},
+        track::detect::PointData{}
+    };
+
+    auto unchanged = track::detail::SegmentationPostprocess::apply(
+        std::move(input),
+        track::detail::SegmentationPostprocess::Settings{
+            .overlap = {.iou = 0.5f, .containment = 0.5f},
+            .class_agnostic = false,
+            .mode = track::MaskPostprocessMode::none,
+            .frame = {}
+        });
+
+    EXPECT_EQ(unchanged.index(), 9);
+    ASSERT_EQ(unchanged.boxes().num_rows(), 2u);
+    ASSERT_EQ(unchanged.masks().size(), 2u);
+    EXPECT_FLOAT_EQ(unchanged.boxes()[0].conf, 0.9f);
+    EXPECT_FLOAT_EQ(unchanged.boxes()[1].conf, 0.8f);
+}
+
+TEST(SemanticPostprocessTest, ExistingMaskPipelineSplitsDisconnectedClassRegions) {
+    resetGlobalSettings();
+    cv::Mat class_map = cv::Mat::zeros(12, 12, CV_8UC1);
+    class_map(cv::Rect(2, 2, 2, 2)).setTo(1);
+    class_map(cv::Rect(7, 7, 2, 2)).setTo(1);
+    const track::TileGeometry geometry{
+        .source_region = track::SourceRect(0, 0, 12, 12),
+        .tile_content = track::TileRect(0, 0, 12, 12),
+        .tile_size = Size2(12, 12)
+    };
+
+    auto converted = track::detail::SegmentationPostprocess::convert_semantic(
+        makeSemanticResult(0, class_map),
+        geometry,
+        track::detect::PredictionFilter{},
+        0.2f);
+    ASSERT_EQ(converted.boxes().num_rows(), 1u);
+    ASSERT_EQ(converted.masks().size(), 1u);
+
+    auto split = track::detail::SegmentationPostprocess::apply(
+        std::move(converted),
+        track::detail::SegmentationPostprocess::Settings{
+            .overlap = {.iou = 0.5f, .containment = 2.f},
+            .class_agnostic = false,
+            .mode = track::MaskPostprocessMode::merge_masks,
+            .frame = {}
+        });
+    ASSERT_EQ(split.boxes().num_rows(), 2u);
+    ASSERT_EQ(split.masks().size(), 2u);
+    EXPECT_FLOAT_EQ(split.boxes()[0].clid, 1.f);
+    EXPECT_FLOAT_EQ(split.boxes()[0].conf, 0.2f);
+    EXPECT_FLOAT_EQ(split.boxes()[1].clid, 1.f);
+    EXPECT_FLOAT_EQ(split.boxes()[1].conf, 0.2f);
+
+    SegmentationData data(cmn::Image::Zeros(12, 12, 3));
+    data.tiles.emplace_back(track::SourceRect(0, 0, 12, 12));
+    data.image->set_index(0);
+    YOLO::receive(data, std::move(split));
+    EXPECT_EQ(data.predictions.size(), 2u);
+    EXPECT_EQ(data.frame.n(), 2u);
+}
+
+TEST(SegmentationPostprocessTest, GreedyNmsRetainsPreferredOverlappingMask) {
+    auto boxes = makeBoxes({
+        {20.f, 30.f, 40.f, 50.f, 0.9f, 1.f},
+        {20.f, 30.f, 40.f, 50.f, 0.8f, 1.f}
+    });
+    std::vector<track::detect::MaskData> masks;
+    masks.emplace_back(makeOwnedMaskData(
+        20, 20, {Bounds(0.f, 0.f, 20.f, 20.f)}));
+    masks.emplace_back(makeOwnedMaskData(
+        20, 20, {Bounds(0.f, 0.f, 20.f, 20.f)}));
+    track::detect::Result result{
+        7,
+        std::move(boxes),
+        std::move(masks),
+        track::detect::KeypointData{},
+        track::detect::ObbData{},
+        track::detect::PointData{}
+    };
+
+    auto filtered = track::detail::SegmentationPostprocess::apply(
+        std::move(result),
+        track::detail::SegmentationPostprocess::Settings{
+            .overlap = {.iou = 0.5f, .containment = 2.f},
+            .class_agnostic = false,
+            .mode = track::MaskPostprocessMode::greedy_nms,
+            .frame = {}
+        });
+
+    EXPECT_EQ(filtered.index(), 7);
+    ASSERT_EQ(filtered.boxes().num_rows(), 1u);
+    ASSERT_EQ(filtered.masks().size(), 1u);
+    EXPECT_FLOAT_EQ(filtered.boxes()[0].conf, 0.9f);
+    EXPECT_EQ(cv::countNonZero(filtered.masks()[0].mat), 20 * 20);
+}
+
+TEST(SegmentationPostprocessTest, MergesTransitiveMasksAndPreservesDisjointRows) {
+    auto boxes = makeBoxes({
+        {0.f, 0.f, 10.f, 10.f, 0.6f, 1.f},
+        {8.f, 0.f, 18.f, 10.f, 0.9f, 1.f},
+        {16.f, 0.f, 26.f, 10.f, 0.7f, 1.f},
+        {40.f, 0.f, 50.f, 10.f, 0.8f, 1.f}
+    });
+    std::vector<track::detect::MaskData> masks;
+    for(size_t index = 0; index < 4u; ++index) {
+        masks.emplace_back(makeOwnedMaskData(
+            10, 10, {Bounds(0.f, 0.f, 10.f, 10.f)}));
+    }
+    track::detect::Result result{
+        11,
+        std::move(boxes),
+        std::move(masks),
+        track::detect::KeypointData{},
+        track::detect::ObbData{},
+        track::detect::PointData{}
+    };
+
+    auto merged = track::detail::SegmentationPostprocess::apply(
+        std::move(result),
+        track::detail::SegmentationPostprocess::Settings{
+            .overlap = {.iou = 0.1f, .containment = 2.f},
+            .class_agnostic = false,
+            .mode = track::MaskPostprocessMode::merge_masks,
+            .frame = {}
+        });
+
+    EXPECT_EQ(merged.index(), 11);
+    ASSERT_EQ(merged.boxes().num_rows(), 2u);
+    ASSERT_EQ(merged.masks().size(), 2u);
+
+    EXPECT_FLOAT_EQ(merged.boxes()[0].box.x0, 0.f);
+    EXPECT_FLOAT_EQ(merged.boxes()[0].box.y0, 0.f);
+    EXPECT_FLOAT_EQ(merged.boxes()[0].box.x1, 26.f);
+    EXPECT_FLOAT_EQ(merged.boxes()[0].box.y1, 10.f);
+    EXPECT_FLOAT_EQ(merged.boxes()[0].conf, 0.9f);
+    EXPECT_FLOAT_EQ(merged.boxes()[0].clid, 1.f);
+    EXPECT_EQ(merged.masks()[0].mat.cols, 26);
+    EXPECT_EQ(merged.masks()[0].mat.rows, 10);
+    EXPECT_EQ(cv::countNonZero(merged.masks()[0].mat), 26 * 10);
+    EXPECT_NE(merged.masks()[0].mat.at<uint8_t>(0, 0), 0u);
+    EXPECT_NE(merged.masks()[0].mat.at<uint8_t>(9, 25), 0u);
+
+    EXPECT_FLOAT_EQ(merged.boxes()[1].box.x0, 40.f);
+    EXPECT_FLOAT_EQ(merged.boxes()[1].box.x1, 50.f);
+    EXPECT_FLOAT_EQ(merged.boxes()[1].conf, 0.8f);
+    EXPECT_EQ(merged.masks()[1].mat.cols, 10);
+    EXPECT_EQ(merged.masks()[1].mat.rows, 10);
+    EXPECT_EQ(cv::countNonZero(merged.masks()[1].mat), 10 * 10);
+}
+
+TEST(DetectionTilePostprocessTest, PositiveOverlapNeverAssociatesRowsFromTheSameTile) {
     resetGlobalSettings();
     SETTING(detect_tile_overlap) = 0.2f;
 
@@ -444,13 +757,13 @@ TEST(DetectionPostprocessTest, PositiveOverlapNeverAssociatesRowsFromTheSameTile
     }));
     results.emplace_back(makeBoxResult(1, {}));
 
-    auto combined = track::detail::DetectionPostprocess::apply(
+    auto combined = track::detail::DetectionTilePostprocess::apply(
         std::move(results), horizontalOverlapGeometries());
 
     EXPECT_EQ(combined.boxes().num_rows(), 2u);
 }
 
-TEST(DetectionPostprocessTest, DifferentClassesRemainSeparate) {
+TEST(DetectionTilePostprocessTest, DifferentClassesRemainSeparate) {
     resetGlobalSettings();
     SETTING(detect_tile_overlap) = 0.2f;
 
@@ -458,7 +771,7 @@ TEST(DetectionPostprocessTest, DifferentClassesRemainSeparate) {
     results.emplace_back(makeBoxResult(0, {{90.f, 20.f, 110.f, 70.f, 0.9f, 1.f}}));
     results.emplace_back(makeBoxResult(1, {{90.f, 20.f, 110.f, 70.f, 0.8f, 2.f}}));
 
-    auto combined = track::detail::DetectionPostprocess::apply(
+    auto combined = track::detail::DetectionTilePostprocess::apply(
         std::move(results), horizontalOverlapGeometries());
 
     ASSERT_EQ(combined.boxes().num_rows(), 2u);
@@ -466,7 +779,7 @@ TEST(DetectionPostprocessTest, DifferentClassesRemainSeparate) {
     EXPECT_FLOAT_EQ(combined.boxes()[1].clid, 2.f);
 }
 
-TEST(DetectionPostprocessTest, NonNeighboringTilesNeverMatch) {
+TEST(DetectionTilePostprocessTest, NonNeighboringTilesNeverMatch) {
     resetGlobalSettings();
     SETTING(detect_tile_overlap) = 0.2f;
 
@@ -486,13 +799,13 @@ TEST(DetectionPostprocessTest, NonNeighboringTilesNeverMatch) {
         }
     };
 
-    auto combined = track::detail::DetectionPostprocess::apply(
+    auto combined = track::detail::DetectionTilePostprocess::apply(
         std::move(results), geometries);
 
     EXPECT_EQ(combined.boxes().num_rows(), 2u);
 }
 
-TEST(DetectionPostprocessTest, RepresentativePrefersAnInteriorDetection) {
+TEST(DetectionTilePostprocessTest, RepresentativePrefersAnInteriorDetection) {
     resetGlobalSettings();
     SETTING(detect_tile_overlap) = 0.2f;
 
@@ -500,7 +813,7 @@ TEST(DetectionPostprocessTest, RepresentativePrefersAnInteriorDetection) {
     results.emplace_back(makeBoxResult(0, {{90.f, 20.f, 120.f, 70.f, 0.99f, 1.f}}));
     results.emplace_back(makeBoxResult(1, {{90.f, 20.f, 115.f, 70.f, 0.5f, 1.f}}));
 
-    auto combined = track::detail::DetectionPostprocess::apply(
+    auto combined = track::detail::DetectionTilePostprocess::apply(
         std::move(results), horizontalOverlapGeometries());
 
     ASSERT_EQ(combined.boxes().num_rows(), 1u);
@@ -508,7 +821,7 @@ TEST(DetectionPostprocessTest, RepresentativePrefersAnInteriorDetection) {
     EXPECT_FLOAT_EQ(combined.boxes()[0].box.x1, 115.f);
 }
 
-TEST(DetectionPostprocessTest, ContainmentMatchesWhenIouDoesNot) {
+TEST(DetectionTilePostprocessTest, ContainmentMatchesWhenIouDoesNot) {
     resetGlobalSettings();
     SETTING(detect_tile_overlap) = 0.2f;
     SETTING(detect_tile_merge_iou) = Float2_t{0.9f};
@@ -518,7 +831,7 @@ TEST(DetectionPostprocessTest, ContainmentMatchesWhenIouDoesNot) {
     results.emplace_back(makeBoxResult(0, {{82.f, 10.f, 118.f, 90.f, 0.9f, 1.f}}));
     results.emplace_back(makeBoxResult(1, {{92.f, 30.f, 105.f, 60.f, 0.7f, 1.f}}));
 
-    auto combined = track::detail::DetectionPostprocess::apply(
+    auto combined = track::detail::DetectionTilePostprocess::apply(
         std::move(results), horizontalOverlapGeometries());
 
     ASSERT_EQ(combined.boxes().num_rows(), 1u);
@@ -527,7 +840,7 @@ TEST(DetectionPostprocessTest, ContainmentMatchesWhenIouDoesNot) {
     EXPECT_FLOAT_EQ(combined.boxes()[0].box.x1, 118.f);
 }
 
-TEST(DetectionPostprocessTest, ContainmentThresholdIsInclusive) {
+TEST(DetectionTilePostprocessTest, ContainmentThresholdIsInclusive) {
     resetGlobalSettings();
     SETTING(detect_tile_overlap) = 0.2f;
     SETTING(detect_tile_merge_iou) = Float2_t{0.9f};
@@ -537,13 +850,13 @@ TEST(DetectionPostprocessTest, ContainmentThresholdIsInclusive) {
     results.emplace_back(makeBoxResult(0, {{82.f, 20.f, 102.f, 60.f, 0.9f, 1.f}}));
     results.emplace_back(makeBoxResult(1, {{92.f, 20.f, 112.f, 60.f, 0.8f, 1.f}}));
 
-    auto combined = track::detail::DetectionPostprocess::apply(
+    auto combined = track::detail::DetectionTilePostprocess::apply(
         std::move(results), horizontalOverlapGeometries());
 
     EXPECT_EQ(combined.boxes().num_rows(), 1u);
 }
 
-TEST(DetectionPostprocessTest, OverlapBelowBothThresholdsRemainsSeparate) {
+TEST(DetectionTilePostprocessTest, OverlapBelowBothThresholdsRemainsSeparate) {
     resetGlobalSettings();
     SETTING(detect_tile_overlap) = 0.2f;
     SETTING(detect_tile_merge_iou) = Float2_t{0.9f};
@@ -553,13 +866,13 @@ TEST(DetectionPostprocessTest, OverlapBelowBothThresholdsRemainsSeparate) {
     results.emplace_back(makeBoxResult(0, {{82.f, 20.f, 102.f, 60.f, 0.9f, 1.f}}));
     results.emplace_back(makeBoxResult(1, {{93.f, 20.f, 113.f, 60.f, 0.8f, 1.f}}));
 
-    auto combined = track::detail::DetectionPostprocess::apply(
+    auto combined = track::detail::DetectionTilePostprocess::apply(
         std::move(results), horizontalOverlapGeometries());
 
     EXPECT_EQ(combined.boxes().num_rows(), 2u);
 }
 
-TEST(DetectionPostprocessTest, FourWayOverlapProducesOneGroup) {
+TEST(DetectionTilePostprocessTest, FourWayOverlapProducesOneGroup) {
     resetGlobalSettings();
     SETTING(detect_tile_overlap) = 0.2f;
 
@@ -569,14 +882,14 @@ TEST(DetectionPostprocessTest, FourWayOverlapProducesOneGroup) {
     results.emplace_back(makeBoxResult(2, {{82.f, 84.f, 115.f, 117.f, 0.85f, 1.f}}));
     results.emplace_back(makeBoxResult(3, {{84.f, 84.f, 117.f, 117.f, 0.80f, 1.f}}));
 
-    auto combined = track::detail::DetectionPostprocess::apply(
+    auto combined = track::detail::DetectionTilePostprocess::apply(
         std::move(results), fourWayOverlapGeometries());
 
     ASSERT_EQ(combined.boxes().num_rows(), 1u);
     EXPECT_FLOAT_EQ(combined.boxes()[0].clid, 1.f);
 }
 
-TEST(DetectionPostprocessTest, TransitiveMatchesFormOneTileUniqueGroup) {
+TEST(DetectionTilePostprocessTest, TransitiveMatchesFormOneTileUniqueGroup) {
     resetGlobalSettings();
     SETTING(detect_tile_overlap) = 0.2f;
     SETTING(detect_tile_merge_iou) = Float2_t{0.9f};
@@ -588,14 +901,14 @@ TEST(DetectionPostprocessTest, TransitiveMatchesFormOneTileUniqueGroup) {
     results.emplace_back(makeBoxResult(2, {{100.f, 20.f, 200.f, 120.f, 0.7f, 1.f}}));
     auto geometries = coincidentGeometries(results.size());
 
-    auto combined = track::detail::DetectionPostprocess::apply(
+    auto combined = track::detail::DetectionTilePostprocess::apply(
         std::move(results), geometries);
 
     ASSERT_EQ(combined.boxes().num_rows(), 1u);
     EXPECT_FLOAT_EQ(combined.boxes()[0].conf, 0.9f);
 }
 
-TEST(DetectionPostprocessTest, PoseMatchingFillsOnlyMissingJoints) {
+TEST(DetectionTilePostprocessTest, PoseMatchingFillsOnlyMissingJoints) {
     resetGlobalSettings();
     SETTING(detect_tile_overlap) = 0.2f;
     SETTING(detect_pose_bbx) = default_config::detect_pose_bbx_t::keypoints;
@@ -608,7 +921,7 @@ TEST(DetectionPostprocessTest, PoseMatchingFillsOnlyMissingJoints) {
         1, {{72.f, 20.f, 112.f, 70.f, 0.8f, 1.f}},
         {91.f, 31.f, 100.f, 40.f}, 2u));
 
-    auto combined = track::detail::DetectionPostprocess::apply(
+    auto combined = track::detail::DetectionTilePostprocess::apply(
         std::move(results), horizontalOverlapGeometries());
 
     ASSERT_EQ(combined.boxes().num_rows(), 1u);
@@ -621,7 +934,7 @@ TEST(DetectionPostprocessTest, PoseMatchingFillsOnlyMissingJoints) {
     EXPECT_FLOAT_EQ(pose.bones[1].y, 40.f);
 }
 
-TEST(DetectionPostprocessTest, PoseDistanceKeepsNearbyDistinctPosesSeparate) {
+TEST(DetectionTilePostprocessTest, PoseDistanceKeepsNearbyDistinctPosesSeparate) {
     resetGlobalSettings();
     SETTING(detect_tile_overlap) = 0.2f;
     SETTING(detect_pose_bbx) = default_config::detect_pose_bbx_t::keypoints;
@@ -635,14 +948,14 @@ TEST(DetectionPostprocessTest, PoseDistanceKeepsNearbyDistinctPosesSeparate) {
         1, {{72.f, 10.f, 117.f, 90.f, 0.8f, 1.f}},
         {105.f, 60.f, 110.f, 65.f}, 2u));
 
-    auto combined = track::detail::DetectionPostprocess::apply(
+    auto combined = track::detail::DetectionTilePostprocess::apply(
         std::move(results), horizontalOverlapGeometries());
 
     EXPECT_EQ(combined.boxes().num_rows(), 2u);
     EXPECT_EQ(combined.keypoints().size(), 2u);
 }
 
-TEST(DetectionPostprocessTest, PoseYoloModeUsesTheModelBoxGate) {
+TEST(DetectionTilePostprocessTest, PoseYoloModeUsesTheModelBoxGate) {
     resetGlobalSettings();
     SETTING(detect_tile_overlap) = 0.2f;
     SETTING(detect_pose_bbx) = default_config::detect_pose_bbx_t::yolo;
@@ -655,7 +968,7 @@ TEST(DetectionPostprocessTest, PoseYoloModeUsesTheModelBoxGate) {
         1, {{72.f, 10.f, 117.f, 90.f, 0.8f, 1.f}},
         {105.f, 60.f, 110.f, 65.f}, 2u));
 
-    auto combined = track::detail::DetectionPostprocess::apply(
+    auto combined = track::detail::DetectionTilePostprocess::apply(
         std::move(results), horizontalOverlapGeometries());
 
     ASSERT_EQ(combined.boxes().num_rows(), 1u);
@@ -663,7 +976,7 @@ TEST(DetectionPostprocessTest, PoseYoloModeUsesTheModelBoxGate) {
     EXPECT_FLOAT_EQ(combined.keypoints()[0].bones[0].x, 75.f);
 }
 
-TEST(DetectionPostprocessTest, PoseKeypointModeRequiresACommonValidJoint) {
+TEST(DetectionTilePostprocessTest, PoseKeypointModeRequiresACommonValidJoint) {
     resetGlobalSettings();
     SETTING(detect_tile_overlap) = 0.2f;
     SETTING(detect_pose_bbx) = default_config::detect_pose_bbx_t::keypoints;
@@ -676,14 +989,14 @@ TEST(DetectionPostprocessTest, PoseKeypointModeRequiresACommonValidJoint) {
         1, {{72.f, 20.f, 112.f, 70.f, 0.8f, 1.f}},
         {0.f, 0.f, 100.f, 40.f}, 2u));
 
-    auto combined = track::detail::DetectionPostprocess::apply(
+    auto combined = track::detail::DetectionTilePostprocess::apply(
         std::move(results), horizontalOverlapGeometries());
 
     EXPECT_EQ(combined.boxes().num_rows(), 2u);
     EXPECT_EQ(combined.keypoints().size(), 2u);
 }
 
-TEST(DetectionPostprocessTest, MaskMatchingStitchesComplementaryClippedMasks) {
+TEST(DetectionTilePostprocessTest, MaskMatchingStitchesComplementaryClippedMasks) {
     resetGlobalSettings();
     SETTING(detect_tile_overlap) = 0.2f;
 
@@ -700,7 +1013,7 @@ TEST(DetectionPostprocessTest, MaskMatchingStitchesComplementaryClippedMasks) {
     results.emplace_back(1, std::move(right_boxes), std::move(right_masks),
         track::detect::KeypointData{}, track::detect::ObbData{}, track::detect::PointData{});
 
-    auto combined = track::detail::DetectionPostprocess::apply(
+    auto combined = track::detail::DetectionTilePostprocess::apply(
         std::move(results), horizontalOverlapGeometries());
 
     ASSERT_EQ(combined.boxes().num_rows(), 1u);
@@ -714,7 +1027,7 @@ TEST(DetectionPostprocessTest, MaskMatchingStitchesComplementaryClippedMasks) {
     EXPECT_FLOAT_EQ(combined.boxes()[0].box.x1, 120.f);
 }
 
-TEST(DetectionPostprocessTest, ObbMatchingUsesRotatedOverlap) {
+TEST(DetectionTilePostprocessTest, ObbMatchingUsesRotatedOverlap) {
     resetGlobalSettings();
     SETTING(detect_tile_overlap) = 0.2f;
 
@@ -722,14 +1035,14 @@ TEST(DetectionPostprocessTest, ObbMatchingUsesRotatedOverlap) {
     results.emplace_back(makeObbResult(0, {1.f, 0.9f, 95.f, 50.f, 40.f, 20.f, 0.2f}));
     results.emplace_back(makeObbResult(1, {1.f, 0.8f, 96.f, 50.f, 40.f, 20.f, 0.2f}));
 
-    auto combined = track::detail::DetectionPostprocess::apply(
+    auto combined = track::detail::DetectionTilePostprocess::apply(
         std::move(results), horizontalOverlapGeometries());
 
     ASSERT_EQ(combined.obbdata().size(), 1u);
     EXPECT_FLOAT_EQ(combined.obbdata()[0].conf, 0.9f);
 }
 
-TEST(DetectionPostprocessTest, PointMatchingUsesCircleOverlap) {
+TEST(DetectionTilePostprocessTest, PointMatchingUsesCircleOverlap) {
     resetGlobalSettings();
     SETTING(detect_tile_overlap) = 0.2f;
 
@@ -737,14 +1050,14 @@ TEST(DetectionPostprocessTest, PointMatchingUsesCircleOverlap) {
     results.emplace_back(makePointResult(0, {1.f, 0.9f, 95.f, 50.f, 20.f}));
     results.emplace_back(makePointResult(1, {1.f, 0.8f, 96.f, 50.f, 20.f}));
 
-    auto combined = track::detail::DetectionPostprocess::apply(
+    auto combined = track::detail::DetectionTilePostprocess::apply(
         std::move(results), horizontalOverlapGeometries());
 
     ASSERT_EQ(combined.points().size(), 1u);
     EXPECT_FLOAT_EQ(combined.points()[0].conf, 0.9f);
 }
 
-TEST(DetectionPostprocessIntegrationTest, SelectedBoxRoutesThroughYoloReceive) {
+TEST(DetectionTilePostprocessIntegrationTest, SelectedBoxRoutesThroughYoloReceive) {
     resetGlobalSettings();
     SETTING(detect_tile_overlap) = 0.2f;
 
@@ -752,7 +1065,7 @@ TEST(DetectionPostprocessIntegrationTest, SelectedBoxRoutesThroughYoloReceive) {
     results.emplace_back(makeBoxResult(0, {{70.f, 20.f, 110.f, 70.f, 0.9f, 1.f}}));
     results.emplace_back(makeBoxResult(1, {{72.f, 20.f, 112.f, 70.f, 0.8f, 1.f}}));
 
-    auto combined = track::detail::DetectionPostprocess::apply(
+    auto combined = track::detail::DetectionTilePostprocess::apply(
         std::move(results), horizontalOverlapGeometries());
     SegmentationData data(cmn::Image::Zeros(100, 200, 3));
     data.image->set_index(0);
@@ -764,7 +1077,7 @@ TEST(DetectionPostprocessIntegrationTest, SelectedBoxRoutesThroughYoloReceive) {
     EXPECT_FLOAT_EQ(data.predictions[0].p, 0.9f);
 }
 
-TEST(DetectionPostprocessIntegrationTest, FusedPoseRoutesThroughYoloReceive) {
+TEST(DetectionTilePostprocessIntegrationTest, FusedPoseRoutesThroughYoloReceive) {
     resetGlobalSettings();
     SETTING(detect_tile_overlap) = 0.2f;
     SETTING(detect_pose_bbx) = default_config::detect_pose_bbx_t::keypoints;
@@ -777,7 +1090,7 @@ TEST(DetectionPostprocessIntegrationTest, FusedPoseRoutesThroughYoloReceive) {
         1, {{72.f, 20.f, 112.f, 70.f, 0.8f, 1.f}},
         {91.f, 31.f, 100.f, 40.f}, 2u));
 
-    auto combined = track::detail::DetectionPostprocess::apply(
+    auto combined = track::detail::DetectionTilePostprocess::apply(
         std::move(results), horizontalOverlapGeometries());
     SegmentationData data(cmn::Image::Zeros(100, 200, 3));
     data.image->set_index(0);
@@ -792,7 +1105,7 @@ TEST(DetectionPostprocessIntegrationTest, FusedPoseRoutesThroughYoloReceive) {
     EXPECT_FLOAT_EQ(data.keypoints[0].bones[1].y, 40.f);
 }
 
-TEST(DetectionPostprocessIntegrationTest, StitchedMaskRoutesThroughYoloReceive) {
+TEST(DetectionTilePostprocessIntegrationTest, StitchedMaskRoutesThroughYoloReceive) {
     resetGlobalSettings();
     SETTING(detect_tile_overlap) = 0.2f;
 
@@ -809,7 +1122,7 @@ TEST(DetectionPostprocessIntegrationTest, StitchedMaskRoutesThroughYoloReceive) 
     results.emplace_back(1, std::move(right_boxes), std::move(right_masks),
         track::detect::KeypointData{}, track::detect::ObbData{}, track::detect::PointData{});
 
-    auto combined = track::detail::DetectionPostprocess::apply(
+    auto combined = track::detail::DetectionTilePostprocess::apply(
         std::move(results), horizontalOverlapGeometries());
     SegmentationData data(cmn::Image::Zeros(100, 200, 3));
     data.image->set_index(0);
@@ -823,7 +1136,7 @@ TEST(DetectionPostprocessIntegrationTest, StitchedMaskRoutesThroughYoloReceive) 
               (std::array<int, 4>{80, 20, 120, 50}));
 }
 
-TEST(DetectionPostprocessIntegrationTest, SelectedObbRoutesThroughYoloReceive) {
+TEST(DetectionTilePostprocessIntegrationTest, SelectedObbRoutesThroughYoloReceive) {
     resetGlobalSettings();
     SETTING(detect_tile_overlap) = 0.2f;
 
@@ -831,7 +1144,7 @@ TEST(DetectionPostprocessIntegrationTest, SelectedObbRoutesThroughYoloReceive) {
     results.emplace_back(makeObbResult(0, {1.f, 0.9f, 95.f, 50.f, 40.f, 20.f, 0.2f}));
     results.emplace_back(makeObbResult(1, {1.f, 0.8f, 96.f, 50.f, 40.f, 20.f, 0.2f}));
 
-    auto combined = track::detail::DetectionPostprocess::apply(
+    auto combined = track::detail::DetectionTilePostprocess::apply(
         std::move(results), horizontalOverlapGeometries());
     SegmentationData data(cmn::Image::Zeros(100, 200, 3));
     data.image->set_index(0);
@@ -843,7 +1156,7 @@ TEST(DetectionPostprocessIntegrationTest, SelectedObbRoutesThroughYoloReceive) {
     EXPECT_FLOAT_EQ(data.predictions[0].p, 0.9f);
 }
 
-TEST(DetectionPostprocessIntegrationTest, SelectedPointRoutesThroughYoloReceive) {
+TEST(DetectionTilePostprocessIntegrationTest, SelectedPointRoutesThroughYoloReceive) {
     resetGlobalSettings();
     SETTING(detect_tile_overlap) = 0.2f;
 
@@ -851,7 +1164,7 @@ TEST(DetectionPostprocessIntegrationTest, SelectedPointRoutesThroughYoloReceive)
     results.emplace_back(makePointResult(0, {1.f, 0.9f, 95.f, 50.f, 20.f}));
     results.emplace_back(makePointResult(1, {1.f, 0.8f, 96.f, 50.f, 20.f}));
 
-    auto combined = track::detail::DetectionPostprocess::apply(
+    auto combined = track::detail::DetectionTilePostprocess::apply(
         std::move(results), horizontalOverlapGeometries());
     SegmentationData data(cmn::Image::Zeros(100, 200, 3));
     data.image->set_index(0);
@@ -1321,7 +1634,7 @@ TEST(YoloReceiveTest, NonMergeSingleTileBoxesUseAllRowFallback) {
     data.image->set_index(0);
 
     // YOLO::receive is now only the ordinary flat-result conversion path and
-    // must emit every row supplied by DetectionPostprocess.
+    // must emit every row supplied by DetectionTilePostprocess.
     auto boxes = makeBoxes({
         {20.f, 20.f, 60.f, 60.f, 0.9f, 1.f},
         {90.f, 90.f, 130.f, 130.f, 0.8f, 2.f}

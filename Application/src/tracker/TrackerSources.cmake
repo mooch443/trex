@@ -351,7 +351,8 @@ set(TREX_PYTHON_STAGING_PUBLIC_HEADERS
 )
 
 set(TREX_PYTHON_IMPL_PUBLIC_HEADERS
-    ${CMAKE_CURRENT_LIST_DIR}/python/DetectionPostprocess.h
+    ${CMAKE_CURRENT_LIST_DIR}/python/DetectionAssociation.h
+    ${CMAKE_CURRENT_LIST_DIR}/python/DetectionTilePostprocess.h
     ${CMAKE_CURRENT_LIST_DIR}/python/GPURecognition.h
     ${CMAKE_CURRENT_LIST_DIR}/python/ModuleProxy.h
     ${CMAKE_CURRENT_LIST_DIR}/python/PythonEntryPoint.h
@@ -361,10 +362,12 @@ set(TREX_PYTHON_IMPL_PUBLIC_HEADERS
     ${CMAKE_CURRENT_LIST_DIR}/python/SAM3.h
     ${CMAKE_CURRENT_LIST_DIR}/python/SAM3InteractiveSession.h
     ${CMAKE_CURRENT_LIST_DIR}/python/SAM3PromptState.h
+    ${CMAKE_CURRENT_LIST_DIR}/python/SegmentationPostprocess.h
     ${CMAKE_CURRENT_LIST_DIR}/python/YOLO.h
 )
 
 set(TREX_PYTHON_IMPL_PRIVATE_HEADERS
+    ${CMAKE_CURRENT_LIST_DIR}/python/DetectionMaskAccess.h
 )
 
 set(TREX_PYTHON_STAGING_SOURCES
@@ -381,7 +384,8 @@ set(TREX_PYTHON_STAGING_SOURCES
 )
 
 set(TREX_PYTHON_IMPL_SOURCES
-    ${CMAKE_CURRENT_LIST_DIR}/python/DetectionPostprocess.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/python/DetectionAssociation.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/python/DetectionTilePostprocess.cpp
     ${CMAKE_CURRENT_LIST_DIR}/python/GPURecognition.cpp
     ${CMAKE_CURRENT_LIST_DIR}/python/Network.cpp
     ${CMAKE_CURRENT_LIST_DIR}/python/PythonBackendRegistry.cpp
@@ -389,5 +393,6 @@ set(TREX_PYTHON_IMPL_SOURCES
     ${CMAKE_CURRENT_LIST_DIR}/python/SAM3.cpp
     ${CMAKE_CURRENT_LIST_DIR}/python/SAM3InteractiveSession.cpp
     ${CMAKE_CURRENT_LIST_DIR}/python/SAM3PromptState.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/python/SegmentationPostprocess.cpp
     ${CMAKE_CURRENT_LIST_DIR}/python/YOLO.cpp
 )

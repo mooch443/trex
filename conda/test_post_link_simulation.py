@@ -533,7 +533,7 @@ class PostLinkSimulationMixin:
             for requirement in (
                 "torchmetrics",
                 "tqdm",
-                "ultralytics>=8.3.0,<9",
+                "ultralytics>=8.4.52,<9",
                 "rfdetr==1.8.3",
                 "dill",
                 "scikit-learn",

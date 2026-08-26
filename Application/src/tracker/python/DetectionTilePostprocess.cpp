@@ -1,21 +1,11 @@
 #include <commons.pc.h>
-#include <python/DetectionPostprocess.h>
+#include <python/DetectionAssociation.h>
+#include <python/DetectionMaskAccess.h>
+#include <python/DetectionTilePostprocess.h>
 #include <core/default_config.h>
 #include <misc/GlobalSettings.h>
 
 #include <opencv2/imgproc.hpp>
-
-namespace track::detect {
-
-class DetectionMaskAccess {
-public:
-    static std::vector<MaskData>& masks(Result& result) { return result._masks; }
-    static MaskData make_mask(std::vector<uint8_t>&& bytes, int rows, int cols) {
-        return MaskData(std::move(bytes), rows, cols);
-    }
-};
-
-} // namespace track::detect
 
 namespace track::detail {
 
@@ -72,16 +62,8 @@ struct Candidate {
     bool owns_anchor{};
 };
 
-struct Match {
-    size_t lhs{};
-    size_t rhs{};
-    float similarity{};
-};
-
-struct OutputGroup {
-    size_t representative{};
-    std::vector<size_t> members;
-};
+using Match = detect::association::AssociationMatch;
+using OutputGroup = detect::association::AssociationGroup;
 
 struct MatchingSettings {
     float iou{};
@@ -239,33 +221,6 @@ detect::Result flatten_results(
     for(auto& result : results)
         output.append_tile(result);
     return std::move(output).finish(payload.index, payload.pose_bones);
-}
-
-float area(const cmn::Bounds& box) {
-    return std::max(0.f, box.width) * std::max(0.f, box.height);
-}
-
-float intersection_area(const cmn::Bounds& lhs, const cmn::Bounds& rhs) {
-    const float x0 = std::max(lhs.x, rhs.x);
-    const float y0 = std::max(lhs.y, rhs.y);
-    const float x1 = std::min(lhs.x + lhs.width, rhs.x + rhs.width);
-    const float y1 = std::min(lhs.y + lhs.height, rhs.y + rhs.height);
-    return std::max(0.f, x1 - x0) * std::max(0.f, y1 - y0);
-}
-
-std::pair<float, float> overlap_metrics(const cmn::Bounds& lhs, const cmn::Bounds& rhs) {
-    const float intersection = intersection_area(lhs, rhs);
-    if(intersection <= 0.f)
-        return {0.f, 0.f};
-
-    const float lhs_area = area(lhs);
-    const float rhs_area = area(rhs);
-    const float union_area = lhs_area + rhs_area - intersection;
-    const float smaller = std::min(lhs_area, rhs_area);
-    return {
-        union_area > 0.f ? intersection / union_area : 0.f,
-        smaller > 0.f ? intersection / smaller : 0.f
-    };
 }
 
 bool contains(const cmn::Bounds& bounds, const cmn::Vec2& point) {
@@ -479,104 +434,27 @@ std::vector<Candidate> make_candidates(
     return candidates;
 }
 
-std::pair<float, float> rotated_overlap(const detect::ICXYWHR& lhs, const detect::ICXYWHR& rhs) {
-    if(lhs.w <= 0.f || lhs.h <= 0.f || rhs.w <= 0.f || rhs.h <= 0.f)
-        return {0.f, 0.f};
-
-    constexpr float radians_to_degrees = 180.f / static_cast<float>(CV_PI);
-    const cv::RotatedRect lhs_rect(
-        cv::Point2f(lhs.x, lhs.y),
-        cv::Size2f(lhs.w, lhs.h),
-        lhs.r * radians_to_degrees);
-    const cv::RotatedRect rhs_rect(
-        cv::Point2f(rhs.x, rhs.y),
-        cv::Size2f(rhs.w, rhs.h),
-        rhs.r * radians_to_degrees);
-
-    std::vector<cv::Point2f> polygon;
-    const int status = cv::rotatedRectangleIntersection(lhs_rect, rhs_rect, polygon);
-    if(status == cv::INTERSECT_NONE || polygon.size() < 3u)
-        return {0.f, 0.f};
-
-    const float intersection = static_cast<float>(std::max(0.0, cv::contourArea(polygon)));
-    const float lhs_area = lhs.w * lhs.h;
-    const float rhs_area = rhs.w * rhs.h;
-    const float union_area = lhs_area + rhs_area - intersection;
-    const float smaller = std::min(lhs_area, rhs_area);
+detect::association::PositionedMaskView positioned_mask(
+    const Candidate& candidate,
+    const std::vector<detect::Result>& results)
+{
+    const auto& mask = results[candidate.tile].masks()[candidate.row].mat;
     return {
-        union_area > 0.f ? intersection / union_area : 0.f,
-        smaller > 0.f ? intersection / smaller : 0.f
+        .mask = &mask,
+        .x = static_cast<int>(std::floor(candidate.bounds.x)),
+        .y = static_cast<int>(std::floor(candidate.bounds.y)),
+        .foreground_area = candidate.completeness
     };
 }
 
-float circle_intersection_area(float lhs_radius, float rhs_radius, float distance) {
-    if(lhs_radius <= 0.f || rhs_radius <= 0.f || distance >= lhs_radius + rhs_radius)
-        return 0.f;
-    if(distance <= std::abs(lhs_radius - rhs_radius)) {
-        const float radius = std::min(lhs_radius, rhs_radius);
-        return static_cast<float>(CV_PI) * radius * radius;
-    }
-
-    const float lhs_angle = 2.f * std::acos(std::clamp(
-        (distance * distance + lhs_radius * lhs_radius - rhs_radius * rhs_radius)
-            / (2.f * distance * lhs_radius),
-        -1.f,
-        1.f));
-    const float rhs_angle = 2.f * std::acos(std::clamp(
-        (distance * distance + rhs_radius * rhs_radius - lhs_radius * lhs_radius)
-            / (2.f * distance * rhs_radius),
-        -1.f,
-        1.f));
-    return 0.5f * lhs_radius * lhs_radius * (lhs_angle - std::sin(lhs_angle))
-        + 0.5f * rhs_radius * rhs_radius * (rhs_angle - std::sin(rhs_angle));
-}
-
-std::pair<float, float> circle_overlap(const detect::ICXYR& lhs, const detect::ICXYR& rhs) {
-    const float distance = std::hypot(lhs.x - rhs.x, lhs.y - rhs.y);
-    const float intersection = circle_intersection_area(lhs.r, rhs.r, distance);
-    if(intersection <= 0.f)
-        return {0.f, 0.f};
-    const float lhs_area = static_cast<float>(CV_PI) * lhs.r * lhs.r;
-    const float rhs_area = static_cast<float>(CV_PI) * rhs.r * rhs.r;
-    const float union_area = lhs_area + rhs_area - intersection;
-    const float smaller = std::min(lhs_area, rhs_area);
-    return {
-        union_area > 0.f ? intersection / union_area : 0.f,
-        smaller > 0.f ? intersection / smaller : 0.f
-    };
-}
-
-float mask_iou(
+detect::association::OverlapMetrics mask_overlap(
     const Candidate& lhs,
     const Candidate& rhs,
     const std::vector<detect::Result>& results)
 {
-    const auto& lhs_mask = results[lhs.tile].masks()[lhs.row].mat;
-    const auto& rhs_mask = results[rhs.tile].masks()[rhs.row].mat;
-    const int lhs_x = static_cast<int>(std::floor(lhs.bounds.x));
-    const int lhs_y = static_cast<int>(std::floor(lhs.bounds.y));
-    const int rhs_x = static_cast<int>(std::floor(rhs.bounds.x));
-    const int rhs_y = static_cast<int>(std::floor(rhs.bounds.y));
-    const int x0 = std::max(lhs_x, rhs_x);
-    const int y0 = std::max(lhs_y, rhs_y);
-    const int x1 = std::min(lhs_x + lhs_mask.cols, rhs_x + rhs_mask.cols);
-    const int y1 = std::min(lhs_y + lhs_mask.rows, rhs_y + rhs_mask.rows);
-    if(x1 <= x0 || y1 <= y0)
-        return 0.f;
-
-    uint64_t intersection = 0u;
-    for(int y = y0; y < y1; ++y) {
-        const auto* lhs_row = lhs_mask.ptr<uint8_t>(y - lhs_y);
-        const auto* rhs_row = rhs_mask.ptr<uint8_t>(y - rhs_y);
-        for(int x = x0; x < x1; ++x) {
-            if(lhs_row[x - lhs_x] != 0u && rhs_row[x - rhs_x] != 0u)
-                ++intersection;
-        }
-    }
-    const uint64_t union_area = lhs.completeness + rhs.completeness - intersection;
-    return union_area > 0u
-        ? static_cast<float>(intersection) / static_cast<float>(union_area)
-        : 0.f;
+    return detect::association::overlap(
+        positioned_mask(lhs, results),
+        positioned_mask(rhs, results));
 }
 
 std::optional<float> normalized_pose_distance(
@@ -620,31 +498,37 @@ std::optional<float> match_similarity(
     const MatchingSettings& settings,
     std::vector<float>& pose_distances)
 {
-    float iou = 0.f;
-    float containment = 0.f;
+    detect::association::OverlapMetrics metrics;
     if(mode == PayloadMode::obb) {
-        std::tie(iou, containment) = rotated_overlap(
+        metrics = detect::association::overlap(
             results[lhs.tile].obbdata()[lhs.row],
             results[rhs.tile].obbdata()[rhs.row]);
     } else if(mode == PayloadMode::points) {
-        std::tie(iou, containment) = circle_overlap(
+        metrics = detect::association::overlap(
             results[lhs.tile].points()[lhs.row],
             results[rhs.tile].points()[rhs.row]);
     } else {
-        std::tie(iou, containment) = overlap_metrics(lhs.bounds, rhs.bounds);
+        metrics = detect::association::overlap(lhs.bounds, rhs.bounds);
         if(mode == PayloadMode::masks)
-            iou = mask_iou(lhs, rhs, results);
+            metrics.iou = mask_overlap(lhs, rhs, results).iou;
     }
-    if(iou < settings.iou && containment < settings.containment)
+    auto similarity = detect::association::accepted_similarity(
+        metrics,
+        detect::association::OverlapThresholds{
+            .iou = settings.iou,
+            .containment = settings.containment
+        });
+    if(!similarity)
         return std::nullopt;
 
-    float similarity = std::max(iou, containment);
     if(mode == PayloadMode::poses && settings.compare_pose_keypoints) {
         const auto distance = normalized_pose_distance(
             lhs, rhs, results, pose_distances);
         if(!distance || *distance > settings.pose_distance)
             return std::nullopt;
-        similarity = std::max(similarity, 1.f - std::clamp(*distance, 0.f, 1.f));
+        *similarity = std::max(
+            *similarity,
+            1.f - std::clamp(*distance, 0.f, 1.f));
     }
     return similarity;
 }
@@ -666,7 +550,7 @@ std::vector<Match> find_matches(
     // the former all-detections quadratic scan and excludes same-tile matches.
     for(size_t lhs_tile = 0; lhs_tile < geometries.size(); ++lhs_tile) {
         for(size_t rhs_tile = lhs_tile + 1u; rhs_tile < geometries.size(); ++rhs_tile) {
-            if(intersection_area(
+            if(detect::association::intersection_area(
                    geometries[lhs_tile].source_region,
                    geometries[rhs_tile].source_region) <= 0.f)
                 continue;
@@ -685,110 +569,7 @@ std::vector<Match> find_matches(
         }
     }
 
-    std::sort(matches.begin(), matches.end(), [&](const Match& lhs, const Match& rhs) {
-        if(lhs.similarity != rhs.similarity)
-            return lhs.similarity > rhs.similarity;
-        const size_t lhs_stable = std::min(candidates[lhs.lhs].stable, candidates[lhs.rhs].stable);
-        const size_t rhs_stable = std::min(candidates[rhs.lhs].stable, candidates[rhs.rhs].stable);
-        return lhs_stable < rhs_stable;
-    });
     return matches;
-}
-
-class CandidateGroups {
-public:
-    CandidateGroups(const std::vector<Candidate>& candidates, size_t tile_count)
-        : _parents(candidates.size()),
-          _sizes(candidates.size(), 1u),
-          _word_count((tile_count + 63u) / 64u),
-          _tile_words(candidates.size() * _word_count)
-    {
-        std::iota(_parents.begin(), _parents.end(), size_t{0});
-        for(size_t index = 0; index < candidates.size(); ++index) {
-            const size_t tile = candidates[index].tile;
-            _tile_words[index * _word_count + tile / 64u]
-                |= uint64_t{1} << (tile % 64u);
-        }
-    }
-
-    size_t root(size_t index) {
-        while(_parents[index] != index) {
-            _parents[index] = _parents[_parents[index]];
-            index = _parents[index];
-        }
-        return index;
-    }
-
-    void join_if_tile_unique(size_t lhs, size_t rhs) {
-        lhs = root(lhs);
-        rhs = root(rhs);
-        if(lhs == rhs || shares_tile(lhs, rhs))
-            return;
-        if(_sizes[lhs] < _sizes[rhs])
-            std::swap(lhs, rhs);
-
-        _parents[rhs] = lhs;
-        _sizes[lhs] += _sizes[rhs];
-        for(size_t word = 0; word < _word_count; ++word)
-            tile_word(lhs, word) |= tile_word(rhs, word);
-    }
-
-private:
-    bool shares_tile(size_t lhs, size_t rhs) const {
-        for(size_t word = 0; word < _word_count; ++word) {
-            if((tile_word(lhs, word) & tile_word(rhs, word)) != 0u)
-                return true;
-        }
-        return false;
-    }
-
-    uint64_t& tile_word(size_t group, size_t word) {
-        return _tile_words[group * _word_count + word];
-    }
-
-    uint64_t tile_word(size_t group, size_t word) const {
-        return _tile_words[group * _word_count + word];
-    }
-
-    std::vector<size_t> _parents;
-    std::vector<size_t> _sizes;
-    size_t _word_count;
-    std::vector<uint64_t> _tile_words;
-};
-
-std::vector<OutputGroup> make_output_groups(
-    const std::vector<Candidate>& candidates,
-    const std::vector<Match>& matches,
-    size_t tile_count)
-{
-    CandidateGroups groups(candidates, tile_count);
-    // A group may contain at most one row from each tile. That constraint
-    // prevents transitive matches from collapsing two real same-tile objects.
-    for(const auto& match : matches)
-        groups.join_if_tile_unique(match.lhs, match.rhs);
-
-    std::vector<std::vector<size_t>> members_by_root(candidates.size());
-    for(size_t index = 0; index < candidates.size(); ++index)
-        members_by_root[groups.root(index)].push_back(index);
-
-    std::vector<OutputGroup> output;
-    output.reserve(candidates.size());
-    for(auto& members : members_by_root) {
-        if(members.empty())
-            continue;
-        std::sort(members.begin(), members.end(), [&](size_t lhs, size_t rhs) {
-            if(better_candidate(candidates[lhs], candidates[rhs]))
-                return true;
-            if(better_candidate(candidates[rhs], candidates[lhs]))
-                return false;
-            return candidates[lhs].stable < candidates[rhs].stable;
-        });
-        output.push_back(OutputGroup{members.front(), std::move(members)});
-    }
-    std::sort(output.begin(), output.end(), [&](const auto& lhs, const auto& rhs) {
-        return candidates[lhs.representative].stable < candidates[rhs.representative].stable;
-    });
-    return output;
 }
 
 bool should_stitch_mask(
@@ -821,40 +602,22 @@ StitchedMask stitch_mask(
     const std::vector<Candidate>& candidates,
     const std::vector<detect::Result>& results)
 {
-    int x0 = std::numeric_limits<int>::max();
-    int y0 = std::numeric_limits<int>::max();
-    int x1 = std::numeric_limits<int>::min();
-    int y1 = std::numeric_limits<int>::min();
+    std::vector<detect::association::PositionedMaskView> masks;
+    masks.reserve(group.members.size());
     for(const size_t member_index : group.members) {
-        const auto& member = candidates[member_index];
-        const auto& mask = results[member.tile].masks()[member.row].mat;
-        const int x = static_cast<int>(std::floor(member.bounds.x));
-        const int y = static_cast<int>(std::floor(member.bounds.y));
-        x0 = std::min(x0, x);
-        y0 = std::min(y0, y);
-        x1 = std::max(x1, x + mask.cols);
-        y1 = std::max(y1, y + mask.rows);
+        masks.emplace_back(positioned_mask(candidates[member_index], results));
     }
-
-    cv::Mat stitched = cv::Mat::zeros(y1 - y0, x1 - x0, CV_8UC1);
-    for(const size_t member_index : group.members) {
-        const auto& member = candidates[member_index];
-        const auto& mask = results[member.tile].masks()[member.row].mat;
-        const int x = static_cast<int>(std::floor(member.bounds.x)) - x0;
-        const int y = static_cast<int>(std::floor(member.bounds.y)) - y0;
-        auto destination = stitched(cv::Rect(x, y, mask.cols, mask.rows));
-        cv::bitwise_or(destination, mask, destination);
-    }
-
-    std::vector<uint8_t> bytes(stitched.total());
-    std::memcpy(bytes.data(), stitched.data, bytes.size());
+    auto stitched = detect::association::union_masks(masks);
     return StitchedMask{
-        MaskAccess::make_mask(std::move(bytes), stitched.rows, stitched.cols),
+        MaskAccess::make_mask(
+            std::move(stitched.pixels),
+            stitched.rows,
+            stitched.cols),
         detect::Rect{
-            static_cast<float>(x0),
-            static_cast<float>(y0),
-            static_cast<float>(x1),
-            static_cast<float>(y1)
+            static_cast<float>(stitched.x),
+            static_cast<float>(stitched.y),
+            static_cast<float>(stitched.x + stitched.cols),
+            static_cast<float>(stitched.y + stitched.rows)
         }
     };
 }
@@ -952,13 +715,13 @@ void append_group(
 
 } // namespace
 
-detect::Result DetectionPostprocess::apply(
+detect::Result DetectionTilePostprocess::apply(
     std::vector<detect::Result>&& tile_results,
     const std::vector<TileGeometry>& tile_geometries)
 {
     if(tile_results.size() != tile_geometries.size()) {
         throw InvalidArgumentException(
-            "DetectionPostprocess expected matching result and tile-geometry counts, got ",
+            "DetectionTilePostprocess expected matching result and tile-geometry counts, got ",
             tile_results.size(), " and ", tile_geometries.size(), ".");
     }
     if(tile_results.empty())
@@ -997,8 +760,23 @@ detect::Result DetectionPostprocess::apply(
         tile_results,
         settings,
         payload.pose_bones);
-    const auto groups = make_output_groups(
-        candidates, matches, tile_results.size());
+    std::vector<detect::association::AssociationCandidate> association_candidates;
+    association_candidates.reserve(candidates.size());
+    for(const auto& candidate : candidates) {
+        association_candidates.push_back({
+            .stable = candidate.stable,
+            .source = candidate.tile
+        });
+    }
+    // A group may contain at most one row from each tile. That constraint
+    // prevents transitive matches from collapsing two real same-tile objects.
+    const auto groups = detect::association::group_matches(
+        association_candidates,
+        matches,
+        tile_results.size(),
+        [&](size_t lhs, size_t rhs) {
+            return better_candidate(candidates[lhs], candidates[rhs]);
+        });
 
     PayloadBuffers output;
     output.reserve(payload.mode, groups.size(), payload.pose_bones);

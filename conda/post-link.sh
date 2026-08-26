@@ -414,7 +414,7 @@ for conda_record in "${PREFIX}"/conda-meta/py-opencv-*.json; do
     fi
 done
 
-common_packages=("torchmetrics" "tqdm" "ultralytics>=8.3.0,<9" "rfdetr==1.8.3"
+common_packages=("torchmetrics" "tqdm" "ultralytics>=8.4.52,<9" "rfdetr==1.8.3"
     "dill" "timm" "scikit-learn" "${clip_requirement}")
 
 if ! ${conda_opencv_owned}; then
