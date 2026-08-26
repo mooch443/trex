@@ -377,7 +377,7 @@ detect::Result SegmentationPostprocess::apply(
             /// add them as individual objects here if they come out separate.
             /// some masks might be merged together, but some might be separate - we need to keep them separate.
             auto raw = CPULabeling::run(check_cc, list_cache);
-            cmn::gui::ColorWheel wheel;
+            //cmn::gui::ColorWheel wheel;
 
             for(auto && pair : raw) {
                 auto &[lines, pixels, flags, pred] = pair;
@@ -412,7 +412,7 @@ detect::Result SegmentationPostprocess::apply(
                     static_cast<float>(merged.y + ptr->bounds().y + ptr->bounds().height)
                 };
                 
-                auto [p,m] = ptr->binary_image();
+                auto [p,m] = ptr->binary_image(0);
                 std::vector<uchar> pix(m->data(), m->data() + m->size());
                 
                 output.append(

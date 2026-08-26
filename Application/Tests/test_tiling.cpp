@@ -694,10 +694,10 @@ TEST(SegmentationPostprocessTest, GreedyNmsRetainsPreferredOverlappingMask) {
 
 TEST(SegmentationPostprocessTest, MergesTransitiveMasksAndPreservesDisjointRows) {
     auto boxes = makeBoxes({
-        {0.f, 0.f, 10.f, 10.f, 0.6f, 1.f},
-        {8.f, 0.f, 18.f, 10.f, 0.9f, 1.f},
-        {16.f, 0.f, 26.f, 10.f, 0.7f, 1.f},
-        {40.f, 0.f, 50.f, 10.f, 0.8f, 1.f}
+        {10.f, 0.f, 20.f, 10.f, 0.6f, 1.f},
+        {18.f, 0.f, 28.f, 10.f, 0.9f, 1.f},
+        {26.f, 0.f, 36.f, 10.f, 0.7f, 1.f},
+        {50.f, 0.f, 60.f, 10.f, 0.8f, 1.f}
     });
     std::vector<track::detect::MaskData> masks;
     for(size_t index = 0; index < 4u; ++index) {
@@ -726,9 +726,9 @@ TEST(SegmentationPostprocessTest, MergesTransitiveMasksAndPreservesDisjointRows)
     ASSERT_EQ(merged.boxes().num_rows(), 2u);
     ASSERT_EQ(merged.masks().size(), 2u);
 
-    EXPECT_FLOAT_EQ(merged.boxes()[0].box.x0, 0.f);
+    EXPECT_FLOAT_EQ(merged.boxes()[0].box.x0, 10.f);
     EXPECT_FLOAT_EQ(merged.boxes()[0].box.y0, 0.f);
-    EXPECT_FLOAT_EQ(merged.boxes()[0].box.x1, 26.f);
+    EXPECT_FLOAT_EQ(merged.boxes()[0].box.x1, 36.f);
     EXPECT_FLOAT_EQ(merged.boxes()[0].box.y1, 10.f);
     EXPECT_FLOAT_EQ(merged.boxes()[0].conf, 0.9f);
     EXPECT_FLOAT_EQ(merged.boxes()[0].clid, 1.f);
@@ -738,12 +738,42 @@ TEST(SegmentationPostprocessTest, MergesTransitiveMasksAndPreservesDisjointRows)
     EXPECT_NE(merged.masks()[0].mat.at<uint8_t>(0, 0), 0u);
     EXPECT_NE(merged.masks()[0].mat.at<uint8_t>(9, 25), 0u);
 
-    EXPECT_FLOAT_EQ(merged.boxes()[1].box.x0, 40.f);
-    EXPECT_FLOAT_EQ(merged.boxes()[1].box.x1, 50.f);
+    EXPECT_FLOAT_EQ(merged.boxes()[1].box.x0, 50.f);
+    EXPECT_FLOAT_EQ(merged.boxes()[1].box.x1, 60.f);
     EXPECT_FLOAT_EQ(merged.boxes()[1].conf, 0.8f);
     EXPECT_EQ(merged.masks()[1].mat.cols, 10);
     EXPECT_EQ(merged.masks()[1].mat.rows, 10);
     EXPECT_EQ(cv::countNonZero(merged.masks()[1].mat), 10 * 10);
+}
+
+TEST(SegmentationPostprocessTest, MergeMasksDropsTopLeftBorderArtifact) {
+    auto boxes = makeBoxes({
+        {0.f, 0.f, 10.f, 10.f, 0.9f, 1.f}
+    });
+    std::vector<track::detect::MaskData> masks;
+    masks.emplace_back(makeOwnedMaskData(
+        10, 10, {Bounds(0.f, 0.f, 10.f, 10.f)}));
+    track::detect::Result result{
+        12,
+        std::move(boxes),
+        std::move(masks),
+        track::detect::KeypointData{},
+        track::detect::ObbData{},
+        track::detect::PointData{}
+    };
+
+    auto filtered = track::detail::SegmentationPostprocess::apply(
+        std::move(result),
+        track::detail::SegmentationPostprocess::Settings{
+            .overlap = {.iou = 0.5f, .containment = 2.f},
+            .class_agnostic = false,
+            .mode = track::MaskPostprocessMode::merge_masks,
+            .frame = {}
+        });
+
+    EXPECT_EQ(filtered.index(), 12);
+    EXPECT_EQ(filtered.boxes().num_rows(), 0u);
+    EXPECT_TRUE(filtered.masks().empty());
 }
 
 TEST(DetectionTilePostprocessTest, PositiveOverlapNeverAssociatesRowsFromTheSameTile) {
@@ -1002,10 +1032,12 @@ TEST(DetectionTilePostprocessTest, MaskMatchingStitchesComplementaryClippedMasks
 
     auto left_boxes = makeBoxes({{90.f, 20.f, 120.f, 50.f, 0.9f, 1.f}});
     auto right_boxes = makeBoxes({{80.f, 20.f, 110.f, 50.f, 0.8f, 1.f}});
-    std::vector<track::detect::MaskData> left_masks(1);
-    std::vector<track::detect::MaskData> right_masks(1);
-    left_masks[0].mat = makeMask(30, 30, {Bounds(0, 0, 30, 30)});
-    right_masks[0].mat = makeMask(30, 30, {Bounds(0, 0, 30, 30)});
+    std::vector<track::detect::MaskData> left_masks;
+    std::vector<track::detect::MaskData> right_masks;
+    left_masks.emplace_back(makeOwnedMaskData(
+        30, 30, {Bounds(0, 0, 30, 30)}));
+    right_masks.emplace_back(makeOwnedMaskData(
+        30, 30, {Bounds(0, 0, 30, 30)}));
 
     std::vector<track::detect::Result> results;
     results.emplace_back(0, std::move(left_boxes), std::move(left_masks),
@@ -1111,10 +1143,12 @@ TEST(DetectionTilePostprocessIntegrationTest, StitchedMaskRoutesThroughYoloRecei
 
     auto left_boxes = makeBoxes({{90.f, 20.f, 120.f, 50.f, 0.9f, 1.f}});
     auto right_boxes = makeBoxes({{80.f, 20.f, 110.f, 50.f, 0.8f, 1.f}});
-    std::vector<track::detect::MaskData> left_masks(1);
-    std::vector<track::detect::MaskData> right_masks(1);
-    left_masks[0].mat = makeMask(30, 30, {Bounds(0, 0, 30, 30)});
-    right_masks[0].mat = makeMask(30, 30, {Bounds(0, 0, 30, 30)});
+    std::vector<track::detect::MaskData> left_masks;
+    std::vector<track::detect::MaskData> right_masks;
+    left_masks.emplace_back(makeOwnedMaskData(
+        30, 30, {Bounds(0, 0, 30, 30)}));
+    right_masks.emplace_back(makeOwnedMaskData(
+        30, 30, {Bounds(0, 0, 30, 30)}));
 
     std::vector<track::detect::Result> results;
     results.emplace_back(0, std::move(left_boxes), std::move(left_masks),
@@ -1599,8 +1633,9 @@ TEST(YoloReceiveTest, NonMergeSingleTileInstanceMaskRoutesThroughProcessInstance
     auto boxes = makeBoxes({
         {40.f, 40.f, 80.f, 80.f, 0.9f, 1.f}
     });
-    std::vector<track::detect::MaskData> masks(1);
-    masks[0].mat = makeMask(40, 40, {Bounds(0, 0, 40, 40)});
+    std::vector<track::detect::MaskData> masks;
+    masks.emplace_back(makeOwnedMaskData(
+        40, 40, {Bounds(0, 0, 40, 40)}));
 
     track::detect::Result result(
         0,
