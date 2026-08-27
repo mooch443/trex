@@ -272,6 +272,9 @@ conda build -c conda-forge .
   reference implementation for GUI structure or best practices.
 
 ## Agent execution constraints
+- Unless explicitly asked to restructure or reinvent an implementation, make the
+  smallest possible change, preserve existing comments and formatting, keep code
+  verbatim where applicable, and do not extract one-off code into new helpers.
 - When creating a new branch, use a concise descriptive name without a
   ``codex/`` or other agent-specific prefix.
 - Do not run builds, CMake configure/generate commands, or CMake build commands.

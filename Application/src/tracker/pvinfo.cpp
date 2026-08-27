@@ -150,19 +150,22 @@ int main(int argc, char** argv) {
         default_config::get(config);
     });
 
+    auto wd = GlobalSettings::write_value<NoType>("wd");
+    wd.get().set_do_print(true);
+
     CommandLine::init(argc, argv, true);
     auto& cmd = CommandLine::instance();
-    file::cd(file::DataLocation::parse("app"));
+    auto cwd = wd.value<file::Path>();
+    if(cwd.empty())
+        cwd = file::Path(default_config::homedir());
+    CommandLine::instance().add_setting("wd", cwd.str());
+    file::cd(file::DataLocation::parse("app").absolute());
 
     std::map<std::string, std::string> updated_settings;
     std::vector<std::string> remove_settings;
 
     bool fix = false, repair_index = false, save_background = false;
     bool be_quiet = false, print_plain = false, heatmap = false, auto_param = false;
-
-    cmd.load_settings();
-    be_quiet = GlobalSettings::is_runtime_quiet();
-    set_runtime_quiet(be_quiet);
 
     auto default_path = file::DataLocation::parse("default.settings");
     if(default_path.exists()) {
@@ -175,7 +178,7 @@ int main(int argc, char** argv) {
         DebugHeader("LOADED ", default_path);
     }
 
-    for(auto& option : cmd) {
+    for(auto option : cmd) {
         if(Arguments::has(option.name)) {
             switch(Arguments::get(option.name)) {
                 case Arguments::display_average:
@@ -191,8 +194,8 @@ int main(int argc, char** argv) {
                 case Arguments::input: {
                     //parse_input(option);
                     if(option.value.has_value()) {
-                        SETTING(source) = cmn::file::PathArray{file::Path(option.value.value())};
-                        CommandLine::instance().add_setting("source", SETTING(source).get().valueString());
+                        SETTING(source) = file::PathArray(*option.value);
+                        CommandLine::instance().add_setting("source", *option.value);
                     }
                     break;
                 }
@@ -204,13 +207,17 @@ int main(int argc, char** argv) {
 
                 case Arguments::d:
                 case Arguments::dir:
-                    if(option.value)
+                    if(option.value) {
                         SETTING(output_dir) = file::Path(*option.value);
+                        CommandLine::instance().add_setting("output_dir", *option.value);
+                    }
                     break;
 
                 case Arguments::p:
-                    if(option.value)
+                    if(option.value) {
                         SETTING(output_prefix) = std::string(*option.value);
+                        CommandLine::instance().add_setting("output_prefix", *option.value);
+                    }
                     break;
 
                 case Arguments::remove:
@@ -231,8 +238,10 @@ int main(int argc, char** argv) {
                     print_plain = true;
                     break;
                 case Arguments::s:
-                    if(option.value)
+                    if(option.value) {
                         SETTING(settings_file) = file::Path(*option.value).add_extension("settings");
+                        CommandLine::instance().add_setting("settings_file", *option.value);
+                    }
                     break;
 
                 case Arguments::fix:
@@ -254,6 +263,8 @@ int main(int argc, char** argv) {
                 case Arguments::auto_parameters:
                     SETTING(auto_number_individuals) = true;
                     SETTING(auto_minmax_size) = true;
+                    CommandLine::instance().add_setting("auto_number_individuals", "true");
+                    CommandLine::instance().add_setting("auto_minmax_size", "true");
                     auto_param = true;
                     break;
 
@@ -271,6 +282,14 @@ int main(int argc, char** argv) {
         }
     }
 
+    cmd.load_settings();
+    be_quiet = GlobalSettings::is_runtime_quiet();
+    set_runtime_quiet(be_quiet);
+
+    sprite::Map cmd_options;
+    cmd.load_settings(cmd_options);
+    auto cmd_settings = cmd.settings_keys();
+
     auto merge_videos = READ_SETTING(merge_videos, std::vector<file::Path>);
     if(!merge_videos.empty()) {
         initiate_merging(merge_videos, argc, argv);
@@ -279,15 +298,6 @@ int main(int argc, char** argv) {
 
     if(!GlobalSettings::has_value("filename") && argc >= 1)
         SETTING(filename) = file::Path(argv[argc - 1]);
-
-    file::Path settings_file = file::DataLocation::parse("settings");
-    if(settings_file.exists()) {
-        default_config::warn_deprecated(settings_file,
-            GlobalSettings::load_from_file(settings_file.str(), {
-            .deprecations = default_config::deprecations(),
-            .access = AccessLevelType::STARTUP
-        }));
-    }
 
     file::PathArray source = READ_SETTING(source, file::PathArray);
     if(source.empty())
@@ -308,6 +318,28 @@ int main(int argc, char** argv) {
             input_type = InputType::VIDEO;
         }
     }
+
+    if(source.size() == 1) {
+        auto path = source.get_paths().front();
+        if(path.has_extension("results")
+           || path.has_extension("pv")
+           || path.has_extension("mp4"))
+        {
+            source = file::PathArray{path.remove_extension()};
+        }
+    }
+
+    settings::load(settings::LoadContext{
+        .source = source,
+        .filename = READ_SETTING(filename, file::Path),
+        .task = default_config::TRexTask_t::track,
+        .type = READ_SETTING(
+            detect_type,
+            track::detect::ObjectDetectionType_t
+        ),
+        .source_map = cmd_options,
+        .quiet = be_quiet
+    });
     
     file::Path input = GlobalSettings::read([](const Configuration& combined){
         return cmn::settings::find_output_name(combined.values, {}, false);
@@ -318,19 +350,6 @@ int main(int argc, char** argv) {
     //READ_SETTING(filename, file::Path);
 
     if(is_in(input_type, InputType::PV, InputType::VIDEO)) {
-        settings::load(settings::LoadContext{
-            .source = file::PathArray{input},
-            .filename = input.is_absolute() ? input : file::Path{},
-            .task = default_config::TRexTask_t::track,
-            .type = READ_SETTING(
-                detect_type,
-                track::detect::ObjectDetectionType_t
-            ),
-            .source_map = {},
-            .quiet = be_quiet
-        });
-        
-        
         SETTING(filename) = GlobalSettings::read([](const Configuration& config) {
             return settings::find_existing_output_name(config.values);
         });
@@ -343,15 +362,6 @@ int main(int argc, char** argv) {
         SETTING(video_mask) = video.has_mask();
         SETTING(video_length) = uint64_t(video.length().get());
         SETTING(video_info) = std::string(video.get_info());
-        
-        track::Tracker _tracker(video);
-
-        if(auto_param
-           || BOOL_SETTING(auto_minmax_size)
-           || BOOL_SETTING(auto_number_individuals))
-        {
-            track::Tracker::auto_calculate_parameters(video, be_quiet);
-        }
 
         if(READ_SETTING(frame_rate, uint32_t) == 0) {
             if(!GlobalSettings::is_runtime_quiet())
@@ -360,7 +370,17 @@ int main(int argc, char** argv) {
             SETTING(frame_rate) = (uint32_t)max(1, int(video.framerate()));
         }
 
+        Output::Library::InitVariables();
         Output::Library::Init();
+
+        track::Tracker _tracker(video);
+
+        if(auto_param
+           || BOOL_SETTING(auto_minmax_size)
+           || BOOL_SETTING(auto_number_individuals))
+        {
+            track::Tracker::auto_calculate_parameters(video, be_quiet);
+        }
 
         set_runtime_quiet(be_quiet);
 
@@ -628,6 +648,7 @@ int main(int argc, char** argv) {
         
         if(header.version >= Output::ResultsFormat::Versions::V_28) {
             header.average.get().copyTo(average);
+            overrides["meta_video_size"] = Size2(average.cols, average.rows);
             overrides["video_size"] = Size2(average.cols, average.rows);
             overrides["video_length"] = uint64_t(header.video_length);
             overrides["analysis_range"] = Range<long_t>(header.analysis_range.start, header.analysis_range.end);
@@ -641,9 +662,12 @@ int main(int argc, char** argv) {
             if(average.cols == video.size().width && average.rows == video.size().height)
                 video.processImage(average, average);
 
+            overrides["meta_video_size"] = Size2(video.size());
+            overrides["crop_offsets"] = video.header().offsets;
             overrides["video_size"] = Size2(average.cols, average.rows);
             overrides["video_mask"] = video.has_mask();
             overrides["video_length"] = uint64_t(video.length().get());
+            overrides["video_info"] = std::string(video.get_info());
         }
 
         /*if(READ_SETTING_WITH_DEFAULT(meta_real_width, Float2_t(0)) == 0)
@@ -676,29 +700,48 @@ int main(int argc, char** argv) {
         const auto& meta = header.settings;
         
         GlobalSettings::read([&](const Configuration& combined) {
-            default_config::warn_deprecated(input,
+            default_config::warn_deprecated(input.add_extension("results"),
                 GlobalSettings::load_from_string(meta, {
+                    .source = input.add_extension("results"),
                     .deprecations = default_config::deprecations(),
                     .access = AccessLevelType::STARTUP,
+                    .exclude = std::vector<std::string>(
+                        settings::LoadContext::exclude_external.begin(),
+                        settings::LoadContext::exclude_external.end()),
                     .target = &overrides,
                 .additional = &combined.values
             }));
         });
         
         //Print("video length: ", SETTING(video_length)," and ", overrides.at("video_length"));
+
+        auto detect_type = READ_SETTING(
+            detect_type,
+            track::detect::ObjectDetectionType_t
+        );
+        if(overrides.has("detect_type")
+           && !cmd_settings.contains("detect_type"))
+        {
+            detect_type = overrides.at("detect_type").value<track::detect::ObjectDetectionType_t>();
+        }
+
+        for(auto& [key, value] : cmd_settings) {
+            if(key != "wd")
+                cmd.add_setting(key, value);
+        }
         
         SETTING(quiet) = true;
         settings::load(settings::LoadContext{
             .source = file::PathArray{input.add_extension("results")},
             .filename = input.is_absolute() ? input : file::Path{},
             .task = default_config::TRexTask_t::track,
-            .type = READ_SETTING(
-                detect_type,
-                track::detect::ObjectDetectionType_t
-            ),
+            .type = detect_type,
             .source_map = std::move(overrides),
             .quiet = be_quiet
         });
+
+        Output::Library::InitVariables();
+        Output::Library::Init();
 
         if(header.version < Output::ResultsFormat::Versions::V_28) {
             SETTING(quiet) = true;
