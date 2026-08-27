@@ -254,22 +254,72 @@ function check_frame_count_with_pvinfo() {
     return 0
 }
 
-rm -f "${WPWD}/corrected/test.settings"
+rm -f -- "${WPWD:?}/corrected/test.settings"
 # Conversion writes to the un-prefixed output dir; keep the prefix and the
 # scanned data dir in lock-step via CONVERT_PREFIX.
-CONVERT_PREFIX=""
+CONVERT_PREFIX="converted"
 CONVERT_DATA_DIR="$(data_dir_for_prefix "${CONVERT_PREFIX}")"
 CONVERT_P_ARG=""
-[[ -n "${CONVERT_PREFIX}" ]] && CONVERT_P_ARG="-p ${CONVERT_PREFIX} "
-CMD="${CONVERT} -d "${WPWD}" -i \"${TEST_FRAMES_DIR}/frame_%3d.jpg\" -o test -s \"${WPWD}/test.settings\" -auto_quit -nowindow -task convert -detect_type background_subtraction ${CONVERT_P_ARG}-history_matching_log history_matching_convert.html"
-echo "Running conversion (image frames -> .pv video)... ${CMD}"
-if ! { ${CMD} 2>&1; } > "${PWD}/convert.log"; then
+
+function cleanup_for_prefix() {
+    local prefix="$1"
+    local path="${WPWD:?}/${prefix:?}"
+    
+    if [[ -n "${prefix}" ]]; then
+        if [[ "$prefix" == /* ||
+            "$prefix" == ".." ||
+            "$prefix" == ../* ||
+            "$prefix" == */.. ||
+            "$prefix" == */../* ]]; then
+            echo "Refusing unsafe CONVERT_PREFIX: $prefix" >&2
+            exit 1
+        fi
+
+        base=$(cd -P -- "${WPWD:?}" && pwd -P) || exit 1
+        path="${WPWD:?}/${prefix:?}"
+        echo "Preparing conversion output path: $path from $base"
+
+        if [[ -d "$path" ]]; then
+            target=$(cd -P -- "$path" && pwd -P) || exit 1
+
+            if [[ "$target" != "$base/"* ]]; then
+                echo "Refusing path outside WPWD: $target" >&2
+                exit 1
+            fi
+
+            echo "Removing $path for conversion output..."
+            rm -rf -- "$path"
+        fi
+    fi
+}
+
+cleanup_for_prefix "${CONVERT_PREFIX}"
+mkdir -p -- "${WPWD:?}/${CONVERT_PREFIX:?}"
+
+[[ -n "${CONVERT_PREFIX}" ]] && CONVERT_P_ARG=(-p "${CONVERT_PREFIX}")
+CMD=(
+    "${CONVERT:?}"
+    -d "${WPWD:?}" 
+    -i "${TEST_FRAMES_DIR:?}/frame_%3d.jpg"
+    -o test 
+    -s "${WPWD:?}/test.settings" 
+    -auto_quit 
+    -nowindow 
+    -task convert 
+    -detect_type background_subtraction 
+    "${CONVERT_P_ARG[@]}"
+    -history_matching_log 
+    history_matching_convert.html
+)
+echo "Running conversion (image frames -> .pv video)..." "${CMD[@]}"
+
+if ! { "${CMD[@]}" 2>&1; } > "${PWD}/convert.log"; then
     print_log_quote "convert.log" < "${PWD}/convert.log"
     echo -e "${RED}[ERROR] Conversion (image frames -> .pv video) could not be executed.${NC}"
     exit_code=1
 else
     echo "  Scanning files... (${CONVERT_DATA_DIR})"
-    FILES=$(ls ${CONVERT_DATA_DIR}/test_fish*.csv)
+    FILES=$(ls "${CONVERT_DATA_DIR}"/test_fish*.csv)
 
     if [ -z "${FILES}" ]; then
         echo -e "${RED}[ERROR] Conversion produced no output CSV files in ${CONVERT_DATA_DIR}.${NC}"
@@ -301,17 +351,31 @@ for MODE in ${MODES}; do
     # scanned data dir from the same prefix we pass via -p so they cannot drift.
     TRACK_PREFIX="corrected"
     TRACK_DATA_DIR="$(data_dir_for_prefix "${TRACK_PREFIX}")"
-    CMD="${TREX} -d \"${WPWD}\" -i \"${WPWD}/test\" -s \"${WPWD}/test.settings\" -auto_quit -nowindow -task track -p ${TRACK_PREFIX} -match_mode ${MODE} -history_matching_log history_matching_track.html"
 
-    echo "Running tracking on preconverted .pv video (${MODE})... ${CMD}"
+    cleanup_for_prefix "${TRACK_PREFIX}"
+    mkdir -p -- "${WPWD:?}/${TRACK_PREFIX:?}"
 
-    if ! { ${CMD} 2>&1; } > "${PWD}/track.log"; then
+    CMD=(
+        "${TREX}"
+        -d "${WPWD:?}"
+        -i "${WPWD:?}/${CONVERT_PREFIX:?}/test"
+        -s "${WPWD:?}/${CONVERT_PREFIX:?}/test.settings"
+        -auto_quit -nowindow -task track -p "${TRACK_PREFIX}"
+        -match_mode "${MODE}"
+        -history_matching_log history_matching_track.html
+    )
+
+    printf 'Running tracking on preconverted .pv video (%s)...' "${MODE}"
+    printf ' %q' "${CMD[@]}"
+    printf '\n'
+
+    if ! { "${CMD[@]}" 2>&1; } > "${PWD}/track.log"; then
         print_log_quote "track.log" < "${PWD}/track.log"
         echo -e "\n\n${RED}[ERROR] Tracking on preconverted .pv video (${MODE}) could not be executed.${NC}"
         exit_code=1
     else
         echo "  Scanning files... (${TRACK_DATA_DIR})"
-        FILES=$(ls ${TRACK_DATA_DIR}/test_fish*.csv)
+        FILES=$(ls "${TRACK_DATA_DIR:?}"/test_fish*.csv)
 
         if [ -z "${FILES}" ]; then
             echo -e "${RED}[ERROR] Tracking produced no output CSV files in ${TRACK_DATA_DIR}.${NC}"
@@ -319,10 +383,6 @@ for MODE in ${MODES}; do
             #ls -la ${PWD}/*
             exit_code=1
         else
-            #f="test_fish0"
-            #echo -e "\tRunning ${GIT} --no-pager diff --word-diff --no-index -- ${PWD}/compare_data_${MODE}/${f}.csv ${TRACK_DATA_DIR}/${f}.csv"
-            #echo "${TRACK_DATA_DIR}: $FILES"
-
             if ! compare_csv_folder "${TRACK_DATA_DIR}" "${PWD}/compare_data_${MODE}"; then
                 echo -e "${RED}[ERROR] Tracking output differs from baseline.${NC}"
                 exit_code=1
@@ -332,19 +392,6 @@ for MODE in ${MODES}; do
                     exit_code=1
                 fi
             fi
-
-            #for f in ${FILES}; do
-            #    f=$(basename $f .csv)
-
-                #echo -e -n "\tChecking $f ..."
-                #if ! ${GIT} --no-pager diff --word-diff --no-index -- ${PWD}/corrected/data/${f}.csv ${PWD}/compare_data_${MODE}/${f}.csv; then
-                #    echo "FAIL"
-                #    echo "[ERROR] corrected file $f differs from baseline"
-                #    exit_code=1
-                #else
-                #    echo 'OK'
-                #fi
-            #done
         fi
     fi
 
@@ -355,14 +402,10 @@ for MODE in ${MODES}; do
     else
         echo "Tracking on preconverted .pv video (${MODE}) completed successfully."
         # Clean outputs on success to keep workspace tidy.
-        rm -rf "${TRACK_DATA_DIR}"
-        rm -f ${PWD}/${TRACK_PREFIX}/test.settings
+        cleanup_for_prefix "${TRACK_PREFIX}"
     fi
 done
 
-if [ "${exit_code:-0}" = "0" ]; then
-  rm -f ${PWD}/average_test.png
-  rm -f ${PWD}/corrected/test.results.meta
-fi
+cleanup_for_prefix "${CONVERT_PREFIX}"
 
 exit "${exit_code:-0}"
