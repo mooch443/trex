@@ -1,4 +1,6 @@
 #include "PreviewAdapterElement.h"
+#include <misc/Image.h>
+#include <processing/Background.h>
 #include <gui/dyn/ParseText.h>
 #include <gui/ParseLayoutTypes.h>
 #include <core/idx_t.h>
@@ -101,7 +103,7 @@ PreviewAdapterElement::~PreviewAdapterElement() {
 
 Layout::Ptr PreviewAdapterElement::_create(LayoutContext& context) {
     [[maybe_unused]] auto fdx = context.get(Idx_t(), "fdx");
-    return Layout::Make<IndividualImage>();
+    return Layout::Make<IndividualImage>{};
 }
 
 bool PreviewAdapterElement::_update(Layout::Ptr& o,

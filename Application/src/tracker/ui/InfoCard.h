@@ -34,13 +34,14 @@ namespace cmn::gui {
         ~InfoCard();
         void update(gui::DrawStructure&, Frame_t);
         void update() override;
+        
+        const Drawable* tooltip_object() const override;
     };
 
     class DrawSegments : public Entangled {
         IllegalArray<ShadowTracklet> _tracklets;
         std::vector<ShadowTracklet> _displayed_tracklets;
         std::vector<std::tuple<std::shared_ptr<Text>, std::string>> tracklet_texts;
-        std::unique_ptr<Tooltip> _tooltip;
         
         GETTER(track::Idx_t, fdx);
         GETTER(Frame_t, frame);
@@ -64,8 +65,9 @@ namespace cmn::gui {
         
         Float2_t add_segments(bool display_hints, float offx);
         
-        void update();
+        void update() override;
         void update_box();
+        const Drawable* tooltip_object() const override;
     };
 
 }

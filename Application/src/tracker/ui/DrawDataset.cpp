@@ -1,4 +1,7 @@
 #include "DrawDataset.h"
+#include <processing/PVBlob.h>
+#include <tracking/Individual.h>
+#include <tracking/LockGuard.h>
 #include <tracking/Tracker.h>
 #include <gui/types/StaticText.h>
 #include <tracking/IndividualManager.h>
@@ -201,13 +204,13 @@ DrawDataset::~DrawDataset() {}
     inline Layout::Ptr makeLayoutRow(std::initializer_list<std::string> labels, Font font = Font(0.6)) {
         std::vector<Layout::Ptr> cells;
         for (auto& label : labels) {
-            cells.push_back(Layout::Make<Layout>(
+            cells.push_back(Layout::Make<Layout>{
                  std::vector<Layout::Ptr>{ 
-                Layout::Make<StaticText>(Str{label}, font, Margins{}) 
+                Layout::Make<StaticText>{Str{label}, font, Margins{}} 
             }
-            ));
+            });
         }
-        return Layout::Make<Layout>(cells);
+        return Layout::Make<Layout>{cells};
     }
     
     void DrawDataset::update() {

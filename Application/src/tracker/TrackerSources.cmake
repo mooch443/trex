@@ -1,5 +1,6 @@
 set(TREX_CORE_PUBLIC_HEADERS
     ${CMAKE_CURRENT_LIST_DIR}/core/AbstractVideoSource.h
+    ${CMAKE_CURRENT_LIST_DIR}/core/DetectAnnotationDataset.h
     ${CMAKE_CURRENT_LIST_DIR}/core/BaslerVideoSource.h
     ${CMAKE_CURRENT_LIST_DIR}/core/BackgroundTask.h
     ${CMAKE_CURRENT_LIST_DIR}/core/BlurryVideoLoop.h
@@ -7,11 +8,13 @@ set(TREX_CORE_PUBLIC_HEADERS
     ${CMAKE_CURRENT_LIST_DIR}/core/default_config.h
     ${CMAKE_CURRENT_LIST_DIR}/core/DetectionImageTypes.h
     ${CMAKE_CURRENT_LIST_DIR}/core/DetectionTypes.h
+    ${CMAKE_CURRENT_LIST_DIR}/core/FrameTags.h
     ${CMAKE_CURRENT_LIST_DIR}/core/FOI.h
     ${CMAKE_CURRENT_LIST_DIR}/core/IdentifiedTag.h
     ${CMAKE_CURRENT_LIST_DIR}/core/Identity.h
     ${CMAKE_CURRENT_LIST_DIR}/core/idx_t.h
     ${CMAKE_CURRENT_LIST_DIR}/core/indicators.h
+    ${CMAKE_CURRENT_LIST_DIR}/core/TerminalProgress.h
     ${CMAKE_CURRENT_LIST_DIR}/core/GPURecognitionTypes.h
     ${CMAKE_CURRENT_LIST_DIR}/core/NetworkStats.h
     ${CMAKE_CURRENT_LIST_DIR}/core/PVVideoSource.h
@@ -21,6 +24,7 @@ set(TREX_CORE_PUBLIC_HEADERS
     ${CMAKE_CURRENT_LIST_DIR}/core/TaskPipeline.h
     ${CMAKE_CURRENT_LIST_DIR}/core/SettingsPaths.h
     ${CMAKE_CURRENT_LIST_DIR}/core/SettingsInitializer.h
+    ${CMAKE_CURRENT_LIST_DIR}/core/TileCoordinates.h
     ${CMAKE_CURRENT_LIST_DIR}/core/TileImage.h
     ${CMAKE_CURRENT_LIST_DIR}/core/TileBuffers.h
     ${CMAKE_CURRENT_LIST_DIR}/core/TimingStatsCollector.h
@@ -30,7 +34,7 @@ set(TREX_CORE_PUBLIC_HEADERS
     ${CMAKE_CURRENT_LIST_DIR}/core/VideoVideoSource.h
     ${CMAKE_CURRENT_LIST_DIR}/core/WebcamVideoSource.h
     ${CMAKE_CURRENT_LIST_DIR}/core/Network.h
-    ${CMAKE_CURRENT_LIST_DIR}/core/annotation.h
+    ${CMAKE_CURRENT_LIST_DIR}/core/DetectAnnotation.h
 )
 
 set(TREX_CORE_PRIVATE_HEADERS
@@ -39,12 +43,14 @@ set(TREX_CORE_PRIVATE_HEADERS
 
 set(TREX_CORE_SOURCES
     ${CMAKE_CURRENT_LIST_DIR}/core/AbstractVideoSource.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/core/DetectAnnotationDataset.cpp
     ${CMAKE_CURRENT_LIST_DIR}/core/BaslerVideoSource.cpp
     ${CMAKE_CURRENT_LIST_DIR}/core/BackgroundTask.cpp
     ${CMAKE_CURRENT_LIST_DIR}/core/BlurryVideoLoop.cpp
     ${CMAKE_CURRENT_LIST_DIR}/core/Border.cpp
     ${CMAKE_CURRENT_LIST_DIR}/core/default_config.cpp
     ${CMAKE_CURRENT_LIST_DIR}/core/DetectionTypes.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/core/FrameTags.cpp
     ${CMAKE_CURRENT_LIST_DIR}/core/FOI.cpp
     ${CMAKE_CURRENT_LIST_DIR}/core/IdentifiedTag.cpp
     ${CMAKE_CURRENT_LIST_DIR}/core/Identity.cpp
@@ -65,7 +71,7 @@ set(TREX_CORE_SOURCES
     ${CMAKE_CURRENT_LIST_DIR}/core/TrackingSettings.cpp
     ${CMAKE_CURRENT_LIST_DIR}/core/VideoVideoSource.cpp
     ${CMAKE_CURRENT_LIST_DIR}/core/WebcamVideoSource.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/core/annotation.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/core/DetectAnnotation.cpp
 )
 
 set(TREX_DATA_PUBLIC_HEADERS
@@ -81,6 +87,8 @@ set(TREX_DATA_SOURCES
 )
 
 set(TREX_TRACKING_PUBLIC_HEADERS
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/AnnotationExporter.h
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/DetectAnnotationImporter.h
     ${CMAKE_CURRENT_LIST_DIR}/tracking/AutomaticMatches.h
     ${CMAKE_CURRENT_LIST_DIR}/tracking/BlobReceiver.h
     ${CMAKE_CURRENT_LIST_DIR}/tracking/ConnectedTasks.h
@@ -101,8 +109,10 @@ set(TREX_TRACKING_PUBLIC_HEADERS
     ${CMAKE_CURRENT_LIST_DIR}/tracking/OutputLibraryTypes.h
     ${CMAKE_CURRENT_LIST_DIR}/tracking/PairingGraph.h
     ${CMAKE_CURRENT_LIST_DIR}/tracking/PPFrame.h
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/PPFrameTypes.h
     ${CMAKE_CURRENT_LIST_DIR}/tracking/PrefilterBlobs.h
     ${CMAKE_CURRENT_LIST_DIR}/tracking/RecTask.h
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/SplitExpectation.h
     ${CMAKE_CURRENT_LIST_DIR}/tracking/SplitBlob.h
     ${CMAKE_CURRENT_LIST_DIR}/tracking/Stuffs.h
 )
@@ -121,6 +131,8 @@ set(TREX_TRACKING_PRIVATE_HEADERS
 )
 
 set(TREX_TRACKING_SOURCES
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/AnnotationExporter.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/tracking/DetectAnnotationImporter.cpp
     ${CMAKE_CURRENT_LIST_DIR}/tracking/AutomaticMatches.cpp
     ${CMAKE_CURRENT_LIST_DIR}/tracking/BlobReceiver.cpp
     ${CMAKE_CURRENT_LIST_DIR}/tracking/ConnectedTasks.cpp
@@ -174,7 +186,7 @@ set(TREX_ML_SOURCES
 
 set(TREX_UI_PUBLIC_HEADERS
     ${CMAKE_CURRENT_LIST_DIR}/ui/AnimatedBackground.h
-    ${CMAKE_CURRENT_LIST_DIR}/ui/AnnotationScene.h
+    ${CMAKE_CURRENT_LIST_DIR}/ui/DetectAnnotationScene.h
     ${CMAKE_CURRENT_LIST_DIR}/ui/Bowl.h
     ${CMAKE_CURRENT_LIST_DIR}/ui/CalibrateScene.h
     ${CMAKE_CURRENT_LIST_DIR}/ui/CheckUpdates.h
@@ -183,6 +195,8 @@ set(TREX_UI_PUBLIC_HEADERS
     ${CMAKE_CURRENT_LIST_DIR}/ui/Coordinates.h
     ${CMAKE_CURRENT_LIST_DIR}/ui/DrawBlobView.h
     ${CMAKE_CURRENT_LIST_DIR}/ui/DrawBorder.h
+    ${CMAKE_CURRENT_LIST_DIR}/ui/DrawAnnotationExportOptions.h
+    ${CMAKE_CURRENT_LIST_DIR}/ui/DrawDetectAnnotationImportOptions.h
     ${CMAKE_CURRENT_LIST_DIR}/ui/DrawDataset.h
     ${CMAKE_CURRENT_LIST_DIR}/ui/DrawExportOptions.h
     ${CMAKE_CURRENT_LIST_DIR}/ui/DrawFish.h
@@ -216,7 +230,6 @@ set(TREX_UI_PUBLIC_HEADERS
     ${CMAKE_CURRENT_LIST_DIR}/ui/ScreenRecorder.h
     ${CMAKE_CURRENT_LIST_DIR}/ui/SettingsDropdown.h
     ${CMAKE_CURRENT_LIST_DIR}/ui/SettingsScene.h
-    ${CMAKE_CURRENT_LIST_DIR}/ui/SettingsInitializer.h
     ${CMAKE_CURRENT_LIST_DIR}/ui/Skelett.h
     ${CMAKE_CURRENT_LIST_DIR}/ui/StartingScene.h
     ${CMAKE_CURRENT_LIST_DIR}/ui/Terminal.h
@@ -241,7 +254,7 @@ set(TREX_UI_PRIVATE_HEADERS
 
 set(TREX_UI_SOURCES
     ${CMAKE_CURRENT_LIST_DIR}/ui/AnimatedBackground.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/ui/AnnotationScene.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/ui/DetectAnnotationScene.cpp
     ${CMAKE_CURRENT_LIST_DIR}/ui/Bowl.cpp
     ${CMAKE_CURRENT_LIST_DIR}/ui/CalibrateScene.cpp
     ${CMAKE_CURRENT_LIST_DIR}/ui/CheckUpdates.cpp
@@ -250,6 +263,8 @@ set(TREX_UI_SOURCES
     ${CMAKE_CURRENT_LIST_DIR}/ui/Coordinates.cpp
     ${CMAKE_CURRENT_LIST_DIR}/ui/DrawBlobView.cpp
     ${CMAKE_CURRENT_LIST_DIR}/ui/DrawBorder.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/ui/DrawAnnotationExportOptions.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/ui/DrawDetectAnnotationImportOptions.cpp
     ${CMAKE_CURRENT_LIST_DIR}/ui/DrawDataset.cpp
     ${CMAKE_CURRENT_LIST_DIR}/ui/DrawExportOptions.cpp
     ${CMAKE_CURRENT_LIST_DIR}/ui/DrawFish.cpp
@@ -281,7 +296,6 @@ set(TREX_UI_SOURCES
     ${CMAKE_CURRENT_LIST_DIR}/ui/RecentItems.cpp
     ${CMAKE_CURRENT_LIST_DIR}/ui/Scene.cpp
     ${CMAKE_CURRENT_LIST_DIR}/ui/ScreenRecorder.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/ui/SettingsInitializer.cpp
     ${CMAKE_CURRENT_LIST_DIR}/ui/Segmenter.cpp
     ${CMAKE_CURRENT_LIST_DIR}/ui/SettingsDropdown.cpp
     ${CMAKE_CURRENT_LIST_DIR}/ui/SettingsScene.cpp
@@ -337,6 +351,8 @@ set(TREX_PYTHON_STAGING_PUBLIC_HEADERS
 )
 
 set(TREX_PYTHON_IMPL_PUBLIC_HEADERS
+    ${CMAKE_CURRENT_LIST_DIR}/python/DetectionAssociation.h
+    ${CMAKE_CURRENT_LIST_DIR}/python/DetectionTilePostprocess.h
     ${CMAKE_CURRENT_LIST_DIR}/python/GPURecognition.h
     ${CMAKE_CURRENT_LIST_DIR}/python/ModuleProxy.h
     ${CMAKE_CURRENT_LIST_DIR}/python/PythonEntryPoint.h
@@ -346,10 +362,12 @@ set(TREX_PYTHON_IMPL_PUBLIC_HEADERS
     ${CMAKE_CURRENT_LIST_DIR}/python/SAM3.h
     ${CMAKE_CURRENT_LIST_DIR}/python/SAM3InteractiveSession.h
     ${CMAKE_CURRENT_LIST_DIR}/python/SAM3PromptState.h
+    ${CMAKE_CURRENT_LIST_DIR}/python/SegmentationPostprocess.h
     ${CMAKE_CURRENT_LIST_DIR}/python/YOLO.h
 )
 
 set(TREX_PYTHON_IMPL_PRIVATE_HEADERS
+    ${CMAKE_CURRENT_LIST_DIR}/python/DetectionMaskAccess.h
 )
 
 set(TREX_PYTHON_STAGING_SOURCES
@@ -366,6 +384,8 @@ set(TREX_PYTHON_STAGING_SOURCES
 )
 
 set(TREX_PYTHON_IMPL_SOURCES
+    ${CMAKE_CURRENT_LIST_DIR}/python/DetectionAssociation.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/python/DetectionTilePostprocess.cpp
     ${CMAKE_CURRENT_LIST_DIR}/python/GPURecognition.cpp
     ${CMAKE_CURRENT_LIST_DIR}/python/Network.cpp
     ${CMAKE_CURRENT_LIST_DIR}/python/PythonBackendRegistry.cpp
@@ -373,5 +393,6 @@ set(TREX_PYTHON_IMPL_SOURCES
     ${CMAKE_CURRENT_LIST_DIR}/python/SAM3.cpp
     ${CMAKE_CURRENT_LIST_DIR}/python/SAM3InteractiveSession.cpp
     ${CMAKE_CURRENT_LIST_DIR}/python/SAM3PromptState.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/python/SegmentationPostprocess.cpp
     ${CMAKE_CURRENT_LIST_DIR}/python/YOLO.cpp
 )

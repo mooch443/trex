@@ -6,18 +6,16 @@ namespace trex_module_smoke::trex_ui::cmn::gui {
 using ::cmn::gui::AnimatedBackground;
 }
 
-// ui/AnnotationScene.h
+// ui/DetectAnnotationScene.h
 namespace trex_module_smoke::trex_ui::cmn {
 using ::cmn::VideoSource;
 }
 
 namespace trex_module_smoke::trex_ui::cmn::gui {
-using ::cmn::gui::Annotation;
-using ::cmn::gui::AnnotationScene;
-using ::cmn::gui::AnnotationType;
-using ::cmn::gui::AnnotationView;
 using ::cmn::gui::Bowl;
 using ::cmn::gui::Circle;
+using ::cmn::gui::DetectAnnotationScene;
+using ::cmn::gui::DetectAnnotationView;
 using ::cmn::gui::DrawStructure;
 using ::cmn::gui::ExternalImage;
 using ::cmn::gui::Pose;
@@ -66,7 +64,10 @@ using ::track::FOIStatus;
 namespace trex_module_smoke::trex_ui::cmn::gui {
 using ::cmn::gui::ConvertScene;
 using ::cmn::gui::Data;
-using ::cmn::gui::VideoInfo;
+}
+
+namespace trex_module_smoke::trex_ui::cmn::gui::convert {
+using ::cmn::gui::convert::VideoInfo;
 }
 
 namespace trex_module_smoke::trex_ui::track {
@@ -81,6 +82,7 @@ using ::cmn::gui::BowlRect;
 using ::cmn::gui::FindCoord;
 using ::cmn::gui::HUDCoord;
 using ::cmn::gui::HUDRect;
+using ::cmn::gui::to_bowl;
 }
 
 // ui/DrawBlobView.h
@@ -104,6 +106,16 @@ using ::cmn::gui::tracker::set_clicked_blob_id;
 namespace trex_module_smoke::trex_ui::cmn::gui {
 using ::cmn::gui::DrawBorder;
 using ::cmn::gui::Drawable;
+}
+
+// ui/DrawAnnotationExportOptions.h
+namespace trex_module_smoke::trex_ui::cmn::gui {
+using ::cmn::gui::DrawAnnotationExportOptions;
+}
+
+// ui/DrawDetectAnnotationImportOptions.h
+namespace trex_module_smoke::trex_ui::cmn::gui {
+using ::cmn::gui::DrawDetectAnnotationImportOptions;
 }
 
 // ui/DrawDataset.h
@@ -219,6 +231,10 @@ using ::cmn::gui::GUIVideoAdapter;
 using ::cmn::gui::IMGUIBase;
 }
 
+namespace trex_module_smoke::trex_ui::cmn::gui::detail {
+using ::cmn::gui::detail::AllowDirectMakeArgs;
+}
+
 // ui/GUIVideoAdapterElement.h
 namespace trex_module_smoke::trex_ui::cmn::gui {
 using ::cmn::gui::GUIVideoAdapterElement;
@@ -312,19 +328,14 @@ namespace trex_module_smoke::trex_ui::cmn::gui {
 using ::cmn::gui::SettingsScene;
 }
 
-// ui/SettingsInitializer.h
-namespace trex_module_smoke::trex_ui::cmn::settings {
-using ::cmn::settings::write_config;
-}
-
 // ui/StartingScene.h
 namespace trex_module_smoke::trex_ui::cmn::gui {
 using ::cmn::gui::StartingScene;
 }
 
 // ui/Terminal.h
-namespace trex_module_smoke::trex_ui::cmn::gui::terminal {
-using ::cmn::gui::terminal::open_terminal;
+namespace trex_module_smoke::trex_ui::cmn::terminal {
+using ::cmn::terminal::open_terminal;
 }
 
 // ui/TimingStatsElement.h

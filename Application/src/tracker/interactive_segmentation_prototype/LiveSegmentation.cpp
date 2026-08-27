@@ -7,13 +7,16 @@
 #include <gui/DrawStructure.h>
 #include <video/VideoSource.h>
 #include <processing/encoding.h>
+#include <python/BackendRegistry.h>
 #include <python/Detection.h>
 #include <python/PythonWrapper.h>
 #include <ui/ImageDisplayElement.h>
 #include <ui/LabelElement.h>
 #include <processing/Background.h>
 #include <core/idx_t.h>
+#include <core/DetectionTypes.h>
 #include <core/GPURecognitionTypes.h>
+#include <core/TileImage.h>
 #include <file/DataLocation.h>
 #include <pv.h>
 #include <core/TileBuffers.h>
@@ -73,8 +76,17 @@ TileImage make_sam3_tiled_frame(Image::Ptr&& frame_image)
         Image::Make(*frame_image),
         tile_size,
         frame_image->dimensions());
-    tiled._offsets = {geometry.offset};
-    tiled.source_size = geometry.content_size;
+    tiled.set_tile_geometries({
+        track::TileGeometry{
+            .source_region = track::SourceRect(0, 0, frame_image->cols, frame_image->rows),
+            .tile_content = track::TileRect(
+                -geometry.offset.x,
+                -geometry.offset.y,
+                geometry.content_size.width,
+                geometry.content_size.height),
+            .tile_size = tile_size
+        }
+    });
     return tiled;
 }
 
@@ -104,7 +116,7 @@ struct LiveSegmentation::Data {
     std::unique_ptr<pv::File> _output_file;
     std::optional<track::detect::Sam3Prompts> _last_prompt_repository;
     
-    bool has_annotations(Frame_t index) const {
+    bool has_detect_annotations(Frame_t index) const {
         auto detect_sam3_prompt = READ_SETTING_WITH_DEFAULT(detect_sam3_prompt, std::optional<track::detect::Sam3Prompts>{});
         if(not detect_sam3_prompt)
             return false;
@@ -190,7 +202,7 @@ struct LiveSegmentation::Data {
 
     void store_frame_if_annotated(SegmentationData&& data, uint64_t prompt_revision) {
         auto index = data.original_index();
-        if(not has_annotations(index)) {
+        if(not has_detect_annotations(index)) {
             return; /// no need to store
         }
         
@@ -669,7 +681,7 @@ void LiveSegmentation::_draw(DrawStructure& graph) {
                     VarFunc("frame_requested", [this](const VarProps&) -> std::optional<Frame_t> {
                         return _last_requested_frame;
                     }),
-                    VarFunc("annotations", [this](const VarProps&) -> std::vector<glz::json_t> {
+                    VarFunc("detect_annotations", [this](const VarProps&) -> std::vector<glz::json_t> {
                         std::vector<glz::json_t> result;
                         auto detect_sam3_prompt = READ_SETTING_WITH_DEFAULT(detect_sam3_prompt, std::optional<track::detect::Sam3Prompts>{});
                         if(not detect_sam3_prompt)
@@ -728,7 +740,7 @@ void LiveSegmentation::_draw(DrawStructure& graph) {
                         _playback = Meta::fromStr<bool>(action.parameters.front());
                         Print("Playback = ", _playback.load());
                     }),
-                    ActionFunc("remove_annotation", [this](const Action& action) {
+                    ActionFunc("remove_detect_annotation", [this](const Action& action) {
                         REQUIRE_EXACTLY(1, action);
                         auto object_id = Meta::fromStr<uint64_t>(action.parameters.front());
                         Print("Remove annotation ", object_id);
@@ -753,7 +765,9 @@ void LiveSegmentation::_draw(DrawStructure& graph) {
                 };
                 
                 context.custom_elements["label"] = std::unique_ptr<CustomElement>(
-                    new LabelElement(&_data->unassigned_labels, &_data->labels, &_data->dt)
+                      new LabelElement(&_data->unassigned_labels, &_data->labels, [this](){
+                          return _data->dt;
+                      })
                 );
                 context.custom_elements["image_generator"] = std::unique_ptr<CustomElement>(
                     new ImageDisplayElement(&_image_generators)

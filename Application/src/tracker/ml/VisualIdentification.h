@@ -2,14 +2,24 @@
 
 #include <commons.pc.h>
 #include <core/Network.h>
-#include <core/default_config.h>
 #include <misc/Image.h>
 #include <misc/PackLambda.h>
 #include <core/idx_t.h>
-#include <misc/Path.h>
+#include <misc/ranges.h>
 #include <tracking/TrainingData.h>
-#include <tracking/Stuffs.h>
+#include <core/SoftException.h>
 #include <core/DetectionTypes.h>
+
+namespace cmn {
+namespace file {
+class Path;
+}
+}
+
+namespace track {
+struct BasicStuff;
+struct PostureStuff;
+}
 
 namespace Python {
 

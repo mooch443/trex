@@ -7,6 +7,10 @@
 #include <tracking/TrackletInformation.h>
 #include <misc/frame_t.h>
 
+namespace pv {
+class File;
+}
+
 namespace track::Categorize {
 
 

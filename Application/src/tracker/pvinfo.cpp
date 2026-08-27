@@ -2,6 +2,7 @@
 #include <pv.h>
 #include <iomanip>
 #include <misc/CommandLine.h>
+#include <misc/Image.h>
 #include <misc/Timer.h>
 #include <processing/PVBlob.h>
 #include <misc/GlobalSettings.h>
@@ -17,6 +18,10 @@
 #include <misc/ocl.h>
 #include <file/DataLocation.h>
 #include <misc/parse_parameter_lists.h>
+#include <file/PathArray.h>
+#include <core/SettingsPaths.h>
+#include <core/SettingsInitializer.h>
+#include <core/DetectionTypes.h>
 
 using namespace cmn;
 
@@ -24,6 +29,34 @@ ENUM_CLASS(Arguments,
            display_average, i, input, remove, repair_index, fix, quiet, save_background, plain_text, heatmap, auto_parameters, s, p, d, dir, md, opencv_ffmpeg_support, opencv_opencl_support)
 
 ENUM_CLASS(parameter_format_t, settings, minimal)
+
+namespace {
+
+class ExplicitReportScope {
+    bool previous_quiet;
+
+public:
+    ExplicitReportScope()
+        : previous_quiet(GlobalSettings::is_runtime_quiet())
+    {
+        set_runtime_quiet(false);
+    }
+
+    ~ExplicitReportScope() {
+        set_runtime_quiet(previous_quiet);
+    }
+
+    ExplicitReportScope(const ExplicitReportScope&) = delete;
+    ExplicitReportScope& operator=(const ExplicitReportScope&) = delete;
+};
+
+template<typename... Args>
+void print_explicit(Args&&... args) {
+    ExplicitReportScope report;
+    Print(std::forward<Args>(args)...);
+}
+
+}
 
 int handle_opencv_ffmpeg_support() {
     std::string build_info = cv::getBuildInformation();
@@ -34,10 +67,8 @@ int handle_opencv_ffmpeg_support() {
         if(build_info[i] == '\n') {
             if(utils::contains(line, "FFMPEG:")) {
                 if(utils::contains(line, "YES")) {
-                    Print("Has FFMPEG support.");
+                    print_explicit("Has FFMPEG support.");
                     return 0;
-                } else {
-                    Print("Does not have FFMPEG support.");
                 }
             }
 
@@ -47,6 +78,7 @@ int handle_opencv_ffmpeg_support() {
         line += build_info[i];
     }
 
+    print_explicit("Does not have FFMPEG support.");
     return 1;
 }
 
@@ -59,10 +91,8 @@ int handle_opencv_opencl_support() {
         if(build_info[i] == '\n') {
             if(utils::contains(line, "OpenCL:")) {
                 if(utils::contains(line, "YES")) {
-                    Print("Has OpenCL support.");
+                    print_explicit("Has OpenCL support.");
                     return 0;
-                } else {
-                    Print("Does not have OpenCL support.");
                 }
             }
 
@@ -72,63 +102,8 @@ int handle_opencv_opencl_support() {
         line += build_info[i];
     }
 
+    print_explicit("Does not have OpenCL support.");
     return 1;
-}
-
-void parse_input(const cmn::CommandLine::Option& option) {
-    if(not option.value) {
-        FormatWarning("Empty input file has been given.");
-        return;
-    }
-    file::Path path = file::DataLocation::parse("input", file::Path(*option.value));
-
-    if(utils::contains(*option.value, '*')) {
-        std::set<file::Path> found;
-
-        std::regex pattern(utils::find_replace(*option.value, "*", ".*"));
-        file::Path folder = file::DataLocation::parse("input", file::Path(*option.value).remove_filename());
-        Print("Scanning pattern ", option.value, " in folder ", folder.str(), "...");
-
-        for(auto& file : folder.find_files("pv")) {
-            if(!file.is_regular()) {
-                continue;
-            }
-
-            auto filename = (std::string)file.filename();
-
-            if(std::regex_match(filename, pattern)) {
-                found.insert(file);
-            }
-        }
-
-        if(found.size() == 1) {
-            path = file::DataLocation::parse("input", *found.begin());
-
-        } else if(found.size() > 1) {
-            Print("Found too many files matching the pattern ", option.value, ": ", found, ".");
-        } else {
-            Print("No files found that match the pattern ", option.value, ".");
-        }
-    }
-
-    if(path.has_extension("results")) {
-        SETTING(is_video) = false;
-        SETTING(filename) = path;
-
-        if(path.exists()) {
-            SETTING(filename) = path.remove_extension();
-            return;
-        } else
-            throw U_EXCEPTION("Cannot find results file ", path, ".");
-    }
-
-    if(!path.has_extension() || path.extension() != "pv")
-        path = path.add_extension("pv");
-
-    if(!path.exists())
-        throw U_EXCEPTION("Cannot find video file ", path, ". (", path.exists(), ")");
-
-    SETTING(filename) = path.remove_extension();
 }
 
 int main(int argc, char** argv) {
@@ -175,19 +150,22 @@ int main(int argc, char** argv) {
         default_config::get(config);
     });
 
+    auto wd = GlobalSettings::write_value<NoType>("wd");
+    wd.get().set_do_print(true);
+
     CommandLine::init(argc, argv, true);
     auto& cmd = CommandLine::instance();
-    file::cd(file::DataLocation::parse("app"));
+    auto cwd = wd.value<file::Path>();
+    if(cwd.empty())
+        cwd = file::Path(default_config::homedir());
+    CommandLine::instance().add_setting("wd", cwd.str());
+    file::cd(file::DataLocation::parse("app").absolute());
 
     std::map<std::string, std::string> updated_settings;
     std::vector<std::string> remove_settings;
 
     bool fix = false, repair_index = false, save_background = false;
     bool be_quiet = false, print_plain = false, heatmap = false, auto_param = false;
-
-    cmd.load_settings();
-    be_quiet = GlobalSettings::is_runtime_quiet();
-    set_runtime_quiet(be_quiet);
 
     auto default_path = file::DataLocation::parse("default.settings");
     if(default_path.exists()) {
@@ -200,24 +178,7 @@ int main(int argc, char** argv) {
         DebugHeader("LOADED ", default_path);
     }
 
-    if(argc == 2) {
-        try {
-            parse_input(CommandLine::Option{
-                .name = "input",
-                .value = argv[1]
-            });
-        } catch(...) {
-        }
-    } else if(argc > 2) {
-        if(file::Path(argv[1]).exists()) {
-            parse_input(CommandLine::Option{
-                .name = "input",
-                .value = argv[1]
-            });
-        }
-    }
-
-    for(auto& option : cmd) {
+    for(auto option : cmd) {
         if(Arguments::has(option.name)) {
             switch(Arguments::get(option.name)) {
                 case Arguments::display_average:
@@ -231,7 +192,11 @@ int main(int argc, char** argv) {
 
                 case Arguments::i:
                 case Arguments::input: {
-                    parse_input(option);
+                    //parse_input(option);
+                    if(option.value.has_value()) {
+                        SETTING(source) = file::PathArray(*option.value);
+                        CommandLine::instance().add_setting("source", *option.value);
+                    }
                     break;
                 }
 
@@ -242,13 +207,17 @@ int main(int argc, char** argv) {
 
                 case Arguments::d:
                 case Arguments::dir:
-                    if(option.value)
+                    if(option.value) {
                         SETTING(output_dir) = file::Path(*option.value);
+                        CommandLine::instance().add_setting("output_dir", *option.value);
+                    }
                     break;
 
                 case Arguments::p:
-                    if(option.value)
+                    if(option.value) {
                         SETTING(output_prefix) = std::string(*option.value);
+                        CommandLine::instance().add_setting("output_prefix", *option.value);
+                    }
                     break;
 
                 case Arguments::remove:
@@ -269,8 +238,10 @@ int main(int argc, char** argv) {
                     print_plain = true;
                     break;
                 case Arguments::s:
-                    if(option.value)
+                    if(option.value) {
                         SETTING(settings_file) = file::Path(*option.value).add_extension("settings");
+                        CommandLine::instance().add_setting("settings_file", *option.value);
+                    }
                     break;
 
                 case Arguments::fix:
@@ -292,6 +263,8 @@ int main(int argc, char** argv) {
                 case Arguments::auto_parameters:
                     SETTING(auto_number_individuals) = true;
                     SETTING(auto_minmax_size) = true;
+                    CommandLine::instance().add_setting("auto_number_individuals", "true");
+                    CommandLine::instance().add_setting("auto_minmax_size", "true");
                     auto_param = true;
                     break;
 
@@ -309,6 +282,14 @@ int main(int argc, char** argv) {
         }
     }
 
+    cmd.load_settings();
+    be_quiet = GlobalSettings::is_runtime_quiet();
+    set_runtime_quiet(be_quiet);
+
+    sprite::Map cmd_options;
+    cmd.load_settings(cmd_options);
+    auto cmd_settings = cmd.settings_keys();
+
     auto merge_videos = READ_SETTING(merge_videos, std::vector<file::Path>);
     if(!merge_videos.empty()) {
         initiate_merging(merge_videos, argc, argv);
@@ -318,75 +299,79 @@ int main(int argc, char** argv) {
     if(!GlobalSettings::has_value("filename") && argc >= 1)
         SETTING(filename) = file::Path(argv[argc - 1]);
 
-    file::Path settings_file = file::DataLocation::parse("settings");
-    if(settings_file.exists()) {
-        default_config::warn_deprecated(settings_file,
-            GlobalSettings::load_from_file(settings_file.str(), {
-            .deprecations = default_config::deprecations(),
-            .access = AccessLevelType::STARTUP
-        }));
+    file::PathArray source = READ_SETTING(source, file::PathArray);
+    if(source.empty())
+        throw InvalidArgumentException("No input file provided.");
+    
+    enum class InputType {
+        PV,
+        RESULTS,
+        VIDEO
+    } input_type{InputType::PV};
+    
+    if(auto path = source.get_paths().front();
+       path.has_extension())
+    {
+        if(path.extension() == "results") {
+            input_type = InputType::RESULTS;
+        } else if(path.extension() != "pv") {
+            input_type = InputType::VIDEO;
+        }
     }
 
-    file::Path input = READ_SETTING(filename, file::Path);
-
-    if(BOOL_SETTING(is_video)) {
-        auto video = pv::File::Read(input);
-        if(video.header().version <= pv::Version::V_2) {
-            SETTING(crop_offsets) = CropOffsets();
-
-            file::Path legacy_settings_file = file::DataLocation::parse("settings");
-            if(legacy_settings_file.exists()) {
-                default_config::warn_deprecated(legacy_settings_file,
-                    GlobalSettings::load_from_file(legacy_settings_file.str(), {
-                    .deprecations = default_config::deprecations(),
-                    .access = AccessLevelType::STARTUP
-                }));
-            }
-
-            auto output_settings = file::DataLocation::parse("output_settings");
-            if(output_settings.exists() && output_settings != legacy_settings_file) {
-                default_config::warn_deprecated(output_settings,
-                    GlobalSettings::load_from_file(output_settings.str(), {
-                    .deprecations = default_config::deprecations(),
-                    .access = AccessLevelType::STARTUP
-                }));
-            }
-
-            video.close();
+    if(source.size() == 1) {
+        auto path = source.get_paths().front();
+        if(path.has_extension("results")
+           || path.has_extension("pv")
+           || path.has_extension("mp4"))
+        {
+            source = file::PathArray{path.remove_extension()};
         }
+    }
 
+    settings::load(settings::LoadContext{
+        .source = source,
+        .filename = READ_SETTING(filename, file::Path),
+        .task = default_config::TRexTask_t::track,
+        .type = READ_SETTING(
+            detect_type,
+            track::detect::ObjectDetectionType_t
+        ),
+        .source_map = cmd_options,
+        .quiet = be_quiet
+    });
+    
+    file::Path input = GlobalSettings::read([](const Configuration& combined){
+        return cmn::settings::find_output_name(combined.values, {}, false);
+    });
+    if(input.has_extension())
+        input = input.remove_extension();
+    
+    //READ_SETTING(filename, file::Path);
+
+    if(is_in(input_type, InputType::PV, InputType::VIDEO)) {
+        SETTING(filename) = GlobalSettings::read([](const Configuration& config) {
+            return settings::find_existing_output_name(config.values);
+        });
+        
+        auto video = pv::File::Read(READ_SETTING(filename, file::Path));
+        set_runtime_quiet(true);
+        
         SETTING(crop_offsets) = video.header().offsets;
-
-        if(video.header().metadata.has_value()) {
-            GlobalSettings::write([&](Configuration& config) {
-                sprite::parse_values(sprite::MapSource{video.filename()}, config.values, video.header().metadata.value(), nullptr, {}, default_config::deprecations());
-            });
-        }
-
-        if(!be_quiet)
-            video.print_info();
-
-        gpuMat average;
-        video.average().copyTo(average);
-        if(average.cols == video.size().width && average.rows == video.size().height)
-            video.processImage(average, average);
-        SETTING(video_size) = Size2(average.cols, average.rows);
+        SETTING(video_size) = Size2(video.size());
         SETTING(video_mask) = video.has_mask();
         SETTING(video_length) = uint64_t(video.length().get());
+        SETTING(video_info) = std::string(video.get_info());
 
-        auto output_settings = file::DataLocation::parse("output_settings");
-        if(output_settings.exists() && output_settings != settings_file) {
-            default_config::warn_deprecated(output_settings,
-                GlobalSettings::load_from_file(output_settings.str(), {
-                .deprecations = default_config::deprecations(),
-                .access = AccessLevelType::STARTUP
-            }));
+        if(READ_SETTING(frame_rate, uint32_t) == 0) {
+            if(!GlobalSettings::is_runtime_quiet())
+                FormatWarning("frame_rate == 0, calculating from frame tdeltas.");
+            video.generate_average_tdelta();
+            SETTING(frame_rate) = (uint32_t)max(1, int(video.framerate()));
         }
 
-        SETTING(quiet) = true;
-        cmd.load_settings();
-
-        set_runtime_quiet(true);
+        Output::Library::InitVariables();
+        Output::Library::Init();
 
         track::Tracker _tracker(video);
 
@@ -396,15 +381,6 @@ int main(int argc, char** argv) {
         {
             track::Tracker::auto_calculate_parameters(video, be_quiet);
         }
-
-        if(READ_SETTING(frame_rate, uint32_t) == 0) {
-            if(!GlobalSettings::is_runtime_quiet())
-                FormatWarning("frame_rate == 0, calculating from frame tdeltas.");
-            video.generate_average_tdelta();
-            SETTING(frame_rate) = (uint32_t)max(1, int(video.framerate()));
-        }
-
-        Output::Library::Init();
 
         set_runtime_quiet(be_quiet);
 
@@ -659,70 +635,120 @@ int main(int argc, char** argv) {
                 }
             }
 
-            Print(overall, " bytes (", dec<2>(double(overall) / 1000.0 / 1000.0), "MB) of blob data");
-            Print("Images average at ", double(pixels_per_blob) / double(pixels_samples), " px / blob and the range is [", min_pixels, "-", max_pixels, "] with a median of ", pixels_median.getValue(), ".");
-            Print("There are ", blobs_per_frame.empty() ? 0 : blobs_per_frame.getValue(), " blobs in each frame (median).");
+            print_explicit(overall, " bytes (", dec<2>(double(overall) / 1000.0 / 1000.0), "MB) of blob data");
+            print_explicit("Images average at ", double(pixels_per_blob) / double(pixels_samples), " px / blob and the range is [", min_pixels, "-", max_pixels, "] with a median of ", pixels_median.getValue(), ".");
+            print_explicit("There are ", blobs_per_frame.empty() ? 0 : blobs_per_frame.getValue(), " blobs in each frame (median).");
         }
 
-    } else {
-        auto path = READ_SETTING(filename, file::Path);
+    } else if(input_type == InputType::RESULTS) {
         gpuMat average;
 
-        auto header = Output::TrackingResults::load_header(path.add_extension("results"));
+        auto header = Output::TrackingResults::load_header(input.add_extension("results"));
+        sprite::Map overrides;
+        
         if(header.version >= Output::ResultsFormat::Versions::V_28) {
             header.average.get().copyTo(average);
-            SETTING(video_size) = Size2(average.cols, average.rows);
-            SETTING(video_length) = uint64_t(header.video_length);
-            SETTING(analysis_range) = Range<long_t>(header.analysis_range.start, header.analysis_range.end);
+            overrides["meta_video_size"] = Size2(average.cols, average.rows);
+            overrides["video_size"] = Size2(average.cols, average.rows);
+            overrides["video_length"] = uint64_t(header.video_length);
+            overrides["analysis_range"] = Range<long_t>(header.analysis_range.start, header.analysis_range.end);
             auto consec = header.tracklets;
             std::vector<Range<Frame_t>> vec(consec.begin(), consec.end());
-            SETTING(consecutive) = vec;
-        }
-
-        if(path.add_extension("pv").exists()) {
-            pv::File video(path);
+            overrides["consecutive"] = vec;
+        } else if(input.add_extension("pv").exists()) {
+            pv::File video(input);
 
             video.average().copyTo(average);
             if(average.cols == video.size().width && average.rows == video.size().height)
                 video.processImage(average, average);
 
-            SETTING(video_size) = Size2(average.cols, average.rows);
-            SETTING(video_mask) = video.has_mask();
-            SETTING(video_length) = uint64_t(video.length().get());
+            overrides["meta_video_size"] = Size2(video.size());
+            overrides["crop_offsets"] = video.header().offsets;
+            overrides["video_size"] = Size2(average.cols, average.rows);
+            overrides["video_mask"] = video.has_mask();
+            overrides["video_length"] = uint64_t(video.length().get());
+            overrides["video_info"] = std::string(video.get_info());
         }
 
-        if(READ_SETTING_WITH_DEFAULT(meta_real_width, Float2_t(0)) == 0)
-            SETTING(meta_real_width) = Float2_t(30.0);
+        /*if(READ_SETTING_WITH_DEFAULT(meta_real_width, Float2_t(0)) == 0)
+            overrides["meta_real_width"] = Float2_t(30.0);
         if(READ_SETTING_WITH_DEFAULT(cm_per_pixel, Float2_t(0)) == 0) {
             SETTING(cm_per_pixel) = Float2_t(READ_SETTING(meta_real_width, Float2_t) / Float2_t(average.cols));
-        }
+        }*/
 
-        path = path.add_extension("results");
-
-        auto output_settings = file::DataLocation::parse("output_settings");
+        /*auto output_settings = file::DataLocation::parse("settings");
         if(output_settings.exists() && output_settings != settings_file) {
             default_config::warn_deprecated(output_settings,
                 GlobalSettings::load_from_file(output_settings.str(), {
                 .deprecations = default_config::deprecations(),
-                .access = AccessLevelType::STARTUP
+                .access = AccessLevelType::STARTUP,
+                .target = &overrides
             }));
+        }*/
+        //cmd.load_settings(overrides);
+        
+        if(header.version < Output::ResultsFormat::Versions::V_10) {
+            /// we need to have a `detect_type` in order to set the
+            /// correct task-defaults in the next step.
+            ///
+            /// since there was no other `detect_type` before
+            /// **V_10** and there also was no type parameter to
+            /// query, we set bg subtraction:
+            overrides["detect_type"] = track::detect::ObjectDetectionType_t{ track::detect::ObjectDetectionType::background_subtraction };
+        }
+        
+        const auto& meta = header.settings;
+        
+        GlobalSettings::read([&](const Configuration& combined) {
+            default_config::warn_deprecated(input.add_extension("results"),
+                GlobalSettings::load_from_string(meta, {
+                    .source = input.add_extension("results"),
+                    .deprecations = default_config::deprecations(),
+                    .access = AccessLevelType::STARTUP,
+                    .exclude = std::vector<std::string>(
+                        settings::LoadContext::exclude_external.begin(),
+                        settings::LoadContext::exclude_external.end()),
+                    .target = &overrides,
+                .additional = &combined.values
+            }));
+        });
+        
+        //Print("video length: ", SETTING(video_length)," and ", overrides.at("video_length"));
+
+        auto detect_type = READ_SETTING(
+            detect_type,
+            track::detect::ObjectDetectionType_t
+        );
+        if(overrides.has("detect_type")
+           && !cmd_settings.contains("detect_type"))
+        {
+            detect_type = overrides.at("detect_type").value<track::detect::ObjectDetectionType_t>();
         }
 
-        cmd.load_settings();
-
-        default_config::warn_deprecated(path,
-            GlobalSettings::load_from_string(header.settings, {
-            .source = path,
-            .deprecations = default_config::deprecations(),
-            .access = AccessLevelType::STARTUP
-        }));
-
+        for(auto& [key, value] : cmd_settings) {
+            if(key != "wd")
+                cmd.add_setting(key, value);
+        }
+        
         SETTING(quiet) = true;
-        track::Tracker tracker(Image::Make(average), READ_SETTING(meta_encoding, meta_encoding_t::Class), READ_SETTING(meta_real_width, Float2_t));
+        settings::load(settings::LoadContext{
+            .source = file::PathArray{input.add_extension("results")},
+            .filename = input.is_absolute() ? input : file::Path{},
+            .task = default_config::TRexTask_t::track,
+            .type = detect_type,
+            .source_map = std::move(overrides),
+            .quiet = be_quiet
+        });
+
+        Output::Library::InitVariables();
+        Output::Library::Init();
 
         if(header.version < Output::ResultsFormat::Versions::V_28) {
+            SETTING(quiet) = true;
+            track::Tracker tracker(Image::Make(average), READ_SETTING(meta_encoding, meta_encoding_t::Class), READ_SETTING(meta_real_width, Float2_t));
+
             Output::TrackingResults results(tracker);
-            results.load([](auto, auto, auto){}, path);
+            results.load([](auto, auto, auto){}, input.add_extension("results"));
             auto consec = tracker.consecutive();
             std::vector<Range<Frame_t>> vec(consec.begin(), consec.end());
             SETTING(consecutive) = vec;

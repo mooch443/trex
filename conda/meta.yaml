@@ -46,6 +46,7 @@ build:
       - CC
       - CXX
       - CONDA_CHANNELS=conda-forge,nodefaults
+      - TREX_CONFIGURE=buildall
     number: {{ build_number }}
     string: "{{ hash }}_{{ number }}"
     run_exports:
@@ -53,15 +54,16 @@ build:
         - {{ pin_compatible('libstdcxx-ng', min_pin='x.x.x', max_pin='x.x.x') }} # [linux]
     ignore_run_exports:
         - {{ pin_compatible('libstdcxx-ng', min_pin='x.x.x', max_pin='x.x.x') }} # [linux]
-        - numpy
     detect_binary_files_with_prefix: False # [win]
     detect_binary_files_with_prefix: True # [not win]
     files_with_prefix:
         - bin/trex # [not win]
         - bin/pvinfo # [not win]
         - bin/pvconvert # [not win]
+        - bin/interactive_segmentation_prototype # [linux]
+        - bin/interactive_segmentation_prototype.app/Contents/MacOS/interactive_segmentation_prototype # [osx]
         - bin/TRex.app/Contents/MacOS/TRex # [osx]
-    
+
 requirements:
   build:
     - {{ stdlib("c") }} # [linux]
@@ -110,20 +112,20 @@ requirements:
     - python =3.11 # [osx and not arm64]
     - python =3.11 # [win]
     - python =3.11 # [linux]
-    #- openblas # [arm64]
+    - libopenblas * *pthreads* # [osx]
     - ffmpeg >=3,<8=*lgpl*
     #- openh264 # [osx]
-    #- numpy >=1.26,<3
     #- libvorbis
     #- libogg
     #- libavif
 
   run:
+    # NumPy and the cv2 binding are resolved together with the pip ML stack.
+    # An already installed Conda NumPy is detected and preserved by post-link.
     - {{ pin_compatible('python', min_pin='x.x', max_pin='x.x') }}
     - {{ pin_compatible('ffmpeg', min_pin='x.x', max_pin='x.x') }}
     - {{ pin_compatible('openh264', min_pin='x.x', max_pin='x.x') }} # [osx]
-    - {{ pin_compatible('numpy', min_pin='x.x', max_pin='x.x') }} # [not win]
-    - {{ pin_compatible('openblas', min_pin='x.x', max_pin='x.x') }} # [arm64]
+    - libopenblas * *pthreads* # [osx]
     - {{ pin_compatible('icu', min_pin='x.x', max_pin='x.x') }}
     #- scikit-learn # [not win]
     - pip
@@ -164,6 +166,7 @@ about:
       - licenses/libpng/LICENSE
       - licenses/libzip/LICENSE
       - licenses/zlib/README
+      - Application/src/tracker/thirdparty/fkYAML/LICENSE.txt
       - Application/src/fonts/OTF-PTMono.txt
       - Application/src/fonts/OTF-NotoSansSymbols2.txt
       - Application/src/fonts/OTF-Quicksand.txt

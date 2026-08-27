@@ -22,10 +22,109 @@ from typing import List, Optional, Any
 
 import ultralytics
 from ultralytics.utils.ops import clip_boxes, crop_mask
+from ultralytics.utils import ops
+import torch.nn.functional as F
+
+def dilate(mask, k=5):
+    # mask: [N, H, W] bool/uint8
+    x = mask.float().unsqueeze(1)  # [N,1,H,W]
+    y = F.max_pool2d(x, kernel_size=k, stride=1, padding=k // 2)
+    return y[:, 0] > 0
+
+def erode(mask, k=5):
+    x = mask.float().unsqueeze(1)
+    y = -F.max_pool2d(
+        -x,
+        kernel_size=k,
+        stride=1,
+        padding=k // 2,
+    )
+    return y[:, 0] > 0
+
+def close_mask(mask, k=9):
+    """Morphologically close a binary mask stack with an odd square kernel."""
+    return erode(dilate(mask, k), k)
+
+def expand_boxes_full_mask(masks, bboxes):
+    """Expand each XYXY box to enclose its mask's positive pixels.
+
+    ``masks`` has shape ``[N, H, W]`` and may reside on CPU, CUDA, or MPS.
+    This function changes boxes in place and never changes mask pixels.
+    """
+
+    n, h, w = masks.shape
+
+    for i in range(n):
+        ys, xs = torch.nonzero(masks[i], as_tuple=True)
+        if xs.numel() == 0:
+            continue
+
+        # Convert mask coordinates to same dtype/device as bboxes.
+        cx1 = (xs.min() - 1).to(dtype=bboxes.dtype, device=bboxes.device)
+        cy1 = (ys.min() - 1).to(dtype=bboxes.dtype, device=bboxes.device)
+        cx2 = (xs.max() + 2).to(dtype=bboxes.dtype, device=bboxes.device)
+        cy2 = (ys.max() + 2).to(dtype=bboxes.dtype, device=bboxes.device)
+
+        # Clone so subsequent in-place bbox updates don't alter these.
+        x1, y1, x2, y2 = bboxes[i].clone()
+
+        nx1 = torch.minimum(x1, cx1).clamp(0, w)
+        ny1 = torch.minimum(y1, cy1).clamp(0, h)
+        nx2 = torch.maximum(x2, cx2).clamp(0, w)
+        ny2 = torch.maximum(y2, cy2).clamp(0, h)
+
+        bboxes[i] = torch.stack((nx1, ny1, nx2, ny2))
+        
+    # Only four floats per detection need to go back to the
+    # inference device.
+    return bboxes
+
+def postprocess_masks(masks, bboxes):
+    """Apply configured YOLO mask closing and bounding-box expansion."""
+    closing_radius = int(TRex.setting("yolo_instance_mask_closing"))
+    if closing_radius > 0:
+        masks = close_mask(masks, k=closing_radius * 2 + 1).to(masks.dtype)
+
+    if TRex.setting("yolo_instance_mask_expand"):
+        bboxes = expand_boxes_full_mask(masks, bboxes)
+
+    return masks, bboxes
+
+def process_mask_native(protos, masks_in, bboxes, shape):
+    """Apply masks to bounding boxes using mask head output with native upsampling.
+
+    Args:
+        protos (torch.Tensor): Mask prototypes with shape (mask_dim, mask_h, mask_w).
+        masks_in (torch.Tensor): Mask coefficients with shape (N, mask_dim) where N is number of masks after NMS.
+        bboxes (torch.Tensor): Bounding boxes with shape (N, 4) where N is number of masks after NMS.
+        shape (tuple): Input image size as (height, width).
+
+    Returns:
+        (torch.Tensor): Binary mask tensor with shape (N, H, W).
+    """
+    c, mh, mw = protos.shape  # CHW
+    h, w = shape
+    if masks_in.shape[0] == 0:  # no detections: return a well-formed empty mask stack
+        return torch.zeros((0, h, w), dtype=torch.uint8, device=masks_in.device)
+    coeffs = masks_in @ protos.float().view(c, -1)  # (N, mh*mw) prototype-resolution mask logits
+    # Upsampling all N masks at once allocates an N*H*W float intermediate (~9 GB on a large image with many
+    # detections), which OOMs the worker. Upsample in chunks bounded by a pixel budget, thresholding each chunk to
+    # uint8 immediately so the float intermediate stays small, then crop the assembled uint8 stack.
+    step = max(1, 32_000_000 // (h * w))
+    masks = [
+        ops.scale_masks(coeffs[i : i + step].view(-1, mh, mw)[None], shape)[0].gt_(0.0).byte()
+        for i in range(0, coeffs.shape[0], step)
+    ]
+
+    masks = torch.cat(masks, dim=0)
+
+    masks, bboxes = postprocess_masks(masks, bboxes)
+
+    return ops.crop_mask(masks, bboxes)
 
 def scale_boxes(img1_shape, boxes, img0_shape, ratio_pad=None, padding=True, xywh=False):
     """
-    Rescales bounding boxes (in the format of xyxy by default) from the shape of the image they were originally
+    Rescales bounding boxes (in the format of xyxy by default) from the shape of the image they were predicted
     specified in (img1_shape) to the shape of a different image (img0_shape).
 
     Args:
@@ -67,39 +166,64 @@ def scale_boxes(img1_shape, boxes, img0_shape, ratio_pad=None, padding=True, xyw
 
     return clip_boxes(boxes, img0_shape)
 
-def process_mask(protos, masks_in, bboxes, shape, upsample=False):
-    """
-    Apply masks to bounding boxes using the output of the mask head.
+def process_mask(protos, masks_in, bboxes, shape, upsample: bool = False):
+    """Apply masks to bounding boxes using mask head output.
 
     Args:
-        protos (torch.Tensor): A tensor of shape [mask_dim, mask_h, mask_w].
-        masks_in (torch.Tensor): A tensor of shape [n, mask_dim], where n is the number of masks after NMS.
-        bboxes (torch.Tensor): A tensor of shape [n, 4], where n is the number of masks after NMS.
-        shape (tuple): A tuple of integers representing the size of the input image in the format (h, w).
-        upsample (bool): A flag to indicate whether to upsample the mask to the original image size. Default is False.
+        protos (torch.Tensor): Mask prototypes with shape (mask_dim, mask_h, mask_w).
+        masks_in (torch.Tensor): Mask coefficients with shape (N, mask_dim) where N is number of masks after NMS.
+        bboxes (torch.Tensor): Bounding boxes with shape (N, 4) where N is number of masks after NMS.
+        shape (tuple): Input image size as (height, width).
+        upsample (bool): Whether to upsample masks to original image size.
 
     Returns:
-        (torch.Tensor): A binary mask tensor of shape [n, h, w], where n is the number of masks after NMS, and h and w
-            are the height and width of the input image. The mask is applied to the bounding boxes.
+        (torch.Tensor): A binary mask tensor of shape [n, h, w], where n is the number of masks after NMS. When
+            upsample=True h and w match the input image size; otherwise they are the prototype mask resolution.
     """
-
     c, mh, mw = protos.shape  # CHW
-    ih, iw = shape
-    masks = (masks_in @ protos.float().view(c, -1)).sigmoid().view(-1, mh, mw)  # CHW
-    width_ratio = mw / iw
-    height_ratio = mh / ih
+    if masks_in.shape[0] == 0:  # no detections: F.interpolate below rejects an empty (N=0) batch
+        return torch.zeros((0, *(shape if upsample else (mh, mw))), dtype=torch.uint8, device=masks_in.device)
+    masks = (masks_in @ protos.float().view(c, -1)).view(-1, mh, mw)  # NHW
 
-    downsampled_bboxes = bboxes.clone()
-    scale_factors = torch.tensor([width_ratio, height_ratio, width_ratio, height_ratio], device=bboxes.device)
-    downsampled_bboxes = downsampled_bboxes * scale_factors
-
-    masks = crop_mask(masks, downsampled_bboxes)  # CHW
     if upsample:
-        masks = F.interpolate(masks[None], shape, mode="bilinear", align_corners=False)[0]  # CHW
-    return masks.gt_(0.5)
+        # Upsample then crop at image resolution; cropping first smears the bilinear edge outside the bbox (#24272)
+        masks = F.interpolate(
+            masks[None],
+            shape,
+            mode="bilinear",
+        )[0]
+
+        masks = masks.gt_(0.0).byte()
+
+        # masks and bboxes are both input-image coordinates
+        masks, bboxes = postprocess_masks(masks, bboxes)
+
+        return ops.crop_mask(masks, bboxes)
+    else:
+        width_ratio = mw / shape[1]
+        height_ratio = mh / shape[0]
+
+        ratios = bboxes.new_tensor([
+            width_ratio,
+            height_ratio,
+            width_ratio,
+            height_ratio,
+        ])
+
+        bboxes = bboxes * ratios
+
+        masks = masks.gt_(0.0).byte()
+
+        # now both are prototype-resolution coordinates
+        masks, bboxes = postprocess_masks(masks, bboxes)
+
+        return ops.crop_mask(masks, bboxes)
+    # Binarize before cropping so crop_mask runs on uint8 instead of float32, as in process_mask_native
+    #return ops.crop_mask(masks.gt_(0.0).byte(), bboxes)
 
 ultralytics.utils.ops.process_mask = process_mask
 ultralytics.utils.ops.scale_boxes = scale_boxes
+ultralytics.utils.ops.process_mask_native = process_mask_native
 
 TRex.log("*** patched functions ***")
 ##############
@@ -111,7 +235,7 @@ RUNTIME_PROFILE_MODERN_END2END_FORCED_NMS = "modern_end2end_forced_nms"
 
 def unscale_coords(img1_shape, coords, img0_shape, ratio_pad=None):
     """
-    Rescale segment coordinates (xyxy) from normalized to original image scale
+    Rescale segment coordinates (xyxy) from normalized to source image scale
 
     Args:
       img1_shape (tuple): The shape of the image that the coords are from.
@@ -160,8 +284,8 @@ class StrippedYoloResults(StrippedResults):
                 - keypoints (optional): tensor of shape [n, num_keypoints, 2], with (x, y) coordinates.
                 - obb (optional): tensor of shape [n, 5] as [x_center, y_center, width, height, angle] before class/conf insertion.
                 - masks (optional): tensor of shape [n, mask_h, mask_w] for segmentation masks.
-            scale (np.ndarray): A 2-element array [scale_x, scale_y] to map model coordinates back to original image.
-            offset (np.ndarray): A 2-element array [offset_x, offset_y] to apply before scaling.
+            scale (np.ndarray): A 2-element array [scale_x, scale_y] to map tile coordinates back to source image coordinates.
+            offset (np.ndarray): A 2-element array [offset_x, offset_y] to apply in tile coordinates before scaling.
             box (List[int]): A 4-element list [x_offset, y_offset, x_offset, y_offset] for additional cropping offset.
         """
         super().__init__(scale, offset)
@@ -170,8 +294,27 @@ class StrippedYoloResults(StrippedResults):
         boxes_attr = getattr(results, 'boxes', None)
         if boxes_attr is not None:
             self.boxes = boxes_attr.data.cpu().numpy()
-            # Store original boxes array for later scaling
+            # Store source-space boxes array for later scaling
         self.orig_shape = getattr(results, 'orig_shape', None)
+
+        semantic_attr = getattr(results, 'semantic_mask', None)
+        if semantic_attr is not None:
+            semantic = np.asarray(semantic_attr.data.detach().cpu().numpy())
+            if semantic.ndim != 2:
+                raise ValueError(
+                    f"YOLO semantic output must have shape (H, W), got {semantic.shape}."
+                )
+            if semantic.size > 0:
+                if not np.isfinite(semantic).all() or np.any(semantic != np.floor(semantic)):
+                    raise ValueError("YOLO semantic output contains non-integral class IDs.")
+                minimum = int(semantic.min())
+                maximum = int(semantic.max())
+                if minimum < 0 or maximum > np.iinfo(np.uint8).max:
+                    raise ValueError(
+                        "YOLO semantic class IDs must fit in TRex's uint8 class range "
+                        f"[0, 255], got [{minimum}, {maximum}]."
+                    )
+            self.semantic_mask = np.ascontiguousarray(semantic, dtype=np.uint8)
 
         box_array = np.asarray(box, dtype=np.float32)
         if box_array.shape[0] < 4:
@@ -186,20 +329,26 @@ class StrippedYoloResults(StrippedResults):
             self.keypoints: List[np.ndarray] = []
             #print(f"keypoints={keypoints_attr}")
 
-            keys = keypoints_attr.cpu().data[..., :2].numpy()
+            keypoint_tensor = keypoints_attr.cpu().data
+            keys = np.ascontiguousarray(
+                keypoint_tensor[..., :2].numpy(),
+                dtype=np.float32,
+            )
             #print("keys=",keys.shape, keypoints_attr.cpu())
             if len(keys) > 0 and len(keys[0]):
-                # Scale and offset the keypoints, but leave out
-                # the ones where both X and Y are zero (invalid)
-                zero_elements : np.ndarray = np.logical_and(keys[..., 0] == 0, 
-                                                            keys[..., 1] == 0)
+                valid_elements = np.isfinite(keys).all(axis=-1)
+                valid_elements &= np.logical_or(keys[..., 0] != 0, keys[..., 1] != 0)
+                if keypoint_tensor.shape[-1] >= 3:
+                    threshold = float(TRex.setting("detect_keypoint_threshold"))
+                    confidence = keypoint_tensor[..., 2].numpy()
+                    valid_elements &= np.isfinite(confidence)
+                    valid_elements &= confidence >= threshold
 
                 keys[..., 0] = (keys[..., 0] + offset[0] + box_offset[0]) * scale[0]
                 keys[..., 1] = (keys[..., 1] + offset[1] + box_offset[1]) * scale[1]
 
-                if zero_elements.any():
-                    keys[..., 0] = np.where(zero_elements, 0, keys[..., 0])
-                    keys[..., 1] = np.where(zero_elements, 0, keys[..., 1])
+                keys[..., 0] = np.where(valid_elements, keys[..., 0], 0)
+                keys[..., 1] = np.where(valid_elements, keys[..., 1], 0)
 
                 # Append scaled keypoints if any valid points exist
                 self.keypoints.append(keys) # bones * 3 elements
@@ -232,6 +381,7 @@ class StrippedYoloResults(StrippedResults):
 
         # Process segmentation masks: crop, validate, resize, and store for each box
         masks_attr = getattr(results, 'masks', None)
+        mask_source_bounds = None
         if masks_attr is not None:
             # masks: list of 2D numpy arrays corresponding to each box
             self.masks: List[np.ndarray] = []
@@ -253,7 +403,7 @@ class StrippedYoloResults(StrippedResults):
             unscaled[:, 2] *= scale[0]
             unscaled[:, 3] *= scale[1]
 
-            # Unscale coordinates back to original image resolution
+            # Unscale coordinates back to source image resolution
             # scale xy first and then wh:
             orig_shape_local = self.orig_shape if self.orig_shape is not None else np.array(masks_attr.data.shape[1:])
             new_size: np.ndarray = orig_shape_local * scale
@@ -266,16 +416,24 @@ class StrippedYoloResults(StrippedResults):
 
             # Ensure each box has a corresponding mask
             assert len(coords) == len(masks_attr.data)
-            index :int = 0
+            source_bounds = np.empty((len(coords), 4), dtype=np.int64)
+            source_bounds[:, :2] = np.floor(coords[:, :2]).astype(np.int64)
+            source_bounds[:, 2:4] = np.ceil(coords[:, 2:4]).astype(np.int64)
+            valid_indices = []
 
             # For each box-mask pair: crop mask, validate, resize, and store
             # convert coords to int for indexing pixels properly (no float needed)
             # convert the returned masks data to uint8 as well, since its image data
-            for orig, unscale, k in zip(coords.round().astype(int),
-                                        unscaled,
-                                        (masks_attr.data * 255).byte()):
+            for row_index, (orig, unscale, k) in enumerate(zip(
+                    source_bounds,
+                    unscaled,
+                    (masks_attr.data * 255).byte())):
                 # Crop mask within its bounding box
-                sub = k[max(0, int(unscale[1])):max(0, int(unscale[3])), max(0,int(unscale[0])):max(0, int(unscale[2]))]
+                ux0 = max(0, int(np.floor(unscale[0])))
+                uy0 = max(0, int(np.floor(unscale[1])))
+                ux1 = max(ux0, int(np.ceil(unscale[2])))
+                uy1 = max(uy0, int(np.ceil(unscale[3])))
+                sub = k[uy0:uy1, ux0:ux1]
 
                 # If mask is invalid or empty, remove its box and skip
                 if orig[3] - orig[1] <= 0 or orig[2] - orig[0] <= 0 or sub.shape[0] <= 0 or sub.shape[1] <= 0:
@@ -284,16 +442,24 @@ class StrippedYoloResults(StrippedResults):
                           => unscale={unscale} \n\
                           => k={k.shape}\n\
                           => orig={orig}")
-                    self.boxes = np.delete(self.boxes, index, axis=0)
                     continue
 
-                index += 1
+                valid_indices.append(row_index)
+
+                #print("sub",sub.shape, sub.dtype, "masks_attr: ",masks_attr.data.shape, masks_attr.data.dtype)
 
                 # Resize valid mask to box's size
                 ssub = F.interpolate(sub.unsqueeze(0).unsqueeze(0), size=(int(orig[3] - orig[1]), int(orig[2] - orig[0]))).squeeze(0).squeeze(0)
                 # Store processed mask
                 self.masks.append(ssub.cpu().numpy())
+
+                #print("=>", self.masks[-1].shape, self.masks[-1].dtype, self.masks[-1].flags)
+                
                 assert self.masks[-1].flags['C_CONTIGUOUS']
+
+            if len(valid_indices) != len(self.boxes):
+                self.boxes = self.boxes[valid_indices]
+            mask_source_bounds = source_bounds[valid_indices]
 
         # If we're dealing with a POLO model here we have point predictions
         locs = getattr(results, 'locations', None)
@@ -353,6 +519,9 @@ class StrippedYoloResults(StrippedResults):
             self.boxes[:, 1] = (self.boxes[:, 1] + offset_y + box_dy) * scale[1]
             self.boxes[:, 2] = (self.boxes[:, 2] + offset_x + box_dx) * scale[0]
             self.boxes[:, 3] = (self.boxes[:, 3] + offset_y + box_dy) * scale[1]
+
+            if mask_source_bounds is not None:
+                self.boxes[:, :4] = mask_source_bounds.astype(np.float32, copy=False)
 
             # If coords has more than 6 columns, it contains tracking information
             # We remove that tracking information by deleting the id-column (at index 4)
@@ -420,6 +589,7 @@ class YOLOModel(DetectionModel):
         elif sanitized.get("iou", None) is None:
             sanitized.pop("iou", None)
             sanitized.pop("agnostic_nms", None)
+        #sanitized["retina_masks"] = True
 
         return sanitized
 
@@ -448,7 +618,7 @@ class YOLOModel(DetectionModel):
             TRex.log(f"Model {self} cannot be run on MPS due to a bug in PyTorch or Ultralytics. Automatically switching to CPU for this model only. Use -gpu_torch_no_fixes parameter to disable this.")
             self.device = torch.device("cpu")
 
-        if self.ptr.task == "segment":
+        if self.ptr.task in {"segment", "semantic"}:
             self.config.output_format = ObjectDetectionFormat.masks
         elif self.ptr.task == "detect":
             self.config.output_format = ObjectDetectionFormat.boxes
@@ -556,7 +726,7 @@ class YOLOModel(DetectionModel):
                 radii = {i: 20 for i in range(len(self.ptr.names))}
                 kwargs["radii"] = radii
         
-        if self.config.use_tracking:
+        if self.config.use_tracking and self.ptr.task != "semantic":
             for image, scale, offset in zip(images, scales, offsets):
                 results.append((self.ptr.track(image, tracker="bytetrack.yaml", persist=True, device=self.device, **kwargs)[0], scale, offset))
         else:

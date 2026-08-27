@@ -1,6 +1,7 @@
 #include <commons.pc.h>
 
 #include "DrawBlobView.h"
+#include <misc/Image.h>
 #include <gui/DrawStructure.h>
 #include <ui/GUICache.h>
 #include <gui/Section.h>
@@ -18,7 +19,9 @@
 #include <ui/Scene.h>
 #include <gui/DynamicGUI.h>
 #include <gui/dyn/ParseText.h>
-#include <core/annotation.h>
+#include <core/DetectAnnotation.h>
+#include <gui/types/TagList.h>
+#include <core/FrameTags.h>
 
 using namespace cmn::gui;
 
@@ -34,6 +37,8 @@ enum class SelectedSettingType {
 };
 
 struct BlobView {
+    static constexpr Float2_t annotation_menu_max_height = 400_F;
+
     std::vector<std::vector<Vec2>> _current_boundary;
     std::string _selected_setting_name;
     SelectedSettingType _selected_setting_type;
@@ -41,16 +46,19 @@ struct BlobView {
     std::atomic<pv::bid> _clicked_blob_id;
     std::atomic<Frame_t> _clicked_blob_frame;
 
-    std::shared_ptr<Entangled> popup;
-    std::shared_ptr<Dropdown> list;
+    std::shared_ptr<VerticalLayout> popup;
+    derived_ptr<Dropdown> list;
+    derived_ptr<TagList> tag_list;
     
     Entangled _mousedock_collection;
     NumericTextfield<double> cm_per_pixel_text{1.0, Bounds(0, 0, 200,30), arange<double>{0, infinity<double>()}};
     
-    std::unique_ptr<Entangled> combine = std::make_unique<Entangled>();
-    std::shared_ptr<Button> button = nullptr;
-    std::vector<std::shared_ptr<Button>> annotation_buttons;
-    std::shared_ptr<Dropdown> dropdown = nullptr;
+    std::unique_ptr<FloatingLayout> combine = std::make_unique<FloatingLayout>(
+        FloatingLayout::Policy::HorizontalFirst,
+        ZIndex{1});
+    derived_ptr<Button> button = nullptr;
+    std::vector<derived_ptr<Button>> annotation_buttons;
+    derived_ptr<Dropdown> dropdown = nullptr;
     
     Frame_t _last_frame;
     
@@ -172,6 +180,7 @@ struct BlobView {
         _clicked_blob_frame = Frame_t();
         popup = nullptr;
         list = nullptr;
+        tag_list = nullptr;
         last_blob_id = {};
     }
     
@@ -338,7 +347,7 @@ std::string BlobView::label_for_blob(const DisplayParameters& parm, const pv::Bl
     //Print(gui_blob_label, " => ", label_text, " for ", blob);
     return label_text;
     
-    std::stringstream ss;
+    /*std::stringstream ss;
     //if(not active)
     //    ss << "<ref>";
     if(register_label || d==1)
@@ -382,7 +391,7 @@ std::string BlobView::label_for_blob(const DisplayParameters& parm, const pv::Bl
         }
     }
     
-    return ss.str();
+    return ss.str();*/
 }
 
 void add_manual_match(Frame_t frameIndex, Idx_t fish_id, pv::bid blob_id) {
@@ -760,18 +769,105 @@ void BlobView::draw(const DisplayParameters& parm)
         }
     });
     
+    if(popup != nullptr
+       && _clicked_blob_id.load().valid()
+       && _clicked_blob_id.load() == last_blob_id)
+    {
+        /// the whole popup is one selection scope: once nothing inside it
+        /// is selected anymore, it gets dismissed
+        if(auto sel = parm.graph.selected_object();
+           sel && not sel->is_child_of(popup.get()))
+        {
+            _clicked_blob_id = pv::bid::invalid;
+            parm.cache.set_raw_blobs_dirty();
+        }
+    }
+
     if(_clicked_blob_id.load().valid() && _clicked_blob_frame.load() == frame) {
         if(popup == nullptr) {
-            popup = std::make_shared<Entangled>();
-            list = std::make_shared<Dropdown>(Box(0, 0, 200, 35), ListDims_t{200,200}, Font{0.6}, ListFillClr_t{60,60,60,200}, FillClr{60,60,60,200}, LineClr{100,175,250,200}, TextClr{225,225,225});
-            list->on_open([list=list.get(), &cache = parm.cache, this](bool opened) {
-                if(!opened) {
-                    //list->set_items({});
-                    _clicked_blob_id = pv::bid::invalid;
-                    //GUI::set_redraw(); //TODO: redraw
-                    cache.set_raw_blobs_dirty();
+            popup = std::make_shared<VerticalLayout>();
+            tag_list = derived_ptr<TagList>(new TagList{
+                Box(0, 0, 200,100),
+                SizeLimit{200,200},
+                //ItemFillClr_t{50,50,50,240},
+                Placeholder_t{"Add tag..."},
+                FillClr{30,30,30,200},
+                LabelDims_t{200,35},
+                ListDims_t{200,100},
+                LineClr{0,0,0,0},
+                LabelFillClr_t{50,50,50,240},
+                LabelColor_t{200,200,200,240},
+                ListFillClr_t{30,30,30,200},
+                LabelCornerFlags::Square(),
+                TagList::DisplayFilter{[](const std::string& v){
+                    FrameTag tag = Meta::fromStr<FrameTag>(v);
+                    if(tag.has_location()) {
+                        return FrameTag{.name = (std::string)tag.get_name()}.toStr();
+                    }
+                    return v;
+                }}
+            });
+
+            tag_list->on_remove([this](size_t index, const FrameTag& tag)
+            {
+                auto frame = _clicked_blob_frame.load();
+                Print("Removing ", tag, " at ", index, " in frame ", frame);
+
+                safely_change_setting("track_frame_tags", [&](track::FrameTags& tags)
+                {
+                    auto it = tags.find(frame);
+                    if(it != tags.end()) {
+                        auto kit = it->second.find(tag);
+                        if(kit != it->second.end()) {
+                            it->second.erase(tag);
+                            if(it->second.empty()) {
+                                tags.erase(it);
+                            }
+                            return;
+                        }
+                    }
+
+                    FormatWarning("Could not find tag ", tag, " in tags ", tags);
+                });
+            });
+            tag_list->on_add([this, &cache = parm.cache](const FrameTag& name) {
+                auto bdx = _clicked_blob_id.load();
+                auto frame = _clicked_blob_frame.load();
+                
+                if(bdx.valid()
+                   && frame.valid())
+                {
+                    std::optional<Bounds> blob_bounds;
+                    for(auto &blob : cache.raw_blobs) {
+                        if(blob->blob->blob_id() == _clicked_blob_id.load()) {
+                            blob_bounds = blob->blob->bounds();
+                            break;
+                        }
+                    }
+                    
+                    if(blob_bounds) {
+                        FrameTag tag{
+                            .name = IdentifiedTag{
+                                .fdx = (uint32_t)bdx,
+                                .bds = *blob_bounds,
+                                .name = (std::string)name.get_name()
+                            }
+                        };
+                        safely_change_setting("track_frame_tags", [&](track::FrameTags& tags){
+                            tags[frame].insert(std::move(tag));
+                        });
+
+                        Print("Added ", name," for bdx=",bdx," frame=",frame, " @",*blob_bounds);
+                    } else {
+                        FormatWarning("Cannot find blob bounds for bdx=",bdx," in frame ", frame);
+                    }
+                    
+                } else {
+                    FormatWarning("Invalid bdx=", bdx, " frame=",frame," when adding a local tag.");
                 }
             });
+            
+            list = Layout::Make<Dropdown>(Box(0, 0, 200, 235), AlwaysOpen_t{true}, LabelDims_t{200, 35}, Font{0.6}, ListFillClr_t{60,60,60,200}, FillClr{60,60,60,200}, TextClr{225,225,225}, LabelCornerFlags::Top(), ListCornerFlags::Square());
             list->on_select([this, &cache = parm.cache](auto, const Dropdown::TextItem& item) {
                 auto number = uint64_t(item.custom());
                 uint32_t item_id = (number >> 32) & 0xFFFFFFFF;
@@ -842,27 +938,27 @@ void BlobView::draw(const DisplayParameters& parm)
             //popup->set_size(Size2(200, 400));
         }
         
-        Vec2 blob_pos(FLT_MAX);
-        bool found = false;
+        Bounds blob_bounds;
+        std::optional<Vec2> blob_pos;
         for(auto &blob : parm.cache.raw_blobs) {
             if(blob->blob->blob_id() == _clicked_blob_id.load()) {
-                blob_pos = blob->blob->bounds().center();
-                auto pt = parm.coord.convert(BowlCoord(blob_pos));
-                //auto top = pt.y < parm.coord.screen_size().height * 0.5_F
-                //            ? 0_F : 1_F;
+                blob_bounds = blob->blob->bounds();
+                blob_pos = blob_bounds.center();
+                auto pt = parm.coord.convert(BowlCoord(*blob_pos));
+                auto top = pt.y < parm.coord.screen_size().height * 0.5_F
+                            ? 0_F : 1_F;
                 if(pt.x < parm.coord.screen_size().width * 0.5_F) {
-                    popup->set_origin(Vec2(0, 0));
+                    popup->set_origin(Vec2(0, top));
                 } else {
-                    popup->set_origin(Vec2(1, 0));
+                    popup->set_origin(Vec2(1, top));
                 }
                 
                 popup->set_pos(pt);
-                found = true;
                 break;
             }
         }
         
-        if(found) {
+        if(blob_pos.has_value()) {
             std::set<std::tuple<float, Dropdown::TextItem>> items;
             for(auto &id : parm.cache.all_ids) {
                 if(not parm.cache.fish_selected_blobs.contains(id)
@@ -874,7 +970,7 @@ void BlobView::draw(const DisplayParameters& parm)
                        && frame > Tracker::start_frame()
                        && c)
                     {
-                        d = (c->estimated_px - blob_pos).length();
+                        d = (c->estimated_px - *blob_pos).length();
                     }
                     uint64_t encoded_ids = ((uint64_t)_clicked_blob_id.load() & 0xFFFFFFFF) | ((uint64_t(id.get() + 2) & 0xFFFFFFFF) << 32);
 
@@ -904,21 +1000,60 @@ void BlobView::draw(const DisplayParameters& parm)
             
             list->set_items(sorted_items);
             list->set_clickable(true);
+
+            //list->set(LineClr{Yellow});
             
-            if(_clicked_blob_id.load() != last_blob_id) {
-                list->set_opened(true);
-                list->select_textfield();
-                list->clear_textfield();
+            {
+                auto track_frame_tags = READ_SETTING_WITH_DEFAULT(track_frame_tags, track::FrameTags{});
+                auto unique_frame_tags = track_frame_tags.unique();
+                
+                std::vector<FrameTag> current_tags;
+                if(auto it = track_frame_tags.find(frame);
+                   it != track_frame_tags.end()
+                   && blob_pos.has_value())
+                {
+                    auto _bdx = _clicked_blob_id.load();
+                    
+                    for(auto &tag : it->second) {
+                        if(tag.has_identity()
+                           && _bdx.valid())
+                        {
+                            auto bdx = tag.get_identity();
+                            if(bdx == (uint32_t)_bdx) {
+                                current_tags.emplace_back(tag);
+                            }
+                        }
+                        else if(tag.has_location()) {
+                            auto bds = tag.get_location();
+                            if(bds.contains(*blob_pos))
+                                current_tags.emplace_back(tag);
+                        }
+                    }
+                }
+                
+                tag_list->set_catalog({unique_frame_tags.begin(), unique_frame_tags.end()});
+                tag_list->set_tags(std::move(current_tags));
+                //tag_list->set(LineClr{Red});
+                tag_list->set(Placeholder_t{"Add tag at "+Meta::toStr(blob_pos)+"..."});
             }
             
             popup->set_scale(parm.graph.scale().reciprocal());
-            popup->auto_size(Margin{0, 0});
-            popup->update([&](Entangled &base){
-                base.advance_wrap(*list);
+            popup->auto_size();
+            popup->set_children(std::vector<Layout::Ptr>{
+                list,
+                tag_list
             });
-            
+
             parm.graph.wrap_object(*popup);
-            
+
+            if(_clicked_blob_id.load() != last_blob_id) {
+                /// opened for a new blob: focus the filter textfield; this has
+                /// to happen after wrap_object, since selecting requires the
+                /// popup to be attached to the stage
+                list->select_textfield();
+                list->clear_textfield();
+            }
+
         } else {
 #ifndef NDEBUG
             FormatWarning("Cannot find clicked blob id ",_clicked_blob_id.load(),".");
@@ -1179,11 +1314,7 @@ void BlobView::clicked_background(DrawStructure& base, GUICache& cache, const Ve
         _current_boundary.clear();
         
     } else {
-#ifdef __APPLE__
-        if(!base.is_key_pressed(Codes::LSystem)) {
-#else
-        if(!base.is_key_pressed(Codes::LControl)) {
-#endif
+        if(not base.is_system_pressed()) {
             if(_current_boundary.empty()) {
                 if(not GUI_SETTINGS(gui_zoom_polygon).empty()) {
                     SETTING(gui_zoom_polygon) = std::vector<Vec2>();
@@ -1288,7 +1419,7 @@ void BlobView::draw_boundary_selection(DrawStructure& base, Base* window, GUICac
                 f.align = Align::Left;
                 for(auto &pt : boundary) {
                     base.circle(Loc(pt), Radius{5}, LineClr{Cyan.alpha(125)}, sca);
-                    //base.text(Meta::toStr(pt), pt + Vec2(7 * f.size, 0), White.alpha(200), f, sca);
+                    base.text(Str{Meta::toStr(pt)}, Loc{pt + Vec2(7 * f.size, 0)}, TextClr{White.alpha(200)}, f, sca);
                     
                     if(pt.x < top_left.x) top_left.x = pt.x;
                     if(pt.y < top_left.y) top_left.y = pt.y;
@@ -1296,6 +1427,8 @@ void BlobView::draw_boundary_selection(DrawStructure& base, Base* window, GUICac
                     if(pt.y > bottom_right.y) bottom_right.y = pt.y;
                 }
             }
+            
+            const bool is_system_pressed = base.is_system_pressed();
             
             if(top_left.x != FLT_MAX) {
                 Bounds bds{
@@ -1335,7 +1468,8 @@ void BlobView::draw_boundary_selection(DrawStructure& base, Base* window, GUICac
                 bds.width = max(100.f, text_bounds.width) + 10;
                 
                 if(!button) {
-                    button = std::make_shared<Button>(Str(name), Box(Vec2(), bds.size()), Font(0.6, Align::Center), FillClr{60,60,60,200}, LineClr{100,175,250,200}, TextClr{225,225,225});
+                    button = Layout::Make<Button>{Str(name), Box(Vec2(), bds.size()), Font(0.6, Align::Center), FillClr{60,60,60,200}, LineClr{100,175,250,200}, TextClr{225,225,225}};
+                    button->set_scroll_enabled(false);
                     button->on_click([&](auto){
                         clicked_background(base, cache, Vec2(), true, "");
                     });
@@ -1345,23 +1479,40 @@ void BlobView::draw_boundary_selection(DrawStructure& base, Base* window, GUICac
                 }
                 
                 auto detect_classes = READ_SETTING_WITH_DEFAULT(detect_classes, cmn::blob::MaybeObjectClass_t{});
+                auto detect_type = READ_SETTING_WITH_DEFAULT(detect_type, track::detect::ObjectDetectionType_t{});
+                const bool show_annotation_classes = detect_type != track::detect::ObjectDetectionType::background_subtraction;
+
+                /// we already had it before, so we have to clear it now:
+                if(not show_annotation_classes)
+                    annotation_buttons.clear();
+
                 if(annotation_buttons.empty()
+                   && show_annotation_classes
                    && (bdry.size() == 1 && bdry.front().size() >= 1))
                 {
-                    auto create_button = [this](StringLike auto&& name, size_t id){
-                        auto annotation_button = std::make_shared<Button>(Str(name), Font(0.6, Align::Center), FillClr{60,60,60,200}, LineClr{100,175,250,200}, TextClr{225,225,225}, CornerFlags_t(CornerFlags::fromStr("['bottom']")));
+                    auto create_button = [this](StringLike auto&& name, size_t id) -> derived_ptr<Button> {
+                        auto annotation_button = Layout::Make<Button>{
+                            Str(name),
+                            Font(0.6, Align::Center),
+                            FillClr{60,60,60,200},
+                            LineClr{100,175,250,200},
+                            TextClr{225,225,225},
+                            CornerFlags_t::Bottom()
+                        }();
+                        // Let wheel input reach the capped annotation menu.
+                        annotation_button->set_scroll_enabled(false);
                         annotation_button->on_click([&, id](auto){
                             if(_current_boundary.size() == 1
                                && _current_boundary.front().size() >= 1)
                             {
-                                auto track_annotations = READ_SETTING_WITH_DEFAULT(track_annotations, track::AnnotationMap{});
-                                if(not track_annotations)
-                                    track_annotations.init();
+                                auto detect_annotations = READ_SETTING_WITH_DEFAULT(track_detect_annotations, track::detect::AnnotationMap{});
+                                if(not detect_annotations)
+                                    detect_annotations.init();
                                 auto current = READ_SETTING_WITH_DEFAULT(gui_frame, Frame_t());
-                                auto &field = track_annotations[current];
+                                auto &field = detect_annotations[current];
                                 
                                 using namespace track::detect;
-                                using Point = track::Annotation::Point_t;
+                                using Point = Annotation::Point_t;
                                 std::vector<Point> points;
                                 for(auto &pt : _current_boundary.front()) {
                                     points.emplace_back(pt);
@@ -1410,7 +1561,7 @@ void BlobView::draw_boundary_selection(DrawStructure& base, Base* window, GUICac
                                     field.push_back(std::move(annotation));
                                 }
                                 
-                                SETTING(track_annotations) = std::move(track_annotations);
+                                SETTING(track_detect_annotations) = std::move(detect_annotations);
                                 _current_boundary.clear();
                             }
                         });
@@ -1428,7 +1579,11 @@ void BlobView::draw_boundary_selection(DrawStructure& base, Base* window, GUICac
                     }
                 }
                 
-                if(not annotation_buttons.empty()) {
+                /// This is what will go into the combine layout later:
+                std::vector<Layout::Ptr> children;
+                children.push_back(button);
+                
+                if(show_annotation_classes && not annotation_buttons.empty()) {
                     if(detect_classes
                        && detect_classes->size() == annotation_buttons.size())
                     {
@@ -1443,29 +1598,8 @@ void BlobView::draw_boundary_selection(DrawStructure& base, Base* window, GUICac
                     }
                 }
                 
-                Vec2 pos(0, button->local_bounds().height);
-                if(not annotation_buttons.empty()) {
-                    for(auto &b: annotation_buttons) {
-                        auto text_bounds = window ? window->text_bounds(b->txt(), NULL, Font(0.6)) : Base::default_text_bounds(b->txt(), NULL, Font(0.6));
-                        bds.width = max(bds.width, text_bounds.width + 10);
-                        b->set(Box(pos, bds.size()));
-                        pos.y += b->local_bounds().height;
-                    }
-                    
-                    annotation_buttons.front()->set(CornerFlags_t(CornerFlags(false, false, false, false)));
-                    
-                    auto flags = annotation_buttons.back()->corner_flags();
-                    flags.set(CornerFlags::Corner::BottomLeft);
-                    flags.set(CornerFlags::Corner::BottomRight);
-                    annotation_buttons.back()->set(CornerFlags_t(flags));
-                    
-                    button->set(CornerFlags_t(CornerFlags(true, true, false, false)));
-                }
-                
-                button->set_bounds(Bounds(Vec2(), bds.size()));
-                
-                if(!dropdown) {
-                    dropdown = std::make_shared<Dropdown>(Box(Vec2(0, button->local_bounds().height), bds.size()), ListDims_t{bds.width, 200.f}, ListFillClr_t{60,60,60,200}, FillClr{60,60,60,200}, LineClr{100,175,250,200}, TextClr{225,225,225}, LabelFont_t{0.6}, ItemFont_t{0.6},
+                if(not dropdown) {
+                    dropdown = Layout::Make<Dropdown>{Box(Vec2(0, button->local_bounds().height), bds.size()), ListDims_t{bds.width, 200.f}, ListFillClr_t{60,60,60,200}, FillClr{60,60,60,200}, LineClr{100,175,250,200}, TextClr{225,225,225}, LabelFont_t{0.6}, ItemFont_t{0.6}, LabelCornerFlags::Square(),
                         std::vector<std::string>{
                             "gui_zoom_polygon",
                             "track_ignore",
@@ -1473,41 +1607,71 @@ void BlobView::draw_boundary_selection(DrawStructure& base, Base* window, GUICac
                             "recognition_shapes",
                             "visual_field_shapes"
                         }
-                    );
+                    };
                     dropdown->on_select([&](auto, const Dropdown::TextItem & item){
                         clicked_background(base, cache, Vec2(), true, item.name());
                     });
-                    dropdown->textfield()->set_placeholder("select below...");
+                    dropdown->textfield()->set_scroll_enabled(false);
+                    dropdown->textfield()->set_placeholder("Add shape to...");
                 }
                 
-                if(annotation_buttons.empty()) {
-                    dropdown->set_bounds(Bounds(Vec2(0, button->local_bounds().height), bds.size()));
-                } else {
-                    dropdown->set_bounds(Bounds(pos, bds.size()));
-                }
-                
-                combine->update([&](auto&e) {
-                    if(bdry.size() > 1
-                        || bdry.front().size() > 2
-     #ifdef __APPLE__
-                        || not base.is_key_pressed(Codes::LSystem)
-     #else
-                        || not base.is_key_pressed(Codes::LControl)
-     #endif
-                       )
-                    {
-                        if(_current_boundary.size() != 1 || _current_boundary.front().size() > 2)
-                            e.advance_wrap(*dropdown);
-                        e.advance_wrap(*button);
-                        if(not annotation_buttons.empty()) {
-                            for(auto& b : annotation_buttons)
-                                e.advance_wrap(*b);
-                        }
+                if(_current_boundary.size() != 1 || _current_boundary.front().size() > 2) {
+                    bds.width = max(bds.width, dropdown->width());
+                    children.push_back(dropdown);
+                    
+                    if(is_system_pressed) {
+                        dropdown->set(FillClr{60,60,60,100});
+                    } else {
+                        dropdown->set(FillClr{60,60,60,200});
                     }
+                }
+                
+                if(show_annotation_classes && not annotation_buttons.empty()) {
+                    const auto detect_format = READ_SETTING_WITH_DEFAULT(detect_format, track::detect::ObjectDetectionFormat::none);
+                    auto text = Layout::Make<StaticText>{
+                        Str{"<c><b>Annotating ("+Meta::toStr(detect_format)+")</b></c>"},
+                        Font{0.5}
+                    }();
+                    
+                    derived_ptr<Layout> container = Layout::Make<Layout>{
+                        FillClr{30,30,30,200},
+                        Size{bds.width, text->local_bounds().height},
+                        CornerFlags_t::Square()
+                    };
+                    container->set_children({text});
+                    children.push_back(container);
+                    
+                    for(auto &b: annotation_buttons) {
+                        auto text_bounds = window ? window->text_bounds(b->txt(), NULL, Font(0.6)) : Base::default_text_bounds(b->txt(), NULL, Font(0.6));
+                        bds.width = max(bds.width, text_bounds.width + 10);
+                        b->set(Size(bds.size()));
+                        
+                        if(is_system_pressed) {
+                            b->set(FillClr{60,60,60,100});
+                        } else {
+                            b->set(FillClr{60,60,60,200});
+                        }
+                        
+                        b->set(CornerFlags_t::Square());
+                        children.push_back(b);
+                    }
+                    
+                    auto flags = annotation_buttons.back()->corner_flags() | CornerFlags::Bottom();
+                    annotation_buttons.back()->set(CornerFlags_t(flags));
+                    
+                    button->set(CornerFlags_t::Top());
+                }
+                
+                for(auto& child : children)
+                    child->set_size(Size2(bds.width, child->height()));
+
+                combine->set(attr::SizeLimit{
+                    Size2{bds.width, annotation_menu_max_height}
                 });
+                combine->set_children(children);
                 
                 base.wrap_object(*combine);
-                combine->auto_size(Margin{0, 0});
+                //combine->auto_size(Margin{0, 0});
                 
                 Vec2 p;
                 //if(bdry.size() > 1
@@ -1520,27 +1684,6 @@ void BlobView::draw_boundary_selection(DrawStructure& base, Base* window, GUICac
                 } else {
                     p = Vec2((top_left.x + bottom_right.x) * 0.5, top_left.y) - Vec2(0, 20);
                 }
-                
-                //} else {
-                //    p = top_left - Vec2(combine->width() * sca.x, 0);//Vec2(top_left.x, top_left.y + (bottom_right.y - top_left.y) * 0.5); //- Vec2(20, 0).mul(sca);
-                    
-                    /*if(bdry.size() == 1
-                       && bdry.front().size() == 2)
-                    {
-                        auto& boundary = bdry.front();
-                        Vec2 v;
-                        if(boundary[1].x > boundary[0].x)
-                            v = boundary[1] - boundary[0];
-                        else
-                            v = boundary[0] - boundary[1];
-                        
-                        auto D = v.length();
-                        v = v.normalize();
-                        
-                        a = atan2(v);
-                        p += v.perp() * (combine->size().mul(sca).height);
-                    }*/
-                //}
                 
                 /// restrict the object bounds to within screen viewport
                 auto coords = FindCoord::get();
@@ -1578,24 +1721,28 @@ void BlobView::draw_boundary_selection(DrawStructure& base, Base* window, GUICac
                 
                 p = object_bounds.pos() + object_size.mul(combine->origin());
                 
-#ifdef __APPLE__
-                if(base.is_key_pressed(Codes::LSystem))
-#else
-                if(base.is_key_pressed(Codes::LControl))
-#endif
-                {
+                auto calculate_mouse_offset = [this, &sca]() -> Vec2{
+                    return Vec2{
+                        combine->origin().x == 0 ? 25_F : -25_F,
+                        combine->origin().y == 0 ? 25_F : -25_F
+                    }.mul(sca);
+                };
+                
+                Vec2 mouse_offset = calculate_mouse_offset();
+                
+                if(is_system_pressed) {
                     auto mpos = coords.convert(HUDCoord{base.mouse_position()});
-                    if(Bounds(p + Vec2(combine->origin().x == 0 ? 15 : -15,
-                                       combine->origin().y == 0 ? 5 : -5)
-                              .mul(sca) - object_size.mul(combine->origin()), object_size).contains(mpos))
+                    if(Bounds(p - Vec2(5) + mouse_offset - object_size.mul(combine->origin()), object_size + Size2(10))
+                        .contains(mpos))
                     {
                         p = mpos;
                         update_origin();
+                        
+                        mouse_offset = calculate_mouse_offset();
                     }
                 }
                 
-                p += Vec2(combine->origin().x == 0 ? 15 : -15,
-                          combine->origin().y == 0 ? 5 : -5).mul(sca);
+                p += mouse_offset;
                 
                 auto dt = cache.dt();
                 auto prev_pos = combine->pos();

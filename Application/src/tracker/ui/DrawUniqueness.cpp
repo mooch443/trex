@@ -1,4 +1,5 @@
 #include "DrawUniqueness.h"
+#include <misc/Image.h>
 #include <misc/GlobalSettings.h>
 #include <gui/Graph.h>
 #include <misc/vec2.h>

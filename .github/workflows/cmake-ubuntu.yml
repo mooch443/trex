@@ -8,7 +8,10 @@ permissions:
 env:
   # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
   BUILD_TYPE: Release
+  CONDA_BLD_PATH: ${{ github.workspace }}/conda-bld
+  CONDA_REPODATA_USE_SHARDS: 'false'
   GITHUB_WORKFLOW: CondaBuildUbuntu
+  MINIFORGE_VERSION: 26.5.3-0
 
 jobs:
   build:
@@ -36,37 +39,36 @@ jobs:
         CACHE_NUMBER: 1
       with:
         path: ~/conda_pkgs_dir
-        key: ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{ hashFiles('.github/environment.yml') }}
-    - uses: conda-incubator/setup-miniconda@v3
+        key: ${{ runner.os }}-${{ runner.arch }}-conda-${{ env.MINIFORGE_VERSION }}-${{ env.CACHE_NUMBER }}-${{ hashFiles('.github/environment.yml') }}
+    - uses: conda-incubator/setup-miniconda@fc2d68f6413eb2d87b895e92f8584b5b94a10167 # v3.3.0
       with:
-        miniforge-version: latest
+        miniforge-version: ${{ env.MINIFORGE_VERSION }}
+        activate-environment: ""
         channels: conda-forge
         conda-remove-defaults: true
         auto-activate: true
         auto-update-conda: false
-        activate-environment: base
         pkgs-dirs: ~/conda_pkgs_dir
-    - name: Get conda prefix and cache date
-      id: conda-prefix
-      shell: bash
+    - name: Install build environment into base
+      run: conda env update --name base --file .github/environment.yml
+    - name: Verify fresh base build environment
       run: |
-        echo "path=$CONDA" >> $GITHUB_OUTPUT
-        echo "month=$(date +%Y-%m)" >> $GITHUB_OUTPUT
-    - name: Cache conda base environment
-      id: conda-env-cache
-      uses: actions/cache@v4
-      with:
-        path: ${{ steps.conda-prefix.outputs.path }}
-        key: ${{ runner.os }}-conda-env-${{ steps.conda-prefix.outputs.month }}-${{ hashFiles('.github/environment.yml') }}
-    - name: Install environment into base
-      if: steps.conda-env-cache.outputs.cache-hit != 'true'
-      working-directory: ${{github.workspace}}
-      run: |
-        echo "::group::Install environment into base"
-        conda env update --name base -f .github/environment.yml
+        python_path=$(command -v python || true)
+        conda_build_path=$(command -v conda-build || true)
+        if [[ "${CONDA_DEFAULT_ENV:-}" != "base" || "$CONDA_PREFIX" != "$CONDA" \
+              || "$python_path" != "$CONDA_PREFIX/bin/python" \
+              || "$conda_build_path" != "$CONDA_PREFIX/bin/conda-build" ]]; then
+          echo "Conda build tooling must run from the fresh, uncached base prefix." >&2
+          echo "python: ${python_path:-missing}" >&2
+          echo "conda-build: ${conda_build_path:-missing}" >&2
+          exit 1
+        fi
         conda info
+        python --version
+        conda-build --version
+        python -c "from conda.base.context import context; assert not context.repodata_use_shards"
+        python -c "import conda_index"
         conda list
-        echo "::endgroup::"
     - name: Free up disk space
       run: |
         sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc || true
@@ -81,17 +83,17 @@ jobs:
         echo "::endgroup::"
         echo "::group::Fix Meta"
         cd $GITHUB_WORKSPACE/conda
+        python select_config.py minimal --force
         p=${GITHUB_REF_NAME}
         p_sanitized=${p//\//_}
         p_sanitized=${p_sanitized//-/_}
         sed -i -e '/^{% set git_tag =/ s+{% set git_tag = "[^"]*" %}+{% set git_tag = "'"$p"'" %}+g' meta.yaml
         sed -i -e '/^{% set git_tag_sanitized =/ s+{% set git_tag_sanitized = "[^"]*" %}+{% set git_tag_sanitized = "'"$p_sanitized"'" %}+g' meta.yaml
         sed -i -e 's/_cuda[0-9.]*/\*/g' -e 's/_cudnn/\*/g' -e 's/_cu[0-9.]*/\*/g' meta.yaml
-        sed -i.bak 's|--index-url https://download.pytorch.org/whl/cu118||g' post-link.sh
         cat meta.yaml
         echo "::endgroup::"
         echo "::group::Build"
-        conda build . --override-channels -c conda-forge
+        conda-build . --override-channels -c conda-forge
         echo "::endgroup::"
         echo $CONDA_PREFIX
     - name: Test
@@ -99,11 +101,29 @@ jobs:
       run: |
         echo "::group::Test"
         echo $CONDA_PREFIX
-        conda index $CONDA_PREFIX/conda-bld/
-        conda create -y -n test --override-channels -c $CONDA_PREFIX/conda-bld/ -c conda-forge trex
+        python -m conda_index "$CONDA_BLD_PATH/"
+        conda create -y -n test --override-channels -c "$CONDA_BLD_PATH/" -c conda-forge trex
         conda activate test
+        python $GITHUB_WORKSPACE/conda/validate_post_link_installation.py
         pvinfo -opencv_ffmpeg_support
-        pvinfo -opencv_opencl_support
+        if pvinfo -opencv_opencl_support; then
+          echo "Minimal OpenCV unexpectedly reports OpenCL support." >&2
+          exit 1
+        fi
+        python $GITHUB_WORKSPACE/conda/validate_minimal.py
+        linkage=$(ldd "$(command -v trex)")
+        echo "$linkage"
+        for dependency in 'libopencv_(core|imgproc)' libpng libzip 'libz\.so' libavcodec; do
+          line=$(echo "$linkage" | grep -E "$dependency" | head -n 1)
+          if [ -z "$line" ] || [[ "$line" != *"$CONDA_PREFIX"* ]]; then
+            echo "Dependency '$dependency' did not resolve from $CONDA_PREFIX: $line" >&2
+            exit 1
+          fi
+        done
+        if ! echo "$linkage" | grep -q 'libstdc++\.so'; then
+          echo "TRex does not dynamically link libstdc++; a static runtime may be embedded." >&2
+          exit 1
+        fi
         echo "::endgroup::"
         echo "::group::TestFunctions"
         conda install -y -n test unzip
@@ -111,30 +131,33 @@ jobs:
         ./run_unix.bash
         echo "::endgroup::"
     - name: Collect conda package artifacts
-      if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
+      if: ${{ !cancelled() }}
+      shell: bash --noprofile --norc -e -o pipefail {0}
       working-directory: ${{ github.workspace }}
       run: |
         set -euo pipefail
         out="$GITHUB_WORKSPACE/conda-artifacts"
         mkdir -p "$out"
         packages=()
-        while IFS= read -r -d '' pkg; do
-          packages+=("$pkg")
-        done < <(find "$CONDA_PREFIX/conda-bld" -type f -name 'trex-*.conda' -print0)
+        if [ -d "$CONDA_BLD_PATH" ]; then
+          while IFS= read -r -d '' pkg; do
+            packages+=("$pkg")
+          done < <(find "$CONDA_BLD_PATH" -type f -name 'trex-*.conda' -print0)
+        fi
         if [ "${#packages[@]}" -eq 0 ]; then
-          echo "No trex .conda packages found under $CONDA_PREFIX/conda-bld" >&2
-          exit 1
+          echo "No completed trex .conda package was available to upload." >&2
+          exit 0
         fi
         latest=$(ls -t "${packages[@]}" | head -n 1)
         cp "$latest" "$out/$(basename "$latest")"
         ls -lh "$out"
     - name: Upload conda packages
-      if: github.ref == 'refs/heads/main'
+      if: ${{ !cancelled() }}
       uses: actions/upload-artifact@v4
       with:
         name: trex-conda-linux-64
         path: ${{ github.workspace }}/conda-artifacts/*.conda
-        if-no-files-found: error
+        if-no-files-found: ignore
         retention-days: 14
         compression-level: 0
     - name: Attach conda packages to GitHub release
@@ -162,7 +185,6 @@ jobs:
           ${{ github.workspace }}/videos/**/*.npz
           ${{ github.workspace }}/videos/**/*.results
           ${{ github.workspace }}/videos/**/*.pv
-          ${{ github.workspace }}/**/.messages.txt
         if-no-files-found: ignore
         retention-days: 7
         compression-level: 9

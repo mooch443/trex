@@ -106,10 +106,6 @@ std::unordered_map<std::string, Description> options_doc_strings = {
         "Timestamp",
         "The exact timestamp of the current frame."
     }},
-    {"frame", {
-        "Frame number",
-        "The sequential index of the current frame in the dataset."
-    }},
     {"missing", {
         "Missing data flag",
         "Indicates whether data is missing for the current frame (1 if missing, 0 if available)."
@@ -494,7 +490,7 @@ struct DrawExportOptions::Data {
                             REQUIRE_AT_LEAST(1, action);
                             WorkProgress::add_queue("Selecting folder", [action](){
                                 auto parm = action.parameters.front();
-                                auto folder = action.parameters.size() == 1 ? action.parameters.back() : file::cwd().str();
+                                auto folder = action.parameters.size() > 1 ? action.parameters.at(1) : std::string{};
                                 if(not file::Path{folder}.is_folder())
                                     folder = {};
                                 

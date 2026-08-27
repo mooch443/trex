@@ -2,18 +2,12 @@
 
 #include <commons.pc.h>
 #include <ui/Scene.h>
-#include <python/Detection.h>
-#include <core/indicators.h>
+#include <misc/frame_t.h>
+#include <misc/Timer.h>
 
-//#include <tracking/Segmenter.h>
-#include <core/tomp4.h>
-
-//#include <ui/ScreenRecorder.h>
-#include <ui/Skelett.h>
-#include <ui/Bowl.h>
-
-#include <core/idx_t.h>
-//#include <core/Identity.h>
+namespace cmn {
+struct SegmentationData;
+}
 
 namespace track {
 class Segmenter;
@@ -49,7 +43,6 @@ struct glz::meta<cmn::gui::convert::VideoInfo> {
 
 namespace cmn::gui {
 
-namespace ind = indicators;
 using namespace track;
 
 class Label;
@@ -100,7 +93,7 @@ private:
     // Main _draw function
     void _draw(DrawStructure& graph);
     
-    SegmentationData& current_data();
+    cmn::SegmentationData& current_data();
     ExternalImage& background_image();
     
 private:

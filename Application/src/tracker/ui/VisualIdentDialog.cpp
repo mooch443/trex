@@ -1,4 +1,5 @@
 #include "VisualIdentDialog.h"
+#include <tracking/LockGuard.h>
 #include <python/PythonWrapper.h>
 #include <core/TrackingSettings.h>
 #include <ui/WorkProgress.h>
@@ -6,12 +7,12 @@
 #include <ui/Accumulation.h>
 #include <tracking/Output.h>
 #include <tracking/Tracker.h>
-#include <ui/SettingsInitializer.h>
 #include <ui/Export.h>
 #include <tracking/ConnectedTasks.h>
 #include <core/IdentifiedTag.h>
 #include <ui/Scene.h>
 #include <misc/default_settings.h>
+#include <ui/GuiSettings.h>
 
 namespace cmn::gui::vident {
 namespace py = Python;

@@ -2,7 +2,7 @@
 // Do not edit by hand.
 
 #include <ui/AnimatedBackground.h>
-#include <ui/AnnotationScene.h>
+#include <ui/DetectAnnotationScene.h>
 #include <ui/Bowl.h>
 #include <ui/CalibrateScene.h>
 #include <ui/CheckUpdates.h>
@@ -11,6 +11,8 @@
 #include <ui/Coordinates.h>
 #include <ui/DrawBlobView.h>
 #include <ui/DrawBorder.h>
+#include <ui/DrawAnnotationExportOptions.h>
+#include <ui/DrawDetectAnnotationImportOptions.h>
 #include <ui/DrawDataset.h>
 #include <ui/DrawExportOptions.h>
 #include <ui/DrawFish.h>

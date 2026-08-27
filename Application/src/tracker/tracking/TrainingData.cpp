@@ -1,10 +1,18 @@
 #include "TrainingData.h"
 #include <gui/Transform.h>
+#include <misc/Image.h>
 #include <misc/GlobalSettings.h>
+#include <processing/Background.h>
+#include <tracking/Individual.h>
+#include <tracking/LockGuard.h>
+#include <tracking/PPFrame.h>
+#include <tracking/Stuffs.h>
+#include <tracking/TrackletInformation.h>
 #include <tracking/Tracker.h>
 #include <processing/PixelTree.h>
 #include <tracking/FilterCache.h>
 #include <tracking/IndividualManager.h>
+#include <misc/Median.h>
 
 //#undef NDEBUG
 

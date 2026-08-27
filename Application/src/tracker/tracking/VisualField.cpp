@@ -1,9 +1,12 @@
 #include "VisualField.h"
+#include <misc/Image.h>
 #include <tracking/Tracker.h>
 #include <gui/DrawCVBase.h>
 #include <misc/Timer.h>
 #include <tracking/Individual.h>
 #include <tracking/IndividualManager.h>
+#include <tracking/LockGuard.h>
+#include <tracking/Stuffs.h>
 #include <misc/create_struct.h>
 
 namespace track {

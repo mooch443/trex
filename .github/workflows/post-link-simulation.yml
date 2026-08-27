@@ -1,0 +1,62 @@
+name: PostLinkTests
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "conda/post-link.sh"
+      - "conda/post-link.bat"
+      - "conda/test_post_link_simulation.py"
+      - "conda/test_post_link_real_resolver.py"
+      - "conda/test_validate_minimal.py"
+      - "conda/test_workflow_configuration.py"
+      - "conda/validate_minimal.py"
+      - "conda/validate_post_link_installation.py"
+      - "conda/run_local_minimal_prechecks.py"
+      - "conda/meta.yaml"
+      - "conda/.meta.minimal.yaml"
+      - "conda/.meta.buildall.yaml"
+      - ".github/workflows/post-link-simulation.yml"
+  pull_request:
+    paths:
+      - "conda/post-link.sh"
+      - "conda/post-link.bat"
+      - "conda/test_post_link_simulation.py"
+      - "conda/test_post_link_real_resolver.py"
+      - "conda/test_validate_minimal.py"
+      - "conda/test_workflow_configuration.py"
+      - "conda/validate_minimal.py"
+      - "conda/validate_post_link_installation.py"
+      - "conda/run_local_minimal_prechecks.py"
+      - "conda/meta.yaml"
+      - "conda/.meta.minimal.yaml"
+      - "conda/.meta.buildall.yaml"
+      - ".github/workflows/post-link-simulation.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  simulate:
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-24.04
+          - macos-26
+          - macos-15-intel
+          - windows-2025-vs2026
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - name: Simulate post-link configurations
+        run: |
+          python conda/test_workflow_configuration.py
+          python conda/test_validate_minimal.py
+          python conda/test_post_link_simulation.py
+      - name: Verify native live resolver metadata
+        run: python conda/test_post_link_real_resolver.py

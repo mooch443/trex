@@ -1,4 +1,4 @@
-#include "AnnotationScene.h"
+#include "DetectAnnotationScene.h"
 #include <file/PathArray.h>
 #include <gui/DrawStructure.h>
 #include <video/VideoSource.h>
@@ -15,6 +15,7 @@ namespace cmn::gui {
 
 using namespace dyn;
 using namespace track;
+using namespace track::detect;
 
 // Function to convert BOX annotation to YOLOv8 format
 std::string convertBoxToYoloFormat(const Annotation& anno, const Size2& imgSize) {
@@ -95,9 +96,9 @@ std::string convertSegmentationToYoloFormat(const Annotation& anno, const Size2&
 }
 
 // Function to determine the most common annotation type
-AnnotationType findMostCommonAnnotationType(const std::vector<Annotation>& annotations) {
+AnnotationType findMostCommonDetectAnnotationType(const std::vector<Annotation>& detect_annotations) {
     std::unordered_map<AnnotationType, int> typeCounts;
-    for (const auto& anno : annotations) {
+    for (const auto& anno : detect_annotations) {
         typeCounts[anno.type]++;
     }
 
@@ -107,14 +108,14 @@ AnnotationType findMostCommonAnnotationType(const std::vector<Annotation>& annot
         })->first;
 }
 
-// Updated exportAnnotationsToYolo function
-void exportAnnotationsToYolo(const std::vector<Annotation>& annotations, const Size2& imgSize, const std::string& outputFile, std::optional<AnnotationType> exportType = std::nullopt) {
+// Updated exportDetectAnnotationsToYolo function
+void exportDetectAnnotationsToYolo(const std::vector<Annotation>& detect_annotations, const Size2& imgSize, const std::string& outputFile, std::optional<AnnotationType> exportType = std::nullopt) {
     // Determine the export type if not specified
-    AnnotationType typeToExport = exportType.has_value() ? exportType.value() : findMostCommonAnnotationType(annotations);
+    AnnotationType typeToExport = exportType.has_value() ? exportType.value() : findMostCommonDetectAnnotationType(detect_annotations);
 
     std::ofstream file(outputFile);
 
-    for (const auto& anno : annotations) {
+    for (const auto& anno : detect_annotations) {
         if (anno.type != typeToExport) {
             Print("Skipping annotation of type ", static_cast<int>(anno.type), ", not matching export type ", static_cast<int>(typeToExport), "\n");
             continue;
@@ -138,7 +139,7 @@ void exportAnnotationsToYolo(const std::vector<Annotation>& annotations, const S
     file.close();
 }
 
-void AnnotationView::set_annotation(Annotation && a) {
+void DetectAnnotationView::set_detect_annotation(Annotation && a) {
     if(a.type == AnnotationType::BOX) {
         _rect = std::make_unique<Rect>(
             Box{
@@ -179,7 +180,7 @@ void AnnotationView::set_annotation(Annotation && a) {
     _a = std::move(a);
 }
 
-void AnnotationView::update() {
+void DetectAnnotationView::update() {
     auto ctx = OpenContext();
     
     if(_rect) {
@@ -202,15 +203,15 @@ void AnnotationView::update() {
         advance_wrap(*_rect);
 }
 
-void AnnotationView::init() {
+void DetectAnnotationView::init() {
     _rect = nullptr;
     _circles.clear();
 }
 
 // Constructor implementation
-AnnotationScene::AnnotationScene(Base& window)
+DetectAnnotationScene::DetectAnnotationScene(Base& window)
 : 
-    Scene(window, "annotation-scene", [this](Scene&, DrawStructure& base){
+    Scene(window, "detect-annotation-scene", [this](Scene&, DrawStructure& base){
         _draw(base);
     }),
     currentFrameIndex(0),
@@ -220,18 +221,18 @@ AnnotationScene::AnnotationScene(Base& window)
 {
 }
 
-AnnotationScene::~AnnotationScene() {
+DetectAnnotationScene::~DetectAnnotationScene() {
     
 }
 
 // Method to retrieve a frame (placeholder, needs actual implementation)
-Image::Ptr AnnotationScene::retrieveFrame(Frame_t) {
+Image::Ptr DetectAnnotationScene::retrieveFrame(Frame_t) {
     // Implement frame retrieval logic
     return nullptr; // Placeholder
 }
 
 // Activate method implementation
-void AnnotationScene::activate() {
+void DetectAnnotationScene::activate() {
     Scene::activate();
     // Logic to activate the scene, e.g., initializing framePreloader
     auto source = READ_SETTING(source, file::PathArray);
@@ -256,7 +257,7 @@ void AnnotationScene::activate() {
 }
 
 // Deactivate method implementation
-void AnnotationScene::deactivate() {
+void DetectAnnotationScene::deactivate() {
     Scene::deactivate();
     
     try {
@@ -279,7 +280,7 @@ void AnnotationScene::deactivate() {
 }
 
 // Custom drawing implementation
-void AnnotationScene::_draw(DrawStructure& graph) {
+void DetectAnnotationScene::_draw(DrawStructure& graph) {
     if(window()) {
         //auto update = FindCoord::set_screen_size(graph, *window()); //.div(graph.scale().reciprocal() * gui::interface_scale());
         //
@@ -329,7 +330,7 @@ void AnnotationScene::_draw(DrawStructure& graph) {
     if(not *_gui) {
         *_gui = DynamicGUI{
             .gui = nullptr,
-            .path = "annotation_layout.json",
+            .path = "detect_annotation_layout.json",
             .context = [&](){
                 dyn::Context context;
                 context.actions = {
@@ -360,20 +361,20 @@ void AnnotationScene::_draw(DrawStructure& graph) {
                         auto p = Meta::fromStr<Vec2>(props.parameters.front());
                         return coords.convert(HUDCoord(p));
                     }),
-                    VarFunc("annotations", [this](const VarProps& props) -> std::vector<std::shared_ptr<VarBase_t>>& {
+                    VarFunc("detect_annotations", [this](const VarProps& props) -> std::vector<std::shared_ptr<VarBase_t>>& {
                         if(props.parameters.empty())
-                            throw InvalidArgumentException("Not enough arguments for annotations. Need frame.");
+                            throw InvalidArgumentException("Not enough arguments for detect_annotations. Need frame.");
                         auto frame = Meta::fromStr<Frame_t>(props.parameters.front());
-                        auto it = _gui_annotations.find(frame);
-                        if(it == _gui_annotations.end()
+                        auto it = _gui_detect_annotations.find(frame);
+                        if(it == _gui_detect_annotations.end()
                            && frame.valid())
                         {
                             // have to create a new one
-                            auto a = annotations.find(frame);
-                            if(a != annotations.end()) {
+                            auto a = detect_annotations.find(frame);
+                            if(a != detect_annotations.end()) {
                                 auto objs = a->second.getAllObjects();
                                 auto &data = _gui_data[frame];
-                                auto &anns = _gui_annotations[frame];
+                                auto &anns = _gui_detect_annotations[frame];
                                 
                                 data.clear();
                                 
@@ -398,7 +399,7 @@ void AnnotationScene::_draw(DrawStructure& graph) {
                                 return anns;
                                 
                             } else {
-                                return _gui_annotations[frame];
+                                return _gui_detect_annotations[frame];
                             }
                             
                         } else
@@ -560,16 +561,16 @@ void AnnotationScene::_draw(DrawStructure& graph) {
             _views.clear();
         }
         
-        if(auto it = annotations.find(currentFrameIndex);
-           it != annotations.end())
+        if(auto it = detect_annotations.find(currentFrameIndex);
+           it != detect_annotations.end())
         {
             auto anns = it->second.getAllObjects();
             for(auto [ID, obj] : anns) {
                 if(not _views.contains(ID)) {
-                    auto [it, r] = _views.emplace(ID, std::make_shared<AnnotationView>());
+                    auto [it, r] = _views.emplace(ID, std::make_shared<DetectAnnotationView>());
                     if(not r)
                         throw InvalidArgumentException("Cannot insert ", ID, " into the map.");
-                    it->second->set_annotation(std::move(obj));
+                    it->second->set_detect_annotation(std::move(obj));
                 }
             }
             
@@ -585,7 +586,7 @@ void AnnotationScene::_draw(DrawStructure& graph) {
     });
 }
 
-std::future<std::unordered_set<Frame_t>> AnnotationScene::select_unique_frames() {
+std::future<std::unordered_set<Frame_t>> DetectAnnotationScene::select_unique_frames() {
     return std::async(std::launch::async, [this](){
         std::unordered_set<Frame_t> indexes;
         
@@ -703,7 +704,7 @@ std::future<std::unordered_set<Frame_t>> AnnotationScene::select_unique_frames()
 }
 
 // Handling global events for video navigation
-bool AnnotationScene::on_global_event(Event event) {
+bool DetectAnnotationScene::on_global_event(Event event) {
     auto graph = _bowl && _bowl->stage() ? _bowl->stage() : nullptr;
     if(event.type == EventType::MMOVE
        && graph
@@ -741,7 +742,7 @@ bool AnnotationScene::on_global_event(Event event) {
                 }
             };
             
-            addAnnotation(currentFrameIndex, std::move(a));
+            addDetectAnnotation(currentFrameIndex, std::move(a));
             
         } else {
             if(_pose_in_progress.points.empty()) {
@@ -762,7 +763,7 @@ bool AnnotationScene::on_global_event(Event event) {
         _drag_box = nullptr;
         
         if(not _pose_in_progress.points.empty()) {
-            addAnnotation(currentFrameIndex, std::move(_pose_in_progress));
+            addDetectAnnotation(currentFrameIndex, std::move(_pose_in_progress));
         }
         _pose_in_progress = {};
     }
@@ -819,36 +820,36 @@ bool AnnotationScene::on_global_event(Event event) {
 }
 
 // Methods to manage annotations
-AnnotationScene::Manager::ID AnnotationScene::addAnnotation(Frame_t frameNumber, Annotation&& pose) {
-    if(auto it = _gui_annotations.find(frameNumber);
-       it != _gui_annotations.end())
+DetectAnnotationScene::Manager::ID DetectAnnotationScene::addDetectAnnotation(Frame_t frameNumber, Annotation&& pose) {
+    if(auto it = _gui_detect_annotations.find(frameNumber);
+       it != _gui_detect_annotations.end())
     {
-        _gui_annotations.erase(it);
+        _gui_detect_annotations.erase(it);
     }
-    return annotations[frameNumber].registerObject(std::move(pose));
+    return detect_annotations[frameNumber].registerObject(std::move(pose));
 }
 
-void AnnotationScene::removeAnnotation(Frame_t frameNumber, Manager::ID id) {
-    if(annotations.contains(frameNumber)) {
-        if(auto it = _gui_annotations.find(frameNumber);
-           it != _gui_annotations.end())
+void DetectAnnotationScene::removeDetectAnnotation(Frame_t frameNumber, Manager::ID id) {
+    if(detect_annotations.contains(frameNumber)) {
+        if(auto it = _gui_detect_annotations.find(frameNumber);
+           it != _gui_detect_annotations.end())
         {
-            _gui_annotations.erase(it);
+            _gui_detect_annotations.erase(it);
         }
-        annotations.at(frameNumber).unregisterObject(id);
+        detect_annotations.at(frameNumber).unregisterObject(id);
     }
 }
 
-const Annotation& AnnotationScene::getAnnotation(Frame_t frameNumber, Manager::ID id) const {
-    auto it = annotations.find(frameNumber);
-    if (it != annotations.end()) {
+const Annotation& DetectAnnotationScene::getDetectAnnotation(Frame_t frameNumber, Manager::ID id) const {
+    auto it = detect_annotations.find(frameNumber);
+    if (it != detect_annotations.end()) {
         return it->second.getObject(id);
     }
     throw InvalidArgumentException("Cannot find id ", id, " in frame ", frameNumber);
 }
 
 // Method to handle frame navigation
-void AnnotationScene::navigateToFrame(Frame_t frameIndex) {
+void DetectAnnotationScene::navigateToFrame(Frame_t frameIndex) {
     currentFrameIndex = frameIndex;
     auto it = _loaded_frames.find(frameIndex);
     if(it != _loaded_frames.end()) {
@@ -860,7 +861,7 @@ void AnnotationScene::navigateToFrame(Frame_t frameIndex) {
     }
 }
 
-std::future<Image::Ptr> AnnotationScene::retrieve_next_frame() {
+std::future<Image::Ptr> DetectAnnotationScene::retrieve_next_frame() {
     Frame_t index;
     if(_selected_frames.empty())
         throw InvalidArgumentException("No frames selected");

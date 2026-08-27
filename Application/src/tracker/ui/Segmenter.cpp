@@ -1,5 +1,6 @@
 #include "Segmenter.h"
 #include <file/DataLocation.h>
+#include <processing/Background.h>
 #include <grabber/misc/default_config.h>
 #include <file/PathArray.h>
 #include <tracking/IndividualManager.h>
@@ -7,12 +8,15 @@
 #include <python/Detection.h>
 #include <python/OverlayedVideo.h>
 #include <misc/CommandLine.h>
+#include <core/DetectionTypes.h>
 #include <core/SettingsPaths.h>
 #include <core/SettingsInitializer.h>
 #include <python/BackgroundSubtraction.h>
+#include <tracking/PPFrame.h>
 #include <tracking/Tracker.h>
 #include <ui/Export.h>
 #include <python/PrecomuptedDetection.h>
+#include <python/PipelineRegistry.h>
 #include <grabber/misc/PylonCamera.h>
 
 //#define DEBUG_TM_ITEMS
@@ -227,9 +231,29 @@ Segmenter::~Segmenter() {
     
     if(_undistort_callbacks)
         GlobalSettings::unregister_callbacks(std::move(_undistort_callbacks));
+
+    {
+        std::unique_lock guard(_mutex_general);
+        _average_terminate_requested = true;
+    }
+
+    /// The averaging task captures this and must finish before member teardown begins.
+    try {
+        stop_average_generator(true);
+    } catch(const std::exception& ex) {
+        FormatExcept("Generating the average failed during teardown: ", ex.what());
+    } catch(...) {
+        FormatExcept("Generating the average failed during teardown.");
+    }
     
-    if(auto* mgr = detect::try_current_pipeline_manager())
-        mgr->set_weight_limit(1);
+    try {
+        if(auto* mgr = detect::try_current_pipeline_manager())
+            mgr->set_weight_limit(1);
+    } catch(const std::exception& ex) {
+        FormatExcept("Detection pipeline failed during teardown: ", ex.what());
+    } catch(...) {
+        FormatExcept("Detection pipeline failed during teardown.");
+    }
 
     /// 1. step: stop generating new frames
     _generating_step.terminate_wait_blocking(_writing_step);
@@ -309,6 +333,8 @@ Segmenter::~Segmenter() {
     }
     
     _overlayed_video = nullptr;
+    
+    std::unique_lock vlock(_mutex_general);
     _output_file = nullptr;
 }
 
@@ -351,10 +377,15 @@ Image::Ptr Segmenter::finalize_bg_image(const cv::Mat& bg) {
     Image::Ptr ptr = Image::Make(_output_size.height, _output_size.width, max(1u, channels));
     _crop_offsets.apply_copy(bg, input);
     
-    if(input.channels() == 3
-        && input.cols == _output_size.width
-        && input.rows == _output_size.height
-    ) {
+    if(input.cols != _output_size.width
+       || input.rows != _output_size.height)
+    {
+        FormatWarning("Background has wrong format: ", input.cols, "x", input.rows, "x", input.channels(), " vs. ", _output_size.width, "x", _output_size.height, "x", channels);
+
+    } else if(input.channels() != 3) {
+        throw InvalidArgumentException("Background images should always be loaded and created as 3-channel images to make it possible to switch between meta_encodings later on. Was given ", input.cols, "x", input.rows, "x", input.channels(), ".");
+
+    } else if(input.channels() == 3) {
         if(meta_encoding == meta_encoding_t::r3g3b2) {
             assert(channels == 1);
             auto tmp = ptr->get();
@@ -376,17 +407,14 @@ Image::Ptr Segmenter::finalize_bg_image(const cv::Mat& bg) {
         } else {
             throw InvalidArgumentException("Invalid meta_encoding: ", meta_encoding, " to convert the background image.");
         }
-
-    } else {
-        FormatWarning("Background has wrong format: ", input.cols, "x", input.rows, "x", input.channels(), " vs. ", _output_size.width, "x", _output_size.height, "x", channels);
     }
 
     return ptr;
 }
 
 std::tuple<bool, cv::Mat> Segmenter::get_preliminary_background(Size2 size) {
-    const uint8_t channels = required_storage_channels(Background::meta_encoding());
-    cv::Mat bg = cv::Mat::zeros(_output_size_before_crop.height, _output_size_before_crop.width, CV_8UC(channels));
+    constexpr uint8_t average_channels = 3;
+    cv::Mat bg = cv::Mat::zeros(_output_size_before_crop.height, _output_size_before_crop.width, CV_8UC3);
     bg.setTo(255);
 
     bool do_generate_average { BOOL_SETTING(reset_average) };
@@ -395,15 +423,16 @@ std::tuple<bool, cv::Mat> Segmenter::get_preliminary_background(Size2 size) {
     }
     else {
         Print("Loading average from file ",average_name(),"...");
-        bg = cv::imread(average_name().str());
+        bg = cv::imread(average_name().str(), cv::IMREAD_COLOR);
 
-        /// we expect an RGB image here so we can convert to any format
-        if (bg.cols == size.width && bg.rows == size.height && bg.channels() == 3) {
+        /// External averages are always three-channel so they can be converted
+        /// to whichever storage encoding is selected for the PV.
+        if (bg.cols == size.width && bg.rows == size.height && bg.channels() == average_channels) {
             Print("Background image is valid ", size, " with RGB channels.");
             
         } else {
-            FormatWarning("Background has wrong format: ", bg.cols, "x", bg.rows, "x", bg.channels(), " vs. ", _output_size_before_crop.width, "x", _output_size_before_crop.height, "x", channels);
-            bg = cv::Mat::zeros(_output_size_before_crop.height, _output_size_before_crop.width, CV_8UC(channels));
+            FormatWarning("Background has wrong format: ", bg.cols, "x", bg.rows, "x", bg.channels(), " vs. ", _output_size_before_crop.width, "x", _output_size_before_crop.height, "x", average_channels);
+            bg = cv::Mat::zeros(_output_size_before_crop.height, _output_size_before_crop.width, CV_8UC3);
             do_generate_average = true;
         }
     }
@@ -442,12 +471,10 @@ void Segmenter::callback_after_generating(cv::Mat &bg) {
         //    _tracker->set_average(Image::Make(bg));
     }
     
+    open_output_file();
+    
     {
         std::unique_lock vlock(_mutex_general);
-        if (not _output_file) {
-            _output_file = pv::File::Make<pv::FileMode::OVERWRITE | pv::FileMode::WRITE>(_output_file_name, encoding);
-            set_metadata();
-        }
         try {
             _output_file->set_average(bg);
             
@@ -464,31 +491,96 @@ void Segmenter::callback_after_generating(cv::Mat &bg) {
     }
 }
 
+void Segmenter::open_output_file() {
+    std::unique_lock vlock(_mutex_general);
+    
+    if(_output_file) {
+        FormatWarning("Outputfile already opened when calling open_output_file.");
+        return;
+    }
+    
+    auto source_length = video_length();
+    auto range = READ_SETTING(video_conversion_range, Range<long_t>);
+    if(not source_length.valid())
+        source_length = 0_f;
+    _video_conversion_range = Range<Frame_t>{
+        range.start == -1
+            ? 0_f
+            : Frame_t(range.start),
+        range.end == -1
+            ? source_length
+            : min(source_length, Frame_t(range.end))
+    };
+    
+    const auto meta_encoding = Background::meta_encoding();
+    auto start_over = _start_over.read();
+    
+    if((not start_over
+        || not start_over.value())
+       && _output_file_name.add_extension("pv").exists())
+    {
+        try {
+            _output_file = pv::File::Make<pv::FileMode::MODIFY>(_output_file_name, meta_encoding);
+            _output_file->print_info();
+            auto &r = _output_file->header().conversion_range;
+            if(r.start) {
+                if(Frame_t(r.start.value()) != _video_conversion_range.start) {
+                    throw RuntimeError("We have different video conversion range starts (", r.start," in the pv file and ", _video_conversion_range.start, " in our settings). We will error out here to be safe.");
+                }
+            }
+            
+            if(_output_file->length() > 0_f) {
+                _output_file->reset_to_frame(_output_file->length());
+                _overlayed_video->reset_to_frame(_video_conversion_range.start + _output_file->length());
+            } else {
+                _output_file = nullptr;
+            }
+            
+        } catch(...) {
+            // probably a broken file...
+            try {
+                _output_file = nullptr;
+            } catch(...) {
+                FormatExcept("Cannot close the file properly...");
+            }
+        }
+    }
+    
+    if(not _output_file) {
+        _output_file = pv::File::Make<pv::FileMode::OVERWRITE | pv::FileMode::WRITE>(_output_file_name, meta_encoding);
+        
+        std::unique_lock vlock(_mutex_video);
+        _overlayed_video->reset_to_frame(_video_conversion_range.start);
+    }
+    
+    set_metadata();
+}
+
 void Segmenter::trigger_average_generator(bool do_generate_average, cv::Mat& bg) {
     const auto encoding = Background::meta_encoding();
-    const auto channels = required_image_channels(encoding);
+    const auto processing_channels = required_image_channels(encoding);
     
     // procrastinate on generating the average async because
     // otherwise the GUI stops responding...
     if(do_generate_average) {
         std::unique_lock guard(average_generator_mutex);
-        average_generator = std::async(std::launch::async, [this, size = _output_size_before_crop, channels]()
+        average_generator = std::async(std::launch::async, [this, size = _output_size_before_crop]()
         {
-            // Define a simple RAII helper:
             struct NotifyGuard {
                 std::mutex& mutex;
                 std::condition_variable& cv;
-                NotifyGuard(std::condition_variable& cv, std::mutex& mutex) : mutex(mutex), cv(cv) {}
-                ~NotifyGuard() {
+                NotifyGuard(std::condition_variable& cv, std::mutex& mutex)
+                    : mutex(mutex), cv(cv)
+                {}
+                ~NotifyGuard() noexcept {
                     std::unique_lock guard{mutex};
                     cv.notify_all();
-                    
-                    // in case somebody is waiting on us:
-                    Print("Average image terminated.");
                 }
             } guard(average_variable, average_generator_mutex);
             
-            cv::Mat bg = cv::Mat::zeros(size.height, size.width, CV_8UC(channels));
+            /// Keep the external average in full three-channel form. VideoSource
+            /// expands inherently grayscale inputs to three equal channels.
+            cv::Mat bg = cv::Mat::zeros(size.height, size.width, CV_8UC3);
             bg.setTo(255);
             
             try {
@@ -497,8 +589,8 @@ void Segmenter::trigger_average_generator(bool do_generate_average, cv::Mat& bg)
                 
                 VideoSource tmp(READ_SETTING(source, file::PathArray));
                 
-                /// for future purposes everything in rgb, so if the
-                /// user switches to gray later on it still works:
+                /// Keep the source average in RGB so it remains reusable for
+                /// every PV meta encoding.
                 tmp.set_colors(ImageMode::RGB);
                 tmp.generate_average(bg, 0, [&last_percent, this](float percent) {
                     if(percent > last_percent + 10
@@ -523,12 +615,6 @@ void Segmenter::trigger_average_generator(bool do_generate_average, cv::Mat& bg)
                 FormatExcept("Exception when generating the average image: ", ex.what());
             } catch(...) {
                 FormatExcept("Unknown exception when generating the average image.");
-            }
-            
-            if(Background::meta_encoding() == meta_encoding_t::r3g3b2) {
-                cv::Mat tmp;
-                convert_to_r3g3b2<3>(bg, tmp);
-                std::swap(tmp, bg);
             }
             
             Image::Ptr ptr;
@@ -571,12 +657,10 @@ void Segmenter::trigger_average_generator(bool do_generate_average, cv::Mat& bg)
             {
                 std::unique_lock guard(_mutex_tracker);
                 auto image_size = _output_size_before_crop;
-                _tracker = std::make_unique<Tracker>(Image::Make(image_size.height, image_size.width, channels), Background::meta_encoding(), READ_SETTING(meta_real_width, Float2_t));
+                _tracker = std::make_unique<Tracker>(Image::Make(image_size.height, image_size.width, processing_channels), Background::meta_encoding(), READ_SETTING(meta_real_width, Float2_t));
             }
 
-            std::unique_lock vlock(_mutex_general);
-            _output_file = pv::File::Make<pv::FileMode::OVERWRITE | pv::FileMode::WRITE>(_output_file_name, encoding);
-            set_metadata();
+            open_output_file();
         }
         
     } else {
@@ -696,19 +780,7 @@ void Segmenter::open_video() {
 
     trigger_average_generator(do_generate_average, bg);
 
-    auto range = READ_SETTING(video_conversion_range, Range<long_t>);
-    if(not source_length.valid())
-        source_length = 0_f;
-    _video_conversion_range = Range<Frame_t>{
-        range.start == -1
-            ? 0_f
-            : Frame_t(range.start),
-        range.end == -1
-            ? source_length
-            : min(source_length, Frame_t(range.end))
-    };
-
-    _overlayed_video->reset_to_frame(_video_conversion_range.start);
+    open_output_file();
 }
 
 void Segmenter::open_camera() {
@@ -722,8 +794,11 @@ void Segmenter::open_camera() {
     //const auto encoding = Background::meta_encoding();
     //const uint8_t channels = required_image_channels(encoding);
 
-    if (READ_SETTING(filename, file::Path).empty())
-        SETTING(filename) = file::DataLocation::parse("output", file::Path(file::find_basename(READ_SETTING(source, file::PathArray))));
+    if(READ_SETTING(filename, file::Path).empty()) {
+        SETTING(filename) = GlobalSettings::read([](const Configuration& config) {
+            return settings::find_output_name(config.values);
+        });
+    }
     
     if(source == file::PathArray("webcam") || use_basler) {
         //if(not CommandLine::instance().settings_keys().contains("detect_model"))
@@ -886,7 +961,10 @@ std::string date_time() {
 
 void Segmenter::start() {
     SETTING(meta_conversion_time) = std::string(date_time());
-    running_id = 0_f;
+    {
+        std::unique_lock vlock(_mutex_general);
+        running_id = _output_file->length();
+    }
     
     start_recording_ffmpeg();
 
@@ -1058,14 +1136,24 @@ void Segmenter::generator_thread() {
         Detection::manager().set_weight_limit(1);
 
         if (std::unique_lock vlock(_mutex_video);
-            _overlayed_video->eof())
+            _overlayed_video->eof() && result.error() == "EOF")
         {
 #if !defined(NDEBUG) && defined(DEBUG_TM_ITEMS)
             thread_print("TM EOF: ", result.error());
 #endif
             _writing_step.notify();
+
+            /// Reaching the source EOF does not mean that every queued
+            /// detection future has completed. Let GeneratorStep consume the
+            /// pending results first so that a late pipeline exception is
+            /// reported through error_stop instead of being masked as EOF.
+            if(_generating_step.has_data()) {
+                _generating_step.notify();
+                return;
+            }
             
-            if(_output_file && _output_file->length() == 0_f
+            if(std::unique_lock vlock(_mutex_general);
+               _output_file && _output_file->length() == 0_f
                && not _generating_step.has_data()
                && not _writing_step.has_data()
                && not _tracking_step.has_data())
@@ -1480,20 +1568,25 @@ void Segmenter::tracking_thread() {
 }
 
 void Segmenter::force_stop() {
-    Print("[shutdown-trace] Segmenter::force_stop current_frame=", _current_frame.load(),
+    /*Print("[shutdown-trace] Segmenter::force_stop current_frame=", _current_frame.load(),
           " generated=", _last_generated_frame,
           " generator_has_data=", _generating_step.has_data(),
           " writer_has_data=", _writing_step.has_data(),
-          " tracker_has_data=", _tracking_step.has_data());
+          " tracker_has_data=", _tracking_step.has_data());*/
     graceful_end();
 }
 
 void Segmenter::error_stop(std::string_view error) {
-    if(error_callback)
-		error_callback((std::string)error);
+    auto message = std::string(error);
+    auto callback = std::move(error_callback);
     error_callback = nullptr;
     eof_callback = nullptr;
     graceful_end();
+
+    /// The callback may release the last owner of this Segmenter, so it must
+    /// be the final operation that can expose completion to another thread.
+    if(callback)
+        callback(std::move(message));
 }
 
 void Segmenter::graceful_end() {

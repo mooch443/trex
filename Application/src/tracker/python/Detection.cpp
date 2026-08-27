@@ -1,6 +1,12 @@
 #include "Detection.h"
 
+#include <core/GPURecognitionTypes.h>
+#include <core/DetectionTypes.h>
+#include <core/TaskPipeline.h>
+#include <core/TileImage.h>
 #include <file/PathArray.h>
+#include <misc/Image.h>
+#include <python/BackendRegistry.h>
 #include <python/BackgroundSubtraction.h>
 #include <python/NoDetection.h>
 #include <python/PipelineRegistry.h>
@@ -121,7 +127,7 @@ double Detection::fps() {
     return AbstractBaseVideoSource::_network_fps.load();
 }
 
-std::future<SegmentationData> Detection::apply(TileImage&& tiled) {
+std::future<cmn::SegmentationData> Detection::apply(TileImage&& tiled) {
     if(tiled.promise)
         throw U_EXCEPTION("Promise was already created.");
 
@@ -184,7 +190,7 @@ void Detection::set_background(const cmn::Image::Ptr& image) {
     }
 }
 
-PipelineManager<TileImage>& Detection::manager() {
+cmn::PipelineManager<TileImage>& Detection::manager() {
     return detect::current_pipeline_manager();
 }
 

@@ -13,7 +13,8 @@
 #include <pv.h>
 #include <misc/CropOffsets.h>
 #include <core/GPURecognitionTypes.h>
-#include <core/annotation.h>
+#include <core/DetectAnnotation.h>
+#include <core/FrameTags.h>
 
 #ifndef WIN32
 #include <unistd.h>
@@ -123,8 +124,8 @@ ENUM_CLASS_DOCS(gpu_verbosity_t,
 )
 
 ENUM_CLASS_DOCS(detect_pose_bbx_t,
-    "Use the model-provided YOLO bounding boxes for pose tile duplicate matching.",
-    "Use a padded minimum-area rotated rectangle around pose keypoints for tile duplicate matching."
+    "Use model-provided bounding-box overlap for pose tile duplicate matching.",
+    "Require model-box overlap plus normalized common-joint distance for pose tile duplicate matching."
 )
 
 ENUM_CLASS_DOCS(app_update_check_t,
@@ -353,7 +354,8 @@ static inline const Deprecations deprecated = Deprecations({
         {"categories_min_sample_images", "categories_apply_min_tracklet_length"},
         {"enable_live_tracking", ""},
         {"export_visual_fields", "output_visual_fields"},
-        {"output_image_per_tracklet", "output_tracklet_images"}
+        {"output_image_per_tracklet", "output_tracklet_images"},
+        {"track_annotations", "track_detect_annotations"}
 });
 
 /**
@@ -717,7 +719,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("ffmpeg_path", file::Path(), "Path to an ffmpeg executable file. This is used for converting videos after recording them (from the GUI). It is not a critical component of the software, but mostly for convenience.");
         CONFIG("blobs_per_thread", 150.f, "Number of blobs for which properties will be calculated per thread.");
         CONFIG("history_matching_log", file::Path(), "If this is set to a valid html file path, a detailed matching history log will be written to the given file for each frame.");
-        CONFIG("filename", Path(""), "The converted video file (.pv file) or target for video conversion. Typically it would have the same basename as the video source (i.e. an MP4 file), but a different extension: pv.", LOAD);
+        CONFIG("filename", Path(""), "The converted video file (.pv file) or target for video conversion. A basename is placed below `output_dir` / `output_prefix`. In the GUI, directory components in a relative value are removed; a headless run rejects such a value. An absolute value selects its exact destination and overrides `output_dir` and `output_prefix`.", LOAD);
         CONFIG("source", file::PathArray(), "This is the (video) source for the current session. Typically this would point to the original video source of `filename`.", LOAD);
         CONFIG("output_dir", Path(""), "Default output-/input-directory. Change this in order to omit paths in front of filenames for open and save.", INIT);
         CONFIG("data_prefix", Path("data"), "Subfolder (below `output_dir`) where the exported NPZ or CSV files will be saved (see `output_fields`).");
@@ -777,7 +779,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
          * Siccardi AJ, Garris HW, Jones WT, Moseley DB, D’Abramo LR, Watts SA. Growth and Survival of Zebrafish (Danio rerio) Fed Different Commercial and Laboratory Diets. Zebrafish. 2009;6(3):275-280. doi:10.1089/zeb.2008.0553.
          */
         CONFIG("meta_mass_mg", float(200), "Used for exporting event-energy levels.");
-        CONFIG("nowindow", false, "If set to true, no GUI will be created on startup (e.g. when starting from SSH).", STARTUP);
+        CONFIG("nowindow", false, "Prevents TRex from creating a GUI. This is a startup-only command-line option, for example `trex -i video.pv -nowindow`. A `nowindow` value in a `.settings` file is intentionally ignored so that opening a saved configuration cannot unexpectedly suppress the GUI.", STARTUP);
         CONFIG("track_background_subtraction", false, "If enabled, objects in .pv videos will first be contrasted against the background before thresholding (background_colors - object_colors). `track_threshold_is_absolute` then decides whether this term is evaluated in an absolute or signed manner.");
         CONFIG("use_differences", false, "This should be set to false unless when using really old files.");
         //config["debug_probabilities"] = false;
@@ -795,6 +797,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("gui_max_path_time", float(3), "Length (in time) of the trails shown in GUI.");
         
         CONFIG("gui_draw_only_filtered_out", false, "Only show filtered out blob texts.");
+        CONFIG("gui_show_tiles", false, "If enabled, the gui will show red lines representing the tiles used during detection (if e.g. `detect_tile_target_width` is set). The visuals will depend on the current setting - i.e. how it would tile the image if the conversion were to be run again under the current settings.");
         CONFIG("gui_show_timeline", true, "If enabled, the timeline (top of the screen) will be shown in the tracking view.");
         CONFIG("gui_show_fish", std::tuple<pv::bid, Frame_t>{pv::bid::invalid, Frame_t()}, "Show debug output for {blob_id, fish_id}.");
         CONFIG("gui_source_video_frame", Frame_t(0u), "Best information the system has on which frame index in the original video the given `gui_frame` corresponds to (integrated into the pv file starting from V_9).", SYSTEM);
@@ -846,6 +849,8 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("gui_show_histograms", false, "Equivalent to the checkbox visible in GUI on the bottom-left.");
         CONFIG("gui_show_posture", false, "Show/hide the posture window on the top-right.");
         CONFIG("gui_show_export_options", false, "Show/hide the export options widget.");
+        CONFIG("gui_show_annotation_export_options", false, "Show/hide the annotation dataset export widget.");
+        CONFIG("gui_show_detect_annotation_import_options", false, "Show/hide the detect-annotation dataset import widget.");
         CONFIG("gui_show_visualfield_ts", false, "Show/hide the visual field time series.");
         CONFIG("gui_show_visualfield", false, "Show/hide the visual field rays.");
         CONFIG("gui_show_uniqueness", false, "Show/hide uniqueness overview after training.");
@@ -905,19 +910,24 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("track_ignore_bdx", std::map<Frame_t, std::set<pv::bid>>{}, "This is a map of frame -> [bdx0, bdx1, ...] of blob ids that are specifically set to be ignored in the given frame. Can be reached using the GUI by clicking on a blob in raw mode.");
         
         using namespace track;
-        AnnotationMap annotation_example = AnnotationMap::fromStr("{100:[[0,1,[[100,120],[200,300],[350,400]]]]}");
-        CONFIG("track_annotations", track::AnnotationMap{}, "This is a map of {frame:[[clid,type,[points...]],...]} that can be used to export annotations per frame. These can be added in the graphical user interface by CMD+clicking on the video and selecting 'add annotation'.", PUBLIC, {std::move(annotation_example)});
+        detect::AnnotationMap annotation_example = detect::AnnotationMap::fromStr("{100:[[0,1,[[100,120],[200,300],[350,400]]]]}");
+        CONFIG("track_detect_annotations", detect::AnnotationMap{}, "This is a map of `{frame:[[clid,type,[points...]],...]}` containing detect annotations that can be exported per frame. These can be added in the graphical user interface by CMD+clicking on the video and selecting 'add annotation'.", PUBLIC, {std::move(annotation_example)});
+        
+        FrameTags tags{
+            {123_f, std::set<FrameTag>{FrameTag("blue"), FrameTag("green")}}
+        };
+        CONFIG("track_frame_tags", track::FrameTags{}, "This is a map of `{frame:[tag1,...],frame2:...}` ", PUBLIC, {std::move(tags)});
         
         CONFIG("match_mode", matching_mode_t::automatic, "Changes the default algorithm to be used for matching blobs in one frame with blobs in the next frame. The accurate algorithm performs best, but also scales less well for more individuals than the approximate one. However, if it is too slow (temporarily) in a few frames, the program falls back to using the approximate one that doesnt slow down.");
         CONFIG("match_min_probability", float(0.1), "The probability below which a possible connection between blob and identity is considered too low. The probability depends largely upon settings like `track_max_speed`.");
         CONFIG("match_topk", std::optional<uint8_t>(), "If not null, the matching algorithm will consider only the top k elements with the highest probability.", PUBLIC, {std::optional<uint8_t>{5}});
-        CONFIG("track_do_history_split", true, "If disabled, blobs will not be split automatically in order to separate overlapping individuals. This usually happens based on their history.");
-        CONFIG("track_history_split_threshold", Frame_t(), "If this is greater than 0, then individuals with tracklets < this threshold will not be considered for the splitting algorithm. That means that objects have to be detected for at least `N` frames in a row to play a role in history splitting.");
+        CONFIG("track_do_history_split", true, "Uses established individual histories to estimate how many individuals overlap in a blob and split it accordingly. Disable this to prevent automatic history-based splitting.");
+        CONFIG("track_history_split_threshold", Frame_t(), "Histories shorter than this number of consecutive frames are ignored when deciding how many individuals an overlapping blob should contain. If unset, all available histories may contribute. Essentially means that objects have to be detected for at least `N` frames consecutively to be considered a real object.");
         CONFIG("tracklet_punish_speeding", true, "Sometimes individuals might be assigned to blobs that are far away from the previous position. This could indicate wrong assignments, but not necessarily. If this variable is set to true, tracklets will end whenever high speeds are reached, just to be on the safe side. For scenarios with lots of individuals (and no recognition) this might spam yellow bars in the timeline and may be disabled.");
         CONFIG("track_consistent_categories", false, "Utilise categories (if present) when tracking. This may break trajectories in places with imperfect categorization, but only applies once categories have been applied.");
         CONFIG("track_max_individuals", uint32_t(1024), "The maximal number of individual that are assigned at the same time (infinite if set to zero). If the given number is below the actual number of individual, then only a (random) subset of individual are assigned and a warning is shown.");
-        CONFIG("detect_size_filter", SizeFilters(), "During the detection phase, objects outside this size range will be filtered out. If empty, no objects will be filtered out.");
-        CONFIG("track_size_filter", SizeFilters(), "Blobs below the lower bound are recognized as noise instead of individuals. Blobs bigger than the upper bound are considered to potentially contain more than one individual. You can look these values up by pressing `D` in TRex to get to the raw view (see `https://trex.run/docs/gui.html` for details). The unit is #pixels * (cm/px)^2. `cm_per_pixel` is used for this conversion.");
+        CONFIG("detect_size_filter", SizeFilters(), "During video conversion, detections whose effective area (`num_pixels * cm_per_pixel^2`) falls outside this range are discarded and are not stored in the PV file. If empty, no detections are filtered by size. Reconversion is required to recover detections rejected here.");
+        CONFIG("track_size_filter", SizeFilters(), "During tracking, a blob's effective area is `num_pixels * cm_per_pixel^2`. Objects below the lower bound are recognized as noise; blobs above the upper bound are candidates for splitting. Press `D` to inspect blobs in RAW view, where filtered blob labels show the rejection reason in brackets.");
         CONFIG("blob_split_max_shrink", float(0.2), "The minimum percentage of the starting blob size (after thresholding), that a blob is allowed to be reduced to during splitting. If this value is set too low, the program might start recognizing parts of individual as other individual too quickly.");
         CONFIG("blob_split_global_shrink_limit", float(0.2), "The minimum percentage of the minimum in `track_size_filter`, that a blob is allowed to be reduced to during splitting. If this value is set too low, the program might start recognizing parts of individual as other individual too quickly.");
         CONFIG("blob_split_algorithm", blob_split_algorithm_t::threshold, "The default splitting algorithm used to split objects that are too close together.");
@@ -932,9 +942,9 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("auto_number_individuals", false, "Program will automatically try to find the number of individuals (with sizes given in `track_size_filter`) and set `track_max_individuals` to that value.");
         
         CONFIG("track_speed_decay", float(1.0), "The amount the expected speed is reduced over time when an individual is lost. When individuals collide, depending on the expected behavior for the given species, one should choose different values for this variable. If the individuals usually stop when they collide, this should be set to 1. If the individuals are expected to move over one another, the value should be set to `0.7 > value > 0`.");
-        CONFIG("track_max_speed", Float2_t(0), "The maximum speed an individual can have (=> the maximum distance an individual can travel within one second) in cm/s. Uses and is influenced by `meta_real_width` and `cm_per_pixel` as follows: `speed(px/s) * cm_per_pixel(cm/px) -> cm/s`.");
+        CONFIG("track_max_speed", Float2_t(0), "The maximum speed an individual can have (=> the maximum distance an individual can travel within one second) in cm/s. Exceeding this distance limit can prevent assignment or end a tracklet. Conversion uses `speed(px/s) * cm_per_pixel(cm/px) -> cm/s`. Changing `cm_per_pixel` directly influences what this value means (and is thus normally auto-adjusted in the graphical interface).");
         CONFIG("posture_direction_smoothing", uint16_t(0), "Enables or disables smoothing of the posture orientation based on previous frames (not good for fast turns).");
-        CONFIG("track_threshold", int(0), "Constant used in background subtraction. Pixels with grey values above this threshold will be interpreted as potential individuals, while pixels below this threshold will be ignored.");
+        CONFIG("track_threshold", int(0), "Constant used in background subtraction. Pixels with grey values above this threshold will be interpreted as potential individuals, while pixels below this threshold will be ignored. The base parameter default is 0; when a new background-subtraction configuration is initialized, TRex uses a default of 15.");
         CONFIG("threshold_ratio_range", Rangef(0.5, 1.0), "If `track_threshold_2` is not equal to zero, this ratio will be multiplied by the number of pixels present before the second threshold. If the resulting size falls within the given range, the blob is deemed okay.");
         CONFIG("track_threshold_2", int(0), "If not zero, a second threshold will be applied to all objects after they have been deemed do be theoretically large enough. Then they are compared to #before_pixels * `threshold_ratio_range` to see how much they have been shrunk).");
         CONFIG("track_posture_threshold", int(0), "Same as `track_threshold`, but for posture estimation.");
@@ -1046,10 +1056,10 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("analysis_range", Range<long_t>(-1, -1), "Sets start and end of the analysed frames.");
         CONFIG("output_min_frames", uint16_t(1), "Filters all individual with less than N frames when exporting. Individuals with fewer than N frames will also be hidden in the GUI unless `gui_show_inactive_individuals` is enabled (default).");
         CONFIG("output_interpolate_positions", bool(false), "If turned on this function will linearly interpolate X/Y, and SPEED values, for all frames in which an individual is missing.");
-        CONFIG("output_prefix", std::string(), "If this is not empty, all output files will go into `output_dir` / `output_prefix` / ... instead of just into `output_dir`. The output directory is usually the folder where the video is, unless set to a different folder by you.");
+        CONFIG("output_prefix", std::string(), "If this is not empty, all output files will go into `output_dir` / `output_prefix` / ... instead of just into `output_dir`. The output directory is usually the folder where the video is, unless set to a different folder by you. An explicit absolute `filename` overrides this value.");
         CONFIG("output_auto_pose", true, "If this is set to false, then no poseX[n] and poseY[n] fields will automatically be added to the `output_fields` based on what the keypoint model reports. You can still manually add them if you like.");
         CONFIG("output_auto_detection_fields", true, "If set to true then this will automatically add fields like `detection_p` to the output files saved by TRex. You can also set this to false and add them manually if you like.");
-        CONFIG("output_fields", output_fields, "The functions that will be exported when saving to CSV, or shown in the graph. `[['X',[option], ...]]`");
+        CONFIG("output_fields", output_fields, "The functions that will be exported when saving to CSV or NPZ, or shown in the graph. `[['X',[option], ...]]` Exact duplicate field, modifier, and calculation selections are used once; modifier order does not make an otherwise identical selection distinct. CSV always contains exactly one leading `frame` column, regardless of whether `frame` is listed here. NPZ contains one `frame` array when it is configured.");
         CONFIG("tracklet_force_normal_color", true, "If set to true (default) then all images are saved as they appear in the original video. Otherwise, all images are exported according to the individual image settings (as seen in the image settings when an individual is selected) - in which case the background may have been subtracted from the original image and a threshold may have been applied (if `track_threshold` > 0 and `track_background_subtraction` is true).");
         CONFIG("tracklet_max_images", uint16_t(0), "This limits the maximum number of images that are being exported per tracklet given that `output_tracklet_images` is true. If the number is 0 (default), then every image will be exported. Otherwise, only a uniformly sampled subset of N images will be exported.");
         CONFIG("tracklet_normalize", true, "If enabled, all exported tracklet images are normalized according to the `individual_image_normalization` and padded / shrunk to `individual_image_size` (they appear as they do in the image preview when selecting an individual in the GUI).");
@@ -1108,14 +1118,20 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("detect_format", track::detect::ObjectDetectionFormat::none, "The type of data returned by the `detect_model`, which can be an instance segmentation", AccessLevelType::INIT);
         CONFIG("detect_keypoint_format", track::detect::KeypointFormat{}, "When a keypoint (pose) type model is loaded, this variable will be set to [n_points,n_dims].", AccessLevelType::INIT, {track::detect::KeypointFormat{.n_points = 17, .n_dims = 2}});
         CONFIG("detect_keypoint_names", track::detect::KeypointNames{}, "An array of names in the correct keypoint index order for the given model.", AccessLevelType::INIT, {track::detect::KeypointNames{.names = std::vector<std::string>{"nose", "left_eye", "right_eye", "left_ear", "right_ear"}}});
-        CONFIG("detect_pose_bbx", detect_pose_bbx_t::keypoints, "Bounding-box geometry used for pose tile duplicate matching. `yolo` uses model boxes; `keypoints` uses padded minimum-area rotated rectangles around keypoints.");
+        CONFIG("detect_pose_bbx", detect_pose_bbx_t::keypoints, "Pose tile duplicate matching mode. `yolo` uses model-box overlap only; `keypoints` additionally requires common joints to satisfy `detect_tile_pose_match_distance`.");
         CONFIG("detect_point_radii", std::map<int, float>{}, "An array of radii for a given point class in a POLO network.", PUBLIC, {std::map<int, float>{{0, 3.f}, {1, 2.5f}}});
         CONFIG("detect_batch_size", uchar(1), "The batching size for object detection.");
-        CONFIG("detect_tile_image", uchar(0), "Legacy tile multiplier for SAHI detection. If > 1, this will tile the input image into that many multiples of `detect_resolution`. Retained for backwards compatibility; prefer `detect_tile_target_width`.");
-        CONFIG("detect_tile_target_width", uint16_t(0), "Desired horizontal resolution (in pixels) used when preparing tiles for SAHI detection. We derive the number of tiles from this width; set to 0 to disable or fall back to `detect_tile_image`.");
-        CONFIG("detect_tile_overlap", float(0.f), "Relative overlap (0-0.95) between adjacent tiles when tiling detection inputs. Enables SAHI-style inference without losing objects on tile borders.");
-        CONFIG("detect_tile_merge_iou", Float2_t(0.55f), "IoU threshold used by representative NMS fallback paths after SAHI tiling.");
-        CONFIG("detect_tile_merge_containment", Float2_t(0.5f), "IOS threshold (intersection over smaller box area) used by SAHI-style GreedyNMM tile prediction merging.");
+        CONFIG("detect_tile_image", uchar(0), "Legacy tile multiplier for TRex-owned SAHI-style detection. If > 1, this will tile the input image into that many multiples of `detect_resolution`. Retained for backwards compatibility; prefer `detect_tile_target_width`.");
+        CONFIG("detect_tile_target_width", uint16_t(0), "Width and height of each square detector tile in pixels. TRex chooses how many tiles are needed to cover the frame. Set this to 0 to use `detect_tile_image`, or to disable tiling when `detect_tile_image` is also disabled. If the frame is shorter than a tile on one axis, that axis is padded. If the entire frame is smaller than one tile, the frame is resized to the tile size.");
+        CONFIG("detect_tile_overlap", float(0.f), "Relative overlap (0-0.95) between adjacent detector tiles. Exactly 0 disables all TRex-owned SAHI-style cross-tile filtering and fusion while retaining tiling.");
+        CONFIG("detect_tile_merge_iou", Float2_t(0.55f), "Mode-native overlap threshold for same-class predictions from different overlapping tiles. Lower values merge more aggressively.");
+        CONFIG("detect_tile_merge_containment", Float2_t(0.5f), "Intersection-over-smaller-area fallback threshold for same-class predictions from different overlapping tiles. Lower values merge more aggressively.");
+        CONFIG("detect_tile_pose_match_distance", Float2_t(0.5f), "Maximum median common-joint distance, normalized by the smaller model-box diagonal, when `detect_pose_bbx=keypoints`.");
+        CONFIG("detect_mask_postprocess_mode", MaskPostprocessMode::none, "Optional same-class mask-overlap handling after tile aggregation. `none` preserves the rows, `greedy_nms` suppresses eligible overlapping masks, and `merge_masks` unions transitively overlapping masks.");
+        CONFIG("detect_mask_postprocess_iou", Float2_t(0.5f), "Mask intersection-over-union threshold used to associate same-class predictions during the optional mask postprocess pass. Lower values associate masks more aggressively.");
+        CONFIG("detect_mask_postprocess_containment", std::optional<Float2_t>{}, "Optional intersection-over-smaller-mask-area threshold used alongside `detect_mask_postprocess_iou`. Unset disables containment-based association.");
+        CONFIG("yolo_instance_mask_closing", uint8_t(0), "Closing radius, in mask pixels, applied to each binarized YOLO instance mask before cropping. The closing kernel size is `2 * radius + 1`; zero disables closing. When `yolo_instance_mask_expand` is enabled, crop bounds are calculated from the closed mask so added positive pixels are retained.");
+        CONFIG("yolo_instance_mask_expand", false, "Expand each YOLO instance mask's bounding box to enclose all positive mask pixels before cropping. This changes the crop bounds, not the mask pixels. Expanded predictions may overlap; setting `detect_mask_postprocess_mode` to `merge_masks` can combine eligible same-class overlaps.");
         
         std::optional<track::detect::Sam3Prompts> example_prompts = track::detect::Sam3Prompts{{
             {Frame_t{}, track::detect::Sam3PromptList{track::detect::Sam3PromptPayload::fromStr("shark")}}
@@ -1123,14 +1139,21 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("detect_sam3_prompt", std::optional<track::detect::Sam3Prompts>{}, "Frame-indexed SAM3 prompt repository. C++ resolves this map into per-image prompt arrays before dispatching batches to the Python SAM3 adapter.", PUBLIC, {std::move(example_prompts)});
         CONFIG("yolo_tracking_enabled", false, "If set to true, the program will try to use yolov8s internal tracking routine to improve results. This can be significantly slower and disables batching.");
         CONFIG("yolo_region_tracking_enabled", false, "If set to true, the program will try to use yolov8s internal tracking routine to improve results for region tracking. This can be significantly slower and disables batching.");
-        CONFIG("detect_model", file::Path(), "The path to a .pt file that contains a valid PyTorch object detection model (currently only YOLO networks are supported).");
+        CONFIG("detect_model", file::Path(), "The path to a .pt or .pth file that contains a supported PyTorch object detection model (such as YOLO or RF-DETR).");
         CONFIG("detect_precomputed_file", file::PathArray{}, "If `detect_type` is set to `precomputed`, this should point to a csv file (or npz files) containing the necessary tracking data for the given `source` video.");
         CONFIG("detect_only_classes", track::detect::PredictionFilter{}, "An array of class ids that you would like to detect (as returned from the model). If left empty, no class will be filtered out.", PUBLIC, {track::detect::PredictionFilter{.detect_only = {0, 1}, ._inverted_from = std::nullopt}});
-        CONFIG("region_model", file::Path(), "The path to a .pt file that contains a valid PyTorch object detection model used for region proposal (currently only YOLO networks are supported).");
+        CONFIG("region_model", file::Path(), "The path to a .pt or .pth file that contains a supported PyTorch object detection model used for region proposal (at the moment only YOLO).");
         CONFIG("region_resolution", track::detect::DetectResolution{}, "The resolution of the region proposal network (`region_model`).", SYSTEM, {track::detect::DetectResolution{640, 640}});
         CONFIG("detect_resolution", track::detect::DetectResolution{}, "The input resolution of the object detection model (`detect_model`).", SYSTEM, {track::detect::DetectResolution{640, 640}});
-        CONFIG("detect_iou_threshold", std::optional<Float2_t>{}, "Optional IoU threshold override for object detection / segmentation networks. If unset, TRex preserves the upstream model's default postprocessing behaviour. If set, TRex forwards the IoU threshold explicitly and may disable end-to-end NMS-free inference so the override can affect the outcome.");
+        CONFIG("detect_requires_exact_input_size", false, "Whether C++ must prepare detector images at exactly `detect_resolution` rather than preserving the source aspect ratio. Set from loaded model metadata.", SYSTEM);
+        CONFIG("detect_iou_threshold", std::optional<Float2_t>{0.5_F}, "Optional IoU threshold override for object detection / segmentation networks. If unset, TRex preserves the upstream model's default postprocessing behaviour. If set, TRex forwards the IoU threshold explicitly and may disable end-to-end NMS-free inference so the override can affect the outcome.");
         CONFIG("detect_conf_threshold", Float2_t(0.1), "Confidence threshold (`0<=value<1`) for object detection / segmentation networks. Confidence is higher if the network is more *sure* about the object. Anything with a confidence level below `detect_conf_threshold` will not be considered an object and not saved to the PV file during conversion.");
+        CONFIG("detect_keypoint_threshold", Float2_t(0.1), "For pose models that provide a confidence value for each keypoint, points below this value are treated as missing. This is separate from `detect_conf_threshold`, which filters whole detections.");
+        CONFIG("detect_try_optimize_model", true, "If enabled, loaded detection models may try their backend-specific high-performance inference optimization. Each model receives this value as `ModelConfig.try_optimize` and decides how to use it. Changing it requires reloading the model.");
+
+        CONFIG("track_behavior_window", uchar(50), "A window (in frames) around any annotated localized behavior that will be exported alongside the actually labeled frame. Surrounding labels ranges might be merged.");
+        CONFIG("track_behavior_window_step", uchar(0), "If 0 or 1, every frame of an individual is extracted and included in the exported dataset. Values > 1 will skip frames surrounding the labeled frame(s) in order to decrease dataset complexity.");
+
         CONFIG("gpu_min_iterations", uchar(100), "Minimum number of iterations per epoch for training a recognition network.");
         CONFIG("gpu_max_cache", float(2), "Size of the image cache (transferring to GPU) in GigaBytes when applying the network.");
         CONFIG("gpu_max_sample_gb", float(2), "Maximum size of per-individual sample images in GigaBytes. If the collected images are too many, they will be sub-sampled in regular intervals.");
@@ -1222,6 +1245,9 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             "gui_zoom_polygon",
             "gui_displayed_frame",
             "gui_source_video_frame",
+            "gui_show_annotation_export_options",
+            "gui_show_detect_annotation_import_options",
+            "gui_show_export_options",
             "gui_run",
             //"settings_file",
             "nowindow",
@@ -1267,8 +1293,10 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             "merge_overlapping_blobs",
             "merge_mode",
             "exec",
-            
-            "gpu_torch_no_fixes"
+
+            "gpu_torch_no_fixes",
+
+            //"video_conversion_range"
         };
         
         std::set<std::string_view> explicitly_include{
@@ -1283,7 +1311,8 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         };
         
         if(auto type = READ_SETTING(detect_type, track::detect::ObjectDetectionType_t);
-           type == track::detect::ObjectDetectionType::yolo)
+           type == track::detect::ObjectDetectionType::yolo
+           || READ_SETTING_WITH_DEFAULT(track_detect_annotations, track::detect::AnnotationMap{}))
         {
             explicitly_include.emplace("detect_classes");
             explicitly_include.emplace("detect_format");
@@ -1309,6 +1338,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             exclude_fields.push_back("detect_iou_threshold");
             exclude_fields.push_back("detect_skeleton");
             exclude_fields.push_back("detect_conf_threshold");
+            exclude_fields.push_back("detect_keypoint_threshold");
             exclude_fields.push_back("detect_model");
             exclude_fields.push_back("detect_format");
             exclude_fields.push_back("detect_classes");
@@ -1392,6 +1422,8 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
                        && !contains(additional_exclusions, key)))
                 {
                     result[key] = &value.get();
+                    //if(explicitly_include.contains(key))
+                        //Print("// saving ", key, " explicitly");
                 } else {
                     //Print("// ",key," not part of delta");
                 }
@@ -1507,9 +1539,9 @@ inline bool isRunningInAppBundle() {
                 return filename;
             }
             
-            auto path = map.at("wd").value<file::Path>();
+            auto path = map.has("wd") ? map.at("wd").value<file::Path>() : file::Path{};
             if(path.empty()) {
-                auto d = map.at("output_dir").value<file::Path>();
+                auto d = map.has("output_dir") ? map.at("output_dir").value<file::Path>() : file::Path{};
                 if(d.empty())
                     return filename;
                 else
@@ -1523,15 +1555,21 @@ inline bool isRunningInAppBundle() {
             if(filename.empty())
                 return {};
             
-            auto prefix = map.at("output_prefix").value<std::string>();
-            auto output_path = map.at("output_dir").value<file::Path>();
+            auto prefix = map.has("output_prefix")
+                            ? map.at("output_prefix").value<std::string>()
+                            : std::string{};
+            auto output_path = map.has("output_dir")
+                            ? map.at("output_dir").value<file::Path>()
+                            : file::Path{};
             auto absolute = filename.is_absolute();
             
             if(output_path.empty()) {
-                auto source = map.at("source").value<file::PathArray>();
+                auto source = map.has("source")
+                            ? map.at("source").value<file::PathArray>()
+                            : file::PathArray{};
                 auto base = file::find_parent(source);
                 if(not base) {
-                    output_path = map.at("wd").value<file::Path>();
+                    output_path = map.has("wd") ? map.at("wd").value<file::Path>() : file::Path{};
                 } else {
                     output_path = base.value();
                 }
@@ -1546,8 +1584,11 @@ inline bool isRunningInAppBundle() {
                 } else {
                     /// QUESTIONABLE: we might want to include / and \ again, but
                     /// right now this is turning it into /webcam a lot of the time.
-                    if(not is_in(map.at("wd").value<file::Path>(), "", "/", "\\"))
-                        filename = map.at("wd").value<file::Path>() / filename;
+                    if(auto wd = map.has("wd") ? map.at("wd").value<file::Path>() : file::Path{};
+                       not is_in(wd, "", "/", "\\"))
+                    {
+                        filename = wd / filename;
+                    }
                 }
                 
             } else if(not filename.has_extension("pv")) {

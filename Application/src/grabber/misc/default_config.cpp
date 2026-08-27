@@ -31,7 +31,7 @@ using namespace cmn::file;
 namespace default_config {
 
     static const std::map<std::string, std::string> deprecated = {
-        {"fish_minmax_size", "blob_size_range"},
+        {"fish_minmax_size", "detect_size_filter"},
         {"use_dilation", "dilation_size"},
         {"threshold_constant", "detect_threshold"},
         {"threshold", "detect_threshold"},
@@ -89,7 +89,6 @@ namespace default_config {
         CONFIG("system_memory_limit", uint64_t(0), "Custom override of how many bytes of system RAM the program is allowed to fill. If `approximate_length_minutes` or `stop_after_minutes` are set, this might help to increase the resulting RAW video footage frame_rate.");
         
         CONFIG("frame_rate", uint32_t(0), "Frame rate of the video will be set according to `cam_framerate` or, for video conversion, the metadata of a given video. If you want to modify your frame rate, please set either `cam_framerate` or `frame_rate` during conversion.", LOAD);
-        CONFIG("blob_size_range", Rangef(0.01f, 500000.f), "Minimum or maximum size of the individuals on screen after thresholding. Anything smaller or bigger than these values will be disregarded as noise.");
         //CONFIG("crop_window", false, "If set to true, the grabber will open a window before the analysis starts where the user can drag+drop points defining the crop_offsets.");
         
         CONFIG("approximate_length_minutes", uint32_t(0), "If available, please provide the approximate length of the video in minutes here, so that the encoding strategy can be chosen intelligently. If set to 0, infinity is assumed. This setting is overwritten by `stop_after_minutes`.");
@@ -102,7 +101,7 @@ namespace default_config {
         CONFIG("save_raw_movie", false, "Saves a RAW movie (.mov) with a similar name in the same folder, while also recording to a PV file. This might reduce the maximum framerate slightly, but it gives you the best of both worlds.", INIT);
         CONFIG("save_raw_movie_path", file::Path(), "The path to the raw movie file. If empty, the same path as the PV file will be used (but as a .mov).", INIT);
         
-        CONFIG("video_conversion_range", Range<long_t>(-1, -1), "This determines which part of the video will be converted. By default (`[-1,-1]`) the entire video will be converted. If set to a valid value (not -1), start and end values determine the range converted (each one can be valid independently of the other).", INIT);
+        CONFIG("video_conversion_range", Range<long_t>(-1, -1), "This determines which part of the video will be converted. By default (`[-1,-1]`) the entire video will be converted. If set to a valid value (not -1), start and end values determine the range converted (each one can be valid independently of the other). Both bounds are inclusive when they fall within the source, so `[0,80]` converts 81 source frames.", INIT);
         
         CONFIG("output_dir", Path(""), "Default output-/input-directory. Change this in order to omit paths in front of filenames for open and save.", INIT);
         CONFIG("output_prefix", std::string(), "A prefix that is added as a folder between `output_dir` and any subsequent filenames (`output_dir`/`output_prefix`/[filename]) or omitted if empty (default).", INIT);
@@ -130,7 +129,7 @@ namespace default_config {
         CONFIG("quit_after_average", false, "If set to true, this will terminate the program directly after generating (or loading) a background average image.", STARTUP);
         CONFIG("averaging_method", averaging_method_t::mean, "Determines the way in which the background samples are combined. The background generated in the process will be used to subtract background from foreground objects during conversion.");
         CONFIG("average_samples", uint32_t(25), "Number of samples taken to generate an average image. Usually fewer are necessary for `averaging_method`'s max, and min.");
-        CONFIG("reset_average", false, "If set to true, the average will be regenerated using the live stream of images (video or camera).");
+        CONFIG("reset_average", false, "If set to true, the average will be regenerated in the mode selected in `averaging_method`. You should set this to true when changing the averaging method. The generated average image will be saved to `average_<videoname>.png` in the same folder as the output video file.", STARTUP);
         CONFIG("solid_background_color", uchar(255), "A greyscale value in case `enable_difference` is set to false - TGrabs will automatically generate a background image with the given color.");
         CONFIG("video_size", Size2(-1,-1), "Is set to the dimensions of the resulting image.", LOAD);
         CONFIG("cam_resolution", Size2(-1, -1), "Defines the dimensions of the camera image.", LOAD);

@@ -1,5 +1,8 @@
 #include "DrawFish.h"
 #include <gui/DrawSFBase.h>
+#include <core/Border.h>
+#include <misc/Image.h>
+#include <misc/ThreadPool.h>
 #include <tracking/OutputLibrary.h>
 #include <tracking/Individual.h>
 #include <tracking/VisualField.h>
@@ -11,7 +14,6 @@
 #include <gui/DrawBase.h>
 #include <tracking/DetectTag.h>
 #include <ui/GUICache.h>
-//#include <gui.h>
 #include <core/IdentifiedTag.h>
 #include <ui/Skelett.h>
 #include <tracking/Individual.h>
@@ -1257,7 +1259,7 @@ void Fish::selection_clicked(Event) {
 }
     
     void Fish::update(const FindCoord& coord, Entangled& parent, DrawStructure &graph) {
-        _tight_selection.set_clickable(not graph.is_key_pressed(Codes::LSystem));
+        _tight_selection.set_clickable(not graph.is_system_pressed());
         
         //const auto frame_rate = slow::frame_rate;//FAST_SETTING(frame_rate);
         //const float track_max_reassign_time = FAST_SETTING(track_max_reassign_time);
@@ -2272,11 +2274,11 @@ Drawable* Fish::shadow() {
     
     if(OPTION(gui_highlight_categories)) {
         if(_avg_cat.has_value()) {
-            children.emplace_back(Layout::Make<Circle>(
+            children.emplace_back(Layout::Make<Circle>{
                   Loc(_view.pos() + _view.size() * 0.5),
                   Radius{_view.size().length()},
                   LineClr{Transparent},
-                  FillClr{ColorWheel(_avg_cat.value()).next().alpha(75)}));
+                  FillClr{ColorWheel(_avg_cat.value()).next().alpha(75)}});
         } else {
             /*e.add<Circle>(Loc(_view.pos() + _view.size() * 0.5),
                           Radius{_view.size().length()},
@@ -2286,11 +2288,11 @@ Drawable* Fish::shadow() {
     }
     
     if(OPTION(gui_show_match_modes)) {
-        children.emplace_back(Layout::Make<Circle>(
+        children.emplace_back(Layout::Make<Circle>{
               Loc(_view.pos() + _view.size() * 0.5),
               Radius{_view.size().length()},
               LineClr{Transparent},
-              FillClr{ColorWheel(_match_mode.has_value() ? (int)_match_mode.value().value() : -1).next().alpha(50)}));
+              FillClr{ColorWheel(_match_mode.has_value() ? (int)_match_mode.value().value() : -1).next().alpha(50)}});
     }
     
     //auto bdx = blob->blob_id();
@@ -2298,11 +2300,11 @@ Drawable* Fish::shadow() {
         uint32_t i=0;
         for(auto &clique : GUICache::instance()._cliques) {
             if(clique.fishs.contains(_id.ID())) {
-                children.emplace_back(Layout::Make<Circle>(
+                children.emplace_back(Layout::Make<Circle>{
                       Loc(_view.pos() + _view.size() * 0.5),
                       Radius{_view.size().length()},
                       LineClr{Transparent},
-                      FillClr{ColorWheel(i).next().alpha(50)}));
+                      FillClr{ColorWheel(i).next().alpha(50)}});
                 break;
             }
             ++i;

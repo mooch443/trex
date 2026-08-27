@@ -577,7 +577,8 @@ void configure_runtime(
     void* instance,
     void* tile_buffers,
     std::function<void(const std::string&, const cv::Mat&)> show_fn,
-    std::function<void()> close_fn
+    std::function<void()> close_fn,
+    std::function<void(const std::string&)> warning_fn
 ) {
     GlobalSettings::instance(settings);
     file::DataLocation::set_instance(data_location);
@@ -591,6 +592,14 @@ void configure_runtime(
         throw SoftException("trex_python did not register runtime configuration callbacks.");
     impl.set_settings(settings, data_location, instance, tile_buffers);
     impl.set_display_function(std::move(show_fn), std::move(close_fn));
+    if (impl.set_runtime_warning_function) {
+        if (!warning_fn) {
+            warning_fn = [](const std::string& message) {
+                FormatWarning(message);
+            };
+        }
+        impl.set_runtime_warning_function(std::move(warning_fn));
+    }
 
     Print("Python runtime configured to ", hex(settings), " and ", hex(data_location), ".");
 }

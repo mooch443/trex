@@ -120,16 +120,22 @@ Let's set an input file first and then go through a few more steps to get starte
    By default, |trex| will place generated outputs in the same folder as the input file, but you can choose a different folder in the output section below.
 
    - **Output Folder**: You can choose where to save the output files by clicking on the 📂 folder button next to the output file name. By default, |trex| saves the output files in the same folder as the input file.
-   - **Prefix**: The ``prefix`` (or ``output_prefix``) can be optionally set. This creates a subfolder with the given name under the output root, redirecting all new outputs there while the original ``.pv`` file stays in the root folder. This helps organize different sessions for the same video (e.g., trying out different settings or separating tracking per species).
+   - **Prefix**: The ``prefix`` (or ``output_prefix``) can be optionally set. This creates a subfolder with the given name under the output root and redirects all new outputs there, including the ``.pv`` file. This helps organize different sessions for the same video (e.g., trying out different settings or separating tracking per species).
 
 3. **Set the detection type**:
 
-   Tracking can generally be defined as connecting the dots between detections across the temporal dimension. The first step in this process is detecting the individuals in each frame. |trex|, at the moment, offers two different detection types:
+   Tracking can generally be defined as connecting the dots between detections across the temporal dimension. The first step in this process is detecting the individuals in each frame. The current selector offers ``background_subtraction``, ``yolo``, ``sam3``, ``precomputed``, and ``none``. The two most common modes are:
 
    - **Background subtraction**: This is the fastest detection type and works well for most videos recorded in *controlled conditions*. It's based on the difference between the current frame and a background image. This background is built from uniformly sampled frames of the video - e.g. by averaging them - getting rid of the moving entities. It's a simple and fast method that works well for most videos.
-   - **YOLO** (*default*): This is a more advanced detection type that uses a deep learning model (e.g., YOLO architecture) to detect individuals. These models are better at handling complex scenes, but are also slower and need more computational power. They are recommended for videos with complex backgrounds/low foreground to background contrast, complicated occlusions, or other challenging conditions. If the default models (trained on e.g. human-pose or everyday objects) are not sufficient, you can also train your own model (see :doc:`model_training`).
+   - **YOLO** (*default*): This is a more advanced detection type that uses a deep learning model (e.g., YOLO architecture) to detect individuals. These models are better at handling complex scenes, but are also slower and need more computational power. They are recommended for videos with complex backgrounds/low foreground to background contrast, complicated occlusions, or other challenging conditions. The current default model is ``yolo26n.pt``. If general-purpose models are not sufficient, you can also train your own model (see :doc:`model_training`).
 
-   For this tutorial, we'll use the default *background subtraction* method. However, YOLO is selected by default - please navigate to the **Detection** tab to fix that. In the same tab we can also change the :param:`detect_threshold` value, which is the minimum greyscale intensity value ``[0-255]`` for a pixel to be considered part of an individual. The default value is ``15``, but you can adjust it to better fit your video: in our case we'll go with ``50``. Unlike :param:`track_threshold`, this value acts *destructively* and could actually be regarded as a lower bound for :param:`track_threshold`.
+   The other modes load detections from a file (``precomputed``), use prompt-based SAM3 segmentation (``sam3``), or deliberately disable detection (``none``).
+
+   For this tutorial, we'll use *background subtraction*. YOLO is selected by default, so navigate to the **Detection** tab to change it. In the same tab we can also change the :param:`detect_threshold` value, which is the minimum greyscale intensity value ``[0-255]`` for a pixel to be considered part of an individual. The default value is ``15``, but you can adjust it to better fit your video: in our case we'll go with ``50``. Unlike :param:`track_threshold`, this value acts *destructively* and could actually be regarded as a lower bound for :param:`track_threshold`.
+
+   .. NOTE::
+
+      Parameter defaults and configuration suggestions are two different layers. The base :param:`track_threshold` default is ``0``. Selecting background subtraction for a new configuration applies the task-specific suggested value ``15``. An explicitly supplied value takes precedence over both.
    
    We will check back on thresholds later.
 
@@ -151,7 +157,7 @@ Let's set an input file first and then go through a few more steps to get starte
 
    - :param:`track_threshold` we can set to `80`, but if we change our minds later on, we can decrease this after conversion down to the value of :param:`detect_threshold` (which we set to `50` earlier).
    - :param:`calculate_posture` make sure we are calculating posture by turning this on (otherwise you won't see the outlines around your individuals later)
-   - :param:`cm_per_pixel` is the conversion factor for any pixel to cm conversion (and vice-versa). You can either set this to `0.0257` now because you magically know this number - or you can click on "Calibrate". This gets you to this screen here:
+   - **Calibrate the spatial scale:** :param:`cm_per_pixel` is the conversion factor for any pixel to cm conversion (and vice-versa). You can either set this to `0.0257` now because you magically know this number - or you can click on **Calibrate**. This gets you to this screen here:
 
    .. _calibrate_view:
 
@@ -236,16 +242,16 @@ The tracking results are not perfect yet, as you may be able to spot in :numref:
 
 There are two ways of changing parameters:
 
-1. Adjusting parameters and then reconverting the entire video. This is can be quite time-consuming for larger videos. For detection-related parameters there is no way around it, but when it comes to tracking parameters you can ...
+1. Adjusting parameters and then starting the conversion over. This can be quite time-consuming for larger videos. For detection-related parameters there is no way around it, but when it comes to tracking parameters you can ...
 2. ... adjust parameters on-the-fly and see the results immediately from within the graphical tracking view of |trex|.
 
 The general intuition here is that if your parameter of choice applies during the tracking phase (i.e. anything that is not detection-related), you can change its value at any time. You may have to **reanalyse** to see the changes, but this is usually a lot faster than reconverting the entire video. Detection parameters, on the other hand, are fixed once the conversion starts, so you'll have to cancel the conversion and start over if you're not happy with the results. 
 
-If detection parameters such as :param:`detect_threshold` were the issue, the video would have to be reconverted. To do so, you'd first save the current settings via **☰ Menu** → **Save config**. Then return to the welcome screen by clicking **☰ Menu** → **Close file**. The video should now appear in the list of "Recent files" — click on it to reopen the settings dialog, adjust the necessary parameters, and click **Convert** again. Confirm overwriting the existing file when prompted.
+If detection parameters such as :param:`detect_threshold` were the issue, the video has to be converted again from the affected source frames. First save the current settings via **☰ Menu** → **Save config**, then return to the welcome screen with **☰ Menu** → **Close file**. Reopen the video, adjust the parameters, and choose the option to start over when prompted about the existing PV file.
 
 .. warning::
 
-   Reconverting will overwrite the existing video cache (.pv), but **not** the settings file it generated the first time. To make sure your new settings persist, you need to manually save them after conversion via **☰ Menu** → **Save Config** from the Tracking View.
+   An existing compatible partial PV can also be continued. In particular, a command-line ``-task convert`` call with the same source-range start and a later inclusive end resumes at the next source frame and updates the stored range instead of replacing the existing frames. Do not use continuation when changing destructive detection settings; explicitly start over instead. Saving the config remains useful for persisting later changes made from the Tracking View.
 
 However, since we're fine on detection parameters it seems, let's move on to tracking parameters. Go to frame ``270``. You’ll see several issues: some parts of the wall are being tracked, and some actual individuals are missed despite being clearly visible. This is because we set :param:`track_max_individuals` and there are many objects in the frame - none of which are being filtered out. We can fix this by directly excluding detections that are unrealistically small or large. :param:`track_size_filter` is the relevant parameter for this — but what values should we use?
 
@@ -266,6 +272,21 @@ Press the ``D`` key, or alternatively click on **Raw** on the top-right, to swit
    An example of noise particles vs. "real objects" that we'd like to track. You can see the size of each object when you hover it (see red box). The ones that are considered for tracking are cyan, others are white/gray.
 
 Currently, :param:`track_size_filter` is an empty range and so does not filter out any objects based on size. However, we can use the information we just gained to filter out unwanted small particles and reflections by setting the filter to ``[4,10]`` instead. Typically, the lower bound (``4``) should be a bit below the smallest individual size, and the upper bound (``10``) a bit above the largest individual size. This will filter out most of the particles, but keep the individuals. You'll hopefully see that some of the particles font turns grey while all the to-be-tracked individuals fonts are cyan (this means they are considered by the tracker).
+
+Diagnosing filtered blobs
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The exported ``num_pixels`` value is the raw number of foreground pixels in a blob. Size filters use the calibrated area::
+
+	effective area = num_pixels * cm_per_pixel^2
+
+With :param:`cm_per_pixel` set to ``1``, the raw count and effective area have the same numeric value. After calibration, the number shown beside a blob in RAW view is the effective area in cm².
+
+:param:`detect_size_filter` is applied while converting the source video. Objects rejected there are not stored in the PV file and require reconversion to recover. :param:`track_size_filter` is applied during tracking. Blobs below its lower bound become noise, while blobs above its upper bound are candidates for splitting.
+
+Press ``D`` to enter RAW view and hover or dock the blob label. Filtered blobs are shown in grey or white, and the text in brackets gives the rejection reason. A blob with a valid size can still show ``history_split`` or ``Split failed`` when history-based splitting expected multiple individuals but could not produce acceptable components.
+
+In tracking view, select the individual and hover its tracklet entries in the info card to see why a tracklet ended. :param:`track_max_speed` affects whether a blob can be assigned to an individual and can end a tracklet; it does not produce a size-filter rejection.
 
 Now press ``D`` again to switch back to tracking view. As you can see, nothing has been applied yet, so click on **🔄 Reanalyse** on the top-right to apply your changes by retracking the video.
 
@@ -342,7 +363,7 @@ Going through the video manually might sound more tedious at first than it reall
 .. figure:: images/reassign_identity.png
    :width: 100%
 
-   After clicking on an objects center point, this menu will pop up offering you the various options for assignment. These are all the known identities at the time, followed (and sorted) by the distance to the current object. Usually the identity you want to assign was also last seen close to the object it should be assigned to - in this case ``fish2`` is the one to the right.
+   After clicking on an objects center point, this menu will pop up offering you the various options for assignment. These are all the known identities at the time, followed (and sorted) by the distance to the current object. Usually the identity you want to assign was also last seen close to the object it should be assigned to - in this case ``id2`` is the one to the right.
 
 Once you've made your determination and want to reassign a certain identity, press the ``D`` key to switch to the **Raw view**. Here you can click on the center points of each object to assign a certain individual identity to it. |trex| will automatically start retracking from the current frame on, so always go in chronological order. You can then press the ``D`` key again to switch back to the **Tracking view** and review the changes you've made. 
 
@@ -451,8 +472,8 @@ Setting Up a New Project
 First, open |trex| and click on the folder icon in the center of the screen to proceed to the initial settings screen. Here, you'll see a few tabs on top of your screen. You'll want to navigate to the **Detection** tab, set :param:`detect_type` to ``yolo``. Here are a few additional parameters that may be important:
 
 - :param:`detect_model`: This is the path to the model file you want to use. You can either click on the 📂 folder button next to the input file name at the top, or enter the path manually. In this case, you'll want to download the `model <https://trex.run/15locusts_model.pt>`_ and place it in the same folder as the video
-- :param:`detect_conf_threshold`: This is the confidence threshold for the detections. If you're getting too many false positives, you can increase this value. If you're missing detections, you can decrease it. The default value is ``0.5``. The confidence is displayed during conversion, or in the raw view later on as a percentage next to detected objects.
-- :param:`detect_iou_threshold`: This is the intersection over union threshold for the detections. If you're getting too many overlapping false positives, you can increase this value. If you're missing detections, you can decrease it. The default value is ``0.1``.
+- :param:`detect_conf_threshold`: This is the confidence threshold for the detections. If you're getting too many false positives, you can increase this value. If you're missing detections, you can decrease it. The default value is ``0.1``. The confidence is displayed during conversion, or in the raw view later on as a percentage next to detected objects.
+- :param:`detect_iou_threshold`: This is the intersection over union threshold for the detections. If you're getting too many overlapping false positives, you can increase this value. If you're missing detections, you can decrease it. The default value is ``0.5``.
 - :param:`detect_only_classes`: This is a list of classes that you want to detect. If you're only interested in detecting a specific class, you can specify it here. The default value is an empty list, which means that all classes will be detected.
 - :param:`detect_skeleton`: This is only important for visualization purposes, but may be good to know. In case you're detecing keypoints (poses), you can use this variable define the "skeleton" which connects the detected keypoints per object. It has (currently) no effect on the tracking itself. By default, this maybe set to the default human skeleton used by YOLO. If you only have to keypoints you might set something like: ``["stick",[[0,1]]]`` which connects keypoints ``0`` and ``1`` with a line.
 

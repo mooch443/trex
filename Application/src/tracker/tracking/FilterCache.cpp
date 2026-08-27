@@ -1,4 +1,7 @@
 #include "FilterCache.h"
+#include <tracking/Individual.h>
+#include <tracking/Stuffs.h>
+#include <tracking/TrackletInformation.h>
 #include <gui/Transform.h>
 #include <misc/Image.h>
 #include <core/idx_t.h>
@@ -11,6 +14,7 @@
 #include <tracking/Stuffs.h>
 #include <tracking/Tracker.h>
 #include <processing/Background.h>
+#include <misc/Median.h>
 
 
 using namespace default_config;

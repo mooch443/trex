@@ -75,6 +75,15 @@ struct PoseMidlineIndexes {
     }
 };
 
+/** @brief Optional same-class mask-overlap handling after tile aggregation. */
+ENUM_CLASS(MaskPostprocessMode,
+    none, /// Preserve mask rows without a second overlap-resolution pass.
+    /// Retain preferred rows and discard their eligible neighbors.
+    greedy_nms,
+    /// Transitively group eligible rows and emit their positioned mask union.
+    merge_masks
+);
+
 //! A global settings cache used across the application by
 //! calling `FAST_SETTING(name)`.
 CREATE_STRUCT(Settings,
@@ -304,3 +313,5 @@ struct IDaverage {
 std::map<Idx_t, float> prediction2map(const std::vector<float>& pred);
 
 }
+
+STRUCT_META_EXTENSIONS(track::Settings)

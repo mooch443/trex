@@ -122,7 +122,7 @@
 
         {
             "type": "each",
-            "var": "{annotations}",
+            "var": "{detect_annotations}",
             "do": {
                 "type":"collection",
                 "children":[
@@ -155,7 +155,7 @@
 
                     {
                         "type":"button",
-                        "action":"remove_annotation:{i.id}",
+                        "action":"remove_detect_annotation:{i.id}",
                         "text":"<sym>⮾</sym>",
                         "size":[18,18],
                         "origin":[1,0],

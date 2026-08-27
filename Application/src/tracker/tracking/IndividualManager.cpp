@@ -1,5 +1,6 @@
 #include "IndividualManager.h"
 #include <tracking/Individual.h>
+#include <tracking/LockGuard.h>
 #include <tracking/Tracker.h>
 
 namespace track {

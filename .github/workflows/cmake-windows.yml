@@ -7,8 +7,10 @@ permissions:
 
 env:
   BUILD_TYPE: Release
+  CONDA_REPODATA_USE_SHARDS: 'false'
   GITHUB_WORKFLOW: CondaBuildWindows
-  WINDOWS_CONDA_CACHE_ENABLED: 'false'
+  MINIFORGE_VERSION: 26.5.3-0
+  WINDOWS_CONDA_PACKAGE_CACHE_ENABLED: 'false'
 
 jobs:
   build:
@@ -16,8 +18,7 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        os: ["windows-latest"]
-        python-version: ["3.11"]
+        os: ["windows-2025-vs2026"]
 
     steps:
     - uses: actions/checkout@v4
@@ -26,23 +27,21 @@ jobs:
         submodules: recursive
 
     - name: Cache conda
-      if: env.WINDOWS_CONDA_CACHE_ENABLED == 'true'
+      if: env.WINDOWS_CONDA_PACKAGE_CACHE_ENABLED == 'true'
       uses: actions/cache@v4
       env:
         CACHE_NUMBER: 2
       with:
         path: C:\cpkgs
-        key: ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{ hashFiles('.github/environment.yml') }}
+        key: ${{ runner.os }}-${{ runner.arch }}-conda-${{ env.MINIFORGE_VERSION }}-${{ env.CACHE_NUMBER }}-${{ hashFiles('.github/environment.yml') }}
 
-    - uses: conda-incubator/setup-miniconda@v3
+    - uses: conda-incubator/setup-miniconda@fc2d68f6413eb2d87b895e92f8584b5b94a10167 # v3.3.0
       with:
-        miniforge-version: latest
-        activate-environment: base
-        python-version: ${{ matrix.python-version }}
+        miniforge-version: ${{ env.MINIFORGE_VERSION }}
+        activate-environment: ""
         channels: conda-forge
-        auto-activate: false
+        auto-activate: true
         auto-update-conda: false
-        use-only-tar-bz2: true
         conda-remove-defaults: true
 
     - name: Prepare short paths
@@ -80,19 +79,7 @@ jobs:
         Get-Content "$HOME\.condarc"
         conda --no-plugins config --show channels
 
-    - name: Get conda prefix
-      id: conda-prefix
-      shell: pwsh
-      run: echo "path=$env:CONDA" >> $env:GITHUB_OUTPUT
-    - name: Cache conda base environment
-      if: env.WINDOWS_CONDA_CACHE_ENABLED == 'true'
-      id: conda-env-cache
-      uses: actions/cache@v4
-      with:
-        path: ${{ steps.conda-prefix.outputs.path }}
-        key: ${{ runner.os }}-conda-env-2-${{ matrix.python-version }}-${{ hashFiles('.github/environment.yml') }}
-    - name: Install environment into base
-      if: env.WINDOWS_CONDA_CACHE_ENABLED != 'true' || steps.conda-env-cache.outputs.cache-hit != 'true'
+    - name: Install packaging tools into base
       shell: pwsh
       working-directory: ${{ env.SHORT_WORKSPACE }}
       env:
@@ -100,9 +87,12 @@ jobs:
         CONDA_PKGS_DIRS: ${{ env.CONDA_PKGS_DIRS }}
       run: |
         mamba install --name base --override-channels -c conda-forge -y `
-          python=${{ matrix.python-version }} `
-          "conda-build>=24" `
-          git
+          conda-build=26.7.1 `
+          git `
+          jsonschema `
+          referencing `
+          rpds-py `
+          typing_extensions
         conda --no-plugins info
         conda --no-plugins list
 
@@ -110,6 +100,7 @@ jobs:
       shell: pwsh
       working-directory: ${{ env.SHORT_WORKSPACE }}\conda
       run: |
+        python select_config.py minimal --force
         $branch = "${{ github.ref_name }}"
         $branchSanitized = $branch -replace '/', '_' -replace '-', '_'
 
@@ -118,36 +109,20 @@ jobs:
         $meta = $meta -replace '(\{% set git_tag_sanitized = ")([^"]+)(" %\})', "`$1$branchSanitized`$3"
         Set-Content meta.yaml $meta -Encoding utf8
 
-        if (Test-Path post-link.bat) {
-          $bat = Get-Content post-link.bat -Raw
-          $bat = $bat -replace '--index-url https://download\.pytorch\.org/whl/cu118', ''
-          Set-Content post-link.bat $bat -Encoding utf8
-        }
-
         Get-Content meta.yaml
         if (Test-Path post-link.sh) { Get-Content post-link.sh }
 
-    - name: Refresh conda-build runtime
+    - name: Verify conda-build runtime
       shell: pwsh
       working-directory: ${{ env.SHORT_WORKSPACE }}\conda
       env:
         CONDA_BLD_PATH: ${{ env.CONDA_BLD_PATH }}
         CONDA_PKGS_DIRS: ${{ env.CONDA_PKGS_DIRS }}
       run: |
-        # Packaging validates Menu/*.json, which imports jsonschema and its
-        # compiled rpds-py dependency from the base conda environment.
-        # Refresh that stack explicitly instead of relying on a cached base
-        # prefix plus a broad "conda update --all". Do not reinstall conda
-        # itself here; mutating the running package manager can leave the base
-        # prefix in a partially linked state on Windows.
-        mamba install --name base --override-channels -c conda-forge -y `
-          conda-build `
-          jsonschema `
-          referencing `
-          rpds-py `
-          typing_extensions
-
-        conda --no-plugins list -n base
+        python --version
+        conda-build --version
+        python -c "import jsonschema, referencing; from rpds import HashTrieMap; print(HashTrieMap)"
+        python -c "from conda.base.context import context; assert not context.repodata_use_shards"
 
     - name: Build
       shell: pwsh
@@ -169,9 +144,65 @@ jobs:
 
         conda search numpy
         conda create -y -p $env:TEST_PREFIX --override-channels -c "$env:CONDA_BLD_PATH" -c conda-forge trex
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
         conda run -p $env:TEST_PREFIX pvinfo -opencv_ffmpeg_support
-        conda run -p $env:TEST_PREFIX pvinfo -opencv_opencl_support
+        $savedErrorPreference = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        $openclOutput = (& conda run -p $env:TEST_PREFIX pvinfo -opencv_opencl_support 2>&1 | Out-String)
+        $openclStatus = $LASTEXITCODE
+        $ErrorActionPreference = $savedErrorPreference
+        Write-Host $openclOutput
+        if ($openclStatus -eq 0) {
+          throw "Minimal OpenCV unexpectedly reports OpenCL support."
+        }
+        conda run -p $env:TEST_PREFIX python "$env:SHORT_WORKSPACE\conda\validate_minimal.py"
+        conda run -p $env:TEST_PREFIX python "$env:SHORT_WORKSPACE\conda\validate_post_link_installation.py"
+
+        $trexCandidates = @(
+          (Join-Path $env:TEST_PREFIX "bin\trex.exe")
+          (Join-Path $env:TEST_PREFIX "Library\bin\trex.exe")
+          (Join-Path $env:TEST_PREFIX "Scripts\trex.exe")
+        )
+        $trexExe = $trexCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+        if (-not $trexExe) { throw "Could not locate the installed trex.exe." }
+        $dumpbinPath = (Get-Command dumpbin.exe -ErrorAction SilentlyContinue).Source
+        if (-not $dumpbinPath) {
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio\Installer\vswhere.exe"
+          if (Test-Path $vswhere) {
+            $dumpbinPath = (& $vswhere -latest -products '*' -find 'VC\Tools\MSVC\**\bin\Hostx64\x64\dumpbin.exe' | Select-Object -First 1)
+          }
+        }
+        if (-not $dumpbinPath) { throw "Could not locate dumpbin.exe." }
+        $dependencies = (& $dumpbinPath /DEPENDENTS $trexExe | Out-String)
+        if ($LASTEXITCODE -ne 0) { throw "dumpbin failed for $trexExe" }
+        Write-Host $dependencies
+        foreach ($pattern in @('opencv_(core|imgproc)', 'libpng|png16', 'libzip|zip\.dll', 'avcodec')) {
+          if ($dependencies -notmatch $pattern) {
+            throw "TRex is missing expected DLL dependency pattern '$pattern'."
+          }
+        }
+        $dependencyNames = [regex]::Matches($dependencies, '(?im)^\s*([^\s]+\.dll)\s*$') |
+          ForEach-Object { $_.Groups[1].Value } |
+          Select-Object -Unique
+        $zlibFound = $false
+        foreach ($dependencyName in ($dependencyNames | Where-Object { $_ -match '(?i)png|zip' })) {
+          $dependencyPath = Join-Path $env:TEST_PREFIX "Library\bin\$dependencyName"
+          if (-not (Test-Path $dependencyPath)) { continue }
+          $transitiveDependencies = (& $dumpbinPath /DEPENDENTS $dependencyPath | Out-String)
+          if ($LASTEXITCODE -ne 0) { throw "dumpbin failed for $dependencyPath" }
+          Write-Host $transitiveDependencies
+          if ($transitiveDependencies -match '(?i)zlib[^\s]*\.dll') {
+            $zlibFound = $true
+            break
+          }
+        }
+        if (-not $zlibFound) {
+          throw "Environment-provided zlib is not reachable through TRex's PNG/ZIP DLL dependencies."
+        }
+        if ($dependencies -notmatch 'VCRUNTIME|MSVCP') {
+          throw "TRex does not appear to use the dynamic MSVC runtime (/MD)."
+        }
 
     - name: TestFunctions
       continue-on-error: true
@@ -224,7 +255,7 @@ jobs:
         exit $env:TEST_EXIT_CODE
 
     - name: Collect conda package artifacts
-      if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
+      if: ${{ !cancelled() }}
       shell: pwsh
       working-directory: ${{ env.SHORT_WORKSPACE }}
       run: |
@@ -233,7 +264,8 @@ jobs:
 
         $packages = Get-ChildItem -Path $env:CONDA_BLD_PATH -Recurse -Filter "trex-*.conda" -File
         if (-not $packages) {
-          throw "No trex .conda packages found under $env:CONDA_BLD_PATH"
+          Write-Warning "No completed trex .conda package was available to upload."
+          exit 0
         }
 
         $latest = $packages | Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1
@@ -242,12 +274,12 @@ jobs:
         Get-ChildItem -Path $out | Format-Table Name,Length
 
     - name: Upload conda packages
-      if: github.ref == 'refs/heads/main'
+      if: ${{ !cancelled() }}
       uses: actions/upload-artifact@v4
       with:
         name: trex-conda-win-64
         path: ${{ github.workspace }}/conda-artifacts/*.conda
-        if-no-files-found: error
+        if-no-files-found: ignore
         retention-days: 14
         compression-level: 0
 
@@ -289,14 +321,13 @@ jobs:
       with:
         name: windows-failure-artifacts
         path: |
-          ${{ env.SHORT_WORKSPACE }}/videos/corrected/data/*.csv
-          ${{ env.SHORT_WORKSPACE }}/videos/**/*.html
-          ${{ env.SHORT_WORKSPACE }}/videos/**/*.log
-          ${{ env.SHORT_WORKSPACE }}/videos/**/*.npz
-          ${{ env.SHORT_WORKSPACE }}/videos/**/*.results
-          ${{ env.SHORT_WORKSPACE }}/videos/**/*.pv
-          ${{ env.SHORT_WORKSPACE }}/**/.messages.txt
-          ${{ env.SHORT_WORKSPACE }}/**/deps-scan.txt
+          ${{ github.workspace }}/videos/corrected/data/*.csv
+          ${{ github.workspace }}/videos/**/*.html
+          ${{ github.workspace }}/videos/**/*.log
+          ${{ github.workspace }}/videos/**/*.npz
+          ${{ github.workspace }}/videos/**/*.results
+          ${{ github.workspace }}/videos/**/*.pv
+          ${{ github.workspace }}/**/deps-scan.txt
         if-no-files-found: ignore
         retention-days: 7
         compression-level: 9
@@ -305,4 +336,6 @@ jobs:
       if: always()
       shell: pwsh
       run: |
-        subst W: /D
+        if (Test-Path 'W:\') {
+          subst W: /D
+        }

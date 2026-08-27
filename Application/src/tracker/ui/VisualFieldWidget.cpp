@@ -103,7 +103,7 @@ void VisualFieldWidget::update(Frame_t frame, const FindCoord& coord, const set_
                 //auto poly = new gui::Polygon(crosses);
                 //poly->set_fill_clr(Transparent);
                 if(_polygons.size() <= poly_idx) {
-                    _polygons.emplace_back(Layout::Make<Polygon>(std::move(crosses)));
+                    _polygons.emplace_back(Layout::Make<Polygon>{std::move(crosses)});
                 } else {
                     _polygons[poly_idx]->set_vertices(std::move(crosses));
                 }

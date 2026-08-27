@@ -1,5 +1,10 @@
 #include "CategorizeDatastore.h"
+#include <pv.h>
 #include <gui/Transform.h>
+#include <processing/Background.h>
+#include <tracking/LockGuard.h>
+#include <tracking/PPFrame.h>
+#include <tracking/Stuffs.h>
 #include <tracking/Tracker.h>
 #include <tracking/IndividualManager.h>
 #include <tracking/FilterCache.h>
@@ -797,7 +802,7 @@ static void log_event(const std::string& name, Frame_t frame, const Identity& id
         
         auto f = file::DataLocation::parse("output", file::Path((std::string)READ_SETTING(filename, file::Path).filename()+"_categorize.log")).fopen("ab");
         text += "\n";
-        fwrite(text.c_str(), sizeof(char), text.length(), f.get());
+        f.write(text.c_str(), text.length());
     }
 }
 #endif

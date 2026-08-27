@@ -16,7 +16,7 @@ FetchContent_MakeAvailable(googletest)
 include_directories(../src/tracker)
 include_directories(../src/ProcessedVideo)
 
-add_executable(test_matching test_matching.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
+add_executable(test_matching test_matching.cpp test_individual.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
 target_compile_definitions(test_matching PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
 
 add_executable(test_commandline test_commandline.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
@@ -39,8 +39,20 @@ target_compile_definitions(test_patharray PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CU
 add_executable(test_optionslist test_optionslist.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
 target_compile_definitions(test_optionslist PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
 
+add_executable(test_output_library test_output_library.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
+target_compile_definitions(test_output_library PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
+
 add_executable(test_dyngui test_dyngui.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
 target_compile_definitions(test_dyngui PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
+
+add_executable(test_gui_scroll test_gui_scroll.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
+target_compile_definitions(test_gui_scroll PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
+
+add_executable(test_animated_background test_animated_background.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
+target_compile_definitions(test_animated_background PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
+
+add_executable(test_frame_tags test_frame_tags.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
+target_compile_definitions(test_frame_tags PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
 
 add_executable(bench_dyngui_parser bench_dyngui_parser.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
 target_compile_definitions(bench_dyngui_parser PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
@@ -57,14 +69,51 @@ target_compile_definitions(test_tiling PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRE
 add_executable(test_segmenter test_segmenter.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
 target_compile_definitions(test_segmenter PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
 
+add_executable(test_detection_pipeline_failures test_detection_pipeline_failures.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
+target_compile_definitions(test_detection_pipeline_failures PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
+
+add_executable(test_tracking_export_e2e test_tracking_export_e2e.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
+target_compile_definitions(test_tracking_export_e2e PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
+
+add_executable(test_tracking_filename_resolution test_tracking_filename_resolution.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
+target_compile_definitions(test_tracking_filename_resolution PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
+
 add_executable(test_dispatcher test_dispatcher.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
 target_compile_definitions(test_dispatcher PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
 
 add_executable(test_sam3promptpayload test_sam3promptpayload.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
 target_compile_definitions(test_sam3promptpayload PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
 
-add_executable(test_sam3interactivesession test_sam3interactivesession.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
-target_compile_definitions(test_sam3interactivesession PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
+add_executable(test_detect_annotation_io test_detect_annotation_io.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
+target_compile_definitions(test_detect_annotation_io PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
+
+if(NOT TREX_CONDA_PACKAGE_INSTALL)
+    add_executable(test_detection_ml_failures test_detection_ml_failures.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
+    target_compile_definitions(test_detection_ml_failures PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
+
+    add_executable(test_headless_convert_exit test_headless_convert_exit.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
+    if(APPLE)
+        set(TREX_TEST_APP_TARGET TRex)
+    else()
+        set(TREX_TEST_APP_TARGET trex)
+    endif()
+    target_compile_definitions(test_headless_convert_exit PRIVATE
+        -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}"
+        -DTREX_TEST_EXECUTABLE="$<TARGET_FILE:${TREX_TEST_APP_TARGET}>"
+        -DTREX_PYTHON_EXECUTABLE="${PYTHON_EXECUTABLE}"
+    )
+    add_dependencies(test_headless_convert_exit ${TREX_TEST_APP_TARGET})
+
+    add_executable(test_trex_detection_model_python test_trex_detection_model_python.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
+    target_compile_definitions(test_trex_detection_model_python PRIVATE
+        -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}"
+        -DTREX_PYTHON_EXECUTABLE="${PYTHON_EXECUTABLE}"
+        -DTREX_DETECTION_MODEL_TEST_DIR="${CMAKE_SOURCE_DIR}/src/tracker/python"
+    )
+
+    add_executable(test_sam3interactivesession test_sam3interactivesession.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
+    target_compile_definitions(test_sam3interactivesession PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
+endif()
 
 if(COMMONS_ENABLE_MODULES AND NOT CMAKE_VERSION VERSION_LESS "3.28.0")
 add_custom_target(commons_module_surface_check
@@ -106,15 +155,28 @@ set(TARGETS
     test_pixels 
     test_patharray 
     test_optionslist
+    test_output_library
     test_dyngui 
+    test_gui_scroll
+    test_animated_background
+    test_frame_tags
     test_outlines 
     test_threadpool 
     test_tiling 
     test_segmenter
+    test_detection_pipeline_failures
+    test_tracking_export_e2e
+    test_tracking_filename_resolution
     test_dispatcher
     test_sam3promptpayload
-    test_sam3interactivesession
+    test_detect_annotation_io
 )
+if(NOT TREX_CONDA_PACKAGE_INSTALL)
+    list(APPEND TARGETS test_detection_ml_failures)
+    list(APPEND TARGETS test_headless_convert_exit)
+    list(APPEND TARGETS test_trex_detection_model_python)
+    list(APPEND TARGETS test_sam3interactivesession)
+endif()
 if(COMMONS_ENABLE_MODULES AND NOT CMAKE_VERSION VERSION_LESS "3.28.0")
     list(APPEND TARGETS test_commons_modules)
 endif()
@@ -152,14 +214,31 @@ target_link_libraries(test_strings PUBLIC gtest)
 target_link_libraries(test_pixels PUBLIC gtest)
 target_link_libraries(test_patharray PUBLIC gtest gmock)
 target_link_libraries(test_optionslist PUBLIC gtest)
+target_link_libraries(test_output_library PUBLIC gtest)
 target_link_libraries(test_dyngui PUBLIC gtest gmock)
+target_link_libraries(test_gui_scroll PUBLIC gtest)
+target_link_libraries(test_animated_background PUBLIC gtest)
+target_link_libraries(test_frame_tags PUBLIC gtest)
 target_link_libraries(test_outlines PUBLIC gtest gmock)
 target_link_libraries(test_threadpool PUBLIC gtest)
 target_link_libraries(test_tiling PUBLIC gtest gmock)
 target_link_libraries(test_segmenter PUBLIC gtest)
+target_link_libraries(test_detection_pipeline_failures PUBLIC gtest)
+target_link_libraries(test_tracking_export_e2e PUBLIC gtest)
+target_link_libraries(test_tracking_filename_resolution PUBLIC gtest)
 target_link_libraries(test_dispatcher PUBLIC gtest)
 target_link_libraries(test_sam3promptpayload PUBLIC gtest)
-target_link_libraries(test_sam3interactivesession PUBLIC gtest gmock)
+target_link_libraries(test_detect_annotation_io PUBLIC gtest)
+if(NOT TREX_CONDA_PACKAGE_INSTALL)
+    target_link_libraries(test_detection_ml_failures PUBLIC gtest)
+    target_link_libraries(test_headless_convert_exit PUBLIC gtest)
+    target_link_libraries(test_trex_detection_model_python PUBLIC gtest)
+    target_link_libraries(test_sam3interactivesession PUBLIC gtest gmock)
+endif()
+
+if(WIN32)
+    target_compile_options(test_dyngui PRIVATE /bigobj)
+endif()
 
 # Extra linking for the project.
 target_link_libraries(test_matching PUBLIC
@@ -202,9 +281,32 @@ target_link_libraries(test_patharray PUBLIC
 target_link_libraries(test_optionslist PUBLIC
         commons)
 
+target_link_libraries(test_output_library PUBLIC
+    tracker_tracking
+    tracker_ml
+    tracker_gui
+    tracker_misc
+    framegrabber_misc
+    pv
+    commons
+)
+trex_link_static_python_impl(test_output_library)
+
 target_link_libraries(test_dyngui PUBLIC
         commons
         pv)
+
+target_link_libraries(test_gui_scroll PUBLIC
+        commons
+        pv)
+
+target_link_libraries(test_animated_background PUBLIC
+        tracker_gui
+        tracker_misc
+        pv
+        commons)
+
+target_link_libraries(test_frame_tags PUBLIC trex_core)
 
 target_link_libraries(bench_dyngui_parser PUBLIC
         commons
@@ -233,6 +335,34 @@ target_link_libraries(test_segmenter PUBLIC
 )
 trex_link_static_python_impl(test_segmenter)
 
+target_link_libraries(test_detection_pipeline_failures PUBLIC
+    tracker_tracking
+    tracker_ml
+    tracker_gui
+    tracker_misc
+    framegrabber_misc
+    pv
+    commons
+)
+trex_link_static_python_impl(test_detection_pipeline_failures)
+
+target_link_libraries(test_tracking_export_e2e PUBLIC
+    tracker_tracking
+    tracker_ml
+    tracker_gui
+    tracker_misc
+    framegrabber_misc
+    pv
+    commons
+)
+trex_link_static_python_impl(test_tracking_export_e2e)
+
+target_link_libraries(test_tracking_filename_resolution PUBLIC
+    tracker_misc
+    pv
+    commons
+)
+
 target_link_libraries(test_dispatcher PUBLIC
     tracker_gui
     tracker_misc
@@ -241,21 +371,59 @@ target_link_libraries(test_dispatcher PUBLIC
 )
 
 target_link_libraries(test_sam3promptpayload PUBLIC
+    tracker_tracking
+    tracker_ml
+    tracker_gui
     tracker_misc
     trex_python_staging
     pv
     commons
 )
+trex_link_static_python_impl(test_sam3promptpayload)
 
-target_link_libraries(test_sam3interactivesession PUBLIC
-    tracker_tracking
-    tracker_ml
-    tracker_gui
-    tracker_misc
-    pv
+target_link_libraries(test_detect_annotation_io PUBLIC
+    trex_tracking
     commons
+    pv
 )
-trex_link_static_python_impl(test_sam3interactivesession)
+
+if(NOT TREX_CONDA_PACKAGE_INSTALL)
+    target_link_libraries(test_detection_ml_failures PUBLIC
+        tracker_tracking
+        tracker_ml
+        tracker_gui
+        tracker_misc
+        framegrabber_misc
+        pv
+        commons
+    )
+    trex_link_static_python_impl(test_detection_ml_failures)
+
+    target_link_libraries(test_headless_convert_exit PUBLIC
+        tracker_tracking
+        tracker_ml
+        tracker_gui
+        tracker_misc
+        framegrabber_misc
+        pv
+        commons
+    )
+    trex_link_static_python_impl(test_headless_convert_exit)
+
+    target_link_libraries(test_trex_detection_model_python PUBLIC
+        commons
+    )
+
+    target_link_libraries(test_sam3interactivesession PUBLIC
+        tracker_tracking
+        tracker_ml
+        tracker_gui
+        tracker_misc
+        pv
+        commons
+    )
+    trex_link_static_python_impl(test_sam3interactivesession)
+endif()
 
 if(COMMONS_ENABLE_MODULES AND NOT CMAKE_VERSION VERSION_LESS "3.28.0")
 target_link_libraries(test_commons_modules PUBLIC
@@ -282,14 +450,26 @@ set_target_properties(test_strings PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "
 set_target_properties(test_pixels PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 set_target_properties(test_patharray PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 set_target_properties(test_dyngui PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
+set_target_properties(test_gui_scroll PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
+set_target_properties(test_animated_background PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 set_target_properties(bench_dyngui_parser PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 set_target_properties(test_outlines PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 set_target_properties(test_threadpool PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 set_target_properties(test_tiling PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 set_target_properties(test_segmenter PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
+set_target_properties(test_output_library PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
+set_target_properties(test_detection_pipeline_failures PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
+set_target_properties(test_tracking_export_e2e PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
+set_target_properties(test_tracking_filename_resolution PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 set_target_properties(test_dispatcher PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 set_target_properties(test_sam3promptpayload PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
-set_target_properties(test_sam3interactivesession PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
+set_target_properties(test_detect_annotation_io PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
+if(NOT TREX_CONDA_PACKAGE_INSTALL)
+    set_target_properties(test_detection_ml_failures PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
+    set_target_properties(test_headless_convert_exit PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
+    set_target_properties(test_trex_detection_model_python PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
+    set_target_properties(test_sam3interactivesession PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
+endif()
 if(COMMONS_ENABLE_MODULES AND NOT CMAKE_VERSION VERSION_LESS "3.28.0")
 set_target_properties(test_commons_modules PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 endif()
@@ -325,26 +505,82 @@ add_test(NAME test-commandline COMMAND test_commandline)
 add_test(NAME test-strings COMMAND test_strings)
 add_test(NAME test-pixels COMMAND test_pixels)
 add_test(NAME test-patharray COMMAND test_patharray)
+add_test(NAME test-output-library COMMAND test_output_library)
+trex_prepend_test_path(test-output-library trex_check_python)
 add_test(NAME test-dyngui COMMAND test_dyngui)
+add_test(NAME test-gui-scroll COMMAND test_gui_scroll)
+add_test(NAME test-animated-background COMMAND test_animated_background)
+add_test(NAME test-frame-tags COMMAND test_frame_tags)
 add_test(NAME test-outlines COMMAND test_outlines)
 add_test(NAME test-threadpool COMMAND test_threadpool)
 add_test(NAME test-tiling COMMAND test_tiling)
 add_test(NAME test-segmenter COMMAND test_segmenter)
 trex_prepend_test_path(test-segmenter trex_check_python)
+set_tests_properties(test-segmenter PROPERTIES TIMEOUT 300)
+add_test(NAME test-detection-pipeline-failures COMMAND test_detection_pipeline_failures)
+trex_prepend_test_path(test-detection-pipeline-failures trex_check_python)
+set_tests_properties(test-detection-pipeline-failures PROPERTIES TIMEOUT 300)
+add_test(NAME test-tracking-export-e2e COMMAND test_tracking_export_e2e)
+trex_prepend_test_path(test-tracking-export-e2e trex_check_python)
+set_tests_properties(test-tracking-export-e2e PROPERTIES TIMEOUT 600)
+add_test(NAME test-tracking-filename-resolution COMMAND test_tracking_filename_resolution)
+add_test(NAME test-pvinfo-blob-detail-quiet
+    COMMAND $<TARGET_FILE:pvinfo>
+        -i "${CMAKE_SOURCE_DIR}/../videos/test.pv"
+        -blob_detail
+        -quiet
+)
+set_tests_properties(test-pvinfo-blob-detail-quiet PROPERTIES
+    PASS_REGULAR_EXPRESSION "bytes .* of blob data"
+    FAIL_REGULAR_EXPRESSION "Finding blobs"
+    TIMEOUT 180
+)
+add_test(NAME test-pvinfo-ffmpeg-support-quiet
+    COMMAND ${CMAKE_COMMAND}
+        "-DPVINFO_EXECUTABLE=$<TARGET_FILE:pvinfo>"
+        "-DPVINFO_OPTION=-opencv_ffmpeg_support"
+        "-DEXPECTED_OUTPUT=FFMPEG support"
+        "-DUNEXPECTED_OUTPUT=General configuration for OpenCV"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/check_pvinfo_report.cmake"
+)
+add_test(NAME test-pvinfo-opencl-support-quiet
+    COMMAND ${CMAKE_COMMAND}
+        "-DPVINFO_EXECUTABLE=$<TARGET_FILE:pvinfo>"
+        "-DPVINFO_OPTION=-opencv_opencl_support"
+        "-DEXPECTED_OUTPUT=OpenCL support"
+        "-DUNEXPECTED_OUTPUT=General configuration for OpenCV"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/check_pvinfo_report.cmake"
+)
 add_test(NAME test-dispatcher COMMAND test_dispatcher)
 add_test(NAME test-sam3promptpayload COMMAND test_sam3promptpayload)
-add_test(NAME test-sam3interactivesession COMMAND test_sam3interactivesession)
+add_test(NAME test-detect-annotation-io COMMAND test_detect_annotation_io)
+if(NOT TREX_CONDA_PACKAGE_INSTALL)
+    add_test(NAME test-detection-ml-failures COMMAND test_detection_ml_failures)
+    trex_prepend_test_path(test-detection-ml-failures trex_check_python)
+    set_tests_properties(test-detection-ml-failures PROPERTIES TIMEOUT 300)
+    add_test(NAME test-headless-convert-exit COMMAND test_headless_convert_exit)
+    trex_prepend_test_path(test-headless-convert-exit trex_check_python)
+    set_tests_properties(test-headless-convert-exit PROPERTIES TIMEOUT 600)
+    add_test(NAME test-trex-detection-model-python COMMAND test_trex_detection_model_python)
+    add_test(NAME test-sam3interactivesession COMMAND test_sam3interactivesession)
+endif()
 if(COMMONS_ENABLE_MODULES AND NOT CMAKE_VERSION VERSION_LESS "3.28.0")
-add_test(NAME test-commons-modules COMMAND test_commons_modules)
+    add_test(NAME test-commons-modules COMMAND test_commons_modules)
 endif()
 if(TREX_ENABLE_MODULES AND NOT CMAKE_VERSION VERSION_LESS "3.28.0")
-add_test(NAME test-trex-modules COMMAND test_trex_modules)
+    add_test(NAME test-trex-modules COMMAND test_trex_modules)
 endif()
+
+# Executables invoked directly by add_test must exist before CTest starts.
+set(TEST_RUNTIME_TARGETS
+    pvinfo
+)
 
 # Add a custom target to build and run all tests
 add_custom_target(runAllTests
         COMMAND ${CMAKE_CTEST_COMMAND} -C $<CONFIG> --output-on-failure
         DEPENDS ${TARGETS}
 )
+add_dependencies(runAllTests ${TEST_RUNTIME_TARGETS})
 
 endif()

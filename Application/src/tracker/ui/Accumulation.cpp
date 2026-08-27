@@ -2,7 +2,13 @@
 
 #if !COMMONS_NO_PYTHON
 #include <ml/AccumulationRuntime.h>
+#include <misc/Image.h>
 #include <tracking/DatasetQuality.h>
+#include <tracking/Individual.h>
+#include <tracking/PPFrame.h>
+#include <tracking/Stuffs.h>
+#include <tracking/TrackletInformation.h>
+#include <tracking/LockGuard.h>
 #include <tracking/TrainingData.h>
 #include <ui/WorkProgress.h>
 #include <misc/cnpy_wrapper.h>
@@ -180,8 +186,11 @@ void apply_network(const std::shared_ptr<pv::File>& video_source) {
     
     ImageExtractor e{
         std::shared_ptr{video_source},
-        [](const Query& q)->bool {
-            return !q.basic->blob.split();
+        [](const Query& q) -> std::unique_ptr<AcceptedQuery> {
+            if(!q.basic->blob.split()) {
+                return std::make_unique<AcceptedQuery>();
+            }
+            return nullptr;
         },
         [&](std::vector<Result>&& results) {
             // partial_apply

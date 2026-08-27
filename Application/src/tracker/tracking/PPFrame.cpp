@@ -1,4 +1,9 @@
 #include "PPFrame.h"
+#include <misc/Image.h>
+#include <tracking/Individual.h>
+#include <tracking/LockGuard.h>
+#include <tracking/Stuffs.h>
+#include <tracking/TrackletInformation.h>
 #include <tracking/Tracker.h>
 #include <tracking/CategorizeDatastore.h>
 #include <misc/default_settings.h>
@@ -122,6 +127,7 @@ void PPFrame::write_log(std::string str) {
 
 inline void insert_line(grid::ProximityGrid& grid, const HorizontalLine* ptr, pv::bid blob_id, ptr_safe_t step_size)
 {
+    assert(ptr_safe_t(ptr->x0) <= ptr_safe_t(ptr->x1));
     auto d = ptr_safe_t(ptr->x1) - ptr_safe_t(ptr->x0);
     grid.insert(ptr->x0, ptr->y, blob_id);
     grid.insert(ptr->x1, ptr->y, blob_id);

@@ -7,7 +7,7 @@ using ::Python::VINetwork;
 }
 
 export namespace cmn {
-// ui/AnnotationScene.h
+// ui/DetectAnnotationScene.h
 using ::cmn::VideoSource;
 // ui/VisualIdentDialog.h
 using ::cmn::ConnectedTasks;
@@ -22,24 +22,16 @@ using ::cmn::gui::IMGUIBase;
 using ::cmn::gui::StaticText;
 // ui/AnimatedBackground.h
 using ::cmn::gui::AnimatedBackground;
-// ui/AnnotationScene.h
-using ::cmn::gui::Annotation;
-using ::cmn::gui::AnnotationScene;
-using ::cmn::gui::AnnotationType;
-using ::cmn::gui::AnnotationView;
-using ::cmn::gui::Bowl;
-using ::cmn::gui::Circle;
-using ::cmn::gui::DrawStructure;
-using ::cmn::gui::Pose;
-using ::cmn::gui::Rect;
 // ui/Bowl.h
+using ::cmn::gui::Bowl;
 using ::cmn::gui::GUICache;
 // ui/CalibrateScene.h
 using ::cmn::gui::CalibrateScene;
+// ui/Categorize.h
+using ::cmn::gui::DrawStructure;
 // ui/ConvertScene.h
 using ::cmn::gui::ConvertScene;
 using ::cmn::gui::Data;
-using ::cmn::gui::VideoInfo;
 // ui/Coordinates.h
 using ::cmn::gui::Base;
 using ::cmn::gui::BowlCoord;
@@ -47,6 +39,15 @@ using ::cmn::gui::BowlRect;
 using ::cmn::gui::FindCoord;
 using ::cmn::gui::HUDCoord;
 using ::cmn::gui::HUDRect;
+using ::cmn::gui::to_bowl;
+// ui/DetectAnnotationScene.h
+using ::cmn::gui::Circle;
+using ::cmn::gui::DetectAnnotationScene;
+using ::cmn::gui::DetectAnnotationView;
+using ::cmn::gui::Pose;
+using ::cmn::gui::Rect;
+// ui/DrawAnnotationExportOptions.h
+using ::cmn::gui::DrawAnnotationExportOptions;
 // ui/DrawBlobView.h
 using ::cmn::gui::Dropdown;
 using ::cmn::gui::SectionInterface;
@@ -56,6 +57,8 @@ using ::cmn::gui::DrawBorder;
 using ::cmn::gui::Drawable;
 // ui/DrawDataset.h
 using ::cmn::gui::DrawDataset;
+// ui/DrawDetectAnnotationImportOptions.h
+using ::cmn::gui::DrawDetectAnnotationImportOptions;
 // ui/DrawExportOptions.h
 using ::cmn::gui::DrawExportOptions;
 using ::cmn::gui::TrackingState;
@@ -157,8 +160,18 @@ export namespace cmn::gui::attr {
 using ::cmn::gui::attr::Dispatcher;
 }
 
+export namespace cmn::gui::convert {
+// ui/ConvertScene.h
+using ::cmn::gui::convert::VideoInfo;
+}
+
+export namespace cmn::gui::detail {
+// ui/GUIVideoAdapter.h
+using ::cmn::gui::detail::AllowDirectMakeArgs;
+}
+
 export namespace cmn::gui::dyn {
-// ui/AnnotationScene.h
+// ui/DetectAnnotationScene.h
 using ::cmn::gui::dyn::DynamicGUI;
 // ui/ImageGeneratorRegistry.h
 using ::cmn::gui::dyn::VarProps;
@@ -173,11 +186,6 @@ using ::cmn::gui::globals::CachedGUIOptions;
 export namespace cmn::gui::heatmap {
 // ui/IdentityHeatmap.h
 using ::cmn::gui::heatmap::grid_t;
-}
-
-export namespace cmn::gui::terminal {
-// ui/Terminal.h
-using ::cmn::gui::terminal::open_terminal;
 }
 
 export namespace cmn::gui::tracker {
@@ -206,6 +214,11 @@ using ::cmn::pattern::UnresolvedStringPattern;
 export namespace cmn::settings {
 // ui/SettingsInitializer.h
 using ::cmn::settings::write_config;
+}
+
+export namespace cmn::terminal {
+// ui/Terminal.h
+using ::cmn::terminal::open_terminal;
 }
 
 export namespace track {

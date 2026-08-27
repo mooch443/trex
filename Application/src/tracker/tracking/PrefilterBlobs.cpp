@@ -1,4 +1,5 @@
 #include "PrefilterBlobs.h"
+#include <tracking/BlobReceiver.h>
 #include <processing/Background.h>
 #include <misc/ThreadPool.h>
 #include <core/TrackingSettings.h>

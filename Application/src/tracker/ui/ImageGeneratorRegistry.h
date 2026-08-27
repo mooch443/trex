@@ -1,10 +1,7 @@
 #pragma once
 
 #include <commons.pc.h>
-#include <gui/GuiTypes.h>   // for ExternalImage, Image::Ptr
-#include <gui/dyn/ParseText.h>   // for parse_text
-#include <gui/dyn/State.h>       // for dyn::State
-#include <core/idx_t.h>
+#include <misc/Image.h>
 
 namespace cmn::gui {
 
@@ -13,7 +10,7 @@ struct VarProps; // forward
 }
 
 /// Registry of image-generator lambdas.
-/// Each generator produces an Image::Ptr given the current VarProps.
+/// Each generator produces an Image::SPtr given the current VarProps.
 struct ImageGeneratorRegistry {
     struct Generator {
         std::function<Image::SPtr(const dyn::VarProps&)> generate;

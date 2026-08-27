@@ -13,11 +13,20 @@ library for shared utilities and GUI infrastructure.
 - `docs/`: Sphinx docs.
 - `website/`, `images/`, `videos/`: site + assets.
 
+Do not use whitespace cleanup tools if they produce lots of diff, never commit huge diff that is just whitespace changes.
+Write inline code comments in terms of current invariants, responsibilities,
+and behavior. Do not use them to narrate code history or earlier implementations.
+When creating commits, match recent repository style: use bullet-style,
+past-tense messages where each line starts with `* Added`, `* Updated`,
+`* Modified`, or similar wording.
+
 ## Commons library overview
 - Core GUI headers live under `Application/src/commons/common/gui/`.
 - The dynamic GUI system is `Application/src/commons/common/gui/DynamicGUI.h`
   and `Application/src/commons/common/gui/dyn/`.
-- Most source files include the precompiled header `commons.pc.h`.
+- Do not include individual C++ standard-library headers; they are provided by
+  `commons.pc.h`. When it is included, `commons.pc.h` must be the first include
+  in the file for consistency.
 - Start with the dynamic GUI walkthrough in `Application/src/commons/README.md`.
 
 ## Creating GUIs with commons (how it should be used)
@@ -38,6 +47,52 @@ library for shared utilities and GUI infrastructure.
    - Each frame: call `dynGUI.update(graph, parent)` then process queued tasks.
    - Use `file::DataLocation::parse(...)` when layouts/assets are installed
      outside the build tree.
+
+### Dynamic GUI capabilities in this repo
+- Layout files use a top-level `"objects"` array plus optional `"defaults"`.
+  Most TRex layouts live beside `Application/src/tracker/tracking_layout.json`
+  and are good references for production patterns.
+- Built-in object types include `vlayout`, `hlayout`, `gridlayout`,
+  `collection`, `button`, `textfield`, `checkbox`, `settings`, `combobox`,
+  `list`, `each`, `condition`, `text`, `stext`, `rect`, `circle`, `line`, and
+  `image`. Some layouts also use custom registered module/object names; check
+  the owning scene/widget before assuming a type is globally built in.
+- Common object fields are `name`, `pos`, `size`, `scale`, `origin`, `pad`,
+  `outer_pad`, `fill`, `line`, `corners`, `color`, `font`, `max_size`,
+  `clickable`, `z-index`, and `modules`. Containers use `children`;
+  `gridlayout` uses row/cell child arrays.
+- `font` supports at least `size`, `style` (`regular`, `bold`, `italic`,
+  `mono`), and `align` (`left`, `right`, `center`, `vcenter`).
+- Text and most fields can contain dynamic expressions in `{...}`. Variables
+  come from `Context` `VarFunc`s, global settings are normally exposed as
+  `{global.setting_name}`, list/loop items default to `{i}`, and object fields
+  can be accessed with dotted paths like `{i.name}` or `{window_size.x}`.
+- Expression syntax is prefix-style and nestable. Existing layouts use
+  conditionals (`{if:cond:then:else}`), boolean operators (`{&&:...}`,
+  `{||:...}`, `{not:...}`), comparisons (`{equal:a:b}`, `{nequal:a:b}`,
+  `{<:a:b}`, `{>:a:b}`, `{>=:a:b}`), arithmetic (`{+:...}`, `{-:...}`,
+  `{*:...}`, `{/:...}`, `{mod:...}`, `{min:...}`, `{max:...}`), collection
+  access (`{at:index:value}`, `{array_length:value}`, `{concat:a:b}`), and
+  string/path helpers (`{lower:x}`, `{filename:x}`, `{basename:x}`,
+  `{shorten:x:n}`).
+- Actions are declared as strings such as `"action":"set:gui_run:true"` or
+  `"action":"import_detect_annotations"`. The parser resolves expressions inside the
+  action name and parameters before calling the matching `ActionFunc`.
+- `button` triggers `action` on click. `textfield` triggers `action` on Enter
+  and `on_text_changed` while editing; the current text is available to the
+  action as `{text}`.
+- `condition` uses `"var"` plus `"then"` and optional `"else"` objects. `each`
+  uses `"var"` and `"do"`, with optional `"as"` to rename the loop item.
+- `list` supports either dynamic `"var"` plus `"template"` or static `"items"`.
+  Dynamic templates commonly expose `text`, `detail`, `tooltip`, `disabled`,
+  and `action`; if a list action has no explicit parameter, the selected row
+  index is passed by the list implementation.
+- `settings` binds directly to an existing setting named by `"var"` and can
+  render setting-specific controls. For new widget-local state, prefer exposing
+  a JSON object via a `VarFunc` and mutating C++ state through actions.
+- DynamicGUI is a renderer/action layer, not an ownership model. The C++
+  scene/widget should own state, validate inputs, catch exceptions from actions,
+  and expose derived preview/status data back to the layout via `VarFunc`.
 4. Scene workflow (TRex UI):
    - Implement `gui::Scene` objects that own state, draw UI, and respond to
      global events.
@@ -217,14 +272,64 @@ conda build -c conda-forge .
   reference implementation for GUI structure or best practices.
 
 ## Agent execution constraints
+- Unless explicitly asked to restructure or reinvent an implementation, make the
+  smallest possible change, preserve existing comments and formatting, keep code
+  verbatim where applicable, and do not extract one-off code into new helpers.
+- When creating a new branch, use a concise descriptive name without a
+  ``codex/`` or other agent-specific prefix.
+- Do not run builds, CMake configure/generate commands, or CMake build commands.
+  The user will run builds/tests after the agent has inspected the code and is
+  confident the changes are ready.
+- Optimize for fewer, higher-confidence iterations. Think and inspect longer
+  before responding or editing, because each exchange has a monetary cost.
+- For GitHub CI diagnosis or repair, inspect every failing check in the latest
+  relevant run(s) across all operating systems before editing. List every
+  distinct failure and its root cause first; do not stop after the first error.
+  Then address the complete in-scope failure set together in one coordinated
+  pass whenever possible.
+- When opening a GitHub issue for a reproduced defect, include the complete
+  path used to reach the failure so it can be repeated later: the exact
+  revision and build configuration, platform and environment, launch command,
+  input artifact and settings, relevant UI actions and timing, the final
+  triggering action, and the expected and actual results. Include useful logs
+  or a crash stack, and identify or attach the exact input when possible; do
+  not document only the final action if earlier steps contributed to the state.
+- Do not wait for a full CI build to finish. Inspect completed failures and,
+  when useful, monitor only short setup or targeted reproduction boundaries.
+  Once a long build is underway, report its current status to the user and stop
+  polling.
 - do not run commands in the build directory and dont delete the existing project files there
 - do not run commands outside the root directory of the project, or commands that affect the outside
 - stay in scope for the task you were asked to do. only edit files directly relevant to that task, plus the minimal wiring required to make those edits work.
 - if the task is to add or edit tests, edit tests and only the smallest necessary test wiring (for example `Application/Tests/CMakeLists.txt`). do not edit unrelated production/source files unless the user explicitly asks for that too.
 - when fixing a bug, first reproduce the actual failure with a minimal viable test or local repro that matches the real issue. make sure that repro fails before changing production code, then fix the code until that same repro passes.
 - do not add speculative, broad, or low-value tests just to increase coverage. prefer the smallest targeted regression test for a real bug, and skip adding tests when they do not materially validate the reported failure.
+- During documentation work, when an executable behavior is confirmed, a software issue is identified, or a behavioral/boundary principle is newly stated in the documentation, locate the automated test that locks down that fact. If adequate coverage does not already exist, add the smallest focused unit or regression test before relying on the behavior in the documentation or fixing the issue. Purely editorial, navigation, external-environment, and generated-default wording changes do not require duplicate tests.
+- Do not put software bug reports, temporary workarounds, or implementation-status notes in user-facing documentation. If a bug cannot be addressed in the current scope, record it in a GitHub issue instead. If the user asks for the bug to be addressed, fix the code and add the smallest adequate regression test; document only the resulting supported behavior.
+- Do not treat PV metadata as a complete or self-contained settings snapshot. During conversion, `Segmenter::set_metadata()` stores `generate_delta_config(AccessLevelType::LOAD)`: a sparse delta containing eligible values that differ from `GlobalSettings::current_defaults`, plus explicitly included fields, after unconditional and detection-mode-specific exclusions. The PV header stores source, conversion range, encoding, resolution, and other format data separately from that settings delta. Generated `.settings` files are also deltas (`generate_delta_config(AccessLevelType::INIT, ...)`), not exhaustive snapshots. Tests asserting which settings were persisted must inspect the writer delta or the on-disk metadata keys while accounting for compatibility normalization performed by the PV reader; dedicated header fields must be read directly. Tests asserting an effective configuration must use the normal settings-loading layers or an appropriate runtime observable. Never parse PV metadata over registered defaults and then attribute inherited/defaulted values to the PV.
 - Only use the Conda environment `trex` for environment-specific commands or instructions, or the `trex-modules` environment. Do not access or assume any other environment.
+- When building in `Application/build`, always use the Conda environment `trex` from the project root. Do not use `trex-modules` for `Application/build`.
 - when running Python commands in the `trex` environment for this repo, prefer `KMP_DUPLICATE_LIB_OK=TRUE conda run -n trex python ...` because duplicate `libomp` initialization can otherwise abort the process on macOS.
+- Run authenticated `gh` commands with escalated access. A sandboxed `gh auth`
+  failure does not establish that credentials have expired; retry with
+  escalation before asking the user to authenticate again.
+- When a commit fully resolves a specific GitHub issue and is intended to reach
+  the default branch, include an appropriate closing keyword such as
+  `Fixes #257` in the commit message so merging it closes the issue
+  automatically. For partial or not-yet-verified work, use a non-closing issue
+  reference instead.
 - For commons monolith + modules work, run CMake/Ninja from `Application/tmp-modules-osx-tests-nolto` with the `trex-modules` Conda environment.
 - For commons shared-library split testing with modules disabled, use `tmp-shared-split-osx-tests-nolto` with Ninja in the `trex-modules` Conda environment.
 - For commons shared-library split testing with modules enabled, use `tmp-shared-split-osx-tests-nolto` with Ninja in the `trex-modules` Conda environment.
+
+## Release/tag workflow notes
+- Before release work, preserve any dirty user worktree state first. If the
+  user approves, stash tracked and untracked files before switching branches.
+- For quick-fix releases from `main`, fetch remotes and tags, fast-forward
+  `main`, create an annotated `vX.Y.Z` tag, push only that tag, then create the
+  GitHub release with the same title as the tag.
+- Use the previous GitHub release as the naming/body template and include a
+  `Full Changelog` compare link.
+- If `gh` is unavailable, install/use GitHub CLI when the user approves it.
+  Authenticate with `gh auth login -h github.com -w` so the user can approve
+  the device-code flow.

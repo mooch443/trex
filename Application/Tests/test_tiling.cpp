@@ -6,6 +6,10 @@
 #include <misc/GlobalSettings.h>
 #include <core/default_config.h>
 #include <grabber/misc/default_config.h>
+#include <python/DetectionAssociation.h>
+#include <python/DetectionMaskAccess.h>
+#include <python/DetectionTilePostprocess.h>
+#include <python/SegmentationPostprocess.h>
 #include <python/YOLO.h>
 #include <python/OverlayedVideo.h>
 #include <python/PythonWrapper.h>
@@ -13,6 +17,7 @@
 #include <file/DataLocation.h>
 #include <core/TileBuffers.h>
 #include <processing/ResizeImage.h>
+#include <ui/Coordinates.h>
 
 #include <opencv2/core.hpp>
 
@@ -30,7 +35,9 @@
 
 using namespace cmn;
 using namespace track;
-using namespace track::yolo_detail;
+
+static_assert(!std::is_convertible_v<track::SourceCoord, track::TileCoord>);
+static_assert(!std::is_convertible_v<track::TileCoord, track::SourceCoord>);
 
 namespace {
 
@@ -64,6 +71,10 @@ void resetGlobalSettings() {
     SETTING(detect_tile_image) = uchar{0};
     SETTING(detect_tile_merge_iou) = Float2_t{0.55f};
     SETTING(detect_tile_merge_containment) = Float2_t{0.5f};
+    SETTING(detect_tile_pose_match_distance) = Float2_t{0.5f};
+    SETTING(detect_mask_postprocess_mode) = track::MaskPostprocessMode::none;
+    SETTING(detect_mask_postprocess_iou) = Float2_t{0.5f};
+    SETTING(detect_mask_postprocess_containment) = std::optional<Float2_t>{};
     // Pin every receive()-path variable explicitly rather than inheriting
     // default_config's default. detect_pose_bbx selects the pose dedup path;
     // tests needing the keypoint-rect path override this to `keypoints`.
@@ -71,17 +82,6 @@ void resetGlobalSettings() {
     SETTING(meta_encoding) = meta_encoding_t::gray;
     SETTING(detect_only_classes) = track::detect::PredictionFilter{};
 }
-
-struct DetectTileOverlapGuard {
-    float previous;
-    explicit DetectTileOverlapGuard(float value) {
-        previous = READ_SETTING(detect_tile_overlap, float);
-        SETTING(detect_tile_overlap) = value;
-    }
-    ~DetectTileOverlapGuard() {
-        SETTING(detect_tile_overlap) = previous;
-    }
-};
 
 cmn::Image::Ptr makeImage(int width, int height, int channels = 3) {
     auto img = cmn::Image::Make(height, width, channels);
@@ -99,13 +99,104 @@ track::detect::Boxes makeBoxes(std::initializer_list<std::array<float, 6>> rows)
     return track::detect::Boxes(std::move(raw), size);
 }
 
-Bounds mergeGroupBounds(const track::detect::Boxes& boxes, const TileMergeGroup& group) {
-    Bounds bounds = boxes[group.representative_index].box;
-    for(size_t idx : group.source_indices) {
-        Bounds next = boxes[idx].box;
-        bounds.combine(next);
-    }
-    return bounds;
+track::detect::Result makeBoxResult(
+    int index,
+    std::initializer_list<std::array<float, 6>> rows)
+{
+    return track::detect::Result{
+        index,
+        makeBoxes(rows),
+        {},
+        track::detect::KeypointData{},
+        track::detect::ObbData{},
+        track::detect::PointData{}
+    };
+}
+
+track::detect::Result makePoseResult(
+    int index,
+    std::initializer_list<std::array<float, 6>> rows,
+    std::vector<float> keypoints,
+    size_t bones)
+{
+    return track::detect::Result{
+        index,
+        makeBoxes(rows),
+        {},
+        track::detect::KeypointData(std::move(keypoints), bones),
+        track::detect::ObbData{},
+        track::detect::PointData{}
+    };
+}
+
+track::detect::Result makeObbResult(int index, std::vector<float> rows) {
+    return track::detect::Result{
+        index,
+        track::detect::Boxes(std::vector<float>{}, 0u),
+        {},
+        track::detect::KeypointData{},
+        track::detect::ObbData(std::move(rows)),
+        track::detect::PointData{}
+    };
+}
+
+track::detect::Result makePointResult(int index, std::vector<float> rows) {
+    return track::detect::Result{
+        index,
+        track::detect::Boxes(std::vector<float>{}, 0u),
+        {},
+        track::detect::KeypointData{},
+        track::detect::ObbData{},
+        track::detect::PointData(std::move(rows))
+    };
+}
+
+std::vector<track::TileGeometry> horizontalOverlapGeometries() {
+    return {
+        track::TileGeometry{
+            .source_region = track::SourceRect(0, 0, 120, 100),
+            .tile_content = track::TileRect(0, 0, 120, 100),
+            .tile_size = Size2(120, 100)
+        },
+        track::TileGeometry{
+            .source_region = track::SourceRect(80, 0, 120, 100),
+            .tile_content = track::TileRect(0, 0, 120, 100),
+            .tile_size = Size2(120, 100)
+        }
+    };
+}
+
+std::vector<track::TileGeometry> coincidentGeometries(size_t count) {
+    return std::vector<track::TileGeometry>(count, track::TileGeometry{
+        .source_region = track::SourceRect(0, 0, 220, 160),
+        .tile_content = track::TileRect(0, 0, 220, 160),
+        .tile_size = Size2(220, 160)
+    });
+}
+
+std::vector<track::TileGeometry> fourWayOverlapGeometries() {
+    return {
+        track::TileGeometry{
+            .source_region = track::SourceRect(0, 0, 120, 120),
+            .tile_content = track::TileRect(0, 0, 120, 120),
+            .tile_size = Size2(120, 120)
+        },
+        track::TileGeometry{
+            .source_region = track::SourceRect(80, 0, 120, 120),
+            .tile_content = track::TileRect(0, 0, 120, 120),
+            .tile_size = Size2(120, 120)
+        },
+        track::TileGeometry{
+            .source_region = track::SourceRect(0, 80, 120, 120),
+            .tile_content = track::TileRect(0, 0, 120, 120),
+            .tile_size = Size2(120, 120)
+        },
+        track::TileGeometry{
+            .source_region = track::SourceRect(80, 80, 120, 120),
+            .tile_content = track::TileRect(0, 0, 120, 120),
+            .tile_size = Size2(120, 120)
+        }
+    };
 }
 
 std::array<int, 4> exclusiveLineBounds(const std::vector<HorizontalLine>& lines) {
@@ -138,7 +229,38 @@ cv::Mat makeMask(int rows, int cols, std::initializer_list<Bounds> rects) {
     return mask;
 }
 
-void expectOffsetsWithinBounds(const std::vector<Vec2>& offsets,
+track::detect::MaskData makeOwnedMaskData(
+    int rows,
+    int cols,
+    std::initializer_list<Bounds> rects)
+{
+    const auto mask = makeMask(rows, cols, rects);
+    std::vector<uint8_t> bytes(mask.total());
+    std::copy_n(mask.ptr<uint8_t>(), mask.total(), bytes.begin());
+    return track::detect::DetectionMaskAccess::make_mask(
+        std::move(bytes), rows, cols);
+}
+
+track::detect::Result makeSemanticResult(int index, const cv::Mat& class_map) {
+    CV_Assert(class_map.type() == CV_8UC1);
+    CV_Assert(class_map.isContinuous());
+    std::vector<uint8_t> bytes(class_map.total());
+    std::copy_n(class_map.ptr<uint8_t>(), class_map.total(), bytes.begin());
+    return track::detect::Result{
+        index,
+        track::detect::Boxes(std::vector<float>{}, 0u),
+        {},
+        track::detect::KeypointData{},
+        track::detect::ObbData{},
+        track::detect::PointData{},
+        std::optional<track::detect::MaskData>{
+            track::detect::DetectionMaskAccess::make_mask(
+                std::move(bytes), class_map.rows, class_map.cols)}
+    };
+}
+
+template<typename Coord>
+void expectOffsetsWithinBounds(const std::vector<Coord>& offsets,
                                Size2 tile_size,
                                Size2 frame_size)
 {
@@ -157,17 +279,17 @@ void expectOffsetsWithinBounds(const std::vector<Vec2>& offsets,
         EXPECT_TRUE(inserted.second) << "Duplicate offset " << off.toStr();
     }
 
-    EXPECT_EQ(offsets.front(), Vec2(0, 0));
+    EXPECT_EQ(offsets.front(), Coord(0, 0));
 
     if(frame_size.width > tile_size.width) {
-        bool found_last = std::any_of(offsets.begin(), offsets.end(), [&](const Vec2& v){
+        bool found_last = std::any_of(offsets.begin(), offsets.end(), [&](const auto& v){
             return static_cast<int>(v.x) == frame_size.width - tile_size.width;
         });
         EXPECT_TRUE(found_last) << "Missing right-most tile";
     }
 
     if(frame_size.height > tile_size.height) {
-        bool found_last = std::any_of(offsets.begin(), offsets.end(), [&](const Vec2& v){
+        bool found_last = std::any_of(offsets.begin(), offsets.end(), [&](const auto& v){
             return static_cast<int>(v.y) == frame_size.height - tile_size.height;
         });
         EXPECT_TRUE(found_last) << "Missing bottom-most tile";
@@ -263,398 +385,6 @@ private:
 
 } // namespace
 
-TEST(YoloTileMergeGroupsTest, SameClassDuplicateOverlapKeepsHighestConfidence) {
-    // Two same-class overlapping boxes merge into one group; the
-    // higher-confidence box becomes the representative.
-    auto boxes = makeBoxes({
-        {0.f, 0.f, 140.f, 140.f, 0.9f, 1.f},
-        {20.f, 20.f, 160.f, 160.f, 0.8f, 1.f}
-    });
-
-    const auto groups = compute_tile_merge_groups(boxes, 0.5f);
-
-    ASSERT_EQ(groups.size(), 1u);
-    EXPECT_EQ(groups.front().representative_index, 0u);
-    EXPECT_EQ(groups.front().source_indices, DetectionRowSelection(0u, 1u));
-}
-
-TEST(YoloTileMergeGroupsTest, FourWayOverlapProducesOneGroup) {
-    // Four mutually overlapping same-class boxes all collapse into a single
-    // merge group.
-    auto boxes = makeBoxes({
-        {100.f, 100.f, 200.f, 200.f, 0.95f, 1.f},
-        {110.f, 100.f, 210.f, 200.f, 0.90f, 1.f},
-        {100.f, 110.f, 200.f, 210.f, 0.85f, 1.f},
-        {110.f, 110.f, 210.f, 210.f, 0.80f, 1.f}
-    });
-
-    const auto groups = compute_tile_merge_groups(boxes, 0.5f);
-
-    ASSERT_EQ(groups.size(), 1u);
-    EXPECT_EQ(groups.front().representative_index, 0u);
-    EXPECT_EQ(groups.front().source_indices, DetectionRowSelection(0u, 1u, 2u, 3u));
-}
-
-TEST(YoloTileMergeGroupsTest, ContainedLowerConfidenceEdgeArtifactIsRemoved) {
-    // A small, low-confidence box fully contained inside a larger one is
-    // merged in via intersection-over-smaller-area containment.
-    auto boxes = makeBoxes({
-        {0.f, 0.f, 220.f, 220.f, 0.9f, 1.f},
-        {20.f, 20.f, 80.f, 80.f, 0.7f, 1.f}
-    });
-
-    const auto groups = compute_tile_merge_groups(boxes, 0.9f);
-
-    ASSERT_EQ(groups.size(), 1u);
-    EXPECT_EQ(groups.front().representative_index, 0u);
-    EXPECT_EQ(groups.front().source_indices, DetectionRowSelection(0u, 1u));
-
-    // End result of the merge: the contained artifact does not enlarge the
-    // group -- merged bounds stay at the larger box, keeping its (higher)
-    // confidence and class.
-    const Bounds merged = mergeGroupBounds(boxes, groups.front());
-    EXPECT_EQ((std::array<float, 4>{merged.x, merged.y, merged.x + merged.width, merged.y + merged.height}),
-              (std::array<float, 4>{0.f, 0.f, 220.f, 220.f}));
-    EXPECT_FLOAT_EQ(groups.front().representative.conf, 0.9f);
-    EXPECT_FLOAT_EQ(groups.front().representative.clid, 1.f);
-}
-
-TEST(YoloTileMergeGroupsTest, DifferentClassesAreNotMerged) {
-    // Overlapping boxes of different classes stay in separate groups --
-    // merging is class-aware.
-    auto boxes = makeBoxes({
-        {0.f, 0.f, 140.f, 140.f, 0.9f, 1.f},
-        {20.f, 20.f, 160.f, 160.f, 0.8f, 2.f}
-    });
-
-    const auto groups = compute_tile_merge_groups(boxes, 0.5f);
-
-    ASSERT_EQ(groups.size(), 2u);
-    EXPECT_EQ(groups[0].source_indices, DetectionRowSelection(0u));
-    EXPECT_EQ(groups[1].source_indices, DetectionRowSelection(1u));
-}
-
-TEST(YoloTileMergeGroupsTest, ExactThresholdEqualitySuppressesDeterministically) {
-    // The two boxes are identical, so their intersection-over-smaller-area
-    // (IOS) containment is exactly 1.0: intersection 100*100 divided by the
-    // smaller area 100*100.
-    auto boxes = makeBoxes({
-        {0.f, 0.f, 100.f, 100.f, 0.9f, 1.f},
-        {0.f, 0.f, 100.f, 100.f, 0.8f, 1.f}
-    });
-
-    // The threshold here is the ios_threshold argument to
-    // compute_tile_merge_groups. It is set to 1.0 -- exactly the containment
-    // value computed above -- so this pins the boundary case. The comparison
-    // inside compute_tile_merge_groups is `>=` (inclusive), so a containment
-    // equal to the threshold still merges the lower-confidence box.
-    const float ios_threshold = 1.0f;
-    const auto groups = compute_tile_merge_groups(boxes, ios_threshold);
-
-    ASSERT_EQ(groups.size(), 1u);
-    EXPECT_EQ(groups.front().source_indices, DetectionRowSelection(0u, 1u));
-}
-
-TEST(YoloTileMergeGroupsTest, DegenerateArtifactBoxesAreDropped) {
-    // A zero-area (zero-width) box is dropped; the remaining valid box
-    // becomes the representative.
-    auto boxes = makeBoxes({
-        {10.f, 10.f, 10.f, 50.f, 0.99f, 1.f},
-        {20.f, 20.f, 80.f, 80.f, 0.7f, 1.f}
-    });
-
-    const auto groups = compute_tile_merge_groups(boxes, 0.5f);
-
-    ASSERT_EQ(groups.size(), 1u);
-    EXPECT_EQ(groups.front().representative_index, 1u);
-}
-
-TEST(YoloTileMergeGroupsTest, NonOverlappingBoxesOnOppositeSidesOfSeamRemainSeparate) {
-    // Two same-class boxes that only touch at a seam (no real overlap) are
-    // kept as separate groups -- seam halves are never fused.
-    auto boxes = makeBoxes({
-        {100.f, 0.f, 200.f, 100.f, 0.9f, 1.f},
-        {200.f, 0.f, 300.f, 100.f, 0.8f, 1.f}
-    });
-
-    const auto groups = compute_tile_merge_groups(boxes, 0.5f);
-
-    ASSERT_EQ(groups.size(), 2u);
-    EXPECT_EQ(groups[0].source_indices, DetectionRowSelection(0u));
-    EXPECT_EQ(groups[1].source_indices, DetectionRowSelection(1u));
-}
-
-TEST(YoloTileMergeGroupsTest, GreedyChainUsesRepresentativeOnly) {
-    // Greedy chaining: B overlaps representative A and merges in, but
-    // non-overlapping C forms its own group -- candidates are matched only
-    // against the representative, not against already-merged members.
-    auto boxes = makeBoxes({
-        {0.f, 0.f, 100.f, 100.f, 0.9f, 1.f},
-        {40.f, 0.f, 140.f, 100.f, 0.8f, 1.f},
-        {80.f, 0.f, 180.f, 100.f, 0.7f, 1.f}
-    });
-
-    const auto groups = compute_tile_merge_groups(boxes, 0.5f);
-
-    ASSERT_EQ(groups.size(), 2u);
-    EXPECT_EQ(groups[0].source_indices, DetectionRowSelection(0u, 1u));
-    EXPECT_EQ(groups[1].source_indices, DetectionRowSelection(2u));
-}
-
-TEST(YoloTileMergeGroupsTest, MatchesSahiGreedyNmmIosReferenceForFourWayOverlap) {
-    // Merge-group output matches real SAHI GreedyNMM (match_metric="IOS",
-    // match_threshold=0.5, class_agnostic=false) for a four-way overlap plus
-    // an extra other-class box.
-    auto boxes = makeBoxes({
-        {100.f, 100.f, 200.f, 200.f, 0.95f, 1.f},
-        {110.f, 100.f, 210.f, 200.f, 0.90f, 1.f},
-        {100.f, 110.f, 200.f, 210.f, 0.85f, 1.f},
-        {110.f, 110.f, 210.f, 210.f, 0.80f, 1.f},
-        {110.f, 110.f, 210.f, 210.f, 0.75f, 2.f}
-    });
-
-    const auto groups = compute_tile_merge_groups(boxes, 0.5f);
-
-    // Golden values generated by Application/Tests/generate_sahi_references.py
-    // (case: four_way_overlap). Rerun that script to regenerate.
-    ASSERT_EQ(groups.size(), 2u);
-    EXPECT_EQ(groups[0].representative_index, 0u);
-    EXPECT_EQ(groups[0].source_indices, DetectionRowSelection(0u, 1u, 2u, 3u));
-    EXPECT_EQ(groups[1].representative_index, 4u);
-    EXPECT_EQ(groups[1].source_indices, DetectionRowSelection(4u));
-}
-
-TEST(YoloTileMergeGroupsTest, MatchesActualSahiGreedyNmmFourWayGoldenOutput) {
-    // Merged bounds and representative conf/class match a golden output
-    // captured from a real SAHI run.
-    // Generated with SAHI 0.11.36 GreedyNMMPostprocess(match_metric="IOS",
-    // match_threshold=0.5, class_agnostic=false).
-    auto boxes = makeBoxes({
-        {100.f, 100.f, 200.f, 200.f, 0.95f, 1.f},
-        {110.f, 100.f, 210.f, 200.f, 0.90f, 1.f},
-        {100.f, 110.f, 200.f, 210.f, 0.85f, 1.f},
-        {110.f, 110.f, 210.f, 210.f, 0.80f, 1.f},
-        {110.f, 110.f, 210.f, 210.f, 0.75f, 2.f}
-    });
-
-    const auto groups = compute_tile_merge_groups(boxes, 0.5f);
-
-    ASSERT_EQ(groups.size(), 2u);
-    const Bounds first = mergeGroupBounds(boxes, groups[0]);
-    EXPECT_EQ((std::array<float, 4>{first.x, first.y, first.x + first.width, first.y + first.height}),
-              (std::array<float, 4>{100.f, 100.f, 210.f, 210.f}));
-    EXPECT_FLOAT_EQ(groups[0].representative.conf, 0.95f);
-    EXPECT_FLOAT_EQ(groups[0].representative.clid, 1.f);
-
-    const Bounds second = mergeGroupBounds(boxes, groups[1]);
-    EXPECT_EQ((std::array<float, 4>{second.x, second.y, second.x + second.width, second.y + second.height}),
-              (std::array<float, 4>{110.f, 110.f, 210.f, 210.f}));
-    EXPECT_FLOAT_EQ(groups[1].representative.conf, 0.75f);
-    EXPECT_FLOAT_EQ(groups[1].representative.clid, 2.f);
-}
-
-TEST(YoloTileMergeGroupsTest, MatchesSahiGreedyNmmIosReferenceAtThresholdBoundary) {
-    // Merge-group output matches real SAHI GreedyNMM (match_metric="IOS",
-    // match_threshold=0.5, class_agnostic=false) when boxes sit right on the
-    // IOS threshold boundary.
-    auto boxes = makeBoxes({
-        {0.f, 0.f, 100.f, 100.f, 0.9f, 1.f},
-        {50.f, 0.f, 150.f, 100.f, 0.8f, 1.f},
-        {151.f, 0.f, 251.f, 100.f, 0.7f, 1.f}
-    });
-
-    const auto groups = compute_tile_merge_groups(boxes, 0.5f);
-
-    // Golden values generated by Application/Tests/generate_sahi_references.py
-    // (case: threshold_boundary). Rerun that script to regenerate.
-    ASSERT_EQ(groups.size(), 2u);
-    EXPECT_EQ(groups[0].representative_index, 0u);
-    EXPECT_EQ(groups[0].source_indices, DetectionRowSelection(0u, 1u));
-    EXPECT_EQ(groups[1].representative_index, 2u);
-    EXPECT_EQ(groups[1].source_indices, DetectionRowSelection(2u));
-}
-
-TEST(YoloTileMergeGroupsTest, MatchesSahiGreedyNmmIosReferenceForRepresentativeChain) {
-    // Merge-group output matches real SAHI GreedyNMM (match_metric="IOS",
-    // match_threshold=0.5, class_agnostic=false) for a representative-chain
-    // layout (three chained boxes plus one separated box).
-    auto boxes = makeBoxes({
-        {0.f, 0.f, 100.f, 100.f, 0.9f, 1.f},
-        {40.f, 0.f, 140.f, 100.f, 0.8f, 1.f},
-        {80.f, 0.f, 180.f, 100.f, 0.7f, 1.f},
-        {220.f, 0.f, 320.f, 100.f, 0.6f, 1.f}
-    });
-
-    const auto groups = compute_tile_merge_groups(boxes, 0.5f);
-
-    // Golden values generated by Application/Tests/generate_sahi_references.py
-    // (case: representative_chain). Rerun that script to regenerate.
-    ASSERT_EQ(groups.size(), 3u);
-    EXPECT_EQ(groups[0].representative_index, 0u);
-    EXPECT_EQ(groups[0].source_indices, DetectionRowSelection(0u, 1u));
-    EXPECT_EQ(groups[1].representative_index, 2u);
-    EXPECT_EQ(groups[1].source_indices, DetectionRowSelection(2u));
-    EXPECT_EQ(groups[2].representative_index, 3u);
-    EXPECT_EQ(groups[2].source_indices, DetectionRowSelection(3u));
-}
-
-TEST(YoloTileMergeGroupsTest, PoseBboxFallbackMatchesActualSahiNmsGoldenOutput) {
-    // Pose detections fall back to bounding-box IOU NMS; the surviving row
-    // matches a real SAHI golden output (higher-confidence box wins).
-    // SAHI ObjectPrediction has no keypoint payload. The exact equivalent for pose
-    // postprocessing is bbox NMS on the pose boxes; generated with SAHI 0.11.36
-    // NMSPostprocess(match_metric="IOU", match_threshold=0.55, class_agnostic=false).
-    auto boxes = makeBoxes({
-        {40.f, 40.f, 80.f, 80.f, 0.9f, 1.f},
-        {45.f, 40.f, 85.f, 80.f, 0.8f, 1.f}
-    });
-
-    const auto indices = compute_tile_nms_indices(boxes, 0.55f);
-
-    ASSERT_EQ(indices, DetectionRowSelection(0u));
-    const auto& row = boxes[indices.front()];
-    EXPECT_EQ((std::array<float, 4>{row.box.x0, row.box.y0, row.box.x1, row.box.y1}),
-              (std::array<float, 4>{40.f, 40.f, 80.f, 80.f}));
-    EXPECT_FLOAT_EQ(row.conf, 0.9f);
-    EXPECT_FLOAT_EQ(row.clid, 1.f);
-}
-
-TEST(YoloTileMergeGroupsTest, PoseKeypointRotatedRectsKeepDistinctThinPoses) {
-    // Two thin poses whose rotated keypoint rects barely overlap are both
-    // kept by rotated-rect NMS.
-    track::detect::KeypointData keypoints(std::vector<float>{
-        10.f, 10.f, 50.f, 10.f,
-        10.f, 50.f, 50.f, 50.f
-    }, 2u);
-    std::vector<cv::RotatedRect> rects{
-        *compute_pose_tile_rect(keypoints[0]),
-        *compute_pose_tile_rect(keypoints[1])
-    };
-
-    const auto indices = compute_tile_nms_indices_for_rotated_rects(
-        rects,
-        {0.9f, 0.8f},
-        {1.f, 1.f},
-        0.55f);
-
-    EXPECT_EQ(indices, DetectionRowSelection(0u, 1u));
-}
-
-TEST(YoloTileMergeGroupsTest, PoseKeypointRotatedRectsSuppressOverlappingPoses) {
-    // Two nearly-identical poses overlap heavily; rotated-rect NMS suppresses
-    // the lower-confidence one.
-    track::detect::KeypointData keypoints(std::vector<float>{
-        10.f, 10.f, 50.f, 10.f,
-        11.f, 10.f, 51.f, 10.f
-    }, 2u);
-    std::vector<cv::RotatedRect> rects{
-        *compute_pose_tile_rect(keypoints[0]),
-        *compute_pose_tile_rect(keypoints[1])
-    };
-
-    const auto indices = compute_tile_nms_indices_for_rotated_rects(
-        rects,
-        {0.9f, 0.8f},
-        {1.f, 1.f},
-        0.55f);
-
-    EXPECT_EQ(indices, DetectionRowSelection(0u));
-}
-
-// --- Gap coverage: direct unit tests for compute_tile_nms_indices ---------
-// Previously only exercised indirectly through YOLO::receive and the pose
-// golden; these pin the inclusive (>=) threshold, zero-area skipping, class
-// separation and the sorted/unique return contract directly.
-
-TEST(YoloTileMergeGroupsTest, NmsIndicesInclusiveThresholdSkipsZeroAreaAndSeparatesClasses) {
-    // compute_tile_nms_indices: an exact duplicate is suppressed at threshold
-    // 1.0 (inclusive), an other-class box survives, and a zero-area box is
-    // dropped.
-    auto boxes = makeBoxes({
-        {0.f, 0.f, 100.f, 100.f, 0.90f, 1.f},   // 0: representative
-        {0.f, 0.f, 100.f, 100.f, 0.80f, 1.f},   // 1: identical -> IoU == 1
-        {0.f, 0.f, 100.f, 100.f, 0.70f, 2.f},   // 2: other class -> kept
-        {30.f, 0.f, 30.f, 50.f, 0.99f, 1.f}     // 3: zero width -> dropped
-    });
-
-    // IoU of the duplicate is exactly 1.0; threshold 1.0 must still suppress.
-    const auto indices = compute_tile_nms_indices(boxes, 1.0f);
-
-    EXPECT_EQ(indices, DetectionRowSelection(0u, 2u));
-}
-
-TEST(YoloTileMergeGroupsTest, NmsIndicesKeepsBoxesBelowIouThreshold) {
-    // compute_tile_nms_indices: two boxes overlapping below the IOU threshold
-    // are both kept.
-    // Intersection 10*100=1000, union 19000 -> IoU ~= 0.0526 < 0.55.
-    auto boxes = makeBoxes({
-        {0.f, 0.f, 100.f, 100.f, 0.9f, 1.f},
-        {90.f, 0.f, 190.f, 100.f, 0.8f, 1.f}
-    });
-
-    const auto indices = compute_tile_nms_indices(boxes, 0.55f);
-
-    EXPECT_EQ(indices, DetectionRowSelection(0u, 1u));
-}
-
-// --- Gap coverage: compute_tile_nms_indices_for_rotated_rects edge paths --
-
-TEST(YoloTileMergeGroupsTest, RotatedRectNmsThrowsOnMismatchedInputSizes) {
-    // compute_tile_nms_indices_for_rotated_rects throws when the confidence or
-    // class array length does not match the rect count.
-    std::vector<cv::RotatedRect> rects{
-        cv::RotatedRect(cv::Point2f(10.f, 10.f), cv::Size2f(20.f, 20.f), 0.f),
-        cv::RotatedRect(cv::Point2f(12.f, 12.f), cv::Size2f(20.f, 20.f), 0.f)
-    };
-
-    EXPECT_THROW(
-        compute_tile_nms_indices_for_rotated_rects(rects, {0.9f}, {1.f, 1.f}, 0.55f),
-        std::invalid_argument);
-    EXPECT_THROW(
-        compute_tile_nms_indices_for_rotated_rects(rects, {0.9f, 0.8f}, {1.f}, 0.55f),
-        std::invalid_argument);
-}
-
-TEST(YoloTileMergeGroupsTest, RotatedRectNmsSkipsDegenerateZeroAreaRects) {
-    // compute_tile_nms_indices_for_rotated_rects skips zero-area rotated
-    // rects, keeping only the valid one.
-    std::vector<cv::RotatedRect> rects{
-        cv::RotatedRect(cv::Point2f(10.f, 10.f), cv::Size2f(0.f, 0.f), 0.f),   // 0: degenerate
-        cv::RotatedRect(cv::Point2f(40.f, 40.f), cv::Size2f(20.f, 20.f), 0.f)  // 1: valid
-    };
-
-    const auto indices = compute_tile_nms_indices_for_rotated_rects(
-        rects, {0.99f, 0.5f}, {1.f, 1.f}, 0.55f);
-
-    EXPECT_EQ(indices, DetectionRowSelection(1u));
-}
-
-// --- Gap coverage: compute_pose_tile_rect degenerate keypoints -----------
-
-TEST(YoloTileMergeGroupsTest, PoseTileRectReturnsNulloptWhenAllBonesNonFinite) {
-    // compute_pose_tile_rect returns nullopt when every keypoint bone is
-    // non-finite (NaN).
-    const float nan = std::numeric_limits<float>::quiet_NaN();
-    track::detect::KeypointData keypoints(std::vector<float>{nan, nan, nan, nan}, 2u);
-
-    EXPECT_FALSE(compute_pose_tile_rect(keypoints[0]).has_value());
-}
-
-TEST(YoloTileMergeGroupsTest, PoseTileRectSingleBonePadsToMinimumSize) {
-    // compute_pose_tile_rect pads a single finite keypoint from a 1x1 seed up
-    // to the 6x6 minimum size, centered on the point.
-    track::detect::KeypointData keypoints(std::vector<float>{30.f, 40.f}, 1u);
-
-    const auto rect = compute_pose_tile_rect(keypoints[0]);
-
-    ASSERT_TRUE(rect.has_value());
-    // Single point -> 1x1 seed, min_padding=2 each side: 1->2, +2*2 = 6.
-    EXPECT_FLOAT_EQ(rect->center.x, 30.f);
-    EXPECT_FLOAT_EQ(rect->center.y, 40.f);
-    EXPECT_FLOAT_EQ(rect->size.width, 6.f);
-    EXPECT_FLOAT_EQ(rect->size.height, 6.f);
-}
-
 TEST(TileImageTest, GeneratesExpectedOffsetsWithoutOverlap) {
     resetGlobalSettings();
     const int width = 640;
@@ -662,15 +392,15 @@ TEST(TileImageTest, GeneratesExpectedOffsetsWithoutOverlap) {
     const int tile_edge = 320;
 
     cv::Mat source(height, width, CV_8UC3, cv::Scalar(0));
-    auto original = makeImage(width, height);
+    auto source_image = makeImage(width, height);
 
-    TileImage tile(source, std::move(original), Size2(tile_edge, tile_edge), Size2(width, height), 0.0f);
+    TileImage tile(source, std::move(source_image), Size2(tile_edge, tile_edge), Size2(width, height), 0.0f);
 
-    auto offsets = tile.offsets();
+    auto offsets = tile.tile_origins();
     ASSERT_EQ(offsets.size(), 4u);
-    std::vector<Vec2> expected{
-        Vec2(0, 0), Vec2(tile_edge, 0),
-        Vec2(0, tile_edge), Vec2(tile_edge, tile_edge)
+    std::vector<track::SourceCoord> expected{
+        track::SourceCoord(0, 0), track::SourceCoord(tile_edge, 0),
+        track::SourceCoord(0, tile_edge), track::SourceCoord(tile_edge, tile_edge)
     };
 
     for(size_t idx = 0; idx < offsets.size(); ++idx) {
@@ -683,6 +413,925 @@ TEST(TileImageTest, GeneratesExpectedOffsetsWithoutOverlap) {
     EXPECT_EQ(tile.images.size(), offsets.size());
 }
 
+TEST(TileImageTest, ComputeTileBoundsClampsFrameSmallerThanTile) {
+    const auto bounds = compute_tile_bounds(
+        Size2(100, 80),
+        Size2(320, 320),
+        320,
+        1,
+        0.f);
+
+    ASSERT_EQ(bounds.size(), 1u);
+    EXPECT_EQ(bounds.front(), track::SourceRect(0, 0, 100, 80));
+}
+
+TEST(TileImageTest, ComputeTileBoundsClampsEdgeTilesToSourceFrame) {
+    const auto bounds = compute_tile_bounds(
+        Size2(500, 300),
+        Size2(320, 320),
+        320,
+        1,
+        0.f);
+
+    ASSERT_EQ(bounds.size(), 2u);
+    EXPECT_EQ(bounds[0], track::SourceRect(0, 0, 320, 300));
+    EXPECT_EQ(bounds[1], track::SourceRect(180, 0, 320, 300));
+}
+
+TEST(DetectionTilePostprocessTest, ZeroOverlapCollectsWithoutFilteringDuplicates) {
+    resetGlobalSettings();
+    SETTING(detect_tile_overlap) = 0.f;
+
+    std::vector<track::detect::Result> results;
+    results.emplace_back(makeBoxResult(0, {{70.f, 20.f, 110.f, 70.f, 0.9f, 1.f}}));
+    results.emplace_back(makeBoxResult(1, {{72.f, 20.f, 112.f, 70.f, 0.8f, 1.f}}));
+
+    auto combined = track::detail::DetectionTilePostprocess::apply(
+        std::move(results), horizontalOverlapGeometries());
+
+    ASSERT_EQ(combined.boxes().num_rows(), 2u);
+    EXPECT_FLOAT_EQ(combined.boxes()[0].conf, 0.9f);
+    EXPECT_FLOAT_EQ(combined.boxes()[1].conf, 0.8f);
+}
+
+TEST(DetectionTilePostprocessTest, PositiveOverlapFiltersCrossTileDuplicates) {
+    resetGlobalSettings();
+    SETTING(detect_tile_overlap) = 0.2f;
+
+    const std::array<Bounds, 2> bounds{
+        Bounds(70.f, 20.f, 40.f, 50.f),
+        Bounds(72.f, 20.f, 40.f, 50.f)
+    };
+    const auto similarity = track::detect::association::accepted_similarity(
+        track::detect::association::overlap(bounds[0], bounds[1]),
+        track::detect::association::OverlapThresholds{
+            .iou = static_cast<float>(READ_SETTING(detect_tile_merge_iou, Float2_t)),
+            .containment = static_cast<float>(READ_SETTING(
+                detect_tile_merge_containment,
+                Float2_t))
+        });
+    ASSERT_TRUE(similarity.has_value());
+
+    const std::array<track::detect::association::AssociationCandidate, 2> candidates{
+        track::detect::association::AssociationCandidate{.stable = 0u, .source = 0u},
+        track::detect::association::AssociationCandidate{.stable = 1u, .source = 1u}
+    };
+    const std::array<track::detect::association::AssociationMatch, 1> matches{
+        track::detect::association::AssociationMatch{
+            .lhs = 0u,
+            .rhs = 1u,
+            .similarity = *similarity
+        }
+    };
+    const std::array<float, 2> confidences{0.9f, 0.8f};
+    const auto selection = track::detect::association::greedy_nms(
+        candidates,
+        matches,
+        [&](size_t lhs, size_t rhs) {
+            return confidences[lhs] > confidences[rhs];
+        });
+    ASSERT_EQ(selection.size(), 1u);
+    EXPECT_EQ(selection[0], 0u);
+
+    std::vector<track::detect::Result> results;
+    results.emplace_back(makeBoxResult(0, {{70.f, 20.f, 110.f, 70.f, 0.9f, 1.f}}));
+    results.emplace_back(makeBoxResult(1, {{72.f, 20.f, 112.f, 70.f, 0.8f, 1.f}}));
+
+    auto combined = track::detail::DetectionTilePostprocess::apply(
+        std::move(results), horizontalOverlapGeometries());
+
+    ASSERT_EQ(combined.boxes().num_rows(), 1u);
+    EXPECT_FLOAT_EQ(combined.boxes()[0].conf, 0.9f);
+}
+
+TEST(SemanticPostprocessTest, ConvertsClassesWithinTileContentToSourceMasks) {
+    cv::Mat class_map = cv::Mat::zeros(6, 8, CV_8UC1);
+    class_map(cv::Rect(2, 2, 2, 2)).setTo(1);
+    class_map(cv::Rect(5, 1, 1, 1)).setTo(2);
+    class_map.row(0).setTo(3);
+    class_map.col(7).setTo(3);
+    const track::TileGeometry geometry{
+        .source_region = track::SourceRect(10, 20, 12, 8),
+        .tile_content = track::TileRect(1, 1, 6, 4),
+        .tile_size = Size2(8, 6)
+    };
+
+    auto converted = track::detail::SegmentationPostprocess::convert_semantic(
+        makeSemanticResult(4, class_map),
+        geometry,
+        track::detect::PredictionFilter{},
+        0.37f);
+
+    EXPECT_FALSE(converted.semantic_mask().has_value());
+    ASSERT_EQ(converted.boxes().num_rows(), 2u);
+    ASSERT_EQ(converted.masks().size(), 2u);
+    EXPECT_FLOAT_EQ(converted.boxes()[0].clid, 1.f);
+    EXPECT_FLOAT_EQ(converted.boxes()[0].conf, 0.37f);
+    EXPECT_FLOAT_EQ(converted.boxes()[0].box.x0, 12.f);
+    EXPECT_FLOAT_EQ(converted.boxes()[0].box.y0, 22.f);
+    EXPECT_FLOAT_EQ(converted.boxes()[0].box.x1, 16.f);
+    EXPECT_FLOAT_EQ(converted.boxes()[0].box.y1, 26.f);
+    EXPECT_EQ(converted.masks()[0].mat.size(), cv::Size(4, 4));
+    EXPECT_EQ(cv::countNonZero(converted.masks()[0].mat), 16);
+    EXPECT_FLOAT_EQ(converted.boxes()[1].clid, 2.f);
+    EXPECT_FLOAT_EQ(converted.boxes()[1].box.x0, 18.f);
+    EXPECT_FLOAT_EQ(converted.boxes()[1].box.y0, 20.f);
+    EXPECT_FLOAT_EQ(converted.boxes()[1].box.x1, 20.f);
+    EXPECT_FLOAT_EQ(converted.boxes()[1].box.y1, 22.f);
+    EXPECT_EQ(converted.masks()[1].mat.size(), cv::Size(2, 2));
+
+    auto explicit_background = track::detail::SegmentationPostprocess::convert_semantic(
+        makeSemanticResult(4, class_map),
+        geometry,
+        track::detect::PredictionFilter{
+            .detect_only = {0},
+            ._inverted_from = std::nullopt
+        },
+        0.37f);
+    ASSERT_EQ(explicit_background.boxes().num_rows(), 1u);
+    EXPECT_FLOAT_EQ(explicit_background.boxes()[0].clid, 0.f);
+
+    auto inverted = track::detail::SegmentationPostprocess::convert_semantic(
+        makeSemanticResult(4, class_map),
+        geometry,
+        track::detect::PredictionFilter{
+            .detect_only = {},
+            ._inverted_from = std::vector<uint16_t>{1}
+        },
+        0.37f);
+    ASSERT_EQ(inverted.boxes().num_rows(), 2u);
+    EXPECT_FLOAT_EQ(inverted.boxes()[0].clid, 0.f);
+    EXPECT_FLOAT_EQ(inverted.boxes()[1].clid, 2.f);
+}
+
+TEST(SegmentationPostprocessTest, ResultsWithoutMasksPassThroughUnchanged) {
+    auto result = track::detail::SegmentationPostprocess::apply(
+        makeBoxResult(5, {{10.f, 20.f, 30.f, 40.f, 0.8f, 2.f}}),
+        track::detail::SegmentationPostprocess::Settings{
+            .overlap = {.iou = 0.5f, .containment = 2.f},
+            .class_agnostic = false,
+            .mode = track::MaskPostprocessMode::merge_masks,
+            .frame = {}
+        });
+
+    EXPECT_EQ(result.index(), 5);
+    ASSERT_EQ(result.boxes().num_rows(), 1u);
+    EXPECT_FLOAT_EQ(result.boxes()[0].clid, 2.f);
+    EXPECT_TRUE(result.masks().empty());
+}
+
+TEST(SegmentationPostprocessTest, NoneModeLeavesMaskRowsUnchanged) {
+    auto boxes = makeBoxes({
+        {20.f, 30.f, 40.f, 50.f, 0.9f, 1.f},
+        {20.f, 30.f, 40.f, 50.f, 0.8f, 1.f}
+    });
+    std::vector<track::detect::MaskData> masks;
+    masks.emplace_back(makeOwnedMaskData(
+        20, 20, {Bounds(0.f, 0.f, 20.f, 20.f)}));
+    masks.emplace_back(makeOwnedMaskData(
+        20, 20, {Bounds(0.f, 0.f, 20.f, 20.f)}));
+    track::detect::Result input{
+        9,
+        std::move(boxes),
+        std::move(masks),
+        track::detect::KeypointData{},
+        track::detect::ObbData{},
+        track::detect::PointData{}
+    };
+
+    auto unchanged = track::detail::SegmentationPostprocess::apply(
+        std::move(input),
+        track::detail::SegmentationPostprocess::Settings{
+            .overlap = {.iou = 0.5f, .containment = 0.5f},
+            .class_agnostic = false,
+            .mode = track::MaskPostprocessMode::none,
+            .frame = {}
+        });
+
+    EXPECT_EQ(unchanged.index(), 9);
+    ASSERT_EQ(unchanged.boxes().num_rows(), 2u);
+    ASSERT_EQ(unchanged.masks().size(), 2u);
+    EXPECT_FLOAT_EQ(unchanged.boxes()[0].conf, 0.9f);
+    EXPECT_FLOAT_EQ(unchanged.boxes()[1].conf, 0.8f);
+}
+
+TEST(SemanticPostprocessTest, ExistingMaskPipelineSplitsDisconnectedClassRegions) {
+    resetGlobalSettings();
+    cv::Mat class_map = cv::Mat::zeros(12, 12, CV_8UC1);
+    class_map(cv::Rect(2, 2, 2, 2)).setTo(1);
+    class_map(cv::Rect(7, 7, 2, 2)).setTo(1);
+    const track::TileGeometry geometry{
+        .source_region = track::SourceRect(0, 0, 12, 12),
+        .tile_content = track::TileRect(0, 0, 12, 12),
+        .tile_size = Size2(12, 12)
+    };
+
+    auto converted = track::detail::SegmentationPostprocess::convert_semantic(
+        makeSemanticResult(0, class_map),
+        geometry,
+        track::detect::PredictionFilter{},
+        0.2f);
+    ASSERT_EQ(converted.boxes().num_rows(), 1u);
+    ASSERT_EQ(converted.masks().size(), 1u);
+
+    auto split = track::detail::SegmentationPostprocess::apply(
+        std::move(converted),
+        track::detail::SegmentationPostprocess::Settings{
+            .overlap = {.iou = 0.5f, .containment = 2.f},
+            .class_agnostic = false,
+            .mode = track::MaskPostprocessMode::merge_masks,
+            .frame = {}
+        });
+    ASSERT_EQ(split.boxes().num_rows(), 2u);
+    ASSERT_EQ(split.masks().size(), 2u);
+    EXPECT_FLOAT_EQ(split.boxes()[0].clid, 1.f);
+    EXPECT_FLOAT_EQ(split.boxes()[0].conf, 0.2f);
+    EXPECT_FLOAT_EQ(split.boxes()[1].clid, 1.f);
+    EXPECT_FLOAT_EQ(split.boxes()[1].conf, 0.2f);
+
+    SegmentationData data(cmn::Image::Zeros(12, 12, 3));
+    data.tiles.emplace_back(track::SourceRect(0, 0, 12, 12));
+    data.image->set_index(0);
+    YOLO::receive(data, std::move(split));
+    EXPECT_EQ(data.predictions.size(), 2u);
+    EXPECT_EQ(data.frame.n(), 2u);
+}
+
+TEST(SegmentationPostprocessTest, GreedyNmsRetainsPreferredOverlappingMask) {
+    auto boxes = makeBoxes({
+        {20.f, 30.f, 40.f, 50.f, 0.9f, 1.f},
+        {20.f, 30.f, 40.f, 50.f, 0.8f, 1.f}
+    });
+    std::vector<track::detect::MaskData> masks;
+    masks.emplace_back(makeOwnedMaskData(
+        20, 20, {Bounds(0.f, 0.f, 20.f, 20.f)}));
+    masks.emplace_back(makeOwnedMaskData(
+        20, 20, {Bounds(0.f, 0.f, 20.f, 20.f)}));
+    track::detect::Result result{
+        7,
+        std::move(boxes),
+        std::move(masks),
+        track::detect::KeypointData{},
+        track::detect::ObbData{},
+        track::detect::PointData{}
+    };
+
+    auto filtered = track::detail::SegmentationPostprocess::apply(
+        std::move(result),
+        track::detail::SegmentationPostprocess::Settings{
+            .overlap = {.iou = 0.5f, .containment = 2.f},
+            .class_agnostic = false,
+            .mode = track::MaskPostprocessMode::greedy_nms,
+            .frame = {}
+        });
+
+    EXPECT_EQ(filtered.index(), 7);
+    ASSERT_EQ(filtered.boxes().num_rows(), 1u);
+    ASSERT_EQ(filtered.masks().size(), 1u);
+    EXPECT_FLOAT_EQ(filtered.boxes()[0].conf, 0.9f);
+    EXPECT_EQ(cv::countNonZero(filtered.masks()[0].mat), 20 * 20);
+}
+
+TEST(SegmentationPostprocessTest, MergesTransitiveMasksAndPreservesDisjointRows) {
+    auto boxes = makeBoxes({
+        {10.f, 0.f, 20.f, 10.f, 0.6f, 1.f},
+        {18.f, 0.f, 28.f, 10.f, 0.9f, 1.f},
+        {26.f, 0.f, 36.f, 10.f, 0.7f, 1.f},
+        {50.f, 0.f, 60.f, 10.f, 0.8f, 1.f}
+    });
+    std::vector<track::detect::MaskData> masks;
+    for(size_t index = 0; index < 4u; ++index) {
+        masks.emplace_back(makeOwnedMaskData(
+            10, 10, {Bounds(0.f, 0.f, 10.f, 10.f)}));
+    }
+    track::detect::Result result{
+        11,
+        std::move(boxes),
+        std::move(masks),
+        track::detect::KeypointData{},
+        track::detect::ObbData{},
+        track::detect::PointData{}
+    };
+
+    auto merged = track::detail::SegmentationPostprocess::apply(
+        std::move(result),
+        track::detail::SegmentationPostprocess::Settings{
+            .overlap = {.iou = 0.1f, .containment = 2.f},
+            .class_agnostic = false,
+            .mode = track::MaskPostprocessMode::merge_masks,
+            .frame = {}
+        });
+
+    EXPECT_EQ(merged.index(), 11);
+    ASSERT_EQ(merged.boxes().num_rows(), 2u);
+    ASSERT_EQ(merged.masks().size(), 2u);
+
+    EXPECT_FLOAT_EQ(merged.boxes()[0].box.x0, 10.f);
+    EXPECT_FLOAT_EQ(merged.boxes()[0].box.y0, 0.f);
+    EXPECT_FLOAT_EQ(merged.boxes()[0].box.x1, 36.f);
+    EXPECT_FLOAT_EQ(merged.boxes()[0].box.y1, 10.f);
+    EXPECT_FLOAT_EQ(merged.boxes()[0].conf, 0.9f);
+    EXPECT_FLOAT_EQ(merged.boxes()[0].clid, 1.f);
+    EXPECT_EQ(merged.masks()[0].mat.cols, 26);
+    EXPECT_EQ(merged.masks()[0].mat.rows, 10);
+    EXPECT_EQ(cv::countNonZero(merged.masks()[0].mat), 26 * 10);
+    EXPECT_NE(merged.masks()[0].mat.at<uint8_t>(0, 0), 0u);
+    EXPECT_NE(merged.masks()[0].mat.at<uint8_t>(9, 25), 0u);
+
+    EXPECT_FLOAT_EQ(merged.boxes()[1].box.x0, 50.f);
+    EXPECT_FLOAT_EQ(merged.boxes()[1].box.x1, 60.f);
+    EXPECT_FLOAT_EQ(merged.boxes()[1].conf, 0.8f);
+    EXPECT_EQ(merged.masks()[1].mat.cols, 10);
+    EXPECT_EQ(merged.masks()[1].mat.rows, 10);
+    EXPECT_EQ(cv::countNonZero(merged.masks()[1].mat), 10 * 10);
+}
+
+TEST(SegmentationPostprocessTest, MergeMasksDropsTopLeftBorderArtifact) {
+    auto boxes = makeBoxes({
+        {0.f, 0.f, 10.f, 10.f, 0.9f, 1.f}
+    });
+    std::vector<track::detect::MaskData> masks;
+    masks.emplace_back(makeOwnedMaskData(
+        10, 10, {Bounds(0.f, 0.f, 10.f, 10.f)}));
+    track::detect::Result result{
+        12,
+        std::move(boxes),
+        std::move(masks),
+        track::detect::KeypointData{},
+        track::detect::ObbData{},
+        track::detect::PointData{}
+    };
+
+    auto filtered = track::detail::SegmentationPostprocess::apply(
+        std::move(result),
+        track::detail::SegmentationPostprocess::Settings{
+            .overlap = {.iou = 0.5f, .containment = 2.f},
+            .class_agnostic = false,
+            .mode = track::MaskPostprocessMode::merge_masks,
+            .frame = {}
+        });
+
+    EXPECT_EQ(filtered.index(), 12);
+    EXPECT_EQ(filtered.boxes().num_rows(), 0u);
+    EXPECT_TRUE(filtered.masks().empty());
+}
+
+TEST(DetectionTilePostprocessTest, PositiveOverlapNeverAssociatesRowsFromTheSameTile) {
+    resetGlobalSettings();
+    SETTING(detect_tile_overlap) = 0.2f;
+
+    std::vector<track::detect::Result> results;
+    results.emplace_back(makeBoxResult(0, {
+        {70.f, 20.f, 110.f, 70.f, 0.9f, 1.f},
+        {70.f, 20.f, 110.f, 70.f, 0.8f, 1.f}
+    }));
+    results.emplace_back(makeBoxResult(1, {}));
+
+    auto combined = track::detail::DetectionTilePostprocess::apply(
+        std::move(results), horizontalOverlapGeometries());
+
+    EXPECT_EQ(combined.boxes().num_rows(), 2u);
+}
+
+TEST(DetectionTilePostprocessTest, DifferentClassesRemainSeparate) {
+    resetGlobalSettings();
+    SETTING(detect_tile_overlap) = 0.2f;
+
+    std::vector<track::detect::Result> results;
+    results.emplace_back(makeBoxResult(0, {{90.f, 20.f, 110.f, 70.f, 0.9f, 1.f}}));
+    results.emplace_back(makeBoxResult(1, {{90.f, 20.f, 110.f, 70.f, 0.8f, 2.f}}));
+
+    auto combined = track::detail::DetectionTilePostprocess::apply(
+        std::move(results), horizontalOverlapGeometries());
+
+    ASSERT_EQ(combined.boxes().num_rows(), 2u);
+    EXPECT_FLOAT_EQ(combined.boxes()[0].clid, 1.f);
+    EXPECT_FLOAT_EQ(combined.boxes()[1].clid, 2.f);
+}
+
+TEST(DetectionTilePostprocessTest, NonNeighboringTilesNeverMatch) {
+    resetGlobalSettings();
+    SETTING(detect_tile_overlap) = 0.2f;
+
+    std::vector<track::detect::Result> results;
+    results.emplace_back(makeBoxResult(0, {{40.f, 20.f, 80.f, 70.f, 0.9f, 1.f}}));
+    results.emplace_back(makeBoxResult(1, {{40.f, 20.f, 80.f, 70.f, 0.8f, 1.f}}));
+    std::vector<track::TileGeometry> geometries{
+        track::TileGeometry{
+            .source_region = track::SourceRect(0, 0, 100, 100),
+            .tile_content = track::TileRect(0, 0, 100, 100),
+            .tile_size = Size2(100, 100)
+        },
+        track::TileGeometry{
+            .source_region = track::SourceRect(120, 0, 100, 100),
+            .tile_content = track::TileRect(0, 0, 100, 100),
+            .tile_size = Size2(100, 100)
+        }
+    };
+
+    auto combined = track::detail::DetectionTilePostprocess::apply(
+        std::move(results), geometries);
+
+    EXPECT_EQ(combined.boxes().num_rows(), 2u);
+}
+
+TEST(DetectionTilePostprocessTest, RepresentativePrefersAnInteriorDetection) {
+    resetGlobalSettings();
+    SETTING(detect_tile_overlap) = 0.2f;
+
+    std::vector<track::detect::Result> results;
+    results.emplace_back(makeBoxResult(0, {{90.f, 20.f, 120.f, 70.f, 0.99f, 1.f}}));
+    results.emplace_back(makeBoxResult(1, {{90.f, 20.f, 115.f, 70.f, 0.5f, 1.f}}));
+
+    auto combined = track::detail::DetectionTilePostprocess::apply(
+        std::move(results), horizontalOverlapGeometries());
+
+    ASSERT_EQ(combined.boxes().num_rows(), 1u);
+    EXPECT_FLOAT_EQ(combined.boxes()[0].conf, 0.5f);
+    EXPECT_FLOAT_EQ(combined.boxes()[0].box.x1, 115.f);
+}
+
+TEST(DetectionTilePostprocessTest, ContainmentMatchesWhenIouDoesNot) {
+    resetGlobalSettings();
+    SETTING(detect_tile_overlap) = 0.2f;
+    SETTING(detect_tile_merge_iou) = Float2_t{0.9f};
+    SETTING(detect_tile_merge_containment) = Float2_t{0.9f};
+
+    std::vector<track::detect::Result> results;
+    results.emplace_back(makeBoxResult(0, {{82.f, 10.f, 118.f, 90.f, 0.9f, 1.f}}));
+    results.emplace_back(makeBoxResult(1, {{92.f, 30.f, 105.f, 60.f, 0.7f, 1.f}}));
+
+    auto combined = track::detail::DetectionTilePostprocess::apply(
+        std::move(results), horizontalOverlapGeometries());
+
+    ASSERT_EQ(combined.boxes().num_rows(), 1u);
+    EXPECT_FLOAT_EQ(combined.boxes()[0].conf, 0.9f);
+    EXPECT_FLOAT_EQ(combined.boxes()[0].box.x0, 82.f);
+    EXPECT_FLOAT_EQ(combined.boxes()[0].box.x1, 118.f);
+}
+
+TEST(DetectionTilePostprocessTest, ContainmentThresholdIsInclusive) {
+    resetGlobalSettings();
+    SETTING(detect_tile_overlap) = 0.2f;
+    SETTING(detect_tile_merge_iou) = Float2_t{0.9f};
+    SETTING(detect_tile_merge_containment) = Float2_t{0.5f};
+
+    std::vector<track::detect::Result> results;
+    results.emplace_back(makeBoxResult(0, {{82.f, 20.f, 102.f, 60.f, 0.9f, 1.f}}));
+    results.emplace_back(makeBoxResult(1, {{92.f, 20.f, 112.f, 60.f, 0.8f, 1.f}}));
+
+    auto combined = track::detail::DetectionTilePostprocess::apply(
+        std::move(results), horizontalOverlapGeometries());
+
+    EXPECT_EQ(combined.boxes().num_rows(), 1u);
+}
+
+TEST(DetectionTilePostprocessTest, OverlapBelowBothThresholdsRemainsSeparate) {
+    resetGlobalSettings();
+    SETTING(detect_tile_overlap) = 0.2f;
+    SETTING(detect_tile_merge_iou) = Float2_t{0.9f};
+    SETTING(detect_tile_merge_containment) = Float2_t{0.5f};
+
+    std::vector<track::detect::Result> results;
+    results.emplace_back(makeBoxResult(0, {{82.f, 20.f, 102.f, 60.f, 0.9f, 1.f}}));
+    results.emplace_back(makeBoxResult(1, {{93.f, 20.f, 113.f, 60.f, 0.8f, 1.f}}));
+
+    auto combined = track::detail::DetectionTilePostprocess::apply(
+        std::move(results), horizontalOverlapGeometries());
+
+    EXPECT_EQ(combined.boxes().num_rows(), 2u);
+}
+
+TEST(DetectionTilePostprocessTest, FourWayOverlapProducesOneGroup) {
+    resetGlobalSettings();
+    SETTING(detect_tile_overlap) = 0.2f;
+
+    std::vector<track::detect::Result> results;
+    results.emplace_back(makeBoxResult(0, {{82.f, 82.f, 115.f, 115.f, 0.95f, 1.f}}));
+    results.emplace_back(makeBoxResult(1, {{84.f, 82.f, 117.f, 115.f, 0.90f, 1.f}}));
+    results.emplace_back(makeBoxResult(2, {{82.f, 84.f, 115.f, 117.f, 0.85f, 1.f}}));
+    results.emplace_back(makeBoxResult(3, {{84.f, 84.f, 117.f, 117.f, 0.80f, 1.f}}));
+
+    auto combined = track::detail::DetectionTilePostprocess::apply(
+        std::move(results), fourWayOverlapGeometries());
+
+    ASSERT_EQ(combined.boxes().num_rows(), 1u);
+    EXPECT_FLOAT_EQ(combined.boxes()[0].clid, 1.f);
+}
+
+TEST(DetectionTilePostprocessTest, TransitiveMatchesFormOneTileUniqueGroup) {
+    resetGlobalSettings();
+    SETTING(detect_tile_overlap) = 0.2f;
+    SETTING(detect_tile_merge_iou) = Float2_t{0.9f};
+    SETTING(detect_tile_merge_containment) = Float2_t{0.5f};
+
+    std::vector<track::detect::Result> results;
+    results.emplace_back(makeBoxResult(0, {{20.f, 20.f, 120.f, 120.f, 0.9f, 1.f}}));
+    results.emplace_back(makeBoxResult(1, {{60.f, 20.f, 160.f, 120.f, 0.8f, 1.f}}));
+    results.emplace_back(makeBoxResult(2, {{100.f, 20.f, 200.f, 120.f, 0.7f, 1.f}}));
+    auto geometries = coincidentGeometries(results.size());
+
+    auto combined = track::detail::DetectionTilePostprocess::apply(
+        std::move(results), geometries);
+
+    ASSERT_EQ(combined.boxes().num_rows(), 1u);
+    EXPECT_FLOAT_EQ(combined.boxes()[0].conf, 0.9f);
+}
+
+TEST(DetectionTilePostprocessTest, PoseMatchingFillsOnlyMissingJoints) {
+    resetGlobalSettings();
+    SETTING(detect_tile_overlap) = 0.2f;
+    SETTING(detect_pose_bbx) = default_config::detect_pose_bbx_t::keypoints;
+
+    std::vector<track::detect::Result> results;
+    results.emplace_back(makePoseResult(
+        0, {{70.f, 20.f, 110.f, 70.f, 0.9f, 1.f}},
+        {90.f, 30.f, 0.f, 0.f}, 2u));
+    results.emplace_back(makePoseResult(
+        1, {{72.f, 20.f, 112.f, 70.f, 0.8f, 1.f}},
+        {91.f, 31.f, 100.f, 40.f}, 2u));
+
+    auto combined = track::detail::DetectionTilePostprocess::apply(
+        std::move(results), horizontalOverlapGeometries());
+
+    ASSERT_EQ(combined.boxes().num_rows(), 1u);
+    ASSERT_EQ(combined.keypoints().size(), 1u);
+    const auto pose = combined.keypoints()[0];
+    ASSERT_EQ(pose.bones.size(), 2u);
+    EXPECT_FLOAT_EQ(pose.bones[0].x, 90.f);
+    EXPECT_FLOAT_EQ(pose.bones[0].y, 30.f);
+    EXPECT_FLOAT_EQ(pose.bones[1].x, 100.f);
+    EXPECT_FLOAT_EQ(pose.bones[1].y, 40.f);
+}
+
+TEST(DetectionTilePostprocessTest, PoseDistanceKeepsNearbyDistinctPosesSeparate) {
+    resetGlobalSettings();
+    SETTING(detect_tile_overlap) = 0.2f;
+    SETTING(detect_pose_bbx) = default_config::detect_pose_bbx_t::keypoints;
+    SETTING(detect_tile_pose_match_distance) = Float2_t{0.25f};
+
+    std::vector<track::detect::Result> results;
+    results.emplace_back(makePoseResult(
+        0, {{70.f, 10.f, 115.f, 90.f, 0.9f, 1.f}},
+        {75.f, 20.f, 80.f, 25.f}, 2u));
+    results.emplace_back(makePoseResult(
+        1, {{72.f, 10.f, 117.f, 90.f, 0.8f, 1.f}},
+        {105.f, 60.f, 110.f, 65.f}, 2u));
+
+    auto combined = track::detail::DetectionTilePostprocess::apply(
+        std::move(results), horizontalOverlapGeometries());
+
+    EXPECT_EQ(combined.boxes().num_rows(), 2u);
+    EXPECT_EQ(combined.keypoints().size(), 2u);
+}
+
+TEST(DetectionTilePostprocessTest, PoseYoloModeUsesTheModelBoxGate) {
+    resetGlobalSettings();
+    SETTING(detect_tile_overlap) = 0.2f;
+    SETTING(detect_pose_bbx) = default_config::detect_pose_bbx_t::yolo;
+
+    std::vector<track::detect::Result> results;
+    results.emplace_back(makePoseResult(
+        0, {{70.f, 10.f, 115.f, 90.f, 0.9f, 1.f}},
+        {75.f, 20.f, 80.f, 25.f}, 2u));
+    results.emplace_back(makePoseResult(
+        1, {{72.f, 10.f, 117.f, 90.f, 0.8f, 1.f}},
+        {105.f, 60.f, 110.f, 65.f}, 2u));
+
+    auto combined = track::detail::DetectionTilePostprocess::apply(
+        std::move(results), horizontalOverlapGeometries());
+
+    ASSERT_EQ(combined.boxes().num_rows(), 1u);
+    ASSERT_EQ(combined.keypoints().size(), 1u);
+    EXPECT_FLOAT_EQ(combined.keypoints()[0].bones[0].x, 75.f);
+}
+
+TEST(DetectionTilePostprocessTest, PoseKeypointModeRequiresACommonValidJoint) {
+    resetGlobalSettings();
+    SETTING(detect_tile_overlap) = 0.2f;
+    SETTING(detect_pose_bbx) = default_config::detect_pose_bbx_t::keypoints;
+
+    std::vector<track::detect::Result> results;
+    results.emplace_back(makePoseResult(
+        0, {{70.f, 20.f, 110.f, 70.f, 0.9f, 1.f}},
+        {90.f, 30.f, 0.f, 0.f}, 2u));
+    results.emplace_back(makePoseResult(
+        1, {{72.f, 20.f, 112.f, 70.f, 0.8f, 1.f}},
+        {0.f, 0.f, 100.f, 40.f}, 2u));
+
+    auto combined = track::detail::DetectionTilePostprocess::apply(
+        std::move(results), horizontalOverlapGeometries());
+
+    EXPECT_EQ(combined.boxes().num_rows(), 2u);
+    EXPECT_EQ(combined.keypoints().size(), 2u);
+}
+
+TEST(DetectionTilePostprocessTest, MaskMatchingStitchesComplementaryClippedMasks) {
+    resetGlobalSettings();
+    SETTING(detect_tile_overlap) = 0.2f;
+
+    auto left_boxes = makeBoxes({{90.f, 20.f, 120.f, 50.f, 0.9f, 1.f}});
+    auto right_boxes = makeBoxes({{80.f, 20.f, 110.f, 50.f, 0.8f, 1.f}});
+    std::vector<track::detect::MaskData> left_masks;
+    std::vector<track::detect::MaskData> right_masks;
+    left_masks.emplace_back(makeOwnedMaskData(
+        30, 30, {Bounds(0, 0, 30, 30)}));
+    right_masks.emplace_back(makeOwnedMaskData(
+        30, 30, {Bounds(0, 0, 30, 30)}));
+
+    std::vector<track::detect::Result> results;
+    results.emplace_back(0, std::move(left_boxes), std::move(left_masks),
+        track::detect::KeypointData{}, track::detect::ObbData{}, track::detect::PointData{});
+    results.emplace_back(1, std::move(right_boxes), std::move(right_masks),
+        track::detect::KeypointData{}, track::detect::ObbData{}, track::detect::PointData{});
+
+    auto combined = track::detail::DetectionTilePostprocess::apply(
+        std::move(results), horizontalOverlapGeometries());
+
+    ASSERT_EQ(combined.boxes().num_rows(), 1u);
+    ASSERT_EQ(combined.masks().size(), 1u);
+    EXPECT_EQ(combined.masks()[0].mat.cols, 40);
+    EXPECT_EQ(combined.masks()[0].mat.rows, 30);
+    EXPECT_EQ(cv::countNonZero(combined.masks()[0].mat), 40 * 30);
+    EXPECT_NE(combined.masks()[0].mat.at<uint8_t>(0, 0), 0u);
+    EXPECT_NE(combined.masks()[0].mat.at<uint8_t>(29, 39), 0u);
+    EXPECT_FLOAT_EQ(combined.boxes()[0].box.x0, 80.f);
+    EXPECT_FLOAT_EQ(combined.boxes()[0].box.x1, 120.f);
+}
+
+TEST(DetectionTilePostprocessTest, ObbMatchingUsesRotatedOverlap) {
+    resetGlobalSettings();
+    SETTING(detect_tile_overlap) = 0.2f;
+
+    std::vector<track::detect::Result> results;
+    results.emplace_back(makeObbResult(0, {1.f, 0.9f, 95.f, 50.f, 40.f, 20.f, 0.2f}));
+    results.emplace_back(makeObbResult(1, {1.f, 0.8f, 96.f, 50.f, 40.f, 20.f, 0.2f}));
+
+    auto combined = track::detail::DetectionTilePostprocess::apply(
+        std::move(results), horizontalOverlapGeometries());
+
+    ASSERT_EQ(combined.obbdata().size(), 1u);
+    EXPECT_FLOAT_EQ(combined.obbdata()[0].conf, 0.9f);
+}
+
+TEST(DetectionTilePostprocessTest, PointMatchingUsesCircleOverlap) {
+    resetGlobalSettings();
+    SETTING(detect_tile_overlap) = 0.2f;
+
+    std::vector<track::detect::Result> results;
+    results.emplace_back(makePointResult(0, {1.f, 0.9f, 95.f, 50.f, 20.f}));
+    results.emplace_back(makePointResult(1, {1.f, 0.8f, 96.f, 50.f, 20.f}));
+
+    auto combined = track::detail::DetectionTilePostprocess::apply(
+        std::move(results), horizontalOverlapGeometries());
+
+    ASSERT_EQ(combined.points().size(), 1u);
+    EXPECT_FLOAT_EQ(combined.points()[0].conf, 0.9f);
+}
+
+TEST(DetectionTilePostprocessIntegrationTest, SelectedBoxRoutesThroughYoloReceive) {
+    resetGlobalSettings();
+    SETTING(detect_tile_overlap) = 0.2f;
+
+    std::vector<track::detect::Result> results;
+    results.emplace_back(makeBoxResult(0, {{70.f, 20.f, 110.f, 70.f, 0.9f, 1.f}}));
+    results.emplace_back(makeBoxResult(1, {{72.f, 20.f, 112.f, 70.f, 0.8f, 1.f}}));
+
+    auto combined = track::detail::DetectionTilePostprocess::apply(
+        std::move(results), horizontalOverlapGeometries());
+    SegmentationData data(cmn::Image::Zeros(100, 200, 3));
+    data.image->set_index(0);
+
+    YOLO::receive(data, std::move(combined));
+
+    ASSERT_EQ(data.predictions.size(), 1u);
+    EXPECT_EQ(data.frame.n(), 1u);
+    EXPECT_FLOAT_EQ(data.predictions[0].p, 0.9f);
+}
+
+TEST(DetectionTilePostprocessIntegrationTest, FusedPoseRoutesThroughYoloReceive) {
+    resetGlobalSettings();
+    SETTING(detect_tile_overlap) = 0.2f;
+    SETTING(detect_pose_bbx) = default_config::detect_pose_bbx_t::keypoints;
+
+    std::vector<track::detect::Result> results;
+    results.emplace_back(makePoseResult(
+        0, {{70.f, 20.f, 110.f, 70.f, 0.9f, 1.f}},
+        {90.f, 30.f, 0.f, 0.f}, 2u));
+    results.emplace_back(makePoseResult(
+        1, {{72.f, 20.f, 112.f, 70.f, 0.8f, 1.f}},
+        {91.f, 31.f, 100.f, 40.f}, 2u));
+
+    auto combined = track::detail::DetectionTilePostprocess::apply(
+        std::move(results), horizontalOverlapGeometries());
+    SegmentationData data(cmn::Image::Zeros(100, 200, 3));
+    data.image->set_index(0);
+
+    YOLO::receive(data, std::move(combined));
+
+    ASSERT_EQ(data.predictions.size(), 1u);
+    ASSERT_EQ(data.frame.n(), 1u);
+    ASSERT_EQ(data.keypoints.size(), 1u);
+    ASSERT_EQ(data.keypoints[0].bones.size(), 2u);
+    EXPECT_FLOAT_EQ(data.keypoints[0].bones[1].x, 100.f);
+    EXPECT_FLOAT_EQ(data.keypoints[0].bones[1].y, 40.f);
+}
+
+TEST(DetectionTilePostprocessIntegrationTest, StitchedMaskRoutesThroughYoloReceive) {
+    resetGlobalSettings();
+    SETTING(detect_tile_overlap) = 0.2f;
+
+    auto left_boxes = makeBoxes({{90.f, 20.f, 120.f, 50.f, 0.9f, 1.f}});
+    auto right_boxes = makeBoxes({{80.f, 20.f, 110.f, 50.f, 0.8f, 1.f}});
+    std::vector<track::detect::MaskData> left_masks;
+    std::vector<track::detect::MaskData> right_masks;
+    left_masks.emplace_back(makeOwnedMaskData(
+        30, 30, {Bounds(0, 0, 30, 30)}));
+    right_masks.emplace_back(makeOwnedMaskData(
+        30, 30, {Bounds(0, 0, 30, 30)}));
+
+    std::vector<track::detect::Result> results;
+    results.emplace_back(0, std::move(left_boxes), std::move(left_masks),
+        track::detect::KeypointData{}, track::detect::ObbData{}, track::detect::PointData{});
+    results.emplace_back(1, std::move(right_boxes), std::move(right_masks),
+        track::detect::KeypointData{}, track::detect::ObbData{}, track::detect::PointData{});
+
+    auto combined = track::detail::DetectionTilePostprocess::apply(
+        std::move(results), horizontalOverlapGeometries());
+    SegmentationData data(cmn::Image::Zeros(100, 200, 3));
+    data.image->set_index(0);
+
+    YOLO::receive(data, std::move(combined));
+
+    ASSERT_EQ(data.predictions.size(), 1u);
+    ASSERT_EQ(data.frame.n(), 1u);
+    ASSERT_FALSE(data.frame.mask().empty());
+    EXPECT_EQ(exclusiveLineBounds(*data.frame.mask().front()),
+              (std::array<int, 4>{80, 20, 120, 50}));
+}
+
+TEST(DetectionTilePostprocessIntegrationTest, SelectedObbRoutesThroughYoloReceive) {
+    resetGlobalSettings();
+    SETTING(detect_tile_overlap) = 0.2f;
+
+    std::vector<track::detect::Result> results;
+    results.emplace_back(makeObbResult(0, {1.f, 0.9f, 95.f, 50.f, 40.f, 20.f, 0.2f}));
+    results.emplace_back(makeObbResult(1, {1.f, 0.8f, 96.f, 50.f, 40.f, 20.f, 0.2f}));
+
+    auto combined = track::detail::DetectionTilePostprocess::apply(
+        std::move(results), horizontalOverlapGeometries());
+    SegmentationData data(cmn::Image::Zeros(100, 200, 3));
+    data.image->set_index(0);
+
+    YOLO::receive(data, std::move(combined));
+
+    ASSERT_EQ(data.predictions.size(), 1u);
+    EXPECT_EQ(data.frame.n(), 1u);
+    EXPECT_FLOAT_EQ(data.predictions[0].p, 0.9f);
+}
+
+TEST(DetectionTilePostprocessIntegrationTest, SelectedPointRoutesThroughYoloReceive) {
+    resetGlobalSettings();
+    SETTING(detect_tile_overlap) = 0.2f;
+
+    std::vector<track::detect::Result> results;
+    results.emplace_back(makePointResult(0, {1.f, 0.9f, 95.f, 50.f, 20.f}));
+    results.emplace_back(makePointResult(1, {1.f, 0.8f, 96.f, 50.f, 20.f}));
+
+    auto combined = track::detail::DetectionTilePostprocess::apply(
+        std::move(results), horizontalOverlapGeometries());
+    SegmentationData data(cmn::Image::Zeros(100, 200, 3));
+    data.image->set_index(0);
+
+    YOLO::receive(data, std::move(combined));
+
+    ASSERT_EQ(data.predictions.size(), 1u);
+    EXPECT_EQ(data.frame.n(), 1u);
+    EXPECT_FLOAT_EQ(data.predictions[0].p, 0.9f);
+}
+
+TEST(TileImageTest, OneShortAxisTilesLongAxisAndPadsWithoutStretching) {
+    resetGlobalSettings();
+    cv::Mat source(300, 500, CV_8UC3, cv::Scalar(7, 7, 7));
+    auto source_image = makeImage(500, 300);
+
+    TileImage tile(
+        source,
+        std::move(source_image),
+        Size2(320, 320),
+        Size2(500, 300),
+        0.f);
+
+    ASSERT_EQ(tile.images.size(), 2u);
+    ASSERT_EQ(tile.tile_geometries().size(), 2u);
+    EXPECT_EQ(tile.tile_geometries()[0].source_region, track::SourceRect(0, 0, 320, 300));
+    EXPECT_EQ(tile.tile_geometries()[1].source_region, track::SourceRect(180, 0, 320, 300));
+    EXPECT_EQ(tile.tile_geometries()[0].tile_content, track::TileRect(0, 0, 320, 300));
+    EXPECT_EQ(tile.tile_geometries()[1].tile_content, track::TileRect(0, 0, 320, 300));
+    EXPECT_EQ(tile.images[0]->get().at<cv::Vec3b>(299, 0), cv::Vec3b(7, 7, 7));
+    EXPECT_EQ(tile.images[0]->get().at<cv::Vec3b>(300, 0), cv::Vec3b(0, 0, 0));
+}
+
+TEST(TileCoordinateUnitsTest, CropGeometryConvertsTilePointAndRectToSource) {
+    const track::TileGeometry geometry{
+        .source_region = track::SourceRect(320, 120, 320, 320),
+        .tile_content = track::TileRect(0, 0, 320, 320),
+        .tile_size = Size2(320, 320)
+    };
+
+    const auto source_point = geometry.to_source(track::TileCoord(10, 20));
+    EXPECT_FLOAT_EQ(source_point.x, 330.f);
+    EXPECT_FLOAT_EQ(source_point.y, 140.f);
+
+    const auto source_rect = geometry.to_source(track::TileRect(5, 6, 30, 40));
+    EXPECT_FLOAT_EQ(source_rect.x, 325.f);
+    EXPECT_FLOAT_EQ(source_rect.y, 126.f);
+    EXPECT_FLOAT_EQ(source_rect.width, 30.f);
+    EXPECT_FLOAT_EQ(source_rect.height, 40.f);
+
+    const auto tile_point = geometry.to_tile(track::SourceCoord(330, 140));
+    EXPECT_FLOAT_EQ(tile_point.x, 10.f);
+    EXPECT_FLOAT_EQ(tile_point.y, 20.f);
+}
+
+TEST(TileCoordinateUnitsTest, ResizedTileGeometryScalesToSource) {
+    const track::TileGeometry geometry{
+        .source_region = track::SourceRect(0, 0, 200, 100),
+        .tile_content = track::TileRect(0, 0, 400, 400),
+        .tile_size = Size2(400, 400)
+    };
+
+    const auto source_point = geometry.to_source(track::TileCoord(200, 200));
+    EXPECT_FLOAT_EQ(source_point.x, 100.f);
+    EXPECT_FLOAT_EQ(source_point.y, 50.f);
+
+    const auto tile_rect = geometry.to_tile(track::SourceRect(50, 25, 100, 50));
+    EXPECT_FLOAT_EQ(tile_rect.x, 100.f);
+    EXPECT_FLOAT_EQ(tile_rect.y, 100.f);
+    EXPECT_FLOAT_EQ(tile_rect.width, 200.f);
+    EXPECT_FLOAT_EQ(tile_rect.height, 200.f);
+}
+
+TEST(TileCoordinateUnitsTest, LetterboxGeometryHandlesPaddedTileContent) {
+    const track::TileGeometry geometry{
+        .source_region = track::SourceRect(0, 0, 8, 4),
+        .tile_content = track::TileRect(0, 2, 8, 4),
+        .tile_size = Size2(8, 8)
+    };
+
+    const auto top_left = geometry.to_source(track::TileCoord(0, 2));
+    EXPECT_FLOAT_EQ(top_left.x, 0.f);
+    EXPECT_FLOAT_EQ(top_left.y, 0.f);
+
+    const auto bottom_right = geometry.to_source(track::TileCoord(8, 6));
+    EXPECT_FLOAT_EQ(bottom_right.x, 8.f);
+    EXPECT_FLOAT_EQ(bottom_right.y, 4.f);
+
+    const auto padded = geometry.to_source(track::TileCoord(0, 0));
+    EXPECT_FLOAT_EQ(padded.x, 0.f);
+    EXPECT_FLOAT_EQ(padded.y, -2.f);
+}
+
+TEST(TileCoordinateUnitsTest, BatchAffineUsesCentralTileGeometryMath) {
+    const std::vector<track::TileGeometry> geometries{
+        track::TileGeometry{
+            .source_region = track::SourceRect(320, 120, 320, 320),
+            .tile_content = track::TileRect(0, 0, 320, 320),
+            .tile_size = Size2(320, 320)
+        },
+        track::TileGeometry{
+            .source_region = track::SourceRect(0, 0, 8, 4),
+            .tile_content = track::TileRect(0, 2, 8, 4),
+            .tile_size = Size2(8, 8)
+        }
+    };
+
+    const auto affines = track::tile_to_source_affines(geometries);
+    ASSERT_EQ(affines.size(), 2u);
+
+    EXPECT_FLOAT_EQ(affines[0].scale.x, 1.f);
+    EXPECT_FLOAT_EQ(affines[0].scale.y, 1.f);
+    EXPECT_FLOAT_EQ(affines[0].tile_offset.x, 320.f);
+    EXPECT_FLOAT_EQ(affines[0].tile_offset.y, 120.f);
+
+    EXPECT_FLOAT_EQ(affines[1].scale.x, 1.f);
+    EXPECT_FLOAT_EQ(affines[1].scale.y, 1.f);
+    EXPECT_FLOAT_EQ(affines[1].tile_offset.x, 0.f);
+    EXPECT_FLOAT_EQ(affines[1].tile_offset.y, -2.f);
+}
+
+TEST(TileCoordinateUnitsTest, SourceUnitsExplicitlyBridgeToBowlUnits) {
+    const auto bowl_point = cmn::gui::to_bowl(track::SourceCoord(12, 34));
+    EXPECT_FLOAT_EQ(bowl_point.x, 12.f);
+    EXPECT_FLOAT_EQ(bowl_point.y, 34.f);
+
+    const auto bowl_rect = cmn::gui::to_bowl(track::SourceRect(1, 2, 3, 4));
+    EXPECT_FLOAT_EQ(bowl_rect.x, 1.f);
+    EXPECT_FLOAT_EQ(bowl_rect.y, 2.f);
+    EXPECT_FLOAT_EQ(bowl_rect.width, 3.f);
+    EXPECT_FLOAT_EQ(bowl_rect.height, 4.f);
+}
+
 TEST(OverlayedVideoTiling, NoTilingKeepsDetectorSize) {
     Size2 frame_size(640, 480);
     Size2 detector_size(640, 640);
@@ -691,6 +1340,22 @@ TEST(OverlayedVideoTiling, NoTilingKeepsDetectorSize) {
 
     EXPECT_EQ(new_size, detector_size);
     EXPECT_EQ(tile_size, detector_size);
+}
+
+TEST(DetectorImageSizeTest, ExactInputMetadataDoesNotChangeYoloDefault) {
+    resetGlobalSettings();
+    SETTING(detect_type) = track::detect::ObjectDetectionType_t{
+        track::detect::ObjectDetectionType::yolo
+    };
+    SETTING(meta_video_size) = Size2(1280, 720);
+    SETTING(detect_resolution) = track::detect::DetectResolution{640, 640};
+    SETTING(region_model) = file::Path{};
+
+    EXPECT_FALSE(BOOL_SETTING(detect_requires_exact_input_size));
+    EXPECT_EQ(track::detect::get_model_image_size(), Size2(640, 360));
+
+    SETTING(detect_requires_exact_input_size) = true;
+    EXPECT_EQ(track::detect::get_model_image_size(), Size2(640, 640));
 }
 
 TEST(OverlayedVideoTiling, TargetWidthGeneratesExpectedTiles) {
@@ -759,11 +1424,11 @@ TEST(ImageResizeTest, LetterboxRectangularInputCentersPaddingAndReportsGeometry)
     EXPECT_EQ(dst.at<cv::Vec3b>(2, 0), cv::Vec3b(7, 9, 11));
 
     const Vec2 model_point(3.f, 3.f);
-    const Vec2 original_point(
+    const Vec2 source_point(
         (model_point.x + geometry.offset.x) * geometry.scale.x,
         (model_point.y + geometry.offset.y) * geometry.scale.y);
-    EXPECT_FLOAT_EQ(original_point.x, 3.f);
-    EXPECT_FLOAT_EQ(original_point.y, 1.f);
+    EXPECT_FLOAT_EQ(source_point.x, 3.f);
+    EXPECT_FLOAT_EQ(source_point.y, 1.f);
 }
 
 TEST(ImageResizeTest, LetterboxReusesDestinationAllocationForMatchingTargetSize) {
@@ -825,17 +1490,17 @@ TEST(TileImageTest, HandlesIncompleteTilesAndOverlap) {
     const float overlap = 0.15f;
 
     cv::Mat source(height, width, CV_8UC3, cv::Scalar(0));
-    auto original = makeImage(width, height);
+    auto source_image = makeImage(width, height);
 
-    TileImage tile(source, std::move(original), Size2(tile_edge, tile_edge), Size2(width, height), overlap);
+    TileImage tile(source, std::move(source_image), Size2(tile_edge, tile_edge), Size2(width, height), overlap);
 
-    auto offsets = tile.offsets();
+    auto offsets = tile.tile_origins();
     // With this frame size and overlap we expect four tiles after clamping.
     ASSERT_EQ(offsets.size(), 4u);
 
-    std::vector<Vec2> expected{
-        Vec2(0, 0), Vec2(180, 0),
-        Vec2(0, 60), Vec2(180, 60)
+    std::vector<track::SourceCoord> expected{
+        track::SourceCoord(0, 0), track::SourceCoord(180, 0),
+        track::SourceCoord(0, 60), track::SourceCoord(180, 60)
     };
 
     ASSERT_EQ(offsets.size(), expected.size());
@@ -857,12 +1522,12 @@ TEST(TileImageTest, FrameSmallerThanTileProducesSingleTile) {
     const int tile_edge = 320;
 
     cv::Mat source(height, width, CV_8UC3, cv::Scalar(0));
-    auto original = makeImage(width, height);
+    auto source_image = makeImage(width, height);
 
-    TileImage tile(source, std::move(original), Size2(tile_edge, tile_edge), Size2(width, height), 0.3f);
-    auto offsets = tile.offsets();
+    TileImage tile(source, std::move(source_image), Size2(tile_edge, tile_edge), Size2(width, height), 0.3f);
+    auto offsets = tile.tile_origins();
     ASSERT_EQ(offsets.size(), 1u);
-    EXPECT_EQ(offsets.front(), Vec2(0, 0));
+    EXPECT_EQ(offsets.front(), track::SourceCoord(0, 0));
     expectOffsetsWithinBounds(offsets, Size2(tile_edge, tile_edge), Size2(width, height));
 }
 
@@ -873,12 +1538,12 @@ TEST(TileImageTest, ExactMultiplesWithoutOverlap) {
     const int tile_edge = 320;
 
     cv::Mat source(height, width, CV_8UC3, cv::Scalar(0));
-    auto original = makeImage(width, height);
+    auto source_image = makeImage(width, height);
 
-    TileImage tile(source, std::move(original), Size2(tile_edge, tile_edge), Size2(width, height), 0.0f);
-    auto offsets = tile.offsets();
+    TileImage tile(source, std::move(source_image), Size2(tile_edge, tile_edge), Size2(width, height), 0.0f);
+    auto offsets = tile.tile_origins();
     ASSERT_EQ(offsets.size(), 2u);
-    std::vector<Vec2> expected{Vec2(0, 0), Vec2(320, 0)};
+    std::vector<track::SourceCoord> expected{track::SourceCoord(0, 0), track::SourceCoord(320, 0)};
     EXPECT_EQ(offsets, expected);
     expectOffsetsWithinBounds(offsets, Size2(tile_edge, tile_edge), Size2(width, height));
 }
@@ -891,10 +1556,10 @@ TEST(TileImageTest, HighOverlapStillProgressesAcrossFrame) {
     const float overlap = 0.9f;
 
     cv::Mat source(height, width, CV_8UC3, cv::Scalar(0));
-    auto original = makeImage(width, height);
+    auto source_image = makeImage(width, height);
 
-    TileImage tile(source, std::move(original), Size2(tile_edge, tile_edge), Size2(width, height), overlap);
-    auto offsets = tile.offsets();
+    TileImage tile(source, std::move(source_image), Size2(tile_edge, tile_edge), Size2(width, height), overlap);
+    auto offsets = tile.tile_origins();
 
     ASSERT_GE(offsets.size(), 3u);
     expectOffsetsWithinBounds(offsets, Size2(tile_edge, tile_edge), Size2(width, height));
@@ -916,9 +1581,9 @@ TEST(TileImageTest, TargetWidthProducesExpectedTileCountAndSize) {
     ASSERT_EQ(tile_size, Size2(320, 320));
 
     cv::Mat resized(resized_size.height, resized_size.width, CV_8UC3, cv::Scalar(0));
-    auto original = makeImage(frame_size.width, frame_size.height);
+    auto source_image = makeImage(frame_size.width, frame_size.height);
 
-    TileImage tile(resized, std::move(original), tile_size, frame_size, 0.0f);
+    TileImage tile(resized, std::move(source_image), tile_size, frame_size, 0.0f);
 
     const size_t expected_tiles = (resized_size.width / tile_size.width) * (resized_size.height / tile_size.height);
     ASSERT_EQ(tile.images.size(), expected_tiles);
@@ -943,9 +1608,9 @@ TEST(TileImageTest, LegacyMultiplierGeneratesGrid) {
     ASSERT_EQ(resized_size, Size2(expected_width, expected_height));
 
     cv::Mat resized(resized_size.height, resized_size.width, CV_8UC3, cv::Scalar(0));
-    auto original = makeImage(frame_size.width, frame_size.height);
+    auto source_image = makeImage(frame_size.width, frame_size.height);
 
-    TileImage tile(resized, std::move(original), tile_size, frame_size, 0.0f);
+    TileImage tile(resized, std::move(source_image), tile_size, frame_size, 0.0f);
 
     ASSERT_EQ(tile.images.size(), (resized_size.width / tile_size.width) * (resized_size.height / tile_size.height));
     for(const auto& img : tile.images) {
@@ -955,309 +1620,6 @@ TEST(TileImageTest, LegacyMultiplierGeneratesGrid) {
     }
 }
 
-TEST(YoloReceiveTest, SuppressesDuplicatesAcrossOverlappingTiles) {
-    resetGlobalSettings();
-    DetectTileOverlapGuard guard(0.15f);
-
-    const int width = 640;
-    const int height = 640;
-
-    SegmentationData data(cmn::Image::Zeros(height, width, 3));
-    data.tiles.emplace_back(0, 0, 320, 320);
-    data.tiles.emplace_back(320, 0, 320, 320);
-    data.image->set_index(0);
-
-    // Two overlapping detections of the same class.
-    std::vector<float> raw_boxes{
-        0.f, 0.f, 140.f, 140.f, 0.9f, 1.f,
-        20.f, 20.f, 160.f, 160.f, 0.8f, 1.f
-    };
-    track::detect::Boxes boxes(std::move(raw_boxes), 12u);
-
-    track::detect::Result result(
-        0,
-        std::move(boxes),
-        std::vector<track::detect::MaskData>{},
-        track::detect::KeypointData{},
-        track::detect::ObbData{},
-        track::detect::PointData{}
-    );
-
-    // Provide backing image so YOLO::receive can convert it.
-    YOLO::receive(data, std::move(result));
-
-    EXPECT_EQ(data.predictions.size(), 1u);
-    EXPECT_EQ(data.frame.n(), 1u);
-    ASSERT_FALSE(data.predictions.empty());
-    EXPECT_FLOAT_EQ(data.predictions.front().p, 0.9f);
-}
-
-TEST(YoloReceiveTest, FourWayDuplicateBoxesMergeToOneObject) {
-    resetGlobalSettings();
-    DetectTileOverlapGuard guard(0.15f);
-
-    const int width = 640;
-    const int height = 640;
-
-    SegmentationData data(cmn::Image::Zeros(height, width, 3));
-    data.tiles.emplace_back(0, 0, 320, 320);
-    data.tiles.emplace_back(272, 0, 320, 320);
-    data.tiles.emplace_back(0, 272, 320, 320);
-    data.tiles.emplace_back(272, 272, 320, 320);
-    data.image->set_index(0);
-
-    auto boxes = makeBoxes({
-        {100.f, 100.f, 200.f, 200.f, 0.95f, 1.f},
-        {110.f, 100.f, 210.f, 200.f, 0.90f, 1.f},
-        {100.f, 110.f, 200.f, 210.f, 0.85f, 1.f},
-        {110.f, 110.f, 210.f, 210.f, 0.80f, 1.f}
-    });
-
-    track::detect::Result result(
-        0,
-        std::move(boxes),
-        std::vector<track::detect::MaskData>{},
-        track::detect::KeypointData{},
-        track::detect::ObbData{},
-        track::detect::PointData{}
-    );
-
-    YOLO::receive(data, std::move(result));
-
-    EXPECT_EQ(data.predictions.size(), 1u);
-    EXPECT_EQ(data.frame.n(), 1u);
-    ASSERT_FALSE(data.predictions.empty());
-    EXPECT_FLOAT_EQ(data.predictions.front().p, 0.95f);
-}
-
-TEST(YoloReceiveTest, MergedInstanceMasksRenderOrAndLabelOneObject) {
-    resetGlobalSettings();
-    DetectTileOverlapGuard guard(0.15f);
-
-    const int width = 160;
-    const int height = 160;
-
-    SegmentationData data(cmn::Image::Zeros(height, width, 3));
-    data.tiles.emplace_back(0, 0, 100, 100);
-    data.tiles.emplace_back(40, 0, 100, 100);
-    data.image->set_index(0);
-
-    auto boxes = makeBoxes({
-        {40.f, 40.f, 80.f, 80.f, 0.9f, 1.f},
-        {45.f, 40.f, 85.f, 80.f, 0.8f, 1.f}
-    });
-    std::vector<track::detect::MaskData> masks(2);
-    masks[0].mat = makeMask(40, 40, {Bounds(5, 5, 25, 25)});
-    masks[1].mat = makeMask(40, 40, {Bounds(5, 5, 25, 25)});
-
-    track::detect::Result result(
-        0,
-        std::move(boxes),
-        std::move(masks),
-        track::detect::KeypointData{},
-        track::detect::ObbData{},
-        track::detect::PointData{}
-    );
-
-    YOLO::receive(data, std::move(result));
-
-    EXPECT_EQ(data.predictions.size(), 1u);
-    EXPECT_EQ(data.frame.n(), 1u);
-    ASSERT_FALSE(data.predictions.empty());
-    EXPECT_FLOAT_EQ(data.predictions.front().p, 0.9f);
-}
-
-TEST(YoloReceiveTest, MergedInstanceMasksKeepLargestConnectedComponent) {
-    resetGlobalSettings();
-    DetectTileOverlapGuard guard(0.15f);
-
-    const int width = 160;
-    const int height = 160;
-
-    SegmentationData data(cmn::Image::Zeros(height, width, 3));
-    data.tiles.emplace_back(0, 0, 100, 100);
-    data.tiles.emplace_back(40, 0, 100, 100);
-    data.image->set_index(0);
-
-    auto boxes = makeBoxes({
-        {40.f, 40.f, 100.f, 100.f, 0.9f, 1.f},
-        {45.f, 40.f, 105.f, 100.f, 0.8f, 1.f}
-    });
-    std::vector<track::detect::MaskData> masks(2);
-    masks[0].mat = makeMask(60, 60, {Bounds(5, 5, 20, 20)});
-    masks[1].mat = makeMask(60, 60, {Bounds(45, 45, 5, 5)});
-
-    track::detect::Result result(
-        0,
-        std::move(boxes),
-        std::move(masks),
-        track::detect::KeypointData{},
-        track::detect::ObbData{},
-        track::detect::PointData{}
-    );
-
-    YOLO::receive(data, std::move(result));
-
-    EXPECT_EQ(data.predictions.size(), 1u);
-    ASSERT_EQ(data.frame.n(), 1u);
-    ASSERT_FALSE(data.frame.mask().empty());
-    uint64_t pixels = 0;
-    for(const auto& line : *data.frame.mask().front()) {
-        pixels += uint64_t(line.x1 - line.x0 + 1);
-    }
-    EXPECT_GT(pixels, 300u);
-    EXPECT_LT(pixels, 500u);
-}
-
-TEST(YoloReceiveTest, MergedInstanceMasksMatchActualSahiMaskGoldenBounds) {
-    resetGlobalSettings();
-    DetectTileOverlapGuard guard(0.15f);
-
-    // Generated with SAHI 0.11.36 GreedyNMMPostprocess(match_metric="IOS",
-    // match_threshold=0.5, class_agnostic=false):
-    // bbox=[45,45,75,70], score=0.9, category_id=1, segmentation polygon union.
-    const int width = 160;
-    const int height = 160;
-
-    SegmentationData data(cmn::Image::Zeros(height, width, 3));
-    data.tiles.emplace_back(0, 0, 100, 100);
-    data.tiles.emplace_back(40, 0, 100, 100);
-    data.image->set_index(0);
-
-    auto boxes = makeBoxes({
-        {45.f, 45.f, 70.f, 70.f, 0.9f, 1.f},
-        {50.f, 45.f, 75.f, 70.f, 0.8f, 1.f}
-    });
-    std::vector<track::detect::MaskData> masks(2);
-    masks[0].mat = makeMask(25, 25, {Bounds(0, 0, 25, 25)});
-    masks[1].mat = makeMask(25, 25, {Bounds(0, 0, 25, 25)});
-
-    track::detect::Result result(
-        0,
-        std::move(boxes),
-        std::move(masks),
-        track::detect::KeypointData{},
-        track::detect::ObbData{},
-        track::detect::PointData{}
-    );
-
-    YOLO::receive(data, std::move(result));
-
-    EXPECT_EQ(data.predictions.size(), 1u);
-    ASSERT_EQ(data.frame.n(), 1u);
-    ASSERT_FALSE(data.frame.mask().empty());
-    EXPECT_EQ(exclusiveLineBounds(*data.frame.mask().front()), (std::array<int, 4>{45, 45, 75, 70}));
-    ASSERT_FALSE(data.predictions.empty());
-    EXPECT_FLOAT_EQ(data.predictions.front().p, 0.9f);
-    EXPECT_EQ(data.predictions.front().clid, 1u);
-}
-
-// --- Gap coverage: merge-path mask clipping at the frame edge -------------
-// process_group restricts source boxes to (0,0,w,h) before allocating the
-// merged canvas. These exercise the right/bottom-edge clip path that no
-// existing mask test reached (all prior masks sat fully inside the frame).
-// Note the pipeline-wide convention: w == r3.cols - 1 (YOLO.cpp), used as an
-// *inclusive* clamp bound, so an edge-touching detection's far column is the
-// last valid pixel index (cols-1) and the exclusive max bound is cols-1, not
-// cols. The merge path must reproduce the same convention as the non-merge
-// process_instance path.
-
-TEST(YoloReceiveTest, MergedInstanceMaskClampsSingleBoxBeyondRightFrameEdge) {
-    resetGlobalSettings();
-    DetectTileOverlapGuard guard(0.15f);
-
-    const int width = 160;
-    const int height = 160;
-
-    SegmentationData data(cmn::Image::Zeros(height, width, 3));
-    data.tiles.emplace_back(0, 0, 100, 100);
-    data.tiles.emplace_back(60, 0, 160, 100);
-    data.image->set_index(0);
-
-    // Box spans x:[130,190) -> well past the right edge; mask covers the full
-    // (unclipped) 60x40 detection. restrict_to(0,0,w=159,h=159) clamps the box
-    // to x:[130,159], so the merged blob ends at the last valid column 158
-    // (exclusive bound 159), never x=160.
-    auto boxes = makeBoxes({
-        {130.f, 40.f, 190.f, 80.f, 0.9f, 1.f}
-    });
-    std::vector<track::detect::MaskData> masks(1);
-    masks[0].mat = makeMask(40, 60, {Bounds(0, 0, 60, 40)});
-
-    track::detect::Result result(
-        0,
-        std::move(boxes),
-        std::move(masks),
-        track::detect::KeypointData{},
-        track::detect::ObbData{},
-        track::detect::PointData{}
-    );
-
-    YOLO::receive(data, std::move(result));
-
-    EXPECT_EQ(data.predictions.size(), 1u);
-    ASSERT_EQ(data.frame.n(), 1u);
-    ASSERT_FALSE(data.frame.mask().empty());
-    EXPECT_EQ(exclusiveLineBounds(*data.frame.mask().front()),
-              (std::array<int, 4>{130, 40, 159, 80}));
-    ASSERT_FALSE(data.predictions.empty());
-    EXPECT_FLOAT_EQ(data.predictions.front().p, 0.9f);
-}
-
-TEST(YoloReceiveTest, MergedInstanceMaskClampsOverlappingUnionBeyondFrameEdge) {
-    resetGlobalSettings();
-    DetectTileOverlapGuard guard(0.15f);
-
-    const int width = 160;
-    const int height = 160;
-
-    SegmentationData data(cmn::Image::Zeros(height, width, 3));
-    data.tiles.emplace_back(0, 0, 100, 100);
-    data.tiles.emplace_back(60, 0, 160, 100);
-    data.image->set_index(0);
-
-    // Two same-class overlapping detections (IOS ~= 0.67 >= 0.5 default) whose
-    // union extends past the right edge. The OR-stitched result is clamped to
-    // the inclusive frame bound (w=159), so the single merged object ends at
-    // the last valid column 158 (exclusive bound 159).
-    auto boxes = makeBoxes({
-        {120.f, 40.f, 180.f, 80.f, 0.9f, 1.f},
-        {140.f, 40.f, 200.f, 80.f, 0.8f, 1.f}
-    });
-    std::vector<track::detect::MaskData> masks(2);
-    masks[0].mat = makeMask(40, 60, {Bounds(0, 0, 60, 40)});
-    masks[1].mat = makeMask(40, 60, {Bounds(0, 0, 60, 40)});
-
-    track::detect::Result result(
-        0,
-        std::move(boxes),
-        std::move(masks),
-        track::detect::KeypointData{},
-        track::detect::ObbData{},
-        track::detect::PointData{}
-    );
-
-    YOLO::receive(data, std::move(result));
-
-    EXPECT_EQ(data.predictions.size(), 1u);
-    ASSERT_EQ(data.frame.n(), 1u);
-    ASSERT_FALSE(data.frame.mask().empty());
-    EXPECT_EQ(exclusiveLineBounds(*data.frame.mask().front()),
-              (std::array<int, 4>{120, 40, 159, 80}));
-    ASSERT_FALSE(data.predictions.empty());
-    EXPECT_FLOAT_EQ(data.predictions.front().p, 0.9f);
-    EXPECT_EQ(data.predictions.front().clid, 1u);
-}
-
-// --- Gap coverage: non-merge (non-tiled) path -----------------------------
-// Every other YoloReceiveTest uses >1 tile + overlap, so receive()'s
-// (tile_overlap > 0 && tiles > 1) gate always takes the merge path. A single
-// tile leaves merge_groups/filtered_indices null, routing segmentation through
-// process_instance and boxes through the all-row fallback -- the path
-// production uses whenever tiling is off, and previously untested. Note this
-// path does NOT clamp (process_instance asserts box subset of frame), so the
-// inputs here are deliberately fully inside the frame.
-
 TEST(YoloReceiveTest, NonMergeSingleTileInstanceMaskRoutesThroughProcessInstance) {
     resetGlobalSettings();
 
@@ -1265,14 +1627,15 @@ TEST(YoloReceiveTest, NonMergeSingleTileInstanceMaskRoutesThroughProcessInstance
     const int height = 160;
 
     SegmentationData data(cmn::Image::Zeros(height, width, 3));
-    data.tiles.emplace_back(0, 0, 160, 160);   // single tile -> merge gate false
+    data.tiles.emplace_back(track::SourceRect(0, 0, 160, 160));
     data.image->set_index(0);
 
     auto boxes = makeBoxes({
         {40.f, 40.f, 80.f, 80.f, 0.9f, 1.f}
     });
-    std::vector<track::detect::MaskData> masks(1);
-    masks[0].mat = makeMask(40, 40, {Bounds(0, 0, 40, 40)});
+    std::vector<track::detect::MaskData> masks;
+    masks.emplace_back(makeOwnedMaskData(
+        40, 40, {Bounds(0, 0, 40, 40)}));
 
     track::detect::Result result(
         0,
@@ -1302,369 +1665,15 @@ TEST(YoloReceiveTest, NonMergeSingleTileBoxesUseAllRowFallback) {
     const int height = 160;
 
     SegmentationData data(cmn::Image::Zeros(height, width, 3));
-    data.tiles.emplace_back(0, 0, 160, 160);   // single tile -> merge gate false
+    data.tiles.emplace_back(track::SourceRect(0, 0, 160, 160));
     data.image->set_index(0);
 
-    // Two distinct in-frame boxes. With no tiling there is no dedup pass, so
-    // process_boxes_only must emit every row (merge_groups & filtered_indices
-    // both null -> all-row fallback).
+    // YOLO::receive is now only the ordinary flat-result conversion path and
+    // must emit every row supplied by DetectionTilePostprocess.
     auto boxes = makeBoxes({
         {20.f, 20.f, 60.f, 60.f, 0.9f, 1.f},
         {90.f, 90.f, 130.f, 130.f, 0.8f, 2.f}
     });
-
-    track::detect::Result result(
-        0,
-        std::move(boxes),
-        std::vector<track::detect::MaskData>{},
-        track::detect::KeypointData{},
-        track::detect::ObbData{},
-        track::detect::PointData{}
-    );
-
-    YOLO::receive(data, std::move(result));
-
-    EXPECT_EQ(data.predictions.size(), 2u);
-    EXPECT_EQ(data.frame.n(), 2u);
-}
-
-TEST(YoloReceiveTest, ObbTileDuplicatesUseRepresentativeFiltering) {
-    resetGlobalSettings();
-    DetectTileOverlapGuard guard(0.15f);
-
-    const int width = 160;
-    const int height = 160;
-
-    SegmentationData data(cmn::Image::Zeros(height, width, 3));
-    data.tiles.emplace_back(0, 0, 100, 100);
-    data.tiles.emplace_back(40, 0, 100, 100);
-    data.image->set_index(0);
-
-    track::detect::Result result(
-        0,
-        track::detect::Boxes(std::vector<float>{}, 0u),
-        std::vector<track::detect::MaskData>{},
-        track::detect::KeypointData{},
-        track::detect::ObbData(std::vector<float>{
-            1.f, 0.9f, 60.f, 60.f, 30.f, 30.f, 0.f,
-            1.f, 0.8f, 60.f, 60.f, 30.f, 30.f, 0.f
-        }),
-        track::detect::PointData{}
-    );
-
-    YOLO::receive(data, std::move(result));
-
-    EXPECT_EQ(data.predictions.size(), 1u);
-    EXPECT_EQ(data.frame.n(), 1u);
-    ASSERT_FALSE(data.predictions.empty());
-    EXPECT_FLOAT_EQ(data.predictions.front().p, 0.9f);
-}
-
-TEST(YoloReceiveTest, PointTileDuplicatesUseRepresentativeFiltering) {
-    resetGlobalSettings();
-    DetectTileOverlapGuard guard(0.15f);
-
-    const int width = 160;
-    const int height = 160;
-
-    SegmentationData data(cmn::Image::Zeros(height, width, 3));
-    data.tiles.emplace_back(0, 0, 100, 100);
-    data.tiles.emplace_back(40, 0, 100, 100);
-    data.image->set_index(0);
-
-    track::detect::Result result(
-        0,
-        track::detect::Boxes(std::vector<float>{}, 0u),
-        std::vector<track::detect::MaskData>{},
-        track::detect::KeypointData{},
-        track::detect::ObbData{},
-        track::detect::PointData(std::vector<float>{
-            1.f, 0.9f, 60.f, 60.f, 10.f,
-            1.f, 0.8f, 60.f, 60.f, 10.f
-        })
-    );
-
-    YOLO::receive(data, std::move(result));
-
-    EXPECT_EQ(data.predictions.size(), 1u);
-    EXPECT_EQ(data.frame.n(), 1u);
-    ASSERT_FALSE(data.predictions.empty());
-    EXPECT_FLOAT_EQ(data.predictions.front().p, 0.9f);
-}
-
-TEST(YoloReceiveTest, PoseKeypointsKeepRepresentativeFromActualSahiNmsGolden) {
-    resetGlobalSettings();
-    DetectTileOverlapGuard guard(0.15f);
-    // detect_pose_bbx defaults to `keypoints` (default_config.cpp), which would
-    // route through the rotated-keypoint-rect path. This test specifically
-    // pins the `yolo` bbox-NMS golden, so the mode must be set explicitly.
-    SETTING(detect_pose_bbx) = default_config::detect_pose_bbx_t::yolo;
-
-    // SAHI has no keypoint payload in ObjectPrediction; its bbox-equivalent
-    // NMS golden keeps row 0 for these pose boxes.
-    const int width = 160;
-    const int height = 160;
-
-    SegmentationData data(cmn::Image::Zeros(height, width, 3));
-    data.tiles.emplace_back(0, 0, 100, 100);
-    data.tiles.emplace_back(40, 0, 100, 100);
-    data.image->set_index(0);
-
-    auto boxes = makeBoxes({
-        {40.f, 40.f, 80.f, 80.f, 0.9f, 1.f},
-        {45.f, 40.f, 85.f, 80.f, 0.8f, 1.f}
-    });
-
-    track::detect::Result result(
-        0,
-        std::move(boxes),
-        std::vector<track::detect::MaskData>{},
-        track::detect::KeypointData(std::vector<float>{11.f, 12.f, 21.f, 22.f}, 1u),
-        track::detect::ObbData{},
-        track::detect::PointData{}
-    );
-
-    YOLO::receive(data, std::move(result));
-
-    EXPECT_EQ(data.predictions.size(), 1u);
-    EXPECT_EQ(data.frame.n(), 1u);
-    ASSERT_EQ(data.keypoints.size(), 1u);
-    ASSERT_EQ(data.keypoints.front().bones.size(), 1u);
-    EXPECT_FLOAT_EQ(data.keypoints.front().bones.front().x, 11.f);
-    EXPECT_FLOAT_EQ(data.keypoints.front().bones.front().y, 12.f);
-}
-
-// Same scenario as PoseKeypointsKeepRepresentativeFromActualSahiNmsGolden, but
-// the OTHER detect_pose_bbx mode. Under `keypoints` the two single-bone poses
-// (11,12) and (21,22) become non-overlapping 6x6 rotated rects, so both are
-// kept -- the deliberate contrast with the `yolo` bbox-NMS path on identical
-// input. Both modes of this scenario must be pinned explicitly.
-TEST(YoloReceiveTest, PoseKeypointsGoldenInputUnderKeypointModeKeepsDistinctPoses) {
-    resetGlobalSettings();
-    DetectTileOverlapGuard guard(0.15f);
-    SETTING(detect_pose_bbx) = default_config::detect_pose_bbx_t::keypoints;
-
-    const int width = 160;
-    const int height = 160;
-
-    SegmentationData data(cmn::Image::Zeros(height, width, 3));
-    data.tiles.emplace_back(0, 0, 100, 100);
-    data.tiles.emplace_back(40, 0, 100, 100);
-    data.image->set_index(0);
-
-    auto boxes = makeBoxes({
-        {40.f, 40.f, 80.f, 80.f, 0.9f, 1.f},
-        {45.f, 40.f, 85.f, 80.f, 0.8f, 1.f}
-    });
-
-    track::detect::Result result(
-        0,
-        std::move(boxes),
-        std::vector<track::detect::MaskData>{},
-        track::detect::KeypointData(std::vector<float>{11.f, 12.f, 21.f, 22.f}, 1u),
-        track::detect::ObbData{},
-        track::detect::PointData{}
-    );
-
-    YOLO::receive(data, std::move(result));
-
-    EXPECT_EQ(data.predictions.size(), 2u);
-    EXPECT_EQ(data.frame.n(), 2u);
-    EXPECT_EQ(data.keypoints.size(), 2u);
-}
-
-TEST(YoloReceiveTest, PoseKeypointRotatedBoxesKeepDistinctThinPoses) {
-    resetGlobalSettings();
-    DetectTileOverlapGuard guard(0.15f);
-    SETTING(detect_pose_bbx) = default_config::detect_pose_bbx_t::keypoints;
-
-    const int width = 160;
-    const int height = 160;
-
-    SegmentationData data(cmn::Image::Zeros(height, width, 3));
-    data.tiles.emplace_back(0, 0, 100, 100);
-    data.tiles.emplace_back(40, 0, 100, 100);
-    data.image->set_index(0);
-
-    auto boxes = makeBoxes({
-        {0.f, 0.f, 60.f, 60.f, 0.9f, 1.f},
-        {0.f, 0.f, 60.f, 60.f, 0.8f, 1.f}
-    });
-
-    track::detect::Result result(
-        0,
-        std::move(boxes),
-        std::vector<track::detect::MaskData>{},
-        track::detect::KeypointData(std::vector<float>{
-            10.f, 10.f, 50.f, 10.f,
-            10.f, 50.f, 50.f, 50.f
-        }, 2u),
-        track::detect::ObbData{},
-        track::detect::PointData{}
-    );
-
-    YOLO::receive(data, std::move(result));
-
-    EXPECT_EQ(data.predictions.size(), 2u);
-    EXPECT_EQ(data.frame.n(), 2u);
-    EXPECT_EQ(data.keypoints.size(), 2u);
-}
-
-TEST(YoloReceiveTest, PoseYoloBoxesStillSuppressWhenConfigured) {
-    resetGlobalSettings();
-    DetectTileOverlapGuard guard(0.15f);
-    SETTING(detect_pose_bbx) = default_config::detect_pose_bbx_t::yolo;
-
-    const int width = 160;
-    const int height = 160;
-
-    SegmentationData data(cmn::Image::Zeros(height, width, 3));
-    data.tiles.emplace_back(0, 0, 100, 100);
-    data.tiles.emplace_back(40, 0, 100, 100);
-    data.image->set_index(0);
-
-    auto boxes = makeBoxes({
-        {0.f, 0.f, 60.f, 60.f, 0.9f, 1.f},
-        {0.f, 0.f, 60.f, 60.f, 0.8f, 1.f}
-    });
-
-    track::detect::Result result(
-        0,
-        std::move(boxes),
-        std::vector<track::detect::MaskData>{},
-        track::detect::KeypointData(std::vector<float>{
-            10.f, 10.f, 50.f, 10.f,
-            10.f, 50.f, 50.f, 50.f
-        }, 2u),
-        track::detect::ObbData{},
-        track::detect::PointData{}
-    );
-
-    YOLO::receive(data, std::move(result));
-
-    EXPECT_EQ(data.predictions.size(), 1u);
-    EXPECT_EQ(data.frame.n(), 1u);
-    EXPECT_EQ(data.keypoints.size(), 1u);
-}
-
-TEST(YoloReceiveTest, SuppressesContainedBoxesAcrossTiles) {
-    resetGlobalSettings();
-    DetectTileOverlapGuard guard(0.15f);
-    SETTING(detect_tile_merge_containment) = Float2_t{0.9f};
-
-    const int width = 640;
-    const int height = 320;
-
-    SegmentationData data(cmn::Image::Zeros(height, width, 3));
-    data.tiles.emplace_back(0, 0, 320, 320);
-    data.tiles.emplace_back(320, 0, 320, 320);
-    data.image->set_index(0);
-
-    std::vector<float> raw_boxes{
-        0.f, 0.f, 220.f, 220.f, 0.9f, 1.f,
-        20.f, 20.f, 80.f, 80.f, 0.7f, 1.f
-    };
-    track::detect::Boxes boxes(std::move(raw_boxes), 12u);
-
-    track::detect::Result result(
-        0,
-        std::move(boxes),
-        std::vector<track::detect::MaskData>{},
-        track::detect::KeypointData{},
-        track::detect::ObbData{},
-        track::detect::PointData{}
-    );
-
-    YOLO::receive(data, std::move(result));
-
-    EXPECT_EQ(data.predictions.size(), 1u);
-    EXPECT_EQ(data.frame.n(), 1u);
-    ASSERT_FALSE(data.predictions.empty());
-    EXPECT_FLOAT_EQ(data.predictions.front().p, 0.9f);
-    EXPECT_EQ(data.predictions.front().clid, 1u);
-}
-
-TEST(YoloReceiveTest, EmptyTileMergeResultDoesNotFallBackToAllBoxes) {
-    resetGlobalSettings();
-    DetectTileOverlapGuard guard(0.15f);
-
-    const int width = 640;
-    const int height = 320;
-
-    SegmentationData data(cmn::Image::Zeros(height, width, 3));
-    data.tiles.emplace_back(0, 0, 320, 320);
-    data.tiles.emplace_back(320, 0, 320, 320);
-    data.image->set_index(0);
-
-    auto boxes = makeBoxes({
-        {10.f, 10.f, 10.f, 80.f, 0.99f, 1.f}
-    });
-
-    track::detect::Result result(
-        0,
-        std::move(boxes),
-        std::vector<track::detect::MaskData>{},
-        track::detect::KeypointData{},
-        track::detect::ObbData{},
-        track::detect::PointData{}
-    );
-
-    YOLO::receive(data, std::move(result));
-
-    EXPECT_TRUE(data.predictions.empty());
-    EXPECT_EQ(data.frame.n(), 0u);
-}
-
-TEST(YoloReceiveTest, KeepsDetectionsWithDifferentClasses) {
-    resetGlobalSettings();
-    DetectTileOverlapGuard guard(0.15f);
-
-    const int width = 640;
-    const int height = 320;
-
-    SegmentationData data(cmn::Image::Zeros(height, width, 3));
-    data.tiles.emplace_back(0, 0, 320, 320);
-    data.tiles.emplace_back(320, 0, 320, 320);
-    data.image->set_index(0);
-
-    std::vector<float> raw_boxes{
-        0.f, 0.f, 140.f, 140.f, 0.9f, 1.f,
-        200.f, 20.f, 360.f, 160.f, 0.85f, 2.f
-    };
-    track::detect::Boxes boxes(std::move(raw_boxes), 12u);
-
-    track::detect::Result result(
-        0,
-        std::move(boxes),
-        std::vector<track::detect::MaskData>{},
-        track::detect::KeypointData{},
-        track::detect::ObbData{},
-        track::detect::PointData{}
-    );
-
-    YOLO::receive(data, std::move(result));
-
-    EXPECT_EQ(data.predictions.size(), 2u);
-    EXPECT_EQ(data.frame.n(), 2u);
-}
-
-TEST(YoloReceiveTest, KeepsNonOverlappingDetectionsSeparate) {
-    resetGlobalSettings();
-    DetectTileOverlapGuard guard(0.15f);
-
-    const int width = 640;
-    const int height = 320;
-
-    SegmentationData data(cmn::Image::Zeros(height, width, 3));
-    data.tiles.emplace_back(0, 0, 320, 320);
-    data.tiles.emplace_back(320, 0, 320, 320);
-    data.image->set_index(0);
-
-    std::vector<float> raw_boxes{
-        0.f, 0.f, 140.f, 140.f, 0.9f, 1.f,
-        200.f, 20.f, 320.f, 140.f, 0.7f, 1.f
-    };
-    track::detect::Boxes boxes(std::move(raw_boxes), 12u);
 
     track::detect::Result result(
         0,

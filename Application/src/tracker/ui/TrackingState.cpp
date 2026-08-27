@@ -1,4 +1,7 @@
 #include "TrackingState.h"
+#include <misc/Image.h>
+#include <tracking/Individual.h>
+#include <tracking/LockGuard.h>
 #include <file/PathArray.h>
 #include <tracking/Tracker.h>
 #include <file/DataLocation.h>
@@ -10,8 +13,8 @@
 #include <tracking/OutputLibrary.h>
 #include <ui/WorkProgress.h>
 #include <core/default_config.h>
-#include <ui/SettingsInitializer.h>
 #include <core/IdentifiedTag.h>
+#include <core/TerminalProgress.h>
 #include <ui/Categorize.h>
 #include <ui/CheckUpdates.h>
 #include <tracking/DatasetQuality.h>
@@ -83,19 +86,28 @@ auto TrackingState::addSafeTask(const std::string& title, Func&& f) {
 
 TrackingState::TrackingState(GUITaskQueue_t* gui)
   : video(pv::File::Make(READ_SETTING(filename, file::Path))),
-    tracker(std::make_unique<track::Tracker>(*this->video)),
-    analysis(std::unique_ptr<ConnectedTasks>(new ConnectedTasks(
-      {
-         [this](ConnectedTasks::Type&& ptr, auto&) -> bool {
-             return stage_0(std::move(ptr));
-         },
-         [this](ConnectedTasks::Type&& ptr, auto&) -> bool {
-             return stage_1(std::move(ptr));
-         }
-      }))),
-    pool(4u, "preprocess_main"),
-    _controller(std::make_unique<VIControllerImpl>(video, *this))
+    pool(4u, "preprocess_main")
 {
+    try {
+        this->video->header();
+    } catch(const std::exception& ex) {
+        /// File open / read errors will happen here. Report back as file failed to open
+        /// instead of some other cryptic error:
+        throw RuntimeError("Failed to open PV file ",this->video->filename(),": ", no_quotes(ex.what()),"\nCheck if this file is corrupt and that you have all necessary access rights.");
+    }
+    tracker = std::make_unique<track::Tracker>(*this->video);
+    analysis = std::unique_ptr<ConnectedTasks>(new ConnectedTasks{
+        {
+            [this](ConnectedTasks::Type&& ptr, auto&) -> bool {
+                return stage_0(std::move(ptr));
+            },
+            [this](ConnectedTasks::Type&& ptr, auto&) -> bool {
+                return stage_1(std::move(ptr));
+            }
+        }
+    });
+    _controller = std::make_unique<VIControllerImpl>(video, *this);
+    
     _end_task_check_auto_quit = [this, gui](){
 #if !COMMONS_NO_PYTHON
             if(BOOL_SETTING(auto_categorize)) {
@@ -154,7 +166,7 @@ TrackingState::~TrackingState() {
     pool.force_stop();
     analysis->terminate();
     
-    track::FOI::clear();
+    track::FOI::clear_all();
     
     if(_end_task.valid())
         _end_task.get();
@@ -468,18 +480,8 @@ void TrackingState::Statistics::calculateRates(double elapsed) {
 }
 
 void TrackingState::Statistics::printProgress(float percent, const std::string& status) {
-    // Assuming we have a terminal width of 50 characters for the progress bar.
-    constexpr int bar_width = 50;
-    int pos = int(bar_width * (percent / 100.0f));
-
-    printf("\r["); // Carriage return to overwrite the previous line
-    for (int i = 0; i < bar_width; ++i) {
-        if (i < pos) printf("=");
-        else if (i == pos) printf(">"); // Indicator for current position
-        else printf(" ");
-    }
-    printf("] %.2f%% %s", percent, status.c_str()); // Print the percentage and status message
-    fflush(stdout); // Flush the output to ensure it appears immediately
+    static size_t spinner_index = 0;
+    cmn::terminal::progress::print_progress_bar_line(percent, status, spinner_index);
 }
 
 void TrackingState::Statistics::logProgress(float percent, const std::string& status) {
@@ -511,7 +513,6 @@ void TrackingState::Statistics::updateProgress(const Tracker& tracker, Frame_t f
         status = format<FormatterType::NONE>("Done (",
             dec<2>(frames_per_second.load()), "fps ",
                                              dec<2>(individuals_per_second.load()),"ind/s ",dec<2>(tracker.average_seconds_per_individual() * 1000 * 1000), time_unit(), "/", prefix.c_str(),").") + "\n";
-        printf("\r\n");
 
     } else if(FAST_SETTING(analysis_range).start != -1
        || FAST_SETTING(analysis_range).end != -1)
@@ -541,7 +542,7 @@ void TrackingState::Statistics::update(const track::Tracker& tracker, Frame_t fr
     sample_individuals++;
     
     double elapsed = timer.elapsed();
-    if ((elapsed >= 1 || force) && not analysis_range.empty()) {
+    if ((elapsed >= cmn::terminal::progress::interval_seconds() || force) && not analysis_range.empty()) {
         timer.reset();
         
         calculateRates(elapsed);

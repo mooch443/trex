@@ -62,6 +62,15 @@ TileImage make_tile(Frame_t frame_index) {
     tile.data.image = Image::Make(1, 1, 4);
     tile.data.image->set_index(frame_index.get());
     tile.images.emplace_back(Image::Make(1, 1, 4));
+    tile.source_size = Size2(1, 1);
+    tile.prepared_size = Size2(1, 1);
+    tile.set_tile_geometries({
+        track::TileGeometry{
+            .source_region = track::SourceRect(0, 0, 1, 1),
+            .tile_content = track::TileRect(0, 0, 1, 1),
+            .tile_size = Size2(1, 1)
+        }
+    });
     return tile;
 }
 
@@ -208,6 +217,42 @@ TEST(PVTest, JumpAroundInFile) {
         video.print_info();
         ASSERT_EQ(video.length(), 4_f);
     }
+}
+
+TEST(PVTest, DestroyingCorruptModifyFileDoesNotTerminate) {
+    const file::Path base("test_corrupt_modify");
+    const auto pv_path = base.add_extension("pv");
+    if(pv_path.exists())
+        pv_path.delete_file();
+
+    {
+        auto video = pv::File::Write<pv::FileMode::WRITE>(base, meta_encoding_t::gray);
+        video.set_resolution(Size2(50,50));
+        video.set_start_time(std::chrono::system_clock::now());
+        video.set_average(cv::Mat::zeros(50, 50, CV_8UC1));
+        video.set_source("virtual");
+
+        pv::Frame frame;
+        for(size_t i = 0; i < 10; ++i) {
+            fill_frame(video, frame, Frame_t(i));
+            video.add_individual(std::move(frame));
+        }
+
+        video.close();
+    }
+
+    auto video = pv::File::Make<pv::FileMode::MODIFY>(base, meta_encoding_t::gray);
+    ASSERT_NO_THROW(video->header());
+
+    const auto original_size = pv_path.file_size();
+    ASSERT_GT(original_size, 256u);
+    std::filesystem::resize_file(pv_path.str(), original_size - 128u);
+
+    EXPECT_THROW(video->print_info(), std::exception);
+    EXPECT_NO_THROW(video.reset());
+
+    if(pv_path.exists())
+        pv_path.delete_file();
 }
 
 TEST(PVTest, DoItInOne) {

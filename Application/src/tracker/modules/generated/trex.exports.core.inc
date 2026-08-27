@@ -27,12 +27,12 @@ using ::cmn::gui::mode_t::Class;
 export namespace cmn::settings {
 // core/SettingsInitializer.h
 using ::cmn::settings::LoadContext;
-using ::cmn::settings::initialize_filename_for_tracking;
 using ::cmn::settings::load;
 using ::cmn::settings::reset;
 using ::cmn::settings::set_defaults_for;
 using ::cmn::settings::write_config;
 // core/SettingsPaths.h
+using ::cmn::settings::find_existing_output_name;
 using ::cmn::settings::find_output_name;
 using ::cmn::settings::infer_cm_per_pixel;
 using ::cmn::settings::infer_meta_real_width_from;
@@ -43,11 +43,46 @@ export namespace cmn::sprite {
 using ::cmn::sprite::Map;
 }
 
+export namespace cmn::terminal::progress {
+// core/TerminalProgress.h
+using ::cmn::terminal::progress::ConsoleCursorGuard;
+using ::cmn::terminal::progress::ProgressBar;
+using ::cmn::terminal::progress::ProgressBarConfig;
+using ::cmn::terminal::progress::advance_progress_bar_spinner;
+using ::cmn::terminal::progress::clean_progress_status;
+using ::cmn::terminal::progress::finish_progress_bar_line;
+using ::cmn::terminal::progress::interval;
+using ::cmn::terminal::progress::interval_seconds;
+using ::cmn::terminal::progress::make_progress_bar;
+using ::cmn::terminal::progress::print_progress_bar_line;
+using ::cmn::terminal::progress::restore_cursor_newline;
+using ::cmn::terminal::progress::spinner_states;
+}
+
+export namespace cmn::terminal::progress::detail {
+// core/TerminalProgress.h
+using ::cmn::terminal::progress::detail::clear_progress_line;
+using ::cmn::terminal::progress::detail::hide_cursor;
+using ::cmn::terminal::progress::detail::progress_duration_text;
+using ::cmn::terminal::progress::detail::restore_cursor;
+using ::cmn::terminal::progress::detail::spinner_state;
+}
+
 export namespace track {
 // core/FOI.h
 using ::track::FOI;
+// core/FrameTags.h
+using ::track::FrameTags;
 // core/Identity.h
 using ::track::Identity;
+// core/TileCoordinates.h
+using ::track::SourceCoord;
+using ::track::SourceRect;
+using ::track::TileCoord;
+using ::track::TileGeometry;
+using ::track::TileRect;
+using ::track::TileToSourceAffine;
+using ::track::tile_to_source_affines;
 // core/TrackingSettings.h
 using ::track::Individual;
 using ::track::Settings;
@@ -65,6 +100,13 @@ using ::track::background_task::register_queue_runner;
 }
 
 export namespace track::detect {
+// core/DetectAnnotation.h
+using ::track::detect::Annotation;
+using ::track::detect::AnnotationMap;
+using ::track::detect::AnnotationType;
+using ::track::detect::AnnotationTypeCounts;
+using ::track::detect::count_annotation_types;
+using ::track::detect::filter_annotation_types;
 // core/DetectionTypes.h
 using ::track::detect::Bone;
 using ::track::detect::DetectResolution;
@@ -77,6 +119,8 @@ using ::track::detect::PredictionFilter;
 using ::track::detect::detection_format;
 using ::track::detect::detection_type;
 using ::track::detect::get_model_image_size;
+// core/GPURecognitionTypes.h
+using ::track::detect::Sam3PromptsPerImage;
 }
 
 export namespace track::detect::ObjectDetectionFormat {
@@ -87,6 +131,16 @@ using ::track::detect::ObjectDetectionFormat::Class;
 export namespace track::detect::ObjectDetectionType {
 // core/DetectionTypes.h
 using ::track::detect::ObjectDetectionType::Class;
+}
+
+export namespace track::detect::annotation_dataset {
+// core/DetectAnnotationDataset.h
+using ::track::detect::annotation_dataset::format_from_dataset_file;
+}
+
+export namespace track::detect::annotation_dataset::format_t {
+// core/DetectAnnotationDataset.h
+using ::track::detect::annotation_dataset::format_t::Class;
 }
 
 export namespace track::detect::yolo {

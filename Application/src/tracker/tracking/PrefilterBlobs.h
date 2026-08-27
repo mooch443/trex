@@ -5,6 +5,7 @@
 #include <misc/frame_t.h>
 #include <core/SizeFilters.h>
 #include <processing/CPULabeling.h>
+#include <tracking/SplitExpectation.h>
 
 namespace cmn {
 class Background;
@@ -17,23 +18,6 @@ class PPFrame;
 
 using FilterReason = pv::FilterReason;
 using namespace cmn;
-
-struct split_expectation {
-    size_t number;
-    bool allow_less_than;
-    std::vector<std::vector<Vec2>> centers;
-    
-    split_expectation(size_t number = 0, bool allow_less_than = false)
-        : number(number), allow_less_than(allow_less_than)
-    { }
-    
-    std::string toStr() const {
-        return "{"+std::to_string(number)+","+(allow_less_than ? "true" : "false")+","+Meta::toStr(centers) + "}";
-    }
-    static consteval std::string_view class_name() {
-        return "split_expectation";
-    }
-};
 
 struct PrefilterBlobs {
 private:

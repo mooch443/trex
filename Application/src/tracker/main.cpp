@@ -15,6 +15,7 @@ static void (*windowsEarlyEnvSetup)(void) = []() {
 };
 #endif
 
+#include <core/indicators.h>
 #include <gui/DrawStructure.h>
 #include <gui/Dispatcher.h>
 #include <gui/IMGUIBase.h>
@@ -39,11 +40,13 @@ static void (*windowsEarlyEnvSetup)(void) = []() {
 #include <GitSHA1.h>
 #include <grabber/misc/Webcam.h>
 #include <opencv2/core/utils/logger.hpp>
+#include <python/Detection.h>
 
 #include <core/TaskPipeline.h>
 #include <ui/Scene.h>
 
 #include <core/AbstractVideoSource.h>
+#include <core/TerminalProgress.h>
 #include <core/VideoVideoSource.h>
 #include <core/WebcamVideoSource.h>
 
@@ -53,7 +56,7 @@ static void (*windowsEarlyEnvSetup)(void) = []() {
 #include <ui/SettingsScene.h>
 #include <ui/TrackingSettingsScene.h>
 #include <ui/TrackingScene.h>
-#include <ui/AnnotationScene.h>
+#include <ui/DetectAnnotationScene.h>
 #include <ui/TrackingState.h>
 #include <ui/WorkProgress.h>
 #include <ui/Accumulation.h>
@@ -66,7 +69,8 @@ static void (*windowsEarlyEnvSetup)(void) = []() {
 //#include <python/Yolo7ObjectDetection.h>
 
 #include <file/PathArray.h>
-#include <ui/SettingsInitializer.h>
+#include <core/SettingsInitializer.h>
+#include <ui/RecentItems.h>
 
 #include <signal.h>
 #include <misc/default_settings.h>
@@ -87,6 +91,24 @@ using namespace default_config;
 bool wants_to_load{false};
 bool pause_stuff{false};
 
+std::mutex python_runtime_warning_mutex;
+std::queue<std::string> python_runtime_warnings;
+
+void queue_python_runtime_warning(std::string message) {
+    std::lock_guard guard(python_runtime_warning_mutex);
+    python_runtime_warnings.emplace(std::move(message));
+}
+
+std::optional<std::string> next_python_runtime_warning() {
+    std::lock_guard guard(python_runtime_warning_mutex);
+    if(python_runtime_warnings.empty())
+        return std::nullopt;
+
+    auto message = std::move(python_runtime_warnings.front());
+    python_runtime_warnings.pop();
+    return message;
+}
+
 static_assert(_has_tostr_method<file::Path>, "Expecting Path to have toStr");
 
 void save_rst_files() {
@@ -99,7 +121,7 @@ void save_rst_files() {
     auto f = path.fopen("wb");
     if(!f)
         throw U_EXCEPTION("Cannot open ",path.str());
-    fwrite(rst.data(), sizeof(char), rst.length(), f.get());
+    f.write(rst.data(), rst.length());
     
     //printf("%s\n", rst.c_str());
     Print("Saved at ",path,".");
@@ -178,7 +200,7 @@ void check_pause() {
 }
 
 void launch_gui(std::future<void>& f) {
-    IMGUIBase base(window_title(), {1024,850}, [&, ptr = &base](DrawStructure&)->bool {
+    IMGUIBase base(cmn::settings::window_title(), {1024,850}, [&, ptr = &base](DrawStructure&)->bool {
         UNUSED(ptr);
         //graph.draw_log_messages(Bounds(Vec2(0, 80), graph.dialog_window_size()));
         return true;
@@ -295,8 +317,8 @@ void launch_gui(std::future<void>& f) {
     TrackingSettingsScene tsettings_scene{ base };
     manager.register_scene(&tsettings_scene);
     
-    AnnotationScene annotations{base};
-    manager.register_scene(&annotations);
+    DetectAnnotationScene detect_annotations{base};
+    manager.register_scene(&detect_annotations);
     
     CalibrateScene calibrate{base};
     manager.register_scene(&calibrate);
@@ -315,7 +337,7 @@ void launch_gui(std::future<void>& f) {
         { TRexTask_t::none, &start },
 		{ TRexTask_t::convert, &converting },
 		{ TRexTask_t::track, &tracking_scene },
-        { TRexTask_t::annotate, &annotations },
+        { TRexTask_t::annotate, &detect_annotations },
         { TRexTask_t::rst, &start }
 	};
 
@@ -348,6 +370,9 @@ void launch_gui(std::future<void>& f) {
                     .type = READ_SETTING(detect_type, track::detect::ObjectDetectionType_t),
                     .source_map = cmd_options
                 });
+                
+                /// if we explicitly set -task convert, we want to force the override
+                ConvertScene::force_start_over.set(true);
                 
             } else if(it->second == &tracking_scene) {
                 settings::load(settings::LoadContext{
@@ -400,6 +425,13 @@ void launch_gui(std::future<void>& f) {
             }
         }
         manager.update(&base, *base.graph());
+
+        if(auto warning = next_python_runtime_warning()) {
+            base.graph()->dialog(
+                settings::htmlify(*warning),
+                "<sym>⚠</sym> GPU acceleration unavailable"
+            );
+        }
         
         check_pause();
     });
@@ -520,7 +552,9 @@ void init_signals() {
 }
 
 std::string start_tracking(std::future<void>& f) {
-    settings::initialize_filename_for_tracking();
+    SETTING(filename) = GlobalSettings::read([](const Configuration& config) {
+        return settings::find_existing_output_name(config.values);
+    });
     
     std::atomic<bool> terminate{false};
     TrackingState state{nullptr};
@@ -556,11 +590,20 @@ std::string start_tracking(std::future<void>& f) {
     if(f.valid())
         f.get();
     
-    while(not terminate && not BOOL_SETTING(terminate))
+    while(not terminate
+          && not BOOL_SETTING(terminate)
+          && not BOOL_SETTING(error_terminate))
+    {
         std::this_thread::sleep_for(std::chrono::seconds(1));
-    
-    while(BOOL_SETTING(auto_quit))
+    }
+
+    /// Asynchronous startup failures can set error_terminate before the
+    /// workflow reaches the state transition that clears auto_quit.
+    while(BOOL_SETTING(auto_quit)
+          && not BOOL_SETTING(error_terminate))
+    {
         std::this_thread::sleep_for(std::chrono::seconds(1));
+    }
     
     WorkProgress::stop();
     return {};
@@ -576,24 +619,10 @@ std::string start_converting(std::future<void>& f) {
     
     /// this needs to go first so it gets destroyed last
     /// since we have callbacks in segmenter
-    ind::ProgressBar bar{
-        ind::option::BarWidth{50},
-        ind::option::Start{"["},
-/*#ifndef _WIN32
-        ind::option::Fill{"█"},
-        ind::option::Lead{"▂"},
-        ind::option::Remainder{"▁"},
-#else*/
-        ind::option::Fill{"="},
-        ind::option::Lead{">"},
-        ind::option::Remainder{" "},
-//#endif
-        ind::option::End{"]"},
-        ind::option::PostfixText{"Converting video..."},
-        ind::option::ShowPercentage{true},
-        ind::option::ForegroundColor{ind::Color::white},
-        ind::option::FontStyles{std::vector<ind::FontStyle>{ind::FontStyle::bold}}
-    };
+    auto bar = cmn::terminal::progress::make_progress_bar({
+        .width = 50,
+        .postfix = "Converting video..."
+    });
     
     std::string last_error;
     Segmenter segmenter(
@@ -606,6 +635,9 @@ std::string start_converting(std::future<void>& f) {
             last_error = error;
         });
     
+    /// if we explicitly set -task convert, we want to force the override
+    segmenter.start_over().set(true);
+    
     Print("Loading source = ",
           utils::ShortenText(READ_SETTING(source, file::PathArray).toStr(), 1000));
     
@@ -614,17 +646,12 @@ std::string start_converting(std::future<void>& f) {
     ind::ProgressSpinner spinner{
         ind::option::PostfixText{"Recording..."},
         ind::option::ForegroundColor{ind::Color::white},
-        ind::option::SpinnerStates{std::vector<std::string>{
-            //"⣾","⣽","⣻","⢿","⡿","⣟","⣯","⣷"
-            //"◢","◣","◤","◥",
-            //"◜◞", "◟◝", "◜◞", "◟◝"
-            " ◴"," ◷"," ◶"," ◵"
-            //"⠈", "⠐", "⠠", "⢀", "⡀", "⠄", "⠂", "⠁"
-        }},
+        ind::option::SpinnerStates{cmn::terminal::progress::spinner_states()},
         ind::option::FontStyles{std::vector<ind::FontStyle>{ind::FontStyle::bold}}
     };
     
     Timer last_tick;
+    size_t bar_spinner_index = 0;
     
     if (READ_SETTING(source, file::PathArray) == file::PathArray("webcam")) {
         segmenter.open_camera();
@@ -653,11 +680,12 @@ std::string start_converting(std::future<void>& f) {
         
         if(percent >= 0) {
             percent = saturate(percent, 0.f, 100.f);
+            cmn::terminal::progress::advance_progress_bar_spinner(bar, bar_spinner_index);
             bar.set_progress(percent);
             
             auto frame = segmenter.current_frame();
-            bar.set_option(ind::option::PostfixText{"Converting "+Meta::toStr(frame)+"/"+video_length+" @ "+dec<1>(segmenter.fps()).toStr()+"fps..."});
-        } else if(last_tick.elapsed() > 1) {
+            bar.set_postfix("Converting "+Meta::toStr(frame)+"/"+video_length+" @ "+dec<1>(segmenter.fps()).toStr()+"fps...");
+        } else if(last_tick.elapsed() > cmn::terminal::progress::interval_seconds()) {
             spinner.set_option(ind::option::PostfixText{"Recording ("+Meta::toStr(Tracker::end_frame())+")..."});
             spinner.set_option(ind::option::ShowPercentage{false});
             spinner.tick();
@@ -665,7 +693,8 @@ std::string start_converting(std::future<void>& f) {
         }
     });
     
-    while(not BOOL_SETTING(terminate))
+    while(not BOOL_SETTING(terminate)
+          && not BOOL_SETTING(error_terminate))
         std::this_thread::sleep_for(std::chrono::seconds(1));
     
     if(not BOOL_SETTING(error_terminate)) {
@@ -797,11 +826,8 @@ int main(int argc, char**argv) {
         else if(a.name == "o"
                 && a.value)
         {
-            auto path = file::Path(*a.value);
-            if(path.has_extension() && path.has_extension("pv"))
-                path = path.remove_extension();
-            SETTING(filename) = path;
-            CommandLine::instance().add_setting("filename", path.str());
+            SETTING(filename) = file::Path(*a.value);
+            CommandLine::instance().add_setting("filename", *a.value);
         }
         else if(a.name == "p"
                 && a.value)
@@ -829,6 +855,11 @@ int main(int argc, char**argv) {
                 },
                 []() {
                     tf::destroyAllWindows();
+                },
+                [](const std::string& message) {
+                    FormatWarning("[py] ", message);
+                    if(not BOOL_SETTING(nowindow))
+                        queue_python_runtime_warning(message);
                 }
             );
         //});
@@ -864,13 +895,6 @@ int main(int argc, char**argv) {
 
     CommandLine::instance().load_settings();
     
-    if (not READ_SETTING(filename, file::Path).empty()) {
-        auto path = READ_SETTING(filename, file::Path);
-        if(path.has_extension("pv"))
-            path = path.remove_extension();
-        SETTING(filename) = file::DataLocation::parse("output", path);
-    }
-    
     std::string last_error;
     if(BOOL_SETTING(nowindow)) {
         auto task = READ_SETTING(task, TRexTask);
@@ -905,37 +929,43 @@ int main(int argc, char**argv) {
         if(f.valid())
             f.get();
 
-        if(task == TRexTask_t::convert) {
-            last_error = start_converting(f);
-            
-            if(last_error.empty() && BOOL_SETTING(auto_train)) {
+        try {
+            if(task == TRexTask_t::convert) {
+                last_error = start_converting(f);
                 
-                try {
-                    if (f.valid())
-                        f.get();
+                if(last_error.empty() && BOOL_SETTING(auto_train)) {
 
-                    Detection::deinit();
-                    Accumulation::on_terminate();
-                    WorkProgress::stop();
+                    try {
+                        if (f.valid())
+                            f.get();
+
+                        Detection::deinit();
+                        Accumulation::on_terminate();
+                        WorkProgress::stop();
+
+                    } catch(const std::exception& e) {
+                        FormatExcept("Unknown deinit() error, quitting normally anyways. ", e.what());
+                    }
                     
-                } catch(const std::exception& e) {
-                    FormatExcept("Unknown deinit() error, quitting normally anyways. ", e.what());
+                    wants_to_load = true;
+                    SETTING(terminate) = false;
+                    SETTING(auto_quit) = true;
+                    start_tracking(f);
+                } else {
+                    WorkProgress::stop();
                 }
                 
-                wants_to_load = true;
-                SETTING(terminate) = false;
-                SETTING(auto_quit) = true;
-                start_tracking(f);
+            } else if(task == TRexTask_t::track) {
+                last_error = start_tracking(f);
+            } else if(task == TRexTask_t::rst) {
+                save_rst_files();
             } else {
-                WorkProgress::stop();
+                throw U_EXCEPTION("Unknown task type: ", task);
             }
-            
-        } else if(task == TRexTask_t::track) {
-            last_error = start_tracking(f);
-        } else if(task == TRexTask_t::rst) {
-            save_rst_files();
-        } else {
-            throw U_EXCEPTION("Unknown task type: ", task);
+        } catch(const std::exception& ex) {
+            SETTING(error_terminate) = true;
+            SETTING(terminate) = true;
+            last_error = ex.what();
         }
         
     } else {

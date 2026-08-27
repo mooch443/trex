@@ -1,6 +1,7 @@
 #include "DrawPreviewImage.h"
 #include <ui/GUICache.h>
 #include <gui/Transform.h>
+#include <misc/Image.h>
 #include <tracking/PPFrame.h>
 #include <gui/types/Textfield.h>
 #include <gui/types/Dropdown.h>
@@ -9,6 +10,7 @@
 #include <grabber/misc/default_config.h>
 #include <tracking/LockGuard.h>
 #include <tracking/Individual.h>
+#include <tracking/TrackletInformation.h>
 
 namespace cmn::gui {
 namespace meta {

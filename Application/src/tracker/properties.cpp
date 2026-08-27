@@ -1,6 +1,11 @@
 #include <misc/types.h>
+#include <pv.h>
 #include <gui/IMGUIBase.h>
 #include <data/MotionRecord.h>
+#include <tracking/Individual.h>
+#include <tracking/LockGuard.h>
+#include <tracking/PPFrame.h>
+#include <tracking/Stuffs.h>
 #include <tracking/Tracker.h>
 #include <core/default_config.h>
 #include <ui/GUICache.h>

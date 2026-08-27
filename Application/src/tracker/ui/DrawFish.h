@@ -9,6 +9,7 @@
 #include <tracking/OutputLibrary.h>
 #include <ui/Coordinates.h>
 #include <tracking/Outline.h>
+#include <tracking/Stuffs.h>
 #include <gui/Graph.h>
 #include <data/IndividualCache.h>
 #include <tracking/TrackletInformation.h>

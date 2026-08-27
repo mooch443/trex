@@ -1,5 +1,10 @@
 #include "ImageExtractor.h"
 #include <gui/Transform.h>
+#include <processing/Background.h>
+#include <tracking/Individual.h>
+#include <tracking/LockGuard.h>
+#include <tracking/PPFrame.h>
+#include <tracking/Stuffs.h>
 #include <tracking/Tracker.h>
 #include <tracking/FilterCache.h>
 #include <tracking/IndividualManager.h>
@@ -76,14 +81,18 @@ void ImageExtractor::collect(selector_t&& selector) {
                && i++ % _settings.item_step != 0)
                 return true;
             
+            q.fdx = fdx;
             q.basic = basic;
             q.posture = posture;
             
-            if(selector(q)) {
+            if(auto accepted = selector(q);
+               (bool)accepted)
+            {
                 // initialize task lazily
                 task.fdx = fdx;
                 task.bdx = basic->blob.blob_id();
                 task.tracklet = seg->range;
+                task.query = std::move(accepted);
                 ++_collected_items;
                 
                 _tasks[frame].emplace_back(std::move(task));
@@ -127,8 +136,8 @@ void ImageExtractor::update_thread(selector_t&& selector, partial_apply_t&& part
         _pushed_items = retrieve_image_data(std::move(partial_apply), callback);
         
         //! we are done.
-        _promise.set_value();
         callback(this, 1.0, true);
+        _promise.set_value();
         
     } catch(const std::exception& ex) {
         FormatWarning("[update_thread] Rethrowing exception for main: ", ex.what());
@@ -225,7 +234,7 @@ uint64_t ImageExtractor::retrieve_image_data(partial_apply_t&& apply, callback_t
                 continue;
             }
             
-            for(const auto &[fdx, bdx, range] : samples) {
+            for(auto &[fdx, bdx, range, query] : samples) {
                 auto blob = pp.bdx_to_ptr(bdx);
                 if(!blob) {
                     //! TODO: original_blobs
@@ -283,7 +292,8 @@ uint64_t ImageExtractor::retrieve_image_data(partial_apply_t&& apply, callback_t
                     .frame = index,
                     .fdx = fdx,
                     .bdx = bdx,
-                    .image = std::move(image)
+                    .image = std::move(image),
+                    .query = std::move(query)
                 });
                 
                 if(results.size() >= max_images_per_step)

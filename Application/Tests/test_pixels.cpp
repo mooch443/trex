@@ -8,6 +8,7 @@
 #include <tracking/Posture.h>
 #include <processing/LuminanceGrid.h>
 #include <processing/HLine.h>
+#include <video/AveragingAccumulator.h>
 
 using namespace cmn;
 using namespace track;
@@ -80,6 +81,50 @@ bool mats_equal(const cv::Mat& lhs, const cv::Mat& rhs) {
 }
 
 } // namespace
+
+TEST(AveragingAccumulator, ModeUsesMostFrequentValuePerPixelAndChannel) {
+    AveragingAccumulator accumulator(averaging_method_t::mode);
+    const std::array<cv::Vec3b, 7> samples{
+        cv::Vec3b{1, 200, 9},
+        cv::Vec3b{1, 200, 9},
+        cv::Vec3b{1, 200, 9},
+        cv::Vec3b{10, 10, 100},
+        cv::Vec3b{20, 20, 110},
+        cv::Vec3b{30, 30, 120},
+        cv::Vec3b{40, 40, 130}
+    };
+
+    for(const auto& sample : samples) {
+        cv::Mat frame(1, 1, CV_8UC3);
+        frame.at<cv::Vec3b>(0, 0) = sample;
+        accumulator.add(frame);
+    }
+
+    const auto result = accumulator.finalize();
+    ASSERT_NE(result, nullptr);
+    ASSERT_EQ(result->get().type(), CV_8UC3);
+    const auto pixel = result->get().at<cv::Vec3b>(0, 0);
+    EXPECT_EQ(pixel[0], 1);
+    EXPECT_EQ(pixel[1], 200);
+    EXPECT_EQ(pixel[2], 9);
+}
+
+TEST(BlobSize, EffectiveAreaUsesSquaredCmPerPixel) {
+    GlobalSettings::write([](Configuration& config) {
+        config.values["cm_per_pixel"] = Float2_t(0.5);
+        config.values["correct_illegal_lines"] = false;
+    });
+
+    auto lines = std::make_unique<line_ptr_t::element_type>(
+        std::vector<HorizontalLine>{HorizontalLine(0, 0, 3)});
+    pv::Blob blob(std::move(lines), 0, {});
+    blob.force_set_recount(0);
+
+    EXPECT_FLOAT_EQ(blob.raw_recount(0), 4.f);
+    EXPECT_FLOAT_EQ(blob.recount(0), 1.f);
+
+    SETTING(cm_per_pixel) = Float2_t(1);
+}
 
 TEST(IllegalArrays, InitializerListConstructor) {
     cmn::IllegalArray<int> arr = {1, 2, 3, 4};

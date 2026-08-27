@@ -23,54 +23,9 @@ AnimatedBackground::AnimatedBackground(Image::Ptr&& image, const pv::File* video
 
     _source_scale = -1;
 
-    std::string meta_source_path = READ_SETTING(meta_source_path, std::string);
-
-    if (video) {
-        if(video->header().source) {
-            meta_source_path = video->header().source.value();
-            _video_offset = video->header().conversion_range.start
-                                ? video->header().conversion_range.start.value()
-                                : 0;
-            
-        } else {
-            auto metadata = video->header().metadata;
-            Configuration combined;
-            
-            try {
-                grab::default_config::get(combined);
-                default_config::get(combined);
-                
-                if(metadata.has_value())
-                    sprite::parse_values(sprite::MapSource{video->filename()}, combined.values, metadata.value(), nullptr, {}, default_config::deprecations());
-                
-            }
-            catch (...) {
-                FormatExcept("Failed to load metadata from: ", metadata.has_value() ? metadata.value() : "");
-            }
-            
-            /*if ((meta_source_path.empty() || (not combined.map.has("meta_source_path") || meta_source_path == combined.map.at("meta_source_path").value<std::string>()))
-             && combined.map.has("meta_video_scale"))
-             {
-             _source_scale = combined.map.at("meta_video_scale").value<float>();
-             }*/
-            
-            if (meta_source_path.empty()
-                && combined.has("meta_source_path"))
-            {
-                meta_source_path = combined.at("meta_source_path").value<std::string>();
-            }
-            
-            _video_offset = 0;
-        }
-    }
-
-    std::array<std::string, 4> tests {
-        READ_SETTING(meta_source_path, std::string),
-        meta_source_path,
-        file::DataLocation::parse("input", meta_source_path).str(),
-        file::DataLocation::parse("output", meta_source_path).str()
-    };
-    for(auto &test : tests) {
+    auto result = configure_video_source(video);
+    
+    for(auto &[test, offset] : result.tests) {
         std::unique_lock guard(_source_mutex);
         try {
             _source = std::make_unique<VideoSource>(test);
@@ -82,6 +37,9 @@ AnimatedBackground::AnimatedBackground(Image::Ptr&& image, const pv::File* video
                 _source_scale = READ_SETTING(meta_video_scale, float);
             }*/
             
+            /// if we cant find the right offset, just assume 0
+            _video_offset = offset.value_or(0);
+            
             // found it, so we escape
             break;
         }
@@ -89,6 +47,7 @@ AnimatedBackground::AnimatedBackground(Image::Ptr&& image, const pv::File* video
             FormatError("Cannot load animated gui background: ", e.what());
             _source = nullptr;
             _file_opened = false;
+            _video_offset = 0;
         }
     }
 
@@ -104,6 +63,112 @@ AnimatedBackground::AnimatedBackground(Image::Ptr&& image, const pv::File* video
     });
     
     auto_size({});
+}
+
+BackgroundVideoConfig AnimatedBackground::configure_video_source(const pv::File * video) {
+    BackgroundVideoConfig result;
+    
+    const auto video_conversion_range = READ_SETTING_WITH_DEFAULT(video_conversion_range, Range<long_t>(-1, -1));
+    const std::string meta_source_path = READ_SETTING_WITH_DEFAULT(meta_source_path, std::string{});
+    std::optional<int> offset;
+    
+    if(video_conversion_range.start > -1)
+        offset = video_conversion_range.start;
+
+    std::optional<std::string> meta_source_path_from_video;
+    std::optional<int> video_offset_from_video;
+    std::optional<file::Path> video_output_dir, video_filename;
+    std::string video_prefix_path;
+    
+    if (video) {
+        auto metadata = video->header().metadata;
+        Configuration combined;
+        
+        if(metadata.has_value()) {
+            try {
+                grab::default_config::get(combined);
+                default_config::get(combined);
+                
+                sprite::parse_values(sprite::MapSource{video->filename()}, combined.values, metadata.value(), nullptr, {}, default_config::deprecations());
+            }
+            catch (...) {
+                FormatExcept("Failed to load metadata from: ", metadata.has_value() ? metadata.value() : "");
+            }
+        }
+        
+        if(video->header().source) {
+            meta_source_path_from_video = video->header().source.value();
+            
+            if(video->header().conversion_range.start) {
+                video_offset_from_video = video->header().conversion_range.start.value();
+            }
+            
+        } else {
+            /*if ((meta_source_path.empty() || (not combined.map.has("meta_source_path") || meta_source_path == combined.map.at("meta_source_path").value<std::string>()))
+             && combined.map.has("meta_video_scale"))
+             {
+             _source_scale = combined.map.at("meta_video_scale").value<float>();
+             }*/
+            
+            if (combined.has("meta_source_path")) {
+                meta_source_path_from_video = combined.at("meta_source_path").value<std::string>();
+            }
+            if(combined.has("video_conversion_range")) {
+                auto range = combined.at("video_conversion_range").value<Range<long_t>>();
+                video_offset_from_video = range.start > -1 ? std::optional<int>{range.start} : std::nullopt;
+            } else {
+                video_offset_from_video = std::nullopt;
+            }
+            
+        }
+        
+        if(combined.has("output_prefix")) {
+            video_prefix_path = combined.at("output_prefix").value<std::string>();
+        }
+        if(combined.has("output_dir")) {
+            video_output_dir = combined.at("output_dir").value<file::Path>();
+        }
+        if(combined.has("filename")) {
+            video_filename = combined.at("filename").value<file::Path>();
+        }
+    }
+    
+    if(video_offset_from_video)
+        offset = video_offset_from_video;
+
+    if(not meta_source_path.empty()) {
+        result.tests = {
+            {meta_source_path, offset}
+        };
+        result.tests.emplace(file::DataLocation::parse("input", meta_source_path).str(), offset);
+        result.tests.emplace(file::DataLocation::parse("output", meta_source_path).str(), offset);
+    }
+    
+    if(meta_source_path_from_video.has_value()) {
+        std::string path = meta_source_path_from_video.value();
+        
+        const auto mp4_filename = file::Path(path).filename();
+        const auto mp4_folder = file::Path(path).remove_filename();
+        
+        if(video_filename // the filename where the video was originally made
+           && video)
+        {
+            auto original_pv_folder = video_filename->remove_filename();
+            auto current_pv_folder = video->filename().remove_filename();
+            
+            namespace fs = std::filesystem;
+            file::Path rel = fs::path(fs::path(mp4_folder.str())).lexically_relative(original_pv_folder.str()).string();
+            auto abs = (current_pv_folder / rel / mp4_filename).canonical();
+            if(abs)
+                result.tests.emplace(abs.value(), video_offset_from_video);
+        }
+        
+        result.tests.emplace(path, video_offset_from_video);
+        result.tests.emplace(file::DataLocation::parse("input", path).str(), video_offset_from_video);
+        result.tests.emplace(file::DataLocation::parse("output", path).str(), video_offset_from_video);
+    }
+    
+    return result;
 }
 
 AnimatedBackground::AnimatedBackground(VideoSource&& source, std::shared_ptr<TimingStatsCollector> stats)

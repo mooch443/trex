@@ -1,4 +1,7 @@
 #include "TrackingHelper.h"
+#include <data/MotionRecord.h>
+#include <misc/Image.h>
+#include <tracking/BlobReceiver.h>
 #include <tracking/Tracker.h>
 #include <core/default_config.h>
 #include <misc/pretty.h>
