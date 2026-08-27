@@ -18,6 +18,10 @@
 #include <misc/ocl.h>
 #include <file/DataLocation.h>
 #include <misc/parse_parameter_lists.h>
+#include <file/PathArray.h>
+#include <core/SettingsPaths.h>
+#include <core/SettingsInitializer.h>
+#include <core/DetectionTypes.h>
 
 using namespace cmn;
 
@@ -102,62 +106,6 @@ int handle_opencv_opencl_support() {
     return 1;
 }
 
-void parse_input(const cmn::CommandLine::Option& option) {
-    if(not option.value) {
-        FormatWarning("Empty input file has been given.");
-        return;
-    }
-    file::Path path = file::DataLocation::parse("input", file::Path(*option.value));
-
-    if(utils::contains(*option.value, '*')) {
-        std::set<file::Path> found;
-
-        std::regex pattern(utils::find_replace(*option.value, "*", ".*"));
-        file::Path folder = file::DataLocation::parse("input", file::Path(*option.value).remove_filename());
-        Print("Scanning pattern ", option.value, " in folder ", folder.str(), "...");
-
-        for(auto& file : folder.find_files("pv")) {
-            if(!file.is_regular()) {
-                continue;
-            }
-
-            auto filename = (std::string)file.filename();
-
-            if(std::regex_match(filename, pattern)) {
-                found.insert(file);
-            }
-        }
-
-        if(found.size() == 1) {
-            path = file::DataLocation::parse("input", *found.begin());
-
-        } else if(found.size() > 1) {
-            Print("Found too many files matching the pattern ", option.value, ": ", found, ".");
-        } else {
-            Print("No files found that match the pattern ", option.value, ".");
-        }
-    }
-
-    if(path.has_extension("results")) {
-        SETTING(is_video) = false;
-        SETTING(filename) = path;
-
-        if(path.exists()) {
-            SETTING(filename) = path.remove_extension();
-            return;
-        } else
-            throw U_EXCEPTION("Cannot find results file ", path, ".");
-    }
-
-    if(!path.has_extension() || path.extension() != "pv")
-        path = path.add_extension("pv");
-
-    if(!path.exists())
-        throw U_EXCEPTION("Cannot find video file ", path, ". (", path.exists(), ")");
-
-    SETTING(filename) = path.remove_extension();
-}
-
 int main(int argc, char** argv) {
 #ifdef NDEBUG
     cv::utils::logging::setLogLevel(cv::utils::logging::LogLevel::LOG_LEVEL_ERROR);
@@ -227,23 +175,6 @@ int main(int argc, char** argv) {
         DebugHeader("LOADED ", default_path);
     }
 
-    if(argc == 2) {
-        try {
-            parse_input(CommandLine::Option{
-                .name = "input",
-                .value = argv[1]
-            });
-        } catch(...) {
-        }
-    } else if(argc > 2) {
-        if(file::Path(argv[1]).exists()) {
-            parse_input(CommandLine::Option{
-                .name = "input",
-                .value = argv[1]
-            });
-        }
-    }
-
     for(auto& option : cmd) {
         if(Arguments::has(option.name)) {
             switch(Arguments::get(option.name)) {
@@ -258,7 +189,11 @@ int main(int argc, char** argv) {
 
                 case Arguments::i:
                 case Arguments::input: {
-                    parse_input(option);
+                    //parse_input(option);
+                    if(option.value.has_value()) {
+                        SETTING(source) = cmn::file::PathArray{file::Path(option.value.value())};
+                        CommandLine::instance().add_setting("source", SETTING(source).get().valueString());
+                    }
                     break;
                 }
 
@@ -354,67 +289,61 @@ int main(int argc, char** argv) {
         }));
     }
 
-    file::Path input = READ_SETTING(filename, file::Path);
-
-    if(BOOL_SETTING(is_video)) {
-        auto video = pv::File::Read(input);
-        if(video.header().version <= pv::Version::V_2) {
-            SETTING(crop_offsets) = CropOffsets();
-
-            file::Path legacy_settings_file = file::DataLocation::parse("settings");
-            if(legacy_settings_file.exists()) {
-                default_config::warn_deprecated(legacy_settings_file,
-                    GlobalSettings::load_from_file(legacy_settings_file.str(), {
-                    .deprecations = default_config::deprecations(),
-                    .access = AccessLevelType::STARTUP
-                }));
-            }
-
-            auto output_settings = file::DataLocation::parse("output_settings");
-            if(output_settings.exists() && output_settings != legacy_settings_file) {
-                default_config::warn_deprecated(output_settings,
-                    GlobalSettings::load_from_file(output_settings.str(), {
-                    .deprecations = default_config::deprecations(),
-                    .access = AccessLevelType::STARTUP
-                }));
-            }
-
-            video.close();
+    file::PathArray source = READ_SETTING(source, file::PathArray);
+    if(source.empty())
+        throw InvalidArgumentException("No input file provided.");
+    
+    enum class InputType {
+        PV,
+        RESULTS,
+        VIDEO
+    } input_type{InputType::PV};
+    
+    if(auto path = source.get_paths().front();
+       path.has_extension())
+    {
+        if(path.extension() == "results") {
+            input_type = InputType::RESULTS;
+        } else if(path.extension() != "pv") {
+            input_type = InputType::VIDEO;
         }
+    }
+    
+    file::Path input = GlobalSettings::read([](const Configuration& combined){
+        return cmn::settings::find_output_name(combined.values, {}, false);
+    });
+    if(input.has_extension())
+        input = input.remove_extension();
+    
+    //READ_SETTING(filename, file::Path);
 
+    if(is_in(input_type, InputType::PV, InputType::VIDEO)) {
+        settings::load(settings::LoadContext{
+            .source = file::PathArray{input},
+            .filename = input.is_absolute() ? input : file::Path{},
+            .task = default_config::TRexTask_t::track,
+            .type = READ_SETTING(
+                detect_type,
+                track::detect::ObjectDetectionType_t
+            ),
+            .source_map = {},
+            .quiet = be_quiet
+        });
+        
+        
+        SETTING(filename) = GlobalSettings::read([](const Configuration& config) {
+            return settings::find_existing_output_name(config.values);
+        });
+        
+        auto video = pv::File::Read(READ_SETTING(filename, file::Path));
+        set_runtime_quiet(true);
+        
         SETTING(crop_offsets) = video.header().offsets;
-
-        if(video.header().metadata.has_value()) {
-            GlobalSettings::write([&](Configuration& config) {
-                sprite::parse_values(sprite::MapSource{video.filename()}, config.values, video.header().metadata.value(), nullptr, {}, default_config::deprecations());
-            });
-        }
-
-        if(!be_quiet)
-            video.print_info();
-
-        gpuMat average;
-        video.average().copyTo(average);
-        if(average.cols == video.size().width && average.rows == video.size().height)
-            video.processImage(average, average);
-        SETTING(video_size) = Size2(average.cols, average.rows);
+        SETTING(video_size) = Size2(video.size());
         SETTING(video_mask) = video.has_mask();
         SETTING(video_length) = uint64_t(video.length().get());
-
-        auto output_settings = file::DataLocation::parse("output_settings");
-        if(output_settings.exists() && output_settings != settings_file) {
-            default_config::warn_deprecated(output_settings,
-                GlobalSettings::load_from_file(output_settings.str(), {
-                .deprecations = default_config::deprecations(),
-                .access = AccessLevelType::STARTUP
-            }));
-        }
-
-        SETTING(quiet) = true;
-        cmd.load_settings();
-
-        set_runtime_quiet(true);
-
+        SETTING(video_info) = std::string(video.get_info());
+        
         track::Tracker _tracker(video);
 
         if(auto_param
@@ -691,65 +620,92 @@ int main(int argc, char** argv) {
             print_explicit("There are ", blobs_per_frame.empty() ? 0 : blobs_per_frame.getValue(), " blobs in each frame (median).");
         }
 
-    } else {
-        auto path = READ_SETTING(filename, file::Path);
+    } else if(input_type == InputType::RESULTS) {
         gpuMat average;
 
-        auto header = Output::TrackingResults::load_header(path.add_extension("results"));
+        auto header = Output::TrackingResults::load_header(input.add_extension("results"));
+        sprite::Map overrides;
+        
         if(header.version >= Output::ResultsFormat::Versions::V_28) {
             header.average.get().copyTo(average);
-            SETTING(video_size) = Size2(average.cols, average.rows);
-            SETTING(video_length) = uint64_t(header.video_length);
-            SETTING(analysis_range) = Range<long_t>(header.analysis_range.start, header.analysis_range.end);
+            overrides["video_size"] = Size2(average.cols, average.rows);
+            overrides["video_length"] = uint64_t(header.video_length);
+            overrides["analysis_range"] = Range<long_t>(header.analysis_range.start, header.analysis_range.end);
             auto consec = header.tracklets;
             std::vector<Range<Frame_t>> vec(consec.begin(), consec.end());
-            SETTING(consecutive) = vec;
-        }
-
-        if(path.add_extension("pv").exists()) {
-            pv::File video(path);
+            overrides["consecutive"] = vec;
+        } else if(input.add_extension("pv").exists()) {
+            pv::File video(input);
 
             video.average().copyTo(average);
             if(average.cols == video.size().width && average.rows == video.size().height)
                 video.processImage(average, average);
 
-            SETTING(video_size) = Size2(average.cols, average.rows);
-            SETTING(video_mask) = video.has_mask();
-            SETTING(video_length) = uint64_t(video.length().get());
+            overrides["video_size"] = Size2(average.cols, average.rows);
+            overrides["video_mask"] = video.has_mask();
+            overrides["video_length"] = uint64_t(video.length().get());
         }
 
-        if(READ_SETTING_WITH_DEFAULT(meta_real_width, Float2_t(0)) == 0)
-            SETTING(meta_real_width) = Float2_t(30.0);
+        /*if(READ_SETTING_WITH_DEFAULT(meta_real_width, Float2_t(0)) == 0)
+            overrides["meta_real_width"] = Float2_t(30.0);
         if(READ_SETTING_WITH_DEFAULT(cm_per_pixel, Float2_t(0)) == 0) {
             SETTING(cm_per_pixel) = Float2_t(READ_SETTING(meta_real_width, Float2_t) / Float2_t(average.cols));
-        }
+        }*/
 
-        path = path.add_extension("results");
-
-        auto output_settings = file::DataLocation::parse("output_settings");
+        /*auto output_settings = file::DataLocation::parse("settings");
         if(output_settings.exists() && output_settings != settings_file) {
             default_config::warn_deprecated(output_settings,
                 GlobalSettings::load_from_file(output_settings.str(), {
                 .deprecations = default_config::deprecations(),
-                .access = AccessLevelType::STARTUP
+                .access = AccessLevelType::STARTUP,
+                .target = &overrides
             }));
+        }*/
+        //cmd.load_settings(overrides);
+        
+        if(header.version < Output::ResultsFormat::Versions::V_10) {
+            /// we need to have a `detect_type` in order to set the
+            /// correct task-defaults in the next step.
+            ///
+            /// since there was no other `detect_type` before
+            /// **V_10** and there also was no type parameter to
+            /// query, we set bg subtraction:
+            overrides["detect_type"] = track::detect::ObjectDetectionType_t{ track::detect::ObjectDetectionType::background_subtraction };
         }
-
-        cmd.load_settings();
-
-        default_config::warn_deprecated(path,
-            GlobalSettings::load_from_string(header.settings, {
-            .source = path,
-            .deprecations = default_config::deprecations(),
-            .access = AccessLevelType::STARTUP
-        }));
-
+        
+        const auto& meta = header.settings;
+        
+        GlobalSettings::read([&](const Configuration& combined) {
+            default_config::warn_deprecated(input,
+                GlobalSettings::load_from_string(meta, {
+                    .deprecations = default_config::deprecations(),
+                    .access = AccessLevelType::STARTUP,
+                    .target = &overrides,
+                .additional = &combined.values
+            }));
+        });
+        
+        //Print("video length: ", SETTING(video_length)," and ", overrides.at("video_length"));
+        
         SETTING(quiet) = true;
-        track::Tracker tracker(Image::Make(average), READ_SETTING(meta_encoding, meta_encoding_t::Class), READ_SETTING(meta_real_width, Float2_t));
+        settings::load(settings::LoadContext{
+            .source = file::PathArray{input.add_extension("results")},
+            .filename = input.is_absolute() ? input : file::Path{},
+            .task = default_config::TRexTask_t::track,
+            .type = READ_SETTING(
+                detect_type,
+                track::detect::ObjectDetectionType_t
+            ),
+            .source_map = std::move(overrides),
+            .quiet = be_quiet
+        });
 
         if(header.version < Output::ResultsFormat::Versions::V_28) {
+            SETTING(quiet) = true;
+            track::Tracker tracker(Image::Make(average), READ_SETTING(meta_encoding, meta_encoding_t::Class), READ_SETTING(meta_real_width, Float2_t));
+
             Output::TrackingResults results(tracker);
-            results.load([](auto, auto, auto){}, path);
+            results.load([](auto, auto, auto){}, input.add_extension("results"));
             auto consec = tracker.consecutive();
             std::vector<Range<Frame_t>> vec(consec.begin(), consec.end());
             SETTING(consecutive) = vec;

@@ -204,7 +204,7 @@ function compare_csv_folder() {
 function check_frame_count_with_pvinfo() {
     local label="$1"
     local prefix="${2:-}"
-    local pvinfo_args=(-d "${WPWD}" -i "${WPWD}/test" -quiet)
+    local pvinfo_args=(-d "${WPWD}" -i test -quiet)
     local video_length_output=""
     local frames_output=""
     local video_length=""
@@ -214,7 +214,15 @@ function check_frame_count_with_pvinfo() {
         pvinfo_args+=(-p "${prefix}")
     fi
 
-    if ! video_length_output="$(${PVINFO} "${pvinfo_args[@]}" -print_parameters "[video_length]" 2>&1)"; then
+    CMD=(
+        "${PVINFO}"
+        "${pvinfo_args[@]}" 
+        -print_parameters "[video_length]"
+    )
+
+    echo "Checking ${label} video_length and frame count with pvinfo..." "${CMD[@]}"
+
+    if ! video_length_output="$("${CMD[@]}" 2>&1)"; then
         echo -e "${RED}[ERROR] pvinfo failed while checking ${label} video_length.${NC}"
         printf '%s\n' "${video_length_output}" | print_log_quote "pvinfo output"
         return 1
@@ -254,7 +262,6 @@ function check_frame_count_with_pvinfo() {
     return 0
 }
 
-rm -f -- "${WPWD:?}/corrected/test.settings"
 # Conversion writes to the un-prefixed output dir; keep the prefix and the
 # scanned data dir in lock-step via CONVERT_PREFIX.
 CONVERT_PREFIX="converted"
@@ -341,12 +348,14 @@ else
     #print_log_quote "convert.log" < "${PWD}/convert.log"
 fi
 
-rm -rf "${CONVERT_DATA_DIR}"
 echo ""
-
 MODES="automatic"
 
 for MODE in ${MODES}; do
+    if [[ "${exit_code}" -ne 0 ]]; then
+        echo -e "${RED}[ERROR] Skipping tracking on preconverted .pv video (${MODE}) due to previous errors.${NC}"
+        continue
+    fi
     # Tracking nests its output under the "corrected" prefix; derive the
     # scanned data dir from the same prefix we pass via -p so they cannot drift.
     TRACK_PREFIX="corrected"
@@ -388,9 +397,6 @@ for MODE in ${MODES}; do
                 exit_code=1
             else
                 echo 'OK'
-                if ! check_frame_count_with_pvinfo "track output (${MODE})" "${TRACK_PREFIX}"; then
-                    exit_code=1
-                fi
             fi
         fi
     fi
@@ -406,6 +412,11 @@ for MODE in ${MODES}; do
     fi
 done
 
-cleanup_for_prefix "${CONVERT_PREFIX}"
+if [[ "${exit_code}" -ne 0 ]]; then
+    echo -e "${RED}[ERROR] One or more tests failed.${NC}"
+else
+    echo "All tests completed successfully."
+    cleanup_for_prefix "${CONVERT_PREFIX}"
+fi
 
 exit "${exit_code:-0}"

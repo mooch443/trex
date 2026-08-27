@@ -489,6 +489,9 @@ void LoadContext::load_settings_from_source() {
         file::Path path;
         if(source.size() == 1) {
             path = source.get_paths().front();
+            if(path.has_extension("results")) {
+                path = path.remove_extension();
+            }
             if(not path.has_extension("pv")) {
                 path = path.add_extension("pv");
             }
