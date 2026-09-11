@@ -487,23 +487,43 @@ endforeach()
     message(STATUS "Linking trex_python_staging")
 #endif()
 
+set(TREX_MACOS_BUNDLE_IDENTIFIER "" CACHE STRING
+    "Override the TRex macOS bundle identifier (Xcode builds default to a build-specific identifier)"
+)
+if(TREX_MACOS_BUNDLE_IDENTIFIER)
+    set(_trex_macos_bundle_identifier "${TREX_MACOS_BUNDLE_IDENTIFIER}")
+elseif(CMAKE_GENERATOR STREQUAL "Xcode")
+    string(SHA256 _trex_xcode_build_hash "${CMAKE_BINARY_DIR}")
+    string(SUBSTRING "${_trex_xcode_build_hash}" 0 12 _trex_xcode_build_id)
+    set(_trex_macos_bundle_identifier
+        "app.trex.run.a.dev-${_trex_xcode_build_id}.$(CONFIGURATION)"
+    )
+else()
+    set(_trex_macos_bundle_identifier "app.trex.run.a")
+endif()
+
 set_target_properties(${TREXA_EXEC_NAME} PROPERTIES
   MACOSX_BUNDLE TRUE
-  MACOSX_BUNDLE_GUI_IDENTIFIER "app.trex.run.a"
+  MACOSX_BUNDLE_GUI_IDENTIFIER "${_trex_macos_bundle_identifier}"
   MACOSX_BUNDLE_BUNDLE_NAME ${TREXA_EXEC_NAME}
   MACOSX_BUNDLE_INFO_STRING "Multi-species interactive video-based tracking"
   MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/AlterInfo.plist
   XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES"
+  XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER "${_trex_macos_bundle_identifier}"
 )
 
 if(TREX_ENABLE_PROTOTYPES)
+    set(_trex_prototype_bundle_identifier
+        "${_trex_macos_bundle_identifier}.interactive-segmentation-prototype"
+    )
     set_target_properties(${INTERACTIVE_SEGMENTATION_EXEC_NAME} PROPERTIES
       MACOSX_BUNDLE TRUE
-      MACOSX_BUNDLE_GUI_IDENTIFIER "app.trex.interactive_segmentation_prototype"
+      MACOSX_BUNDLE_GUI_IDENTIFIER "${_trex_prototype_bundle_identifier}"
       MACOSX_BUNDLE_BUNDLE_NAME ${INTERACTIVE_SEGMENTATION_EXEC_NAME}
       MACOSX_BUNDLE_INFO_STRING "Interactive segmentation prototype"
       MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/AlterInfo.plist
       XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES"
+      XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER "${_trex_prototype_bundle_identifier}"
     )
 endif()
 
