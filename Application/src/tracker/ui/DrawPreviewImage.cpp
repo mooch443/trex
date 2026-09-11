@@ -7,7 +7,7 @@
 #include <gui/types/Dropdown.h>
 #include <gui/types/Checkbox.h>
 #include <gui/types/SettingsTooltip.h>
-#include <grabber/misc/default_config.h>
+#include <core/default_config.h>
 #include <tracking/LockGuard.h>
 #include <tracking/Individual.h>
 #include <tracking/TrackletInformation.h>

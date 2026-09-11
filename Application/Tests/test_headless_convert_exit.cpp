@@ -19,7 +19,6 @@
 #include <core/SettingsInitializer.h>
 #include <core/default_config.h>
 #include <file/DataLocation.h>
-#include <grabber/misc/default_config.h>
 #include <misc/CommandLine.h>
 #include <misc/GlobalSettings.h>
 #include <misc/SpriteMap.h>
@@ -234,7 +233,6 @@ void register_data_locations_once() {
 void reset_settings_loader_state() {
     cmn::CommandLine::instance() = cmn::CommandLine{};
     cmn::GlobalSettings::write([](cmn::Configuration& config) {
-        grab::default_config::get(config);
         ::default_config::get(config);
     });
     cmn::GlobalSettings::set_current_defaults({});

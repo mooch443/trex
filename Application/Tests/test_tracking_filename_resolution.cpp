@@ -4,10 +4,10 @@
 
 #include <core/SettingsInitializer.h>
 #include <core/SettingsPaths.h>
+#include <core/SizeFilters.h>
 #include <core/default_config.h>
 #include <file/DataLocation.h>
 #include <file/PathArray.h>
-#include <grabber/misc/default_config.h>
 #include <misc/CommandLine.h>
 #include <misc/GlobalSettings.h>
 #include <misc/ranges.h>
@@ -21,6 +21,42 @@ void PrintTo(const Path& p, std::ostream* os) {
 }
 
 namespace {
+
+TEST(DefaultConfigDeprecationTest, GrabberKeysUseDetectionSettings) {
+    Configuration config;
+    default_config::get(config);
+    const auto tracking_sizes = config.values.at("track_size_filter").value<SizeFilters>();
+    const auto tracking_threshold = config.values.at("track_threshold").value<int>();
+    const auto options = GlobalSettings::LoadOptions{
+        .source = sprite::MapSource("default-config-test"),
+        .deprecations = default_config::deprecations(),
+        .access = AccessLevelType::SYSTEM,
+        .target = &config.values
+    };
+
+    GlobalSettings::load_from_string(
+        "fish_minmax_size = [0.25,12]\n"
+        "threshold_constant = 37\n"
+        "use_dilation = 2\n"
+        "output_graphs = [[\"X\",[]]]\n", options);
+
+    EXPECT_EQ(config.values.at("detect_size_filter").value<SizeFilters>(),
+              SizeFilters::fromStr("[0.25,12]"));
+    EXPECT_EQ(config.values.at("detect_threshold").value<int>(), 37);
+    EXPECT_EQ(config.values.at("dilation_size").value<int32_t>(), 2);
+    const default_config::graphs_type fields{{"X", {}}};
+    EXPECT_EQ(config.values.at("output_fields").value<default_config::graphs_type>(), fields);
+
+    GlobalSettings::load_from_string("threshold = 41\n", options);
+    EXPECT_EQ(config.values.at("detect_threshold").value<int>(), 41);
+    EXPECT_EQ(config.values.at("track_threshold").value<int>(), tracking_threshold);
+    EXPECT_EQ(config.values.at("track_size_filter").value<SizeFilters>(), tracking_sizes);
+
+    for(const auto* key : {"fish_minmax_size", "threshold_constant", "threshold", "use_dilation", "output_graphs"}) {
+        SCOPED_TRACE(key);
+        EXPECT_FALSE(config.values.has(key));
+    }
+}
 
 namespace fs = std::filesystem;
 
@@ -57,7 +93,6 @@ void register_data_locations_once() {
 
 void reset_global_settings() {
     GlobalSettings::write([](Configuration& config) {
-        grab::default_config::get(config);
         default_config::get(config);
     });
     GlobalSettings::set_current_defaults({});

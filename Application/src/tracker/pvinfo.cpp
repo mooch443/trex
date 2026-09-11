@@ -8,7 +8,6 @@
 #include <misc/GlobalSettings.h>
 #include <misc/Median.h>
 #include <tracking/Tracker.h>
-#include <grabber/misc/default_config.h>
 #include <core/default_config.h>
 #include <processing/CPULabeling.h>
 #include "pvinfo_merge.h"
@@ -146,7 +145,6 @@ int main(int argc, char** argv) {
     SETTING(quiet) = false;
 
     GlobalSettings::write([](Configuration& config) {
-        grab::default_config::get(config);
         default_config::get(config);
     });
 

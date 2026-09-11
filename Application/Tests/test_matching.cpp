@@ -12,10 +12,10 @@
 #include <core/DetectionTypes.h>
 #include <core/GPURecognitionTypes.h>
 #include <misc/RBSettings.h>
+#include <misc/default_settings.h>
 #include <python/PrecomuptedDetection.h>
 #include <tracking/SplitBlob.h>
 #include <tracking/HistorySplit.h>
-#include <grabber/misc/default_config.h>
 #include <algorithm>
 #include <sstream>
 #include <stdexcept>
@@ -52,7 +52,6 @@ buffers::TileBuffers::Buffers_t& testTileBuffers() {
 static void resetGlobalSettings()
 {
     GlobalSettings::write([&](Configuration& config) {
-        grab::default_config::get(config);
         ::default_config::get(config);
     });
 
@@ -521,6 +520,34 @@ TEST(PrecomputeTest, LoadTable)
     EXPECT_NEAR(b.height, 20.0_F, 1e-3);
     EXPECT_NEAR(b.pos().x, 50.0_F, 0.5); // actually 50.2?
     EXPECT_NEAR(b.pos().y, 120.0_F, 1e-3);
+}
+
+TEST(DefaultConfigTest, DocumentationSurvivesCopiesAndMoves) {
+    Configuration original;
+    {
+        settings::Adding adding(original);
+        adding.add<settings::ParameterCategoryType::TRACKING>("enum", ObjectDetectionFormat::boxes, "Detected geometry.");
+        adding.add<settings::ParameterCategoryType::TRACKING>("season", SeasonType::SUMMER, "Season.");
+        adding.add<settings::ParameterCategoryType::TRACKING>("value", 42, "Integer.");
+    }
+    const auto expected = original.docs;
+    Configuration copied = original;
+    Configuration assigned;
+    assigned = original;
+    original = Configuration{};
+
+    Configuration moved = std::move(copied);
+    Configuration move_assigned;
+    move_assigned = std::move(assigned);
+    for(const auto* config : {&moved, &move_assigned}) {
+        EXPECT_EQ(config->docs, expected);
+        ASSERT_EQ(config->doc_generators.size(), expected.size());
+        for(const auto& [name, doc] : expected) {
+            const auto& generator = config->doc_generators.at(name);
+            EXPECT_EQ(generator(std::nullopt), doc);
+            EXPECT_EQ(generator(uint8_t{255}), doc);
+        }
+    }
 }
 
 // ------------------------------------------------------------

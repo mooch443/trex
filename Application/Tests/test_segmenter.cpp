@@ -374,7 +374,6 @@ TEST(SegmenterExistingOutputTest, LoadContextLoadsExistingPvAndClearsDerivedFile
     ASSERT_TRUE(output_pv.is_regular());
 
     GlobalSettings::write([](Configuration& config) {
-        grab::default_config::get(config);
         default_config::get(config);
     });
     GlobalSettings::set_current_defaults({});

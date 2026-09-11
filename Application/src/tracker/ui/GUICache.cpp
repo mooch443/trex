@@ -21,7 +21,6 @@
 #include <gui/DrawBase.h>
 #include <tracking/IndividualManager.h>
 #include <core/default_config.h>
-#include <grabber/misc/default_config.h>
 #include <ui/DrawPosture.h>
 #include <tracking/FilterCache.h>
 #include <core/TimingStatsCollector.h>

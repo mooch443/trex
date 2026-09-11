@@ -14,7 +14,6 @@
 #include <tracking/Stuffs.h>
 #include <tracking/TrackletInformation.h>
 #include <tracking/Tracker.h>
-//#include <grabber/misc/default_config.h>
 #include <tracking/OutputLibrary.h>
 #include <ui/Categorize.h>
 #include <ui/WorkProgress.h>
@@ -44,7 +43,7 @@
 #include <ui/DrawExportOptions.h>
 #include <python/PythonWrapper.h>
 #include <tracking/MemoryStats.h>
-#include <grabber/misc/default_config.h>
+#include <core/default_config.h>
 #include <ui/GuiSettings.h>
 #include <ui/PreviewAdapterElement.h>
 #include <ui/DrawUniqueness.h>
@@ -1093,7 +1092,6 @@ void TrackingScene::deactivate() {
     Configuration combined;
     combined.values.set_print_by_default(false);
     
-    grab::default_config::get(combined);
     default_config::get(combined);
     
     for(auto key : combined.values.keys()) {

@@ -3,7 +3,6 @@
 #include <processing/Background.h>
 #include <misc/SpriteMap.h>
 #include <misc/GlobalSettings.h>
-#include <grabber/misc/default_config.h>
 #include <processing/PVBlob.h>
 #include <processing/CPULabeling.h>
 #include <misc/ranges.h>
@@ -77,7 +76,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
         if(settings_file.exists()) {
             Print("settings for ", name.str(), " found");
             Configuration config;
-            grab::default_config::get(config);
+            ::default_config::get(config);
 
             GlobalSettings::load_from_file(settings_file.str(), {
                 .access = AccessLevelType::STARTUP,

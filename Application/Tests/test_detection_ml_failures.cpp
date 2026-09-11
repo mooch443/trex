@@ -134,7 +134,6 @@ public:
             write_bbx("return configs", "return [_empty_result(i) for i in range(_result_count(input))]");
 
             GlobalSettings::write([](Configuration& config) {
-                grab::default_config::get(config);
                 ::default_config::get(config);
             });
             SETTING(wd) = Path(root.string());
@@ -191,7 +190,6 @@ auto* python_environment = static_cast<PythonMlEnvironment*>(
 
 void configure_yolo_settings() {
     GlobalSettings::write([](Configuration& config) {
-        grab::default_config::get(config);
         ::default_config::get(config);
     });
 

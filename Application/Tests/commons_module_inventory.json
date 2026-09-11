@@ -11,7 +11,7 @@
       ],
       "module": "commons.types",
       "path": "misc/types.h",
-      "sha256": "2bd23cd9a7a950f216715ef065eb2a224c7539638a435c862eff6b62d7633003",
+      "sha256": "533252c72f181649db1d9758b69345f450ccebad451b0ae2f5c2afacaaa4ebd0",
       "symbols": [
         {
           "kind": "function",
@@ -514,7 +514,7 @@
       ],
       "module": "commons.misc",
       "path": "misc/GlobalSettings.h",
-      "sha256": "4291539e0771e56a0d0618ac2b24c7674bfe10b1c4ed69e199ae2121ab7572e9",
+      "sha256": "38f03d14ed032aae9f1acc932d3a430399c5546a46797a91df4b467e53aa6629",
       "symbols": [
         {
           "kind": "enum_class",
@@ -860,7 +860,7 @@
       "excluded": [],
       "module": "commons.processing",
       "path": "processing/PVBlob.h",
-      "sha256": "a342ecaf58ffd4efebdae2acfa31f1919b3a8e14bac6a07eef1f2dc733f151a2",
+      "sha256": "0f9b13edfd9c2fe5d3445117a3263f240f6a169e3d92f31926867cccfe550aad",
       "symbols": [
         {
           "kind": "struct",
@@ -1221,7 +1221,7 @@
       "excluded": [],
       "module": "commons.misc",
       "path": "misc/ThreadManager.h",
-      "sha256": "1749afe77a6cd9f304f1bcdcdb151380f988a9b830cfd2bbae1d775dcfb7a1da",
+      "sha256": "e9622d42b654e5b474d6fe8c0fd5121c6204b14d15bf22c4c21b3e798789f8c1",
       "symbols": [
         {
           "kind": "concept",
@@ -1366,7 +1366,7 @@
       "excluded": [],
       "module": "commons.misc",
       "path": "misc/TooltipData.h",
-      "sha256": "65869eeb2928b83ab6c3efb14cfeec8c5fff75fc899c393fd320b5ee8c21cea9",
+      "sha256": "56bf6f32f0bede1be69d502de78bf57f9c54ef4c3329ebba076245857cba2b89",
       "symbols": [
         {
           "kind": "struct",
@@ -1663,7 +1663,7 @@
       "excluded": [],
       "module": "commons.misc",
       "path": "misc/create_struct.h",
-      "sha256": "e18ff20f3ef14cc8032a1bca404a786d72a69e93d9a135f54d10c8c8d42a6c5d",
+      "sha256": "3b856022cade4e2feae05a6418a71696ba3dd52abe79e1102e0be865f9d4380d",
       "symbols": []
     },
     {
@@ -1735,14 +1735,14 @@
         {
           "header": "misc/default_settings.h",
           "kind": "group",
-          "line": "8",
+          "line": "22",
           "name": "cmn::settings::ParameterCategoryType::helpers",
           "reason": "internal_linkage_enum_helpers"
         }
       ],
       "module": "commons.misc",
       "path": "misc/default_settings.h",
-      "sha256": "8c8104aee5462a20c6a7e37fe069e6ac219b949e2b31a92c0e1c120ecc8edaf5",
+      "sha256": "a89eeee6f30cb9330208f87fc103ee03a2c9d0520dd57cdcd355cf88c32346e6",
       "symbols": [
         {
           "kind": "enum_class",
@@ -1750,6 +1750,46 @@
           "namespace": "cmn::settings::ParameterCategoryType",
           "qualified": "cmn::settings::ParameterCategoryType::Class",
           "smoke": "using"
+        },
+        {
+          "kind": "concept",
+          "name": "is_optional_enum",
+          "namespace": "cmn::settings",
+          "qualified": "cmn::settings::is_optional_enum",
+          "reason": "requires_witness_type",
+          "smoke": "excluded"
+        },
+        {
+          "kind": "concept",
+          "name": "is_optional_enum_or_enum",
+          "namespace": "cmn::settings",
+          "qualified": "cmn::settings::is_optional_enum_or_enum",
+          "reason": "requires_witness_type",
+          "smoke": "excluded"
+        },
+        {
+          "kind": "concept",
+          "name": "optional_has_docs",
+          "namespace": "cmn::settings",
+          "qualified": "cmn::settings::optional_has_docs",
+          "reason": "requires_witness_type",
+          "smoke": "excluded"
+        },
+        {
+          "kind": "concept",
+          "name": "_enum_has_docs",
+          "namespace": "cmn::settings",
+          "qualified": "cmn::settings::_enum_has_docs",
+          "reason": "requires_witness_type",
+          "smoke": "excluded"
+        },
+        {
+          "kind": "concept",
+          "name": "optional_or_enum_has_docs",
+          "namespace": "cmn::settings",
+          "qualified": "cmn::settings::optional_or_enum_has_docs",
+          "reason": "requires_witness_type",
+          "smoke": "excluded"
         },
         {
           "kind": "class",
@@ -1828,7 +1868,7 @@
       "excluded": [],
       "module": "commons.misc",
       "path": "misc/detail.h",
-      "sha256": "748508a3035d4fb3578e4743246ed8e300803f63ab2ca6fc98aa222374254d02",
+      "sha256": "4cdcf6f586396ad1eb11e2752f9c7c4b64327dac553209af4bfe2ddfded11488",
       "symbols": [
         {
           "kind": "class",
@@ -4574,7 +4614,7 @@
       ],
       "module": "commons.gui",
       "path": "gui/LabeledField.h",
-      "sha256": "2ee07d549f453195414e42d3f879bb864c51eca10e0f5fb19cf60071f650ffd6",
+      "sha256": "1a1fc4f9a96c171ce1c5579c9c80cd59f979a76e46ef300fe8f5c48fabae1ed6",
       "symbols": [
         {
           "kind": "class",
@@ -5194,7 +5234,7 @@
       ],
       "module": "commons.gui.dyn",
       "path": "gui/dyn/Context.h",
-      "sha256": "e8e2be7ffc663dd40fd1c08e779a0428f5f89c03f82eae903999622f3a7dad5a",
+      "sha256": "54a3d121dc089f89bb12ad6b2921d340207674e653327e2d1a544127d3bbbff5",
       "symbols": [
         {
           "kind": "class",
@@ -5357,7 +5397,7 @@
       "excluded": [],
       "module": "commons.gui.dyn",
       "path": "gui/dyn/ResolveVariable.h",
-      "sha256": "0fa89204f3bc5a8971f5179e5060a3b72e15ba90f62a84ca7c7556e04c91e48e",
+      "sha256": "3cf8b1f9b81a4efa11a844bf010a12d361ed83d349137d7863a5296219bf169b",
       "symbols": [
         {
           "kind": "function",
@@ -5585,7 +5625,7 @@
       "excluded": [],
       "module": "commons.gui.dyn",
       "path": "gui/dyn/binders.h",
-      "sha256": "a0dad347debb53dbb6491d8bec8ff26da52a3a40b10c0568ccd8cf1cb60ec5ec",
+      "sha256": "56bed006841595928d96589ea9d011fe3734e5274151ca89ef3bdb1a9660de48",
       "symbols": [
         {
           "kind": "function_template",
@@ -5680,7 +5720,7 @@
       "excluded": [],
       "module": "commons.gui",
       "path": "gui/types/Combobox.h",
-      "sha256": "c82ed99aa60cb70ee048fe909f8a150f0e0f8cad6b391e14bdbd4145c03bb277",
+      "sha256": "5909ac9798aea04d5d0200d11f494e81f93868e54227758a821ab027a6a3788e",
       "symbols": [
         {
           "kind": "alias",
@@ -5823,7 +5863,7 @@
       "excluded": [],
       "module": "commons.gui",
       "path": "gui/types/Dropdown.h",
-      "sha256": "ac7379e09cf68da1f9ac0c85018df550a6738547a9e710d2e05a4d8e0be888d7",
+      "sha256": "a038d2b44d91056d714ca3a55d96e9f2af6307fca1b52f38931995dee1d0b75d",
       "symbols": [
         {
           "kind": "struct",
@@ -5852,7 +5892,7 @@
       ],
       "module": "commons.gui",
       "path": "gui/types/Entangled.h",
-      "sha256": "0d84fe4de6ea32377a2777b6579970e6d48284b0e4f88e33e4086095d72f4008",
+      "sha256": "6b1d7b9057771ec536367ee043619935562c1363e05702904feaee839463dc6b",
       "symbols": [
         {
           "kind": "enum_class",
@@ -6086,7 +6126,7 @@
       "excluded": [],
       "module": "commons.gui",
       "path": "gui/types/List.h",
-      "sha256": "1dbe09c8f15f6c854952f5d598aaae62d17ee57e2efc5b251b8ef25786bcf8df",
+      "sha256": "2e44dfda5ea1fe9100329e691e53af815f256ee64d29239aa8475ebf6ac90f4c",
       "symbols": [
         {
           "kind": "class",
@@ -6615,7 +6655,7 @@
   "summary": {
     "excluded": 45,
     "headers": 164,
-    "symbols": 708
+    "symbols": 713
   },
   "version": 1
 }

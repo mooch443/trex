@@ -6,7 +6,6 @@
 #include <core/default_config.h>
 #include <file/DataLocation.h>
 #include <file/PathArray.h>
-#include <grabber/misc/default_config.h>
 #include <misc/GlobalSettings.h>
 #include <python/PythonWrapper.h>
 #include <tracking/Individual.h>
@@ -88,7 +87,6 @@ void register_data_locations_once() {
 
 void reset_global_settings() {
     GlobalSettings::write([](Configuration& config) {
-        grab::default_config::get(config);
         default_config::get(config);
     });
 

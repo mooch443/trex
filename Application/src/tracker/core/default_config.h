@@ -9,6 +9,18 @@ namespace pv {
 class File;
 }
 
+namespace track::detect {
+
+ENUM_CLASS(ObjectDetectionType, none, yolo, sam3, background_subtraction, precomputed);
+ENUM_CLASS(ObjectDetectionFormat, none, boxes, masks, poses, obb, points);
+
+using ObjectDetectionType_t = std::optional<ObjectDetectionType::Class>;
+using ObjectDetectionFormat_t = ObjectDetectionFormat::Class;
+
+ENUM_CLASS_HAS_DOCS(ObjectDetectionType)
+ENUM_CLASS_HAS_DOCS(ObjectDetectionFormat)
+}
+
 namespace default_config {
     using namespace cmn;
 

@@ -4,7 +4,6 @@
 #include <misc/GlobalSettings.h>
 #include <file/DataLocation.h>
 #include <core/default_config.h>
-#include <grabber/misc/default_config.h>
 #include <ui/GuiSettings.h>
 #include <core/SettingsPaths.h>
 

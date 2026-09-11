@@ -123,149 +123,126 @@
         {
           "header": "core/default_config.h",
           "kind": "group",
-          "line": "51",
+          "line": "14",
+          "name": "track::detect::ObjectDetectionType::helpers",
+          "reason": "internal_linkage_enum_helpers"
+        },
+        {
+          "header": "core/default_config.h",
+          "kind": "group",
+          "line": "15",
+          "name": "track::detect::ObjectDetectionFormat::helpers",
+          "reason": "internal_linkage_enum_helpers"
+        },
+        {
+          "header": "core/default_config.h",
+          "kind": "group",
+          "line": "63",
           "name": "default_config::heatmap_normalization_t::helpers",
           "reason": "internal_linkage_enum_helpers"
         },
         {
           "header": "core/default_config.h",
           "kind": "group",
-          "line": "54",
+          "line": "66",
           "name": "default_config::individual_image_normalization_t::helpers",
           "reason": "internal_linkage_enum_helpers"
         },
         {
           "header": "core/default_config.h",
           "kind": "group",
-          "line": "59",
+          "line": "71",
           "name": "default_config::gpu_verbosity_t::helpers",
           "reason": "internal_linkage_enum_helpers"
         },
         {
           "header": "core/default_config.h",
           "kind": "group",
-          "line": "62",
+          "line": "74",
           "name": "default_config::gui_recording_format_t::helpers",
           "reason": "internal_linkage_enum_helpers"
         },
         {
           "header": "core/default_config.h",
           "kind": "group",
-          "line": "65",
+          "line": "77",
           "name": "default_config::peak_mode_t::helpers",
           "reason": "internal_linkage_enum_helpers"
         },
         {
           "header": "core/default_config.h",
           "kind": "group",
-          "line": "68",
+          "line": "80",
           "name": "default_config::matching_mode_t::helpers",
           "reason": "internal_linkage_enum_helpers"
         },
         {
           "header": "core/default_config.h",
           "kind": "group",
-          "line": "71",
+          "line": "83",
           "name": "default_config::output_format_t::helpers",
           "reason": "internal_linkage_enum_helpers"
         },
         {
           "header": "core/default_config.h",
           "kind": "group",
-          "line": "74",
+          "line": "86",
           "name": "default_config::output_invalid_t::helpers",
           "reason": "internal_linkage_enum_helpers"
         },
         {
           "header": "core/default_config.h",
           "kind": "group",
-          "line": "77",
+          "line": "89",
           "name": "default_config::app_update_check_t::helpers",
           "reason": "internal_linkage_enum_helpers"
         },
         {
           "header": "core/default_config.h",
           "kind": "group",
-          "line": "80",
+          "line": "92",
           "name": "default_config::blob_split_algorithm_t::helpers",
           "reason": "internal_linkage_enum_helpers"
         },
         {
           "header": "core/default_config.h",
           "kind": "group",
-          "line": "83",
+          "line": "95",
           "name": "default_config::visual_identification_version_t::helpers",
           "reason": "internal_linkage_enum_helpers"
         },
         {
           "header": "core/default_config.h",
           "kind": "group",
-          "line": "86",
+          "line": "98",
           "name": "default_config::TRexTask_t::helpers",
           "reason": "internal_linkage_enum_helpers"
         },
         {
           "header": "core/default_config.h",
           "kind": "group",
-          "line": "89",
+          "line": "101",
           "name": "default_config::gpu_torch_device_t::helpers",
           "reason": "internal_linkage_enum_helpers"
         },
         {
           "header": "core/default_config.h",
           "kind": "group",
-          "line": "92",
+          "line": "104",
           "name": "default_config::detect_pose_bbx_t::helpers",
           "reason": "internal_linkage_enum_helpers"
         },
         {
           "header": "core/default_config.h",
           "kind": "group",
-          "line": "126",
+          "line": "138",
           "name": "cmn::gui::mode_t::helpers",
           "reason": "internal_linkage_enum_helpers"
         }
       ],
       "module": "trex.core",
       "path": "core/default_config.h",
-      "sha256": "217e91801c0475abcb66a3c8ae9b051036ace9d7d1c3e02786eef738c9553f9f",
-      "symbols": [
-        {
-          "kind": "enum_class",
-          "name": "Class",
-          "namespace": "cmn::gui::mode_t",
-          "qualified": "cmn::gui::mode_t::Class",
-          "smoke": "using"
-        }
-      ]
-    },
-    {
-      "excluded": [],
-      "module": "trex.core",
-      "path": "core/DetectionImageTypes.h",
-      "sha256": "9cda261844db2086d35147280f602c8467a9b1f830cf7f47663518d62f59f9af",
-      "symbols": []
-    },
-    {
-      "excluded": [
-        {
-          "header": "core/DetectionTypes.h",
-          "kind": "group",
-          "line": "20",
-          "name": "track::detect::ObjectDetectionType::helpers",
-          "reason": "internal_linkage_enum_helpers"
-        },
-        {
-          "header": "core/DetectionTypes.h",
-          "kind": "group",
-          "line": "21",
-          "name": "track::detect::ObjectDetectionFormat::helpers",
-          "reason": "internal_linkage_enum_helpers"
-        }
-      ],
-      "module": "trex.core",
-      "path": "core/DetectionTypes.h",
-      "sha256": "9bf4e864db81b79ef972824193d7a334180fa391db281ee161e5faafb217f0a6",
+      "sha256": "2afd27e95fc2c135281b39214396406f83b82ae283095bc44910131165311516",
       "symbols": [
         {
           "kind": "enum_class",
@@ -281,6 +258,42 @@
           "qualified": "track::detect::ObjectDetectionFormat::Class",
           "smoke": "using"
         },
+        {
+          "kind": "enum_class",
+          "name": "Class",
+          "namespace": "cmn::gui::mode_t",
+          "qualified": "cmn::gui::mode_t::Class",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "ObjectDetectionType_t",
+          "namespace": "track::detect",
+          "qualified": "track::detect::ObjectDetectionType_t",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "ObjectDetectionFormat_t",
+          "namespace": "track::detect",
+          "qualified": "track::detect::ObjectDetectionFormat_t",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "trex.core",
+      "path": "core/DetectionImageTypes.h",
+      "sha256": "9cda261844db2086d35147280f602c8467a9b1f830cf7f47663518d62f59f9af",
+      "symbols": []
+    },
+    {
+      "excluded": [],
+      "module": "trex.core",
+      "path": "core/DetectionTypes.h",
+      "sha256": "0b859c12f2916b08ef33cecad4fcc25a11fe3d7f02e496637e8d1860c1551821",
+      "symbols": [
         {
           "kind": "alias",
           "name": "owner_map_t",
@@ -321,20 +334,6 @@
           "name": "get_skeleton",
           "namespace": "track::detect::yolo::names",
           "qualified": "track::detect::yolo::names::get_skeleton",
-          "smoke": "using"
-        },
-        {
-          "kind": "alias",
-          "name": "ObjectDetectionType_t",
-          "namespace": "track::detect",
-          "qualified": "track::detect::ObjectDetectionType_t",
-          "smoke": "using"
-        },
-        {
-          "kind": "alias",
-          "name": "ObjectDetectionFormat_t",
-          "namespace": "track::detect",
-          "qualified": "track::detect::ObjectDetectionFormat_t",
           "smoke": "using"
         },
         {

@@ -1,6 +1,7 @@
 #pragma once
 #include <commons.pc.h>
 #include <misc/Path.h>
+#include <core/default_config.h>
 
 namespace track::detect::yolo::names {
 
@@ -16,12 +17,6 @@ std::optional<cmn::blob::Pose::Skeleton> get_skeleton(uint8_t clid, const std::o
 }
 
 namespace track::detect {
-
-ENUM_CLASS(ObjectDetectionType, none, yolo, sam3, background_subtraction, precomputed);
-ENUM_CLASS(ObjectDetectionFormat, none, boxes, masks, poses, obb, points);
-
-using ObjectDetectionType_t = std::optional<ObjectDetectionType::Class>;
-using ObjectDetectionFormat_t = ObjectDetectionFormat::Class;
 
 struct PredictionFilter {
     std::vector<uint16_t> detect_only;

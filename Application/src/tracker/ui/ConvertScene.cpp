@@ -11,7 +11,7 @@
 #include <misc/Path.h>
 #include <grabber/misc/Camera.h>
 #include <grabber/misc/Webcam.h>
-#include <grabber/misc/default_config.h>
+#include <core/default_config.h>
 #include <tracking/IndividualManager.h>
 #include <misc/ThreadManager.h>
 #include <ui/RecentItems.h>

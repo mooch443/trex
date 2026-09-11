@@ -18,7 +18,6 @@
 #include <ui/GuiSettings.h>
 #include <ui/RecentItems.h>
 #include <core/default_config.h>
-#include <grabber/misc/default_config.h>
 #include <core/SettingsInitializer.h>
 
 #include <ui/SettingsScene.h>
@@ -158,7 +157,6 @@ void StartingScene::_draw(DrawStructure& graph) {
                         copy["output_dir"] = output_dir;
                         
                         Configuration tmp;
-                        grab::default_config::get(tmp);
                         ::default_config::get(tmp);
                         
                         auto def = GlobalSettings::read_default<track::detect::ObjectDetectionType_t>("detect_type");

@@ -35,7 +35,6 @@ static void (*windowsEarlyEnvSetup)(void) = []() {
 #include <gui/types/Dropdown.h>
 #include <gui/types/Textfield.h>
 #include <gui/types/List.h>
-#include <grabber/misc/default_config.h>
 #include <gui/DynamicGUI.h>
 #include <GitSHA1.h>
 #include <grabber/misc/Webcam.h>
@@ -738,7 +737,6 @@ int main(int argc, char**argv) {
 #endif
 
     GlobalSettings::write([](Configuration& config){
-        grab::default_config::get(config);
         ::default_config::get(config);
     });
     

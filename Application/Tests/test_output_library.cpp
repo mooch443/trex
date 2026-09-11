@@ -4,7 +4,6 @@
 
 #include <cnpy/cnpy.h>
 #include <core/default_config.h>
-#include <grabber/misc/default_config.h>
 #include <misc/GlobalSettings.h>
 #include <misc/Path.h>
 #include <tracking/OutputLibrary.h>
@@ -45,7 +44,6 @@ std::vector<std::vector<std::string>> read_csv(const fs::path& path) {
 TEST(OutputLibraryExportTest, OutputFieldsBehaveAsAnOrderedSetAndFrameIsStructuralInCsv) {
     // https://github.com/mooch443/trex/issues/257 tracks the single structural CSV frame column.
     GlobalSettings::write([](Configuration& config) {
-        grab::default_config::get(config);
         default_config::get(config);
     });
 

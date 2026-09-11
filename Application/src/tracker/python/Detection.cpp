@@ -10,7 +10,7 @@
 #include <python/BackgroundSubtraction.h>
 #include <python/NoDetection.h>
 #include <python/PipelineRegistry.h>
-#include <grabber/misc/default_config.h>
+#include <core/default_config.h>
 #include <core/AbstractVideoSource.h>
 #include <python/PrecomuptedDetection.h>
 #include <core/TrackingSettings.h>

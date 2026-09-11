@@ -5,7 +5,6 @@
 #include <core/TrackingSettings.h>
 #include <misc/GlobalSettings.h>
 #include <core/default_config.h>
-#include <grabber/misc/default_config.h>
 #include <python/DetectionAssociation.h>
 #include <python/DetectionMaskAccess.h>
 #include <python/DetectionTilePostprocess.h>
@@ -48,7 +47,6 @@ buffers::TileBuffers::Buffers_t& testTileBuffers() {
 
 void resetGlobalSettings() {
     GlobalSettings::write([&](Configuration& config) {
-        grab::default_config::get(config);
         ::default_config::get(config);
     });
 

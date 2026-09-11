@@ -1,5 +1,6 @@
 #include "default_config.h"
 #include <file/PathArray.h>
+#include <video/AveragingAccumulator.h>
 #include <misc/SpriteMap.h>
 #include <misc/Path.h>
 #include <core/SizeFilters.h>
@@ -24,7 +25,6 @@
 
 #include <misc/default_settings.h>
 #include <file/DataLocation.h>
-#include <grabber/misc/default_config.h>
 #include <misc/zipper.h>
 
 
@@ -54,6 +54,27 @@ const auto homedir = []() {
 
 using namespace cmn::file;
 #define CONFIG adding.add<ParameterCategoryType::CONVERTING>
+
+namespace track::detect {
+
+ENUM_CLASS_DOCS(ObjectDetectionType,
+"Disable object detection.",
+"Detect objects using the machine-learning model selected by `detect_model`.",
+"Segment objects using SAM3 and prompts from `detect_sam3_prompt`.",
+"Detect foreground objects by comparing video frames with a background image.",
+"Load existing detections from the CSV selected by `detect_precomputed_file`."
+)
+
+ENUM_CLASS_DOCS(ObjectDetectionFormat,
+"No detection output format specified.",
+"Axis-aligned bounding boxes around detected objects.",
+"Pixel masks describing detected objects.",
+"Object poses represented by keypoints.",
+"Oriented bounding boxes around detected objects.",
+"Point locations of detected objects."
+)
+
+}
 
 namespace cmn {
 
@@ -312,7 +333,7 @@ static inline const Deprecations deprecated = Deprecations({
         {"fixed_count", ""},
         {"gui_dpi_scale", ""},
         {"output_graphs", "output_fields"},
-        {"fish_minmax_size", "track_size_filter"},
+        {"fish_minmax_size", "detect_size_filter"},
         {"blob_size_range", "detect_size_filter"},
         {"segment_size_filter", "detect_size_filter"},
         {"blob_size_ranges", "track_size_filter"},
@@ -331,7 +352,9 @@ static inline const Deprecations deprecated = Deprecations({
         {"exclude_rect", "track_ignore", apply_whitelist},
         {"track_blacklist", "track_ignore"},
         {"posture_threshold_constant", "track_posture_threshold"},
-        {"threshold_constant", "track_threshold"},
+        {"threshold_constant", "detect_threshold"},
+        {"threshold", "detect_threshold"},
+        {"use_dilation", "dilation_size"},
         {"recognition_rect", "recognition_shapes", apply_whitelist},
         {"recognition_normalization", "individual_image_normalization"},
         {"recognition_normalize_direction", "individual_image_normalization", apply_recognition_normalize_direction},
@@ -726,7 +749,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("settings_file", Path(""), "Name of the settings file. By default, this will be set to `filename`.settings in the same folder as `filename`.", LOAD);
         CONFIG("python_path", Path(COMMONS_PYTHON_EXECUTABLE), "Path to the python home folder" PYTHON_TIPPS ". If left empty, the user is required to make sure that all necessary libraries are in-scope the PATH environment variable.", STARTUP);
 
-        CONFIG("frame_rate", uint32_t(0), "Specifies the frame rate of the video. It is used e.g. for playback speed and certain parts of the matching algorithm. Will be set by the metadata of the video. If you want to set a custom frame rate, different from the video metadata, you should set it during conversion. This guarantees that the timestamps generated will match up with your custom framerate during tracking.");
+        CONFIG("frame_rate", uint32_t(0), "Specifies the frame rate of the video. It is used e.g. for playback speed and certain parts of the matching algorithm. Will be set by the metadata of the video. If you want to set a custom frame rate, different from the video metadata, you should set it during conversion. This guarantees that the timestamps generated will match up with your custom framerate during tracking. For live Basler capture, set `cam_framerate`.", LOAD);
         CONFIG("track_enforce_frame_rate", true, "Enforce the `frame_rate` and override the frame_rate provided by the video file for calculating kinematic properties and probabilities. If this is not enabled, `frame_rate` is only a cosmetic property that influences the GUI and not exported data (for example).");
         
         CONFIG("calculate_posture", true, "Enables or disables posture calculation. Can only be set before the video is analysed (e.g. in a settings file or as a startup parameter).");
@@ -927,7 +950,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("track_consistent_categories", false, "Utilise categories (if present) when tracking. This may break trajectories in places with imperfect categorization, but only applies once categories have been applied.");
         CONFIG("track_max_individuals", uint32_t(1024), "The maximal number of individual that are assigned at the same time (infinite if set to zero). If the given number is below the actual number of individual, then only a (random) subset of individual are assigned and a warning is shown.");
         CONFIG("detect_size_filter", SizeFilters(), "During video conversion, detections whose effective area (`num_pixels * cm_per_pixel^2`) falls outside this range are discarded and are not stored in the PV file. If empty, no detections are filtered by size. Reconversion is required to recover detections rejected here.");
-        CONFIG("track_size_filter", SizeFilters(), "During tracking, a blob's effective area is `num_pixels * cm_per_pixel^2`. Objects below the lower bound are recognized as noise; blobs above the upper bound are candidates for splitting. Press `D` to inspect blobs in RAW view, where filtered blob labels show the rejection reason in brackets.");
+        CONFIG("track_size_filter", SizeFilters(), "During tracking, a blobs effective area is `num_pixels * cm_per_pixel^2`. Objects below the lower bound are recognized as noise; blobs above the upper bound are candidates for splitting. Press `D` to inspect blobs in RAW view, where filtered blob labels show the rejection reason in brackets.");
         CONFIG("blob_split_max_shrink", float(0.2), "The minimum percentage of the starting blob size (after thresholding), that a blob is allowed to be reduced to during splitting. If this value is set too low, the program might start recognizing parts of individual as other individual too quickly.");
         CONFIG("blob_split_global_shrink_limit", float(0.2), "The minimum percentage of the minimum in `track_size_filter`, that a blob is allowed to be reduced to during splitting. If this value is set too low, the program might start recognizing parts of individual as other individual too quickly.");
         CONFIG("blob_split_algorithm", blob_split_algorithm_t::threshold, "The default splitting algorithm used to split objects that are too close together.");
@@ -963,7 +986,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("track_only_classes", std::vector<std::string>{}, "If this is a non-empty list, only objects that have any of the given labels (assigned by a ML network during video conversion) will be tracked.");
         CONFIG("track_conf_threshold", 0.1_F, "During tracking, detections with confidence levels below the given fraction (0-1) for labels (assigned by an ML network during video conversion) will be discarded. These objects will not be assigned to any individual.");
         
-        CONFIG("web_time_threshold", float(0.050), "Maximum refresh rate in seconds for the web interface.");
+        CONFIG("web_time_threshold", float(0.050), "Minimum interval in seconds between responses from the web interface.");
         
         CONFIG("correct_illegal_lines", false, "In older versions of the software, blobs can be constructed in 'illegal' ways, meaning the lines might be overlapping. If the software is printing warnings about it, this should probably be enabled (makes it slower).");
         CONFIG("evaluate_thresholds", false, "This option, if enabled, previews the effects of all possible thresholds when applied to the given video. These are shown as a graph in a separate window. Can be used to debug parameters instead of try-and-error. Might take a few minutes to finish calculating.", STARTUP);
@@ -1056,7 +1079,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("analysis_range", Range<long_t>(-1, -1), "Sets start and end of the analysed frames.");
         CONFIG("output_min_frames", uint16_t(1), "Filters all individual with less than N frames when exporting. Individuals with fewer than N frames will also be hidden in the GUI unless `gui_show_inactive_individuals` is enabled (default).");
         CONFIG("output_interpolate_positions", bool(false), "If turned on this function will linearly interpolate X/Y, and SPEED values, for all frames in which an individual is missing.");
-        CONFIG("output_prefix", std::string(), "If this is not empty, all output files will go into `output_dir` / `output_prefix` / ... instead of just into `output_dir`. The output directory is usually the folder where the video is, unless set to a different folder by you. An explicit absolute `filename` overrides this value.");
+        CONFIG("output_prefix", std::string(), "If this is not empty, all output files will go into `output_dir` / `output_prefix` / ... instead of just into `output_dir`. The output directory is usually the folder where the video is, unless set to a different folder by you. An explicit absolute `filename` overrides this value.", INIT);
         CONFIG("output_auto_pose", true, "If this is set to false, then no poseX[n] and poseY[n] fields will automatically be added to the `output_fields` based on what the keypoint model reports. You can still manually add them if you like.");
         CONFIG("output_auto_detection_fields", true, "If set to true then this will automatically add fields like `detection_p` to the output files saved by TRex. You can also set this to false and add them manually if you like.");
         CONFIG("output_fields", output_fields, "The functions that will be exported when saving to CSV or NPZ, or shown in the graph. `[['X',[option], ...]]` Exact duplicate field, modifier, and calculation selections are used once; modifier order does not make an otherwise identical selection distinct. CSV always contains exactly one leading `frame` column, regardless of whether `frame` is listed here. NPZ contains one `frame` array when it is configured.");
@@ -1113,6 +1136,8 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("gpu_torch_device", gpu_torch_device_t::automatic, "If specified, indicate something like 'cuda:0' to use the first cuda device when doing machine learning using pytorch (e.g. TRexA). Other options can be looked up at `https://pytorch.org/docs/stable/generated/torch.cuda.device.html#torch.cuda.device`.");
         CONFIG("gpu_torch_device_index", int(-1), "Index of the GPU used by torch (or -1 for automatic selection).");
         CONFIG("gpu_torch_no_fixes", true, "Disable the fix for PyTorch on MPS devices that will automatically switch to CPU specifically for Ultralytics segmentation models.");
+        
+        static_assert(cmn::settings::optional_has_docs<track::detect::ObjectDetectionType_t>);
         CONFIG("detect_type", track::detect::ObjectDetectionType_t{}, "The method used to separate background from foreground when converting videos.", AccessLevelType::INIT, {track::detect::ObjectDetectionType_t{track::detect::ObjectDetectionType::yolo}});
         CONFIG("outline_compression", float(0.f), "Applies a *lossy* compression to the outlines generated by segmentation models. Walking around the outline, it removes line segments that do not introduce any noticable change in direction. The factor specified here controls how much proportional difference in radians/angle is allowed. The value isnt in real radians, as the true downsampling depends on the size of the object (smaller objects = smaller differences allowed).");
         CONFIG("detect_format", track::detect::ObjectDetectionFormat::none, "The type of data returned by the `detect_model`, which can be an instance segmentation", AccessLevelType::INIT);
@@ -1131,7 +1156,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("detect_mask_postprocess_iou", Float2_t(0.5f), "Mask intersection-over-union threshold used to associate same-class predictions during the optional mask postprocess pass. Lower values associate masks more aggressively.");
         CONFIG("detect_mask_postprocess_containment", std::optional<Float2_t>{}, "Optional intersection-over-smaller-mask-area threshold used alongside `detect_mask_postprocess_iou`. Unset disables containment-based association.");
         CONFIG("yolo_instance_mask_closing", uint8_t(0), "Closing radius, in mask pixels, applied to each binarized YOLO instance mask before cropping. The closing kernel size is `2 * radius + 1`; zero disables closing. When `yolo_instance_mask_expand` is enabled, crop bounds are calculated from the closed mask so added positive pixels are retained.");
-        CONFIG("yolo_instance_mask_expand", false, "Expand each YOLO instance mask's bounding box to enclose all positive mask pixels before cropping. This changes the crop bounds, not the mask pixels. Expanded predictions may overlap; setting `detect_mask_postprocess_mode` to `merge_masks` can combine eligible same-class overlaps.");
+        CONFIG("yolo_instance_mask_expand", false, "Expand each YOLO instance masks bounding box to enclose all positive mask pixels before cropping. This changes the crop bounds, not the mask pixels. Expanded predictions may overlap; setting `detect_mask_postprocess_mode` to `merge_masks` can combine eligible same-class overlaps.");
         
         std::optional<track::detect::Sam3Prompts> example_prompts = track::detect::Sam3Prompts{{
             {Frame_t{}, track::detect::Sam3PromptList{track::detect::Sam3PromptPayload::fromStr("shark")}}
@@ -1146,7 +1171,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("region_resolution", track::detect::DetectResolution{}, "The resolution of the region proposal network (`region_model`).", SYSTEM, {track::detect::DetectResolution{640, 640}});
         CONFIG("detect_resolution", track::detect::DetectResolution{}, "The input resolution of the object detection model (`detect_model`).", SYSTEM, {track::detect::DetectResolution{640, 640}});
         CONFIG("detect_requires_exact_input_size", false, "Whether C++ must prepare detector images at exactly `detect_resolution` rather than preserving the source aspect ratio. Set from loaded model metadata.", SYSTEM);
-        CONFIG("detect_iou_threshold", std::optional<Float2_t>{0.5_F}, "Optional IoU threshold override for object detection / segmentation networks. If unset, TRex preserves the upstream model's default postprocessing behaviour. If set, TRex forwards the IoU threshold explicitly and may disable end-to-end NMS-free inference so the override can affect the outcome.");
+        CONFIG("detect_iou_threshold", std::optional<Float2_t>{0.5_F}, "Optional IoU threshold override for object detection / segmentation networks. If unset, TRex preserves the upstream models default postprocessing behaviour. If set, TRex forwards the IoU threshold explicitly and may disable end-to-end NMS-free inference so the override can affect the outcome.");
         CONFIG("detect_conf_threshold", Float2_t(0.1), "Confidence threshold (`0<=value<1`) for object detection / segmentation networks. Confidence is higher if the network is more *sure* about the object. Anything with a confidence level below `detect_conf_threshold` will not be considered an object and not saved to the PV file during conversion.");
         CONFIG("detect_keypoint_threshold", Float2_t(0.1), "For pose models that provide a confidence value for each keypoint, points below this value are treated as missing. This is separate from `detect_conf_threshold`, which filters whole detections.");
         CONFIG("detect_try_optimize_model", true, "If enabled, loaded detection models may try their backend-specific high-performance inference optimization. Each model receives this value as `ModelConfig.try_optimize` and decides how to use it. Changing it requires reloading the model.");
@@ -1187,11 +1212,133 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("use_closing", false, "Toggles the attempt to close weird blobs using dilation/erosion with `closing_size` sized filters.");
         CONFIG("closing_size", int(3), "Size of the dilation/erosion filters for if `use_closing` is enabled.");
         
-        CONFIG("track_threshold_is_absolute", true, "If enabled, tracking uses absolute pixel differences and disregards any pixel |p| < `track_threshold`. Otherwise, tracking uses signed differences (p < `track_threshold`). This is the tracking-stage equivalent of `detect_threshold_is_absolute`.");
         CONFIG("detect_threshold_is_absolute", true, "If enabled, uses absolute difference values and disregards any pixel |p| < `threshold` during conversion. Otherwise the equation is p < `threshold`, meaning that e.g. bright spots may not be considered trackable when dark spots would. Same as `track_threshold_is_absolute`, but during conversion instead of tracking.");
         
+        std::vector<double> buffer {
+        };
+
+        std::vector<double> matrix = {
+        };
+
+        CONFIG("cam_undistort_vector", buffer, "");
+        CONFIG("cam_matrix", matrix, "");
+
+#if WITH_PYLON
+        CONFIG("cam_serial_number", std::string(), "Serial number of a Basler camera you want to choose, if multiple are present.");
+        CONFIG("basler_runtime_root", file::Path(), "Optional explicit runtime root for Basler pylon discovery. If empty, TRex searches environment, conda, and bundled paths at use time.");
+#endif
+
+#if WITH_FFMPEG
+        CONFIG("ffmpeg_crf", uint32_t(20), "Quality for crf (see ffmpeg documentation) used when encoding as libx264.");
+#endif
+
+        CONFIG("color_channel", std::optional<uint8_t>(), "Index (0-2) of the color channel to be used during video conversion, if more than one channel is present in the video file. If set to null it will use the default conversion that OpenCV uses for cv::COLOR_BGRA2GRAY.");
+        CONFIG("system_memory_limit", uint64_t(0), "Custom override of how many bytes of system RAM the program is allowed to fill. If `approximate_length_minutes` or `stop_after_minutes` are set, this might help to increase the resulting RAW video footage frame_rate.");
+
+        CONFIG("approximate_length_minutes", uint32_t(0), "If available, please provide the approximate length of the video in minutes here, so that the encoding strategy can be chosen intelligently. If set to 0, infinity is assumed. This setting is overwritten by `stop_after_minutes`.");
+        CONFIG("stop_after_minutes", uint32_t(0), "If set to a value above 0, the video will stop recording after X minutes of recording time.");
+
+        CONFIG("detect_threshold", int(15), "Threshold to be applied to the input image to find blobs.");
+        CONFIG("threshold_maximum", int(255), "");
+
+        CONFIG("web_quality", int(75), "Quality for images transferred over the web interface (0-100).");
+        CONFIG("save_raw_movie", false, "Saves a RAW movie (.mov) with a similar name in the same folder, while also recording to a PV file. This might reduce the maximum framerate slightly, but it gives you the best of both worlds.", INIT);
+        CONFIG("save_raw_movie_path", file::Path(), "The path to the raw movie file. If empty, the same path as the PV file will be used (but as a .mov).", INIT);
+
+        CONFIG("video_conversion_range", Range<long_t>(-1, -1), "This determines which part of the video will be converted. By default (`[-1,-1]`) the entire video will be converted. If set to a valid value (not -1), start and end values determine the range converted (each one can be valid independently of the other). Both bounds are inclusive when they fall within the source, so `[0,80]` converts 81 source frames.", INIT);
+
+        CONFIG("video_source", std::string("webcam"), "Where the video is recorded from. Can be the name of a file, or one of the keywords ['basler', 'webcam', 'test_image'].", LOAD);
+        CONFIG("test_image", std::string("checkerboard"), "Defines, which test image will be used if `video_source` is set to 'test_image'.", LOAD);
+
+        CONFIG("video_reading_use_threads", true, "Use threads to read images from a video file.", STARTUP);
+
+        CONFIG("image_adjust", false, "Converts the image to floating-point (temporarily) and performs f(x,y) * `image_contrast_increase` + `image_brightness_increase` plus, if enabled, squares the image (`image_square_brightness`).");
+        CONFIG("image_square_brightness", false, "Squares the floating point input image after background subtraction. This brightens brighter parts of the image, and darkens darker regions.");
+        CONFIG("image_contrast_increase", float(3), "Value that is multiplied to the preprocessed image before applying the threshold (see `image_adjust`). The neutral value is 1 here.");
+        CONFIG("image_brightness_increase", float(0), "Value that is added to the preprocessed image before applying the threshold (see `image_adjust`). The neutral value is 0 here.");
+        CONFIG("blur_difference", false, "Enables a special mode that will 1. truncate all difference values below threshold, 2. blur the remaining difference, 3. threshold again.");
+        CONFIG("enable_difference", true, "Enables background subtraction. If disabled, `threshold` will be applied to the raw greyscale values instead of difference values.");
+
+        CONFIG("correct_luminance", false, "Attempts to correct for badly lit backgrounds by evening out luminance across the background.", INIT);
+        CONFIG("equalize_histogram", false, "Equalizes the histogram of the image before thresholding and background subtraction.");
+        CONFIG("quit_after_average", false, "If set to true, this will terminate the program directly after generating (or loading) a background average image.", STARTUP);
+        CONFIG("averaging_method", averaging_method_t::mean, "Determines the way in which the background samples are combined. The background generated in the process will be used to subtract background from foreground objects during conversion.");
+        CONFIG("average_samples", uint32_t(25), "Number of samples taken to generate an average image. Usually fewer are necessary for `averaging_method`s max, and min.");
+        CONFIG("reset_average", false, "If set to true, the average will be regenerated in the mode selected in `averaging_method`. You should set this to true when changing the averaging method. The generated average image will be saved to `average_<videoname>.png` in the same folder as the output video file.", STARTUP);
+        CONFIG("solid_background_color", uchar(255), "A greyscale value in case `enable_difference` is set to false - TGrabs will automatically generate a background image with the given color.");
+        CONFIG("cam_resolution", Size2(-1, -1), "Defines the dimensions of the camera image.", LOAD);
+        CONFIG("cam_framerate", int(-1), "If set to anything else than 0, this will limit the basler camera framerate to the given fps value.", LOAD);
+        CONFIG("cam_limit_exposure", int(5500), "Sets the cameras exposure time in micro seconds.");
+
+        CONFIG("tags_model_path", file::Path("tag_recognition_network.h5"), "The pretrained model used to recognize QRcodes/tags according to `https://github.com/jgraving/pinpoint/blob/2d7f6803b38f52acb28facd12bd106754cad89bd/barcodes/old_barcodes_py2/4x4_4bit/master_list.pdf`. Path to a pretrained network .h5 file that takes 32x32px images of tags and returns a (N, 122) shaped tensor with 1-hot encoding.");
+
+        CONFIG("tags_maximum_image_size", Size2(80,80), "Tags that are bigger than these pixel dimensions may be cropped off. All extracted tags are then pre-aligned to any of their sides, and normalized/scaled down or up to a 32x32 picture (to make life for the machine learning network easier).");
+        CONFIG("tags_size_range", Range<double>(0.08,2), "The minimum and maximum area accepted as a (square) physical tag on the individuals.");
+        CONFIG("tags_equalize_hist", false, "Apply a histogram equalization before applying a threshold. Mostly this should not be necessary due to using adaptive thresholds anyway.");
+        CONFIG("tags_threshold", int(-5), "Threshold passed on to cv::adaptiveThreshold, lower numbers (below zero) are equivalent to higher thresholds / removing more of the pixels of objects and shrinking them. Positive numbers may invert the image/mask.");
+        CONFIG("tags_save_predictions", false, "Save images of tags, sorted into folders labelled according to network predictions (i.e. 'tag 22') to '`output_dir` / `tags_` `filename` / `<individual>.<frame>` / `*`'. ");
+        CONFIG("tags_num_sides", Range<int>(3,7), "The number of sides of the tag (e.g. should be 4 if it is a rectangle).");
+        CONFIG("tags_approximation", 0.025f, "Higher values (up to 1.0) will lead to coarser approximation of the rectangle/tag shapes.");
+        CONFIG("tags_enable", false, "(beta) If enabled, TGrabs will search for (black) square shapes with white insides (and other stuff inside them) - like QRCodes or similar tags. These can then be recognized using a pre-trained machine learning network (see `tags_recognize`), and/or exported to PNG files using `tags_save_predictions`.");
+        CONFIG("tags_debug", false, "(beta) Enable debugging for tags.");
+        CONFIG("tags_recognize", false, "(beta) Apply an existing machine learning network to turn images of tags into tag ids (numbers, e.g. 1-122). Be sure to set `tags_model_path` along-side this.");
+        CONFIG("tags_saved_only", false, "(beta) If set to true, all objects other than the detected blobs are removed and will not be written to the output video file.");
+
+        CONFIG("mask_path", Path(""), "Path to a video file containing a mask to be applied to the video while recording. Only works for conversions.", STARTUP);
+
+        CONFIG("meta_write_these", std::vector<std::string>{
+            "meta_species",
+            "meta_age_days",
+            "meta_conditions",
+            "meta_misc",
+            "cam_limit_exposure",
+            "meta_real_width",
+            "meta_source_path",
+            "meta_cmd",
+            "meta_build",
+            "meta_conversion_time",
+            "meta_video_scale",
+            "meta_video_size",
+            "detect_classes",
+            "meta_encoding",
+            "detect_skeleton",
+
+            "frame_rate",
+            "calculate_posture",
+            "cam_undistort_vector",
+            "cam_matrix",
+            "cm_per_pixel",
+            "track_size_filter",
+            "track_threshold",
+            "track_posture_threshold",
+            "track_do_history_split",
+            "track_max_individuals",
+            "track_background_subtraction",
+            "track_max_speed",
+            "detect_model",
+            "region_model",
+            "detect_resolution",
+            "region_resolution",
+            "detect_batch_size",
+            "detect_type",
+            "detect_iou_threshold",
+            "detect_conf_threshold",
+            "detect_keypoint_format",
+            "detect_keypoint_names",
+            "video_conversion_range",
+            "detect_threshold",
+            "output_dir",
+            "output_prefix",
+            "filename"
+
+        }, "The given settings values will be written to the video file.");
+
+        CONFIG("closed_loop_enable", false, "When enabled, live tracking will be executed for every frame received. Frames will be sent to the 'closed_loop.py' script - see this script for more information. Allows the tracker to skip frames by default, in order to catch up to the video.");
+        CONFIG("closed_loop_path", file::Path("closed_loop_beta.py"), "Set the path to a Python file to be used in closed_loop. Please also enable closed loop processing by setting `closed_loop_enable` to true.");
+        CONFIG("grabber_force_settings", false, "If set to true, live tracking will always overwrite a settings file with `filename`.settings in the output folder.");
+
 #if !CMN_WITH_IMGUI_INSTALLED
-        config["nowindow"] = true;
+        config.values["nowindow"] = true;
 #endif
         
         //config.set_print_by_default(old);
@@ -1392,7 +1539,6 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         //docs_map_t docs;
         
         //config = GlobalSettings::get_current_defaults();
-        //grab::default_config::get(config, docs, nullptr);
         //default_config::get(config, docs, NULL);
         
         for(auto &key : keys) {

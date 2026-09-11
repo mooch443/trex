@@ -4,7 +4,6 @@
 #include <misc/SpriteMap.h>
 #include <misc/CommandLine.h>
 #include <core/default_config.h>
-#include <grabber/misc/default_config.h>
 #include <file/DataLocation.h>
 #include <core/TrackingSettings.h>
 #include <pv.h>
@@ -129,7 +128,6 @@ Configuration reset(const cmn::sprite::Map& extra_map, cmn::sprite::Map& output)
     Configuration combined;
     combined.values.set_print_by_default(false);
     
-    grab::default_config::get(combined);
     ::default_config::get(combined);
     
     if(auto detect_type = combined.at("detect_type");
@@ -220,7 +218,6 @@ void LoadContext::init() {
     /// ---------------------------------------------
     /// 1. setting default values, saved in combined:
     /// ---------------------------------------------
-    grab::default_config::get(combined);
     ::default_config::get(combined);
     
     /// ---------------------------

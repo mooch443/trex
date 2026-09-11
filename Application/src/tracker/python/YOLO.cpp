@@ -3,7 +3,7 @@
 #include <python/DetectionTilePostprocess.h>
 #include <python/SegmentationPostprocess.h>
 #include <python/PythonWrapper.h>
-#include <grabber/misc/default_config.h>
+#include <core/default_config.h>
 #include <video/Video.h>
 #include <misc/Timer.h>
 #include <misc/ThreadPool.h>

@@ -8,7 +8,6 @@
 #include <file/DataLocation.h>
 #include <misc/Path.h>
 #include <file/PathArray.h>
-#include <grabber/misc/default_config.h>
 #include <misc/GlobalSettings.h>
 #include <core/default_config.h>
 #include <python/PythonWrapper.h>
@@ -60,7 +59,6 @@ inline TempWorkspace make_workspace() {
 
 inline void reset_global_settings() {
     cmn::GlobalSettings::write([](cmn::Configuration& config) {
-        grab::default_config::get(config);
         ::default_config::get(config);
     });
 

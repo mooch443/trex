@@ -6,7 +6,6 @@
 #include <core/TileBuffers.h>
 #include <core/default_config.h>
 #include <file/DataLocation.h>
-#include <grabber/misc/default_config.h>
 #include <python/PythonWrapper.h>
 #include <python/SAM3InteractiveSession.h>
 #include <pv.h>
@@ -39,7 +38,6 @@ buffers::TileBuffers::Buffers_t& testTileBuffers() {
 
 void resetGlobalSettings() {
     GlobalSettings::write([&](Configuration& config) {
-        grab::default_config::get(config);
         ::default_config::get(config);
     });
 

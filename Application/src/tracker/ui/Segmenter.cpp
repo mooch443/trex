@@ -1,7 +1,7 @@
 #include "Segmenter.h"
 #include <file/DataLocation.h>
 #include <processing/Background.h>
-#include <grabber/misc/default_config.h>
+#include <core/default_config.h>
 #include <file/PathArray.h>
 #include <tracking/IndividualManager.h>
 #include <tracking/Output.h>

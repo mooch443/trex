@@ -61,3 +61,8 @@ Application/Resources/
 __pycache__
 website/
 graphify-out
+new-docs/
+Application/src/tracker/CMakeLists.txt
+*.trace
+tmp-pvinfo-validation-20260909-181202/
+tmp-precomputed-implementation-20260910/

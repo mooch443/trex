@@ -33,19 +33,9 @@ namespace trex_module_smoke::trex_core::cmn::gui::mode_t {
 using ::cmn::gui::mode_t::Class;
 }
 
-// core/DetectionTypes.h
 namespace trex_module_smoke::trex_core::track::detect {
-using ::track::detect::Bone;
-using ::track::detect::DetectResolution;
-using ::track::detect::Keypoint;
-using ::track::detect::KeypointFormat;
-using ::track::detect::KeypointNames;
 using ::track::detect::ObjectDetectionFormat_t;
 using ::track::detect::ObjectDetectionType_t;
-using ::track::detect::PredictionFilter;
-using ::track::detect::detection_format;
-using ::track::detect::detection_type;
-using ::track::detect::get_model_image_size;
 }
 
 namespace trex_module_smoke::trex_core::track::detect::ObjectDetectionFormat {
@@ -54,6 +44,19 @@ using ::track::detect::ObjectDetectionFormat::Class;
 
 namespace trex_module_smoke::trex_core::track::detect::ObjectDetectionType {
 using ::track::detect::ObjectDetectionType::Class;
+}
+
+// core/DetectionTypes.h
+namespace trex_module_smoke::trex_core::track::detect {
+using ::track::detect::Bone;
+using ::track::detect::DetectResolution;
+using ::track::detect::Keypoint;
+using ::track::detect::KeypointFormat;
+using ::track::detect::KeypointNames;
+using ::track::detect::PredictionFilter;
+using ::track::detect::detection_format;
+using ::track::detect::detection_type;
+using ::track::detect::get_model_image_size;
 }
 
 namespace trex_module_smoke::trex_core::track::detect::yolo {

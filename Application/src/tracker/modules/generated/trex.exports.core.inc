@@ -123,23 +123,24 @@ using ::track::detect::DetectResolution;
 using ::track::detect::Keypoint;
 using ::track::detect::KeypointFormat;
 using ::track::detect::KeypointNames;
-using ::track::detect::ObjectDetectionFormat_t;
-using ::track::detect::ObjectDetectionType_t;
 using ::track::detect::PredictionFilter;
 using ::track::detect::detection_format;
 using ::track::detect::detection_type;
 using ::track::detect::get_model_image_size;
 // core/GPURecognitionTypes.h
 using ::track::detect::Sam3PromptsPerImage;
+// core/default_config.h
+using ::track::detect::ObjectDetectionFormat_t;
+using ::track::detect::ObjectDetectionType_t;
 }
 
 export namespace track::detect::ObjectDetectionFormat {
-// core/DetectionTypes.h
+// core/default_config.h
 using ::track::detect::ObjectDetectionFormat::Class;
 }
 
 export namespace track::detect::ObjectDetectionType {
-// core/DetectionTypes.h
+// core/default_config.h
 using ::track::detect::ObjectDetectionType::Class;
 }
 

@@ -2,7 +2,6 @@
 #include <pv.h>
 #include <misc/create_struct.h>
 #include <core/default_config.h>
-#include <grabber/misc/default_config.h>
 #include <file/DataLocation.h>
 #include <core/TimingStatsCollector.h>
 
@@ -86,7 +85,6 @@ BackgroundVideoConfig AnimatedBackground::configure_video_source(const pv::File 
         
         if(metadata.has_value()) {
             try {
-                grab::default_config::get(combined);
                 default_config::get(combined);
                 
                 sprite::parse_values(sprite::MapSource{video->filename()}, combined.values, metadata.value(), nullptr, {}, default_config::deprecations());
