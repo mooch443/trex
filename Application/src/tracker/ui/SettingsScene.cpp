@@ -426,7 +426,7 @@ struct SettingsScene::Data {
                 if(detect_type == track::detect::ObjectDetectionType::yolo)
                     detection_models_updated();
                 else {
-                    if(detect_type == track::detect::ObjectDetectionType::background_subtraction) {
+                    if(is_in(detect_type, track::detect::ObjectDetectionType::background_subtraction, track::detect::ObjectDetectionType::precomputed, track::detect::ObjectDetectionType::none)) {
                         SETTING(detect_model) = file::Path{};
                         SETTING(region_model) = file::Path{};
                     }
@@ -826,7 +826,8 @@ struct SettingsScene::Data {
                                 filters.insert(filters.end(), action.parameters.begin() + 2, action.parameters.end());
                             }
                             
-                            auto flags = GlobalSettings::get(parm).is_type<file::PathArray>() ? pfd::opt::multiselect : pfd::opt::none;
+                            auto flags = GlobalSettings::get(parm).is_type<file::PathArray>()
+                                && parm != "detect_precomputed_file" ? pfd::opt::multiselect : pfd::opt::none;
                             auto dir = pfd::open_file("Select a file", folder, filters, flags).result();
                             
                             if(GlobalSettings::get(parm).is_type<file::PathArray>())
@@ -990,7 +991,7 @@ struct SettingsScene::Data {
                 new GUIVideoAdapterElement(_window, []() {
                     return FindCoord::get().screen_size();
                 }, [this](VideoInfo info) {
-                    _next_video_size = info.size;
+                    _next_video_size = info.resolution;
                 }, [this](const file::PathArray& path, IMGUIBase* window, std::function<void(VideoInfo)> callback) {
                     if(_video_adapters.contains(path.source())) {
                         return _video_adapters[path.source()];

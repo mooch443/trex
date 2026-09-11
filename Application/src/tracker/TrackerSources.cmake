@@ -69,6 +69,7 @@ set(TREX_CORE_SOURCES
     ${CMAKE_CURRENT_LIST_DIR}/core/TimingStatsCollector.cpp
     ${CMAKE_CURRENT_LIST_DIR}/core/tomp4.cpp
     ${CMAKE_CURRENT_LIST_DIR}/core/TrackingSettings.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/core/VideoInfo.cpp
     ${CMAKE_CURRENT_LIST_DIR}/core/VideoVideoSource.cpp
     ${CMAKE_CURRENT_LIST_DIR}/core/WebcamVideoSource.cpp
     ${CMAKE_CURRENT_LIST_DIR}/core/DetectAnnotation.cpp

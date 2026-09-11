@@ -116,8 +116,8 @@ protected:
     GETTER_SETTER(cv::Mat, mask);
     Frame_t _approximative_enabled_in_frame;
     
-    CacheHints _properties_cache;
-    CacheHints& properties_cache() { return _properties_cache; }
+    //CacheHints _properties_cache;
+    //CacheHints& properties_cache() { return _properties_cache; }
     
     std::vector<Range<Frame_t>> _global_tracklet_order;
     

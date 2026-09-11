@@ -292,7 +292,7 @@ Single evaluate_single(Tracker& tracker, Idx_t id, Individual* fish, const Range
     //assert(Tracker::individuals().find(id) != Tracker::individuals().end());
     
     constexpr size_t grid_res = 100;
-    const Size2 grid_size = tracker.average().bounds().size() / float(grid_res);
+    const Size2 grid_size = tracker.background()->bounds().size() / float(grid_res);
     std::map<std::tuple<uint16_t, uint16_t>, uint32_t> grid_cells;
     
     auto pos2grid = [&grid_size](const Vec2& pos) {

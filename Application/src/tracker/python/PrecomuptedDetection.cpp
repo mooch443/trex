@@ -30,9 +30,9 @@ struct PrecomputedDetection::Data {
         std::shared_lock guard(_background_mutex);
         return _background.has_value();
     }
-    void set_background(Image::Ptr&& background, meta_encoding_t::Class meta_encoding) {
+    void set_background(Bounds bounds, Image::Ptr&& background, meta_encoding_t::Class meta_encoding) {
         std::unique_lock guard(_background_mutex);
-        _background.emplace(std::move(background), meta_encoding);
+        _background.emplace(bounds, std::move(background), meta_encoding);
     }
     
     std::shared_mutex _data_mutex;
@@ -521,16 +521,25 @@ std::optional<float> PrecomputedDetection::precomputing() {
 void PrecomputedDetection::Data::set(Image::Ptr&& average, meta_encoding_t::Class meta_encoding) {
     std::scoped_lock guard(_background_mutex, _gpu_mutex);
     Print("Setting background image to ", hex(average.get()));
-    if(average)
-        _background.emplace(std::move(average), meta_encoding);
-    else
+    if(average) {
+        const auto bounds = average->bounds();
+        _background.emplace(bounds,
+                            meta_encoding != meta_encoding_t::binary ? std::move(average) : nullptr,
+                            meta_encoding);
+    } else
         _background.reset();
     
-    if(_background) {
-        _background->image().get().copyTo(_gpu);
+    if(auto bg = _background ? _background->image().get() : nullptr;
+       bg != nullptr)
+    {
+        bg->get().copyTo(_gpu);
         _gpu.convertTo(_float_average, CV_32FC(_gpu.channels()), 1.0 / 255.0);
-        manager().set_paused(false);
+    } else {
+        _gpu.release();
+        _float_average.release();
     }
+    if(_background)
+        manager().set_paused(false);
 }
 
 PrecomputedDetection::Data& PrecomputedDetection::data() {

@@ -806,7 +806,7 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
                     //if(fish->identity().ID() == primary_selected_id())
                     {
                         if(tracklet) {
-                            filters = constraints::local_midline_length(fish, tracklet->range, &_tracker->border());
+                            filters = constraints::local_midline_length(fish, tracklet->range, nullptr);
                             tracklet_range = tracklet->range;
                         }
                     }

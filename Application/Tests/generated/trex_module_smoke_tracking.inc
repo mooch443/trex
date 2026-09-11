@@ -90,10 +90,6 @@ using ::track::tags::result_t;
 }
 
 // tracking/CategorizeDatastore.h
-namespace trex_module_smoke::trex_tracking::track {
-using ::track::Border;
-}
-
 namespace trex_module_smoke::trex_tracking::track::Categorize {
 using ::track::Categorize::BlobLabel;
 using ::track::Categorize::DataStore;
@@ -120,13 +116,17 @@ using ::track::PostureStuff;
 namespace trex_module_smoke::trex_tracking::track::constraints {
 using ::track::constraints::FilterCache;
 using ::track::constraints::diff_image;
+using ::track::constraints::diff_image_cached;
 using ::track::constraints::local_midline_length;
 }
 
 namespace trex_module_smoke::trex_tracking::track::image {
 using ::track::image::calculate_diff_image;
+using ::track::image::calculate_diff_image_cached;
 using ::track::image::calculate_normalized_diff_image;
+using ::track::image::calculate_normalized_diff_image_cached;
 using ::track::image::calculate_normalized_image;
+using ::track::image::calculate_normalized_image_cached;
 }
 
 // tracking/EventAnalysis.h
@@ -156,6 +156,7 @@ using ::track::kuhn_match;
 
 // tracking/ImageExtractor.h
 namespace trex_module_smoke::trex_tracking::track {
+using ::track::Border;
 using ::track::Tracker;
 }
 

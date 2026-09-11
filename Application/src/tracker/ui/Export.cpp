@@ -496,7 +496,7 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                     for(auto &range : fish->tracklets()) {
                         // only generate an image if the tracklet is long enough
                         if(range->length().get() >= output_min_frames) {
-                            auto filters = constraints::local_midline_length(fish, range->range, &tracker.border());
+                            auto filters = constraints::local_midline_length(fish, range->range, nullptr);
                             // Init data strutctures
                             //size_t image_count = 0;
                             
@@ -927,7 +927,7 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
             const bool tracklet_force_normal_color = BOOL_SETTING(tracklet_force_normal_color);
             
             const auto encoding = Background::meta_encoding();
-            const uint8_t exp_channels = required_storage_channels(encoding);
+            const uint8_t exp_channels = encoding == meta_encoding_t::binary ? 1u : required_storage_channels(encoding);
             
             std::map<Idx_t, std::map<Range<Frame_t>, std::queue<std::tuple<Vec2, Frame_t, Idx_t, Image::Ptr>>>> queues;
             PPFrame obj;
@@ -935,7 +935,9 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
             const bool can_we_expect_fix_dimensions = do_normalize_tracklets;
             std::vector<uint32_t> image_dimensions;
             std::vector<uint32_t> image_coords;
-            
+
+            cv::Mat mask_buffer, image_buffer;
+
             size_t index = 0;
             pv::Frame vframe;
             
@@ -981,34 +983,47 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                     if(!reduced.blob && !full.blob)
                         FormatExcept("Frame ", frame,", fish ", data.fdx," nothing found");
                     
-                    if(!reduced.blob || !reduced.blob->pixels())
+                    if(not reduced.blob || (encoding != meta_encoding_t::binary && not reduced.blob->pixels()))
                         continue; // cannot find blob for given id
                     
                     if(do_normalize_tracklets) {
-                        if(not tracklet_force_normal_color) {
-                            auto &&[image, pos] =
-                                constraints::diff_image(normalize,
-                                                        reduced.blob.get(),//data.blob.get(),
-                                                        data.midline_transform,
-                                                        data.median_midline_length_px,
-                                                        output_size,
-                                                        tracker.background());
-                            reduced.image = std::move(image);
-                            reduced.pos = pos;
+                        auto image = Image::Make();
+                        auto pos = constraints::diff_image_cached(
+                            mask_buffer, image_buffer, *image,
+                            normalize, reduced.blob.get(),
+                            data.midline_transform,
+                            data.median_midline_length_px,
+                            output_size,
+                            tracklet_force_normal_color ? nullptr : tracker.background());
+                        
+                        if(pos) {
+                            if(encoding == meta_encoding_t::r3g3b2) {
+                                auto tmp = Image::Make(image->rows, image->cols, 1u);
+                                auto output = tmp->get();
+                                convert_to_r3g3b2<3u>(image->get(), output);
+                                image = std::move(tmp);
+                            }
                             
-                        } else {
-                            auto &&[image, pos] = calculate_normalized_image(data.midline_transform, reduced.blob.get(), data.median_midline_length_px, output_size, normalize == default_config::individual_image_normalization_t::legacy, tracker.background());
+                            if(image->channels() != exp_channels) {
+                                throw InvalidArgumentException("Invalid image");
+                            }
                             reduced.image = std::move(image);
-                            reduced.pos = pos;
+                            reduced.pos = *pos;
                         }
                         
                     } else {
                         if(not tracklet_force_normal_color) {
                             auto && [pos, img] = reduced.blob->difference_image(*tracker.background(), 0);
+                            if(img->channels() != exp_channels) {
+                                throw InvalidArgumentException("Invalid image");
+                            }
                             reduced.image = std::move(img);
                             reduced.pos = pos;
                         } else {
                             auto && [pos, img] = reduced.blob->color_image(tracker.background());
+                            if(img->channels() != exp_channels) {
+                                throw InvalidArgumentException("Invalid image");
+                            }
                             reduced.image = std::move(img);
                             reduced.pos = pos;
                         }
@@ -1063,10 +1078,28 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                         trans.translate(full.blob->bounds().pos() - reduced.blob->bounds().pos());
                         
                         if(do_normalize_tracklets) {
-                            if(not tracklet_force_normal_color)
-                                full.image = std::get<0>(calculate_normalized_diff_image(trans, full.blob.get(), data.median_midline_length_px, output_size, normalize == default_config::individual_image_normalization_t::legacy, tracker.background()));
-                            else
-                                full.image = std::get<0>(calculate_normalized_image(trans, full.blob.get(), data.median_midline_length_px, output_size, normalize == default_config::individual_image_normalization_t::legacy, tracker.background()));
+                            auto image = Image::Make();
+                            auto pos = not tracklet_force_normal_color
+                                ? calculate_normalized_diff_image_cached(mask_buffer,
+                                                                         image_buffer,
+                                                                         *image,
+                                                                         trans,
+                                                                         full.blob.get(),
+                                                                         data.median_midline_length_px,
+                                                                         output_size,
+                                                                         normalize == default_config::individual_image_normalization_t::legacy,
+                                                                         tracker.background())
+                                : calculate_normalized_image_cached(mask_buffer,
+                                                                    image_buffer,
+                                                                    *image,
+                                                                    trans,
+                                                                    full.blob.get(),
+                                                                    data.median_midline_length_px,
+                                                                    output_size,
+                                                                    normalize == default_config::individual_image_normalization_t::legacy,
+                                                                    tracker.background());
+                            if(pos)
+                                full.image = std::move(image);
                             
                         } else {
                             if(not tracklet_force_normal_color) {

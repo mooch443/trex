@@ -20,6 +20,8 @@ class IndividualImage : public Entangled {
     GETTER(Frame_t, frame);
     ExternalImage _display;
 
+    Image _raw_buffer;
+
     static constexpr inline std::array<std::string_view, 10> _setting_names {
         "individual_image_normalization",
         "individual_image_size",
@@ -43,8 +45,10 @@ public:
         
         this->_fdx = fdx;
         this->_frame = frame;
-        
-        auto pos = DrawPreviewImage::make_image(blob, midline, filters, background, _display.unsafe_get_source());
+
+        static thread_local cv::Mat mask_buffer, image_buffer;
+
+        auto pos = DrawPreviewImage::make_image_cached(blob, midline, filters, background, _raw_buffer, mask_buffer, image_buffer, _display.unsafe_get_source());
         if(pos) {
             _display.updated_source();
         }

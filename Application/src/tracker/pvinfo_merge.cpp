@@ -69,7 +69,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
             min_length = file->length();
 
         resolution += Size2(file->header().resolution);
-        backgrounds.push_back(std::make_shared<Background>(Image::Make(file->average()), file->header().encoding));
+        backgrounds.push_back(std::make_shared<Background>(Bounds(Size2(file->average())), Image::Make(file->average()), file->header().encoding));
 
         SETTING(filename) = name.remove_extension();
         auto settings_file = file::DataLocation::parse("output_settings");
@@ -143,7 +143,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
         resolution = Size2(average);
     }
 
-    Background new_background(Image::Make(average), meta_encoding_t::gray);
+    Background new_background(Bounds(Vec2(), Size2(average)), Image::Make(average), meta_encoding_t::gray);
 
     if(READ_SETTING(frame_rate, uint32_t) == 0) {
         if(files.front()->header().metadata.has_value())

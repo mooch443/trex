@@ -1,6 +1,7 @@
 #pragma once
 
 #include <commons.pc.h>
+#include <core/VideoInfo.h>
 #include <ui/Scene.h>
 #include <misc/frame_t.h>
 #include <misc/Timer.h>
@@ -13,34 +14,6 @@ namespace track {
 class Segmenter;
 }
 
-namespace cmn::gui::convert {
-
-struct VideoInfo {
-    Frame_t frame;
-    Frame_t length;
-    Size2 resolution;
-    
-    glz::json_t to_json() const {
-        glz::json_t r;
-        r["frame"] = frame.to_json();
-        r["length"] = length.to_json();
-        r["resolution"] = resolution.to_json();
-        return r;
-    }
-};
-
-}
-
-template <>
-struct glz::meta<cmn::gui::convert::VideoInfo> {
-    using T = cmn::gui::convert::VideoInfo;
-    static constexpr auto value = glz::object(
-        "frame", &T::frame,
-        "length", &T::length,
-        "resolution", &T::resolution
-    );
-};
-
 namespace cmn::gui {
 
 using namespace track;
@@ -50,7 +23,7 @@ class ExternalImage;
 
 class ConvertScene : public Scene {
     static glz::json_t fish;
-    static convert::VideoInfo _video_info;
+    static cmn::VideoInfo _video_info;
     std::atomic<Frame_t> _video_length;
     
     Timer last_tick;

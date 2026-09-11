@@ -9,6 +9,7 @@
 #include <pv.h>
 #include <video/VideoSource.h>
 #include <file/ask_for_permission.h>
+#include <core/VideoInfo.h>
 
 using namespace track;
 using namespace default_config;
@@ -70,10 +71,32 @@ set_defaults_for(detect::ObjectDetectionType_t detect_type,
         };
         
         apply_values(values);
+    } else if(detect_type == track::detect::ObjectDetectionType::precomputed) {
+        
+        static const sprite::Map values {
+            "track_threshold", 0,
+            "detect_threshold", 0,
+            "track_posture_threshold", 0,
+            "track_background_subtraction", false,
+            "detect_size_filter", SizeFilters(),
+            //"track_size_filter", SizeFilters(),
+            "calculate_posture", false,
+            //"outline_resample", 1.f,
+            //"outline_approximate", uchar(3),
+            //"track_do_history_split", true,
+            "individual_image_normalization", individual_image_normalization_t::moments,
+            //"detect_model", file::Path(detect::yolo::default_model()),
+            //"blob_split_algorithm", blob_split_algorithm_t::none,
+            "track_max_reassign_time", 1.f,
+            "detect_format", track::detect::ObjectDetectionFormat::none,
+        };
+        
+        apply_values(values);
         
     } else {
         static const sprite::Map values {
             "track_threshold", 0,
+            "detect_threshold", 0,
             "track_posture_threshold", 0,
             "track_background_subtraction", false,
             "detect_size_filter", SizeFilters(),
@@ -84,7 +107,7 @@ set_defaults_for(detect::ObjectDetectionType_t detect_type,
             //"track_do_history_split", true,
             "individual_image_normalization", individual_image_normalization_t::posture,
             "detect_model", file::Path(detect::yolo::default_model()),
-            "blob_split_algorithm", blob_split_algorithm_t::none,
+            //"blob_split_algorithm", blob_split_algorithm_t::none,
             "track_max_reassign_time", 1.f,
             "detect_format", track::detect::ObjectDetectionFormat::none,
             "detect_skeleton", std::optional<blob::Pose::Skeletons>{
@@ -169,8 +192,8 @@ Configuration reset(const cmn::sprite::Map& extra_map, cmn::sprite::Map& output)
                     /// since we dont need to set it if its just the *default*
                     if(key == "filename"
                        && (combined.at(key).value<file::Path>() == find_output_name(combined.values)
-                           || (not combined.at(key).value<file::Path>().is_absolute()
-                               && combined.at(key).value<file::Path>() == file::find_basename(combined.at("source").value<file::PathArray>()))))
+                           || (/*not combined.at(key).value<file::Path>().is_absolute()
+                               &&*/ combined.at(key).value<file::Path>() == file::find_basename(combined.at("source").value<file::PathArray>()))))
                     {
                         SETTING(filename) = file::Path();
                         continue;
@@ -284,21 +307,21 @@ void LoadContext::init() {
 }
 
 void LoadContext::init_filename() {
-    file::Path requested_filename = filename;
+    file::Path requested_filename = file::find_basename( file::PathArray(filename) );
     if(requested_filename.empty()
        && source.empty()
        && task == TRexTask_t::convert
        && CommandLine::instance().settings_keys().contains("filename"))
     {
-        requested_filename = file::Path(
-            CommandLine::instance().settings_keys().at("filename"));
+        requested_filename = file::find_basename( file::PathArray(
+            CommandLine::instance().settings_keys().at("filename")) );
     }
 
     const bool has_absolute_requested_filename =
         not requested_filename.empty() && requested_filename.is_absolute();
 
     if(not requested_filename.empty()) {
-        if(has_absolute_requested_filename) {
+        /*if(has_absolute_requested_filename) {
             auto output_dir = requested_filename.remove_filename();
             combined.values["output_dir"] = output_dir;
             set_config_if_different("output_dir", combined.values);
@@ -307,7 +330,8 @@ void LoadContext::init_filename() {
             set_config_if_different("output_prefix", combined.values);
 
             requested_filename = requested_filename.filename();
-        } else {
+        } else*/
+        {
             if(not requested_filename.remove_filename().empty()
                && BOOL_SETTING(nowindow))
             {
@@ -332,7 +356,11 @@ void LoadContext::init_filename() {
             if(source.get_paths().front() != "webcam"
                && not source.get_paths().front().exists())
             {
-                auto path = source.get_paths().front().add_extension("pv");
+                auto path = source.get_paths().front();
+                if(not path.has_extension() || path.extension() != "pv") {
+                    path = (path.remove_filename() / file::find_basename(source)).add_extension("pv");
+                }
+
                 if(path.exists()) {
                     source = file::PathArray(path);
                     
@@ -348,18 +376,21 @@ void LoadContext::init_filename() {
         set_config_if_different("source", combined.values);
         
         if(not contains(exclude.toVector(), "meta_source_path")) {
-            combined.values["meta_source_path"] = source.source();
-            set_config_if_different("meta_source_path", combined.values);
+            /// dont accidentally promote .pv files to "source" out of desparation
+            if(not utils::endsWith(source.source(), ".pv")) {
+                combined.values["meta_source_path"] = source.source();
+                set_config_if_different("meta_source_path", combined.values);
+            }
         }
     }
     
     /// ---------------------------------------------------------------------
     /// 7. set the `output_dir` / `output_prefix` properties from parameters:
     /// ---------------------------------------------------------------------
-    if(not has_absolute_requested_filename && source_map.has("output_dir")) {
+    if(/*not has_absolute_requested_filename &&*/ source_map.has("output_dir")) {
         set_config_if_different("output_dir", source_map);
     }
-    if(not has_absolute_requested_filename && source_map.has("output_prefix")) {
+    if(/*not has_absolute_requested_filename &&*/ source_map.has("output_prefix")) {
         set_config_if_different("output_prefix", source_map);
     }
     
@@ -378,8 +409,7 @@ void LoadContext::init_filename() {
         resolved_filename = find_output_name(combined.values, effective_source);
     } else {
         /// A filename selected by defaults is authoritative only when it names
-        /// an existing PV. Inferred tracking names check the input location
-        /// before the output location.
+        /// an existing PV. Otherwise, infer the output name from the source.
         const auto selected_name = combined.at("filename").value<file::Path>();
         if(not selected_name.empty()) {
             auto selected = find_output_name(combined.values, effective_source);
@@ -391,28 +421,8 @@ void LoadContext::init_filename() {
         }
 
         if(resolved_filename.empty()) {
-            file::Path path = file::find_basename(effective_source);
-            if(task == TRexTask_t::track) {
-                if(not path.empty()) {
-                    resolved_filename = file::DataLocation::parse(
-                        "input", path, &combined.values);
-
-                    if(resolved_filename.is_regular()
-                       || resolved_filename.add_extension("pv").is_regular())
-                    { } else {
-                        resolved_filename = find_output_name(
-                            combined.values, effective_source, false);
-                    }
-                } else {
-                    resolved_filename = {};
-                }
-
-            } else if(not path.empty()) {
-                resolved_filename = find_output_name(
-                    combined.values, effective_source, false);
-            } else {
-                resolved_filename = {};
-            }
+            resolved_filename = find_output_name(
+                combined.values, effective_source, false);
         }
     }
 
@@ -449,26 +459,26 @@ void LoadContext::reset_default_filenames() {
         if(path == default_path) {
             combined.values["filename"] = file::Path();
             set_config_if_different("filename", combined.values);
-        } else if(not filename.empty() && not filename.is_absolute()) {
+        } else if(not filename.empty() /*&& not filename.is_absolute()*/) {
             combined.values["filename"] = filename;
             set_config_if_different("filename", combined.values);
-        } else if(path.is_absolute()) {
+        } else /*if(path.is_absolute())*/ {
             combined.values["filename"] = file::Path(path.filename());
             set_config_if_different("filename", combined.values);
-        } else {
+        } /*else {
 #ifndef NDEBUG
             if(not quiet)
                 Print("Not absolute: ", path);
 #endif
             combined.values["filename"] = file::Path(path);
             set_config_if_different("filename", combined.values);
-        }
+        }*/
     }
     
     if(auto path = combined.at("filename").value<file::Path>();
        not path.empty())
     {
-        if(path.is_absolute())
+        //if(path.is_absolute())
             path = path.filename();
         combined.values["filename"] = path;
         set_config_if_different("filename", combined.values);
@@ -484,8 +494,13 @@ void LoadContext::load_settings_from_source() {
     //if(task == TRexTask_t::track)
     {
         file::Path path;
-        if(source.size() == 1) {
-            path = source.get_paths().front();
+        try {
+            path = find_existing_output_name(combined.values, source);
+        } catch(...) {
+            /// nothing
+        }
+        if(not path.empty()) {
+            //path = source.get_paths().front();
             if(path.has_extension("results")) {
                 path = path.remove_extension();
             }
@@ -856,7 +871,68 @@ void LoadContext::load_gui_settings() {
     
 }
 
+std::optional<VideoInfo> retrieve_video_info(const file::PathArray& source) {
+    try {
+        if(source == file::PathArray("webcam")) {
+            //config.values["meta_video_size"] = Size2(1920_F, 1080_F);
+            return VideoInfo{
+                .base = "webcam",
+                .resolution = Size2(1920_F, 1080_F), /// TODO: just assuming this for now :(
+                .framerate = 24u,
+                .finite = false,
+                .length = Frame_t{}
+            };
+            
+        } else if(source.get_paths().size() == 1
+                  && source.get_paths().front().has_extension("pv"))
+        {
+            /// we are looking at a .pv file as input
+            //if(not quiet)
+            //    Print("Should have already loaded this?");
+            
+            /// if this errors out, we should skip... so we let it through
+            pv::File video(source.get_paths().front());
+            if(video.size().empty())
+                throw InvalidArgumentException("Invalid video size read from ", video.filename());
+            //config.values["meta_video_size"] = Size2(video.size());
+            return VideoInfo{
+                .base = source,
+                .resolution = Size2(video.size()),
+                .framerate = video.framerate(),
+                .finite = true,
+                .length = video.length()
+            };
+            ///
+            
+        } else {
+            VideoSource video(source);
+            //combined.values["meta_video_size"] = Size2(size);
+            return VideoInfo{
+                .base = source,
+                .resolution = Size2(video.size()),
+                .framerate = video.framerate(),
+                .finite = true,
+                .length = video.length()
+            };
+        }
+        
+    } catch(...) {
+        return std::nullopt;
+    }
+}
+
 void LoadContext::estimate_meta_variables() {
+    std::optional<VideoInfo> info;
+    //if(task == TRexTask_t::convert)
+    {
+        const auto source = combined.at("source").value<file::PathArray>();
+        if((info = retrieve_video_info(source))) {
+            Print("Retrieved video info for ", *info);
+        } else if(not quiet) {
+            FormatWarning("Cannot retrieve video info for source ", source);
+        }
+    }
+    
     if(auto value = combined.values.at("meta_source_path");
        value.valid())
     {
@@ -871,8 +947,17 @@ void LoadContext::estimate_meta_variables() {
             for(auto test : tests) {
                 file::PathArray input(test);
                 try {
-                    VideoSource source(input);
+                    VideoSource video(input);
                     combined.values["meta_source_path"] = test;
+
+                    if(task == TRexTask_t::convert
+                       && not info) /// only replace invalid input
+                    {
+                        source = input;
+                        combined.values["source"] = source;
+                        set_config_if_different("source", combined.values);
+                    }
+
                     return true;
                 } catch (...) {
                     FormatWarning("meta_source_path(", test,") cannot be opened.");
@@ -901,36 +986,12 @@ void LoadContext::estimate_meta_variables() {
               || meta_video_size.value<Size2>().empty())
     {
         G g{source.source(), quiet};
-        try {
-            if(auto source = combined.at("source").value<file::PathArray>();
-               source == file::PathArray("webcam"))
-            {
-                combined.values["meta_video_size"] = Size2(1920_F, 1080_F);
-                
-            } else if(source.get_paths().size() == 1
-                      && source.get_paths().front().has_extension("pv"))
-            {
-                /// we are looking at a .pv file as input
-                if(not quiet)
-                    Print("Should have already loaded this?");
-                
-                /// if this errors out, we should skip... so we let it through
-                pv::File video(source.get_paths().front());
-                if(video.size().empty())
-                    throw InvalidArgumentException("Invalid video size read from ", video.filename());
-                combined.values["meta_video_size"] = Size2(video.size());
-                ///
-                
-            } else {
-                VideoSource video(source);
-                auto size = video.size();
-                combined.values["meta_video_size"] = Size2(size);
-            }
-            
-        } catch(...) {
-            combined.values["meta_video_size"] = Size2(1920_F, 1080_F);
+        if(info) {
+            combined.values["meta_video_size"] = info->resolution;
+        } else {
             if(not quiet)
                 FormatWarning("Cannot open video source ", source, ". Please check permissions, or whether the file provided is broken. Defaulting to 1920px.");
+            combined.values["meta_video_size"] = Size2(1920_F, 1080_F);
         }
     }
     
@@ -993,8 +1054,8 @@ void LoadContext::finalize() {
                     //Print("Updating ",combined.values.at(key));
                     if(key == "filename"
                        && (combined.at(key).value<file::Path>() == find_output_name(combined.values, {}, false)
-                           || (not combined.at(key).value<file::Path>().is_absolute()
-                               && combined.at(key).value<file::Path>() == file::find_basename(combined.at("source").value<file::PathArray>()))))
+                           || (/*not combined.at(key).value<file::Path>().is_absolute()
+                               &&*/ combined.at(key).value<file::Path>() == file::find_basename(combined.at("source").value<file::PathArray>()))))
                     {
                         #ifndef NDEBUG
                         if(not quiet) {
@@ -1162,12 +1223,20 @@ void load(LoadContext ctx) {
     
     // Step 2: Monitor changes to 'calculate_posture'. If manually disabled,
     // record this fact to avoid automatic re-enabling later.
-    ctx.combined.values.register_callbacks<sprite::RegisterInit::DONT_TRIGGER>({"output_prefix", "filename"}, [&](auto key) {
+    ctx.combined.values.register_callbacks<sprite::RegisterInit::DONT_TRIGGER>({"frame_rate", "output_prefix", "filename", "meta_source_path"}, [&](auto key) {
         //if(was_different
-        if(key == "output_prefix") {
+        if(key == "frame_rate") {
+            Print("Changed frame_rate to ", ctx.combined.values.at("frame_rate"));
+        } else if(key == "output_prefix") {
             Print("Changed prefix to ", ctx.combined.values.at("output_prefix"));
         } else if(key == "filename") {
             Print("Changed filename to ", ctx.combined.values.at("filename"));
+        } else if(key == "meta_source_path") {
+            auto path = ctx.combined.values.at("meta_source_path").value<std::string>();
+            if(path.contains(".pv")) {
+                Print("We have a .pv in ", path);
+            }
+            Print("Changed meta_source_path to ", ctx.combined.values.at("meta_source_path"));
         }
     });
     

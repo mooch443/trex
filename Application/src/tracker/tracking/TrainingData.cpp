@@ -1038,6 +1038,7 @@ bool TrainingData::generate(const std::string& step_description, const Backgroun
     const bool calculate_posture = FAST_SETTING(calculate_posture);
     std::map<Idx_t, std::vector<std::tuple<Frame_t, Image::SPtr>>> individual_training_images;
     size_t failed_blobs = 0, found_blobs = 0;
+    cv::Mat mask_buffer, image_buffer;
     
     for(auto frame : frames) {
         if(individuals_per_frame.find(frame) == individuals_per_frame.end()) {
@@ -1156,7 +1157,7 @@ bool TrainingData::generate(const std::string& step_description, const Backgroun
             maximum_size = max(maximum_size, blob->bounds().size());
             
             // try loading it all into a vector
-            Image::SPtr image;
+            Image::SPtr image = Image::Make();
             
             /*auto iit = did_image_already_exist.find({id, frame});
             if(iit != did_image_already_exist.end()) {
@@ -1169,7 +1170,8 @@ bool TrainingData::generate(const std::string& step_description, const Backgroun
                 ? fish->calculate_midline_for(*posture)
                 : nullptr;
             
-            image = std::get<0>(constraints::diff_image(normalized(), blob.get(), midline ? midline->transform(normalized()) : gui::Transform(), filters.median_midline_length_px, output_size, &background));
+            auto pos = constraints::diff_image_cached(mask_buffer, image_buffer, *image,
+               normalized(), blob.get(), midline ? midline->transform(normalized()) : gui::Transform(), filters.median_midline_length_px, output_size, &background);
             
             if(blob->bounds().width > output_size.width
                || blob->bounds().height > output_size.height)
@@ -1177,7 +1179,7 @@ bool TrainingData::generate(const std::string& step_description, const Backgroun
                 ++failed;
             }
             
-            if(image != nullptr) {
+            if(pos) {
                 image->set_index(frame.get());
                 
                 assert(!image->custom_data());

@@ -62,7 +62,8 @@ class CapturedPoints:
 
 
 class CapturedResult:
-    def __init__(self, index, boxes, masks, keypoints, obbs=None, points=None):
+    def __init__(self, index, boxes, masks, keypoints, obbs=None, points=None, semantic_mask=None):
+        self.semantic_mask = semantic_mask
         self.index = index
         self.boxes = boxes
         self.masks = masks

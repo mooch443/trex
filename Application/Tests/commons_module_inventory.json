@@ -346,7 +346,7 @@
       "excluded": [],
       "module": "commons.misc",
       "path": "misc/CommandLine.h",
-      "sha256": "2f41aa0a1ef482967068571b6fe297c105d30dfab5beaff13ad6a71636dba0de",
+      "sha256": "2c0e3353326254dc347923a23cb0a0af467ef4600990efc1735dd6c0dd9aca2f",
       "symbols": [
         {
           "kind": "class",
@@ -1075,7 +1075,7 @@
       ],
       "module": "commons.misc",
       "path": "misc/RBSettings.h",
-      "sha256": "2d6f872f72a83def8b842ca70f6f6b3ddaaab000c8f482cb8182fa6f9806196a",
+      "sha256": "54c8b632d62ec823482a602dee9d458b633711ab7f41d4e163dd6467156d97ca",
       "symbols": []
     },
     {
@@ -2959,7 +2959,7 @@
       "excluded": [],
       "module": "commons.processing",
       "path": "processing/Background.h",
-      "sha256": "6084bd6fba59611d0e5456fa01aeb0ecc1b666df8d33a32e195229c67ddfa7c1",
+      "sha256": "e94ff04a372cfe30a7a0a5b173d505941bc2ea92fa07a3650daa5b5ea0e745ed",
       "symbols": [
         {
           "kind": "concept",
@@ -3004,7 +3004,7 @@
       "excluded": [],
       "module": "commons.processing",
       "path": "processing/CPULabeling.h",
-      "sha256": "8bb04f1f2e155924087e81cf0d06752685b4513fff37cb3e6f427bfb4400d1ad",
+      "sha256": "882149cec6d2686857b96c1522eaa7b4107f3c682f79ba38a2822024a78d0706",
       "symbols": [
         {
           "kind": "function",

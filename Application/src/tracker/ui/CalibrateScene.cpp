@@ -219,7 +219,7 @@ void CalibrateScene::_draw(DrawStructure &graph) {
             new GUIVideoAdapterElement((IMGUIBase*)_window, []() -> Size2 {
                 return FindCoord::get().screen_size();
             }, [this](VideoInfo info) {
-                _data->_next_video_size = info.size;
+                _data->_next_video_size = info.resolution;
             }, [this](const file::PathArray& path, IMGUIBase* window, std::function<void(VideoInfo)> callback) -> Layout::Ptr {
                 if(_data->_adapter) {
                     _data->_adapter.to<GUIVideoAdapter>()->set(path);

@@ -394,7 +394,6 @@ Accumulation* Accumulation::current() {
 }
 
 std::map<Frame_t, std::set<Idx_t>> Accumulation::generate_individuals_per_frame(
-        const Border& border,
         const Range<Frame_t>& range,
         TrainingData* data,
         std::map<Idx_t, std::set<std::shared_ptr<TrackletInformation>>>* coverage)
@@ -445,7 +444,7 @@ std::map<Frame_t, std::set<Idx_t>> Accumulation::generate_individuals_per_frame(
         
         if(data) {
             for(auto &tracklet : used_tracklets) {
-                data->filters().set(id, *tracklet, *constraints::local_midline_length(fish, tracklet->range, &border, false));
+                data->filters().set(id, *tracklet, *constraints::local_midline_length(fish, tracklet->range, nullptr, false));
             }
         }
         
@@ -472,7 +471,7 @@ std::tuple<bool, std::map<Idx_t, Idx_t>> Accumulation::check_additional_range(co
         gui::WorkInstance generating_images("generating images");
         
         std::map<Idx_t, std::set<std::shared_ptr<TrackletInformation>>> segments;
-        auto coverage = generate_individuals_per_frame(_tracker->border(), range, &data, &segments);
+        auto coverage = generate_individuals_per_frame(range, &data, &segments);
         
         if(check_length) {
             std::map<Idx_t, size_t> counts;
@@ -753,7 +752,7 @@ std::tuple<std::shared_ptr<TrainingData>, std::vector<Image::SPtr>, std::map<Fra
                     auto frange = fish->get_tracklet(frame);
                     if(frange.contains(frame)) {
                         if(!data->filters().has(Idx_t(id), frange)) {
-                            data->filters().set(Idx_t(id), frange,  *constraints::local_midline_length(fish, frame, &tracker.border(), false));
+                            data->filters().set(Idx_t(id), frange,  *constraints::local_midline_length(fish, frame, nullptr, false));
                         }
                         disc_individuals_per_frame[frame].insert(Idx_t(id));
                     }
@@ -1011,7 +1010,7 @@ bool Accumulation::start() {
          * in completely random frames of the video.
          */
         
-        individuals_per_frame = generate_individuals_per_frame(_tracker->border(), _initial_range, _collected_data.get(), nullptr);
+        individuals_per_frame = generate_individuals_per_frame(_initial_range, _collected_data.get(), nullptr);
         
         if(!_collected_data->generate("initial_acc"+Meta::toStr(_accumulation_step)+" "+Meta::toStr(_initial_range), *_tracker->background(), _tracker->frames(), *_video, individuals_per_frame, [](float percent) { gui::WorkProgress::set_progress("", percent); }, NULL)) {
             
@@ -1876,6 +1875,7 @@ bool Accumulation::start() {
                 auto &video_file = *_video;
                 
                 size_t failed_blobs = 0, found_blobs = 0;
+                cv::Mat mask_buffer, image_buffer;
                 
                 for(auto && [frame, ids] : frames_collected) {
                     video_file.read_with_encoding(video_frame, frame, encoding);
@@ -1913,7 +1913,7 @@ bool Accumulation::start() {
                             return;
                         
                         // try loading it all into a vector
-                        Image::SPtr image;
+                        Image::SPtr image = Image::Make();
                         
                         /*auto iit = did_image_already_exist.find({id, frame});
                         if(iit != did_image_already_exist.end()) {
@@ -1924,8 +1924,8 @@ bool Accumulation::start() {
                         using namespace default_config;
                         auto midline = posture ? fish->calculate_midline_for(*posture) : nullptr;
                         
-                        image = std::get<0>(constraints::diff_image(method, blob.get(), midline ? midline->transform(method) : gui::Transform(), filters.median_midline_length_px, output_size, _tracker->background()));
-                        if(image)
+                        auto pos = constraints::diff_image_cached(mask_buffer, image_buffer, *image, method, blob.get(), midline ? midline->transform(method) : gui::Transform(), filters.median_midline_length_px, output_size, _tracker->background());
+                        if(pos)
                             images[frames_assignment[frame][id]].push_back(image);
                     });
                 }

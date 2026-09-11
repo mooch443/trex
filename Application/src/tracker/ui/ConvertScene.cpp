@@ -217,7 +217,7 @@ struct ConvertScene::Data {
     
     dyn::DynamicGUI init_gui(Base* window);
     void check_gui(DrawStructure& graph, Base* window) {
-        if(not dynGUI) {
+        if(not dynGUI && _segmenter) {
             dynGUI = init_gui(window);
             
             dynGUI.context.custom_elements["preview"] = std::unique_ptr<CustomElement>(new PreviewAdapterElement([this]() -> std::shared_ptr<const track::Tracker>
@@ -450,7 +450,7 @@ void ConvertScene::open_video() {
     _data->bar.set_progress(0);
     segmenter().open_video();
     
-    _video_info.resolution = segmenter().size();
+    _video_info = segmenter().overlayed_video()->source()->info();
     _video_info.length = segmenter().video_length();
     _video_length = segmenter().video_length();
 }
@@ -471,7 +471,7 @@ void ConvertScene::open_camera() {
     
     segmenter().open_camera();
     
-    _video_info.resolution = segmenter().size();
+    _video_info = segmenter().overlayed_video()->source()->info();
     _video_info.length = segmenter().video_length();
     _video_length = segmenter().video_length();
 }
@@ -1064,7 +1064,7 @@ dyn::DynamicGUI ConvertScene::Data::init_gui(Base* window) {
         VarFunc("actual_frame", [this](const VarProps&) {
             return _actual_frame.load();
         }),
-        VarFunc("video", [](const VarProps&) -> const gui::convert::VideoInfo& {
+        VarFunc("video", [](const VarProps&) -> const cmn::VideoInfo& {
             return _video_info;
         }),
         VarFunc("num_tracked", [this](const VarProps&) -> size_t {
@@ -1204,7 +1204,6 @@ bool ConvertScene::Data::retrieve_and_prepare_data() {
     std::vector<std::vector<Vertex>> lines;
     std::vector<std::tuple<Color, std::vector<Vec2>>> postures;
     const bool output_normalize_midline_data = BOOL_SETTING(output_normalize_midline_data);
-    const auto tracker = _segmenter ? _segmenter->tracker() : nullptr;
 
     IndividualManager::transform_all([&, frameIndex = _current_data.frame.index()](Idx_t, Individual* fish) {
         if (not fish->has(frameIndex))
@@ -1215,7 +1214,7 @@ bool ConvertScene::Data::retrieve_and_prepare_data() {
         Range<Frame_t> tracklet_range;
         
         if(tracklet) {
-            auto filters = constraints::local_midline_length(fish, tracklet->range, tracker ? &tracker->border() : nullptr);
+            auto filters = constraints::local_midline_length(fish, tracklet->range, nullptr);
             filter_cache[fish->identity().ID()] = std::move(filters);
             tracklet_range = tracklet->range;
         }
@@ -1392,7 +1391,7 @@ void ConvertScene::Data::draw_scene(DrawStructure& graph, const detect::yolo::na
     graph.section("menus", [&](auto&, Section*) {
         // GUI exports: current *pipeline* frame, the *source* decode index used for IO,
         // and the *pipeline* index again for convenience.
-        _video_info.frame = _current_data.frame.index();
+        _video_info.current_frame_index = _current_data.frame.index();
         _actual_frame = _current_data.frame.source_index();
         _video_frame = _current_data.frame.index();
     });

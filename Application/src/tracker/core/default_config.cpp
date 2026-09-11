@@ -16,6 +16,7 @@
 #include <core/GPURecognitionTypes.h>
 #include <core/DetectAnnotation.h>
 #include <core/FrameTags.h>
+#include <misc/CommandLine.h>
 
 #ifndef WIN32
 #include <unistd.h>
@@ -355,7 +356,8 @@ static inline const Deprecations deprecated = Deprecations({
         {"threshold_constant", "detect_threshold"},
         {"threshold", "detect_threshold"},
         {"use_dilation", "dilation_size"},
-        {"recognition_rect", "recognition_shapes", apply_whitelist},
+        {"recognition_rect", ""},
+        //{"recognition_rect", "recognition_shapes", apply_whitelist},
         {"recognition_normalization", "individual_image_normalization"},
         {"recognition_normalize_direction", "individual_image_normalization", apply_recognition_normalize_direction},
         {"match_use_approximate", "match_mode", apply_match_use_approximate},
@@ -378,7 +380,13 @@ static inline const Deprecations deprecated = Deprecations({
         {"enable_live_tracking", ""},
         {"export_visual_fields", "output_visual_fields"},
         {"output_image_per_tracklet", "output_tracklet_images"},
-        {"track_annotations", "track_detect_annotations"}
+        {"track_annotations", "track_detect_annotations"},
+        {"recognition_border_shrink_percent", ""},
+        {"recognition_coeff", ""},
+        {"recognition_border_size_rescale", ""},
+        {"recognition_smooth_amount", ""},
+        {"recognition_shapes", ""},
+        {"recognition_border", ""}
 });
 
 /**
@@ -810,7 +818,6 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("limit", 0.09f, "Limit for tailbeat event detection.");
         CONFIG("event_min_peak_offset", 0.15f, "Minimum peak offset used by tailbeat event detection.");
         CONFIG("exec", file::Path(), "This can be set to the path of an additional settings file that is executed after the normal settings file.", STARTUP);
-        CONFIG("log_file", file::Path(), "Set this to a path you want to save the log file to.", STARTUP);
         CONFIG("error_terminate", false, "Internal error flag. If set, the application exits with a non-zero status code.", SYSTEM);
         CONFIG("terminate", false, "If set to true, the application terminates.", SYSTEM);
         
@@ -822,7 +829,6 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("gui_draw_only_filtered_out", false, "Only show filtered out blob texts.");
         CONFIG("gui_show_tiles", false, "If enabled, the gui will show red lines representing the tiles used during detection (if e.g. `detect_tile_target_width` is set). The visuals will depend on the current setting - i.e. how it would tile the image if the conversion were to be run again under the current settings.");
         CONFIG("gui_show_timeline", true, "If enabled, the timeline (top of the screen) will be shown in the tracking view.");
-        CONFIG("gui_show_fish", std::tuple<pv::bid, Frame_t>{pv::bid::invalid, Frame_t()}, "Show debug output for {blob_id, fish_id}.");
         CONFIG("gui_source_video_frame", Frame_t(0u), "Best information the system has on which frame index in the original video the given `gui_frame` corresponds to (integrated into the pv file starting from V_9).", SYSTEM);
         CONFIG("gui_frame", Frame_t(0u), "The currently selected frame. `gui_displayed_frame` might differ, if loading from file is currently slow.");
         CONFIG("gui_show_skeletons", true, "Shows / hides keypoint data being shown in the graphical interface.");
@@ -835,7 +841,6 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("gui_show_video_background", true, "If available, show an animated background of the original video.");
         CONFIG("gui_show_heatmap", false, "Showing a heatmap per identity, normalized by maximum samples per grid-cell.");
         CONFIG("gui_show_individual_preview", true, "Shows preview images for all selected individuals as they would be processed during network training, based on settings like `individual_image_size`, `individual_image_scale` and `individual_image_normalization`.");
-        CONFIG("gui_draw_blobs_separately", false, "Draw blobs separately. If false, blobs will be drawn on a single full-screen texture and displayed. The second option may be better on some computers (not supported if `gui_macos_blur` is set to true).");
         CONFIG("gui_blob_label", std::string("{if:{dock}:{name} :''}{if:{active}:<a>:''}{real_size}<white>{if:{equal:1:{global.cm_per_pixel}}:px:cm}²</white>{if:{split}: <gray>split</gray>:''}{if:{tried_to_split}: <orange>split tried</orange>:''}{if:{prediction}: {prediction}:''}{if:{instance}: <gray>instance</gray>:''}{if:{dock}:{if:{filter_reason}: [<gray>{filter_reason}</gray>]:''}:''}{if:{active}:</a>:''}{if:{category}: {category}:''} {if:{p_for_primary}:'p:<nr>{round:{*:{p_for_primary}:100}}</nr>%':''}"), "This is what the graphical user interface displays as a label for each blob in raw view. Replace this with {help} to see available variables.");
         CONFIG("gui_fish_label", std::string("{if:{not:{has_pred}}:{name}:{if:{equal:{at:0:{max_pred}}:{id}}:<green>{name}</green>:<red>{name}</red> <i>loc</i>[<c><nr>{at:0:{max_pred}}</nr>:<nr>{int:{*:100:{at:1:{max_pred}}}}</nr><i>%</i></c>]}}{if:{tag}:' <a>tag:{tag.id} ({dec:2:{tag.p}})</a>':''}{if:{average_category}:' <nr>{average_category}</nr>':''}{if:{&&:{category}:{not:{equal:{category}:{average_category}}}}:' <b><i>{category}</i></b>':''}"), "This is what the graphical user interface displays as a label for each individual. Replace this with {help} to see the available variables.");
         CONFIG("heatmap_ids", std::vector<track::Idx_t>(), "Add ID numbers to this array to exclusively display heatmap values for those individuals.");
@@ -882,10 +887,9 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         //CONFIG("gui_show_manual_matches", true, "Show/hide manual matches in path.");
         CONFIG("gui_show_graph", false, "Show/hide the data time-series graph.");
         CONFIG("gui_show_number_individuals", false, "Show/hide the #individuals time-series graph.");
-        CONFIG("gui_show_processing_time", false, "Show/hide the ms/frame time-series graph.");
         CONFIG("gui_show_recognition_summary", false, "Show/hide confusion matrix (if network is loaded).");
         CONFIG("gui_show_dataset", false, "Show/hide detailed dataset information on-screen.");
-        CONFIG("gui_show_recognition_bounds", true, "Shows what is contained within tht recognition boundary as a cyan background. (See `recognition_border` for details.)");
+        //CONFIG("gui_show_recognition_bounds", true, "Shows what is contained within tht recognition boundary as a cyan background. (See `recognition_border` for details.)");
         CONFIG("gui_show_boundary_crossings", true, "If set to true (and the number of individuals is set to a number > 0), the tracker will show whenever an individual enters the recognition boundary. Indicated by an expanding cyan circle around it.");
         CONFIG("gui_show_detailed_probabilities", false, "Show/hide detailed probability stats when an individual is selected.");
         CONFIG("gui_playback_speed", float(1.f), "Playback speed when pressing SPACE.");
@@ -989,7 +993,6 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("web_time_threshold", float(0.050), "Minimum interval in seconds between responses from the web interface.");
         
         CONFIG("correct_illegal_lines", false, "In older versions of the software, blobs can be constructed in 'illegal' ways, meaning the lines might be overlapping. If the software is printing warnings about it, this should probably be enabled (makes it slower).");
-        CONFIG("evaluate_thresholds", false, "This option, if enabled, previews the effects of all possible thresholds when applied to the given video. These are shown as a graph in a separate window. Can be used to debug parameters instead of try-and-error. Might take a few minutes to finish calculating.", STARTUP);
         
         auto output_fields = std::vector<std::pair<std::string, std::vector<std::string>>>
         {
@@ -1111,14 +1114,13 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("grid_points_scaling", float(0.8), "Scaling applied to the average distance between the points in order to shrink or increase the size of the circles for recognition (see `grid_points`).");
         CONFIG("accumulation_tracklet_add_factor", 1.5_F, "This factor will be multiplied with the probability that would be pure chance, during the decision whether a tracklet is to be added or not. The default value of 1.5 suggests that the minimum probability for each identity has to be 1.5 times chance (e.g. 0.5 in the case of two individuals).");
         CONFIG("recognition_save_progress_images", false, "If set to true, an image will be saved for all training epochs, documenting the uniqueness in each step.");
-        CONFIG("recognition_shapes", std::vector<std::vector<Vec2>>(), "If `recognition_border` is set to 'shapes', then the identification network will only be applied to blobs within the convex shapes specified here.");
-        CONFIG("recognition_border", track::recognition_border_t::none, "This defines the type of border that is used in all automatic recognition routines. Depending on the type set here, you might need to set other parameters as well (e.g. `recognition_shapes`). In general, this defines whether an image of an individual is usable for automatic recognition. If it is inside the defined border, then it will be passed on to the recognition network - if not, then it wont."
-        );
+        //CONFIG("recognition_shapes", std::vector<std::vector<Vec2>>(), "If `recognition_border` is set to 'shapes', then the identification network will only be applied to blobs within the convex shapes specified here.");
+        //CONFIG("recognition_border", track::recognition_border_t::none, "This defines the type of border that is used in all automatic recognition routines. Depending on the type set here, you might need to set other parameters as well (e.g. `recognition_shapes`). In general, this defines whether an image of an individual is usable for automatic recognition. If it is inside the defined border, then it will be passed on to the recognition network - if not, then it wont.");
         CONFIG("debug_recognition_output_all_methods", false, "If set to true, a complete training will attempt to output all images for each identity with all available normalization methods.");
-        CONFIG("recognition_border_shrink_percent", float(0.3), "The amount by which the recognition border is shrunk after generating it (roughly and depends on the method).");
-        CONFIG("recognition_border_size_rescale", float(0.5), "The amount that blob sizes for calculating the heatmap are allowed to go below or above values specified in `track_size_filter` (e.g. 0.5 means that the sizes can range between `track_size_filter.min * (1 - 0.5)` and `track_size_filter.max * (1 + 0.5)`).");
-        CONFIG("recognition_smooth_amount", uint16_t(200), "If `recognition_border` is 'outline', this is the amount that the `recognition_border` is smoothed (similar to `outline_smooth_samples`), where larger numbers will smooth more.");
-        CONFIG("recognition_coeff", uint16_t(50), "If `recognition_border` is 'outline', this is the number of coefficients to use when smoothing the `recognition_border`.");
+        //CONFIG("recognition_border_shrink_percent", float(0.3), "The amount by which the recognition border is shrunk after generating it (roughly and depends on the method).");
+        //CONFIG("recognition_border_size_rescale", float(0.5), "The amount that blob sizes for calculating the heatmap are allowed to go below or above values specified in `track_size_filter` (e.g. 0.5 means that the sizes can range between `track_size_filter.min * (1 - 0.5)` and `track_size_filter.max * (1 + 0.5)`).");
+        //CONFIG("recognition_smooth_amount", uint16_t(200), "If `recognition_border` is 'outline', this is the amount that the `recognition_border` is smoothed (similar to `outline_smooth_samples`), where larger numbers will smooth more.");
+        //CONFIG("recognition_coeff", uint16_t(50), "If `recognition_border` is 'outline', this is the number of coefficients to use when smoothing the `recognition_border`.");
         CONFIG("individual_image_normalization", individual_image_normalization_t::posture, "This enables or disable normalizing the images before training. If set to `none`, the images will be sent to the GPU raw - they will only be cropped out. Otherwise they will be normalized based on head orientation (posture) or the main axis calculated using `image moments`.");
         CONFIG("pose_midline_indexes", track::PoseMidlineIndexes{.indexes = {}}, "This is an array of joint indexes (in the order as predicted by a YOLO-pose model), which are used to determine the joints making up the midline of an object. The first index is the head, the last the tail. This is used to generate a posture when using YOLO-pose models with `calculate_posture` enabled.");
         CONFIG("individual_image_size", Size2(80, 80), "Size of each image generated for network training.");
@@ -1152,7 +1154,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("detect_tile_merge_iou", Float2_t(0.55f), "Mode-native overlap threshold for same-class predictions from different overlapping tiles. Lower values merge more aggressively.");
         CONFIG("detect_tile_merge_containment", Float2_t(0.5f), "Intersection-over-smaller-area fallback threshold for same-class predictions from different overlapping tiles. Lower values merge more aggressively.");
         CONFIG("detect_tile_pose_match_distance", Float2_t(0.5f), "Maximum median common-joint distance, normalized by the smaller model-box diagonal, when `detect_pose_bbx=keypoints`.");
-        CONFIG("detect_mask_postprocess_mode", MaskPostprocessMode::none, "Optional same-class mask-overlap handling after tile aggregation. `none` preserves the rows, `greedy_nms` suppresses eligible overlapping masks, and `merge_masks` unions transitively overlapping masks.");
+        CONFIG("detect_mask_postprocess_mode", MaskPostprocessMode::merge_masks, "Optional same-class mask-overlap handling after tile aggregation. `none` preserves the rows, `greedy_nms` suppresses eligible overlapping masks, and `merge_masks` unions transitively overlapping masks.");
         CONFIG("detect_mask_postprocess_iou", Float2_t(0.5f), "Mask intersection-over-union threshold used to associate same-class predictions during the optional mask postprocess pass. Lower values associate masks more aggressively.");
         CONFIG("detect_mask_postprocess_containment", std::optional<Float2_t>{}, "Optional intersection-over-smaller-mask-area threshold used alongside `detect_mask_postprocess_iou`. Unset disables containment-based association.");
         CONFIG("yolo_instance_mask_closing", uint8_t(0), "Closing radius, in mask pixels, applied to each binarized YOLO instance mask before cropping. The closing kernel size is `2 * radius + 1`; zero disables closing. When `yolo_instance_mask_expand` is enabled, crop bounds are calculated from the closed mask so added positive pixels are retained.");
@@ -1197,12 +1199,9 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("gui_foi_name", std::string("correcting"), "If not empty, the gui will display the given FOI type in the timeline and allow to navigate between them via M/N.");
         CONFIG("gui_foi_types", std::vector<std::string>{"none"}, "A list of all the foi types registered.", SYSTEM);
         
-        CONFIG("gui_connectivity_matrix_file", file::Path(), "Path to connectivity table. Expected structure is a csv table with columns [frame | #(track_max_individuals^2) values] and frames in y-direction.");
         CONFIG("gui_connectivity_matrix", std::map<long_t, std::vector<float>>(), "Internally used to store the connectivity matrix.");
         
         CONFIG("webcam_index", uint8_t(0), "cv::VideoCapture index of the current webcam. If the program chooses the wrong webcam (`source` = webcam), increase this index until it finds the correct one.");
-        CONFIG("cam_scale", float(1.0), "Scales the image down or up by the given factor.");
-        CONFIG("cam_circle_mask", false, "If set to true, a circle with a diameter of the width of the video image will mask the video. Anything outside that circle will be disregarded as background.");
         CONFIG("cam_undistort", false, "If set to true, the recorded video image will be undistorted using `cam_undistort_vector` (1x5) and `cam_matrix` (3x3).");
         CONFIG("image_invert", false, "Inverts the image greyscale values before thresholding.");
         
@@ -1382,7 +1381,6 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             "auto_number_individuals",
             //"output_default_options",
             //"output_annotations",
-            "log_file",
             "history_matching_log",
             "gui_foi_types",
             "gui_mode",
@@ -1400,7 +1398,6 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             "nowindow",
             "task",
             "wd",
-            "gui_show_fish",
             "auto_quit",
             "auto_no_outputs",
             "auto_apply", "auto_train",
@@ -1714,8 +1711,11 @@ inline bool isRunningInAppBundle() {
                             ? map.at("source").value<file::PathArray>()
                             : file::PathArray{};
                 auto base = file::find_parent(source);
-                if(not base) {
-                    output_path = map.has("wd") ? map.at("wd").value<file::Path>() : file::Path{};
+                if(not base || base->empty() || source.source() == "webcam") {
+                    auto launch = CommandLine::instance().launch_dir();
+                    output_path = launch.empty()
+                                    ? (map.has("wd") ? map.at("wd").value<file::Path>() : file::Path{})
+                                    : launch;
                 } else {
                     output_path = base.value();
                 }

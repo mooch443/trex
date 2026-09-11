@@ -89,6 +89,8 @@ ENUM_CLASS(MaskPostprocessMode,
     merge_masks
 );
 
+//(std::vector<std::vector<Vec2>>, recognition_shapes),
+
 //! A global settings cache used across the application by
 //! calling `FAST_SETTING(name)`.
 CREATE_STRUCT(Settings,
@@ -120,7 +122,7 @@ CREATE_STRUCT(Settings,
   (uint16_t, posture_direction_smoothing),
   (file::Path, tags_path),
   (std::vector<Vec2>, grid_points),
-  (std::vector<std::vector<Vec2>>, recognition_shapes),
+  
   (float, grid_points_scaling),
   (std::vector<std::vector<Vec2>>, track_ignore),
   (std::vector<std::vector<Vec2>>, track_include),

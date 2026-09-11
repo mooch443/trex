@@ -1627,7 +1627,7 @@ TEST(TestLines, Threshold) {
     cv::Mat gray;
     convert_to_r3g3b2<3>(black->get(), gray);
     //cv::cvtColor(black->get(), gray, cv::COLOR_BGR2GRAY);
-    Background bg(Image::Make(gray), meta_encoding_t::r3g3b2);
+    Background bg(Bounds(0, 0, gray.cols, gray.rows), Image::Make(gray), meta_encoding_t::r3g3b2);
     cv::circle(black->get(), Vec2(90,80), 25, gui::Cyan, -1);
     cv::rectangle(black->get(), Vec2(100,100), Vec2(125,125), gui::Purple, -1);
     
@@ -2265,7 +2265,7 @@ TEST(TestSplitting, Basic) {
     
     auto root = std::string(TREX_TEST_FOLDER)+"/../../images";
     cv::Mat background = cv::Mat::zeros(1024, 1024, CV_8UC1);
-    Background bg(Image::Make(background), meta_encoding_t::gray);
+    Background bg(Bounds(0, 0, background.cols, background.rows), Image::Make(background), meta_encoding_t::gray);
     
     cv::Mat termites = cv::imread(root+"/termites_three.png");
     ASSERT_EQ(termites.empty(), false);

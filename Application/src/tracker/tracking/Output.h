@@ -130,7 +130,9 @@ namespace Output {
             V_38, // writing midline conversion factor
             V_39, // adding AutoAssign
             
-            current = V_39
+            V_40, // meta_encoding added
+            
+            current = V_40
         };
         
     private:
@@ -148,6 +150,7 @@ namespace Output {
             std::string settings;
             std::string cmd_line;
             std::vector<Range<Frame_t>> tracklets;
+            meta_encoding_t::Class encoding{meta_encoding_t::gray};
             Size2 video_resolution;
             uint64_t video_length = 0;
             Image average;
@@ -168,7 +171,6 @@ namespace Output {
         //static QueueThreadPool<Individual*> _blob_pool;
         QueueThreadPool<Individual*> _post_pool;
         GenericThreadPool _generic_pool, _load_pool;
-        GETTER_NCONST(std::shared_ptr<CacheHints>, property_cache);
         
         cmn::atomic<uint64_t> _expected_individuals, _N_written;
         
@@ -187,7 +189,7 @@ namespace Output {
                         const active_individuals_map_t& active_individuals_frame,
                         const individuals_map_t& individuals);
         
-        Individual* read_individual(const data::FrameRepository&, Data& ref, const CacheHints* cache);
+        Individual* read_individual(const data::FrameRepository&, Data& ref);
         Midline::Ptr read_midline(Data& ref);
         MinimalOutline read_outline(Data& ref, Midline* midline) const;
         void read_blob(Data& ref, pv::CompressedBlob&) const;
@@ -214,7 +216,6 @@ namespace Output {
         static void process_frame(
                const data::FrameRepository& frames,
                const CachedSettings&,
-               const CacheHints* cache_ptr,
                Individual* fish,
                TemporaryData&& data);
         

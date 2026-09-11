@@ -177,7 +177,7 @@ public:
     static void on_terminate();
     
     static float good_uniqueness();
-    static std::map<Frame_t, std::set<Idx_t>> generate_individuals_per_frame(const Border&, const Range<Frame_t>& range, TrainingData* data, std::map<Idx_t, std::set<std::shared_ptr<TrackletInformation>>>*);
+    static std::map<Frame_t, std::set<Idx_t>> generate_individuals_per_frame(const Range<Frame_t>& range, TrainingData* data, std::map<Idx_t, std::set<std::shared_ptr<TrackletInformation>>>*);
     std::tuple<bool, std::map<Idx_t, Idx_t>> check_additional_range(const Range<Frame_t>& range, TrainingData& data, bool check_length, DatasetQuality::Quality);
     void confirm_weights();
     void update_coverage(const TrainingData& data);

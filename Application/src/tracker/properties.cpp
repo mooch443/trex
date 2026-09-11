@@ -131,7 +131,9 @@ void async_main(void*) {
 					continue;
 				}
 
-				track::Tracker::preprocess_frame(std::move(single), frame, NULL, track::PPFrame::NeedGrid::NoNeed, file.header().resolution, false);
+				track::Tracker::preprocess_frame(std::move(single), frame, NULL,
+				                                 tracker.frames(), *tracker.background(),
+				                                 track::NeedGrid::NoNeed, track::HistorySplitPolicy::Skip);
 				tracker.add(frame);
 				++samples;
 				time_per_frame += timer.elapsed();

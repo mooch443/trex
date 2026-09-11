@@ -194,7 +194,9 @@ Fish::~Fish() {
             
             auto p = tags::prettify_blobs(blobs, noise, {},
                 //GUICache::instance().processed_frame().original_blobs(),
-                GUICache::instance().background()->image());
+              GUICache::instance().background()
+                ? GUICache::instance().background()->image().get()
+                : nullptr);
 
             for (auto& image : p) {
 
@@ -607,7 +609,7 @@ Fish::~Fish() {
                         for(auto y = it; y < nex; ++y) {
                             int x = 0;
                             auto ptr = mat.ptr(y, 0);
-                            auto end = mat.ptr(y, mat.cols);
+                            auto end = mat.ptr(y, mat.cols - 1) + 1;
                             
                             for (; ptr != end; ++ptr, ++x) {
                                 //if (*(ptr) <= 5)
@@ -1451,11 +1453,12 @@ void Fish::selection_clicked(Event) {
                    && _basic_stuff->blob.pred.valid()
                    && _basic_stuff->blob.pred.outlines.has_holes())
                 {
+                    const auto desaturated = _color.saturation(0.25);
                     auto &lines = _basic_stuff->blob.pred.outlines.lines;
                     for(size_t i = 0; i<lines.size(); ++i) {
                         Line::Vertices_t gline;
                         for(auto &pt : (std::vector<Vec2>)lines.at(i)) {
-                            gline.emplace_back(pt + offset, _color.saturation(0.25));
+                            gline.emplace_back(pt + offset, desaturated);
                         }
                         window.add<Line>(gline, Line::Thickness_t{OPTION(gui_outline_thickness)});
                     }
@@ -1525,7 +1528,6 @@ void Fish::selection_clicked(Event) {
             _view.advance_wrap(_posture);
         
             // DISPLAY LABEL AND POSITION
-            auto bg = GUICache::instance().background();
             const auto centroid = _posture_stuff.has_value() && _posture_stuff->centroid_posture
                     ? _posture_stuff->centroid_posture.get()
                     : (_basic_stuff.has_value()
@@ -1533,17 +1535,7 @@ void Fish::selection_clicked(Event) {
                         : nullptr);
             
             auto c_pos = (centroid ? centroid->pos<Units::PX_AND_SECONDS>() + offset : Vec2());
-            if(not bg) //|| c_pos.x >= bg->image().cols || c_pos.y >= bg->image().rows || c_pos.y < 0 || c_pos.x < 0)
-                return;
-        
-            auto v = 255 - int(bg->image().at(
-                saturate(c_pos.y, 0u, bg->image().rows - 1), 
-                saturate(c_pos.x, 0u, bg->image().cols - 1)));
-            if(v >= 100)
-                v = 220;
-            else
-                v = 50;
-        
+            
             float angle = -centroid->angle();
             if (head) {
                 angle = -head->angle();
@@ -1816,7 +1808,23 @@ void Fish::selection_clicked(Event) {
                 last_scale = 0_F;
             }
             
-            if ((hovered || is_selected) && OPTION(gui_show_selections)) {
+            if (OPTION(gui_show_selections)
+                && (hovered || is_selected))
+            {
+                int v = 0;
+                if(auto bg = GUICache::instance().background();
+                   bg && bg->image())
+                {
+                    v = 255 - int(bg->image()->at(
+                           saturate(c_pos.y, 0u, bg->image()->rows - 1),
+                           saturate(c_pos.x, 0u, bg->image()->cols - 1)));
+                }
+                
+                if(v >= 100)
+                    v = 220;
+                else
+                    v = 50;
+                
                 auto radius = _radius;//(slow::calculate_posture && _ML != GlobalSettings::invalid() ? _ML : _blob_bounds.size().max()) * 0.6;
                 
                 auto circle_clr = Color((uint8_t)v, (uint8_t)saturate(255 * (hovered ? 1.7 : 1)));
@@ -1827,8 +1835,10 @@ void Fish::selection_clicked(Event) {
                 Loc pos(cmn::cos(angle), -cmn::sin(angle));
                 pos = pos * radius + c_pos;
             
-                _view.add<Circle>(pos, Radius{3}, LineClr{circle_clr});
-                _view.add<Line>(Line::Point_t(c_pos), Line::Point_t(Vec2(pos)), LineClr{ circle_clr });
+                if(OPTION(gui_show_centroid)) {
+                    _view.add<Circle>(pos, Radius{3}, LineClr{circle_clr});
+                    _view.add<Line>(Line::Point_t(c_pos), Line::Point_t(Vec2(pos)), LineClr{ circle_clr });
+                }
             
                 if(FAST_SETTING(posture_direction_smoothing)) {
                     size_t i = 0;

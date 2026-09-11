@@ -13,6 +13,7 @@
         "inside_label_w":"{+:{label_w}:10}",
         "textfield_w":"{max:100:{+:{element_w}:160}}",
         "machine_learning":"{equal:{global.detect_type}:yolo}",
+        "precomputed":"{equal:{global.detect_type}:precomputed}",
         "label_offset":[15,0],
         "label_origin":[0,0],
         "label_padding":[0,20,10,5],
@@ -296,7 +297,7 @@
                                 "type":"stext",
                                 "max_size": "[{min:900:{element_w}},50]",
                                 "font":{"size":0.5},
-                                "text": "{if:{machine_learning}:'<cyan><c>Machine learning</c></cyan> is used to find the individuals. This is very versatile and can deal with dynamic backgrounds, but requires a (<i>potentially custom</i>) trained object detection model. There are some default choices listed below the selection box.':'A <cyan><c>background image</c></cyan> is generated and then subtracted from each frame. Then, any color differences greater than <c>threshold</c> are understood to be <i>\"of interest\"</i>. This is very fast, but requires a relatively static background (e.g. a camera trap, lab videos).'}"
+                                "text": "{if:{precomputed}:'<cyan><c>Precomputed detections</c></cyan> are read from a CSV file containing boxes or positions for the source video. Select the CSV below; no detection model is required.':{if:{machine_learning}:'<cyan><c>Machine learning</c></cyan> is used to find the individuals. This is very versatile and can deal with dynamic backgrounds, but requires a (<i>potentially custom</i>) trained object detection model. There are some default choices listed below the selection box.':'A <cyan><c>background image</c></cyan> is generated and then subtracted from each frame. Then, any color differences greater than <c>threshold</c> are understood to be <i>\"of interest\"</i>. This is very fast, but requires a relatively static background (e.g. a camera trap, lab videos).'}}"
                             }
                         ]
                     }]
@@ -305,7 +306,7 @@
                 [
                     {
                         "type":"stext",
-                        "text":"<h2><sym>🐟</sym></h2> Detection settings\n<small><gray>A few settings relevant to the chosen detection type.</gray></small>",
+                        "text":"{if:{precomputed}:'<b>Detections CSV</b>\n<small><gray>One detection per row; zero-based frame numbers.</gray></small>':'<h2><sym>🐟</sym></h2> Detection settings\n<small><gray>A few settings relevant to the chosen detection type.</gray></small>'}",
                         "font":{"size":0.75},
                         "origin":"{label_origin}", "pos":"{label_offset}",
                         "max_size":"[{label_w},0]",
@@ -458,32 +459,92 @@
                                     ]
                                 },
                                 "else":{
-                                    "type":"gridlayout",
-                                    "pad":[0,5,15,10],
-                                    "cellfillclr":[60,60,60,150],
-                                    "celllineclr":[100,100,100,50],
-                                    "cellfillinterval":2,
-                                    "children":[
-
-                                        [
+                                    "type":"condition",
+                                    "var":"{precomputed}",
+                                    "then":{
+                                        "type":"vlayout",
+                                        "children":[
                                             {
-                                                "type":"stext",
-                                                "text":"<b>Acceptable Sizes</b>\n<gray>Min./max. object sizes.</gray>",
-                                                "pad":[10,0,0,0],
-                                                "origin":[0,0.5], "pos":[0,20],
-                                                "max_size":"[{-:{inside_label_w}:20},0]"
+                                                "type":"hlayout",
+                                                "children":[
+                                                    {
+                                                        "type":"settings",
+                                                        "var":"detect_precomputed_file",
+                                                        "label":{
+                                                            "corners":["left"],
+                                                            "color":[255,255,255]
+                                                        },
+                                                        "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                                                        "list":{
+                                                            "line":[220,220,220,200],
+                                                            "fill":[25,25,25,220],
+                                                            "size":"[{element_w},200]",
+                                                            "font":{"size":0.6}
+                                                        },
+                                                        "size":"[{max:50:{-:{element_w}:42}},40]",
+                                                        "desc":"",
+                                                        "preview":{
+                                                            "font":{"size":0.35},
+                                                            "color":[125,125,125,125],
+                                                            "max_size":"[{max:50:{-:{element_w}:42}},80]",
+                                                            "fade_out":0
+                                                        }
+                                                    },
+                                                    {
+                                                        "type":"button",
+                                                        "corners":["right"],
+                                                        "text":"<sym>🗁</sym>",
+                                                        "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                                                        "size":[40,40],
+                                                        "pad":[1,0,0,0],
+                                                        "font":{
+                                                            "align":"center",
+                                                            "size":0.8,
+                                                            "style":"bold"
+                                                        },
+                                                        "action":"choose-file:detect_precomputed_file:{global.output_dir}:CSV files:*.csv"
+                                                    }
+                                                ]
                                             },
                                             {
-                                                "type":"settings",
-                                                "corners":["right"],
-                                                "var":"detect_size_filter",
-                                                "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
-                                                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
-                                                "size":"[{max:50:{*:{textfield_w}:0.1}},45]",
-                                                "desc":""
+                                                "type":"stext",
+                                                "text":"Example CSV file:\n<c>frame,x,y,w,h\n0,100,100,96,64\n1,101,100,96,64</c>",
+                                                "font":{"size":0.5},
+                                                "pad":[10,10,0,10],
+                                                "max_size":"[{element_w},0]"
                                             }
                                         ]
-                                    ]
+                                    },
+                                    "else":{
+                                        "type":"gridlayout",
+                                        "pad":[0,5,15,10],
+                                        "cellfillclr":[60,60,60,150],
+                                        "celllineclr":[100,100,100,50],
+                                        "cellfillinterval":2,
+                                        "children":[
+
+                                            [
+                                                {
+                                                    "type":"stext",
+                                                    "text":"<b>Acceptable Sizes</b>\n<gray>Min./max. object sizes.</gray>",
+                                                    "pad":[10,0,0,0],
+                                                    "origin":[0,0.5], "pos":[0,20],
+                                                    "max_size":"[{-:{inside_label_w}:20},0]"
+                                                },
+                                                {
+                                                    "type":"settings",
+                                                    "corners":["right"],
+                                                    "var":"detect_size_filter",
+                                                    "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                                    "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                                                    "size":"[{max:50:{*:{textfield_w}:0.1}},45]",
+                                                    "desc":""
+                                                }
+                                            ]
+                                        ]
+                                    }
                                 }
                             }
                         ]
@@ -493,11 +554,11 @@
                 [
                     {
                         "type":"stext",
-                        "text":"{if:{machine_learning}:'<h2><sym>🐟</sym></h2> Detection model\n<small><gray>Final step, deciding object vs. background.</gray></small>':'<small>\n</small><sym>▦</sym> Background generator mode'}",
+                        "text":"{if:{precomputed}:'<b>Object settings</b>\n<small><gray>How to deal with incomplete CSV data and the objects they point to</gray></small>':{if:{machine_learning}:'<h2><sym>🐟</sym></h2> Detection model\n<small><gray>Final step, deciding object vs. background.</gray></small>':'<small>\n</small><sym>▦</sym> Background generator mode'}}",
                         "font":{"size":0.75},
                         "origin":"{label_origin}", "pos":"{label_offset}",
                         "max_size":"[{label_w},0]",
-                        "pad":[0,10,10,5]
+                        "pad":[0,5,10,10]
                     },
                     
                     {
@@ -661,70 +722,134 @@
                         },
                         "else":
                         {
-                            "type":"vlayout",
-                            "outer_pad":[0,30,0,10],
-                            "children":[
-                                {
-                                    "type":"hlayout",
-                                    "pad":[5,0,5,0],
-                                    "children": [
+                            "type":"condition",
+                            "var":"{precomputed}",
+                            "then":{
+                                "type":"gridlayout",
+                                "pad":[0,5,5,5],
+                                "cellfillclr":[60,60,60,150],
+                                "celllineclr":[100,100,100,50],
+                                "cellfillinterval":2,
+                                "children":[
+                                    [
+                                        {
+                                            "type":"stext",
+                                            "text":"<b>Fallback box size</b>\n<gray>object width and height</gray>",
+                                            "pad":[10,3,10,4],
+                                            "max_size":"[{-:{inside_label_w}:20},0]"
+                                        },
                                         {
                                             "type":"settings",
-                                            "var":"averaging_method",
-                                            "label":{
-                                                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,250]}",
-                                                "fill":"{if:{||:{selected}:{hovered}}:[10,80,110,240]:[10,50,80,240]}",
-                                                "font":{"size":0.65},
-                                                "color":[255,255,255]
-                                            },
+                                            "var":"individual_image_size",
+                                            "corners":["right"],
+                                            "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,150]}",
                                             "list":{
                                                 "line":[220,220,220,200],
                                                 "fill":[25,25,25,220],
                                                 "size":"[{element_w},200]",
-                                                "font":{"size":0.6}
+                                                "font":{"size":0.6},
+                                                "color":[255,255,255]
                                             },
-                                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,50]}",
-                                            "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,40]:[50,50,50,240]}",
-                                            "size":[250,45],
+                                            "size":"[{max:50:{*:{textfield_w}:0.1}},45]",
                                             "desc":""
-                                        },
+                                        }
+                                    ],
 
+                                    [
                                         {
-                                            "type":"gridlayout",
-                                            "pad":[0,0,10,0],
-                                            "outer_pad":[0,0,0,0],
-                                            "cellfillclr":[60,60,60,150],
-                                            "celllineclr":[100,100,100,50],
-                                            "cellfillinterval":2,
-                                            "children":[
-                                                [
-                                                    {
-                                                        "type":"stext",
-                                                        "text":"reset average",
-                                                        "origin":[0,0.5], "pos":[0,22],
-                                                        "pad":[10,0,0,0],
-                                                        "max_size":"[{-:{inside_label_w}:20},0]"
-                                                    },
-                                                    {
-                                                        "type":"settings",
-                                                        "var":"reset_average",
-                                                        "label":{
-                                                            "corners":["right"],
-                                                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,250]}",
-                                                            "fill":"{if:{||:{selected}:{hovered}}:[10,80,110,240]:[10,50,80,240]}",
-                                                            "font":{"size":0.65},
-                                                            "color":[255,255,255]
-                                                        },
-                                                        "size":"[{max:150:{*:{textfield_w}:0.1}},45]",
-                                                        "desc":""
-                                                    }
-                                                ]
-
-                                            ]
+                                            "type":"condition",
+                                            "var":"{nequal:{global.meta_encoding}:binary}",
+                                            "then":{
+                                                "type":"stext",
+                                                "text":"<b>Object threshold</b>\n<gray>zero deactivates it</gray>",
+                                                "pad":[10,3,10,4],
+                                                "max_size":"[{-:{inside_label_w}:20},0]"
+                                            }
+                                        },
+                                        {
+                                            "type":"condition",
+                                            "var":"{nequal:{global.meta_encoding}:binary}",
+                                            "then":{
+                                                "type":"settings",
+                                                "var":"detect_threshold",
+                                                "corners":["right"],
+                                                "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                                                "size":"[{max:150:{*:{textfield_w}:0.2}},45]",
+                                                "font":{"size":0.6},
+                                                "desc":""
+                                            }
                                         }
                                     ]
-                                }
-                            ]
+                                ]
+                            },
+                            "else":{
+                                "type":"vlayout",
+                                "outer_pad":[0,30,0,10],
+                                "children":[
+                                    {
+                                        "type":"hlayout",
+                                        "pad":[5,0,5,0],
+                                        "children": [
+                                            {
+                                                "type":"settings",
+                                                "var":"averaging_method",
+                                                "label":{
+                                                    "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,250]}",
+                                                    "fill":"{if:{||:{selected}:{hovered}}:[10,80,110,240]:[10,50,80,240]}",
+                                                    "font":{"size":0.65},
+                                                    "color":[255,255,255]
+                                                },
+                                                "list":{
+                                                    "line":[220,220,220,200],
+                                                    "fill":[25,25,25,220],
+                                                    "size":"[{element_w},200]",
+                                                    "font":{"size":0.6}
+                                                },
+                                                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,50]}",
+                                                "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,40]:[50,50,50,240]}",
+                                                "size":[250,45],
+                                                "desc":""
+                                            },
+
+                                            {
+                                                "type":"gridlayout",
+                                                "pad":[0,0,10,0],
+                                                "outer_pad":[0,0,0,0],
+                                                "cellfillclr":[60,60,60,150],
+                                                "celllineclr":[100,100,100,50],
+                                                "cellfillinterval":2,
+                                                "children":[
+                                                    [
+                                                        {
+                                                            "type":"stext",
+                                                            "text":"reset average",
+                                                            "origin":[0,0.5], "pos":[0,22],
+                                                            "pad":[10,0,0,0],
+                                                            "max_size":"[{-:{inside_label_w}:20},0]"
+                                                        },
+                                                        {
+                                                            "type":"settings",
+                                                            "var":"reset_average",
+                                                            "label":{
+                                                                "corners":["right"],
+                                                                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,240]:[100,100,100,250]}",
+                                                                "fill":"{if:{||:{selected}:{hovered}}:[10,80,110,240]:[10,50,80,240]}",
+                                                                "font":{"size":0.65},
+                                                                "color":[255,255,255]
+                                                            },
+                                                            "size":"[{max:150:{*:{textfield_w}:0.1}},45]",
+                                                            "desc":""
+                                                        }
+                                                    ]
+
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                ]
+                            }
                         }
                     }
                 ],
@@ -732,7 +857,7 @@
                 [
                     {
                         "type":"stext",
-                        "text":"{if:{machine_learning}:'<h2><sym>🖽</sym></h2> Region proposal\n<small><gray>Use a model to identify regions of interest within large images <i>(optional)</i>.</gray></small>':'<h3><sym>◐</sym></h3> Threshold'}",
+                        "text":"{if:{precomputed}:'':{if:{machine_learning}:'<h2><sym>🖽</sym></h2> Region proposal\n<small><gray>Use a model to identify regions of interest within large images <i>(optional)</i>.</gray></small>':'<h3><sym>◐</sym></h3> Threshold'}}",
                         "font":{"size":0.75},
                         "origin":"{label_origin}", "pos":"{label_offset}",
                         "max_size":"[{label_w},0]",
@@ -744,45 +869,49 @@
                         "outer_pad":[0,10,0,10],
                         "children": [
                             {
-                                "type":"hlayout",
-                                "children":[
-                                    {
-                                        "type":"settings",
-                                        "label":{ "corners":["left"], "color":[255,255,255] },
-                                        "name":"conditional_region_model",
-                                        "var":"{if:{machine_learning}:'region_model':'detect_threshold'}",
-                                        "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
-                                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
-                                        "list":{
-                                            "line":[220,220,220,200],
-                                            "fill":[25,25,25,220],
-                                            "size":"[{element_w},200]",
-                                            "font":{"size":0.6}
-                                        },
-                                        "size":"[{max:50:{-:{element_w}:42}},40]",
-                                        "desc":""
-                                    },
-                                    {
-                                        "type":"condition",
-                                        "var":"{machine_learning}",
-                                        "then":
+                                "type":"condition",
+                                "var":"{not:{precomputed}}",
+                                "then":{
+                                    "type":"hlayout",
+                                    "children":[
                                         {
-                                            "type":"button",
-                                            "corners":["right"],
-                                            "text":"<sym>🗁</sym>",
+                                            "type":"settings",
+                                            "label":{ "corners":["left"], "color":[255,255,255] },
+                                            "name":"conditional_region_model",
+                                            "var":"{if:{machine_learning}:'region_model':'detect_threshold'}",
                                             "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
                                             "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
-                                            "size":[40,40],
-                                            "pad":[1,0,0,0],
-                                            "font":{
-                                                "align":"center",
-                                                "size":0.8,
-                                                "style":"bold"
+                                            "list":{
+                                                "line":[220,220,220,200],
+                                                "fill":[25,25,25,220],
+                                                "size":"[{element_w},200]",
+                                                "font":{"size":0.6}
                                             },
-                                            "action": "choose-file:region_model:{folder:{global.region_model}}:model file:*.pt *.pth"
+                                            "size":"[{max:50:{-:{element_w}:42}},40]",
+                                            "desc":""
+                                        },
+                                        {
+                                            "type":"condition",
+                                            "var":"{machine_learning}",
+                                            "then":
+                                            {
+                                                "type":"button",
+                                                "corners":["right"],
+                                                "text":"<sym>🗁</sym>",
+                                                "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                                                "size":[40,40],
+                                                "pad":[1,0,0,0],
+                                                "font":{
+                                                    "align":"center",
+                                                    "size":0.8,
+                                                    "style":"bold"
+                                                },
+                                                "action": "choose-file:region_model:{folder:{global.region_model}}:model file:*.pt *.pth"
+                                            }
                                         }
-                                    }
-                                ]
+                                    ]
+                                }
                             },
 
                             {
@@ -813,7 +942,7 @@
                                 "type":"stext",
                                 "pad":[0,5,0,0],
                                 "max_size": "[{min:900:{element_w}},65]",
-                                "text": "{if:{machine_learning}:'<b>How does this work?</b>\nIdentified regions are extracted and processed separately by the <lightgray><sym>🐟</sym> <c>detection</c></lightgray> model (<i>e.g. segmentation, or pose estimation</i>) at full scale. This can help increase the resolution per individual for the <c><lightgray>detection</lightgray></c> step (<i>e.g. drone footage</i>). <lightgray>Using multiple models will impact processing speed.</lightgray>':'This threshold is the {if:{global.detect_threshold_is_absolute}:absolute:signed} difference between the background image and a video frame (grayscale). You should fine-tune this value to your video / batch of videos, so that objects are correctly detected and separated - while avoiding to increase it so much that holes in the individuals start to appear.'}",
+                                "text": "{if:{precomputed}:'':{if:{machine_learning}:'<b>How does this work?</b>\nIdentified regions are extracted and processed separately by the <lightgray><sym>🐟</sym> <c>detection</c></lightgray> model (<i>e.g. segmentation, or pose estimation</i>) at full scale. This can help increase the resolution per individual for the <c><lightgray>detection</lightgray></c> step (<i>e.g. drone footage</i>). <lightgray>Using multiple models will impact processing speed.</lightgray>':'This threshold is the {if:{global.detect_threshold_is_absolute}:absolute:signed} difference between the background image and a video frame (grayscale). You should fine-tune this value to your video / batch of videos, so that objects are correctly detected and separated - while avoiding to increase it so much that holes in the individuals start to appear.'}}",
                                 "font":{"size":0.5}
                             }
                         ]

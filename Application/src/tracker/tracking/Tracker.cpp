@@ -55,10 +55,10 @@ FrameRange _analysis_range;
 std::mutex _identities_mutex;
 std::set<Idx_t> _fixed_identities;
 
-auto& properties_mutex() {
+/*auto& properties_mutex() {
     static std::shared_mutex _properties_mutex;
     return _properties_mutex;
-}
+}*/
 
 void Tracker::initialize_slows() {
 #define DEF_CALLBACK(X) Settings::set_callback(Settings:: X , [](auto&, auto& value) { SLOW_SETTING( X ) = value.template value<Settings:: X##_t >(); })
@@ -297,12 +297,22 @@ void Tracker::analysis_state(AnalysisState pause) {
 }
 
 void Tracker::set_average(Image::Ptr&& average, meta_encoding_t::Class encoding) {
-    _background = new Background(std::move(average), encoding);
-    _average = Image::Make(_background->image());
+    if(not average)
+        throw InvalidArgumentException("Need an image to initialize dimensions for ", encoding);
+    auto bounds = average->bounds();
+    
+    _background = new Background{
+        bounds,
+        encoding != meta_encoding_t::binary
+            ? std::move(average)
+            : nullptr,
+        encoding
+    };
+    _average = _background->image() ? Image::Make(*_background->image()) : nullptr;
     _border = Border(_background);
     
     //_blob_grid.set_resolution(size, grid::proximity_res);
-    _blob_grid.set_resolution(_average->bounds().size(), grid::proximity_res);
+    _blob_grid.set_resolution(bounds.size(), grid::proximity_res);
 }
 
 const Image& Tracker::average(cmn::source_location loc) const {
@@ -587,8 +597,13 @@ void Tracker::preprocess_frame(pv::Frame&& frame, PPFrame& pp, GenericThreadPool
     
     filter_blobs(pp, pool, background, frames.start_frame(), frames.end_frame());
     pp.fill_proximity_grid(frames.video_size());
-    if(history_split == HistorySplitPolicy::Apply)
-        HistorySplit{frames, background, pp, need_grid, pool};
+    switch(history_split) {
+        case HistorySplitPolicy::Apply:
+            HistorySplit{frames, background, pp, need_grid, pool};
+            break;
+        case HistorySplitPolicy::Skip:
+            break;
+    }
     
     //! discarding frame...
     //frame.clear();
@@ -3405,7 +3420,7 @@ pv::BlobPtr Tracker::find_blob_noisy(const PPFrame& pp, pv::bid bid, pv::bid, co
         static Timing tag_timing("tags", 0.1);
         TakeTiming take(tag_timing);
         
-        auto result = tags::prettify_blobs(tagged_fish, noise, {}, *_average);
+        auto result = tags::prettify_blobs(tagged_fish, noise, {}, _average.get());
         for (auto &r : result) {
             auto && [var, bid, ptr, f] = tags::is_good_image(r);
             if(ptr) {
@@ -3438,7 +3453,13 @@ pv::BlobPtr Tracker::find_blob_noisy(const PPFrame& pp, pv::bid bid, pv::bid, co
             auto a = Image::Make(average.rows, average.cols, average.channels());
             average.copyTo(a->get());
             
-            Background bg(std::move(a), average.channels() == 3 ? meta_encoding_t::rgb8 : meta_encoding_t::gray);
+            Background bg{
+                Bounds(Vec2{}, video.size()),
+                std::move(a),
+                average.channels() == 3
+                    ? meta_encoding_t::rgb8
+                    : meta_encoding_t::gray
+            };
             
             if(!quiet)
                 Print("Determining blob size in ", video.length()," frames...");

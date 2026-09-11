@@ -990,7 +990,7 @@ void Work::work_thread() {
                 //LockGuard g("get_random::loop");
                 std::shared_lock g{last_source_mutex};
                 auto tracker = last_tracker.lock();
-                sample = DataStore::get_random(tracker->frames(), *tracker->background(), tracker->border(), last_source);
+                sample = DataStore::get_random(tracker->frames(), *tracker->background(), last_source);
                 if (sample && sample->_images.size() < 1) {
                     sample = Sample::Invalid();
                 }

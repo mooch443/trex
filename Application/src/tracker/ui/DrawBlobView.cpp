@@ -1604,7 +1604,7 @@ void BlobView::draw_boundary_selection(DrawStructure& base, Base* window, GUICac
                             "gui_zoom_polygon",
                             "track_ignore",
                             "track_include",
-                            "recognition_shapes",
+                            //"recognition_shapes",
                             "visual_field_shapes"
                         }
                     };

@@ -64,6 +64,7 @@ public:
     VideoProcessor& operator=(VideoProcessor&&) = delete;
     
     ~VideoProcessor() {
+        _async_queue.quit();
         std::scoped_lock guard(_index_mutex);
         _source = nullptr;
     }

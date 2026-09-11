@@ -369,6 +369,9 @@ int main(int argc, char** argv) {
         }
 
         auto _tracker = track::Tracker::Make(video);
+        
+        Output::Library::InitVariables();
+        Output::Library::Init(*_tracker);
 
         if(auto_param
            || BOOL_SETTING(auto_minmax_size)
@@ -573,6 +576,7 @@ int main(int argc, char** argv) {
 
         if(BOOL_SETTING(blob_detail)) {
             pv::Frame frame;
+            const auto progress_interval = std::max<size_t>(1, video.length().get() / 10);
             size_t overall = 0;
             size_t pixels_per_blob = 0, pixels_samples = 0;
             size_t min_pixels = std::numeric_limits<size_t>::max(), max_pixels = 0;
@@ -596,7 +600,7 @@ int main(int argc, char** argv) {
                 }
                 overall += bytes;
 
-                if(i.get() % size_t(video.length().get() * 0.1) == 0) {
+                if(i.get() % progress_interval == 0) {
                     Print("Frame ", i, "/", video.length());
                 }
             }
@@ -607,7 +611,7 @@ int main(int argc, char** argv) {
             for(Frame_t i = 0_f; i < video.length(); ++i) {
                 video.read_frame(frame, i);
 
-                size_t this_frame = 0;
+                size_t this_frame = video.header().encoding == meta_encoding_t::binary ? frame.mask().size() : 0;
                 for(auto& p : frame.pixels()) {
                     if(p->size() >= pixels_median_value * 0.6 && p->size() <= pixels_median_value * 1.3) {
                         ++this_frame;
@@ -625,13 +629,16 @@ int main(int argc, char** argv) {
 
                 blobs_per_frame.addNumber(this_frame);
 
-                if(i.get() % size_t(video.length().get() * 0.1) == 0) {
+                if(i.get() % progress_interval == 0) {
                     Print("Frame ", i, "/", video.length());
                 }
             }
 
             print_explicit(overall, " bytes (", dec<2>(double(overall) / 1000.0 / 1000.0), "MB) of blob data");
-            print_explicit("Images average at ", double(pixels_per_blob) / double(pixels_samples), " px / blob and the range is [", min_pixels, "-", max_pixels, "] with a median of ", pixels_median.getValue(), ".");
+            if(pixels_samples > 0)
+                print_explicit("Images average at ", double(pixels_per_blob) / double(pixels_samples), " px / blob and the range is [", min_pixels, "-", max_pixels, "] with a median of ", pixels_median_value, ".");
+            else
+                print_explicit("No stored pixel samples.");
             print_explicit("There are ", blobs_per_frame.empty() ? 0 : blobs_per_frame.getValue(), " blobs in each frame (median).");
         }
 
@@ -642,9 +649,8 @@ int main(int argc, char** argv) {
         sprite::Map overrides;
         
         if(header.version >= Output::ResultsFormat::Versions::V_28) {
-            header.average.get().copyTo(average);
-            overrides["meta_video_size"] = Size2(average.cols, average.rows);
-            overrides["video_size"] = Size2(average.cols, average.rows);
+            overrides["meta_video_size"] = header.video_resolution;
+            overrides["video_size"] = header.video_resolution;
             overrides["video_length"] = uint64_t(header.video_length);
             overrides["analysis_range"] = Range<long_t>(header.analysis_range.start, header.analysis_range.end);
             auto consec = header.tracklets;
@@ -734,16 +740,27 @@ int main(int argc, char** argv) {
             .source_map = std::move(overrides),
             .quiet = be_quiet
         });
+        
+        auto average_image = header.version >= Output::ResultsFormat::Versions::V_28
+            ? Image::Make(header.average)
+            : Image::Make(average);
+        const auto average_encoding = header.version >= Output::ResultsFormat::Versions::V_28
+            ? (header.average.channels() == 3 ? meta_encoding_t::rgb8 : header.encoding)
+            : READ_SETTING(meta_encoding, meta_encoding_t::Class);
+        auto tracker = track::Tracker::Make(std::move(average_image), average_encoding, READ_SETTING(meta_real_width, Float2_t));
+        
+        Output::Library::InitVariables();
+        Output::Library::Init(*tracker);
 
         if(header.version < Output::ResultsFormat::Versions::V_28) {
             SETTING(quiet) = true;
-            auto tracker = track::Tracker::Make(Image::Make(average), READ_SETTING(meta_encoding, meta_encoding_t::Class), READ_SETTING(meta_real_width, Float2_t));
 
             Output::TrackingResults results(tracker);
             results.load([](auto, auto, auto){}, input.add_extension("results"));
-            auto consec = tracker->frames().read([](auto data) { return data.consec; });
-            std::vector<Range<Frame_t>> vec(consec.begin(), consec.end());
-            SETTING(consecutive) = vec;
+            tracker->frames().write([](auto data) {
+                std::vector<Range<Frame_t>> vec(data.consec.begin(), data.consec.end());
+                SETTING(consecutive) = vec;
+            });
         }
     }
 

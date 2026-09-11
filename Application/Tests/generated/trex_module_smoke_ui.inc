@@ -71,10 +71,6 @@ using ::cmn::gui::ConvertScene;
 using ::cmn::gui::Label;
 }
 
-namespace trex_module_smoke::trex_ui::cmn::gui::convert {
-using ::cmn::gui::convert::VideoInfo;
-}
-
 namespace trex_module_smoke::trex_ui::track {
 using ::track::Segmenter;
 }
@@ -169,6 +165,7 @@ using ::cmn::gui::Posture;
 namespace trex_module_smoke::trex_ui::cmn::gui::DrawPreviewImage {
 using ::cmn::gui::DrawPreviewImage::draw;
 using ::cmn::gui::DrawPreviewImage::make_image;
+using ::cmn::gui::DrawPreviewImage::make_image_cached;
 }
 
 // ui/DrawSegmentsElement.h

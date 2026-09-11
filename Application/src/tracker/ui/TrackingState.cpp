@@ -380,9 +380,11 @@ void TrackingState::init_video() {
     
     //SETTING(gui_interface_scale) = Float2_t(1);
     Print("cm_per_pixel = ", READ_SETTING(cm_per_pixel, Float2_t));
-    
-    for (auto i=0_f; i<cache_size; ++i)
-        unused.emplace(std::make_unique<PPFrame>(tracker->average().bounds().size()));
+    if(not tracker->background())
+        throw InvalidArgumentException("Tracker background is required in init_video in order to generate PPFrames.");
+    for (auto i=0_f; i<cache_size; ++i) {
+        unused.emplace(std::make_unique<PPFrame>(tracker->background()->bounds().size()));
+    }
     
     analysis->start(// main thread
         [this, &analysis = analysis, &please_stop_analysis = please_stop_analysis, &currentID = currentID, &tracker = tracker, &video = video]()

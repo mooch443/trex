@@ -7,6 +7,7 @@
 
 #include <core/SettingsInitializer.h>
 #include <misc/CommandLine.h>
+#include <tracking/Output.h>
 #include <ui/Segmenter.h>
 
 using namespace cmn;
@@ -192,7 +193,8 @@ void expect_pv_frames_match_reference(const Path& actual_base,
 
 void run_headless_segmenter_case(meta_encoding_t::Class encoding,
                                  size_t frame_count,
-                                 std::optional<Range<long_t>> conversion_range = std::nullopt)
+                                 std::optional<Range<long_t>> conversion_range = std::nullopt,
+                                 bool track_background_subtraction = true)
 {
     register_data_locations_once();
     reset_global_settings();
@@ -209,6 +211,7 @@ void run_headless_segmenter_case(meta_encoding_t::Class encoding,
     const Path output_base((output_dir / "synthetic_segment").string());
 
     configure_segmenter_case(ws, source_paths, conversion_range, encoding);
+    SETTING(track_background_subtraction) = track_background_subtraction;
     run_configured_segmenter_to_completion(true);
 
     const auto pv_path = output_base.add_extension("pv");
@@ -230,6 +233,13 @@ void run_headless_segmenter_case(meta_encoding_t::Class encoding,
         : 0u;
     ASSERT_EQ(output.length().get(), expected_output_frames)
         << "PV frame count should match the selected source range exactly.";
+
+    const auto results_path = output_base.add_extension("results");
+    ASSERT_TRUE(results_path.is_regular());
+    const auto header = Output::TrackingResults::load_header(results_path);
+    EXPECT_EQ(header.video_length, expected_output_frames);
+    EXPECT_EQ(header.analysis_range.start, -1);
+    EXPECT_EQ(header.analysis_range.end, -1);
 
     for (size_t i = 0; i < expected_output_frames; ++i) {
         pv::Frame frame;
@@ -254,7 +264,10 @@ std::string meta_encoding_parameter_name(
 } // namespace
 
 TEST_P(SegmenterMetaEncodingTest, HeadlessSyntheticSequenceIsExact) {
-    run_headless_segmenter_case(GetParam(), 12, std::nullopt);
+    for(const bool subtract_background : {true, false}) {
+        SCOPED_TRACE(subtract_background);
+        run_headless_segmenter_case(GetParam(), 12, std::nullopt, subtract_background);
+    }
 }
 
 TEST_P(SegmenterMetaEncodingTest, HeadlessSyntheticSequenceWithConversionRangeKeepsSourceOffset) {
@@ -360,6 +373,8 @@ TEST_P(SegmenterMetaEncodingTest, ResumesUnlessStartOverIsRequested) {
     ASSERT_TRUE(output_pv.delete_file());
 }
 
+// Policy: Opening an existing PV restores its detection type. Its automatic
+// filename must not become a user-selected name or a saved filename override.
 TEST(SegmenterExistingOutputTest, LoadContextLoadsExistingPvAndClearsDerivedFilename) {
     register_data_locations_once();
     reset_global_settings();

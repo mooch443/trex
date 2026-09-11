@@ -188,6 +188,8 @@ struct PreviewData {
     VerticalLayout layout;
     SettingsTooltip tooltip;
     Entangled preview;
+    Image raw_buffer;
+    cv::Mat mask_buffer, image_buffer;
 };
 
 PreviewData& preview_data() {
@@ -196,20 +198,20 @@ PreviewData& preview_data() {
 }
 
 void convert_image_to_rgba(
-        Image::Ptr&& image,
+        Image& image,
         meta_encoding_t::Class from,
         bool is_r3g3b2,
         Image& ptr)
 {
-    if(image->dims == 4) {
+    if(image.dims == 4) {
         /// must already be in RGBA format!
         FormatWarning("Null operation since the image is already in 4-channel format!");
-        ptr = std::move(*image);
+        ptr = std::move(image);
         return;
     }
     
     /// make sure we have the right format allocated
-    ptr.create(image->rows, image->cols, 4);
+    ptr.create(image.rows, image.cols, 4);
     cv::Mat output = ptr.get();
     
     if(from == meta_encoding_t::data::values::binary) {
@@ -222,32 +224,32 @@ void convert_image_to_rgba(
             break;
         }
         case meta_encoding_t::data::values::r3g3b2: {
-            if(image->channels() == 1) [[likely]] {
+            if(image.channels() == 1) [[likely]] {
                 /// got a greyscale r3g3b2 image input -> just convert
-                convert_from_r3g3b2<4, 1, true>(image->get(), output);
+                convert_from_r3g3b2<4, 1, true>(image.get(), output);
                 return;
                 
-            } else if(image->channels() == 3) {
+            } else if(image.channels() == 3) {
                 /// got a 3 channel format, so maybe we have a RGB image?
-                cv::cvtColor(image->get(), output, cv::COLOR_BGR2BGRA);
+                cv::cvtColor(image.get(), output, cv::COLOR_BGR2BGRA);
                 return;
             }
             
             break;
         }
         case meta_encoding_t::data::values::rgb8: {
-            if(image->channels() == 3) [[likely]] {
+            if(image.channels() == 3) [[likely]] {
                 /// this is the most likely option
-                cv::cvtColor(image->get(), output, cv::COLOR_BGR2BGRA);
+                cv::cvtColor(image.get(), output, cv::COLOR_BGR2BGRA);
                 return;
                 
-            } else if(image->channels() == 1) {
+            } else if(image.channels() == 1) {
                 /// likely a grayscale image
                 /// but could also be r3g3b2!
                 if(is_r3g3b2) {
-                    convert_from_r3g3b2<4, 1, true>(image->get(), output);
+                    convert_from_r3g3b2<4, 1, true>(image.get(), output);
                 } else {
-                    cv::cvtColor(image->get(), output, cv::COLOR_GRAY2BGRA);
+                    cv::cvtColor(image.get(), output, cv::COLOR_GRAY2BGRA);
                 }
                 return;
             }
@@ -255,15 +257,15 @@ void convert_image_to_rgba(
             break;
         }
         case meta_encoding_t::data::values::gray: {
-            if(image->channels() == 3) {
+            if(image.channels() == 3) {
                 /// this was likely from a rgb8 image
-                cv::cvtColor(image->get(), output, cv::COLOR_BGR2BGRA);
+                cv::cvtColor(image.get(), output, cv::COLOR_BGR2BGRA);
                 return;
-            } else if(image->channels() == 1) {
+            } else if(image.channels() == 1) {
                 if(is_r3g3b2) {
-                    convert_from_r3g3b2<4, 1, true>(image->get(), output);
+                    convert_from_r3g3b2<4, 1, true>(image.get(), output);
                 } else {
-                    cv::cvtColor(image->get(), output, cv::COLOR_GRAY2BGRA);
+                    cv::cvtColor(image.get(), output, cv::COLOR_GRAY2BGRA);
                 }
                 return;
             }
@@ -271,7 +273,7 @@ void convert_image_to_rgba(
         }
     }
     
-    throw InvalidArgumentException("Illegal conversion from ", *image, " to RGBA from ", from);
+    throw InvalidArgumentException("Illegal conversion from ", image, " to RGBA from ", from);
 }
 
 std::tuple<Image::Ptr, Vec2> make_image(pv::BlobWeakPtr blob,
@@ -283,35 +285,42 @@ std::tuple<Image::Ptr, Vec2> make_image(pv::BlobWeakPtr blob,
     auto output_shape = FAST_SETTING(individual_image_size);
     auto transform = midline ? midline->transform(normalize) : gui::Transform();
     
-    auto &&[image, pos] = constraints::diff_image(normalize, blob, transform, filters ? filters->median_midline_length_px : 0, output_shape, background);
-    
-    if(not image)
+    auto &&[buffer, pos] = constraints::diff_image(
+        normalize, blob, transform,
+        filters ? filters->median_midline_length_px : 0,
+        output_shape, background);
+
+    if(not buffer)
         return {nullptr, Vec2{}};
     
+    if(buffer->channels() == 4)
+        return { std::move(buffer), pos };
+
     Image::Ptr output = Image::Make(output_shape.height, output_shape.width, 4);
-    convert_image_to_rgba(std::move(image), SETTING(meta_encoding), false, *output);
+    convert_image_to_rgba(*buffer, SETTING(meta_encoding), false, *output);
     return {
         std::move(output),
         pos
     };
 }
 
-std::optional<Vec2> make_image(pv::BlobWeakPtr blob,
+std::optional<Vec2> make_image_cached(pv::BlobWeakPtr blob,
                 const track::Midline* midline,
                 const track::constraints::FilterCache* filters,
                 const track::Background* background,
-                Image& output)
+                Image& raw_buffer,
+                cv::Mat& mask_buffer, cv::Mat& image_buffer,
+                Image& rgba_output)
 {
     const auto normalize = default_config::valid_individual_image_normalization();
     auto output_shape = FAST_SETTING(individual_image_size);
     auto transform = midline ? midline->transform(normalize) : gui::Transform();
     
-    auto &&[image, pos] = constraints::diff_image(normalize, blob, transform, filters ? filters->median_midline_length_px : 0, output_shape, background);
-    
-    if(not image)
+    auto pos = constraints::diff_image_cached(mask_buffer, image_buffer, raw_buffer, normalize, blob, transform, filters ? filters->median_midline_length_px : 0, output_shape, background);
+    if(not pos)
         return std::nullopt;
     
-    convert_image_to_rgba(std::move(image), SETTING(meta_encoding), false, output);
+    convert_image_to_rgba(raw_buffer, SETTING(meta_encoding), false, rgba_output);
     return pos;
 }
 
@@ -408,10 +417,15 @@ void draw(const Background* average, const PPFrame& pp,Frame_t frame, DrawStruct
             if(not tracklet)
                 U_EXCEPTION("Cannot find tracklet for frame ", frame, " in fish ", idx, " despite finding a blob ", *blob);
             
-            auto filters = constraints::local_midline_length(fish, tracklet->range, &cache.border());
-            auto &&[image, pos] = make_image(pixels, midline.get(), filters.get(), average);
+            auto filters = constraints::local_midline_length(fish, tracklet->range, nullptr);
+            auto image = Image::Make();
+            auto pos = make_image_cached(pixels, midline.get(), filters.get(), average,
+                                         preview_data().raw_buffer,
+                                         preview_data().mask_buffer,
+                                         preview_data().image_buffer,
+                                         *image);
             
-            if(!image || image->empty())
+            if(!pos || image->empty())
                 continue;
             
             auto scale = graph.scale().reciprocal().mul(200.0 / image->cols, 200.0 / image->rows);

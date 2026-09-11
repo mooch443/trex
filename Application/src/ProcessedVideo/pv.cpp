@@ -570,7 +570,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const PixelArray
        c > 0)
     {
         assert(pixel_count * c == pixels.size());
-    } else {
+    } else if(encoding() != meta_encoding_t::binary) {
         assert(pixel_count == pixels.size());
     }
 #endif

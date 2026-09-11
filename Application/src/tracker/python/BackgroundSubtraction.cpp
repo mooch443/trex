@@ -213,13 +213,11 @@ void BackgroundSubtraction::apply(std::vector<TileImage> &&tiled) {
             #if defined(TAGS_ENABLE)
                     if(!GRAB_SETTINGS(tags_saved_only))
             #endif
-                        rawblobs = CPULabeling::run(r3, cache, true);
-
-                    if(mode == meta_encoding_t::binary) {
-                        for(auto &pair : rawblobs) {
-                            pair.pixels = nullptr;
-                        }
-                    }
+                        rawblobs = CPULabeling::run(
+                            r3,
+                            cache,
+                            true,
+                            mode != meta_encoding_t::binary);
 
                     const uint8_t flags = pv::Blob::flag(pv::Blob::Flags::is_tag)
                             | pv::Blob::flag(pv::Blob::Flags::is_instance_segmentation)

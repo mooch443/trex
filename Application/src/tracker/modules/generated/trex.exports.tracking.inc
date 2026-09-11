@@ -25,8 +25,6 @@ using ::cmn::gui::Graph;
 export namespace track {
 // tracking/BlobReceiver.h
 using ::track::BlobReceiver;
-// tracking/CategorizeDatastore.h
-using ::track::Border;
 // tracking/ConnectedTasks.h
 using ::track::PPFrame;
 // tracking/DebugDrawing.h
@@ -41,6 +39,7 @@ using ::track::HistorySplit;
 using ::track::Hungarian_t;
 using ::track::kuhn_match;
 // tracking/ImageExtractor.h
+using ::track::Border;
 using ::track::Tracker;
 // tracking/IndividualManager.h
 using ::track::IndividualManager;
@@ -129,6 +128,7 @@ export namespace track::constraints {
 // tracking/FilterCache.h
 using ::track::constraints::FilterCache;
 using ::track::constraints::diff_image;
+using ::track::constraints::diff_image_cached;
 using ::track::constraints::local_midline_length;
 }
 
@@ -180,8 +180,11 @@ using ::track::detect::annotation_import::task_t::Class;
 export namespace track::image {
 // tracking/FilterCache.h
 using ::track::image::calculate_diff_image;
+using ::track::image::calculate_diff_image_cached;
 using ::track::image::calculate_normalized_diff_image;
+using ::track::image::calculate_normalized_diff_image_cached;
 using ::track::image::calculate_normalized_image;
+using ::track::image::calculate_normalized_image_cached;
 }
 
 export namespace track::split::Action {

@@ -35,7 +35,7 @@ namespace cmn::gui {
         void update(gui::DrawStructure&, Frame_t);
         void update() override;
         
-        const Drawable* tooltip_object() const override;
+        Drawable* tooltip_object();
     };
 
     class DrawSegments : public Entangled {
@@ -67,7 +67,7 @@ namespace cmn::gui {
         
         void update() override;
         void update_box();
-        const Drawable* tooltip_object() const override;
+        Drawable* tooltip_object() override;
     };
 
 }

@@ -559,6 +559,8 @@ bool TrackingScene::on_global_event(Event event) {
 
     if(event.type == EventType::MBUTTON || event.type == EventType::SCROLL) {
         _data->_zoom_dirty = true;
+        if(event.type == EventType::SCROLL)
+            _data->handle_zooming(event);
     }
     if(event.type == EventType::WINDOW_RESIZED) {
         _data->_zoom_dirty = true;
@@ -1215,14 +1217,11 @@ void TrackingScene::update_run_loop() {
             _data->_background
             && _data->_background->valid()
             && BOOL_SETTING(gui_wait_for_background);
-        const Frame_t video_conversion_start = _state && _state->video && _state->video->header().conversion_range.start.has_value() ? Frame_t(_state->video->header().conversion_range.start.value()) : Frame_t{};
         const bool gui_show_video_background = BOOL_SETTING(gui_show_video_background);
         const bool gui_wait_for_pv = BOOL_SETTING(gui_wait_for_pv);
         const Frame_t gui_displayed_frame = READ_SETTING(gui_displayed_frame, Frame_t);
         const Frame_t background_displayed_frame = _data->_background && _data->_background->valid()
-            ? (video_conversion_start.valid() && _data->_background->displayed_frame().valid()
-               ? _data->_background->displayed_frame().try_sub(video_conversion_start)
-               : _data->_background->displayed_frame())
+            ? _data->_background->displayed_frame()
         : Frame_t{};
         
         _data->_cache->set_load_frames_blocking(false);

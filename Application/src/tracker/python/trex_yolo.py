@@ -315,6 +315,7 @@ class StrippedYoloResults(StrippedResults):
                         f"[0, 255], got [{minimum}, {maximum}]."
                     )
             self.semantic_mask = np.ascontiguousarray(semantic, dtype=np.uint8)
+            #TRex.imshow("YOLO semantic mask", self.semantic_mask * 255)
 
         box_array = np.asarray(box, dtype=np.float32)
         if box_array.shape[0] < 4:

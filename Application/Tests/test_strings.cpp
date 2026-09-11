@@ -1,5 +1,5 @@
-#include "gtest/gtest.h"
 #include <commons.pc.h>
+#include "gtest/gtest.h"
 #include <misc/parse_parameter_lists.h>
 #include <misc/Timer.h>
 #include <misc/Path.h>
@@ -17,6 +17,7 @@
 #include <gui/dyn/ResolveVariable.h>
 #include <gui/DynamicGUI.h>
 #include <core/idx_t.h>
+#include <core/VideoInfo.h>
 #include <gui/dyn/UnresolvedStringPattern.h>
 #include <misc/Median.h>
 
@@ -653,6 +654,27 @@ TEST(PreparseTest, SubItemsExtended) {
     ASSERT_EQ(realized, "[1024,768] 1024");
 }
 
+TEST(PreparseTest, VideoInfoFields) {
+    const VideoInfo info{
+        .resolution = Size2(640, 480),
+        .length = 120_f,
+        .current_frame_index = 7_f
+    };
+
+    using namespace gui::dyn;
+    Context context{
+        VarFunc("video", [&info](const VarProps&) -> const VideoInfo& {
+            return info;
+        })
+    };
+    State state;
+    auto pattern = cmn::pattern::UnresolvedStringPattern::prepare(
+        "{video.current_frame_index}/{video.length} "
+        "{at:0:{video.resolution}}x{at:1:{video.resolution}}");
+
+    EXPECT_EQ(pattern.realize(context, state), "7/120 640x480");
+}
+
 TEST(PreparseTest, EmptyConditionsInIf) {
     using namespace cmn::pattern;
     
@@ -1186,6 +1208,54 @@ TEST(UnresolvedStringPatternTest, SelfAssignmentNoLeakNoCrash) {
     ASSERT_EQ(a.objects.size(), 1);
     ASSERT_EQ(a.objects[0].type, PreparedPattern::PREPARED);
     ASSERT_EQ(a.objects[0].value.prepared, a.all_patterns[0]);
+}
+
+TEST(ConversionTest, VideoInfoSerializesAllFields) {
+    const std::string source = R"(["recording-1.mp4","recording-2.mp4"])";
+    const VideoInfo info{
+        .base = file::PathArray(source),
+        .resolution = Size2(640, 480),
+        .framerate = 25,
+        .finite = true,
+        .length = 120_f,
+        .current_frame_index = 7_f
+    };
+
+    const auto serialized = glz::write_json(info);
+    ASSERT_TRUE(serialized.has_value());
+    glz::json_t reflected;
+    ASSERT_EQ(glz::read_json(reflected, serialized.value()), glz::error_code::none);
+
+    for(const auto& json : {info.to_json(), reflected}) {
+        const auto& fields = json.get_object();
+        ASSERT_EQ(fields.size(), 6u);
+        EXPECT_EQ(fields.at("base").get_string(), source);
+        const auto& resolution = fields.at("resolution").get_array();
+        ASSERT_EQ(resolution.size(), 2u);
+        EXPECT_DOUBLE_EQ(resolution[0].get_number(), 640);
+        EXPECT_DOUBLE_EQ(resolution[1].get_number(), 480);
+        EXPECT_DOUBLE_EQ(fields.at("framerate").get_number(), 25);
+        EXPECT_TRUE(fields.at("finite").get_boolean());
+        EXPECT_DOUBLE_EQ(fields.at("length").get_number(), 120);
+        EXPECT_DOUBLE_EQ(fields.at("current_frame_index").get_number(), 7);
+    }
+}
+
+TEST(ConversionTest, VideoInfoPreservesInvalidFrames) {
+    const VideoInfo info{};
+    const auto serialized = glz::write_json(info);
+    ASSERT_TRUE(serialized.has_value());
+    glz::json_t reflected;
+    ASSERT_EQ(glz::read_json(reflected, serialized.value()), glz::error_code::none);
+
+    for(const auto& json : {info.to_json(), reflected}) {
+        const auto& fields = json.get_object();
+        ASSERT_EQ(fields.size(), 6u);
+        EXPECT_TRUE(fields.at("length").is_null());
+        EXPECT_TRUE(fields.at("current_frame_index").is_null());
+        EXPECT_DOUBLE_EQ(fields.at("framerate").get_number(), 0);
+        EXPECT_FALSE(fields.at("finite").get_boolean());
+    }
 }
 
 TEST(ConversionTest, FileObjects) {

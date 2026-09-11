@@ -7,6 +7,7 @@
 #include <ui/Segmenter.h>
 #include <ui/WorkProgress.h>
 #include <python/PipelineRegistry.h>
+#include <python/PrecomuptedDetection.h>
 #include <processing/Background.h>
 
 #include <atomic>
@@ -228,6 +229,34 @@ std::string run_conversion(size_t frame_count, bool set_terminate_flags = false)
 }
 
 } // namespace
+
+TEST(PrecomputedBackground, BinaryPlaceholderUnpausesThePipeline) {
+    TestWatchdog watchdog(kWaitDeadline);
+    reset_global_settings();
+    SETTING(meta_encoding) = meta_encoding_t::binary;
+    detect::register_pipeline(ObjectDetectionType::precomputed, 1, true,
+        [](std::vector<TileImage>&& tiled) {
+            for(auto& tile : tiled)
+                tile.images.clear();
+        });
+
+    auto background = Image::Make(48, 64, 1);
+    background->set_to(0u);
+    EXPECT_NO_THROW(PrecomputedDetection::set_background(std::move(background), meta_encoding_t::binary));
+
+    auto& pipeline = detect::pipeline_manager(ObjectDetectionType::precomputed);
+    auto enqueued = std::async(std::launch::async, [&pipeline]() {
+        TileImage tile;
+        tile.images.push_back(Image::Make(1, 1, 3));
+        pipeline.enqueue(std::move(tile));
+    });
+    EXPECT_EQ(enqueued.wait_for(std::chrono::seconds(5)), std::future_status::ready);
+    pipeline.set_paused(false);
+    enqueued.get();
+    pipeline.clean_up();
+    PrecomputedDetection::set_background(nullptr, meta_encoding_t::binary);
+    PrecomputedDetection::deinit();
+}
 
 TEST(PipelineFaults, SucceedingPipelineReachesEof) {
     TestWatchdog watchdog(kWaitDeadline * 3);

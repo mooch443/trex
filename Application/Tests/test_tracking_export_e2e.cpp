@@ -2,6 +2,7 @@
 
 #include "gtest/gtest.h"
 
+#include <cnpy/cnpy.h>
 #include <core/TileBuffers.h>
 #include <core/default_config.h>
 #include <file/DataLocation.h>
@@ -10,7 +11,10 @@
 #include <python/PythonWrapper.h>
 #include <tracking/Individual.h>
 #include <tracking/IndividualManager.h>
+#include <tracking/DatasetQuality.h>
 #include <tracking/Tracker.h>
+#include <tracking/TrackletInformation.h>
+#include <ui/Export.h>
 #include <ui/TrackingState.h>
 #include <core/SettingsPaths.h>
 #include <ui/WorkProgress.h>
@@ -256,6 +260,11 @@ void expect_parseable_export_csv(const fs::path& csv_path, const Range<long_t>& 
         EXPECT_TRUE(saw_finite) << csv_path << " column " << header[column];
 }
 
+using TrackletImageExportParams = std::tuple<meta_encoding_t::Class, meta_encoding_t::Class, bool, bool>;
+
+class TrackletImageExportTest
+    : public ::testing::TestWithParam<TrackletImageExportParams> {};
+
 } // namespace
 
 TEST(HeadlessTrackingExport, TracksFixtureAndExportsParseableCsv) {
@@ -327,3 +336,238 @@ TEST(HeadlessTrackingExport, TracksFixtureAndExportsParseableCsv) {
             expect_parseable_export_csv(csv_file, analysis_range);
     }
 }
+
+TEST(HeadlessTrackingExport, BinaryTrackletsReceiveQualityScores) {
+    register_data_locations_once();
+    reset_global_settings();
+    track::DatasetQuality::remove_frames(0_f);
+
+    constexpr size_t frame_count = 7; // Range::length() is end - start and must exceed 5.
+    SETTING(meta_encoding) = meta_encoding_t::binary;
+    SETTING(meta_real_width) = Float2_t(64);
+    SETTING(cm_per_pixel) = Float2_t(1);
+    SETTING(frame_rate) = uint32_t(25);
+    SETTING(video_length) = uint64_t(frame_count);
+    SETTING(analysis_range) = Range<long_t>(0, frame_count - 1);
+    SETTING(track_max_individuals) = uint32_t(1);
+    SETTING(track_max_speed) = Float2_t(100);
+    SETTING(track_do_history_split) = false;
+    SETTING(track_background_subtraction) = false;
+    SETTING(track_threshold) = int(0);
+    SETTING(calculate_posture) = false;
+
+    auto tracker = track::Tracker::Make(Image::Make(48, 64, 0), meta_encoding_t::binary, Float2_t(64));
+    ASSERT_FALSE(tracker->background()->image());
+    for(size_t i = 0; i < frame_count; ++i) {
+        pv::Frame frame;
+        frame.set_encoding(meta_encoding_t::binary);
+        frame.set_index(Frame_t(i));
+        frame.set_source_index(Frame_t(i));
+        frame.set_timestamp(uint64_t((i + 1) * 40000));
+        std::vector<HorizontalLine> mask;
+        for(coord_t y = 18; y < 26; ++y)
+            mask.emplace_back(y, 20 + i, 31 + i);
+        frame.add_object(mask, PixelArray_t{}, 0, {});
+
+        track::PPFrame processed;
+        track::Tracker::preprocess_frame(std::move(frame), processed, nullptr,
+                                         tracker->frames(), *tracker->background(),
+                                         track::NeedGrid::NoNeed, track::HistorySplitPolicy::Skip);
+        tracker->add(processed);
+    }
+
+    const auto individuals = track::IndividualManager::copy();
+    ASSERT_EQ(individuals.size(), 1u);
+    ASSERT_EQ(individuals.begin()->second->frame_count(), frame_count);
+    track::DatasetQuality::update(*tracker);
+    const Range<Frame_t> range{0_f, Frame_t(frame_count - 1)};
+    ASSERT_TRUE(track::DatasetQuality::has(range));
+    const auto scores = track::DatasetQuality::per_fish(range);
+    const auto id = individuals.begin()->first;
+    ASSERT_TRUE(scores.contains(id));
+    EXPECT_EQ(scores.at(id).number_frames, frame_count);
+    EXPECT_GT(scores.at(id).grid_cells_visited, 0);
+}
+
+TEST_P(TrackletImageExportTest, ExportsEveryValidBlobForMetaEncoding) {
+    register_data_locations_once();
+    reset_global_settings();
+
+    const auto [input_encoding, output_encoding, normalize, force_normal_color] = GetParam();
+    auto workspace = make_workspace();
+    const file::Path video_base((workspace.root / "tracklet_export").string());
+    constexpr size_t frame_count = 3;
+    const size_t input_channels = input_encoding == meta_encoding_t::rgb8 ? 3u : 1u;
+    const size_t output_channels = output_encoding == meta_encoding_t::rgb8 ? 3u : 1u;
+
+    SETTING(filename) = video_base;
+    SETTING(output_dir) = file::Path((workspace.root / "output").string());
+    SETTING(output_prefix) = std::string(kOutputPrefix);
+    SETTING(data_prefix) = file::Path("data");
+    SETTING(meta_encoding) = output_encoding;
+    SETTING(meta_real_width) = Float2_t(64);
+    SETTING(cm_per_pixel) = Float2_t(1);
+    SETTING(frame_rate) = uint32_t(25);
+    SETTING(track_max_individuals) = uint32_t(1);
+    SETTING(track_max_speed) = Float2_t(100);
+    SETTING(track_do_history_split) = false;
+    SETTING(track_background_subtraction) = false;
+    SETTING(track_threshold) = int(0);
+    SETTING(calculate_posture) = false;
+    SETTING(individual_image_normalization) = default_config::individual_image_normalization_t::none;
+    SETTING(individual_image_size) = Size2(32, 24);
+    SETTING(output_tracklet_images) = true;
+    SETTING(tracklet_normalize) = normalize;
+    SETTING(tracklet_force_normal_color) = force_normal_color;
+    SETTING(tracklet_max_images) = uint16_t(0);
+    SETTING(output_min_frames) = uint16_t(2);
+    SETTING(auto_no_tracking_data) = true;
+    SETTING(output_posture_data) = false;
+    SETTING(output_recognition_data) = false;
+    SETTING(output_statistics) = false;
+
+    {
+        auto video = pv::File::Write(video_base, input_encoding);
+        video.set_resolution(Size2(64, 48));
+        video.set_start_time(std::chrono::system_clock::now());
+        video.set_average(cv::Mat::zeros(48, 64, CV_8UC(input_channels)));
+
+        std::vector<HorizontalLine> mask;
+        for(coord_t y = 18; y < 26; ++y)
+            mask.emplace_back(y, 20, 31);
+
+        for(size_t i = 0; i < frame_count; ++i) {
+            pv::Frame frame;
+            frame.set_encoding(input_encoding);
+            frame.set_index(Frame_t(i));
+            frame.set_source_index(Frame_t(i));
+            frame.set_timestamp(video.header().timestamp + uint64_t(i * 40000));
+            PixelArray_t pixels(96 * input_channels);
+            std::fill(pixels.begin(), pixels.end(), uchar(160 + 16 * i));
+            frame.add_object(mask, pixels, 0, {});
+            video.add_individual(frame);
+        }
+        video.close();
+    }
+
+    auto video = pv::File::Read(video_base);
+    ASSERT_EQ(video.header().encoding, input_encoding);
+    ASSERT_EQ(video.length().get(), frame_count);
+    const cv::Mat background = cv::Mat::zeros(48, 64, CV_8UC(output_channels));
+    auto tracker = track::Tracker::Make(Image::Make(background), output_encoding, Float2_t(64));
+    ASSERT_EQ(Background::meta_encoding(), output_encoding);
+
+    for(size_t i = 0; i < frame_count; ++i) {
+        SCOPED_TRACE(i);
+        pv::Frame frame;
+        video.read_frame(frame, Frame_t(i));
+        ASSERT_EQ(frame.encoding(), input_encoding);
+        ASSERT_EQ(frame.n(), 1u);
+        ASSERT_EQ(frame.mask().size(), 1u);
+        ASSERT_TRUE(frame.mask().front());
+        ASSERT_FALSE(frame.mask().front()->empty());
+        if(input_encoding == meta_encoding_t::binary) {
+            ASSERT_TRUE(frame.pixels().empty());
+        } else {
+            ASSERT_EQ(frame.pixels().size(), 1u);
+            ASSERT_TRUE(frame.pixels().front());
+            ASSERT_EQ(frame.pixels().front()->size(), 96u * input_channels);
+        }
+
+        video.read_with_encoding(frame, Frame_t(i), output_encoding);
+        ASSERT_EQ(frame.encoding(), output_encoding);
+        ASSERT_EQ(frame.n(), 1u);
+        if(output_encoding == meta_encoding_t::binary) {
+            ASSERT_TRUE(frame.pixels().empty());
+        } else {
+            ASSERT_EQ(frame.pixels().size(), 1u);
+            ASSERT_TRUE(frame.pixels().front());
+            ASSERT_EQ(frame.pixels().front()->size(), 96u * output_channels);
+        }
+
+        track::PPFrame processed;
+        track::Tracker::preprocess_frame(std::move(frame), processed, nullptr,
+                                         tracker->frames(), *tracker->background(),
+                                         track::NeedGrid::NoNeed, track::HistorySplitPolicy::Skip);
+        tracker->add(processed);
+    }
+
+    const auto individuals = track::IndividualManager::copy();
+    ASSERT_EQ(individuals.size(), 1u);
+    const auto [id, fish] = *individuals.begin();
+    ASSERT_NE(fish, nullptr);
+    ASSERT_EQ(fish->frame_count(), frame_count);
+    ASSERT_EQ(fish->tracklets().size(), 1u);
+    ASSERT_EQ(fish->tracklets().front()->range, (Range<Frame_t>{0_f, 2_f}));
+    for(size_t i = 0; i < frame_count; ++i) {
+        const auto blob = fish->blob(Frame_t(i));
+        ASSERT_TRUE(blob);
+        ASSERT_FALSE(blob->hor_lines().empty());
+    }
+
+    ASSERT_NO_THROW(track::export_data(video, *tracker, {}, {}, [](float, std::string_view) {}));
+
+    const auto data_dir = workspace.root / "output" / kOutputPrefix / "data";
+    const auto singles_path = data_dir / "tracklet_export_tracklet_images_single_part0.npz";
+    ASSERT_TRUE(fs::exists(singles_path)) << singles_path;
+    const auto singles = cnpy::npz_load(singles_path.string());
+    for(const auto* key : {"images", "dimensions", "frames", "ids", "encoding"})
+        ASSERT_TRUE(singles.contains(key)) << key;
+
+    const auto& frames = singles.at("frames");
+    ASSERT_EQ(frames.word_size, sizeof(long_t));
+    EXPECT_EQ(frames.as_vec<long_t>(), (std::vector<long_t>{0, 1, 2}));
+    const auto& ids = singles.at("ids");
+    ASSERT_EQ(ids.word_size, sizeof(long_t));
+    EXPECT_EQ(ids.as_vec<long_t>(), std::vector<long_t>(frame_count, id.get()));
+    const auto exported_encoding = singles.at("encoding").as_vec<char>();
+    EXPECT_EQ(std::string(exported_encoding.begin(), exported_encoding.end()), Meta::toStr(output_encoding));
+
+    const size_t rows = normalize ? 24u : 10u;
+    const size_t cols = normalize ? 32u : 14u;
+    const auto& dimensions = singles.at("dimensions");
+    ASSERT_EQ(dimensions.word_size, sizeof(uint32_t));
+    ASSERT_EQ(dimensions.shape, (std::vector<size_t>{frame_count, 3}));
+    const auto sizes = dimensions.as_vec<uint32_t>();
+    for(size_t i = 0; i < frame_count; ++i) {
+        EXPECT_EQ(sizes[i * 3], rows);
+        EXPECT_EQ(sizes[i * 3 + 1], cols);
+        EXPECT_EQ(sizes[i * 3 + 2], output_channels);
+    }
+
+    const auto& images = singles.at("images");
+    const size_t bytes_per_image = rows * cols * output_channels;
+    ASSERT_EQ(images.word_size, sizeof(uchar));
+    ASSERT_EQ(images.shape, (normalize
+        ? std::vector<size_t>{frame_count, rows, cols, output_channels}
+        : std::vector<size_t>{frame_count * bytes_per_image}));
+    ASSERT_EQ(images.num_bytes(), frame_count * bytes_per_image);
+    for(size_t i = 0; i < frame_count; ++i) {
+        const auto* pixels = images.data<uchar>() + i * bytes_per_image;
+        EXPECT_TRUE(std::any_of(pixels, pixels + bytes_per_image, [](uchar value) {
+            return value != 0;
+        })) << "Empty image for frame " << i;
+    }
+
+    if(normalize) {
+        const auto median_path = data_dir / "tracklet_export_tracklet_images.npz";
+        ASSERT_TRUE(fs::exists(median_path)) << median_path;
+        const auto median = cnpy::npz_load(median_path.string());
+        ASSERT_TRUE(median.contains("images"));
+        ASSERT_TRUE(median.contains("meta"));
+        EXPECT_EQ(median.at("images").shape, (std::vector<size_t>{1, rows, cols}));
+        ASSERT_EQ(median.at("meta").word_size, sizeof(long_t));
+        EXPECT_EQ(median.at("meta").as_vec<long_t>(), (std::vector<long_t>{static_cast<long_t>(id.get()), 0, 2}));
+    }
+}
+
+INSTANTIATE_TEST_SUITE_P(AllMetaEncodings, TrackletImageExportTest,
+    ::testing::Combine(::testing::ValuesIn(meta_encoding_t::values),
+                       ::testing::ValuesIn(meta_encoding_t::values),
+                       ::testing::Bool(), ::testing::Bool()),
+    ([](const ::testing::TestParamInfo<TrackletImageExportParams>& info) {
+        const auto [input_encoding, output_encoding, normalize, force_normal_color] = info.param;
+        return std::string(input_encoding.name()) + "_to_" + std::string(output_encoding.name())
+            + (normalize ? "_normalized" : "_raw")
+            + (force_normal_color ? "_color" : "_difference");
+    }));

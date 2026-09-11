@@ -160,16 +160,12 @@ export namespace cmn::gui::DrawPreviewImage {
 // ui/DrawPreviewImage.h
 using ::cmn::gui::DrawPreviewImage::draw;
 using ::cmn::gui::DrawPreviewImage::make_image;
+using ::cmn::gui::DrawPreviewImage::make_image_cached;
 }
 
 export namespace cmn::gui::attr {
 // ui/Scene.h
 using ::cmn::gui::attr::Dispatcher;
-}
-
-export namespace cmn::gui::convert {
-// ui/ConvertScene.h
-using ::cmn::gui::convert::VideoInfo;
 }
 
 export namespace cmn::gui::detail {

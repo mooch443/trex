@@ -27,7 +27,7 @@ typedef int64_t data_long_t;
 
 void Output::ResultsFormat::post_process(const CachedSettings& settings, Output::ResultsFormat* _self, Individual* obj) {
     //CachedSettings settings;
-    obj->update_midlines(_self->_tracker->frames(), settings, _self->property_cache().get());
+    obj->update_midlines(_self->_tracker->frames(), settings, nullptr);
     obj->local_cache().regenerate(obj);
 }
 
@@ -462,7 +462,6 @@ uint64_t Data::write(const Midline& val) {
 void Output::ResultsFormat::process_frame(
           const data::FrameRepository& frames,
           const CachedSettings& settings,
-          const CacheHints* cache_ptr,
           Individual* fish,
           TemporaryData&& data)
 {
@@ -481,7 +480,7 @@ void Output::ResultsFormat::process_frame(
 #endif
     Match::prob_t p = p_threshold;
     if(!fish->empty()) {
-        auto cache = fish->cache_for_frame(frames, frames.properties(frameIndex - 1_f), frameIndex, data.time, cache_ptr);
+        auto cache = fish->cache_for_frame(frames, frames.properties(frameIndex - 1_f), frameIndex, data.time);
         if(cache) {
             assert(frameIndex > fish->start_frame());
             p = Individual::probability(settings, label ? label->id : MaybeLabel{}, cache.value(), frameIndex, data.stuff->blob);//.p;
@@ -515,7 +514,7 @@ void Output::ResultsFormat::process_frame(
     fish->_basic_stuff[data.index] = std::move(data.stuff);
 }
 
-Individual* Output::ResultsFormat::read_individual(const data::FrameRepository& frames, cmn::Data &ref, const CacheHints* cache) {
+Individual* Output::ResultsFormat::read_individual(const data::FrameRepository& frames, cmn::Data &ref) {
     Timer timer;
     
     uint32_t ID;
@@ -611,7 +610,7 @@ Individual* Output::ResultsFormat::read_individual(const data::FrameRepository& 
         //! start worker that iterates the frames / fills in
         //! additional info that was not read directly from the file
         //! per frame.
-        ended = _load_pool.enqueue([&stop, &stuffs, &variable, cache, fish, &mutex, &frames]() mutable {
+        ended = _load_pool.enqueue([&stop, &stuffs, &variable, fish, &mutex, &frames]() mutable {
             auto thread_name = get_thread_name();
             set_thread_name("read_individual_"+fish->identity().name()+"_worker");
             [[maybe_unused]] track::TrackingThreadG g{};
@@ -628,7 +627,7 @@ Individual* Output::ResultsFormat::read_individual(const data::FrameRepository& 
                     guard.unlock();
                     auto frame = data.index;
                     try {
-                        process_frame(frames, settings, cache, fish, std::move(data));
+                        process_frame(frames, settings, fish, std::move(data));
                     } catch(const std::exception& ex) {
                         FormatExcept("Exception when processing frame ",frame," for fish ", fish, ": ", ex.what());
                     } catch(...) {
@@ -665,7 +664,7 @@ Individual* Output::ResultsFormat::read_individual(const data::FrameRepository& 
                     else
                         ref.read_convert<float>(time);
                 } else {
-                    auto p = frames.properties(Frame_t(frameIndex), cache);
+                    auto p = frames.properties(Frame_t(frameIndex));
                     if(p) time = p->time();
                     else {
                         FormatWarning("Frame ", frameIndex, " seems to be outside the range of the video file.");
@@ -1045,7 +1044,7 @@ void Output::ResultsFormat::read_single_individual(Individual** out_ptr) {
                 if(new_len != uncompressed_size)
                     FormatWarning("Uncompressed size ", new_len," is different than expected ",uncompressed_size);
                 ReadonlyMemoryWrapper compressed((uchar*)uncompressed_block.data(), new_len);
-                (*out_ptr) = results->read_individual(tracker->frames(), compressed, results->_property_cache.get());
+                (*out_ptr) = results->read_individual(tracker->frames(), compressed);
                 
             } else {
                 throw U_EXCEPTION("Failed to decode individual from file ",results->filename());
@@ -1058,7 +1057,7 @@ void Output::ResultsFormat::read_single_individual(Individual** out_ptr) {
     if(!results)
         throw U_EXCEPTION("This is not ResultsFormat.");
     
-    *out_ptr = results->read_individual(_tracker->frames(), *this, results->_property_cache.get());
+    *out_ptr = results->read_individual(_tracker->frames(), *this);
 }
 
 #define OUT_LEN(L)     (L + L / 16 + 64 + 3)
@@ -1267,6 +1266,7 @@ namespace Output {
         _header.tracklets.clear();
         _header.video_resolution = Size2(-1);
         _header.video_length = 0;
+        _header.encoding = meta_encoding_t::gray;
         _header.average.clear();
         
         if(_header.version >= ResultsFormat::V_28) {
@@ -1285,11 +1285,27 @@ namespace Output {
                 });
             }
             
+            if(_header.version >= ResultsFormat::V_40) {
+                uint32_t enc;
+                read<uint32_t>(enc);
+                _header.encoding = meta_encoding_t::data::values(enc);
+            }
             read<Size2>(_header.video_resolution);
             read<uint64_t>(_header.video_length);
             
-            _header.average.create((uint)_header.video_resolution.height, (uint)_header.video_resolution.width, 1);
-            read_data(_header.average.size(), (char*)_header.average.data());
+            uint64_t bytes;
+            if(_header.version >= ResultsFormat::V_40) {
+                read<uint64_t>(bytes);
+            } else {
+                bytes = _header.video_resolution.height * _header.video_resolution.width;
+            }
+            
+            if(_header.encoding != meta_encoding_t::binary) {
+                _header.average.create((uint)_header.video_resolution.height, (uint)_header.video_resolution.width, bytes / (uint64_t)_header.video_resolution.height / (uint64_t)_header.video_resolution.width);
+                read_data(bytes, (char*)_header.average.data());
+            } else {
+                _header.average.create((uint)_header.video_resolution.height, (uint)_header.video_resolution.width, 0);
+            }
         }
         
         if(_header.version >= ResultsFormat::V_30) {
@@ -1380,11 +1396,22 @@ namespace Output {
             write<uint32_t>(sign_cast<uint32_t>(c.end.get()));
         }
         
-        write<Size2>(_tracker->average().bounds().size());
+        if(not _tracker->background())
+            throw InvalidArgumentException("No background set in tracker.");
+        auto bounds = _tracker->background()->bounds();
+        write<uint32_t>((uint32_t)_header.encoding);
+        
+        write<Size2>(bounds.size());
         write<uint64_t>(FAST_SETTING(video_length));
         
-        uint64_t bytes = _tracker->average().cols * _tracker->average().rows;
-        write_data(bytes, (const char*)_tracker->average().data());
+        /// no need to write this
+        if(_header.encoding != meta_encoding_t::binary) {
+            uint64_t bytes = _tracker->average().size();
+            write<uint64_t>(bytes);
+            write_data(bytes, (const char*)_tracker->average().data());
+        } else {
+            write<uint64_t>(0);
+        }
         
         auto range = FAST_SETTING(analysis_range);
         write<int64_t>(range.start);
@@ -1528,6 +1555,9 @@ namespace Output {
         file.header().gui_frame = sign_cast<uint64_t>(gui_frame.valid() ? gui_frame.get() : 0);
         file.header().creation_time = Image::now();
         file.header().exclude_settings = exclude_settings;
+        file.header().encoding = READ_SETTING_WITH_DEFAULT(meta_encoding, meta_encoding_t::gray);
+        file.header().video_resolution = READ_SETTING_WITH_DEFAULT(meta_video_size, Size2(-1));
+        file.header().video_length = READ_SETTING_WITH_DEFAULT(video_length, uint64_t(0));
         file.write_file(_tracker->frames(), IndividualManager::_all_frames(), IndividualManager::individuals());
         file.close();
         
@@ -1704,7 +1734,6 @@ FrameProperties CompatibilityFrameProperties::convert(Frame_t frame) const {
         
         auto analysis_range = Tracker::analysis_range();
         _tracker->frames().clear();
-        file._property_cache = std::make_shared<CacheHints>(L);
         
         for (uint64_t i=0; i<L; i++) {
             file.read<data_long_t>(frameIndex);

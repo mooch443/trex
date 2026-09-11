@@ -100,9 +100,10 @@ if(NOT TREX_CONDA_PACKAGE_INSTALL)
     target_compile_definitions(test_headless_convert_exit PRIVATE
         -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}"
         -DTREX_TEST_EXECUTABLE="$<TARGET_FILE:${TREX_TEST_APP_TARGET}>"
+        -DTREX_PVINFO_EXECUTABLE="$<TARGET_FILE:pvinfo>"
         -DTREX_PYTHON_EXECUTABLE="${PYTHON_EXECUTABLE}"
     )
-    add_dependencies(test_headless_convert_exit ${TREX_TEST_APP_TARGET})
+    add_dependencies(test_headless_convert_exit ${TREX_TEST_APP_TARGET} pvinfo)
 
     add_executable(test_trex_detection_model_python test_trex_detection_model_python.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
     target_compile_definitions(test_trex_detection_model_python PRIVATE
@@ -266,10 +267,12 @@ target_link_libraries(test_outlines PUBLIC
 
 # Extra linking for the project.
 target_link_libraries(test_strings PUBLIC
+        trex_core
         commons
         pv)
 
 target_link_libraries(test_pixels PUBLIC
+        tracker_tracking
         tracker_misc
         commons
         pv)

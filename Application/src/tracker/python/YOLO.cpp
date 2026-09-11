@@ -788,8 +788,10 @@ std::optional<std::tuple<SegmentationData::Assignment, blob::Pair>> YOLO::proces
     
     //tf::imshow("mask", mask_image);
     
+    const auto meta_encoding = Background::meta_encoding();
+
     // Perform CPU-based connected-component labeling on the mask
-    auto blobs = CPULabeling::run(list, mask_image);
+    auto blobs = CPULabeling::run(list, mask_image, meta_encoding != meta_encoding_t::binary);
     if(blobs.empty())
         // If no blobs found, skip this instance
         return std::nullopt;
@@ -797,8 +799,16 @@ std::optional<std::tuple<SegmentationData::Assignment, blob::Pair>> YOLO::proces
     // Identify the largest blob by pixel count
     size_t msize = 0, midx = 0;
     for (size_t j = 0; j < blobs.size(); ++j) {
-        if (blobs.at(j).pixels->size() > msize) {
-            msize = blobs.at(j).pixels->size();
+        size_t size = 0;
+        if (blobs.at(j).pixels) {
+            size = blobs.at(j).pixels->size();
+        } else {
+            for(const auto& line : *blobs.at(j).lines)
+                size += ptr_safe_t(line.x1) - ptr_safe_t(line.x0) + ptr_safe_t(1);
+        }
+
+        if (size > msize) {
+            msize = size;
             midx = j;
         }
     }
@@ -836,7 +846,6 @@ std::optional<std::tuple<SegmentationData::Assignment, blob::Pair>> YOLO::proces
     // Mark blob as instance segmentation and set encoding-based flags
     pair.extra_flags |= pv::Blob::flag(pv::Blob::Flags::is_instance_segmentation);
     
-    const auto meta_encoding = Background::meta_encoding();
     if(meta_encoding == meta_encoding_t::r3g3b2) {
         assert(r3.channels() == 1);
         pv::Blob::set_flag(pair.extra_flags, pv::Blob::Flags::is_r3g3b2, true);
@@ -862,6 +871,8 @@ std::optional<std::tuple<SegmentationData::Assignment, blob::Pair>> YOLO::proces
         auto [o, px] = blob.calculate_pixels(r3);
         blob.set_pixels(std::make_unique<PixelArray_t>(*px));
         pair.pixels = std::move(px);
+    } else {
+        pair.pixels = nullptr;
     }
     
     //auto &&[_, test_image] = blob.color_image();

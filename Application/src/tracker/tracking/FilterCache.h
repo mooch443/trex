@@ -31,6 +31,17 @@ calculate_normalized_image(const cmn::gui::Transform &midline_transform,
                            bool use_legacy,
                            const cmn::Background* background);
 
+std::optional<cmn::Vec2>
+calculate_normalized_image_cached(cv::Mat& mask,
+                                  cv::Mat& image,
+                                  Image& output,
+                                  const cmn::gui::Transform &midline_transform,
+                                  const pv::BlobWeakPtr& blob,
+                                  float midline_length,
+                                  const cmn::Size2 &output_size,
+                                  bool use_legacy,
+                                  const cmn::Background* background);
+
 std::tuple<cmn::Image::Ptr, cmn::Vec2>
 calculate_normalized_diff_image(const cmn::gui::Transform &midline_transform,
                                 const pv::BlobWeakPtr& blob,
@@ -38,6 +49,25 @@ calculate_normalized_diff_image(const cmn::gui::Transform &midline_transform,
                                 const cmn::Size2 &output_size,
                                 bool use_legacy,
                                 const cmn::Background* background);
+
+std::optional<cmn::Vec2>
+calculate_normalized_diff_image_cached(cv::Mat& mask,
+                                       cv::Mat& image,
+                                       Image& output,
+                                       const cmn::gui::Transform &midline_transform,
+                                       const pv::BlobWeakPtr& blob,
+                                       float midline_length,
+                                       const cmn::Size2 &output_size,
+                                       bool use_legacy,
+                                       const cmn::Background* background);
+
+std::optional<cmn::Vec2>
+calculate_diff_image_cached(cv::Mat& mask,
+                            cv::Mat& image,
+                            Image& output,
+                            pv::BlobWeakPtr blob,
+                            const cmn::Size2& output_size,
+                            const cmn::Background* background);
 
 std::tuple<cmn::Image::Ptr, cmn::Vec2>
 calculate_diff_image(pv::BlobWeakPtr blob,
@@ -65,12 +95,24 @@ struct FilterCache {
     static void clear();
 };
 
-std::tuple<cmn::Image::Ptr, cmn::Vec2> diff_image(const default_config::individual_image_normalization_t::Class &normalize,
-                                         pv::BlobWeakPtr blob,
-                                         const cmn::gui::Transform& midline_transform,
-                                         float median_midline_length_px,
-                                         const cmn::Size2& output_shape,
-                                         const cmn::Background* background);
+std::tuple<cmn::Image::Ptr, cmn::Vec2> diff_image(
+    const default_config::individual_image_normalization_t::Class &normalize,
+    pv::BlobWeakPtr blob,
+    const cmn::gui::Transform& midline_transform,
+    float median_midline_length_px,
+    const cmn::Size2& output_shape,
+    const cmn::Background* background);
+
+std::optional<cmn::Vec2> diff_image_cached(
+    cv::Mat& mask,
+    cv::Mat& image,
+    Image& output,
+    const default_config::individual_image_normalization_t::Class &normalize,
+    pv::BlobWeakPtr blob,
+    const cmn::gui::Transform& midline_transform,
+    float median_midline_length_px,
+    const cmn::Size2& output_shape,
+    const cmn::Background* background);
 
 std::shared_ptr<FilterCache> local_midline_length(const Individual *fish,
                                                   const cmn::Range<cmn::Frame_t>& segment,

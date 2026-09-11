@@ -1008,7 +1008,7 @@
       ],
       "module": "trex.core",
       "path": "core/TrackingSettings.h",
-      "sha256": "2ce67882d1cdd45662c62bed1c17b1b7b75252766ed5ef9df76d60495a8b7fb9",
+      "sha256": "f2d0301f4c7bcef423fa6e8b3c049c24913aef012c8e862f92b0452641ecdae1",
       "symbols": [
         {
           "kind": "enum_class",
@@ -1051,7 +1051,7 @@
       "excluded": [],
       "module": "trex.core",
       "path": "core/VideoInfo.h",
-      "sha256": "b518db0b5d2dba6e4c255a8c61d338ce725a5e7d3280a383c4f424a356838ddb",
+      "sha256": "ebe24ab07134bad8aaaada1a4285ee232dfa7c10f722ebaa241fa85fe9b9c71d",
       "symbols": [
         {
           "kind": "struct",
@@ -1589,7 +1589,7 @@
       "excluded": [],
       "module": "trex.tracking",
       "path": "tracking/DetectTag.h",
-      "sha256": "d034e2b072a3ab0c33f1d8d61bbee2127db93b574efb245d8bc8178b1ec038e9",
+      "sha256": "437ebe721403423dd2ec6bce9521b65e7aff7135df57b1912367e49ea2d364ce",
       "symbols": [
         {
           "kind": "alias",
@@ -1632,15 +1632,8 @@
       "excluded": [],
       "module": "trex.tracking",
       "path": "tracking/CategorizeDatastore.h",
-      "sha256": "1566856e82d8ef9188e9eb6c9e0f1df10b9d317c6583d963a8bab340d82f8198",
+      "sha256": "7e45bb53ffbf0ab3af2dc8c619a037539d2107efb60784e89993ccf397b7bbc9",
       "symbols": [
-        {
-          "kind": "class",
-          "name": "Border",
-          "namespace": "track",
-          "qualified": "track::Border",
-          "smoke": "using"
-        },
         {
           "kind": "struct",
           "name": "Probabilities",
@@ -1689,7 +1682,7 @@
       "excluded": [],
       "module": "trex.tracking",
       "path": "tracking/FilterCache.h",
-      "sha256": "70853d8a6f170c2efaf18aa68a9fce90238415e1dc1ea0be1f709cf662f9e6dd",
+      "sha256": "2bd0ff8d457992919bb729c34f05c156c07df7481f224f7b84828e490f2a581b",
       "symbols": [
         {
           "kind": "class",
@@ -1728,9 +1721,30 @@
         },
         {
           "kind": "function",
+          "name": "calculate_normalized_image_cached",
+          "namespace": "track::image",
+          "qualified": "track::image::calculate_normalized_image_cached",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
           "name": "calculate_normalized_diff_image",
           "namespace": "track::image",
           "qualified": "track::image::calculate_normalized_diff_image",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "calculate_normalized_diff_image_cached",
+          "namespace": "track::image",
+          "qualified": "track::image::calculate_normalized_diff_image_cached",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "calculate_diff_image_cached",
+          "namespace": "track::image",
+          "qualified": "track::image::calculate_diff_image_cached",
           "smoke": "using"
         },
         {
@@ -1752,6 +1766,13 @@
           "name": "diff_image",
           "namespace": "track::constraints",
           "qualified": "track::constraints::diff_image",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "diff_image_cached",
+          "namespace": "track::constraints",
+          "qualified": "track::constraints::diff_image_cached",
           "smoke": "using"
         },
         {
@@ -2906,7 +2927,7 @@
       ],
       "module": "trex.ui",
       "path": "ui/ConvertScene.h",
-      "sha256": "c4ecf61939abd86bca76fe9c79fc9fa9f10863f259b61347e8fade2e3c6f4cd2",
+      "sha256": "e8b4ae2ecd0ba910a30653f75f588e4ecc6e8e2df3cad33315d44baa9c45c3b6",
       "symbols": [
         {
           "kind": "struct",
@@ -2920,13 +2941,6 @@
           "name": "Segmenter",
           "namespace": "track",
           "qualified": "track::Segmenter",
-          "smoke": "using"
-        },
-        {
-          "kind": "struct",
-          "name": "VideoInfo",
-          "namespace": "cmn::gui::convert",
-          "qualified": "cmn::gui::convert::VideoInfo",
           "smoke": "using"
         },
         {
@@ -3393,7 +3407,7 @@
       "excluded": [],
       "module": "trex.ui",
       "path": "ui/DrawPreviewImage.h",
-      "sha256": "33add9fb7241338af36b6342d7d0a77c2f13fbef6aeed81570e0026fe547b78f",
+      "sha256": "c6f7df4f5271fdcb40bdccf64bb51124430bc76a667753ed2fa23bc81abae49c",
       "symbols": [
         {
           "kind": "function",
@@ -3407,6 +3421,13 @@
           "name": "make_image",
           "namespace": "cmn::gui::DrawPreviewImage",
           "qualified": "cmn::gui::DrawPreviewImage::make_image",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "make_image_cached",
+          "namespace": "cmn::gui::DrawPreviewImage",
+          "qualified": "cmn::gui::DrawPreviewImage::make_image_cached",
           "smoke": "using"
         }
       ]
@@ -3888,7 +3909,7 @@
       "excluded": [],
       "module": "trex.ui",
       "path": "ui/InfoCard.h",
-      "sha256": "9f012d07893273b1986c62456bcc9ace0b2087c6983d1066131232df595a99c5",
+      "sha256": "67eb255e11b6b2ada5c5b6115eb08551007e1af4079358fd03fddd9ed61419a0",
       "symbols": [
         {
           "kind": "class",
@@ -4577,7 +4598,7 @@
       ],
       "module": "trex.ui",
       "path": "ui/Accumulation.h",
-      "sha256": "7fc7a45e75d24cab34198efb5585dc0905fd697f81cacb14e0e6d1ff9d3a15a1",
+      "sha256": "e2c9f88ee27c5979850dd34a9a880c9b5162ec4659d4953bc73ce6a73df0d4a0",
       "symbols": [
         {
           "kind": "enum_class",
@@ -4918,7 +4939,7 @@
   "summary": {
     "excluded": 59,
     "headers": 130,
-    "symbols": 498
+    "symbols": 501
   },
   "version": 1
 }

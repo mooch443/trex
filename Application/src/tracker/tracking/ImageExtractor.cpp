@@ -230,6 +230,7 @@ uint64_t ImageExtractor::retrieve_image_data(partial_apply_t&& apply, callback_t
         };
         
         auto encoding = Background::meta_encoding();
+        cv::Mat mask_buffer, image_buffer;
         
         for(auto it = start; it != end; ++it) {
             auto &[index, samples] = *it;
@@ -271,7 +272,7 @@ uint64_t ImageExtractor::retrieve_image_data(partial_apply_t&& apply, callback_t
                     IndividualManager::transform_if_exists(fdx, [&, index=index, range=range](auto fish)
                     {
                         LockGuard guard(ro_t{}, "normalization");
-                        auto filter = constraints::local_midline_length(fish, range, _settings.border, false);
+                        auto filter = constraints::local_midline_length(fish, range, nullptr, false);
                         median_midline_length_px = filter->median_midline_length_px;
                         
                         auto posture = fish->posture_stuff(index);
@@ -290,9 +291,10 @@ uint64_t ImageExtractor::retrieve_image_data(partial_apply_t&& apply, callback_t
                     });
                 }
                 
-                auto &&[image, pos] = constraints::diff_image(individual_image_normalization, blob, midline_transform, median_midline_length_px, _settings.image_size, &background);
+                auto image = Image::Make();
+                auto pos = constraints::diff_image_cached(mask_buffer, image_buffer, *image, individual_image_normalization, blob, midline_transform, median_midline_length_px, _settings.image_size, &background);
                 
-                if(not image) {
+                if(not pos) {
                     //! can this happen? (yes, when no posture is available)
                     FormatWarning("[IE] Cannot generate image for ", bdx, " of ", fdx, " in frame ", index,".");
                     {

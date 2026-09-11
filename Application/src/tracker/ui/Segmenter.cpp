@@ -75,6 +75,7 @@ Segmenter::Segmenter(std::function<void()> eof_callback, std::function<void(std:
                 _output_file != nullptr)
             {
                 auto filename = _output_file->filename();
+                SETTING(video_length) = uint64_t(_output_file->length().get());
                 _output_file->close();
                 _output_file = nullptr;
                 
@@ -112,12 +113,6 @@ Segmenter::Segmenter(std::function<void()> eof_callback, std::function<void(std:
                 }
                 
                 
-            }
-            
-            try {
-                Detection::deinit();
-            } catch(const std::exception& e) {
-                FormatExcept("Exception when joining detection thread: ", e.what());
             }
             
         }
@@ -557,9 +552,6 @@ void Segmenter::open_output_file() {
 }
 
 void Segmenter::trigger_average_generator(bool do_generate_average, cv::Mat& bg) {
-    const auto encoding = Background::meta_encoding();
-    const auto processing_channels = required_image_channels(encoding);
-    
     // procrastinate on generating the average async because
     // otherwise the GUI stops responding...
     if(do_generate_average) {
@@ -654,10 +646,13 @@ void Segmenter::trigger_average_generator(bool do_generate_average, cv::Mat& bg)
         /// if background subtraction is disabled for tracking, we don't need to
         /// wait for the average image to generate first:
         if(not BOOL_SETTING(track_background_subtraction)) {
+            const auto encoding = Background::meta_encoding();
+            const auto storage_channels = required_storage_channels(encoding);
+            
             {
                 std::unique_lock guard(_mutex_tracker);
                 auto image_size = _output_size_before_crop;
-                _tracker = Tracker::Make(Image::Make(image_size.height, image_size.width, processing_channels), Background::meta_encoding(), READ_SETTING(meta_real_width, Float2_t));
+                _tracker = Tracker::Make(Image::Make(image_size.height, image_size.width, storage_channels), encoding, READ_SETTING(meta_real_width, Float2_t));
             }
 
             open_output_file();
@@ -784,7 +779,6 @@ void Segmenter::open_video() {
 }
 
 void Segmenter::open_camera() {
-    using namespace grab;
     auto source = READ_SETTING(source, file::PathArray);
     const bool use_basler = (source == file::PathArray("basler"));
     
@@ -912,7 +906,7 @@ void Segmenter::open_camera() {
 
     /*{
         std::unique_lock guard(_mutex_tracker);
-        _tracker = std::make_unique<Tracker>(Image::Make(bg), Background::meta_encoding(), READ_SETTING(meta_real_width, Float2_t));
+        _tracker = std::make_shared<Tracker>(Image::Make(bg), Background::meta_encoding(), READ_SETTING(meta_real_width, Float2_t));
     }
     static_assert(ObjectDetection<Detection>);*/
     _video_conversion_range = Range<Frame_t>{ 0_f, {} };

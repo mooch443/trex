@@ -151,11 +151,11 @@ void DrawSegments::set(Idx_t fdx, Frame_t frame, const IllegalArray<ShadowTrackl
     }
 }
 
-const Drawable* DrawSegments::tooltip_object() const {
+Drawable* DrawSegments::tooltip_object() {
     return this;
 }
 
-const Drawable* InfoCard::tooltip_object() const {
+Drawable* InfoCard::tooltip_object() {
     return this;
 }
 
