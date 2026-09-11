@@ -884,7 +884,7 @@ std::shared_ptr<TrainingData::DataRange> TrainingData::add_salt(const std::share
     return add_range;
 }
 
-bool TrainingData::generate(const std::string& step_description, pv::File & video_file, std::map<Frame_t, std::set<Idx_t> > individuals_per_frame, const std::function<void(float)>& callback, const TrainingData* source) {
+bool TrainingData::generate(const std::string& step_description, const Background& background, const data::FrameRepository& repo, pv::File & video_file, std::map<Frame_t, std::set<Idx_t> > individuals_per_frame, const std::function<void(float)>& callback, const TrainingData* source) {
     auto frames = extract_keys(individuals_per_frame);
     
     LockGuard guard(ro_t{}, "generate_training_data");
@@ -1103,7 +1103,8 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
         }
         
         video_file.read_with_encoding(video_frame, frame, Background::meta_encoding());
-        Tracker::preprocess_frame(std::move(video_frame), pp, nullptr, PPFrame::NeedGrid::NoNeed, video_file.header().resolution);
+        Tracker::preprocess_frame(std::move(video_frame), pp, nullptr, repo, background,
+                                  NeedGrid::NoNeed, HistorySplitPolicy::Apply);
         
         IndividualManager::transform_ids(filtered_ids, [&](auto id, auto fish){
             /**
@@ -1168,7 +1169,7 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
                 ? fish->calculate_midline_for(*posture)
                 : nullptr;
             
-            image = std::get<0>(constraints::diff_image(normalized(), blob.get(), midline ? midline->transform(normalized()) : gui::Transform(), filters.median_midline_length_px, output_size, Tracker::background()));
+            image = std::get<0>(constraints::diff_image(normalized(), blob.get(), midline ? midline->transform(normalized()) : gui::Transform(), filters.median_midline_length_px, output_size, &background));
             
             if(blob->bounds().width > output_size.width
                || blob->bounds().height > output_size.height)

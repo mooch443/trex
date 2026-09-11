@@ -6,10 +6,11 @@
 #include <pv.h>
 #include <tracking/Individual.h>
 #include <tracking/Stuffs.h>
-#include <tracking/CacheHints.h>
 #include <data/MotionRecord.h>
 #include <misc/ThreadPool.h>
 #include <misc/Path.h>
+#include <data/FrameRepository.h>
+#include <tracking/TrackingHelper.h>
 
 namespace track {
 class Tracker;
@@ -161,6 +162,9 @@ namespace Output {
         
         GETTER_NCONST(Header, header);
         
+        CachedSettings _settings;
+        std::shared_ptr<Tracker> _tracker;
+        
         //static QueueThreadPool<Individual*> _blob_pool;
         QueueThreadPool<Individual*> _post_pool;
         GenericThreadPool _generic_pool, _load_pool;
@@ -168,19 +172,22 @@ namespace Output {
         
         cmn::atomic<uint64_t> _expected_individuals, _N_written;
         
+        
     public:
-        ResultsFormat(const Path& filename, std::function<void(const std::string&, double, const std::string&)> update_progress);
+        ResultsFormat(std::shared_ptr<Tracker> tracker, const Path& filename, std::function<void(const std::string&, double, const std::string&)> update_progress);
         ~ResultsFormat();
+        
+        static void post_process(const CachedSettings&, Output::ResultsFormat* _self, Individual* obj);
         
         //const char* read_data_fast(uint64_t num_bytes) override;
         uint64_t write_data(uint64_t num_bytes, const char* buffer) override;
         
         static uint64_t estimate_individual_size(const Individual& val);
-        void write_file(const std::vector<track::FrameProperties::Ptr>& frames,
+        void write_file(const data::FrameRepository& frames,
                         const active_individuals_map_t& active_individuals_frame,
                         const individuals_map_t& individuals);
         
-        Individual* read_individual(Data& ref, const CacheHints* cache);
+        Individual* read_individual(const data::FrameRepository&, Data& ref, const CacheHints* cache);
         Midline::Ptr read_midline(Data& ref);
         MinimalOutline read_outline(Data& ref, Midline* midline) const;
         void read_blob(Data& ref, pv::CompressedBlob&) const;
@@ -205,10 +212,11 @@ namespace Output {
         };
         
         static void process_frame(
-                           const CachedSettings&,
-                           const CacheHints* cache_ptr,
-                           Individual* fish,
-                           TemporaryData&& data);
+               const data::FrameRepository& frames,
+               const CachedSettings&,
+               const CacheHints* cache_ptr,
+               Individual* fish,
+               TemporaryData&& data);
         
         void read_single_individual(Individual** out_ptr);
         
@@ -217,10 +225,10 @@ namespace Output {
     };
     
     class TrackingResults {
-        Tracker& _tracker;
+        std::shared_ptr<Tracker> _tracker;
         
     public:
-        TrackingResults(Tracker& tracker) : _tracker(tracker) {}
+        TrackingResults(std::shared_ptr<Tracker> tracker) : _tracker(std::move(tracker)) {}
         
         static Path expected_filename();
         

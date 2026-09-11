@@ -32,7 +32,7 @@ private:
 public:
     CPULabeling::ListCache_t cache;
     
-    Frame_t frame_index;
+    Frame_t frame_index, start_frame, end_frame;
     SizeFilters fish_size;
     const Background* background;
     int threshold;
@@ -43,7 +43,8 @@ public:
     PrefilterBlobs(Frame_t index,
                    int threshold,
                    const SizeFilters& fish_size,
-                   const Background& background);
+                   const Background& background,
+                   Frame_t start, Frame_t end);
     PrefilterBlobs(const PrefilterBlobs&) = delete;
     PrefilterBlobs(PrefilterBlobs&&) noexcept = default;
     PrefilterBlobs& operator=(const PrefilterBlobs&) = delete;
@@ -66,6 +67,7 @@ public:
     void big_blob(std::vector<pv::BlobPtr>&&);
     
     static void split_big(
+        const cmn::Background&,
         Frame_t frame_index,
         std::vector<pv::BlobPtr> && big_blobs,
         const BlobReceiver& noise,

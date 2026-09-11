@@ -193,7 +193,7 @@ void IndividualManager::clear() noexcept {
 #endif
 }
 
-void IndividualManager::remove_frames(Frame_t from,  std::function<void(Individual*)>&& delete_callback) {
+void IndividualManager::remove_frames(Tracker& tracker, Frame_t from,  std::function<void(Individual*)>&& delete_callback) {
     Frame_t largest;
     assert(LockGuard::owns_write());
     
@@ -215,7 +215,7 @@ void IndividualManager::remove_frames(Frame_t from,  std::function<void(Individu
     // delete empty individuals
     Idx_t largest_valid = Idx_t();
     for(auto it = _individuals.begin(); it != _individuals.end(); ) {
-        it->second->remove_frame(from);
+        it->second->remove_frame(tracker, from);
         
         if(it->second->empty()) {
             if(delete_callback)
@@ -434,7 +434,7 @@ bool IndividualManager::is_inactive(Individual * fish) const noexcept {
     return contains(track::inactive_individuals, fish->identity().ID());
 }
 
-IndividualManager::IndividualManager(const PPFrame& frame)
+IndividualManager::IndividualManager(Tracker& tracker, const PPFrame& frame)
     : _frame(frame.index())
 {
     // in case it hasnt been cleared yet, please clear
@@ -457,7 +457,7 @@ IndividualManager::IndividualManager(const PPFrame& frame)
         //! cannot use `remove_if` here since the type could change to e.g.
         //! `bytell_hash_map` or `robin_hood` map, which is not supported.
         //std::scoped_lock guard(global_mutex, current_mutex);
-        const FrameProperties* props{nullptr};
+        std::optional<FrameProperties> props;
         
         for(auto it = _current.begin();
             /* while */ it != _current.end();
@@ -470,12 +470,12 @@ IndividualManager::IndividualManager(const PPFrame& frame)
             }
             
             auto basic = fish->find_frame(_frame);
-            if(props == nullptr || props->frame() != basic->frame) {
-                props = Tracker::properties(basic->frame);
-                if(props == nullptr)
+            if(not props || props->frame() != basic->frame) {
+                props = tracker.frames().properties(basic->frame);
+                if(not props)
                     throw InvalidArgumentException("Cannot retrieve information about frame ", basic->frame);
             }
-            assert(props != nullptr);
+            assert(props);
             if(std::abs(frame.time - props->time()) < track_max_reassign_time) {
                 ++it;
                 continue;

@@ -686,7 +686,7 @@ std::string start_converting(std::future<void>& f) {
             auto frame = segmenter.current_frame();
             bar.set_postfix("Converting "+Meta::toStr(frame)+"/"+video_length+" @ "+dec<1>(segmenter.fps()).toStr()+"fps...");
         } else if(last_tick.elapsed() > cmn::terminal::progress::interval_seconds()) {
-            spinner.set_option(ind::option::PostfixText{"Recording ("+Meta::toStr(Tracker::end_frame())+")..."});
+            spinner.set_option(ind::option::PostfixText{"Recording ("+Meta::toStr(segmenter.tracker()->frames().end_frame())+")..."});
             spinner.set_option(ind::option::ShowPercentage{false});
             spinner.tick();
             last_tick.reset();
@@ -917,9 +917,6 @@ int main(int argc, char**argv) {
             .quiet = false
         });
         Print(SETTING(output_dir));
-
-        Output::Library::InitVariables();
-        Output::Library::Init();
         
         /// in terminal we dont want to async a GUI anyway.
         /// also, on windows we might get in trouble here

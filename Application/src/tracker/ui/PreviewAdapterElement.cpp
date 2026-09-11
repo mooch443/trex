@@ -80,8 +80,12 @@ public:
 
 using namespace dyn;
 
-PreviewAdapterElement::PreviewAdapterElement(decltype(get_current_frame)&& fn, decltype(get_filter_cache)&& fc)
-    : get_current_frame(std::move(fn)), get_filter_cache(std::move(fc))
+PreviewAdapterElement::PreviewAdapterElement(decltype(get_tracker)&& tracker,
+                                             decltype(get_current_frame)&& fn,
+                                             decltype(get_filter_cache)&& fc)
+    : get_tracker(std::move(tracker)),
+      get_current_frame(std::move(fn)),
+      get_filter_cache(std::move(fc))
 {
     name = "preview";
     
@@ -113,6 +117,10 @@ bool PreviewAdapterElement::_update(Layout::Ptr& o,
 {
     auto ptr = o.to<IndividualImage>();
     //auto &cache = GUICache::instance();
+    auto tracker = get_tracker();
+    if(not tracker || not tracker->background())
+        return false;
+    const auto background = tracker->background();
     
     Idx_t fdx;
     const PPFrame* ppframe = get_current_frame();
@@ -146,7 +154,7 @@ bool PreviewAdapterElement::_update(Layout::Ptr& o,
             
             if(blob_ptr) {
                 if(blob_ptr->encoding() == Background::meta_encoding())
-                    ptr->set_data(fdx, frame, blob_ptr, track::Tracker::background(), filters, bdxnpred->midline.get());
+                    ptr->set_data(fdx, frame, blob_ptr, background, filters, bdxnpred->midline.get());
 #ifndef NDEBUG
                 else
                     FormatWarning("Not displaying image yet because of the wrong encoding: ", blob_ptr->encoding(), " vs. ", Background::meta_encoding());

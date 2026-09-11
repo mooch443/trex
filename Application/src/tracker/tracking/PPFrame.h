@@ -9,9 +9,10 @@
 #include <data/IndividualCache.h>
 #include <processing/ProximityGrid.h>
 #include <core/TrackingSettings.h>
-#include <tracking/CacheHints.h>
+#include <data/CacheHints.h>
 #include <tracking/PPFrameTypes.h>
 #include <data/MotionRecord.h>
+#include <data/FrameRepository.h>
 
 #ifndef NDEBUG
 #define TREX_ENABLE_HISTORY_LOGS true
@@ -102,7 +103,7 @@ public:
     const IndividualCache* cached(Idx_t) const;
     
     using NeedGrid = track::NeedGrid;
-    void init_cache(GenericThreadPool* pool, NeedGrid);
+    void init_cache(const data::FrameRepository&, GenericThreadPool* pool, NeedGrid);
     
 private:
     void set_cache(Idx_t, IndividualCache&&);

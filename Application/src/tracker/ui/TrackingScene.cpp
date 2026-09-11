@@ -37,7 +37,6 @@
 #include <core/FOI.h>
 #include <gui/dyn/ParseText.h>
 #include <gui/ParseLayoutTypes.h>
-#include <ui/InfoCard.h>
 #include <tracking/AutomaticMatches.h>
 #include <ui/DrawDataset.h>
 #include <ui/DrawAnnotationExportOptions.h>
@@ -153,7 +152,7 @@ struct TrackingScene::Data {
     std::optional<std::vector<std::tuple<Frame_t, Frame_t>>> _cached_fois;
     Float2_t _cached_fois_width{-1};
     
-    bool update_cached_fois(std::weak_ptr<pv::File> video, bool force = false);
+    bool update_cached_fois(std::weak_ptr<track::Tracker> tracker, std::weak_ptr<pv::File> video, bool force = false);
     
     /**
      * @brief Constructor for the Data struct.
@@ -172,7 +171,7 @@ struct TrackingScene::Data {
     void init_empty_map();
 };
 
-bool TrackingScene::Data::update_cached_fois(std::weak_ptr<pv::File> video, bool force) {
+bool TrackingScene::Data::update_cached_fois(std::weak_ptr<track::Tracker> tracker, std::weak_ptr<pv::File> video, bool force) {
     /* --- throttle to max. 1 Hz --- */
     if (not force
         && _last_foi_update.elapsed() <= (GUI_SETTINGS(track_pause) ? 1.0 : 10.0))
@@ -205,7 +204,7 @@ bool TrackingScene::Data::update_cached_fois(std::weak_ptr<pv::File> video, bool
             if(is_uniqueness) {
                 _foi_state.color = Cyan;
                 if(not _uniqueness_provider) {
-                    _uniqueness_provider = std::make_unique<track::UniquenessProvider>(video);
+                    _uniqueness_provider = std::make_unique<track::UniquenessProvider>(tracker, video);
                     _uniqueness_provider->request_update();
                 }
                 return true;
@@ -747,11 +746,11 @@ void TrackingScene::settings_callback(std::string_view key) {
                 FormatError("Failed to resolve FOI id for type ", manual_annotations_foi_name, ".");
             else
                 FOI::replace_all_of(id, std::move(fois));
-            _data->update_cached_fois(_state->video, true);
+            _data->update_cached_fois(_state->tracker, _state->video, true);
         }
     }
     else if(key == "gui_foi_name") {
-        _data->update_cached_fois(_state->video, true);
+        _data->update_cached_fois(_state->tracker, _state->video, true);
         return;
     }
     else if(key == "gui_wait_for_background") {
@@ -794,14 +793,18 @@ void TrackingScene::settings_callback(std::string_view key) {
               && _data
               && _data->_cache)
     {
-        if(Tracker::end_frame().valid()
+        if(_state->tracker->frames().end_frame().valid()
            && _data->_cache->frame_idx.valid()
-           && Tracker::end_frame() >= _data->_cache->frame_idx)
+           && _state->tracker->frames().end_frame() >= _data->_cache->frame_idx)
         {
             WorkProgress::add_queue("", [frame = _data->_cache->frame_idx, this](){
-                Tracker::instance()->_remove_frames(frame);
-                if(_state)
-                    _state->analysis->set_paused(false);
+                if(not _state) {
+                    FormatError("No tracker exists because the scene doesnt exist anymore.");
+                    return;
+                }
+                
+                _state->tracker->_remove_frames(frame);
+                _state->analysis->set_paused(false);
             });
         }
     }
@@ -1364,7 +1367,7 @@ void TrackingScene::_draw(DrawStructure& graph) {
     auto coords = FindCoord::get();
     
     if(not _data->_cache) {
-        _data->_cache = std::make_unique<GUICache>(&graph, _state->video, _data->_timing_stats);
+        _data->_cache = std::make_unique<GUICache>(&graph, _state->tracker, _state->video, _data->_timing_stats);
         _data->_bowl = std::make_unique<Bowl>(_data->_cache.get());
         _data->_bowl->set_video_aspect_ratio(_state->video->size().width, _state->video->size().height);
         _data->_bowl->fit_to_screen(coords.screen_size());
@@ -1396,7 +1399,7 @@ void TrackingScene::_draw(DrawStructure& graph) {
     }
     
     /// Update FOIs if necessary.
-    _data->update_cached_fois(_state->video);
+    _data->update_cached_fois(_state->tracker, _state->video);
 
     for (auto& [key, code] : _key_map) {
         _data->_keymap[key] = graph.is_key_pressed(code);
@@ -1584,7 +1587,7 @@ void TrackingScene::_draw(DrawStructure& graph) {
     }
     
     if(_data->_cache->frame_idx.valid())
-        _data->_bowl->update(_data->_cache->frame_idx, graph, coords);
+        _data->_bowl->update(_state->tracker->frames(), _data->_cache->frame_idx, graph, coords);
     _data->_bowl_mouse = coords.convert(HUDCoord(graph.mouse_position())); //_data->_bowl->global_transform().getInverse().transformPoint(graph.mouse_position());
     
     /*const auto mode = GUI_SETTINGS(gui_mode);
@@ -1607,7 +1610,7 @@ void TrackingScene::_draw(DrawStructure& graph) {
     
     _data->dynGUI.update(graph, nullptr);
     
-    Categorize::draw(_state->video, (IMGUIBase*)window(), graph);
+    Categorize::draw(_state->tracker, _state->video, (IMGUIBase*)window(), graph);
     
     //DrawPreviewImage::draw(_state->tracker->background(), _data->_cache->processed_frame(), GUI_SETTINGS(gui_frame), graph);
     
@@ -1618,7 +1621,7 @@ void TrackingScene::_draw(DrawStructure& graph) {
     if(GUI_SETTINGS(gui_show_dataset)) {
         if(not _data->_dataset)
             _data->_dataset = std::make_unique<DrawDataset>();
-        _data->_dataset->set_data(_data->_cache->frame_idx, *_data->_cache);
+        _data->_dataset->set_data(*_state->tracker, _data->_cache->frame_idx, *_data->_cache);
         graph.wrap_object(*_data->_dataset);
         
     } else if(_data->_dataset) {
@@ -1654,7 +1657,7 @@ void TrackingScene::_draw(DrawStructure& graph) {
     
     if(GUI_SETTINGS(gui_show_uniqueness)) {
         if(not _data->_uniqueness) {
-            _data->_uniqueness = std::make_unique<DrawUniqueness>(_data->_cache.get(), _state->video);
+            _data->_uniqueness = std::make_unique<DrawUniqueness>(_data->_cache.get(), _state->tracker, _state->video);
         }
         
         _data->_uniqueness->set(_data->_cache->frame_idx);
@@ -1774,7 +1777,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
             
                 overall.print();
                 
-                mem::TrackerMemoryStats stats;
+                mem::TrackerMemoryStats stats{*_state->tracker};
                 stats.print();
                 
                 mem::OutputLibraryMemoryStats ol;
@@ -1903,7 +1906,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
             }),
             ActionFunc("categorize", [this](Action){
                 _state->_controller->_busy = true;
-                Categorize::show(_state->video,
+                Categorize::show(_state->tracker, _state->video,
                     [this](){
                         _state->_controller->_busy = false;
                         if(BOOL_SETTING(auto_quit))
@@ -2212,7 +2215,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                     throw InvalidArgumentException("Need exactly one argument for ", props);
 
                 auto frame = Meta::fromStr<Frame_t>(props.parameters.front());
-                return _data->_cache->tracked_frames.contains(frame);
+                return _data->_cache->tracked_frames().contains(frame);
             }),
             VarFunc("foi_color", [this](const VarProps&) -> Color {
                 if(not _data)
@@ -2232,7 +2235,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                 
                 return {};
             }),
-            VarFunc("unique_frame_tags", [this](const VarProps&) -> std::set<std::string_view> {
+            VarFunc("unique_frame_tags", [](const VarProps&) -> std::set<std::string_view> {
                 static track::FrameTags track_frame_tags;
                 track_frame_tags = READ_SETTING_WITH_DEFAULT(track_frame_tags, track::FrameTags{});
                 return track_frame_tags.unique();
@@ -2248,7 +2251,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                         return _data->_last_active_individuals;
                     }
                     
-                    if(_state->tracker->properties(frame)) {
+                    if(_state->tracker->frames().properties(frame)) {
                         auto individuals = Tracker::active_individuals(frame);
                         size_t N = 0;
                         for(auto fish : individuals)
@@ -2333,7 +2336,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                         return _data->_last_live_individuals;
                     }
                     
-                    if(_state->tracker->properties(frame)) {
+                    if(_state->tracker->frames().properties(frame)) {
                         size_t count{0u};
                         for(auto fish : Tracker::active_individuals(frame)) {
                             if(fish->has(frame))
@@ -2567,9 +2570,9 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
             }),
             
             VarFunc("tracker", [this](const VarProps&) -> Range<Frame_t> {
-                if(not _state->tracker->start_frame().valid())
+                if(not _state->tracker->frames().start_frame().valid())
                     return Range<Frame_t>(_data->_analysis_range.load().start(), _data->_analysis_range.load().start());
-                return Range<Frame_t>{ _state->tracker->start_frame(), _state->tracker->end_frame() + 1_f };
+                return Range<Frame_t>{ _state->tracker->frames().start_frame(), _state->tracker->frames().end_frame() + 1_f };
             }),
             
             VarFunc("analysis_range", [this](const VarProps&) -> Range<Frame_t> {
@@ -2693,7 +2696,9 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                 return 0;
             })
     );
-    g.context.custom_elements["preview"] = std::unique_ptr<CustomElement>(new PreviewAdapterElement([this]() -> const track::PPFrame* {
+    g.context.custom_elements["preview"] = std::unique_ptr<CustomElement>(new PreviewAdapterElement([this]() -> std::shared_ptr<const track::Tracker> {
+        return _state ? _state->tracker : nullptr;
+    }, [this]() -> const track::PPFrame* {
         if(not _data || not _data->_cache)
             return nullptr;
         return &_data->_cache->processed_frame();
@@ -2776,7 +2781,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
             }
             
             if(not _data
-                || (not _data->update_cached_fois(_state->video)
+                || (not _data->update_cached_fois(_state->tracker, _state->video)
                     && width == _data->_cached_fois_width)
                 || not _data->_cached_fois.has_value())
             {

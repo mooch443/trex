@@ -12,8 +12,8 @@
 namespace track {
 using namespace cmn;
 
-PrefilterBlobs::PrefilterBlobs(Frame_t index, int threshold, const SizeFilters& fish_size, const Background& background)
-: frame_index(index), fish_size(fish_size), background(&background), threshold(threshold)
+PrefilterBlobs::PrefilterBlobs(Frame_t index, int threshold, const SizeFilters& fish_size, const Background& background, Frame_t start, Frame_t end)
+: frame_index(index), fish_size(fish_size), background(&background), threshold(threshold), start_frame(start), end_frame(end)
 {
     
 }
@@ -151,6 +151,7 @@ bool PrefilterBlobs::is_blob_ignored(
 }
 
 void PrefilterBlobs::split_big(
+    const Background& background,
     Frame_t frame_index,
     std::vector<pv::BlobPtr> && big_blobs,
     const BlobReceiver& _noise,
@@ -225,7 +226,7 @@ void PrefilterBlobs::split_big(
             if(!expect.empty() && expect.count(bdx))
                 ex = expect.at(bdx);
             
-            auto rec = b->recount(threshold, *Tracker::background());
+            auto rec = b->recount(threshold, background);
             if(track_size_filter
                && !track_size_filter.close_to_maximum_of_one(rec, 10 * ex.number))
             {
@@ -233,8 +234,8 @@ void PrefilterBlobs::split_big(
                 continue;
             }
             
-            SplitBlob s(&cache, *Tracker::background(), b.get());
-            auto ret = s.split(ex.number, ex.centers, *Tracker::background());
+            SplitBlob s(&cache, background, b.get());
+            auto ret = s.split(ex.number, ex.centers, background);
             
             for(auto &ptr : ret) {
                 if(b->blob_id() != ptr->blob_id())
@@ -256,7 +257,7 @@ void PrefilterBlobs::split_big(
             std::vector<pv::BlobPtr> for_this_blob;
             std::vector<std::tuple<float, pv::bid, pv::BlobPtr>> found;
             for(auto &ptr : ret) {
-                auto recount = ptr->recount(0, *Tracker::background());
+                auto recount = ptr->recount(0, background);
                 found.push_back({recount, ptr->blob_id(), std::move(ptr)});
             }
             ret.clear();

@@ -19,6 +19,11 @@ using ::cmn::SegmentationData;
 using ::cmn::VideoInfo;
 }
 
+export namespace cmn::data {
+// core/TrackingSettings.h
+using ::cmn::data::FrameRepository;
+}
+
 export namespace cmn::gui::mode_t {
 // core/default_config.h
 using ::cmn::gui::mode_t::Class;
@@ -89,6 +94,11 @@ using ::track::Settings;
 using ::track::mmatches_t;
 // core/idx_t.h
 using ::track::Idx_t;
+}
+
+export namespace track::MaskPostprocessMode {
+// core/TrackingSettings.h
+using ::track::MaskPostprocessMode::Class;
 }
 
 export namespace track::background_task {

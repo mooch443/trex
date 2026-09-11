@@ -10,10 +10,11 @@
 #include <core/idx_t.h>
 #include <core/Border.h>
 #include <core/TrackingSettings.h>
-#include <tracking/CacheHints.h>
 #include <tracking/PPFrameTypes.h>
 #include <tracking/SplitExpectation.h>
 #include <tracking/Individual.h>
+#include <data/FrameRepository.h>
+#include <processing/ProximityGrid.h>
 
 namespace cmn {
 class Background;
@@ -31,7 +32,14 @@ namespace Output {
 
 namespace mem { struct TrackerMemoryStats; }
 
+//namespace cmn::data { class FrameRepository; }
+
 namespace track {
+
+enum class HistorySplitPolicy {
+    Apply,
+    Skip
+};
 
 class TrainingData;
 class FOI;
@@ -52,20 +60,21 @@ struct IndividualStatus {
     IndividualStatus() : prev(nullptr), current(nullptr) {}
 };
 
-
-
-class Tracker {
+class Tracker : public std::enable_shared_from_this<Tracker> {
 public:
-    static Tracker* instance();
     static inline std::atomic<bool> is_checking_tracklet_identities{false};
 
 protected:
     friend class Output::TrackingResults;
     friend struct mem::TrackerMemoryStats;
     
-    GenericThreadPool _thread_pool;
+    cmn::CallbackFuture _settings_callback;
+    std::shared_ptr<data::FrameRepository> _frames;
+    GETTER_NCONST(GenericThreadPool, thread_pool);
+    
 public:
-    static GenericThreadPool& thread_pool() { return instance()->_thread_pool; }
+    const data::FrameRepository& frames() const { return *_frames; }
+    data::FrameRepository& frames() { return *_frames; }
     
 protected:
     mutable std::shared_mutex _vi_mutex;
@@ -102,10 +111,6 @@ public:
     const std::vector<float>* find_prediction(Frame_t, pv::bid) const;
     
 protected:
-    std::vector<FrameProperties::Ptr> _added_frames;
-public:
-    const std::vector<FrameProperties::Ptr>& frames() const { return _added_frames; }
-protected:
     CallbackFuture _callback;
     Image::Ptr _average;
     GETTER_SETTER(cv::Mat, mask);
@@ -132,19 +137,16 @@ public:
     //set_of_individuals_t _active_individuals;
     //active_individuals_map_t _active_individuals_frame;
     
-    std::atomic<Frame_t> _startFrame{ Frame_t() };
-    std::atomic<Frame_t> _endFrame{ Frame_t() };
-    
     std::atomic<uint64_t> _max_individuals;
     
 public:
-    static uint64_t max_individuals() { return instance()->_max_individuals.load(); }
+    uint64_t max_individuals() { return _max_individuals.load(); }
     
 protected:
     Background* _background{nullptr};
     GETTER_NCONST(Border, border);
 public:
-    static Background* background() { return instance()->_background; }
+    Background* background() const { return _background; }
     
     ska::bytell_hash_map<Idx_t, Individual::tracklet_map::const_iterator> _individual_add_iterator_map;
     ska::bytell_hash_map<Idx_t, size_t> _tracklet_map_known_capacity;
@@ -170,13 +172,19 @@ private:
     
 public:
     double average_seconds_per_individual() const;
-    
-    GETTER(std::deque<Range<Frame_t>>, consecutive);
     //std::set<Idx_t, std::function<bool(Idx_t,Idx_t)>> _inactive_individuals;
     
-public:
+private:
     Tracker(Image::Ptr&& average, meta_encoding_t::Class encoding, Float2_t meta_real_width);
     Tracker(const pv::File& file);
+    void init();
+    
+public:
+    static std::shared_ptr<Tracker> Make(auto&&... args) {
+        auto ptr = std::shared_ptr<Tracker>(new Tracker(std::forward<decltype(args)>(args)...));
+        ptr->init();
+        return ptr;
+    }
     ~Tracker();
     
     /**
@@ -222,14 +230,7 @@ public:
     }
     
     void set_average(Image::Ptr&& average, meta_encoding_t::Class encoding);
-    static const Image& average(cmn::source_location loc = cmn::source_location::current());
-    
-    
-    decltype(_added_frames)::const_iterator properties_iterator(Frame_t frameIndex);
-    static const FrameProperties* properties(Frame_t frameIndex, const CacheHints* cache = nullptr);
-    static double time_delta(Frame_t frame_1, Frame_t frame_2, const CacheHints* cache = nullptr);
-    static const FrameProperties* add_next_frame(const FrameProperties&);
-    static void clear_properties();
+    const Image& average(cmn::source_location loc = cmn::source_location::current()) const;
     
     //! returns an ordered set of Idx_t for all individuals that exist
     static const std::set<Idx_t> identities();
@@ -237,12 +238,10 @@ public:
     //! returns true only if track_max_individuals > 0
     static bool has_identities();
     
-    static Frame_t start_frame() { return instance()->_startFrame.load(); }
-    static Frame_t end_frame() { return instance()->_endFrame.load(); }
-    static size_t number_frames() { return instance()->_added_frames.size(); }
-    
     // filters a given frames blobs for size and splits them if necessary
-    static void preprocess_frame(pv::Frame&&, PPFrame &frame, GenericThreadPool* pool, NeedGrid, const Size2& resolution, bool do_history_split = true);
+    static void preprocess_frame(pv::Frame&&, PPFrame& frame, GenericThreadPool* pool,
+                                 const data::FrameRepository&, const Background&,
+                                 NeedGrid, HistorySplitPolicy);
     
     friend class VisualField;
     
@@ -279,15 +278,28 @@ public:
     
 protected:
     void update_consecutive(const CachedSettings&, const set_of_individuals_t& active, Frame_t frameIndex, bool update_dataset = false);
-    void update_warnings(const CachedSettings&, Frame_t frameIndex, double time, long_t number_fish, long_t n_found, long_t n_prev, const FrameProperties *props, const FrameProperties *prev_props, const set_of_individuals_t& active_individuals, ska::bytell_hash_map<Idx_t, Individual::tracklet_map::const_iterator>& individual_iterators);
+    void update_warnings(const CachedSettings&,
+                         Frame_t frameIndex,
+                         double time,
+                         long_t number_fish,
+                         long_t n_found,
+                         long_t n_prev,
+                         //const FrameProperties& props,
+                         const FrameProperties *prev_props,
+                         const set_of_individuals_t& active_individuals,
+                         ska::bytell_hash_map<Idx_t, Individual::tracklet_map::const_iterator>& individual_iterators);
     
 private:
-    static void filter_blobs(PPFrame& frame, GenericThreadPool *pool);
+    static void filter_blobs(PPFrame& frame, GenericThreadPool *pool, const Background&, Frame_t, Frame_t);
     
     //static void changed_setting(const sprite::Map&, const std::string& key, const sprite::PropertyType& value);
     size_t found_individuals_frame(Frame_t frameIndex) const;
     void generate_pairdistances(Frame_t frameIndex);
     void check_save_tags(Frame_t frameIndex, const ska::bytell_hash_map<pv::bid, Individual*>&, const std::vector<tags::blob_pixel>&, const std::vector<tags::blob_pixel>&, const file::Path&);
+    
+    //! this will be used primarily by TrackingHelper, but needs to be
+    //! persistent across frames in order to provide a significant speedup
+    grid::ProximityGrid _blob_grid;
     
     friend struct TrackingHelper;
     //static Individual* create_individual(Idx_t ID, set_of_individuals_t& active_individuals);

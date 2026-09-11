@@ -588,7 +588,7 @@ void Interface::reset() {
     clear_rows();
 }
 
-void Interface::init(std::weak_ptr<pv::File> video, IMGUIBase* window, DrawStructure& base) {
+void Interface::init(std::weak_ptr<track::Tracker> tracker, std::weak_ptr<pv::File> video, IMGUIBase* window, DrawStructure& base) {
     if (!_initialized && window) {
         //PythonIntegration::ensure_started();
         //PythonIntegration::async_python_function([]()->bool{return true;});
@@ -613,41 +613,48 @@ void Interface::init(std::weak_ptr<pv::File> video, IMGUIBase* window, DrawStruc
         std::vector<Layout::Ptr> objects{stext};
 
         apply->clear_event_handlers();
-        apply->on_click([this](auto) {
+        apply->on_click([this, ptr = tracker](auto) {
             auto lock = _video.lock();
-            if(lock)
-                Work::set_state(lock, Work::State::APPLY);
+            auto tracker = ptr.lock();
+            if(lock && tracker)
+                Work::set_state(tracker, lock, Work::State::APPLY);
         });
         close->clear_event_handlers();
-        close->on_click([this](auto) {
-            Work::set_state(_video.lock(), Work::State::NONE);
+        close->on_click([this, ptr = tracker](auto) {
+            auto lock = _video.lock();
+            auto tracker = ptr.lock();
+            if(lock && tracker)
+                Work::set_state(tracker, lock, Work::State::NONE);
         });
         load->clear_event_handlers();
-        load->on_click([this](auto) {
+        load->on_click([this, ptr = tracker](auto) {
             auto lock = _video.lock();
-            if(lock)
-                Work::set_state(lock, Work::State::LOAD);
+            auto tracker = ptr.lock();
+            if(lock && tracker)
+                Work::set_state(tracker, lock, Work::State::LOAD);
         });
         restart->clear_event_handlers();
-        restart->on_click([this](auto) {
+        restart->on_click([this, ptr = tracker](auto) {
             Work::learning() = false;
             Work::learning_variable().notify_all();
             DataStore::clear();
             reset();
 
             auto lock = _video.lock();
-            if(lock)
-                Work::set_state(lock, Work::State::SELECTION);
+            auto tracker = ptr.lock();
+            if(lock && tracker)
+                Work::set_state(tracker, lock, Work::State::SELECTION);
         });
         reapply->clear_event_handlers();
-        reapply->on_click([this](auto) {
+        reapply->on_click([this, ptr = tracker](auto) {
             DataStore::clear();
             Categorize::clear_labels();
             reset();
 
             auto lock = _video.lock();
-            if(lock)
-                Work::set_state(lock, Work::State::APPLY);
+            auto tracker = ptr.lock();
+            if(lock && tracker)
+                Work::set_state(tracker, lock, Work::State::APPLY);
         });
         train->clear_event_handlers();
         train->on_click([](auto) {
@@ -717,7 +724,7 @@ void Interface::reshuffle() {
     }
 }
 
-void Interface::draw(const std::weak_ptr<pv::File>& video, IMGUIBase* window, DrawStructure& base) {
+void Interface::draw(std::weak_ptr<track::Tracker> tracker, const std::weak_ptr<pv::File>& video, IMGUIBase* window, DrawStructure& base) {
     {
         std::lock_guard guard(DataStore::mutex());
         /*if(_labels.empty()) {
@@ -774,7 +781,7 @@ void Interface::draw(const std::weak_ptr<pv::File>& video, IMGUIBase* window, Dr
 
     base.wrap_object(rect);
 
-    init(video, window, base);
+    init(tracker, video, window, base);
 
     layout.auto_size();
     base.wrap_object(layout);

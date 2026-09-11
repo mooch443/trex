@@ -89,8 +89,11 @@ void generate_training_data(GUITaskQueue_t* gui, bool force_load, std::shared_pt
             auto video = controller->_video.lock();
             if(not video)
                 throw SoftException("There was no video open.");
+            auto tracker = controller->_tracker.lock();
+            if(not tracker)
+                throw SoftException("No tracker available.");
             
-            Accumulation acc(gui, std::move(video), std::move(global_tracklet_order), window, load);
+            Accumulation acc(gui, std::move(tracker), std::move(video), std::move(global_tracklet_order), window, load);
             //if(current.valid())
             //    current.get();
 
@@ -171,12 +174,12 @@ void generate_training_data(GUITaskQueue_t* gui, bool force_load, std::shared_pt
         };
 
         // In your dialog code, change the mapping to use DialogAction.
-        gui->enqueue([global_tracklet_order, fn, avail, message, controller, gui](IMGUIBase* window, DrawStructure& graph) mutable {
+        gui->enqueue([global_tracklet_order, fn, avail, message, controller, gui, has_vi_predictions = tracker->has_vi_predictions()](IMGUIBase* window, DrawStructure& graph) mutable {
             // Build an array of button-action pairs.
             using ButtonAction = std::pair<std::string_view, DialogAction>;
             std::vector<ButtonAction> buttonActions;
             
-            if(Tracker::instance()->has_vi_predictions())
+            if(has_vi_predictions)
                 buttonActions.push_back({"<sym>👽</sym> Auto Correct", DialogAction::AutoCorrect});
             
             if (avail) {
@@ -398,11 +401,11 @@ void training_data_dialog(GUITaskQueue_t* gui, bool force_load, std::function<vo
         bool before = analysis->is_paused();
         analysis->set_paused(true).get();
         
-        DatasetQuality::update();
-        
         auto tracker = controller->_tracker.lock();
         if(not tracker)
             return; /// deleted tracker
+        
+        DatasetQuality::update(*tracker);
         tracker->global_tracklet_order();
         
         try {
@@ -551,7 +554,7 @@ void VIController::auto_quit(GUITaskQueue_t* gui) {
         if(!BOOL_SETTING(auto_no_results)) {
             auto tracker = _tracker.lock();
             if(tracker) {
-                Output::TrackingResults results(*tracker);
+                Output::TrackingResults results(tracker);
                 results.save();
             }
         } else {

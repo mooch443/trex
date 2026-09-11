@@ -47,6 +47,7 @@
 #include <ml/ClosedLoop.h>
 #include <core/SettingsPaths.h>
 #include <ui/GuiSettings.h>
+#include <tracking/Tracker.h>
 
 namespace cmn::gui {
 namespace ind = indicators;
@@ -219,7 +220,10 @@ struct ConvertScene::Data {
         if(not dynGUI) {
             dynGUI = init_gui(window);
             
-            dynGUI.context.custom_elements["preview"] = std::unique_ptr<CustomElement>(new PreviewAdapterElement([this]() -> const track::PPFrame*
+            dynGUI.context.custom_elements["preview"] = std::unique_ptr<CustomElement>(new PreviewAdapterElement([this]() -> std::shared_ptr<const track::Tracker>
+            {
+                return _segmenter ? _segmenter->tracker() : nullptr;
+            }, [this]() -> const track::PPFrame*
             {
                 return &_current_frame;
                 
@@ -1149,7 +1153,9 @@ void ConvertScene::Data::draw(bool, DrawStructure& graph, Base* window) {
 
     bool dirty = retrieve_and_prepare_data();
     draw_scene(graph, detect_classes, dirty);
-    _bowl->update(_current_data.frame.index(), graph, coords);
+    
+    if(_segmenter && _segmenter->tracker())
+        _bowl->update(_segmenter->tracker()->frames(), _current_data.frame.index(), graph, coords);
     
     check_gui(graph, window);
 }
@@ -1198,6 +1204,7 @@ bool ConvertScene::Data::retrieve_and_prepare_data() {
     std::vector<std::vector<Vertex>> lines;
     std::vector<std::tuple<Color, std::vector<Vec2>>> postures;
     const bool output_normalize_midline_data = BOOL_SETTING(output_normalize_midline_data);
+    const auto tracker = _segmenter ? _segmenter->tracker() : nullptr;
 
     IndividualManager::transform_all([&, frameIndex = _current_data.frame.index()](Idx_t, Individual* fish) {
         if (not fish->has(frameIndex))
@@ -1208,7 +1215,7 @@ bool ConvertScene::Data::retrieve_and_prepare_data() {
         Range<Frame_t> tracklet_range;
         
         if(tracklet) {
-            auto filters = constraints::local_midline_length(fish, tracklet->range);
+            auto filters = constraints::local_midline_length(fish, tracklet->range, tracker ? &tracker->border() : nullptr);
             filter_cache[fish->identity().ID()] = std::move(filters);
             tracklet_range = tracklet->range;
         }

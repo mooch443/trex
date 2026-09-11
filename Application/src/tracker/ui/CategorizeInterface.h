@@ -14,6 +14,8 @@ class IMGUIBase;
 }
 
 namespace track {
+class Tracker;
+
 namespace Categorize {
 
 using namespace cmn::gui;
@@ -50,7 +52,7 @@ struct Interface {
 
     static Interface& get();
 
-    void draw(const std::weak_ptr<pv::File>& video, IMGUIBase*, DrawStructure& base);
+    void draw(std::weak_ptr<track::Tracker> tracker, const std::weak_ptr<pv::File>& video, IMGUIBase*, DrawStructure& base);
     void clear_probabilities();
     void reset();
     void reshuffle();
@@ -60,7 +62,7 @@ struct Interface {
     
     static Rows& rows();
 private:
-    void init(std::weak_ptr<pv::File> video, IMGUIBase*, DrawStructure& base);
+    void init(std::weak_ptr<track::Tracker>, std::weak_ptr<pv::File> video, IMGUIBase*, DrawStructure& base);
     void clear_rows();
     
 public:

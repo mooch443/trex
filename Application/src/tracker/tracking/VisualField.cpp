@@ -60,8 +60,8 @@ struct RelativeHeadPosition {
 inline static std::mutex history_mutex;
 inline static std::unordered_map<Idx_t, std::vector<RelativeHeadPosition>> history;
 
-VisualField::VisualField(Idx_t fish_id, Frame_t frame, const BasicStuff& basic, const PostureStuff* posture, bool blocking)
-    : max_d(SQR(Tracker::average().cols) + SQR(Tracker::average().rows)), _fish_id(fish_id), _frame(frame)
+VisualField::VisualField(Size2 video_size, Idx_t fish_id, Frame_t frame, const BasicStuff& basic, const PostureStuff* posture, bool blocking)
+    : max_d(SQR(video_size.width) + SQR(video_size.height)), _fish_id(fish_id), _frame(frame)
 {
     VFCache::init();
     calculate(basic, posture, blocking);

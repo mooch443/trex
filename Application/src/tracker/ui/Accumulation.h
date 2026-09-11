@@ -25,6 +25,8 @@ class VINetwork;
 }
 
 namespace track {
+class Tracker;
+
 namespace TrainingMode = ::Python::TrainingMode;
 
 ENUM_CLASS(AccumulationStatus, Added, Cached, Failed, None)
@@ -101,6 +103,7 @@ protected:
         return result;
     }
     
+    std::shared_ptr<track::Tracker> _tracker;
     GETTER(TrainingMode::Class, mode);
     std::vector<Range<Frame_t>> _trained;
     std::shared_ptr<TrainingData> _collected_data, _generated_data;
@@ -145,7 +148,12 @@ protected:
     cmn::gui::GUITaskQueue_t* _gui{nullptr};
     
 public:
-    Accumulation(cmn::gui::GUITaskQueue_t*, std::shared_ptr<pv::File>&& video, std::vector<Range<Frame_t>>&& global_tracklet_order, gui::IMGUIBase* base, TrainingMode::Class);
+    Accumulation(cmn::gui::GUITaskQueue_t*,
+                 std::shared_ptr<track::Tracker> tracker,
+                 std::shared_ptr<pv::File>&& video,
+                 std::vector<Range<Frame_t>>&& global_tracklet_order,
+                 gui::IMGUIBase* base,
+                 TrainingMode::Class);
     ~Accumulation();
     bool start();
 
@@ -169,13 +177,13 @@ public:
     static void on_terminate();
     
     static float good_uniqueness();
-    static std::map<Frame_t, std::set<Idx_t>> generate_individuals_per_frame(const Range<Frame_t>& range, TrainingData* data, std::map<Idx_t, std::set<std::shared_ptr<TrackletInformation>>>*);
+    static std::map<Frame_t, std::set<Idx_t>> generate_individuals_per_frame(const Border&, const Range<Frame_t>& range, TrainingData* data, std::map<Idx_t, std::set<std::shared_ptr<TrackletInformation>>>*);
     std::tuple<bool, std::map<Idx_t, Idx_t>> check_additional_range(const Range<Frame_t>& range, TrainingData& data, bool check_length, DatasetQuality::Quality);
     void confirm_weights();
     void update_coverage(const TrainingData& data);
     
     static std::tuple<float, hash_map<Frame_t, float>, float> calculate_uniqueness(bool internal, const std::vector<Image::SPtr>&, const std::map<Frame_t, Range<size_t>>&, const std::unique_lock<std::mutex>* = nullptr);
-    static std::tuple<std::shared_ptr<TrainingData>, std::vector<Image::SPtr>, std::map<Frame_t, Range<size_t>>> generate_discrimination_data(pv::File& video, const std::shared_ptr<TrainingData>& source = nullptr);
+    static std::tuple<std::shared_ptr<TrainingData>, std::vector<Image::SPtr>, std::map<Frame_t, Range<size_t>>> generate_discrimination_data(const Tracker& tracker, pv::File& video, const std::shared_ptr<TrainingData>& source = nullptr);
     static void setup();
     static void unsetup();
     static Accumulation* current();

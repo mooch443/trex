@@ -77,7 +77,7 @@ DrawDataset::~DrawDataset() {}
         _color = Black.alpha(150);
     }
 
-    void DrawDataset::set_data(Frame_t frameIndex, const GUICache &cache) {
+    void DrawDataset::set_data(const track::Tracker& tracker, Frame_t frameIndex, const GUICache &cache) {
         frame = frameIndex;
         tracklet_order = cache.global_tracklet_order();
         consec = {};
@@ -137,7 +137,7 @@ DrawDataset::~DrawDataset() {}
                 
                 auto [condition, seg] = fish->has_processed_tracklet(frame);
                 if(condition) {
-                    if(auto tup = fish->processed_recognition(seg.start());
+                    if(auto tup = fish->processed_recognition(tracker, seg.start());
                        tup.has_value())
                     {
                         entry.probabilities = std::get<1>(*tup);
@@ -155,7 +155,7 @@ DrawDataset::~DrawDataset() {}
                     if(auto blob = fish->compressed_blob(frame);
                        blob != nullptr)
                     {
-                        auto pred = Tracker::instance()->find_prediction(frame, blob->blob_id());
+                        auto pred = tracker.find_prediction(frame, blob->blob_id());
                         if(pred) {
                             auto map = track::prediction2map(*pred);
                             entry.probabilities = std::map<track::Idx_t, float>{};

@@ -966,8 +966,8 @@ void BlobView::draw(const DisplayParameters& parm)
                 {
                     float d = FLT_MAX;
                     auto c = parm.cache.processed_frame().cached(id);
-                    if(Tracker::start_frame().valid()
-                       && frame > Tracker::start_frame()
+                    if(parm.cache.tracked_frames().start.valid()
+                       && frame > parm.cache.tracked_frames().start
                        && c)
                     {
                         d = (c->estimated_px - *blob_pos).length();

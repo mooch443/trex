@@ -320,11 +320,12 @@ bool cached_filter(Idx_t fdx, const Range<Frame_t>& tracklet, FilterCache & cons
 std::shared_ptr<FilterCache>
 local_midline_length(const Individual *fish,
                      Frame_t frame,
+                     const track::Border* border,
                      const bool calculate_std)
 {
     auto tracklet = fish->get_tracklet(frame);
     if(tracklet.contains(frame)) {
-        return local_midline_length(fish, tracklet.range, calculate_std);
+        return local_midline_length(fish, tracklet.range, border, calculate_std);
     }
     
     return nullptr;
@@ -332,6 +333,7 @@ local_midline_length(const Individual *fish,
 
 std::shared_ptr<FilterCache> local_midline_length(const Individual *fish,
                                                   const Range<Frame_t>& tracklet,
+                                                  const Border* border,
                                                   const bool calculate_std)
 {
     std::shared_ptr<FilterCache> constraints = std::make_shared<FilterCache>();
@@ -358,8 +360,11 @@ std::shared_ptr<FilterCache> local_midline_length(const Individual *fish,
                 return true;
 
             auto bounds = basic->blob.calculate_bounds();
-            if (!Tracker::instance()->border().in_recognition_bounds(bounds.pos() + bounds.size() * 0.5))
+            if (border
+                && not border->in_recognition_bounds(bounds.pos() + bounds.size() * 0.5))
+            {
                 return true;
+            }
 
             if (posture->cached()) {
                 auto L = posture->midline_length.value();

@@ -9,6 +9,8 @@
 
 namespace track {
 
+class Tracker;
+
 /**
  * @brief Thread-safe provider that keeps the *latest* uniqueness values.
  *
@@ -28,7 +30,7 @@ class UniquenessProvider
 public:
     using Map  = std::unordered_map<cmn::Frame_t, float>;
 
-    explicit UniquenessProvider(std::weak_ptr<pv::File> video_source) noexcept;
+    explicit UniquenessProvider(std::weak_ptr<track::Tracker>, std::weak_ptr<pv::File> video_source) noexcept;
 
     /** If necessary, launches / relaunches the async calculation.            */
     void request_update();
@@ -82,6 +84,7 @@ private:
     // ------------------------------------------------------------
     mutable std::mutex                        _mutex;
     std::weak_ptr<pv::File>                   _video_source;
+    std::weak_ptr<track::Tracker>             _tracker;
 
     std::optional<std::future<void>>          _running;
     std::optional<track::vi::VIWeights>       _last_origin;      // what UI saw last

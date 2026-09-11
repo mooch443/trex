@@ -52,17 +52,17 @@ struct DrawUniqueness::Data {
     bool should_update_uniquenesses();
 };
 
-DrawUniqueness::DrawUniqueness(GUICache* cache, std::weak_ptr<pv::File> video_source)
+DrawUniqueness::DrawUniqueness(GUICache* cache, std::weak_ptr<track::Tracker> tracker,  std::weak_ptr<pv::File> video_source)
     : _data(std::make_unique<Data>())
 {
     assert(cache);
     _data->_cache = cache;
     _data->_video_source = video_source;
-    _data->_provider = std::make_unique<UniquenessProvider>(video_source);
+    _data->_provider = std::make_unique<UniquenessProvider>(tracker, video_source);
     _data->graph.set_clickable(false);
     _data->graph.reset_bg();
     on_click([this](Event e){
-        auto frames = max(0_F, (Float2_t)_data->_cache->tracked_frames.end.get() - (Float2_t)_data->_cache->tracked_frames.start.get());
+        auto frames = max(0_F, (Float2_t)_data->_cache->tracked_frames().end.get() - (Float2_t)_data->_cache->tracked_frames().start.get());
         if(_data && _data->graph.size().width > 0 && _data->graph.bounds().contains(Vec2(e.mbutton.x, e.mbutton.y)))
         {
             auto frameIndex = saturate(e.mbutton.x / _data->graph.size().width * frames, 0_F, (Float2_t)frames);
@@ -194,7 +194,7 @@ void DrawUniqueness::Data::update(Entangled& base) {
     if(not estimated_uniqueness.empty()) {
         if(graph.empty()
            || graph.x_range().end == FLT_MAX
-           || graph.x_range().end != _cache->tracked_frames.end.get()
+           || graph.x_range().end != _cache->tracked_frames().end.get()
            || not graph.size().Equals(size))
         {
             graph.clear();
@@ -225,7 +225,7 @@ void DrawUniqueness::Data::update(Entangled& base) {
                 smooth_points[i] = (smooth_points[i] + uniquenesses[i].y) * 0.5;
             }
             
-            graph.set_ranges(Rangef(_cache->tracked_frames.start.get(), _cache->tracked_frames.end.get()), Rangef(0, 1));
+            graph.set_ranges(Rangef(_cache->tracked_frames().start.get(), _cache->tracked_frames().end.get()), Rangef(0, 1));
             graph.add_function(Graph::Function("", Graph::Type::DISCRETE, [this, uq = &estimated_uniqueness](float x) -> float {
                 std::lock_guard guard(mutex);
                 auto it = uq->upper_bound(Frame_t(sign_cast<uint32_t>(x)));

@@ -435,7 +435,7 @@ void InfoCard::update() {
     if(_shadow->fdx.valid()) {
         LockGuard guard(ro_t{}, "InfoCard::update", 10);
         if(guard.locked()) {
-            IndividualManager::transform_if_exists(_shadow->fdx, [&](auto fish) {
+            /*IndividualManager::transform_if_exists(_shadow->fdx, [&](auto fish) {
                 _shadow->has_vi_predictions = Tracker::instance()->has_vi_predictions();
                 _shadow->identity = fish->identity();
                 _shadow->has_frame = fish->has(_shadow->frame);
@@ -531,7 +531,7 @@ void InfoCard::update() {
             }).transform_error([&](auto message){
                 _shadow->fdx = Idx_t{};
                 return message;
-            });
+            });*/
             
         }
     }

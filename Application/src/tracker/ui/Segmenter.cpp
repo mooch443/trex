@@ -271,8 +271,8 @@ Segmenter::~Segmenter() {
         std::scoped_lock guard(_mutex_general, _mutex_video, _mutex_tracker);
         _overlayed_video = nullptr;
 
-        if(_tracker && _tracker->end_frame().valid() && (not _output_file || _output_file->length() > 0_f)) {
-            Output::TrackingResults results(*_tracker);
+        if(_tracker && _tracker->frames().end_frame().valid() && (not _output_file || _output_file->length() > 0_f)) {
+            Output::TrackingResults results(_tracker);
             results.save();
 
             if (BOOL_SETTING(auto_quit)) {
@@ -466,7 +466,7 @@ void Segmenter::callback_after_generating(cv::Mat &bg) {
     {
         std::unique_lock guard(_mutex_tracker);
         if(not _tracker)
-            _tracker = std::make_unique<Tracker>(Image::Make(bg), encoding, READ_SETTING(meta_real_width, Float2_t));
+            _tracker = Tracker::Make(Image::Make(bg), encoding, READ_SETTING(meta_real_width, Float2_t));
         //else
         //    _tracker->set_average(Image::Make(bg));
     }
@@ -657,7 +657,7 @@ void Segmenter::trigger_average_generator(bool do_generate_average, cv::Mat& bg)
             {
                 std::unique_lock guard(_mutex_tracker);
                 auto image_size = _output_size_before_crop;
-                _tracker = std::make_unique<Tracker>(Image::Make(image_size.height, image_size.width, processing_channels), Background::meta_encoding(), READ_SETTING(meta_real_width, Float2_t));
+                _tracker = Tracker::Make(Image::Make(image_size.height, image_size.width, processing_channels), Background::meta_encoding(), READ_SETTING(meta_real_width, Float2_t));
             }
 
             open_output_file();
@@ -1203,6 +1203,11 @@ Frame_t Segmenter::current_frame() const {
     return _current_frame.load();
 }
 
+std::shared_ptr<Tracker> Segmenter::tracker() const {
+    std::unique_lock guard(_mutex_tracker);
+    return _tracker;
+}
+
 void Segmenter::perform_tracking(SegmentationData&& progress_data) {
     Timer timer;
 
@@ -1216,7 +1221,9 @@ void Segmenter::perform_tracking(SegmentationData&& progress_data) {
     if (std::unique_lock guard(_mutex_tracker);
         _tracker != nullptr)
     {
-        Tracker::preprocess_frame(pv::Frame(progress_data.frame), pp, nullptr, PPFrame::NeedGrid::Need, _output_size, false);
+        Tracker::preprocess_frame(pv::Frame(progress_data.frame), pp, nullptr,
+                                  _tracker->frames(), *_tracker->background(),
+                                  NeedGrid::Need, HistorySplitPolicy::Skip);
         
         progress_blobs.reserve(pp.N_blobs());
         pp.transform_all([&](const pv::Blob& blob){

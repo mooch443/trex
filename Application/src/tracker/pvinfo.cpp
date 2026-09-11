@@ -370,10 +370,7 @@ int main(int argc, char** argv) {
             SETTING(frame_rate) = (uint32_t)max(1, int(video.framerate()));
         }
 
-        Output::Library::InitVariables();
-        Output::Library::Init();
-
-        track::Tracker _tracker(video);
+        auto _tracker = track::Tracker::Make(video);
 
         if(auto_param
            || BOOL_SETTING(auto_minmax_size)
@@ -386,7 +383,7 @@ int main(int argc, char** argv) {
 
         if(heatmap) {
             gui::heatmap::HeatmapController svenja;
-            Output::TrackingResults results(*track::Tracker::instance());
+            Output::TrackingResults results(_tracker);
             results.load([be_quiet](const std::string& title, float percent, const std::string& text){
                 if(!text.empty() && (int)round(percent * 100) % 10 == 0) {
                     if(!be_quiet)
@@ -394,7 +391,7 @@ int main(int argc, char** argv) {
                 }
             });
 
-            svenja.save();
+            svenja.save(_tracker->frames());
         }
 
         if(BOOL_SETTING(write_settings)) {
@@ -740,16 +737,13 @@ int main(int argc, char** argv) {
             .quiet = be_quiet
         });
 
-        Output::Library::InitVariables();
-        Output::Library::Init();
-
         if(header.version < Output::ResultsFormat::Versions::V_28) {
             SETTING(quiet) = true;
-            track::Tracker tracker(Image::Make(average), READ_SETTING(meta_encoding, meta_encoding_t::Class), READ_SETTING(meta_real_width, Float2_t));
+            auto tracker = track::Tracker::Make(Image::Make(average), READ_SETTING(meta_encoding, meta_encoding_t::Class), READ_SETTING(meta_real_width, Float2_t));
 
             Output::TrackingResults results(tracker);
             results.load([](auto, auto, auto){}, input.add_extension("results"));
-            auto consec = tracker.consecutive();
+            auto consec = tracker->frames().read([](auto data) { return data.consec; });
             std::vector<Range<Frame_t>> vec(consec.begin(), consec.end());
             SETTING(consecutive) = vec;
         }

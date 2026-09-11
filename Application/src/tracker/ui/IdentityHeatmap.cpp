@@ -121,15 +121,15 @@ void HeatmapController::paint_heatmap() {
     }*/
 }
 
-void HeatmapController::save() {
-    update_variables();
+void HeatmapController::save(const data::FrameRepository& repo) {
+    update_variables(repo);
     
     //_frame_context = 0;
     //_normalization = normalization_t::none;
     //custom_heatmap_value_range = Range<double>(-1, -1);
     
     size_t count_frames = 0, package_count = 0;
-    size_t max_frames = sign_cast<size_t>((Tracker::end_frame() - Tracker::start_frame()).get());
+    size_t max_frames = sign_cast<size_t>((repo.end_frame() - repo.start_frame()).get());
     size_t print_step = max_frames / 10 + 1;
 
     std::vector<double> per_frame;
@@ -204,8 +204,9 @@ void HeatmapController::save() {
         ++package_index;
     };
 
-    for(Frame_t frame = Tracker::start_frame(); frame <= Tracker::end_frame(); ++frame) {
-        update_data(frame);
+    const auto end_frame = repo.end_frame();
+    for(Frame_t frame = repo.start_frame(); frame <= end_frame; ++frame) {
+        update_data(repo, frame);
         sort_data_into_custom_grid();
         //set_frame(frame);
         per_frame.insert(per_frame.end(), _array_grid.begin(), _array_grid.end());
@@ -213,7 +214,7 @@ void HeatmapController::save() {
         frames.push_back(frame.get());
         
         if(!be_quiet && count_frames % print_step == 0) {
-            Print("Saving heatmap ",dec<2>(double(count_frames) / double(max_frames) * 100),"% ... (frame ",frame," / ",Tracker::end_frame(),")");
+            Print("Saving heatmap ",dec<2>(double(count_frames) / double(max_frames) * 100),"% ... (frame ",frame," / ",end_frame,")");
         }
 
         ++count_frames;
@@ -229,7 +230,7 @@ void HeatmapController::save() {
     }
 
     save_package();
-    update_variables();
+    update_variables(repo);
 }
 
 void HeatmapController::sort_data_into_custom_grid() {
@@ -444,7 +445,7 @@ void HeatmapController::frames_deleted_from(Frame_t frame) {
     _grid.keep_only(Range<Frame_t>(0_f, frame.try_sub(1_f)));
 }
 
-HeatmapController::UpdatedStats HeatmapController::update_data(Frame_t current_frame) {
+HeatmapController::UpdatedStats HeatmapController::update_data(const data::FrameRepository&  repo, Frame_t current_frame) {
     Timer timer;
             
     static std::vector<heatmap::DataPoint> data;
@@ -502,14 +503,14 @@ HeatmapController::UpdatedStats HeatmapController::update_data(Frame_t current_f
             Individual::tracklet_map::const_iterator kit;
             
             auto &range = updated.add_range;
-            IndividualManager::transform_all([&](auto id, auto fish) {
+            IndividualManager::transform_all([&, start_frame = repo.start_frame(), end_frame = repo.end_frame()](auto id, auto fish) {
                 if(!_ids.empty()) {
                     if(!contains(_ids, id)) {
                         return;
                     }
                 }
                 
-                auto frame = max(Tracker::start_frame(), range.start);
+                auto frame = max(start_frame, range.start);
                 if(fish->empty())
                     return;
                 if(fish->end_frame() < frame)
@@ -549,7 +550,7 @@ HeatmapController::UpdatedStats HeatmapController::update_data(Frame_t current_f
 //                       if(kit == fish->tracklets().end())
                 Output::Library::LibInfo info(fish, _mods);
                 
-                for(; frame < min(Tracker::end_frame(), range.end); ++frame) {
+                for(; frame < min(end_frame, range.end); ++frame) {
                     if(_grid.root()->frame_range().contains(frame))
                         continue;
                     //break;
@@ -644,21 +645,21 @@ void HeatmapController::update() {
     auto_size(Margin{0, 0});
 }
 
-bool HeatmapController::update_variables() {
+bool HeatmapController::update_variables(const data::FrameRepository& frames) {
     bool has_to_paint = false;
     
     if(!_grid.root()) {
-        _grid.create(track::Tracker::average().bounds().size());
+        _grid.create(frames.video_size());
         has_to_paint = true;
         set_content_changed(true);
     }
     
-    const uint32_t res = max(2u, min((uint32_t)(Tracker::average().bounds().size().min() * 0.5),  READ_SETTING(heatmap_resolution, uint32_t)));
+    const uint32_t res = max(2u, min((uint32_t)(frames.video_size().min() * 0.5),  READ_SETTING(heatmap_resolution, uint32_t)));
     
     if(res != uniform_grid_cell_size) {
         uniform_grid_cell_size = res;
         stride = uniform_grid_cell_size;
-        N = ceil(double(Tracker::average().bounds().size().max()) / double(stride));
+        N = ceil(double(frames.video_size().max()) / double(stride));
         
         if(_array_grid.size() != N * N) {
             _array_grid.resize(N * N);
@@ -752,12 +753,12 @@ bool HeatmapController::update_variables() {
     return has_to_paint;
 }
 
-void HeatmapController::set_frame(Frame_t current_frame) {
-    bool has_to_paint = update_variables();
+void HeatmapController::set_frame(const data::FrameRepository& frames, Frame_t current_frame) {
+    bool has_to_paint = update_variables(frames);
     
     //! check if we have to update the data
     if(not _frame.valid() || current_frame != _frame) {
-        auto updated = update_data(current_frame);
+        auto updated = update_data(frames, current_frame);
         if(updated.added != 0 || updated.removed != 0)
             has_to_paint = true;
         

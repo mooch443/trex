@@ -77,6 +77,8 @@ set(TREX_CORE_SOURCES
 set(TREX_DATA_PUBLIC_HEADERS
     ${CMAKE_CURRENT_LIST_DIR}/data/IndividualCache.h
     ${CMAKE_CURRENT_LIST_DIR}/data/MotionRecord.h
+    ${CMAKE_CURRENT_LIST_DIR}/data/FrameRepository.h
+    ${CMAKE_CURRENT_LIST_DIR}/data/CacheHints.h
 )
 
 set(TREX_DATA_PRIVATE_HEADERS
@@ -84,6 +86,8 @@ set(TREX_DATA_PRIVATE_HEADERS
 
 set(TREX_DATA_SOURCES
     ${CMAKE_CURRENT_LIST_DIR}/data/MotionRecord.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/data/FrameRepository.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/data/CacheHints.cpp
 )
 
 set(TREX_TRACKING_PUBLIC_HEADERS
@@ -94,7 +98,6 @@ set(TREX_TRACKING_PUBLIC_HEADERS
     ${CMAKE_CURRENT_LIST_DIR}/tracking/ConnectedTasks.h
     ${CMAKE_CURRENT_LIST_DIR}/tracking/DebugDrawing.h
     ${CMAKE_CURRENT_LIST_DIR}/tracking/DetectTag.h
-    ${CMAKE_CURRENT_LIST_DIR}/tracking/CacheHints.h
     ${CMAKE_CURRENT_LIST_DIR}/tracking/CategorizeDatastore.h
     ${CMAKE_CURRENT_LIST_DIR}/tracking/FilterCache.h
     ${CMAKE_CURRENT_LIST_DIR}/tracking/EventAnalysis.h
@@ -136,7 +139,6 @@ set(TREX_TRACKING_SOURCES
     ${CMAKE_CURRENT_LIST_DIR}/tracking/AutomaticMatches.cpp
     ${CMAKE_CURRENT_LIST_DIR}/tracking/BlobReceiver.cpp
     ${CMAKE_CURRENT_LIST_DIR}/tracking/ConnectedTasks.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/tracking/CacheHints.cpp
     ${CMAKE_CURRENT_LIST_DIR}/tracking/CategorizeDatastore.cpp
     ${CMAKE_CURRENT_LIST_DIR}/tracking/DatasetQuality.cpp
     ${CMAKE_CURRENT_LIST_DIR}/tracking/DebugDrawing.cpp

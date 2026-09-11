@@ -9,7 +9,6 @@
 #include <tracking/FilterCache.h>
 #include <tracking/IndividualManager.h>
 
-
 using namespace track;
 
 namespace extract {
@@ -20,6 +19,13 @@ bool ImageExtractor::is(uint32_t flags, Flag flag) {
 
 std::future<void>& ImageExtractor::future() {
     return _future;
+}
+
+Settings ImageExtractor::init_additional(const track::Tracker& tracker, Settings&& settings) {
+    settings.background = tracker.background();
+    settings.border = &tracker.border();
+    settings.frames = &tracker.frames();
+    return std::move(settings);
 }
 
 void ImageExtractor::filter_tasks() {
@@ -133,7 +139,12 @@ void ImageExtractor::update_thread(selector_t&& selector, partial_apply_t&& part
     
         // this will take the longest, since we actually
         // need to read the video:
-        _pushed_items = retrieve_image_data(std::move(partial_apply), callback);
+        if(not _settings.background)
+            throw InvalidArgumentException("No background was provided for ImageExtractor.");
+        if(not _settings.frames)
+            throw InvalidArgumentException("No frame repository was provided for ImageExtractor.");
+        _pushed_items = retrieve_image_data(std::move(partial_apply), callback,
+                                            /**_settings.border,*/ *_settings.background, *_settings.frames);
         
         //! we are done.
         callback(this, 1.0, true);
@@ -156,7 +167,9 @@ void ImageExtractor::update_thread(selector_t&& selector, partial_apply_t&& part
     }
 }
 
-uint64_t ImageExtractor::retrieve_image_data(partial_apply_t&& apply, callback_t& callback) {
+uint64_t ImageExtractor::retrieve_image_data(partial_apply_t&& apply, callback_t& callback,
+                                             /*const track::Border& border,*/ const Background& background,
+                                             const data::FrameRepository& frames) {
     GenericThreadPool pool(_settings.num_threads, "ImageExtractorThread");
     
     std::mutex mutex;
@@ -223,7 +236,8 @@ uint64_t ImageExtractor::retrieve_image_data(partial_apply_t&& apply, callback_t
             pp.set_index(index);
             try {
                 _video->read_with_encoding(frame, index, encoding);
-                Tracker::preprocess_frame(std::move(frame), pp, NULL, PPFrame::NeedGrid::NoNeed, _video->header().resolution);
+                Tracker::preprocess_frame(std::move(frame), pp, NULL, frames, background,
+                                          NeedGrid::NoNeed, HistorySplitPolicy::Apply);
             } catch(const UtilsException& e) {
                 FormatExcept("[IE] Cannot preprocess frame ", index, ". ", e.what());
                 {
@@ -257,7 +271,7 @@ uint64_t ImageExtractor::retrieve_image_data(partial_apply_t&& apply, callback_t
                     IndividualManager::transform_if_exists(fdx, [&, index=index, range=range](auto fish)
                     {
                         LockGuard guard(ro_t{}, "normalization");
-                        auto filter = constraints::local_midline_length(fish, range, false);
+                        auto filter = constraints::local_midline_length(fish, range, _settings.border, false);
                         median_midline_length_px = filter->median_midline_length_px;
                         
                         auto posture = fish->posture_stuff(index);
@@ -276,7 +290,7 @@ uint64_t ImageExtractor::retrieve_image_data(partial_apply_t&& apply, callback_t
                     });
                 }
                 
-                auto &&[image, pos] = constraints::diff_image(individual_image_normalization, blob, midline_transform, median_midline_length_px, _settings.image_size, Tracker::background());
+                auto &&[image, pos] = constraints::diff_image(individual_image_normalization, blob, midline_transform, median_midline_length_px, _settings.image_size, &background);
                 
                 if(not image) {
                     //! can this happen? (yes, when no posture is available)

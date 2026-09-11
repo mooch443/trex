@@ -11,6 +11,10 @@
 #include <core/SizeFilters.h>
 #include <processing/encoding.h>
 
+namespace cmn::data {
+class FrameRepository;
+}
+
 namespace track {
 using namespace cmn;
 class Individual;
@@ -49,6 +53,7 @@ struct CachedSettings;
 
 struct AssignInfo {
     PPFrame* frame;
+    const data::FrameRepository* repo;
     const FrameProperties* f_prop;
     const FrameProperties* f_prev_prop;
     default_config::matching_mode_t::Class match_mode;

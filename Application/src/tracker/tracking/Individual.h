@@ -10,14 +10,15 @@
 #include <misc/Timer.h>
 #include <tracking/Outline.h>
 #include <tracking/DetectTag.h>
-#include <tracking/CacheHints.h>
 #include <data/IndividualCache.h>
+#include <data/FrameRepository.h>
 
 #define DEBUG_ORIENTATION false
 
 namespace cmn::gui { class Fish; }
 namespace cmn {
 class Data;
+class Background;
 namespace file { class Path; }
 }
 namespace cmn::blob { struct Pose; }
@@ -32,6 +33,7 @@ class MotionRecord;
 struct BasicStuff;
 struct PostureStuff;
 struct TrackletInformation;
+class Tracker;
 
 enum class Reasons {
     None = 0,
@@ -250,7 +252,10 @@ constexpr std::array<const char*, 8> ReasonsNames {
         
         int64_t add(const AssignInfo&, const pv::Blob& blob, Match::prob_t current_prob);
         
+    private:
         void remove_frame(Frame_t frameIndex);
+    public:
+        void remove_frame(const Tracker& tracker, Frame_t frameIndex);
         void register_delete_callback(void* ptr, const std::function<void(Individual*)>& lambda);
         void unregister_delete_callback(void* ptr);
         
@@ -272,8 +277,8 @@ constexpr std::array<const char*, 8> ReasonsNames {
         std::tuple<bool, FrameRange> frame_has_segment_recognition(Frame_t frameIndex) const;
         std::tuple<bool, FrameRange> has_processed_tracklet(Frame_t frameIndex) const;
         //const decltype(average_recognition_tracklet)::mapped_type& average_recognition(long_t segment_start) const;
-        const decltype(average_recognition_tracklet)::mapped_type average_recognition(Frame_t segment_start);
-        std::optional<std::tuple<size_t, std::map<Idx_t, float>, Range<Frame_t>>> processed_recognition(Frame_t segment_start);
+        const decltype(average_recognition_tracklet)::mapped_type average_recognition(const track::Tracker& tracker, Frame_t segment_start);
+        std::optional<std::tuple<size_t, std::map<Idx_t, float>, Range<Frame_t>>> processed_recognition(const track::Tracker& tracker, Frame_t segment_start);
         std::tuple<size_t, Idx_t, float> average_recognition_identity(Frame_t segment_start) const;
         
         //! Properties based on centroid:
@@ -295,7 +300,9 @@ constexpr std::array<const char*, 8> ReasonsNames {
         pv::CompressedBlob* compressed_blob(Frame_t frameIndex) const;
         [[nodiscard]] bool empty() const noexcept;
         
-        void save_posture(const BasicStuff& basic,
+        void save_posture(const data::FrameRepository& frames,
+                          const cmn::Background& background,
+                          const BasicStuff& basic,
                           const PoseMidlineIndexes& pose_midline_indexes,
                           Frame_t frameIndex,
                           pv::BlobPtr&& pixels,
@@ -342,7 +349,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
         static Probability probability(const CachedSettings& settings, MaybeLabel label, const IndividualCache& estimated_px, Frame_t frameIndex, const Vec2& position, size_t pixels);
         
     private:
-        static Match::prob_t time_probability(double tdelta, const Frame_t& previous_frame, size_t recent_number_samples);
+        static Match::prob_t time_probability(Frame_t start_frame, double tdelta, const Frame_t& previous_frame, size_t recent_number_samples);
         //Match::PairingGraph::prob_t size_probability(const IndividualCache& cache, Frame_t frameIndex, size_t num_pixels) const;
         static Match::prob_t position_probability(const CachedSettings& settings, const IndividualCache, Frame_t frameIndex, size_t size, const Vec2& position, const Vec2& blob_center);
         
@@ -352,7 +359,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
         bool evaluate_fitness() const;
         
         //void recognition_segment(Frame_t frame, const std::tuple<size_t, std::map<long_t, float>>&);
-        void calculate_average_tracklet_id();
+        void calculate_average_tracklet_id(const Tracker& tracker);
         const decltype(_average_recognition)& average_recognition() const { return _average_recognition; }
         void clear_recognition();
         
@@ -375,9 +382,9 @@ constexpr std::array<const char*, 8> ReasonsNames {
         //! Estimates the position in the given frame. Uses the previous position, returns
         //  position in the first frame if no previous position was available.
         //  Also pre-caches a few other properties of the individual.
-        std::expected<IndividualCache, const char*> cache_for_frame(const FrameProperties* previous, Frame_t frameIndex, double time, const CacheHints* = nullptr) const;
+        std::expected<IndividualCache, const char*> cache_for_frame(const data::FrameRepository& frames, const std::optional<const FrameProperties>& previous, const Frame_t frameIndex, double time, const CacheHints* = nullptr) const;
         
-        void save_visual_field(const file::Path& path, Range<Frame_t> range = Range<Frame_t>({}, {}), const std::function<void(float, const std::string&)>& update = [](auto, auto){}, bool blocking = true) const;
+        void save_visual_field(Size2 video_size, const file::Path& path, Range<Frame_t> range = Range<Frame_t>({}, {}), const std::function<void(float, const std::string&)>& update = [](auto, auto){}, bool blocking = true) const;
         //size_t memory_size() const;
         
         static Float2_t weird_distance();
@@ -388,7 +395,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
         }
         //void push_to_segments(Frame_t frameIndex, long_t prev_frame);
         void clear_post_processing();
-        void update_midlines(const CachedSettings&, const CacheHints*);
+        void update_midlines(const data::FrameRepository& frames, const CachedSettings&, const CacheHints*);
         Midline::Ptr calculate_midline_for(const PostureStuff& posture_stuff) const;
         
         struct PostureDescriptor {
@@ -404,7 +411,7 @@ constexpr std::array<const char*, 8> ReasonsNames {
         friend struct TrackletInformation;
         
         TrackletInformation* update_add_tracklet(const Frame_t frameIndex, const FrameProperties* props, const FrameProperties* prev_props, const MotionRecord& current, Frame_t prev_frame, const pv::CompressedBlob* blob, Match::prob_t current_prob);
-        Midline::Ptr update_frame_with_posture(BasicStuff& basic, const decltype(Individual::_posture_stuff)::const_iterator& posture_it, const CacheHints* hints);
+        Midline::Ptr update_frame_with_posture(const data::FrameRepository& frames, BasicStuff& basic, const decltype(Individual::_posture_stuff)::const_iterator& posture_it, const CacheHints* hints);
         //Vec2 add_current_velocity(Frame_t frameIndex, const MotionRecord* p);
     };
 }

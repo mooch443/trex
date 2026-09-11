@@ -9,7 +9,7 @@ using namespace track;
 namespace py = Python;
 
 namespace cmn::gui {
-    void RecognitionSummary::update(gui::DrawStructure& base) {
+    void RecognitionSummary::update(const data::FrameRepository& frames, gui::DrawStructure& base) {
         auto & cache = GUICache::instance();
         
         const float interface_scale = gui::interface_scale();
@@ -41,7 +41,7 @@ namespace cmn::gui {
         sidebar_width += 3 * margin;
 
         obj.set_origin(Vec2(0.5));
-        obj.set_bounds(Bounds(Vec2(Tracker::average().cols, Tracker::average().rows) * 0.5f,
+        obj.set_bounds(Bounds(Vec2(frames.video_size()) * 0.5f,
                               Size2(sidebar_width * 1.5f, Base::default_line_spacing(font) + margin + title_height) + Size2(margin * 2) + bar_width * Size2(output_size, sorted.size())));
         obj.set(FillClr{Black.alpha(150)});
 

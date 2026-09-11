@@ -8,6 +8,7 @@
 #include <misc/GlobalSettings.h>
 #include <misc/Path.h>
 #include <tracking/OutputLibrary.h>
+#include <tracking/Tracker.h>
 
 using namespace cmn;
 
@@ -48,7 +49,8 @@ TEST(OutputLibraryExportTest, OutputFieldsBehaveAsAnOrderedSetAndFrameIsStructur
         default_config::get(config);
     });
 
-    Output::Library::Init();
+    auto tracker = track::Tracker::Make(Image::Make(320, 480, 1), meta_encoding_t::gray, 480);
+    Output::Library::Init(*tracker);
     Output::Library::add("frame", [](
         Output::Library::LibInfo,
         Frame_t frame,

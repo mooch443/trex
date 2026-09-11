@@ -33,6 +33,11 @@ using namespace track::detect;
 
 using namespace default_config;
 
+auto& tracker() {
+    static std::shared_ptr<track::Tracker> _tracker;
+    return _tracker;
+}
+
 // A utility function to reset global settings relevant to our tests.
 // (Optional, but can help avoid cross-test pollution.)
 namespace {
@@ -87,8 +92,8 @@ static void resetGlobalSettings()
     SETTING(track_threshold) = Settings::track_threshold_t(50);
     
     track::Identity::Reset();
-    if(track::Tracker::instance())
-        track::Tracker::instance()->initialize_slows();
+    if(tracker())
+        tracker()->initialize_slows();
 }
 
 namespace {
@@ -319,6 +324,10 @@ std::string termites_image_path() {
     return std::string(TREX_TEST_FOLDER) + "/../../images/termites_three.png";
 }
 
+std::string test_video_path() {
+    return (std::filesystem::path(TREX_TEST_FOLDER) / ".." / ".." / "videos" / "test.pv").string();
+}
+
 struct SyntheticSplitFrame {
     PPFrame frame;
     pv::bid original_root;
@@ -356,9 +365,9 @@ SyntheticSplitFrame make_synthetic_split_frame(Frame_t frame_index = 0_f) {
     return data;
 }
 
-std::unique_ptr<Tracker> make_gray_tracker(const Size2& resolution) {
+std::shared_ptr<Tracker> make_gray_tracker(const Size2& resolution) {
     cv::Mat background = cv::Mat::zeros(int(resolution.height), int(resolution.width), CV_8UC1);
-    return std::make_unique<Tracker>(Image::Make(background), meta_encoding_t::gray, 1.f);
+    return Tracker::Make(Image::Make(background), meta_encoding_t::gray, 1.f);
 }
 
 void configure_system_tracking_settings() {
@@ -372,7 +381,9 @@ void seed_tracker_with_first_frame(pv::File& video, Tracker& tracker) {
     PPFrame pp;
     pv::Frame frame;
     video.read_frame(frame, 0_f);
-    Tracker::preprocess_frame(std::move(frame), pp, nullptr, track::PPFrame::NeedGrid::NoNeed, video.header().resolution, false);
+    Tracker::preprocess_frame(std::move(frame), pp, nullptr,
+                              tracker.frames(), *tracker.background(),
+                              NeedGrid::NoNeed, HistorySplitPolicy::Skip);
     tracker.add(pp);
 }
 
@@ -1706,16 +1717,23 @@ INSTANTIATE_TEST_SUITE_P(TestPairing, TestPairing,
 
 struct TrackerAndVideo {
     pv::File video;
-    Tracker tracker;
+    std::shared_ptr<Tracker> _tracker;
+    Tracker& tracker;
     
     TrackerAndVideo()
         : video((std::filesystem::path(TREX_TEST_FOLDER) / ".." / ".." / "videos" / "test.pv").string()),
-          tracker(video)
+          _tracker(track::Tracker::Make(video)),
+          tracker(*_tracker)
     {
+        ::tracker() = _tracker;
         video.set_project_name("Test");
         video.print_info();
         
         SETTING(frame_rate) = uint32_t(video.framerate());
+    }
+    
+    ~TrackerAndVideo() {
+        ::tracker() = nullptr;
     }
 };
 
@@ -1742,10 +1760,12 @@ TEST_F(TestSystemTracker, TrackingTest) {
     PPFrame pp;
     pv::Frame frame;
     data->video.read_frame(frame, 0_f);
-    Tracker::preprocess_frame(std::move(frame), pp, nullptr, track::PPFrame::NeedGrid::NoNeed, data->video.header().resolution, false);
+    Tracker::preprocess_frame(std::move(frame), pp, nullptr,
+                              data->tracker.frames(), *data->tracker.background(),
+                              NeedGrid::NoNeed, HistorySplitPolicy::Skip);
     data->tracker.add(pp);
     
-    ASSERT_EQ(data->tracker.number_frames(), 1u);
+    ASSERT_EQ(data->tracker.frames().size(), 1u);
     ASSERT_EQ(IndividualManager::num_individuals(), 8u);
 }
 
@@ -1758,11 +1778,122 @@ TEST_F(TestSystemTracker, PreprocessFramePreservesAndPartitionsAllRoots) {
     ASSERT_FALSE(expected_roots.empty());
     
     PPFrame pp;
-    Tracker::preprocess_frame(std::move(frame), pp, nullptr, track::PPFrame::NeedGrid::NoNeed, data->video.header().resolution, false);
+    Tracker::preprocess_frame(std::move(frame), pp, nullptr,
+                              data->tracker.frames(), *data->tracker.background(),
+                              NeedGrid::NoNeed, HistorySplitPolicy::Skip);
     
     const auto observed = observe_ppframe(pp);
     ASSERT_TRUE(verify_unique_partition(observed, "preprocess_frame partition"));
     ASSERT_TRUE(verify_root_conservation(expected_roots, observed, "preprocess_frame"));
+}
+
+TEST(TrackingInvariant, PreprocessFrameHonorsHistorySplitPolicy) {
+    resetGlobalSettings();
+    SETTING(track_do_history_split) = false;
+
+    pv::File video(test_video_path());
+    auto tracker = Tracker::Make(video);
+    pv::Frame skip_input;
+    pv::Frame apply_input;
+    video.read_frame(skip_input, 0_f);
+    video.read_frame(apply_input, 0_f);
+
+    PPFrame skipped;
+    Tracker::preprocess_frame(std::move(skip_input), skipped, nullptr,
+                              tracker->frames(), *tracker->background(),
+                              NeedGrid::NoNeed, HistorySplitPolicy::Skip);
+    EXPECT_FALSE(skipped._finalized);
+    EXPECT_EQ(skipped.resolution(), tracker->frames().video_size());
+
+    PPFrame applied;
+    Tracker::preprocess_frame(std::move(apply_input), applied, nullptr,
+                              tracker->frames(), *tracker->background(),
+                              NeedGrid::NoNeed, HistorySplitPolicy::Apply);
+    EXPECT_TRUE(applied._finalized);
+    EXPECT_EQ(applied.resolution(), tracker->frames().video_size());
+}
+
+TEST(TrackingInvariant, PreprocessFrameUsesRepositoryStartFrame) {
+    resetGlobalSettings();
+    SETTING(track_size_filter) = Settings::track_size_filter_t({Ranged{1, 1}});
+
+    pv::File video(test_video_path());
+    auto tracker = Tracker::Make(video);
+    tracker->frames().set_end_frame(1_f);
+
+    pv::Frame start_input;
+    pv::Frame later_input;
+    video.read_frame(start_input, 1_f);
+    video.read_frame(later_input, 1_f);
+    ASSERT_FALSE(collect_raw_root_ids(start_input).empty());
+
+    tracker->frames().set_start_frame(1_f);
+    PPFrame at_repository_start;
+    Tracker::preprocess_frame(std::move(start_input), at_repository_start, nullptr,
+                              tracker->frames(), *tracker->background(),
+                              NeedGrid::NoNeed, HistorySplitPolicy::Skip);
+
+    tracker->frames().set_start_frame(0_f);
+    PPFrame after_repository_start;
+    Tracker::preprocess_frame(std::move(later_input), after_repository_start, nullptr,
+                              tracker->frames(), *tracker->background(),
+                              NeedGrid::NoNeed, HistorySplitPolicy::Skip);
+
+    const auto has_outside_range_noise = [](const PPFrame& frame) {
+        bool found = false;
+        frame.transform_noise([&found](const pv::Blob& blob) {
+            found = found || blob.reason() == pv::FilterReason::OutsideRange;
+        });
+        return found;
+    };
+    EXPECT_FALSE(has_outside_range_noise(at_repository_start));
+    EXPECT_TRUE(has_outside_range_noise(after_repository_start));
+}
+
+TEST(TrackingInvariant, FrameRateChangePreservesFrameRepositoryContents) {
+    resetGlobalSettings();
+    auto repo = data::FrameRepository::Make(Size2(640, 480));
+    repo->set_start_frame(10_f);
+    repo->set_end_frame(11_f);
+    repo->add_next_frame(FrameProperties(10_f, 0.0, timestamp_t{uint64_t(0)}));
+    repo->add_next_frame(FrameProperties(11_f, 0.04, timestamp_t{uint64_t(40000)}));
+    repo->write([](data::FrameRepository::WriteAccess access) {
+        access.consec.emplace_back(10_f, 11_f);
+    });
+
+    SETTING(frame_rate) = Settings::frame_rate_t{50};
+
+    EXPECT_EQ(repo->size(), 2u);
+    EXPECT_EQ(repo->start_frame(), 10_f);
+    EXPECT_EQ(repo->end_frame(), 11_f);
+    repo->read([](data::FrameRepository::SafeReadAccess access) {
+        ASSERT_EQ(access.consec.size(), 1u);
+        EXPECT_EQ(access.consec.front().start, 10_f);
+        EXPECT_EQ(access.consec.front().end, 11_f);
+    });
+    EXPECT_NEAR(repo->time_delta(20_f, 22_f), 2.0 / 50.0, 1e-12);
+}
+
+TEST_F(TestSystemTracker, FrameCacheHandlesRepositoryPredecessorBoundaries) {
+    seed_tracker_with_first_frame(data->video, data->tracker);
+    const auto fish = IndividualManager::individual_by_id(first_individual_id());
+    ASSERT_TRUE(fish);
+    const auto first = data->tracker.frames().properties(0_f);
+    ASSERT_TRUE(first);
+    const double step = 1.0 / FAST_SETTING(frame_rate);
+    const double time = first->time() + step;
+
+    auto cache = fish.value()->cache_for_frame(data->tracker.frames(), std::nullopt, 1_f, time);
+    ASSERT_TRUE(cache);
+    EXPECT_NEAR(cache->local_tdelta, step, 1e-6);
+
+    auto repo = data::FrameRepository::Make(data->tracker.frames().video_size());
+    repo->set_start_frame(1_f);
+    repo->set_end_frame(1_f);
+    repo->add_next_frame(FrameProperties(1_f, time, timestamp_t{uint64_t(time * 1000000)}));
+    cache = fish.value()->cache_for_frame(*repo, std::nullopt, 1_f, time);
+    ASSERT_TRUE(cache);
+    EXPECT_EQ(cache->local_tdelta, 0);
 }
 
 TEST(TrackingInvariant, ForcedHistorySplitStillRepresentsOriginalRoots) {
@@ -1777,7 +1908,8 @@ TEST(TrackingInvariant, ForcedHistorySplitStillRepresentsOriginalRoots) {
     manual_splits[synthetic.frame.index()].insert(synthetic.original_root);
     SETTING(manual_splits) = manual_splits;
     
-    HistorySplit{synthetic.frame, PPFrame::NeedGrid::NoNeed, nullptr};
+    HistorySplit{tracker->frames(), *tracker->background(), synthetic.frame,
+                 NeedGrid::NoNeed, nullptr};
     
     const auto observed = observe_ppframe(synthetic.frame);
     ASSERT_TRUE(verify_unique_partition(observed, "forced HistorySplit partition"));
@@ -1801,12 +1933,12 @@ TEST(TrackingInvariant, TrackerAddWithForcedSplitStillRepresentsOriginalRoots) {
     ASSERT_TRUE(verify_unique_partition(observe_ppframe(synthetic.frame), "Tracker::add forced split remaining PPFrame partition"));
     const auto observed = observe_tracking_state(synthetic.frame, synthetic.frame.index());
     ASSERT_TRUE(verify_root_conservation({synthetic.original_root}, observed, "Tracker::add forced split"));
-    ASSERT_EQ(tracker->number_frames(), 1u);
+    ASSERT_EQ(tracker->frames().size(), 1u);
 }
 
 TEST_F(TestSystemTracker, MissingManualMatchOutsideTrackMaxSpeedDoesNotLoseObjects) {
     seed_tracker_with_first_frame(data->video, data->tracker);
-    ASSERT_EQ(data->tracker.number_frames(), 1u);
+    ASSERT_EQ(data->tracker.frames().size(), 1u);
     
     SETTING(track_max_speed) = Settings::track_max_speed_t(50);
     auto fish_id = first_individual_id();
@@ -1814,7 +1946,9 @@ TEST_F(TestSystemTracker, MissingManualMatchOutsideTrackMaxSpeedDoesNotLoseObjec
     PPFrame pp;
     pv::Frame frame;
     data->video.read_frame(frame, 1_f);
-    Tracker::preprocess_frame(std::move(frame), pp, nullptr, track::PPFrame::NeedGrid::NoNeed, data->video.header().resolution, false);
+    Tracker::preprocess_frame(std::move(frame), pp, nullptr,
+                              data->tracker.frames(), *data->tracker.background(),
+                              NeedGrid::NoNeed, HistorySplitPolicy::Skip);
     
     const auto expected_roots = observe_ppframe(pp).roots();
     ASSERT_FALSE(expected_roots.empty());
@@ -1847,7 +1981,7 @@ TEST_F(TestSystemTracker, MissingManualMatchOutsideTrackMaxSpeedDoesNotLoseObjec
 
 TEST_F(TestSystemTracker, ManualMatchSplitFallbackPreservesConcreteInventory) {
     seed_tracker_with_first_frame(data->video, data->tracker);
-    ASSERT_EQ(data->tracker.number_frames(), 1u);
+    ASSERT_EQ(data->tracker.frames().size(), 1u);
     
     SETTING(track_do_history_split) = false;
     SETTING(track_max_speed) = Settings::track_max_speed_t(50);
@@ -1856,7 +1990,9 @@ TEST_F(TestSystemTracker, ManualMatchSplitFallbackPreservesConcreteInventory) {
     PPFrame pp;
     pv::Frame frame;
     data->video.read_frame(frame, 1_f);
-    Tracker::preprocess_frame(std::move(frame), pp, nullptr, track::PPFrame::NeedGrid::NoNeed, data->video.header().resolution, false);
+    Tracker::preprocess_frame(std::move(frame), pp, nullptr,
+                              data->tracker.frames(), *data->tracker.background(),
+                              NeedGrid::NoNeed, HistorySplitPolicy::Skip);
     
     const auto chosen_blob_id = first_regular_blob_id(pp);
     ASSERT_TRUE(chosen_blob_id.valid());
@@ -1882,7 +2018,7 @@ TEST_F(TestSystemTracker, ManualMatchSplitFallbackPreservesConcreteInventory) {
 
 TEST_F(TestSystemTracker, ExistingManualMatchAssignsRequestedBlobToRequestedFish) {
     seed_tracker_with_first_frame(data->video, data->tracker);
-    ASSERT_EQ(data->tracker.number_frames(), 1u);
+    ASSERT_EQ(data->tracker.frames().size(), 1u);
     
     SETTING(track_max_speed) = Settings::track_max_speed_t(50);
     auto fish_id = first_individual_id();
@@ -1890,7 +2026,9 @@ TEST_F(TestSystemTracker, ExistingManualMatchAssignsRequestedBlobToRequestedFish
     PPFrame pp;
     pv::Frame frame;
     data->video.read_frame(frame, 1_f);
-    Tracker::preprocess_frame(std::move(frame), pp, nullptr, track::PPFrame::NeedGrid::NoNeed, data->video.header().resolution, false);
+    Tracker::preprocess_frame(std::move(frame), pp, nullptr,
+                              data->tracker.frames(), *data->tracker.background(),
+                              NeedGrid::NoNeed, HistorySplitPolicy::Skip);
     
     const auto expected_roots = observe_ppframe(pp).roots();
     ASSERT_FALSE(expected_roots.empty());

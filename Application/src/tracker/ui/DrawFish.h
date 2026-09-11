@@ -23,6 +23,7 @@ struct CompressedBlob;
 }
 
 namespace track {
+class Tracker;
 class Individual;
 }
 
@@ -163,7 +164,7 @@ struct UpdateSettings {
         ~Fish();
         void update(const FindCoord&, Entangled& p, DrawStructure& d);
         //void draw_occlusion(DrawStructure& window);
-        void set_data(const UpdateSettings& settings, track::Individual& obj, Frame_t frameIndex, double time, const track::EventAnalysis::EventMap* events);
+        void set_data(const track::Tracker&, const UpdateSettings& settings, track::Individual& obj, Frame_t frameIndex, double time, const track::EventAnalysis::EventMap* events);
         void set_label_text(const pattern::UnresolvedStringPattern&);
         
     private:

@@ -7,6 +7,10 @@
 #include <tracking/OutputLibraryTypes.h>
 #include <misc/SpriteMap.h>
 
+namespace track {
+class Tracker;
+}
+
 namespace cmn::gui {
 class Graph;
 }
@@ -22,7 +26,7 @@ namespace Output {
     //  Training data will consist of:
     //  frame | x | y | angle | length(v) | length(a) | ..
     //  .. | neighbor[1...N].rel[x,y,angle,len(v),len(a)]
-    bool save_focussed_on(const cmn::file::Path& file, const track::Individual* fish);
+    //bool save_focussed_on(const cmn::file::Path& file, const track::Individual* fish);
 
     struct LibraryFuncProperties {
         bool is_global{false};
@@ -52,7 +56,7 @@ namespace Output {
         typedef std::function<double LIBPARAM> FunctionType;
         
         ~Library() {}
-        static void Init();
+        static void Init(track::Tracker&);
         static void InitVariables();
         
         static void clear_cache();

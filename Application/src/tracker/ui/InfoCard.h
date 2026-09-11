@@ -20,7 +20,7 @@ namespace cmn::gui {
     class Text;
     class Rect;
 
-    class InfoCard : public Entangled {
+    class [[deprecated("This class should not be used")]] InfoCard : public Entangled {
         struct ShadowIndividual;
         ShadowIndividual *_shadow{nullptr};
         derived_ptr<Button> prev, next, detail_button, automatic_button;

@@ -46,7 +46,6 @@
 #include <ui/ScreenRecorder.h>
 #include <ui/SettingsDropdown.h>
 #include <ui/SettingsScene.h>
-#include <ui/SettingsInitializer.h>
 #include <ui/Skelett.h>
 #include <ui/StartingScene.h>
 #include <ui/Terminal.h>

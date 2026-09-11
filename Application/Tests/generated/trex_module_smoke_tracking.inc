@@ -89,13 +89,11 @@ using ::track::tags::prettify_blobs;
 using ::track::tags::result_t;
 }
 
-// tracking/CacheHints.h
+// tracking/CategorizeDatastore.h
 namespace trex_module_smoke::trex_tracking::track {
-using ::track::CacheHints;
-using ::track::FrameProperties;
+using ::track::Border;
 }
 
-// tracking/CategorizeDatastore.h
 namespace trex_module_smoke::trex_tracking::track::Categorize {
 using ::track::Categorize::BlobLabel;
 using ::track::Categorize::DataStore;
@@ -156,6 +154,11 @@ using ::track::Hungarian_t;
 using ::track::kuhn_match;
 }
 
+// tracking/ImageExtractor.h
+namespace trex_module_smoke::trex_tracking::track {
+using ::track::Tracker;
+}
+
 // tracking/IndividualManager.h
 namespace trex_module_smoke::trex_tracking::track {
 using ::track::IndividualManager;
@@ -201,11 +204,15 @@ namespace trex_module_smoke::trex_tracking::cmn {
 using ::cmn::GenericThreadPool;
 }
 
+// tracking/PPFrameTypes.h
+namespace trex_module_smoke::trex_tracking::track {
+using ::track::NeedGrid;
+}
+
 // tracking/PrefilterBlobs.h
 namespace trex_module_smoke::trex_tracking::track {
 using ::track::FilterReason;
 using ::track::PrefilterBlobs;
-using ::track::split_expectation;
 }
 
 // tracking/RecTask.h
@@ -215,6 +222,11 @@ using ::track::RecTask;
 using ::track::RecTaskBackend;
 using ::track::has_rec_task_backend;
 using ::track::install_rec_task_backend;
+}
+
+// tracking/SplitExpectation.h
+namespace trex_module_smoke::trex_tracking::track {
+using ::track::split_expectation;
 }
 
 // tracking/SplitBlob.h

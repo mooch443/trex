@@ -8,7 +8,6 @@
 #include <tracking/ConnectedTasks.h>
 #include <tracking/DebugDrawing.h>
 #include <tracking/DetectTag.h>
-#include <tracking/CacheHints.h>
 #include <tracking/CategorizeDatastore.h>
 #include <tracking/FilterCache.h>
 #include <tracking/EventAnalysis.h>
@@ -23,7 +22,9 @@
 #include <tracking/OutputLibraryTypes.h>
 #include <tracking/PairingGraph.h>
 #include <tracking/PPFrame.h>
+#include <tracking/PPFrameTypes.h>
 #include <tracking/PrefilterBlobs.h>
 #include <tracking/RecTask.h>
+#include <tracking/SplitExpectation.h>
 #include <tracking/SplitBlob.h>
 #include <tracking/Stuffs.h>

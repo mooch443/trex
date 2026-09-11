@@ -9,9 +9,15 @@
 #include <pv.h>
 #include <misc/PackLambda.h>
 #include <tracking/TrackletInformation.h>
+#include <data/FrameRepository.h>
 
 
 using namespace track;
+
+namespace track {
+class Tracker;
+class Border;
+}
 
 namespace extract {
 
@@ -70,6 +76,10 @@ struct Settings {
     Frame_t tracklet_min_samples{0u};
     std::function<std::unique_ptr<std::shared_lock<std::shared_mutex>>()> query_lock = nullptr;
     
+    Background* background{nullptr};
+    const Border* border{nullptr};
+    const data::FrameRepository* frames{nullptr};
+    
     std::string toStr() const {
         return "settings<flags:"+Meta::toStr(flags)
             +" max:"+FileSize{max_size_bytes}.toStr()
@@ -113,6 +123,7 @@ private:
 public:
     template<typename F>
     ImageExtractor(std::shared_ptr<pv::File>&& video,
+                   const Tracker& tracker,
                    F && selector,
                    auto && partial_apply,
                    auto && callback,
@@ -121,7 +132,7 @@ public:
                       && similar_args<decltype(partial_apply), partial_apply_sig>
                       && similar_args<decltype(callback), callback_sig>
                       && similar_args<decltype(selector), selector_sig>
-    :   _settings(std::move(settings)),
+    :   _settings(init_additional(tracker, std::move(settings))),
         _video(video),
         _thread([this,
                  selector = pack<selector_sig>(std::move(selector)),
@@ -139,6 +150,10 @@ public:
     
     ~ImageExtractor();
     
+private:
+    static Settings init_additional(const track::Tracker&, Settings&&);
+    
+public:
     std::future<void>& future();
     
     //! Filter tasks based on properties set in _settings::flags
@@ -159,7 +174,8 @@ public:
     
     //! Retrieve image data from the video file, associated with the
     //! filtered tasks from all previous steps.
-    uint64_t retrieve_image_data(partial_apply_t&& apply, callback_t& callback);
+    uint64_t retrieve_image_data(partial_apply_t&& apply, callback_t& callback,
+                                 /*const Border&,*/ const Background&, const data::FrameRepository&);
 };
 
 }

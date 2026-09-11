@@ -4,6 +4,7 @@
 // ui/AnimatedBackground.h
 namespace trex_module_smoke::trex_ui::cmn::gui {
 using ::cmn::gui::AnimatedBackground;
+using ::cmn::gui::BackgroundVideoConfig;
 }
 
 // ui/DetectAnnotationScene.h
@@ -61,9 +62,13 @@ using ::track::FOIStatus;
 }
 
 // ui/ConvertScene.h
+namespace trex_module_smoke::trex_ui::cmn {
+using ::cmn::SegmentationData;
+}
+
 namespace trex_module_smoke::trex_ui::cmn::gui {
 using ::cmn::gui::ConvertScene;
-using ::cmn::gui::Data;
+using ::cmn::gui::Label;
 }
 
 namespace trex_module_smoke::trex_ui::cmn::gui::convert {
@@ -124,6 +129,10 @@ using ::cmn::gui::DrawDataset;
 using ::cmn::gui::StaticText;
 }
 
+namespace trex_module_smoke::trex_ui::track {
+using ::track::Tracker;
+}
+
 // ui/DrawExportOptions.h
 namespace trex_module_smoke::trex_ui::cmn::gui {
 using ::cmn::gui::DrawExportOptions;
@@ -133,7 +142,6 @@ using ::cmn::gui::TrackingState;
 // ui/DrawFish.h
 namespace trex_module_smoke::trex_ui::cmn::gui {
 using ::cmn::gui::Fish;
-using ::cmn::gui::Label;
 using ::cmn::gui::Skelett;
 using ::cmn::gui::UpdateSettings;
 }
@@ -150,10 +158,6 @@ using ::track::Individual;
 namespace trex_module_smoke::trex_ui::cmn::gui {
 using ::cmn::gui::Button;
 using ::cmn::gui::PropertiesGraph;
-}
-
-namespace trex_module_smoke::trex_ui::track {
-using ::track::Tracker;
 }
 
 // ui/DrawPosture.h
@@ -202,12 +206,22 @@ using ::cmn::gui::GraphElement;
 }
 
 // ui/GUICache.h
+namespace trex_module_smoke::trex_ui::cmn {
+using ::cmn::Background;
+using ::cmn::GenericThreadPool;
+}
+
+namespace trex_module_smoke::trex_ui::cmn::grid {
+using ::cmn::grid::ProximityGrid;
+}
+
 namespace trex_module_smoke::trex_ui::cmn::gui::globals {
 using ::cmn::gui::globals::Cache;
 using ::cmn::gui::globals::CachedGUIOptions;
 }
 
 namespace trex_module_smoke::trex_ui::track {
+using ::track::Border;
 using ::track::PPFrame;
 using ::track::TrackletInformation;
 }
@@ -217,8 +231,9 @@ using ::track::constraints::FilterCache;
 }
 
 // ui/GuiSettings.h
-namespace trex_module_smoke::trex_ui::cmn::gui {
-using ::cmn::gui::window_title;
+namespace trex_module_smoke::trex_ui::cmn::settings {
+using ::cmn::settings::window_title;
+using ::cmn::settings::write_config;
 }
 
 // ui/GUIVideoAdapter.h
@@ -262,7 +277,6 @@ using ::cmn::gui::dyn::VarProps;
 // ui/InfoCard.h
 namespace trex_module_smoke::trex_ui::cmn::gui {
 using ::cmn::gui::HorizontalLayout;
-using ::cmn::gui::InfoCard;
 using ::cmn::gui::Text;
 using ::cmn::gui::Tooltip;
 }
@@ -356,6 +370,10 @@ using cmn_gui_TimingStatsWidget_RowHeight_tTag = ::cmn::gui::TimingStatsWidget::
 // ui/TrackingScene.h
 namespace trex_module_smoke::trex_ui::cmn::gui {
 using ::cmn::gui::TrackingScene;
+}
+
+namespace trex_module_smoke::trex_ui::track {
+using ::track::Idx_t;
 }
 
 // ui/TrackingSettingsScene.h

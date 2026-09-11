@@ -456,7 +456,7 @@ void Bowl::update_blobs(const Frame_t& frame) {
         if(draw_blobs_separately)
         {
             if(GUI_SETTINGS(gui_mode) == gui::mode_t::tracking
-               && _cache->tracked_frames.contains(frame))
+               && _cache->tracked_frames().contains(frame))
             {
                 std::unique_lock guard(_cache->_fish_map_mutex);
                 for(auto &&[k,fish] : _cache->_fish_map) {
@@ -497,7 +497,7 @@ void Bowl::update_blobs(const Frame_t& frame) {
             
         } else if(draw_blobs
                   && GUI_SETTINGS(gui_mode) == gui::mode_t::tracking
-                  && _cache->tracked_frames.contains(frame))
+                  && _cache->tracked_frames().contains(frame))
         {
             std::unique_lock guard(_cache->_fish_map_mutex);
             for(auto &&[k,fish] : _cache->_fish_map) {
@@ -535,8 +535,8 @@ void Bowl::update_scaling(double dt) {
     //_timer.reset();
 }
 
-void Bowl::update(Frame_t frame, DrawStructure &graph, const FindCoord& coord) {
-    update([this, &frame, &graph, &coord](auto&) {
+void Bowl::update(const data::FrameRepository& frames, Frame_t frame, DrawStructure &graph, const FindCoord& coord) {
+    update([this, &frame, &graph, &coord, &frames](auto&) {
         if(GUI_SETTINGS(gui_mode) == gui::mode_t::tracking)
             draw_shapes(graph, coord);
         
@@ -548,7 +548,7 @@ void Bowl::update(Frame_t frame, DrawStructure &graph, const FindCoord& coord) {
         if(GUI_SETTINGS(gui_show_heatmap)) {
             if(!_data->_heatmapController)
                 _data->_heatmapController = std::make_unique<gui::heatmap::HeatmapController>();
-            _data->_heatmapController->set_frame(frame);
+            _data->_heatmapController->set_frame(frames, frame);
             advance_wrap(*_data->_heatmapController);
         }
         

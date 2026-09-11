@@ -18,8 +18,8 @@ std::set<Range<Frame_t>> _previous_selected;
 std::set<Quality, std::greater<>> _sorted;
 
 void remove_segment(const Range<Frame_t>& range);
-bool calculate_segment(const Range<Frame_t>&, const uint64_t video_length, const LockGuard&);
-Single evaluate_single(Idx_t id, Individual* fish, const Range<Frame_t>& consec, const LockGuard& guard);
+bool calculate_segment(Tracker& tracker, const Range<Frame_t>&, const uint64_t video_length, const LockGuard&);
+Single evaluate_single(Tracker& tracker, Idx_t id, Individual* fish, const Range<Frame_t>& consec, const LockGuard& guard);
 
 std::string Single::toStr() const {
     return "{"+Meta::toStr(id)+","+Meta::toStr(distance_travelled)+" travelled,"+Meta::toStr(grid_cells_visited)+" cells visited}";
@@ -85,7 +85,7 @@ void remove_frames(Frame_t start) {
     _manually_selected = Range<Frame_t>({},{});
 }
 
-bool calculate_segment(const Range<Frame_t> &consec, const uint64_t video_length, const LockGuard& guard) {
+bool calculate_segment(Tracker& tracker, const Range<Frame_t> &consec, const uint64_t video_length, const LockGuard& guard) {
     if(consec.empty())
         return false;
     if(consec.length().get() < 5) {
@@ -101,9 +101,9 @@ bool calculate_segment(const Range<Frame_t> &consec, const uint64_t video_length
     decltype(_cache)::mapped_type map;
     std::mutex thread_mutex;
     
-    auto work = [&consec, &guard, &thread_mutex, &max_cells, &min_cells, &num_average, &average_samples, &map, &sum_cells](Individual *fish) {
+    auto work = [&consec, &guard, &thread_mutex, &max_cells, &min_cells, &num_average, &average_samples, &map, &sum_cells, &tracker](Individual *fish) {
         // collect meta information for the currently selected best consecutive frames
-        auto single = evaluate_single(fish->identity().ID(), fish, consec, guard);
+        auto single = evaluate_single(tracker, fish->identity().ID(), fish, consec, guard);
         
         std::lock_guard<std::mutex> guard(thread_mutex);
         average_samples += single.number_frames;
@@ -128,9 +128,9 @@ bool calculate_segment(const Range<Frame_t> &consec, const uint64_t video_length
                 assert((*it)->range.end == fish->end_frame());
                 
                 // has not finished analysing, but our tracklet is still being continued. so we cannot calculate the result yet
-                if(Tracker::end_frame().valid()
-                   && fish->end_frame() == Tracker::end_frame()
-                   && uint64_t(Tracker::end_frame().get()) < video_length)
+                if(tracker.frames().end_frame().valid()
+                   && fish->end_frame() == tracker.frames().end_frame()
+                   && uint64_t(tracker.frames().end_frame().get()) < video_length)
                 {
                     return false;
                 }
@@ -146,12 +146,12 @@ bool calculate_segment(const Range<Frame_t> &consec, const uint64_t video_length
     
     try {
         for(auto fish : found)
-            Tracker::thread_pool().enqueue(work, fish);
+            tracker.thread_pool().enqueue(work, fish);
     } catch(const UtilsException& e) {
         FormatExcept("Exception when starting worker threads: ", e.what());
     }
     
-    Tracker::thread_pool().wait();
+    tracker.thread_pool().wait();
     
     if(num_average != 0)
         average_samples /= num_average;
@@ -193,14 +193,14 @@ void remove_segment(const Range<Frame_t> &range) {
     }
 }
 
-void update() {
+void update(Tracker& tracker) {
     LockGuard guard(ro_t{}, "DatasetQuality::update");
     if(FAST_SETTING(track_max_individuals) == 0
-       || Tracker::instance()->consecutive().empty())
+       || tracker.frames().read([](auto data) { return data.consec.empty(); }))
         return;
     
     auto video_length = Tracker::analysis_range().end().get();
-    auto end_frame = Tracker::end_frame();
+    auto end_frame = tracker.frames().end_frame();
     auto manual = FAST_SETTING(manually_approved);
     bool changed = false;
     //Rangel longest(-1, -1);
@@ -225,7 +225,7 @@ void update() {
     for(auto && [start, end] : manual) {
         auto range = Range<Frame_t>(Frame_t(start), Frame_t(end));
         if(!has(range) && end_frame >= Frame_t(end) && range.length().get() >= 5) {
-            if(calculate_segment(range, video_length, guard)) {
+            if(calculate_segment(tracker, range, video_length, guard)) {
                 Print("Calculating manual tracklet ", start,"-",end);
                 for(auto && [id, single] : _cache.at(range)) {
                     Print("\t", id,": ",single.number_frames);
@@ -241,23 +241,28 @@ void update() {
     //std::vector<Range<Frame_t>> segments(Tracker::instance()->consecutive().begin(), Tracker::instance()->consecutive().end());
     //Print("Consecutives: ", segments);
     
-    for(auto &consec : Tracker::instance()->consecutive()) {
-        if(consec.end.get() != video_length && consec == Tracker::instance()->consecutive().back())
-            break;
-        
-        if(_cache.find(consec) == _cache.end() && consec.length().get() > 5) {
-            if(calculate_segment(consec, video_length, guard)) {
-                //break; // if this fails, dont set last seen and try again next time
-#ifndef NDEBUG
-                Print("Calculated tracklet ", consec.start,"-",consec.end);
-#endif
-                changed = true;
+    tracker.frames().read([&](data::FrameRepository::SafeReadAccess data) {
+        for(auto &consec : data.consec) {
+            if(consec.end.get() != video_length
+               && consec == data.consec.back())
+            {
+                break;
+            }
+            
+            if(_cache.find(consec) == _cache.end() && consec.length().get() > 5) {
+                if(calculate_segment(tracker, consec, video_length, guard)) {
+                    //break; // if this fails, dont set last seen and try again next time
+    #ifndef NDEBUG
+                    Print("Calculated tracklet ", consec.start,"-",consec.end);
+    #endif
+                    changed = true;
+                }
             }
         }
-    }
+    });
     
     if(changed)
-        Tracker::instance()->global_tracklet_order_changed();
+        tracker.global_tracklet_order_changed();
 }
 
 Range<Frame_t> best_range() {
@@ -282,12 +287,12 @@ bool has(const Range<Frame_t>& range) {
     return it != _cache.end() && !it->second.empty();
 }
 
-Single evaluate_single(Idx_t id, Individual* fish, const Range<Frame_t> &_consec, const LockGuard&)
+Single evaluate_single(Tracker& tracker, Idx_t id, Individual* fish, const Range<Frame_t> &_consec, const LockGuard&)
 {
     //assert(Tracker::individuals().find(id) != Tracker::individuals().end());
     
     constexpr size_t grid_res = 100;
-    const Size2 grid_size = Tracker::average().bounds().size() / float(grid_res);
+    const Size2 grid_size = tracker.average().bounds().size() / float(grid_res);
     std::map<std::tuple<uint16_t, uint16_t>, uint32_t> grid_cells;
     
     auto pos2grid = [&grid_size](const Vec2& pos) {
@@ -404,8 +409,8 @@ Single evaluate_single(Idx_t id, Individual* fish, const Range<Frame_t> &_consec
         
     //! TODO: Use local_midline_length function instead
     using namespace track::constraints;
-    auto constraints = local_midline_length(fish, consec.range, true);
-    if(consec.start() > Tracker::start_frame() && fish->centroid_weighted(consec.start() - 1_f)) {
+    auto constraints = local_midline_length(fish, consec.range, &tracker.border(), true);
+    if(consec.start() > tracker.frames().start_frame() && fish->centroid_weighted(consec.start() - 1_f)) {
         prev = fish->centroid_weighted(consec.start() - 1_f)->pos<Units::PX_AND_SECONDS>();
     }
     

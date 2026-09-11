@@ -97,7 +97,7 @@ class Segmenter {
     // Overlayed video with detections and tracker for object tracking
     GETTER(std::unique_ptr<BasicProcessor>, overlayed_video);
     std::atomic<bool> _processor_initializing{false};
-    std::unique_ptr<Tracker> _tracker;
+    std::shared_ptr<Tracker> _tracker;
     
     // File for output
     std::unique_ptr<pv::File> _output_file;
@@ -176,6 +176,10 @@ private:
     void graceful_end();
     void stop_average_generator(bool blocking);
     
+public:
+    std::shared_ptr<Tracker> tracker() const;
+    
+private:
     Image::Ptr finalize_bg_image(const cv::Mat&);
     std::tuple<bool, cv::Mat> get_preliminary_background(Size2 size);
     void trigger_average_generator(bool regenerate, cv::Mat& bg);

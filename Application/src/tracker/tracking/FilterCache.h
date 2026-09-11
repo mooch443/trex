@@ -7,6 +7,7 @@
 #include <core/default_config.h>
 #include <misc/frame_t.h>
 #include <misc/ranges.h>
+#include <core/Border.h>
 
 namespace cmn {
 class Background;
@@ -73,11 +74,13 @@ std::tuple<cmn::Image::Ptr, cmn::Vec2> diff_image(const default_config::individu
 
 std::shared_ptr<FilterCache> local_midline_length(const Individual *fish,
                                                   const cmn::Range<cmn::Frame_t>& segment,
+                                                  const track::Border* border,
                                                   const bool calculate_std = false);
 
 std::shared_ptr<FilterCache>
 local_midline_length(const Individual *fish,
                      cmn::Frame_t frame,
+                     const track::Border* border,
                      const bool calculate_std = false);
 
 }

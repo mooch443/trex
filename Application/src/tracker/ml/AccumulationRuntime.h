@@ -7,6 +7,7 @@
 #include <pv.h>
 
 namespace track {
+class Tracker;
 
 class AccumulationSession {
 public:
@@ -28,7 +29,7 @@ using UniquenessMap = std::map<cmn::Frame_t, float>;
 using UniquenessCalculation = std::tuple<float, UniquenessMap, float>;
 using SetupFn = std::function<void()>;
 using TeardownFn = std::function<void()>;
-using GenerateDiscriminationDataFn = std::function<DiscriminationData(pv::File&, const std::shared_ptr<TrainingData>&)>;
+using GenerateDiscriminationDataFn = std::function<DiscriminationData(const track::Tracker&, pv::File&, const std::shared_ptr<TrainingData>&)>;
 using CalculateUniquenessFn = std::function<UniquenessCalculation(bool,
                                                                   const std::vector<Image::SPtr>&,
                                                                   const std::map<cmn::Frame_t, cmn::Range<size_t>>&,
@@ -44,7 +45,7 @@ void register_calculate_uniqueness(CalculateUniquenessFn fn);
 
 void setup();
 void unsetup();
-DiscriminationData generate_discrimination_data(pv::File& video, const std::shared_ptr<TrainingData>& source = nullptr);
+DiscriminationData generate_discrimination_data(const track::Tracker& tracker, pv::File& video, const std::shared_ptr<TrainingData>& source = nullptr);
 UniquenessCalculation calculate_uniqueness(bool internal,
                                            const std::vector<Image::SPtr>& images,
                                            const std::map<cmn::Frame_t, cmn::Range<size_t>>& map_indexes,

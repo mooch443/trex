@@ -539,7 +539,8 @@ void DetectAnnotationScene::_draw(DrawStructure& graph) {
     _bowl->set_target_focus({});
     
     auto coords = FindCoord::get();
-    _bowl->update(currentFrameIndex, graph, coords);
+    auto repo = data::FrameRepository::Make(video_size); /// only used for heatmaps
+    _bowl->update(*repo, currentFrameIndex, graph, coords);
     
     _current_image->set_scale(_bowl->_current_scale);
     _current_image->set_pos(_bowl->_current_pos);

@@ -15,6 +15,7 @@
 #include <tracking/Stuffs.h>
 #include <tracking/TrackletInformation.h>
 #include <gui/Graph.h>
+#include <tracking/Tracker.h>
 
 #define _LIBFNC(CONTENT) LIBPARAM -> Float2_t \
 { auto fish = info.fish; UNUSED(smooth); UNUSED(fish); UNUSED(frame); if(!props) return GlobalSettings::invalid(); CONTENT }
@@ -243,7 +244,7 @@ const track::MotionRecord* Library::retrieve_props(
         return center;
     }
     
-    void Library::Init() {
+    void Library::Init(track::Tracker& tracker) {
         // add the standard functions
         _default_cache->clear();
         
@@ -253,13 +254,13 @@ const track::MotionRecord* Library::retrieve_props(
         
         if(not _callback) {
             _callback = GlobalSettings::register_callbacks({"output_centered", "output_origin"}, [](auto) {
-                const auto cm_per_px = FAST_SETTING(cm_per_pixel);
-                const auto CENTER_X = BOOL_SETTING(output_centered)
-                    ? (READ_SETTING(meta_video_size, Size2).width * 0.5_F * cm_per_px)
-                    : (READ_SETTING(output_origin, Vec2).x * cm_per_px);
-                const auto CENTER_Y = BOOL_SETTING(output_centered)
-                    ? (READ_SETTING(meta_video_size, Size2).height * 0.5_F * cm_per_px)
-                    : (READ_SETTING(output_origin, Vec2).y * cm_per_px);
+                const auto cm_per_px = READ_SETTING_WITH_DEFAULT(cm_per_pixel, Settings::cm_per_pixel_t{1});
+                const auto CENTER_X = READ_SETTING_WITH_DEFAULT(output_centered, false)
+                    ? (READ_SETTING_WITH_DEFAULT(meta_video_size, Size2{}).width * 0.5_F * cm_per_px)
+                    : (READ_SETTING_WITH_DEFAULT(output_origin, Vec2{}).x * cm_per_px);
+                const auto CENTER_Y = READ_SETTING_WITH_DEFAULT(output_centered, false)
+                    ? (READ_SETTING_WITH_DEFAULT(meta_video_size, Size2{}).height * 0.5_F * cm_per_px)
+                    : (READ_SETTING_WITH_DEFAULT(output_origin, Vec2{}).y * cm_per_px);
                 CENTER() = Vec2{CENTER_X, CENTER_Y};
             });
         }
@@ -474,7 +475,7 @@ const track::MotionRecord* Library::retrieve_props(
             return GlobalSettings::invalid();
         });
         
-        _cache_func[Functions::BORDER_DISTANCE.str()] = LIBFNC({
+        _cache_func[Functions::BORDER_DISTANCE.str()] = [ptr = tracker.weak_from_this()] _LIBFNC({
             if(auto video_mask = GlobalSettings::read_value<NoType>("video_mask");
                video_mask.valid())
             {
@@ -494,8 +495,10 @@ const track::MotionRecord* Library::retrieve_props(
                    meta_video_size)
                 {
                     size = *meta_video_size;
-                } else {
-                    size = Tracker::average().dimensions();
+                } else if(auto lock = ptr.lock();
+                          lock)
+                {
+                    size = lock->average().dimensions();
                 }
                 
                 cv::Rect2f r(0, 0, size.width * FAST_SETTING(cm_per_pixel), size.height * FAST_SETTING(cm_per_pixel));
@@ -531,29 +534,41 @@ const track::MotionRecord* Library::retrieve_props(
         });
         
         FN_IS_GLOBAL_PROPERTY(time);
-        _cache_func["time"] = LIBGLFNC({
+        _cache_func["time"] = [ptr = tracker.weak_from_this()] _LIBGLFNC({
             (void)info;
-            auto props = Tracker::properties(frame);
-            if(!props)
+            auto lock = ptr.lock();
+            if(not lock)
+                return GlobalSettings::invalid();
+            
+            auto props = lock->frames().properties(frame);
+            if(not props)
                 return GlobalSettings::invalid();
             return props->time();
         });
         
         FN_IS_GLOBAL_PROPERTY(timestamp);
-        _cache_func["timestamp"] = LIBGLFNC({
+        _cache_func["timestamp"] = [ptr = tracker.weak_from_this()] _LIBGLFNC({
             (void)info;
             
-            auto props = Tracker::properties(frame);
+            auto lock = ptr.lock();
+            if(not lock)
+                return GlobalSettings::invalid();
+            
+            auto props = lock->frames().properties(frame);
             if(!props)
                 return GlobalSettings::invalid();
             return props->timestamp().get();
         });
         
         FN_IS_GLOBAL_PROPERTY(frame);
-        _cache_func["frame"] = LIBGLFNC({
+        _cache_func["frame"] = [ptr = tracker.weak_from_this()] _LIBGLFNC({
             (void)info;
             
-            auto props = Tracker::properties(frame);
+            auto lock = ptr.lock();
+            if(not lock)
+                return GlobalSettings::invalid();
+            
+            auto props = lock->frames().properties(frame);
             if(!props)
                 return GlobalSettings::invalid();
             return frame.get();
@@ -824,10 +839,13 @@ const track::MotionRecord* Library::retrieve_props(
         });
         
         FN_IS_CENTROID_ONLY_PROPERTY(visual_identification_p);
-        _cache_func["visual_identification_p"] = LIB_NO_CHECK_FNC({
+        _cache_func["visual_identification_p"] = [ptr = tracker.weak_from_this()] _LIBNCFNC({
             auto blob = fish->compressed_blob(frame);
-            if (blob) {
-                auto ptr = Tracker::instance()->find_prediction(frame, blob->blob_id());
+            auto lock = ptr.lock();
+            if (blob
+                && lock)
+            {
+                auto ptr = lock->find_prediction(frame, blob->blob_id());
                 if(ptr && not ptr->empty()) {
                     auto map = track::prediction2map(*ptr);
                     if(auto it = map.find(fish->identity().ID());
@@ -1847,7 +1865,7 @@ cached_output_fields_t Library::get_cached_fields() {
         return 0;
     }
     
-    bool save_focussed_on(const file::Path& file, const Individual* fish) {
+    /*bool save_focussed_on(const file::Path& file, const Individual* fish) {
         using namespace file;
         
         std::vector<std::string> header = {"frame"};
@@ -1914,5 +1932,5 @@ cached_output_fields_t Library::get_cached_fields() {
         
         CSVExport e(table);
         return e.save(file);
-    }
+    }*/
 }

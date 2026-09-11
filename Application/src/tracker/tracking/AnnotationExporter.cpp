@@ -624,6 +624,7 @@ void export_tag_annotations(TagDatasetConfig config) {
     
     ImageExtractor e{
         std::shared_ptr{config.video_file},
+        *config.tracker,
         [&](const Query& q)->std::unique_ptr<AcceptedQuery> {
             /// selector
             std::map<track::Idx_t, uint64_t> frame_tracklet_ids;

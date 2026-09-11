@@ -23,6 +23,7 @@ class File;
 
 namespace track {
 class Border;
+class Tracker; 
 class Individual;
 class PPFrame;
 struct TrackletInformation;
@@ -144,8 +145,9 @@ namespace globals {
         std::unique_ptr<ExternalImage> ptr;
         Vec2 image_pos;
         Frame_t frame;
+        const cmn::Background* background{nullptr};
         
-        SimpleBlob(std::unique_ptr<ExternalImage>&& available, pv::BlobWeakPtr b, int t);
+        SimpleBlob(const cmn::Background*, std::unique_ptr<ExternalImage>&& available, pv::BlobWeakPtr b, int t);
         ~SimpleBlob();
         void convert();
     };
@@ -158,6 +160,7 @@ namespace globals {
     class GUICache {
         struct LoadingState;
 
+        std::shared_ptr<track::Tracker> _tracker;
         std::unique_ptr<GenericThreadPool> _pool;
     public:
         const GenericThreadPool& pool() const;
@@ -204,8 +207,8 @@ namespace globals {
         std::optional<std::size_t> _delete_frame_callback;
         
         bool _frame_contained{false};
-        FrameProperties::Ptr _props;
-        FrameProperties::Ptr _next_props;
+        std::optional<FrameProperties> _props;
+        std::optional<FrameProperties> _next_props;
         
         std::vector<float> pixel_value_percentiles;
         bool _equalize_histograms = true;
@@ -231,7 +234,16 @@ namespace globals {
         
         static GUICache& instance();
         static bool exists();
-        Range<Frame_t> tracked_frames;
+        
+        struct TrackedFrames {
+            Frame_t start, end;
+            bool contains(Frame_t f) const {
+                if(not start.valid() || not end.valid() || not f.valid())
+                    return false;
+                return f >= start && f <= end;
+            }
+        };
+        GETTER(TrackedFrames, tracked_frames);
         std::atomic_bool connectivity_reload;
         
     private:
@@ -373,7 +385,7 @@ namespace globals {
         
         const grid::ProximityGrid& blob_grid();
         
-        GUICache(gui::DrawStructure*, std::weak_ptr<pv::File>, std::shared_ptr<TimingStatsCollector> timing_stats = nullptr);
+        GUICache(gui::DrawStructure*, std::shared_ptr<track::Tracker>, std::weak_ptr<pv::File>, std::shared_ptr<TimingStatsCollector> timing_stats = nullptr);
         ~GUICache();
         
         std::optional<std::vector<float>> find_prediction(pv::bid) const;

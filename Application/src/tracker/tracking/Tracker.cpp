@@ -37,6 +37,7 @@
 #include <tracking/HistorySplit.h>
 #include <tracking/IndividualManager.h>
 #include <core/SettingsPaths.h>
+#include <tracking/OutputLibrary.h>
 
 #if !COMMONS_NO_PYTHON
 #include <tracking/RecTask.h>
@@ -51,7 +52,6 @@ namespace track {
 
 FrameRange _analysis_range;
 
-Tracker* _instance = NULL;
 std::mutex _identities_mutex;
 std::set<Idx_t> _fixed_identities;
 
@@ -63,7 +63,7 @@ auto& properties_mutex() {
 void Tracker::initialize_slows() {
 #define DEF_CALLBACK(X) Settings::set_callback(Settings:: X , [](auto&, auto& value) { SLOW_SETTING( X ) = value.template value<Settings:: X##_t >(); })
     
-    std::call_once(slow_flag, [](){
+    std::call_once(slow_flag, [this](){
         LockGuard guard{w_t{}, "init"};
         
         Settings::clear_callbacks();
@@ -134,8 +134,12 @@ void Tracker::initialize_slows() {
                 SETTING(outline_resample) = 1.f;
             }
         });
-        Settings::set_callback(Settings::manually_approved, [](auto&, auto&){
-            DatasetQuality::update();
+        Settings::set_callback(Settings::manually_approved, [self = weak_from_this()](auto&, auto&)
+        {
+            auto lock = self.lock();
+            if(not lock)
+                throw InvalidArgumentException("No tracker instance there to update with manually_approved.");
+            DatasetQuality::update(*lock);
         });
         
         auto track_list_update = [](std::string_view key, auto&value)
@@ -164,39 +168,26 @@ void Tracker::initialize_slows() {
         };
         Settings::set_callback(Settings::track_ignore, track_list_update);
         Settings::set_callback(Settings::track_include, track_list_update);
-        Settings::set_callback(Settings::frame_rate, [](auto&, auto&){
-            std::unique_lock guard{properties_mutex()};
-            instance()->properties_cache().clear(); //! TODO: need to refill as well
-        });
-        Settings::set_callback(Settings::posture_direction_smoothing, [](auto&key, auto&value) {
+        
+        _settings_callback = GlobalSettings::register_callbacks({"posture_direction_smoothing"}, [self = weak_from_this()](std::string_view) {
             static_assert(std::is_same<Settings::posture_direction_smoothing_t, uint16_t>::value, "posture_direction_smoothing assumed to be uint16_t.");
-            size_t v = value.template value<uint16_t>();
-            
-            if(v != FAST_SETTING(posture_direction_smoothing))
-            {
-                auto worker = [key](){
-                    {
-                        LockGuard guard(w_t{}, "Updating midlines in changed_setting("+std::string(key)+")");
-                        IndividualManager::transform_parallel(Tracker::thread_pool(), [](auto fdx, auto fish)
-                        {
-                            Print("\t", fdx);
-                            fish->clear_post_processing();
-                            
-                            CachedSettings settings;
-                            fish->update_midlines(settings, nullptr);
-                        });
-                    }
-                    DatasetQuality::update();
-                };
-                
-                /*if(GUI::instance()) {
-                    GUI::work().add_queue("updating midlines / head positions...", worker);
-                } else*/
-                    worker();
+            auto lock = self.lock();
+            if(not lock) {
+                FormatError("Updating posture_direction_smoothing failed because no tracker was there.");
+                return;
             }
+            
+            LockGuard guard(w_t{}, "Updating midlines in changed_setting");
+            IndividualManager::transform_parallel(lock->thread_pool(), [lock](auto fdx, auto fish)
+            {
+                Print("\t", fdx);
+                fish->clear_post_processing();
+                
+                CachedSettings settings;
+                fish->update_midlines(lock->frames(), settings, nullptr);
+            });
+            DatasetQuality::update(*lock);
         });
-        
-        
         
         Settings::init();
         
@@ -233,10 +224,6 @@ const set_of_individuals_t& Tracker::active_individuals(Frame_t frame) {
 
 const FrameRange& Tracker::analysis_range() {
     return _analysis_range;
-}
-
-Tracker* Tracker::instance() {
-    return _instance;
 }
 
 void Tracker::clear_vi_predictions() {
@@ -290,66 +277,14 @@ const std::vector<float>* Tracker::find_prediction(Frame_t frame, pv::bid bdx) c
     
     return &kit->second;
 }
-
-double Tracker::time_delta(Frame_t frame_1, Frame_t frame_2, const CacheHints* cache) {
-    auto props_1 = properties(frame_1, cache);
-    auto props_2 = properties(frame_2, cache);
-    return props_1 && props_2 ? abs(props_1->time() - props_2->time()) : (abs((frame_1 - frame_2).get()) / double(FAST_SETTING(frame_rate)));
-}
-
-const FrameProperties* Tracker::properties(Frame_t frameIndex, const CacheHints* hints) {
-    if(!frameIndex.valid())
-        return nullptr;
-    
-    if(hints) {
-        //! check if its just meant to disable it
-        if(hints != (const CacheHints*)0x1) {
-            auto ptr = hints->properties(frameIndex);
-            if(ptr)
-                return ptr;
-        }
-        
-    } else {
-        std::shared_lock guard(properties_mutex());
-        auto ptr = instance()->properties_cache().properties(frameIndex);
-        if(ptr)
-            return ptr;
-    }
-    
-    auto &frames = instance()->frames();
-    auto it = instance()->properties_iterator(frameIndex);
-    if(it == frames.end())
-        return nullptr;
-    return (*it).get();
-}
-
-decltype(Tracker::_added_frames)::const_iterator Tracker::properties_iterator(Frame_t frameIndex) {
-    auto& frames = this->frames();
-    auto it = std::upper_bound(frames.begin(), frames.end(), frameIndex, [](Frame_t frame, const auto& prop) -> bool {
-        return frame < prop->frame();
-    });
-    
-    if((it == frames.end() && !frames.empty()) || (it != frames.begin())) {
-        --it;
-        
-        if((*it)->frame() == frameIndex) {
-            return it;
-        }
-    }
-    
-    return frames.end();
-}
-        
+ 
     void Tracker::print_memory() {
         LockGuard guard(ro_t{}, "print_memory");
-        mem::TrackerMemoryStats stats;
+        mem::TrackerMemoryStats stats{*this};
         stats.print();
     }
     
 void Tracker::analysis_state(AnalysisState pause) {
-    if(!instance())
-        throw U_EXCEPTION("No tracker instance can be used to pause.");
-
     const bool do_pause = pause == AnalysisState::PAUSED;
     if(BOOL_SETTING(track_pause) == do_pause) {
         return;
@@ -365,14 +300,15 @@ void Tracker::set_average(Image::Ptr&& average, meta_encoding_t::Class encoding)
     _background = new Background(std::move(average), encoding);
     _average = Image::Make(_background->image());
     _border = Border(_background);
+    
+    //_blob_grid.set_resolution(size, grid::proximity_res);
+    _blob_grid.set_resolution(_average->bounds().size(), grid::proximity_res);
 }
 
-const Image& Tracker::average(cmn::source_location loc) {
-    if(not instance())
-        throw _U_EXCEPTION(loc, "Instance is nullptr.");
-    if(!instance()->_average)
+const Image& Tracker::average(cmn::source_location loc) const {
+    if(not _average)
         throw _U_EXCEPTION(loc, "Pointer to average image is nullptr.");
-    return *instance()->_average;
+    return *_average;
 }
 
 Tracker::Tracker(const pv::File& video)
@@ -380,11 +316,12 @@ Tracker::Tracker(const pv::File& video)
 { }
 
 Tracker::Tracker(Image::Ptr&& average, meta_encoding_t::Class encoding, Float2_t meta_real_width)
-      : _thread_pool(max(1u, cmn::hardware_concurrency()), "Tracker::thread_pool"),
-        _max_individuals(0),
-        _background(NULL),
-        _border{ nullptr },
-        recognition_pool(max(1u, 5u), "RecognitionPool")
+    : _frames(data::FrameRepository::Make(average->bounds().size())),
+      _thread_pool(max(1u, cmn::hardware_concurrency()), "Tracker::thread_pool"),
+      _max_individuals(0),
+      _background(NULL),
+      _border{ nullptr },
+      recognition_pool(max(1u, 5u), "RecognitionPool")
         /*_inactive_individuals([this](Idx_t A, Idx_t B){
             auto it = _individuals.find(A);
             assert(it != _individuals.end());
@@ -397,14 +334,6 @@ Tracker::Tracker(Image::Ptr&& average, meta_encoding_t::Class encoding, Float2_t
             return a->end_frame() > b->end_frame() || (a->end_frame() == b->end_frame() && A > B);
         })*/
 {
-    _instance = this;
-    is_checking_tracklet_identities = false;
-    
-    global_tracklet_order_changed();
-    
-    Identity::Reset(); // reset Identities if the tracker is created
-    initialize_slows();
-    
     /// --- register all tracking threads
 #if defined(DEBUG_TRACKING_THREADS)
     for(auto id : _thread_pool.thread_ids()) {
@@ -413,9 +342,6 @@ Tracker::Tracker(Image::Ptr&& average, meta_encoding_t::Class encoding, Float2_t
 #endif
     /// --- /register all tracking threads
     
-    PPFrame::CloseLogs();
-    update_history_log();
-    
     set_average(std::move(average), encoding);
     
     if(auto v = GlobalSettings::read_value<Float2_t>("meta_real_width");
@@ -423,6 +349,18 @@ Tracker::Tracker(Image::Ptr&& average, meta_encoding_t::Class encoding, Float2_t
     {
         SETTING(meta_real_width) = meta_real_width;
     }
+}
+
+void Tracker::init() {
+    is_checking_tracklet_identities = false;
+    
+    global_tracklet_order_changed();
+    
+    Identity::Reset(); // reset Identities if the tracker is created
+    initialize_slows();
+    
+    PPFrame::CloseLogs();
+    update_history_log();
     
     // setting cm_per_pixel after average has been generated (and offsets have been set)
     if(auto v = GlobalSettings::read_value<Float2_t>("cm_per_pixel");
@@ -436,11 +374,15 @@ Tracker::Tracker(Image::Ptr&& average, meta_encoding_t::Class encoding, Float2_t
         Print("Initialized with ", _thread_pool.num_threads()," threads.");
     }
     
+    Print("* Initializing outputs.");
+    Output::Library::InitVariables();
+    Output::Library::Init(*this);
 }
 
 Tracker::~Tracker() {
-    assert(_instance);
     Settings::clear_callbacks();
+    if(_settings_callback)
+        GlobalSettings::unregister_callbacks(std::move(_settings_callback));
 
     constraints::FilterCache::clear();
     
@@ -459,7 +401,6 @@ Tracker::~Tracker() {
     if(!quiet)
         Print("Done waiting.");
     
-    _instance = NULL;
     is_checking_tracklet_identities = false;
     
     {
@@ -523,8 +464,8 @@ Frame_t Tracker::update_with_manual_matches(const Settings::manual_matches_t& ma
             first_change = Frame_t(itn->first);
     }
     
-    if(first_change.valid() && (not Tracker::end_frame().valid()
-                                || first_change <= Tracker::end_frame()))
+    if(first_change.valid() && (not frames().end_frame().valid()
+                                || first_change <= frames().end_frame()))
     {
         Tracker::analysis_state(Tracker::AnalysisState::UNPAUSED);
     }
@@ -537,52 +478,6 @@ Frame_t Tracker::update_with_manual_matches(const Settings::manual_matches_t& ma
     return first_change;
 }
 
-bool operator<(Frame_t frame, const FrameProperties& props) {
-    return frame < props.frame();
-}
-
-//! Assumes a sorted array.
-template<typename T, typename Q>
-inline bool contains_sorted(const Q& v, T obj) {
-    auto it = std::lower_bound(v.begin(), v.end(), obj, [](const auto& v, T number) -> bool {
-        return *v < number;
-    });
-    
-    if(it != v.end()) {
-        auto end = std::upper_bound(it, v.end(), obj, [](T number, const auto& v) -> bool {
-            return number < *v;
-        });
-        
-        if(end == v.end() || !(*(*end) < obj)) {
-            return true;
-        }
-    }
-    
-    return false;
-}
-
-//! Assumes a sorted array.
-template<typename T, typename Q>
-inline auto find_sorted(const Q& v, T obj) {
-    auto it = std::lower_bound(v.begin(), v.end(), obj, [](const auto& v, T number) -> bool {
-        return *v < number;
-    });
-    
-    if(it != v.end()) {
-        auto end = std::upper_bound(it, v.end(), obj, [](T number, const auto& v) -> bool {
-            return number < *v;
-        });
-        
-        if(end == v.end()) {
-            return it;
-        } else if(!(*(*end) < obj)) {
-            return end;
-        }
-    }
-    
-    return it;
-}
-
 void Tracker::add(PPFrame &frame) {
     static Timing timing("Tracker::add(PPFrame)", 100);
     TakeTiming take(timing);
@@ -592,7 +487,7 @@ void Tracker::add(PPFrame &frame) {
     assert(frame.index().valid());
     initialize_slows();
     
-    if (contains_sorted(_added_frames, frame.index())) {
+    if (frames().contains(frame.index())) {
         Print("Frame ",frame.index()," already in tracker.");
         return;
     }
@@ -601,14 +496,17 @@ void Tracker::add(PPFrame &frame) {
         Print("frame timestamp is bigger than INT64_MAX! (",frame.timestamp," time)");
     }
     
-    auto props = properties(frame.index() - 1_f);
+    auto props = frames().properties(frame.index() - 1_f);
     if(props && frame.timestamp < props->timestamp()) {
         FormatError("Cannot add frame with timestamp smaller than previous timestamp. Frames have to be in order. Skipping.");
         return;
     }
     
-    if(start_frame().valid() && frame.index() < end_frame() + 1_f)
+    if(frames().start_frame().valid()
+       && frame.index() < frames().end_frame() + 1_f)
+    {
         throw UtilsException("Cannot add intermediate frames out of order.");
+    }
     
     add(frame.index(), frame);
 }
@@ -654,7 +552,9 @@ void Tracker::update_history_log() {
     PPFrame::UpdateLogs();
 }
 
-void Tracker::preprocess_frame(pv::Frame&& frame, PPFrame& pp, GenericThreadPool* pool, NeedGrid need, const Size2& resolution, bool do_history_split)
+void Tracker::preprocess_frame(pv::Frame&& frame, PPFrame& pp, GenericThreadPool* pool,
+                               const data::FrameRepository& frames, const Background& background,
+                               NeedGrid need_grid, HistorySplitPolicy history_split)
 {
     //! Free old memory
     pp.clear();
@@ -685,11 +585,10 @@ void Tracker::preprocess_frame(pv::Frame&& frame, PPFrame& pp, GenericThreadPool
     
     frame.clear();
     
-    filter_blobs(pp, pool);
-    pp.fill_proximity_grid(resolution);
-    
-    if(do_history_split)
-        HistorySplit{pp, need, pool};
+    filter_blobs(pp, pool, background, frames.start_frame(), frames.end_frame());
+    pp.fill_proximity_grid(frames.video_size());
+    if(history_split == HistorySplitPolicy::Apply)
+        HistorySplit{frames, background, pp, need_grid, pool};
     
     //! discarding frame...
     //frame.clear();
@@ -948,13 +847,16 @@ void Tracker::prefilter(
     for(auto &blob : result.filtered())
         blob->calculate_moments();
     
-    if (not Tracker::start_frame().valid()
-        || result.frame_index == Tracker::start_frame())
+    if (not result.start_frame.valid()
+        || result.frame_index == result.start_frame)
     {
 #if !COMMONS_NO_PYTHON
         std::vector<pv::BlobPtr> noises;
 #endif
+        if(not result.background)
+            throw InvalidArgumentException("No background set in prefilter.");
         PrefilterBlobs::split_big(
+              *result.background,
               result.frame_index,
               std::move(result.big_blobs),
               BlobReceiver(result, BlobReceiver::noise, nullptr, FilterReason::SplitFailed),
@@ -987,7 +889,7 @@ void Tracker::prefilter(
     }
 }
 
-void Tracker::filter_blobs(PPFrame& frame, GenericThreadPool *pool) {
+void Tracker::filter_blobs(PPFrame& frame, GenericThreadPool *pool, const Background& background, Frame_t start, Frame_t end) {
     static Timing timing("filter_blobs", 100);
     TakeTiming take(timing);
     
@@ -1010,10 +912,10 @@ void Tracker::filter_blobs(PPFrame& frame, GenericThreadPool *pool) {
         
         prefilters.reserve(needed_threads);
         for(size_t i=0; i<needed_threads; ++i) {
-            prefilters.emplace_back(frame.index(), threshold, fish_size, *Tracker::background());
+            prefilters.emplace_back(frame.index(), threshold, fish_size, background, start, end);
         }
         
-        PrefilterBlobs global(frame.index(), threshold, fish_size, *Tracker::background());
+        PrefilterBlobs global(frame.index(), threshold, fish_size, background, start, end);
         
         distribute_indexes(
            [&](auto, auto start, auto end, auto j){
@@ -1034,7 +936,7 @@ void Tracker::filter_blobs(PPFrame& frame, GenericThreadPool *pool) {
         std::move(global).to(frame);
         
     } else {
-        PrefilterBlobs pref(frame.index(), threshold, fish_size, *Tracker::background());
+        PrefilterBlobs pref(frame.index(), threshold, fish_size, background, start, end);
         prefilter(pref,
                   std::make_move_iterator(frame.unsafe_access_all_blobs().begin()),
                   std::make_move_iterator(frame.unsafe_access_all_blobs().end()));
@@ -1042,31 +944,6 @@ void Tracker::filter_blobs(PPFrame& frame, GenericThreadPool *pool) {
         frame.clear_blobs();
         std::move(pref).to(frame);
     }
-}
-
-const FrameProperties* Tracker::add_next_frame(const FrameProperties & props) {
-    auto &frames = instance()->frames();
-    auto capacity = frames.capacity();
-    instance()->_added_frames.emplace_back(FrameProperties::Make(props));
-    
-    if(frames.capacity() != capacity) {
-        std::unique_lock guard(properties_mutex());
-        instance()->properties_cache().clear();
-        
-        auto it = frames.rbegin();
-        while(it != frames.rend() && !instance()->properties_cache().full())
-        {
-            instance()->properties_cache().push((*it)->frame(), (*it).get());
-            ++it;
-        }
-        assert((frames.empty() && !end_frame().valid()) || (end_frame().valid() && (*frames.rbegin())->frame() == end_frame()));
-        
-    } else {
-        std::unique_lock guard(properties_mutex());
-        instance()->properties_cache().push(props.frame(), frames.back().get());
-    }
-    
-    return frames.back().get();
 }
 
 bool Tracker::has_identities() {
@@ -1097,11 +974,6 @@ const std::set<Idx_t> Tracker::identities() {
     }
     
     return _fixed_identities;
-}
-
-void Tracker::clear_properties() {
-    std::unique_lock guard(properties_mutex());
-    instance()->properties_cache().clear();
 }
 
 Match::PairedProbabilities Tracker::calculate_paired_probabilities
@@ -1637,7 +1509,7 @@ void Tracker::collect_matching_cliques(TrackingHelper& s, GenericThreadPool& thr
 
         //! this function does the actual matching (threaded)
         //! for each clique in the frame:
-        auto work_cliques = [frameIndex = s.frame.index(), &s, &thread_mutex] (auto, const decltype(cliques)::const_iterator& start, const decltype(cliques)::const_iterator& end, auto)
+        auto work_cliques = [frames = &frames(), frameIndex = s.frame.index(), &s, &thread_mutex] (auto, const decltype(cliques)::const_iterator& start, const decltype(cliques)::const_iterator& end, auto)
         {
             using namespace Match;
             
@@ -1680,16 +1552,19 @@ void Tracker::collect_matching_cliques(TrackingHelper& s, GenericThreadPool& thr
                     
                     s._manager.assign<false>(AssignInfo{
                         .frame = &s.frame,
+                        .repo = frames,
                         .f_prop = s.props,
                         .f_prev_prop = s.prev_props,
                         .match_mode = default_config::matching_mode_t::hungarian,
                         .settings = &s.cache()
-                    }, std::move(optimal.pairings), [](pv::bid, Idx_t, Individual*)
-                    {},
-                    [frameIndex](pv::bid bdx, Idx_t fdx, Individual*, auto error)
-                    {
+                      },
+                      std::move(optimal.pairings),
+                      [](pv::bid, Idx_t, Individual*){},
+                      [frameIndex](pv::bid bdx, Idx_t fdx, Individual*, auto error)
+                      {
                         FormatExcept("Cannot assign ", fdx, " to ", bdx, " in frame ", frameIndex, " reporting: ", no_quotes(error));
-                    });
+                      }
+                    );
                 }
                 catch (...) {
                     FormatExcept("Failed to generate optimal solution (frame ", frameIndex,").");
@@ -1704,7 +1579,7 @@ void Tracker::collect_matching_cliques(TrackingHelper& s, GenericThreadPool& thr
         //! to refer to actual `Idx_t` and `pv::bid`.
         //! then update cliques in the global array:
         Clique translated;
-        Tracker::instance()->_cliques[frameIndex].clear();
+        _cliques[frameIndex].clear();
 
         for (auto& clique : cliques) {
             translated.bids.clear();
@@ -1715,7 +1590,7 @@ void Tracker::collect_matching_cliques(TrackingHelper& s, GenericThreadPool& thr
             for (auto fdi : clique.fids)
                 translated.fishs.insert(s.paired.row(fdi));
 
-            Tracker::instance()->_cliques[frameIndex].emplace_back(std::move(translated));
+            _cliques[frameIndex].emplace_back(std::move(translated));
         }
 
 #ifdef TREX_DEBUG_MATCHING
@@ -1785,25 +1660,31 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
     static Timer overall_timer;
     overall_timer.reset();
     
-    if (!start_frame().valid() || start_frame() > frameIndex) {
-        _startFrame = frameIndex;
+    if (auto start_frame = frames().start_frame();
+        not start_frame.valid() || start_frame > frameIndex)
+    {
+        frames().set_start_frame(frameIndex);
     }
     
-    if (!end_frame().valid() || end_frame() < frameIndex) {
-        if(end_frame().valid() && end_frame() < start_frame())
-          FormatError("end frame is ", end_frame()," < ",start_frame());
-        _endFrame = frameIndex;
+    if (auto end_frame = frames().end_frame();
+        not end_frame.valid() || end_frame < frameIndex)
+    {
+        if(end_frame.valid() && end_frame < frames().start_frame())
+          FormatError("end frame is ", end_frame," < ",frames().start_frame());
+        frames().set_end_frame(frameIndex);
     }
     
     //! Perform blob splitting based on recent history.
     //! E.g.: We know there should be two individuals where we only
     //! find one object -> split the object in order to try to split
     //! the potentially overlapping individuals apart.
-    HistorySplit{frame, NeedGrid::NoNeed, &_thread_pool};
+    if(not _background)
+        throw InvalidArgumentException("No background set in tracker::add");
+    HistorySplit{frames(), *_background, frame, NeedGrid::NoNeed, &_thread_pool};
     
     //! Initialize helper structure that encapsulates the substeps
     //! of the Tracker::add method:
-    TrackingHelper s(frame, _added_frames, _approximative_enabled_in_frame);
+    TrackingHelper s(*this, frame, _approximative_enabled_in_frame);
     const auto number_fish = s.cache().track_max_individuals;
     
     // now that the blobs array has been cleared of all the blobs for fixed matches,
@@ -1852,6 +1733,7 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
         // to existing ones
         s._manager.assign_to_inactive(AssignInfo{
             .frame = &s.frame,
+            .repo = &frames(),
             .f_prop = s.props,
             .f_prev_prop = s.prev_props,
             .match_mode = default_config::matching_mode_t::none,
@@ -1900,7 +1782,7 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
                 pairs.reserve(IndividualManager::num_individuals() * unassigned_blobs.size());
             }
 
-            auto previous = Tracker::properties(frameIndex - 1_f);
+            auto previous = frames().properties(frameIndex - 1_f);
 
             IndividualManager::transform_inactive([&](auto fish)
             {
@@ -1914,7 +1796,7 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
                     }
                     
                 } else {
-                    auto pos_fish = fish->cache_for_frame(previous, frameIndex, frame.time);
+                    auto pos_fish = fish->cache_for_frame(frames(), previous, frameIndex, frame.time);
                     if(not pos_fish) {
                         throw U_EXCEPTION("Cannot calculate cache_for_frame for ", fish->identity(), " in ", frameIndex, " because: ", pos_fish.error());
                     }
@@ -1965,6 +1847,7 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
             
             s._manager.assign(AssignInfo{
                 .frame = &s.frame,
+                .repo = &frames(),
                 .f_prop = s.props,
                 .f_prev_prop = s.prev_props,
                 .match_mode = default_config::matching_mode_t::none,
@@ -2037,7 +1920,7 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
     
     Timer posture_timer;
     
-    const auto combined_posture_seconds = s.process_postures();
+    const auto combined_posture_seconds = s.process_postures(*this);
     const auto posture_seconds = posture_timer.elapsed();
     
     Output::Library::frame_changed(frameIndex);
@@ -2047,7 +1930,9 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
     }
     
     _max_individuals = cmn::max(_max_individuals.load(), s._manager.assigned_count());
-    _added_frames.back()->set_active_individuals( narrow_cast<long_t>(s._manager.assigned_count()));
+    frames().write([&s](data::FrameRepository::WriteAccess write){
+        write.raw.back()->set_active_individuals( narrow_cast<long_t>(s._manager.assigned_count()));
+    });
     
     uint32_t n = 0;
     uint32_t prev = 0;
@@ -2075,7 +1960,9 @@ void Tracker::add(Frame_t frameIndex, PPFrame& frame) {
         }, [](auto){});
     }
     
-    update_warnings(s.cache(), frameIndex, s.frame.time, number_fish, n, prev, s.props, s.prev_props, s._manager.current(), _individual_add_iterator_map);
+    update_warnings(s.cache(), frameIndex, s.frame.time, number_fish, n, prev,
+                    //s.props,
+                    s.prev_props, s._manager.current(), _individual_add_iterator_map);
     
 #if !COMMONS_NO_PYTHON
     //! Iterate through qrcodes in this frame and try to assign them
@@ -2189,7 +2076,17 @@ void Tracker::update_iterator_maps(Frame_t frame, const set_of_individuals_t& ac
     }
 }
             
-void Tracker::update_warnings(const CachedSettings& s, Frame_t frameIndex, double time, long_t /*number_fish*/, long_t n_found, long_t n_prev, const FrameProperties *props, const FrameProperties *prev_props, const set_of_individuals_t& active_individuals, ska::bytell_hash_map<Idx_t, Individual::tracklet_map::const_iterator>& individual_iterators)
+void Tracker::update_warnings(
+      const CachedSettings& s,
+      Frame_t frameIndex,
+      double time,
+      long_t /*number_fish*/,
+      long_t n_found,
+      long_t n_prev,
+      //const FrameProperties& props,
+      const FrameProperties *prev_props,
+      const set_of_individuals_t& active_individuals,
+      ska::bytell_hash_map<Idx_t, Individual::tracklet_map::const_iterator>& individual_iterators)
 {
     std::map<std::string, std::set<FOI::fdx_t>> merge;
     
@@ -2270,7 +2167,7 @@ void Tracker::update_warnings(const CachedSettings& s, Frame_t frameIndex, doubl
     }
 #endif
     
-    if(prev_props && props) {
+    if(prev_props) {
         std::set<FOI::fdx_t> weird_distance, weird_angle, tracklet_end;
         std::set<FOI::fdx_t> fdx;
         
@@ -2310,10 +2207,10 @@ void Tracker::update_warnings(const CachedSettings& s, Frame_t frameIndex, doubl
             assert(fish->tracklet_for(frameIndex) != fish->tracklet_for(frameIndex - 1_f));
         });
         
-        IndividualManager::transform_ids(fdx, [frameIndex](auto, auto fish)
+        IndividualManager::transform_ids(fdx, [this, frameIndex](auto, auto fish)
         {
             assert(not fish->has(frameIndex));
-            assert(frameIndex != start_frame() && fish->has(frameIndex - 1_f));
+            assert(frameIndex != frames().start_frame() && fish->has(frameIndex - 1_f));
         });
 #endif
         
@@ -2381,43 +2278,51 @@ void Tracker::update_warnings(const CachedSettings& s, Frame_t frameIndex, doubl
         FOI::add(FOI(frameIndex, value, key));
 }
 
-void Tracker::update_consecutive(const CachedSettings& s, const set_of_individuals_t &active, Frame_t frameIndex, bool update_dataset) {
-        bool all_good = s.track_max_individuals == (uint32_t)active.size();
-        
-        //auto manual_identities = FAST_SETTING(manual_identities);
-        for(auto fish : active) {
-            //if(manual_identities.empty() || manual_identities.count(fish->identity().ID()))
-            {
-                if(!fish->has(frameIndex) /*|| fish->centroid_weighted(frameIndex)->speed() >= SLOW_SETTING(track_max_speed) * 0.25*/) {
-                    all_good = false;
-                    break;
-                }
-            }
-        }
-        
-        if(all_good) {
-            if(!_consecutive.empty() && _consecutive.back().end == frameIndex - 1_f) {
-                _consecutive.back().end = frameIndex;
-            } else {
-                if(!_consecutive.empty()) {
-                    FOI::add(FOI(_consecutive.back(), "global tracklet"));
-                }
-                
-                _consecutive.push_back(Range<Frame_t>(frameIndex, frameIndex));
-                if(update_dataset) {
-                    DatasetQuality::update();
-                }
-            }
-        }
-        
-        if(frameIndex == analysis_range().end()
-           && update_dataset)
+void Tracker::update_consecutive(const CachedSettings& s, const set_of_individuals_t &active, Frame_t frameIndex, bool update_dataset)
+{
+    bool all_good = s.track_max_individuals == (uint32_t)active.size();
+    
+    //auto manual_identities = FAST_SETTING(manual_identities);
+    for(auto fish : active) {
+        //if(manual_identities.empty() || manual_identities.count(fish->identity().ID()))
         {
-            global_tracklet_order_changed();
-            global_tracklet_order();
-            DatasetQuality::update();
+            if(!fish->has(frameIndex) /*|| fish->centroid_weighted(frameIndex)->speed() >= SLOW_SETTING(track_max_speed) * 0.25*/) {
+                all_good = false;
+                break;
+            }
         }
     }
+    
+    if(all_good) {
+        if(frames().write([frameIndex](data::FrameRepository::WriteAccess data) {
+            if(not data.consec.empty()
+               && data.consec.back().end == frameIndex - 1_f)
+            {
+                data.consec.back().end = frameIndex;
+                return false;
+                
+            } else {
+                if(!data.consec.empty()) {
+                    FOI::add(FOI(data.consec.back(), "global tracklet"));
+                }
+                
+                /// start a new range
+                data.consec.emplace_back(frameIndex, frameIndex);
+                return true;
+            }
+        }) && update_dataset) {
+            DatasetQuality::update(*this);
+        }
+    }
+    
+    if(frameIndex == analysis_range().end()
+       && update_dataset)
+    {
+        global_tracklet_order_changed();
+        global_tracklet_order();
+        DatasetQuality::update(*this);
+    }
+}
 
     void Tracker::generate_pairdistances(Frame_t) {
         /*std::vector<Individual*> frame_individuals;
@@ -2463,31 +2368,35 @@ void Tracker::update_consecutive(const CachedSettings& s, const set_of_individua
         
         Print("** Removing frames after and including ", frameIndex);
         
-        if (not start_frame().valid() || end_frame() < frameIndex) //|| start_frame() > frameIndex)
+        if (not frames().start_frame().valid() || frames().end_frame() < frameIndex) //|| start_frame() > frameIndex)
             return;
         
-        Print("** Looking at frames from ", start_frame(), " to ", end_frame());
+        Print("** Looking at frames from ", frames().start_frame(), " to ", frames().end_frame());
         
         PPFrame::CloseLogs();
         update_history_log();
         
-        if(!_consecutive.empty()) {
-            while(!_consecutive.empty()) {
-                if(_consecutive.back().start < frameIndex)
+        frames().write([frameIndex](data::FrameRepository::WriteAccess data) {
+            if(data.consec.empty()) {
+                return;
+            }
+            
+            while(not data.consec.empty()) {
+                if(data.consec.back().start < frameIndex)
                     break;
                 
-                _consecutive.erase(--_consecutive.end());
+                data.consec.erase(--data.consec.end());
             }
-            Print("Last remaining ", _consecutive.size());
-            if(!_consecutive.empty()) {
-                if(_consecutive.back().end >= frameIndex)
-                    _consecutive.back().end = frameIndex - 1_f;
-                Print(_consecutive.back().start,"-",_consecutive.back().end);
+            Print("Last remaining ", data.consec.size());
+            if(!data.consec.empty()) {
+                if(data.consec.back().end >= frameIndex)
+                    data.consec.back().end = frameIndex - 1_f;
+                Print(data.consec.back().start,"-",data.consec.back().end);
             }
-        }
+        });
         
         DatasetQuality::remove_frames(frameIndex);
-        IndividualManager::remove_frames(frameIndex
+        IndividualManager::remove_frames(*this, frameIndex
 #ifndef NDEBUG
             , [this](Individual* fish){
                 assert (_individual_add_iterator_map.find(fish->identity().ID()) == _individual_add_iterator_map.end() );
@@ -2495,36 +2404,13 @@ void Tracker::update_consecutive(const CachedSettings& s, const set_of_individua
 #endif
         );
         
-        if(auto added_it = find_sorted(_added_frames, frameIndex);
-           added_it != _added_frames.end())
-        {
-            Print("added: ", *added_it);
-            _added_frames.erase(added_it, _added_frames.end());
-        }
+        /// clear added frames repo
+        frames().removed_frames_from(frameIndex);
         
         if(_approximative_enabled_in_frame.valid()
            && _approximative_enabled_in_frame >= frameIndex)
         {
             _approximative_enabled_in_frame.invalidate();
-        }
-        
-        {
-            //! update the cache for frame properties
-            std::unique_lock guard(properties_mutex());
-            while(!_added_frames.empty()) {
-                if((*(--_added_frames.end()))->frame() < frameIndex)
-                    break;
-                _added_frames.erase(--_added_frames.end());
-            }
-            
-            properties_cache().clear();
-            
-            auto it = _added_frames.rbegin();
-            while(it != _added_frames.rend() && !properties_cache().full())
-            {
-                properties_cache().push((*it)->frame(), (*it).get());
-                ++it;
-            }
         }
         
         for (auto it=_statistics.begin(); it != _statistics.end();) {
@@ -2534,30 +2420,36 @@ void Tracker::update_consecutive(const CachedSettings& s, const set_of_individua
                 it = _statistics.erase(it);
         }
         
-        _endFrame = frameIndex - 1_f;
-        while (end_frame().valid()
-               && not properties(end_frame()))
+        frames().set_end_frame(frameIndex - 1_f);
+        while (frames().end_frame().valid()
+               && not frames().properties(frames().end_frame()))
         {
-            if (end_frame() < start_frame()) {
-                _endFrame = _startFrame = Frame_t();
+            if (frames().end_frame() < frames().start_frame()) {
+                frames().set_end_frame(Frame_t{});
+                frames().set_start_frame(Frame_t{});
                 break;
+                
+            } else {
+                frames().set_end_frame(frames().end_frame() - 1_f);
             }
-            
-            _endFrame = end_frame() - 1_f;
         }
         
-        if(not end_frame().valid()
-           or end_frame() < analysis_range().start())
+        if(not frames().end_frame().valid()
+           or frames().end_frame() < analysis_range().start())
         {
-            _endFrame = _startFrame = Frame_t();
+            frames().set_end_frame(Frame_t{});
+            frames().set_start_frame(Frame_t{});
         }
         
-        assert((_added_frames.empty() && !end_frame().valid()) || (end_frame().valid() && (*_added_frames.rbegin())->frame() == end_frame()));
+        assert((frames().empty() && not frames().end_frame().valid())
+               || (frames().end_frame().valid() && frames().back()->frame() == frames().end_frame()));
+        
+        //assert((_added_frames.empty() && !end_frame().valid()) || (end_frame().valid() && (*_added_frames.rbegin())->frame() == end_frame()));
         
         constraints::FilterCache::clear();
         //! TODO: MISSING remove_frames
         //_recognition->remove_frames(frameIndex);
-        DatasetQuality::update();
+        DatasetQuality::update(*this);
         
         VisualField::remove_frames_after(frameIndex);
         FOI::remove_frames(frameIndex);
@@ -2568,11 +2460,11 @@ void Tracker::update_consecutive(const CachedSettings& s, const set_of_individua
         
         Print("posture: ", Midline::saved_midlines());
         Print("all blobs: ", pv::Blob::all_blobs());
-        Print("Range: ", start_frame(),"-",end_frame());
+        Print("Range: ", frames().start_frame(),"-",frames().end_frame());
     }
 
     size_t Tracker::found_individuals_frame(Frame_t frameIndex) const {
-        if(!properties(frameIndex))
+        if(not frames().properties(frameIndex))
             return 0;
         
         auto &a = active_individuals(frameIndex);
@@ -2622,22 +2514,24 @@ void Tracker::update_consecutive(const CachedSettings& s, const set_of_individua
                 }
             }
             
-            std::set<Range<Frame_t>> consecutive;
-            for(auto &range : instance()->consecutive())
-                consecutive.insert(range);
-            
-            for(auto& range : instance()->consecutive()) {
-                bool found = false;
-                for(auto& existing : ordered) {
-                    if(existing.overlaps(range)) {
-                        found = true;
-                        break;
-                    }
-                }
+            frames().write([&ordered](data::FrameRepository::WriteAccess data) {
+                //std::set<Range<Frame_t>> consecutive;
+                //for(auto &range : data.consec)
+                //    consecutive.insert(range);
                 
-                if(!found)
-                    ordered.insert(range);
-            }
+                for(auto& range : data.consec) {
+                    bool found = false;
+                    for(auto& existing : ordered) {
+                        if(existing.overlaps(range)) {
+                            found = true;
+                            break;
+                        }
+                    }
+                    
+                    if(!found)
+                        ordered.insert(range);
+                }
+            });
             
             _global_tracklet_order = std::vector<Range<Frame_t>>(ordered.begin(), ordered.end());
             _tracklet_order_changed = false;
@@ -3082,7 +2976,7 @@ void Tracker::set_vi_data(const decltype(_vi_predictions)& predictions) {
             float N = float(IndividualManager::num_individuals());
             IndividualManager::transform_parallel(recognition_pool, [&](auto, auto fish) {
                 fish->clear_recognition();
-                fish->calculate_average_tracklet_id();
+                fish->calculate_average_tracklet_id(*this);
                 
                 callback(count / N * 0.5f);
                 ++count;
@@ -3254,7 +3148,7 @@ void Tracker::set_vi_data(const decltype(_vi_predictions)& predictions) {
                     if (after_frame.valid() && tracklet.end() < after_frame)
                         continue;
 
-                    auto rec = fish->processed_recognition(start);
+                    auto rec = fish->processed_recognition(*this, start);
                     if(rec) {
                         auto [n, average, _] = *rec;
                         collect_virtual_fish(fdx, fish, tracklet, n, average);
@@ -3426,14 +3320,19 @@ void Tracker::set_vi_data(const decltype(_vi_predictions)& predictions) {
         //auto str = prettify_array(Meta::toStr(still_unassigned));
         Print("auto_assign is ", auto_correct ? 1 : 0);
         if(auto_correct) {
-            add_to_queue("", [after_frame, automatic_matches, manual_splits, tmp_assigned_ranges = std::move(tmp_assigned_ranges)]() mutable {
+            add_to_queue("", [after_frame, automatic_matches, manual_splits, tmp_assigned_ranges = std::move(tmp_assigned_ranges), self = weak_from_this()]() mutable {
+                auto lock = self.lock();
+                if(not lock) {
+                    throw RuntimeError("No viable tracker instance was available to check_tracklets_identities.");
+                }
+                
                 Print("Assigning to queue from frame ", after_frame);
                 
                 //std::lock_guard<decltype(GUI::instance()->gui().lock())> guard(GUI::instance()->gui().lock());
                 
                 {
                     LockGuard guard(w_t{}, "check_tracklets_identities::auto_correct");
-                    Tracker::instance()->_remove_frames(!after_frame.valid() ? Tracker::analysis_range().start() : after_frame);
+                    lock->_remove_frames(!after_frame.valid() ? Tracker::analysis_range().start() : after_frame);
                     IndividualManager::transform_all([](auto, auto fish){
                         fish->clear_recognition();
                     });

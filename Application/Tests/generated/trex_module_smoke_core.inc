@@ -190,10 +190,18 @@ using ::track::tile_to_source_affines;
 }
 
 // core/TrackingSettings.h
+namespace trex_module_smoke::trex_core::cmn::data {
+using ::cmn::data::FrameRepository;
+}
+
 namespace trex_module_smoke::trex_core::track {
 using ::track::Individual;
 using ::track::Settings;
 using ::track::mmatches_t;
+}
+
+namespace trex_module_smoke::trex_core::track::MaskPostprocessMode {
+using ::track::MaskPostprocessMode::Class;
 }
 
 // core/VideoInfo.h

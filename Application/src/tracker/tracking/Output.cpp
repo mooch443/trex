@@ -25,25 +25,27 @@ typedef int64_t data_long_t;
     
 });*/
 
-void post_process(Output::ResultsFormat* _self, Individual* obj) {
-    CachedSettings settings;
-    obj->update_midlines(settings, _self->property_cache().get());
+void Output::ResultsFormat::post_process(const CachedSettings& settings, Output::ResultsFormat* _self, Individual* obj) {
+    //CachedSettings settings;
+    obj->update_midlines(_self->_tracker->frames(), settings, _self->property_cache().get());
     obj->local_cache().regenerate(obj);
 }
 
-Output::ResultsFormat::ResultsFormat(const file::Path& filename, std::function<void(const std::string&, double, const std::string&)> update_progress)
- :
-DataFormat(filename.str()),
-_update_progress(update_progress), 
-last_callback(0), 
-estimated_size(0),
-_post_pool(cmn::hardware_concurrency(), [this](Individual* obj) 
-{
+Output::ResultsFormat::ResultsFormat(
+     std::shared_ptr<Tracker> tracker,
+     const file::Path& filename,
+     std::function<void(const std::string&, double, const std::string&)> update_progress)
+ :  DataFormat(filename.str()),
+    _update_progress(update_progress),
+    last_callback(0),
+    estimated_size(0),
+    _tracker(std::move(tracker)),
+    _post_pool(cmn::hardware_concurrency(), [this](Individual* obj) {
     // post processing for individuals
     Timer timer;
     auto name = get_thread_name();
     set_thread_name(obj->identity().name()+"_post");
-    post_process(this, obj);
+    post_process(_settings, this, obj);
     
     if (timer.elapsed() >= 1) {
         auto us = timer.elapsed() * 1000 * 1000;
@@ -458,6 +460,7 @@ uint64_t Data::write(const Midline& val) {
 }
 
 void Output::ResultsFormat::process_frame(
+          const data::FrameRepository& frames,
           const CachedSettings& settings,
           const CacheHints* cache_ptr,
           Individual* fish,
@@ -478,7 +481,7 @@ void Output::ResultsFormat::process_frame(
 #endif
     Match::prob_t p = p_threshold;
     if(!fish->empty()) {
-        auto cache = fish->cache_for_frame(Tracker::properties(frameIndex - 1_f), frameIndex, data.time, cache_ptr);
+        auto cache = fish->cache_for_frame(frames, frames.properties(frameIndex - 1_f), frameIndex, data.time, cache_ptr);
         if(cache) {
             assert(frameIndex > fish->start_frame());
             p = Individual::probability(settings, label ? label->id : MaybeLabel{}, cache.value(), frameIndex, data.stuff->blob);//.p;
@@ -492,8 +495,16 @@ void Output::ResultsFormat::process_frame(
     assert(not fish->_endFrame.valid() || fish->_endFrame < frameIndex);
     fish->_endFrame = frameIndex;
     
+    auto props = frames.properties(data.stuff->frame);
+    auto prev_props = frames.properties(data.stuff->frame - 1_f);
+    
+    assert(frames.is(data.stuff->frame, props));
+    assert(frames.is(data.stuff->frame - 1_f, prev_props));
+    
     auto tracklet = fish->update_add_tracklet(
-        frameIndex, Tracker::properties(data.stuff->frame), Tracker::properties(data.stuff->frame - 1_f),
+        frameIndex,
+        props ? &props.value() : nullptr,
+        prev_props ? &prev_props.value() : nullptr,
         data.stuff->centroid,
         data.prev_frame,
         &data.stuff->blob,
@@ -504,7 +515,7 @@ void Output::ResultsFormat::process_frame(
     fish->_basic_stuff[data.index] = std::move(data.stuff);
 }
 
-Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHints* cache) {
+Individual* Output::ResultsFormat::read_individual(const data::FrameRepository& frames, cmn::Data &ref, const CacheHints* cache) {
     Timer timer;
     
     uint32_t ID;
@@ -600,7 +611,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
         //! start worker that iterates the frames / fills in
         //! additional info that was not read directly from the file
         //! per frame.
-        ended = _load_pool.enqueue([&stop, &stuffs, &variable, cache, fish, &mutex]() mutable {
+        ended = _load_pool.enqueue([&stop, &stuffs, &variable, cache, fish, &mutex, &frames]() mutable {
             auto thread_name = get_thread_name();
             set_thread_name("read_individual_"+fish->identity().name()+"_worker");
             [[maybe_unused]] track::TrackingThreadG g{};
@@ -617,7 +628,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
                     guard.unlock();
                     auto frame = data.index;
                     try {
-                        process_frame(settings, cache, fish, std::move(data));
+                        process_frame(frames, settings, cache, fish, std::move(data));
                     } catch(const std::exception& ex) {
                         FormatExcept("Exception when processing frame ",frame," for fish ", fish, ": ", ex.what());
                     } catch(...) {
@@ -654,7 +665,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
                     else
                         ref.read_convert<float>(time);
                 } else {
-                    auto p = Tracker::properties(Frame_t(frameIndex), cache);
+                    auto p = frames.properties(Frame_t(frameIndex), cache);
                     if(p) time = p->time();
                     else {
                         FormatWarning("Frame ", frameIndex, " seems to be outside the range of the video file.");
@@ -796,7 +807,7 @@ Individual* Output::ResultsFormat::read_individual(cmn::Data &ref, const CacheHi
                     else
                         ref.read_convert<float>(time);
                 } else {
-                    time = Tracker::properties(frame)->time();
+                    time = frames.properties(frame)->time();
                 }
                 
                 auto p = std::make_unique<MotionRecord>();
@@ -1022,7 +1033,7 @@ void Output::ResultsFormat::read_single_individual(Individual** out_ptr) {
         
         auto ptr = read_data_fast(size);
         
-        results->_generic_pool.enqueue([ptr, uncompressed_size, out_ptr, results, size, callback = std::move(callback)]()
+        results->_generic_pool.enqueue([tracker = _tracker, ptr, uncompressed_size, out_ptr, results, size, callback = std::move(callback)]()
         {
             std::vector<char> cache;
             DataPackage /*compressed_block, */uncompressed_block;
@@ -1034,7 +1045,7 @@ void Output::ResultsFormat::read_single_individual(Individual** out_ptr) {
                 if(new_len != uncompressed_size)
                     FormatWarning("Uncompressed size ", new_len," is different than expected ",uncompressed_size);
                 ReadonlyMemoryWrapper compressed((uchar*)uncompressed_block.data(), new_len);
-                (*out_ptr) = results->read_individual(compressed, results->_property_cache.get());
+                (*out_ptr) = results->read_individual(tracker->frames(), compressed, results->_property_cache.get());
                 
             } else {
                 throw U_EXCEPTION("Failed to decode individual from file ",results->filename());
@@ -1047,7 +1058,7 @@ void Output::ResultsFormat::read_single_individual(Individual** out_ptr) {
     if(!results)
         throw U_EXCEPTION("This is not ResultsFormat.");
     
-    *out_ptr = results->read_individual(*this, results->_property_cache.get());
+    *out_ptr = results->read_individual(_tracker->frames(), *this, results->_property_cache.get());
 }
 
 #define OUT_LEN(L)     (L + L / 16 + 64 + 3)
@@ -1352,6 +1363,9 @@ namespace Output {
     }
     
     void ResultsFormat::_write_header() {
+        if(not _tracker)
+            throw InvalidArgumentException("Have to set tracker for write operations.");
+        
         std::string version_string = "TRACK"+std::to_string((int)Versions::current);
         write<std::string>(version_string);
         if(!GlobalSettings::is_runtime_quiet()) {
@@ -1359,18 +1373,18 @@ namespace Output {
             Print("Writing frame ", _header.gui_frame);
         }
         write<uint64_t>(_header.gui_frame);
-        auto consecutive = Tracker::instance()->consecutive();
+        auto consecutive = _tracker->frames().read([](auto data){ return data.consec; });
         write<uint32_t>((uint32_t)consecutive.size());
         for (auto &c : consecutive) {
             write<uint32_t>(sign_cast<uint32_t>(c.start.get()));
             write<uint32_t>(sign_cast<uint32_t>(c.end.get()));
         }
         
-        write<Size2>(Tracker::average().bounds().size());
+        write<Size2>(_tracker->average().bounds().size());
         write<uint64_t>(FAST_SETTING(video_length));
         
-        uint64_t bytes = Tracker::average().cols * Tracker::average().rows;
-        write_data(bytes, (const char*)Tracker::average().data());
+        uint64_t bytes = _tracker->average().cols * _tracker->average().rows;
+        write_data(bytes, (const char*)_tracker->average().data());
         
         auto range = FAST_SETTING(analysis_range);
         write<int64_t>(range.start);
@@ -1385,11 +1399,11 @@ namespace Output {
         write<std::string>(READ_SETTING(cmd_line, std::string));
 
         // write recognition data
-        if(not Tracker::instance()->has_vi_predictions())
+        if(not _tracker->has_vi_predictions())
             write<uint64_t>(0);
         else {
-            write<uint64_t>(Tracker::instance()->number_vi_predictions());
-            Tracker::instance()->transform_vi_predictions([&](auto& frame, auto& map) {
+            write<uint64_t>(_tracker->number_vi_predictions());
+            _tracker->transform_vi_predictions([&](auto& frame, auto& map) {
                 write<data_long_t>(frame.get());
                 write<uint64_t>(map.size());
 
@@ -1433,7 +1447,7 @@ namespace Output {
     }
     
     void ResultsFormat::write_file(
-        const std::vector<track::FrameProperties::Ptr> &frames,
+        const data::FrameRepository& frames,
         const active_individuals_map_t &active_individuals_frame,
         const individuals_map_t &individuals)
     {
@@ -1462,8 +1476,10 @@ namespace Output {
         write<uint64_t>(frames.size());
         if(!quiet)
             Print("Writing ", frames.size()," frames");
-        for (auto &p : frames)
-            write<track::FrameProperties>(*p);
+        frames.read([this](auto access){
+            for (auto &p : access.raw)
+                write<track::FrameProperties>(*p);
+        });
         
         // write number of individuals
         write<uint64_t>(_expected_individuals);
@@ -1507,12 +1523,12 @@ namespace Output {
         // (until we're certain its done)
         filename = filename.add_extension("tmp01");
         
-        ResultsFormat file(filename.str(), update_progress);
+        ResultsFormat file(_tracker, filename.str(), update_progress);
         auto gui_frame = READ_SETTING(gui_frame, Frame_t);
         file.header().gui_frame = sign_cast<uint64_t>(gui_frame.valid() ? gui_frame.get() : 0);
         file.header().creation_time = Image::now();
         file.header().exclude_settings = exclude_settings;
-        file.write_file(_tracker._added_frames, IndividualManager::_all_frames(), IndividualManager::individuals());
+        file.write_file(_tracker->frames(), IndividualManager::_all_frames(), IndividualManager::individuals());
         file.close();
         
         if(update_progress)
@@ -1530,13 +1546,13 @@ namespace Output {
     }
     
     void TrackingResults::clean_up() {
-        _tracker._added_frames.clear();
-        _tracker.clear_properties();
+        _tracker->frames().clear();
+        //_tracker->clear_properties();
         IndividualManager::clear();
-        _tracker._startFrame = Frame_t();
-        _tracker._endFrame = Frame_t();
-        _tracker._max_individuals = 0;
-        _tracker._consecutive.clear();
+        _tracker->frames().set_start_frame(Frame_t{});
+        _tracker->frames().set_end_frame(Frame_t{});
+        _tracker->_max_individuals = 0;
+        //_tracker->_consecutive.clear();
         FOI::clear_tracking_fois();
     }
     
@@ -1545,7 +1561,7 @@ namespace Output {
         
         if(!GlobalSettings::is_runtime_quiet())
             Print("Trying to open results ",filename.str()," (retrieve header only)");
-        ResultsFormat file(filename.str(), [](const auto&, auto, const auto&){});
+        ResultsFormat file(nullptr, filename.str(), [](const auto&, auto, const auto&){});
         file.start_reading();
         /// we will for sure read this sequentially
         file.hint_access_pattern(DataFormat::AccessPattern::Sequential);
@@ -1557,9 +1573,9 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
     data_long_t prev = 0;
     data_long_t n = 0;
     
-    //auto it = _tracker._active_individuals_frame.begin();
-    if(IndividualManager::_all_frames().size() != _tracker._added_frames.size()) {
-        throw U_EXCEPTION("This is unexpected (",IndividualManager::_all_frames().size()," != ",_tracker._added_frames.size(),").");
+    //auto it = _tracker->_active_individuals_frame.begin();
+    if(IndividualManager::_all_frames().size() != _tracker->frames().size()) {
+        throw U_EXCEPTION("This is unexpected (",IndividualManager::_all_frames().size()," != ",_tracker->frames().size(),").");
     }
     
     const track::FrameProperties* prev_props = nullptr;
@@ -1568,39 +1584,51 @@ void TrackingResults::update_fois(const std::function<void(const std::string&, f
     ska::bytell_hash_map<Idx_t, Individual::tracklet_map::const_iterator> iterator_map;
     
     track::CachedSettings cached;
+    const auto N = _tracker->frames().size();
     
-    for(const auto &props : _tracker._added_frames) {
+    auto copy = _tracker->frames().read([&](data::FrameRepository::SafeReadAccess access){
+        std::vector<FrameProperties> result;
+        result.reserve(access.raw.size());
+        for(auto &props : access.raw) {
+            if(not props)
+                continue;
+            result.emplace_back(*props);
+        }
+        return result;
+    });
+    
+    for(const auto& props : copy) {
         // number of individuals actually assigned in this frame
         /*n = 0;
         for(const auto &fish : it->second) {
             n += fish->has(props.frame) ? 1 : 0;
         }*/
-        n = props->active_individuals();
+        n = props.active_individuals();
         
         // update tracker with the numbers
         //assert(it->first == props.frame);
-        auto &active = *IndividualManager::active_individuals(props->frame()).value();
-        assert(props->frame().valid());
-        if(prev_props && prev_frame > props->frame() + 1_f)
+        auto &active = *IndividualManager::active_individuals(props.frame()).value();
+        assert(props.frame().valid());
+        if(prev_props && prev_frame > props.frame() + 1_f)
             prev_props = nullptr;
         
-        _tracker.update_consecutive(cached, active, props->frame(), false);
-        _tracker.update_warnings(cached, props->frame(), props->time(), (long_t)number_fish, (long_t)n, (long_t)prev, props.get(), prev_props, active, iterator_map);
+        _tracker->update_consecutive(cached, active, props.frame(), false);
+        _tracker->update_warnings(cached, props.frame(), props.time(), (long_t)number_fish, (long_t)n, (long_t)prev, prev_props, active, iterator_map);
         
         prev = n;
-        prev_props = props.get();
-        prev_frame = props->frame();
+        prev_props = &props;
+        prev_frame = props.frame();
         
-        if(props->frame().get() % max(1u, uint64_t(_tracker._added_frames.size() / 10u)) == 0) {
-            update_progress("FOIs...", props->frame().get() / float(_tracker.end_frame().get()), Meta::toStr(props->frame())+" / "+Meta::toStr(_tracker.end_frame()));
+        if(props.frame().get() % max(1u, uint64_t(N / 10u)) == 0) {
+            update_progress("FOIs...", props.frame().get() / float(_tracker->frames().end_frame().get()), Meta::toStr(props.frame())+" / "+Meta::toStr(_tracker->frames().end_frame()));
             if(!GlobalSettings::is_runtime_quiet())
-                Print("\tupdate_fois ", props->frame()," / ",_tracker.end_frame(),"\r");
+                Print("\tupdate_fois ", props.frame()," / ",_tracker->frames().end_frame(),"\r");
         }
     }
     
     {
         update_progress("Finding segments...", -1, "");
-        DatasetQuality::update();
+        DatasetQuality::update(*_tracker);
     }
 }
 
@@ -1634,19 +1662,19 @@ FrameProperties CompatibilityFrameProperties::convert(Frame_t frame) const {
         
         if(!GlobalSettings::is_runtime_quiet())
             Print("Trying to open results ",filename.str());
-        ResultsFormat file(filename.str(), update_progress);
+        ResultsFormat file(_tracker, filename.str(), update_progress);
         
         clean_up();
         
         data_long_t biggest_id = -1;
         
-        Tracker::instance()->_individual_add_iterator_map.clear();
-        Tracker::instance()->_tracklet_map_known_capacity.clear();
+        _tracker->_individual_add_iterator_map.clear();
+        _tracker->_tracklet_map_known_capacity.clear();
 
         file.start_reading();
 
         //if(!file.header().rec_data.empty())
-            Tracker::instance()->set_vi_data(file.header().rec_data);
+        _tracker->set_vi_data(file.header().rec_data);
         //else if(!file.header().rec_data.empty())
         //    FormatWarning("Throwing away ", file.header().rec_data.size(), " entries in recognition data from the .results file, since recognition was disabled.");
 
@@ -1675,7 +1703,7 @@ FrameProperties CompatibilityFrameProperties::convert(Frame_t frame) const {
         bool check_analysis_range = range && (range->start != -1 || range->end != -1);
         
         auto analysis_range = Tracker::analysis_range();
-        _tracker.clear_properties();
+        _tracker->frames().clear();
         file._property_cache = std::make_shared<CacheHints>(L);
         
         for (uint64_t i=0; i<L; i++) {
@@ -1692,11 +1720,11 @@ FrameProperties CompatibilityFrameProperties::convert(Frame_t frame) const {
             if(check_analysis_range && not analysis_range.contains(props.frame()))
                 continue;
             
-            if(!_tracker._startFrame.load().valid())
-                _tracker._startFrame = props.frame();
-            _tracker._endFrame = props.frame();
+            if(not _tracker->frames().start_frame().valid())
+                _tracker->frames().set_start_frame(props.frame());
+            _tracker->frames().set_end_frame(props.frame());
             
-            _tracker.add_next_frame(props);
+            _tracker->frames().add_next_frame(props);
         }
         
         // read the individuals
@@ -1771,7 +1799,7 @@ FrameProperties CompatibilityFrameProperties::convert(Frame_t frame) const {
             if(check_analysis_range && not analysis_range.contains(frame))
                 continue;
             
-            _tracker._max_individuals = max(_tracker._max_individuals.load(), active->size());
+            _tracker->_max_individuals = max(_tracker->_max_individuals.load(), active->size());
             
             IndividualManager::_last_active() = active.get();
             IndividualManager::_all_frames()[frame] = std::move(active);
@@ -1795,40 +1823,42 @@ FrameProperties CompatibilityFrameProperties::convert(Frame_t frame) const {
             //! have to regenerate the number of individuals / frame
             long_t n = 0;
             
-            for(auto &props : _tracker._added_frames) {
-                // number of individuals actually assigned in this frame
-                n = 0;
-                for(const auto &fish : Tracker::active_individuals(props->frame())) {
-                    n += fish->has(props->frame());
+            _tracker->frames().write([&n](data::FrameRepository::WriteAccess access) {
+                for(auto &props : access.raw) {
+                    // number of individuals actually assigned in this frame
+                    n = 0;
+                    for(const auto &fish : Tracker::active_individuals(props->frame())) {
+                        n += fish->has(props->frame());
+                    }
+                    props->set_active_individuals(n);
                 }
-                props->set_active_individuals(n);
-            }
+            });
         }
         
         update_fois(update_progress);
         
-        /*for(long_t i=_tracker.start_frame(); i<=_tracker.end_frame(); i++) {
-            long_t n = _tracker.found_individuals_frame(i);
+        /*for(long_t i=_tracker->start_frame(); i<=_tracker->end_frame(); i++) {
+            long_t n = _tracker->found_individuals_frame(i);
             
-            auto props = _tracker.properties(i);
+            auto props = _tracker->properties(i);
             prev_time = props->time;
-            _tracker.update_consecutive(_tracker.active_individuals(i), i, true);
-            _tracker.update_warnings(i, props->time, number_fish, n, prev);
+            _tracker->update_consecutive(_tracker->active_individuals(i), i, true);
+            _tracker->update_warnings(i, props->time, number_fish, n, prev);
             
             prev = n;
             
-            //_tracker.generate_pairdistances(i);
+            //_tracker->generate_pairdistances(i);
         }*/
         
         /// update the tracklet order cache
-        _tracker.global_tracklet_order_changed();
-        _tracker.global_tracklet_order();
+        _tracker->global_tracklet_order_changed();
+        _tracker->global_tracklet_order();
         
-        if(_tracker.end_frame().valid())
-            _tracker._add_frame_callbacks.callAll(_tracker.end_frame());
+        if(_tracker->frames().end_frame().valid())
+            _tracker->_add_frame_callbacks.callAll(_tracker->frames().end_frame());
         
         if(!GlobalSettings::is_runtime_quiet()) {
-            Print("Successfully read file ",file.filename()," (version:V_",(int)file._header.version+1," gui_frame:",file.header().gui_frame,"u start:",Tracker::start_frame(),"u end:",Tracker::end_frame(),"u)");
+            Print("Successfully read file ",file.filename()," (version:V_",(int)file._header.version+1," gui_frame:",file.header().gui_frame,"u start:",_tracker->frames().start_frame(),"u end:",_tracker->frames().end_frame(),"u)");
         
             DurationUS duration{uint64_t(loading_timer.elapsed() * 1000 * 1000)};
             DebugHeader("FINISHED READING PROGRAM STATE IN ", duration);

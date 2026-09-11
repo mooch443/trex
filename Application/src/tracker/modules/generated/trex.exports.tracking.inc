@@ -25,9 +25,8 @@ using ::cmn::gui::Graph;
 export namespace track {
 // tracking/BlobReceiver.h
 using ::track::BlobReceiver;
-// tracking/CacheHints.h
-using ::track::CacheHints;
-using ::track::FrameProperties;
+// tracking/CategorizeDatastore.h
+using ::track::Border;
 // tracking/ConnectedTasks.h
 using ::track::PPFrame;
 // tracking/DebugDrawing.h
@@ -41,14 +40,17 @@ using ::track::HistorySplit;
 // tracking/Hungarian.h
 using ::track::Hungarian_t;
 using ::track::kuhn_match;
+// tracking/ImageExtractor.h
+using ::track::Tracker;
 // tracking/IndividualManager.h
 using ::track::IndividualManager;
 // tracking/OutputLibraryTypes.h
 using ::track::MotionRecord;
+// tracking/PPFrameTypes.h
+using ::track::NeedGrid;
 // tracking/PrefilterBlobs.h
 using ::track::FilterReason;
 using ::track::PrefilterBlobs;
-using ::track::split_expectation;
 // tracking/RecTask.h
 using ::track::Predictions;
 using ::track::RecTask;
@@ -59,6 +61,8 @@ using ::track::install_rec_task_backend;
 using ::track::Results;
 // tracking/SplitBlob.h
 using ::track::SplitBlob;
+// tracking/SplitExpectation.h
+using ::track::split_expectation;
 // tracking/Stuffs.h
 using ::track::BasicStuff;
 using ::track::can_use_visual_identification;

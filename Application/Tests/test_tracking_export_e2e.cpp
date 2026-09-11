@@ -312,7 +312,7 @@ TEST(HeadlessTrackingExport, TracksFixtureAndExportsParseableCsv) {
         ASSERT_EQ(tracking_done_future.wait_for(std::chrono::seconds(120)), std::future_status::ready);
         ASSERT_TRUE(state.tracker != nullptr);
         ASSERT_TRUE(state._controller != nullptr);
-        ASSERT_GT(state.tracker->number_frames(), 0u);
+        ASSERT_GT(state.tracker->frames().size(), 0u);
 
         const auto expected_files = expected_exported_individuals();
         ASSERT_GT(expected_files, 0u);

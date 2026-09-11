@@ -7,10 +7,20 @@ using ::Python::VINetwork;
 }
 
 export namespace cmn {
+// ui/ConvertScene.h
+using ::cmn::SegmentationData;
 // ui/DetectAnnotationScene.h
 using ::cmn::VideoSource;
+// ui/GUICache.h
+using ::cmn::Background;
+using ::cmn::GenericThreadPool;
 // ui/VisualIdentDialog.h
 using ::cmn::ConnectedTasks;
+}
+
+export namespace cmn::grid {
+// ui/GUICache.h
+using ::cmn::grid::ProximityGrid;
 }
 
 export namespace cmn::gui {
@@ -22,6 +32,7 @@ using ::cmn::gui::IMGUIBase;
 using ::cmn::gui::StaticText;
 // ui/AnimatedBackground.h
 using ::cmn::gui::AnimatedBackground;
+using ::cmn::gui::BackgroundVideoConfig;
 // ui/Bowl.h
 using ::cmn::gui::Bowl;
 using ::cmn::gui::GUICache;
@@ -31,7 +42,7 @@ using ::cmn::gui::CalibrateScene;
 using ::cmn::gui::DrawStructure;
 // ui/ConvertScene.h
 using ::cmn::gui::ConvertScene;
-using ::cmn::gui::Data;
+using ::cmn::gui::Label;
 // ui/Coordinates.h
 using ::cmn::gui::Base;
 using ::cmn::gui::BowlCoord;
@@ -64,7 +75,6 @@ using ::cmn::gui::DrawExportOptions;
 using ::cmn::gui::TrackingState;
 // ui/DrawFish.h
 using ::cmn::gui::Fish;
-using ::cmn::gui::Label;
 using ::cmn::gui::Skelett;
 using ::cmn::gui::UpdateSettings;
 // ui/DrawGraph.h
@@ -93,14 +103,11 @@ using ::cmn::gui::GUIVideoAdapter;
 using ::cmn::gui::GUIVideoAdapterElement;
 // ui/GraphElement.h
 using ::cmn::gui::GraphElement;
-// ui/GuiSettings.h
-using ::cmn::gui::window_title;
 // ui/ImageDisplayElement.h
 using ::cmn::gui::ImageDisplayElement;
 // ui/ImageGeneratorRegistry.h
 using ::cmn::gui::ImageGeneratorRegistry;
 // ui/InfoCard.h
-using ::cmn::gui::InfoCard;
 using ::cmn::gui::Text;
 using ::cmn::gui::Tooltip;
 // ui/LabelElement.h
@@ -212,7 +219,8 @@ using ::cmn::pattern::UnresolvedStringPattern;
 }
 
 export namespace cmn::settings {
-// ui/SettingsInitializer.h
+// ui/GuiSettings.h
+using ::cmn::settings::window_title;
 using ::cmn::settings::write_config;
 }
 
@@ -224,6 +232,7 @@ using ::cmn::terminal::open_terminal;
 export namespace track {
 // ui/Accumulation.h
 using ::track::AccumulationLock;
+using ::track::Tracker;
 // ui/ConfirmedCrossings.h
 using ::track::ConfirmedCrossings;
 using ::track::DecisionStatus;
@@ -232,14 +241,15 @@ using ::track::FOIStatus;
 using ::track::Segmenter;
 // ui/DrawFish.h
 using ::track::Individual;
-// ui/DrawGraph.h
-using ::track::Tracker;
 // ui/Export.h
 using ::track::export_data;
 using ::track::temporary_save;
 // ui/GUICache.h
+using ::track::Border;
 using ::track::PPFrame;
 using ::track::TrackletInformation;
+// ui/TrackingScene.h
+using ::track::Idx_t;
 // ui/VisualFieldWidget.h
 using ::track::VisualField;
 }

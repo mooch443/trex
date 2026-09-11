@@ -234,7 +234,7 @@ Fish::~Fish() {
         }
     }
     
-    void Fish::set_data(const UpdateSettings& options, Individual& obj, Frame_t frameIndex, double time, const EventAnalysis::EventMap *events)
+    void Fish::set_data(const Tracker& tracker, const UpdateSettings& options, Individual& obj, Frame_t frameIndex, double time, const EventAnalysis::EventMap *events)
     {
         auto &cache = GUICache::instance();
         
@@ -420,7 +420,7 @@ Fish::~Fish() {
         
         auto has_processed_tracklet = GUICache::instance()._unsafe_processed_tracklet_cache(_id.ID()); //obj.has_processed_tracklet(_frame);
         if(has_processed_tracklet) {
-            processed_tracklet = obj.processed_recognition(has_processed_tracklet->start());
+            processed_tracklet = obj.processed_recognition(tracker, has_processed_tracklet->start());
         } else
             processed_tracklet = std::nullopt;
         
@@ -456,7 +456,7 @@ Fish::~Fish() {
             std::string title = "recognition";
             
             if(valid) {
-                auto rec = obj.processed_recognition(tracklet.start());
+                auto rec = obj.processed_recognition(tracker, tracklet.start());
                 if(rec.has_value()) {
                     auto && [n, values, _] = *rec;
                     title = "average n:"+Meta::toStr(n);
