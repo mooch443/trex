@@ -1,5 +1,12 @@
 #include "Export.h"
 
+#include <misc/Image.h>
+#include <processing/Background.h>
+#include <tracking/Individual.h>
+#include <tracking/LockGuard.h>
+#include <tracking/PPFrame.h>
+#include <tracking/Stuffs.h>
+#include <tracking/TrackletInformation.h>
 #include <tracking/Tracker.h>
 #include <tracking/OutputLibrary.h>
 #include <misc/cnpy_wrapper.h>
@@ -11,8 +18,8 @@
 #include <ml/VisualIdentification.h>
 #include <tracking/IndividualManager.h>
 #include <processing/PadImage.h>
-#include <ui/DrawGraph.h>
 #include <core/DetectionTypes.h>
+#include <core/TerminalProgress.h>
 
 #if WIN32
 #include <io.h>
@@ -204,7 +211,7 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
     if(!range.empty())
         Print("[exporting] Exporting range [", range.start,"-",range.end,"]");
     else
-        Print("[exporting] Exporting all frames (", tracker.number_frames(),")");
+        Print("[exporting] Exporting all frames (", tracker.frames().size(),")");
     auto individual_prefix = FAST_SETTING(individual_prefix);
     Print("[exporting] Writing data from `output_fields` to ",fishdata / (filename+"_"+individual_prefix+"*."+output_format.str()));
     if(output_posture_data)
@@ -260,7 +267,7 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
         }
     }
     
-    Output::Library::Init();
+    Output::Library::Init(tracker);
     {
         std::set<std::string> keys;
         for(auto &[key, _] : reset_output_fields.original_output_fields) {
@@ -289,9 +296,9 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
         std::map<Frame_t, std::map<Idx_t, ImageData>> waiting_pixels;
         std::mutex sync;
         
-        std::vector<std::shared_ptr<PropertiesGraph>> fish_graphs;
         std::vector<Output::LibraryCache::Ptr> library_cache;
         float last_percent = -1;
+        size_t progress_spinner_index = 0;
         
         auto work_item = [&](size_t thread_index, Idx_t id, const Individual* fish){
             if(fdx.valid() && fdx != id)
@@ -300,7 +307,7 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
             //if(SETTING(terminate))
             //    return;
             
-            std::function<void(float)> callback = [id, &percent_mutex, &all_percents, &last_percent, &fishdata, output_posture_data, &progress_callback](float percent) {
+            std::function<void(float)> callback = [id, &percent_mutex, &all_percents, &last_percent, &progress_spinner_index, &fishdata, output_posture_data, &progress_callback](float percent) {
                 float overall_percent = 0;
                 
                 {
@@ -332,33 +339,24 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                 {
                     last_percent = overall_percent;
                     overall_percent *= 100;
-                    
-                    size_t i;
-                    printf("[");
-                    for(i=0; i<overall_percent * 0.5; ++i) {
-                        printf("=");
-                    }
-                    for(; i<100 * 0.5; ++i) {
-                        printf(" ");
-                    }
-                    printf("] %.2f%% exported (to '%s/...)\r", overall_percent, fishdata.str().c_str());
-                    fflush(stdout);
+                    cmn::terminal::progress::print_progress_bar_line(
+                        overall_percent,
+                        "exported (to '" + fishdata.str() + "/...)",
+                        progress_spinner_index);
                 }
             };
             
             if (fish->frame_count() >= output_min_frames) {
                 if(!no_tracking_data) {
-                    if(!range.empty())
-                        fish_graphs.at(thread_index)->setup_graph(cached_output_fields, range.start, range, fish, library_cache.at(thread_index));
-                    else
-                        fish_graphs.at(thread_index)->setup_graph(
-                                                                  cached_output_fields, fish->start_frame(),
-                              Range<Frame_t>{
-                                  fish->start_frame(),
-                                  fish->end_frame()
-                              },
-                              fish,
-                              library_cache.at(thread_index));
+                    const Range<Frame_t> export_range = !range.empty()
+                        ? Range<Frame_t>{
+                            max(range.start, fish->start_frame()),
+                            min(range.end, fish->end_frame())
+                        }
+                        : Range<Frame_t>{
+                            fish->start_frame(),
+                            fish->end_frame()
+                        };
                     
                     file::Path path = (filename + "_" + fish->identity().name() + "." + output_format.str());
                     file::Path final_path = fishdata / path;
@@ -366,7 +364,14 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                     try {
                         if(output_format == default_config::output_format_t::npz) {
                             temporary_save(final_path, [&](file::Path use_path) {
-                                fish_graphs.at(thread_index)->graph().save_npz(use_path.str(), &callback, true);
+                                Output::Library::save_npz(
+                                    cached_output_fields,
+                                    export_range,
+                                    fish,
+                                    library_cache.at(thread_index),
+                                    use_path,
+                                    &callback,
+                                    true);
                                 
                                 std::vector<Frame_t::number_t> tracklets;
                                 std::vector<float> vxy;
@@ -411,8 +416,15 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                                 }, "a");
                             });
                             
-                        } else
-                            fish_graphs.at(thread_index)->graph().export_data(final_path.str(), &callback);
+                        } else {
+                            Output::Library::save_csv(
+                                cached_output_fields,
+                                export_range,
+                                fish,
+                                library_cache.at(thread_index),
+                                final_path,
+                                &callback);
+                        }
                         
                     } catch(const UtilsException&) {
                         FormatExcept("Failed to save data for individual ",fish->identity()," to location ",final_path,".");
@@ -484,7 +496,7 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                     for(auto &range : fish->tracklets()) {
                         // only generate an image if the tracklet is long enough
                         if(range->length().get() >= output_min_frames) {
-                            auto filters = constraints::local_midline_length(fish, range->range);
+                            auto filters = constraints::local_midline_length(fish, range->range, nullptr);
                             // Init data strutctures
                             //size_t image_count = 0;
                             
@@ -555,7 +567,7 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                 
                 if(BOOL_SETTING(output_visual_fields)) {
                     auto path = fishdata / (filename + "_visual_field_"+fish->identity().name());
-                    fish->save_visual_field(path, range, progress_callback, true);
+                    fish->save_visual_field(tracker.frames().video_size(), path, range, progress_callback, true);
                 }
                 
                 if(BOOL_SETTING(output_recognition_data)) {
@@ -575,7 +587,7 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                     for(auto frame : fish_range.iterable()) {
                         auto blob = fish->blob(frame);
                         if(blob) {
-                            auto pred = Tracker::instance()->find_prediction(frame, blob->blob_id());
+                            auto pred = tracker.find_prediction(frame, blob->blob_id());
                             if(pred) {
                                 auto map = track::prediction2map(*pred);
                                 for(auto && [rid, p] : map) {
@@ -718,13 +730,12 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
             }
         };
         
-        auto max_threads = hardware_concurrency();
+        auto max_threads = max(1u, hardware_concurrency());
+        library_cache.reserve(max_threads);
+        for(size_t i = 0; i < max_threads; ++i)
+            library_cache.push_back(std::make_shared<Output::LibraryCache>());
+
         if(max_threads > 1) {
-            for(size_t i=0; i<max_threads; ++i) {
-                fish_graphs.push_back(std::make_shared<PropertiesGraph>());
-                library_cache.push_back(std::make_shared<Output::LibraryCache>());
-            }
-            
             size_t current_thread_id = 0;
             std::vector<std::thread*> threads;
             threads.resize(max_threads);
@@ -782,6 +793,10 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                 work_item(0, fdx, fish);
             });
         }
+
+        if(progress_spinner_index > 0) {
+            cmn::terminal::progress::finish_progress_bar_line();
+        }
         
         if(tracker.has_vi_predictions()) {
             std::vector<float> vi_probabilities;
@@ -813,18 +828,18 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
         
         if(BOOL_SETTING(output_heatmaps)) {
             heatmap::HeatmapController svenja;
-            svenja.save();
+            svenja.save(tracker.frames());
         }
         
         if(BOOL_SETTING(output_statistics))
         {
             file::Path path = (filename + "_statistics.npz");
             
-            if(!(fishdata / path).exists() || Tracker::instance()->statistics().size() == Tracker::number_frames())
+            if(!(fishdata / path).exists() || tracker.statistics().size() == tracker.frames().size())
             {
                 std::vector<long_t> frame_numbers;
                 std::vector<float> statistics;
-                for(auto && [frame, stats] : Tracker::instance()->statistics()) {
+                for(auto && [frame, stats] : tracker.statistics()) {
                     frame_numbers.push_back(frame.get());
                     statistics.insert(statistics.end(), (float*)&stats, (float*)&stats + sizeof(track::Statistics) / sizeof(float));
                 }
@@ -879,7 +894,7 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                         mem::OutputLibraryMemoryStats ol;
                         ol.print();
                         
-                        mem::TrackerMemoryStats tl;
+                        mem::TrackerMemoryStats tl{tracker};
                         tl.print();
                         
                         bool written = false;
@@ -897,7 +912,7 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                 
             } else {
                 path = fishdata / path;
-                FormatWarning("Not writing statistics because _statistics array (", Tracker::instance()->statistics().size(),") is != frames added (", Tracker::number_frames(),") and path ",path," exists.");
+                FormatWarning("Not writing statistics because _statistics array (", tracker.statistics().size(),") is != frames added (", tracker.frames().size(),") and path ",path," exists.");
             }
         }
         
@@ -912,7 +927,7 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
             const bool tracklet_force_normal_color = BOOL_SETTING(tracklet_force_normal_color);
             
             const auto encoding = Background::meta_encoding();
-            const uint8_t exp_channels = required_storage_channels(encoding);
+            const uint8_t exp_channels = encoding == meta_encoding_t::binary ? 1u : required_storage_channels(encoding);
             
             std::map<Idx_t, std::map<Range<Frame_t>, std::queue<std::tuple<Vec2, Frame_t, Idx_t, Image::Ptr>>>> queues;
             PPFrame obj;
@@ -920,7 +935,9 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
             const bool can_we_expect_fix_dimensions = do_normalize_tracklets;
             std::vector<uint32_t> image_dimensions;
             std::vector<uint32_t> image_coords;
-            
+
+            cv::Mat mask_buffer, image_buffer;
+
             size_t index = 0;
             pv::Frame vframe;
             
@@ -932,7 +949,9 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                     static Timing timing("[tracklet_images] preprocess", 20);
                     TakeTiming take(timing);
                     video.read_with_encoding(vframe, frame, encoding);
-                    Tracker::preprocess_frame(std::move(vframe), obj, &_blob_thread_pool, PPFrame::NeedGrid::NoNeed, video.header().resolution);
+                    Tracker::preprocess_frame(std::move(vframe), obj, &_blob_thread_pool,
+                                              tracker.frames(), *tracker.background(),
+                                              NeedGrid::NoNeed, HistorySplitPolicy::Apply);
                 }
                 
                 for(auto && [id, data] : vec) {
@@ -964,34 +983,47 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                     if(!reduced.blob && !full.blob)
                         FormatExcept("Frame ", frame,", fish ", data.fdx," nothing found");
                     
-                    if(!reduced.blob || !reduced.blob->pixels())
+                    if(not reduced.blob || (encoding != meta_encoding_t::binary && not reduced.blob->pixels()))
                         continue; // cannot find blob for given id
                     
                     if(do_normalize_tracklets) {
-                        if(not tracklet_force_normal_color) {
-                            auto &&[image, pos] =
-                                constraints::diff_image(normalize,
-                                                        reduced.blob.get(),//data.blob.get(),
-                                                        data.midline_transform,
-                                                        data.median_midline_length_px,
-                                                        output_size,
-                                                        Tracker::background());
-                            reduced.image = std::move(image);
-                            reduced.pos = pos;
+                        auto image = Image::Make();
+                        auto pos = constraints::diff_image_cached(
+                            mask_buffer, image_buffer, *image,
+                            normalize, reduced.blob.get(),
+                            data.midline_transform,
+                            data.median_midline_length_px,
+                            output_size,
+                            tracklet_force_normal_color ? nullptr : tracker.background());
+                        
+                        if(pos) {
+                            if(encoding == meta_encoding_t::r3g3b2) {
+                                auto tmp = Image::Make(image->rows, image->cols, 1u);
+                                auto output = tmp->get();
+                                convert_to_r3g3b2<3u>(image->get(), output);
+                                image = std::move(tmp);
+                            }
                             
-                        } else {
-                            auto &&[image, pos] = calculate_normalized_image(data.midline_transform, reduced.blob.get(), data.median_midline_length_px, output_size, normalize == default_config::individual_image_normalization_t::legacy, Tracker::background());
+                            if(image->channels() != exp_channels) {
+                                throw InvalidArgumentException("Invalid image");
+                            }
                             reduced.image = std::move(image);
-                            reduced.pos = pos;
+                            reduced.pos = *pos;
                         }
                         
                     } else {
                         if(not tracklet_force_normal_color) {
-                            auto && [pos, img] = reduced.blob->difference_image(*Tracker::background(), 0);
+                            auto && [pos, img] = reduced.blob->difference_image(*tracker.background(), 0);
+                            if(img->channels() != exp_channels) {
+                                throw InvalidArgumentException("Invalid image");
+                            }
                             reduced.image = std::move(img);
                             reduced.pos = pos;
                         } else {
-                            auto && [pos, img] = reduced.blob->color_image(Tracker::background());
+                            auto && [pos, img] = reduced.blob->color_image(tracker.background());
+                            if(img->channels() != exp_channels) {
+                                throw InvalidArgumentException("Invalid image");
+                            }
                             reduced.image = std::move(img);
                             reduced.pos = pos;
                         }
@@ -1046,19 +1078,37 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
                         trans.translate(full.blob->bounds().pos() - reduced.blob->bounds().pos());
                         
                         if(do_normalize_tracklets) {
-                            if(not tracklet_force_normal_color)
-                                full.image = std::get<0>(calculate_normalized_diff_image(trans, full.blob.get(), data.median_midline_length_px, output_size, normalize == default_config::individual_image_normalization_t::legacy, Tracker::background()));
-                            else
-                                full.image = std::get<0>(calculate_normalized_image(trans, full.blob.get(), data.median_midline_length_px, output_size, normalize == default_config::individual_image_normalization_t::legacy, Tracker::background()));
+                            auto image = Image::Make();
+                            auto pos = not tracklet_force_normal_color
+                                ? calculate_normalized_diff_image_cached(mask_buffer,
+                                                                         image_buffer,
+                                                                         *image,
+                                                                         trans,
+                                                                         full.blob.get(),
+                                                                         data.median_midline_length_px,
+                                                                         output_size,
+                                                                         normalize == default_config::individual_image_normalization_t::legacy,
+                                                                         tracker.background())
+                                : calculate_normalized_image_cached(mask_buffer,
+                                                                    image_buffer,
+                                                                    *image,
+                                                                    trans,
+                                                                    full.blob.get(),
+                                                                    data.median_midline_length_px,
+                                                                    output_size,
+                                                                    normalize == default_config::individual_image_normalization_t::legacy,
+                                                                    tracker.background());
+                            if(pos)
+                                full.image = std::move(image);
                             
                         } else {
                             if(not tracklet_force_normal_color) {
-                                auto && [pos, img] = full.blob->difference_image(*Tracker::background(), 0);
+                                auto && [pos, img] = full.blob->difference_image(*tracker.background(), 0);
                                 full.image = std::move(img);
                                 full.pos = pos;
                                 
                             } else {
-                                auto && [pos, img] = full.blob->color_image(Tracker::background());
+                                auto && [pos, img] = full.blob->color_image(tracker.background());
                                 full.image = std::move(img);
                                 full.pos = pos;
                             }

@@ -3,13 +3,13 @@
 #include <processing/Background.h>
 #include <misc/SpriteMap.h>
 #include <misc/GlobalSettings.h>
-#include <grabber/misc/default_config.h>
 #include <processing/PVBlob.h>
 #include <processing/CPULabeling.h>
 #include <misc/ranges.h>
 #include <file/DataLocation.h>
 #include <processing/DLList.h>
 #include <core/default_config.h>
+#include <core/SizeFilters.h>
 
 using namespace cmn;
 
@@ -69,14 +69,14 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
             min_length = file->length();
 
         resolution += Size2(file->header().resolution);
-        backgrounds.push_back(std::make_shared<Background>(Image::Make(file->average()), file->header().encoding));
+        backgrounds.push_back(std::make_shared<Background>(Bounds(Size2(file->average())), Image::Make(file->average()), file->header().encoding));
 
         SETTING(filename) = name.remove_extension();
         auto settings_file = file::DataLocation::parse("output_settings");
         if(settings_file.exists()) {
             Print("settings for ", name.str(), " found");
             Configuration config;
-            grab::default_config::get(config);
+            ::default_config::get(config);
 
             GlobalSettings::load_from_file(settings_file.str(), {
                 .access = AccessLevelType::STARTUP,
@@ -143,7 +143,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
         resolution = Size2(average);
     }
 
-    Background new_background(Image::Make(average), meta_encoding_t::gray);
+    Background new_background(Bounds(Vec2(), Size2(average)), Image::Make(average), meta_encoding_t::gray);
 
     if(READ_SETTING(frame_rate, uint32_t) == 0) {
         if(files.front()->header().metadata.has_value())
@@ -219,7 +219,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
 
             Vec2 offset = merge_mode == merge_mode_t::centered ? Vec2((Size2(average) - Size2(file->average())) * 0.5) : Vec2(0);
             Vec2 scale = merge_mode == merge_mode_t::centered ? Vec2(1) : Vec2(Size2(average).div(Size2(file->average())));
-            auto blob_size_range = configs.at(vdx).at("blob_size_range").value<Rangef>();
+            auto track_size_filter = configs.at(vdx).at("track_size_filter").value<SizeFilters>();
             const int track_threshold = configs.at(vdx).at("track_threshold").value<int>();
             SETTING(cm_per_pixel) = cms_per_pixel[file.get()];
 
@@ -227,7 +227,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
                 auto b = f.steal_blob(i);
                 auto recount = b->recount(track_threshold, *backgrounds.at(vdx));
 
-                if(recount < blob_size_range.start * 0.1 || recount > blob_size_range.end * 5)
+                if(not track_size_filter.in_range_of_one(recount, 0.1, 5.0))
                     continue;
 
                 auto id = b->blob_id();

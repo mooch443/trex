@@ -1,10 +1,11 @@
 #pragma once
 
 #include <misc/ranges.h>
-#include <misc/frame_t.h>
-#include <tracking/Stuffs.h>
 
 namespace track {
+
+class Individual;
+struct PostureStuff;
 
 struct TrackletInformation : public cmn::FrameRange {
     std::vector<long_t> basic_index;
@@ -12,17 +13,17 @@ struct TrackletInformation : public cmn::FrameRange {
     uint32_t error_code = std::numeric_limits<uint32_t>::max();
     
     TrackletInformation(
-        const Range<Frame_t>& range = Range<Frame_t>(Frame_t(), Frame_t()),
-        Frame_t first_usable = Frame_t())
+        const cmn::Range<cmn::Frame_t>& range = cmn::Range<cmn::Frame_t>(cmn::Frame_t(), cmn::Frame_t()),
+        cmn::Frame_t first_usable = cmn::Frame_t())
       : FrameRange(range, first_usable)
     {}
     
-    void add_basic_at(Frame_t frame, long_t gdx);
+    void add_basic_at(cmn::Frame_t frame, long_t gdx);
     void add_posture_at(std::unique_ptr<PostureStuff>&& stuff, Individual* fish); //long_t gdx);
     //void remove_frame(long_t);
     
-    long_t basic_stuff(Frame_t frame) const;
-    long_t posture_stuff(Frame_t frame) const;
+    long_t basic_stuff(cmn::Frame_t frame) const;
+    long_t posture_stuff(cmn::Frame_t frame) const;
     
     constexpr bool overlaps(const TrackletInformation& v) const {
         return contains(v.start()) || contains(v.end())
@@ -34,9 +35,14 @@ struct TrackletInformation : public cmn::FrameRange {
         return range < other.range;
     }
     
-    constexpr bool operator<(Frame_t frame) const {
+    constexpr bool operator<(cmn::Frame_t frame) const {
         return range.start < frame;
     }
 };
 
+}
+
+inline bool operator<(const std::shared_ptr<track::TrackletInformation>& ptr, cmn::Frame_t frame) {
+    assert(ptr != nullptr);
+    return ptr->start() < frame;
 }

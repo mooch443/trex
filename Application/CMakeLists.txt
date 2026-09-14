@@ -1,6 +1,24 @@
 cmake_minimum_required(VERSION 3.17)
 cmake_policy(SET CMP0091 NEW)
-set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+
+include("${CMAKE_CURRENT_LIST_DIR}/cmake/TrexDependencyProfiles.cmake")
+trex_apply_dependency_profile()
+
+set(TREX_USE_SHARED_MSVC_RUNTIME OFF)
+foreach(_trex_dependency_option IN LISTS TREX_NATIVE_DEPENDENCY_OPTIONS)
+    if(DEFINED ${_trex_dependency_option} AND NOT "${${_trex_dependency_option}}")
+        set(TREX_USE_SHARED_MSVC_RUNTIME ON)
+    endif()
+endforeach()
+if(TREX_CONFIGURE STREQUAL "minimal")
+    set(TREX_USE_SHARED_MSVC_RUNTIME ON)
+endif()
+
+if(TREX_USE_SHARED_MSVC_RUNTIME)
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
+else()
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+endif()
 message("-- USER environment variable is set to: " $ENV{USER})
 
 project(TRex LANGUAGES CXX C)
@@ -69,6 +87,7 @@ endfunction()
 function(trex_log_selected_options)
     message(STATUS "[TREX CONFIG] Selected options:")
     foreach(option_name IN ITEMS
+        TREX_CONFIGURE
         TREX_NO_PYTHON
         TREX_BUILD_DOCS
         TREX_WITH_TESTS
@@ -169,6 +188,9 @@ if(WIN32 AND DEFINED ENV{CONDA_PREFIX} AND NOT "$ENV{CONDA_PREFIX}" STREQUAL "")
         "${_trex_conda_prefix};${_trex_conda_prefix}/Library/mingw64/bin;${_trex_conda_prefix}/Library/mingw-w64/bin;${_trex_conda_prefix}/Library/usr/bin;${_trex_conda_prefix}/Library/bin;${_trex_conda_prefix}/Scripts;${_trex_conda_prefix}/bin;${_trex_conda_root}/condabin")
     set(ENV{PATH} "${_trex_conda_path_prefix};$ENV{PATH}")
     set(ENV{CONDA_PREFIX} "${_trex_conda_prefix}")
+    list(PREPEND CMAKE_PREFIX_PATH
+        "${_trex_conda_prefix}/Library"
+        "${_trex_conda_prefix}")
 
     # This is used for generated Visual Studio target debugging properties.
     set(_trex_vs_debugger_env
@@ -310,13 +332,13 @@ if(WIN32)
     #set(CMAKE_SHARED_LINKER_FLAGS_RELWITHDEBINFO "${CMAKE_SHARED_LINKER_FLAGS_RELWITHDEBINFO} /LTCG")
     #set(CMAKE_SHARED_LINKER_FLAGS_RELEASE "${CMAKE_SHARED_LINKER_FLAGS_RELEASE} /LTCG")
 
-    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MT /O2 /Oi /Oy /Ot /Ob2 /Gy /GF")
-    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MTd /bigobj")
-    set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} /MT /bigobj /O2 /Oi /Oy /Ot /Ob2 /Zi")
+    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /O2 /Oi /Oy /Ot /Ob2 /Gy /GF")
+    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /bigobj")
+    set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} /bigobj /O2 /Oi /Oy /Ot /Ob2 /Zi")
     
-    set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} /MT /O2 /Oi /Oy /Ot /Ob2 /Gy /GF")
-    set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} /MTd /bigobj")
-    set(CMAKE_C_FLAGS_RELWITHDEBINFO "${CMAKE_C_FLAGS_RELWITHDEBINFO} /MT /bigobj /O2 /Oi /Oy /Ot /Ob2 /Zi")
+    set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} /O2 /Oi /Oy /Ot /Ob2 /Gy /GF")
+    set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} /bigobj")
+    set(CMAKE_C_FLAGS_RELWITHDEBINFO "${CMAKE_C_FLAGS_RELWITHDEBINFO} /bigobj /O2 /Oi /Oy /Ot /Ob2 /Zi")
     
     set(GLEW_STATIC ON)
 else()
@@ -418,7 +440,10 @@ if(CMAKE_COMPILER_IS_GNUCXX)
         message(FATAL_ERROR "GCC version 11 or newer is required.")
     endif()
 
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror=return-local-addr -Wno-stringop-overflow -static-libstdc++")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror=return-local-addr -Wno-stringop-overflow")
+    if(COMMONS_BUILD_OPENCV)
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -static-libstdc++")
+    endif()
     set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -pedantic -Wall -Wextra -Wno-long-long -ggdb -DOM_DEBUG -O0 -no-pie")
     set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -g0 -no-pie -ffunction-sections -fdata-sections")
     set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -O2 -ggdb -no-pie -ffunction-sections -fdata-sections")

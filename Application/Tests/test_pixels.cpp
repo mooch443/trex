@@ -5,9 +5,12 @@
 #include <processing/PVBlob.h>
 #include <processing/PixelTree.h>
 #include <core/TrackingSettings.h>
+#include <tracking/FilterCache.h>
 #include <tracking/Posture.h>
+#include <gui/Transform.h>
 #include <processing/LuminanceGrid.h>
 #include <processing/HLine.h>
+#include <video/AveragingAccumulator.h>
 
 using namespace cmn;
 using namespace track;
@@ -71,6 +74,33 @@ PixelArray_t convert_rgb_vector_to_gray(const std::vector<uchar>& rgb_pixels) {
     return result;
 }
 
+std::vector<HorizontalLine> rectangular_lines(int width, int height) {
+    std::vector<HorizontalLine> lines;
+    lines.reserve(height);
+    for(int y = 0; y < height; ++y)
+        lines.emplace_back(y, 0, width - 1);
+    return lines;
+}
+
+PixelArray_t gray_pixels(int width, int height) {
+    PixelArray_t pixels;
+    pixels.reserve(width * height);
+    for(int i = 0; i < width * height; ++i)
+        pixels.push_back(static_cast<uchar>(i % 255));
+    return pixels;
+}
+
+PixelArray_t rgb_pixels(int width, int height) {
+    PixelArray_t pixels;
+    pixels.reserve(width * height * 3);
+    for(int i = 0; i < width * height; ++i) {
+        pixels.push_back(static_cast<uchar>(i % 255),
+                         static_cast<uchar>((i + 1) % 255),
+                         static_cast<uchar>((i + 2) % 255));
+    }
+    return pixels;
+}
+
 template <typename T>
 bool mats_equal(const cv::Mat& lhs, const cv::Mat& rhs) {
     if (lhs.size() != rhs.size() || lhs.type() != rhs.type()) {
@@ -80,6 +110,50 @@ bool mats_equal(const cv::Mat& lhs, const cv::Mat& rhs) {
 }
 
 } // namespace
+
+TEST(AveragingAccumulator, ModeUsesMostFrequentValuePerPixelAndChannel) {
+    AveragingAccumulator accumulator(averaging_method_t::mode);
+    const std::array<cv::Vec3b, 7> samples{
+        cv::Vec3b{1, 200, 9},
+        cv::Vec3b{1, 200, 9},
+        cv::Vec3b{1, 200, 9},
+        cv::Vec3b{10, 10, 100},
+        cv::Vec3b{20, 20, 110},
+        cv::Vec3b{30, 30, 120},
+        cv::Vec3b{40, 40, 130}
+    };
+
+    for(const auto& sample : samples) {
+        cv::Mat frame(1, 1, CV_8UC3);
+        frame.at<cv::Vec3b>(0, 0) = sample;
+        accumulator.add(frame);
+    }
+
+    const auto result = accumulator.finalize();
+    ASSERT_NE(result, nullptr);
+    ASSERT_EQ(result->get().type(), CV_8UC3);
+    const auto pixel = result->get().at<cv::Vec3b>(0, 0);
+    EXPECT_EQ(pixel[0], 1);
+    EXPECT_EQ(pixel[1], 200);
+    EXPECT_EQ(pixel[2], 9);
+}
+
+TEST(BlobSize, EffectiveAreaUsesSquaredCmPerPixel) {
+    GlobalSettings::write([](Configuration& config) {
+        config.values["cm_per_pixel"] = Float2_t(0.5);
+        config.values["correct_illegal_lines"] = false;
+    });
+
+    auto lines = std::make_unique<line_ptr_t::element_type>(
+        std::vector<HorizontalLine>{HorizontalLine(0, 0, 3)});
+    pv::Blob blob(std::move(lines), 0, {});
+    blob.force_set_recount(0);
+
+    EXPECT_FLOAT_EQ(blob.raw_recount(0), 4.f);
+    EXPECT_FLOAT_EQ(blob.recount(0), 1.f);
+
+    SETTING(cm_per_pixel) = Float2_t(1);
+}
 
 TEST(IllegalArrays, InitializerListConstructor) {
     cmn::IllegalArray<int> arr = {1, 2, 3, 4};
@@ -989,7 +1063,7 @@ TYPED_TEST(LineWithoutGridTest2, LineWithoutGridTest2) {
         this->image = Image::Make(10, 10, 1);
         this->image->set_to(100);
     }
-    this->bg = std::make_unique<Background>(std::move(this->image), params.input_info.encoding == meta_encoding_t::rgb8 ? meta_encoding_t::rgb8 : meta_encoding_t::gray);
+    this->bg = std::make_unique<Background>(this->image->bounds(), std::move(this->image), params.input_info.encoding == meta_encoding_t::rgb8 ? meta_encoding_t::rgb8 : meta_encoding_t::gray);
 
     /// HorizontalLine{ x0, x1, y }
     std::vector<HorizontalLine> input = {{0, 0, 9}, {1, 0, 9}};
@@ -1013,8 +1087,8 @@ TYPED_TEST(LineWithoutGridTest2, LineWithoutGridTest2) {
     // Print debug information
     DebugHeader(no_quotes(params.ToString()));
     Print("Background: ", PixelArray_t{
-        this->bg->image().data(),
-        this->bg->image().data() + this->bg->image().size()
+        this->bg->image()->data(),
+        this->bg->image()->data() + this->bg->image()->size()
     });
     
     print_results<params.input_info>("input", input, input_pixels);
@@ -1088,8 +1162,8 @@ TEST(BackgroundThresholding, RGB8AbsoluteDifferenceSimulatedBlob) {
     auto background_image_gray = Image::Make(height, width, 1);
     cv::cvtColor(bg_mat_rgb, background_image_gray->get(), cv::COLOR_BGR2GRAY);
 
-    Background bg_rgb(std::move(background_image_rgb), meta_encoding_t::rgb8);
-    Background bg_gray(std::move(background_image_gray), meta_encoding_t::gray);
+    Background bg_rgb(background_image_rgb->bounds(), std::move(background_image_rgb), meta_encoding_t::rgb8);
+    Background bg_gray(background_image_gray->bounds(), std::move(background_image_gray), meta_encoding_t::gray);
 
     std::vector<HorizontalLine> input_lines = {
         HorizontalLine(0, 0, width - 1),
@@ -1184,8 +1258,8 @@ TEST(BackgroundThresholding, RGB8LuminanceAlphaImageSimulatedSimpleBlob) {
     auto background_image_gray = Image::Make(height, width, 1);
     cv::cvtColor(bg_mat_rgb, background_image_gray->get(), cv::COLOR_BGR2GRAY);
 
-    Background bg_rgb(std::move(background_image_rgb), meta_encoding_t::rgb8);
-    Background bg_gray(std::move(background_image_gray), meta_encoding_t::gray);
+    Background bg_rgb(background_image_rgb->bounds(), std::move(background_image_rgb), meta_encoding_t::rgb8);
+    Background bg_gray(background_image_gray->bounds(), std::move(background_image_gray), meta_encoding_t::gray);
 
     const std::vector<HorizontalLine> base_lines = {
         HorizontalLine(0, 0, width - 1),
@@ -1305,8 +1379,8 @@ TEST(BlobThresholding, RGB8AbsoluteDifferenceMultiRow) {
     auto background_image_gray = Image::Make(height, width, 1);
     cv::cvtColor(bg_mat_rgb, background_image_gray->get(), cv::COLOR_BGR2GRAY);
 
-    Background bg_rgb(std::move(background_image_rgb), meta_encoding_t::rgb8);
-    Background bg_gray(std::move(background_image_gray), meta_encoding_t::gray);
+    Background bg_rgb(background_image_rgb->bounds(), std::move(background_image_rgb), meta_encoding_t::rgb8);
+    Background bg_gray(background_image_gray->bounds(), std::move(background_image_gray), meta_encoding_t::gray);
 
     const std::array<std::array<uchar, 3>, width * height> blob_values{{
         {25, 25, 25},
@@ -1397,8 +1471,8 @@ TEST(ImageFromLines, RGB8AbsoluteThresholdWithBackground) {
     auto background_image_gray = Image::Make(height, width, 1);
     cv::cvtColor(bg_mat_rgb, background_image_gray->get(), cv::COLOR_BGR2GRAY);
 
-    Background bg_rgb(std::move(background_image_rgb), meta_encoding_t::rgb8);
-    Background bg_gray(std::move(background_image_gray), meta_encoding_t::gray);
+    Background bg_rgb(background_image_rgb->bounds(), std::move(background_image_rgb), meta_encoding_t::rgb8);
+    Background bg_gray(background_image_gray->bounds(), std::move(background_image_gray), meta_encoding_t::gray);
 
     std::vector<HorizontalLine> lines = {
         HorizontalLine(0, 0, width - 1),
@@ -1550,7 +1624,8 @@ TEST(ImageFromLines, RGB8BackgroundSubtractionUsesAllChannels) {
         PixelArray_t pixels;
         pixels.push_back(blob[0], blob[1], blob[2]);
 
-        Background background(make_background(), encoding);
+        auto background_image = make_background();
+        Background background(background_image->bounds(), std::move(background_image), encoding);
 
         std::vector<HorizontalLine> lines = { HorizontalLine(0, 0, 0) };
 
@@ -1582,6 +1657,208 @@ TEST(ImageFromLines, RGB8BackgroundSubtractionUsesAllChannels) {
     }
 }
 
+TEST(ImageFromLines, ExactVariantReplacesNonContinuousOutputs) {
+    constexpr int width = 8;
+    constexpr int height = 4;
+    constexpr InputInfo input{
+        .channels = 1u,
+        .encoding = meta_encoding_t::gray
+    };
+
+    auto lines = rectangular_lines(width, height);
+    auto pixels = gray_pixels(width, height);
+    cv::Mat mask_storage = cv::Mat::zeros(height, width + 4, CV_8UC1);
+    cv::Mat image_storage = cv::Mat::zeros(height, width + 4, CV_8UC1);
+    cv::Mat mask = mask_storage(cv::Rect(0, 0, width, height));
+    cv::Mat image = image_storage(cv::Rect(0, 0, width, height));
+    ASSERT_FALSE(mask.isContinuous());
+    ASSERT_FALSE(image.isContinuous());
+
+    imageFromLines(input, lines, &mask, &image, nullptr, &pixels);
+
+    EXPECT_EQ(mask.size(), cv::Size(width, height));
+    EXPECT_EQ(image.size(), cv::Size(width, height));
+    EXPECT_TRUE(mask.isContinuous());
+    EXPECT_TRUE(image.isContinuous());
+    EXPECT_NE(mask.datastart, mask_storage.datastart);
+    EXPECT_NE(image.datastart, image_storage.datastart);
+}
+
+TEST(ImageFromLines, CachedVariantReusesExactViewsForAllOutputs) {
+    constexpr InputInfo gray_input{
+        .channels = 1u,
+        .encoding = meta_encoding_t::gray
+    };
+    constexpr InputInfo rgb_input{
+        .channels = 3u,
+        .encoding = meta_encoding_t::rgb8
+    };
+
+    cv::Mat mask, image, differences;
+
+    constexpr int first_width = 100;
+    constexpr int first_height = 20;
+    auto first_lines = rectangular_lines(first_width, first_height);
+    auto first_pixels = gray_pixels(first_width, first_height);
+    imageFromLinesCached(gray_input, first_lines, &mask, &image, nullptr,
+                         &first_pixels);
+
+    ASSERT_EQ(mask.size(), cv::Size(first_width, first_height));
+    ASSERT_EQ(image.size(), cv::Size(first_width, first_height));
+    ASSERT_FALSE(mask.isContinuous());
+    ASSERT_FALSE(image.isContinuous());
+    cv::Mat first_mask_owner = mask;
+    cv::Mat first_image_owner = image;
+
+    constexpr int second_width = 104;
+    constexpr int second_height = 21;
+    auto second_lines = rectangular_lines(second_width, second_height);
+    auto second_pixels = gray_pixels(second_width, second_height);
+    imageFromLinesCached(gray_input, second_lines, &mask, &image, nullptr,
+                         &second_pixels);
+
+    EXPECT_EQ(mask.size(), cv::Size(second_width, second_height));
+    EXPECT_EQ(image.size(), cv::Size(second_width, second_height));
+    EXPECT_EQ(mask.datastart, first_mask_owner.datastart);
+    EXPECT_EQ(image.datastart, first_image_owner.datastart);
+
+    cv::Mat exact_mask, exact_image;
+    imageFromLines(gray_input, second_lines, &exact_mask, &exact_image,
+                   nullptr, &second_pixels);
+    EXPECT_TRUE(mats_equal<uchar>(mask, exact_mask));
+    EXPECT_TRUE(mats_equal<uchar>(image, exact_image));
+
+    cv::Mat gray_image_owner = image;
+    constexpr int expanded_width = 105;
+    auto background_image = Image::Make(second_height, expanded_width, 3);
+    background_image->set_to(0);
+    Background background(background_image->bounds(), std::move(background_image), meta_encoding_t::rgb8);
+    auto color_pixels = rgb_pixels(second_width, second_height);
+
+    imageFromLinesCached(rgb_input, second_lines, &mask, &image, &differences,
+                         &color_pixels, 0, &background);
+
+    EXPECT_EQ(mask.size(), cv::Size(second_width, second_height));
+    EXPECT_EQ(image.size(), cv::Size(second_width, second_height));
+    EXPECT_EQ(differences.size(), cv::Size(second_width, second_height));
+    EXPECT_EQ(image.type(), CV_8UC3);
+    EXPECT_EQ(differences.type(), CV_8UC3);
+    EXPECT_NE(image.datastart, gray_image_owner.datastart);
+
+    cv::Mat exact_rgb_mask, exact_rgb_image, exact_rgb_differences;
+    imageFromLines(rgb_input, second_lines, &exact_rgb_mask, &exact_rgb_image,
+                   &exact_rgb_differences, &color_pixels, 0, &background);
+    EXPECT_TRUE(mats_equal<uchar>(mask, exact_rgb_mask));
+    EXPECT_TRUE(mats_equal<cv::Vec3b>(image, exact_rgb_image));
+    EXPECT_TRUE(mats_equal<cv::Vec3b>(differences, exact_rgb_differences));
+
+    cv::Mat rgb_mask_owner = mask;
+    cv::Mat rgb_image_owner = image;
+    cv::Mat rgb_differences_owner = differences;
+    auto expanded_lines = rectangular_lines(expanded_width, second_height);
+    auto expanded_pixels = rgb_pixels(expanded_width, second_height);
+    imageFromLinesCached(rgb_input, expanded_lines, &mask, &image, &differences,
+                         &expanded_pixels, 0, &background);
+
+    EXPECT_EQ(mask.size(), cv::Size(expanded_width, second_height));
+    EXPECT_EQ(image.size(), cv::Size(expanded_width, second_height));
+    EXPECT_EQ(differences.size(), cv::Size(expanded_width, second_height));
+    EXPECT_EQ(mask.datastart, rgb_mask_owner.datastart);
+    EXPECT_EQ(image.datastart, rgb_image_owner.datastart);
+    EXPECT_EQ(differences.datastart, rgb_differences_owner.datastart);
+
+    cv::Mat oversized_mask_owner = mask;
+    constexpr int small_width = 40;
+    constexpr int small_height = 8;
+    auto small_lines = rectangular_lines(small_width, small_height);
+    auto small_pixels = rgb_pixels(small_width, small_height);
+    imageFromLinesCached(rgb_input, small_lines, &mask, &image, &differences,
+                         &small_pixels, 0, &background);
+
+    EXPECT_EQ(mask.size(), cv::Size(small_width, small_height));
+    EXPECT_NE(mask.datastart, oversized_mask_owner.datastart);
+    cv::Size capacity;
+    cv::Point offset;
+    mask.locateROI(capacity, offset);
+    EXPECT_GE(capacity.width, small_width);
+    EXPECT_GE(capacity.height, small_height);
+    EXPECT_LE(capacity.width, small_width * 2);
+    EXPECT_LE(capacity.height, small_height * 2);
+}
+
+TEST(ImageFromLines, DiffImageScalingMatchesOpenCV) {
+    constexpr int width = 15;
+    constexpr int height = 15;
+    constexpr float scale = 1.1f;
+    auto lines = rectangular_lines(width, height);
+    auto pixels = gray_pixels(width, height);
+    auto blob = pv::Blob::Make(
+        std::make_unique<std::vector<HorizontalLine>>(std::move(lines)),
+        std::make_unique<PixelArray_t>(std::move(pixels)),
+        uint8_t(0),
+        cmn::blob::Prediction{});
+
+    cv::Mat source;
+    imageFromLines(blob->input_info(), blob->hor_lines(), nullptr, &source,
+                   nullptr, blob->pixels().get());
+    cv::Mat expected;
+    cv::resize(source, expected, cv::Size(), double(scale), double(scale),
+               cv::INTER_NEAREST);
+
+    const auto previous_scale = FAST_SETTING(individual_image_scale);
+    track::Settings::set<track::Settings::individual_image_scale>(float(scale));
+    Image::Ptr exact;
+    Vec2 exact_position;
+    cv::Mat mask_buffer, image_buffer;
+    Image cached;
+    std::optional<Vec2> cached_position;
+    EXPECT_NO_THROW({
+        std::tie(exact, exact_position) = track::image::calculate_diff_image(
+            blob.get(), Size2{}, nullptr);
+        cached_position = track::image::calculate_diff_image_cached(
+            mask_buffer, image_buffer, cached, blob.get(), Size2{}, nullptr);
+    });
+    track::Settings::set<track::Settings::individual_image_scale>(float(previous_scale));
+
+    ASSERT_TRUE(exact);
+    ASSERT_TRUE(cached_position);
+    EXPECT_EQ(exact_position, *cached_position);
+    EXPECT_TRUE(mats_equal<uchar>(exact->get(), expected));
+    EXPECT_TRUE(mats_equal<uchar>(cached.get(), expected));
+}
+
+TEST(ImageFromLines, ExactAndCachedNormalizationMatch) {
+    constexpr int width = 20;
+    constexpr int height = 10;
+    auto lines = rectangular_lines(width, height);
+    auto pixels = gray_pixels(width, height);
+    auto blob = pv::Blob::Make(
+        std::make_unique<std::vector<HorizontalLine>>(std::move(lines)),
+        std::make_unique<PixelArray_t>(std::move(pixels)),
+        uint8_t(0),
+        cmn::blob::Prediction{});
+
+    const gui::Transform transform;
+    const Size2 output_size(32, 32);
+    auto [exact, exact_position] = track::image::calculate_normalized_image(
+        transform, blob.get(), 10, output_size, false, nullptr);
+
+    cv::Mat mask_buffer, image_buffer;
+    Image cached;
+    auto cached_position = track::image::calculate_normalized_image_cached(
+        mask_buffer, image_buffer, cached, transform, blob.get(), 10,
+        output_size, false, nullptr);
+
+    ASSERT_TRUE(exact);
+    ASSERT_TRUE(cached_position);
+    EXPECT_EQ(exact_position, *cached_position);
+    EXPECT_EQ(exact->dimensions(), cached.dimensions());
+    EXPECT_TRUE(std::equal(exact->data(), exact->data() + exact->size(),
+                           cached.data()));
+    EXPECT_FALSE(mask_buffer.isContinuous());
+    EXPECT_FALSE(image_buffer.isContinuous());
+}
+
 class LineWithoutGridTest : public ::testing::Test {
 protected:
     void SetUp() override {
@@ -1598,7 +1875,7 @@ protected:
         grid = nullptr;
 
         // Initialize a Background object
-        bg = std::make_unique<Background>(std::move(image), meta_encoding_t::gray);
+        bg = std::make_unique<Background>(image->bounds(), std::move(image), meta_encoding_t::gray);
         //cv::imshow("bg", bg->image().get());
         //cv::waitKey(0);
     }
@@ -1623,12 +1900,12 @@ TEST_F(LineWithoutGridTest, AbsoluteDifferenceMethod) {
     Print("pixels: ", input_pixels);
 
     Print("background:",
-          PixelArray_t(bg->image().ptr(0, 0),
-                             bg->image().ptr(0, 0) + bg->image().cols),
-          PixelArray_t(bg->image().ptr(1, 0),
-                             bg->image().ptr(1, 0) + bg->image().cols));
-    Print(PixelArray_t(bg->image().ptr(0, 0),
-                             bg->image().ptr(bg->image().rows-1, bg->image().cols-1)));
+          PixelArray_t(bg->image()->ptr(0, 0),
+                             bg->image()->ptr(0, 0) + bg->image()->cols),
+          PixelArray_t(bg->image()->ptr(1, 0),
+                             bg->image()->ptr(1, 0) + bg->image()->cols));
+    Print(PixelArray_t(bg->image()->ptr(0, 0),
+                             bg->image()->ptr(bg->image()->rows-1, bg->image()->cols-1)));
     
     constexpr InputInfo iinput{
         .channels = 1u,

@@ -28,7 +28,6 @@ import torch.optim as optim
 from torchvision import transforms
 from torch.utils.data import Dataset, DataLoader
 import torchmetrics
-from tqdm import tqdm
 from typing import Optional
 
 from trex_utils import UserCancelException, UserSkipException, save_pytorch_model_as_jit
@@ -48,6 +47,10 @@ except Exception:
         def choose_device(): return os.environ.get("TREX_DEFAULT_DEVICE", "cpu")
         @staticmethod
         def setting(_name, _default=None): return _default
+        @staticmethod
+        def tqdm(*args, **kwargs):
+            from tqdm import tqdm as _tqdm
+            return _tqdm(*args, **kwargs)
     TRex = _TRexStub()
 
 from visual_identification_network_torch import ModelFetcher
@@ -1095,7 +1098,7 @@ def train(model, train_loader, val_loader, criterion, optimizer : torch.optim.Ad
         # Wrap DataLoader with ThreadedLoader to prefetch in background
         it_loader = ThreadedLoader(train_loader, max_prefetch=int(os.environ.get("TREX_PREFETCH", "2")))
         
-        for batch, (inputs, targets) in tqdm(enumerate(it_loader), total=len(it_loader)):
+        for batch, (inputs, targets) in TRex.tqdm(enumerate(it_loader), total=len(it_loader)):
             #inputs = transform(inputs.permute(0, 3, 1, 2) / 255).permute(0, 2, 3, 1) * 255
             assert isinstance(inputs, torch.Tensor), f"Expected inputs to be a torch.Tensor, got {type(inputs)}"
             assert isinstance(targets, torch.Tensor), f"Expected targets to be a torch.Tensor, got {type(targets)}"

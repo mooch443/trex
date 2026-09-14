@@ -1,8 +1,8 @@
 #include "PVVideoSource.h"
 
 PVVideoSource::PVVideoSource(pv::File&& source)
-    : AbstractBaseVideoSource({ .base = source.filename(),
-                                .size = source.size(),
+    : AbstractBaseVideoSource({ .base = file::PathArray(source.filename()),
+                                .resolution = source.size(),
                                 .framerate = source.framerate(),
                                 .finite = true,
                                 .length = source.length()}),

@@ -1,34 +1,45 @@
 #pragma once
 
 #include <commons.pc.h>
-//#include <gui/GuiTypes.h>
-//#include <ui/ConfirmedCrossings.h>
-#include <ui/FramePreloader.h>
-#include <misc/Buffers.h>
+#include <misc/ranges.h>
+#include <misc/bid.h>
+#include <misc/Timer.h>
+#include <core/idx_t.h>
 #include <core/default_config.h>
-#include <pv.h>
 #include <core/TrackingSettings.h>
-#include <misc/ThreadPool.h>
+#include <core/DetectionTypes.h>
 #include <data/MotionRecord.h>
-#include <processing/Background.h>
 #include <processing/BlobWeakPtr.h>
-#include <core/Border.h>
-#include <tracking/Stuffs.h>
 #include <gui/Event.h>
 #include <ui/ShadowTracklet.h>
 #include <data/IndividualCache.h>
 #include <ui/BdxAndPred.h>
-#include <core/TimingStatsCollector.h>
-#include <core/DetectionTypes.h>
-#include <gui/dyn/UnresolvedStringPattern.h>
 
-class Timer;
+class TimingStatsCollector;
+
+namespace pv {
+class File;
+}
+
 namespace track {
+class Border;
+class Tracker; 
 class Individual;
 class PPFrame;
 struct TrackletInformation;
 namespace constraints {
 struct FilterCache;
+}
+}
+
+namespace cmn {
+class Background;
+class GenericThreadPool;
+namespace grid {
+class ProximityGrid;
+}
+namespace pattern {
+struct UnresolvedStringPattern;
 }
 }
 
@@ -98,6 +109,8 @@ namespace globals {
         (bool, gui_show_visualfield),
         (bool, gui_show_visualfield_ts),
         (bool, gui_show_export_options),
+        (bool, gui_show_annotation_export_options),
+        (bool, gui_show_detect_annotation_import_options),
         (bool, gui_show_recognition_bounds),
         (bool, gui_show_midline_histogram),
         (bool, gui_show_histograms),
@@ -132,8 +145,10 @@ namespace globals {
         std::unique_ptr<ExternalImage> ptr;
         Vec2 image_pos;
         Frame_t frame;
+        const cmn::Background* background{nullptr};
         
-        SimpleBlob(std::unique_ptr<ExternalImage>&& available, pv::BlobWeakPtr b, int t);
+        SimpleBlob(const cmn::Background*, std::unique_ptr<ExternalImage>&& available, pv::BlobWeakPtr b, int t);
+        ~SimpleBlob();
         void convert();
     };
     
@@ -143,8 +158,15 @@ namespace globals {
     using namespace track;
     
     class GUICache {
-        GETTER_NCONST(GenericThreadPool, pool);
+        struct LoadingState;
+
+        std::shared_ptr<track::Tracker> _tracker;
+        std::unique_ptr<GenericThreadPool> _pool;
+    public:
+        const GenericThreadPool& pool() const;
+        GenericThreadPool& pool();
         
+    private:
         mutable std::shared_mutex _next_frame_cache_mutex;
         mutable std::shared_mutex _tracklet_cache_mutex;
         std::unordered_map<Idx_t, IndividualCache> _next_frame_caches;
@@ -156,19 +178,12 @@ namespace globals {
             return _tracklet_cache_mutex;
         }
     protected:
-        struct PPFrameMaker {
-            std::unique_ptr<PPFrame> operator()() const;
-        };
-        
         std::unique_ptr<PPFrame> _current_processed_frame;
-        Buffers< std::unique_ptr<PPFrame>, PPFrameMaker > buffers;
         std::weak_ptr<pv::File> _video;
         gui::DrawStructure* _graph{ nullptr };
         std::unique_ptr<gui::Posture> _posture_window;
-        using FramePtr = std::unique_ptr<PPFrame>;
         std::shared_ptr<TimingStatsCollector> _timing_stats;
-        FramePreloader<FramePtr> _preloader;
-        Timer _last_success;
+        std::unique_ptr<LoadingState> _loading;
         std::unique_ptr<PPFrame> _next_processed_frame;
         GETTER_SETTER(bool, load_frames_blocking){false};
         size_t _mistakes_count{0};
@@ -176,6 +191,8 @@ namespace globals {
         LOGGED_MUTEX_VAR(vector_mutex, "GUICache::vector_mutex");
         
     public:
+        gui::DrawStructure* graph() { return _graph; }
+        
         Size2 _video_resolution;
         int last_threshold = -1;
         Bounds boundary;
@@ -209,7 +226,6 @@ namespace globals {
         
         GETTER_PTR(const Background*, background){nullptr};
         
-        Timer _last_consecutive_update;
         std::atomic<bool> _updating_consecutive;
         std::future<std::vector<Range<Frame_t>>> _next_tracklet;
         
@@ -218,7 +234,16 @@ namespace globals {
         
         static GUICache& instance();
         static bool exists();
-        Range<Frame_t> tracked_frames;
+        
+        struct TrackedFrames {
+            Frame_t start, end;
+            bool contains(Frame_t f) const {
+                if(not start.valid() || not end.valid() || not f.valid())
+                    return false;
+                return f >= start && f <= end;
+            }
+        };
+        GETTER(TrackedFrames, tracked_frames);
         std::atomic_bool connectivity_reload;
         
     private:
@@ -294,13 +319,16 @@ namespace globals {
         std::once_flag _percentile_once;
         std::atomic<bool> done_calculating{false};
         
-        GETTER(Border, border){nullptr};
+    public:
+        const Border& border() const;
+    protected:
+        std::unique_ptr<Border> _border;
         
     protected:
         std::shared_mutex label_mutex;
         std::string _label_text;
         cmn::CallbackFuture _settings_callback;
-        GETTER_NCONST(std::optional<pattern::UnresolvedStringPattern>, prepared_label_text);
+        std::unique_ptr<pattern::UnresolvedStringPattern> _prepared_label_text;
         
     public:
         bool has_selection() const;
@@ -357,7 +385,7 @@ namespace globals {
         
         const grid::ProximityGrid& blob_grid();
         
-        GUICache(gui::DrawStructure*, std::weak_ptr<pv::File>, std::shared_ptr<TimingStatsCollector> timing_stats = nullptr);
+        GUICache(gui::DrawStructure*, std::shared_ptr<track::Tracker>, std::weak_ptr<pv::File>, std::shared_ptr<TimingStatsCollector> timing_stats = nullptr);
         ~GUICache();
         
         std::optional<std::vector<float>> find_prediction(pv::bid) const;

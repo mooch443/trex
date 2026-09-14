@@ -14,8 +14,6 @@ namespace pv {
 
 namespace cmn::settings {
 
-void initialize_filename_for_tracking();
-
 struct LoadContext {
     file::PathArray source{};
     file::Path filename{};
@@ -52,20 +50,26 @@ struct LoadContext {
         "source"
     };
 
-    static constexpr auto exclude_from_external = std::array{
+    static constexpr auto exclude_automatic_for_models = std::array{
         "detect_model",
         "region_model",
         "detect_resolution",
         "region_resolution"
     };
-    
+
+    static constexpr auto exclude_external = std::array{
+        "video_conversion_range",
+        "settings_file",
+        "output_dir",
+        "filename",
+        "source"
+    };
+
     bool changed_model_manually{false};
     
     void init();
     bool set_config_if_different(const std::string_view& key, const sprite::Map& from, bool do_print = false);
     void init_filename();
-    void fix_empty_source();
-    void fix_empty_filename();
     void reset_default_filenames();
     
     void load_settings_from_source();

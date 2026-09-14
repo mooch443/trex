@@ -1,0 +1,181 @@
+{% set GIT_DESCRIBE_TAG = environ.get('GIT_DESCRIBE_TAG', None) %}
+{% set latest_tag = environ.get('TREX_DESCRIBE_TAG', (GIT_DESCRIBE_TAG
+ or 'vuntagged')) %}
+{% set git_tag = "main" %}
+{% set git_tag_sanitized = "main" %}
+{% set version_postfix = "" %}
+#{% set version_postfix = "i" %} # for installer packages
+{% set build_time = time.time() %}
+{% set build_number = (build_time | int - 86400) %}
+
+####
+{% set number = environ.get('GIT_DESCRIBE_NUMBER', '0') %}
+{% set hash = environ.get('GIT_DESCRIBE_HASH', '0') %}
+
+{% set version_prefix = '' %}
+{% if git_tag != 'main' and hash != git_tag_sanitized and not hash.startswith(git_tag_sanitized + '_') %}
+{% set hash = git_tag_sanitized + '_' + hash %}
+{% endif %}
+
+{% set version = ((latest_tag if latest_tag else '-failed') + version_prefix + version_postfix)[1:] %}
+
+
+package:
+  name: trex
+  version: "{{ version }}"
+
+channels:
+  - conda-forge
+  - nodefaults
+source:
+    git_url: https://github.com/mooch443/trex.git
+    git_depth: -1
+    git_tag: {{ git_tag }}
+
+app:
+  entry: trex
+  icon: ../Application/src/tracker/gfx/TRex_1024.png
+  summary: TRex
+  type: console
+  own_environment: True
+
+build:
+    script_env:
+      - GITHUB_WORKFLOW
+      - SDKROOT
+      - CC
+      - CXX
+      - CONDA_CHANNELS=conda-forge,nodefaults
+      - TREX_CONFIGURE=minimal
+    number: {{ build_number }}
+    string: "minimal_{{ hash }}_{{ number }}"
+    run_exports:
+        - {{ pin_compatible('libgcc-ng', min_pin='x.x.x', max_pin='x.x.x') }} # [linux]
+        - {{ pin_compatible('libstdcxx-ng', min_pin='x.x.x', max_pin='x.x.x') }} # [linux]
+    ignore_run_exports:
+        - {{ pin_compatible('libstdcxx-ng', min_pin='x.x.x', max_pin='x.x.x') }} # [linux]
+    detect_binary_files_with_prefix: False # [win]
+    detect_binary_files_with_prefix: True # [not win]
+    files_with_prefix:
+        - bin/trex # [not win]
+        - bin/pvinfo # [not win]
+        - bin/pvconvert # [not win]
+        - bin/interactive_segmentation_prototype # [linux]
+        - bin/interactive_segmentation_prototype.app/Contents/MacOS/interactive_segmentation_prototype # [osx]
+        - bin/TRex.app/Contents/MacOS/TRex # [osx]
+
+requirements:
+  build:
+    - {{ stdlib("c") }} # [linux]
+    - m2-filesystem         # [win]
+    - m2w64-pkg-config      # [win]
+    - pkg-config            # [not win]
+    - jom                   # [win]
+    - make                  # [unix]
+    - {{ compiler('c') }}   # [osx and not arm64]
+    - {{ compiler('cxx') }} # [osx and not arm64]
+    - {{ compiler('c') }}   # [not osx]
+    - {{ compiler('cxx') }} # [not osx]
+    - cmake >=3.20,<5
+    #- ninja  # [not win]
+    - git # [not win]
+    - git <2.34 # [win]
+    - {{ cdt('libselinux') }}  # [linux]
+    - {{ cdt('libxdamage') }}  # [linux]
+    - {{ cdt('libxxf86vm') }}  # [linux]
+    - {{ cdt('libxext') }}     # [linux]
+    - {{ cdt('xorg-x11-proto-devel') }}  # [linux]
+    - {{ cdt('libx11-devel') }}          # [linux]
+    - {{ cdt('libxcursor-devel') }}           # [linux]
+    - {{ cdt('libxcb') }}                # [linux]
+    - {{ cdt('libXfixes-devel') }}             # [linux]
+    - {{ cdt('libXxf86vm') }}            # [linux]
+    - {{ cdt('libxext-devel') }}         # [linux]
+    - {{ cdt('libxinerama-devel') }}         # [linux]
+    - {{ cdt('libxrandr-devel') }}       # [linux]
+    - {{ cdt('libxi-devel') }}           # [linux]
+    - {{ cdt('libxcursor-devel') }}           # [linux]
+    - {{ cdt('libxrender-devel') }}      # [linux]
+    - {{ cdt('mesa-libgl-devel') }}      # [linux]
+    - {{ cdt('mesa-dri-drivers') }}      # [linux]
+    - {{ cdt('libselinux') }}            # [linux]
+    - {{ cdt('libXdamage-devel') }}            # [linux]
+    - {{ cdt('libXau-devel') }}                # [linux]
+    - {{ cdt('libuuid-devel') }} # [linux]
+    - nasm
+    - icu
+
+  host:
+    - {{ stdlib("c") }} # [linux]
+    - pthread-stubs  # [linux]
+    - python =3.11 # [osx and arm64]
+    - python =3.11 # [osx and not arm64]
+    - python =3.11 # [win]
+    - python =3.11 # [linux]
+    - libopenblas * *pthreads* # [osx]
+    - ffmpeg >=3,<8=*lgpl*
+    - zlib
+    - libpng
+    - libzip
+    - libopencv >=4,<5 *headless*
+    #- openh264 # [osx]
+    #- libvorbis
+    #- libogg
+    #- libavif
+
+  run:
+    # Keep NumPy and cv2 Conda-owned so pip cannot add an overlapping OpenCV wheel.
+    - {{ pin_compatible('python', min_pin='x.x', max_pin='x.x') }}
+    - {{ pin_compatible('ffmpeg', min_pin='x.x', max_pin='x.x') }}
+    - {{ pin_compatible('zlib', min_pin='x.x', max_pin='x.x') }}
+    - {{ pin_compatible('libpng', min_pin='x.x', max_pin='x.x') }}
+    - {{ pin_compatible('libzip', min_pin='x.x', max_pin='x.x') }}
+    - {{ pin_compatible('libopencv', min_pin='x.x', max_pin='x.x') }}
+    - numpy >=1.26,<3
+    - py-opencv >=4,<5 *headless*
+    - {{ pin_compatible('openh264', min_pin='x.x', max_pin='x.x') }} # [osx]
+    - libopenblas * *pthreads* # [osx]
+    - {{ pin_compatible('icu', min_pin='x.x', max_pin='x.x') }}
+    #- scikit-learn # [not win]
+    - pip
+    - requests
+    - psutil
+    - git
+    #- libvorbis
+    #- libogg
+    #- libavif
+
+about:
+  home: https://trex.run
+  license: AGPL-3.0-or-later
+  license_file:
+      - LICENSE
+      - licenses/ffmpeg/COPYING.LGPL-2.1
+      - licenses/ffmpeg/COPYING.LGPL-3.0
+      - Application/build/_deps/pybind11-src/LICENSE
+      - licenses/glfw/LICENSE.md
+      - licenses/robin-hood/LICENSE
+      - licenses/flat_hash_map/LICENSE
+      - licenses/libpng/LICENSE
+      - licenses/libzip/LICENSE
+      - licenses/zlib/README
+      - Application/src/tracker/thirdparty/fkYAML/LICENSE.txt
+      - Application/src/fonts/OTF-PTMono.txt
+      - Application/src/fonts/OTF-NotoSansSymbols2.txt
+      - Application/src/fonts/OTF-Quicksand.txt
+  summary: TRex
+  description: >
+    TRex is an open source visual tracking software used to retrieve positional data from recorded collectives of individuals.
+    It supports machine-learning based detection and trajectory-corrections for improved accuracy. It also provides support for direct recording from webcam-like cameras.
+  keywords:
+    - tracking
+    - computer-vision
+    - machine-learning
+    - video-analysis
+    - machine-learning
+    - video-tracking
+    - video-processing
+  doc_url: https://trex.run/docs
+  dev_url: https://github.com/mooch443/trex.git
+  maintainers:
+    - mooch443

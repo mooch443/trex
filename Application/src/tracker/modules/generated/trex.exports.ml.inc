@@ -11,11 +11,20 @@ export namespace Python::TrainingMode {
 using ::Python::TrainingMode::Class;
 }
 
+export namespace cmn::file {
+// ml/VisualIdentification.h
+using ::cmn::file::Path;
+}
+
 export namespace track {
 // ml/AccumulationRuntime.h
 using ::track::AccumulationSession;
+using ::track::Tracker;
 // ml/UniquenessProvider.h
 using ::track::UniquenessProvider;
+// ml/VisualIdentification.h
+using ::track::BasicStuff;
+using ::track::PostureStuff;
 }
 
 export namespace track::accumulation_runtime {

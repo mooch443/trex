@@ -23,6 +23,7 @@
 
 #include <misc/default_settings.h>
 #include <core/default_config.h>
+#include <core/TerminalProgress.h>
 #include <core/TileBuffers.h>
 #include <misc/GlobalSettings.h>
 #include <file/DataLocation.h>
@@ -30,7 +31,16 @@
 
 #include <core/DetectionTypes.h>
 
+#include <algorithm>
+#include <atomic>
+#include <chrono>
+#include <condition_variable>
+#include <cstdio>
+#include <memory>
+#include <mutex>
 #include <signal.h>
+#include <thread>
+#include <vector>
 typedef void (*sighandler_t)(int);
 
 //#define TREX_PYTHON_DEBUG true
@@ -47,6 +57,185 @@ namespace track {
 pybind11::module numpy, TRex, _main, _json_module;
 pybind11::dict* _locals = nullptr;
 }
+
+class TRexTqdm {
+public:
+    TRexTqdm(py::args args, py::kwargs kwargs) {
+        if (args.size() > 0 && !args[0].is_none()) {
+            _iterable = py::reinterpret_borrow<py::object>(args[0]);
+            _iterator = py::iter(_iterable);
+        }
+
+        if (kwargs) {
+            if (kwargs.contains("total") && !kwargs["total"].is_none()) {
+                _total = py::cast<double>(kwargs["total"]);
+                _has_total = _total > 0.0;
+            }
+            if (kwargs.contains("desc") && !kwargs["desc"].is_none()) {
+                _desc = py::cast<std::string>(kwargs["desc"]);
+            }
+            if (kwargs.contains("unit") && !kwargs["unit"].is_none()) {
+                _unit = py::cast<std::string>(kwargs["unit"]);
+            }
+            if (kwargs.contains("leave") && !kwargs["leave"].is_none()) {
+                _persist = py::cast<bool>(kwargs["leave"]);
+            }
+            if (kwargs.contains("disable") && !kwargs["disable"].is_none()) {
+                _disabled = py::cast<bool>(kwargs["disable"]);
+            }
+        }
+
+        if (!_has_total && !_iterable.is_none()) {
+            try {
+                _total = static_cast<double>(py::len(_iterable));
+                _has_total = _total > 0.0;
+            } catch (py::error_already_set& e) {
+                e.restore();
+                PyErr_Clear();
+            }
+        }
+
+        if (!_disabled) {
+            render();
+            _thread = std::thread([this]() {
+                while (!_stop.wait_for(cmn::terminal::progress::interval())) {
+                    ++_frame_index;
+                    render();
+                }
+            });
+        }
+    }
+
+    ~TRexTqdm() {
+        close();
+    }
+
+    TRexTqdm(const TRexTqdm&) = delete;
+    TRexTqdm& operator=(const TRexTqdm&) = delete;
+
+    TRexTqdm& iter() {
+        return *this;
+    }
+
+    py::object next() {
+        if (_iterator.is_none()) {
+            close();
+            throw py::stop_iteration();
+        }
+
+        try {
+            py::object item = _iterator.attr("__next__")();
+            update(1);
+            return item;
+        } catch (py::error_already_set& e) {
+            if (e.matches(PyExc_StopIteration)) {
+                e.restore();
+                PyErr_Clear();
+                close();
+                throw py::stop_iteration();
+            }
+            throw;
+        }
+    }
+
+    void update(size_t n = 1) {
+        if (_closed) {
+            return;
+        }
+        std::lock_guard guard(_mutex);
+        _current += static_cast<double>(n);
+        if (!_disabled) {
+            render_locked();
+        }
+    }
+
+    void close() {
+        if (_closed.exchange(true)) {
+            return;
+        }
+
+        _stop.notify_all();
+        if (_thread.joinable()) {
+            _thread.join();
+        }
+
+        if (!_disabled) {
+            std::lock_guard guard(_mutex);
+            if (_persist) {
+                _bar.set_postfix(build_postfix());
+                _bar.mark_as_completed();
+            } else {
+                cmn::terminal::progress::finish_progress_bar_line();
+            }
+        }
+    }
+
+private:
+    class StopSignal {
+    public:
+        template<class Rep, class Period>
+        bool wait_for(const std::chrono::duration<Rep, Period>& duration) {
+            std::unique_lock lock(_mutex);
+            return _condition.wait_for(lock, duration, [this]() { return _stop; });
+        }
+
+        void notify_all() {
+            {
+                std::lock_guard lock(_mutex);
+                _stop = true;
+            }
+            _condition.notify_all();
+        }
+
+    private:
+        std::mutex _mutex;
+        std::condition_variable _condition;
+        bool _stop = false;
+    };
+
+    void render() {
+        std::lock_guard guard(_mutex);
+        render_locked();
+    }
+
+    std::string build_postfix() const {
+        std::string postfix;
+        if (!_desc.empty())
+            postfix += cmn::terminal::progress::clean_progress_status(_desc) + " ";
+        const auto unit = cmn::terminal::progress::clean_progress_status(_unit);
+        char buf[64];
+        if (_has_total)
+            std::snprintf(buf, sizeof(buf), "%.0f/%.0f %s", _current, _total, unit.c_str());
+        else
+            std::snprintf(buf, sizeof(buf), "%.0f %s", _current, unit.c_str());
+        postfix += buf;
+        return postfix;
+    }
+
+    void render_locked() {
+        _bar.set_postfix(build_postfix());
+        _bar.set_spinner_index(_frame_index.load());
+        _bar.set_progress(_has_total
+            ? std::min(100.0, std::max(0.0, _current / _total * 100.0))
+            : 0.0);
+    }
+
+    py::object _iterable = py::none();
+    py::object _iterator = py::none();
+    std::string _desc;
+    std::string _unit = "it";
+    double _current = 0.0;
+    double _total = 0.0;
+    bool _has_total = false;
+    bool _persist = true;
+    bool _disabled = false;
+    std::atomic_bool _closed = false;
+    std::atomic_size_t _frame_index = 0;
+    std::mutex _mutex;
+    StopSignal _stop;
+    cmn::terminal::progress::ProgressBar _bar{cmn::terminal::progress::ProgressBarConfig{}};
+    std::thread _thread;
+};
 
 namespace pybind11 {
     namespace detail {
@@ -197,6 +386,9 @@ MESSAGE_TYPE(PythonWarn, TYPE_WARNING, false, YELLOW, "python");*/
 
 std::function<void(const std::string&, const cv::Mat&)> _mat_display = [](auto&, auto&) { };
 std::function<void()> _destroy_all_windows = []() {};
+std::function<void(const std::string&)> _display_runtime_warning = [](const std::string& message) {
+    FormatWarning(message);
+};
 
 #include "GPURecognition.h"
 #include <pybind11/stl.h>
@@ -261,6 +453,10 @@ namespace track::detect {
     public:
         Mask(py::array_t<uint8_t, py::array::c_style | py::array::forcecast> mask) {
             py::buffer_info buf_info = mask.request();
+            if(buf_info.ndim != 2) {
+                throw std::invalid_argument(
+                    "Detection masks must be two-dimensional arrays.");
+            }
             int rows = narrow_cast<int>(buf_info.shape[0]);
             int cols = narrow_cast<int>(buf_info.shape[1]);
             auto ptr = move_array<uint8_t>(mask);
@@ -305,6 +501,28 @@ public:
         return result;
     }
 
+    std::optional<MaskData> transfer_semantic_mask(py::object semantic_mask) {
+        if(CHECK_NONE(semantic_mask))
+            return std::nullopt;
+
+        const auto input = semantic_mask.cast<py::array>();
+        const auto input_info = input.request();
+        if(input_info.ndim != 2) {
+            throw std::invalid_argument(
+                "A semantic mask must be a two-dimensional class-ID array.");
+        }
+        if(input_info.itemsize != sizeof(uint8_t)
+           || input_info.format != py::format_descriptor<uint8_t>::format())
+        {
+            throw std::invalid_argument(
+                "Semantic class IDs must be validated and provided as uint8 values in [0, 255].");
+        }
+
+        auto mask = semantic_mask.cast<
+            py::array_t<uint8_t, py::array::c_style | py::array::forcecast>>();
+        return std::move(Mask(mask).data);
+    }
+
 std::vector<KeypointData> transfer_keypoints(py::list keypoints) {
     std::vector<KeypointData> result;
     result.reserve(keypoints.size());
@@ -316,6 +534,63 @@ std::vector<KeypointData> transfer_keypoints(py::list keypoints) {
     return result;
 }
 
+std::vector<track::TileGeometry> geometries_from_legacy_vectors(
+    const std::vector<cmn::Image::Ptr>& images,
+    const std::vector<cmn::Vec2>& offsets,
+    const std::vector<cmn::Vec2>& scales)
+{
+    if(images.size() != offsets.size() || images.size() != scales.size()) {
+        throw InvalidArgumentException(
+            "YoloInput expects matching images, offsets, and scales lengths, got ",
+            images.size(), " images, ", offsets.size(), " offsets, and ", scales.size(), " scales.");
+    }
+
+    std::vector<track::TileGeometry> geometries;
+    geometries.reserve(images.size());
+    for(size_t i = 0; i < images.size(); ++i) {
+        const auto width = images[i] ? images[i]->cols : 0;
+        const auto height = images[i] ? images[i]->rows : 0;
+        const auto& offset = offsets[i];
+        const auto& scale = scales[i];
+        const auto pad_x = std::max(0.f, -offset.x);
+        const auto pad_y = std::max(0.f, -offset.y);
+        const auto content_width = std::max(0.f, float(width) - 2.f * pad_x);
+        const auto content_height = std::max(0.f, float(height) - 2.f * pad_y);
+        geometries.push_back(track::TileGeometry{
+            .source_region = track::SourceRect(
+                std::max(0.f, offset.x * scale.x),
+                std::max(0.f, offset.y * scale.y),
+                content_width * scale.x,
+                content_height * scale.y),
+            .tile_content = track::TileRect(pad_x, pad_y, content_width, content_height),
+            .tile_size = cmn::Size2(width, height)
+        });
+    }
+    return geometries;
+}
+
+py::tuple tile_affine_arrays(const std::vector<track::TileGeometry>& geometries)
+{
+    const auto affines = track::tile_to_source_affines(geometries);
+    const std::array<py::ssize_t, 2> shape{
+        static_cast<py::ssize_t>(affines.size()),
+        py::ssize_t(2)
+    };
+    py::array_t<float> scales(shape);
+    py::array_t<float> offsets(shape);
+    auto scales_data = scales.mutable_unchecked<2>();
+    auto offsets_data = offsets.mutable_unchecked<2>();
+
+    for(py::ssize_t i = 0; i < static_cast<py::ssize_t>(affines.size()); ++i) {
+        scales_data(i, 0) = affines.at(size_t(i)).scale.x;
+        scales_data(i, 1) = affines.at(size_t(i)).scale.y;
+        offsets_data(i, 0) = affines.at(size_t(i)).tile_offset.x;
+        offsets_data(i, 1) = affines.at(size_t(i)).tile_offset.y;
+    }
+
+    return py::make_tuple(std::move(scales), std::move(offsets));
+}
+
 }
 
 using namespace track::detect;
@@ -323,6 +598,20 @@ using namespace track::detect;
 PYBIND11_EMBEDDED_MODULE(TRex, m) {
     namespace py = pybind11;
     using namespace track::detect;
+
+    py::class_<TRexTqdm>(m, "tqdm")
+        .def(py::init([](py::args args, py::kwargs kwargs) {
+            return std::make_unique<TRexTqdm>(args, kwargs);
+        }))
+        .def("update", &TRexTqdm::update, py::arg("n") = 1)
+        .def("close", &TRexTqdm::close)
+        .def("__iter__", &TRexTqdm::iter, py::return_value_policy::reference_internal)
+        .def("__next__", &TRexTqdm::next)
+        .def("__enter__", &TRexTqdm::iter, py::return_value_policy::reference_internal)
+        .def("__exit__", [](TRexTqdm& self, py::object, py::object, py::object) {
+            self.close();
+            return false;
+        });
 
     py::enum_<track::detect::ModelTaskType>(m, "ModelTaskType")
         .value("detect", track::detect::ModelTaskType::detect)
@@ -363,21 +652,25 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
         .def_static("class_name", []() { return std::string(KeypointFormat::class_name()); });
     
     py::class_<ModelConfig>(m, "ModelConfig")
-        .def(py::init<ModelTaskType, bool, std::string, DetectResolution, ObjectDetectionFormat::data::values, std::optional<KeypointFormat>
+        .def(py::init<ModelTaskType, bool, std::string, DetectResolution, ObjectDetectionFormat::data::values, std::optional<KeypointFormat>, bool, bool
              >(),
             py::arg("task"),
             py::arg("use_tracking"),
             py::arg("model_path"),
             py::arg("trained_resolution") = DetectResolution{},
             py::arg("output") = ObjectDetectionFormat::data::values::none,
-            py::arg("keypoints") = std::optional<KeypointFormat>{})
+            py::arg("keypoints") = std::optional<KeypointFormat>{},
+            py::arg("requires_exact_input_size") = false,
+            py::arg("try_optimize") = false)
         .def_readwrite("task", &ModelConfig::task)
         .def_readonly("use_tracking", &ModelConfig::use_tracking)
+        .def_readonly("try_optimize", &ModelConfig::try_optimize)
         .def_readonly("model_path", &ModelConfig::model_path)
         .def_readwrite("trained_resolution", &ModelConfig::trained_resolution)
         .def_readwrite("classes", &ModelConfig::classes)
         .def_readwrite("output_format", &ModelConfig::output_format)
         .def_readwrite("keypoint_format", &ModelConfig::keypoint_format)
+        .def_readwrite("requires_exact_input_size", &ModelConfig::requires_exact_input_size)
         .def("__repr__", &ModelConfig::toStr)
         .def("__str__", &ModelConfig::toStr)
         .def_static("class_name", []() { return std::string(ModelConfig::class_name()); });
@@ -461,7 +754,7 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
         .def(py::init([](int index,
                          track::detect::Boxes boxes_and_scores,
                          py::list masks, track::detect::KeypointData keypoints, track::detect::ObbData obb,
-                             track::detect::PointData points)
+                             track::detect::PointData points, py::object semantic_mask)
                 -> Result
             {
                 auto _masks = transfer_masks(masks);
@@ -471,9 +764,17 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
                     std::move(_masks),
                     std::move(keypoints),
                     std::move(obb),
-                    std::move(points)
+                    std::move(points),
+                    transfer_semantic_mask(std::move(semantic_mask))
                 };
-            })
+            }),
+            py::arg("index"),
+            py::arg("boxes_and_scores"),
+            py::arg("masks"),
+            py::arg("keypoints"),
+            py::arg("obb"),
+            py::arg("points"),
+            py::arg("semantic_mask") = py::none()
         )
         .def("__repr__", [](const track::detect::Result& result) -> std::string {
             return result.toStr();
@@ -532,14 +833,54 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
         })
         .def("to_string", &VIWeights::toStr);
 
+    py::class_<track::SourceRect>(m, "SourceRect")
+        .def(py::init<float, float, float, float>())
+        .def_property_readonly("x", [](const track::SourceRect& v) { return v.x; })
+        .def_property_readonly("y", [](const track::SourceRect& v) { return v.y; })
+        .def_property_readonly("width", [](const track::SourceRect& v) { return v.width; })
+        .def_property_readonly("height", [](const track::SourceRect& v) { return v.height; });
+
+    py::class_<track::TileRect>(m, "TileRect")
+        .def(py::init<float, float, float, float>())
+        .def_property_readonly("x", [](const track::TileRect& v) { return v.x; })
+        .def_property_readonly("y", [](const track::TileRect& v) { return v.y; })
+        .def_property_readonly("width", [](const track::TileRect& v) { return v.width; })
+        .def_property_readonly("height", [](const track::TileRect& v) { return v.height; });
+
+    py::class_<track::TileGeometry>(m, "TileGeometry")
+        .def_readonly("source_region", &track::TileGeometry::source_region)
+        .def_readonly("tile_content", &track::TileGeometry::tile_content)
+        .def("scale", &track::TileGeometry::source_scale)
+        .def("offset", &track::TileGeometry::tile_offset_for_affine)
+        .def_property_readonly("source_x", [](const track::TileGeometry& v) { return v.source_region.x; })
+        .def_property_readonly("source_y", [](const track::TileGeometry& v) { return v.source_region.y; })
+        .def_property_readonly("source_width", [](const track::TileGeometry& v) { return v.source_region.width; })
+        .def_property_readonly("source_height", [](const track::TileGeometry& v) { return v.source_region.height; })
+        .def_property_readonly("tile_x", [](const track::TileGeometry& v) { return v.tile_content.x; })
+        .def_property_readonly("tile_y", [](const track::TileGeometry& v) { return v.tile_content.y; })
+        .def_property_readonly("tile_width", [](const track::TileGeometry& v) { return v.tile_content.width; })
+        .def_property_readonly("tile_height", [](const track::TileGeometry& v) { return v.tile_content.height; });
+
+    m.def("tile_affines", &tile_affine_arrays, py::arg("geometries"));
+
     py::class_<track::detect::YoloInput>(m, "YoloInput")
-        .def(py::init<std::vector<cmn::Image::Ptr>&&, std::vector<cmn::Vec2>&&, std::vector<cmn::Vec2>&&, std::vector<size_t>&&>())
+        .def(py::init<std::vector<cmn::Image::Ptr>&&, std::vector<track::TileGeometry>&&, std::vector<size_t>&&>())
+        .def(py::init([](std::vector<cmn::Image::Ptr>&& images,
+                         std::vector<cmn::Vec2>&& offsets,
+                         std::vector<cmn::Vec2>&& scales,
+                         std::vector<size_t>&& orig_id) {
+            auto geometries = geometries_from_legacy_vectors(images, offsets, scales);
+            return track::detect::YoloInput{
+                std::move(images),
+                std::move(geometries),
+                std::move(orig_id)
+            };
+        }))
         .def("__repr__", [](const YoloInput& v) -> std::string {
             return v.toStr();
         })
         .def("images", &track::detect::YoloInput::images)
-        .def("offsets", &track::detect::YoloInput::offsets)
-        .def("scales", &track::detect::YoloInput::scales)
+        .def("tile_geometries", &track::detect::YoloInput::tile_geometries)
         .def("orig_id", &track::detect::YoloInput::orig_id);
 
     py::enum_<track::detect::Sam3PromptType>(m, "Sam3PromptType")
@@ -604,6 +945,7 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
                          std::vector<cmn::Vec2>&& scales,
                          std::vector<size_t>&& orig_id,
                          py::list prompts_per_image) {
+            auto geometries = geometries_from_legacy_vectors(images, offsets, scales);
             track::detect::Sam3PromptsPerImage prompt_lists;
             prompt_lists.reserve(py::len(prompts_per_image));
             for(py::handle item : prompts_per_image) {
@@ -612,8 +954,7 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
             return track::detect::Sam3Input{
                 track::detect::YoloInput{
                     std::move(images),
-                    std::move(offsets),
-                    std::move(scales),
+                    std::move(geometries),
                     std::move(orig_id)
                 },
                 std::move(prompt_lists)
@@ -700,6 +1041,10 @@ PYBIND11_EMBEDDED_MODULE(TRex, m) {
         auto line_no = line_no_py.cast<uint32_t>();
         
         FormatWarning(fmt::clr<FormatColor::DARK_GRAY>("[py "), fmt::clr<FormatColor::DARK_YELLOW>(no_quotes(filename)), fmt::clr<FormatColor::DARK_GRAY>(":"), fmt::clr<FormatColor::GREEN>(Meta::toStr(line_no)), fmt::clr<FormatColor::DARK_GRAY>("] "), text.c_str());
+    });
+
+    m.def("show_runtime_warning", [](std::string text) {
+        _display_runtime_warning(text);
     });
 
     m.def("video_size", []() -> pybind11::dict {
@@ -856,6 +1201,14 @@ void set_function_internal(const char* name_, T&& f, const std::string& m);
 void PythonIntegration::set_display_function(std::function<void(const std::string&, const cv::Mat&)> fn, std::function<void()> destroy_all_windows) {
     _mat_display = fn;
     _destroy_all_windows = destroy_all_windows;
+}
+
+void PythonIntegration::set_runtime_warning_function(
+    std::function<void(const std::string&)> display_runtime_warning
+) {
+    _display_runtime_warning = display_runtime_warning
+        ? std::move(display_runtime_warning)
+        : [](const std::string& message) { FormatWarning(message); };
 }
 
 void PythonIntegration::init() {
@@ -1635,11 +1988,11 @@ void PythonIntegration::set_function(const char* name_, std::function<void(const
     auto fn = [f](py::list batch) {
         std::vector<std::vector<cv::Mat>> batch_vector;
         // Each item in the batch is a list of images
-        for (const py::handle& img_list_handle : batch) {
+        for (py::handle img_list_handle : batch) {
             py::list img_list = py::cast<py::list>(img_list_handle);
 
             std::vector<cv::Mat> image_vector;
-            for (const py::handle& np_img_handle : img_list) {
+            for (py::handle np_img_handle : img_list) {
                 py::array_t<uint8_t> np_img = py::cast<py::array_t<uint8_t>>(np_img_handle);
                 py::buffer_info buf_info = np_img.request();
 

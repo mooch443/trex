@@ -4,6 +4,7 @@
 #include <gui/ControlsAttributes.h>
 #include <core/BlurryVideoLoop.h>
 #include <gui/types/Entangled.h>
+#include <gui/types/Layout.h>
 #include <gui/GuiTypes.h>
 #include <file/PathArray.h>
 #include <misc/Image.h>
@@ -59,6 +60,11 @@ public:
     Alpha alpha() const;
     void set_scale(const Vec2& scale) override;
 };
+
+namespace detail {
+template<>
+struct AllowDirectMakeArgs<GUIVideoAdapter, file::PathArray, IMGUIBase*, std::function<void(VideoInfo)>> : std::true_type {};
+}
 
 namespace attr {
 CMN_GUI_REGISTER_ATTRIBUTE_MEMBER(GUIVideoAdapter, Blur);

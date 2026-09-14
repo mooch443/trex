@@ -7,6 +7,10 @@
 #include <tracking/OutputLibraryTypes.h>
 #include <misc/SpriteMap.h>
 
+namespace track {
+class Tracker;
+}
+
 namespace cmn::gui {
 class Graph;
 }
@@ -22,7 +26,7 @@ namespace Output {
     //  Training data will consist of:
     //  frame | x | y | angle | length(v) | length(a) | ..
     //  .. | neighbor[1...N].rel[x,y,angle,len(v),len(a)]
-    bool save_focussed_on(const cmn::file::Path& file, const track::Individual* fish);
+    //bool save_focussed_on(const cmn::file::Path& file, const track::Individual* fish);
 
     struct LibraryFuncProperties {
         bool is_global{false};
@@ -52,7 +56,7 @@ namespace Output {
         typedef std::function<double LIBPARAM> FunctionType;
         
         ~Library() {}
-        static void Init();
+        static void Init(track::Tracker&);
         static void InitVariables();
         
         static void clear_cache();
@@ -64,8 +68,22 @@ namespace Output {
         
         static cached_output_fields_t get_cached_fields();
         static void init_graph(const cached_output_fields_t& output_fields, cmn::gui::Graph &graph, const track::Individual *fish, LibraryCache::Ptr cache = nullptr);
+        static void save_csv(const cached_output_fields_t& output_fields,
+                             const cmn::Range<cmn::Frame_t>& range,
+                             const track::Individual* fish,
+                             LibraryCache::Ptr cache,
+                             const cmn::file::Path& filename,
+                             std::function<void(float)>* percent_callback = nullptr);
+        static void save_npz(const cached_output_fields_t& output_fields,
+                             const cmn::Range<cmn::Frame_t>& range,
+                             const track::Individual* fish,
+                             LibraryCache::Ptr cache,
+                             const cmn::file::Path& filename,
+                             std::function<void(float)>* percent_callback = nullptr,
+                             bool quiet = false);
         static cached_output_fields_t parse_output_fields(const output_fields_t&);
         static bool has(const std::string& name);
+        //! Functions available for selection as output series. Structural fields are excluded.
         static std::vector<std::string_view> functions();
         
         static double pose(uint8_t index, uint8_t component, LibInfo info, cmn::Frame_t frame);

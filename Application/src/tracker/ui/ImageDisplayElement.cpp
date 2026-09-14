@@ -14,7 +14,7 @@ Layout::Ptr ImageDisplayElement::_create(dyn::LayoutContext& context) {
     auto scale = context.get(Vec2(1), "scale");
     auto color = context.get(Color(255,255,255,255), "color");
     auto parm = context.get(std::string(), "parm");
-    return Layout::Make<ExternalImage>(Image::Make(1,1,4), Vec2(0,0), scale, color);
+    return Layout::Make<ExternalImage>{Image::Make(1,1,4), Vec2(0,0), scale, color};
 }
 
 bool ImageDisplayElement::_update(Layout::Ptr& o,

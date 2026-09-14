@@ -9,9 +9,12 @@ env:
   # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
   BUILD_TYPE: Release
   MACOSX_DEPLOYMENT_TARGET: 11.0
+  CONDA_BLD_PATH: ${{ github.workspace }}/conda-bld
+  CONDA_REPODATA_USE_SHARDS: 'false'
   CONDA_BUILD_SYSROOT: /Applications/Xcode_26.3.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk
   SDKROOT: /Applications/Xcode_26.3.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk
   GITHUB_WORKFLOW: CondaBuildMacOS
+  MINIFORGE_VERSION: 26.5.3-0
 
 jobs:
   build:
@@ -47,33 +50,37 @@ jobs:
         CACHE_NUMBER: 1
       with:
         path: ~/conda_pkgs_dir
-        key: ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{ steps.envhash.outputs.hash }}
-    - uses: conda-incubator/setup-miniconda@v3
+        key: ${{ runner.os }}-${{ runner.arch }}-conda-${{ env.MINIFORGE_VERSION }}-${{ env.CACHE_NUMBER }}-${{ steps.envhash.outputs.hash }}
+    - uses: conda-incubator/setup-miniconda@fc2d68f6413eb2d87b895e92f8584b5b94a10167 # v3.3.0
       with:
-        miniforge-version: latest
-        activate-environment: base
+        miniforge-version: ${{ env.MINIFORGE_VERSION }}
+        activate-environment: ""
         channels: conda-forge
+        conda-remove-defaults: true
+        auto-activate: true
         auto-update-conda: false
-    - name: Get conda prefix
-      id: conda-prefix
-      shell: bash
-      run: echo "path=$CONDA" >> $GITHUB_OUTPUT
-    - name: Cache conda base environment
-      id: conda-env-cache
-      uses: actions/cache@v4
-      with:
-        path: ${{ steps.conda-prefix.outputs.path }}
-        key: ${{ runner.os }}-conda-env-1-${{ steps.envhash.outputs.hash }}
-    - name: Install environment into base
-      if: steps.conda-env-cache.outputs.cache-hit != 'true'
+        pkgs-dirs: ~/conda_pkgs_dir
+    - name: Install build environment into base
       shell: bash -el {0}
-      working-directory: ${{github.workspace}}
+      run: conda env update --name base --file .github/macos-environment-arm64.yml
+    - name: Verify fresh base build environment
+      shell: bash -el {0}
       run: |
-        echo "::group::Install environment into base"
-        conda env update --name base -f .github/macos-environment-arm64.yml
+        python_path=$(command -v python || true)
+        conda_build_path=$(command -v conda-build || true)
+        if [[ "${CONDA_DEFAULT_ENV:-}" != "base" || "$CONDA_PREFIX" != "$CONDA" \
+              || "$python_path" != "$CONDA_PREFIX/bin/python" \
+              || "$conda_build_path" != "$CONDA_PREFIX/bin/conda-build" ]]; then
+          echo "Conda build tooling must run from the fresh, uncached base prefix." >&2
+          echo "python: ${python_path:-missing}" >&2
+          echo "conda-build: ${conda_build_path:-missing}" >&2
+          exit 1
+        fi
         conda info
+        python --version
+        conda-build --version
+        python -c "from conda.base.context import context; assert not context.repodata_use_shards"
         conda list
-        echo "::endgroup::"
     - name: Create .condarc file
       run: |
         conda config --show channels
@@ -92,7 +99,7 @@ jobs:
     - name: Show current conda channels
       run: conda config --show channels
     - name: Build
-      shell: bash -l {0}
+      shell: bash -el {0}
       working-directory: ${{github.workspace}}
       run: |
         echo "::group::Info"
@@ -102,6 +109,7 @@ jobs:
         echo "::endgroup::"
         echo "::group::Fix Meta"
         cd $GITHUB_WORKSPACE/conda
+        python select_config.py minimal --force
         p=${GITHUB_REF_NAME}
         p_sanitized=${p//\//_}
         p_sanitized=${p_sanitized//-/_}
@@ -110,26 +118,89 @@ jobs:
         cat meta.yaml
         echo "::endgroup::"
         echo "::group::Fix PostLink"
-        sed -i.bak '/from ultralytics import YOLO/d' post-link.sh
         cat post-link.sh
         echo "::endgroup::"
         echo "::group::Build"
-        conda update --all --override-channels -c conda-forge -y
-        conda build . --override-channels -c conda-forge
+        conda-build . --override-channels -c conda-forge
         echo "::endgroup::"
         echo $CONDA_PREFIX
     - name: Test
-      shell: bash -l {0}
+      shell: bash -el {0}
       working-directory: ${{github.workspace}}
       run: |
         echo "::group::Test"
         echo $CONDA_PREFIX
         conda search --override-channels -c conda-forge numpy
-        conda create -y -n test --override-channels -c $CONDA_PREFIX/conda-bld/ -c conda-forge trex
+        conda create -y -n test --override-channels -c "$CONDA_BLD_PATH/" -c conda-forge trex
         conda activate test
         conda install -y git
+        python $GITHUB_WORKSPACE/conda/validate_post_link_installation.py
         pvinfo -opencv_ffmpeg_support
-        pvinfo -opencv_opencl_support
+        if pvinfo -opencv_opencl_support; then
+          echo "Minimal OpenCV unexpectedly reports OpenCL support." >&2
+          exit 1
+        fi
+        python $GITHUB_WORKSPACE/conda/validate_minimal.py
+        trex_binary="$CONDA_PREFIX/bin/TRex.app/Contents/MacOS/TRex"
+        linkage=$(otool -L "$trex_binary")
+        echo "$linkage"
+        for dependency in 'libopencv_(core|imgproc)' libpng libzip libavcodec; do
+          line=$(echo "$linkage" | grep -E "$dependency" | head -n 1 || true)
+          if [ -z "$line" ] || [[ "$line" != *"@rpath"* && "$line" != *"$CONDA_PREFIX"* ]]; then
+            echo "Dependency '$dependency' does not use the installed Conda RPATH: $line" >&2
+            exit 1
+          fi
+        done
+        transitive_libraries=()
+        while IFS= read -r linked_path; do
+          linked_name=${linked_path#@rpath/}
+          linked_library="$CONDA_PREFIX/lib/$linked_name"
+          if [ -f "$linked_library" ]; then
+            transitive_libraries+=("$linked_library")
+          fi
+        done < <(echo "$linkage" | awk '$1 ~ /^@rpath\// { print $1 }')
+        if [ "${#transitive_libraries[@]}" -eq 0 ]; then
+          echo "Could not resolve any direct Conda dylibs for transitive linkage inspection." >&2
+          exit 1
+        fi
+        transitive_linkage=$(otool -L "${transitive_libraries[@]}")
+        zlib_line=$(echo "$transitive_linkage" | grep -E 'libz\.' | head -n 1 || true)
+        if [ -z "$zlib_line" ] || [[ "$zlib_line" != *"@rpath"* && "$zlib_line" != *"$CONDA_PREFIX"* ]]; then
+          echo "Transitive zlib dependency does not use the installed Conda RPATH: $zlib_line" >&2
+          exit 1
+        fi
+        rpaths=$(otool -l "$trex_binary" | awk '
+          $1 == "cmd" && $2 == "LC_RPATH" { read_path = 1; next }
+          read_path && $1 == "path" { print $2; read_path = 0 }
+        ')
+        echo "LC_RPATH entries:"
+        printf '%s\n' "$rpaths"
+        expected_rpath=$(cd "$CONDA_PREFIX/lib" && pwd -P)
+        rpath_ok=false
+        while IFS= read -r rpath; do
+          [ -n "$rpath" ] || continue
+          candidate=""
+          case "$rpath" in
+            /*) candidate="$rpath" ;;
+            @loader_path|@loader_path/*)
+              candidate="$(dirname "$trex_binary")/${rpath#@loader_path}"
+              ;;
+            @executable_path|@executable_path/*)
+              candidate="$(dirname "$trex_binary")/${rpath#@executable_path}"
+              ;;
+          esac
+          if [ -n "$candidate" ] && [ -d "$candidate" ]; then
+            resolved_rpath=$(cd "$candidate" && pwd -P)
+            if [ "$resolved_rpath" = "$expected_rpath" ]; then
+              rpath_ok=true
+              break
+            fi
+          fi
+        done <<< "$rpaths"
+        if [ "$rpath_ok" != true ]; then
+          echo "TRex has no LC_RPATH resolving to the installed Conda lib directory: $expected_rpath" >&2
+          exit 1
+        fi
         echo "::endgroup::"
         echo "::group::TestFunctions"
         conda install -y unzip
@@ -147,9 +218,9 @@ jobs:
         packages=()
         while IFS= read -r -d '' pkg; do
           packages+=("$pkg")
-        done < <(find "$CONDA_PREFIX/conda-bld" -type f -name 'trex-*.conda' -print0)
+        done < <(find "$CONDA_BLD_PATH" -type f -name 'trex-*.conda' -print0)
         if [ "${#packages[@]}" -eq 0 ]; then
-          echo "No trex .conda packages found under $CONDA_PREFIX/conda-bld" >&2
+          echo "No trex .conda packages found under $CONDA_BLD_PATH" >&2
           exit 1
         fi
         latest=$(ls -t "${packages[@]}" | head -n 1)
@@ -190,7 +261,6 @@ jobs:
           ${{ github.workspace }}/videos/**/*.npz
           ${{ github.workspace }}/videos/**/*.results
           ${{ github.workspace }}/videos/**/*.pv
-          ${{ github.workspace }}/**/.messages.txt
         if-no-files-found: ignore
         retention-days: 7
         compression-level: 9

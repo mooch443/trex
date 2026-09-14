@@ -86,13 +86,13 @@ void unsetup() {
     fn();
 }
 
-DiscriminationData generate_discrimination_data(pv::File& video, const std::shared_ptr<TrainingData>& source) {
+DiscriminationData generate_discrimination_data(const Tracker& tracker, pv::File& video, const std::shared_ptr<TrainingData>& source) {
     GenerateDiscriminationDataFn fn;
     {
         std::lock_guard guard(runtime_mutex());
         fn = require(hooks().generate_discrimination_data, "generate_discrimination_data");
     }
-    return fn(video, source);
+    return fn(tracker, video, source);
 }
 
 UniquenessCalculation calculate_uniqueness(bool internal,
