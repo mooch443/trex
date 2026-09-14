@@ -419,8 +419,8 @@ TEST_F(TrackingFilenameResolutionTest, MissingOutputAndSourcePvReportsAttemptedP
             FAIL() << "Expected missing tracking input to throw.";
         } catch(const std::exception& error) {
             const std::string message = error.what();
-            EXPECT_NE(message.find(missing_output.str()), std::string::npos);
-            EXPECT_NE(message.find(source.str()), std::string::npos);
+            EXPECT_NE(message.find(missing_output.toStr()), std::string::npos);
+            EXPECT_NE(message.find(source.toStr()), std::string::npos);
         }
     }
 }
@@ -443,9 +443,9 @@ TEST_F(TrackingFilenameResolutionTest, MultiplePvSourcesRequireAnUnambiguousTrac
         FAIL() << "Expected multiple tracking inputs without a matching output to throw.";
     } catch(const std::exception& error) {
         const std::string message = error.what();
-        EXPECT_NE(message.find(expected_missing.str()), std::string::npos);
-        EXPECT_NE(message.find(first.str()), std::string::npos);
-        EXPECT_NE(message.find(second.str()), std::string::npos);
+        EXPECT_NE(message.find(expected_missing.toStr()), std::string::npos);
+        EXPECT_NE(message.find(first.toStr()), std::string::npos);
+        EXPECT_NE(message.find(second.toStr()), std::string::npos);
     }
 }
 
