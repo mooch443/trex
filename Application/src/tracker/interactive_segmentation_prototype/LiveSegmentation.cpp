@@ -15,6 +15,7 @@
 #include <processing/Background.h>
 #include <core/idx_t.h>
 #include <core/DetectionTypes.h>
+#include <core/default_config.h>
 #include <core/GPURecognitionTypes.h>
 #include <core/TileImage.h>
 #include <file/DataLocation.h>
@@ -877,7 +878,11 @@ void LiveSegmentation::_draw(DrawStructure& graph) {
     _bowl->set_target_focus({});
     
     auto coords = FindCoord::get();
-    _bowl->update(_current_frame.index, graph, coords);
+    // The prototype has no tracking repository; its bowl only draws shared shapes.
+    _bowl->update([&](Entangled&) {
+        if(READ_SETTING(gui_mode, mode_t::Class) == mode_t::tracking)
+            _bowl->draw_shapes(graph, coords);
+    });
     
     _current_image->set_scale(_bowl->_current_scale);
     _current_image->set_pos(_bowl->_current_pos);
