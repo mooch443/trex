@@ -82,7 +82,6 @@ struct TrackingScene::Data {
     std::unordered_map<Idx_t, Label_t> _labels;
     
     std::unique_ptr<TimingStatsCollector::HandleGuard> _display_handle, _waiting_handle;
-    Frame_t _last_displayed_frame;
     
     /// these will help updating some visual stuff whenever
     /// the tracker has added a new frame:
@@ -1681,6 +1680,8 @@ void TrackingScene::_draw(DrawStructure& graph) {
     {
         graph.root().set_dirty();
         last_dirty.reset();
+    } else {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 }
 

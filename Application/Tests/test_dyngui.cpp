@@ -1,5 +1,5 @@
-#include "gtest/gtest.h"
 #include <commons.pc.h>
+#include "gtest/gtest.h"
 #include <misc/parse_parameter_lists.h>
 #include <misc/Timer.h>
 #include <file/PathArray.h>
@@ -14,6 +14,7 @@
 #include <gui/types/ScrollableList.h>
 #include <gui/types/ErrorElement.h>
 #include <gui/types/Layout.h>
+#include <gui/types/SettingsTooltip.h>
 #include <gui/types/StaticText.h>
 #include <gui/types/TagList.h>
 #include <gui/dyn/UnresolvedStringPattern.h>   // for ResolveStringPattern tests
@@ -802,6 +803,109 @@ TEST(DynamicGUILocalSettings, ExistingGlobalSettingsStillCreateSettingsWidgets) 
     auto root = parse_object(&queue, objects.get_array().front().get_object(), context, state, context.defaults);
     ASSERT_TRUE(root);
     EXPECT_EQ(GlobalSettings::read_value<std::string>("dyngui_test_global_setting").value(), "global");
+}
+
+TEST(DynamicGUISettingsTest, BooleanSelectionDoesNotLeaveTooltipHovered) {
+    GlobalSettings::write([](Configuration& config) {
+        config.values["dyngui_test_hover_bool"] = false;
+        config.defaults["dyngui_test_hover_bool"] = false;
+        config.docs["dyngui_test_hover_bool"] = "Boolean setting for the tooltip hover regression.";
+    });
+
+    constexpr std::string_view json = R"json(
+{
+  "objects": [
+    {
+      "type": "settings",
+      "var": "",
+      "desc": "",
+      "pos": [10, 420],
+      "size": [500, 40]
+    }
+  ]
+}
+)json";
+
+    auto loaded = load(std::string(json));
+    ASSERT_TRUE(loaded.has_value()) << loaded.error();
+
+    auto [defaults, objects] = std::move(loaded.value());
+    GUITaskQueue_t queue;
+    DrawStructure graph(640, 480);
+    graph.set_dialog_window_size(Size2(640, 480));
+    Rect background(Box(0, 0, 640, 480), Clickable{true});
+    graph.wrap_object(background);
+
+    Context context;
+    context.defaults = std::move(defaults);
+    State state;
+    auto handler = std::make_shared<CurrentObjectHandler>();
+    state._current_object_handler = handler;
+
+    auto root = parse_object(&queue, objects.get_array().front().get_object(), context, state, context.defaults);
+    ASSERT_TRUE(root);
+    auto combo = state._last_settings_box;
+    ASSERT_TRUE(combo);
+    combo->set(ParmName{"dyngui_test_hover_bool"});
+    graph.wrap_object(*root);
+    graph.collect();
+
+    List* list = nullptr;
+    for(auto* child : combo->children()) {
+        if(auto* layout = dynamic_cast<Layout*>(child)) {
+            for(const auto& object : layout->objects()) {
+                if(object.is<List>())
+                    list = object.to<List>();
+            }
+        }
+    }
+    ASSERT_NE(list, nullptr);
+    ASSERT_TRUE(list->folded());
+    ASSERT_EQ(list->items().size(), 2u);
+    ASSERT_EQ(std::string(*list->items().at(1)), "true");
+
+    list->set_folded(false);
+    graph.collect();
+    auto* true_row = list->child<Rect*>(1);
+    ASSERT_NE(true_row, nullptr);
+    const auto row_center = center_of(*true_row);
+    ASSERT_EQ(graph.mouse_move(row_center.x, row_center.y), true_row);
+    ASSERT_TRUE(list->hovered());
+    ASSERT_TRUE(combo->hovered());
+    handler->update_tooltips(graph);
+    ASSERT_NE(handler->_tooltip_object, nullptr);
+    ASSERT_EQ(handler->_tooltip_object->other().lock().get(), combo.get());
+
+    ASSERT_EQ(graph.mouse_down(true), true_row);
+    graph.mouse_up(true);
+    EXPECT_TRUE(GlobalSettings::read_value<bool>("dyngui_test_hover_bool").value());
+    EXPECT_TRUE(list->folded());
+
+    // Mouse-up can hover an option again before the folded list removes its rows.
+    // Process that update before any further mouse movement can send a leave event.
+    queue.processTasks(nullptr, graph);
+    graph.collect();
+    EXPECT_FALSE(true_row->is_staged());
+    EXPECT_FALSE(true_row->hovered());
+    EXPECT_FALSE(list->hovered());
+    EXPECT_FALSE(combo->hovered());
+
+    ASSERT_EQ(graph.mouse_move(620, 20), &background);
+    EXPECT_EQ(graph.hovered_object(), &background);
+    handler->update_tooltips(graph);
+    EXPECT_EQ(handler->_tooltip_object, nullptr);
+
+    const auto label_center = center_of(*list);
+    graph.mouse_move(label_center.x, label_center.y);
+    ASSERT_TRUE(list->hovered());
+    ASSERT_TRUE(combo->hovered());
+    handler->update_tooltips(graph);
+    ASSERT_NE(handler->_tooltip_object, nullptr);
+    EXPECT_EQ(handler->_tooltip_object->other().lock().get(), combo.get());
+
+    ASSERT_EQ(graph.mouse_move(620, 20), &background);
+    handler->update_tooltips(graph);
+    EXPECT_EQ(handler->_tooltip_object, nullptr);
 }
 
 // ---------------------------------------------------------------------------

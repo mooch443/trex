@@ -345,6 +345,7 @@ void AnimatedBackground::before_draw() {
             //set_content_changed(false);
         }
         Entangled::before_draw();
+        set_animating(false);
         return;
     }
     
