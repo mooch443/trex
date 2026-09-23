@@ -14,6 +14,7 @@ import sys
 import tempfile
 import textwrap
 import unittest
+from urllib.parse import urlsplit
 
 
 REPOSITORY = Path(__file__).resolve().parents[1]
@@ -553,7 +554,7 @@ class PostLinkSimulationMixin:
                 arguments[position + 1]
                 for position, value in enumerate(arguments[:-1])
                 if value == "--extra-index-url"
-                and "download.pytorch.org" in str(arguments[position + 1])
+                and urlsplit(str(arguments[position + 1])).hostname == "download.pytorch.org"
             ]
             self.assertEqual(pytorch_extra_indexes, [])
 
