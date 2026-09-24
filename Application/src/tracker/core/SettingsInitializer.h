@@ -79,6 +79,7 @@ struct LoadContext {
     
     void estimate_meta_variables();
     
+    void check_output_dir();
     void finalize();
 };
 

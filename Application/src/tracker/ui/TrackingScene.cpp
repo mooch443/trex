@@ -1674,15 +1674,21 @@ void TrackingScene::_draw(DrawStructure& graph) {
     //if(not graph.root().is_dirty() && not graph.root().is_animating())
     //    std::this_thread::sleep_for(std::chrono::milliseconds(((IMGUIBase*)window())->focussed() ? 10 : 200));
     //Print("dirty = ", graph.root().is_dirty());
-    if(graph.root().is_dirty())
+    if(graph.root().is_dirty()) {
         last_dirty.reset();
+        //Print("* dirty");
+    }
     else if(last_dirty.elapsed() > 0.25)
     {
         graph.root().set_dirty();
         last_dirty.reset();
-    } else {
+        //Print("* default reset");
+    } else if(last_dirty.elapsed() >= 0.05) {
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
-    }
+        //Print("* waiting");
+    } /*else {
+        Print("Nothing happens but we keep polling a bit");
+    }*/
 }
 
 void TrackingScene::next_poi(Idx_t _s_fdx) {

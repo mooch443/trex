@@ -59,6 +59,8 @@ class AnimatedBackground : public Entangled {
     
     GETTER(Frame_t, displayed_frame);
     
+    std::shared_ptr<bool> _exists = std::make_shared<bool>(true);
+    std::weak_ptr<bool> _exists_weak = std::weak_ptr(_exists);
     FramePreloader<Image::Ptr> preloader;
     std::atomic<bool> _strict{false};
     
@@ -70,6 +72,9 @@ public:
     AnimatedBackground(AnimatedBackground&&) = delete;
     AnimatedBackground& operator=(const AnimatedBackground&) = delete;
     AnimatedBackground& operator=(AnimatedBackground&&) = delete;
+    
+    ~AnimatedBackground();
+    void pushed_frame(Frame_t index);
     
     void set_color(const Color&);
     const Color& color() const;

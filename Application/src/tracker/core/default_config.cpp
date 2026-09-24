@@ -736,6 +736,7 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         Adding adding(config);
         
         CONFIG("app_name", std::string("TRex"), "Name of the application.", SYSTEM);
+        CONFIG("quiet", false, "Disables most terminal outputs.", SYSTEM);
         CONFIG("app_check_for_updates", app_update_check_t::none, "If enabled, the application will regularly check for updates online (`https://api.github.com/repos/mooch443/trex/releases`).");
         CONFIG("app_last_update_check", uint64_t(0), "Time-point of when the application has last checked for an update.", SYSTEM);
         CONFIG("app_last_update_version", std::string(), "Last release tag observed during the most recent update check.", SYSTEM);
@@ -1454,6 +1455,18 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             "track_background_subtraction"
         };
         
+        if(const auto output_dir = READ_SETTING_WITH_DEFAULT(output_dir, file::Path{});
+           not output_dir.empty())
+        {
+            explicitly_include.insert("output_dir");
+        }
+        
+        if(const auto output_prefix = READ_SETTING_WITH_DEFAULT(output_prefix, std::string{});
+           not output_prefix.empty())
+        {
+            explicitly_include.insert("output_prefix");
+        }
+        
         if(auto type = READ_SETTING(detect_type, track::detect::ObjectDetectionType_t);
            type == track::detect::ObjectDetectionType::yolo
            || READ_SETTING_WITH_DEFAULT(track_detect_annotations, track::detect::AnnotationMap{}))
@@ -1676,7 +1689,7 @@ inline bool isRunningInAppBundle() {
                 return {};
             if(not filename.empty() && filename.is_absolute()) {
 #ifndef NDEBUG
-                if(!GlobalSettings::is_runtime_quiet())
+                if(!GlobalSettings::is_runtime_quiet(&map))
                     Print("Returning absolute path ",filename.str(),". We cannot be sure this is writable.");
 #endif
                 return filename;

@@ -80,7 +80,7 @@ struct GUICache::LoadingState {
             },
             [this](FramePtr&& ptr) {
                 buffers.move_back(std::move(ptr));
-            }, TimingMetric_t::PVRequest, TimingMetric_t::PVLoad, TimingMetric_t::PVWaiting)
+            }, nullptr, TimingMetric_t::PVRequest, TimingMetric_t::PVLoad, TimingMetric_t::PVWaiting)
     { }
 };
 
@@ -1533,7 +1533,6 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
                         auto it = _fish_map.find(id);
                         if(it == _fish_map.end())
                             continue;
-                        
                         auto fish = individuals.at(it->first);
                         
                         /// this is to prevent a race condition

@@ -64,6 +64,19 @@ struct UpdateSettings {
     class Fish {
         GETTER_NCONST(Entangled, view);
         Label* _label { nullptr };
+        
+        /// front-buffer
+        derived_ptr<Entangled> _outline_container;
+        derived_ptr<Line> _draw_outline;
+        std::vector<derived_ptr<Line>> _draw_holes;
+        
+        /// back-buffer for vertex lines
+        bool needs_swap{false};
+        derived_ptr<Line> _buffer_draw_outline;
+        std::vector<derived_ptr<Line>> _buffer_draw_holes;
+        
+        Line::Vertices_t oline;
+        //std::vector<Line::Vertices_t> glines;
 
         GETTER(Frame_t, frame);
         Frame_t _safe_frame;

@@ -361,10 +361,12 @@ target_link_libraries(test_tracking_export_e2e PUBLIC
 trex_link_static_python_impl(test_tracking_export_e2e)
 
 target_link_libraries(test_tracking_filename_resolution PUBLIC
+    tracker_tracking
     tracker_misc
     pv
     commons
 )
+trex_link_static_python_impl(test_tracking_filename_resolution)
 
 target_link_libraries(test_dispatcher PUBLIC
     tracker_gui
@@ -526,7 +528,16 @@ set_tests_properties(test-detection-pipeline-failures PROPERTIES TIMEOUT 300)
 add_test(NAME test-tracking-export-e2e COMMAND test_tracking_export_e2e)
 trex_prepend_test_path(test-tracking-export-e2e trex_check_python)
 set_tests_properties(test-tracking-export-e2e PROPERTIES TIMEOUT 600)
-add_test(NAME test-tracking-filename-resolution COMMAND test_tracking_filename_resolution)
+add_test(NAME test-tracking-filename-resolution COMMAND test_tracking_filename_resolution
+    "--gtest_filter=-OutputSettingsInitialization/*:OutputSettingsDelta/*:OutputSettingsRoundTripTest.*")
+add_test(NAME test-output-settings-initialization COMMAND test_tracking_filename_resolution
+    "--gtest_filter=OutputSettingsInitialization/*")
+add_test(NAME test-output-settings-delta COMMAND test_tracking_filename_resolution
+    "--gtest_filter=OutputSettingsDelta/*")
+set_tests_properties(test-output-settings-delta PROPERTIES DEPENDS test-output-settings-initialization)
+add_test(NAME test-output-settings-round-trip COMMAND test_tracking_filename_resolution
+    "--gtest_filter=OutputSettingsRoundTripTest.*")
+set_tests_properties(test-output-settings-round-trip PROPERTIES DEPENDS test-output-settings-delta)
 add_test(NAME test-pvinfo-blob-detail-quiet
     COMMAND $<TARGET_FILE:pvinfo>
         -i "${CMAKE_SOURCE_DIR}/../videos/test.pv"

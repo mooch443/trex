@@ -124,11 +124,12 @@ Float2_t infer_meta_real_width_from(const pv::File& file, const sprite::Map* map
 
     if(not meta_real_width || *meta_real_width == 0_F) {
         if(file.header().meta_real_width <= 0) {
-            FormatWarning(
-                "This video does not set `",
-                no_quotes(key),
-                "`. Please set this value during conversion (see https://trex.run/docs/parameters_trex.html#meta_real_width for details). Defaulting to 30cm."
-            );
+            if(not READ_SETTING_WITH_DEFAULT(quiet, false))
+                FormatWarning(
+                    "This video does not set `",
+                    no_quotes(key),
+                    "`. Please set this value during conversion (see https://trex.run/docs/parameters_trex.html#meta_real_width for details). Defaulting to 30cm."
+                );
             return 30_F;
         }
         return file.header().meta_real_width;

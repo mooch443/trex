@@ -1201,7 +1201,8 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const PixelArray
         ref.seek(index_offset);
         assert(index_offset == ref.tell());
         
-        Print("Index table is ",FileSize(index_table.size() * sizeof(decltype(index_table)::value_type))," big @ ", index_offset);
+        if(not READ_SETTING_WITH_DEFAULT(quiet, false))
+            Print("Index table is ",FileSize(index_table.size() * sizeof(decltype(index_table)::value_type))," big @ ", index_offset);
         //Print("Index table (",index_table.size(),"): ", index_table);
         for (auto index : index_table) {
             ref.write<decltype(index_table)::value_type>(index);
@@ -1233,7 +1234,8 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const PixelArray
             ref.Data::write_data(_average_offset, average->size(), (char*)average->data());
         }
         
-        Print("Updated number of frames with ",this->num_frames,", index offset ",this->index_offset,", timestamp ",this->timestamp,", ", _meta_offset);
+        if(not READ_SETTING_WITH_DEFAULT(quiet, false))
+            Print("Updated number of frames with ",this->num_frames,", index offset ",this->index_offset,", timestamp ",this->timestamp,", ", _meta_offset);
         
         ref.truncate();
     }

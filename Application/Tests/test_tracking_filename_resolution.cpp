@@ -12,6 +12,8 @@
 #include <misc/GlobalSettings.h>
 #include <misc/ranges.h>
 #include <pv.h>
+#include <tracking/Output.h>
+#include <tracking/Tracker.h>
 #include <video/VideoSource.h>
 
 using namespace cmn;
@@ -108,6 +110,7 @@ void reset_global_settings() {
     });
     GlobalSettings::set_current_defaults({});
     GlobalSettings::set_current_defaults_with_config({});
+    SETTING(quiet) = true;
 }
 
 file::Path guppies_video_fixture() {
@@ -324,6 +327,715 @@ TEST_F(TrackingFilenameResolutionTest, TrackingFilenameUsesOutputLocationWithSep
     EXPECT_EQ(READ_SETTING(filename, file::Path), expected);
     EXPECT_EQ(file::DataLocation::parse("output", file::Path("data")),
               file::Path((root / "output/session/data").string()));
+}
+
+// Policy: A matching directory name in the source does not consume output_prefix.
+// Explicit output options determine export paths independently of settings files.
+TEST_F(TrackingFilenameResolutionTest, ExportsUseExplicitBaseForPrefixedPvSource) {
+    const auto source = create_regular_file(output_dir / "session" / "filename.pv");
+    ASSERT_TRUE(source.is_absolute());
+    SETTING(source) = file::PathArray(source);
+    SETTING(output_dir) = file::Path{};
+    SETTING(output_prefix) = std::string("session");
+
+    EXPECT_EQ(file::DataLocation::parse("output", "data"),
+              output_dir / "session" / "session" / "data");
+
+    SETTING(output_dir) = output_dir;
+
+    EXPECT_EQ(file::DataLocation::parse("output", "data"),
+              output_dir / "session" / "data");
+}
+
+// Policy: Settings default to the PV's directory. Explicit output options select
+// the settings location for both reading and writing.
+TEST_F(TrackingFilenameResolutionTest, PvSettingsPathsFollowExplicitOutputOptions) {
+    const auto source = create_regular_file(input_dir / "session" / "recording.pv");
+    SETTING(source) = file::PathArray{source};
+    for(const auto& [use_output_dir, use_output_prefix] : {
+        std::pair{false, false}, std::pair{true, false}, std::pair{false, true}, std::pair{true, true}
+    }) {
+        SCOPED_TRACE(::testing::Message()
+            << "Explicit output_dir=" << use_output_dir << ", output_prefix=" << use_output_prefix);
+        SETTING(filename) = file::Path{};
+        SETTING(output_dir) = use_output_dir ? output_dir : file::Path{};
+        SETTING(output_prefix) = std::string(use_output_prefix ? "chosen" : "");
+        auto selected_dir = use_output_dir ? output_dir : source.remove_filename();
+        if(use_output_prefix)
+            selected_dir = selected_dir / "chosen";
+        const auto settings_file = selected_dir / "recording.settings";
+
+        EXPECT_EQ(file::DataLocation::parse("settings"), settings_file)
+            << "Settings lookup must use this run's output options.";
+
+        // The GUI resolves the PV filename before saving its settings.
+        SETTING(filename) = source.remove_extension();
+        EXPECT_EQ(file::DataLocation::parse("output_settings"), settings_file)
+            << "Settings saving must use the same selected output location.";
+        EXPECT_EQ(file::DataLocation::parse("output", "data"), selected_dir / "data");
+    }
+}
+
+struct OutputSettingsInitializationCase {
+    const char* name;
+    std::optional<std::string> source;
+    std::optional<std::string> prefix;
+    std::optional<std::string> output_dir;
+    std::optional<std::string> expected_output_dir;
+    std::string expected_prefix;
+};
+
+// Paths are relative to the fixture root; an engaged empty path denotes that root.
+const OutputSettingsInitializationCase output_settings_initialization_cases[] {
+    {"SourceOnly", "input/run/f.mov", {}, {}, {}, ""},
+    {"SourceAndOutputDir", "input/run/f.mov", {}, "output", "output", ""},
+    {"SourceAndPrefix", "input/run/f.mov", "run", {}, "input/run", "run"},
+    {"SourcePrefixAndOutputDir", "input/run/f.mov", "run", "output", "output", "run"},
+    {"RedundantOutputDir", "input/run/f.mov", {}, "input/run", {}, ""},
+    {"RedundantOutputDirWithPrefix", "input/run/f.mov", "run", "input/run", "input/run", "run"},
+    {"PvWithinPrefix", "input/run/f.pv", "run", {}, "input/run", "run"},
+    {"PvOutsidePrefix", "input/f.pv", "run", {}, "input", "run"},
+    {"NoSourcePrefixOrOutputDir", {}, {}, {}, {}, ""},
+    {"OutputDirOnly", {}, {}, "output", "output", ""},
+    {"PrefixOnly", {}, "run", {}, "", "run"},
+    {"PrefixAndOutputDir", {}, "run", "output", "output", "run"}
+};
+
+void PrintTo(const OutputSettingsInitializationCase& p, std::ostream* os) {
+    *os << p.name << " s=" << Meta::toStr(p.source) << " p:" << Meta::toStr(p.prefix) << " o:" << Meta::toStr(p.output_dir) << " oexp:" << Meta::toStr(p.expected_output_dir) << " pexp:" << Meta::toStr(p.expected_prefix);
+}
+
+class OutputSettingsInitializationTest
+    : public SettingsPrecedenceTest,
+      public ::testing::WithParamInterface<OutputSettingsInitializationCase> {};
+
+// Policy: With an explicitly supplied prefix, an unset output directory uses the source
+// parent without stripping matching directory names. Without a prefix, redundant
+// source-parent directories are cleared. Explicit non-default directories are retained.
+TEST_P(OutputSettingsInitializationTest, CheckOutputDirectory) {
+    const auto& test = GetParam();
+    const ScopedCurrentPath current_path(root);
+    char executable[] = "test_tracking_filename_resolution";
+    char* argv[] {executable, nullptr};
+    CommandLine::init(1, argv, true);
+    const auto base = file::Path(root.string());
+    ASSERT_EQ(CommandLine::instance().launch_dir(), base);
+
+    settings::LoadContext context{.quiet = true};
+    default_config::get(context.combined);
+    const auto source = test.source
+        ? file::PathArray(create_regular_file(base / *test.source))
+        : file::PathArray{};
+    context.source = source;
+    if(test.source)
+        context.combined.values["source"] = source;
+    if(test.prefix)
+        context.combined.values["output_prefix"] = *test.prefix;
+    if(test.output_dir)
+        context.combined.values["output_dir"] = base / *test.output_dir;
+
+    SCOPED_TRACE(::testing::Message()
+        << "LoadContext::check_output_dir() only; no settings files or PV metadata loaded."
+        << "\nsource=" << source.toStr()
+        << "\ninput output_dir=" << context.combined.at("output_dir").get().valueString()
+        << "\ninput output_prefix=" << context.combined.at("output_prefix").get().valueString());
+    context.check_output_dir();
+
+    const auto expected_dir = test.expected_output_dir
+        ? base / *test.expected_output_dir
+        : file::Path{};
+    EXPECT_EQ(context.combined.at("output_dir").value<file::Path>(), expected_dir);
+    EXPECT_EQ(context.combined.at("output_prefix").value<std::string>(), test.expected_prefix);
+    EXPECT_EQ(context.combined.at("source").value<file::PathArray>(), source);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    OutputSettingsInitialization,
+    OutputSettingsInitializationTest,
+    ::testing::ValuesIn(output_settings_initialization_cases),
+    [](const ::testing::TestParamInfo<OutputSettingsInitializationCase>& info) {
+        return info.param.name;
+    });
+
+struct OutputSettingsDeltaCase {
+    const char* name;
+    std::optional<std::string> output_dir;
+    std::string prefix;
+    bool inherited_defaults;
+};
+
+void PrintTo(const OutputSettingsDeltaCase& p, std::ostream* os) {
+    *os << p.name << " o:" << Meta::toStr(p.output_dir) << " p:" << p.prefix << " inherit:" << Meta::toStr(p.inherited_defaults);
+}
+
+const OutputSettingsDeltaCase output_settings_delta_cases[] {
+    {"EmptyDefaults", {}, "", false},
+    {"CustomDirectory", "output", "", false},
+    {"SourceDirectoryAndPrefix", "input", "run", false},
+    {"CustomDirectoryAndPrefix", "output", "run", false},
+    {"LaunchDirectoryAndPrefix", "", "run", false},
+    {"InheritedDirectoryAndPrefix", "input", "run", true}
+};
+
+class OutputSettingsDeltaTest
+    : public SettingsPrecedenceTest,
+      public ::testing::WithParamInterface<OutputSettingsDeltaCase> {};
+
+// Policy: INIT serialization omits empty output defaults and retains configured
+// values, including inherited ones. Video-settings loading ignores these entries.
+TEST_P(OutputSettingsDeltaTest, WritesOutputValuesToSettingsFile) {
+    const auto& test = GetParam();
+    const auto directory = test.output_dir
+        ? file::Path(root.string()) / *test.output_dir
+        : file::Path{};
+    Configuration defaults;
+    default_config::get(defaults);
+    if(test.inherited_defaults) {
+        defaults.values["output_dir"] = directory;
+        defaults.values["output_prefix"] = test.prefix;
+    }
+    GlobalSettings::set_current_defaults(defaults.values);
+    SETTING(output_dir) = directory;
+    SETTING(output_prefix) = test.prefix;
+
+    auto delta = default_config::generate_delta_config(AccessLevelType::INIT);
+    {
+        SCOPED_TRACE("generate_delta_config(INIT), before serialization");
+        EXPECT_EQ(delta.map.contains("output_dir"), not directory.empty());
+        EXPECT_EQ(delta.map.contains("output_prefix"), not test.prefix.empty());
+        sprite::Map generated;
+        delta.write_to(generated);
+        if(generated.has("output_dir"))
+            EXPECT_EQ(generated.at("output_dir").value<file::Path>(), directory);
+        if(generated.has("output_prefix"))
+            EXPECT_EQ(generated.at("output_prefix").value<std::string>(), test.prefix);
+    }
+    const auto settings_file = file::Path(root.string()) / "delta.settings";
+    write_settings(settings_file, delta.to_settings());
+
+    SCOPED_TRACE(::testing::Message()
+        << "Config::to_settings() -> file -> load_from_file() into an empty map: "
+        << settings_file.str());
+    sprite::Map saved;
+    GlobalSettings::load_from_file(settings_file.str(), {
+        .deprecations = default_config::deprecations(),
+        .access = AccessLevelType::INIT,
+        .target = &saved,
+        .additional = &defaults.values
+    });
+    EXPECT_EQ(saved.has("output_dir"), not directory.empty());
+    EXPECT_EQ(saved.has("output_prefix"), not test.prefix.empty());
+    if(saved.has("output_dir"))
+        EXPECT_EQ(saved.at("output_dir").value<file::Path>(), directory);
+    if(saved.has("output_prefix"))
+        EXPECT_EQ(saved.at("output_prefix").value<std::string>(), test.prefix);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    OutputSettingsDelta,
+    OutputSettingsDeltaTest,
+    ::testing::ValuesIn(output_settings_delta_cases),
+    [](const ::testing::TestParamInfo<OutputSettingsDeltaCase>& info) {
+        return info.param.name;
+    });
+
+class OutputSettingsRoundTripTest : public SettingsPrecedenceTest {};
+
+// Policy: Reopening a PV using only its path loads adjacent settings without
+// restoring output options. Saving again writes beside the PV with no additional prefix.
+TEST_F(OutputSettingsRoundTripTest, ReopensPrefixedPvIgnoringSavedOutputLocation) {
+    const ScopedCurrentPath current_path(root);
+    reset_global_settings();
+    const auto source = copy_guppies_video_fixture(input_dir / "f.mp4");
+    sprite::Map overrides;
+    overrides["output_prefix"] = std::string("run");
+    overrides["output_csv_decimals"] = uint8_t(3);
+    settings::load(settings::LoadContext{
+        .source = file::PathArray{source},
+        .task = default_config::TRexTask_t::convert,
+        .type = track::detect::ObjectDetectionType::background_subtraction,
+        .source_map = std::move(overrides),
+        .quiet = true
+    });
+    ASSERT_EQ(READ_SETTING(output_dir, file::Path), input_dir)
+        << "Initial settings::load(convert): infer the source parent when a prefix is supplied.";
+    ASSERT_EQ(READ_SETTING(output_prefix, std::string), "run")
+        << "Initial settings::load(convert): retain the supplied prefix.";
+
+    SETTING(filename) = GlobalSettings::read([](const Configuration& config) {
+        return settings::find_output_name(config.values);
+    });
+    const auto video_base = READ_SETTING(filename, file::Path);
+    ASSERT_EQ(video_base, input_dir / "run" / "f")
+        << "find_output_name() after initialization: apply the prefix once.";
+    sprite::Map metadata;
+    metadata["detect_type"] = track::detect::ObjectDetectionType_t{
+        track::detect::ObjectDetectionType::background_subtraction
+    };
+    metadata["frame_rate"] = uint32_t(25);
+    write_pv(video_base, source, metadata);
+    const auto settings_file = video_base.add_extension("settings");
+    ASSERT_EQ(file::DataLocation::parse("output_settings"), settings_file)
+        << "settings::write_config() must target the config beside the PV.";
+    {
+        SCOPED_TRACE("generate_delta_config(INIT), before settings::write_config()");
+        const auto delta = default_config::generate_delta_config(AccessLevelType::INIT);
+        ASSERT_TRUE(delta.map.contains("output_dir"));
+        ASSERT_TRUE(delta.map.contains("output_prefix"));
+    }
+    settings::write_config(nullptr, true);
+    ASSERT_TRUE(settings_file.is_regular())
+        << "settings::write_config() did not create " << settings_file.str();
+
+    // Serialized output options must not affect the later load.
+    Configuration schema;
+    default_config::get(schema);
+    sprite::Map saved;
+    {
+        SCOPED_TRACE(::testing::Message()
+            << "Read settings::write_config() output into an empty map: " << settings_file.str());
+        GlobalSettings::load_from_file(settings_file.str(), {
+            .deprecations = default_config::deprecations(),
+            .access = AccessLevelType::INIT,
+            .target = &saved,
+            .additional = &schema.values
+        });
+        ASSERT_TRUE(saved.has("output_dir"));
+        ASSERT_EQ(saved.at("output_dir").value<file::Path>(), input_dir);
+        ASSERT_TRUE(saved.has("output_prefix"));
+        ASSERT_EQ(saved.at("output_prefix").value<std::string>(), "run");
+        ASSERT_TRUE(saved.has("output_csv_decimals"));
+        ASSERT_EQ(saved.at("output_csv_decimals").value<uint8_t>(), uint8_t(3));
+    }
+
+    reset_global_settings();
+    CommandLine::instance() = CommandLine{};
+    ASSERT_EQ(READ_SETTING(output_dir, file::Path), file::Path{})
+        << "Reset before reopening: output_dir must not leak from conversion.";
+    ASSERT_EQ(READ_SETTING(output_prefix, std::string), "")
+        << "Reset before reopening: output_prefix must not leak from conversion.";
+    ASSERT_NE(READ_SETTING(output_csv_decimals, uint8_t), uint8_t(3))
+        << "Reset before reopening: the marker must come from the saved settings.";
+    SCOPED_TRACE(::testing::Message()
+        << "settings::load(track) reopening " << video_base.add_extension("pv").str()
+        << "\nVerified adjacent config: " << settings_file.str()
+        << "\nSaved output_dir=" << input_dir.str() << "; output_prefix=\"run\"");
+    settings::load(settings::LoadContext{
+        .source = file::PathArray{video_base.add_extension("pv")},
+        .task = default_config::TRexTask_t::track,
+        .quiet = true
+    });
+
+    EXPECT_EQ(READ_SETTING(source, file::PathArray), file::PathArray{video_base.add_extension("pv")})
+        << "Reload must retain the requested PV source.";
+
+    // The loader's baseline records accepted settings independently of the
+    // final output-directory normalization and copying to GlobalSettings.
+    const auto loaded = GlobalSettings::read(
+        [](const sprite::Map&, const sprite::Map& with_config) {
+            return with_config;
+        });
+    ASSERT_TRUE(loaded.has("output_csv_decimals"))
+        << "The config exists and parses independently, but its marker never reached "
+           "current_defaults_with_config. Check settings-file selection and load_settings_file().";
+    ASSERT_EQ(loaded.at("output_csv_decimals").value<uint8_t>(), uint8_t(3))
+        << "load_settings_file() did not retain the marker from the adjacent config.";
+
+    for(const auto* key : {"output_dir", "output_prefix"}) {
+        SCOPED_TRACE(key);
+        EXPECT_FALSE(loaded.has(key))
+            << "The adjacent config's marker was loaded, but its output options must be "
+               "excluded from current_defaults_with_config.";
+    }
+
+    EXPECT_EQ(READ_SETTING(output_dir, file::Path), file::Path{})
+        << "Opening only the PV must leave output_dir at its empty default.";
+    EXPECT_EQ(READ_SETTING(output_prefix, std::string), "")
+        << "The saved prefix and the PV's folder name must not supply an output_prefix.";
+    EXPECT_EQ(READ_SETTING(output_csv_decimals, uint8_t), uint8_t(3))
+        << "The marker reached the loaded baseline but was lost before final settings were applied.";
+    EXPECT_EQ(file::DataLocation::parse("settings"), settings_file)
+        << "Settings-path resolution after reload.";
+    EXPECT_EQ(file::DataLocation::parse("output", "data"), video_base.remove_filename() / "data")
+        << "Default exports stay beside the PV.";
+
+    // The GUI resolves the selected PV before delegating saving to write_config().
+    resolve_tracking_filename();
+    ASSERT_EQ(READ_SETTING(filename, file::Path), video_base);
+    ASSERT_EQ(file::DataLocation::parse("output_settings"), settings_file)
+        << "Saving must target the adjacent config without adding the saved prefix.";
+    SETTING(output_csv_decimals) = uint8_t(4);
+    auto video = pv::File::Read(video_base.add_extension("pv"));
+    settings::write_config(&video, true);
+
+    sprite::Map resaved;
+    GlobalSettings::load_from_file(settings_file.str(), {
+        .deprecations = default_config::deprecations(),
+        .access = AccessLevelType::INIT,
+        .target = &resaved,
+        .additional = &schema.values
+    });
+    ASSERT_TRUE(resaved.has("output_csv_decimals"));
+    EXPECT_EQ(resaved.at("output_csv_decimals").value<uint8_t>(), uint8_t(4))
+        << "Saving must update the same adjacent config.";
+    EXPECT_FALSE(resaved.has("output_dir"));
+    EXPECT_FALSE(resaved.has("output_prefix"));
+    EXPECT_FALSE(fs::exists((video_base.remove_filename() / "run" / "f.settings").str()));
+}
+
+// Policy: A new prefix selects a separate settings file without falling back to
+// the adjacent config. Saving creates that config while using the original PV.
+TEST_F(OutputSettingsRoundTripTest, CreatesPrefixedSettingsForExistingPv) {
+    const ScopedCurrentPath current_path(root);
+    reset_global_settings();
+    const auto video_base = input_dir / "recording";
+    const auto source = video_base.add_extension("pv");
+    sprite::Map metadata;
+    metadata["detect_type"] = track::detect::ObjectDetectionType_t{
+        track::detect::ObjectDetectionType::background_subtraction
+    };
+    metadata["frame_rate"] = uint32_t(25);
+    write_pv(video_base, input_dir / "recording.mp4", metadata);
+    ASSERT_FALSE(fs::exists((input_dir / "recording.mp4").str()));
+    const auto adjacent_settings = video_base.add_extension("settings");
+    write_settings(adjacent_settings, "output_csv_decimals = 3\n");
+    const auto selected_settings = input_dir / "trial" / "recording.settings";
+    ASSERT_FALSE(fs::exists(selected_settings.str()));
+
+    sprite::Map overrides;
+    overrides["output_prefix"] = std::string("trial");
+    settings::load(settings::LoadContext{
+        .source = file::PathArray{source},
+        .task = default_config::TRexTask_t::track,
+        .type = track::detect::ObjectDetectionType::background_subtraction,
+        .source_map = std::move(overrides),
+        .quiet = true
+    });
+
+    EXPECT_EQ(READ_SETTING(source, file::PathArray), file::PathArray{source});
+    EXPECT_EQ(READ_SETTING(output_dir, file::Path), input_dir);
+    EXPECT_EQ(READ_SETTING(output_prefix, std::string), "trial");
+    EXPECT_EQ(file::DataLocation::parse("settings"), selected_settings);
+    EXPECT_NE(READ_SETTING(output_csv_decimals, uint8_t), uint8_t(3))
+        << "A missing explicitly selected config must not load the adjacent config's marker.";
+
+    resolve_tracking_filename();
+    ASSERT_EQ(READ_SETTING(filename, file::Path), video_base);
+    ASSERT_EQ(file::DataLocation::parse("output_settings"), selected_settings);
+    SETTING(output_csv_decimals) = uint8_t(5);
+    auto video = pv::File::Read(source);
+    settings::write_config(&video, true);
+    ASSERT_TRUE(fs::is_regular_file(selected_settings.str()));
+    EXPECT_FALSE(fs::exists((input_dir / "trial" / "recording.pv").str()));
+    EXPECT_EQ(adjacent_settings.read_file(), "output_csv_decimals = 3\n")
+        << "Saving an experiment must leave the adjacent config unchanged.";
+
+    Configuration schema;
+    default_config::get(schema);
+    sprite::Map saved;
+    GlobalSettings::load_from_file(selected_settings.str(), {
+        .deprecations = default_config::deprecations(),
+        .access = AccessLevelType::INIT,
+        .target = &saved,
+        .additional = &schema.values
+    });
+    ASSERT_TRUE(saved.has("output_csv_decimals"));
+    EXPECT_EQ(saved.at("output_csv_decimals").value<uint8_t>(), uint8_t(5));
+}
+
+// Policy: A prefix chosen after opening a PV redirects settings and results.
+// Reopening the original PV with that prefix selects the saved experiment.
+TEST_F(OutputSettingsRoundTripTest, ReopensSettingsAndResultsAfterChangingPrefixWhileTracking) {
+    const ScopedCurrentPath current_path(root);
+    reset_global_settings();
+    const auto pv_dir = input_dir / "pv";
+    const auto video_base = pv_dir / "recording";
+    const auto source = video_base.add_extension("pv");
+    sprite::Map metadata;
+    metadata["detect_type"] = track::detect::ObjectDetectionType_t{
+        track::detect::ObjectDetectionType::background_subtraction
+    };
+    metadata["frame_rate"] = uint32_t(25);
+    write_pv(video_base, input_dir / "recording.mov", metadata);
+    const auto adjacent_settings = video_base.add_extension("settings");
+    write_settings(adjacent_settings, "track_threshold = 37\n");
+    const auto selected_dir = pv_dir / "tmp";
+    const auto selected_settings = selected_dir / "recording.settings";
+    const auto selected_results = selected_dir / "recording.results";
+
+    {
+        SCOPED_TRACE("Open the PV without output options");
+        settings::load(settings::LoadContext{
+            .source = file::PathArray{source},
+            .task = default_config::TRexTask_t::track,
+            .quiet = true
+        });
+        ASSERT_EQ(READ_SETTING(output_dir, file::Path), file::Path{});
+        ASSERT_EQ(READ_SETTING(output_prefix, std::string), "");
+        ASSERT_EQ(READ_SETTING(track_threshold, int), 37);
+        resolve_tracking_filename();
+        ASSERT_EQ(READ_SETTING(filename, file::Path), video_base);
+        ASSERT_EQ(file::DataLocation::parse("output_settings"), adjacent_settings);
+        ASSERT_EQ(Output::TrackingResults::expected_filename(), video_base.add_extension("results"));
+    }
+
+    {
+        SCOPED_TRACE("Change the prefix while tracking, then save results and config");
+        auto video = pv::File::Read(source);
+        SETTING(video_length) = uint64_t(video.length().get());
+        SETTING(meta_encoding) = video.header().encoding;
+        auto background = Image::Make(16, 16, 1);
+        background->set_to(0u);
+        auto tracker = track::Tracker::Make(std::move(background), video.header().encoding, Float2_t(16));
+
+        // GUI edits update settings without rerunning LoadContext::check_output_dir().
+        SETTING(output_prefix) = std::string("tmp");
+        SETTING(track_threshold) = 61;
+        ASSERT_EQ(READ_SETTING(output_dir, file::Path), file::Path{});
+        ASSERT_EQ(READ_SETTING(filename, file::Path), video_base);
+        ASSERT_EQ(file::DataLocation::parse("output_settings"), selected_settings);
+        ASSERT_EQ(Output::TrackingResults::expected_filename(), selected_results);
+
+        Output::TrackingResults results(tracker);
+        ASSERT_NO_THROW(results.save());
+        ASSERT_TRUE(fs::is_regular_file(selected_results.str()));
+        ASSERT_NO_THROW(settings::write_config(&video, true));
+        ASSERT_TRUE(fs::is_regular_file(selected_settings.str()));
+        EXPECT_EQ(adjacent_settings.read_file(), "track_threshold = 37\n");
+        EXPECT_FALSE(fs::exists(video_base.add_extension("results").str()));
+        EXPECT_FALSE(fs::exists((selected_dir / "recording.pv").str()));
+        EXPECT_FALSE(fs::exists((selected_dir / "tmp").str()));
+
+        Configuration schema;
+        default_config::get(schema);
+        sprite::Map saved;
+        GlobalSettings::load_from_file(selected_settings.str(), {
+            .deprecations = default_config::deprecations(),
+            .access = AccessLevelType::INIT,
+            .target = &saved,
+            .additional = &schema.values
+        });
+        ASSERT_TRUE(saved.has("track_threshold"));
+        EXPECT_EQ(saved.at("track_threshold").value<int>(), 61)
+            << "The changed tracking setting must reach the config on disk.";
+    }
+
+    reset_global_settings();
+    CommandLine::instance() = CommandLine{};
+    ASSERT_NE(READ_SETTING(track_threshold, int), 61);
+    ASSERT_EQ(READ_SETTING(output_dir, file::Path), file::Path{});
+    ASSERT_EQ(READ_SETTING(output_prefix, std::string), "");
+
+    SCOPED_TRACE("Reopen with only the original -i and -p tmp");
+    CommandLine::instance().add_setting("source", source.str());
+    CommandLine::instance().add_setting("output_prefix", "tmp");
+    sprite::Map command_line;
+    CommandLine::instance().load_settings(command_line);
+    settings::load(settings::LoadContext{
+        .source = file::PathArray{source},
+        .task = default_config::TRexTask_t::track,
+        .source_map = std::move(command_line),
+        .quiet = true
+    });
+
+    EXPECT_EQ(READ_SETTING(source, file::PathArray), file::PathArray{source});
+    EXPECT_EQ(READ_SETTING(output_dir, file::Path), pv_dir);
+    EXPECT_EQ(READ_SETTING(output_prefix, std::string), "tmp");
+    EXPECT_EQ(file::DataLocation::parse("settings"), selected_settings);
+    EXPECT_EQ(READ_SETTING(track_threshold, int), 61)
+        << "Reopening must load the saved experiment instead of the adjacent config.";
+    resolve_tracking_filename();
+    ASSERT_EQ(READ_SETTING(filename, file::Path), video_base);
+    EXPECT_EQ(file::DataLocation::parse("output_settings"), selected_settings);
+    ASSERT_EQ(Output::TrackingResults::expected_filename(), selected_results);
+    const auto header = Output::TrackingResults::load_header(Output::TrackingResults::expected_filename());
+    EXPECT_EQ(header.video_resolution, Size2(16, 16));
+    EXPECT_EQ(header.video_length, uint64_t(1));
+    EXPECT_FALSE(fs::exists((input_dir / "recording.mov").str()));
+}
+
+// Policy: Explicit output options are applied on each load independently of
+// the settings left by the preceding load.
+TEST_F(SettingsPrecedenceTest, ReloadingPrefixedPvPreservesExplicitOutputOptions) {
+    const ScopedCurrentPath current_path(root);
+    const auto source = copy_guppies_video_fixture(input_dir / "recording.mp4");
+    const auto video_base = input_dir / "session" / "recording";
+    sprite::Map metadata;
+    metadata["detect_type"] = track::detect::ObjectDetectionType_t{
+        track::detect::ObjectDetectionType::background_subtraction
+    };
+    write_pv(video_base, source, metadata);
+
+    for(const auto& directory : {file::Path{}, output_dir}) {
+        SCOPED_TRACE(directory.str());
+        reset_global_settings();
+        CommandLine::instance() = CommandLine{};
+        sprite::Map overrides;
+        overrides["output_prefix"] = std::string("session");
+        if(not directory.empty())
+            overrides["output_dir"] = directory;
+        const auto expected_dir = directory.empty() ? video_base.remove_filename() : directory;
+
+        for(const int load_number : {1, 2}) {
+            SCOPED_TRACE(load_number);
+            settings::load(settings::LoadContext{
+                .source = file::PathArray{video_base.add_extension("pv")},
+                .task = default_config::TRexTask_t::track,
+                .type = track::detect::ObjectDetectionType::background_subtraction,
+                .source_map = overrides,
+                .quiet = true
+            });
+
+            EXPECT_EQ(READ_SETTING(output_dir, file::Path), expected_dir);
+            EXPECT_EQ(READ_SETTING(output_prefix, std::string), "session");
+            EXPECT_EQ(file::DataLocation::parse("output", "data"),
+                      expected_dir / "session" / "data");
+        }
+    }
+}
+
+// Policy: Explicit output options select the config for the input PV.
+// Saved output_dir/output_prefix never supply or replace those options.
+TEST_F(SettingsPrecedenceTest, PvSettingsIgnoreSavedOutputLocation) {
+    const ScopedCurrentPath current_path(root);
+    reset_global_settings();
+    const auto source = copy_guppies_video_fixture(input_dir / "recording.mp4");
+    const auto video_base = input_dir / "session" / "recording";
+    sprite::Map metadata;
+    metadata["detect_type"] = track::detect::ObjectDetectionType_t{
+        track::detect::ObjectDetectionType::background_subtraction
+    };
+    write_pv(video_base, source, metadata);
+    sprite::Map saved_settings;
+    saved_settings["output_dir"] = input_dir;
+    saved_settings["output_prefix"] = std::string("session");
+    saved_settings["output_csv_decimals"] = uint8_t(3);
+    write_settings(video_base.add_extension("settings"), saved_settings);
+    for(const auto& [use_output_dir, use_output_prefix] : {
+        std::pair{false, false}, std::pair{true, false}, std::pair{false, true}, std::pair{true, true}
+    }) {
+        SCOPED_TRACE(::testing::Message()
+            << "Explicit output_dir=" << use_output_dir << ", output_prefix=" << use_output_prefix
+            << "; saved output_dir=" << input_dir.str() << ", output_prefix=session");
+        reset_global_settings();
+        CommandLine::instance() = CommandLine{};
+        sprite::Map overrides;
+        if(use_output_dir)
+            overrides["output_dir"] = output_dir;
+        if(use_output_prefix)
+            overrides["output_prefix"] = std::string("chosen");
+        const auto expected_dir = use_output_dir
+            ? output_dir
+            : (use_output_prefix ? video_base.remove_filename() : file::Path{});
+        auto export_dir = use_output_dir ? output_dir : video_base.remove_filename();
+        if(use_output_prefix)
+            export_dir = export_dir / "chosen";
+
+        const auto settings_file = export_dir / "recording.settings";
+        const auto expected_marker = uint8_t(export_dir == video_base.remove_filename() ? 3 : 9);
+        if(export_dir != video_base.remove_filename()) {
+            fs::create_directories(export_dir.str());
+            sprite::Map selected_settings;
+            selected_settings["output_dir"] = input_dir;
+            selected_settings["output_prefix"] = std::string("session");
+            selected_settings["output_csv_decimals"] = expected_marker;
+            write_settings(settings_file, selected_settings);
+            ASSERT_FALSE(fs::exists((export_dir / "recording.pv").str()))
+                << "Selecting alternate settings must not require a copy of the PV.";
+        }
+
+        settings::load(settings::LoadContext{
+            .source = file::PathArray{video_base.add_extension("pv")},
+            .task = default_config::TRexTask_t::track,
+            .type = track::detect::ObjectDetectionType::background_subtraction,
+            .source_map = std::move(overrides),
+            .quiet = true
+        });
+
+        EXPECT_EQ(READ_SETTING(source, file::PathArray), file::PathArray{video_base.add_extension("pv")});
+        EXPECT_EQ(READ_SETTING(output_dir, file::Path), expected_dir)
+            << "The saved directory must not fill an omitted option or replace an explicit one.";
+        EXPECT_EQ(READ_SETTING(output_prefix, std::string), use_output_prefix ? "chosen" : "")
+            << "The saved prefix must not fill an omitted option or replace an explicit one.";
+        EXPECT_EQ(file::DataLocation::parse("settings"), settings_file)
+            << "Explicit output options select the settings file; without them, use the adjacent config.";
+        EXPECT_EQ(READ_SETTING(output_csv_decimals, uint8_t), expected_marker)
+            << "3 identifies the adjacent config; 9 identifies the explicitly selected config.";
+        EXPECT_EQ(file::DataLocation::parse("output", "data"), export_dir / "data");
+        EXPECT_EQ(GlobalSettings::read([](const Configuration& config) {
+                      return settings::find_existing_output_name(config.values);
+                  }),
+                  video_base)
+            << "All settings variants must track the same input PV.";
+    }
+}
+
+// Policy: With a prefix, explicitly selecting an ordinary video's parent retains
+// the output directory in both settings loading and reset.
+TEST_F(SettingsPrecedenceTest, OrdinaryVideoDefaultOutputDirectoryIsRetainedWithPrefix) {
+    const ScopedCurrentPath current_path(root);
+    const auto source = copy_guppies_video_fixture(input_dir / "recording.mp4");
+    for(const bool use_reset : {false, true}) {
+        SCOPED_TRACE(use_reset ? "reset" : "load");
+        reset_global_settings();
+        CommandLine::instance() = CommandLine{};
+        Configuration defaults;
+        default_config::get(defaults);
+        GlobalSettings::set_current_defaults(defaults.values);
+        sprite::Map overrides;
+        overrides["source"] = file::PathArray{source};
+        overrides["output_dir"] = input_dir;
+        overrides["output_prefix"] = std::string("session");
+        overrides["detect_type"] = track::detect::ObjectDetectionType_t{
+            track::detect::ObjectDetectionType::background_subtraction
+        };
+
+        if(use_reset) {
+            settings::reset(overrides);
+        } else {
+            settings::load(settings::LoadContext{
+                .source = file::PathArray{source},
+                .task = default_config::TRexTask_t::convert,
+                .type = track::detect::ObjectDetectionType::background_subtraction,
+                .source_map = std::move(overrides),
+                .quiet = true
+            });
+        }
+
+        EXPECT_EQ(READ_SETTING(output_dir, file::Path), input_dir);
+        EXPECT_EQ(READ_SETTING(output_prefix, std::string), "session");
+        EXPECT_EQ(file::DataLocation::parse("output", "data"),
+                  input_dir / "session" / "data");
+    }
+}
+
+// Policy: A nested prefix is applied to the inferred source parent even when
+// that parent already ends with matching directory names.
+TEST_F(SettingsPrecedenceTest, PrefixedPvSupportsNestedOutputPrefix) {
+    reset_global_settings();
+    const auto source = copy_guppies_video_fixture(input_dir / "recording.mp4");
+    const auto expected_dir = input_dir / "group" / "session";
+    const auto video_base = expected_dir / "recording";
+    sprite::Map metadata;
+    metadata["detect_type"] = track::detect::ObjectDetectionType_t{
+        track::detect::ObjectDetectionType::background_subtraction
+    };
+    write_pv(video_base, source, metadata);
+    sprite::Map overrides;
+    overrides["output_prefix"] = std::string("group/session");
+
+    settings::load(settings::LoadContext{
+        .source = file::PathArray{video_base.add_extension("pv")},
+        .task = default_config::TRexTask_t::track,
+        .type = track::detect::ObjectDetectionType::background_subtraction,
+        .source_map = std::move(overrides),
+        .quiet = true
+    });
+
+    EXPECT_EQ(READ_SETTING(output_dir, file::Path), expected_dir);
+    EXPECT_EQ(READ_SETTING(output_prefix, std::string), "group/session");
+    EXPECT_EQ(file::DataLocation::parse("output", "data"),
+              expected_dir / "group/session" / "data");
 }
 
 // Policy: Without a filename chosen by the user, the source video's basename selects
@@ -664,6 +1376,7 @@ TEST_F(TrackingFilenameResolutionTest, LoadContextRecentNestedOutputRestoresOrig
     sprite::Map recent_options;
     recent_options["output_dir"] = nested_output_dir;
     recent_options["output_prefix"] = output_prefix;
+    recent_options["quiet"] = true;
 
     settings::load(settings::LoadContext{
         .source = file::PathArray{stale_source},
@@ -1903,6 +2616,7 @@ TEST_F(SettingsPrecedenceTest, CommandLineOutputLocationAppliesToAbsoluteSources
             reset_global_settings();
             CommandLine::instance() = CommandLine{};
             SETTING(nowindow) = true;
+            SETTING(quiet) = true;
 
             CommandLine::instance().add_setting("source", input.source.str());
             if(input.task == default_config::TRexTask_t::convert

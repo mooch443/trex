@@ -38,7 +38,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
     file::DataLocation::register_path("merge", [](const sprite::Map& map, file::Path filename) -> file::Path {
         if(!filename.empty() && filename.is_absolute()) {
 #ifndef NDEBUG
-            if(GlobalSettings::is_runtime_quiet())
+            if(GlobalSettings::is_runtime_quiet(&map))
                 Print("Returning absolute path ", filename.str(), ". We cannot be sure this is writable.");
 #endif
             return filename;

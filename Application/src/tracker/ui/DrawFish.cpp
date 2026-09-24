@@ -676,6 +676,80 @@ Fish::~Fish() {
         {
             _recognition_radius = 0.f;
         }
+        
+        if(_cached_outline
+           && OPTION(gui_show_outline))
+        {
+            //if(points.empty())
+                points = _cached_outline->uncompress();
+
+            //float right_side = outline->tail_index() + 1;
+            //float left_side = points.size() - outline->tail_index();
+
+            oline.clear();
+            for (size_t i = 0; i < points.size(); i++) {
+                //auto& pt = points[i];
+                //Color c = _color;
+                /*if(outline->tail_index() != -1) {
+                    float d = cmn::abs(float(i) - float(outline->tail_index())) / ((long_t)i > outline->tail_index() ? left_side : right_side) * 0.4 + 0.5;
+                    c = Color(clr.r, clr.g, clr.b, max_color * d);
+                }*/
+                oline.push_back(Vertex(points[i], _color));
+            }
+            oline.push_back(Vertex(points.front(), _color.alpha(255 * 0.04)));
+            
+            if(not _buffer_draw_outline)
+                _buffer_draw_outline = Layout::Make<Line>(std::move(oline), Line::Thickness_t{OPTION(gui_outline_thickness)});
+            else {
+                assert(_buffer_draw_outline->parent() == nullptr || _buffer_draw_outline->parent()->stage() == nullptr);
+                _buffer_draw_outline->set(Line::Thickness_t{OPTION(gui_outline_thickness)});
+                _buffer_draw_outline->set(std::move(oline));
+            }
+            
+            //glines.clear();
+            //_buffer_draw_holes.clear();
+            
+            if(_basic_stuff
+               && _basic_stuff->blob.pred.valid()
+               && _basic_stuff->blob.pred.outlines.has_holes())
+            {
+                const Vec2 offset = -_blob_bounds.pos();
+                const auto desaturated = _color.saturation(0.25);
+                
+                auto &lines = _basic_stuff->blob.pred.outlines.lines;
+                _buffer_draw_holes.resize(lines.size());
+                
+                Line::Vertices_t gline;
+                for(size_t i = 0; i<lines.size(); ++i) {
+                    auto line = (std::vector<Vec2>)lines.at(i);
+                    
+                    gline.clear();
+                    gline.reserve(line.size());
+                    
+                    for(auto &pt : line) {
+                        gline.emplace_back(pt + offset, desaturated);
+                    }
+                    
+                    if(not _buffer_draw_holes[i]) {
+                        _buffer_draw_holes[i] = Layout::Make<Line>(std::move(gline), Line::Thickness_t{OPTION(gui_outline_thickness)});
+                    } else {
+                        _buffer_draw_holes[i]->set(Line::Thickness_t{OPTION(gui_outline_thickness)});
+                        _buffer_draw_holes[i]->set(std::move(gline));
+                    }
+                        
+                    assert(_buffer_draw_holes[i]->parent() == nullptr || _buffer_draw_holes[i]->parent()->stage() == nullptr);
+                }
+                
+            } else {
+                _buffer_draw_holes.clear();
+            }
+        }
+        else {
+            _buffer_draw_outline = nullptr;
+            _buffer_draw_holes.clear();
+        }
+        
+        needs_swap = true;
     }
     
     /*void Fish::draw_occlusion(gui::DrawStructure &window) {
@@ -1298,7 +1372,7 @@ void Fish::selection_clicked(Event) {
         
         auto active = GUICache::instance().active_ids.find(_id.ID()) != GUICache::instance().active_ids.end();
         bool is_selected = cache.is_selected(_id.ID());
-        std::vector<Vec2> points;
+        //std::vector<Vec2> points;
 
 
 
@@ -1318,7 +1392,8 @@ void Fish::selection_clicked(Event) {
 #endif
 
         if (active && _cached_outline) {
-            if (OPTION(gui_show_shadows) || OPTION(gui_show_outline)) {
+            if (OPTION(gui_show_shadows) || OPTION(gui_show_outline))
+            {
                 if(points.empty())
                     points = _cached_outline->uncompress();
             }
@@ -1380,7 +1455,7 @@ void Fish::selection_clicked(Event) {
             mp = mouse_position - _view.pos();
         }
 
-        _posture.update([this, panic_button, mp, &_force, &head, &offset, active, &points](Entangled& window) {
+        _posture.update([this, panic_button, mp, &_force, &head, &offset, active](Entangled& window) {
             if (panic_button) {
                 if (float(rand()) / float(RAND_MAX) > 0.75) {
                     _color = _wheel.next();
@@ -1421,50 +1496,61 @@ void Fish::selection_clicked(Event) {
                 window.set_size(Size2());
             }
 
-            if (active && _cached_outline && OPTION(gui_show_outline)) {
-                Line::Vertices_t oline;
-                if(points.empty())
-                    points = _cached_outline->uncompress();
-
+            if (active
+                && _cached_outline
+                && OPTION(gui_show_outline))
+            {
                 // check if we actually have a tail index
-                if (OPTION(gui_show_midline) && _cached_midline && _cached_midline->tail_index() != -1)
+                if (OPTION(gui_show_midline)
+                    && _cached_midline
+                    && _cached_midline->tail_index() != -1)
+                {
                     window.add<Circle>(Loc(points.at(_cached_midline->tail_index())), Radius{2}, LineClr{Blue.alpha(255 * 0.3f)});
-
-                //float right_side = outline->tail_index() + 1;
-                //float left_side = points.size() - outline->tail_index();
-
-                for (size_t i = 0; i < points.size(); i++) {
-                    auto& pt = points[i];
-                    //Color c = _color;
-                    /*if(outline->tail_index() != -1) {
-                        float d = cmn::abs(float(i) - float(outline->tail_index())) / ((long_t)i > outline->tail_index() ? left_side : right_side) * 0.4 + 0.5;
-                        c = Color(clr.r, clr.g, clr.b, max_color * d);
-                    }*/
-                    oline.push_back(Vertex(pt, _color));
                 }
-                oline.push_back(Vertex(points.front(), _color.alpha(255 * 0.04)));
                 //auto line =
-                window.add<Line>(oline, Line::Thickness_t{OPTION(gui_outline_thickness)});
+                
+                if(needs_swap) {
+                    std::swap(_buffer_draw_outline, _draw_outline);
+                    std::swap(_buffer_draw_holes, _draw_holes);
+                    needs_swap = false;
+                }
+                
+                if(_draw_outline
+                   || not _draw_holes.empty())
+                {
+                    if(not _outline_container)
+                        _outline_container = Layout::Make<Entangled>();
+                }
+                
+                if(_outline_container) {
+                    _outline_container->update([&](Entangled& window) {
+                        if(_draw_outline)
+                            window.advance_wrap(*_draw_outline);
+                        for(auto& hole : _draw_holes) {
+                            window.advance_wrap(*hole);
+                        }
+                    });
+                    window.advance_wrap(*_outline_container);
+                }
+                
+                //window.add<Line>(oline, Line::Thickness_t{OPTION(gui_outline_thickness)});
                 //if(line)
                 //    window.text(Meta::toStr(line->points().size()) + "/" + Meta::toStr(oline.size()), Vec2(), White);
                 //window.vertices(oline);
                 
-                if(_basic_stuff
+                /*if(_basic_stuff
                    && _basic_stuff->blob.pred.valid()
                    && _basic_stuff->blob.pred.outlines.has_holes())
-                {
-                    const auto desaturated = _color.saturation(0.25);
-                    auto &lines = _basic_stuff->blob.pred.outlines.lines;
-                    for(size_t i = 0; i<lines.size(); ++i) {
-                        Line::Vertices_t gline;
-                        for(auto &pt : (std::vector<Vec2>)lines.at(i)) {
-                            gline.emplace_back(pt + offset, desaturated);
-                        }
+                {*/
+                    /*for(auto& gline : glines) {
                         window.add<Line>(gline, Line::Thickness_t{OPTION(gui_outline_thickness)});
-                    }
-                }
+                    }*/
+                //}
 
             }
+            else
+                _outline_container = nullptr;
+            
             if (active && _cached_midline && OPTION(gui_show_midline)) {
                 std::vector<MidlineSegment> midline_points;
                 //Midline _midline(*_cached_midline);

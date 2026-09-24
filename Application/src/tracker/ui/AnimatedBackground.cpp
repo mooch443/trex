@@ -4,6 +4,7 @@
 #include <core/default_config.h>
 #include <file/DataLocation.h>
 #include <core/TimingStatsCollector.h>
+#include <ui/Scene.h>
 
 namespace cmn::gui {
 
@@ -14,7 +15,12 @@ AnimatedBackground::AnimatedBackground(Image::Ptr&& image, const pv::File* video
     _average(std::move(image)),
     _static_image(Image::Make(*_average)),
     _grey_image(Image::Make(*_average)),
-    preloader(std::move(stats), [this](Frame_t index) { return preload(index); }, nullptr, TimingMetric_t::BackgroundRequest, TimingMetric_t::BackgroundLoad)
+    preloader(std::move(stats),
+              [this](Frame_t index) { return preload(index); },
+              nullptr,
+              [this](Frame_t index){ pushed_frame(index); },
+              TimingMetric_t::BackgroundRequest,
+              TimingMetric_t::BackgroundLoad)
 {
     _static_image.set_clickable(true);
     _static_image.set_color(_tint);
@@ -62,6 +68,20 @@ AnimatedBackground::AnimatedBackground(Image::Ptr&& image, const pv::File* video
     });
     
     auto_size({});
+}
+
+void AnimatedBackground::pushed_frame(Frame_t) {
+    /// this is to keep the GUI trying to update
+    /// even though the actual image did not change
+    /// and the greyscale alpha also didnt
+    /// (we still want it to try to get the next
+    SceneManager::enqueue([this, ptr = _exists_weak](){
+        if(auto lock = ptr.lock();
+           lock)
+        {
+            set_dirty();
+        }
+    });
 }
 
 BackgroundVideoConfig AnimatedBackground::configure_video_source(const pv::File * video) {
@@ -309,6 +329,10 @@ Image::Ptr AnimatedBackground::preload(Frame_t index) {
     }
 }
 
+AnimatedBackground::~AnimatedBackground() {
+    _exists = nullptr;
+}
+
 void AnimatedBackground::before_draw() {
     //bool is_recording{false}; // GUI::instance->is_recording
     bool value = PRELOAD_CACHE(gui_show_video_background);
@@ -338,7 +362,11 @@ void AnimatedBackground::before_draw() {
         set_content_changed(true);
     }
     
-    if(not _source or not PRELOAD_CACHE(gui_show_video_background)) {
+    /// exit early in case we dont have a proper video
+    /// or we dont wanna show it:
+    if(not _source
+       or not PRELOAD_CACHE(gui_show_video_background))
+    {
         if(content_changed()) {
             _static_image.set_color(_tint);
             _grey_image.set_color(_static_image.color().alpha(_grey_image.color().a));
@@ -349,6 +377,7 @@ void AnimatedBackground::before_draw() {
         return;
     }
     
+    bool image_is_set = false;
     auto frame = READ_SETTING(gui_source_video_frame, Frame_t);
     if(frame.valid()
        && frame != _current_frame
@@ -458,6 +487,8 @@ void AnimatedBackground::before_draw() {
             _target_fade = 1.0;
         }
     }
+    else
+        image_is_set = true;
     
     auto dt = saturate(_fade_timer.elapsed(), 0.01, 0.1);
     
@@ -474,14 +505,17 @@ void AnimatedBackground::before_draw() {
         //_fade = 1.0;
 
     // fade image to grayscale by _fade percent
-    if(not _static_image.empty()
-       //&& is_in(_static_image.source()->channels(), 3u, 4u)
-       && abs(_fade - _target_fade) > 0.01)
+    if(//(_source && not image_is_set)
+       //||
+       (not _static_image.empty()
+           //&& is_in(_static_image.source()->channels(), 3u, 4u)
+           && abs(_fade - _target_fade) > 0.01))
     {
         //Print("Animating... ", _fade, " with dt=",dt);
         set_animating(true);
         
     } else {
+        //Print("Not animating...");
         set_animating(false);
     }
 

@@ -200,11 +200,15 @@ Configuration reset(const cmn::sprite::Map& extra_map, cmn::sprite::Map& output)
                     }
                     
                     /// same goes for *output_dir*
-                    if(key == "output_dir"
-                       && combined.at(key).value<file::Path>() == file::find_parent( combined.at("source").value<file::PathArray>()))
-                    {
-                        SETTING(output_dir) = file::Path();
-                        continue;
+                    if(key == "output_dir") {
+                        auto output_prefix = combined.at("output_prefix").value<std::string>();
+                        //Print("* combination p=", output_prefix, " source=", file::find_parent( combined.at("source").value<file::PathArray>()));
+                        if(combined.at(key).value<file::Path>() == file::find_parent( combined.at("source").value<file::PathArray>())
+                           && output_prefix.empty())
+                        {
+                            SETTING(output_dir) = file::Path();
+                            continue;
+                        }
                     }
                     
                     /// copy to destination map
@@ -251,6 +255,8 @@ void LoadContext::init() {
     exclude = exclude_parameters + default_excludes + system_variables;
     if(not quiet)
         Print("Excluding from command-line and default.settings: ", exclude);
+    else
+        combined.values["quiet"] = true;
     
     /// -----------------------------------------
     /// 3. load default.settings from app folder:
@@ -804,6 +810,30 @@ void LoadContext::load_settings_file() {
                 });
             }
             
+            sprite::Map output_settings;
+            output_settings.set_print_by_default(false);
+            
+            auto _ = GlobalSettings::load_from_file(settings_file.str(), {
+                .deprecations = deprecations(),
+                .access = AccessLevelType::INIT,
+                .exclude = manual_exclude - ExtendableVector{"output_dir", "output_prefix"},
+                .target = &output_settings,
+                .additional = &combined.values
+            });
+            
+            if(output_settings.has("output_dir")
+               && output_settings.has("output_prefix")
+               && not output_settings.at("output_prefix").value<std::string>().empty()
+               && (not combined.has("output_prefix") /// this could be problematic if the user is trying to set a different prefix for our current run that is derived from some other run...
+                   || combined.at("output_prefix").value<std::string>().empty()
+                   || combined.at("output_prefix").value<std::string>() == output_settings.at("output_prefix").value<std::string>())
+               && (not combined.has("output_dir")
+                   || combined.at("output_dir").value<file::Path>().empty()))
+            {
+                if(not quiet)
+                    Print("* we dont have a proper output_dir set, but output_prefix seems to be in the export (",output_settings.at("output_prefix").value<std::string>(),").");
+            }
+            
             //auto before = combined.map.print_by_default();
             //combined.map.set_print_by_default(false);
             //Print("// map contains ", map.keys());
@@ -830,11 +860,13 @@ void LoadContext::load_settings_file() {
             }*/
             
         } catch(const std::exception& ex) {
-            FormatError("Failed to execute settings file ",settings_file,": ", ex.what());
+            if(not quiet)
+                FormatError("Failed to execute settings file ",settings_file,": ", ex.what());
         }
         
     } else if(not settings_file.empty()) {
-        FormatError("Settings file ", settings_file, " was not found.");
+        if(not quiet)
+            FormatError("Settings file ", settings_file, " was not found.");
     }
 }
 
@@ -927,7 +959,8 @@ void LoadContext::estimate_meta_variables() {
     {
         const auto source = combined.at("source").value<file::PathArray>();
         if((info = retrieve_video_info(source))) {
-            Print("Retrieved video info for ", *info);
+            if(not quiet)
+                Print("Retrieved video info for ", *info);
         } else if(not quiet) {
             FormatWarning("Cannot retrieve video info for source ", source);
         }
@@ -967,8 +1000,9 @@ void LoadContext::estimate_meta_variables() {
         }();
         
         if(success) {
-            Print("// Successfully found meta_source_path at ", combined.values["meta_source_path"].value<std::string>());
-        } else {
+            if(not quiet)
+                Print("// Successfully found meta_source_path at ", combined.values["meta_source_path"].value<std::string>());
+        } else if(not quiet) {
             FormatWarning("Was unable to find meta_source_path video, tried ", tests);
         }
     }
@@ -1000,7 +1034,7 @@ void LoadContext::estimate_meta_variables() {
         || meta_real_width.value<Float2_t>() == 0)
     {
         auto meta_video_size = combined.at("meta_video_size");
-        Print(meta_video_size);
+        //Print(meta_video_size);
         assert(meta_video_size.valid() && not meta_video_size.value<Size2>().empty());
         combined.values["meta_real_width"] = meta_video_size.value<Size2>().width;
     }
@@ -1038,6 +1072,43 @@ void LoadContext::estimate_meta_variables() {
     }
 }
 
+void LoadContext::check_output_dir() {
+    auto default_path = file::find_parent( combined.at("source").value<file::PathArray>() ).value_or(file::Path{});
+    auto output_prefix = combined.at("output_prefix").value<std::string>();
+    
+    if(not output_prefix.empty()) {
+        /// now we need to force `output_prefix` potentially
+        auto source = combined.at("source").value<file::PathArray>();
+        auto paths = source.get_paths();
+        
+        auto output_dir = combined.at("output_dir").value<file::Path>();
+        //if(default_path.filename() == output_prefix)
+        if(output_dir.empty()) {
+            file::Path estimated_folder = default_path;
+            //assert(estimated_folder.filename() == output_prefix);
+            //estimated_folder = estimated_folder.remove_filename(); /// output_prefix is set so we should have the prefix here
+            if(estimated_folder.empty()) {
+                combined.values["output_dir"] = CommandLine::instance().launch_dir();
+            } else {
+                combined.values["output_dir"] = file::Path(estimated_folder);
+            }
+            
+        } else {
+            if(not quiet) {
+                Print("* we already had output_dir ", output_dir, " and are not replacing it with ", default_path);
+            }
+        }
+        
+    }
+    
+    if(auto output_dir = combined.at("output_dir").value<file::Path>();
+       output_dir == default_path
+       && output_prefix.empty())
+    {
+        combined.values["output_dir"] = file::Path();
+    }
+}
+
 void LoadContext::finalize() {
     /// --------------------------------------
     G g("FINAL CONFIG", quiet);
@@ -1066,13 +1137,6 @@ void LoadContext::finalize() {
                         continue;
                     }
                     
-                    if(key == "output_dir"
-                       && combined.at(key).value<file::Path>() == file::find_parent( combined.at("source").value<file::PathArray>()))
-                    {
-                        SETTING(output_dir) = file::Path();
-                        continue;
-                    }
-                    
                     if(not is_in(key, "gui_interface_scale")) {
                         GlobalSettings::write([&](Configuration& config){
                             combined.at(key).get().copy_to(config.values);
@@ -1080,9 +1144,7 @@ void LoadContext::finalize() {
                     }
                 }
             }
-            else {
-                //Print("Would be updating ",combined.at(key), " but is forbidden.");
-            }
+            
         } catch(const std::exception& ex) {
             FormatExcept("Cannot parse setting ", key, " and copy it to GlobalSettings: ", ex.what());
         }
@@ -1225,7 +1287,7 @@ void load(LoadContext ctx) {
     // record this fact to avoid automatic re-enabling later.
     ctx.combined.values.register_callbacks<sprite::RegisterInit::DONT_TRIGGER>({"frame_rate", "output_prefix", "filename", "meta_source_path"}, [&](auto key) {
         //if(was_different
-        if(key == "frame_rate") {
+        /*if(key == "frame_rate") {
             Print("Changed frame_rate to ", ctx.combined.values.at("frame_rate"));
         } else if(key == "output_prefix") {
             Print("Changed prefix to ", ctx.combined.values.at("output_prefix"));
@@ -1237,7 +1299,7 @@ void load(LoadContext ctx) {
                 Print("We have a .pv in ", path);
             }
             Print("Changed meta_source_path to ", ctx.combined.values.at("meta_source_path"));
-        }
+        }*/
     });
     
     // Step 3: Initialize the output filename from parameters or derive from source/defaults.
@@ -1270,7 +1332,7 @@ void load(LoadContext ctx) {
 
     // Commit current defaults to GlobalSettings before loading external settings.
     GlobalSettings::set_current_defaults_with_config(ctx.current_defaults);
-
+    
     // Step 9: Load external settings file (video.settings), applying overrides appropriately.
     ctx.load_settings_file();
 
@@ -1306,6 +1368,11 @@ void load(LoadContext ctx) {
         return before;
     });
     
+    
+    /// we are potentially clearing `output_dirs` that are redundant
+    /// or setting them if missing (and prefix is set for example)
+    ctx.check_output_dir();
+    
     // Step 14: Finalize settings: copy combined map to GlobalSettings and preserve print state.
     ctx.finalize();
     
@@ -1340,11 +1407,13 @@ void write_config(const pv::File* video, bool overwrite, const std::string& suff
     auto text = default_config::generate_delta_config(AccessLevelType::INIT, video).to_settings();
     
     auto print_message = [filename](){
-        FormatWarning("Saving current configuration to ",filename.absolute(), "...");
+        if(not READ_SETTING_WITH_DEFAULT(quiet, false))
+            FormatWarning("Saving current configuration to ",filename.absolute(), "...");
     };
     
     if(filename.exists() && !overwrite) {
-        Print("Settings file ",filename.str()," already exists. Will not overwrite.");
+        if(not READ_SETTING_WITH_DEFAULT(quiet, false))
+            Print("Settings file ",filename.str()," already exists. Will not overwrite.");
         
     } else {
         if(!filename.remove_filename().exists())
