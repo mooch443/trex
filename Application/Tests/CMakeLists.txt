@@ -196,6 +196,7 @@ endif()
 
 if(WIN32)
 target_compile_options(test_matching PRIVATE /bigobj)
+target_compile_options(test_tracking_filename_resolution PRIVATE /bigobj)
 endif()
 
 function(trex_enable_python_delayload target)
