@@ -1,6 +1,7 @@
 #pragma once
 
 #include <commons.pc.h>
+#include <misc/Image.h>
 #include <misc/frame_t.h>
 #include <core/TaskPipeline.h>
 #include <pv.h>
@@ -96,7 +97,7 @@ class Segmenter {
     // Overlayed video with detections and tracker for object tracking
     GETTER(std::unique_ptr<BasicProcessor>, overlayed_video);
     std::atomic<bool> _processor_initializing{false};
-    std::unique_ptr<Tracker> _tracker;
+    std::shared_ptr<Tracker> _tracker;
     
     // File for output
     std::unique_ptr<pv::File> _output_file;
@@ -129,6 +130,8 @@ class Segmenter {
     std::atomic<double> _write_fps{0};
     std::atomic<Frame_t> _current_frame;
     
+    GETTER_NCONST(read_once<bool>, start_over);
+    
 #if WITH_FFMPEG
     std::unique_ptr<FFMPEGQueue> _queue;
     ThreadGroupId _ffmpeg_group;
@@ -160,6 +163,8 @@ public:
     Frame_t current_frame() const;
     
 private:
+    void open_output_file();
+    
     void generator_thread();
     void serialize_thread();
     void perform_tracking(SegmentationData&&);
@@ -171,6 +176,10 @@ private:
     void graceful_end();
     void stop_average_generator(bool blocking);
     
+public:
+    std::shared_ptr<Tracker> tracker() const;
+    
+private:
     Image::Ptr finalize_bg_image(const cv::Mat&);
     std::tuple<bool, cv::Mat> get_preliminary_background(Size2 size);
     void trigger_average_generator(bool regenerate, cv::Mat& bg);

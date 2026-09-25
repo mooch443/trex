@@ -1,6 +1,13 @@
 #include "Individual.h"
+#include <data/MotionRecord.h>
 #include <misc/GlobalSettings.h>
+#include <misc/Median.h>
 #include <misc/Timer.h>
+#include <processing/PVBlob.h>
+#include <tracking/Posture.h>
+#include <tracking/Stuffs.h>
+#include <tracking/TrackletInformation.h>
+#include <tracking/LockGuard.h>
 #include <tracking/Tracker.h>
 #include <tracking/DebugDrawing.h>
 #include <algorithm>
@@ -32,6 +39,14 @@
 
 using namespace track;
 using prob_t = track::Match::prob_t;
+
+Individual::QRCode::QRCode(Frame_t frame, pv::BlobPtr&& blob)
+    : frame(frame), _blob(std::move(blob))
+{ }
+
+Individual::QRCode::QRCode(QRCode&&) noexcept = default;
+Individual::QRCode& Individual::QRCode::operator=(QRCode&&) noexcept = default;
+Individual::QRCode::~QRCode() = default;
 
 void Individual::shutdown() {
     
@@ -106,10 +121,10 @@ bool Individual::add_qrcode(Frame_t frame, pv::BlobPtr&& tag) {
                         if(it->second.size() > 2 || tracklet_ended) {
                             RecTask task;
                             {
-                                task._tracklet_start = tracklet->start(),
-                                    task.individual = identity().ID(),
-                                    task._optional = !tracklet_ended,
-                                    task._fdx = identity().ID();
+                                task._tracklet_start = tracklet->start();
+                                task.individual = identity().ID();
+                                task._optional = !tracklet_ended;
+                                task._fdx = identity().ID();
                             }
 
                             task._callback = [this, range = tracklet->range, N = it->second.size(), tracklet = tracklet](Predictions&& prediction) {
@@ -331,42 +346,27 @@ bool Individual::has(Frame_t frame) const {
 }
 
 decltype(Individual::_tracklets)::const_iterator Individual::iterator_for(Frame_t frameIndex) const {
-    if(empty())
-        return _tracklets.end();
-    
-    if(not frameIndex.valid()
+    if(empty()
+       || not frameIndex.valid()
        || frameIndex < _startFrame)
-       //|| frameIndex > _endFrame)
     {
         return _tracklets.end();
     }
-    if(frameIndex == _startFrame) {
-        return _tracklets.begin();
-    }
-    if(frameIndex == _endFrame)
-        return --_tracklets.end();
-    
-    auto begin = _tracklets.begin();
-    auto end = _tracklets.end();
-    //assert(frameIndex <= (*--_tracklets.end())->range.end);
-    
-    auto it = std::lower_bound(begin, end, frameIndex, [](const auto& ptr, Frame_t frame){
-        return ptr->start() < frame;
+
+    const auto begin = _tracklets.begin();
+    const auto end = _tracklets.end();
+
+    if(frameIndex >= _endFrame)
+        return std::prev(end);
+    if(frameIndex == _startFrame)
+        return begin;
+
+    const auto it = std::upper_bound(begin, end, frameIndex,
+                                    [](Frame_t frame, const auto& tracklet) {
+        return frame < tracklet->start();
     });
-    if(it != end) {
-        if((*it)->start() > frameIndex) {
-            if(it == begin)
-                it = end;
-            else
-                --it;
-        }
-        
-    } else if(!_tracklets.empty()) {
-        --it;
-    }
-    
-    assert(it == _tracklets.end() || (*it)->start() <= frameIndex);
-    return it;
+
+    return it == begin ? end : std::prev(it);
 }
 
 std::shared_ptr<TrackletInformation> Individual::tracklet_for(Frame_t frameIndex) const {
@@ -537,9 +537,6 @@ Individual::~Individual() {
     RecTask::remove(identity().ID());
 #endif
 
-    if(!Tracker::instance())
-        return;
-    
     remove_frame(start_frame());
     
     //! TODO: MISSING remove_invidiual
@@ -592,6 +589,12 @@ bool Individual::recently_manually_matched(Frame_t frameIndex) const {
     return false;
 }
 
+void Individual::remove_frame(const Tracker& tracker, Frame_t frameIndex) {
+    remove_frame(frameIndex);
+    
+    if(not average_recognition_tracklet.empty())
+        calculate_average_tracklet_id(tracker);
+}
 void Individual::remove_frame(Frame_t frameIndex) {
     {
         decltype(_delete_callbacks) callbacks;
@@ -820,9 +823,6 @@ void Individual::remove_frame(Frame_t frameIndex) {
     
     _average_recognition.clear();
     _average_recognition_samples = 0;
-    
-    if(!average_recognition_tracklet.empty())
-        calculate_average_tracklet_id();
     
     _local_cache.regenerate(this);
 }
@@ -1088,6 +1088,10 @@ int64_t Individual::add(const AssignInfo& info, const pv::Blob& blob, prob_t cur
     }
 #endif
     
+    
+    assert(info.repo->is(frameIndex, info.f_prop));
+    assert(info.repo->is(frameIndex - 1_f, info.f_prev_prop));
+    
     auto tracklet = update_add_tracklet(frameIndex, info.f_prop, info.f_prev_prop, stuff->centroid, prev_frame, &stuff->blob, p);
     
     // add BasicStuff index to segment
@@ -1100,7 +1104,7 @@ int64_t Individual::add(const AssignInfo& info, const pv::Blob& blob, prob_t cur
     
     const auto video_length = Tracker::analysis_range().end();
     if(frameIndex >= video_length) {
-        update_midlines(*info.settings, &_hints);
+        update_midlines(*info.repo, *info.settings, &_hints);
     }
     
     return int64_t(index);
@@ -1202,9 +1206,6 @@ TrackletInformation* Individual::update_add_tracklet(const Frame_t frameIndex, c
         // else this frame does not actually belong within the found segment
     }
     
-    assert(Tracker::properties(frameIndex) == props);
-    assert(Tracker::properties(frameIndex - 1_f) == prev_props);
-    
     double tdelta = props && prev_props
         ? props->time() - prev_props->time()
         : 0;
@@ -1271,14 +1272,14 @@ void Individual::clear_post_processing() {
     }
 }
 
-void Individual::update_midlines(const CachedSettings& settings, const CacheHints* hints) {
+void Individual::update_midlines(const data::FrameRepository& frames, const CachedSettings& settings, const CacheHints* hints) {
     /*if(FAST_SETTING(posture_direction_smoothing) == 0) {
         update_frame_with_posture(frameIndex);
     }*/
     
     const auto smooth_range = Frame_t(settings.posture_direction_smoothing);
     const auto video_length = Tracker::analysis_range().end();
-    auto end_frame = Tracker::end_frame();
+    auto end_frame = frames.end_frame();
     
     //! find the first frame that needs to be cached, but hasnt been yet
     auto it = _posture_stuff.rbegin(), last_found = _posture_stuff.rend();
@@ -1310,7 +1311,7 @@ void Individual::update_midlines(const CachedSettings& settings, const CacheHint
 
                 auto basic = basic_stuff((*it)->frame);
                 auto base_it = it.base() - 1;
-                update_frame_with_posture(*basic, base_it, hints);
+                update_frame_with_posture(frames, *basic, base_it, hints);
             }
             
             if(it == _posture_stuff.rbegin())
@@ -1440,7 +1441,7 @@ Individual::PostureDescriptor Individual::calculate_current_posture_for(
     return update_frame_with_posture(basic, it, hints);
 }*/
 
-Midline::Ptr Individual::update_frame_with_posture(BasicStuff& basic, const decltype(Individual::_posture_stuff)::const_iterator& posture_it, const CacheHints* hints) {
+Midline::Ptr Individual::update_frame_with_posture(const data::FrameRepository& frames, BasicStuff& basic, const decltype(Individual::_posture_stuff)::const_iterator& posture_it, const CacheHints* hints) {
     auto &posture = **posture_it;
     auto &ptr = posture.cached_pp_midline;
     auto &blob = basic.blob;
@@ -1466,7 +1467,7 @@ Midline::Ptr Individual::update_frame_with_posture(BasicStuff& basic, const decl
             previous = (*(posture_it - 1)).get();
         }
 
-        auto prop = Tracker::properties(posture.frame, hints);
+        auto prop = frames.properties(posture.frame, hints);
         if(not prop)
             throw InvalidArgumentException("Cannot find info on frame ", posture.frame);
         
@@ -1566,7 +1567,7 @@ auto insert_at(std::vector<T>& vector, T&& element) {
     return vector.insert(std::upper_bound(vector.begin(), vector.end(), element), std::move(element));
 }
 
-std::expected<IndividualCache, const char*> Individual::cache_for_frame(const FrameProperties* previous, Frame_t frameIndex, double time, const CacheHints* hints) const {
+std::expected<IndividualCache, const char*> Individual::cache_for_frame(const data::FrameRepository& frames, const std::optional<const FrameProperties>& previous, const Frame_t frameIndex, double time, const CacheHints* hints) const {
     if(not frameIndex.valid())
         return std::unexpected("Invalid frame in cache_for_frame.");
     if (not _startFrame.valid())
@@ -1717,24 +1718,29 @@ std::expected<IndividualCache, const char*> Individual::cache_for_frame(const Fr
     
     //auto props = Tracker::properties(frameIndex);
     assert(not previous || frameIndex - 1_f == previous->frame());
-    auto prev_props = previous;//Tracker::properties(frameIndex - 1_f, hints);
-    if(!prev_props) {
-        if(!Tracker::instance()->frames().empty()) {
-            auto it = Tracker::instance()->frames().rbegin();
-            while(it != Tracker::instance()->frames().rend() && (*it)->frame() >= frameIndex)
-            {
-                ++it;
+    auto prev_props = previous.has_value() ? &previous.value() : nullptr;//Tracker::properties(frameIndex - 1_f, hints);
+    std::optional<FrameProperties> previous_in_repository;
+    if(not prev_props) {
+        frames.read([frameIndex, &previous_in_repository](const data::FrameRepository::SafeReadAccess& frames){
+            auto it = frames.get_iterator(frameIndex);
+            if (it != frames.raw.begin()) {
+                --it;
+                previous_in_repository = **it;
             }
-            
-            if(it != Tracker::instance()->frames().rend())
-                prev_props = (*it).get();
-        }
+        });
+        if(previous_in_repository)
+            prev_props = &previous_in_repository.value();
     }
     
     cache.previous_frame = pp ? pp->frame : (frameIndex - 1_f);
     auto pp_props = pp && pp->frame == (frameIndex - 1_f) && prev_props
-        ? prev_props
-        : Tracker::properties(cache.previous_frame, hints);
+        ? prev_props : nullptr;
+    std::optional<FrameProperties> closest_props;
+    if(not pp_props) {
+        closest_props = frames.properties(cache.previous_frame, hints);
+        if(closest_props)
+            pp_props = &closest_props.value();
+    }
     assert(!prev_props || prev_props->time() != time);
     
     float ptime = pp_props ? pp_props->time() : (- ((double)frameIndex.get() - (double)cache.previous_frame.get()) * 1 / double(frame_rate) + time);
@@ -1880,78 +1886,81 @@ std::expected<IndividualCache, const char*> Individual::cache_for_frame(const Fr
     // (cm/s)^2 / (cm/px)^2 = (cm^2/s^2) / (cm^2/px^2) = 1 * px^2/s^2
     const auto track_max_px_sq = SQR(track_max_speed_px);
     const FrameProperties *properties = nullptr;
-    auto end = Tracker::instance()->frames().end();
-    auto iterator = end;
     
-    iterate_frames(range, [&](Frame_t frame, const std::shared_ptr<TrackletInformation> &, const BasicStuff* basic, auto) -> bool
-    {
-        if(is_manual_match(frame)) {
-            last_frame_manual = true;
-            return true;
-        }
+    frames.read([&](const data::FrameRepository::SafeReadAccess& access){
+        auto end = access.raw.end();
+        auto iterator = end;
         
-        const FrameProperties* c_props = nullptr;
-        if(iterator != end && ++iterator != end && (*iterator)->frame() == frame) {
-            c_props = (*iterator).get();
-        } else {
-            iterator = Tracker::instance()->properties_iterator(frame/*, hints*/);
-            if(iterator != end)
-                c_props = (*iterator).get();
-        }
-        
-        auto &h = basic->centroid;
-        if(!previous_p) {
-            properties = c_props;
-            
-            previous_p = &h;
-            previous_t = c_props ? c_props->time() : 0;
-            previous_f = frame;
-            return true;
-        }
-        
-        auto p_props = properties && properties->frame() == frame - 1_f
-                        ? properties
-                        : Tracker::properties(frame - 1_f, hints);
-        properties = c_props;
-        
-        if (c_props && p_props && previous_p) {//(he || h)) {
-            double tdelta = c_props->time() - p_props->time();
-            
-            if(tdelta > prob_t(1))
+        iterate_frames(range, [&](Frame_t frame, const std::shared_ptr<TrackletInformation> &, const BasicStuff* basic, auto) -> bool
+        {
+            if(is_manual_match(frame)) {
+                last_frame_manual = true;
                 return true;
-            
-            //! \mathbf{v}_i(t) = \mathbf{p}_i'(t) = \frac{\delta}{\delta t} \mathbf{p}_i(t)
-            auto v = (h.pos<Units::PX_AND_SECONDS>() - previous_p->pos<Units::PX_AND_SECONDS>()) / (c_props->time() - previous_t);
-            auto L_sq = v.sqlength();
-            
-            //! \hat{\mathbf{v}}_i(t) =
-            //!     \mathbf{v}_i(t) *
-            //!     \begin{cases}
-            //!         1                                       & \mathrm{if} \norm{\mathbf{v}_i(t)} \le D_\mathrm{max} \\
-            //!         D_\mathrm{max} / \norm{\mathbf{v}_i(t)} & \mathrm{otherwise}
-            //!     \end{cases}
-            if(L_sq >= track_max_px_sq) {
-                v *= track_max_speed_px / sqrt(L_sq);
-                L_sq = track_max_px_sq;
             }
             
-            assert(!std::isnan(v.x));
-            raw += v;
-            average_speed.push_back(L_sq);
+            const FrameProperties* c_props = nullptr;
+            if(iterator != end && ++iterator != end && (*iterator)->frame() == frame) {
+                c_props = (*iterator).get();
+            } else {
+                iterator = access.properties_iterator(frame/*, hints*/);
+                if(iterator != end)
+                    c_props = (*iterator).get();
+            }
             
-            //! \mathbf{a}_i(t) = \frac{\delta}{\delta t} \hat{\mathbf{v}}_i(t)
-            if(tdelta > 0 && (previous_v.x != 0 || previous_v.y != 0))
-                raw_acc += (v - previous_v) / tdelta;
+            auto &h = basic->centroid;
+            if(!previous_p) {
+                properties = c_props;
+                
+                previous_p = &h;
+                previous_t = c_props ? c_props->time() : 0;
+                previous_f = frame;
+                return true;
+            }
             
-            previous_v = v;
-            previous_p = &h;
-            previous_t = c_props->time();
-            previous_f = frame;
+            auto p_props = properties && properties->frame() == frame - 1_f
+                            ? properties
+                            : access.properties(frame - 1_f, hints);
+            properties = c_props;
             
-            used_frames++;
-        }
-        
-        return used_frames <= 5;
+            if (c_props && p_props && previous_p) {//(he || h)) {
+                double tdelta = c_props->time() - p_props->time();
+                
+                if(tdelta > prob_t(1))
+                    return true;
+                
+                //! \mathbf{v}_i(t) = \mathbf{p}_i'(t) = \frac{\delta}{\delta t} \mathbf{p}_i(t)
+                auto v = (h.pos<Units::PX_AND_SECONDS>() - previous_p->pos<Units::PX_AND_SECONDS>()) / (c_props->time() - previous_t);
+                auto L_sq = v.sqlength();
+                
+                //! \hat{\mathbf{v}}_i(t) =
+                //!     \mathbf{v}_i(t) *
+                //!     \begin{cases}
+                //!         1                                       & \mathrm{if} \norm{\mathbf{v}_i(t)} \le D_\mathrm{max} \\
+                //!         D_\mathrm{max} / \norm{\mathbf{v}_i(t)} & \mathrm{otherwise}
+                //!     \end{cases}
+                if(L_sq >= track_max_px_sq) {
+                    v *= track_max_speed_px / sqrt(L_sq);
+                    L_sq = track_max_px_sq;
+                }
+                
+                assert(!std::isnan(v.x));
+                raw += v;
+                average_speed.push_back(L_sq);
+                
+                //! \mathbf{a}_i(t) = \frac{\delta}{\delta t} \hat{\mathbf{v}}_i(t)
+                if(tdelta > 0 && (previous_v.x != 0 || previous_v.y != 0))
+                    raw_acc += (v - previous_v) / tdelta;
+                
+                previous_v = v;
+                previous_p = &h;
+                previous_t = c_props->time();
+                previous_f = frame;
+                
+                used_frames++;
+            }
+            
+            return used_frames <= 5;
+        });
     });
     
     if(used_frames) {
@@ -1994,7 +2003,7 @@ std::expected<IndividualCache, const char*> Individual::cache_for_frame(const Fr
     
     Vec2 est;
     prob_t last_used = ptime;
-    auto pprops = Tracker::properties(cache.previous_frame - 1_f, hints);
+    auto pprops = frames.properties(cache.previous_frame - 1_f, hints);
     if(pprops)
         last_used = pprops->time();
     
@@ -2002,7 +2011,7 @@ std::expected<IndividualCache, const char*> Individual::cache_for_frame(const Fr
     
     if(used_frames > 0 && lambda < 1) {
         for (auto f = cache.previous_frame; f < frameIndex; ++f) {
-            auto props = Tracker::properties(f, hints);
+            auto props = frames.properties(f, hints);
             if(props) {
                 //! \Tau'(k)
                 prob_t tdelta = props->time() - last_used;
@@ -2040,7 +2049,7 @@ std::expected<IndividualCache, const char*> Individual::cache_for_frame(const Fr
     } else if(tdelta > SLOW_SETTING(track_max_reassign_time)) {
         cache.time_probability = 0;
     } else {
-        cache.time_probability = time_probability(tdelta, cache.previous_frame, recent_number_samples);
+        cache.time_probability = time_probability(frames.start_frame(), tdelta, cache.previous_frame, recent_number_samples);
     }
     
     //thread_print("** ",frameIndex, ": ", identity().ID(), " => t=",cache.time_probability, " previous=", cache.previous_frame, " recent=",recent_number_samples, " tdelta=", tdelta);
@@ -2058,7 +2067,7 @@ struct TimeCache {
     
 };
 
-prob_t Individual::time_probability(double tdelta, const Frame_t& previous_frame, size_t recent_number_samples) {
+prob_t Individual::time_probability(Frame_t start_frame, double tdelta, const Frame_t& previous_frame, size_t recent_number_samples) {
     
     /// handled in cache_for_frame:
     //if(!SLOW_SETTING(track_time_probability_enabled))
@@ -2087,7 +2096,7 @@ prob_t Individual::time_probability(double tdelta, const Frame_t& previous_frame
      */
     
     float p = 1.0f - min(1.0f, max(0, (tdelta - Tdelta) / SLOW_SETTING(track_max_reassign_time)));
-    if(previous_frame >= Tracker::start_frame() + Frame_t(minimum_frames))
+    if(previous_frame >= start_frame + Frame_t(minimum_frames))
         p *= min(1.f, float(recent_number_samples - 1) / float(minimum_frames) + SLOW_SETTING(match_min_probability));
     
     return p * 0.75 + 0.25;
@@ -2236,61 +2245,66 @@ Probability Individual::probability(const CachedSettings& settings, MaybeLabel l
     //};
 }
 
-const BasicStuff* Individual::find_frame(Frame_t frameIndex) const
+std::optional<std::pair<const track::BasicStuff*, const track::TrackletInformation*>> Individual::find_tracklet_for(Frame_t frameIndex) const noexcept(not cmn::is_debug_mode())
 {
-    if(empty()) {
+    if(empty())
+        return std::nullopt;
+
+    if(frameIndex <= _startFrame) {
+        return std::pair(
+            _basic_stuff.front().get(),
+            _tracklets.front().get()
+        );
+    }
+    if(frameIndex >= _endFrame) {
+        return std::pair(
+            _basic_stuff.back().get(),
+            _tracklets.back().get()
+        );
+    }
+    
+    const auto begin = _tracklets.begin();
+    const auto end = _tracklets.end();
+    const auto last = std::prev(end);
+
+    auto it = last;
+    if(frameIndex < (*last)->start()) {
+        const auto upper = std::upper_bound(
+            begin, end, frameIndex,
+            [](Frame_t frame, const auto& tracklet) {
+                return frame < tracklet->start();
+            });
+
+#ifndef NDEBUG
+        if(upper == begin) {
+            throw U_EXCEPTION("(", identity().ID(), ") frame ", frameIndex,
+                              ": cannot find basic_stuff after finding tracklet ",
+                              (*upper)->start(), "-", (*upper)->end(), "");
+        }
+#endif
+
+        it = std::prev(upper);
+    }
+
+    const auto& tracklet = **it;
+    const auto index =
+        tracklet.basic_stuff(cmn::min(frameIndex, tracklet.end()));
+
+    assert(index >= 0
+           && static_cast<size_t>(index) < _basic_stuff.size());
+
+    return std::pair(
+        _basic_stuff[static_cast<size_t>(index)].get(),
+        it->get()
+    );
+}
+
+const BasicStuff* Individual::find_frame(Frame_t frameIndex) const noexcept(not cmn::is_debug_mode())
+{
+    auto t = find_tracklet_for(frameIndex);
+    if(not t)
         return nullptr;
-    }
-    
-    if(frameIndex <= _startFrame)
-        return _basic_stuff.front().get();
-    if(frameIndex >= _endFrame)
-        return _basic_stuff.back().get();
-    
-    auto end = _tracklets.end();
-    auto it = std::lower_bound(_tracklets.begin(), end, frameIndex, [](const auto& ptr, Frame_t frame){
-        return ptr->start() < frame;
-    });
-    
-    if(it == end) { // we are out of range, return last
-        auto idx = _tracklets.back()->basic_stuff(frameIndex);
-        if(idx != -1)
-            return _basic_stuff[ idx ].get();
-        else
-            return _basic_stuff.back().get();
-    }
-    
-    int32_t index = (int32_t)_basic_stuff.size()-1;
-    if((*it)->start() > frameIndex) {
-        if(it != _tracklets.begin()) {
-            // it is either in between tracklets (no frame)
-            // or inside the previous segment
-            --it;
-            
-            if((*it)->contains(frameIndex)) {
-                index = (*it)->basic_stuff(frameIndex);
-            } else {
-                index = (*it)->basic_index.back();
-            }
-            
-        } else {
-            // it is located before our first startFrame
-            // this should not happen
-            //index = it->second->basic_index.front();
-            throw U_EXCEPTION("(",identity().ID(),") frame ",frameIndex,": cannot find basic_stuff after finding tracklet ",(*it)->start(),"-",(*it)->end(),"");
-        }
-        
-    } else {
-        if((*it)->contains(frameIndex)) {
-            index = (*it)->basic_stuff(frameIndex);
-        } else {
-            assert((*it)->start() == frameIndex);
-            index = (*it)->basic_index.front();
-        }
-    }
-    
-    assert(index >= 0 && (uint64_t)index < _basic_stuff.size());
-    return _basic_stuff[ index ].get();
+    return t->first;
 }
 
 MovementInformation Individual::calculate_previous_vector(Frame_t frameIndex) const {
@@ -2360,7 +2374,9 @@ OrientationProperties Individual::why_orientation(Frame_t frame) const {
 }
 #endif
 
-void Individual::save_posture(const BasicStuff& basic,
+void Individual::save_posture(const data::FrameRepository& frames,
+                              const Background& background,
+                              const BasicStuff& basic,
                               const PoseMidlineIndexes& pose_midline_indexes,
                               Frame_t frameIndex,
                               pv::BlobPtr&& pixels,
@@ -2379,7 +2395,7 @@ void Individual::save_posture(const BasicStuff& basic,
         result = posture::calculate_posture(frameIndex, basic, pixels->prediction().outlines);
     }
     else
-        result = posture::calculate_posture(frameIndex, pixels.get());
+        result = posture::calculate_posture(background, frameIndex, pixels.get());
     
     if(not result) {
 #ifndef NDEBUG
@@ -2408,7 +2424,7 @@ void Individual::save_posture(const BasicStuff& basic,
     }
     
     tracklet->add_posture_at(std::move(stuff), this);
-    update_midlines(settings, nullptr);
+    update_midlines(frames, settings, nullptr);
 }
 
 Vec2 Individual::weighted_centroid(const pv::Blob& blob, const std::vector<uchar>& pixels) {
@@ -2484,9 +2500,9 @@ void log(FILE* f, const char* cmd, ...) {
 #endif
 }
 
-std::map<Frame_t, FrameRange> split_tracklet_by_probability(const Individual* fish, const TrackletInformation& segment)
+std::map<Frame_t, FrameRange> split_tracklet_by_probability(const Tracker& tracker, const Individual* fish, const TrackletInformation& segment)
 {
-    auto for_frame = [fish](Frame_t frame) -> std::tuple<long_t, float> {
+    auto for_frame = [&tracker, fish](Frame_t frame) -> std::tuple<long_t, float> {
         std::map<long_t, std::tuple<long_t, float>> samples;
         
         auto blob = fish->compressed_blob(frame);
@@ -2496,7 +2512,7 @@ std::map<Frame_t, FrameRange> split_tracklet_by_probability(const Individual* fi
         float max_id = -1;
         float max_p = 0;
         
-        auto pred = Tracker::instance()->find_prediction(frame, blob->blob_id());
+        auto pred = tracker.find_prediction(frame, blob->blob_id());
         if(pred) {
             auto map = track::prediction2map(*pred);
             for (auto && [fdx, p] : map) {
@@ -2619,7 +2635,7 @@ std::map<Frame_t, FrameRange> split_tracklet_by_probability(const Individual* fi
     }
 }
 
-void Individual::calculate_average_tracklet_id() {
+void Individual::calculate_average_tracklet_id(const Tracker& tracker) {
     _average_recognition_samples = 0;
     _average_recognition.clear();
     
@@ -2627,7 +2643,7 @@ void Individual::calculate_average_tracklet_id() {
     const Frame_t frame_limit(max(10u, FAST_SETTING(frame_rate) * 1u));
     
     for(auto & tracklet : _tracklets) {
-        auto && [n, vector] = average_recognition(tracklet->start());
+        auto && [n, vector] = average_recognition(tracker, tracklet->start());
         _average_recognition_samples += n;
         
         for(auto && [fdx, p] : vector) {
@@ -2657,7 +2673,7 @@ void Individual::calculate_average_tracklet_id() {
         }
         
         log(f, "Checking tracklet ",tracklet->start(), "-", tracklet->end()," (L=", tracklet->length(), ")");
-        auto split_up = split_tracklet_by_probability(this, *tracklet);
+        auto split_up = split_tracklet_by_probability(tracker, this, *tracklet);
         
         if(split_up.empty()) {
             processed_tracklets[tracklet->start()] = *tracklet;
@@ -2716,7 +2732,7 @@ std::tuple<bool, FrameRange> Individual::has_processed_tracklet(Frame_t frameInd
     return average_recognition_tracklet.at(segment_start);
 }*/
 
-std::optional<std::tuple<size_t, std::map<Idx_t, float>, Range<Frame_t>>> Individual::processed_recognition(Frame_t segment_start) {
+std::optional<std::tuple<size_t, std::map<Idx_t, float>, Range<Frame_t>>> Individual::processed_recognition(const Tracker& tracker, Frame_t segment_start) {
     auto it = average_processed_tracklet.find(segment_start);
     if(it == average_processed_tracklet.end()) {
         //! acquire write access
@@ -2730,7 +2746,7 @@ std::optional<std::tuple<size_t, std::map<Idx_t, float>, Range<Frame_t>>> Indivi
         const auto &[ segment, usable] = sit->second;
         
         if(segment.end >= _endFrame
-           && Tracker::end_frame() != Tracker::analysis_range().end())
+           && tracker.frames().end_frame() != Tracker::analysis_range().end())
         {
             return std::nullopt;
         }
@@ -2743,7 +2759,7 @@ std::optional<std::tuple<size_t, std::map<Idx_t, float>, Range<Frame_t>>> Indivi
             if (!blob)
                 continue;
 
-            auto pred = Tracker::instance()->find_prediction(i, blob->blob_id());
+            auto pred = tracker.find_prediction(i, blob->blob_id());
             if(pred) {
                 auto map = track::prediction2map(*pred);
                 ++overall;
@@ -2780,7 +2796,7 @@ std::optional<std::tuple<size_t, std::map<Idx_t, float>, Range<Frame_t>>> Indivi
     return average_processed_tracklet.at(segment_start);
 }
 
-const decltype(Individual::average_recognition_tracklet)::mapped_type Individual::average_recognition(Frame_t segment_start) {
+const decltype(Individual::average_recognition_tracklet)::mapped_type Individual::average_recognition(const track::Tracker& tracker, Frame_t segment_start) {
     auto it = average_recognition_tracklet.find(segment_start);
     if(it == average_recognition_tracklet.end()) {
         // average cannot be found for given segment. try to calculate it...
@@ -2795,7 +2811,7 @@ const decltype(Individual::average_recognition_tracklet)::mapped_type Individual
         
         const auto && [segment, usable] = (FrameRange)*sit->get();
         
-        if(segment.end >= _endFrame && Tracker::end_frame() + 1_f != Frame_t(narrow_cast<Frame_t::number_t>(READ_SETTING(video_length, uint64_t)))) {
+        if(segment.end >= _endFrame && tracker.frames().end_frame() + 1_f != Frame_t(narrow_cast<Frame_t::number_t>(READ_SETTING(video_length, uint64_t)))) {
             return {0, {}};
         }
         
@@ -2807,7 +2823,7 @@ const decltype(Individual::average_recognition_tracklet)::mapped_type Individual
             if(!blob)
                 continue;
             
-            auto pred = Tracker::instance()->find_prediction(i, blob->blob_id());
+            auto pred = tracker.find_prediction(i, blob->blob_id());
             if(pred) {
                 auto map = track::prediction2map(*pred);
                 ++overall;
@@ -2884,7 +2900,7 @@ void * Individual::custom_data(Frame_t frame, long_t id) const {
     return NULL;
 }
 
-void Individual::save_visual_field(const file::Path& path, Range<Frame_t> range, const std::function<void(float, const std::string&)>& update, bool blocking) const {
+void Individual::save_visual_field(Size2 video_size, const file::Path& path, Range<Frame_t> range, const std::function<void(float, const std::string&)>& update, bool blocking) const {
     if(range.empty())
         range = Range<Frame_t>(_startFrame, _endFrame);
     
@@ -2935,7 +2951,7 @@ void Individual::save_visual_field(const file::Path& path, Range<Frame_t> range,
         bool owned = false;
         VisualField* ptr = (VisualField*)custom_data(frame, VisualField::custom_id);
         if(!ptr && basic) {
-            ptr = new VisualField(identity().ID(), frame, *basic, posture, false);
+            ptr = new VisualField(video_size, identity().ID(), frame, *basic, posture, false);
             owned = true;
         }
         

@@ -11,14 +11,14 @@
 namespace track {
 
 
-ENUM_CLASS_DOCS(recognition_border_t,
+/*ENUM_CLASS_DOCS(recognition_border_t,
     "No border at all. All points are inside the recognition boundary. (default)", // none
     "Looks at a subset of frames from the video, trying to find out where individuals go and masking all the places they do not.", // "heatmap"
     "Similar to heatmap, but tries to build a convex border around the around (without holes in it).", // {"outline"
     "Any array of convex shapes. Set coordinates by changing `recognition_shapes`.", // {"shapes"
     "The points defined in `grid_points` are turned into N different circles inside the arena (with points in `grid_points` being the circle centers), which define in/out if inside/outside any of the circles.", // "grid"
     "The video-file provides a binary mask (e.g. when `cam_circle_mask` was set to true during recording), which is then used to determine in/out." // {"circle",
-)
+)*/
 
     Border::Border(const Background* bg)
         : _background(bg), 
@@ -149,8 +149,8 @@ ENUM_CLASS_DOCS(recognition_border_t,
             return it == grid_cells.end() ? 0 : it->second;
         };
         
-        if(grid_cells.empty() || _recognition_border_size_rescale != READ_SETTING(recognition_border_size_rescale, float)) {
-            _recognition_border_size_rescale = READ_SETTING(recognition_border_size_rescale, float);
+        if(grid_cells.empty() || _recognition_border_size_rescale != READ_SETTING_WITH_DEFAULT(recognition_border_size_rescale, 0.5f)) {
+            _recognition_border_size_rescale = READ_SETTING_WITH_DEFAULT(recognition_border_size_rescale, 0.5f);
             grid_cells.clear();
             
             auto access = [this](const Vec2& pos) -> uint32_t& {
@@ -158,7 +158,7 @@ ENUM_CLASS_DOCS(recognition_border_t,
             };
             
             const Float2_t sqcm = SQR(FAST_SETTING(cm_per_pixel));
-            const Float2_t rescale = 1 - min(0.9, max(0, READ_SETTING(recognition_border_size_rescale, float)));
+            const Float2_t rescale = 1 - min(0.9, max(0, READ_SETTING_WITH_DEFAULT(recognition_border_size_rescale, 0.5f)));
             
             Print("Reading video...");
             pv::Frame frame;
@@ -217,7 +217,7 @@ ENUM_CLASS_DOCS(recognition_border_t,
         }
         
         cv::Mat out;
-        const size_t morph_size = max(1, video.size().width * 0.025), morph_size1 = max(1, morph_size * (1 - READ_SETTING(recognition_border_shrink_percent, float)));
+        const size_t morph_size = max(1, video.size().width * 0.025), morph_size1 = max(1, morph_size * (1 - READ_SETTING_WITH_DEFAULT(recognition_border_shrink_percent, 0.3f)));
         static const cv::Mat element = cv::getStructuringElement( cv::MORPH_ELLIPSE, (cv::Size)Size2( 2*morph_size + 1, 2*morph_size+1 ), Vec2( morph_size, morph_size ) );
         static const cv::Mat element1 = cv::getStructuringElement( cv::MORPH_ELLIPSE, (cv::Size)Size2( 2*morph_size1 + 1, 2*morph_size1+1 ), Vec2( morph_size1, morph_size1 ) );
         
@@ -437,9 +437,9 @@ ENUM_CLASS_DOCS(recognition_border_t,
             _vertices.front().push_back(pt);
         }
         
-        uint16_t coeff = SETTING(recognition_coeff);
+        uint16_t coeff = READ_SETTING_WITH_DEFAULT(recognition_coeff, uint16_t(50));
         if(coeff > 0) {
-            auto ptr = smooth_outline(_vertices.front(), READ_SETTING(recognition_smooth_amount, uint16_t), 1);
+            auto ptr = smooth_outline(_vertices.front(), READ_SETTING_WITH_DEFAULT(recognition_smooth_amount, uint16_t(200)), 1);
             
             Vec2 middle;
             float samples = 0;
@@ -497,7 +497,7 @@ ENUM_CLASS_DOCS(recognition_border_t,
     
     void Border::update(pv::File& video) {
         using namespace default_config;
-        _type = READ_SETTING(recognition_border, recognition_border_t::Class);
+        _type = READ_SETTING_WITH_DEFAULT(recognition_border, recognition_border_t::none);
         
         //LockGuard guard;
         std::lock_guard<std::mutex> guard(mutex);
@@ -541,7 +541,7 @@ ENUM_CLASS_DOCS(recognition_border_t,
             }
                 
             case Type::shapes:
-                _vertices = FAST_SETTING(recognition_shapes);
+                _vertices = {};//FAST_SETTING(recognition_shapes);
                 _min_distance = 1;
                 break;
             case Type::outline:
@@ -580,7 +580,7 @@ ENUM_CLASS_DOCS(recognition_border_t,
             
         } else if(_type == Type::shapes) {
             //Bounds r(Tracker::average());
-            auto r = FAST_SETTING(recognition_shapes);
+            auto r = std::vector<std::vector<Vec2>>{};//FAST_SETTING(recognition_shapes);
             for(auto &shape : r) {
                 if(pnpoly(shape, pt))
                     return 1;

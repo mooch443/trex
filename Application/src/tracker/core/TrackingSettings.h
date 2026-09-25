@@ -11,6 +11,10 @@
 #include <core/SizeFilters.h>
 #include <processing/encoding.h>
 
+namespace cmn::data {
+class FrameRepository;
+}
+
 namespace track {
 using namespace cmn;
 class Individual;
@@ -49,6 +53,7 @@ struct CachedSettings;
 
 struct AssignInfo {
     PPFrame* frame;
+    const data::FrameRepository* repo;
     const FrameProperties* f_prop;
     const FrameProperties* f_prev_prop;
     default_config::matching_mode_t::Class match_mode;
@@ -74,6 +79,17 @@ struct PoseMidlineIndexes {
         return indexes == other.indexes;
     }
 };
+
+/** @brief Optional same-class mask-overlap handling after tile aggregation. */
+ENUM_CLASS(MaskPostprocessMode,
+    none, /// Preserve mask rows without a second overlap-resolution pass.
+    /// Retain preferred rows and discard their eligible neighbors.
+    greedy_nms,
+    /// Transitively group eligible rows and emit their positioned mask union.
+    merge_masks
+);
+
+//(std::vector<std::vector<Vec2>>, recognition_shapes),
 
 //! A global settings cache used across the application by
 //! calling `FAST_SETTING(name)`.
@@ -106,7 +122,7 @@ CREATE_STRUCT(Settings,
   (uint16_t, posture_direction_smoothing),
   (file::Path, tags_path),
   (std::vector<Vec2>, grid_points),
-  (std::vector<std::vector<Vec2>>, recognition_shapes),
+  
   (float, grid_points_scaling),
   (std::vector<std::vector<Vec2>>, track_ignore),
   (std::vector<std::vector<Vec2>>, track_include),
@@ -304,3 +320,5 @@ struct IDaverage {
 std::map<Idx_t, float> prediction2map(const std::vector<float>& pred);
 
 }
+
+STRUCT_META_EXTENSIONS(track::Settings)

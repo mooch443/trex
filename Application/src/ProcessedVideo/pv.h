@@ -406,7 +406,7 @@ namespace pv {
         
     public:
         File(File&&) noexcept;
-        ~File();
+        ~File() noexcept;
         
         void close() override;
         const pv::Frame& last_frame();

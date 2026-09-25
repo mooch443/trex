@@ -6,6 +6,12 @@
 #include <tracking/Individual.h>
 #include <tracking/TrackletInformation.h>
 #include <misc/frame_t.h>
+#include <processing/Background.h>
+#include <data/FrameRepository.h>
+
+namespace pv {
+class File;
+}
 
 namespace track::Categorize {
 
@@ -151,6 +157,8 @@ struct DataStore {
     static Label::Ptr label(MaybeLabel ID);
     
     static Sample::Ptr sample(
+         const data::FrameRepository&,
+         const Background&,
          const std::weak_ptr<pv::File>& source,
          const std::shared_ptr<TrackletInformation>& segment,
          Individual* fish,
@@ -158,14 +166,16 @@ struct DataStore {
          const size_t min_samples
     );
     static Sample::Ptr temporary(
+         const data::FrameRepository&,
+         const Background&,
          pv::File* video_source,
          const std::shared_ptr<TrackletInformation>& segment,
          Individual* fish,
          const size_t max_samples,
          const size_t min_samples = 50u);
     
-    static Sample::Ptr random_sample(std::weak_ptr<pv::File> source, Idx_t fid);
-    static Sample::Ptr get_random(std::weak_ptr<pv::File> source);
+    static Sample::Ptr random_sample(const data::FrameRepository&, const Background&, std::weak_ptr<pv::File> source, Idx_t fid);
+    static Sample::Ptr get_random(const data::FrameRepository&, const Background&, std::weak_ptr<pv::File> source);
     
     struct Composition {
         std::unordered_map<std::string, size_t> _numbers;

@@ -1,4 +1,5 @@
 #include "OutputLibrary.h"
+#include <misc/Image.h>
 #include <tracking/Tracker.h>
 #include <tracking/EventAnalysis.h>
 #include <file/CSVExport.h>
@@ -8,7 +9,13 @@
 #include <core/IdentifiedTag.h>
 #include <tracking/IndividualManager.h>
 #include <tracking/Individual.h>
+#include <tracking/LockGuard.h>
+#include <data/MotionRecord.h>
+#include <processing/PVBlob.h>
+#include <tracking/Stuffs.h>
+#include <tracking/TrackletInformation.h>
 #include <gui/Graph.h>
+#include <tracking/Tracker.h>
 
 #define _LIBFNC(CONTENT) LIBPARAM -> Float2_t \
 { auto fish = info.fish; UNUSED(smooth); UNUSED(fish); UNUSED(frame); if(!props) return GlobalSettings::invalid(); CONTENT }
@@ -43,6 +50,24 @@ namespace Output {
 
     std::unordered_map<std::string, LibraryFuncProperties, MultiStringHash, MultiStringEqual> func_properties;
     std::mutex properties_mutex;
+
+    namespace {
+        bool same_calculation(const Calculation& lhs, const Calculation& rhs) {
+            if(lhs._operation != rhs._operation)
+                return false;
+            if(lhs._operation == Calculation::Operation::NONE)
+                return true;
+            return lhs._factor == rhs._factor;
+        }
+
+        bool same_output_instance(
+            const std::pair<Options_t, Calculation>& lhs,
+            const std::pair<Options_t, Calculation>& rhs)
+        {
+            return lhs.first == rhs.first
+                && same_calculation(lhs.second, rhs.second);
+        }
+    }
 
     void set_function_to_global(const std::string& name) {
         std::lock_guard guard(properties_mutex);
@@ -197,7 +222,8 @@ const track::MotionRecord* Library::retrieve_props(
         std::vector<std::string_view> ret;
         
         for (auto &p : _cache_func) {
-            ret.push_back(p.first);
+            if(p.first != "frame")
+                ret.push_back(p.first);
         }
         
         return ret;
@@ -218,7 +244,7 @@ const track::MotionRecord* Library::retrieve_props(
         return center;
     }
     
-    void Library::Init() {
+    void Library::Init(track::Tracker& tracker) {
         // add the standard functions
         _default_cache->clear();
         
@@ -228,13 +254,13 @@ const track::MotionRecord* Library::retrieve_props(
         
         if(not _callback) {
             _callback = GlobalSettings::register_callbacks({"output_centered", "output_origin"}, [](auto) {
-                const auto cm_per_px = FAST_SETTING(cm_per_pixel);
-                const auto CENTER_X = BOOL_SETTING(output_centered)
-                    ? (READ_SETTING(meta_video_size, Size2).width * 0.5_F * cm_per_px)
-                    : (READ_SETTING(output_origin, Vec2).x * cm_per_px);
-                const auto CENTER_Y = BOOL_SETTING(output_centered)
-                    ? (READ_SETTING(meta_video_size, Size2).height * 0.5_F * cm_per_px)
-                    : (READ_SETTING(output_origin, Vec2).y * cm_per_px);
+                const auto cm_per_px = READ_SETTING_WITH_DEFAULT(cm_per_pixel, Settings::cm_per_pixel_t{1});
+                const auto CENTER_X = READ_SETTING_WITH_DEFAULT(output_centered, false)
+                    ? (READ_SETTING_WITH_DEFAULT(meta_video_size, Size2{}).width * 0.5_F * cm_per_px)
+                    : (READ_SETTING_WITH_DEFAULT(output_origin, Vec2{}).x * cm_per_px);
+                const auto CENTER_Y = READ_SETTING_WITH_DEFAULT(output_centered, false)
+                    ? (READ_SETTING_WITH_DEFAULT(meta_video_size, Size2{}).height * 0.5_F * cm_per_px)
+                    : (READ_SETTING_WITH_DEFAULT(output_origin, Vec2{}).y * cm_per_px);
                 CENTER() = Vec2{CENTER_X, CENTER_Y};
             });
         }
@@ -449,7 +475,7 @@ const track::MotionRecord* Library::retrieve_props(
             return GlobalSettings::invalid();
         });
         
-        _cache_func[Functions::BORDER_DISTANCE.str()] = LIBFNC({
+        _cache_func[Functions::BORDER_DISTANCE.str()] = [ptr = tracker.weak_from_this()] _LIBFNC({
             if(auto video_mask = GlobalSettings::read_value<NoType>("video_mask");
                video_mask.valid())
             {
@@ -469,8 +495,10 @@ const track::MotionRecord* Library::retrieve_props(
                    meta_video_size)
                 {
                     size = *meta_video_size;
-                } else {
-                    size = Tracker::average().dimensions();
+                } else if(auto lock = ptr.lock();
+                          lock)
+                {
+                    size = lock->average().dimensions();
                 }
                 
                 cv::Rect2f r(0, 0, size.width * FAST_SETTING(cm_per_pixel), size.height * FAST_SETTING(cm_per_pixel));
@@ -506,29 +534,41 @@ const track::MotionRecord* Library::retrieve_props(
         });
         
         FN_IS_GLOBAL_PROPERTY(time);
-        _cache_func["time"] = LIBGLFNC({
+        _cache_func["time"] = [ptr = tracker.weak_from_this()] _LIBGLFNC({
             (void)info;
-            auto props = Tracker::properties(frame);
-            if(!props)
+            auto lock = ptr.lock();
+            if(not lock)
+                return GlobalSettings::invalid();
+            
+            auto props = lock->frames().properties(frame);
+            if(not props)
                 return GlobalSettings::invalid();
             return props->time();
         });
         
         FN_IS_GLOBAL_PROPERTY(timestamp);
-        _cache_func["timestamp"] = LIBGLFNC({
+        _cache_func["timestamp"] = [ptr = tracker.weak_from_this()] _LIBGLFNC({
             (void)info;
             
-            auto props = Tracker::properties(frame);
+            auto lock = ptr.lock();
+            if(not lock)
+                return GlobalSettings::invalid();
+            
+            auto props = lock->frames().properties(frame);
             if(!props)
                 return GlobalSettings::invalid();
             return props->timestamp().get();
         });
         
         FN_IS_GLOBAL_PROPERTY(frame);
-        _cache_func["frame"] = LIBGLFNC({
+        _cache_func["frame"] = [ptr = tracker.weak_from_this()] _LIBGLFNC({
             (void)info;
             
-            auto props = Tracker::properties(frame);
+            auto lock = ptr.lock();
+            if(not lock)
+                return GlobalSettings::invalid();
+            
+            auto props = lock->frames().properties(frame);
             if(!props)
                 return GlobalSettings::invalid();
             return frame.get();
@@ -799,10 +839,13 @@ const track::MotionRecord* Library::retrieve_props(
         });
         
         FN_IS_CENTROID_ONLY_PROPERTY(visual_identification_p);
-        _cache_func["visual_identification_p"] = LIB_NO_CHECK_FNC({
+        _cache_func["visual_identification_p"] = [ptr = tracker.weak_from_this()] _LIBNCFNC({
             auto blob = fish->compressed_blob(frame);
-            if (blob) {
-                auto ptr = Tracker::instance()->find_prediction(frame, blob->blob_id());
+            auto lock = ptr.lock();
+            if (blob
+                && lock)
+            {
+                auto ptr = lock->find_prediction(frame, blob->blob_id());
                 if(ptr && not ptr->empty()) {
                     auto map = track::prediction2map(*ptr);
                     if(auto it = map.find(fish->identity().ID());
@@ -1410,7 +1453,15 @@ cached_output_fields_t Library::get_cached_fields() {
                     }
                 }
                 
-                cached_fields[fname].push_back({ modifiers, func });
+                auto& instances = cached_fields[fname];
+                const std::pair<Options_t, Calculation> instance{modifiers, func};
+                const auto duplicate = std::find_if(
+                    instances.begin(), instances.end(),
+                    [&](const auto& existing) {
+                        return same_output_instance(existing, instance);
+                    });
+                if(duplicate == instances.end())
+                    instances.push_back(instance);
                 
             } catch(const std::exception& ex) {
                 FormatExcept("Cannot parse option ", fname, ": ", ex.what());
@@ -1419,56 +1470,197 @@ cached_output_fields_t Library::get_cached_fields() {
         
         return cached_fields;
     }
+
+    namespace {
+        struct OutputSeries {
+            std::string name;
+            std::string units;
+            bool points{false};
+            std::function<double(Frame_t::number_t)> value;
+        };
+
+        std::vector<OutputSeries> make_output_series(
+            const cached_output_fields_t& options_map,
+            const Individual* fish,
+            LibraryCache::Ptr cache)
+        {
+            if(!cache)
+                cache = _default_cache;
+
+            const auto annotations = READ_SETTING(output_annotations, std::map<std::string, std::string>);
+            std::vector<OutputSeries> result;
+
+            for(const auto& [fname, instances] : options_map) {
+                const auto annotation = annotations.find(fname);
+                const std::string units = annotation != annotations.end() ? annotation->second : "";
+                std::vector<std::pair<Options_t, Calculation>> unique_instances;
+
+                for(const auto& instance : instances) {
+                    const auto duplicate = std::find_if(
+                        unique_instances.begin(), unique_instances.end(),
+                        [&](const auto& existing) {
+                            return same_output_instance(existing, instance);
+                        });
+                    if(duplicate != unique_instances.end())
+                        continue;
+                    unique_instances.push_back(instance);
+
+                    Library::LibInfo info(fish, instance.first, cache);
+                    auto mod_name = fname;
+
+                    if(const auto properties = properties_for(fname);
+                       not properties.centroid_only
+                       && not properties.posture_only
+                       && not properties.is_global)
+                    {
+                        if(info.modifiers.is(Modifiers::SMOOTH))
+                            mod_name += "#smooth";
+                        if(info.modifiers.is(Modifiers::CENTROID))
+                            mod_name += "#centroid";
+                        else if(info.modifiers.is(Modifiers::POSTURE_CENTROID))
+                            mod_name += "#pcentroid";
+                        else if(info.modifiers.is(Modifiers::WEIGHTED_CENTROID))
+                            mod_name += "#wcentroid";
+                    }
+
+                    auto value = [fname, info, calculation = instance.second](Frame_t::number_t frame) {
+                        return calculation.apply(Library::get(fname, info, Frame_t(frame)));
+                    };
+
+                    result.push_back({
+                        .name = mod_name,
+                        .units = units,
+                        .points = info.modifiers.is(Modifiers::POINTS),
+                        .value = value
+                    });
+
+                    if(info.modifiers.is(Modifiers::PLUSMINUS)) {
+                        result.push_back({
+                            .name = mod_name,
+                            .units = units,
+                            .points = info.modifiers.is(Modifiers::POINTS),
+                            .value = [value = std::move(value)](Frame_t::number_t frame) {
+                                return -value(frame);
+                            }
+                        });
+                    }
+                }
+            }
+
+            return result;
+        }
+
+        void report_export_progress(const Range<Frame_t>& range,
+                                    Frame_t frame,
+                                    std::function<void(float)>* percent_callback)
+        {
+            if(not percent_callback || frame.get() % 100 != 0)
+                return;
+
+            const auto total = (range.end - range.start).get();
+            const auto completed = (frame - range.start).get();
+            (*percent_callback)(total > 0 ? float(completed) / float(total) : 1.f);
+        }
+    }
     
     void Library::init_graph(const cached_output_fields_t& options_map, Graph &graph, const Individual *fish, LibraryCache::Ptr cache) {
-        if(!cache)
-            cache = _default_cache;
-        
-        auto annotations = READ_SETTING(output_annotations, std::map<std::string, std::string>);
-        
-        for (auto &[fname, instances] : options_map) {
-            std::string units = "";
-            if (annotations.count(fname)) {
-                units = annotations.at(fname);
+        for(auto& series : make_output_series(options_map, fish, std::move(cache))) {
+            graph.add_function(Graph::Function(
+                series.name,
+                series.points ? Graph::POINTS : Graph::DISCRETE,
+                std::move(series.value),
+                gui::Color(),
+                series.units));
+        }
+    }
+
+    void Library::save_csv(const cached_output_fields_t& output_fields,
+                           const Range<Frame_t>& range,
+                           const Individual* fish,
+                           LibraryCache::Ptr cache,
+                           const file::Path& filename,
+                           std::function<void(float)>* percent_callback)
+    {
+        auto series = make_output_series(output_fields, fish, std::move(cache));
+        std::erase_if(series, [](const auto& item) {
+            return item.name == "frame";
+        });
+
+        std::vector<std::string> header{"frame"};
+        header.reserve(series.size() + 1);
+        for(const auto& item : series) {
+            header.push_back(item.units.empty()
+                ? item.name
+                : item.name + " (" + item.units + ")");
+        }
+
+        file::Table table(header);
+        table.reserve(sign_cast<size_t>((range.end - range.start).get()) + 1);
+
+        file::Row row;
+        for(auto frame = range.start; frame <= range.end; ++frame) {
+            row.clear();
+            row.add(float(frame.get()));
+            for(const auto& item : series)
+                row.add(item.value(frame.get()));
+            table.add(row);
+            report_export_progress(range, frame, percent_callback);
+        }
+
+        file::CSVExport(table).save(filename);
+    }
+
+    void Library::save_npz(const cached_output_fields_t& output_fields,
+                           const Range<Frame_t>& range,
+                           const Individual* fish,
+                           LibraryCache::Ptr cache,
+                           const file::Path& filename,
+                           std::function<void(float)>* percent_callback,
+                           bool quiet)
+    {
+        if(not filename.has_extension("npz"))
+            throw U_EXCEPTION("Can only save to NPZ with save_npz (",filename,")");
+
+        if(filename.exists())
+            filename.delete_file();
+
+        const auto series = make_output_series(output_fields, fish, std::move(cache));
+        std::vector<std::vector<float>> results(series.size());
+        const auto sample_count = sign_cast<size_t>((range.end - range.start).get()) + 1;
+        for(auto& values : results)
+            values.reserve(sample_count);
+
+#ifndef NDEBUG
+        const auto frame_count = (range.end - range.start).get();
+        const int print_step = max(1, int(frame_count * 0.1f));
+#else
+        UNUSED(quiet);
+#endif
+
+        for(auto frame = range.start; frame <= range.end; ++frame) {
+            for(size_t i = 0; i < series.size(); ++i) {
+                const auto value = series[i].value(frame.get());
+                results[i].push_back(GlobalSettings::is_invalid(value)
+                    ? GlobalSettings::invalid()
+                    : float(value));
             }
-            
-            for (auto &e : instances) {
-                LibInfo info(fish, e.first, cache);
-                auto mod_name = fname;
-                
-                if(auto p = properties_for(fname);
-                   not p.centroid_only
-                   && not p.posture_only
-                   && not p.is_global)
-                {
-                    if (info.modifiers.is(Modifiers::SMOOTH))
-                        mod_name += "#smooth";
-                    if(info.modifiers.is(Modifiers::CENTROID))
-                        mod_name += "#centroid";
-                    else if(info.modifiers.is(Modifiers::POSTURE_CENTROID))
-                        mod_name += "#pcentroid";
-                    else if(info.modifiers.is(Modifiers::WEIGHTED_CENTROID))
-                        mod_name += "#wcentroid";
-                }
-                
-                auto func = Graph::Function(mod_name,
-                    info.modifiers.is(Modifiers::POINTS) ? Graph::POINTS : Graph::DISCRETE,
-                    [fname, mod_name, info, e](Frame_t::number_t x) {
-                        return e.second.apply(Library::get(fname, info, Frame_t(x)));
-                        
-                    }, gui::Color(), units);
-                
-                graph.add_function(func);
-                
-                if(info.modifiers.is(Modifiers::PLUSMINUS)) {
-                    graph.add_function(Graph::Function(mod_name,
-                       info.modifiers.is(Modifiers::POINTS) ? Graph::POINTS : Graph::DISCRETE,
-                       [fname, mod_name, info, e](Frame_t::number_t x) {
-                           return -e.second.apply(Library::get(fname, info, Frame_t(x)));
-                           
-                       }, func._color, units));
-                }
+
+#ifndef NDEBUG
+            if(frame.get() % print_step == 0 && frame_count > 10000 && not quiet)
+                Print(frame,"/",range.end," done");
+#endif
+
+            report_export_progress(range, frame, percent_callback);
+        }
+
+        bool first = true;
+        for(size_t i = 0; i < series.size(); ++i) {
+            try {
+                cmn::npz_save(filename.str(), series[i].name, results[i], first ? "w" : "a");
+            } catch(...) {
+                throw U_EXCEPTION("Giving up (",results[i].size()," floats for ",series[i].name,", ",first ? "first" : "",") trying to save ",filename,".");
             }
+            first = false;
         }
     }
     
@@ -1673,7 +1865,7 @@ cached_output_fields_t Library::get_cached_fields() {
         return 0;
     }
     
-    bool save_focussed_on(const file::Path& file, const Individual* fish) {
+    /*bool save_focussed_on(const file::Path& file, const Individual* fish) {
         using namespace file;
         
         std::vector<std::string> header = {"frame"};
@@ -1740,5 +1932,5 @@ cached_output_fields_t Library::get_cached_fields() {
         
         CSVExport e(table);
         return e.save(file);
-    }
+    }*/
 }

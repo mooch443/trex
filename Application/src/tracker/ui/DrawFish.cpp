@@ -1,5 +1,8 @@
 #include "DrawFish.h"
 #include <gui/DrawSFBase.h>
+#include <core/Border.h>
+#include <misc/Image.h>
+#include <misc/ThreadPool.h>
 #include <tracking/OutputLibrary.h>
 #include <tracking/Individual.h>
 #include <tracking/VisualField.h>
@@ -11,7 +14,6 @@
 #include <gui/DrawBase.h>
 #include <tracking/DetectTag.h>
 #include <ui/GUICache.h>
-//#include <gui.h>
 #include <core/IdentifiedTag.h>
 #include <ui/Skelett.h>
 #include <tracking/Individual.h>
@@ -192,7 +194,9 @@ Fish::~Fish() {
             
             auto p = tags::prettify_blobs(blobs, noise, {},
                 //GUICache::instance().processed_frame().original_blobs(),
-                GUICache::instance().background()->image());
+              GUICache::instance().background()
+                ? GUICache::instance().background()->image().get()
+                : nullptr);
 
             for (auto& image : p) {
 
@@ -232,7 +236,7 @@ Fish::~Fish() {
         }
     }
     
-    void Fish::set_data(const UpdateSettings& options, Individual& obj, Frame_t frameIndex, double time, const EventAnalysis::EventMap *events)
+    void Fish::set_data(const Tracker& tracker, const UpdateSettings& options, Individual& obj, Frame_t frameIndex, double time, const EventAnalysis::EventMap *events)
     {
         auto &cache = GUICache::instance();
         
@@ -418,7 +422,7 @@ Fish::~Fish() {
         
         auto has_processed_tracklet = GUICache::instance()._unsafe_processed_tracklet_cache(_id.ID()); //obj.has_processed_tracklet(_frame);
         if(has_processed_tracklet) {
-            processed_tracklet = obj.processed_recognition(has_processed_tracklet->start());
+            processed_tracklet = obj.processed_recognition(tracker, has_processed_tracklet->start());
         } else
             processed_tracklet = std::nullopt;
         
@@ -454,7 +458,7 @@ Fish::~Fish() {
             std::string title = "recognition";
             
             if(valid) {
-                auto rec = obj.processed_recognition(tracklet.start());
+                auto rec = obj.processed_recognition(tracker, tracklet.start());
                 if(rec.has_value()) {
                     auto && [n, values, _] = *rec;
                     title = "average n:"+Meta::toStr(n);
@@ -605,7 +609,7 @@ Fish::~Fish() {
                         for(auto y = it; y < nex; ++y) {
                             int x = 0;
                             auto ptr = mat.ptr(y, 0);
-                            auto end = mat.ptr(y, mat.cols);
+                            auto end = mat.ptr(y, mat.cols - 1) + 1;
                             
                             for (; ptr != end; ++ptr, ++x) {
                                 //if (*(ptr) <= 5)
@@ -672,6 +676,80 @@ Fish::~Fish() {
         {
             _recognition_radius = 0.f;
         }
+        
+        if(_cached_outline
+           && OPTION(gui_show_outline))
+        {
+            //if(points.empty())
+                points = _cached_outline->uncompress();
+
+            //float right_side = outline->tail_index() + 1;
+            //float left_side = points.size() - outline->tail_index();
+
+            oline.clear();
+            for (size_t i = 0; i < points.size(); i++) {
+                //auto& pt = points[i];
+                //Color c = _color;
+                /*if(outline->tail_index() != -1) {
+                    float d = cmn::abs(float(i) - float(outline->tail_index())) / ((long_t)i > outline->tail_index() ? left_side : right_side) * 0.4 + 0.5;
+                    c = Color(clr.r, clr.g, clr.b, max_color * d);
+                }*/
+                oline.push_back(Vertex(points[i], _color));
+            }
+            oline.push_back(Vertex(points.front(), _color.alpha(255 * 0.04)));
+            
+            if(not _buffer_draw_outline)
+                _buffer_draw_outline = Layout::Make<Line>(std::move(oline), Line::Thickness_t{OPTION(gui_outline_thickness)});
+            else {
+                assert(_buffer_draw_outline->parent() == nullptr || _buffer_draw_outline->parent()->stage() == nullptr);
+                _buffer_draw_outline->set(Line::Thickness_t{OPTION(gui_outline_thickness)});
+                _buffer_draw_outline->set(std::move(oline));
+            }
+            
+            //glines.clear();
+            //_buffer_draw_holes.clear();
+            
+            if(_basic_stuff
+               && _basic_stuff->blob.pred.valid()
+               && _basic_stuff->blob.pred.outlines.has_holes())
+            {
+                const Vec2 offset = -_blob_bounds.pos();
+                const auto desaturated = _color.saturation(0.25);
+                
+                auto &lines = _basic_stuff->blob.pred.outlines.lines;
+                _buffer_draw_holes.resize(lines.size());
+                
+                Line::Vertices_t gline;
+                for(size_t i = 0; i<lines.size(); ++i) {
+                    auto line = (std::vector<Vec2>)lines.at(i);
+                    
+                    gline.clear();
+                    gline.reserve(line.size());
+                    
+                    for(auto &pt : line) {
+                        gline.emplace_back(pt + offset, desaturated);
+                    }
+                    
+                    if(not _buffer_draw_holes[i]) {
+                        _buffer_draw_holes[i] = Layout::Make<Line>(std::move(gline), Line::Thickness_t{OPTION(gui_outline_thickness)});
+                    } else {
+                        _buffer_draw_holes[i]->set(Line::Thickness_t{OPTION(gui_outline_thickness)});
+                        _buffer_draw_holes[i]->set(std::move(gline));
+                    }
+                        
+                    assert(_buffer_draw_holes[i]->parent() == nullptr || _buffer_draw_holes[i]->parent()->stage() == nullptr);
+                }
+                
+            } else {
+                _buffer_draw_holes.clear();
+            }
+        }
+        else {
+            _buffer_draw_outline = nullptr;
+            _buffer_draw_holes.clear();
+        }
+        
+        needs_swap = true;
     }
     
     /*void Fish::draw_occlusion(gui::DrawStructure &window) {
@@ -1257,7 +1335,7 @@ void Fish::selection_clicked(Event) {
 }
     
     void Fish::update(const FindCoord& coord, Entangled& parent, DrawStructure &graph) {
-        _tight_selection.set_clickable(not graph.is_key_pressed(Codes::LSystem));
+        _tight_selection.set_clickable(not graph.is_system_pressed());
         
         //const auto frame_rate = slow::frame_rate;//FAST_SETTING(frame_rate);
         //const float track_max_reassign_time = FAST_SETTING(track_max_reassign_time);
@@ -1294,7 +1372,7 @@ void Fish::selection_clicked(Event) {
         
         auto active = GUICache::instance().active_ids.find(_id.ID()) != GUICache::instance().active_ids.end();
         bool is_selected = cache.is_selected(_id.ID());
-        std::vector<Vec2> points;
+        //std::vector<Vec2> points;
 
 
 
@@ -1314,7 +1392,8 @@ void Fish::selection_clicked(Event) {
 #endif
 
         if (active && _cached_outline) {
-            if (OPTION(gui_show_shadows) || OPTION(gui_show_outline)) {
+            if (OPTION(gui_show_shadows) || OPTION(gui_show_outline))
+            {
                 if(points.empty())
                     points = _cached_outline->uncompress();
             }
@@ -1376,7 +1455,7 @@ void Fish::selection_clicked(Event) {
             mp = mouse_position - _view.pos();
         }
 
-        _posture.update([this, panic_button, mp, &_force, &head, &offset, active, &points](Entangled& window) {
+        _posture.update([this, panic_button, mp, &_force, &head, &offset, active](Entangled& window) {
             if (panic_button) {
                 if (float(rand()) / float(RAND_MAX) > 0.75) {
                     _color = _wheel.next();
@@ -1417,49 +1496,61 @@ void Fish::selection_clicked(Event) {
                 window.set_size(Size2());
             }
 
-            if (active && _cached_outline && OPTION(gui_show_outline)) {
-                Line::Vertices_t oline;
-                if(points.empty())
-                    points = _cached_outline->uncompress();
-
+            if (active
+                && _cached_outline
+                && OPTION(gui_show_outline))
+            {
                 // check if we actually have a tail index
-                if (OPTION(gui_show_midline) && _cached_midline && _cached_midline->tail_index() != -1)
+                if (OPTION(gui_show_midline)
+                    && _cached_midline
+                    && _cached_midline->tail_index() != -1)
+                {
                     window.add<Circle>(Loc(points.at(_cached_midline->tail_index())), Radius{2}, LineClr{Blue.alpha(255 * 0.3f)});
-
-                //float right_side = outline->tail_index() + 1;
-                //float left_side = points.size() - outline->tail_index();
-
-                for (size_t i = 0; i < points.size(); i++) {
-                    auto& pt = points[i];
-                    //Color c = _color;
-                    /*if(outline->tail_index() != -1) {
-                        float d = cmn::abs(float(i) - float(outline->tail_index())) / ((long_t)i > outline->tail_index() ? left_side : right_side) * 0.4 + 0.5;
-                        c = Color(clr.r, clr.g, clr.b, max_color * d);
-                    }*/
-                    oline.push_back(Vertex(pt, _color));
                 }
-                oline.push_back(Vertex(points.front(), _color.alpha(255 * 0.04)));
                 //auto line =
-                window.add<Line>(oline, Line::Thickness_t{OPTION(gui_outline_thickness)});
+                
+                if(needs_swap) {
+                    std::swap(_buffer_draw_outline, _draw_outline);
+                    std::swap(_buffer_draw_holes, _draw_holes);
+                    needs_swap = false;
+                }
+                
+                if(_draw_outline
+                   || not _draw_holes.empty())
+                {
+                    if(not _outline_container)
+                        _outline_container = Layout::Make<Entangled>();
+                }
+                
+                if(_outline_container) {
+                    _outline_container->update([&](Entangled& window) {
+                        if(_draw_outline)
+                            window.advance_wrap(*_draw_outline);
+                        for(auto& hole : _draw_holes) {
+                            window.advance_wrap(*hole);
+                        }
+                    });
+                    window.advance_wrap(*_outline_container);
+                }
+                
+                //window.add<Line>(oline, Line::Thickness_t{OPTION(gui_outline_thickness)});
                 //if(line)
                 //    window.text(Meta::toStr(line->points().size()) + "/" + Meta::toStr(oline.size()), Vec2(), White);
                 //window.vertices(oline);
                 
-                if(_basic_stuff
+                /*if(_basic_stuff
                    && _basic_stuff->blob.pred.valid()
                    && _basic_stuff->blob.pred.outlines.has_holes())
-                {
-                    auto &lines = _basic_stuff->blob.pred.outlines.lines;
-                    for(size_t i = 0; i<lines.size(); ++i) {
-                        Line::Vertices_t gline;
-                        for(auto &pt : (std::vector<Vec2>)lines.at(i)) {
-                            gline.emplace_back(pt + offset, _color.saturation(0.25));
-                        }
+                {*/
+                    /*for(auto& gline : glines) {
                         window.add<Line>(gline, Line::Thickness_t{OPTION(gui_outline_thickness)});
-                    }
-                }
+                    }*/
+                //}
 
             }
+            else
+                _outline_container = nullptr;
+            
             if (active && _cached_midline && OPTION(gui_show_midline)) {
                 std::vector<MidlineSegment> midline_points;
                 //Midline _midline(*_cached_midline);
@@ -1523,7 +1614,6 @@ void Fish::selection_clicked(Event) {
             _view.advance_wrap(_posture);
         
             // DISPLAY LABEL AND POSITION
-            auto bg = GUICache::instance().background();
             const auto centroid = _posture_stuff.has_value() && _posture_stuff->centroid_posture
                     ? _posture_stuff->centroid_posture.get()
                     : (_basic_stuff.has_value()
@@ -1531,17 +1621,7 @@ void Fish::selection_clicked(Event) {
                         : nullptr);
             
             auto c_pos = (centroid ? centroid->pos<Units::PX_AND_SECONDS>() + offset : Vec2());
-            if(not bg) //|| c_pos.x >= bg->image().cols || c_pos.y >= bg->image().rows || c_pos.y < 0 || c_pos.x < 0)
-                return;
-        
-            auto v = 255 - int(bg->image().at(
-                saturate(c_pos.y, 0u, bg->image().rows - 1), 
-                saturate(c_pos.x, 0u, bg->image().cols - 1)));
-            if(v >= 100)
-                v = 220;
-            else
-                v = 50;
-        
+            
             float angle = -centroid->angle();
             if (head) {
                 angle = -head->angle();
@@ -1814,7 +1894,23 @@ void Fish::selection_clicked(Event) {
                 last_scale = 0_F;
             }
             
-            if ((hovered || is_selected) && OPTION(gui_show_selections)) {
+            if (OPTION(gui_show_selections)
+                && (hovered || is_selected))
+            {
+                int v = 0;
+                if(auto bg = GUICache::instance().background();
+                   bg && bg->image())
+                {
+                    v = 255 - int(bg->image()->at(
+                           saturate(c_pos.y, 0u, bg->image()->rows - 1),
+                           saturate(c_pos.x, 0u, bg->image()->cols - 1)));
+                }
+                
+                if(v >= 100)
+                    v = 220;
+                else
+                    v = 50;
+                
                 auto radius = _radius;//(slow::calculate_posture && _ML != GlobalSettings::invalid() ? _ML : _blob_bounds.size().max()) * 0.6;
                 
                 auto circle_clr = Color((uint8_t)v, (uint8_t)saturate(255 * (hovered ? 1.7 : 1)));
@@ -1825,8 +1921,10 @@ void Fish::selection_clicked(Event) {
                 Loc pos(cmn::cos(angle), -cmn::sin(angle));
                 pos = pos * radius + c_pos;
             
-                _view.add<Circle>(pos, Radius{3}, LineClr{circle_clr});
-                _view.add<Line>(Line::Point_t(c_pos), Line::Point_t(Vec2(pos)), LineClr{ circle_clr });
+                if(OPTION(gui_show_centroid)) {
+                    _view.add<Circle>(pos, Radius{3}, LineClr{circle_clr});
+                    _view.add<Line>(Line::Point_t(c_pos), Line::Point_t(Vec2(pos)), LineClr{ circle_clr });
+                }
             
                 if(FAST_SETTING(posture_direction_smoothing)) {
                     size_t i = 0;
@@ -2272,11 +2370,11 @@ Drawable* Fish::shadow() {
     
     if(OPTION(gui_highlight_categories)) {
         if(_avg_cat.has_value()) {
-            children.emplace_back(Layout::Make<Circle>(
+            children.emplace_back(Layout::Make<Circle>{
                   Loc(_view.pos() + _view.size() * 0.5),
                   Radius{_view.size().length()},
                   LineClr{Transparent},
-                  FillClr{ColorWheel(_avg_cat.value()).next().alpha(75)}));
+                  FillClr{ColorWheel(_avg_cat.value()).next().alpha(75)}});
         } else {
             /*e.add<Circle>(Loc(_view.pos() + _view.size() * 0.5),
                           Radius{_view.size().length()},
@@ -2286,11 +2384,11 @@ Drawable* Fish::shadow() {
     }
     
     if(OPTION(gui_show_match_modes)) {
-        children.emplace_back(Layout::Make<Circle>(
+        children.emplace_back(Layout::Make<Circle>{
               Loc(_view.pos() + _view.size() * 0.5),
               Radius{_view.size().length()},
               LineClr{Transparent},
-              FillClr{ColorWheel(_match_mode.has_value() ? (int)_match_mode.value().value() : -1).next().alpha(50)}));
+              FillClr{ColorWheel(_match_mode.has_value() ? (int)_match_mode.value().value() : -1).next().alpha(50)}});
     }
     
     //auto bdx = blob->blob_id();
@@ -2298,11 +2396,11 @@ Drawable* Fish::shadow() {
         uint32_t i=0;
         for(auto &clique : GUICache::instance()._cliques) {
             if(clique.fishs.contains(_id.ID())) {
-                children.emplace_back(Layout::Make<Circle>(
+                children.emplace_back(Layout::Make<Circle>{
                       Loc(_view.pos() + _view.size() * 0.5),
                       Radius{_view.size().length()},
                       LineClr{Transparent},
-                      FillClr{ColorWheel(i).next().alpha(50)}));
+                      FillClr{ColorWheel(i).next().alpha(50)}});
                 break;
             }
             ++i;

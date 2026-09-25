@@ -1,10 +1,18 @@
 #include "TrainingData.h"
 #include <gui/Transform.h>
+#include <misc/Image.h>
 #include <misc/GlobalSettings.h>
+#include <processing/Background.h>
+#include <tracking/Individual.h>
+#include <tracking/LockGuard.h>
+#include <tracking/PPFrame.h>
+#include <tracking/Stuffs.h>
+#include <tracking/TrackletInformation.h>
 #include <tracking/Tracker.h>
 #include <processing/PixelTree.h>
 #include <tracking/FilterCache.h>
 #include <tracking/IndividualManager.h>
+#include <misc/Median.h>
 
 //#undef NDEBUG
 
@@ -876,7 +884,7 @@ std::shared_ptr<TrainingData::DataRange> TrainingData::add_salt(const std::share
     return add_range;
 }
 
-bool TrainingData::generate(const std::string& step_description, pv::File & video_file, std::map<Frame_t, std::set<Idx_t> > individuals_per_frame, const std::function<void(float)>& callback, const TrainingData* source) {
+bool TrainingData::generate(const std::string& step_description, const Background& background, const data::FrameRepository& repo, pv::File & video_file, std::map<Frame_t, std::set<Idx_t> > individuals_per_frame, const std::function<void(float)>& callback, const TrainingData* source) {
     auto frames = extract_keys(individuals_per_frame);
     
     LockGuard guard(ro_t{}, "generate_training_data");
@@ -1030,6 +1038,7 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
     const bool calculate_posture = FAST_SETTING(calculate_posture);
     std::map<Idx_t, std::vector<std::tuple<Frame_t, Image::SPtr>>> individual_training_images;
     size_t failed_blobs = 0, found_blobs = 0;
+    cv::Mat mask_buffer, image_buffer;
     
     for(auto frame : frames) {
         if(individuals_per_frame.find(frame) == individuals_per_frame.end()) {
@@ -1095,7 +1104,8 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
         }
         
         video_file.read_with_encoding(video_frame, frame, Background::meta_encoding());
-        Tracker::preprocess_frame(std::move(video_frame), pp, nullptr, PPFrame::NeedGrid::NoNeed, video_file.header().resolution);
+        Tracker::preprocess_frame(std::move(video_frame), pp, nullptr, repo, background,
+                                  NeedGrid::NoNeed, HistorySplitPolicy::Apply);
         
         IndividualManager::transform_ids(filtered_ids, [&](auto id, auto fish){
             /**
@@ -1147,7 +1157,7 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
             maximum_size = max(maximum_size, blob->bounds().size());
             
             // try loading it all into a vector
-            Image::SPtr image;
+            Image::SPtr image = Image::Make();
             
             /*auto iit = did_image_already_exist.find({id, frame});
             if(iit != did_image_already_exist.end()) {
@@ -1160,7 +1170,8 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
                 ? fish->calculate_midline_for(*posture)
                 : nullptr;
             
-            image = std::get<0>(constraints::diff_image(normalized(), blob.get(), midline ? midline->transform(normalized()) : gui::Transform(), filters.median_midline_length_px, output_size, Tracker::background()));
+            auto pos = constraints::diff_image_cached(mask_buffer, image_buffer, *image,
+               normalized(), blob.get(), midline ? midline->transform(normalized()) : gui::Transform(), filters.median_midline_length_px, output_size, &background);
             
             if(blob->bounds().width > output_size.width
                || blob->bounds().height > output_size.height)
@@ -1168,7 +1179,7 @@ bool TrainingData::generate(const std::string& step_description, pv::File & vide
                 ++failed;
             }
             
-            if(image != nullptr) {
+            if(pos) {
                 image->set_index(frame.get());
                 
                 assert(!image->custom_data());

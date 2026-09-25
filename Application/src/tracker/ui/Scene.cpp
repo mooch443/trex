@@ -238,7 +238,7 @@ void SceneManager::update(IMGUIBase* window, DrawStructure& graph) {
         if (error_str && not error_str->empty()) {
             graph.dialog(
                 [](auto){ _displaying_error = false; },
-                settings::htmlify(*error_str),
+                settings::htmlify(utils::ShortenText(*error_str, 1000)),
                 "Error"
             );
         } else {

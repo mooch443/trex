@@ -1,25 +1,102 @@
 #include "GUICache.h"
+#include <pv.h>
+#include <data/MotionRecord.h>
+#include <misc/Buffers.h>
+#include <misc/Image.h>
+#include <misc/ThreadPool.h>
 #include <misc/Timer.h>
 #include <misc/GlobalSettings.h>
+#include <processing/Background.h>
+#include <core/Border.h>
+#include <gui/GuiTypes.h>
 #include <tracking/Tracker.h>
+#include <tracking/Individual.h>
+#include <tracking/LockGuard.h>
+#include <tracking/PPFrame.h>
+#include <tracking/Stuffs.h>
+#include <tracking/TrackletInformation.h>
+#include <ui/FramePreloader.h>
 #include <ui/DrawFish.h>
 #include <ui/Categorize.h>
 #include <gui/DrawBase.h>
 #include <tracking/IndividualManager.h>
 #include <core/default_config.h>
-#include <grabber/misc/default_config.h>
 #include <ui/DrawPosture.h>
 #include <tracking/FilterCache.h>
 #include <core/TimingStatsCollector.h>
+#include <gui/dyn/UnresolvedStringPattern.h>
 #include <ui/Scene.h>
 #include <ui/DrawGraph.h>
 #include <tracking/TrackingHelper.h>
 #include <misc/default_settings.h>
 
 namespace cmn::gui {
-    
-std::unique_ptr<PPFrame> GUICache::PPFrameMaker::operator()() const {
-    return std::make_unique<PPFrame>();
+
+struct GUICache::LoadingState {
+    using FramePtr = std::unique_ptr<PPFrame>;
+
+    struct PPFrameMaker {
+        FramePtr operator()() const {
+            return std::make_unique<PPFrame>();
+        }
+    };
+
+    Buffers<FramePtr, PPFrameMaker> buffers;
+    FramePreloader<FramePtr> preloader;
+    Timer last_success;
+    Timer last_consecutive_update;
+
+    LoadingState(GUICache& owner, std::shared_ptr<TimingStatsCollector> timing_stats)
+        : preloader(std::move(timing_stats),
+            [this, owner = &owner](Frame_t frameIndex) -> FramePtr {
+                FramePtr ptr;
+                auto video = owner->_video.lock();
+                if(not video)
+                    return nullptr;
+
+                try {
+                    if(frameIndex.valid()
+                       && video->is_read_mode())
+                    {
+                        if(frameIndex >= video->length())
+                            return nullptr;
+
+                        pv::Frame frame;
+                        video->read_with_encoding(frame, frameIndex, Background::meta_encoding());
+
+                        ptr = buffers.get(source_location::current());
+                        ptr->clear();
+
+                        Tracker::preprocess_frame(std::move(frame), *ptr, &owner->pool(),
+                                                  owner->_tracker->frames(), *owner->_tracker->background(),
+                                                  NeedGrid::Need, HistorySplitPolicy::Apply);
+                    }
+
+                } catch(...) {
+                    FormatExcept("Cannot load frame ", frameIndex, " from file ", video->filename());
+                }
+
+                return ptr;
+            },
+            [this](FramePtr&& ptr) {
+                buffers.move_back(std::move(ptr));
+            }, nullptr, TimingMetric_t::PVRequest, TimingMetric_t::PVLoad, TimingMetric_t::PVWaiting)
+    { }
+};
+
+const GenericThreadPool& GUICache::pool() const {
+    assert(_pool);
+    return *_pool;
+}
+
+GenericThreadPool& GUICache::pool() {
+    assert(_pool);
+    return *_pool;
+}
+
+const Border& GUICache::border() const {
+    assert(_border);
+    return *_border;
 }
 
     GUICache*& cache() {
@@ -37,42 +114,17 @@ std::unique_ptr<PPFrame> GUICache::PPFrameMaker::operator()() const {
         return cache() != nullptr;
     }
 
-    GUICache::GUICache(DrawStructure* graph, std::weak_ptr<pv::File> video, std::shared_ptr<TimingStatsCollector> timing_stats)
-        : _pool(saturate(cmn::hardware_concurrency(), 1u, 5u), "GUICache::_pool"),
+    GUICache::GUICache(DrawStructure* graph,
+                       std::shared_ptr<track::Tracker> tracker,
+                       std::weak_ptr<pv::File> video,
+                       std::shared_ptr<TimingStatsCollector> timing_stats)
+          : _tracker(std::move(tracker)),
+            _pool(std::make_unique<GenericThreadPool>(saturate(cmn::hardware_concurrency(), 1u, 5u), "GUICache::_pool")),
             _current_processed_frame(std::make_unique<PPFrame>()),
             _video(video), _graph(graph),
             _timing_stats(std::move(timing_stats)),
-            _preloader(_timing_stats, [this](Frame_t frameIndex) -> FramePtr {
-                FramePtr ptr;
-                auto video = _video.lock();
-                if(not video)
-                    return nullptr;
-                
-                try {
-                    if(frameIndex.valid()
-                       && video->is_read_mode())
-                    {
-                        if(frameIndex >= video->length())
-                            return nullptr; // past the end
-                        
-                        pv::Frame frame;
-                        video->read_with_encoding(frame, frameIndex, Background::meta_encoding());
-                        
-                        ptr = buffers.get(source_location::current());
-                        ptr->clear();
-                        
-                        Tracker::preprocess_frame(std::move(frame), *ptr, &_pool, PPFrame::NeedGrid::Need, video->header().resolution, true);
-                    }
-                    
-                } catch(...) {
-                    FormatExcept("Cannot load frame ", frameIndex, " from file ", video->filename());
-                }
-                
-                return ptr;
-            },
-            [this](FramePtr&& ptr) {
-                buffers.move_back(std::move(ptr));
-            }, TimingMetric_t::PVRequest, TimingMetric_t::PVLoad, TimingMetric_t::PVWaiting)
+            _loading(std::make_unique<LoadingState>(*this, _timing_stats)),
+            _border(std::make_unique<Border>(nullptr))
 
     {
         cache() = this;
@@ -92,10 +144,27 @@ std::unique_ptr<PPFrame> GUICache::PPFrameMaker::operator()() const {
         
         if(_delete_frame_callback) {
             LockGuard guard(ro_t{}, "Delete Frame Callback Delete");
-            if(Tracker::instance()) {
-                Tracker::instance()->unregister_delete_callback(*_delete_frame_callback);
+            if(_tracker) {
+                _tracker->unregister_delete_callback(*_delete_frame_callback);
             }
             _delete_frame_callback.reset();
+        }
+        
+        set_of_individuals_t copy;
+        {
+            std::unique_lock guard(individuals_mutex);
+            copy = std::move(_registered_callback);
+        }
+        
+        {
+            LockGuard guard(w_t{}, "train_internally");
+            IndividualManager::transform_all([&](auto, Individual* fish){
+                if(not contains(copy, fish)) {
+                    return;
+                }
+                
+                fish->unregister_delete_callback((void*)12341337);
+            });
         }
         
         _fish_map.clear();
@@ -114,11 +183,11 @@ std::unique_ptr<PPFrame> GUICache::PPFrameMaker::operator()() const {
 
         cache() = nullptr;
         
-        _pool.force_stop();
+        pool().force_stop();
     }
 
-    SimpleBlob::SimpleBlob(std::unique_ptr<ExternalImage>&& available, pv::BlobWeakPtr b, int t)
-        : blob(b), threshold(t), ptr(std::move(available))
+    SimpleBlob::SimpleBlob(const Background* background, std::unique_ptr<ExternalImage>&& available, pv::BlobWeakPtr b, int t)
+        : blob(b), threshold(t), ptr(std::move(available)), background(background)
     {
         assert(ptr);
         if (!ptr->source()) {
@@ -126,6 +195,8 @@ std::unique_ptr<PPFrame> GUICache::PPFrameMaker::operator()() const {
         }
         ptr->set_cut_border(true);
     }
+
+    SimpleBlob::~SimpleBlob() = default;
     
     void SimpleBlob::convert() {
         assert(blob != nullptr);
@@ -140,14 +211,14 @@ std::unique_ptr<PPFrame> GUICache::PPFrameMaker::operator()() const {
            || FAST_SETTING(track_background_subtraction))
         {
             if (GUICache::instance()._equalize_histograms && !percentiles.empty()) {
-                image_pos = blob->equalized_luminance_alpha_image(*Tracker::background(), threshold, percentiles.front(), percentiles.back(), ptr->unsafe_get_source(), 0, output);
+                image_pos = blob->equalized_luminance_alpha_image(*background, threshold, percentiles.front(), percentiles.back(), ptr->unsafe_get_source(), 0, output);
                 
             } else {
-                image_pos = blob->luminance_alpha_image(*Tracker::background(), threshold, ptr->unsafe_get_source(), 0, output);
+                image_pos = blob->luminance_alpha_image(*background, threshold, ptr->unsafe_get_source(), 0, output);
             }
             
         } else {
-            image_pos = blob->rgba_image(*Tracker::background(), threshold, ptr->unsafe_get_source(), 0);
+            image_pos = blob->rgba_image(*background, threshold, ptr->unsafe_get_source(), 0);
         }
 
         /*if(Background::meta_encoding() == meta_encoding_t::r3g3b2) {
@@ -247,9 +318,9 @@ std::unique_ptr<PPFrame> GUICache::PPFrameMaker::operator()() const {
            && _next_processed_frame
            && _do_reload_frame == _next_processed_frame->index())
         {
-            buffers.move_back(std::move(_next_processed_frame));
+            _loading->buffers.move_back(std::move(_next_processed_frame));
             
-            auto frame = _preloader.get_frame(frameIndex);
+            auto frame = _loading->preloader.get_frame(frameIndex);
             if(frame.has_value() && frame.value()->index() == frameIndex) {
                 _next_processed_frame = std::move(frame.value());
             }
@@ -274,17 +345,27 @@ std::unique_ptr<PPFrame> GUICache::PPFrameMaker::operator()() const {
         if(mode != _mode) {
             _mode = mode;
             
-            if(mode == mode_t::blobs)
+            if(mode == mode_t::raw)
                 set_blobs_dirty();
             else if(mode == mode_t::tracking)
                 set_tracking_dirty();
+            else if(mode == mode_t::annotate)
+                set_blobs_dirty();
+            else
+                throw InvalidArgumentException("Unknown mode ", mode, " in GUICache::set_mode().");
+            
             set_raw_blobs_dirty();
         }
     }
     
     bool GUICache::must_redraw() const {
-        if(raw_blobs_dirty() || _dirty || (_mode == mode_t::tracking && _tracking_dirty) || (_mode == mode_t::blobs && _blobs_dirty))
+        if(raw_blobs_dirty() 
+            || _dirty 
+            || (is_in(_mode, mode_t::tracking, mode_t::annotate) && _tracking_dirty) 
+            || (_mode == mode_t::raw && _blobs_dirty))
+        {
             return true;
+        }
         return false;
     }
 
@@ -315,7 +396,7 @@ bool GUICache::something_important_changed(Frame_t frameIndex) const {
             || is_tracking_dirty()
             || raw_blobs_dirty()
             //|| _blobs_dirty
-            || _frame_contained != tracked_frames.contains(frameIndex)
+            || _frame_contained != _tracked_frames.contains(frameIndex)
             || _do_reload_frame.valid();
 }
 
@@ -333,11 +414,11 @@ void GUICache::draw_posture(DrawStructure &base, Frame_t) {
 
 std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff() {
     if(bool compared = false;
-       _last_consecutive_update.elapsed() > (GUI_SETTINGS(track_pause) ? 1.0 : 10.0)
+       _loading->last_consecutive_update.elapsed() > (GUI_SETTINGS(track_pause) ? 1.0 : 10.0)
        && _updating_consecutive.compare_exchange_strong(compared, true))
     {
-        _next_tracklet = std::async(std::launch::async, [](){
-            return Tracker::instance()->global_tracklet_order();
+        _next_tracklet = std::async(std::launch::async, [tracker = _tracker](){
+            return tracker->global_tracklet_order();
         });
     }
     
@@ -345,7 +426,7 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
        && _next_tracklet.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready)
     {
         _global_tracklet_order = _next_tracklet.get();
-        _last_consecutive_update.reset();
+        _loading->last_consecutive_update.reset();
         _updating_consecutive = false;
         
         return _global_tracklet_order;
@@ -375,10 +456,12 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
         
         _fish_dirty = false;
         //if(not _background)
-        if (Tracker::instance()) {
-            if (Tracker::background() != _background) {
-                _background = Tracker::background();
-                _border = Tracker::instance()->border();
+        if (_tracker) {
+            if (auto bg = _tracker->background();
+                bg != _background)
+            {
+                _background = bg;
+                *_border = _tracker->border();
             }
         }
         
@@ -403,23 +486,23 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
         
         if(not current_frame_matches) {
             if(_next_processed_frame
-               && _last_success.elapsed() < 0.1
+               && _loading->last_success.elapsed() < 0.1
                && not next_frame_matches)
             {
                 /// we dont have a timeout, and we have a next frame
                 /// but it doesnt match the requested frame:
                 /// discard it.
-                buffers.move_back(std::move(_next_processed_frame));
+                _loading->buffers.move_back(std::move(_next_processed_frame));
             }
             
             if(not next_frame_matches) {
                 /// the next frame does *not* match - at least should
                 /// nudge the preloader:
                 auto maybe_frame = _load_frames_blocking //&& _mistakes_count >= 1u
-                    ? _preloader.load_exactly(frameIndex)
-                    : _preloader.get_frame(frameIndex, std::chrono::milliseconds(0));
+                    ? _loading->preloader.load_exactly(frameIndex)
+                    : _loading->preloader.get_frame(frameIndex, std::chrono::milliseconds(0));
                 
-                _preloader.notify();
+                _loading->preloader.notify();
                 // _preloader.get_frame(frameIndex, Frame_t(saturate(static_cast<uint8_t>(GUI_SETTINGS(gui_playback_speed)), 1, 255)), std::chrono::milliseconds(50));
                 
                 //if(maybe_frame.has_value())
@@ -438,14 +521,14 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
                     /// reset next processed frame since we have a more
                     /// up-to-date version here:
                     if(_next_processed_frame)
-                        buffers.move_back(std::move(_next_processed_frame));
+                        _loading->buffers.move_back(std::move(_next_processed_frame));
                     
                     if(maybe_frame.value()->index() != frameIndex
-                        && _last_success.elapsed() < 0.1)
+                        && _loading->last_success.elapsed() < 0.1)
                     {
                         /// we dont have a timeout, and the indexes
                         /// dont match. discard and return...
-                        buffers.move_back(std::move(maybe_frame.value()));
+                        _loading->buffers.move_back(std::move(maybe_frame.value()));
                         return {};
                         
                     } else {
@@ -454,12 +537,12 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
                         if(frameIndex != maybe_frame.value()->index()) {
                             //Print("Using maybe_frame anyway for ", maybe_frame.value()->index(), " != ", frameIndex, " since we waited ", _last_success.elapsed());
                             
-                            buffers.move_back(std::move(maybe_frame.value()));
+                            _loading->buffers.move_back(std::move(maybe_frame.value()));
                             return {};
                         } else {
                             /// got correct frameIndex
                             //Print("Got frameIndex ", maybe_frame.value()->index()," (", frameIndex, ")");
-                            _preloader.announce(frameIndex + 1_f);
+                            _loading->preloader.announce(frameIndex + 1_f);
                         }
                     }
                     
@@ -505,11 +588,10 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
             handle_guard.emplace(_timing_stats, _timing_stats->startEvent(TimingMetric_t::FrameRender, frameIndex));
         }
         
-        auto& _tracker = *Tracker::instance();
         frame_idx = frameIndex;
         
         if(not _delete_frame_callback) {
-            _delete_frame_callback = _tracker.register_delete_callback([this](){
+            _delete_frame_callback = _tracker->register_delete_callback([this](){
                 {
                     /// make sure that the gui elements are actually deleted in the
                     /// gui thread, not in the callback thread
@@ -573,30 +655,21 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
             }
         }
         
-        if(_statistics.size() < _tracker.statistics().size()) {
-            auto start = _tracker.statistics().end();
-            std::advance(start, (int64_t)_statistics.size() - (int64_t)_tracker.statistics().size());
+        if(_statistics.size() < _tracker->statistics().size()) {
+            auto start = _tracker->statistics().end();
+            std::advance(start, (int64_t)_statistics.size() - (int64_t)_tracker->statistics().size());
             
-            for (; start != _tracker.statistics().end(); ++start)
+            for (; start != _tracker->statistics().end(); ++start)
                 _statistics[start->first] = start->second;
             
-        } else if(_statistics.size() > _tracker.statistics().size()) {
+        } else if(_statistics.size() > _tracker->statistics().size()) {
             auto start = _statistics.begin();
-            std::advance(start, (int64_t)_tracker.statistics().size());
+            std::advance(start, (int64_t)_tracker->statistics().size());
             _statistics.erase(start, _statistics.end());
         }
         
-        auto properties = _tracker.properties(frameIndex);
-        if(properties)
-            _props = *properties;
-        else
-            _props.reset();
-        
-        auto next_properties = _tracker.properties(frameIndex + 1_f);
-        if(next_properties)
-            _next_props = *next_properties;
-        else
-            _next_props.reset();
+        _props = _tracker->frames().properties(frameIndex);
+        _next_props = _tracker->frames().properties(frameIndex + 1_f);
         
         active_blobs.clear();
         active.clear();
@@ -611,14 +684,17 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
             fish_last_bounds.erase(fish_last_bounds.begin());
         }
         
-        if(properties) {
-            active = _tracker.active_individuals(frameIndex);
+        if(_props) {
+            active = _tracker->active_individuals(frameIndex);
             {
                 std::unique_lock guard(individuals_mutex);
                 individuals = IndividualManager::copy();
             }
             selected = READ_SETTING(gui_focus_group, std::vector<Idx_t>);
-            tracked_frames = Range<Frame_t>(_tracker.start_frame(), _tracker.end_frame());
+            _tracked_frames = TrackedFrames{
+                .start = _tracker->frames().start_frame(),
+                .end = _tracker->frames().end_frame()
+            };
             
             auto delete_callback = [this](Individual* fish) {
                 //if(!cache() || !_graph)
@@ -704,7 +780,7 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
             else
                 connectivity_matrix.clear();
             
-            double time = properties ? properties->time() : 0;
+            double time = _props ? _props->time() : 0;
             std::mutex map_mutex;
             
             distribute_indexes([this, &map_mutex, frameIndex, output_normalize_midline_data](int64_t, auto start, auto end, int64_t){
@@ -730,7 +806,7 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
                     //if(fish->identity().ID() == primary_selected_id())
                     {
                         if(tracklet) {
-                            filters = constraints::local_midline_length(fish, tracklet->range);
+                            filters = constraints::local_midline_length(fish, tracklet->range, nullptr);
                             tracklet_range = tracklet->range;
                         }
                     }
@@ -836,7 +912,7 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
             }, pool(), active.begin(), active.end());
             
             if(has_selection()) {
-                auto previous = Tracker::properties(frameIndex - 1_f);
+                auto previous = _tracker->frames().properties(frameIndex - 1_f);
                 auto pid = selected.empty() ? Idx_t() : selected.front();
                 
                 std::unique_lock guard(individuals_mutex);
@@ -860,7 +936,7 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
                     if(individuals.count(id)) {
                         auto fish = individuals.at(id);
                         if(!fish->has(frameIndex) && !fish->empty() && frameIndex >= fish->start_frame()) {
-                            auto c = fish->cache_for_frame(previous, frameIndex, time);
+                            auto c = fish->cache_for_frame(_tracker->frames(), previous, frameIndex, time);
                             if(c) {
                                 inactive_estimates.push_back(c.value().estimated_px);
                                 //inactive_ids.insert(fish->identity().ID());
@@ -891,7 +967,7 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
         if(not something_important_changed(frameIndex))
             return {};
         
-        bool contained = tracked_frames.contains(frameIndex);
+        bool contained = _tracked_frames.contains(frameIndex);
         if(contained != _frame_contained) {
             _frame_contained = contained;
             _fish_dirty = true;
@@ -899,7 +975,7 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
         }
         
         if((_current_processed_frame && _current_processed_frame->index() != frameIndex) || _do_reload_frame.valid()) {
-            buffers.move_back(std::move(_current_processed_frame));
+            _loading->buffers.move_back(std::move(_current_processed_frame));
             
             //Print("current_processed_frame moved out for ", frameIndex);
         } else if(_current_processed_frame) {
@@ -907,7 +983,7 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
             //reasons.emplace_back("-");
             //Print("current_processed_frame is fine for ", frameIndex, " = ", _current_processed_frame->index());
             if(_next_processed_frame)
-                buffers.move_back(std::move(_next_processed_frame));
+                _loading->buffers.move_back(std::move(_next_processed_frame));
         }
         
         if(_next_processed_frame) {
@@ -917,7 +993,7 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
             }
             //Print("current_processed_frame moved out for ", frameIndex, " = ", _next_processed_frame->index());
             if(_current_processed_frame)
-				buffers.move_back(std::move(_current_processed_frame));
+				_loading->buffers.move_back(std::move(_current_processed_frame));
             
             _current_processed_frame = std::move(_next_processed_frame);
             assert(_current_processed_frame->index() == frameIndex);
@@ -940,7 +1016,7 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
             set_tracking_dirty();
         }
         
-        _global_tracklet_order = _tracker.unsafe_global_tracklet_order();
+        _global_tracklet_order = _tracker->unsafe_global_tracklet_order();
         previous_active_fish = selected;
         previous_active_blobs = active_blobs;
         
@@ -1005,7 +1081,7 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
                         ptr->blob = &blob;
                         ptr->threshold = threshold;
                     } else
-                        ptr = std::make_unique<SimpleBlob>(std::make_unique<ExternalImage>(), &blob, threshold);
+                        ptr = std::make_unique<SimpleBlob>(_tracker->background(), std::make_unique<ExternalImage>(), &blob, threshold);
                     
                     ptr->frame = frameIndex;
                     raw_blobs.emplace_back(std::move(ptr));
@@ -1048,7 +1124,7 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
                         ptr->blob = &blob;
                         ptr->threshold = threshold;
                     } else
-                        ptr = std::make_unique<SimpleBlob>(std::make_unique<ExternalImage>(), &blob, threshold);
+                        ptr = std::make_unique<SimpleBlob>(_tracker->background(), std::make_unique<ExternalImage>(), &blob, threshold);
                     
                     ptr->frame = frameIndex;
                     raw_blobs.emplace_back(std::move(ptr));
@@ -1078,8 +1154,8 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
              * Delete what we know about cliques and replace it
              * with current information.
              */
-            if(frameIndex.valid() && Tracker::instance()->_cliques.count(frameIndex)) {
-                _cliques = Tracker::instance()->_cliques.at(frameIndex);
+            if(frameIndex.valid() && _tracker->_cliques.count(frameIndex)) {
+                _cliques = _tracker->_cliques.at(frameIndex);
             } else
                 _cliques.clear();
             
@@ -1121,7 +1197,7 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
                         for(auto it = start; it != end; ++it, ++i) {
                             labels[i] = Categorize::DataStore::_ranged_label_unsafe(f, (*it)->blob->blob_id());
                         }
-                    }, _pool, raw_blobs.begin(), raw_blobs.end());
+                    }, pool(), raw_blobs.begin(), raw_blobs.end());
                     
                     for(size_t i=0; i<raw_blobs.size(); ++i) {
                         auto &b = raw_blobs[i];
@@ -1195,12 +1271,12 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
                 //std::move(vector.begin(), vector.end(), std::back_inserter(PD(cache).display_blobs_list));
                 //PD(cache).display_blobs_list.insert(PD(cache).display_blobs_list.end(), vector.begin(), vector.end());
                 
-            }, _pool, raw_blobs.begin(), raw_blobs.end());
+            }, pool(), raw_blobs.begin(), raw_blobs.end());
             
             //for(auto &b : raw_blobs)
             //    b->ptr->updated_source();
             
-            const uint8_t max_alpha = _graph->is_key_pressed(Codes::LSystem) ? 200 : 255;
+            const uint8_t max_alpha = _graph->is_system_pressed() ? 200 : 255;
             for(auto &b : display_blobs) {
                 b.second->ptr->set_pos(b.second->image_pos);
                 b.second->ptr->updated_source();
@@ -1212,9 +1288,9 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
             updated_blobs();
         }
         
-        _last_success.reset();
+        _loading->last_success.reset();
         
-        if(properties && (reload_blobs || _fish_dirty || _tracking_dirty))
+        if(_props && (reload_blobs || _fish_dirty || _tracking_dirty))
         {
             update_graphs(frameIndex);
             
@@ -1235,7 +1311,7 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
                 }
             }
             
-            auto pred = _tracker.get_prediction(frameIndex);
+            auto pred = _tracker->get_prediction(frameIndex);
             if(pred) {
                 _current_predictions = pred.value();
             } else
@@ -1246,20 +1322,21 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
                not _prepared_label_text)
             {
                 try {
-                    _prepared_label_text = pattern::UnresolvedStringPattern::prepare(_label_text);
+                    _prepared_label_text = std::make_unique<pattern::UnresolvedStringPattern>(
+                        pattern::UnresolvedStringPattern::prepare(_label_text));
                 } catch(const std::exception& ex) {
                     FormatWarning("Failed to parse label text for ", _label_text,": ", ex.what());
                     
                     auto result = pattern::UnresolvedStringPattern::prepare_static("<red>ERROR</red>: "+settings::htmlify(ex.what()));
-                    _prepared_label_text = std::move(result);
+                    _prepared_label_text = std::make_unique<pattern::UnresolvedStringPattern>(std::move(result));
                 }
                 
                 for(auto &[id, fish] : _fish_map)
-                    fish->set_label_text(_prepared_label_text.value());
+                    fish->set_label_text(*_prepared_label_text);
                 
-                current_label_text = &_prepared_label_text.value();
+                current_label_text = _prepared_label_text.get();
             } else {
-                current_label_text = &_prepared_label_text.value();
+                current_label_text = _prepared_label_text.get();
             }
             
             assert(current_label_text);
@@ -1281,7 +1358,7 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
 
                 auto tracklet = fish->_tracklet_for(frameIndex);
                 if (!GUI_SETTINGS(gui_show_inactive_individuals)
-                    && (!tracklet || (tracklet->end() != Tracker::end_frame()
+                    && (!tracklet || (tracklet->end() != _tracker->frames().end_frame()
                         && tracklet->length().get() < sign_cast<uint32_t>(GUI_SETTINGS(output_min_frames)))))
                 {
                     continue;
@@ -1363,8 +1440,7 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
                 if(_props && _next_props) {
                     std::scoped_lock guard(individuals_mutex, _next_frame_cache_mutex, _tracklet_cache_mutex);
                     auto current_time = _props->time();
-                    auto next_props = _next_props ? &_next_props.value() : nullptr;
-                    auto next_time = next_props ? next_props->time() : (current_time + 1.f/float(GUI_SETTINGS(frame_rate)));
+                    auto next_time = _next_props ? _next_props->time() : (current_time + 1.f/float(GUI_SETTINGS(frame_rate)));
                     /// cache cache_for_frame(frame + 1)
                     std::mutex map_mutex;
                     std::unordered_set<Idx_t> ids_to_remove;
@@ -1402,7 +1478,7 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
                         
                         for(auto it = start; it != end; ++it) {
                             Individual* fish = individuals.at(*it);
-                            auto cache = fish->cache_for_frame(&_props.value(), frameIndex + 1_f, next_time);
+                            auto cache = fish->cache_for_frame(_tracker->frames(), _props, frameIndex + 1_f, next_time);
                             auto ptr = fish->_tracklet_for(frameIndex);
                             
                             if(cache) {
@@ -1451,13 +1527,12 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
                 std::scoped_lock guard(_fish_map_mutex, individuals_mutex);
                 std::shared_lock tracklet_caches(_tracklet_cache_mutex);
                 std::shared_lock nextframe_guard(_next_frame_cache_mutex);
-                distribute_indexes([this, frameIndex, &update_settings, &properties](int64_t, auto start, auto end, int64_t) {
+                distribute_indexes([this, frameIndex, &update_settings](int64_t, auto start, auto end, int64_t) {
                     for(auto fit = start; fit != end; ++fit) {
                         auto id = *fit;
                         auto it = _fish_map.find(id);
                         if(it == _fish_map.end())
                             continue;
-                        
                         auto fish = individuals.at(it->first);
                         
                         /// this is to prevent a race condition
@@ -1475,7 +1550,7 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
                             }
                         } g(&it->second->view());
                         
-                        it->second->set_data(update_settings, *fish, frameIndex, properties->time(), nullptr);
+                        it->second->set_data(*_tracker, update_settings, *fish, frameIndex, _props->time(), nullptr);
                     }
                 }, pool(), ids_to_check.begin(), ids_to_check.end());
             }
@@ -1556,19 +1631,6 @@ std::optional<std::vector<Range<Frame_t>>> GUICache::update_slow_tracker_stuff()
         if(it != probabilities.end())
             return &it->second;
         return nullptr;
-    }
-
-    Size2 screen_dimensions(Base* base, const DrawStructure& graph) {
-        if (!base)
-            return Size2(1);
-
-        auto gui_scale = graph.scale();
-        if (gui_scale.x == 0)
-            gui_scale = Vec2(1);
-        auto window_dimensions = base
-            ? base->window_dimensions().div(gui_scale) * gui::interface_scale()
-            : Tracker::average().dimensions();
-        return window_dimensions;
     }
 
     bool GUICache::key_down(Codes code) const {

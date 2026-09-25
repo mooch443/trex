@@ -1,4 +1,6 @@
 #include "CategorizeInterface.h"
+#include <misc/Image.h>
+#include <processing/Background.h>
 #include <ui/Categorize.h>
 #include <tracking/Tracker.h>
 #include <misc/default_settings.h>
@@ -129,7 +131,7 @@ Cell::Cell() :
         
         auto labels = DataStore::label_names();
         for(auto &c : labels) {
-            auto b = Layout::Make<Button>(Str(c), Font(0.5, Style::Monospace, Align::Center), FillClr{DarkGray});
+            auto b = Layout::Make<Button>{Str(c), Font(0.5, Style::Monospace, Align::Center), FillClr{DarkGray}}();
             b->set(Size{b.to<Button>()->text_dims().width + 5, 25});
             
             b->on_click([this, c](auto){
@@ -150,7 +152,7 @@ Cell::Cell() :
             add(b);
         }
         
-        auto b = Layout::Make<Button>(Str("Skip"), Font(0.5, Style::Monospace, Align::Center), FillClr{DarkGray}, TextClr{White});
+        auto b = Layout::Make<Button>{Str("Skip"), Font(0.5, Style::Monospace, Align::Center), FillClr{DarkGray}, TextClr{White}}();
         b->set(Size{b.to<Button>()->text_dims().width + 5, 25});
         b->on_click([this](Event) {
             if(_row) {
@@ -586,7 +588,7 @@ void Interface::reset() {
     clear_rows();
 }
 
-void Interface::init(std::weak_ptr<pv::File> video, IMGUIBase* window, DrawStructure& base) {
+void Interface::init(std::weak_ptr<track::Tracker> tracker, std::weak_ptr<pv::File> video, IMGUIBase* window, DrawStructure& base) {
     if (!_initialized && window) {
         //PythonIntegration::ensure_started();
         //PythonIntegration::async_python_function([]()->bool{return true;});
@@ -602,50 +604,57 @@ void Interface::init(std::weak_ptr<pv::File> video, IMGUIBase* window, DrawStruc
         layout.set_origin(Vec2(0.5));
         layout.set_pos(Size2(base.width(), base.height()) * 0.5);
 
-        stext = Layout::Make<StaticText>(
+        stext = Layout::Make<StaticText>{
             Str("<h2>Categorizing types of individuals</h2>\n"
             "Below, an assortment of randomly chosen clips is shown. They are compiled automatically to (hopefully) only contain samples belonging to the same category. Choose clips that best represent the categories you have defined before (<str>" + Meta::toStr(DataStore::label_names()) + "</str>) and assign them by clicking the respective button. But be careful - with them being automatically collected, some of the clips may contain images from multiple categories. It is recommended to <b>Skip</b> these clips, lest risking to confuse the poor network. Regularly, when enough new samples have been collected (and for all categories), they are sent to said network for a training step. Each training step, depending on clip quality, should improve the prediction accuracy (see below)."),
             SizeLimit(base.width() * 0.75 * base.scale().x, -1), Font(0.6)
-            );
+            };
 
         std::vector<Layout::Ptr> objects{stext};
 
         apply->clear_event_handlers();
-        apply->on_click([this](auto) {
+        apply->on_click([this, ptr = tracker](auto) {
             auto lock = _video.lock();
-            if(lock)
-                Work::set_state(lock, Work::State::APPLY);
+            auto tracker = ptr.lock();
+            if(lock && tracker)
+                Work::set_state(tracker, lock, Work::State::APPLY);
         });
         close->clear_event_handlers();
-        close->on_click([this](auto) {
-            Work::set_state(_video.lock(), Work::State::NONE);
+        close->on_click([this, ptr = tracker](auto) {
+            auto lock = _video.lock();
+            auto tracker = ptr.lock();
+            if(lock && tracker)
+                Work::set_state(tracker, lock, Work::State::NONE);
         });
         load->clear_event_handlers();
-        load->on_click([this](auto) {
+        load->on_click([this, ptr = tracker](auto) {
             auto lock = _video.lock();
-            if(lock)
-                Work::set_state(lock, Work::State::LOAD);
+            auto tracker = ptr.lock();
+            if(lock && tracker)
+                Work::set_state(tracker, lock, Work::State::LOAD);
         });
         restart->clear_event_handlers();
-        restart->on_click([this](auto) {
+        restart->on_click([this, ptr = tracker](auto) {
             Work::learning() = false;
             Work::learning_variable().notify_all();
             DataStore::clear();
             reset();
 
             auto lock = _video.lock();
-            if(lock)
-                Work::set_state(lock, Work::State::SELECTION);
+            auto tracker = ptr.lock();
+            if(lock && tracker)
+                Work::set_state(tracker, lock, Work::State::SELECTION);
         });
         reapply->clear_event_handlers();
-        reapply->on_click([this](auto) {
+        reapply->on_click([this, ptr = tracker](auto) {
             DataStore::clear();
             Categorize::clear_labels();
             reset();
 
             auto lock = _video.lock();
-            if(lock)
-                Work::set_state(lock, Work::State::APPLY);
+            auto tracker = ptr.lock();
+            if(lock && tracker)
+                Work::set_state(tracker, lock, Work::State::APPLY);
         });
         train->clear_event_handlers();
         train->on_click([](auto) {
@@ -715,7 +724,7 @@ void Interface::reshuffle() {
     }
 }
 
-void Interface::draw(const std::weak_ptr<pv::File>& video, IMGUIBase* window, DrawStructure& base) {
+void Interface::draw(std::weak_ptr<track::Tracker> tracker, const std::weak_ptr<pv::File>& video, IMGUIBase* window, DrawStructure& base) {
     {
         std::lock_guard guard(DataStore::mutex());
         /*if(_labels.empty()) {
@@ -772,7 +781,7 @@ void Interface::draw(const std::weak_ptr<pv::File>& video, IMGUIBase* window, Dr
 
     base.wrap_object(rect);
 
-    init(video, window, base);
+    init(tracker, video, window, base);
 
     layout.auto_size();
     base.wrap_object(layout);

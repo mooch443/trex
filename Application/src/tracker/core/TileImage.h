@@ -5,6 +5,7 @@
 #include <misc/Image.h>
 #include <core/TaskPipeline.h>
 #include <core/DetectionImageTypes.h>
+#include <core/TileCoordinates.h>
 
 using namespace cmn;
 
@@ -17,9 +18,9 @@ std::pair<Size2, Size2> compute_tiling_dimensions(
     uint16_t detect_tile_target_width,
     size_t detect_tile_image);
 
-/// Return tile rectangles in original video-pixel coordinates for the given
+/// Return tile rectangles in source image-pixel coordinates for the given
 /// settings, replicating exactly what the prediction path produces.
-std::vector<Bounds> compute_tile_bounds(
+std::vector<track::SourceRect> compute_tile_bounds(
     Size2 video_size,
     Size2 detector_size,
     uint16_t detect_tile_target_width,
@@ -30,8 +31,7 @@ struct TileImage {
     Size2 tile_size;
     SegmentationData data;
     std::vector<Image::Ptr> images;
-    std::vector<Vec2> _offsets;
-    Size2 source_size, original_size;
+    Size2 source_size, prepared_size;
     std::unique_ptr<std::promise<SegmentationData>> promise;
     std::function<void()> callback;
 
@@ -44,7 +44,7 @@ struct TileImage {
     TileImage& operator=(TileImage&&) = default;
     TileImage& operator=(const TileImage&) = delete;
 
-    TileImage(const useMat_t& source, Image::Ptr&& original, Size2 tile_size, Size2 original_size, float overlap_ratio = 0.f);
+    TileImage(const useMat_t& prepared, Image::Ptr&& source, Size2 tile_size, Size2 source_size, float overlap_ratio = 0.f);
 
     ~TileImage();
 
@@ -52,15 +52,17 @@ struct TileImage {
         return not images.empty();
     }
 
-    std::vector<Vec2> offsets() const {
-        return _offsets;
-    }
+    const std::vector<track::TileGeometry>& tile_geometries() const;
+    std::vector<track::SourceCoord> tile_origins() const;
+    void set_tile_geometries(std::vector<track::TileGeometry>&& geometries);
 
-    /// Tile bounds scaled back to original video-pixel coordinates.
-    std::vector<Bounds> scaled_tile_bounds() const;
+    /// Tile bounds in source image-pixel coordinates.
+    std::vector<track::SourceRect> source_tile_bounds() const;
 
     static std::vector<int> compute_offsets(int extent, int tile_extent, int stride);
 
 private:
+    std::vector<track::TileGeometry> _tile_geometries;
+
     static useMat_t& resized_image();
 };

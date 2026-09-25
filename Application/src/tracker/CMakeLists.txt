@@ -180,7 +180,7 @@ target_link_libraries(trex_tracking PUBLIC
     trex_core
 )
 if(WITH_HTTPD)
-    add_dependencies(trex_tracking LibMicroHttpd)
+    add_dependencies(trex_tracking Commons::HTTPD)
 endif()
 
 trex_add_semantic_library(trex_ml
@@ -487,24 +487,54 @@ endforeach()
     message(STATUS "Linking trex_python_staging")
 #endif()
 
+set(TREX_MACOS_BUNDLE_IDENTIFIER "" CACHE STRING
+    "Override the TRex macOS bundle identifier (Xcode builds default to a build-specific identifier)"
+)
+if(TREX_MACOS_BUNDLE_IDENTIFIER)
+    set(_trex_macos_bundle_identifier "${TREX_MACOS_BUNDLE_IDENTIFIER}")
+elseif(CMAKE_GENERATOR STREQUAL "Xcode")
+    string(SHA256 _trex_xcode_build_hash "${CMAKE_BINARY_DIR}")
+    string(SUBSTRING "${_trex_xcode_build_hash}" 0 12 _trex_xcode_build_id)
+    set(_trex_macos_bundle_identifier
+        "app.trex.run.a.dev-${_trex_xcode_build_id}.$(CONFIGURATION)"
+    )
+else()
+    set(_trex_macos_bundle_identifier "app.trex.run.a")
+endif()
+
 set_target_properties(${TREXA_EXEC_NAME} PROPERTIES
   MACOSX_BUNDLE TRUE
-  MACOSX_BUNDLE_GUI_IDENTIFIER "app.trex.run.a"
+  MACOSX_BUNDLE_GUI_IDENTIFIER "${_trex_macos_bundle_identifier}"
   MACOSX_BUNDLE_BUNDLE_NAME ${TREXA_EXEC_NAME}
   MACOSX_BUNDLE_INFO_STRING "Multi-species interactive video-based tracking"
   MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/AlterInfo.plist
   XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES"
+  XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER "${_trex_macos_bundle_identifier}"
 )
 
 if(TREX_ENABLE_PROTOTYPES)
+    set(_trex_prototype_bundle_identifier
+        "${_trex_macos_bundle_identifier}.interactive-segmentation-prototype"
+    )
     set_target_properties(${INTERACTIVE_SEGMENTATION_EXEC_NAME} PROPERTIES
       MACOSX_BUNDLE TRUE
-      MACOSX_BUNDLE_GUI_IDENTIFIER "app.trex.interactive_segmentation_prototype"
+      MACOSX_BUNDLE_GUI_IDENTIFIER "${_trex_prototype_bundle_identifier}"
       MACOSX_BUNDLE_BUNDLE_NAME ${INTERACTIVE_SEGMENTATION_EXEC_NAME}
       MACOSX_BUNDLE_INFO_STRING "Interactive segmentation prototype"
       MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/AlterInfo.plist
       XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES"
+      XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER "${_trex_prototype_bundle_identifier}"
     )
+endif()
+
+if(TREX_CONDA_PACKAGE_INSTALL AND CONDA_PREFIX)
+    foreach(trex_install_target IN LISTS TREX_APP_TARGETS TREX_TOOL_TARGETS)
+        set_target_properties(${trex_install_target} PROPERTIES
+            BUILD_RPATH "${CONDA_PREFIX}/lib"
+            INSTALL_RPATH "${CONDA_PREFIX}/lib"
+            INSTALL_RPATH_USE_LINK_PATH TRUE
+        )
+    endforeach()
 endif()
 
 message("TRACKER PATH ${TRACKER_PATH}")
@@ -535,6 +565,7 @@ if(NOT TREX_CONDA_PACKAGE_INSTALL)
         ${CMAKE_CURRENT_SOURCE_DIR}/python/visual_identification_network_torch.py
         ${CMAKE_CURRENT_SOURCE_DIR}/python/trex_detection_model.py
         ${CMAKE_CURRENT_SOURCE_DIR}/python/trex_yolo.py
+        ${CMAKE_CURRENT_SOURCE_DIR}/python/trex_rfdetr.py
         ${CMAKE_CURRENT_SOURCE_DIR}/python/trex_init.py
         ${CMAKE_CURRENT_SOURCE_DIR}/python/closed_loop_beta.py
         ${CMAKE_CURRENT_SOURCE_DIR}/python/trex_learn_category.py
@@ -543,7 +574,9 @@ if(NOT TREX_CONDA_PACKAGE_INSTALL)
         ${CMAKE_CURRENT_SOURCE_DIR}/python/trex_utils.py
         ${CMAKE_CURRENT_SOURCE_DIR}/python/trex_sam3_interface.py
         ${CMAKE_CURRENT_SOURCE_DIR}/alter_layout.json
-        ${CMAKE_CURRENT_SOURCE_DIR}/annotation_layout.json
+        ${CMAKE_CURRENT_SOURCE_DIR}/detect_annotation_layout.json
+        ${CMAKE_CURRENT_SOURCE_DIR}/annotation_export_layout.json
+        ${CMAKE_CURRENT_SOURCE_DIR}/detect_annotation_import_layout.json
         ${CMAKE_CURRENT_SOURCE_DIR}/calibrate_layout.json
         ${CMAKE_CURRENT_SOURCE_DIR}/welcome_layout.json
         ${CMAKE_CURRENT_SOURCE_DIR}/settings_layout.json
@@ -558,7 +591,7 @@ if(NOT TREX_CONDA_PACKAGE_INSTALL)
         trex_prepare_resource_dir(${app_target})
     endforeach()
 
-    if(TREX_ENABLE_SHARED_INTERNAL_LIBS)
+    if(APPLE AND TREX_ENABLE_SHARED_INTERNAL_LIBS)
         foreach(app_target ${TREX_APP_TARGETS} ${TREX_TOOL_TARGETS})
             foreach(dylib ${TREX_DYLIB_TARGETS})
                 message(STATUS "${CMAKE_COMMAND} -E create_symlink
@@ -609,15 +642,11 @@ if(NOT TREX_CONDA_PACKAGE_INSTALL)
             foreach(comp ${RESOURCE_COPY_SINGLE_FILES})
                 get_filename_component(comp_s ${comp} NAME)
 
-                message(STATUS "Creating symlink for $<TARGET_FILE_DIR:${app_target}>/${comp_s} ")
+                message(STATUS "(windows) Copying file to $<TARGET_FILE_DIR:${app_target}>/${comp_s} ")
                 add_custom_command(TARGET ${app_target} POST_BUILD
-                    COMMAND ${CMAKE_COMMAND} -E copy
+                    COMMAND ${CMAKE_COMMAND} -E copy_if_different
                         "${comp}"
                         "$<TARGET_FILE_DIR:${app_target}>/${comp_s}")
-                add_custom_command(TARGET ${app_target} POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E create_symlink
-                    "${comp}"
-                    "$<TARGET_FILE_DIR:${app_target}>/${comp_s}")
             endforeach()
 
             message(STATUS "(windows) Copying folders ${RESOURCE_COPY_FILES}")
@@ -756,7 +785,9 @@ install(FILES
         ${CMAKE_CURRENT_SOURCE_DIR}/python/trex_utils.py
         ${CMAKE_CURRENT_SOURCE_DIR}/python/trex_sam3_interface.py
         ${CMAKE_CURRENT_SOURCE_DIR}/alter_layout.json 
-        ${CMAKE_CURRENT_SOURCE_DIR}/annotation_layout.json
+        ${CMAKE_CURRENT_SOURCE_DIR}/detect_annotation_layout.json
+        ${CMAKE_CURRENT_SOURCE_DIR}/annotation_export_layout.json
+        ${CMAKE_CURRENT_SOURCE_DIR}/detect_annotation_import_layout.json
         ${CMAKE_CURRENT_SOURCE_DIR}/calibrate_layout.json
         ${CMAKE_CURRENT_SOURCE_DIR}/welcome_layout.json
         ${CMAKE_CURRENT_SOURCE_DIR}/settings_layout.json
@@ -767,4 +798,4 @@ install(FILES
         ${CMAKE_CURRENT_SOURCE_DIR}/interactive_segmentation_prototype/live_segmentation_layout.json
     DESTINATION ${CMAKE_INSTALL_PREFIX}/usr/share/trex)
 
-install(FILES ${CMAKE_SOURCE_DIR}/default.settings ${CMAKE_CURRENT_SOURCE_DIR}/python/learn_static.py ${CMAKE_CURRENT_SOURCE_DIR}/python/visual_recognition_torch.py ${CMAKE_CURRENT_SOURCE_DIR}/python/visual_identification_network_torch.py ${CMAKE_CURRENT_SOURCE_DIR}/python/trex_detection_model.py ${CMAKE_CURRENT_SOURCE_DIR}/python/trex_yolo.py ${CMAKE_CURRENT_SOURCE_DIR}/python/trex_init.py ${CMAKE_CURRENT_SOURCE_DIR}/python/visual_identification_network.py ${CMAKE_CURRENT_SOURCE_DIR}/python/bbx_saved_model.py ${CMAKE_CURRENT_SOURCE_DIR}/python/trex_utils.py ${CMAKE_CURRENT_SOURCE_DIR}/python/trex_sam3_interface.py ${CMAKE_CURRENT_SOURCE_DIR}/python/trex_learn_category.py ${CMAKE_CURRENT_SOURCE_DIR}/alter_layout.json ${CMAKE_CURRENT_SOURCE_DIR}/annotation_layout.json ${CMAKE_CURRENT_SOURCE_DIR}/calibrate_layout.json ${CMAKE_CURRENT_SOURCE_DIR}/welcome_layout.json ${CMAKE_CURRENT_SOURCE_DIR}/settings_layout.json ${CMAKE_CURRENT_SOURCE_DIR}/tracking_settings_layout.json ${CMAKE_CURRENT_SOURCE_DIR}/choose_settings_layout.json ${CMAKE_CURRENT_SOURCE_DIR}/tracking_layout.json ${CMAKE_CURRENT_SOURCE_DIR}/export_options_layout.json ${CMAKE_CURRENT_SOURCE_DIR}/interactive_segmentation_prototype/live_segmentation_layout.json DESTINATION ${CMAKE_INSTALL_PREFIX}/usr/share/trex)
+install(FILES ${CMAKE_SOURCE_DIR}/default.settings ${CMAKE_CURRENT_SOURCE_DIR}/python/learn_static.py ${CMAKE_CURRENT_SOURCE_DIR}/python/visual_recognition_torch.py ${CMAKE_CURRENT_SOURCE_DIR}/python/visual_identification_network_torch.py ${CMAKE_CURRENT_SOURCE_DIR}/python/trex_detection_model.py ${CMAKE_CURRENT_SOURCE_DIR}/python/trex_yolo.py ${CMAKE_CURRENT_SOURCE_DIR}/python/trex_rfdetr.py ${CMAKE_CURRENT_SOURCE_DIR}/python/trex_init.py ${CMAKE_CURRENT_SOURCE_DIR}/python/visual_identification_network.py ${CMAKE_CURRENT_SOURCE_DIR}/python/bbx_saved_model.py ${CMAKE_CURRENT_SOURCE_DIR}/python/trex_utils.py ${CMAKE_CURRENT_SOURCE_DIR}/python/trex_sam3_interface.py ${CMAKE_CURRENT_SOURCE_DIR}/python/trex_learn_category.py ${CMAKE_CURRENT_SOURCE_DIR}/alter_layout.json ${CMAKE_CURRENT_SOURCE_DIR}/detect_annotation_layout.json ${CMAKE_CURRENT_SOURCE_DIR}/annotation_export_layout.json ${CMAKE_CURRENT_SOURCE_DIR}/detect_annotation_import_layout.json ${CMAKE_CURRENT_SOURCE_DIR}/calibrate_layout.json ${CMAKE_CURRENT_SOURCE_DIR}/welcome_layout.json ${CMAKE_CURRENT_SOURCE_DIR}/settings_layout.json ${CMAKE_CURRENT_SOURCE_DIR}/tracking_settings_layout.json ${CMAKE_CURRENT_SOURCE_DIR}/choose_settings_layout.json ${CMAKE_CURRENT_SOURCE_DIR}/tracking_layout.json ${CMAKE_CURRENT_SOURCE_DIR}/export_options_layout.json ${CMAKE_CURRENT_SOURCE_DIR}/interactive_segmentation_prototype/live_segmentation_layout.json DESTINATION ${CMAKE_INSTALL_PREFIX}/usr/share/trex)

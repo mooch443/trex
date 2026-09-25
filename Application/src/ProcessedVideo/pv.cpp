@@ -168,7 +168,7 @@ File::File(const file::Path& filename, FileMode mode, std::optional<meta_encodin
 {
 }
 
-    File::~File() {
+    File::~File() noexcept {
         {
             std::unique_lock guard(_task_list_mutex); // try to lock once to sync
             for(auto & [i, ptr] : _task_list)
@@ -178,7 +178,23 @@ File::File(const file::Path& filename, FileMode mode, std::optional<meta_encodin
                 _task_variable.wait_for(guard, std::chrono::milliseconds(1));
         }
         
-        close();
+        try {
+            close();
+        } catch(const std::exception& ex) {
+            FormatExcept("Exception while closing ", _filename, " during pv::File destruction: ", ex.what());
+            try {
+                DataFormat::close();
+            } catch(...) {
+                FormatExcept("Cannot close the underlying data handle for ", _filename, " during pv::File destruction.");
+            }
+        } catch(...) {
+            FormatExcept("Unknown exception while closing ", _filename, " during pv::File destruction.");
+            try {
+                DataFormat::close();
+            } catch(...) {
+                FormatExcept("Cannot close the underlying data handle for ", _filename, " during pv::File destruction.");
+            }
+        }
     }
 
     Frame::Frame(const Frame &other)
@@ -554,7 +570,7 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const PixelArray
        c > 0)
     {
         assert(pixel_count * c == pixels.size());
-    } else {
+    } else if(encoding() != meta_encoding_t::binary) {
         assert(pixel_count == pixels.size());
     }
 #endif
@@ -1185,7 +1201,8 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const PixelArray
         ref.seek(index_offset);
         assert(index_offset == ref.tell());
         
-        Print("Index table is ",FileSize(index_table.size() * sizeof(decltype(index_table)::value_type))," big @ ", index_offset);
+        if(not READ_SETTING_WITH_DEFAULT(quiet, false))
+            Print("Index table is ",FileSize(index_table.size() * sizeof(decltype(index_table)::value_type))," big @ ", index_offset);
         //Print("Index table (",index_table.size(),"): ", index_table);
         for (auto index : index_table) {
             ref.write<decltype(index_table)::value_type>(index);
@@ -1217,16 +1234,23 @@ void Frame::add_object(const std::vector<HorizontalLine>& mask, const PixelArray
             ref.Data::write_data(_average_offset, average->size(), (char*)average->data());
         }
         
-        Print("Updated number of frames with ",this->num_frames,", index offset ",this->index_offset,", timestamp ",this->timestamp,", ", _meta_offset);
+        if(not READ_SETTING_WITH_DEFAULT(quiet, false))
+            Print("Updated number of frames with ",this->num_frames,", index offset ",this->index_offset,", timestamp ",this->timestamp,", ", _meta_offset);
         
         ref.truncate();
     }
 
 const cv::Size& File::size() const {
+    if(not bool(_mode & FileMode::WRITE))
+        _check_opened();
+    
     std::unique_lock lock(_lock);
     return _header.resolution;
 }
 Frame_t File::length() const {
+    if(not bool(_mode & FileMode::WRITE))
+        _check_opened();
+    
     std::unique_lock lock(_lock);
     return Frame_t(_header.num_frames);
 }
@@ -1533,7 +1557,13 @@ Frame_t File::length() const {
             throw U_EXCEPTION("Do not stop writing on a file that was not open for writing (",_filename,").");
         write(uint64_t(0));
         _header.update(*this);
-        print_info();
+        try {
+            print_info();
+        } catch(const std::exception& ex) {
+            FormatWarning("Cannot print PV info while closing ", _filename, ": ", ex.what());
+        } catch(...) {
+            FormatWarning("Cannot print PV info while closing ", _filename, ".");
+        }
     }
 
 void File::stop_modifying() {
@@ -1547,7 +1577,13 @@ void File::stop_modifying() {
 
     write(uint64_t(0));
     header().update(*this);
-    print_info();
+    try {
+        print_info();
+    } catch(const std::exception& ex) {
+        FormatWarning("Cannot print PV info while closing ", _filename, ": ", ex.what());
+    } catch(...) {
+        FormatWarning("Cannot print PV info while closing ", _filename, ".");
+    }
 }
     
     void File::read_frame(Frame& frame, Frame_t frameIndex) {

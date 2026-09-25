@@ -1,4 +1,6 @@
 #include "PreviewAdapterElement.h"
+#include <misc/Image.h>
+#include <processing/Background.h>
 #include <gui/dyn/ParseText.h>
 #include <gui/ParseLayoutTypes.h>
 #include <core/idx_t.h>
@@ -17,6 +19,8 @@ class IndividualImage : public Entangled {
     Image::Ptr ptr;
     GETTER(Frame_t, frame);
     ExternalImage _display;
+
+    Image _raw_buffer;
 
     static constexpr inline std::array<std::string_view, 10> _setting_names {
         "individual_image_normalization",
@@ -41,8 +45,10 @@ public:
         
         this->_fdx = fdx;
         this->_frame = frame;
-        
-        auto pos = DrawPreviewImage::make_image(blob, midline, filters, background, _display.unsafe_get_source());
+
+        static thread_local cv::Mat mask_buffer, image_buffer;
+
+        auto pos = DrawPreviewImage::make_image_cached(blob, midline, filters, background, _raw_buffer, mask_buffer, image_buffer, _display.unsafe_get_source());
         if(pos) {
             _display.updated_source();
         }
@@ -78,8 +84,12 @@ public:
 
 using namespace dyn;
 
-PreviewAdapterElement::PreviewAdapterElement(decltype(get_current_frame)&& fn, decltype(get_filter_cache)&& fc)
-    : get_current_frame(std::move(fn)), get_filter_cache(std::move(fc))
+PreviewAdapterElement::PreviewAdapterElement(decltype(get_tracker)&& tracker,
+                                             decltype(get_current_frame)&& fn,
+                                             decltype(get_filter_cache)&& fc)
+    : get_tracker(std::move(tracker)),
+      get_current_frame(std::move(fn)),
+      get_filter_cache(std::move(fc))
 {
     name = "preview";
     
@@ -101,7 +111,7 @@ PreviewAdapterElement::~PreviewAdapterElement() {
 
 Layout::Ptr PreviewAdapterElement::_create(LayoutContext& context) {
     [[maybe_unused]] auto fdx = context.get(Idx_t(), "fdx");
-    return Layout::Make<IndividualImage>();
+    return Layout::Make<IndividualImage>{};
 }
 
 bool PreviewAdapterElement::_update(Layout::Ptr& o,
@@ -111,6 +121,10 @@ bool PreviewAdapterElement::_update(Layout::Ptr& o,
 {
     auto ptr = o.to<IndividualImage>();
     //auto &cache = GUICache::instance();
+    auto tracker = get_tracker();
+    if(not tracker || not tracker->background())
+        return false;
+    const auto background = tracker->background();
     
     Idx_t fdx;
     const PPFrame* ppframe = get_current_frame();
@@ -144,7 +158,7 @@ bool PreviewAdapterElement::_update(Layout::Ptr& o,
             
             if(blob_ptr) {
                 if(blob_ptr->encoding() == Background::meta_encoding())
-                    ptr->set_data(fdx, frame, blob_ptr, track::Tracker::background(), filters, bdxnpred->midline.get());
+                    ptr->set_data(fdx, frame, blob_ptr, background, filters, bdxnpred->midline.get());
 #ifndef NDEBUG
                 else
                     FormatWarning("Not displaying image yet because of the wrong encoding: ", blob_ptr->encoding(), " vs. ", Background::meta_encoding());

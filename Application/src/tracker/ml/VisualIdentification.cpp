@@ -1,8 +1,13 @@
 #include "VisualIdentification.h"
 #include <ml/AccumulationRuntime.h>
 #include <python/PythonWrapper.h>
+#include <misc/Image.h>
+#include <misc/Path.h>
 #include <misc/frame_t.h>
+#include <processing/Background.h>
 #include <processing/PVBlob.h>
+#include <tracking/Stuffs.h>
+#include <tracking/LockGuard.h>
 #include <tracking/Tracker.h>
 #include <misc/create_struct.h>
 #include <misc/cnpy_wrapper.h>

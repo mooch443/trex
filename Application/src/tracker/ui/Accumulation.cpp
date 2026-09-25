@@ -2,7 +2,13 @@
 
 #if !COMMONS_NO_PYTHON
 #include <ml/AccumulationRuntime.h>
+#include <misc/Image.h>
 #include <tracking/DatasetQuality.h>
+#include <tracking/Individual.h>
+#include <tracking/PPFrame.h>
+#include <tracking/Stuffs.h>
+#include <tracking/TrackletInformation.h>
+#include <tracking/LockGuard.h>
 #include <tracking/TrainingData.h>
 #include <ui/WorkProgress.h>
 #include <misc/cnpy_wrapper.h>
@@ -59,8 +65,8 @@ const bool accumulation_runtime_registered = []() {
         Accumulation::unsetup();
     });
     accumulation_runtime::register_generate_discrimination_data(
-        [](pv::File& video, const std::shared_ptr<TrainingData>& source) {
-            return Accumulation::generate_discrimination_data(video, source);
+        [](const Tracker& tracker, pv::File& video, const std::shared_ptr<TrainingData>& source) {
+            return Accumulation::generate_discrimination_data(tracker, video, source);
         }
     );
     accumulation_runtime::register_calculate_uniqueness(
@@ -156,7 +162,7 @@ Accumulation::Status& Accumulation::status() {
     return status;
 }
 
-void apply_network(const std::shared_ptr<pv::File>& video_source) {
+void apply_network(std::shared_ptr<Tracker> tracker, const std::shared_ptr<pv::File>& video_source) {
     using namespace extract;
     uint8_t max_threads = 5u;
     extract::Settings settings{
@@ -180,10 +186,14 @@ void apply_network(const std::shared_ptr<pv::File>& video_source) {
     
     ImageExtractor e{
         std::shared_ptr{video_source},
-        [](const Query& q)->bool {
-            return !q.basic->blob.split();
+        *tracker,
+        [](const Query& q) -> std::unique_ptr<AcceptedQuery> {
+            if(!q.basic->blob.split()) {
+                return std::make_unique<AcceptedQuery>();
+            }
+            return nullptr;
         },
-        [&](std::vector<Result>&& results) {
+        [&, tracker](std::vector<Result>&& results) {
             // partial_apply
             std::vector<Image::Ptr> images;
             images.reserve(results.size());
@@ -213,7 +223,7 @@ void apply_network(const std::shared_ptr<pv::File>& video_source) {
                     auto end   = probabilities.begin() + (i + 1) * N;
                     
                     auto &r = results[i];
-                    Tracker::instance()->predicted(r.frame, r.bdx, std::span<float>(start, end));
+                    tracker->predicted(r.frame, r.bdx, std::span<float>(start, end));
                 }
                 
 #ifndef NDEBUG
@@ -434,7 +444,7 @@ std::map<Frame_t, std::set<Idx_t>> Accumulation::generate_individuals_per_frame(
         
         if(data) {
             for(auto &tracklet : used_tracklets) {
-                data->filters().set(id, *tracklet, *constraints::local_midline_length(fish, tracklet->range, false));
+                data->filters().set(id, *tracklet, *constraints::local_midline_length(fish, tracklet->range, nullptr, false));
             }
         }
         
@@ -491,7 +501,7 @@ std::tuple<bool, std::map<Idx_t, Idx_t>> Accumulation::check_additional_range(co
             }
         }
         
-        data.generate("acc"+Meta::toStr(_accumulation_step)+" "+Meta::toStr(range), *_video, coverage, [](float percent) { gui::WorkProgress::set_progress("", percent); }, _generated_data.get());
+        data.generate("acc"+Meta::toStr(_accumulation_step)+" "+Meta::toStr(range), *_tracker->background(), _tracker->frames(), *_video, coverage, [](float percent) { gui::WorkProgress::set_progress("", percent); }, _generated_data.get());
     } /*else {
         auto str = Meta::toStr(data);
         Print("Dont need to generate images for ",str,".");
@@ -709,7 +719,7 @@ void Accumulation::update_coverage(const TrainingData &data) {
         });
 }
 
-std::tuple<std::shared_ptr<TrainingData>, std::vector<Image::SPtr>, std::map<Frame_t, Range<size_t>>> Accumulation::generate_discrimination_data(pv::File& video, const std::shared_ptr<TrainingData>& source)
+std::tuple<std::shared_ptr<TrainingData>, std::vector<Image::SPtr>, std::map<Frame_t, Range<size_t>>> Accumulation::generate_discrimination_data(const track::Tracker& tracker, pv::File& video, const std::shared_ptr<TrainingData>& source)
 {
     auto data = std::make_shared<TrainingData>();
     
@@ -726,9 +736,9 @@ std::tuple<std::shared_ptr<TrainingData>, std::vector<Image::SPtr>, std::map<Fra
             frame <= analysis_range.end();
             frame += max(1_f, analysis_range.length() / 333_f))
         {
-            if(frame < Tracker::start_frame())
+            if(frame < tracker.frames().start_frame())
                 continue;
-            if(frame > Tracker::end_frame())
+            if(frame > tracker.frames().end_frame())
                 break;
             
             IndividualManager::transform_all([&](auto id, auto fish) {
@@ -737,12 +747,12 @@ std::tuple<std::shared_ptr<TrainingData>, std::vector<Image::SPtr>, std::map<Fra
                     return;
                 
                 auto bounds = blob->calculate_bounds();
-                if(Tracker::instance()->border().in_recognition_bounds(bounds.center()))
+                if(tracker.border().in_recognition_bounds(bounds.center()))
                 {
                     auto frange = fish->get_tracklet(frame);
                     if(frange.contains(frame)) {
                         if(!data->filters().has(Idx_t(id), frange)) {
-                            data->filters().set(Idx_t(id), frange,  *constraints::local_midline_length(fish, frame, false));
+                            data->filters().set(Idx_t(id), frange,  *constraints::local_midline_length(fish, frame, nullptr, false));
                         }
                         disc_individuals_per_frame[frame].insert(Idx_t(id));
                     }
@@ -750,7 +760,7 @@ std::tuple<std::shared_ptr<TrainingData>, std::vector<Image::SPtr>, std::map<Fra
             });
         }
         
-        if(!data->generate("generate_discrimination_data"+Meta::toStr((uint64_t)data.get()), video, disc_individuals_per_frame, [](float percent) { gui::WorkProgress::set_progress("", percent); }, source ? source.get() : nullptr))
+        if(!data->generate("generate_discrimination_data"+Meta::toStr((uint64_t)data.get()), *tracker.background(), tracker.frames(), video, disc_individuals_per_frame, [](float percent) { gui::WorkProgress::set_progress("", percent); }, source ? source.get() : nullptr))
         {
             FormatWarning("Couldnt generate proper training data (see previous warning messages).");
             return {nullptr, {}, {}};
@@ -886,7 +896,14 @@ float Accumulation::good_uniqueness() {
     return max(0.9, (float(FAST_SETTING(track_max_individuals)) - 0.5f) / float(FAST_SETTING(track_max_individuals)));
 }
 
-Accumulation::Accumulation(cmn::gui::GUITaskQueue_t* gui, std::shared_ptr<pv::File>&& video, std::vector<Range<Frame_t>>&& global_tracklet_order, gui::IMGUIBase* base, TrainingMode::Class mode) : _mode(mode), _accumulation_step(0), _counted_steps(0), _last_step(1337), _video(std::move(video)), _base(base), _global_tracklet_order(global_tracklet_order), _gui(gui)
+Accumulation::Accumulation(
+   cmn::gui::GUITaskQueue_t* gui,
+   std::shared_ptr<track::Tracker> tracker,
+   std::shared_ptr<pv::File>&& video,
+   std::vector<Range<Frame_t>>&& global_tracklet_order,
+   gui::IMGUIBase* base,
+   TrainingMode::Class mode)
+: _tracker(std::move(tracker)), _mode(mode), _accumulation_step(0), _counted_steps(0), _last_step(1337), _video(std::move(video)), _base(base), _global_tracklet_order(global_tracklet_order), _gui(gui)
 { }
 
 Accumulation::~Accumulation() {
@@ -960,12 +977,15 @@ bool Accumulation::start() {
             _network->train(_collected_data, FrameRange(), TrainingMode::Apply, 0, true, nullptr, -1);
         }
         
-        elevate_task([video = _video](){
-            auto tracker = Tracker::instance();
-            tracker->clear_tracklets_identities();
-            tracker->clear_vi_predictions();
+        elevate_task([video = _video, tracker = std::weak_ptr<Tracker>(_tracker)](){
+            auto lock = tracker.lock();
+            if(not lock)
+                return;
+
+            lock->clear_tracklets_identities();
+            lock->clear_vi_predictions();
             
-            apply_network(video);
+            apply_network(std::move(lock), video);
         });
         
         return true;
@@ -992,7 +1012,7 @@ bool Accumulation::start() {
         
         individuals_per_frame = generate_individuals_per_frame(_initial_range, _collected_data.get(), nullptr);
         
-        if(!_collected_data->generate("initial_acc"+Meta::toStr(_accumulation_step)+" "+Meta::toStr(_initial_range), *_video, individuals_per_frame, [](float percent) { gui::WorkProgress::set_progress("", percent); }, NULL)) {
+        if(!_collected_data->generate("initial_acc"+Meta::toStr(_accumulation_step)+" "+Meta::toStr(_initial_range), *_tracker->background(), _tracker->frames(), *_video, individuals_per_frame, [](float percent) { gui::WorkProgress::set_progress("", percent); }, NULL)) {
             
             const char* text = "Couldnt generate proper training data (see previous warning messages).";
             if(BOOL_SETTING(auto_train_on_startup)) {
@@ -1015,7 +1035,7 @@ bool Accumulation::start() {
     /// required channels for the images that are being generated
     const auto channels = required_image_channels(Background::meta_encoding());
     
-    auto && [disc, disc_images, disc_map] = generate_discrimination_data(*_video, _collected_data);
+    auto && [disc, disc_images, disc_map] = generate_discrimination_data(*_tracker, *_video, _collected_data);
     _discrimination_data = disc;
     _disc_images = disc_images;
     _disc_frame_map = disc_map;
@@ -1855,10 +1875,13 @@ bool Accumulation::start() {
                 auto &video_file = *_video;
                 
                 size_t failed_blobs = 0, found_blobs = 0;
+                cv::Mat mask_buffer, image_buffer;
                 
                 for(auto && [frame, ids] : frames_collected) {
                     video_file.read_with_encoding(video_frame, frame, encoding);
-                    Tracker::preprocess_frame(std::move(video_frame), pp, nullptr, PPFrame::NeedGrid::NoNeed, video_file.header().resolution);
+                    Tracker::preprocess_frame(std::move(video_frame), pp, nullptr,
+                                              _tracker->frames(), *_tracker->background(),
+                                              NeedGrid::NoNeed, HistorySplitPolicy::Apply);
                     
                     IndividualManager::transform_ids(ids, [&, frame=frame](auto id, auto fish) {
                         auto filters = _collected_data->filters().has(id)
@@ -1890,7 +1913,7 @@ bool Accumulation::start() {
                             return;
                         
                         // try loading it all into a vector
-                        Image::SPtr image;
+                        Image::SPtr image = Image::Make();
                         
                         /*auto iit = did_image_already_exist.find({id, frame});
                         if(iit != did_image_already_exist.end()) {
@@ -1901,8 +1924,8 @@ bool Accumulation::start() {
                         using namespace default_config;
                         auto midline = posture ? fish->calculate_midline_for(*posture) : nullptr;
                         
-                        image = std::get<0>(constraints::diff_image(method, blob.get(), midline ? midline->transform(method) : gui::Transform(), filters.median_midline_length_px, output_size, Tracker::background()));
-                        if(image)
+                        auto pos = constraints::diff_image_cached(mask_buffer, image_buffer, *image, method, blob.get(), midline ? midline->transform(method) : gui::Transform(), filters.median_midline_length_px, output_size, _tracker->background());
+                        if(pos)
                             images[frames_assignment[frame][id]].push_back(image);
                     });
                 }
@@ -2013,12 +2036,15 @@ bool Accumulation::start() {
     
     // GUI::work().item_custom_triggered() could be set, but we accept the training nonetheless if it worked so far. its just skipping one specific step
     if(!gui::WorkProgress::item_aborted() && !uniqueness_history().empty()) {
-        elevate_task([this](){
-            auto tracker = Tracker::instance();
-            tracker->clear_tracklets_identities();
-            tracker->clear_vi_predictions();
+        elevate_task([video = _video, tracker = std::weak_ptr<Tracker>(_tracker)](){
+            auto lock = tracker.lock();
+            if(not lock)
+                return;
+
+            lock->clear_tracklets_identities();
+            lock->clear_vi_predictions();
         
-            apply_network(_video);
+            apply_network(std::move(lock), video);
         });
     }
     

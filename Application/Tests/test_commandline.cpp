@@ -18,6 +18,7 @@ void reset_command_line_state() {
         config.defaults = sprite::Map{};
         config.docs.clear();
         config.access.clear();
+        config.doc_generators.clear();
     });
 }
 
@@ -60,7 +61,11 @@ void seed_global_settings_keys(std::initializer_list<std::string> keys) {
 } // namespace
 
 TEST(CommandLineTest, ParsesSpacedPathAndFlags) {
+    GlobalSettings::write([](Configuration& config) {
+        config.doc_generators["stale"] = [](std::optional<uint8_t>) { return std::string("stale docs"); };
+    });
     reset_command_line_state();
+    EXPECT_TRUE(GlobalSettings::read([](const Configuration& config) { return config.doc_generators.empty(); }));
 
     init_command_line({
         executable_argv0(),

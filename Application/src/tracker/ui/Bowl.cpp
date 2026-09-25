@@ -212,22 +212,28 @@ bool Bowl::Data::update_shapes() {
             Vec2 br(pt.x + scale, pt.y + scale);
             
             constexpr auto clrA = White.alpha(150);
-            auto ptr = Layout::Make<Vertices>(std::vector<Vertex>{
-                {tl, clrA}, {pt, clrA},
-                {br, clrA}, {pt, clrA},
-                {bl, clrA}, {pt, clrA},
-                {tr, clrA}
-            }, PrimitiveType::LineStrip);
+            derived_ptr<Vertices> ptr = Layout::Make<Vertices>{
+                std::vector<Vertex>{
+                    {tl, clrA}, {pt, clrA},
+                    {br, clrA}, {pt, clrA},
+                    {bl, clrA}, {pt, clrA},
+                    {tr, clrA}
+                },
+                PrimitiveType::LineStrip
+            };
             _zoom_polygon_indicators.emplace_back(ptr);
             
             constexpr auto clrB = Black.alpha(150);
             constexpr auto offset = Vec2(0.25);
-            ptr = Layout::Make<Vertices>(std::vector<Vertex>{
-                {tl + offset, clrB}, {pt + offset, clrB},
-                {br + offset, clrB}, {pt + offset, clrB},
-                {bl + offset, clrB}, {pt + offset, clrB},
-                {tr + offset, clrB}
-            }, PrimitiveType::LineStrip);
+            ptr = Layout::Make<Vertices>{
+                std::vector<Vertex>{
+                    {tl + offset, clrB}, {pt + offset, clrB},
+                    {br + offset, clrB}, {pt + offset, clrB},
+                    {bl + offset, clrB}, {pt + offset, clrB},
+                    {tr + offset, clrB}
+                },
+                PrimitiveType::LineStrip
+            };
             _zoom_polygon_indicators.emplace_back(ptr);
         }
         //ptr->set_clickable(true);
@@ -450,7 +456,7 @@ void Bowl::update_blobs(const Frame_t& frame) {
         if(draw_blobs_separately)
         {
             if(GUI_SETTINGS(gui_mode) == gui::mode_t::tracking
-               && _cache->tracked_frames.contains(frame))
+               && _cache->tracked_frames().contains(frame))
             {
                 std::unique_lock guard(_cache->_fish_map_mutex);
                 for(auto &&[k,fish] : _cache->_fish_map) {
@@ -464,7 +470,7 @@ void Bowl::update_blobs(const Frame_t& frame) {
 #if defined(TREX_ENABLE_EXPERIMENTAL_BLUR) && defined(__APPLE__) && COMMONS_METAL_AVAILABLE
                 const bool gui_macos_blur = GUI_SETTINGS(gui_macos_blur);
 #endif
-                if (GUI_SETTINGS(gui_mode) != gui::mode_t::blobs) {
+                if (GUI_SETTINGS(gui_mode) == gui::mode_t::tracking) {
                     for (auto& [b, ptr] : _cache->display_blobs) {
 #if defined(TREX_ENABLE_EXPERIMENTAL_BLUR) && defined(__APPLE__) && COMMONS_METAL_AVAILABLE
                         if constexpr (std::is_same<MetalImpl, default_impl_t>::value) {
@@ -476,12 +482,12 @@ void Bowl::update_blobs(const Frame_t& frame) {
                     }
 
                 }
-                else {
+                else /*if (GUI_SETTINGS(gui_mode) == gui::mode_t::tracking)) */{
                     for (auto& [b, ptr] : _cache->display_blobs) {
 #if defined(TREX_ENABLE_EXPERIMENTAL_BLUR) && defined(__APPLE__) && COMMONS_METAL_AVAILABLE
                         if constexpr (std::is_same<MetalImpl, default_impl_t>::value) {
                             if (gui_macos_blur)
-                                ptr->ptr->untag(Effects::blur);
+                                ptr->ptr->tag(Effects::blur);
                         }
 #endif
                         advance_wrap(*(ptr->ptr));
@@ -491,7 +497,7 @@ void Bowl::update_blobs(const Frame_t& frame) {
             
         } else if(draw_blobs
                   && GUI_SETTINGS(gui_mode) == gui::mode_t::tracking
-                  && _cache->tracked_frames.contains(frame))
+                  && _cache->tracked_frames().contains(frame))
         {
             std::unique_lock guard(_cache->_fish_map_mutex);
             for(auto &&[k,fish] : _cache->_fish_map) {
@@ -529,8 +535,8 @@ void Bowl::update_scaling(double dt) {
     //_timer.reset();
 }
 
-void Bowl::update(Frame_t frame, DrawStructure &graph, const FindCoord& coord) {
-    update([this, &frame, &graph, &coord](auto&) {
+void Bowl::update(const data::FrameRepository& frames, Frame_t frame, DrawStructure &graph, const FindCoord& coord) {
+    update([this, &frame, &graph, &coord, &frames](auto&) {
         if(GUI_SETTINGS(gui_mode) == gui::mode_t::tracking)
             draw_shapes(graph, coord);
         
@@ -542,7 +548,7 @@ void Bowl::update(Frame_t frame, DrawStructure &graph, const FindCoord& coord) {
         if(GUI_SETTINGS(gui_show_heatmap)) {
             if(!_data->_heatmapController)
                 _data->_heatmapController = std::make_unique<gui::heatmap::HeatmapController>();
-            _data->_heatmapController->set_frame(frame);
+            _data->_heatmapController->set_frame(frames, frame);
             advance_wrap(*_data->_heatmapController);
         }
         
