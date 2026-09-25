@@ -246,7 +246,7 @@ protected:
     }
 
     static void write_settings(const file::Path& path, std::string_view content) {
-        std::ofstream stream(path.str());
+        std::ofstream stream(path.str(), std::ios::binary);
         stream << content;
         stream.close();
         if(not stream)
