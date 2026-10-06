@@ -42,16 +42,16 @@ public:
         // already set
         if(fdx == _fdx && _frame == frame && not settings_changed())
             return;
-        
-        this->_fdx = fdx;
-        this->_frame = frame;
 
         static thread_local cv::Mat mask_buffer, image_buffer;
 
         auto pos = DrawPreviewImage::make_image_cached(blob, midline, filters, background, _raw_buffer, mask_buffer, image_buffer, _display.unsafe_get_source());
-        if(pos) {
-            _display.updated_source();
-        }
+        if(not pos)
+            return;
+        
+        this->_fdx = fdx;
+        this->_frame = frame;
+        _display.updated_source();
         //_display.set_source(std::move(image));
         update_settings();
         update();
@@ -165,8 +165,9 @@ bool PreviewAdapterElement::_update(Layout::Ptr& o,
 #endif
             }
 #ifndef NDEBUG
-            else
-                 throw RuntimeError("Cannot find pixels for ", fdx, " and ", bdxnpred->bdx);
+            else {
+                throw RuntimeError("Cannot find pixels for ", fdx, " and ", bdxnpred->bdx);
+            }
 #endif
         }//else
          //  throw InvalidArgumentException("Cannot find individual ", fdx, " in cache.");

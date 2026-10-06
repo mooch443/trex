@@ -1386,7 +1386,258 @@ TEST(ConditionElementTest, EvaluatesOnlySelectedBranch)
     }
 }
 
-TEST(ConditionElementTest, ResolutionFailurePropagates)
+TEST(DynamicGUIErrorRecovery, RestoresCustomObjectsWithoutRecreatingThem)
+{
+    const std::array<std::string_view, 7> layouts{
+        R"json({"type":"recoverable","name":"recoverable"})json",
+        R"json({"type":"collection","children":[{"type":"collection","children":[{"type":"recoverable","name":"recoverable"}]}]})json",
+        R"json({"type":"each","var":"items","do":{"type":"recoverable","name":"recoverable"}})json",
+        R"json({"type":"condition","var":"{show_then}","then":{"type":"recoverable","name":"recoverable"},"else":{"type":"recoverable","name":"recoverable"}})json",
+        R"json({"type":"condition","var":"{show_then}","then":{"type":"recoverable","name":"recoverable"},"else":{"type":"recoverable","name":"recoverable"}})json",
+        R"json({"type":"recoverable","name":"recoverable"})json",
+        R"json({"type":"each","var":"cached_items","do":{"type":"recoverable","name":"recoverable"}})json"
+    };
+
+    for(size_t i = 0; i < layouts.size(); ++i) {
+        for(const bool initially_failing : {false, true}) {
+            SCOPED_TRACE(i);
+            SCOPED_TRACE(initially_failing);
+
+            bool failing = initially_failing;
+            size_t creations = 0, updates = 0;
+            Layout::Ptr original;
+            std::vector<std::shared_ptr<VarBase_t>> cached_items{
+                VarFunc("item", [](const VarProps&) { return 1; }).second
+            };
+            Context context{
+                VarFunc("items", [](const VarProps&) { return std::vector<int>{1}; }),
+                VarFunc("cached_items", [&](const VarProps&) -> std::vector<std::shared_ptr<VarBase_t>>& { return cached_items; }),
+                VarFunc("show_then", [i](const VarProps&) { return i == 3; })
+            };
+            context.custom_elements["recoverable"] = std::make_shared<CustomElement>(
+                "recoverable",
+                [&](LayoutContext&) -> Layout::Ptr {
+                    ++creations;
+                    original = Layout::Make<StaticText>{Str{"ready"}};
+                    return original;
+                },
+                [&](Layout::Ptr& object, const Context&, State&, PatternMapType&) -> bool {
+                    ++updates;
+                    EXPECT_EQ(object.get(), original.get());
+                    if(failing)
+                        throw std::runtime_error("preview unavailable");
+                    return false;
+                });
+            State state;
+            auto handler = std::make_shared<CurrentObjectHandler>();
+            state._current_object_handler = handler;
+            DrawStructure graph(640, 480);
+
+            glz::json_t object;
+            const auto parse_error = glz::read_json(object, layouts[i]);
+            ASSERT_EQ(parse_error, glz::error_code::none) << glz::format_error(parse_error, layouts[i]);
+            auto root = parse_object(nullptr, object.get_object(), context, state, context.defaults);
+            if(i == 5) {
+                root = Layout::Make<PlaceinLayout>{std::vector<Layout::Ptr>{root}};
+            }
+            ASSERT_TRUE(root);
+            ASSERT_NO_THROW((void)DynamicGUI::update_objects(nullptr, graph, root, context, state));
+            ASSERT_TRUE(original);
+            EXPECT_EQ(creations, 1u);
+            EXPECT_EQ(handler->retrieve_named("recoverable").get(), original.get());
+
+            auto displayed_child = [&]() {
+                auto child = root;
+                while(child) {
+                    if(auto pass = dynamic_cast<Fallthrough*>(child.get())) {
+                        child = pass->object();
+                    } else if(auto layout = dynamic_cast<Layout*>(child.get());
+                              layout && not layout->objects().empty())
+                    {
+                        child = layout->objects().front();
+                        EXPECT_THAT(layout->current_children(), ::testing::Contains(child.get()));
+                    } else
+                        break;
+                }
+                return child;
+            };
+
+            if(not initially_failing)
+                EXPECT_EQ(displayed_child().get(), original.get());
+            failing = true;
+            auto previous_updates = updates;
+            ASSERT_NO_THROW((void)DynamicGUI::update_objects(nullptr, graph, root, context, state));
+            EXPECT_EQ(updates, previous_updates + 1);
+            auto error = displayed_child();
+            ASSERT_TRUE(dynamic_cast<ErrorElement*>(error.get()));
+
+            for(size_t attempt = 0; attempt < 2; ++attempt) {
+                if(i == 0)
+                    error.to<ErrorElement>()->set_content_changed(false);
+                previous_updates = updates;
+                ASSERT_NO_THROW((void)DynamicGUI::update_objects(nullptr, graph, root, context, state));
+                EXPECT_EQ(updates, previous_updates + 1);
+                EXPECT_EQ(displayed_child().get(), error.get());
+                if(i == 0)
+                    EXPECT_FALSE(error.to<ErrorElement>()->content_changed());
+            }
+
+            failing = false;
+            previous_updates = updates;
+            ASSERT_NO_THROW((void)DynamicGUI::update_objects(nullptr, graph, root, context, state));
+            EXPECT_EQ(updates, previous_updates + 1);
+            EXPECT_EQ(displayed_child().get(), original.get());
+            EXPECT_EQ(handler->retrieve_named("recoverable").get(), original.get());
+            EXPECT_EQ(creations, 1u);
+        }
+    }
+}
+
+TEST(DynamicGUIErrorRecovery, PointerReplacementDoesNotOverrideUpdateResult)
+{
+    bool replace = false;
+    Context context;
+    context.custom_elements["replaceable"] = std::make_shared<CustomElement>(
+        "replaceable",
+        [](LayoutContext&) -> Layout::Ptr {
+            return Layout::Make<StaticText>{Str{"initial"}};
+        },
+        [&](Layout::Ptr& object, const Context&, State&, PatternMapType&) -> bool {
+            if(replace)
+                object = Layout::Make<StaticText>{Str{"replacement"}};
+            return false;
+        });
+    State state;
+    auto handler = std::make_shared<CurrentObjectHandler>();
+    state._current_object_handler = handler;
+    DrawStructure graph(640, 480);
+    glz::json_t object;
+    ASSERT_EQ(glz::read_json(object, R"json({"type":"replaceable"})json"), glz::error_code::none);
+    auto root = parse_object(nullptr, object.get_object(), context, state, context.defaults);
+    const auto original = root;
+
+    replace = true;
+    EXPECT_FALSE(DynamicGUI::update_objects(nullptr, graph, root, context, state));
+    EXPECT_NE(root.get(), original.get());
+    ASSERT_TRUE(root.is<StaticText>());
+    EXPECT_EQ(root.to<StaticText>()->text(), "replacement");
+}
+
+TEST(ConditionElementTest, PropagatesChildUpdateWithoutPointerReplacement)
+{
+    constexpr std::string_view json = R"json({
+        "type":"condition", "var":"{outer}",
+        "then":{
+            "type":"condition", "var":"{inner}",
+            "then":{"type":"stext", "text":"first"},
+            "else":{"type":"stext", "text":"second"}
+        },
+        "else":{
+            "type":"condition", "var":"{inner}",
+            "then":{"type":"stext", "text":"first"},
+            "else":{"type":"stext", "text":"second"}
+        }
+    })json";
+    for(const bool outer : {false, true}) {
+        SCOPED_TRACE(outer);
+        bool inner = true;
+        Context context{
+            VarFunc("outer", [outer](const VarProps&) { return outer; }),
+            VarFunc("inner", [&](const VarProps&) { return inner; })
+        };
+        State state;
+        auto handler = std::make_shared<CurrentObjectHandler>();
+        state._current_object_handler = handler;
+        DrawStructure graph(640, 480);
+        glz::json_t object;
+        ASSERT_EQ(glz::read_json(object, json), glz::error_code::none);
+        auto root = parse_object(nullptr, object.get_object(), context, state, context.defaults);
+        ASSERT_TRUE(DynamicGUI::update_objects(nullptr, graph, root, context, state));
+        const auto original = root;
+        const auto child = root.to<Fallthrough>()->object();
+        ASSERT_TRUE(child.is<Fallthrough>());
+        EXPECT_FALSE(DynamicGUI::update_objects(nullptr, graph, root, context, state));
+
+        inner = false;
+        EXPECT_TRUE(DynamicGUI::update_objects(nullptr, graph, root, context, state));
+        EXPECT_EQ(root.get(), original.get());
+        EXPECT_EQ(root.to<Fallthrough>()->object().get(), child.get());
+        ASSERT_TRUE(child.to<Fallthrough>()->object().is<StaticText>());
+        EXPECT_EQ(child.to<Fallthrough>()->object().to<StaticText>()->text(), "second");
+    }
+}
+
+TEST(DynamicGUIErrorRecovery, RecoversInitialUpdateOfCachedCustomObject)
+{
+    bool failing = false;
+    size_t creations = 0;
+    Layout::Ptr original;
+    Context context;
+    context.custom_elements["recoverable"] = std::make_shared<CustomElement>(
+        "recoverable",
+        [&](LayoutContext&) -> Layout::Ptr {
+            ++creations;
+            original = Layout::Make<StaticText>{Str{"ready"}};
+            return original;
+        },
+        [&](Layout::Ptr&, const Context&, State&, PatternMapType&) -> bool {
+            if(failing)
+                throw std::runtime_error("preview unavailable");
+            return false;
+        });
+    State state;
+    auto handler = std::make_shared<CurrentObjectHandler>();
+    state._current_object_handler = handler;
+    DrawStructure graph(640, 480);
+    glz::json_t object;
+    ASSERT_EQ(glz::read_json(object, R"json({"type":"recoverable","name":"recoverable"})json"), glz::error_code::none);
+
+    auto root = parse_object(nullptr, object.get_object(), context, state, context.defaults, 91);
+    ASSERT_EQ(root.get(), original.get());
+    failing = true;
+    root = parse_object(nullptr, object.get_object(), context, state, context.defaults, 91);
+    ASSERT_TRUE(dynamic_cast<ErrorElement*>(root.get()));
+    EXPECT_EQ(handler->retrieve_named("recoverable").get(), original.get());
+
+    failing = false;
+    ASSERT_NO_THROW((void)DynamicGUI::update_objects(nullptr, graph, root, context, state));
+    EXPECT_EQ(root.get(), original.get());
+    EXPECT_EQ(creations, 1u);
+}
+
+TEST(DynamicGUIErrorRecovery, ConstructionFailureRemainsAnError)
+{
+    size_t creations = 0, updates = 0;
+    Context context;
+    context.custom_elements["broken"] = std::make_shared<CustomElement>(
+        "broken",
+        [&](LayoutContext&) -> Layout::Ptr {
+            ++creations;
+            throw std::runtime_error("invalid definition");
+        },
+        [&](Layout::Ptr&, const Context&, State&, PatternMapType&) -> bool {
+            ++updates;
+            return false;
+        });
+    State state;
+    auto handler = std::make_shared<CurrentObjectHandler>();
+    state._current_object_handler = handler;
+    DrawStructure graph(640, 480);
+    glz::json_t object;
+    ASSERT_EQ(glz::read_json(object, R"json({"type":"broken"})json"), glz::error_code::none);
+    auto root = parse_object(nullptr, object.get_object(), context, state, context.defaults);
+    ASSERT_TRUE(dynamic_cast<ErrorElement*>(root.get()));
+    const auto error = root;
+
+    for(size_t attempt = 0; attempt < 2; ++attempt) {
+        EXPECT_FALSE(DynamicGUI::update_objects(nullptr, graph, root, context, state));
+        EXPECT_EQ(root.get(), error.get());
+    }
+    EXPECT_EQ(creations, 1u);
+    EXPECT_EQ(updates, 0u);
+}
+
+TEST(ConditionElementTest, ResolutionFailureDisplaysErrorAndRecovers)
 {
     constexpr std::string_view json = R"json(
 {
@@ -1428,6 +1679,7 @@ TEST(ConditionElementTest, ResolutionFailurePropagates)
     DrawStructure graph(640, 480);
     auto root = parse_object(nullptr, object.get_object(), context, state, context.defaults);
     ASSERT_TRUE(root.is<Fallthrough>());
+    const auto original = root;
     auto pass = root.to<Fallthrough>();
 
     mode = ConditionMode::True;
@@ -1441,12 +1693,12 @@ TEST(ConditionElementTest, ResolutionFailurePropagates)
     EXPECT_EQ(pass->object().to<StaticText>()->text(), "else");
 
     mode = ConditionMode::Fail;
-    ASSERT_THROW(
-        (void)DynamicGUI::update_objects(nullptr, graph, root, context, state),
-        std::exception);
+    ASSERT_NO_THROW((void)DynamicGUI::update_objects(nullptr, graph, root, context, state));
+    ASSERT_TRUE(dynamic_cast<ErrorElement*>(root.get()));
 
     mode = ConditionMode::True;
     ASSERT_NO_THROW((void)DynamicGUI::update_objects(nullptr, graph, root, context, state));
+    EXPECT_EQ(root.get(), original.get());
     ASSERT_TRUE(pass->object().is<StaticText>());
     EXPECT_EQ(pass->object().to<StaticText>()->text(), "then");
 }

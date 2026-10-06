@@ -81,6 +81,8 @@ struct TrackingScene::Data {
     LabelCache_t _unassigned_labels;
     std::unordered_map<Idx_t, Label_t> _labels;
     
+    Settings::track_ignore_bdx_t _track_ignore_bdx;
+    
     std::unique_ptr<TimingStatsCollector::HandleGuard> _display_handle, _waiting_handle;
     
     /// these will help updating some visual stuff whenever
@@ -306,6 +308,8 @@ TrackingScene::Data::Data(Image::Ptr&& average, pv::File& video)
 
     for (auto& [key, code] : _key_map)
         _keymap[key] = false;
+    
+    _track_ignore_bdx = SETTING(track_ignore_bdx).value<Settings::track_ignore_bdx_t>();
 }
 
 void TrackingScene::Data::handle_zooming(Event e) {
@@ -793,18 +797,56 @@ void TrackingScene::settings_callback(std::string_view key) {
               && _data
               && _data->_cache)
     {
-        if(_state->tracker->frames().end_frame().valid()
-           && _data->_cache->frame_idx.valid()
-           && _state->tracker->frames().end_frame() >= _data->_cache->frame_idx)
-        {
-            WorkProgress::add_queue("", [frame = _data->_cache->frame_idx, this](){
+        Frame_t changed_frame = _data->_cache->frame_idx;
+        
+        if(key == "track_ignore_bdx") {
+            changed_frame = {};
+            
+            if(auto value = SETTING(track_ignore_bdx).value<Settings::track_ignore_bdx_t>();
+               _data->_track_ignore_bdx != value)
+            {
+                for(auto &[frame, bdxes] : value) {
+                    auto it = _data->_track_ignore_bdx.find(frame);
+                    if(it == _data->_track_ignore_bdx.end()
+                       || it->second != bdxes)
+                    {
+                        changed_frame = frame;
+                        break;
+                    }
+                }
+                
+                for(auto &[frame, bdxes] : _data->_track_ignore_bdx) {
+                    if(changed_frame.valid()
+                       && changed_frame < frame)
+                    {
+                        /// dont overwrite later frames
+                        break;
+                    }
+                    
+                    if(auto it = value.find(frame);
+                       it == value.end())
+                    {
+                        changed_frame = frame;
+                        break;
+                    }
+                }
+                
+                /// couldnt find it here if `changed_frame` is not valid.
+                /// in which case nothing happens.
+                _data->_track_ignore_bdx = std::move(value);
+            }
+        }
+        
+        if(changed_frame.valid()) {
+            WorkProgress::add_queue("", [frame = changed_frame, this](){
                 if(not _state) {
                     FormatError("No tracker exists because the scene doesnt exist anymore.");
                     return;
                 }
                 
+                _state->analysis->set_paused(true).get();
                 _state->tracker->_remove_frames(frame);
-                _state->analysis->set_paused(false);
+                _state->analysis->set_paused(false).get();
             });
         }
     }
@@ -816,6 +858,7 @@ void TrackingScene::settings_callback(std::string_view key) {
              "cam_undistort_vector",
              "analysis_range",
              "track_threshold",
+             "blob_split_algorithm",
              "track_posture_threshold",
              "track_size_filter",
              "frame_rate",
@@ -923,6 +966,7 @@ void TrackingScene::activate() {
         "track_background_subtraction",
         "meta_encoding",
         "track_threshold",
+        "blob_split_algorithm",
         "track_posture_threshold",
         "track_size_filter",
         "track_include", "track_ignore",
@@ -2173,7 +2217,7 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                                     /// If the user cancels, we do not set the ignore_bdxes state.
                                     FormatWarning("Not ignoring bdxes for individual ", id, " frames ", start, "-", end);
                                 }
-                            }, "Do you want to ignore blobs for <c>"+Meta::toStr(id)+"</c> in frames <c><nr>"+Meta::toStr(start)+"</nr>-<nr>"+Meta::toStr(end)+"</nr></c>?\nThis will add all selected blob ids to <c>track_ignore_bdxes</c> and prevent them from being used in future analyses.\n\nYou can always undo this by resetting the <c>track_ignore_bdxes</c> setting. <i>You will not be asked about this in the future.</i>", "Ignore blobs", "Yes", "No");
+                            }, "Do you want to ignore blobs for <c>"+Meta::toStr(id)+"</c> in frames <c><nr>"+Meta::toStr(start)+"</nr>-<nr>"+Meta::toStr(end)+"</nr></c>?\nThis will add all selected blob ids to <c>track_ignore_bdx</c> and prevent them from being used in future analyses.\n\nYou can always undo this by resetting the <c>track_ignore_bdx</c> setting. <i>You will not be asked about this in the future.</i>", "Ignore blobs", "Yes", "No");
                         });
                     }
                     else {

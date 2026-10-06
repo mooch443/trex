@@ -273,8 +273,12 @@ conda build -c conda-forge .
 
 ## Agent execution constraints
 - Unless explicitly asked to restructure or reinvent an implementation, make the
-  smallest possible change, preserve existing comments and formatting, keep code
-  verbatim where applicable, and do not extract one-off code into new helpers.
+  smallest possible change and preserve the original code verbatim wherever
+  possible, including names, comments, formatting, and control flow. Introduce
+  only changes necessary to make the requested behavior work; do not perform
+  incidental cleanup, renaming, refactoring, or extract one-off code into new
+  helpers. When staged changes exist, use the staged version as the baseline
+  for reviewing the new diff, while preserving all existing worktree changes.
 - When creating a new branch, use a concise descriptive name without a
   ``codex/`` or other agent-specific prefix.
 - Do not run builds, CMake configure/generate commands, or CMake build commands.
