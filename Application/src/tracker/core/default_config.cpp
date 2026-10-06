@@ -1467,15 +1467,16 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             explicitly_include.insert("output_prefix");
         }
         
-        if(auto type = READ_SETTING(detect_type, track::detect::ObjectDetectionType_t);
-           type == track::detect::ObjectDetectionType::yolo
+        const auto type = READ_SETTING(detect_type, track::detect::ObjectDetectionType_t);
+        if(is_in(type, track::detect::ObjectDetectionType::yolo, track::detect::ObjectDetectionType::none)
            || READ_SETTING_WITH_DEFAULT(track_detect_annotations, track::detect::AnnotationMap{}))
         {
             explicitly_include.emplace("detect_classes");
             explicitly_include.emplace("detect_format");
             
             if(auto format = READ_SETTING(detect_format, track::detect::ObjectDetectionFormat_t);
-               format != track::detect::ObjectDetectionFormat::poses)
+               format != track::detect::ObjectDetectionFormat::poses
+               && type != track::detect::ObjectDetectionType::none)
             {
                 exclude_fields.push_back("detect_skeleton");
                 exclude_fields.push_back("detect_keypoint_format");
@@ -1504,6 +1505,9 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
             
             explicitly_include.emplace("detect_threshold");
         }
+        
+        if(type == track::detect::ObjectDetectionType::none)
+            explicitly_include.emplace("detect_threshold");
         
         /**
          * Exclude some settings based on what would automatically be assigned

@@ -2245,7 +2245,47 @@ Probability Individual::probability(const CachedSettings& settings, MaybeLabel l
     //};
 }
 
-std::optional<std::pair<const track::BasicStuff*, const track::TrackletInformation*>> Individual::find_tracklet_for(Frame_t frameIndex) const noexcept(not cmn::is_debug_mode())
+std::optional<std::pair<const track::BasicStuff*, const track::TrackletInformation*>> Individual::find_tracklet_exact(Frame_t frameIndex) const noexcept
+{
+    if(not frameIndex.valid()
+       || empty()
+       || frameIndex < _startFrame
+       || frameIndex > _endFrame)
+    {
+        return std::nullopt;
+    }
+    
+    const auto begin = _tracklets.begin();
+    const auto end = _tracklets.end();
+    const auto last = std::prev(end);
+
+    auto upper = std::upper_bound(
+        begin, end, frameIndex,
+        [](Frame_t frame, const auto& tracklet) {
+            return frame < tracklet->start();
+        });
+    
+    if(upper != begin) {
+        upper = std::prev(upper);
+    }
+
+    const auto& tracklet = **upper;
+    const auto index =
+        tracklet.basic_stuff(frameIndex);
+
+    if(index < 0
+       || static_cast<size_t>(index) >= _basic_stuff.size())
+    {
+        return std::nullopt;
+    }
+    
+    return std::pair(
+        _basic_stuff[static_cast<size_t>(index)].get(),
+        upper->get()
+    );
+}
+
+std::optional<std::pair<const track::BasicStuff*, const track::TrackletInformation*>> Individual::find_tracklet_for_soft(Frame_t frameIndex) const noexcept(not cmn::is_debug_mode())
 {
     if(empty())
         return std::nullopt;
@@ -2301,7 +2341,7 @@ std::optional<std::pair<const track::BasicStuff*, const track::TrackletInformati
 
 const BasicStuff* Individual::find_frame(Frame_t frameIndex) const noexcept(not cmn::is_debug_mode())
 {
-    auto t = find_tracklet_for(frameIndex);
+    auto t = find_tracklet_for_soft(frameIndex);
     if(not t)
         return nullptr;
     return t->first;

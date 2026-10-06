@@ -29,8 +29,21 @@ AnimatedBackground::AnimatedBackground(Image::Ptr&& image, const pv::File* video
     _source_scale = -1;
 
     auto result = configure_video_source(video);
+    {
+        std::unique_lock guard(_source_mutex);
+        _source = nullptr;
+        _file_opened = false;
+        _video_offset = 0;
+    }
     
     for(auto &[test, offset] : result.tests) {
+        if(auto result = VideoSource::TestVideoSource(test);
+           not result)
+        {
+            FormatError("Cannot open ", test, ": ", no_quotes(result.error()));
+            continue;
+        }
+        
         std::unique_lock guard(_source_mutex);
         try {
             _source = std::make_unique<VideoSource>(test);
@@ -50,9 +63,6 @@ AnimatedBackground::AnimatedBackground(Image::Ptr&& image, const pv::File* video
         }
         catch (const std::exception& e) {
             FormatError("Cannot load animated gui background: ", e.what());
-            _source = nullptr;
-            _file_opened = false;
-            _video_offset = 0;
         }
     }
 

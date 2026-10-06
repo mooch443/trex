@@ -654,12 +654,13 @@ class RFDETRModel(DetectionModel):
         selected = "torchscript" if self.config.try_optimize else "memory"
 
         def optimize(mode: str) -> None:
-            wrapper.optimize_for_inference(
-                compile=mode == "torchscript",
-                batch_size=1,
-                dtype=torch.float32,
-                inplace=mode == "memory",
-            )
+            with torch.no_grad():
+                wrapper.optimize_for_inference(
+                    compile=mode == "torchscript",
+                    batch_size=1,
+                    dtype=torch.float32,
+                    inplace=mode == "memory",
+                )
 
         try:
             optimize(selected)

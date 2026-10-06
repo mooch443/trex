@@ -453,7 +453,7 @@ void export_tag_annotations(TagDatasetConfig config) {
             track::IndividualManager::transform_all([source_frame = coll.source, &coll, &insert_tracklet_id]
                         (track::Idx_t fdx, const Individual* fish)
             {
-                auto result = fish->find_tracklet_for(source_frame);
+                auto result = fish->find_tracklet_exact(source_frame);
                 if(not result)
                     return;
                 
@@ -629,7 +629,7 @@ void export_tag_annotations(TagDatasetConfig config) {
             /// selector
             std::map<track::Idx_t, uint64_t> frame_tracklet_ids;
             IndividualManager::transform_all([&](Idx_t fdx, Individual *fish) {
-                auto result = fish->find_tracklet_for(q.basic->frame);
+                auto result = fish->find_tracklet_exact(q.basic->frame);
                 if(result)
                     frame_tracklet_ids[fdx] = insert_tracklet_id(result->second);
             });

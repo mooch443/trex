@@ -183,6 +183,10 @@ struct SettingsScene::Data {
     }
 
     void clear_invalid_model_metadata() {
+        const auto type = READ_SETTING_WITH_DEFAULT(detect_type, track::detect::ObjectDetectionType_t{});
+        if(type ==  track::detect::ObjectDetectionType::none)
+            return;
+        
         SETTING(detect_classes) = blob::MaybeObjectClass_t{};
         SETTING(detect_format) = track::detect::ObjectDetectionFormat::none;
         SETTING(detect_skeleton) = std::optional<blob::Pose::Skeletons>{};

@@ -355,7 +355,8 @@ constexpr std::array<const char*, 8> ReasonsNames {
         
     public:
         const BasicStuff* find_frame(Frame_t frameIndex) const noexcept(not cmn::is_debug_mode());
-        std::optional<std::pair<const track::BasicStuff*, const track::TrackletInformation*>> find_tracklet_for(Frame_t frameIndex) const noexcept(not cmn::is_debug_mode());
+        std::optional<std::pair<const track::BasicStuff*, const track::TrackletInformation*>> find_tracklet_for_soft(Frame_t frameIndex) const noexcept(not cmn::is_debug_mode());
+        std::optional<std::pair<const track::BasicStuff*, const track::TrackletInformation*>> find_tracklet_exact(Frame_t frameIndex) const noexcept;
         bool evaluate_fitness() const;
         
         //void recognition_segment(Frame_t frame, const std::tuple<size_t, std::map<long_t, float>>&);

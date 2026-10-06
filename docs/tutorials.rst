@@ -286,6 +286,12 @@ With :param:`cm_per_pixel` set to ``1``, the raw count and effective area have t
 
 Press ``D`` to enter RAW view and hover or dock the blob label. Filtered blobs are shown in grey or white, and the text in brackets gives the rejection reason. A blob with a valid size can still show ``history_split`` or ``Split failed`` when history-based splitting expected multiple individuals but could not produce acceptable components.
 
+Such an object remains visible as noise but is unavailable for assignment. Rejecting these results is expected behavior; an unsuccessful split is not a software error. The bracketed ``[history_split]`` label identifies the rejection stage; ``split tried`` by itself only records a split attempt, not its outcome. Passing the size filter before splitting does not guarantee that the split will produce valid objects.
+
+A common cause of repeated history-split rejections is an earlier false detection near a real animal creating an extra history. In following frames, two histories can point to one actual object. TRex then tries to separate the expected individuals, including the nonexistent one, and unsuccessful splits leave the real animal unassigned. Inspect preceding frames for an extra detection or short spurious tracklet to determine whether this explains the rejection.
+
+:param:`track_history_split_threshold` sets the minimum consecutive history length, in frames, allowed to influence history-based splitting. Setting or increasing it can prevent short false histories from triggering splits. A value that is too high also excludes short histories of genuine animals from splitting decisions. Choose it against the observed history lengths and address the false detection where possible. After changing it, reanalyse from before the problematic history began and compare the same frames again. This is a history-length threshold, not a pixel-intensity or detection-confidence threshold.
+
 In tracking view, select the individual and hover its tracklet entries in the info card to see why a tracklet ended. :param:`track_max_speed` affects whether a blob can be assigned to an individual and can end a tracklet; it does not produce a size-filter rejection.
 
 Now press ``D`` again to switch back to tracking view. As you can see, nothing has been applied yet, so click on **🔄 Reanalyse** on the top-right to apply your changes by retracking the video.

@@ -1480,7 +1480,7 @@ void BlobView::draw_boundary_selection(DrawStructure& base, Base* window, GUICac
                 
                 auto detect_classes = READ_SETTING_WITH_DEFAULT(detect_classes, cmn::blob::MaybeObjectClass_t{});
                 auto detect_type = READ_SETTING_WITH_DEFAULT(detect_type, track::detect::ObjectDetectionType_t{});
-                const bool show_annotation_classes = detect_type != track::detect::ObjectDetectionType::background_subtraction;
+                const bool show_annotation_classes = true;//detect_type != track::detect::ObjectDetectionType::background_subtraction;
 
                 /// we already had it before, so we have to clear it now:
                 if(not show_annotation_classes)

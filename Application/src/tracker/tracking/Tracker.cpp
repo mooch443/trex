@@ -99,6 +99,7 @@ void Tracker::initialize_slows() {
         DEF_CALLBACK(tracklet_punish_speeding);
         DEF_CALLBACK(tracklet_max_length);
         DEF_CALLBACK(posture_direction_smoothing);
+        DEF_CALLBACK(output_min_frames);
         
         static const auto update_range = [](){
             const auto video_length = narrow_cast<long_t>(READ_SETTING(video_length, Settings::video_length_t))-1;
@@ -2103,7 +2104,7 @@ void Tracker::update_warnings(
       const set_of_individuals_t& active_individuals,
       ska::bytell_hash_map<Idx_t, Individual::tracklet_map::const_iterator>& individual_iterators)
 {
-    std::map<std::string, std::set<FOI::fdx_t>> merge;
+    std::map<std::string, std::map<Frame_t, std::set<FOI::fdx_t>>> merge;
     
     if(n_found < n_prev-1) {
         FOI::add(FOI(frameIndex, "lost >=2 fish"));
@@ -2112,7 +2113,7 @@ void Tracker::update_warnings(
     if(prev_props && time - prev_props->time() >= s.huge_timestamp_seconds) {
         FOI::add(FOI(frameIndex, "huge time jump"));
         for(auto fish : active_individuals)
-            merge["correcting"].insert(FOI::fdx_t(fish->identity().ID()));
+            merge["correcting"][frameIndex].insert(FOI::fdx_t(fish->identity().ID()));
     }
     
     std::set<FOI::fdx_t> found_matches;
@@ -2123,7 +2124,7 @@ void Tracker::update_warnings(
     
     if(!found_matches.empty()) {
         FOI::add(FOI(frameIndex, found_matches, "manual match"));
-        merge["correcting"].insert(found_matches.begin(), found_matches.end());
+        merge["correcting"][frameIndex].insert(found_matches.begin(), found_matches.end());
     }
     
     update_iterator_maps(frameIndex - 1_f, active_individuals, individual_iterators);
@@ -2184,7 +2185,7 @@ void Tracker::update_warnings(
     
     if(prev_props) {
         std::set<FOI::fdx_t> weird_distance, weird_angle, tracklet_end;
-        std::set<FOI::fdx_t> fdx;
+        std::set<FOI::fdx_t> lost_fdx, lost_fdx_over_threshold;
         
         for(auto fish : active_individuals) {
             auto properties = _warn_individual_status.size() > (size_t)fish->identity().ID().get() ? &_warn_individual_status[fish->identity().ID().get()] : nullptr;
@@ -2207,9 +2208,17 @@ void Tracker::update_warnings(
             } else if(properties && properties->prev) {
                 tracklet_end.insert(FOI::fdx_t{fish->identity().ID()});
                 
-                if(!fish->has(frameIndex)) {
+                if(not fish->has(frameIndex)) {
                     assert(fish->has(frameIndex - 1_f) && !fish->has(frameIndex));
-                    fdx.insert(FOI::fdx_t{fish->identity().ID()});
+                    lost_fdx.insert(FOI::fdx_t{fish->identity().ID()});
+                    
+                    auto prev = fish->find_tracklet_exact(frameIndex.try_sub(1_f));
+                    if(prev) {
+                        auto &[stuff,tracklet] = *prev;
+                        if(tracklet->length().get() >= s.output_min_frames) {
+                            lost_fdx_over_threshold.insert(FOI::fdx_t{fish->identity().ID()});
+                        }
+                    }
                 }
                 
             } else if(!properties)
@@ -2222,21 +2231,27 @@ void Tracker::update_warnings(
             assert(fish->tracklet_for(frameIndex) != fish->tracklet_for(frameIndex - 1_f));
         });
         
-        IndividualManager::transform_ids(fdx, [this, frameIndex](auto, auto fish)
+        IndividualManager::transform_ids(lost_fdx, [this, frameIndex](auto, auto fish)
         {
             assert(not fish->has(frameIndex));
             assert(frameIndex != frames().start_frame() && fish->has(frameIndex - 1_f));
         });
 #endif
         
-        if(!fdx.empty()) {
-            FOI::add(FOI(frameIndex, fdx, "lost >=1 fish"));
-            merge["correcting"].insert(fdx.begin(), fdx.end());
+        if(!lost_fdx.empty()) {
+            FOI::add(FOI(frameIndex, lost_fdx, "lost >=1 fish"));
+            merge["correcting"][frameIndex].insert(lost_fdx.begin(), lost_fdx.end());
+        }
+        
+        if(!lost_fdx_over_threshold.empty()) {
+            //Print("* adding long tracklet at ", frameIndex.try_sub(1_f), " with individuals ", lost_fdx_over_threshold);
+            FOI::add(FOI(frameIndex.try_sub(1_f), lost_fdx_over_threshold, "long tracklet"));
+            merge["long tracklet"][frameIndex.try_sub(1_f)].insert(lost_fdx_over_threshold.begin(), lost_fdx_over_threshold.end());
         }
         
         if(!weird_distance.empty()) {
             FOI::add(FOI(frameIndex, weird_distance, "weird distance"));
-            merge["correcting"].insert(weird_distance.begin(), weird_distance.end());
+            merge["correcting"][frameIndex].insert(weird_distance.begin(), weird_distance.end());
             
             if(!found_matches.empty()) {
                 std::set<FOI::fdx_t> combined;
@@ -2289,8 +2304,11 @@ void Tracker::update_warnings(
         }
     }
     */
-    for(auto && [key, value] : merge)
-        FOI::add(FOI(frameIndex, value, key));
+    for(auto && [key, v] : merge) {
+        for(auto && [frame, value] : v) {
+            FOI::add(FOI(frame, value, key));
+        }
+    }
 }
 
 void Tracker::update_consecutive(const CachedSettings& s, const set_of_individuals_t &active, Frame_t frameIndex, bool update_dataset)

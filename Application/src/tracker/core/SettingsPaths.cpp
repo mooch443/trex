@@ -69,9 +69,14 @@ file::Path find_existing_output_name(const sprite::Map& map,
         if(auto source_ref = map.at("source"); source_ref.valid())
             source = source_ref.value<file::PathArray>();
     }
+    
+    auto output_name = find_output_name(map, source);
+    if(output_name.empty() && source.empty()) {
+        return "";
+    }
 
     const auto path = file::DataLocation::parse(
-        "output", file::Path(find_output_name(map, source).filename()).add_extension("pv"), &map);
+        "output", file::Path(output_name.filename()).add_extension("pv"), &map);
 
     if(path.is_regular()) {
         return path.remove_extension();

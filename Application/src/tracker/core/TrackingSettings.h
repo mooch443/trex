@@ -164,7 +164,8 @@ CREATE_STRUCT(Settings,
   (cmn::meta_encoding_t::Class, meta_encoding),
   (float, outline_compression),
   (bool, image_invert),
-  (Frame_t, track_history_split_threshold)
+  (Frame_t, track_history_split_threshold),
+  (uint16_t, output_min_frames)
 )
 
 //! Shorthand for defining slow settings cache entries:
@@ -206,6 +207,7 @@ struct slow {
     DEF_SLOW_SETTINGS(tracklet_max_length);
     
     DEF_SLOW_SETTINGS(posture_direction_smoothing);
+    DEF_SLOW_SETTINGS(output_min_frames);
 };
 
 #undef DEF_SLOW_SETTINGS

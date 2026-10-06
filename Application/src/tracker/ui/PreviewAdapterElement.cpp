@@ -165,8 +165,8 @@ bool PreviewAdapterElement::_update(Layout::Ptr& o,
 #endif
             }
 #ifndef NDEBUG
-              else
-                 throw InvalidArgumentException("Cannot find pixels for ", fdx, " and ", bdxnpred->bdx);
+            else
+                 throw RuntimeError("Cannot find pixels for ", fdx, " and ", bdxnpred->bdx);
 #endif
         }//else
          //  throw InvalidArgumentException("Cannot find individual ", fdx, " in cache.");

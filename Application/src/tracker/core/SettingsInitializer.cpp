@@ -937,14 +937,28 @@ std::optional<VideoInfo> retrieve_video_info(const file::PathArray& source) {
             ///
             
         } else {
-            VideoSource video(source);
+            auto video_info = VideoSource::TestVideoSource(source);
+            if(not video_info)
+                return std::nullopt;
+            
+            Frame_t length = 0_f;
+            short frame_rate{0};
+            Size2 resolution;
+            for(auto &video : *video_info) {
+                length += video.N_frames;
+                if(frame_rate == 0) {
+                    frame_rate = video.frame_rate;
+                    resolution = video.resolution;
+                }
+            }
+            
             //combined.values["meta_video_size"] = Size2(size);
             return VideoInfo{
                 .base = source,
-                .resolution = Size2(video.size()),
-                .framerate = video.framerate(),
+                .resolution = resolution,
+                .framerate = frame_rate,
                 .finite = true,
-                .length = video.length()
+                .length = length
             };
         }
         
@@ -979,6 +993,12 @@ void LoadContext::estimate_meta_variables() {
         bool success = [&] {
             for(auto test : tests) {
                 file::PathArray input(test);
+                auto video_test = VideoSource::TestVideoSource(input);
+                if(not video_test) {
+                    FormatWarning("meta_source_path(", test,") cannot be opened (failed test): ", no_quotes(video_test.error()));
+                    continue;
+                }
+                
                 try {
                     VideoSource video(input);
                     combined.values["meta_source_path"] = test;
@@ -992,6 +1012,7 @@ void LoadContext::estimate_meta_variables() {
                     }
 
                     return true;
+
                 } catch (...) {
                     FormatWarning("meta_source_path(", test,") cannot be opened.");
                 }
