@@ -1,3 +1,11 @@
+option(TREX_TEST_TORCH_CHECKPOINT "Build and install embedded PyTorch checkpoint probes" OFF)
+if(TREX_TEST_TORCH_CHECKPOINT)
+    if(NOT UNIX OR NOT TARGET pybind11::embed)
+        message(FATAL_ERROR "The Torch checkpoint probe requires macOS or Linux with Python support.")
+    endif()
+    add_subdirectory(torch_checkpoint)
+endif()
+
 if(TREX_WITH_TESTS)
 
 FetchContent_Declare(
@@ -590,6 +598,12 @@ endif()
 set(TEST_RUNTIME_TARGETS
     pvinfo
 )
+
+foreach(probe_target test_torch_checkpoint test_torch_checkpoint_shared)
+    if(TARGET ${probe_target})
+        list(APPEND TEST_RUNTIME_TARGETS ${probe_target})
+    endif()
+endforeach()
 
 # Add a custom target to build and run all tests
 add_custom_target(runAllTests

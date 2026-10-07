@@ -47,6 +47,7 @@ build:
       - CXX
       - CONDA_CHANNELS=conda-forge,nodefaults
       - TREX_CONFIGURE=minimal
+      - TREX_TEST_TORCH_CHECKPOINT={{ environ.get('TREX_TEST_TORCH_CHECKPOINT', 'OFF') }} # [unix]
     number: {{ build_number }}
     string: "minimal_{{ hash }}_{{ number }}"
     run_exports:
