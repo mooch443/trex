@@ -251,9 +251,11 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND TARGET pybind11::embed)
     # Python extensions must not bind to C++ symbols owned by their host executable.
     # Apply this at the executable link, including symbols from static dependencies;
     # shared libraries and Python extension modules retain their public interfaces.
+    # Static runtimes also own unmangled helpers such as __once_proxy.
     set(_trex_python_exports "${CMAKE_CURRENT_SOURCE_DIR}/cmake/trex_python_exports.map")
     target_link_options(pybind11::embed INTERFACE
-        "$<$<STREQUAL:$<TARGET_PROPERTY:TYPE>,EXECUTABLE>:LINKER:--version-script=${_trex_python_exports}>")
+        "$<$<STREQUAL:$<TARGET_PROPERTY:TYPE>,EXECUTABLE>:LINKER:--version-script=${_trex_python_exports}>"
+        "$<$<STREQUAL:$<TARGET_PROPERTY:TYPE>,EXECUTABLE>:LINKER:--exclude-libs,libstdc++.a:libsupc++.a>")
     set_property(TARGET pybind11::embed APPEND PROPERTY INTERFACE_LINK_DEPENDS
         "$<$<STREQUAL:$<TARGET_PROPERTY:TYPE>,EXECUTABLE>:${_trex_python_exports}>")
 endif()

@@ -25,6 +25,15 @@ foreach(variable IN LISTS runtime_flag_variables)
         string(REPLACE "-static-libstdc++" "" ${variable} "${${variable}}")
     endif()
 endforeach()
+
+# Exercise std::call_once in a shared runtime before the executable reaches main.
+add_library(test_torch_checkpoint_once SHARED once.cpp)
+target_link_libraries(test_torch_checkpoint_once PRIVATE Commons::All)
+set_target_properties(test_torch_checkpoint_once PROPERTIES
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN ON
+    INSTALL_RPATH "$ORIGIN/../../../../lib;$ORIGIN/../lib")
+install(TARGETS test_torch_checkpoint_once LIBRARY DESTINATION usr/share/trex/torch_checkpoint)
 endif()
 
 foreach(target IN LISTS probe_targets)
@@ -33,13 +42,15 @@ foreach(target IN LISTS probe_targets)
     if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
         # The Python export policy must isolate C++ symbols even with exports enabled.
         set_target_properties(${target} PROPERTIES ENABLE_EXPORTS ON)
+        target_link_libraries(${target} PRIVATE test_torch_checkpoint_once)
+        target_compile_definitions(${target} PRIVATE TREX_TEST_SHARED_CALL_ONCE=1)
     endif()
     if(APPLE)
         set_target_properties(${target} PROPERTIES
             INSTALL_RPATH "@loader_path/../../../../lib;@loader_path/../lib")
     else()
         set_target_properties(${target} PROPERTIES
-            INSTALL_RPATH "$ORIGIN/../../../../lib;$ORIGIN/../lib")
+            INSTALL_RPATH "$ORIGIN;$ORIGIN/../../../../lib;$ORIGIN/../lib")
     endif()
 endforeach()
 target_link_options(test_torch_checkpoint PRIVATE ${profile_runtime_options})

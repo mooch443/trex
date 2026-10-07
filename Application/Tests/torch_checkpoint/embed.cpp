@@ -4,6 +4,10 @@
 
 namespace py = pybind11;
 
+#ifdef TREX_TEST_SHARED_CALL_ONCE
+extern "C" int trex_checkpoint_once_count();
+#endif
+
 PYBIND11_EMBEDDED_MODULE(trex_checkpoint_probe, module) {
     module.def("identity", [](int value) { return value; });
 }
@@ -13,6 +17,22 @@ int main(int argc, char** argv) {
         fprintf(stderr, "Usage: %s probe.py --load FIXTURE_DIR\n", argv[0]);
         return 2;
     }
+
+#ifdef TREX_TEST_SHARED_CALL_ONCE
+    if(trex_checkpoint_once_count() != 1) {
+        fprintf(stderr, "FAIL: shared-library std::call_once initialization.\n");
+        return 1;
+    }
+    std::once_flag flag;
+    int calls = 0;
+    std::call_once(flag, [&] { ++calls; });
+    std::call_once(flag, [&] { ++calls; });
+    if(calls != 1) {
+        fprintf(stderr, "FAIL: executable std::call_once initialization.\n");
+        return 1;
+    }
+    printf("PASS: shared-library and executable std::call_once initialization.\n");
+#endif
 
     std::locale::global(std::locale::classic());
     if(not std::regex_match(std::string("trex"), std::regex("[a-z]+")))
@@ -33,7 +53,7 @@ int main(int argc, char** argv) {
            dlsym(RTLD_DEFAULT, locale_symbol));
 #ifdef _GLIBCXX_USE_CXX11_ABI
     for(const char* symbol : {"_ZNSs12_M_leak_hardEv", "_ZNSs9_M_mutateEmmm",
-                             "_ZNSs4_Rep20_S_empty_rep_storageE"}) {
+                             "_ZNSs4_Rep20_S_empty_rep_storageE", "__once_proxy"}) {
         const auto address = dlsym(RTLD_DEFAULT, symbol);
         Dl_info info{};
         if(address)
