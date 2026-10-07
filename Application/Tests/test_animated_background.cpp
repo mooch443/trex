@@ -99,6 +99,31 @@ TEST_F(AnimatedBackgroundTest, BasicBehaviorMovedLocation) {
     ASSERT_EQ(result.tests, expected);
 }
 
+TEST_F(AnimatedBackgroundTest, UnixSourceWithoutStoredFilenameDoesNotThrow) {
+    const std::string original_source = "/media/some/weird/path.mp4";
+    const auto source = file::Path("video.pv").absolute();
+    SETTING(meta_source_path) = original_source;
+    SETTING(source) = file::PathArray{source};
+    SETTING(output_dir) = file::Path{};
+    SETTING(output_prefix) = std::string{};
+
+    // Writing is lazy; only the header is needed for the background source search.
+    auto video = pv::File::Write<pv::FileMode::WRITE>(source, meta_encoding_t::gray);
+    video.set_source(original_source);
+
+    // PV metadata is a sparse delta and need not contain filename.
+    sprite::Map metadata;
+    metadata["meta_source_path"] = original_source;
+    video.set_metadata(metadata);
+
+    cmn::gui::BackgroundVideoConfig result;
+    ASSERT_NO_THROW(result = AnimatedBackground::configure_video_source(&video));
+    EXPECT_TRUE(result.tests.contains({original_source, std::nullopt}));
+    EXPECT_TRUE(result.tests.contains({
+        (source.remove_filename() / "path.mp4").str(), std::nullopt
+    }));
+}
+
 TEST_F(AnimatedBackgroundTest, MovedEverythingSetManualSourcePath) {
     /// Video used to be at /Users/aalbi/video.mp4
     /// it was converted using video_conversion_range [10,1000]
