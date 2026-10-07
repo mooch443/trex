@@ -30,7 +30,7 @@ target_compile_definitions(test_matching PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CUR
 add_executable(test_commandline test_commandline.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
 target_compile_definitions(test_commandline PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
 
-add_executable(test_strings test_strings.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
+add_executable(test_strings test_strings.cpp test_sprite_map.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
 target_compile_definitions(test_strings PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
 
 if(WIN32)
