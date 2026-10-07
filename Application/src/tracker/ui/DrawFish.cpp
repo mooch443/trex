@@ -2388,7 +2388,7 @@ Drawable* Fish::shadow() {
               Loc(_view.pos() + _view.size() * 0.5),
               Radius{_view.size().length()},
               LineClr{Transparent},
-              FillClr{ColorWheel(_match_mode.has_value() ? (int)_match_mode.value().value() : -1).next().alpha(50)}});
+              FillClr{ColorWheel(_match_mode.has_value() ? int((uint32_t)_match_mode.value()) : -1).next().alpha(50)}});
     }
     
     //auto bdx = blob->blob_id();

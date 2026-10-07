@@ -9,16 +9,15 @@ namespace pv {
 class File;
 }
 
+ENUM_CLASS(track::detect::, ObjectDetectionType, none, yolo, sam3, background_subtraction, precomputed);
+ENUM_CLASS(track::detect::, ObjectDetectionFormat, none, boxes, masks, poses, obb, points);
+
+ENUM_CLASS_HAS_DOCS_NAMESPACE(track::detect::, ObjectDetectionType)
+ENUM_CLASS_HAS_DOCS_NAMESPACE(track::detect::, ObjectDetectionFormat)
+
 namespace track::detect {
-
-ENUM_CLASS(ObjectDetectionType, none, yolo, sam3, background_subtraction, precomputed);
-ENUM_CLASS(ObjectDetectionFormat, none, boxes, masks, poses, obb, points);
-
 using ObjectDetectionType_t = std::optional<ObjectDetectionType::Class>;
 using ObjectDetectionFormat_t = ObjectDetectionFormat::Class;
-
-ENUM_CLASS_HAS_DOCS(ObjectDetectionType)
-ENUM_CLASS_HAS_DOCS(ObjectDetectionFormat)
 }
 
 namespace default_config {
@@ -59,50 +58,53 @@ namespace default_config {
         template<typename U> static int Test(...);
         static const bool Has = sizeof(Test<T>(0)) == sizeof(char);
     };*/
+}
 
-    ENUM_CLASS(heatmap_normalization_t, none, value, cell, variance)
-    ENUM_CLASS_HAS_DOCS(heatmap_normalization_t)
+ENUM_CLASS(default_config::, heatmap_normalization_t, none, value, cell, variance)
+ENUM_CLASS_HAS_DOCS_NAMESPACE(default_config::, heatmap_normalization_t)
 
-    ENUM_CLASS(individual_image_normalization_t, none, moments, posture, legacy)
-    ENUM_CLASS_HAS_DOCS(individual_image_normalization_t)
+ENUM_CLASS(default_config::, individual_image_normalization_t, none, moments, posture, legacy)
+ENUM_CLASS_HAS_DOCS_NAMESPACE(default_config::, individual_image_normalization_t)
 
+
+ENUM_CLASS(default_config::, gpu_verbosity_t, silent, full, oneline)
+ENUM_CLASS_HAS_DOCS_NAMESPACE(default_config::, gpu_verbosity_t)
+
+ENUM_CLASS(default_config::, gui_recording_format_t, avi, mp4, jpg, png)
+ENUM_CLASS_HAS_DOCS_NAMESPACE(default_config::, gui_recording_format_t)
+
+ENUM_CLASS(default_config::, peak_mode_t, pointy, broad)
+ENUM_CLASS_HAS_DOCS_NAMESPACE(default_config::, peak_mode_t)
+
+ENUM_CLASS(default_config::, matching_mode_t, tree, approximate, hungarian, benchmark, automatic, none)
+ENUM_CLASS_HAS_DOCS_NAMESPACE(default_config::, matching_mode_t)
+
+ENUM_CLASS(default_config::, output_format_t, csv, npz)
+ENUM_CLASS_HAS_DOCS_NAMESPACE(default_config::, output_format_t)
+
+ENUM_CLASS(default_config::, output_invalid_t, inf, nan)
+ENUM_CLASS_HAS_DOCS_NAMESPACE(default_config::, output_invalid_t)
+
+ENUM_CLASS(default_config::, app_update_check_t, none, manually, automatically)
+ENUM_CLASS_HAS_DOCS_NAMESPACE(default_config::, app_update_check_t)
+
+ENUM_CLASS(default_config::, blob_split_algorithm_t, threshold, threshold_approximate, fill, none)
+ENUM_CLASS_HAS_DOCS_NAMESPACE(default_config::, blob_split_algorithm_t)
+
+ENUM_CLASS(default_config::, visual_identification_version_t, current, v200, v119, v118_3, v110, v100, convnext_base, vgg_16, vgg_19, mobilenet_v3_small, mobilenet_v3_large, inception_v3, resnet_50_v2, efficientnet_b0, resnet_18)
+ENUM_CLASS_HAS_DOCS_NAMESPACE(default_config::, visual_identification_version_t)
+
+ENUM_CLASS(default_config::, TRexTask_t, none, track, convert, annotate, rst)
+ENUM_CLASS_HAS_DOCS_NAMESPACE(default_config::, TRexTask_t)
+
+ENUM_CLASS(default_config::, gpu_torch_device_t, automatic, cuda, mps, cpu)
+ENUM_CLASS_HAS_DOCS_NAMESPACE(default_config::, gpu_torch_device_t)
+
+ENUM_CLASS(default_config::, detect_pose_bbx_t, yolo, keypoints)
+ENUM_CLASS_HAS_DOCS_NAMESPACE(default_config::, detect_pose_bbx_t)
+
+namespace default_config {
     individual_image_normalization_t::Class valid_individual_image_normalization(individual_image_normalization_t::Class = individual_image_normalization_t::none);
-
-    ENUM_CLASS(gpu_verbosity_t, silent, full, oneline)
-    ENUM_CLASS_HAS_DOCS(gpu_verbosity_t)
-    
-    ENUM_CLASS(gui_recording_format_t, avi, mp4, jpg, png)
-    ENUM_CLASS_HAS_DOCS(gui_recording_format_t)
-    
-    ENUM_CLASS(peak_mode_t, pointy, broad)
-    ENUM_CLASS_HAS_DOCS(peak_mode_t)
-
-    ENUM_CLASS(matching_mode_t, tree, approximate, hungarian, benchmark, automatic, none)
-    ENUM_CLASS_HAS_DOCS(matching_mode_t)
-
-    ENUM_CLASS(output_format_t, csv, npz)
-    ENUM_CLASS_HAS_DOCS(output_format_t)
-
-    ENUM_CLASS(output_invalid_t, inf, nan)
-    ENUM_CLASS_HAS_DOCS(output_invalid_t)
-
-    ENUM_CLASS(app_update_check_t, none, manually, automatically)
-    ENUM_CLASS_HAS_DOCS(app_update_check_t)
-
-    ENUM_CLASS(blob_split_algorithm_t, threshold, threshold_approximate, fill, none)
-    ENUM_CLASS_HAS_DOCS(blob_split_algorithm_t)
-
-    ENUM_CLASS(visual_identification_version_t, current, v200, v119, v118_3, v110, v100, convnext_base, vgg_16, vgg_19, mobilenet_v3_small, mobilenet_v3_large, inception_v3, resnet_50_v2, efficientnet_b0, resnet_18)
-    ENUM_CLASS_HAS_DOCS(visual_identification_version_t)
-
-    ENUM_CLASS(TRexTask_t, none, track, convert, annotate, rst)
-    ENUM_CLASS_HAS_DOCS(TRexTask_t)
-
-    ENUM_CLASS(gpu_torch_device_t, automatic, cuda, mps, cpu)
-    ENUM_CLASS_HAS_DOCS(gpu_torch_device_t)
-
-    ENUM_CLASS(detect_pose_bbx_t, yolo, keypoints)
-    ENUM_CLASS_HAS_DOCS(detect_pose_bbx_t)
 
     using TRexTask = TRexTask_t::Class;
 
@@ -134,10 +136,7 @@ std::vector<std::pair<std::string, std::vector<std::string>>> add_missing_pose_f
 
 }
 
-namespace cmn::gui {
-ENUM_CLASS(mode_t, raw, tracking, annotate)
-
-}
+ENUM_CLASS(cmn::gui::, mode_t, raw, tracking, annotate)
 
 namespace cmn {
 ENUM_CLASS_HAS_DOCS(meta_encoding_t)

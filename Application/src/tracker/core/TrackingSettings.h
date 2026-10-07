@@ -15,6 +15,15 @@ namespace cmn::data {
 class FrameRepository;
 }
 
+/** @brief Optional same-class mask-overlap handling after tile aggregation. */
+ENUM_CLASS(track::, MaskPostprocessMode,
+    none, /// Preserve mask rows without a second overlap-resolution pass.
+    /// Retain preferred rows and discard their eligible neighbors.
+    greedy_nms,
+    /// Transitively group eligible rows and emit their positioned mask union.
+    merge_masks
+);
+
 namespace track {
 using namespace cmn;
 class Individual;
@@ -79,15 +88,6 @@ struct PoseMidlineIndexes {
         return indexes == other.indexes;
     }
 };
-
-/** @brief Optional same-class mask-overlap handling after tile aggregation. */
-ENUM_CLASS(MaskPostprocessMode,
-    none, /// Preserve mask rows without a second overlap-resolution pass.
-    /// Retain preferred rows and discard their eligible neighbors.
-    greedy_nms,
-    /// Transitively group eligible rows and emit their positioned mask union.
-    merge_masks
-);
 
 //(std::vector<std::vector<Vec2>>, recognition_shapes),
 

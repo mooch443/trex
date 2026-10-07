@@ -191,7 +191,7 @@ void HeatmapController::save(const data::FrameRepository& repo) {
             cmn::npz_save(use_path.str(), "meta", std::vector<double>{
                 (double)package_index,
                 (double)uniform_grid_cell_size,
-                (double)_normalization.value(),
+                double((uint32_t)_normalization),
                 (double)frame_range.get()
             }, "a");
         });

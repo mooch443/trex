@@ -133,7 +133,7 @@ void VINetwork::setup(bool force) {
         py::set_variable("learning_rate", READ_SETTING(gpu_learning_rate, float), module_name);
         py::set_variable("batch_size", (long_t)batch_size, module_name);
         py::set_variable("video_length", narrow_cast<long_t>(READ_SETTING(video_length, uint64_t)), module_name);
-        py::set_variable("verbosity", int(READ_SETTING(gpu_verbosity, default_config::gpu_verbosity_t::Class).value()));
+        py::set_variable("verbosity", uint32_t(READ_SETTING(gpu_verbosity, default_config::gpu_verbosity_t::Class)));
         
         auto filename = VINetwork::network_path();
         try {
@@ -639,7 +639,7 @@ bool VINetwork::train(std::shared_ptr<TrainingData> data,
                 uchar setting_max_epochs = int(READ_SETTING(gpu_max_epochs, uchar));
                 py::set_variable("max_epochs", uint64_t(gpu_max_epochs != 0 ? min(setting_max_epochs, gpu_max_epochs) : setting_max_epochs), module_name);
                 py::set_variable("min_iterations", long_t(READ_SETTING(gpu_min_iterations, uchar)), module_name);
-                py::set_variable("verbosity", int(READ_SETTING(gpu_verbosity, default_config::gpu_verbosity_t::Class).value()), module_name);
+                py::set_variable("verbosity", uint32_t(READ_SETTING(gpu_verbosity, default_config::gpu_verbosity_t::Class)), module_name);
                 
                 auto filename = network_path();
                 try {

@@ -24,10 +24,10 @@
 
 using namespace cmn;
 
-ENUM_CLASS(Arguments,
+ENUM_CLASS(,Arguments,
            display_average, i, input, remove, repair_index, fix, quiet, save_background, plain_text, heatmap, auto_parameters, s, p, d, dir, md, opencv_ffmpeg_support, opencv_opencl_support)
 
-ENUM_CLASS(parameter_format_t, settings, minimal)
+ENUM_CLASS(,parameter_format_t, settings, minimal)
 
 namespace {
 

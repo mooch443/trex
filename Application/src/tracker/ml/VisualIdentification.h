@@ -21,9 +21,7 @@ struct BasicStuff;
 struct PostureStuff;
 }
 
-namespace Python {
-
-ENUM_CLASS(TrainingMode,
+ENUM_CLASS(Python::, TrainingMode,
     None,
     Restart,
     Apply,
@@ -32,6 +30,7 @@ ENUM_CLASS(TrainingMode,
     LoadWeights
 )
 
+namespace Python {
 template<typename T>
 concept image_ptr =    cmn::_clean_same<T, cmn::Image::SPtr>
                     || cmn::_clean_same<T, cmn::Image::Ptr>;

@@ -6,21 +6,21 @@
 #include <core/DetectionTypes.h>
 #include <file/PathArray.h>
 
-namespace track::detect::annotation_import {
-
 /// Whether imported detect annotations are appended or replace stored values.
-ENUM_CLASS(merge_mode_t, add, replace)
-using MergeMode = merge_mode_t::Class;
+ENUM_CLASS(track::detect::annotation_import::, merge_mode_t, add, replace)
 
 /// Whether to import detect annotations only for the currently open video or
 /// for every source video represented by the dataset.
-ENUM_CLASS(import_scope_t, current_video, all_videos)
-using ImportScope = import_scope_t::Class;
-
-using Format = annotation_dataset::Format;
+ENUM_CLASS(track::detect::annotation_import::, import_scope_t, current_video, all_videos)
 
 /// Geometry inferred from the labels present in an imported dataset.
-ENUM_CLASS(task_t, unknown, boxes, segmentation, pose, mixed)
+ENUM_CLASS(track::detect::annotation_import::, task_t, unknown, boxes, segmentation, pose, mixed)
+
+namespace track::detect::annotation_import {
+
+using MergeMode = merge_mode_t::Class;
+using ImportScope = import_scope_t::Class;
+using Format = annotation_dataset::Format;
 using Task = task_t::Class;
 
 /// Result of inferring a source-frame index from a dataset image stem. A

@@ -24,23 +24,23 @@ namespace Python {
 class VINetwork;
 }
 
+ENUM_CLASS(track::, AccumulationStatus, Added, Cached, Failed, None)
+ENUM_CLASS(track::, AccumulationReason, NoUniqueIDs, ProbabilityTooLow, NotEnoughImages, TrainingFailed, UniquenessTooLow, Skipped, None)
+
+ENUM_CLASS(track::, CallbackType_t,
+    AutoCorrect,
+    ProgressTracking
+);
+
 namespace track {
 class Tracker;
 
 namespace TrainingMode = ::Python::TrainingMode;
 
-ENUM_CLASS(AccumulationStatus, Added, Cached, Failed, None)
-ENUM_CLASS(AccumulationReason, NoUniqueIDs, ProbabilityTooLow, NotEnoughImages, TrainingFailed, UniquenessTooLow, Skipped, None)
-
 template<typename K, typename V>
 using hash_map = std::map<K, V>;
 template<typename K>
 using hash_set = std::set<K>;
-
-ENUM_CLASS(CallbackType_t,
-    AutoCorrect,
-    ProgressTracking
-);
 
 using CallbackType = CallbackType_t::Class;
 class Accumulation;
