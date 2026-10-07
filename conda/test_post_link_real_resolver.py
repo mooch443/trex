@@ -209,6 +209,13 @@ def compatibility_errors(
                 f"minimum {minimum[0]}.{minimum[1]}"
             )
 
+    if system == "Linux":
+        torch_release = release_prefix(packages.get("torch", ""))
+        if torch_release is None or (
+            torch_release < (2, 7) and not (torch_release == (2, 6) and selected == "cu126")
+        ):
+            errors.append(f"{label}: Linux requires a PyTorch distribution with CXX11_ABI=1")
+
     if selected != "pypi":
         requested = {
             match.group(1): match.group(2)
@@ -370,6 +377,9 @@ def run_live_matrix() -> None:
             ("12.9", "cu129"), ("13.0", "cu130"), ("13.2", "cu132"),
             ("13.3", "cu132"), ("99.0", "cu132"),
         ]
+        if system == "Linux":
+            cases = [(cuda, "cu118" if minimum in {"cu121", "cu124"} else minimum)
+                     for cuda, minimum in cases]
     elif system == "Darwin":
         cases = [("", "pypi")]
     else:

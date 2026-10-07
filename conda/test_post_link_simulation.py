@@ -126,7 +126,13 @@ if args[:2] == ["-", "channels"] and len(args) >= 4:
     simulate_channel_selection(args[2], args[3])
 
 if args[:2] == ["-", "pair"] and len(args) >= 4:
-    simulate_pair_selection(args[2], args[3])
+    import subprocess
+    real_run = subprocess.run
+    subprocess.run = lambda command, **kwargs: real_run(
+        [command[0], __file__, *command[1:]], **kwargs
+    )
+    sys.argv = args
+    exec(sys.stdin.read(), {"__name__": "__main__"})
 
 if args[:4] == ["-m", "pip", "index", "versions"]:
     package = args[4] if len(args) > 4 else ""
@@ -139,13 +145,15 @@ if args[:4] == ["-m", "pip", "index", "versions"]:
         sources=source_environment(),
     )
     outcome = os.environ.get("TREX_FAKE_INDEX_OUTCOME", "success")
+    flavor = index.rstrip("/").rsplit("/", 1)[-1]
+    if flavor in os.environ.get("TREX_FAKE_UNAVAILABLE_CHANNELS", "").split(","):
+        outcome = "missing"
     if outcome == "missing":
         print("ERROR: simulated index lookup failure", file=sys.stderr)
         raise SystemExit(1)
     if outcome == "malformed":
         print("simulated malformed index response")
         raise SystemExit(0)
-    flavor = index.rstrip("/").rsplit("/", 1)[-1]
     if not flavor.startswith("cu"):
         print(f"ERROR: no simulated flavored releases for {index}", file=sys.stderr)
         raise SystemExit(1)
@@ -153,6 +161,12 @@ if args[:4] == ["-m", "pip", "index", "versions"]:
         "torch": [f"2.7.1+{flavor}", f"2.6.0+{flavor}"],
         "torchvision": [f"0.22.1+{flavor}", f"0.21.0+{flavor}"],
     }.get(package, [])
+    if flavor in ("cu121", "cu124"):
+        torch, vision = ("2.5.1", "0.20.1") if flavor == "cu121" else ("2.6.0", "0.21.0")
+        versions = [f"{torch if package == 'torch' else vision}+{flavor}"]
+    if os.environ.get("TREX_FAKE_CUDA_PAIR"):
+        torch, vision = os.environ["TREX_FAKE_CUDA_PAIR"].split("|")
+        versions = [f"{torch if package == 'torch' else vision}+{flavor}"]
     if not versions:
         raise SystemExit(1)
     print(f"{package} ({versions[0]})")
@@ -213,7 +227,16 @@ if args[:3] == ["-m", "pip", "install"]:
 
 if args and args[0] == "-c":
     code = args[1] if len(args) > 1 else ""
-    if "TREX_TORCH_CHANNEL_SELECTOR" in code and len(args) >= 4:
+    if "compiled_with_cxx11_abi" in code:
+        from types import SimpleNamespace
+        event("abi-check")
+        abi = os.environ.get("TREX_FAKE_TORCH_ABI", "1")
+        torch = SimpleNamespace(__version__="2.7.1")
+        if abi != "unavailable":
+            torch.compiled_with_cxx11_abi = lambda: abi == "1"
+        sys.modules["torch"] = torch
+        exec(code, {"__name__": "__main__"})
+    elif "TREX_TORCH_CHANNEL_SELECTOR" in code and len(args) >= 4:
         simulate_channel_selection(args[2], args[3])
     elif "TREX_TORCH_PAIR_SELECTOR" in code and len(args) >= 4:
         simulate_pair_selection(args[2], args[3])
@@ -448,6 +471,9 @@ class PostLinkProgressWiring(unittest.TestCase):
         resolver = _load_real_resolver()
         cases = (
             ("Windows", "12.9", "cu129", "cu129", "2.8.0+cu129", "0.23.0+cu129"),
+            ("Windows", "12.4", "cu124", "cu124", "2.6.0+cu124", "0.21.0+cu124"),
+            ("Linux", "12.4", "cu118", "cu118", "2.7.1+cu118", "0.22.1+cu118"),
+            ("Linux", "12.6", "cu126", "cu126", "2.6.0+cu126", "0.21.0+cu126"),
             ("Linux", "99.0", "cu132", "cu140", "2.14.0+cu140", "0.29.0+cu140"),
         )
         for system, cuda, minimum, selected, torch, vision in cases:
@@ -466,6 +492,22 @@ class PostLinkProgressWiring(unittest.TestCase):
                     },
                 )
                 self.assertEqual(errors, [])
+
+    def test_live_resolver_rejects_old_abi_linux_wheels(self) -> None:
+        resolver = _load_real_resolver()
+        for channel in ("cu118", "cu124", "pypi"):
+            with self.subTest(channel=channel):
+                torch, vision = (f"2.6.0+{channel}", f"0.21.0+{channel}")
+                if channel == "pypi":
+                    torch, vision = "2.6.0", "0.21.0"
+                errors = resolver.compatibility_errors(
+                    system="Linux", label=channel, cuda="12.4",
+                    minimum_channel=channel, selected=channel,
+                    requirements=[f"torch==={torch}", f"torchvision==={vision}"],
+                    packages={"torch": torch, "torchvision": vision},
+                    urls={"torch": f"https://download.pytorch.org/whl/{channel}/torch.whl"},
+                )
+                self.assertTrue(any("CXX11_ABI=1" in error for error in errors))
 
     def test_live_resolver_flags_lost_channel_or_newer_runtime_requirement(self) -> None:
         resolver = _load_real_resolver()
@@ -577,6 +619,9 @@ class UnixPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
         unavailable_channels: tuple[str, ...] = (),
         expect_installs: bool = True,
         verify_progress_bypass: bool = False,
+        torch_abi: str = "1",
+        expected_status: int = 0,
+        cuda_pair: str = "",
     ) -> tuple[list[dict[str, object]], str]:
         with tempfile.TemporaryDirectory(prefix="trex-post-link-") as temporary:
             root = Path(temporary)
@@ -620,6 +665,8 @@ class UnixPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
                     "TREX_FAKE_CUDA_VERSION": cuda,
                     "TREX_FAKE_INSTALL_OUTCOMES": ",".join(outcomes),
                     "TREX_FAKE_WARM_OUTCOME": warm_outcome,
+                    "TREX_FAKE_TORCH_ABI": torch_abi,
+                    "TREX_FAKE_CUDA_PAIR": cuda_pair,
                     "TREX_FAKE_INDEX_OUTCOME": index_outcome,
                     "TREX_FAKE_ROOT_OUTCOME": root_outcome,
                     "TREX_FAKE_DISCOVERED_CHANNELS": ",".join(discovered_channels),
@@ -646,11 +693,14 @@ class UnixPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
             output = result.stdout + result.stderr
             sys.stdout.write(result.stdout)
             sys.stderr.write(result.stderr)
-            self.assertEqual(result.returncode, 0, output)
+            self.assertEqual(result.returncode, expected_status, output)
             if verify_progress_bypass:
                 post_link_log = (prefix / ".messages.txt").read_text(encoding="utf-8")
                 self.assertIn("[fake-pip] resolver output captured by Conda", post_link_log)
-                self.assertNotIn("[fake-pip] resolver output captured by Conda", output)
+                if expected_status == 0:
+                    self.assertNotIn("[fake-pip] resolver output captured by Conda", output)
+                else:
+                    self.assertIn("[fake-pip] resolver output captured by Conda", output)
                 self.assertIn("[post-link] Installing Python ML packages", output)
                 self.assertIn("[post-link] Installing Python ML packages finished", output)
                 self.assertEqual(list(root.glob("trex_post_link_progress.*")), [])
@@ -667,7 +717,33 @@ class UnixPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
                 self.assert_explicit_sources(pip_events)
             else:
                 self.assertEqual(installs, [])
+            abi_checks = [item for item in _events(state) if item["kind"] == "abi-check"]
+            if system != "Linux" or not installs or installs[0]["outcome"] != "success":
+                self.assertEqual(abi_checks, [])
+            else:
+                self.assertEqual(len(abi_checks), 1)
             return installs, output
+
+    def test_linux_requires_installed_torch_cxx11_abi(self) -> None:
+        _, output = self.run_scenario(system="Linux", machine="x86_64")
+        self.assertIn("CXX11_ABI=1", output)
+
+    def test_linux_accepts_torch_26_cuda126_new_abi_wheel(self) -> None:
+        installs, _ = self.run_scenario(
+            system="Linux", machine="x86_64", cuda="12.6", cuda_pair="2.6.0|0.21.0",
+        )
+        self.assertIn("torch===2.6.0+cu126", installs[0]["args"])
+
+    def test_linux_rejects_installed_old_abi_before_warmup(self) -> None:
+        for abi in ("0", "unavailable"):
+            with self.subTest(abi=abi):
+                _, output = self.run_scenario(
+                    system="Linux", machine="x86_64", torch_abi=abi, expected_status=1,
+                    verify_progress_bypass=(abi == "0"),
+                )
+                self.assertIn("requires PyTorch built with CXX11_ABI=1", output)
+                self.assertNotIn("Warming the Ultralytics", output)
+                self.assertNotIn("installation remains successful", output)
 
     def test_install_progress_bypasses_captured_pip_output(self) -> None:
         self.run_scenario(
@@ -690,8 +766,8 @@ class UnixPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
                 installs, _ = self.run_scenario(system=system, machine=machine, cuda=cuda)
                 self.assertEqual([item["index"] for item in installs], [expected_index])
                 self.assertFalse(any("+cu" in str(value) for value in installs[0]["args"]))
-                self.assertIn("torch>=2.2", installs[0]["args"])
-                self.assertIn("torchvision>=0.17", installs[0]["args"])
+                self.assertIn("torch>=2.7" if system == "Linux" else "torch>=2.2", installs[0]["args"])
+                self.assertIn("torchvision>=0.22" if system == "Linux" else "torchvision>=0.17", installs[0]["args"])
 
     def test_linux_without_a_usable_nvidia_driver_uses_pypi(self) -> None:
         installs, output = self.run_scenario(system="Linux", machine="x86_64")
@@ -706,8 +782,8 @@ class UnixPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
             outcomes=("resolution",),
         )
         self.assertEqual([item["index"] for item in installs], [PYPI_INDEX])
-        self.assertIn("torch>=2.2", installs[0]["args"])
-        self.assertIn("torchvision>=0.17", installs[0]["args"])
+        self.assertIn("torch>=2.7", installs[0]["args"])
+        self.assertIn("torchvision>=0.22", installs[0]["args"])
         self.assertIn("no retry was attempted", output)
 
     def test_linux_selects_exactly_one_compatible_cuda_index(self) -> None:
@@ -715,9 +791,9 @@ class UnixPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
             "11.7": PYPI_INDEX,
             "11.8": "https://download.pytorch.org/whl/cu118",
             "12.0": "https://download.pytorch.org/whl/cu118",
-            "12.1": "https://download.pytorch.org/whl/cu121",
-            "12.2": "https://download.pytorch.org/whl/cu121",
-            "12.4": "https://download.pytorch.org/whl/cu124",
+            "12.1": "https://download.pytorch.org/whl/cu118",
+            "12.2": "https://download.pytorch.org/whl/cu118",
+            "12.4": "https://download.pytorch.org/whl/cu118",
             "12.6": "https://download.pytorch.org/whl/cu126",
             "12.8": "https://download.pytorch.org/whl/cu128",
             "12.9": "https://download.pytorch.org/whl/cu129",
@@ -765,7 +841,7 @@ class UnixPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
             unavailable_channels=("cu124", "cu121", "cu118"),
         )
         self.assertEqual(installs[0]["index"], PYPI_INDEX)
-        self.assertIn("torch>=2.2", installs[0]["args"])
+        self.assertIn("torch>=2.7", installs[0]["args"])
         self.assertIn("No compatible CUDA channel", output)
 
     def test_root_discovery_failure_keeps_known_channels(self) -> None:
@@ -777,7 +853,7 @@ class UnixPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
                     cuda="12.4",
                     root_outcome=outcome,
                 )
-                self.assertEqual(installs[0]["index"], "https://download.pytorch.org/whl/cu124")
+                self.assertEqual(installs[0]["index"], "https://download.pytorch.org/whl/cu118")
                 self.assertEqual(installs[0]["channel_discovery_count"], 1)
 
     def test_cuda_metadata_failure_falls_back_to_one_unqualified_pypi_install(self) -> None:
@@ -790,8 +866,8 @@ class UnixPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
                     index_outcome=outcome,
                 )
                 self.assertEqual([item["index"] for item in installs], [PYPI_INDEX])
-                self.assertIn("torch>=2.2", installs[0]["args"])
-                self.assertIn("torchvision>=0.17", installs[0]["args"])
+                self.assertIn("torch>=2.7", installs[0]["args"])
+                self.assertIn("torchvision>=0.22", installs[0]["args"])
                 self.assertIn("No compatible CUDA channel", output)
 
     def test_failed_cuda_install_is_not_retried_or_downgraded(self) -> None:
@@ -803,7 +879,7 @@ class UnixPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
         )
         self.assertEqual(
             [item["index"] for item in installs],
-            ["https://download.pytorch.org/whl/cu124"],
+            ["https://download.pytorch.org/whl/cu118"],
         )
         self.assertIn("no retry was attempted", output)
 

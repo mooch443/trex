@@ -197,7 +197,7 @@ PY
 }
 
 query_cuda_pair_metadata() {
-    python - pair "$1" "$2" <<'PY'
+    python - pair "$1" "$2" "${system}" <<'PY'
 # TREX_TORCH_PAIR_SELECTOR
 import re
 import subprocess
@@ -207,7 +207,7 @@ try:
 except ImportError:
     from pip._vendor.packaging.version import Version
 
-index_url, flavor = sys.argv[2:4]
+index_url, flavor, system = sys.argv[2:5]
 def available_versions(package, minimum):
     result = subprocess.run(
         [sys.executable, "-m", "pip", "index", "versions", package,
@@ -228,6 +228,10 @@ vision_by_release = {Version(item).release: item for item in vision_versions}
 for torch_version in torch_versions:
     release = Version(torch_version).release
     if len(release) < 2 or release[0] != 2: continue
+    # Official Linux wheels use CXX11_ABI=1 from 2.7 onward, and for 2.6/cu126.
+    # The installed binary is checked separately, including when using mirrors.
+    if system == "Linux" and release[:2] < (2, 7):
+        if release[:2] != (2, 6) or flavor != "cu126": continue
     patch = release[2] if len(release) > 2 else 0
     vision_version = vision_by_release.get((0, release[1] + 15, patch))
     if vision_version:
@@ -271,6 +275,9 @@ select_pypi_target() {
     torch_index_url="${pypi_index_url}"
     torch_dependency_index_args=()
     torch_packages=("torch>=2.2" "torchvision>=0.17")
+    if [ "${system}" = "Linux" ]; then
+        torch_packages=("torch>=2.7" "torchvision>=0.22")
+    fi
 }
 
 # Select one distribution source before pip installs anything. The NVIDIA
@@ -439,6 +446,21 @@ if ${setup_ready}; then
 fi
 
 if ${torch_installed}; then
+    if [ "${system}" = "Linux" ]; then
+        TORCH_ABI_CHECK="import torch
+abi = torch.compiled_with_cxx11_abi()
+print(f'[post-link] Installed PyTorch {torch.__version__}; CXX11_ABI={int(abi)}', flush=True)
+raise SystemExit(0 if abi else 1)"
+        log_command python -c "${TORCH_ABI_CHECK}"
+        if ! run_with_reporting python -c "${TORCH_ABI_CHECK}"; then
+            log "[post-link] ERROR: Linux TRex requires PyTorch built with CXX11_ABI=1; verification failed."
+            if [ -n "${OUT_STREAM}" ] && [ -f "${OUT_STREAM}" ]; then
+                cat "${OUT_STREAM}" >&2
+            fi
+            [ -z "${numpy_constraint_file}" ] || rm -f "${numpy_constraint_file}"
+            exit 1
+        fi
+    fi
     log "[post-link] The single ${torch_target} Python ML installation transaction completed successfully."
     TORCH_INFO_STRING="import torch; print(f'[post-link] Installed PyTorch {torch.__version__}; compiled CUDA {torch.version.cuda}; torch.cuda.is_available() -> {torch.cuda.is_available()}')"
     log_command python -c "${TORCH_INFO_STRING}"
