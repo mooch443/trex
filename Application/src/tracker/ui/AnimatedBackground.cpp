@@ -184,11 +184,16 @@ BackgroundVideoConfig AnimatedBackground::configure_video_source(const pv::File 
             auto original_pv_folder = video_filename->remove_filename();
             auto current_pv_folder = video->filename().remove_filename();
             
-            namespace fs = std::filesystem;
-            file::Path rel = fs::path(fs::path(mp4_folder.str())).lexically_relative(original_pv_folder.str()).string();
-            auto abs = (current_pv_folder / rel / mp4_filename).canonical();
-            if(abs)
-                result.tests.emplace(abs.value(), video_offset_from_video);
+            try {
+                namespace fs = std::filesystem;
+                file::Path rel = fs::path(fs::path(mp4_folder.str())).lexically_relative(original_pv_folder.str()).string();
+                auto abs = (current_pv_folder / rel / mp4_filename).canonical();
+                if (abs)
+                    result.tests.emplace(abs.value(), video_offset_from_video);
+            }
+            catch (const std::exception& ex) {
+                FormatWarning("Failed to resolve ", original_pv_folder, " for ", video_filename, ": ", ex.what());
+            }
         }
         
         result.tests.emplace(path, video_offset_from_video);
