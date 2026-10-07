@@ -115,6 +115,7 @@ requirements:
     - python =3.11 # [linux]
     - libopenblas * *pthreads* # [osx]
     - ffmpeg >=3,<8=*lgpl*
+    - libva # [linux]
     #- openh264 # [osx]
     #- libvorbis
     #- libogg
