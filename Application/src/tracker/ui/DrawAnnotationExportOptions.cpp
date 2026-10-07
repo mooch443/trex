@@ -236,7 +236,9 @@ struct DrawAnnotationExportOptions::Data {
 
                             auto files = pfd::open_file("Select a file", folder, filters).result();
                             if(!files.empty())
-                                GlobalSettings::get(parm).get().set_value_from_string(files.front());
+                                GlobalSettings::write([&](Configuration& config) {
+                                    config.values[parm].get().set_value_from_string(files.front());
+                                });
                         });
                     }),
                     ActionFunc("export", [this](const Action&) {

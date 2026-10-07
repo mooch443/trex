@@ -297,7 +297,7 @@ std::tuple<Image::Ptr, Vec2> make_image(pv::BlobWeakPtr blob,
         return { std::move(buffer), pos };
 
     Image::Ptr output = Image::Make(output_shape.height, output_shape.width, 4);
-    convert_image_to_rgba(*buffer, SETTING(meta_encoding), false, *output);
+    convert_image_to_rgba(*buffer, Background::meta_encoding(), false, *output);
     return {
         std::move(output),
         pos
@@ -320,7 +320,7 @@ std::optional<Vec2> make_image_cached(pv::BlobWeakPtr blob,
     if(not pos)
         return std::nullopt;
     
-    convert_image_to_rgba(raw_buffer, SETTING(meta_encoding), false, rgba_output);
+    convert_image_to_rgba(raw_buffer, Background::meta_encoding(), false, rgba_output);
     return pos;
 }
 

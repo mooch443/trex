@@ -520,7 +520,9 @@ struct SettingsScene::Data {
                             throw InvalidArgumentException("No parameter ",parm," in global settings.");
                         
                         auto value = action.last();
-                        GlobalSettings::get(parm).get().set_value_from_string(value);
+                        GlobalSettings::write([&](Configuration& config) {
+                            config.values[parm].get().set_value_from_string(value);
+                        });
                     }),
                     ActionFunc("reset_settings", [](auto){
                         SceneManager::enqueue([](auto, DrawStructure& graph) {
@@ -530,11 +532,11 @@ struct SettingsScene::Data {
                                     /// config array:
                                     sprite::Map cleared;
                                     
-                                    SETTING(filename).get().copy_to(cleared);
-                                    SETTING(source).get().copy_to(cleared);
-                                    SETTING(output_prefix).get().copy_to(cleared);
-                                    SETTING(output_dir).get().copy_to(cleared);
-                                    SETTING(detect_type).get().copy_to(cleared);
+                                    SETTING(filename).copy_to(cleared);
+                                    SETTING(source).copy_to(cleared);
+                                    SETTING(output_prefix).copy_to(cleared);
+                                    SETTING(output_dir).copy_to(cleared);
+                                    SETTING(detect_type).copy_to(cleared);
                                     
                                     settings::reset(cleared);
                                     
@@ -613,7 +615,7 @@ struct SettingsScene::Data {
                                 });
                             }
                             settings::load(settings::LoadContext{
-                                .source = SETTING(source),
+                                .source = SETTING(source).value<file::PathArray>(),
                                 .filename = filename,
                                 .task = default_config::TRexTask_t::convert,
                                 .type = SETTING(detect_type).value<track::detect::ObjectDetectionType_t>(),
@@ -837,7 +839,9 @@ struct SettingsScene::Data {
                             if(GlobalSettings::get(parm).is_type<file::PathArray>())
                             {
                                 if(not dir.empty())
-                                    GlobalSettings::get(parm).get().set_value_from_string(Meta::toStr(dir));
+                                    GlobalSettings::write([&](Configuration& config) {
+                                        config.values[parm].get().set_value_from_string(Meta::toStr(dir));
+                                    });
                             } else {
                                 if(not dir.empty()) {
                                     set_global_setting_from_path_string(parm, dir.front());

@@ -1857,7 +1857,9 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                 if(parm == "gui_frame") {
                     set_frame(Meta::fromStr<Frame_t>(value), false);
                 } else
-                    GlobalSettings::get(parm).get().set_value_from_string(value);
+                    GlobalSettings::write([&](Configuration& config) {
+                        config.values[parm].get().set_value_from_string(value);
+                    });
             }),
             ActionFunc("change_scene", [](Action action) {
                 /**

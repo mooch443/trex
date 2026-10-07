@@ -659,6 +659,12 @@ void Accumulation::confirm_weights() {
             final_path = file::Path(path.str() + "_dict.pth");
        progress_dict.exists()) 
     {
+        // Inference graphs must belong to the weights being promoted.
+        for(const auto& suffix : {"_model.pt2", "_model.pth"}) {
+            auto final_model = file::Path(path.str() + suffix);
+            if(final_model.exists() && not final_model.delete_file())
+                throw U_EXCEPTION("Cannot remove stale model ",final_model," before replacing its weights.");
+        }
         Print("Moving weights from ",progress_dict," to ",final_path,".");
         if(not progress_dict.move_to(final_path))
             FormatExcept("Cannot move ",progress_dict," to ",final_path,". Are your file permissions in order?");
@@ -666,13 +672,15 @@ void Accumulation::confirm_weights() {
     } else
         FormatExcept("Cannot find weights! No successful training so far? :(");
 
-    if(auto progress_model = file::Path(progress_base + "_model.pth"),
-            final_path = file::Path(path.str() + "_model.pth");
-       progress_model.exists()) 
-    {
-        Print("Moving model state from ",progress_model.str()," to ",final_path.str(),".");
-        if(not progress_model.move_to(final_path))
-            FormatExcept("Cannot move ",progress_model," to ",final_path,". Are your file permissions in order?");
+    for(const auto& suffix : {"_model.pt2", "_model.pth"}) {
+        if(auto progress_model = file::Path(progress_base + suffix),
+                final_path = file::Path(path.str() + suffix);
+           progress_model.exists())
+        {
+            Print("Moving model state from ",progress_model.str()," to ",final_path.str(),".");
+            if(not progress_model.move_to(final_path))
+                FormatExcept("Cannot move ",progress_model," to ",final_path,". Are your file permissions in order?");
+        }
     }
 }
 
@@ -1101,7 +1109,7 @@ bool Accumulation::start() {
                 auto data = _collected_data->join_split_data();
                 auto ranges_path = file::DataLocation::parse("output", Path(READ_SETTING(filename, file::Path).filename()+"_validation_data.npz"));
                 
-                const Size2 dims = SETTING(individual_image_size);
+                const Size2 dims = SETTING(individual_image_size).value<Size2>();
                 FileSize size((max(data.validation_images.size(), data.training_images.size())) * size_t(dims.width * dims.height) * size_t(channels));
                 std::vector<uchar> all_images;
                 all_images.resize(size.bytes);
@@ -1354,7 +1362,7 @@ bool Accumulation::start() {
                 }
             }
             
-            const uint32_t accumulation_max_tracklets = SETTING(accumulation_max_tracklets);
+            const uint32_t accumulation_max_tracklets = SETTING(accumulation_max_tracklets).value<uint32_t>();
             
             size_t retained = inserted_elements;
             
@@ -1724,7 +1732,7 @@ bool Accumulation::start() {
         auto data = _collected_data->join_split_data();
         const auto ranges_path = file::DataLocation::parse("output", Path(READ_SETTING(filename, file::Path).filename()+"_validation_data.npz"));
         
-        const Size2 dims = SETTING(individual_image_size);
+        const Size2 dims = SETTING(individual_image_size).value<Size2>();
         FileSize size((data.validation_images.size() + data.training_images.size()) * dims.width * dims.height * channels);
         std::vector<uchar> all_images;
         all_images.resize(size.bytes);
@@ -1782,7 +1790,7 @@ bool Accumulation::start() {
         
         const double number_classes = images_per_class.size();
         const double gpu_max_sample_mb = double(READ_SETTING(gpu_max_sample_gb, float)) * 1000;
-        const Size2 output_size = SETTING(individual_image_size);
+        const Size2 output_size = SETTING(individual_image_size).value<Size2>();
         const double max_images_per_class = gpu_max_sample_mb * 1000 * 1000 / number_classes / output_size.width / output_size.height / 4;
         
         double mbytes = 0;
@@ -1942,7 +1950,7 @@ bool Accumulation::start() {
                     auto ranges_path = file::DataLocation::parse("output", Path(READ_SETTING(filename, file::Path).filename()+"_validation_data_"+method.str()+".npz"));
                     
                     
-                    const Size2 dims = SETTING(individual_image_size);
+                    const Size2 dims = SETTING(individual_image_size).value<Size2>();
                     std::vector<Idx_t> ids;
                     size_t total_images = 0;
                     for(auto && [id, img]: images) {
@@ -1977,7 +1985,7 @@ bool Accumulation::start() {
             }
         }
         
-        uchar gpu_max_epochs = SETTING(gpu_max_epochs);
+        uchar gpu_max_epochs = SETTING(gpu_max_epochs).value<uchar>();
         const float best_uniqueness_before_step = best_uniqueness();
         float uniqueness_after = best_uniqueness_before_step;
         current_best = 0;

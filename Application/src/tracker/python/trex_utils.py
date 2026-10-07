@@ -1,17 +1,19 @@
 # -*- coding: utf-8 -*-
 """
 This module provides a function to load a checkpoint from a file and check its compatibility
-with the current model configuration. It handles both JIT and standard PyTorch checkpoints.
+with the current model configuration. It handles exported, JIT and standard PyTorch checkpoints.
 It also includes a utility function to check the compatibility of checkpoint metadata
 with the current model settings.
 """
 
 import os
 import json
+import copy
+import zipfile
+import pickle
 import torch
 import torch.nn as nn
 import TRex
-from torchvision import transforms
 import numpy as np
 import gc
 
@@ -62,24 +64,61 @@ def check_checkpoint_compatibility(
         raise ConfigurationError(" ".join(errors))
 
 
+class ExportedModel(nn.Module):
+    """Inference adapter for an exported graph whose eval mode is fixed at export."""
+
+    def __init__(self, module):
+        super().__init__()
+        self.module = module
+        self.training = False
+
+    def forward(self, x):
+        return self.module(x)
+
+    def train(self, mode=True):
+        if mode:
+            raise RuntimeError("Exported models are inference-only; load their state_dict into a trainable model.")
+        self.training = False
+        return self
+
+
 def load_checkpoint_from_file(file_path: str, device: str):
     """
     Loads a checkpoint from the specified file path.
 
-    The file is expected to be a .pth file that contains a dictionary with:
+    Accepts a .pt2 exported program, legacy TorchScript, or a .pth dictionary with:
       - A "model" field (for a complete model) and/or
       - A "state_dict" field (with optional "metadata").
 
-    If metadata is present, it is verified against the current globals:
-      (image_width, image_height, image_channels, and len(classes)).
-
-    Returns a checkpoint dict (or wraps a plain state dict).
+    Returns a checkpoint dict (or a plain state dict). The caller checks metadata
+    against its input dimensions and classes before applying the weights.
     """
     if not os.path.exists(file_path):
         raise Exception("Checkpoint file not found at " + file_path)
-    #TRex.log(f"Loading checkpoint as JIT from {file_path}...")
+    if os.fspath(file_path).endswith(".pt2"):
+        files = {"metadata": ""}
+        program = torch.export.load(file_path, extra_files=files)
+        metadata = None
+        try:
+            metadata = json.loads(files["metadata"])
+        except Exception as e:
+            TRex.warn("\t- Failed to load metadata from exported checkpoint: " + str(e))
+        cp = {
+            "model": ExportedModel(program.module()).to(device),
+            "state_dict": program.state_dict,
+            "metadata": metadata,
+        }
+        TRex.log(f"\t+ Loaded exported checkpoint from {file_path}.")
+        return cp
 
-    try:
+    # TorchScript archives contain constants.pkl; weights-only archives do not.
+    is_script = False
+    if zipfile.is_zipfile(file_path):
+        with zipfile.ZipFile(file_path) as archive:
+            is_script = any(name == "constants.pkl" or name.endswith("/constants.pkl")
+                            for name in archive.namelist())
+
+    if is_script:
         files = {"metadata": ""}
         cp = torch.jit.load(file_path, map_location=device, _extra_files=files)
 
@@ -96,30 +135,34 @@ def load_checkpoint_from_file(file_path: str, device: str):
 
         TRex.log(f"\t+ Loaded checkpoint from JIT {file_path}.")
 
-    except Exception as e:
-        TRex.log(f"\t- Failed to load checkpoint as JIT, trying torch.load.")
+    else:
+        TRex.log(f"\t- Loading checkpoint with torch.load.")
 
-        # Fallback to torch.load if JIT load fails.
-        from visual_identification_network_torch import (
-            PermuteAxesWrapper, Normalize, V118_3, V110, V119, V200
-        )
-        # Register safe globals for torch.serialization.
-        # Check if `torch.serialization.add_safe_globals` is available
-        if hasattr(torch.serialization, "add_safe_globals"):
+        try:
+            cp = torch.load(file_path, map_location=device, weights_only=True)
+        except pickle.UnpicklingError:
+            # Legacy dictionaries containing Python model objects need their classes.
+            from torchvision import transforms
+            from visual_identification_network_torch import (
+                PermuteAxesWrapper, Normalize, V118_3, V110, V119, V200
+            )
             # Register safe globals for torch.serialization.
-            torch.serialization.add_safe_globals([PermuteAxesWrapper, Normalize, transforms.transforms.Normalize])
-            torch.serialization.add_safe_globals([set])
-            torch.serialization.add_safe_globals([V118_3, V110, V119, V200])
-            torch.serialization.add_safe_globals([nn.Softmax, nn.Conv2d, nn.BatchNorm2d, nn.GroupNorm, nn.ReLU,
-                                                nn.MaxPool2d, nn.Linear, nn.Dropout, nn.Dropout2d,
-                                                nn.LayerNorm, nn.AdaptiveAvgPool2d, nn.AdaptiveMaxPool2d,
-                                                nn.AvgPool2d, nn.MaxPool2d, nn.Flatten, nn.Sequential])
-            torch.serialization.add_safe_globals([np.core.multiarray._reconstruct, np.ndarray, np.dtype, np.dtypes.UInt8DType, np.dtypes.Int64DType])
-        else:
-            # Log a warning or handle the absence of `add_safe_globals` gracefully
-            TRex.warn("`torch.serialization.add_safe_globals` is not available in this version of PyTorch. Skipping safe globals registration.")
+            # Check if `torch.serialization.add_safe_globals` is available
+            if hasattr(torch.serialization, "add_safe_globals"):
+                # Register safe globals for torch.serialization.
+                torch.serialization.add_safe_globals([PermuteAxesWrapper, Normalize, transforms.transforms.Normalize])
+                torch.serialization.add_safe_globals([set])
+                torch.serialization.add_safe_globals([V118_3, V110, V119, V200])
+                torch.serialization.add_safe_globals([nn.Softmax, nn.Conv2d, nn.BatchNorm2d, nn.GroupNorm, nn.ReLU,
+                                                    nn.MaxPool2d, nn.Linear, nn.Dropout, nn.Dropout2d,
+                                                    nn.LayerNorm, nn.AdaptiveAvgPool2d, nn.AdaptiveMaxPool2d,
+                                                    nn.AvgPool2d, nn.MaxPool2d, nn.Flatten, nn.Sequential])
+                torch.serialization.add_safe_globals([np.core.multiarray._reconstruct, np.ndarray, np.dtype, np.dtypes.UInt8DType, np.dtypes.Int64DType])
+            else:
+                # Log a warning or handle the absence of `add_safe_globals` gracefully
+                TRex.warn("`torch.serialization.add_safe_globals` is not available in this version of PyTorch. Skipping safe globals registration.")
 
-        cp = torch.load(file_path, map_location=device, weights_only=True)
+            cp = torch.load(file_path, map_location=device, weights_only=True)
         TRex.log(f"\t+ Loaded torch.load checkpoint from {file_path}: {cp.keys()}")
 
     # If the checkpoint is a dict and contains metadata, perform compatibility checks.
@@ -132,56 +175,24 @@ def load_checkpoint_from_file(file_path: str, device: str):
         TRex.log("\t+ Loaded checkpoint is a plain state dict without metadata.")
         return {"state_dict": cp}
     
-def save_pytorch_model_as_jit(model, output_path, metadata, dummy_input=None):
+def save_pytorch_model_as_export(model, output_path, metadata):
     """
-    Converts a PyTorch model to TorchScript and saves it with metadata.
-
-    Parameters:
-      model (torch.nn.Module): The PyTorch model to convert.
-      output_path (str): Path where the TorchScript model will be saved.
-      metadata (dict): Dictionary containing metadata to save with the model.
-                       For example:
-                       {
-                           "input_shape": (width, height, channels),
-                           "model_type": "converted from Keras",
-                           "num_classes": num_classes,
-                           "epoch": None,
-                           "uniqueness": None
-                       }
-      dummy_input (torch.Tensor, optional): A dummy input for model tracing if scripting fails.
-    
-    Returns:
-      torch.jit.ScriptModule: The converted TorchScript model.
-    
-    Raises:
-      ValueError: If scripting fails and no dummy_input is provided for tracing.
+    Save an inference graph with metadata to .pt2, accepting dynamic NHWC batches.
+    The CPU copy keeps the archive portable without changing the training model's
+    device, buffers, or per-module train/eval modes. Metadata input_shape is W,H,C.
     """
-    try:
-        # Try to convert the model using scripting.
-        scripted_model = torch.jit.script(model)
-        print("Model scripted successfully.")
-    except Exception as e:
-        # If scripting fails and a dummy input is provided, fallback to tracing.
-        if dummy_input is None:
-            raise ValueError("Scripting failed and no dummy input provided for tracing. Error: " + str(e))
-        print("Scripting failed, falling back to tracing. Error:", e)
-        scripted_model = torch.jit.trace(model, dummy_input)
-        print("Model traced successfully.")
-    
-    # Prepare metadata extra file as JSON.
-    extra_files = {"metadata": json.dumps(metadata)}
-    
-    # Save the scripted (or traced) model along with the extra metadata.
-    torch.jit.save(scripted_model, output_path, _extra_files=extra_files)
-    print(f"TorchScript model with metadata saved at: {output_path}")
-    
-    # Optionally, load the model back to verify the metadata was saved.
-    files = {"metadata": ""}
-    _ = torch.jit.load(output_path, _extra_files=files)
-    loaded_metadata = json.loads(files["metadata"])
-    print("JIT Loaded metadata:", {key:str(loaded_metadata[key])[:100] for key in loaded_metadata})
-    
-    return scripted_model
+    export_model = copy.deepcopy(model).cpu().eval()
+    width, height, channels = metadata["input_shape"]
+    # A sample batch of two avoids specializing the batch dimension to one.
+    inputs = torch.zeros(2, height, width, channels, dtype=torch.float32)
+    program = torch.export.export(
+        export_model, (inputs,),
+        dynamic_shapes=({0: torch.export.Dim("batch", min=1)},),
+        strict=True,
+    )
+    torch.export.save(program, output_path, extra_files={"metadata": json.dumps(metadata)})
+    TRex.log(f"Exported model with metadata saved at: {output_path}")
+    return program
 
 def clear_caches():
     device = TRex.choose_device()

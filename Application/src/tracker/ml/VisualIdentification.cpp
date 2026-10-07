@@ -333,6 +333,8 @@ bool VINetwork::weights_available() {
     if (base.add_extension("pth").exists())
         return true;
     // Serialized model bundle (less ideal, but indicates presence of a checkpoint)
+    if (file::Path(base.str() + "_model.pt2").exists())
+        return true;
     if (file::Path(base.str() + "_model.pth").exists())
         return true;
     return false;
