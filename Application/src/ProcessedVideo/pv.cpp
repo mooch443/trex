@@ -323,9 +323,6 @@ File::File(const file::Path& filename, FileMode mode, std::optional<meta_encodin
             _callback = GlobalSettings::register_callbacks({"use_differences"}, [](auto) {
                 use_differences = BOOL_SETTING(use_differences);
             });
-            GlobalSettings::register_shutdown_callback([](auto){
-                _callback.collection.reset();
-            });
         });
         
         if(ref.header().version >= V_6) {

@@ -1194,10 +1194,6 @@ const track::MotionRecord* Library::retrieve_props(
             return tag.p;
         });
         
-        GlobalSettings::register_shutdown_callback([](auto) {
-            _callback_id.collection.reset();
-        });
-        
         lock.unlock();
         _callback_id = GlobalSettings::register_callbacks({
             "output_invalid_value",
