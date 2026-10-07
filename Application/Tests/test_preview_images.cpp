@@ -241,7 +241,7 @@ TEST_F(PreviewImageSettingsCacheTest, ConfiguredCanvasOverridesEmptyOrStaleLocal
                     << " configured=" << Meta::toStr(Size2(output_size))
                     << " cached=" << Meta::toStr(cached_size));
                 // A UI-local cache can differ from the initialized tracking DLL cache.
-                track::Settings::set<track::Settings::individual_image_size>(cached_size);
+                track::Settings::set<track::Settings::individual_image_size>(Size2(cached_size));
                 ASSERT_EQ(FAST_SETTING(individual_image_size), cached_size);
                 ASSERT_EQ(READ_SETTING(individual_image_size, Size2), Size2(output_size));
 
