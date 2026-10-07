@@ -282,7 +282,7 @@ std::tuple<Image::Ptr, Vec2> make_image(pv::BlobWeakPtr blob,
                                         const track::Background* background)
 {
     const auto normalize = default_config::valid_individual_image_normalization();
-    auto output_shape = FAST_SETTING(individual_image_size);
+    auto output_shape = READ_SETTING(individual_image_size, Size2);
     auto transform = midline ? midline->transform(normalize) : gui::Transform();
     
     auto &&[buffer, pos] = constraints::diff_image(
@@ -313,7 +313,7 @@ std::optional<Vec2> make_image_cached(pv::BlobWeakPtr blob,
                 Image& rgba_output)
 {
     const auto normalize = default_config::valid_individual_image_normalization();
-    auto output_shape = FAST_SETTING(individual_image_size);
+    auto output_shape = READ_SETTING(individual_image_size, Size2);
     auto transform = midline ? midline->transform(normalize) : gui::Transform();
     
     auto pos = constraints::diff_image_cached(mask_buffer, image_buffer, raw_buffer, normalize, blob, transform, filters ? filters->median_midline_length_px : 0, output_shape, background);

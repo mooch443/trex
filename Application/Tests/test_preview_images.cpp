@@ -220,6 +220,59 @@ protected:
 class EncodedPreviewImageTest : public PreviewImageTest,
     public ::testing::WithParamInterface<std::tuple<meta_encoding_t::Class, bool>> {};
 
+class PreviewImageSettingsCacheTest : public PreviewImageTest {
+    void TearDown() override {
+        track::Settings::set<track::Settings::individual_image_size>(READ_SETTING(individual_image_size, Size2));
+    }
+};
+
+TEST_F(PreviewImageSettingsCacheTest, ConfiguredCanvasOverridesEmptyOrStaleLocalCache) {
+    auto sample = preview_sample(meta_encoding_t::gray, 9, 5);
+    auto background = preview_background(meta_encoding_t::gray);
+    SETTING(meta_encoding) = meta_encoding_t::gray;
+    SETTING(track_background_subtraction) = false;
+
+    for(const auto output_size : {cv::Size(32, 24), cv::Size(48, 36)}) {
+        SETTING(individual_image_size) = Size2(output_size);
+        for(const auto mode : {Normalization::none, Normalization::moments}) {
+            SETTING(individual_image_normalization) = mode;
+            for(const auto cached_size : {Size2{}, Size2(12, 8)}) {
+                SCOPED_TRACE(::testing::Message() << Meta::toStr(mode)
+                    << " configured=" << Meta::toStr(Size2(output_size))
+                    << " cached=" << Meta::toStr(cached_size));
+                // A UI-local cache can differ from the initialized tracking DLL cache.
+                track::Settings::set<track::Settings::individual_image_size>(cached_size);
+                ASSERT_EQ(FAST_SETTING(individual_image_size), cached_size);
+                ASSERT_EQ(READ_SETTING(individual_image_size, Size2), Size2(output_size));
+
+                const auto expected = mode == Normalization::none
+                    ? expected_unrotated(sample.image, output_size, 1.f)
+                    : expected_rotated(sample.image, output_size, mode, meta_encoding_t::gray, 1.f);
+                cv::Mat rgba;
+                cv::cvtColor(expected, rgba, cv::COLOR_GRAY2BGRA);
+
+                auto [exact, exact_position] = gui::DrawPreviewImage::make_image(
+                    sample.blob.get(), nullptr, nullptr, background.get());
+                ASSERT_TRUE(exact);
+                ASSERT_EQ(exact->dimensions(), Size2(output_size));
+                ASSERT_NO_FATAL_FAILURE(expect_pixels(exact->get(), rgba));
+
+                const auto position = gui::DrawPreviewImage::make_image_cached(
+                    sample.blob.get(), nullptr, nullptr, background.get(), raw_buffer,
+                    mask_buffer, image_buffer, display.unsafe_get_source());
+                ASSERT_TRUE(position);
+                EXPECT_EQ(*position, exact_position);
+                ASSERT_EQ(raw_buffer.dimensions(), Size2(output_size));
+                ASSERT_EQ(display.source()->dimensions(), Size2(output_size));
+                ASSERT_NO_FATAL_FAILURE(expect_pixels(raw_buffer.get(), expected));
+                ASSERT_NO_FATAL_FAILURE(expect_pixels(display.source()->get(), rgba));
+                display.updated_source();
+                EXPECT_EQ(display.size(), Size2(output_size));
+            }
+        }
+    }
+}
+
 TEST_P(EncodedPreviewImageTest, LinesPreserveSparsePixelsAndExplicitPadding) {
     const auto [encoding, subtract] = GetParam();
     SETTING(meta_encoding) = encoding;
