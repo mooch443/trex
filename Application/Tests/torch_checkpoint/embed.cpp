@@ -4,6 +4,10 @@
 
 namespace py = pybind11;
 
+PYBIND11_EMBEDDED_MODULE(trex_checkpoint_probe, module) {
+    module.def("identity", [](int value) { return value; });
+}
+
 int main(int argc, char** argv) {
     if(argc < 3) {
         fprintf(stderr, "Usage: %s probe.py --load FIXTURE_DIR\n", argv[0]);
@@ -46,6 +50,9 @@ int main(int argc, char** argv) {
         try {
             py::scoped_interpreter interpreter;
             try {
+                if(py::module_::import("trex_checkpoint_probe").attr("identity")(42).cast<int>() != 42)
+                    throw std::runtime_error("Embedded Python module callback failed.");
+                printf("PASS: embedded Python module callback.\n");
                 auto sys = py::module_::import("sys");
                 if(const char* executable = std::getenv("TREX_TEST_PYTHON_EXECUTABLE"))
                     sys.attr("executable") = executable;
