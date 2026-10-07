@@ -30,6 +30,10 @@ endif()
 foreach(target IN LISTS probe_targets)
     add_executable(${target} embed.cpp)
     target_link_libraries(${target} PRIVATE Commons::All pybind11::embed ${CMAKE_DL_LIBS})
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        # TRex exposes C++ runtime symbols to the Python extension modules it loads.
+        set_target_properties(${target} PROPERTIES ENABLE_EXPORTS ON)
+    endif()
     if(APPLE)
         set_target_properties(${target} PROPERTIES
             INSTALL_RPATH "@loader_path/../../../../lib;@loader_path/../lib")

@@ -27,6 +27,17 @@ int main(int argc, char** argv) {
     printf("std::locale::classic: %p in %s; exported lookup: %p\n",
            locale_address, locale_info.dli_fname ? locale_info.dli_fname : "unknown",
            dlsym(RTLD_DEFAULT, locale_symbol));
+#ifdef _GLIBCXX_USE_CXX11_ABI
+    for(const char* symbol : {"_ZNSs12_M_leak_hardEv", "_ZNSs9_M_mutateEmmm",
+                             "_ZNSs4_Rep20_S_empty_rep_storageE"}) {
+        const auto address = dlsym(RTLD_DEFAULT, symbol);
+        Dl_info info{};
+        if(address)
+            dladdr(address, &info);
+        printf("%s: %p in %s\n", symbol, address,
+               info.dli_fname ? info.dli_fname : "not exported");
+    }
+#endif
     fflush(stdout);
 
     int status = 1;
