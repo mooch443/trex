@@ -244,7 +244,10 @@ TEST(PVTest, DestroyingCorruptModifyFileDoesNotTerminate) {
 
     const auto original_size = pv_path.file_size();
     ASSERT_GT(original_size, 256u);
-    std::filesystem::resize_file(pv_path.str(), original_size - 128u);
+    // Truncate through the open modify handle so Windows sharing rules are respected.
+    video->seek(original_size - 128u);
+    video->truncate();
+    ASSERT_EQ(pv_path.file_size(), original_size - 128u);
 
     EXPECT_THROW(video->print_info(), std::exception);
     EXPECT_NO_THROW(video.reset());
