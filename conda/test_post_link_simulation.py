@@ -734,16 +734,15 @@ class UnixPostLinkSimulation(PostLinkSimulationMixin, unittest.TestCase):
         )
         self.assertIn("torch===2.6.0+cu126", installs[0]["args"])
 
-    def test_linux_rejects_installed_old_abi_before_warmup(self) -> None:
+    def test_linux_warns_on_unverified_abi_and_continues(self) -> None:
         for abi in ("0", "unavailable"):
             with self.subTest(abi=abi):
                 _, output = self.run_scenario(
-                    system="Linux", machine="x86_64", torch_abi=abi, expected_status=1,
-                    verify_progress_bypass=(abi == "0"),
+                    system="Linux", machine="x86_64", torch_abi=abi,
                 )
-                self.assertIn("requires PyTorch built with CXX11_ABI=1", output)
-                self.assertNotIn("Warming the Ultralytics", output)
-                self.assertNotIn("installation remains successful", output)
+                self.assertIn("WARNING: Could not verify PyTorch CXX11_ABI=1", output)
+                self.assertIn("Warming the Ultralytics", output)
+                self.assertIn("installation remains successful", output)
 
     def test_install_progress_bypasses_captured_pip_output(self) -> None:
         self.run_scenario(
