@@ -659,6 +659,12 @@ void Accumulation::confirm_weights() {
             final_path = file::Path(path.str() + "_dict.pth");
        progress_dict.exists()) 
     {
+        // Inference graphs must belong to the weights being promoted.
+        for(const auto& suffix : {"_model.pt2", "_model.pth"}) {
+            auto final_model = file::Path(path.str() + suffix);
+            if(final_model.exists() && not final_model.delete_file())
+                throw U_EXCEPTION("Cannot remove stale model ",final_model," before replacing its weights.");
+        }
         Print("Moving weights from ",progress_dict," to ",final_path,".");
         if(not progress_dict.move_to(final_path))
             FormatExcept("Cannot move ",progress_dict," to ",final_path,". Are your file permissions in order?");
@@ -666,13 +672,15 @@ void Accumulation::confirm_weights() {
     } else
         FormatExcept("Cannot find weights! No successful training so far? :(");
 
-    if(auto progress_model = file::Path(progress_base + "_model.pth"),
-            final_path = file::Path(path.str() + "_model.pth");
-       progress_model.exists()) 
-    {
-        Print("Moving model state from ",progress_model.str()," to ",final_path.str(),".");
-        if(not progress_model.move_to(final_path))
-            FormatExcept("Cannot move ",progress_model," to ",final_path,". Are your file permissions in order?");
+    for(const auto& suffix : {"_model.pt2", "_model.pth"}) {
+        if(auto progress_model = file::Path(progress_base + suffix),
+                final_path = file::Path(path.str() + suffix);
+           progress_model.exists())
+        {
+            Print("Moving model state from ",progress_model.str()," to ",final_path.str(),".");
+            if(not progress_model.move_to(final_path))
+                FormatExcept("Cannot move ",progress_model," to ",final_path,". Are your file permissions in order?");
+        }
     }
 }
 

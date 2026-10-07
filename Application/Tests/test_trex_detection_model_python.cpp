@@ -129,3 +129,24 @@ TEST(TrexDetectionModelPythonTest, RunsDetectorBackendRealModelEndToEndTests) {
     const int status = std::system(command.c_str());
     EXPECT_EQ(status, 0) << "Python unittest command failed: " << command;
 }
+
+TEST(TrexCheckpointPythonTest, RunsRecognitionCheckpointCompatibilityTests) {
+    const std::string python = TREX_PYTHON_EXECUTABLE;
+    const std::string test_dir =
+        (fs::path(TREX_TEST_FOLDER) / "python").string();
+
+#ifdef _WIN32
+    const std::string command =
+        "set PYTHONDONTWRITEBYTECODE=1 && " + quote_for_shell(python) +
+        " -B -m unittest discover -s " + quote_for_shell(test_dir) +
+        " -p test_trex_checkpoints.py";
+#else
+    const std::string command =
+        "PYTHONDONTWRITEBYTECODE=1 KMP_DUPLICATE_LIB_OK=TRUE " + quote_for_shell(python) +
+        " -B -m unittest discover -s " + quote_for_shell(test_dir) +
+        " -p test_trex_checkpoints.py";
+#endif
+
+    const int status = std::system(command.c_str());
+    EXPECT_EQ(status, 0) << "Python unittest command failed: " << command;
+}

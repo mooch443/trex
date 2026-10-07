@@ -272,6 +272,11 @@ conda build -c conda-forge .
   reference implementation for GUI structure or best practices.
 
 ## Agent execution constraints
+- Never revert, discard, or undo existing changes unless the user explicitly
+  requests that reversal. Criticism, statements that a change should not have
+  been made, or suggestions of an alternative do not authorize a revert. This
+  applies to user changes and changes made by any agent, including the current
+  chat. Preserve those changes until the user explicitly asks to undo them.
 - Unless explicitly asked to restructure or reinvent an implementation, make the
   smallest possible change and preserve the original code verbatim wherever
   possible, including names, comments, formatting, and control flow. Introduce

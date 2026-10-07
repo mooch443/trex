@@ -168,7 +168,7 @@
                   [
                     {
                       "type": "stext",
-                      "text": "<gray><b>Folder suffix</b>\n<small>appended to the output folder</small></gray>",
+                      "text": "<gray><b>Suffix</b>\n<small>appended to the output folder</small></gray>",
                       "font": {"size": 0.5},
                       "pad": [10, 3, 10, 4]
                     },

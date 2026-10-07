@@ -41,6 +41,7 @@ endif()
 include(ExternalProject)
 include(FetchContent)
 
+list(APPEND CMAKE_CTEST_ARGUMENTS --output-on-failure)
 enable_testing()
 
 set(CMAKE_CXX_VISIBILITY_PRESET default)
