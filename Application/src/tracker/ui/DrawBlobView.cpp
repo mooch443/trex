@@ -85,9 +85,10 @@ struct BlobView {
         cmn::blob::Prediction prediction;
         float real_size;
         float d;
+        Idx_t primary_id;
         float p_for_primary;
         
-        constexpr bool operator==(const BlobInfo&) const noexcept = default;
+        constexpr bool operator==(const BlobInfo&) const noexcept;
     } _blob_info;
     
     struct BlobObjects {
@@ -283,6 +284,23 @@ public:
     return gimage;
 }*/
 
+constexpr bool BlobView::BlobInfo::operator==(const BlobInfo& other) const noexcept {
+    return name == other.name
+            && instance == other.instance
+            && bdx == other.bdx
+            //&& category == other.category
+            && filter_reason == other.filter_reason
+            && active == other.active
+            && dock == other.dock
+            && split == other.split
+            && tried_to_split == other.tried_to_split
+            && prediction == other.prediction
+            && real_size == other.real_size
+            //&& d == other.d
+            && primary_id == other.primary_id;
+    //&& p_for_primary == other.p_for_primary;
+}
+
 std::string BlobView::label_for_blob(const DisplayParameters& parm, const pv::Blob& blob, float real_size, bool active, float d, bool register_label, BlobObjects& saved_info)
 {
     
@@ -297,21 +315,29 @@ std::string BlobView::label_for_blob(const DisplayParameters& parm, const pv::Bl
     _blob_info.real_size = real_size;
     _blob_info.d = d;
     _blob_info.p_for_primary = 0;
-
-    auto primary_id = parm.cache.primary_selected_id();
-    auto all_probs = parm.cache.probs_for(blob.blob_id());
+    _blob_info.primary_id = parm.cache.primary_selected_id();
+    _blob_info.category.clear();
     
-    for(auto &[fdx, prob] : all_probs) {
-        if(fdx == primary_id) {
-            _blob_info.p_for_primary = prob;
-            break;
-        }
+    if(blob.reason() != FilterReason::Unknown) {
+        _blob_info.filter_reason = filter_reason_to_str(blob.reason());
+    } else {
+        _blob_info.filter_reason.clear();
     }
     
     if(saved_info.label_text.has_value()
        && std::get<0>(saved_info.label_text.value()) == _blob_info)
     {
         return std::get<1>(saved_info.label_text.value());
+    }
+    
+    //auto primary_id = parm.cache.primary_selected_id();
+    auto all_probs = parm.cache.probs_for(blob.blob_id());
+    
+    for(auto &[fdx, prob] : all_probs) {
+        if(fdx == _blob_info.primary_id) {
+            _blob_info.p_for_primary = prob;
+            break;
+        }
     }
     
     {
@@ -324,12 +350,6 @@ std::string BlobView::label_for_blob(const DisplayParameters& parm, const pv::Bl
             else
                 _blob_info.category = "unknown(" + Meta::toStr(it->second) + ")";
         }
-    }
-    
-    if(blob.reason() != FilterReason::Unknown) {
-        _blob_info.filter_reason = filter_reason_to_str(blob.reason());
-    } else {
-        _blob_info.filter_reason.clear();
     }
     
     std::string label_text;

@@ -798,7 +798,7 @@ void LoadContext::load_settings_file() {
             
             if(rejected.contains("meta_source_path")) {
                 sprite::Map tmp;
-                tmp["meta_source_path"] = std::string(rejected.at("meta_source_path"));
+                tmp["meta_source_path"] = Meta::fromStr<std::string>(std::string(rejected.at("meta_source_path")));
                 if(not set_config_if_different("meta_source_path", tmp)
                    && not quiet)
                 {

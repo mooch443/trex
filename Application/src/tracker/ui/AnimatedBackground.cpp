@@ -443,9 +443,18 @@ void AnimatedBackground::before_draw() {
             _displayed_frame = Frame_t((uint32_t)image->index());
             
             /// pre-cache a greyscale image in case we need it...
-            Image::Ptr grey = grey_buffers.get(image->dimensions(), source_location::current());
-            if(not grey
-               || grey->cols != image->cols
+            Image::Ptr grey;
+            try {
+                grey = grey_buffers.get(image->dimensions(), source_location::current());
+            } catch(...) {
+                /// no successfully loaded grey
+            }
+            
+            if(not grey) {
+                grey = Image::Make();
+            }
+            
+            if(   grey->cols != image->cols
                || grey->rows != image->rows
                || grey->channels() != 1)
             {
