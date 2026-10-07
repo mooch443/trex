@@ -12,6 +12,7 @@ env:
   CONDA_REPODATA_USE_SHARDS: 'false'
   GITHUB_WORKFLOW: CondaBuildUbuntu
   MINIFORGE_VERSION: 26.5.3-0
+  TREX_TEST_TORCH_CHECKPOINT: "ON"
 
 jobs:
   build:
@@ -104,6 +105,10 @@ jobs:
         python -m conda_index "$CONDA_BLD_PATH/"
         conda create -y -n test --override-channels -c "$CONDA_BLD_PATH/" -c conda-forge trex
         conda activate test
+        checkpoint_dir="$CONDA_PREFIX/usr/share/trex/torch_checkpoint"
+        test -x "$checkpoint_dir/test_torch_checkpoint"
+        test -x "$checkpoint_dir/test_torch_checkpoint_shared"
+        python -B "$checkpoint_dir/run.py"
         python $GITHUB_WORKSPACE/conda/validate_post_link_installation.py
         pvinfo -opencv_ffmpeg_support
         if pvinfo -opencv_opencl_support; then
