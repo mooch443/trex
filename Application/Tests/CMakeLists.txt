@@ -41,6 +41,8 @@ endif()
 add_executable(test_pixels test_pixels.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
 target_compile_definitions(test_pixels PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
 
+add_executable(test_preview_images test_preview_images.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
+
 add_executable(test_patharray test_patharray.cpp test_main.cpp "${CMAKE_BINARY_DIR}/src/GitSHA1.cpp" ../src/GitSHA1.h)
 target_compile_definitions(test_patharray PRIVATE -DTREX_TEST_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}")
 
@@ -162,6 +164,7 @@ set(TARGETS
     test_commandline 
     test_strings 
     test_pixels 
+    test_preview_images
     test_patharray 
     test_optionslist
     test_output_library
@@ -222,6 +225,8 @@ target_link_libraries(test_matching PUBLIC gtest)
 target_link_libraries(test_commandline PUBLIC gtest)
 target_link_libraries(test_strings PUBLIC gtest)
 target_link_libraries(test_pixels PUBLIC gtest)
+target_link_libraries(test_preview_images PUBLIC gtest tracker_gui tracker_misc commons pv)
+trex_link_static_python_impl(test_preview_images)
 target_link_libraries(test_patharray PUBLIC gtest gmock)
 target_link_libraries(test_optionslist PUBLIC gtest)
 target_link_libraries(test_output_library PUBLIC gtest)
@@ -462,6 +467,7 @@ set_target_properties(test_matching PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH 
 set_target_properties(test_commandline PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 set_target_properties(test_strings PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 set_target_properties(test_pixels PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
+set_target_properties(test_preview_images PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 set_target_properties(test_patharray PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 set_target_properties(test_dyngui PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
 set_target_properties(test_gui_scroll PROPERTIES XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH "YES")
@@ -518,6 +524,8 @@ add_test(NAME test-matching COMMAND test_matching)
 add_test(NAME test-commandline COMMAND test_commandline)
 add_test(NAME test-strings COMMAND test_strings)
 add_test(NAME test-pixels COMMAND test_pixels)
+add_test(NAME test-preview-images COMMAND test_preview_images)
+trex_prepend_test_path(test-preview-images trex_check_python)
 add_test(NAME test-patharray COMMAND test_patharray)
 add_test(NAME test-output-library COMMAND test_output_library)
 trex_prepend_test_path(test-output-library trex_check_python)
