@@ -487,8 +487,45 @@ std::optional<int> run_process(const std::vector<std::string>& arguments, std::c
         command_line += quote_argument(argument);
     }
 
+    TempDirectory logs;
+    const auto log_path = logs.path / "subprocess.log";
+    const auto close_handle = [](HANDLE handle) {
+        if(handle != INVALID_HANDLE_VALUE)
+            CloseHandle(handle);
+    };
+    SECURITY_ATTRIBUTES security{};
+    security.nLength = sizeof(security);
+    security.bInheritHandle = TRUE;
+    std::unique_ptr<void, decltype(close_handle)> output_handle(
+        CreateFileW(log_path.c_str(), GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                    &security, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr), close_handle);
+    if(output_handle.get() == INVALID_HANDLE_VALUE) {
+        std::cerr << "Cannot create subprocess log: " << GetLastError() << '\n';
+        return std::nullopt;
+    }
+    std::unique_ptr<void, decltype(close_handle)> input_handle(
+        CreateFileW(L"NUL", GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                    &security, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr), close_handle);
+    if(input_handle.get() == INVALID_HANDLE_VALUE) {
+        std::cerr << "Cannot open subprocess stdin: " << GetLastError() << '\n';
+        return std::nullopt;
+    }
+    const auto print_output = [&](const char* reason, DWORD code) {
+        std::cerr << reason << " (" << code << ", 0x" << std::hex << code << std::dec
+                  << ")\nCommand: " << command_line
+                  << "\nWorking directory: " << fs::current_path() << '\n';
+        std::ifstream stream(log_path, std::ios::binary);
+        const std::string output{std::istreambuf_iterator<char>(stream),
+                                 std::istreambuf_iterator<char>()};
+        std::cerr << output << "\nEnd of subprocess output.\n" << std::flush;
+    };
+
     STARTUPINFOA startup{};
     startup.cb = sizeof(startup);
+    startup.dwFlags = STARTF_USESTDHANDLES;
+    startup.hStdInput = input_handle.get();
+    startup.hStdOutput = output_handle.get();
+    startup.hStdError = output_handle.get();
     PROCESS_INFORMATION process{};
     std::vector<char> mutable_command(command_line.begin(), command_line.end());
     mutable_command.push_back('\0');
@@ -498,29 +535,41 @@ std::optional<int> run_process(const std::vector<std::string>& arguments, std::c
            mutable_command.data(),
            nullptr,
            nullptr,
-           FALSE,
+           TRUE,
            CREATE_NO_WINDOW,
            nullptr,
            nullptr,
            &startup,
            &process))
     {
+        print_output("CreateProcess failed", GetLastError());
         return std::nullopt;
     }
+    input_handle.reset();
+    output_handle.reset();
 
     const auto wait_status = WaitForSingleObject(process.hProcess, static_cast<DWORD>(timeout.count() * 1000));
-    if(wait_status == WAIT_TIMEOUT) {
+    if(wait_status != WAIT_OBJECT_0) {
+        const auto error = wait_status == WAIT_FAILED ? GetLastError() : wait_status;
         TerminateProcess(process.hProcess, 2);
         WaitForSingleObject(process.hProcess, INFINITE);
         CloseHandle(process.hThread);
         CloseHandle(process.hProcess);
+        print_output(wait_status == WAIT_TIMEOUT ? "Subprocess timed out" : "Subprocess wait failed", error);
         return std::nullopt;
     }
 
     DWORD exit_code = 0;
-    GetExitCodeProcess(process.hProcess, &exit_code);
+    const auto have_exit_code = GetExitCodeProcess(process.hProcess, &exit_code);
+    const auto exit_error = have_exit_code ? ERROR_SUCCESS : GetLastError();
     CloseHandle(process.hThread);
     CloseHandle(process.hProcess);
+    if(!have_exit_code) {
+        print_output("Cannot read subprocess exit code", exit_error);
+        return std::nullopt;
+    }
+    if(exit_code != 0)
+        print_output("Subprocess exited", exit_code);
     return static_cast<int>(exit_code);
 }
 

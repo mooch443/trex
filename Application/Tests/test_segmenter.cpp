@@ -9,6 +9,8 @@
 #include <misc/CommandLine.h>
 #include <tracking/Output.h>
 #include <ui/Segmenter.h>
+#include <video/AveragingAccumulator.h>
+#include <video/VideoSource.h>
 
 using namespace cmn;
 using namespace cmn::file;
@@ -439,6 +441,35 @@ TEST_P(SegmenterMetaEncodingTest, GrayscaleSourceProducesThreeChannelGrayPng) {
     EXPECT_EQ(cv::countNonZero(difference), 0);
     cv::compare(channels[0], channels[2], difference, cv::CMP_NE);
     EXPECT_EQ(cv::countNonZero(difference), 0);
+}
+
+TEST(SegmenterAverageGenerationTest, ShortRangeAllowsMoreSamplesThanFrames) {
+    register_data_locations_once();
+    reset_global_settings();
+
+    const TempWorkspace ws = make_workspace();
+    const cv::Mat expected(4, 6, CV_8UC3, cv::Scalar(40, 80, 120));
+    std::vector<std::string> source_paths;
+    for(size_t i = 0; i < 3; ++i) {
+        const auto path = ws.root / "source" / ("frame_" + std::to_string(i) + ".png");
+        ASSERT_TRUE(cv::imwrite(path.string(), expected));
+        source_paths.push_back(path.string());
+    }
+
+    SETTING(average_samples) = uint32_t(25);
+    SETTING(averaging_method) = averaging_method_t::Class(averaging_method_t::mean);
+    SETTING(video_conversion_range) = Range<long_t>(0, 2);
+    VideoSource source{PathArray(source_paths)};
+    source.set_colors(ImageMode::RGB);
+    cv::Mat average = cv::Mat::zeros(expected.size(), expected.type());
+    float progress = 0;
+    ASSERT_NO_THROW(source.generate_average(average, 0, [&](float value) {
+        EXPECT_TRUE(std::isfinite(value));
+        progress = value;
+        return true;
+    }));
+    EXPECT_FLOAT_EQ(progress, 1.f);
+    expect_image_bytes_equal(average, expected, "short-range background");
 }
 
 TEST(SegmenterAverageGenerationTest, ConversionRangeCanChangeGeneratedAverage) {
