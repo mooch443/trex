@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import subprocess
 import unittest
 
 
@@ -75,6 +76,42 @@ class WorkflowConfigurationTests(unittest.TestCase):
                 contents = recipe.read_text(encoding="utf-8")
                 self.assertEqual(contents.count(requirement), 2)
                 self.assertNotIn("pin_compatible('openblas'", contents)
+
+    @unittest.skipUnless(Path("/bin/bash").exists(), "Unix Conda build script")
+    def test_buildall_imports_opencv_before_linking_tests(self) -> None:
+        script = (ROOT / "conda" / "build.sh").read_text(encoding="utf-8")
+        build_steps = script.split('echo "Choose processor number = ${PROCS}"', 1)[1]
+        build_steps = build_steps.split('echo "Build complete.', 1)[0]
+        shell = r'''
+PROCS=2
+opencv_built=0
+opencv_imported=0
+uname() { printf 'Linux\n'; }
+cmake() {
+    case "$*" in
+        *--target\ CustomOpenCV*)
+            [ "$TREX_CONFIGURE" = buildall ] || return 91
+            opencv_built=1
+            ;;
+        ..*)
+            opencv_imported=$opencv_built
+            ;;
+        *--target\ runAllTests*)
+            if [ "$TREX_CONFIGURE" = buildall ] && [ "$opencv_imported" != 1 ]; then
+                printf 'OpenCV exports were not imported before linking tests\n' >&2
+                return 92
+            fi
+            ;;
+    esac
+}
+'''
+        for profile in ("buildall", "minimal"):
+            with self.subTest(profile=profile):
+                result = subprocess.run(
+                    ["/bin/bash", "-c", f"TREX_CONFIGURE={profile}\n" + shell + build_steps],
+                    cwd=ROOT, capture_output=True, text=True, timeout=10,
+                )
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
 
 if __name__ == "__main__":

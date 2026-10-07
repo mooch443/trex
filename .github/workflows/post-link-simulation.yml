@@ -4,6 +4,7 @@ on:
   workflow_dispatch:
   push:
     paths:
+      - "conda/build.sh"
       - "conda/post-link.sh"
       - "conda/post-link.bat"
       - "conda/test_post_link_simulation.py"
@@ -19,6 +20,7 @@ on:
       - ".github/workflows/post-link-simulation.yml"
   pull_request:
     paths:
+      - "conda/build.sh"
       - "conda/post-link.sh"
       - "conda/post-link.bat"
       - "conda/test_post_link_simulation.py"

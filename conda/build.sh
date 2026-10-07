@@ -256,6 +256,11 @@ if [ "$(uname)" == "Linux" ]; then
 fi 
 CMAKE_BUILD_PARALLEL_LEVEL=${PROCS} cmake --build . --target imgui --parallel ${PROCS} || exit $?
 
+if [ "${TREX_CONFIGURE}" = "buildall" ]; then
+    # Install OpenCV's CMake exports before reconfiguring targets that link it.
+    CMAKE_BUILD_PARALLEL_LEVEL=${PROCS} cmake --build . --target CustomOpenCV --parallel ${PROCS} --config Release || exit $?
+fi
+
 cmake .. || exit $?
 
 CMAKE_BUILD_PARALLEL_LEVEL=${PROCS} cmake --build . --parallel ${PROCS} --target runAllTests --config Release || exit $?
