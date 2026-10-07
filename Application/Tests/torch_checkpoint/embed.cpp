@@ -1,4 +1,5 @@
 #include <commons.pc.h>
+#include <opencv2/videoio/registry.hpp>
 #include <pybind11/embed.h>
 #include <dlfcn.h>
 
@@ -34,6 +35,9 @@ int main(int argc, char** argv) {
     printf("PASS: shared-library and executable std::call_once initialization.\n");
 #endif
 
+    // Keep the native video backend dependencies loaded alongside Python.
+    printf("OpenCV video backends: %zu\n", cv::videoio_registry::getBackends().size());
+
     std::locale::global(std::locale::classic());
     if(not std::regex_match(std::string("trex"), std::regex("[a-z]+")))
         return 1;
@@ -53,7 +57,8 @@ int main(int argc, char** argv) {
            dlsym(RTLD_DEFAULT, locale_symbol));
 #ifdef _GLIBCXX_USE_CXX11_ABI
     for(const char* symbol : {"_ZNSs12_M_leak_hardEv", "_ZNSs9_M_mutateEmmm",
-                             "_ZNSs4_Rep20_S_empty_rep_storageE", "__once_proxy"}) {
+                             "_ZNSs4_Rep20_S_empty_rep_storageE", "__once_proxy",
+                             "_ZNSt8__detail8_ScannerIcE10_M_advanceEv"}) {
         const auto address = dlsym(RTLD_DEFAULT, symbol);
         Dl_info info{};
         if(address)
