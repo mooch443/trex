@@ -177,7 +177,7 @@ struct ScreenRecorder::Data {
             delete _recording_capture;
             _recording_capture = NULL;
             
-            file::Path ffmpeg = SETTING(ffmpeg_path);
+            file::Path ffmpeg = SETTING(ffmpeg_path).value<file::Path>();
             if(!ffmpeg.empty() && graph) {
                 file::Path save_path = _recording_path.replace_extension("mov");
                 std::string cmd = ffmpeg.str()+" -i \""+_recording_path.str()+"\" -vcodec h264 -pix_fmt yuv420p -crf 15 -y \""+save_path.str()+"\"";

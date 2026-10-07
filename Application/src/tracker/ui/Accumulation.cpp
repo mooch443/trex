@@ -1109,7 +1109,7 @@ bool Accumulation::start() {
                 auto data = _collected_data->join_split_data();
                 auto ranges_path = file::DataLocation::parse("output", Path(READ_SETTING(filename, file::Path).filename()+"_validation_data.npz"));
                 
-                const Size2 dims = SETTING(individual_image_size);
+                const Size2 dims = SETTING(individual_image_size).value<Size2>();
                 FileSize size((max(data.validation_images.size(), data.training_images.size())) * size_t(dims.width * dims.height) * size_t(channels));
                 std::vector<uchar> all_images;
                 all_images.resize(size.bytes);
@@ -1362,7 +1362,7 @@ bool Accumulation::start() {
                 }
             }
             
-            const uint32_t accumulation_max_tracklets = SETTING(accumulation_max_tracklets);
+            const uint32_t accumulation_max_tracklets = SETTING(accumulation_max_tracklets).value<uint32_t>();
             
             size_t retained = inserted_elements;
             
@@ -1732,7 +1732,7 @@ bool Accumulation::start() {
         auto data = _collected_data->join_split_data();
         const auto ranges_path = file::DataLocation::parse("output", Path(READ_SETTING(filename, file::Path).filename()+"_validation_data.npz"));
         
-        const Size2 dims = SETTING(individual_image_size);
+        const Size2 dims = SETTING(individual_image_size).value<Size2>();
         FileSize size((data.validation_images.size() + data.training_images.size()) * dims.width * dims.height * channels);
         std::vector<uchar> all_images;
         all_images.resize(size.bytes);
@@ -1790,7 +1790,7 @@ bool Accumulation::start() {
         
         const double number_classes = images_per_class.size();
         const double gpu_max_sample_mb = double(READ_SETTING(gpu_max_sample_gb, float)) * 1000;
-        const Size2 output_size = SETTING(individual_image_size);
+        const Size2 output_size = SETTING(individual_image_size).value<Size2>();
         const double max_images_per_class = gpu_max_sample_mb * 1000 * 1000 / number_classes / output_size.width / output_size.height / 4;
         
         double mbytes = 0;
@@ -1950,7 +1950,7 @@ bool Accumulation::start() {
                     auto ranges_path = file::DataLocation::parse("output", Path(READ_SETTING(filename, file::Path).filename()+"_validation_data_"+method.str()+".npz"));
                     
                     
-                    const Size2 dims = SETTING(individual_image_size);
+                    const Size2 dims = SETTING(individual_image_size).value<Size2>();
                     std::vector<Idx_t> ids;
                     size_t total_images = 0;
                     for(auto && [id, img]: images) {
@@ -1985,7 +1985,7 @@ bool Accumulation::start() {
             }
         }
         
-        uchar gpu_max_epochs = SETTING(gpu_max_epochs);
+        uchar gpu_max_epochs = SETTING(gpu_max_epochs).value<uchar>();
         const float best_uniqueness_before_step = best_uniqueness();
         float uniqueness_after = best_uniqueness_before_step;
         current_best = 0;

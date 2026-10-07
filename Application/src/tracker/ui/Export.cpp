@@ -188,10 +188,10 @@ void export_data(pv::File& video, Tracker& tracker, Idx_t fdx, const Range<Frame
     }
     //auto calculate_posture = BOOL_SETTING(calculate_posture);
     
-    const Size2 output_size = SETTING(individual_image_size);
+    const Size2 output_size = SETTING(individual_image_size).value<Size2>();
     const bool do_normalize_tracklets = BOOL_SETTING(tracklet_normalize);
     const bool do_normalize_output = BOOL_SETTING(output_normalize_midline_data);
-    const uint16_t tracklet_max_images = SETTING(tracklet_max_images);
+    const uint16_t tracklet_max_images = SETTING(tracklet_max_images).value<uint16_t>();
     
     auto data_prefix = READ_SETTING(data_prefix, file::Path);
     auto fishdata = file::DataLocation::parse("output", data_prefix);

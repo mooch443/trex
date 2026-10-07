@@ -161,7 +161,9 @@ void Tracker::initialize_slows() {
                 }
                 
                 if(changed) {
-                    GlobalSettings::get(key) = tmp;
+                    GlobalSettings::write([&](Configuration& config) {
+                        config.values[key] = tmp;
+                    });
                 }
             };
             

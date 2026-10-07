@@ -202,7 +202,7 @@ void initiate_merging(const std::vector<file::Path>& merge_videos, int argc, cha
     const bool merge_overlapping_blobs = BOOL_SETTING(merge_overlapping_blobs);
 
     auto timestamp_offset = output.length() == 0_f ? timestamp_t(0) : output.last_frame().timestamp();
-    merge_mode_t::Class merge_mode = SETTING(merge_mode);
+    merge_mode_t::Class merge_mode = SETTING(merge_mode).value<merge_mode_t::Class>();
 
     for(Frame_t frame = 0_f; frame < min_length; ++frame) {
         pv::Frame f, o;

@@ -804,7 +804,7 @@ std::shared_ptr<TrainingData::DataRange> TrainingData::add_salt(const std::share
     
     const double number_classes = READ_SETTING(track_max_individuals, uint32_t);
     const double gpu_max_sample_mb = double(READ_SETTING(gpu_max_sample_gb, float)) * 1000;
-    const Size2 output_size = SETTING(individual_image_size);
+    const Size2 output_size = SETTING(individual_image_size).value<Size2>();
     const double max_images_per_class = gpu_max_sample_mb * 1000 * 1000 / number_classes / output_size.width / output_size.height / 4;
     
     for(auto && [id, ranges] : ranges_to_add) {
@@ -890,7 +890,7 @@ bool TrainingData::generate(const std::string& step_description, const Backgroun
     LockGuard guard(ro_t{}, "generate_training_data");
     PPFrame pp;
     pv::Frame video_frame;
-    const Size2 output_size = SETTING(individual_image_size);
+    const Size2 output_size = SETTING(individual_image_size).value<Size2>();
     const auto& custom_midline_lengths = filters();
     
     std::map<Idx_t, std::set<Frame_t>> illegal_frames;

@@ -495,7 +495,9 @@ struct DrawExportOptions::Data {
                                     folder = {};
                                 
                                 auto dir = pfd::select_folder("Select a folder", folder).result();
-                                GlobalSettings::get(parm).get().set_value_from_string(dir);
+                                GlobalSettings::write([&](Configuration& config) {
+                                    config.values[parm].get().set_value_from_string(dir);
+                                });
                                 std::cout << "Selected "<< parm <<": " << dir << "\n";
                             });
                         }),
@@ -517,7 +519,9 @@ struct DrawExportOptions::Data {
                                 throw InvalidArgumentException("No parameter ",parm," in global settings.");
                             
                             auto value = action.last();
-                            GlobalSettings::get(parm).get().set_value_from_string(value);
+                            GlobalSettings::write([&](Configuration& config) {
+                                config.values[parm].get().set_value_from_string(value);
+                            });
                         })
                     };
 

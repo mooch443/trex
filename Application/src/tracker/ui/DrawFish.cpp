@@ -1313,7 +1313,7 @@ void Fish::selection_hovered(Event e) {
 
 void Fish::selection_clicked(Event) {
     auto ID = _id.ID();
-    std::vector<Idx_t> selections = SETTING(gui_focus_group);
+    auto selections = SETTING(gui_focus_group).value<std::vector<Idx_t>>();
     auto it = std::find(selections.begin(), selections.end(), ID);
     
     if(_view.stage() && !(_view.stage()->is_key_pressed(gui::LShift) || _view.stage()->is_key_pressed(gui::RShift))) {

@@ -1240,16 +1240,18 @@ void BlobView::clicked_background(DrawStructure& base, GUICache& cache, const Ve
                 bds << bds.size() - bds.pos();
                 
                 try {
-                    auto array = GlobalSettings::get(key).value<std::vector<Bounds>>();
-                    
-                    // if textfield text has been modified, use that one rather than the actual setting value
-                    auto tmp = Meta::toStr(array);
-                    //if(key == chosen && tmp != value_input.text())
-                    //    array = Meta::fromStr<std::vector<Bounds>>(value_input.text());
-                    array.push_back(bds);
-                    //if(key == chosen)
-                    //    value_input.set_text(Meta::toStr(array));
-                    GlobalSettings::get(key) = array;
+                    GlobalSettings::write([&](Configuration& config) {
+                        auto array = config.values[key].value<std::vector<Bounds>>();
+
+                        // if textfield text has been modified, use that one rather than the actual setting value
+                        auto tmp = Meta::toStr(array);
+                        //if(key == chosen && tmp != value_input.text())
+                        //    array = Meta::fromStr<std::vector<Bounds>>(value_input.text());
+                        array.push_back(bds);
+                        //if(key == chosen)
+                        //    value_input.set_text(Meta::toStr(array));
+                        config.values[key] = array;
+                    });
                     
                 } catch(...) {}
             }
@@ -1257,17 +1259,19 @@ void BlobView::clicked_background(DrawStructure& base, GUICache& cache, const Ve
         } else if(is_vec_of_vec) {
             if(!_current_boundary.empty() && _current_boundary.back().size() >= 3) {
                 try {
-                    auto array = GlobalSettings::get(key).value<std::vector<std::vector<Vec2>>>();
-                    
-                    // if textfield text has been modified, use that one rather than the actual setting value
-                    auto tmp = Meta::toStr(array);
-                    //if(key == chosen && tmp != value_input.text())
-                    //    array = Meta::fromStr< std::vector<std::vector<Vec2>>>(value_input.text());
-                    
-                    array.push_back(_current_boundary.back());
-                    //if(key == chosen)
-                    //    value_input.set_text(Meta::toStr(array));
-                    GlobalSettings::get(key) = array;
+                    GlobalSettings::write([&](Configuration& config) {
+                        auto array = config.values[key].value<std::vector<std::vector<Vec2>>>();
+
+                        // if textfield text has been modified, use that one rather than the actual setting value
+                        auto tmp = Meta::toStr(array);
+                        //if(key == chosen && tmp != value_input.text())
+                        //    array = Meta::fromStr< std::vector<std::vector<Vec2>>>(value_input.text());
+
+                        array.push_back(_current_boundary.back());
+                        //if(key == chosen)
+                        //    value_input.set_text(Meta::toStr(array));
+                        config.values[key] = array;
+                    });
                     
                 } catch(...) {}
                 
@@ -1276,20 +1280,22 @@ void BlobView::clicked_background(DrawStructure& base, GUICache& cache, const Ve
             }
         } else if(is_vectors) {
             try {
-                auto array = GlobalSettings::get(key).value<std::vector<Vec2>>();
-                
-                // if textfield text has been modified, use that one rather than the actual setting value
-                auto tmp = Meta::toStr(array);
-                //if(key == chosen && tmp != value_input.text())
-                //    array = Meta::fromStr<std::vector<Vec2>>(value_input.text());
-                
-                for(auto &boundary : _current_boundary) {
-                    for(auto &pt : boundary)
-                        array.push_back(pt);
-                }
-                //if(key == chosen)
-                //    value_input.set_text(Meta::toStr(array));
-                GlobalSettings::get(key) = array;
+                GlobalSettings::write([&](Configuration& config) {
+                    auto array = config.values[key].value<std::vector<Vec2>>();
+
+                    // if textfield text has been modified, use that one rather than the actual setting value
+                    auto tmp = Meta::toStr(array);
+                    //if(key == chosen && tmp != value_input.text())
+                    //    array = Meta::fromStr<std::vector<Vec2>>(value_input.text());
+
+                    for(auto &boundary : _current_boundary) {
+                        for(auto &pt : boundary)
+                            array.push_back(pt);
+                    }
+                    //if(key == chosen)
+                    //    value_input.set_text(Meta::toStr(array));
+                    config.values[key] = array;
+                });
                 
             } catch(...) {}
             

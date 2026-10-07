@@ -1534,8 +1534,8 @@ TEST(JSONTest, TestBasicJSON) {
     };
     SETTING(graphs) = object;
     
-    auto json = SETTING(graphs).get().to_json();
-    ASSERT_EQ(Meta::fromStr<std::string>(glz::write_json(json).value()), SETTING(graphs).get().valueString());
+    auto json = SETTING(graphs).to_json();
+    ASSERT_EQ(Meta::fromStr<std::string>(glz::write_json(json).value()), SETTING(graphs).valueString());
 }
 
 TEST(JSONTest, TestSkeletonJSON) {
@@ -1549,8 +1549,8 @@ TEST(JSONTest, TestSkeletonJSON) {
     };
     SETTING(skeleton) = object;
     
-    auto json = SETTING(skeleton).get().to_json();
-    ASSERT_EQ(Meta::fromStr<std::string>(glz::write_json(json).value()), SETTING(skeleton).get().valueString());
+    auto json = SETTING(skeleton).to_json();
+    ASSERT_EQ(Meta::fromStr<std::string>(glz::write_json(json).value()), SETTING(skeleton).valueString());
 }
 
 TEST(JSONTest, TestVec2JSON) {
@@ -1562,18 +1562,18 @@ TEST(JSONTest, TestVec2JSON) {
     SETTING(big_number) = uint64_t(std::numeric_limits<uint64_t>::max());
     
     /// the strings will not be exactly the same.
-    auto json = SETTING(vectors).get().to_json();
+    auto json = SETTING(vectors).to_json();
     ASSERT_EQ(Meta::fromStr<std::vector<Vec2>>(Meta::fromStr<std::string>(glz::write_json(json).value())), object);
     
     /// check whether it removes trailing zeros
     auto s = glz::write_json(json).value();
     ASSERT_STREQ(s.c_str(), "[[10,25]]");
     
-    json = SETTING(number).get().to_json();
+    json = SETTING(number).to_json();
     s = glz::write_json(json).value();
     ASSERT_STREQ(s.c_str(), "5");
     
-    json = SETTING(big_number).get().to_json();
+    json = SETTING(big_number).to_json();
     s = glz::write_json(json).value();
     /// currently not achievable - only in custom structs
     //ASSERT_EQ(s, SETTING(big_number).get().valueString());

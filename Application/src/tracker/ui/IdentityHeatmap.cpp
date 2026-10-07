@@ -727,7 +727,7 @@ bool HeatmapController::update_variables(const data::FrameRepository& frames) {
         _frame_context = context;
     }
     
-    std::string source = SETTING(heatmap_source);
+    std::string source = SETTING(heatmap_source).value<std::string>();
     
     if(_original_source != source) {
         _original_source = source;
