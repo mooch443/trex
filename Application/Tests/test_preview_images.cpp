@@ -3,6 +3,7 @@
 #include <core/TrackingSettings.h>
 #include <processing/Background.h>
 #include <processing/PVBlob.h>
+#include <tracking/Tracker.h>
 #include <ui/DrawPreviewImage.h>
 
 using namespace cmn;
@@ -128,7 +129,7 @@ cv::Mat expected_rotated(const cv::Mat& source, cv::Size output_size,
 void expect_pixels(const cv::Mat& actual, const cv::Mat& expected) {
     ASSERT_EQ(actual.size(), expected.size());
     ASSERT_EQ(actual.type(), expected.type());
-    EXPECT_EQ(cv::norm(actual, expected, cv::NORM_INF), 0);
+    ASSERT_EQ(cv::norm(actual, expected, cv::NORM_INF), 0);
 }
 
 class PreviewImageTest : public ::testing::Test {
@@ -138,12 +139,20 @@ public:
         std::call_once(initialized, [] {
             GlobalSettings::write([](Configuration& config) {
                 default_config::get(config);
+                config.values["cm_per_pixel"] = Float2_t(1);
             });
             track::Settings::init();
         });
+        // Tracker startup initializes the tracking library's settings cache too.
+        tracker = track::Tracker::Make(Image::Make(256, 256, 1), meta_encoding_t::gray, Float2_t(256));
+    }
+
+    static void TearDownTestSuite() {
+        tracker.reset();
     }
 
 protected:
+    inline static std::shared_ptr<track::Tracker> tracker;
     cv::Mat mask_buffer, image_buffer;
     Image raw_buffer;
     gui::ExternalImage display;
@@ -192,7 +201,7 @@ protected:
             sample.blob.get(), &midline, &filters, background.get());
         ASSERT_TRUE(exact);
         ASSERT_EQ(exact->dimensions(), READ_SETTING(individual_image_size, Size2));
-        expect_pixels(exact->get(), rgba);
+        ASSERT_NO_FATAL_FAILURE(expect_pixels(exact->get(), rgba));
 
         const auto position = gui::DrawPreviewImage::make_image_cached(
             sample.blob.get(), &midline, &filters, background.get(), raw_buffer,
@@ -201,8 +210,8 @@ protected:
         EXPECT_EQ(*position, exact_position);
         ASSERT_EQ(raw_buffer.dimensions(), READ_SETTING(individual_image_size, Size2));
         ASSERT_EQ(display.source()->dimensions(), READ_SETTING(individual_image_size, Size2));
-        expect_pixels(raw_buffer.get(), expected);
-        expect_pixels(display.source()->get(), rgba);
+        ASSERT_NO_FATAL_FAILURE(expect_pixels(raw_buffer.get(), expected));
+        ASSERT_NO_FATAL_FAILURE(expect_pixels(display.source()->get(), rgba));
         display.updated_source();
         EXPECT_EQ(display.size(), Size2(output_size));
     }

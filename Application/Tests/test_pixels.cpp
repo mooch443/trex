@@ -7,6 +7,7 @@
 #include <core/TrackingSettings.h>
 #include <tracking/FilterCache.h>
 #include <tracking/Posture.h>
+#include <tracking/Tracker.h>
 #include <gui/Transform.h>
 #include <processing/LuminanceGrid.h>
 #include <processing/HLine.h>
@@ -107,6 +108,15 @@ bool mats_equal(const cv::Mat& lhs, const cv::Mat& rhs) {
         return false;
     }
     return std::equal(lhs.begin<T>(), lhs.end<T>(), rhs.begin<T>(), rhs.end<T>());
+}
+
+std::shared_ptr<track::Tracker> make_image_test_tracker() {
+    GlobalSettings::write([](Configuration& config) {
+        default_config::get(config);
+        config.values["cm_per_pixel"] = Float2_t(1);
+    });
+    track::Settings::init();
+    return track::Tracker::Make(Image::Make(32, 32, 1), meta_encoding_t::gray, Float2_t(32));
 }
 
 } // namespace
@@ -1787,6 +1797,7 @@ TEST(ImageFromLines, CachedVariantReusesExactViewsForAllOutputs) {
 }
 
 TEST(ImageFromLines, DiffImageScalingMatchesOpenCV) {
+    auto tracker = make_image_test_tracker();
     constexpr int width = 15;
     constexpr int height = 15;
     constexpr float scale = 1.1f;
@@ -1805,21 +1816,19 @@ TEST(ImageFromLines, DiffImageScalingMatchesOpenCV) {
     cv::resize(source, expected, cv::Size(), double(scale), double(scale),
                cv::INTER_NEAREST);
 
-    const auto previous_scale = FAST_SETTING(individual_image_scale);
-    track::Settings::set<track::Settings::individual_image_scale>(float(scale));
+    SETTING(individual_image_scale) = scale;
+    ASSERT_FLOAT_EQ(FAST_SETTING(individual_image_scale), scale);
     Image::Ptr exact;
     Vec2 exact_position;
     cv::Mat mask_buffer, image_buffer;
     Image cached;
     std::optional<Vec2> cached_position;
-    EXPECT_NO_THROW({
+    ASSERT_NO_THROW({
         std::tie(exact, exact_position) = track::image::calculate_diff_image(
             blob.get(), Size2{}, nullptr);
         cached_position = track::image::calculate_diff_image_cached(
             mask_buffer, image_buffer, cached, blob.get(), Size2{}, nullptr);
     });
-    track::Settings::set<track::Settings::individual_image_scale>(float(previous_scale));
-
     ASSERT_TRUE(exact);
     ASSERT_TRUE(cached_position);
     EXPECT_EQ(exact_position, *cached_position);
@@ -1828,6 +1837,7 @@ TEST(ImageFromLines, DiffImageScalingMatchesOpenCV) {
 }
 
 TEST(ImageFromLines, ExactAndCachedNormalizationMatch) {
+    auto tracker = make_image_test_tracker();
     constexpr int width = 20;
     constexpr int height = 10;
     auto lines = rectangular_lines(width, height);
@@ -1851,6 +1861,8 @@ TEST(ImageFromLines, ExactAndCachedNormalizationMatch) {
 
     ASSERT_TRUE(exact);
     ASSERT_TRUE(cached_position);
+    EXPECT_EQ(exact->dimensions(), output_size);
+    ASSERT_GT(cv::countNonZero(exact->get()), 0);
     EXPECT_EQ(exact_position, *cached_position);
     EXPECT_EQ(exact->dimensions(), cached.dimensions());
     EXPECT_TRUE(std::equal(exact->data(), exact->data() + exact->size(),

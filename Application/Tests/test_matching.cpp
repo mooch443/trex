@@ -54,6 +54,8 @@ static void resetGlobalSettings()
     GlobalSettings::write([&](Configuration& config) {
         ::default_config::get(config);
     });
+    // Test-side FAST_SETTING reads need an initialized cache in this executable.
+    Settings::init();
 
     Python::configure_runtime(
         GlobalSettings::instance(),
@@ -1985,7 +1987,11 @@ TEST_F(TestSystemTracker, MissingManualMatchOutsideTrackMaxSpeedDoesNotLoseObjec
     auto anchor = pp.bdx_to_ptr(chosen_blob_id);
     ASSERT_TRUE(anchor != nullptr);
     
+    ASSERT_EQ(FAST_SETTING(track_max_speed), READ_SETTING(track_max_speed, Settings::track_max_speed_t));
+    ASSERT_EQ(FAST_SETTING(cm_per_pixel), READ_SETTING(cm_per_pixel, Settings::cm_per_pixel_t));
     const auto radius_px = float(FAST_SETTING(track_max_speed) / FAST_SETTING(cm_per_pixel));
+    ASSERT_TRUE(std::isfinite(radius_px)) << "track_max_speed radius=" << radius_px;
+    ASSERT_GT(radius_px, 0.f);
     const auto fake_bdx = make_fake_bid_outside_radius(pp, *anchor, radius_px);
     
     auto manual_matches = Settings::manual_matches_t{};
@@ -2026,7 +2032,11 @@ TEST_F(TestSystemTracker, ManualMatchSplitFallbackPreservesConcreteInventory) {
     auto anchor = pp.bdx_to_ptr(chosen_blob_id);
     ASSERT_TRUE(anchor != nullptr);
     
+    ASSERT_EQ(FAST_SETTING(track_max_speed), READ_SETTING(track_max_speed, Settings::track_max_speed_t));
+    ASSERT_EQ(FAST_SETTING(cm_per_pixel), READ_SETTING(cm_per_pixel, Settings::cm_per_pixel_t));
     const auto radius_px = float(FAST_SETTING(track_max_speed) / FAST_SETTING(cm_per_pixel));
+    ASSERT_TRUE(std::isfinite(radius_px)) << "track_max_speed radius=" << radius_px;
+    ASSERT_GT(radius_px, 0.f);
     const auto fake_bdx = make_fake_bid_inside_radius(pp, *anchor, radius_px);
     
     const auto before = observe_ppframe(pp);

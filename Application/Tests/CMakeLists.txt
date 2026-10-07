@@ -290,6 +290,7 @@ target_link_libraries(test_pixels PUBLIC
         tracker_misc
         commons
         pv)
+trex_link_static_python_impl(test_pixels)
 
 target_link_libraries(test_patharray PUBLIC
         commons
@@ -524,6 +525,7 @@ add_test(NAME test-matching COMMAND test_matching)
 add_test(NAME test-commandline COMMAND test_commandline)
 add_test(NAME test-strings COMMAND test_strings)
 add_test(NAME test-pixels COMMAND test_pixels)
+trex_prepend_test_path(test-pixels trex_check_python)
 add_test(NAME test-preview-images COMMAND test_preview_images)
 trex_prepend_test_path(test-preview-images trex_check_python)
 add_test(NAME test-patharray COMMAND test_patharray)
