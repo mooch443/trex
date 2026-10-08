@@ -27,6 +27,16 @@ def main():
         runtimes = sorted({line.split()[-1] for line in maps.read_text().splitlines()
                            if "libstdc++.so" in line})
         print(f"Shared C++ runtimes: {runtimes}", flush=True)
+    if sys.platform == "linux":
+        torch.set_num_threads(2)
+        # Batched GEMM must stay in Torch when the host already loaded OpenCV/BLAS.
+        with torch.backends.mkldnn.flags(enabled=False):
+            for dtype in (torch.float32, torch.float64):
+                print(f"CPU batched matmul: {dtype}, shape=(16, 16, 16)", flush=True)
+                left = torch.arange(16**3, dtype=dtype, device="cpu").reshape(16, 16, 16)
+                right = torch.eye(16, dtype=dtype, device="cpu").repeat(16, 1, 1)
+                torch.testing.assert_close(torch.bmm(left, right), left, rtol=0, atol=0)
+                print(f"PASS: CPU batched matmul {dtype}", flush=True)
     torch.set_num_threads(1)
 
     if args.create:

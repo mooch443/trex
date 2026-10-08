@@ -108,7 +108,7 @@ jobs:
         checkpoint_dir="$CONDA_PREFIX/usr/share/trex/torch_checkpoint"
         test -x "$checkpoint_dir/test_torch_checkpoint"
         test -x "$checkpoint_dir/test_torch_checkpoint_shared"
-        python -B "$checkpoint_dir/run.py"
+        python -B "$checkpoint_dir/run.py" --require-torch-first
         python $GITHUB_WORKSPACE/conda/validate_post_link_installation.py
         pvinfo -opencv_ffmpeg_support
         if pvinfo -opencv_opencl_support; then

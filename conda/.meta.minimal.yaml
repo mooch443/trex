@@ -55,6 +55,10 @@ build:
         - {{ pin_compatible('libstdcxx-ng', min_pin='x.x.x', max_pin='x.x.x') }} # [linux]
     ignore_run_exports:
         - {{ pin_compatible('libstdcxx-ng', min_pin='x.x.x', max_pin='x.x.x') }} # [linux]
+    # The post-link pip transaction supplies this ELF dependency.
+    missing_dso_whitelist: # [linux]
+        - "libtorch_cpu.so" # [linux]
+        - "*/libtorch_cpu.so" # [linux]
     detect_binary_files_with_prefix: False # [win]
     detect_binary_files_with_prefix: True # [not win]
     files_with_prefix:
@@ -78,6 +82,7 @@ requirements:
     - {{ compiler('c') }}   # [not osx]
     - {{ compiler('cxx') }} # [not osx]
     - cmake >=3.20,<5
+    - patchelf # [linux]
     #- ninja  # [not win]
     - git # [not win]
     - git <2.34 # [win]

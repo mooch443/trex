@@ -19,6 +19,22 @@ int main(int argc, char** argv) {
         return 2;
     }
 
+#ifdef __linux__
+    if(std::getenv("TREX_TEST_TORCH_FIRST")) {
+        for(const char* symbol : {"cblas_sgemm_batch", "cblas_dgemm_batch"}) {
+            const auto address = dlsym(RTLD_DEFAULT, symbol);
+            Dl_info info{};
+            if(not address or not dladdr(address, &info) or not info.dli_fname
+                    or not std::string_view(info.dli_fname).ends_with("/libtorch_cpu.so")) {
+                fprintf(stderr, "FAIL: %s must resolve to Torch before Python starts (found %s).\n",
+                        symbol, info.dli_fname ? info.dli_fname : "no library");
+                return 1;
+            }
+            printf("PASS: %s resolves to %s before Python starts.\n", symbol, info.dli_fname);
+        }
+    }
+#endif
+
 #ifdef TREX_TEST_SHARED_CALL_ONCE
     if(trex_checkpoint_once_count() != 1) {
         fprintf(stderr, "FAIL: shared-library std::call_once initialization.\n");

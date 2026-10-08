@@ -56,6 +56,11 @@ endforeach()
 target_link_options(test_torch_checkpoint PRIVATE ${profile_runtime_options})
 
 install(TARGETS ${probe_targets} RUNTIME DESTINATION usr/share/trex/torch_checkpoint)
+if(COMMAND trex_install_torch_first)
+    foreach(target IN LISTS probe_targets)
+        trex_install_torch_first(${target} usr/share/trex/torch_checkpoint "")
+    endforeach()
+endif()
 install(FILES probe.py run.py DESTINATION usr/share/trex/torch_checkpoint)
 
 # Conda's build environment need not contain Torch; the installed runner uses it at runtime.

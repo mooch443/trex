@@ -248,6 +248,10 @@ endif()
 
 add_subdirectory(src/commons)
 
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT COMMONS_BUILD_OPENCV AND NOT TREX_NO_PYTHON)
+    include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/TrexTorchLoadOrder.cmake")
+endif()
+
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND TARGET pybind11::embed)
     # Python extensions must not bind to C++ symbols owned by their host executable.
     # Apply this at the executable link, including symbols from static dependencies;

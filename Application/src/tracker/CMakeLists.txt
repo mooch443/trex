@@ -768,6 +768,12 @@ install(TARGETS ${targets}
     CONFIGURATIONS Release
 )
 
+if(COMMAND trex_install_torch_first)
+    foreach(target IN LISTS targets)
+        trex_install_torch_first(${target} bin Release)
+    endforeach()
+endif()
+
 install(DIRECTORY ${CMAKE_SOURCE_DIR}/src/fonts DESTINATION ${CMAKE_INSTALL_PREFIX}/usr/share/trex)
 install(DIRECTORY ${CMAKE_SOURCE_DIR}/src/html DESTINATION ${CMAKE_INSTALL_PREFIX}/usr/share/trex)
 install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/gfx DESTINATION ${CMAKE_INSTALL_PREFIX}/usr/share/trex)

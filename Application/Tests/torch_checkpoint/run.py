@@ -15,12 +15,20 @@ def main():
                         help="Directory containing the probe executables")
     parser.add_argument("--checkpoint", type=Path,
                         help="Load an existing TorchScript checkpoint instead of generated fixtures")
+    parser.add_argument("--require-torch-first", action="store_true",
+                        help="Verify Linux startup BLAS symbols without LD_PRELOAD")
     args = parser.parse_args()
+    if args.require_torch_first and sys.platform != "linux":
+        parser.error("--require-torch-first is only supported on Linux")
     probe = Path(__file__).resolve().with_name("probe.py")
     binary_dir = args.bin_dir.resolve()
     env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1", PYTHONUNBUFFERED="1",
                CUDA_VISIBLE_DEVICES="", PYTHONHOME=sys.prefix,
                TREX_TEST_PYTHON_EXECUTABLE=sys.executable)
+    if args.require_torch_first:
+        env.pop("LD_PRELOAD", None)
+        env.update(TREX_TEST_TORCH_FIRST="1", OPENBLAS_NUM_THREADS="2",
+                   OMP_NUM_THREADS="2", MKL_NUM_THREADS="2")
     results = []
 
     def run(label, command):
