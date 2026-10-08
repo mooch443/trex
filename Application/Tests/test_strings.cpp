@@ -1412,6 +1412,13 @@ TEST(FloatDoubleConversionTest, ScientificNotation) {
     EXPECT_EQ(json.get_float(), 1.23e-10);
 }
 
+TEST(FloatDoubleConversionTest, ParsesScientificNotation) {
+    EXPECT_FLOAT_EQ(Meta::fromStr<float>("1e-7"), 1e-7f);
+    EXPECT_DOUBLE_EQ(Meta::fromStr<double>("1E-7"), 1e-7);
+    EXPECT_FLOAT_EQ(Meta::fromStr<float>("2.5E+3"), 2500.f);
+    EXPECT_DOUBLE_EQ(Meta::fromStr<double>("2.5e+3"), 2500.);
+}
+
 TEST(IntegerConversionTest, LargeIntegers) {
     std::string s;
     uint64_t large_uint = 18446744073709551615ULL; // Max value for uint64_t

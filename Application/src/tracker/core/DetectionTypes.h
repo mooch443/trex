@@ -22,7 +22,6 @@ namespace track::detect {
 class TREX_EXPORT TemporaryClassNames {
     std::function<yolo::names::owner_map_t()> _lookup;
     TemporaryClassNames* _previous;
-    static thread_local TemporaryClassNames* _active;
 
     static yolo::names::owner_map_t current();
     friend struct PredictionFilter;

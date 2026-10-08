@@ -8,7 +8,9 @@ using namespace cmn;
 
 namespace track::detect {
 
-thread_local TemporaryClassNames* TemporaryClassNames::_active = nullptr;
+namespace {
+thread_local TemporaryClassNames* _active = nullptr;
+}
 
 TemporaryClassNames::TemporaryClassNames(std::function<yolo::names::owner_map_t()> lookup)
     : _lookup(std::move(lookup)), _previous(std::exchange(_active, this))
