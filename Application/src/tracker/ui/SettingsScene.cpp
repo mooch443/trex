@@ -96,6 +96,7 @@ struct SettingsScene::Data {
     };
 
     std::atomic<uint64_t> _model_generation{0};
+    std::atomic<bool> _detection_models_changed{false};
     ProtectedProperty<std::optional<DetectionModelResult>> _model_configs;
     std::map<std::pair<std::string, std::string>, std::vector<track::detect::ModelConfig>> _cached_model_configs;
     track::detect::TemporaryClassNames _model_class_names{[this] {
@@ -201,7 +202,7 @@ struct SettingsScene::Data {
     void detection_models_updated() {
         update_running_tasks();
 
-        const auto generation = ++_model_generation;
+        const auto generation = _model_generation.load();
         const auto type = READ_SETTING_WITH_DEFAULT(detect_type, track::detect::ObjectDetectionType_t{});
         if(type != track::detect::ObjectDetectionType::yolo) {
             return;
@@ -297,6 +298,9 @@ struct SettingsScene::Data {
             GlobalSettings::unregister_callbacks(std::move(callback));
         
         auto fn = [this](std::string_view name) {
+            if(is_in(name, "detect_type", "detect_model", "region_model"))
+                ++_model_generation;
+
             if(name == "averaging_method") {
                 SETTING(reset_average) = true;
                 
@@ -357,17 +361,16 @@ struct SettingsScene::Data {
                 });
 
                 if(detect_type == track::detect::ObjectDetectionType::yolo)
-                    detection_models_updated();
+                    _detection_models_changed = true;
                 else {
                     if(is_in(detect_type, track::detect::ObjectDetectionType::background_subtraction, track::detect::ObjectDetectionType::precomputed, track::detect::ObjectDetectionType::none)) {
                         SETTING(detect_model) = file::Path{};
                         SETTING(region_model) = file::Path{};
                     }
-                    ++_model_generation;
                 }
                 
             } else if(name == "detect_model" || name == "region_model") {
-                detection_models_updated();
+                _detection_models_changed = true;
             }
         };
         
@@ -436,6 +439,10 @@ struct SettingsScene::Data {
     
     void draw(DrawStructure& graph) {
         using namespace dyn;
+        // Model inspection may initialize Python and must run outside settings callbacks.
+        if(_detection_models_changed.exchange(false))
+            detection_models_updated();
+
         if(not dynGUI) {
             dynGUI = DynamicGUI{
                 .gui = SceneManager::getInstance().gui_task_queue(),
