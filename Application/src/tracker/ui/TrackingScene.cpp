@@ -2657,6 +2657,14 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                 auto p = Meta::fromStr<Vec2>(props.parameters.front());
                 return coords.convert(BowlCoord(p));
             }),
+            VarFunc("vec2hud", [](const VarProps& props) {
+                auto coords = FindCoord::get();
+                auto pts = Meta::fromStr<std::vector<Vec2>>(props.parameters.front());
+                for(auto &p : pts) {
+                    p = coords.convert(BowlCoord(p));
+                }
+                return pts;
+            }),
             VarFunc("size2hud", [](const VarProps& props) {
                 auto coords = FindCoord::get();
                 auto p = Meta::fromStr<Size2>(props.parameters.front());

@@ -4,6 +4,7 @@
 #include <core/DetectionTypes.h>
 #include <core/default_config.h>
 #include <misc/GlobalSettings.h>
+#include <thirdparty/fkYAML/node.hpp>
 
 #include <chrono>
 #include <filesystem>
@@ -72,6 +73,418 @@ TEST(DetectAnnotationExporter, ConvertsSegmentationToYolo) {
 
     EXPECT_EQ("1 0 0 1 0 1 1",
               annotation_to_yolo({}, annotation, Size2(400, 200), {}));
+}
+
+TEST(DetectAnnotationExporter, ConvertsObbToYoloWithoutLosingCornerOrder) {
+    auto annotation = make_annotation(2, static_cast<AnnotationType>(3), {{0, 50}, {50, 0}, {100, 50}, {50, 100}});
+
+    EXPECT_EQ("2 0 0.25 0.125 0 0.25 0.25 0.125 0.5",
+              annotation_to_yolo({}, annotation, Size2(400, 200), {}));
+}
+
+TEST(DetectAnnotationExporter, NormalizesEditedGeometryWithoutChangingAnnotations) {
+    for(auto type : {AnnotationType::BOX, AnnotationType::OBB, AnnotationType::SEGMENTATION}) {
+        const auto annotation = make_annotation(0, type, {{20, 20}, {70, 60}, {70, 20}, {20, 60}});
+        const auto original = annotation.points;
+        AnnotationMap annotations;
+        annotations[0_f].push_back(annotation);
+        const auto json = build_coco_json({}, annotations, {0_f}, Size2(100, 100), {});
+        const auto& object = json.get_object().at("annotations").get_array().front().get_object();
+        const auto& bbox = object.at("bbox").get_array();
+        EXPECT_DOUBLE_EQ(20, bbox[0].get_number());
+        EXPECT_DOUBLE_EQ(20, bbox[1].get_number());
+        EXPECT_DOUBLE_EQ(50, bbox[2].get_number());
+        EXPECT_DOUBLE_EQ(40, bbox[3].get_number());
+        EXPECT_DOUBLE_EQ(2000, object.at("area").get_number());
+        const auto yolo = annotation_to_yolo({}, annotation, Size2(100, 100), {});
+        if(type == AnnotationType::BOX) {
+            EXPECT_EQ("0 0.45 0.4 0.5 0.4", yolo);
+        } else {
+            const auto& polygon = object.at("segmentation").get_array().front().get_array();
+            ASSERT_EQ(8u, polygon.size());
+            std::set<std::pair<double, double>> corners;
+            std::string expected = "0";
+            for(size_t i = 0; i < polygon.size(); i += 2) {
+                const auto x = polygon[i].get_number(), y = polygon[i + 1].get_number();
+                corners.emplace(x, y);
+                expected += " " + Meta::toStr(float(x) / 100.f) + " " + Meta::toStr(float(y) / 100.f);
+            }
+            EXPECT_EQ((std::set<std::pair<double, double>>{{20, 20}, {70, 20}, {70, 60}, {20, 60}}), corners);
+            EXPECT_EQ(expected, yolo);
+        }
+        EXPECT_EQ(original, annotation.points);
+        EXPECT_EQ(original, annotations.at(0_f).front().points);
+        Options options;
+        options.annotations = annotations;
+        options.output_directory = file::Path("annotations");
+        options.detect_format = type == AnnotationType::BOX ? ObjectDetectionFormat::boxes
+            : type == AnnotationType::OBB ? ObjectDetectionFormat::obb : ObjectDetectionFormat::masks;
+        EXPECT_TRUE(summarize(options, 1_f, Size2(100, 100)).can_export());
+    }
+}
+
+TEST(DetectAnnotationExporter, PreservesConcaveSegmentationAndItsArea) {
+    const auto annotation = make_annotation(0, AnnotationType::SEGMENTATION,
+                                          {{0, 0}, {100, 0}, {100, 40}, {40, 40}, {40, 100}, {0, 100}});
+    EXPECT_EQ("0 0 0 1 0 1 0.4 0.4 0.4 0.4 1 0 1",
+              annotation_to_yolo({}, annotation, Size2(100, 100), {}));
+    AnnotationMap annotations;
+    annotations[0_f].push_back(annotation);
+    const auto json = build_coco_json({}, annotations, {0_f}, Size2(100, 100), {});
+    const auto& object = json.get_object().at("annotations").get_array().front().get_object();
+    EXPECT_DOUBLE_EQ(6400, object.at("area").get_number());
+    EXPECT_EQ(12u, object.at("segmentation").get_array().front().get_array().size());
+}
+
+TEST(DetectAnnotationExporter, FitsSkewedObbAtFloatPrecision) {
+    const auto annotation = make_annotation(0, AnnotationType::OBB, {{30, 30}, {71, 50}, {60, 80}, {20, 60}});
+    AnnotationMap annotations;
+    annotations[0_f].push_back(annotation);
+    const auto json = build_coco_json({}, annotations, {0_f}, Size2(100, 100), {});
+    const auto& polygon = json.get_object().at("annotations").get_array().front()
+        .get_object().at("segmentation").get_array().front().get_array();
+    ASSERT_EQ(8u, polygon.size());
+    std::vector<Vec2> corners;
+    bool fractional = false;
+    std::istringstream row(annotation_to_yolo({}, annotation, Size2(100, 100), {}));
+    int clid;
+    ASSERT_TRUE(bool(row >> clid));
+    for(size_t i = 0; i < polygon.size(); i += 2) {
+        const auto x = polygon[i].get_number(), y = polygon[i + 1].get_number();
+        corners.emplace_back(x, y);
+        fractional |= std::abs(x - std::round(x)) > 1e-4 || std::abs(y - std::round(y)) > 1e-4;
+        double normalized_x, normalized_y;
+        ASSERT_TRUE(bool(row >> normalized_x >> normalized_y));
+        EXPECT_NEAR(x, normalized_x * 100, 1e-3);
+        EXPECT_NEAR(y, normalized_y * 100, 1e-3);
+    }
+    EXPECT_TRUE(fractional);
+    for(size_t i = 0; i < corners.size(); ++i) {
+        const auto a = corners[(i + 1) % 4] - corners[i];
+        const auto b = corners[(i + 2) % 4] - corners[(i + 1) % 4];
+        EXPECT_NEAR(0, double(a.x) * b.x + double(a.y) * b.y, 0.01);
+    }
+}
+
+TEST(DetectAnnotationExporter, RejectsObbFitOutsideImage) {
+    const auto annotation = make_annotation(0, AnnotationType::OBB, {{0, 50}, {100, 0}, {200, 50}, {100, 100}});
+    Options options;
+    options.annotations[0_f].push_back(annotation);
+    options.output_directory = file::Path("annotations");
+    options.detect_format = ObjectDetectionFormat::obb;
+    EXPECT_FALSE(summarize(options, 1_f, Size2(200, 100)).can_export());
+    EXPECT_THROW(annotation_to_yolo({}, annotation, Size2(200, 100), {}), std::exception);
+    EXPECT_THROW(build_coco_json({}, options.annotations, {0_f}, Size2(200, 100), {}), std::exception);
+}
+
+TEST(DetectAnnotationExporter, RejectsCollapsedGeometryInPreflightAndSerializers) {
+    for(auto type : {AnnotationType::BOX, AnnotationType::OBB, AnnotationType::SEGMENTATION}) {
+        const auto annotation = make_annotation(0, type, {{10, 10}, {10, 20}, {10, 30}, {10, 40}});
+        Options options;
+        options.annotations[0_f].push_back(annotation);
+        options.output_directory = file::Path("annotations");
+        options.detect_format = type == AnnotationType::BOX ? ObjectDetectionFormat::boxes
+            : type == AnnotationType::OBB ? ObjectDetectionFormat::obb : ObjectDetectionFormat::masks;
+        EXPECT_FALSE(summarize(options, 1_f, Size2(100, 100)).can_export());
+        EXPECT_THROW(annotation_to_yolo({}, annotation, Size2(100, 100), {}), std::exception);
+        EXPECT_THROW(build_coco_json({}, options.annotations, {0_f}, Size2(100, 100), {}), std::exception);
+    }
+}
+
+TEST(DetectAnnotationImporter, ImportsPoloPointAtOrigin) {
+    auto root = make_temp_dataset("polo_origin");
+    write_file(root / "data.yaml", "path: .\ntrain: images\nnames: [fish]\n");
+    write_file(root / "images" / "frame_000110.jpg");
+    write_file(root / "labels" / "frame_000110.txt", "0 12.5 0 0\n");
+
+    auto preview = preview_yolo_import(default_import_options(root / "data.yaml"), import_scope_t::all_videos);
+
+    ASSERT_TRUE(preview.can_import()) << Meta::toStr(preview.errors) << Meta::toStr(preview.warnings);
+    const auto& annotation = preview.annotations.at(10_f).front();
+    EXPECT_EQ(static_cast<AnnotationType>(4), annotation.type);
+    ASSERT_EQ(1u, annotation.points.size());
+    EXPECT_EQ(Annotation::Point_t(0, 0), annotation.points.front());
+    EXPECT_EQ(task_t::points, preview.task);
+    EXPECT_EQ(ObjectDetectionFormat::points, preview.metadata.imported_detect_format);
+    EXPECT_FLOAT_EQ(12.5f, preview.metadata.imported_point_radii.at(0));
+    EXPECT_TRUE(preview.metadata.point_radii_changed);
+}
+
+TEST(DetectAnnotationDataset, PreservesTypeIdsAndNewTypesInSettings) {
+    EXPECT_EQ(0, int(AnnotationType::BOX));
+    EXPECT_EQ(1, int(AnnotationType::POSE));
+    EXPECT_EQ(2, int(AnnotationType::SEGMENTATION));
+    EXPECT_EQ(3, int(AnnotationType::OBB));
+    EXPECT_EQ(4, int(AnnotationType::POINT));
+    AnnotationMap annotations;
+    annotations[0_f] = {
+        make_annotation(0, AnnotationType::OBB, {{0, 0}, {20, 0}, {20, 10}, {0, 10}}),
+        make_annotation(1, AnnotationType::POINT, {{0, 0}})
+    };
+    auto restored = AnnotationMap::fromStr(annotations.toStr());
+    ASSERT_EQ(2u, restored.at(0_f).size());
+    EXPECT_EQ(AnnotationType::OBB, restored.at(0_f)[0].type);
+    EXPECT_EQ(AnnotationType::POINT, restored.at(0_f)[1].type);
+    EXPECT_EQ(annotations.at(0_f)[1].points, restored.at(0_f)[1].points);
+    EXPECT_EQ(1u, restored.at(0_f)[1].uid);
+    const auto counts = count_annotation_types(restored);
+    EXPECT_EQ(1u, counts.obbs);
+    EXPECT_EQ(1u, counts.points);
+    EXPECT_EQ(2u, counts.total());
+
+    annotations.sources()["input.mp4"] = restored;
+    auto nested = AnnotationMap::fromStr(annotations.toStr());
+    EXPECT_EQ(AnnotationType::POINT, nested.sources().at("input.mp4").at(0_f)[1].type);
+}
+
+TEST(DetectAnnotationExporter, UsesClassRadiusBeforeImageSizeFallback) {
+    auto point = make_annotation(2, AnnotationType::POINT, {{100, 50}});
+    const Size2 individual_image_size(80, 120);
+    const float fallback = 0.5f * std::max(individual_image_size.width, individual_image_size.height);
+    EXPECT_EQ("2 60 0.25 0.25", annotation_to_yolo({}, point, Size2(400, 200), {}, {}, fallback));
+    EXPECT_EQ("2 7.5 0.25 0.25", annotation_to_yolo({}, point, Size2(400, 200), {}, {{2, 7.5f}}, fallback));
+    EXPECT_THROW(annotation_to_yolo({}, point, Size2(400, 200), {}, {{2, 0.f}}, fallback), std::exception);
+    EXPECT_THROW(annotation_to_yolo({}, point, Size2(400, 200), {}, {}, 0.f), std::exception);
+    EXPECT_THROW(annotation_to_yolo({}, point, Size2(400, 200), {}, {}, std::numeric_limits<float>::infinity()), std::exception);
+}
+
+TEST(DetectAnnotationExporter, RejectsMalformedObbAndPointGeometry) {
+    for(auto type : {AnnotationType::OBB, AnnotationType::POINT}) {
+        auto annotation = make_annotation(0, type, {{10, 10}, {20, 20}});
+        EXPECT_THROW(annotation_to_yolo({}, annotation, Size2(100, 100), {}, {}, 20.f), std::exception);
+    }
+    auto outside = make_annotation(0, AnnotationType::POINT, {{101, 0}});
+    EXPECT_THROW(annotation_to_yolo({}, outside, Size2(100, 100), {}, {}, 20.f), std::exception);
+}
+
+TEST(DetectAnnotationExporter, SelectsOnlyDetectFormatForBothDatasets) {
+    Options options;
+    options.annotations = mixed_annotations();
+    options.annotations[6_f].push_back(make_annotation(3, AnnotationType::OBB, {{0, 0}, {20, 0}, {20, 10}, {0, 10}}));
+    options.annotations[7_f].push_back(make_annotation(4, AnnotationType::POINT, {{0, 0}}));
+    options.output_directory = file::Path("annotations");
+    options.keypoint_names = {"nose", "tail"};
+    options.fallback_point_radius = 60.f;
+    const std::vector<std::pair<ObjectDetectionFormat_t, AnnotationType>> types{
+        {ObjectDetectionFormat::boxes, AnnotationType::BOX},
+        {ObjectDetectionFormat::masks, AnnotationType::SEGMENTATION},
+        {ObjectDetectionFormat::poses, AnnotationType::POSE},
+        {ObjectDetectionFormat::obb, AnnotationType::OBB},
+        {ObjectDetectionFormat::points, AnnotationType::POINT}
+    };
+    for(auto format : {annotation_dataset::format_t::yolo, annotation_dataset::format_t::coco}) {
+        options.format = format;
+        for(auto [detect_format, type] : types) {
+            options.detect_format = detect_format;
+            auto selected = select_annotations(options);
+            ASSERT_EQ(1u, selected.size());
+            EXPECT_EQ(type, selected.begin()->second.front().type);
+            auto summary = summarize(options, 10_f, Size2(100, 100));
+            EXPECT_TRUE(summary.can_export()) << Meta::toStr(summary.errors);
+            EXPECT_EQ(1u, summary.counts.total());
+            EXPECT_EQ(1u, summary.annotated_frames);
+            EXPECT_EQ(type == AnnotationType::POSE ? 2u : 0u, summary.keypoint_names.size());
+        }
+        options.detect_format = ObjectDetectionFormat::none;
+        EXPECT_FALSE(summarize(options, 10_f, Size2(100, 100)).can_export());
+    }
+    options.detect_format = ObjectDetectionFormat::points;
+    options.annotations.erase(7_f);
+    EXPECT_FALSE(summarize(options, 10_f, Size2(100, 100)).can_export());
+}
+
+TEST(DetectAnnotationImporter, DistinguishesObbFromPolygonUsingTaskMetadataOrOverride) {
+    auto root = make_temp_dataset("obb_task");
+    write_file(root / "images" / "frame_000110.jpg");
+    write_file(root / "labels" / "frame_000110.txt", "0 0 0 1 0 1 1 0 1\n");
+    auto options = default_import_options(root / "data.yaml");
+    for(const auto& task : {std::string{}, std::string("task: obb\n"), std::string("task: segment\n")}) {
+        write_file(root / "data.yaml", "path: .\ntrain: images\nnames: [fish]\n" + task);
+        options.task = task_t::unknown;
+        auto automatic = preview_yolo_import(options, import_scope_t::all_videos);
+        ASSERT_TRUE(automatic.can_import()) << Meta::toStr(automatic.errors);
+        EXPECT_EQ(task == "task: obb\n" ? AnnotationType::OBB : AnnotationType::SEGMENTATION,
+                  automatic.annotations.at(10_f).front().type);
+        options.task = task_t::obb;
+        auto obb = preview_yolo_import(options, import_scope_t::all_videos);
+        ASSERT_TRUE(obb.can_import());
+        EXPECT_EQ(AnnotationType::OBB, obb.annotations.at(10_f).front().type);
+        EXPECT_EQ(ObjectDetectionFormat::obb, obb.metadata.imported_detect_format);
+        EXPECT_EQ(Annotation::Point_t(0, 0), obb.annotations.at(10_f).front().points.front());
+        options.task = task_t::segmentation;
+        auto polygon = preview_yolo_import(options, import_scope_t::all_videos);
+        ASSERT_TRUE(polygon.can_import());
+        EXPECT_EQ(AnnotationType::SEGMENTATION, polygon.annotations.at(10_f).front().type);
+    }
+}
+
+TEST(DetectAnnotationImporter, RejectsMalformedNewLabelTypesAtomically) {
+    auto root = make_temp_dataset("new_invalid_rows");
+    write_file(root / "images" / "frame_000110.jpg");
+    auto options = default_import_options(root / "data.yaml");
+    write_file(root / "data.yaml", "path: .\ntrain: images\nnames: [fish]\ntask: locate\n");
+    for(const std::string row : {"0 5 0 0\n0 6 0.5 0.5\n", "0 -1 0.5 0.5\n", "0 5 1.1 0\n", "0 nan 0 0\n", "0 5 0.5\n"}) {
+        write_file(root / "labels" / "frame_000110.txt", row);
+        auto preview = preview_yolo_import(options, import_scope_t::all_videos);
+        EXPECT_FALSE(preview.can_import());
+        EXPECT_TRUE(preview.annotations.empty());
+        EXPECT_TRUE(preview.source_annotations.empty());
+        EXPECT_TRUE(preview.metadata.imported_point_radii.empty());
+        EXPECT_FALSE(preview.warnings.empty());
+    }
+    write_file(root / "data.yaml", "path: .\ntrain: images\nnames: [fish]\ntask: obb\n");
+    for(const std::string row : {"0 0 0 1 0 1 1\n", "0 -0.1 0 1 0 1 1 0 1\n", "0 nan 0 1 0 1 1 0 1\n"}) {
+        write_file(root / "labels" / "frame_000110.txt", row);
+        EXPECT_FALSE(preview_yolo_import(options, import_scope_t::all_videos).can_import());
+    }
+}
+
+TEST(DetectAnnotationImporter, ValidatesPoloRadiusMetadataAgainstRows) {
+    auto root = make_temp_dataset("polo_radii");
+    write_file(root / "images" / "frame_000110.jpg");
+    write_file(root / "labels" / "frame_000110.txt", "0 5 0 0\n");
+    auto options = default_import_options(root / "data.yaml");
+    options.current_point_radii = {{0, 5.f}, {7, 23.f}};
+    write_file(root / "data.yaml", "path: .\ntrain: images\nnames: [fish]\ntask: locate\nradii: {0: 5}\n");
+    auto preview = preview_yolo_import(options, import_scope_t::all_videos);
+    ASSERT_TRUE(preview.can_import());
+    EXPECT_FALSE(preview.metadata.point_radii_changed);
+    EXPECT_EQ(1u, preview.metadata.imported_point_radii.size());
+    EXPECT_FLOAT_EQ(23.f, options.current_point_radii.at(7));
+    write_file(root / "data.yaml", "path: .\ntrain: images\nnames: [fish]\ntask: locate\nradii: {0: 6}\n");
+    EXPECT_FALSE(preview_yolo_import(options, import_scope_t::all_videos).can_import());
+    write_file(root / "data.yaml", "path: .\ntrain: images\nnames: [fish]\nradii: {0: -1}\n");
+    EXPECT_FALSE(preview_yolo_import(options, import_scope_t::all_videos).can_import());
+
+    write_file(root / "data.yaml", "path: .\ntrain: images\nnames: [fish]\ntask: locate\nradii: {0: 0.0000001}\n");
+    write_file(root / "labels" / "frame_000110.txt",
+               annotation_to_yolo({}, make_annotation(0, AnnotationType::POINT, {{0, 0}}), Size2(200, 100), {}, {{0, 1e-7f}}) + "\n");
+    EXPECT_TRUE(preview_yolo_import(options, import_scope_t::all_videos).can_import());
+}
+
+TEST(DetectAnnotationExporter, StoresCocoObbAreaAndVisibleOriginPoint) {
+    AnnotationMap annotations;
+    annotations[0_f].push_back(make_annotation(0, AnnotationType::OBB, {{0, 50}, {50, 0}, {100, 50}, {50, 100}}));
+    auto obb_json = build_coco_json({}, annotations, {0_f}, Size2(200, 100), {});
+    const auto& obb = obb_json.get_object().at("annotations").get_array().front().get_object();
+    ASSERT_TRUE(obb.at("trex_annotation_type").is_string());
+    EXPECT_EQ("obb", obb.at("trex_annotation_type").get_string());
+    EXPECT_DOUBLE_EQ(5000, obb.at("area").get_number());
+    EXPECT_DOUBLE_EQ(100, obb.at("bbox").get_array()[2].get_number());
+    EXPECT_DOUBLE_EQ(100, obb.at("bbox").get_array()[3].get_number());
+
+    annotations[0_f] = {make_annotation(0, AnnotationType::POINT, {{0, 0}})};
+    auto point_json = build_coco_json({}, annotations, {0_f}, Size2(200, 100), {}, {}, 60.f);
+    const auto& point = point_json.get_object().at("annotations").get_array().front().get_object();
+    ASSERT_TRUE(point.at("trex_annotation_type").is_string());
+    EXPECT_EQ("point", point.at("trex_annotation_type").get_string());
+    const auto& category = point_json.get_object().at("categories").get_array().front().get_object();
+    ASSERT_TRUE(category.at("trex_annotation_type").is_string());
+    EXPECT_EQ("point", category.at("trex_annotation_type").get_string());
+    EXPECT_DOUBLE_EQ(0, point.at("area").get_number());
+    EXPECT_DOUBLE_EQ(1, point.at("num_keypoints").get_number());
+    const auto& keypoint = point.at("keypoints").get_array();
+    ASSERT_EQ(3u, keypoint.size());
+    EXPECT_DOUBLE_EQ(0, keypoint[0].get_number());
+    EXPECT_DOUBLE_EQ(0, keypoint[1].get_number());
+    EXPECT_DOUBLE_EQ(2, keypoint[2].get_number());
+    for(const auto& value : point.at("bbox").get_array())
+        EXPECT_DOUBLE_EQ(0, value.get_number());
+}
+
+TEST(DetectAnnotationImporter, DoesNotInferNewCocoTypesWithoutMarkers) {
+    auto root = make_temp_dataset("coco_type_markers");
+    const auto dataset = root / "_annotations.coco.json";
+    const std::string prefix = R"({"images":[{"id":1,"file_name":"frame_000110.jpg","width":200,"height":100}],"categories":[{"id":0,"name":"fish"}],"annotations":[{"id":1,"image_id":1,"category_id":0,)";
+    auto options = default_import_options(dataset);
+    options.format = annotation_dataset::format_t::coco;
+    write_file(dataset, prefix + R"("segmentation":[[0,0,100,0,100,100,0,100]]}]})");
+    auto polygon = preview_coco_import(options);
+    ASSERT_TRUE(polygon.can_import());
+    EXPECT_EQ(AnnotationType::SEGMENTATION, polygon.annotations.at(10_f).front().type);
+    write_file(dataset, prefix + R"("keypoints":[20,30,2]}]})");
+    auto pose = preview_coco_import(options);
+    ASSERT_TRUE(pose.can_import());
+    EXPECT_EQ(AnnotationType::POSE, pose.annotations.at(10_f).front().type);
+    for(const std::string geometry : {
+        R"("trex_annotation_type":"obb","segmentation":[[0,0,100,0,100,100]])",
+        R"("trex_annotation_type":"obb","segmentation":[[0,0,100,0,100,100,0,100],[0,0,10,0,10,10,0,10]])",
+        R"("trex_annotation_type":"point","keypoints":[0,0,0])",
+        R"("trex_annotation_type":"point","keypoints":[0,0,2,10,10,2])",
+        R"("trex_annotation_type":"point","keypoints":[201,0,2])"
+    }) {
+        write_file(dataset, prefix + geometry + "}]}");
+        auto invalid = preview_coco_import(options);
+        EXPECT_FALSE(invalid.can_import());
+        EXPECT_FALSE(invalid.errors.empty());
+    }
+}
+
+TEST(DetectAnnotationExporter, RoundTripsObbAndPointDatasetsAndExcludesOtherTypesFromBackgrounds) {
+    GlobalSettings::write([](Configuration& config) { ::default_config::get(config); });
+    (void)track::detect::yolo::names::get_map();
+    SETTING(detect_classes) = cmn::blob::MaybeObjectClass_t{};
+    auto root = make_temp_dataset("new_dataset_roundtrip");
+    std::vector<std::string> source_paths;
+    for(size_t i = 0; i < 3; ++i) {
+        auto path = root / ("input_" + Meta::toStr(i) + ".png");
+        ASSERT_TRUE(cv::imwrite(path.str(), cv::Mat(100, 200, CV_8UC3, cv::Scalar(0, 0, 0))));
+        source_paths.push_back(path.str());
+    }
+    for(auto format : {annotation_dataset::format_t::yolo, annotation_dataset::format_t::coco}) {
+        for(auto type : {AnnotationType::OBB, AnnotationType::POINT}) {
+            Options options;
+            options.format = format;
+            options.detect_format = type == AnnotationType::OBB ? ObjectDetectionFormat::obb : ObjectDetectionFormat::points;
+            options.source = file::PathArray(source_paths);
+            options.source_start = 100_f;
+            options.video_source_basename = "input.mp4";
+            options.output_directory = root / (options.format.str() + "_" + options.detect_format.str());
+            options.background_percent = 100.f;
+            options.fallback_point_radius = 60.f;
+            options.point_radii = {{0, 12.5f}};
+            options.keypoint_names = {"unrelated_pose_keypoint"};
+            const auto annotation = type == AnnotationType::OBB
+                ? make_annotation(0, type, {{0, 50}, {50, 0}, {100, 50}, {50, 100}})
+                : make_annotation(0, type, {{0, 0}});
+            options.annotations[0_f].push_back(annotation);
+            options.annotations[1_f].push_back(make_annotation(0, AnnotationType::BOX, {{10, 10}, {20, 20}}));
+
+            auto summary = export_dataset(options);
+            EXPECT_EQ(1u, summary.annotated_frames);
+            EXPECT_EQ(1u, summary.background_frames);
+            const auto mapping = (options.output_directory / "frame_mapping.csv").read_file();
+            EXPECT_NE(std::string::npos, mapping.find(frame_stem(options.source, 0_f)));
+            EXPECT_EQ(std::string::npos, mapping.find(frame_stem(options.source, 1_f)));
+            EXPECT_NE(std::string::npos, mapping.find(frame_stem(options.source, 2_f)));
+
+            auto dataset = options.output_directory / "data.yaml";
+            if(format == annotation_dataset::format_t::coco)
+                dataset = options.output_directory / "train" / "_annotations.coco.json";
+            else {
+                auto yaml = fkyaml::node::deserialize(dataset.read_file());
+                EXPECT_EQ(type == AnnotationType::OBB ? "obb" : "locate", yaml["task"].get_value<std::string>());
+                EXPECT_FALSE(yaml.contains("kpt_shape"));
+                if(type == AnnotationType::POINT)
+                    EXPECT_FLOAT_EQ(12.5f, yaml["radii"][0].get_value<float>());
+            }
+            auto import_options = default_import_options(dataset);
+            import_options.format = format;
+            import_options.current_source_basename = "input.mp4";
+            import_options.frame_mapping_csv = options.output_directory / "frame_mapping.csv";
+            auto preview = preview_dataset_import(import_options, import_scope_t::all_videos);
+            ASSERT_TRUE(preview.can_import()) << Meta::toStr(preview.errors) << Meta::toStr(preview.warnings);
+            ASSERT_EQ(1u, preview.annotations.size());
+            ASSERT_EQ(1u, preview.annotations.at(0_f).size());
+            EXPECT_EQ(annotation, preview.annotations.at(0_f).front());
+            EXPECT_TRUE(preview.metadata.imported_keypoint_names.empty());
+            EXPECT_FALSE(preview.metadata.imported_skeletons);
+            if(type == AnnotationType::POINT)
+                EXPECT_FLOAT_EQ(12.5f, preview.metadata.imported_point_radii.at(0));
+            auto applied = apply_dataset_import(preview, {}, merge_mode_t::replace, import_scope_t::current_video);
+            EXPECT_EQ(annotation, applied.at(0_f).front());
+        }
+    }
 }
 
 TEST(DetectAnnotationExporter, ConvertsPoseToYoloAndPadsMissingKeypoints) {
@@ -183,6 +596,7 @@ TEST(DetectAnnotationExporter, ExportsUnlabeledPoseKeypointsAsZeroVisibility) {
 
 TEST(DetectAnnotationExporter, SummarizesCountsAndBackgroundPercentage) {
     Options options;
+    options.detect_format = ObjectDetectionFormat::boxes;
     options.annotations = mixed_annotations();
     options.keypoint_names = {"nose", "tail"};
     options.background_percent = 50.f;
@@ -191,12 +605,12 @@ TEST(DetectAnnotationExporter, SummarizesCountsAndBackgroundPercentage) {
     auto summary = summarize(options, 10_f, Size2(100, 100));
 
     EXPECT_TRUE(summary.can_export());
-    EXPECT_EQ(3u, summary.annotated_frames);
-    EXPECT_EQ(2u, summary.background_frames);
-    EXPECT_EQ(5u, summary.total_images);
+    EXPECT_EQ(1u, summary.annotated_frames);
+    EXPECT_EQ(1u, summary.background_frames);
+    EXPECT_EQ(2u, summary.total_images);
     EXPECT_EQ(1u, summary.counts.boxes);
-    EXPECT_EQ(1u, summary.counts.segmentations);
-    EXPECT_EQ(1u, summary.counts.poses);
+    EXPECT_EQ(0u, summary.counts.segmentations);
+    EXPECT_EQ(0u, summary.counts.poses);
 }
 
 TEST(DetectAnnotationExporter, SamplesBackgroundFramesDeterministicallyAndExcludesAnnotations) {
@@ -215,6 +629,7 @@ TEST(DetectAnnotationExporter, SamplesBackgroundFramesDeterministicallyAndExclud
 
 TEST(DetectAnnotationExporter, RejectsInvalidKeypointNamesAndTooManyPosePoints) {
     Options options;
+    options.detect_format = ObjectDetectionFormat::poses;
     options.annotations[1_f].push_back(make_annotation(0, AnnotationType::POSE, {{10, 10}, {20, 20}, {30, 30}}));
     options.keypoint_names = {"nose", "nose"};
     options.output_directory = file::Path("annotations");
@@ -229,10 +644,12 @@ TEST(DetectAnnotationExporter, RejectsInvalidKeypointNamesAndTooManyPosePoints) 
 
 TEST(DetectAnnotationExporter, RejectsEmptyAnnotationsAndOutOfBoundsPoints) {
     Options empty;
+    empty.detect_format = ObjectDetectionFormat::boxes;
     empty.output_directory = file::Path("annotations");
     EXPECT_FALSE(summarize(empty, 10_f, Size2(100, 100)).can_export());
 
     Options out_of_bounds;
+    out_of_bounds.detect_format = ObjectDetectionFormat::boxes;
     out_of_bounds.annotations[1_f].push_back(make_annotation(0, AnnotationType::BOX, {{10, 10}, {200, 200}}));
     out_of_bounds.output_directory = file::Path("annotations");
     EXPECT_FALSE(summarize(out_of_bounds, 10_f, Size2(100, 100)).can_export());
@@ -240,6 +657,7 @@ TEST(DetectAnnotationExporter, RejectsEmptyAnnotationsAndOutOfBoundsPoints) {
 
 TEST(DetectAnnotationExporter, FailsPredictablyForMissingSource) {
     Options options;
+    options.detect_format = ObjectDetectionFormat::boxes;
     options.annotations[1_f].push_back(make_annotation(0, AnnotationType::BOX, {{10, 10}, {20, 20}}));
     options.output_directory = file::Path("annotations");
     options.source = file::PathArray("/tmp/trex_missing_annotation_source.mp4");
@@ -761,6 +1179,35 @@ TEST(DetectAnnotationImporter, ImportsCocoWithCsvVideoSourceMapping) {
     EXPECT_FALSE(preview.annotations.contains(13_f));
     EXPECT_TRUE(preview.source_annotations.at("current_video.mp4").contains(112_f));
     EXPECT_TRUE(preview.source_annotations.at("other_video.mp4").contains(113_f));
+}
+
+TEST(DetectAnnotationImporter, ResolvesCocoCsvPathsBeforeDuplicateBasenames) {
+    auto root = make_temp_dataset("coco_csv_split_paths");
+    write_file(root / "mapping.csv",
+               "image,video_source,source_index\n"
+               "duplicate.jpg,current_video.mp4,114\n"
+               "train/duplicate.jpg,current_video.mp4,112\n"
+               "val/duplicate.jpg,current_video.mp4,113\n");
+
+    for(const auto* split : {"train", "val"}) {
+        SCOPED_TRACE(split);
+        const auto dataset = root / split / "_annotations.coco.json";
+        write_file(dataset,
+                   R"({"images":[{"id":1,"file_name":"duplicate.jpg","width":200,"height":100}],)"
+                   R"("annotations":[{"id":1,"image_id":1,"category_id":0,"bbox":[50,25,100,50]}],)"
+                   R"("categories":[{"id":0,"name":"fish"}]})");
+
+        auto options = default_import_options(dataset);
+        options.format = annotation_dataset::format_t::coco;
+        options.frame_mapping_csv = root / "mapping.csv";
+        options.current_source_basename = "current_video.mp4";
+        auto preview = preview_coco_import(options);
+
+        ASSERT_TRUE(preview.can_import()) << Meta::toStr(preview.errors);
+        EXPECT_EQ(1u, preview.mapped_from_csv);
+        ASSERT_EQ(1u, preview.annotations.size());
+        EXPECT_TRUE(preview.annotations.contains(std::string_view(split) == "train" ? 12_f : 13_f));
+    }
 }
 
 TEST(DetectAnnotationImporter, ImportsCocoClassAndKeypointNamesFromRoboflowStyleJson) {

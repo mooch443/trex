@@ -64,7 +64,7 @@
                 "children":[
                     {
                         "type":"condition",
-                        "var":"{equal:{i.type}:1}",
+                        "var":"{in:{i.type}:[0,1,2,3,4]}",
                         "then": {
                             "type":"each",
                             "var":"{i.pts}",
@@ -73,17 +73,12 @@
                                 "type":"condition",
                                 "var":"{||:{>:{j.x}:0}:{>:{j.y}:0}}",
                                 "then": {
-                                    "type":"collection",
-                                    "children":[
-                                        {
-                                            "type":"circle",
-                                            "radius":5,
-                                            "pos":"{addVector:{subVector:{2hud:[{j.x},{j.y}]}:{2hud:[{i.x},{i.y}]}}:[25,25]}",
-                                            "origin":[0.5,0.5],
-                                            "fill": [255,255,255,50],
-                                            "color":[255,255,255,50]
-                                        }
-                                    ]
+                                    "type":"circle",
+                                    "radius":5,
+                                    "pos":"{addVector:{subVector:{2hud:[{j.x},{j.y}]}:{2hud:[{i.x},{i.y}]}}:[25,25]}",
+                                    "origin":[0.5,0.5],
+                                    "fill": [255,255,255,50],
+                                    "color":[255,255,255,50]
                                 }
                             }
                         }
@@ -105,7 +100,18 @@
 
             {
                 "type":"condition",
-                "var":"{||:{equal:{i.type}:1}:{equal:{i.type}:0}}",
+                "var":"{&&:{i.pts}:{in:{i.type}:[1,2,3,4]}}",
+                "then": {
+                    "type":"line",
+                    "closed":true,
+                    "points":"{vec2hud:{i.pts}}",
+                    "line":[255,0,0,255]
+                }
+            },
+
+            {
+                "type":"condition",
+                "var":"{in:{i.type}:[0,1,2,3,4]}",
                 "then": {
                     "type":"each",
                     "var":"{i.pts}",
@@ -143,7 +149,7 @@
 
             {
                 "type":"label",
-                "text":"<sym>🖰</sym> {i.clid} <c>{if:{equal:{i.type}:1}:POSE:{if:{equal:{i.type}:0}:BOX:UNKNOWN}}</c> annotation <c>[{int:{i.x}},{int:{i.y}} {int:{i.w}}x{int:{i.h}}]</c> {+:{i.x}:{*:0.5:{i.w}}},{+:{i.y}:{*:0.5:{i.h}}}",
+                "text":"<sym>🖰</sym> {i.clid} <c>{if:{equal:{i.type}:1}:POSE:{if:{equal:{i.type}:0}:BOX:{if:{equal:{i.type}:2}:MASK:{if:{equal:{i.type}:3}:OBB:{if:{equal:{i.type}:4}:POINT:UNKNOWN}}}}}</c> <c>[{int:{i.x}},{int:{i.y}} {int:{i.w}}x{int:{i.h}}]</c> {+:{i.x}:{*:0.5:{i.w}}},{+:{i.y}:{*:0.5:{i.h}}}",
                 "length":120,
                 "color":[255,0,0],
                 "font":{"size":0.6},

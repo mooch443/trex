@@ -73,19 +73,19 @@ constexpr std::string_view kSplitDir = "train";
 constexpr std::string_view kImagesDir = "images";
 constexpr std::string_view kLabelsDir = "labels";
 
-Bounds annotation_bounds(const Annotation& annotation) {
-    if(annotation.points.empty())
+Bounds annotation_bounds(AnnotationType type, const std::vector<Vec2>& points) {
+    if(points.empty())
         throw InvalidArgumentException("Annotation has no points.");
 
     // POSE annotations may carry unlabeled keypoints, stored as invalid (0,0)
     // placeholders so keypoint indices stay aligned with the skeleton schema.
     // Those must not stretch the bounding box to the image origin. For boxes and
     // segmentations every point is meaningful, including a corner at (0,0).
-    const bool skip_invalid = annotation.type == AnnotationType::POSE;
+    const bool skip_invalid = type == AnnotationType::POSE;
 
     std::optional<float> min_x, min_y, max_x, max_y;
-    for(const auto& point : annotation.points) {
-        if(skip_invalid && !point.valid())
+    for(const auto& point : points) {
+        if(skip_invalid && point.x == 0 && point.y == 0)
             continue;
         min_x = min_x ? std::min<float>(*min_x, point.x) : float(point.x);
         min_y = min_y ? std::min<float>(*min_y, point.y) : float(point.y);
@@ -104,8 +104,9 @@ void validate_point(const Annotation::Point_t& point, const Size2& image_size) {
         throw InvalidArgumentException("Annotation point ", point, " is out of image bounds ", image_size, ".");
 }
 
-void validate_annotation(const Annotation& annotation, const Size2& image_size, const std::vector<std::string>& keypoint_names) {
-    if(image_size.width <= 0 || image_size.height <= 0)
+std::vector<Vec2> export_geometry(const Annotation& annotation, const Size2& image_size, const std::vector<std::string>& keypoint_names) {
+    if(!std::isfinite(image_size.width) || !std::isfinite(image_size.height)
+       || image_size.width <= 0 || image_size.height <= 0)
         throw InvalidArgumentException("Image size must be positive, got ", image_size, ".");
 
     switch(annotation.type) {
@@ -123,10 +124,98 @@ void validate_annotation(const Annotation& annotation, const Size2& image_size, 
             if(annotation.points.size() > keypoint_names.size())
                 throw InvalidArgumentException("POSE annotation has ", annotation.points.size(), " points, but the keypoint schema has only ", keypoint_names.size(), " names.");
             break;
+        case AnnotationType::OBB:
+            if(annotation.points.size() != 4u)
+                throw InvalidArgumentException("OBB annotation needs exactly 4 corners, got ", annotation.points.size(), ".");
+            break;
+        case AnnotationType::POINT:
+            if(annotation.points.size() != 1u)
+                throw InvalidArgumentException("POINT annotation needs exactly one point, got ", annotation.points.size(), ".");
+            break;
     }
 
     for(const auto& point : annotation.points)
         validate_point(point, image_size);
+
+    std::vector<Vec2> points(annotation.points.begin(), annotation.points.end());
+    if(annotation.type == AnnotationType::SEGMENTATION || annotation.type == AnnotationType::OBB) {
+        points.erase(std::unique(points.begin(), points.end()), points.end());
+        if(points.size() > 1 && points.front() == points.back())
+            points.pop_back();
+        auto hull = poly_convex_hull(&points);
+        if(!hull)
+            throw InvalidArgumentException("Annotation needs at least three distinct, non-collinear points.");
+
+        if(annotation.type == AnnotationType::OBB) {
+            // Keep existing rectangles and their corner order; edited corners
+            // use the same minimum-area fit as OBB creation, at float precision.
+            bool rectangle = points.size() == 4;
+            for(size_t i = 0; rectangle && i < points.size(); ++i) {
+                const auto a = points[(i + 1) % 4] - points[i];
+                const auto b = points[(i + 2) % 4] - points[(i + 1) % 4];
+                rectangle = double(a.x) * b.x + double(a.y) * b.y == 0;
+            }
+            if(!rectangle) {
+                std::vector<cv::Point2f> converted;
+                for(const auto& point : *hull)
+                    converted.emplace_back(point.x, point.y);
+                cv::Point2f corners[4];
+                cv::minAreaRect(converted).points(corners);
+                points.clear();
+                const float tolerance = 8.f * std::numeric_limits<float>::epsilon()
+                                      * std::max(image_size.width, image_size.height);
+                for(const auto& corner : corners) {
+                    if(!std::isfinite(corner.x) || !std::isfinite(corner.y)
+                       || corner.x < -tolerance || corner.y < -tolerance
+                       || corner.x > image_size.width + tolerance || corner.y > image_size.height + tolerance)
+                        throw InvalidArgumentException("Fitted OBB extends outside image bounds ", image_size, ".");
+                    points.emplace_back(std::clamp(corner.x, 0.f, image_size.width),
+                                        std::clamp(corner.y, 0.f, image_size.height));
+                }
+            }
+        } else {
+            // Preserve simple polygons, including concave imported masks. Only
+            // intersecting or overlapping edges require the creation-time hull.
+            auto orientation = [](const Vec2& a, const Vec2& b, const Vec2& c) {
+                return double(b.x - a.x) * (c.y - a.y) - double(b.y - a.y) * (c.x - a.x);
+            };
+            bool simple = true;
+            for(size_t i = 0; simple && i < points.size(); ++i) {
+                const auto& a = points[i];
+                const auto& b = points[(i + 1) % points.size()];
+                for(size_t j = i + 1; j < points.size(); ++j) {
+                    if(j == i + 1 || (i == 0 && j + 1 == points.size()))
+                        continue;
+                    const auto& c = points[j];
+                    const auto& d = points[(j + 1) % points.size()];
+                    if(std::max(a.x, b.x) < std::min(c.x, d.x) || std::max(c.x, d.x) < std::min(a.x, b.x)
+                       || std::max(a.y, b.y) < std::min(c.y, d.y) || std::max(c.y, d.y) < std::min(a.y, b.y))
+                        continue;
+                    if(orientation(a, b, c) * orientation(a, b, d) <= 0
+                       && orientation(c, d, a) * orientation(c, d, b) <= 0)
+                    {
+                        simple = false;
+                        break;
+                    }
+                }
+            }
+            if(!simple)
+                points = std::move(*hull);
+        }
+    }
+
+    const auto bounds = annotation_bounds(annotation.type, points);
+    if(annotation.type == AnnotationType::BOX && (bounds.width <= 0 || bounds.height <= 0))
+        throw InvalidArgumentException("BOX annotation needs positive width and height.");
+    return points;
+}
+
+float point_radius(int clid, const std::map<int, float>& radii, float fallback) {
+    auto it = radii.find(clid);
+    const float radius = it == radii.end() ? fallback : it->second;
+    if(!std::isfinite(radius) || radius <= 0.f)
+        throw InvalidArgumentException("POINT class ", clid, " requires a positive finite radius, got ", radius, ".");
+    return radius;
 }
 
 void validate_keypoint_names(const std::vector<std::string>& names) {
@@ -238,10 +327,10 @@ std::vector<glz::json_t> bbox_json(const Bounds& bounds) {
     };
 }
 
-std::vector<glz::json_t> segmentation_json(const Annotation& annotation) {
+std::vector<glz::json_t> segmentation_json(const std::vector<Vec2>& points) {
     std::vector<glz::json_t> polygon;
-    polygon.reserve(annotation.points.size() * 2);
-    for(const auto& point : annotation.points) {
+    polygon.reserve(points.size() * 2);
+    for(const auto& point : points) {
         polygon.emplace_back(point.x);
         polygon.emplace_back(point.y);
     }
@@ -258,7 +347,7 @@ std::set<uint16_t> class_ids(const AnnotationMap& annotations) {
     return ids;
 }
 
-void append_yolo_metadata(YamlNode& yaml, const AnnotationMap& annotations, const std::vector<std::string>& keypoint_names) {
+void append_yolo_metadata(YamlNode& yaml, const AnnotationMap& annotations, const std::vector<std::string>& keypoint_names, const Options& options) {
     auto ids = class_ids(annotations);
 
     auto names = YamlNode::mapping();
@@ -283,7 +372,24 @@ void append_yolo_metadata(YamlNode& yaml, const AnnotationMap& annotations, cons
 
     yaml["nc"] = nc;
     yaml["names"] = std::move(names);
-    if(!keypoint_names.empty()) {
+    switch(options.detect_format) {
+        case ObjectDetectionFormat::boxes: yaml["task"] = "detect"; break;
+        case ObjectDetectionFormat::masks: yaml["task"] = "segment"; break;
+        case ObjectDetectionFormat::poses: yaml["task"] = "pose"; break;
+        case ObjectDetectionFormat::obb: yaml["task"] = "obb"; break;
+        case ObjectDetectionFormat::points: yaml["task"] = "locate"; break;
+        case ObjectDetectionFormat::none: break;
+    }
+    if(options.detect_format == ObjectDetectionFormat::points) {
+        auto radii = YamlNode::mapping();
+        for(const auto& [id, name] : yaml["names"].as_map()) {
+            (void)name;
+            const auto clid = id.get_value<int>();
+            radii[clid] = point_radius(clid, options.point_radii, options.fallback_point_radius);
+        }
+        yaml["radii"] = std::move(radii);
+    }
+    if(options.detect_format == ObjectDetectionFormat::poses && !keypoint_names.empty()) {
         auto kpt_shape = YamlNode::sequence();
         kpt_shape.as_seq().emplace_back(narrow_cast<int64_t>(keypoint_names.size()));
         kpt_shape.as_seq().emplace_back(int64_t(3));
@@ -820,24 +926,36 @@ std::vector<std::string> default_keypoint_names(const AnnotationMap& annotations
     return names;
 }
 
+AnnotationMap select_annotations(const Options& options) {
+    return filter_annotation_types(options.annotations,
+        options.detect_format == ObjectDetectionFormat::boxes,
+        options.detect_format == ObjectDetectionFormat::masks,
+        options.detect_format == ObjectDetectionFormat::poses,
+        options.detect_format == ObjectDetectionFormat::obb,
+        options.detect_format == ObjectDetectionFormat::points);
+}
+
 Summary summarize(const Options& options, std::optional<Frame_t> source_length, std::optional<Size2> source_size) {
+    const auto annotations = select_annotations(options);
     Summary summary{
         .format = options.format,
         .output_directory = options.output_directory,
-        .annotated_frames = annotated_frames(options.annotations).size(),
-        .counts = count_annotation_types(options.annotations),
-        .keypoint_names = options.keypoint_names
+        .annotated_frames = annotated_frames(annotations).size(),
+        .counts = count_annotation_types(annotations),
+        .keypoint_names = options.detect_format == ObjectDetectionFormat::poses ? options.keypoint_names : std::vector<std::string>{}
     };
     summary.background_frames = background_count(summary.annotated_frames, options.background_percent);
     summary.total_images = summary.annotated_frames + summary.background_frames;
 
-    if(options.annotations.empty())
-        summary.errors.emplace_back("No track_detect_annotations are available to export.");
+    if(options.detect_format == ObjectDetectionFormat::none)
+        summary.errors.emplace_back("Select detect_format before exporting annotations.");
+    if(annotations.empty())
+        summary.errors.emplace_back("No annotations match detect_format " + options.detect_format.str() + ".");
     if(options.output_directory.empty())
         summary.errors.emplace_back("Output dataset folder is empty.");
     if(options.background_percent < 0.f)
         summary.errors.emplace_back("Background percentage cannot be negative.");
-    for(const auto& [frame, frame_annotations] : options.annotations) {
+    for(const auto& [frame, frame_annotations] : annotations) {
         if(!frame.valid() && !frame_annotations.empty())
             summary.errors.emplace_back("An annotated frame is invalid.");
     }
@@ -850,8 +968,22 @@ Summary summarize(const Options& options, std::optional<Frame_t> source_length, 
         }
     }
 
+    if(summary.counts.points > 0) {
+        try {
+            auto ids = class_ids(annotations);
+            for(const auto& [id, name] : yolo::names::get_map()) {
+                (void)name;
+                ids.insert(id);
+            }
+            for(auto id : ids)
+                (void)point_radius(id, options.point_radii, options.fallback_point_radius);
+        } catch(const std::exception& e) {
+            summary.errors.emplace_back(e.what());
+        }
+    }
+
     if(source_length) {
-        for(const auto& frame : annotated_frames(options.annotations)) {
+        for(const auto& frame : annotated_frames(annotations)) {
             if(!frame.valid())
                 summary.errors.emplace_back("An annotated frame is invalid.");
             else if(frame >= *source_length)
@@ -866,10 +998,10 @@ Summary summarize(const Options& options, std::optional<Frame_t> source_length, 
     }
 
     if(source_size) {
-        for(const auto& [frame, frame_annotations] : options.annotations) {
+        for(const auto& [frame, frame_annotations] : annotations) {
             for(const auto& annotation : frame_annotations) {
                 try {
-                    validate_annotation(annotation, *source_size, options.keypoint_names);
+                    (void)export_geometry(annotation, *source_size, options.keypoint_names);
                 } catch(const std::exception& e) {
                     summary.errors.emplace_back("Frame " + frame.toStr() + ": " + e.what());
                 }
@@ -903,17 +1035,25 @@ std::vector<Frame_t> sample_background_frames(const AnnotationMap& annotations, 
     return candidates;
 }
 
-std::string annotation_to_yolo([[maybe_unused]] const file::PathArray&, const Annotation& annotation, const Size2& image_size, const std::vector<std::string>& keypoint_names) {
-    validate_annotation(annotation, image_size, keypoint_names);
+std::string annotation_to_yolo([[maybe_unused]] const file::PathArray&, const Annotation& annotation, const Size2& image_size, const std::vector<std::string>& keypoint_names, const std::map<int, float>& point_radii, float fallback_point_radius) {
+    const auto points = export_geometry(annotation, image_size, keypoint_names);
 
     std::string output = Meta::toStr(uint16_t(annotation.clid));
     switch(annotation.type) {
         case AnnotationType::BOX:
         case AnnotationType::POSE:
-            output += " " + yolo_bbox(annotation_bounds(annotation), image_size);
+            output += " " + yolo_bbox(annotation_bounds(annotation.type, points), image_size);
             break;
+        case AnnotationType::OBB:
+            for(const auto& point : points)
+                output += " " + glz::write_json(point.x / image_size.width).value()
+                        + " " + glz::write_json(point.y / image_size.height).value();
+            return output;
+        case AnnotationType::POINT:
+            output += " " + glz::write_json(point_radius(annotation.clid, point_radii, fallback_point_radius)).value();
+            [[fallthrough]];
         case AnnotationType::SEGMENTATION:
-            for(const auto& point : annotation.points)
+            for(const auto& point : points)
                 output += " " + Meta::toStr(point.x / image_size.width) + " " + Meta::toStr(point.y / image_size.height);
             return output;
     }
@@ -934,10 +1074,13 @@ std::string annotation_to_yolo([[maybe_unused]] const file::PathArray&, const An
     return output;
 }
 
-glz::json_t build_coco_json(const cmn::file::PathArray& source, const AnnotationMap& annotations, const std::vector<Frame_t>& image_frames, const Size2& image_size, const std::vector<std::string>& keypoint_names) {
+glz::json_t build_coco_json(const cmn::file::PathArray& source, const AnnotationMap& annotations, const std::vector<Frame_t>& image_frames, const Size2& image_size, const std::vector<std::string>& keypoint_names, const std::map<int, float>& point_radii, float fallback_point_radius) {
     std::vector<glz::json_t> images;
     std::vector<glz::json_t> annotation_json;
     std::map<uint16_t, std::vector<std::string>> category_keypoints;
+    const auto counts = count_annotation_types(annotations);
+    const bool point_dataset = counts.points > 0 && counts.points == counts.total();
+    std::set<uint16_t> point_categories;
 
     for(const auto& frame : image_frames) {
         images.push_back(glz::json_t::object_t{
@@ -951,8 +1094,8 @@ glz::json_t build_coco_json(const cmn::file::PathArray& source, const Annotation
     uint64_t annotation_id = 1;
     for(const auto& [frame, frame_annotations] : annotations) {
         for(const auto& annotation : frame_annotations) {
-            validate_annotation(annotation, image_size, keypoint_names);
-            auto bounds = annotation_bounds(annotation);
+            const auto points = export_geometry(annotation, image_size, keypoint_names);
+            auto bounds = annotation_bounds(annotation.type, points);
             glz::json_t::object_t object{
                 {"id", glz::json_t(annotation_id++)},
                 {"image_id", glz::json_t(frame.get())},
@@ -962,10 +1105,27 @@ glz::json_t build_coco_json(const cmn::file::PathArray& source, const Annotation
                 {"iscrowd", glz::json_t(0)}
             };
 
-            if(annotation.type == AnnotationType::SEGMENTATION)
-                object["segmentation"] = glz::json_t(segmentation_json(annotation));
-            else
+            if(annotation.type == AnnotationType::SEGMENTATION || annotation.type == AnnotationType::OBB) {
+                object["segmentation"] = glz::json_t(segmentation_json(points));
+                double twice_area = 0;
+                for(size_t i = 0; i < points.size(); ++i) {
+                    const auto& a = points[i];
+                    const auto& b = points[(i + 1) % points.size()];
+                    twice_area += double(a.x) * b.y - double(b.x) * a.y;
+                }
+                object["area"] = std::abs(twice_area) * 0.5;
+            } else
                 object["segmentation"] = glz::json_t(std::vector<glz::json_t>{});
+
+            if(annotation.type == AnnotationType::OBB) {
+                object["trex_annotation_type"] = std::string("obb");
+            } else if(annotation.type == AnnotationType::POINT) {
+                point_categories.insert(annotation.clid);
+                const auto& point = annotation.points.front();
+                object["trex_annotation_type"] = std::string("point");
+                object["keypoints"] = glz::json_t::array_t{glz::json_t(point.x), glz::json_t(point.y), glz::json_t(2)};
+                object["num_keypoints"] = 1;
+            }
 
             if(annotation.type == AnnotationType::POSE) {
                 std::vector<glz::json_t> keypoints;
@@ -1028,6 +1188,11 @@ glz::json_t build_coco_json(const cmn::file::PathArray& source, const Annotation
                 names.emplace_back(name);
             category["keypoints"] = glz::json_t(names);
             category["skeleton"] = glz::json_t(std::vector<glz::json_t>{});
+        } else if(point_dataset || point_categories.contains(id)) {
+            category["trex_annotation_type"] = std::string("point");
+            category["trex_point_radius"] = point_radius(id, point_radii, fallback_point_radius);
+            category["keypoints"] = glz::json_t::array_t{glz::json_t("point")};
+            category["skeleton"] = glz::json_t(std::vector<glz::json_t>{});
         }
         categories.emplace_back(std::move(category));
     }
@@ -1040,12 +1205,15 @@ glz::json_t build_coco_json(const cmn::file::PathArray& source, const Annotation
 }
 
 Summary export_dataset(const Options& options) {
+    auto summary = summarize(options);
+    if(!summary.can_export())
+        throw InvalidArgumentException("Cannot export annotations: ", summary.errors);
     validate_source_paths(options.source);
 
     VideoSource source(options.source);
     source.set_colors(ImageMode::RGB);
 
-    auto summary = summarize(options, source.length(), source.size());
+    summary = summarize(options, source.length(), source.size());
     if(!summary.can_export()) {
         throw InvalidArgumentException("Cannot export annotations: ", summary.errors);
     }
@@ -1061,7 +1229,8 @@ Summary export_dataset(const Options& options) {
         ensure_folder(options.output_directory / kSplitDir / kLabelsDir);
     }
 
-    std::vector<Frame_t> image_frames = annotated_frames(options.annotations);
+    const auto annotations = select_annotations(options);
+    std::vector<Frame_t> image_frames = annotated_frames(annotations);
     image_frames.insert(image_frames.end(), background_frames.begin(), background_frames.end());
     std::sort(image_frames.begin(), image_frames.end());
 
@@ -1069,10 +1238,10 @@ Summary export_dataset(const Options& options) {
         for(const auto& frame : image_frames)
             write_jpeg(source, frame, yolo_image_path(options.source, options.output_directory, frame), options.jpeg_quality);
 
-        for(const auto& [frame, frame_annotations] : options.annotations) {
+        for(const auto& [frame, frame_annotations] : annotations) {
             std::string text;
             for(const auto& annotation : frame_annotations)
-                text += annotation_to_yolo(options.source, annotation, source.size(), options.keypoint_names) + "\n";
+                text += annotation_to_yolo(options.source, annotation, source.size(), options.keypoint_names, options.point_radii, options.fallback_point_radius) + "\n";
             write_text(yolo_label_path(options.source, options.output_directory, frame), text);
         }
         for(const auto& frame : background_frames)
@@ -1080,14 +1249,14 @@ Summary export_dataset(const Options& options) {
 
         auto yaml = YamlNode::mapping();
         yaml["train"] = "./train";
-        append_yolo_metadata(yaml, options.annotations, options.keypoint_names);
+        append_yolo_metadata(yaml, annotations, options.keypoint_names, options);
         write_text(options.output_directory / "data.yaml", YamlNode::serialize(yaml));
 
     } else {
         for(const auto& frame : image_frames)
             write_jpeg(source, frame, coco_image_path(options.source, options.output_directory, frame), options.jpeg_quality);
 
-        auto json = build_coco_json(options.source, options.annotations, image_frames, source.size(), options.keypoint_names);
+        auto json = build_coco_json(options.source, annotations, image_frames, source.size(), options.keypoint_names, options.point_radii, options.fallback_point_radius);
         auto text = glz::write_json(json).value_or("{}");
         text = glz::prettify_json(text);
         write_text(options.output_directory / kSplitDir / "_annotations.coco.json", text);

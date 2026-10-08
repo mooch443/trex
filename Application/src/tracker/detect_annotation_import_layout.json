@@ -78,6 +78,42 @@
               [
                 {
                   "type": "stext",
+                  "text": "<gray><b>YOLO annotation type</b>\n<small>override ambiguous or missing task metadata</small></gray>",
+                  "font": {"size": 0.5},
+                  "pad": [10, 3, 10, 4]
+                },
+                {
+                  "type": "condition",
+                  "var": "{nequal:{info.format}:coco}",
+                  "then": {
+                    "type": "list",
+                    "size": "[430,{label_height}]",
+                    "clickable": true,
+                    "foldable": true,
+                    "folded": true,
+                    "list": {"size": [430, 180], "fill": [25,25,25,230], "line": [120,120,120,220]},
+                    "label": {
+                      "text": "{if:{equal:{info.import_task}:unknown}:Auto:{info.import_task}}",
+                      "font": {"size": 0.45},
+                      "fill": [50,50,50,200],
+                      "line": [100,100,100,100]
+                    },
+                    "item": {"font": {"size": 0.48}, "pad": [8,0], "color": [225,225,225]},
+                    "items": [
+                      {"text": "Auto", "action": "set-task:unknown"},
+                      {"text": "BOX", "action": "set-task:boxes"},
+                      {"text": "SEGMENTATION", "action": "set-task:segmentation"},
+                      {"text": "POSE", "action": "set-task:pose"},
+                      {"text": "OBB", "action": "set-task:obb"},
+                      {"text": "POINT (POLO)", "action": "set-task:points"}
+                    ]
+                  },
+                  "else": {"type": "stext", "text": "COCO types are read from annotations.", "font": {"size": 0.45}}
+                }
+              ],
+              [
+                {
+                  "type": "stext",
                   "text": "<gray><b>Mapping CSV</b>\n<small>optional image,video_source,source_index</small></gray>",
                   "font": {"size": 0.5},
                   "pad": [10, 3, 10, 4]
@@ -356,7 +392,7 @@
                         },
                         {
                           "type":"list",
-                          "var":"[{if:{info.metadata_class_names_changed}:detect_classes,:}{if:{info.metadata_keypoint_names_changed}:detect_keypoint_names,:}{if:{info.metadata_skeletons_changed}:detect_skeletons,:}{if:{info.metadata_detect_format_changed}:detect_format,:}]",
+                          "var":"[{if:{info.metadata_class_names_changed}:detect_classes,:}{if:{info.metadata_keypoint_names_changed}:detect_keypoint_names,:}{if:{info.metadata_skeletons_changed}:detect_skeletons,:}{if:{info.metadata_detect_format_changed}:detect_format,:}{if:{info.metadata_point_radii_changed}:detect_point_radii,:}]",
                           "template":{
                             "text": "<c>{i}</c>",
                             "detail":"{shorten:{global.{i}}:30} -> {shorten:{info.{i}}:30}"

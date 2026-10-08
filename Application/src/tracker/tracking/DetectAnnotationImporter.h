@@ -14,7 +14,7 @@ ENUM_CLASS(track::detect::annotation_import::, merge_mode_t, add, replace)
 ENUM_CLASS(track::detect::annotation_import::, import_scope_t, current_video, all_videos)
 
 /// Geometry inferred from the labels present in an imported dataset.
-ENUM_CLASS(track::detect::annotation_import::, task_t, unknown, boxes, segmentation, pose, mixed)
+ENUM_CLASS(track::detect::annotation_import::, task_t, unknown, boxes, segmentation, pose, mixed, obb, points)
 
 namespace track::detect::annotation_import {
 
@@ -37,6 +37,7 @@ struct FrameIndexParseResult {
 /// and optional detection metadata comparison for an import preview.
 struct ImportOptions {
     Format format{annotation_dataset::format_t::yolo};
+    Task task{task_t::unknown}; // Explicit YOLO task; unknown uses dataset metadata and row inference.
     cmn::file::Path dataset_file;
     cmn::file::Path frame_mapping_csv;
     AnnotationMap existing_annotations;
@@ -51,6 +52,7 @@ struct ImportOptions {
     std::vector<std::string> current_keypoint_names;
     std::optional<cmn::blob::Pose::Skeletons> current_skeletons;
     track::detect::ObjectDetectionFormat_t current_detect_format{track::detect::ObjectDetectionFormat::none};
+    std::map<int, float> current_point_radii;
 };
 
 /// Metadata discovered in a dataset together with flags indicating which
@@ -64,8 +66,10 @@ struct MetadataChanges {
     bool keypoint_names_changed{false};
     bool skeletons_changed{false};
     bool detect_format_changed{false};
+    std::map<int, float> imported_point_radii;
+    bool point_radii_changed{false};
 
-    bool has_changes() const { return class_names_changed || keypoint_names_changed || skeletons_changed || detect_format_changed; }
+    bool has_changes() const { return class_names_changed || keypoint_names_changed || skeletons_changed || detect_format_changed || point_radii_changed; }
 };
 
 /// Parsed detect annotations and diagnostics produced without mutating global

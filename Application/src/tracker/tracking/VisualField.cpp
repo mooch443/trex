@@ -504,6 +504,9 @@ void VisualField::calculate(const BasicStuff& basic, const PostureStuff* posture
             continue;
         
         auto convex = poly_convex_hull(&points);
+        if(not convex) {
+            continue;
+        }
         //std::vector<Vec2> tmp;
        // reduce_vertex_line(*convex, tmp, 0.5);
         

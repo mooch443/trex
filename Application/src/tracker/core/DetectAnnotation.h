@@ -9,11 +9,14 @@ namespace track::detect {
 enum class AnnotationType {
     BOX,
     POSE,
-    SEGMENTATION
+    SEGMENTATION,
+    OBB,
+    POINT
 };
 
 /// One detect annotation in source-image pixel coordinates. `uid` is unique
 /// only within its frame, while `clid` identifies the configured detect class.
+/// OBB stores four ordered corners; POINT stores one location, including (0,0).
 struct Annotation {
     using Point_t = cmn::blob::Pose::Point;
     
@@ -43,7 +46,7 @@ struct Annotation {
         Annotation obj{
             .uid = uint8_t{0},
             .clid = cmn::Meta::fromStr<uint8_t>(parts[0]),
-            .type = (AnnotationType)cmn::saturate(cmn::Meta::fromStr<uint8_t>(parts[1]), 0, 3),
+            .type = (AnnotationType)cmn::saturate(cmn::Meta::fromStr<uint8_t>(parts[1]), uint8_t(0), uint8_t(AnnotationType::POINT)),
             .points = cmn::Meta::fromStr<std::vector<Point_t>>(parts[2])
         };
         return obj;
@@ -56,15 +59,17 @@ struct AnnotationTypeCounts {
     size_t boxes{0};
     size_t segmentations{0};
     size_t poses{0};
-    size_t total() const { return boxes + segmentations + poses; }
+    size_t obbs{0};
+    size_t points{0};
+    size_t total() const { return boxes + segmentations + poses + obbs + points; }
 };
 
 class AnnotationMap;
 
-/// Counts box, segmentation, and pose annotations across all frame entries.
+/// Counts annotations of each geometric type across all frame entries.
 AnnotationTypeCounts count_annotation_types(const AnnotationMap&);
 /// Copies only the enabled annotation types while retaining their frame keys.
-AnnotationMap filter_annotation_types(const AnnotationMap&, bool boxes, bool segmentations, bool poses);
+AnnotationMap filter_annotation_types(const AnnotationMap&, bool boxes, bool segmentations, bool poses, bool obbs = false, bool points = false);
 
 /// Detect annotations indexed by converted frame, with optional source-nested
 /// maps used while importing multi-video datasets.

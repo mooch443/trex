@@ -42,9 +42,6 @@ struct DrawAnnotationExportOptions::Data {
     Format _format{dataset::format_t::yolo};
     std::string _background_percent_text{"0"};
     std::string _suffix_text;
-    bool _export_boxes{true};
-    bool _export_segmentations{true};
-    bool _export_poses{true};
 
     Summary _summary;
     glz::json_t _info;
@@ -110,14 +107,18 @@ struct DrawAnnotationExportOptions::Data {
     Options make_options(const AnnotationMap& map) const {
         Options options;
         options.format = _format;
-        options.annotations = filter_annotation_types(map, _export_boxes, _export_segmentations, _export_poses);
+        options.detect_format = READ_SETTING(detect_format, ObjectDetectionFormat_t);
+        options.annotations = map;
+        options.point_radii = READ_SETTING(detect_point_radii, std::map<int, float>);
+        const auto image_size = READ_SETTING(individual_image_size, Size2);
+        options.fallback_point_radius = 0.5f * std::max(image_size.width, image_size.height);
         options.source = export_source();
         options.output_directory = output_directory();
         options.video_source_basename = file::Path(file::find_basename(options.source)).filename();
         auto range = READ_SETTING(video_conversion_range, Range<long_t>);
         if(range.start >= 0)
             options.source_start = Frame_t(range.start);
-        options.keypoint_names = default_keypoint_names(options.annotations, configured_keypoint_names());
+        options.keypoint_names = default_keypoint_names(select_annotations(options), configured_keypoint_names());
         options.background_percent = background_percent();
         return options;
     }
@@ -130,6 +131,10 @@ struct DrawAnnotationExportOptions::Data {
             parts.push_back(Meta::toStr(_summary.counts.segmentations) + " segmentations");
         if(_summary.counts.poses > 0)
             parts.push_back(Meta::toStr(_summary.counts.poses) + " poses");
+        if(_summary.counts.obbs > 0)
+            parts.push_back(Meta::toStr(_summary.counts.obbs) + " OBBs");
+        if(_summary.counts.points > 0)
+            parts.push_back(Meta::toStr(_summary.counts.points) + " points");
 
         std::string text = "Exporting <b>" + Meta::toStr(_summary.counts.total()) + "</b> annotations";
         if(parts.size() > 1)
@@ -166,21 +171,12 @@ struct DrawAnnotationExportOptions::Data {
 
         _summary = summarize(options, source_length, source_size);
 
-        const int types_present = (raw_counts.boxes > 0 ? 1 : 0)
-                                + (raw_counts.segmentations > 0 ? 1 : 0)
-                                + (raw_counts.poses > 0 ? 1 : 0);
-
         _info = glz::json_t::object_t{
             {"format", glz::json_t(_format.str())},
             {"background_percent", glz::json_t(_background_percent_text)},
             {"suffix", glz::json_t(_suffix_text)},
-            {"boxes", glz::json_t(Meta::toStr(raw_counts.boxes))},
-            {"segmentations", glz::json_t(Meta::toStr(raw_counts.segmentations))},
-            {"poses", glz::json_t(Meta::toStr(raw_counts.poses))},
-            {"export_boxes", glz::json_t(_export_boxes)},
-            {"export_segmentations", glz::json_t(_export_segmentations)},
-            {"export_poses", glz::json_t(_export_poses)},
-            {"multiple_types", glz::json_t(types_present > 1)},
+            {"detect_format", glz::json_t(options.detect_format.str())},
+            {"selected_count", glz::json_t(_summary.counts.total())},
             {"has_annotations", glz::json_t(raw_counts.total() > 0)},
             {"can_export", glz::json_t(_summary.can_export())},
             {"summary", glz::json_t(summary_text())}
@@ -208,16 +204,6 @@ struct DrawAnnotationExportOptions::Data {
                     ActionFunc("set-suffix", [this](const Action& action) {
                         REQUIRE_EXACTLY(1, action);
                         _suffix_text = action.first();
-                    }),
-                    ActionFunc("toggle-type", [this](const Action& action) {
-                        REQUIRE_EXACTLY(1, action);
-                        auto which = action.first();
-                        if(which == "box")
-                            _export_boxes = !_export_boxes;
-                        else if(which == "segmentation")
-                            _export_segmentations = !_export_segmentations;
-                        else if(which == "pose")
-                            _export_poses = !_export_poses;
                     }),
                     ActionFunc("close", [](const Action&) {
                         SETTING(gui_show_annotation_export_options) = false;

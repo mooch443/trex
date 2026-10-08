@@ -1404,7 +1404,12 @@ void BlobView::draw_boundary_selection(DrawStructure& base, Base* window, GUICac
                     auto &polygon = *_bdry_polygon;
                     //! need to force a convex hull here
                     auto v = poly_convex_hull(&boundary);
-                    polygon.set_vertices(*v);
+                    if(v) {
+                        polygon.set_vertices(*v);
+                    } else {
+                        polygon.set_vertices(boundary);
+                    }
+                    
                     polygon.set_border_clr(Cyan.alpha(125));
                     polygon.set_fill_clr(Cyan.alpha(50));
                     base.wrap_object(polygon);
@@ -1545,7 +1550,7 @@ void BlobView::draw_boundary_selection(DrawStructure& base, Base* window, GUICac
                                 }
                                 
                                 auto format = READ_SETTING_WITH_DEFAULT(detect_format, ObjectDetectionFormat::poses);
-                                if(is_in(format, ObjectDetectionFormat::boxes, ObjectDetectionFormat::masks)) {
+                                if(is_in(format, ObjectDetectionFormat::boxes)) {
                                     auto get_bounds_of = [](auto&& points) -> std::optional<Bounds> {
                                         Bounds bds(FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX);
                                         for(auto& pt : points) {
@@ -1575,12 +1580,73 @@ void BlobView::draw_boundary_selection(DrawStructure& base, Base* window, GUICac
                                     };
                                     Print("Adding points ", _current_boundary, " to ", format," annotations of type ",id," => ", annotation);
                                     field.push_back(std::move(annotation));
-                                }
-                                else {
+                                    
+                                } else if(is_in(format, ObjectDetectionFormat::masks)) {
+                                    /// CONCAVE polygons are actually valid
                                     Annotation annotation{
                                         .uid = uint8_t(field.size()),
                                         .clid = uint8_t(id),
-                                        .type = AnnotationType::POSE,
+                                        .type = AnnotationType::SEGMENTATION,
+                                        .points = std::move(points)
+                                    };
+                                    
+                                    Print("Adding points ", _current_boundary, " to ", format," annotations of type ",id," => ", annotation);
+                                    field.push_back(std::move(annotation));
+                                    
+                                    /*std::vector<Vec2> converted;
+                                    for(auto &pt : points)
+                                        converted.emplace_back(pt.x, pt.y);
+                                    
+                                    points.clear();
+                                    auto convex = poly_convex_hull(&converted);
+                                    if(convex) {
+                                        for(auto &pt : *convex) {
+                                            points.emplace_back(clamp_cast<uint16_t>(pt.x), clamp_cast<uint16_t>(pt.y));
+                                        }
+                                        
+                                        Annotation annotation{
+                                            .uid = uint8_t(field.size()),
+                                            .clid = uint8_t(id),
+                                            .type = AnnotationType::SEGMENTATION,
+                                            .points = std::move(points)
+                                        };
+                                        
+                                        Print("Adding points ", _current_boundary, " to ", format," annotations of type ",id," => ", annotation);
+                                        field.push_back(std::move(annotation));
+                                    } else {
+                                        FormatWarning("Failed to generate convex hull for points ", points, ". Likely these werent enough points or too many.");
+                                    }*/
+                                    
+                                } else if(is_in(format, ObjectDetectionFormat::obb)) {
+                                    std::vector<cv::Point2f> converted;
+                                    for(auto &pt : points)
+                                        converted.emplace_back(pt.x, pt.y);
+                                    
+                                    auto rotated_rect = cv::minAreaRect(converted);
+                                    cv::Point2f vertices[4];
+                                    rotated_rect.points(vertices);
+                                    
+                                    points = {
+                                        Point(clamp_cast<uint16_t>(vertices[0].x), clamp_cast<uint16_t>(vertices[0].y)),
+                                        Point(clamp_cast<uint16_t>(vertices[1].x), clamp_cast<uint16_t>(vertices[1].y)),
+                                        Point(clamp_cast<uint16_t>(vertices[2].x), clamp_cast<uint16_t>(vertices[2].y)),
+                                        Point(clamp_cast<uint16_t>(vertices[3].x), clamp_cast<uint16_t>(vertices[3].y))
+                                    };
+                                    
+                                    Annotation annotation{
+                                        .uid = uint8_t(field.size()),
+                                        .clid = uint8_t(id),
+                                        .type = AnnotationType::OBB,
+                                        .points = std::move(points)
+                                    };
+                                    Print("Adding points ", _current_boundary, " to ", format," annotations of type ",id," => ", annotation);
+                                    field.push_back(std::move(annotation));
+                                    
+                                } else {
+                                    Annotation annotation{
+                                        .uid = uint8_t(field.size()),
+                                        .clid = uint8_t(id),
+                                        .type = format == ObjectDetectionFormat::points ? AnnotationType::POINT : AnnotationType::POSE,
                                         .points = std::move(points)
                                     };
                                     Print("Adding points ", _current_boundary, " to keypoint annotations of type ",id," => ", annotation);

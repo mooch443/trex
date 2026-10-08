@@ -645,7 +645,8 @@ void Border::update_polygons() {
     _polygons.clear();
     for(auto &shape : _vertices) {
         auto convex = poly_convex_hull(&shape);
-        _polygons.emplace_back(convex);
+        if(convex)
+            _polygons.emplace_back(convex);
     }
 }
 

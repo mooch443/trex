@@ -34,13 +34,19 @@ AnnotationTypeCounts count_annotation_types(const AnnotationMap& annotations) {
                 case AnnotationType::POSE:
                     ++counts.poses;
                     break;
+                case AnnotationType::OBB:
+                    ++counts.obbs;
+                    break;
+                case AnnotationType::POINT:
+                    ++counts.points;
+                    break;
             }
         }
     }
     return counts;
 }
 
-AnnotationMap filter_annotation_types(const AnnotationMap& annotations, bool boxes, bool segmentations, bool poses) {
+AnnotationMap filter_annotation_types(const AnnotationMap& annotations, bool boxes, bool segmentations, bool poses, bool obbs, bool points) {
     AnnotationMap result;
     for(const auto& [frame, frame_annotations] : annotations) {
         std::vector<Annotation> kept;
@@ -54,6 +60,12 @@ AnnotationMap filter_annotation_types(const AnnotationMap& annotations, bool box
                     break;
                 case AnnotationType::POSE:
                     if(poses) kept.push_back(annotation);
+                    break;
+                case AnnotationType::OBB:
+                    if(obbs) kept.push_back(annotation);
+                    break;
+                case AnnotationType::POINT:
+                    if(points) kept.push_back(annotation);
                     break;
             }
         }

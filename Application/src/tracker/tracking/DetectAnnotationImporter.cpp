@@ -25,6 +25,8 @@ struct DatasetConfig {
     std::vector<std::string> keypoint_names;
     size_t keypoint_count{0};
     size_t keypoint_dims{0};
+    Task task{task_t::unknown};
+    std::map<int, float> point_radii;
 };
 
 struct ImageEntry {
@@ -351,7 +353,18 @@ std::vector<ImageEntry> collect_images(const DatasetConfig& config) {
     return entries;
 }
 
-DatasetConfig parse_dataset_config(const file::Path& data_yaml) {
+void add_point_radius(std::map<int, float>& radii, int clid, double radius) {
+    if(!std::isfinite(radius) || radius <= 0 || radius > std::numeric_limits<float>::max())
+        throw InvalidArgumentException("POINT class ", clid, " requires a positive finite radius, got ", radius, ".");
+    const float value = static_cast<float>(radius);
+    if(value <= 0)
+        throw InvalidArgumentException("POINT radius is too small to represent.");
+    auto [it, inserted] = radii.emplace(clid, value);
+    if(!inserted && std::abs(it->second - value) > 1e-6f * std::max(it->second, value))
+        throw InvalidArgumentException("Inconsistent POINT radii for class ", clid, ": ", it->second, " and ", value, ".");
+}
+
+DatasetConfig parse_dataset_config(const file::Path& data_yaml, Task task) {
     if(data_yaml.empty())
         throw InvalidArgumentException("Select a data.yaml file to import.");
     if(!data_yaml.exists())
@@ -364,6 +377,29 @@ DatasetConfig parse_dataset_config(const file::Path& data_yaml) {
         throw InvalidArgumentException("data.yaml must contain a YAML mapping.");
 
     DatasetConfig config;
+    config.task = task;
+    if(config.task == task_t::mixed)
+        throw InvalidArgumentException("Select Auto or a single annotation task for import.");
+    if(config.task == task_t::unknown) {
+        if(auto node = yaml_find(yaml, "task"); node) {
+            const auto value = node->get_value<std::string>();
+            if(value == "detect") config.task = task_t::boxes;
+            else if(value == "segment") config.task = task_t::segmentation;
+            else if(value == "pose") config.task = task_t::pose;
+            else if(value == "obb") config.task = task_t::obb;
+            else if(value == "locate") config.task = task_t::points;
+            else throw InvalidArgumentException("Unsupported data.yaml task: ", value, ".");
+        }
+    }
+    if(auto radii = yaml_find(yaml, "radii"); radii) {
+        if(!radii->is_mapping())
+            throw InvalidArgumentException("data.yaml radii must be a class-id mapping.");
+        for(const auto& [key, value] : radii->as_map()) {
+            if(!value.is_integer() && !value.is_float_number())
+                throw InvalidArgumentException("data.yaml radii values must be numbers.");
+            add_point_radius(config.point_radii, yaml_class_id_key(key), value.get_value<double>());
+        }
+    }
     config.yaml_dir = data_yaml.remove_filename();
     config.dataset_root = config.yaml_dir;
 
@@ -706,30 +742,60 @@ Annotation::Point_t point_from_normalized(double x, double y, const Size2& size)
     return Annotation::Point_t(narrow_cast<uint16_t>(px), narrow_cast<uint16_t>(py));
 }
 
-Annotation parse_label_row(const std::string& row, const DatasetConfig& config, const Size2& video_size, Task& row_task) {
-    if(video_size.width <= 0 || video_size.height <= 0)
+Annotation parse_label_row(const std::string& row, const DatasetConfig& config, const Size2& video_size, Task& row_task, std::map<int, float>& point_radii) {
+    if(!std::isfinite(video_size.width) || !std::isfinite(video_size.height)
+       || video_size.width <= 0 || video_size.height <= 0)
         throw InvalidArgumentException("Current video_size must be known before importing YOLO annotations.");
 
     auto normalized = row;
     std::replace(normalized.begin(), normalized.end(), '\t', ' ');
     std::vector<double> values;
     for(const auto& token : utils::split(normalized, ' ', true, true)) {
-        values.push_back(Meta::fromStr<double>(token));
+        const auto value = Meta::fromStr<double>(token);
+        if(!std::isfinite(value))
+            throw InvalidArgumentException("YOLO labels must contain finite numbers.");
+        values.push_back(value);
     }
 
     if(values.empty())
         throw InvalidArgumentException("Empty YOLO row.");
-    if(values.front() < 0 || values.front() > 255)
+    if(values.front() < 0 || values.front() > 255 || std::floor(values.front()) != values.front())
         throw InvalidArgumentException("Class id ", values.front(), " is outside the supported Annotation range 0-255.");
 
     Annotation annotation;
     annotation.clid = narrow_cast<uint8_t>(values.front());
 
+    if(config.task == task_t::points || (config.task == task_t::unknown && values.size() == 4)) {
+        if(values.size() != 4)
+            throw InvalidArgumentException("POLO POINT rows require class, radius, x, y.");
+        if(values[2] < 0 || values[2] > 1 || values[3] < 0 || values[3] > 1)
+            throw InvalidArgumentException("POINT coordinates must be normalized to [0,1].");
+        add_point_radius(point_radii, annotation.clid, values[1]);
+        annotation.type = AnnotationType::POINT;
+        annotation.points = {point_from_normalized(values[2], values[3], video_size)};
+        row_task = task_t::points;
+        return annotation;
+    }
+
+    if(config.task == task_t::obb) {
+        if(values.size() != 9)
+            throw InvalidArgumentException("OBB rows require a class and exactly four corners.");
+        annotation.type = AnnotationType::OBB;
+        for(size_t i = 1; i < values.size(); i += 2) {
+            if(values[i] < 0 || values[i] > 1 || values[i + 1] < 0 || values[i + 1] > 1)
+                throw InvalidArgumentException("OBB coordinates must be normalized to [0,1].");
+            annotation.points.push_back(point_from_normalized(values[i], values[i + 1], video_size));
+        }
+        row_task = task_t::obb;
+        return annotation;
+    }
+
     const bool has_pose_shape = config.keypoint_count > 0;
     const size_t pose_dims = config.keypoint_dims == 0 ? 3 : config.keypoint_dims;
     const size_t pose_fields = has_pose_shape ? 5 + config.keypoint_count * pose_dims : 0;
 
-    if(has_pose_shape && values.size() == pose_fields) {
+    if((config.task == task_t::unknown || config.task == task_t::pose)
+       && has_pose_shape && values.size() == pose_fields) {
         annotation.type = AnnotationType::POSE;
         row_task = task_t::pose;
         annotation.points.reserve(config.keypoint_count);
@@ -744,7 +810,7 @@ Annotation parse_label_row(const std::string& row, const DatasetConfig& config, 
         return annotation;
     }
 
-    if(values.size() == 5) {
+    if((config.task == task_t::unknown || config.task == task_t::boxes) && values.size() == 5) {
         const double cx = values.at(1);
         const double cy = values.at(2);
         const double w = values.at(3);
@@ -766,7 +832,8 @@ Annotation parse_label_row(const std::string& row, const DatasetConfig& config, 
         return annotation;
     }
 
-    if(values.size() >= 7 && ((values.size() - 1) % 2) == 0) {
+    if((config.task == task_t::unknown || config.task == task_t::segmentation)
+       && values.size() >= 7 && ((values.size() - 1) % 2) == 0) {
         annotation.type = AnnotationType::SEGMENTATION;
         row_task = task_t::segmentation;
         annotation.points.reserve((values.size() - 1) / 2);
@@ -794,6 +861,10 @@ std::optional<detect::ObjectDetectionFormat_t> detect_format_from_task(Task task
             return detect::ObjectDetectionFormat::masks;
         case task_t::pose:
             return detect::ObjectDetectionFormat::poses;
+        case task_t::obb:
+            return detect::ObjectDetectionFormat::obb;
+        case task_t::points:
+            return detect::ObjectDetectionFormat::points;
         case task_t::unknown:
         case task_t::mixed:
             return std::nullopt;
@@ -802,6 +873,13 @@ std::optional<detect::ObjectDetectionFormat_t> detect_format_from_task(Task task
 }
 
 void update_detect_format_metadata(ImportPreview& preview, const ImportOptions& options) {
+    for(const auto& [clid, radius] : preview.metadata.imported_point_radii) {
+        auto it = options.current_point_radii.find(clid);
+        if(it == options.current_point_radii.end() || it->second != radius)
+            preview.metadata.point_radii_changed = true;
+    }
+    if(preview.metadata.point_radii_changed)
+        preview.warnings.push_back("Import will update detect_point_radii to include " + Meta::toStr(preview.metadata.imported_point_radii) + ".");
     auto imported_format = detect_format_from_task(preview.task);
     if(!imported_format)
         return;
@@ -884,9 +962,11 @@ std::vector<blob::Pose::Skeleton::Connection> coco_skeleton_connections(const gl
 }
 
 Annotation::Point_t point_from_coco_absolute(double x, double y, const Size2& image_size) {
-    if(image_size.width <= 0 || image_size.height <= 0)
+    if(!std::isfinite(image_size.width) || !std::isfinite(image_size.height)
+       || image_size.width <= 0 || image_size.height <= 0)
         throw InvalidArgumentException("COCO image size must be positive, got ", image_size, ".");
-    if(x < -1e-6 || y < -1e-6 || x > image_size.width + 1e-6 || y > image_size.height + 1e-6)
+    if(!std::isfinite(x) || !std::isfinite(y)
+       || x < -1e-6 || y < -1e-6 || x > image_size.width + 1e-6 || y > image_size.height + 1e-6)
         throw InvalidArgumentException("COCO point [", x, ", ", y, "] is outside image bounds ", image_size, ".");
 
     // COCO stores keypoints, segmentations, and bboxes as absolute pixels.
@@ -1027,7 +1107,7 @@ ImportPreview preview_yolo_import(const ImportOptions& options, ImportScope scop
     preview.dataset_file = options.dataset_file;
 
     try {
-        auto config = parse_dataset_config(options.dataset_file);
+        auto config = parse_dataset_config(options.dataset_file, options.task);
         auto images = collect_images(config);
         const bool has_csv_mapping = !options.frame_mapping_csv.empty();
         if(!has_csv_mapping)
@@ -1039,7 +1119,9 @@ ImportPreview preview_yolo_import(const ImportOptions& options, ImportScope scop
         preview.selected_source_basename = source_selection.selected;
         preview.image_count = images.size();
         preview.metadata.imported_class_names = config.class_names;
-        preview.metadata.imported_keypoint_names = config.keypoint_names;
+        if(config.task == task_t::unknown || config.task == task_t::pose)
+            preview.metadata.imported_keypoint_names = config.keypoint_names;
+        preview.metadata.imported_point_radii = config.point_radii;
 
         if(!config.class_names.empty()) {
             preview.metadata.class_names_changed = !options.current_class_names
@@ -1048,7 +1130,7 @@ ImportPreview preview_yolo_import(const ImportOptions& options, ImportScope scop
                 preview.warnings.push_back("Import will update detect_classes to " + Meta::toStr(config.class_names) + ".");
         }
 
-        if(!config.keypoint_names.empty()) {
+        if(!preview.metadata.imported_keypoint_names.empty()) {
             preview.metadata.keypoint_names_changed = options.current_keypoint_names != config.keypoint_names;
             if(preview.metadata.keypoint_names_changed)
                 preview.warnings.push_back("Import will update detect_keypoint_names to " + Meta::toStr(config.keypoint_names) + ".");
@@ -1076,6 +1158,7 @@ ImportPreview preview_yolo_import(const ImportOptions& options, ImportScope scop
 
             try {
                 std::vector<Annotation> parsed;
+                auto point_radii = preview.metadata.imported_point_radii;
                 Task file_task{task_t::unknown};
                 std::istringstream rows(image.label_path.read_file());
                 std::string row;
@@ -1085,7 +1168,7 @@ ImportPreview preview_yolo_import(const ImportOptions& options, ImportScope scop
                         continue;
                     
                     Task row_task{task_t::unknown};
-                    auto annotation = parse_label_row(row, config, options.video_size, row_task);
+                    auto annotation = parse_label_row(row, config, options.video_size, row_task, point_radii);
                     file_task = combine_task(file_task, row_task);
                     parsed.push_back(std::move(annotation));
                 }
@@ -1095,6 +1178,7 @@ ImportPreview preview_yolo_import(const ImportOptions& options, ImportScope scop
                 /// source_annotations while the frame is dropped from annotations
                 /// (which previously also desynced current_video vs all_videos).
                 if(not parsed.empty()) {
+                    preview.metadata.imported_point_radii = std::move(point_radii);
                     preview.task = combine_task(preview.task, file_task);
                     auto& source_annotations = preview.source_annotations[source_key_for_mapping(*mapping, options)][mapping->source_index];
                     for(auto& annotation : parsed) {
@@ -1160,8 +1244,9 @@ ImportPreview preview_coco_import(const ImportOptions& options) {
             throw InvalidArgumentException("COCO annotations file must contain an annotations array.");
 
         DatasetConfig config;
-        config.yaml_dir = options.dataset_file.remove_filename();
-        config.dataset_root = config.yaml_dir;
+        config.yaml_dir = options.dataset_file.absolute().remove_filename();
+        config.dataset_root = options.frame_mapping_csv.empty()
+            ? config.yaml_dir : options.frame_mapping_csv.absolute().remove_filename();
 
         std::map<uint64_t, ImageEntry> image_entries;
         std::map<uint64_t, Size2> image_sizes;
@@ -1177,10 +1262,11 @@ ImportPreview preview_coco_import(const ImportOptions& options) {
                 const auto file_name = required_string(image, "file_name", "COCO image");
                 const auto width = narrow_cast<uint16_t>(std::round(required_number(image, "width", "COCO image")));
                 const auto height = narrow_cast<uint16_t>(std::round(required_number(image, "height", "COCO image")));
+                const auto image_path = resolve_path(config.yaml_dir, file_name);
                 ImageEntry entry{
-                    .path = file::Path(file_name),
+                    .path = image_path,
                     .label_path = {},
-                    .relative_path = file::Path(file_name)
+                    .relative_path = file::Path(relative_to(image_path, config.dataset_root))
                 };
                 image_entries[id] = entry;
                 image_sizes[id] = Size2(width, height);
@@ -1207,6 +1293,14 @@ ImportPreview preview_coco_import(const ImportOptions& options) {
                         category_name = name->get_string();
                     if(!category_name.empty())
                         preview.metadata.imported_class_names[id] = category_name;
+
+                    if(auto type = object_value(category, "trex_annotation_type");
+                       type && type->is_string() && type->get_string() == "point")
+                    {
+                        if(auto radius = object_value(category, "trex_point_radius"); radius)
+                            add_point_radius(preview.metadata.imported_point_radii, id, required_number(category, "trex_point_radius", "COCO point category"));
+                        continue;
+                    }
 
                     if(auto keypoints = object_value(category, "keypoints"); keypoints && keypoints->is_array()) {
                         std::vector<std::string> names;
@@ -1303,7 +1397,39 @@ ImportPreview preview_coco_import(const ImportOptions& options) {
                 Annotation annotation;
                 bool parsed = false;
 
-                if(auto keypoints = object_value(object, "keypoints"); keypoints) {
+                if(auto marker = object_value(object, "trex_annotation_type"); marker) {
+                    const auto type = required_string(object, "trex_annotation_type", context);
+                    annotation.clid = category_id;
+                    if(type == "obb") {
+                        auto segmentation = object_value(object, "segmentation");
+                        if(!segmentation || !segmentation->is_array())
+                            throw InvalidArgumentException(context, " OBB requires a four-corner polygon.");
+                        const auto& polygons = segmentation->get_array();
+                        if(!polygons.empty() && polygons.front().is_array() && polygons.size() != 1)
+                            throw InvalidArgumentException(context, " OBB requires exactly one polygon.");
+                        auto points = coco_segmentation_points(*segmentation, image_size, context);
+                        if(!points || points->size() != 4)
+                            throw InvalidArgumentException(context, " OBB requires exactly four corners.");
+                        annotation.type = AnnotationType::OBB;
+                        annotation.points = std::move(*points);
+                        preview.task = combine_task(preview.task, task_t::obb);
+                    } else if(type == "point") {
+                        auto keypoints = object_value(object, "keypoints");
+                        if(!keypoints)
+                            throw InvalidArgumentException(context, " POINT requires one visible keypoint.");
+                        auto values = json_number_array(*keypoints, context + " POINT keypoints");
+                        if(values.size() != 3 || !std::isfinite(values[2]) || (values[2] != 1 && values[2] != 2))
+                            throw InvalidArgumentException(context, " POINT requires exactly one visible x/y/visibility triple.");
+                        annotation.type = AnnotationType::POINT;
+                        annotation.points = {point_from_coco_absolute(values[0], values[1], image_size)};
+                        preview.task = combine_task(preview.task, task_t::points);
+                    } else {
+                        throw InvalidArgumentException(context, " has unsupported trex_annotation_type ", type, ".");
+                    }
+                    parsed = true;
+                }
+
+                if(auto keypoints = object_value(object, "keypoints"); !parsed && keypoints) {
                     if(auto points = coco_keypoints(*keypoints, image_size, context); points) {
                         annotation.points = std::move(*points);
                         annotation.clid = category_id;

@@ -10,6 +10,7 @@
 #include <gui/dyn/Action.h>
 #include <gui/DynamicGUI.h>
 #include <ui/Bowl.h>
+#include <tracking/AnnotationExporter.h>
 
 namespace cmn::gui {
 
@@ -108,35 +109,30 @@ AnnotationType findMostCommonDetectAnnotationType(const std::vector<Annotation>&
         })->first;
 }
 
-// Updated exportDetectAnnotationsToYolo function
 void exportDetectAnnotationsToYolo(const std::vector<Annotation>& detect_annotations, const Size2& imgSize, const std::string& outputFile, std::optional<AnnotationType> exportType = std::nullopt) {
-    // Determine the export type if not specified
-    AnnotationType typeToExport = exportType.has_value() ? exportType.value() : findMostCommonDetectAnnotationType(detect_annotations);
+    namespace dataset_export = track::detect::annotation_export;
+    dataset_export::Options options;
+    options.detect_format = READ_SETTING(detect_format, ObjectDetectionFormat_t);
+    options.annotations[0_f] = detect_annotations;
+    const auto selected = dataset_export::select_annotations(options);
+    if(selected.empty())
+        throw InvalidArgumentException("No annotations match detect_format ", options.detect_format, ".");
+    if(exportType && *exportType != selected.begin()->second.front().type)
+        throw InvalidArgumentException("Export type must match detect_format ", options.detect_format, ".");
+
+    const auto configured = READ_SETTING(detect_keypoint_names, KeypointNames);
+    const auto keypoints = dataset_export::default_keypoint_names(selected, configured.names.value_or(std::vector<std::string>{}));
+    const auto radii = READ_SETTING(detect_point_radii, std::map<int, float>);
+    const auto image_size = READ_SETTING(individual_image_size, Size2);
+    const float fallback_radius = 0.5f * std::max(image_size.width, image_size.height);
+    std::string text;
+    for(const auto& anno : selected.begin()->second)
+        text += dataset_export::annotation_to_yolo({}, anno, imgSize, keypoints, radii, fallback_radius) + "\n";
 
     std::ofstream file(outputFile);
-
-    for (const auto& anno : detect_annotations) {
-        if (anno.type != typeToExport) {
-            Print("Skipping annotation of type ", static_cast<int>(anno.type), ", not matching export type ", static_cast<int>(typeToExport), "\n");
-            continue;
-        }
-
-        std::string yoloFormatLine;
-        switch (anno.type) {
-            case AnnotationType::BOX:
-                yoloFormatLine = convertBoxToYoloFormat(anno, imgSize);
-                break;
-            case AnnotationType::POSE:
-                yoloFormatLine = convertPoseToYoloFormat(anno, imgSize);
-                break;
-            case AnnotationType::SEGMENTATION:
-                yoloFormatLine = convertSegmentationToYoloFormat(anno, imgSize);
-                break;
-        }
-        file << yoloFormatLine << std::endl;
-    }
-
-    file.close();
+    file << text;
+    if(!file)
+        throw InvalidArgumentException("Cannot write annotations to ", outputFile, ".");
 }
 
 void DetectAnnotationView::set_detect_annotation(Annotation && a) {

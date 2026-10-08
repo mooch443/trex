@@ -73,6 +73,7 @@ struct DrawDetectAnnotationImportOptions::Data {
     std::string _selected_source_basename;
     MergeMode _mode{merge_mode_t::add};
     ImportScope _scope{import_scope_t::current_video};
+    Task _task{task_t::unknown};
     bool _metadata_confirmed{false};
     bool _preview_dirty{true};
     ImportPreview _preview;
@@ -99,6 +100,7 @@ struct DrawDetectAnnotationImportOptions::Data {
         if(auto format = dataset::format_from_dataset_file(_dataset_file); format)
             options.format = *format;
         options.dataset_file = _dataset_file;
+        options.task = _task;
         options.frame_mapping_csv = _mapping_csv;
         options.existing_annotations = annotations();
         options.selected_source_basename = _selected_source_basename;
@@ -127,6 +129,7 @@ struct DrawDetectAnnotationImportOptions::Data {
             options.current_keypoint_names = *keypoints.names;
         options.current_skeletons = READ_SETTING(detect_skeleton, std::optional<blob::Pose::Skeletons>);
         options.current_detect_format = READ_SETTING(detect_format, track::detect::ObjectDetectionFormat_t);
+        options.current_point_radii = READ_SETTING(detect_point_radii, std::map<int, float>);
         return options;
     }
 
@@ -143,6 +146,10 @@ struct DrawDetectAnnotationImportOptions::Data {
                 parts.push_back(Meta::toStr(_preview.counts.segmentations) + " segmentations");
             if(_preview.counts.poses > 0)
                 parts.push_back(Meta::toStr(_preview.counts.poses) + " poses");
+            if(_preview.counts.obbs > 0)
+                parts.push_back(Meta::toStr(_preview.counts.obbs) + " OBBs");
+            if(_preview.counts.points > 0)
+                parts.push_back(Meta::toStr(_preview.counts.points) + " points");
 
             const auto format = dataset::format_from_dataset_file(_dataset_file);
             text = "Detected <b>" + (format ? format->str() : std::string("unknown")) + "</b> <b>" + Meta::toStr(_preview.task) + "</b> annotations.";
@@ -189,6 +196,8 @@ struct DrawDetectAnnotationImportOptions::Data {
                 changes.push_back("skeletons");
             if(_preview.metadata.detect_format_changed)
                 changes.push_back("detect format");
+            if(_preview.metadata.point_radii_changed)
+                changes.push_back("point radii");
             text += join(changes, ", ") + ".</yellow>";
         }
 
@@ -240,6 +249,7 @@ struct DrawDetectAnnotationImportOptions::Data {
             {"auto_source", glz::json_t(_preview.auto_source_basename)},
             {"source_choices", cvt2json(source_choices.to_list())},
             {"format", glz::json_t(detected_format_text)},
+            {"import_task", glz::json_t(_task.str())},
             {"file_hint", glz::json_t("YOLO .yaml/.yml or COCO .json")},
             {"file_placeholder", glz::json_t("/path/to/data.yaml or /path/to/_annotations.coco.json")},
             {"mode", glz::json_t(_mode.str())},
@@ -254,6 +264,8 @@ struct DrawDetectAnnotationImportOptions::Data {
                 {"boxes", glz::json_t(_preview.counts.boxes)},
                 {"segmentations", glz::json_t(_preview.counts.segmentations)},
                 {"poses", glz::json_t(_preview.counts.poses)},
+                {"obbs", glz::json_t(_preview.counts.obbs)},
+                {"points", glz::json_t(_preview.counts.points)},
                 {"total", glz::json_t(_preview.counts.total())}
             }},
             
@@ -269,11 +281,13 @@ struct DrawDetectAnnotationImportOptions::Data {
             {"metadata_keypoint_names_changed", glz::json_t(_preview.metadata.keypoint_names_changed)},
             {"metadata_skeletons_changed", glz::json_t(_preview.metadata.skeletons_changed)},
             {"metadata_detect_format_changed", glz::json_t(_preview.metadata.detect_format_changed)},
+            {"metadata_point_radii_changed", glz::json_t(_preview.metadata.point_radii_changed)},
             
             {"detect_classes", cvt2json(_preview.metadata.imported_class_names) },
             {"detect_skeletons", cvt2json(_preview.metadata.imported_skeletons) },
             {"detect_keypoint_names", cvt2json(_preview.metadata.imported_keypoint_names) },
             {"detect_format", cvt2json(_preview.metadata.imported_detect_format) },
+            {"detect_point_radii", cvt2json(_preview.metadata.imported_point_radii) },
             
             // Errors and warnings
             {"has_errors", glz::json_t(!_preview.errors.empty())},
@@ -316,6 +330,12 @@ struct DrawDetectAnnotationImportOptions::Data {
             .context = [&]() {
                 dyn::Context context;
                 context.actions = {
+                    ActionFunc("set-task", [this](const Action& action) {
+                        REQUIRE_EXACTLY(1, action);
+                        _task = Meta::fromStr<Task>(action.first());
+                        _metadata_confirmed = false;
+                        _preview_dirty = true;
+                    }),
                     ActionFunc("set-dataset-file", [this](const Action& action) {
                         REQUIRE_EXACTLY(1, action);
                         _dataset_file = file::Path(action.first());
@@ -392,6 +412,14 @@ struct DrawDetectAnnotationImportOptions::Data {
                                         SETTING(detect_skeleton) = preview.metadata.imported_skeletons;
                                     if(preview.metadata.detect_format_changed)
                                         SETTING(detect_format) = preview.metadata.imported_detect_format;
+                                    if(preview.metadata.point_radii_changed) {
+                                        GlobalSettings::write([&](Configuration& config) {
+                                            auto radii = config.values.at("detect_point_radii").value<std::map<int, float>>();
+                                            for(const auto& [clid, radius] : preview.metadata.imported_point_radii)
+                                                radii[clid] = radius;
+                                            config.values["detect_point_radii"] = std::move(radii);
+                                        });
+                                    }
                                 }
                                 Print("Imported annotation dataset from ", options.dataset_file, ".");
                                 SETTING(gui_show_detect_annotation_import_options) = false;
