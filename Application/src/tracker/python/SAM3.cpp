@@ -243,7 +243,7 @@ namespace track {
 
 void register_sam3_backend() {
     detect::register_backend(detect::ObjectDetectionType::sam3, detect::BackendHooks{
-        .init = []() { SAM3::init(); },
+        .init = []() { SAM3::init(); return std::vector<detect::ModelConfig>{}; },
         .deinit = []() { SAM3::deinit(); },
         .is_initializing = []() { return SAM3::is_initializing(); },
         .fps = []() { return SAM3::fps(); },

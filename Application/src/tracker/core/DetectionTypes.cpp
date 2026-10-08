@@ -8,6 +8,22 @@ using namespace cmn;
 
 namespace track::detect {
 
+thread_local TemporaryClassNames* TemporaryClassNames::_active = nullptr;
+
+TemporaryClassNames::TemporaryClassNames(std::function<yolo::names::owner_map_t()> lookup)
+    : _lookup(std::move(lookup)), _previous(std::exchange(_active, this))
+{
+}
+
+TemporaryClassNames::~TemporaryClassNames() {
+    assert(_active == this);
+    _active = _previous;
+}
+
+yolo::names::owner_map_t TemporaryClassNames::current() {
+    return _active && _active->_lookup ? _active->_lookup() : yolo::names::owner_map_t{};
+}
+
 bool PredictionFilter::allowed(uint16_t clid) const {
     if(_inverted_from)
         return not cmn::contains(*_inverted_from, clid);
@@ -47,7 +63,15 @@ std::optional<uint16_t> PredictionFilter::class_id_for(std::string_view search, 
     return std::nullopt;
 }
 PredictionFilter PredictionFilter::fromStr(std::string_view sv) {
-    const yolo::names::map_t detect_classes = yolo::names::get_map();
+    const auto classes = GlobalSettings::read([](const Configuration& config) {
+        const auto configured = config.values.at("detect_classes").value<blob::MaybeObjectClass_t>();
+        if(configured && not configured->empty())
+            return *configured;
+        return TemporaryClassNames::current();
+    });
+    yolo::names::map_t detect_classes;
+    for(const auto& [id, name] : classes)
+        detect_classes.emplace(id, name);
     std::vector<uint16_t> only_detect;
     
     bool invert = false;

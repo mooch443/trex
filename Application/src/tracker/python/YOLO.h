@@ -17,7 +17,7 @@ struct TREX_EXPORT YOLO {
 
     static void reinit(track::ModuleProxy& proxy);
 
-    static void init();
+    static std::vector<detect::ModelConfig> init();
     static void deinit();
 
     static void receive(SegmentationData& data, track::detect::Result&& result);

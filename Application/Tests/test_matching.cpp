@@ -2325,3 +2325,75 @@ TEST(PredictionFilterTests, Basic) {
     Print(filter);
     ASSERT_EQ("-[0,2,42]", filter.toStr());
 }
+
+TEST(PredictionFilterTests, TemporaryClassesPreserveConfiguredSettings) {
+    resetGlobalSettings();
+    EXPECT_THROW(PredictionFilter::fromStr("[person]"), std::exception);
+
+    TemporaryClassNames inspection([] {
+        return yolo::names::owner_map_t{{0, "person"}, {1, "dog"}};
+    });
+
+    EXPECT_EQ(PredictionFilter::fromStr("[person]").toStr(), "[0]");
+    GlobalSettings::write([](Configuration& config) {
+        config.values["detect_only_classes"].get().set_value_from_string("[person]");
+    });
+    EXPECT_EQ(READ_SETTING(detect_only_classes, PredictionFilter).toStr(), "[0]");
+    const auto excluded = PredictionFilter::fromStr("-[person]");
+    EXPECT_FALSE(excluded.allowed(0));
+    EXPECT_TRUE(excluded.allowed(1));
+    EXPECT_THROW(PredictionFilter::fromStr("[unknown]"), std::exception);
+    EXPECT_FALSE(READ_SETTING(detect_classes, blob::MaybeObjectClass_t).has_value());
+
+    auto worker = std::async(std::launch::async, [] {
+        try {
+            (void)PredictionFilter::fromStr("[person]");
+            return false;
+        } catch(const std::exception&) {
+            return true;
+        }
+    });
+    EXPECT_TRUE(worker.get());
+
+    SETTING(detect_classes) = blob::MaybeObjectClass_t{blob::ObjectClass_t{{4, "person"}}};
+    EXPECT_EQ(PredictionFilter::fromStr("[person]").toStr(), "[4]");
+    EXPECT_THROW(PredictionFilter::fromStr("[dog]"), std::exception);
+    EXPECT_EQ(READ_SETTING(detect_classes, blob::MaybeObjectClass_t),
+              (blob::MaybeObjectClass_t{blob::ObjectClass_t{{4, "person"}}}));
+}
+
+TEST(PredictionFilterTests, TemporaryClassesRestoreLookupAcrossScopes) {
+    resetGlobalSettings();
+
+    {
+        yolo::names::owner_map_t classes{{0, "person"}};
+        TemporaryClassNames inspection([&] { return classes; });
+        EXPECT_EQ(PredictionFilter::fromStr("[person]").toStr(), "[0]");
+
+        {
+            TemporaryClassNames loading;
+            EXPECT_THROW(PredictionFilter::fromStr("[person]"), std::exception);
+            classes = {{1, "dog"}};
+            EXPECT_THROW(PredictionFilter::fromStr("[dog]"), std::exception);
+        }
+        EXPECT_THROW(PredictionFilter::fromStr("[person]"), std::exception);
+        EXPECT_EQ(PredictionFilter::fromStr("[dog]").toStr(), "[1]");
+
+        try {
+            TemporaryClassNames loading;
+            EXPECT_THROW(PredictionFilter::fromStr("[dog]"), std::exception);
+            throw std::runtime_error("Failed settings load");
+        } catch(const std::runtime_error&) {}
+        EXPECT_EQ(PredictionFilter::fromStr("[dog]").toStr(), "[1]");
+    }
+
+    {
+        TemporaryClassNames next_scene([] {
+            return yolo::names::owner_map_t{{2, "person"}};
+        });
+        EXPECT_THROW(PredictionFilter::fromStr("[dog]"), std::exception);
+        EXPECT_EQ(PredictionFilter::fromStr("[person]").toStr(), "[2]");
+    }
+    EXPECT_THROW(PredictionFilter::fromStr("[person]"), std::exception);
+    EXPECT_EQ(PredictionFilter::fromStr("[0]").toStr(), "[0]");
+}

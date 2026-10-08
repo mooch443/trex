@@ -18,6 +18,22 @@ std::optional<cmn::blob::Pose::Skeleton> get_skeleton(uint8_t clid, const std::o
 
 namespace track::detect {
 
+// Registers a fallback on this thread until scope exit; an empty lookup suppresses it.
+class TREX_EXPORT TemporaryClassNames {
+    std::function<yolo::names::owner_map_t()> _lookup;
+    TemporaryClassNames* _previous;
+    static thread_local TemporaryClassNames* _active;
+
+    static yolo::names::owner_map_t current();
+    friend struct PredictionFilter;
+
+public:
+    explicit TemporaryClassNames(std::function<yolo::names::owner_map_t()> lookup = {});
+    ~TemporaryClassNames();
+    TemporaryClassNames(const TemporaryClassNames&) = delete;
+    TemporaryClassNames& operator=(const TemporaryClassNames&) = delete;
+};
+
 struct PredictionFilter {
     std::vector<uint16_t> detect_only;
     std::optional<std::vector<uint16_t>> _inverted_from;

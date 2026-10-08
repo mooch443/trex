@@ -9,7 +9,6 @@
 #include <python/PythonWrapper.h>
 #include <python/YOLO.h>
 #include <ui/Segmenter.h>
-#include <ui/SettingsScene.h>
 
 #include <atomic>
 #include <chrono>
@@ -340,7 +339,8 @@ protected:
     }
 };
 
-TEST_F(MLFailures, UnsupportedModelTaskDisablesSettingsConversion) {
+TEST_F(MLFailures, UnsupportedModelTaskPreservesConfiguredFormat) {
+    SETTING(detect_format) = ObjectDetectionFormat::poses;
     python_environment->write_bbx(
         "raise RuntimeError('Unknown task semantic')",
         "return []");
@@ -354,9 +354,178 @@ TEST_F(MLFailures, UnsupportedModelTaskDisablesSettingsConversion) {
     }
 
     EXPECT_NE(message.find("Unknown task semantic"), std::string::npos) << message;
-    EXPECT_FALSE(gui::SettingsScene::detection_model_ready());
+    EXPECT_EQ(READ_SETTING(detect_format, ObjectDetectionFormat_t), ObjectDetectionFormat::poses);
     const auto error = deinit_detection();
     EXPECT_FALSE(error.has_value()) << (error ? *error : "");
+}
+
+TEST_F(MLFailures, YoloModelInspectionPreservesConfiguredMetadata) {
+    SETTING(detect_format) = ObjectDetectionFormat::poses;
+    SETTING(detect_skeleton) = std::optional<blob::Pose::Skeletons>{
+        blob::Pose::Skeletons{
+            ._skeletons = {{"animal", blob::Pose::Skeleton{{{0, 1, ""}}}}}
+        }
+    };
+    SETTING(detect_keypoint_format) = KeypointFormat{.n_points = 2, .n_dims = 2};
+    SETTING(detect_keypoint_names) = KeypointNames{
+        .names = std::vector<std::string>{"head", "tail"}
+    };
+    SETTING(region_model) = Path(python_environment->model.string());
+    SETTING(region_resolution) = DetectResolution{24, 24};
+
+    const std::vector<std::string> keys{
+        "detect_classes", "detect_format", "detect_skeleton",
+        "detect_keypoint_format", "detect_keypoint_names",
+        "detect_requires_exact_input_size", "detect_resolution", "region_resolution"
+    };
+    const auto before = GlobalSettings::read([](const Configuration& config) {
+        return config.values;
+    });
+    std::atomic_size_t changes{0};
+    auto callback = GlobalSettings::register_callbacks<sprite::RegisterInit::DONT_TRIGGER>(
+        keys, [&](auto) { ++changes; });
+
+    for(const bool fail : {false, true}) {
+        SCOPED_TRACE(fail ? "failed inspection" : "successful inspection");
+        python_environment->write_bbx(
+            fail ? "raise RuntimeError('inspection failed')" :
+                "for config in configs:\n"
+                "    config.output_format = TRex.ObjectDetectionFormat.boxes\n"
+                "    config.trained_resolution = TRex.DetectResolution(64, 64)\n"
+                "    config.requires_exact_input_size = True\n"
+                "return configs",
+            "return []");
+
+        if(fail) {
+            EXPECT_THROW(YOLO::init(), std::exception);
+        } else {
+            std::vector<ModelConfig> models;
+            EXPECT_NO_THROW(models = YOLO::init());
+            EXPECT_EQ(models.size(), 2u);
+            for(const auto& config : models) {
+                EXPECT_EQ(config.output_format, ObjectDetectionFormat::boxes);
+                EXPECT_EQ(config.trained_resolution, (DetectResolution{64, 64}));
+                EXPECT_TRUE(config.requires_exact_input_size);
+            }
+            EXPECT_NO_THROW(EXPECT_EQ(YOLO::init().size(), models.size()));
+        }
+        const auto error = deinit_detection();
+        EXPECT_FALSE(error.has_value()) << (error ? *error : "");
+
+        for(const auto& key : keys) {
+            SCOPED_TRACE(key);
+            EXPECT_EQ(GlobalSettings::get(key).get().valueString(),
+                      before.at(key).get().valueString());
+        }
+    }
+    GlobalSettings::unregister_callbacks(std::move(callback));
+    EXPECT_EQ(changes.load(), 0u);
+}
+
+TEST_F(MLFailures, YoloDefaultModelDoesNotChangeConfiguredPath) {
+    SETTING(detect_model) = Path{};
+    const auto models = YOLO::init();
+    ASSERT_EQ(models.size(), 1u);
+    EXPECT_EQ(models.front().model_path, "yolov8n-pose.pt");
+    EXPECT_TRUE(READ_SETTING(detect_model, Path).empty());
+}
+
+TEST_F(MLFailures, ProbeCleanupReleasesPythonModelsBeforeTheNextLoad) {
+    for(const bool fail : {false, true}) {
+        SCOPED_TRACE(fail ? "failed probe" : "successful probe");
+        std::string load_body =
+            "import builtins, weakref\n"
+            "import trex_yolo, trex_rfdetr, trex_detection_model\n"
+            "class ProbeModel:\n"
+            "    def __init__(self):\n"
+            "        self.cycle = self\n"
+            "global model\n"
+            "model = ProbeModel()\n"
+            "builtins._trex_probe_ref = weakref.ref(model)\n"
+            "builtins._trex_probe_numpy = np\n";
+        load_body += fail ? "raise RuntimeError('probe failed')" : "return configs";
+        python_environment->write_bbx(load_body, "return []");
+
+        if(fail) {
+            EXPECT_THROW(YOLO::init(), std::exception);
+        } else {
+            ASSERT_NO_THROW(YOLO::init());
+        }
+        ASSERT_NO_THROW(Python::schedule([]() {
+            Python::execute(
+                "import builtins\n"
+                "assert builtins._trex_probe_ref() is not None\n");
+        }).get());
+
+        const auto error = deinit_detection();
+        ASSERT_FALSE(error.has_value()) << (error ? *error : "");
+        EXPECT_EQ(detect::try_pipeline_manager(ObjectDetectionType::yolo), nullptr);
+        ASSERT_NO_THROW(Python::schedule([]() {
+            Python::execute(
+                "import builtins, sys\n"
+                "assert set(('bbx_saved_model', 'trex_yolo', 'trex_rfdetr', "
+                "'trex_detection_model')).isdisjoint(sys.modules)\n"
+                "assert builtins._trex_probe_ref() is None\n"
+                "assert sys.modules['numpy'] is builtins._trex_probe_numpy\n"
+                "del builtins._trex_probe_ref, builtins._trex_probe_numpy\n");
+            EXPECT_FALSE(Python::has_loaded_module("bbx_saved_model"));
+        }).get());
+    }
+
+    python_environment->write_bbx(
+        "return configs",
+        "return [_empty_result(i) for i in range(_result_count(input))]");
+    ASSERT_NO_THROW(Detection::init());
+    auto batch = apply_tiles(1);
+    expect_success(batch);
+}
+
+TEST_F(MLFailures, ConversionAppliesModelMetadataAndPreservesConfiguredAnnotations) {
+    const blob::MaybeObjectClass_t classes{blob::ObjectClass_t{{0, "animal"}}};
+    const std::optional<blob::Pose::Skeletons> skeleton{
+        blob::Pose::Skeletons{
+            ._skeletons = {{"animal", blob::Pose::Skeleton{{{0, 1, ""}}}}}
+        }
+    };
+    const KeypointNames names{.names = std::vector<std::string>{"head", "tail"}};
+    SETTING(detect_classes) = classes;
+    SETTING(detect_skeleton) = skeleton;
+    SETTING(detect_keypoint_names) = names;
+
+    for(const bool poses : {true, false}) {
+        SCOPED_TRACE(poses ? "pose model with region model" : "box model without region model");
+        SETTING(region_model) = poses ? Path(python_environment->model.string()) : Path{};
+        python_environment->write_bbx(
+            poses ?
+                "for config in configs:\n"
+                "    config.output_format = TRex.ObjectDetectionFormat.poses\n"
+                "    config.trained_resolution = TRex.DetectResolution(64, 64)\n"
+                "    config.keypoint_format = TRex.KeypointFormat(2, 3)\n"
+                "    config.requires_exact_input_size = True\n"
+                "return configs" :
+                "for config in configs:\n"
+                "    config.output_format = TRex.ObjectDetectionFormat.boxes\n"
+                "    config.trained_resolution = TRex.DetectResolution(96, 96)\n"
+                "return configs",
+            "return []");
+
+        ASSERT_NO_THROW(Detection::init());
+        EXPECT_EQ(READ_SETTING(detect_format, ObjectDetectionFormat_t),
+                  poses ? ObjectDetectionFormat::poses : ObjectDetectionFormat::boxes);
+        EXPECT_EQ(READ_SETTING(detect_resolution, DetectResolution),
+                  poses ? (DetectResolution{64, 64}) : (DetectResolution{96, 96}));
+        EXPECT_EQ(READ_SETTING(region_resolution, DetectResolution),
+                  poses ? (DetectResolution{64, 64}) : DetectResolution{});
+        EXPECT_EQ(READ_SETTING(detect_requires_exact_input_size, bool), poses);
+        EXPECT_EQ(READ_SETTING(detect_keypoint_format, KeypointFormat),
+                  poses ? (KeypointFormat{.n_points = 2, .n_dims = 3}) : KeypointFormat{});
+        EXPECT_EQ(READ_SETTING(detect_classes, blob::MaybeObjectClass_t), classes);
+        EXPECT_EQ(READ_SETTING(detect_skeleton, std::optional<blob::Pose::Skeletons>), skeleton);
+        EXPECT_EQ(READ_SETTING(detect_keypoint_names, KeypointNames), names);
+
+        const auto error = deinit_detection();
+        ASSERT_FALSE(error.has_value()) << (error ? *error : "");
+    }
 }
 
 TEST_F(MLFailures, ModuleImportFailureSurfacesAtPredict) {

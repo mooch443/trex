@@ -612,7 +612,7 @@
                                 },
                                 {
                                     "type":"condition",
-                                    "var":"{not:{equal:{global.detect_format}:none}}",
+                                    "var":"{not:{equal:{model_detect_format}:none}}",
                                     "then": {
                                         "type":"hlayout",
                                         "pad":[0,0,-1,0],
@@ -627,7 +627,7 @@
                                             },
                                             {
                                                 "type":"stext",
-                                                "text":"<gray><c><cyan>{at:0:{global.detect_resolution}}</cyan></c>px</gray>",
+                                                "text":"<gray><c><cyan>{at:0:{model_detect_resolution}}</cyan></c>px</gray>",
                                                 "pad":[10,12,10,14],
                                                 "corners":["right"],
                                                 "fill":[40,40,40,100],
@@ -648,7 +648,7 @@
                                             },
                                             {
                                                 "type":"stext",
-                                                "text":"<gray><c><cyan>{global.detect_format}</cyan></c></gray>",
+                                                "text":"<gray><c><cyan>{model_detect_format}</cyan></c></gray>",
                                                 "pad":[10,13,10,15],
                                                 "corners":["right"],
                                                 "fill":[40,40,40,100],
@@ -930,7 +930,7 @@
                                         },
                                         {
                                             "type":"stext",
-                                            "text":"<gray><c><cyan>{at:0:{global.region_resolution}}</cyan></c>px</gray>",
+                                            "text":"<gray><c><cyan>{at:0:{model_region_resolution}}</cyan></c>px</gray>",
                                             "pad":[10,12,10,14],
                                             "fill":[40,40,40,100],
                                             "line":[100,100,100,250]

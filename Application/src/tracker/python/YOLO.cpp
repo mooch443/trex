@@ -95,17 +95,16 @@ void YOLO::set_background(const Image::Ptr &image) {
 void YOLO::reinit(ModuleProxy& proxy) {
     proxy.set_variable("model_type", Meta::toStr(detect::detection_type()));
     
-    if(READ_SETTING(detect_model, file::Path).empty()) {
+    auto path = READ_SETTING(detect_model, file::Path);
+    if(path.empty()) {
         Print("You can provide a model for object detection using the command-line argument -m <path>. Otherwise, we will assume YOLOv8n-pose");
-        SETTING(detect_model) = file::Path("yolov8n-pose");
+        path = file::Path("yolov8n-pose");
     }
 
     using namespace track::detect;
     _loaded_models.clear();
     data().reset();
 
-    // caching here since it can be modified above
-    auto path = READ_SETTING(detect_model, file::Path);
     if(detect::yolo::valid_model(path)) {
         if(not path.has_extension()) {
             path = path.add_extension("pt"); // pytorch model
@@ -143,27 +142,10 @@ void YOLO::reinit(ModuleProxy& proxy) {
     
     for(auto &config : _loaded_models) {
         if(config.task == ModelTaskType::detect) {
-            SETTING(detect_format) = ObjectDetectionFormat_t(config.output_format);
-            SETTING(detect_resolution) = config.trained_resolution;
-            SETTING(detect_requires_exact_input_size) = config.requires_exact_input_size;
-            if(auto detect_classes = READ_SETTING(detect_classes, cmn::blob::MaybeObjectClass_t);
-               not detect_classes.has_value()
-               || detect_classes->empty())
-            {
-                Print("// Loading classes from model: ", config.classes);
-                SETTING(detect_classes) = cmn::blob::MaybeObjectClass_t{config.classes};
-            }
-            
-            if(config.output_format == ObjectDetectionFormat::poses)
-            {
-                SETTING(detect_keypoint_format) = config.keypoint_format ? *config.keypoint_format : KeypointFormat{};
-            }
-            
-        } else if(config.task == ModelTaskType::region) {
-            SETTING(region_resolution) = config.trained_resolution;
+            Print("// Loading classes from model: ", config.classes);
         }
     }
-    
+
     /*if(auto detect_format = READ_SETTING(detect_format, ObjectDetectionFormat_t);
        detect_format == ObjectDetectionFormat::boxes)
     {
@@ -174,7 +156,7 @@ void YOLO::reinit(ModuleProxy& proxy) {
     }*/
 }
 
-void YOLO::init() {
+std::vector<detect::ModelConfig> YOLO::init() {
     bool expected = false;
     if(yolo_initialized.compare_exchange_strong(expected, true)) {
         data().reset();
@@ -215,6 +197,10 @@ void YOLO::init() {
         //! the actual .pt file.
         //init_future.wait();
     }
+
+    std::vector<detect::ModelConfig> models;
+    Python::schedule([&models]() { models = _loaded_models; }).get();
+    return models;
 }
 
 void YOLO::deinit() {
@@ -247,6 +233,8 @@ void YOLO::deinit() {
                 track::PythonIntegration::unload_module("trex_yolo");
                 track::PythonIntegration::unload_module("trex_rfdetr");
                 track::PythonIntegration::unload_module("trex_detection_model");
+                _loaded_models.clear();
+                track::PythonIntegration::execute("import gc\ngc.collect()");
             }).get();
             
             data().reset();
@@ -1385,7 +1373,7 @@ namespace track {
 
 void register_yolo_backend() {
     detect::register_backend(detect::ObjectDetectionType::yolo, detect::BackendHooks{
-        .init = []() { YOLO::init(); },
+        .init = []() { return YOLO::init(); },
         .deinit = []() { YOLO::deinit(); },
         .is_initializing = []() { return YOLO::is_initializing(); },
         .fps = []() { return YOLO::fps(); },

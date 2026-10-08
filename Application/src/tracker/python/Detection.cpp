@@ -28,7 +28,28 @@ void Detection::init() {
         hooks
         && hooks->init)
     {
-        hooks->init();
+        const auto models = hooks->init();
+        DetectResolution region_resolution;
+        for(const auto& config : models) {
+            if(config.task == ModelTaskType::detect) {
+                if(READ_SETTING(detect_model, file::Path).empty())
+                    SETTING(detect_model) = file::Path(config.model_path);
+                SETTING(detect_format) = ObjectDetectionFormat_t(config.output_format);
+                SETTING(detect_resolution) = config.trained_resolution;
+                SETTING(detect_requires_exact_input_size) = config.requires_exact_input_size;
+                SETTING(detect_keypoint_format) = config.keypoint_format.value_or(KeypointFormat{});
+                if(auto detect_classes = READ_SETTING(detect_classes, cmn::blob::MaybeObjectClass_t);
+                   not detect_classes.has_value()
+                   || detect_classes->empty())
+                {
+                    SETTING(detect_classes) = cmn::blob::MaybeObjectClass_t{config.classes};
+                }
+            } else if(config.task == ModelTaskType::region) {
+                region_resolution = config.trained_resolution;
+            }
+        }
+        if(*type == ObjectDetectionType::yolo)
+            SETTING(region_resolution) = region_resolution;
     }
 
     switch(*type) {

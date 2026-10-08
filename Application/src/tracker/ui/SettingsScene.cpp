@@ -33,21 +33,6 @@ namespace cmn::gui {
 
 ProtectedProperty<std::string> last_opened_tab{"choose_settings_layout.json"};
 
-bool SettingsScene::detection_model_ready() {
-    const auto type = READ_SETTING_WITH_DEFAULT(
-        detect_type,
-        track::detect::ObjectDetectionType_t{});
-    if(type != track::detect::ObjectDetectionType::yolo)
-        return true;
-
-    const auto format = READ_SETTING_WITH_DEFAULT(
-        detect_format,
-        track::detect::ObjectDetectionFormat_t{});
-    return format != track::detect::ObjectDetectionFormat::none
-        && track::detect::yolo::valid_model(
-            READ_SETTING_WITH_DEFAULT(detect_model, file::Path{}));
-}
-
 void SettingsScene::reset_last_opened_tab() {
     last_opened_tab.set("choose_settings_layout.json");
 }
@@ -104,15 +89,20 @@ struct SettingsScene::Data {
         }
     };
 
-    struct DetectionModelMetadata {
-        track::detect::DetectResolution resolution;
-        track::detect::ObjectDetectionFormat_t format{track::detect::ObjectDetectionFormat::none};
-        blob::MaybeObjectClass_t classes;
-        track::detect::KeypointFormat keypoint_format;
-        bool requires_exact_input_size{false};
+    struct DetectionModelResult {
+        uint64_t generation;
+        DetectionModelRequest request;
+        std::vector<track::detect::ModelConfig> models;
     };
 
-    std::unordered_map<std::string, DetectionModelMetadata> _cached_model_metadata;
+    std::atomic<uint64_t> _model_generation{0};
+    ProtectedProperty<std::optional<DetectionModelResult>> _model_configs;
+    std::map<std::pair<std::string, std::string>, std::vector<track::detect::ModelConfig>> _cached_model_configs;
+    track::detect::TemporaryClassNames _model_class_names{[this] {
+        if(auto config = model_config(track::detect::ModelTaskType::detect))
+            return config->classes;
+        return track::detect::yolo::names::owner_map_t{};
+    }};
     sprite::Map _defaults;
     std::stack<std::string> _last_layouts;
     
@@ -182,28 +172,37 @@ struct SettingsScene::Data {
         }
     }
 
-    void clear_invalid_model_metadata() {
-        const auto type = READ_SETTING_WITH_DEFAULT(detect_type, track::detect::ObjectDetectionType_t{});
-        if(type ==  track::detect::ObjectDetectionType::none)
-            return;
-        
-        SETTING(detect_classes) = blob::MaybeObjectClass_t{};
-        SETTING(detect_format) = track::detect::ObjectDetectionFormat::none;
-        SETTING(detect_skeleton) = std::optional<blob::Pose::Skeletons>{};
-        SETTING(detect_keypoint_format) = track::detect::KeypointFormat{};
-        SETTING(detect_keypoint_names) = track::detect::KeypointNames{};
-        SETTING(detect_requires_exact_input_size) = false;
-        SETTING(detect_resolution) = track::detect::DetectResolution{};
-        SETTING(region_resolution) = track::detect::DetectResolution{};
+    std::optional<track::detect::ModelConfig> model_config(track::detect::ModelTaskType task) const {
+        auto result = _model_configs.get();
+        if(result
+           && result->generation == _model_generation.load()
+           && result->request.is_current())
+        {
+            for(const auto& config : result->models) {
+                if(config.task == task)
+                    return config;
+            }
+        }
+        return std::nullopt;
+    }
+
+    bool detection_model_ready() const {
+        if(READ_SETTING_WITH_DEFAULT(detect_type, track::detect::ObjectDetectionType_t{})
+           != track::detect::ObjectDetectionType::yolo)
+            return true;
+
+        const auto config = model_config(track::detect::ModelTaskType::detect);
+        return config
+            && config->output_format != track::detect::ObjectDetectionFormat::none
+            && track::detect::yolo::valid_model(
+                READ_SETTING_WITH_DEFAULT(detect_model, file::Path{}));
     }
 
     void detection_models_updated() {
         update_running_tasks();
 
+        const auto generation = ++_model_generation;
         const auto type = READ_SETTING_WITH_DEFAULT(detect_type, track::detect::ObjectDetectionType_t{});
-        // A new model request owns all derived metadata. Clear the previous
-        // model before loading either a different YOLO or RF-DETR checkpoint.
-        clear_invalid_model_metadata();
         if(type != track::detect::ObjectDetectionType::yolo) {
             return;
         }
@@ -226,93 +225,40 @@ struct SettingsScene::Data {
         
         _running_tasks.emplace_back(Python::schedule(Python::PackagedTask{
             ._network = nullptr,
-            ._task = [this, request]()
+            ._task = [this, request, generation]()
             {
                 std::unique_lock model_guard(_detection_model_task_mutex);
 
-                static const auto is_ml_backend = [](){
-                    return READ_SETTING_WITH_DEFAULT(detect_type, track::detect::ObjectDetectionType_t{})
-                        == track::detect::ObjectDetectionType::yolo;
-                };
-
                 try {
-                    if(request.is_current())
+                    if(generation == _model_generation.load() && request.is_current())
                     {
-                        /// check whether we either 1. have no *region_model* active,
-                        /// or both region model and detect model exit and are
-                        /// also in the map:
-                        if(_cached_model_metadata.contains(request.detect_model.str())
-                           && (request.region_model.empty()
-                               || (request.region_model.is_regular()
-                                   && _cached_model_metadata.contains(request.region_model.str()))))
+                        const auto key = std::pair{request.detect_model.str(), request.region_model.str()};
+                        const bool cacheable = request.region_model.empty() || request.region_model.is_regular();
+                        if(cacheable && _cached_model_configs.contains(key))
                         {
-                            const auto metadata = _cached_model_metadata.at(request.detect_model.str());
-                            if(request.is_current()) {
-                                SETTING(detect_resolution) = metadata.resolution;
-                                SETTING(detect_format) = metadata.format;
-                                SETTING(detect_classes) = metadata.classes;
-                                SETTING(detect_keypoint_format) = metadata.keypoint_format;
-                                SETTING(detect_requires_exact_input_size) = metadata.requires_exact_input_size;
-                                if(metadata.format != track::detect::ObjectDetectionFormat::poses)
-                                    SETTING(detect_skeleton) = std::optional<blob::Pose::Skeletons>{};
-
-                                if(request.region_model.is_regular()) {
-                                    SETTING(region_resolution) = _cached_model_metadata.at(request.region_model.str()).resolution;
-                                } else
-                                    SETTING(region_resolution) = track::detect::DetectResolution{};
-                            }
+                            _model_configs.set(DetectionModelResult{
+                                generation, request, _cached_model_configs.at(key)
+                            });
                             
                         } else {
                             /// for no cache, reinit:
                             try {
-                                /// have to clear this before running init, so it will be populated
-                                SETTING(detect_classes) = blob::MaybeObjectClass_t{};
-                                
-                                /// populate the settings fields we need
+                                std::vector<track::detect::ModelConfig> models;
                                 if(const auto* hooks = track::detect::ensure_backend(track::detect::ObjectDetectionType::yolo); hooks && hooks->init) {
-                                    hooks->init();
+                                    models = hooks->init();
                                 } else {
                                     throw U_EXCEPTION("YOLO backend is unavailable.");
                                 }
-                                /// -----
-                                
-                                auto detect_classes = READ_SETTING(detect_classes, blob::MaybeObjectClass_t);
-                                auto format = READ_SETTING(detect_format, track::detect::ObjectDetectionFormat_t);
-                                auto loaded_resolution = READ_SETTING(detect_resolution, track::detect::DetectResolution);
-                                auto loaded_region_resolution = READ_SETTING(region_resolution, track::detect::DetectResolution);
-                                auto loaded_keypoint_format = READ_SETTING(detect_keypoint_format, track::detect::KeypointFormat);
-                                auto loaded_requires_exact_input_size = READ_SETTING(detect_requires_exact_input_size, bool);
                                 
                                 /// dont need to keep it
                                 if(const auto* hooks = track::detect::ensure_backend(track::detect::ObjectDetectionType::yolo); hooks && hooks->deinit) {
                                     hooks->deinit();
                                 }
 
-                                if(request.is_current()) {
-                                    _cached_model_metadata[request.detect_model.str()] = {
-                                        .resolution = loaded_resolution,
-                                        .format = format,
-                                        .classes = detect_classes,
-                                        .keypoint_format = loaded_keypoint_format,
-                                        .requires_exact_input_size = loaded_requires_exact_input_size
-                                    };
-
-                                    SETTING(detect_resolution) = loaded_resolution;
-                                    SETTING(detect_format) = format;
-                                    SETTING(detect_classes) = detect_classes;
-                                    SETTING(detect_keypoint_format) = loaded_keypoint_format;
-                                    SETTING(detect_requires_exact_input_size) = loaded_requires_exact_input_size;
-
-                                    if(format != track::detect::ObjectDetectionFormat::poses)
-                                        SETTING(detect_skeleton) = std::optional<blob::Pose::Skeletons>{};
-
-                                    if(request.region_model.is_regular()
-                                       && not _cached_model_metadata.contains(request.region_model.str()))
-                                    {
-                                        _cached_model_metadata[request.region_model.str()] = {
-                                            .resolution = loaded_region_resolution
-                                        };
-                                    }
+                                if(generation == _model_generation.load() && request.is_current()) {
+                                    if(cacheable)
+                                        _cached_model_configs[key] = models;
+                                    _model_configs.set(DetectionModelResult{generation, request, std::move(models)});
                                 }
                                 
                             } catch(...) {
@@ -328,32 +274,15 @@ struct SettingsScene::Data {
                                     FormatWarning("Failed to clean up the detection model after initialization failed.");
                                 }
 
-                                if(not is_ml_backend()
-                                    || request.is_current())
-                                {
-                                    clear_invalid_model_metadata();
-                                }
                                 FormatWarning("Failed to initialize ", request.detect_model);
                             }
                         }
                     }
 
-                    /// A YOLO init writes its metadata through GlobalSettings.
-                    /// Clear it again if the user left the model-backed path or
-                    /// selected a newer model while this request was running.
-                    if(not is_ml_backend() || not request.is_current())
-                        clear_invalid_model_metadata();
-                    
                     --_are_python_tasks_running;
                     Print("// Python tasks running(normal end) = ", _are_python_tasks_running.load());
                     
                 } catch(...) {
-                    if(not is_ml_backend()
-                        || request.is_current())
-                    {
-                        clear_invalid_model_metadata();
-                    }
-
                     --_are_python_tasks_running;
                     Print("// Python tasks running (exception) = ", _are_python_tasks_running.load());
                     throw;
@@ -434,7 +363,7 @@ struct SettingsScene::Data {
                         SETTING(detect_model) = file::Path{};
                         SETTING(region_model) = file::Path{};
                     }
-                    clear_invalid_model_metadata();
+                    ++_model_generation;
                 }
                 
             } else if(name == "detect_model" || name == "region_model") {
@@ -528,6 +457,7 @@ struct SettingsScene::Data {
                         SceneManager::enqueue([](auto, DrawStructure& graph) {
                             graph.dialog([](Dialog::Result result) mutable {
                                 if(result == Dialog::Result::OKAY) {
+                                    track::detect::TemporaryClassNames loading;
                                     /// resets settings that come from the recentitems
                                     /// config array:
                                     sprite::Map cleared;
@@ -566,7 +496,7 @@ struct SettingsScene::Data {
                     ActionFunc("convert", [this](auto){
                         if(_are_python_tasks_running.load() > 0
                            || _are_video_checks_running.load()
-                           || not SettingsScene::detection_model_ready())
+                           || not detection_model_ready())
                         {
                             FormatWarning("Ignoring conversion request while the selected detection model is not ready.");
                             return;
@@ -986,8 +916,22 @@ struct SettingsScene::Data {
                         return _are_python_tasks_running.load() > 0
                             || _are_video_checks_running.load();
                     }),
-                    VarFunc("valid_detection_model", [](const VarProps&) -> bool {
-                        return SettingsScene::detection_model_ready();
+                    VarFunc("valid_detection_model", [this](const VarProps&) -> bool {
+                        return detection_model_ready();
+                    }),
+                    VarFunc("model_detect_format", [this](const VarProps&) {
+                        const auto config = model_config(track::detect::ModelTaskType::detect);
+                        return track::detect::ObjectDetectionFormat_t{
+                            config ? config->output_format : track::detect::ObjectDetectionFormat_t::none
+                        };
+                    }),
+                    VarFunc("model_detect_resolution", [this](const VarProps&) {
+                        const auto config = model_config(track::detect::ModelTaskType::detect);
+                        return config ? config->trained_resolution : track::detect::DetectResolution{};
+                    }),
+                    VarFunc("model_region_resolution", [this](const VarProps&) {
+                        const auto config = model_config(track::detect::ModelTaskType::region);
+                        return config ? config->trained_resolution : track::detect::DetectResolution{};
                     }),
                     VarFunc("season", [](const VarProps&) {
                         return GlobalSettings::currentSeason().toStr();
@@ -1156,6 +1100,7 @@ void SettingsScene::Data::check_video_source(file::PathArray source) {
 }
 
 void SettingsScene::Data::load_video_settings(const file::PathArray& source) {
+    track::detect::TemporaryClassNames loading;
     ExtendableVector exclude{
         "filename",
         "source",

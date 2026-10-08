@@ -2302,10 +2302,8 @@ void PythonIntegration::unload_module(const std::string& name) {
         _module_contents.erase(name);
 
     try {
-        if(_modules.contains(name)) {
-            _modules[name].release();
-            _modules.erase(name);
-        }
+        _modules.erase(name);
+        py::module_::import("sys").attr("modules").attr("pop")(name, py::none());
     }
     catch (pybind11::error_already_set & e) {
         throw SoftException(e.what());
