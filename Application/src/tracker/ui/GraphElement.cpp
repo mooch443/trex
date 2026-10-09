@@ -43,6 +43,7 @@ struct GraphPoints {
     std::string toStr() const {
         return glz::write_json(*this).value_or("null");
     }
+    static consteval std::string_view class_name() { return "GraphPoints"; }
     
     static GraphPoints fromStr(cmn::StringLike auto&& str) {
         GraphPoints pts;
@@ -113,6 +114,7 @@ struct GraphLine {
     std::string toStr() const {
         return glz::write_json(*this).value_or("null");
     }
+    static consteval std::string_view class_name() { return "GraphLine"; }
     
     static GraphLine fromStr(cmn::StringLike auto&& str) {
         GraphLine pts;

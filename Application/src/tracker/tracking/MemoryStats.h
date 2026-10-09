@@ -5,6 +5,10 @@
 #include <tracking/OutputLibrary.h>
 #include <core/idx_t.h>
 
+namespace track {
+class Tracker;
+}
+
 namespace mem {
 using namespace track;
 
@@ -56,7 +60,7 @@ struct IndividualMemoryStats : public MemoryStats {
 };
 
 struct TrackerMemoryStats : public MemoryStats {
-    TrackerMemoryStats();
+    TrackerMemoryStats(track::Tracker&);
     void print() const override;
 };
 

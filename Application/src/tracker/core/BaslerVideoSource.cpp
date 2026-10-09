@@ -6,7 +6,7 @@
 
 BaslerVideoSource::BaslerVideoSource(fg::PylonCamera&& src)
     : AbstractBaseVideoSource({.base = "Basler",
-                                .size = src.size(),
+                                .resolution = src.size(),
                                 .framerate = short(std::max(0, READ_SETTING(cam_framerate, int))),
                                 .finite = false,
                                 .length = Frame_t{}}),

@@ -1,9 +1,13 @@
 #include "ImageExtractor.h"
 #include <gui/Transform.h>
+#include <processing/Background.h>
+#include <tracking/Individual.h>
+#include <tracking/LockGuard.h>
+#include <tracking/PPFrame.h>
+#include <tracking/Stuffs.h>
 #include <tracking/Tracker.h>
 #include <tracking/FilterCache.h>
 #include <tracking/IndividualManager.h>
-
 
 using namespace track;
 
@@ -15,6 +19,13 @@ bool ImageExtractor::is(uint32_t flags, Flag flag) {
 
 std::future<void>& ImageExtractor::future() {
     return _future;
+}
+
+Settings ImageExtractor::init_additional(const track::Tracker& tracker, Settings&& settings) {
+    settings.background = tracker.background();
+    settings.border = &tracker.border();
+    settings.frames = &tracker.frames();
+    return std::move(settings);
 }
 
 void ImageExtractor::filter_tasks() {
@@ -76,14 +87,18 @@ void ImageExtractor::collect(selector_t&& selector) {
                && i++ % _settings.item_step != 0)
                 return true;
             
+            q.fdx = fdx;
             q.basic = basic;
             q.posture = posture;
             
-            if(selector(q)) {
+            if(auto accepted = selector(q);
+               (bool)accepted)
+            {
                 // initialize task lazily
                 task.fdx = fdx;
                 task.bdx = basic->blob.blob_id();
                 task.tracklet = seg->range;
+                task.query = std::move(accepted);
                 ++_collected_items;
                 
                 _tasks[frame].emplace_back(std::move(task));
@@ -124,11 +139,16 @@ void ImageExtractor::update_thread(selector_t&& selector, partial_apply_t&& part
     
         // this will take the longest, since we actually
         // need to read the video:
-        _pushed_items = retrieve_image_data(std::move(partial_apply), callback);
+        if(not _settings.background)
+            throw InvalidArgumentException("No background was provided for ImageExtractor.");
+        if(not _settings.frames)
+            throw InvalidArgumentException("No frame repository was provided for ImageExtractor.");
+        _pushed_items = retrieve_image_data(std::move(partial_apply), callback,
+                                            /**_settings.border,*/ *_settings.background, *_settings.frames);
         
         //! we are done.
-        _promise.set_value();
         callback(this, 1.0, true);
+        _promise.set_value();
         
     } catch(const std::exception& ex) {
         FormatWarning("[update_thread] Rethrowing exception for main: ", ex.what());
@@ -147,7 +167,9 @@ void ImageExtractor::update_thread(selector_t&& selector, partial_apply_t&& part
     }
 }
 
-uint64_t ImageExtractor::retrieve_image_data(partial_apply_t&& apply, callback_t& callback) {
+uint64_t ImageExtractor::retrieve_image_data(partial_apply_t&& apply, callback_t& callback,
+                                             /*const track::Border& border,*/ const Background& background,
+                                             const data::FrameRepository& frames) {
     GenericThreadPool pool(_settings.num_threads, "ImageExtractorThread");
     
     std::mutex mutex;
@@ -208,13 +230,15 @@ uint64_t ImageExtractor::retrieve_image_data(partial_apply_t&& apply, callback_t
         };
         
         auto encoding = Background::meta_encoding();
+        cv::Mat mask_buffer, image_buffer;
         
         for(auto it = start; it != end; ++it) {
             auto &[index, samples] = *it;
             pp.set_index(index);
             try {
                 _video->read_with_encoding(frame, index, encoding);
-                Tracker::preprocess_frame(std::move(frame), pp, NULL, PPFrame::NeedGrid::NoNeed, _video->header().resolution);
+                Tracker::preprocess_frame(std::move(frame), pp, NULL, frames, background,
+                                          NeedGrid::NoNeed, HistorySplitPolicy::Apply);
             } catch(const UtilsException& e) {
                 FormatExcept("[IE] Cannot preprocess frame ", index, ". ", e.what());
                 {
@@ -225,7 +249,7 @@ uint64_t ImageExtractor::retrieve_image_data(partial_apply_t&& apply, callback_t
                 continue;
             }
             
-            for(const auto &[fdx, bdx, range] : samples) {
+            for(auto &[fdx, bdx, range, query] : samples) {
                 auto blob = pp.bdx_to_ptr(bdx);
                 if(!blob) {
                     //! TODO: original_blobs
@@ -248,7 +272,7 @@ uint64_t ImageExtractor::retrieve_image_data(partial_apply_t&& apply, callback_t
                     IndividualManager::transform_if_exists(fdx, [&, index=index, range=range](auto fish)
                     {
                         LockGuard guard(ro_t{}, "normalization");
-                        auto filter = constraints::local_midline_length(fish, range, false);
+                        auto filter = constraints::local_midline_length(fish, range, nullptr, false);
                         median_midline_length_px = filter->median_midline_length_px;
                         
                         auto posture = fish->posture_stuff(index);
@@ -267,9 +291,10 @@ uint64_t ImageExtractor::retrieve_image_data(partial_apply_t&& apply, callback_t
                     });
                 }
                 
-                auto &&[image, pos] = constraints::diff_image(individual_image_normalization, blob, midline_transform, median_midline_length_px, _settings.image_size, Tracker::background());
+                auto image = Image::Make();
+                auto pos = constraints::diff_image_cached(mask_buffer, image_buffer, *image, individual_image_normalization, blob, midline_transform, median_midline_length_px, _settings.image_size, &background);
                 
-                if(not image) {
+                if(not pos) {
                     //! can this happen? (yes, when no posture is available)
                     FormatWarning("[IE] Cannot generate image for ", bdx, " of ", fdx, " in frame ", index,".");
                     {
@@ -283,7 +308,8 @@ uint64_t ImageExtractor::retrieve_image_data(partial_apply_t&& apply, callback_t
                     .frame = index,
                     .fdx = fdx,
                     .bdx = bdx,
-                    .image = std::move(image)
+                    .image = std::move(image),
+                    .query = std::move(query)
                 });
                 
                 if(results.size() >= max_images_per_step)

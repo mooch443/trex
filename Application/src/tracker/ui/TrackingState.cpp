@@ -1,4 +1,7 @@
 #include "TrackingState.h"
+#include <misc/Image.h>
+#include <tracking/Individual.h>
+#include <tracking/LockGuard.h>
 #include <file/PathArray.h>
 #include <tracking/Tracker.h>
 #include <file/DataLocation.h>
@@ -10,8 +13,8 @@
 #include <tracking/OutputLibrary.h>
 #include <ui/WorkProgress.h>
 #include <core/default_config.h>
-#include <ui/SettingsInitializer.h>
 #include <core/IdentifiedTag.h>
+#include <core/TerminalProgress.h>
 #include <ui/Categorize.h>
 #include <ui/CheckUpdates.h>
 #include <tracking/DatasetQuality.h>
@@ -83,19 +86,28 @@ auto TrackingState::addSafeTask(const std::string& title, Func&& f) {
 
 TrackingState::TrackingState(GUITaskQueue_t* gui)
   : video(pv::File::Make(READ_SETTING(filename, file::Path))),
-    tracker(std::make_unique<track::Tracker>(*this->video)),
-    analysis(std::unique_ptr<ConnectedTasks>(new ConnectedTasks(
-      {
-         [this](ConnectedTasks::Type&& ptr, auto&) -> bool {
-             return stage_0(std::move(ptr));
-         },
-         [this](ConnectedTasks::Type&& ptr, auto&) -> bool {
-             return stage_1(std::move(ptr));
-         }
-      }))),
-    pool(4u, "preprocess_main"),
-    _controller(std::make_unique<VIControllerImpl>(video, *this))
+    pool(4u, "preprocess_main")
 {
+    try {
+        this->video->header();
+    } catch(const std::exception& ex) {
+        /// File open / read errors will happen here. Report back as file failed to open
+        /// instead of some other cryptic error:
+        throw RuntimeError("Failed to open PV file ",this->video->filename(),": ", no_quotes(ex.what()),"\nCheck if this file is corrupt and that you have all necessary access rights.");
+    }
+    tracker = Tracker::Make(*this->video);
+    analysis = std::unique_ptr<ConnectedTasks>(new ConnectedTasks{
+        {
+            [this](ConnectedTasks::Type&& ptr, auto&) -> bool {
+                return stage_0(std::move(ptr));
+            },
+            [this](ConnectedTasks::Type&& ptr, auto&) -> bool {
+                return stage_1(std::move(ptr));
+            }
+        }
+    });
+    _controller = std::make_unique<VIControllerImpl>(video, *this);
+    
     _end_task_check_auto_quit = [this, gui](){
 #if !COMMONS_NO_PYTHON
             if(BOOL_SETTING(auto_categorize)) {
@@ -154,7 +166,7 @@ TrackingState::~TrackingState() {
     pool.force_stop();
     analysis->terminate();
     
-    track::FOI::clear();
+    track::FOI::clear_all();
     
     if(_end_task.valid())
         _end_task.get();
@@ -178,8 +190,8 @@ bool TrackingState::stage_0(ConnectedTasks::Type && ptr) {
     auto range = tracker->analysis_range();
     if(not range.contains(idx)
        && idx != range.end()
-       && (not Tracker::end_frame().valid()
-           || idx > Tracker::end_frame()))
+       && (not tracker->frames().end_frame().valid()
+           || idx > tracker->frames().end_frame()))
     {
         std::unique_lock lock(_task_mutex);
         unused.emplace(std::move(ptr));
@@ -194,7 +206,9 @@ bool TrackingState::stage_0(ConnectedTasks::Type && ptr) {
         pv::Frame frame;
         video->read_with_encoding(frame, idx, FAST_SETTING(meta_encoding));
         //video->read_frame(frame, idx);
-        Tracker::preprocess_frame(std::move(frame), *ptr, pool.num_threads() > 1 ? &pool : NULL, PPFrame::NeedGrid::NoNeed, video->header().resolution, false);
+        Tracker::preprocess_frame(std::move(frame), *ptr, pool.num_threads() > 1 ? &pool : NULL,
+                                  tracker->frames(), *tracker->background(),
+                                  NeedGrid::NoNeed, HistorySplitPolicy::Skip);
 
         ptr->set_loading_time(timer.elapsed());
     }
@@ -226,11 +240,11 @@ bool TrackingState::stage_1(ConnectedTasks::Type && ptr) {
 
     auto idx = ptr->index();
     if (idx >= range.start()
-        && max(range.start(), tracker->end_frame().valid()
-                                ? (tracker->end_frame() + 1_f)
+        && max(range.start(), tracker->frames().end_frame().valid()
+                                ? (tracker->frames().end_frame() + 1_f)
                                 : 0_f)
            == idx
-        && tracker->properties(idx) == nullptr
+        && not tracker->frames().contains(idx)
         && idx <= range.end())
     {
         tracker->add(*ptr);
@@ -269,7 +283,6 @@ void TrackingState::init_video() {
         combined.access_levels[name] = level;
     };
     
-    grab::default_config::get(combined.map, combined.docs, set_combined_access_level);
     default_config::get(combined.map, combined.docs, nullptr);
     
     std::vector<std::string> save = combined.map.has("meta_write_these") ? combined.map.at("meta_write_these").value<std::vector<std::string>>() : std::vector<std::string>{};
@@ -346,8 +359,8 @@ void TrackingState::init_video() {
         SETTING(frame_rate) = (uint32_t)max(1, int(video->framerate()));
     }
     
-    Output::Library::InitVariables();
-    Output::Library::Init();
+    //Output::Library::InitVariables();
+    //Output::Library::Init(*tracker);
     
     /*auto settings_file = file::DataLocation::parse("settings");
     if(settings_file.exists()) {
@@ -367,14 +380,16 @@ void TrackingState::init_video() {
     
     //SETTING(gui_interface_scale) = Float2_t(1);
     Print("cm_per_pixel = ", READ_SETTING(cm_per_pixel, Float2_t));
-    
-    for (auto i=0_f; i<cache_size; ++i)
-        unused.emplace(std::make_unique<PPFrame>(tracker->average().bounds().size()));
+    if(not tracker->background())
+        throw InvalidArgumentException("Tracker background is required in init_video in order to generate PPFrames.");
+    for (auto i=0_f; i<cache_size; ++i) {
+        unused.emplace(std::make_unique<PPFrame>(tracker->background()->bounds().size()));
+    }
     
     analysis->start(// main thread
         [this, &analysis = analysis, &please_stop_analysis = please_stop_analysis, &currentID = currentID, &tracker = tracker, &video = video]()
         {
-            auto endframe = tracker->end_frame();
+            auto endframe = tracker->frames().end_frame();
             if(not currentID.load().valid()
                || not endframe.valid()
                || currentID.load() > endframe + cache_size
@@ -432,7 +447,7 @@ void TrackingState::on_tracking_done() {
         
         tracker->global_tracklet_order_changed();
         tracker->global_tracklet_order();
-        track::DatasetQuality::update();
+        track::DatasetQuality::update(*tracker);
         
         // tracking has ended
         {
@@ -468,18 +483,8 @@ void TrackingState::Statistics::calculateRates(double elapsed) {
 }
 
 void TrackingState::Statistics::printProgress(float percent, const std::string& status) {
-    // Assuming we have a terminal width of 50 characters for the progress bar.
-    constexpr int bar_width = 50;
-    int pos = int(bar_width * (percent / 100.0f));
-
-    printf("\r["); // Carriage return to overwrite the previous line
-    for (int i = 0; i < bar_width; ++i) {
-        if (i < pos) printf("=");
-        else if (i == pos) printf(">"); // Indicator for current position
-        else printf(" ");
-    }
-    printf("] %.2f%% %s", percent, status.c_str()); // Print the percentage and status message
-    fflush(stdout); // Flush the output to ensure it appears immediately
+    static size_t spinner_index = 0;
+    cmn::terminal::progress::print_progress_bar_line(percent, status, spinner_index);
 }
 
 void TrackingState::Statistics::logProgress(float percent, const std::string& status) {
@@ -511,7 +516,6 @@ void TrackingState::Statistics::updateProgress(const Tracker& tracker, Frame_t f
         status = format<FormatterType::NONE>("Done (",
             dec<2>(frames_per_second.load()), "fps ",
                                              dec<2>(individuals_per_second.load()),"ind/s ",dec<2>(tracker.average_seconds_per_individual() * 1000 * 1000), time_unit(), "/", prefix.c_str(),").") + "\n";
-        printf("\r\n");
 
     } else if(FAST_SETTING(analysis_range).start != -1
        || FAST_SETTING(analysis_range).end != -1)
@@ -541,7 +545,7 @@ void TrackingState::Statistics::update(const track::Tracker& tracker, Frame_t fr
     sample_individuals++;
     
     double elapsed = timer.elapsed();
-    if ((elapsed >= 1 || force) && not analysis_range.empty()) {
+    if ((elapsed >= cmn::terminal::progress::interval_seconds() || force) && not analysis_range.empty()) {
         timer.reset();
         
         calculateRates(elapsed);
@@ -562,7 +566,7 @@ void TrackingState::save_state(GUITaskQueue_t* gui, bool force_overwrite) {
         
         LockGuard guard(w_t{}, "GUI::save_state");
         try {
-            Output::TrackingResults results(*tracker);
+            Output::TrackingResults results{tracker};
             results.save([](const std::string& title, float x, const std::string& description){ WorkProgress::set_progress(title, x, description); }, file);
         } catch(const UtilsException&e) {
             auto what = std::string(e.what());
@@ -630,7 +634,7 @@ std::future<void> TrackingState::load_state(GUITaskQueue_t* gui, file::Path from
         track::Categorize::DataStore::clear_labels();
         
         LockGuard guard(w_t{}, "GUI::load_state");
-        Output::TrackingResults results{*tracker};
+        Output::TrackingResults results{tracker};
         
         try {
             auto header = results.load([](const std::string& title, float value, const std::string& desc) {
@@ -638,14 +642,14 @@ std::future<void> TrackingState::load_state(GUITaskQueue_t* gui, file::Path from
             }, from);
             
             if(header.version <= Output::ResultsFormat::Versions::V_33
-               && Tracker::instance()->has_vi_predictions())
+               && tracker->has_vi_predictions())
             {
                 // probably need to convert blob ids
                 pv::Frame f;
                 size_t found = 0;
                 size_t N = 0;
                 
-                Tracker::instance()->transform_vi_predictions([&](auto& k, auto& v) -> bool {
+                tracker->transform_vi_predictions([&](auto& k, auto& v) -> bool {
                     video->read_frame(f, k);
                     auto blobs = f.get_blobs();
                     N += v.size();
@@ -661,7 +665,7 @@ std::future<void> TrackingState::load_state(GUITaskQueue_t* gui, file::Path from
                         auto y = id & 0x0000FFFF;
                         auto center = Vec2(x, y);
                         
-                        if(it != blobs.end() || x > Tracker::average().cols || y > Tracker::average().rows) {
+                        if(it != blobs.end() || x > tracker->average().cols || y > tracker->average().rows) {
                             // blobs are probably fine
                             ++found;
                         } else {
@@ -700,12 +704,12 @@ std::future<void> TrackingState::load_state(GUITaskQueue_t* gui, file::Path from
                         return old_id_from_position(start + (end - start) * 0.5);
                     };*/
                     
-                    grid::ProximityGrid proximity{ Tracker::average().bounds().size() };
+                    grid::ProximityGrid proximity{ tracker->average().bounds().size() };
                     size_t i=0, all_found = 0, not_found = 0;
-                    const size_t N = Tracker::instance()->number_vi_predictions();
+                    const size_t N = tracker->number_vi_predictions();
                     ska::bytell_hash_map<Frame_t, ska::bytell_hash_map<pv::bid, std::vector<float>>> next_recognition;
                     
-                    Tracker::instance()->transform_vi_predictions([&](auto& k, auto& v) {
+                    tracker->transform_vi_predictions([&](auto& k, auto& v) {
                         auto & active = Tracker::active_individuals(k);
                         ska::bytell_hash_map<pv::bid, const pv::CompressedBlob*> blobs;
                         
@@ -811,7 +815,7 @@ std::future<void> TrackingState::load_state(GUITaskQueue_t* gui, file::Path from
                     
                     Print("Found:", all_found, " not found:", not_found);
                     if(all_found > 0)
-                        Tracker::instance()->set_vi_data(next_recognition);
+                        tracker->set_vi_data(next_recognition);
                 }
             }
             
@@ -857,7 +861,7 @@ std::future<void> TrackingState::load_state(GUITaskQueue_t* gui, file::Path from
             }
             
             addSafeTask("", [this](){
-                Tracker::instance()->check_tracklets_identities(false, IdentitySource::VisualIdent, [](float ) { },
+                tracker->check_tracklets_identities(false, IdentitySource::VisualIdent, [](float ) { },
                 [](const std::string&t, const std::function<void()>& fn, const std::string&b)
                 {
                     WorkProgress::add_queue(t, fn, b);
@@ -875,9 +879,9 @@ std::future<void> TrackingState::load_state(GUITaskQueue_t* gui, file::Path from
                     graph.dialog([](Dialog::Result){}, "Cannot load results from '"+from.str()+"'. Loading crashed with this message:\n<i>"+what+"</i>", "<sym>☣</sym> Error");
                 });
             
-            auto start = Tracker::start_frame();
+            auto start = tracker->frames().start_frame();
             if(start.valid())
-                Tracker::instance()->_remove_frames(start);
+                tracker->_remove_frames(start);
                 //removed_frames(start);
         }
         

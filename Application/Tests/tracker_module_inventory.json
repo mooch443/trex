@@ -4,8 +4,38 @@
       "excluded": [],
       "module": "trex.core",
       "path": "core/AbstractVideoSource.h",
-      "sha256": "8f6f50bf2213ea7f4b602c51617da4f9bb6ff8aac8c51e33a73cd6b4e6467c62",
+      "sha256": "f6106e23ffc0d37e41f4aaf2b38bcfbc8d8395501a947a358c65468f8b908457",
       "symbols": []
+    },
+    {
+      "excluded": [
+        {
+          "header": "core/DetectAnnotationDataset.h",
+          "kind": "group",
+          "line": "8",
+          "name": "track::detect::annotation_dataset::format_t::helpers",
+          "reason": "internal_linkage_enum_helpers"
+        }
+      ],
+      "module": "trex.core",
+      "path": "core/DetectAnnotationDataset.h",
+      "sha256": "9a76140991eb97cd715dcdad02ea4308bedaa1a36c4c8e61601b3d954293711b",
+      "symbols": [
+        {
+          "kind": "enum_class",
+          "name": "Class",
+          "namespace": "track::detect::annotation_dataset::format_t",
+          "qualified": "track::detect::annotation_dataset::format_t::Class",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "format_from_dataset_file",
+          "namespace": "track::detect::annotation_dataset",
+          "qualified": "track::detect::annotation_dataset::format_from_dataset_file",
+          "smoke": "using"
+        }
+      ]
     },
     {
       "excluded": [],
@@ -93,142 +123,126 @@
         {
           "header": "core/default_config.h",
           "kind": "group",
-          "line": "50",
+          "line": "14",
+          "name": "track::detect::ObjectDetectionType::helpers",
+          "reason": "internal_linkage_enum_helpers"
+        },
+        {
+          "header": "core/default_config.h",
+          "kind": "group",
+          "line": "15",
+          "name": "track::detect::ObjectDetectionFormat::helpers",
+          "reason": "internal_linkage_enum_helpers"
+        },
+        {
+          "header": "core/default_config.h",
+          "kind": "group",
+          "line": "63",
           "name": "default_config::heatmap_normalization_t::helpers",
           "reason": "internal_linkage_enum_helpers"
         },
         {
           "header": "core/default_config.h",
           "kind": "group",
-          "line": "53",
+          "line": "66",
           "name": "default_config::individual_image_normalization_t::helpers",
           "reason": "internal_linkage_enum_helpers"
         },
         {
           "header": "core/default_config.h",
           "kind": "group",
-          "line": "58",
+          "line": "71",
           "name": "default_config::gpu_verbosity_t::helpers",
           "reason": "internal_linkage_enum_helpers"
         },
         {
           "header": "core/default_config.h",
           "kind": "group",
-          "line": "61",
+          "line": "74",
           "name": "default_config::gui_recording_format_t::helpers",
           "reason": "internal_linkage_enum_helpers"
         },
         {
           "header": "core/default_config.h",
           "kind": "group",
-          "line": "64",
+          "line": "77",
           "name": "default_config::peak_mode_t::helpers",
           "reason": "internal_linkage_enum_helpers"
         },
         {
           "header": "core/default_config.h",
           "kind": "group",
-          "line": "67",
+          "line": "80",
           "name": "default_config::matching_mode_t::helpers",
           "reason": "internal_linkage_enum_helpers"
         },
         {
           "header": "core/default_config.h",
           "kind": "group",
-          "line": "70",
+          "line": "83",
           "name": "default_config::output_format_t::helpers",
           "reason": "internal_linkage_enum_helpers"
         },
         {
           "header": "core/default_config.h",
           "kind": "group",
-          "line": "73",
+          "line": "86",
           "name": "default_config::output_invalid_t::helpers",
           "reason": "internal_linkage_enum_helpers"
         },
         {
           "header": "core/default_config.h",
           "kind": "group",
-          "line": "76",
+          "line": "89",
           "name": "default_config::app_update_check_t::helpers",
           "reason": "internal_linkage_enum_helpers"
         },
         {
           "header": "core/default_config.h",
           "kind": "group",
-          "line": "79",
+          "line": "92",
           "name": "default_config::blob_split_algorithm_t::helpers",
           "reason": "internal_linkage_enum_helpers"
         },
         {
           "header": "core/default_config.h",
           "kind": "group",
-          "line": "82",
+          "line": "95",
           "name": "default_config::visual_identification_version_t::helpers",
           "reason": "internal_linkage_enum_helpers"
         },
         {
           "header": "core/default_config.h",
           "kind": "group",
-          "line": "85",
+          "line": "98",
           "name": "default_config::TRexTask_t::helpers",
           "reason": "internal_linkage_enum_helpers"
         },
         {
           "header": "core/default_config.h",
           "kind": "group",
-          "line": "88",
+          "line": "101",
           "name": "default_config::gpu_torch_device_t::helpers",
           "reason": "internal_linkage_enum_helpers"
         },
         {
           "header": "core/default_config.h",
           "kind": "group",
-          "line": "122",
+          "line": "104",
+          "name": "default_config::detect_pose_bbx_t::helpers",
+          "reason": "internal_linkage_enum_helpers"
+        },
+        {
+          "header": "core/default_config.h",
+          "kind": "group",
+          "line": "138",
           "name": "cmn::gui::mode_t::helpers",
           "reason": "internal_linkage_enum_helpers"
         }
       ],
       "module": "trex.core",
       "path": "core/default_config.h",
-      "sha256": "9212d56b6109365418ec8185aebeddef473e26dd9eb992bf23239fd8057438ec",
-      "symbols": [
-        {
-          "kind": "enum_class",
-          "name": "Class",
-          "namespace": "cmn::gui::mode_t",
-          "qualified": "cmn::gui::mode_t::Class",
-          "smoke": "using"
-        }
-      ]
-    },
-    {
-      "excluded": [],
-      "module": "trex.core",
-      "path": "core/DetectionImageTypes.h",
-      "sha256": "9cda261844db2086d35147280f602c8467a9b1f830cf7f47663518d62f59f9af",
-      "symbols": []
-    },
-    {
-      "excluded": [
-        {
-          "header": "core/DetectionTypes.h",
-          "kind": "group",
-          "line": "20",
-          "name": "track::detect::ObjectDetectionType::helpers",
-          "reason": "internal_linkage_enum_helpers"
-        },
-        {
-          "header": "core/DetectionTypes.h",
-          "kind": "group",
-          "line": "21",
-          "name": "track::detect::ObjectDetectionFormat::helpers",
-          "reason": "internal_linkage_enum_helpers"
-        }
-      ],
-      "module": "trex.core",
-      "path": "core/DetectionTypes.h",
-      "sha256": "3d4323b1af4f87169ae3660ded3184cdee76149b824a94990e485f66fd7e4ca6",
+      "sha256": "2afd27e95fc2c135281b39214396406f83b82ae283095bc44910131165311516",
       "symbols": [
         {
           "kind": "enum_class",
@@ -244,6 +258,42 @@
           "qualified": "track::detect::ObjectDetectionFormat::Class",
           "smoke": "using"
         },
+        {
+          "kind": "enum_class",
+          "name": "Class",
+          "namespace": "cmn::gui::mode_t",
+          "qualified": "cmn::gui::mode_t::Class",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "ObjectDetectionType_t",
+          "namespace": "track::detect",
+          "qualified": "track::detect::ObjectDetectionType_t",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "ObjectDetectionFormat_t",
+          "namespace": "track::detect",
+          "qualified": "track::detect::ObjectDetectionFormat_t",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "trex.core",
+      "path": "core/DetectionImageTypes.h",
+      "sha256": "9cda261844db2086d35147280f602c8467a9b1f830cf7f47663518d62f59f9af",
+      "symbols": []
+    },
+    {
+      "excluded": [],
+      "module": "trex.core",
+      "path": "core/DetectionTypes.h",
+      "sha256": "0b859c12f2916b08ef33cecad4fcc25a11fe3d7f02e496637e8d1860c1551821",
+      "symbols": [
         {
           "kind": "alias",
           "name": "owner_map_t",
@@ -284,20 +334,6 @@
           "name": "get_skeleton",
           "namespace": "track::detect::yolo::names",
           "qualified": "track::detect::yolo::names::get_skeleton",
-          "smoke": "using"
-        },
-        {
-          "kind": "alias",
-          "name": "ObjectDetectionType_t",
-          "namespace": "track::detect",
-          "qualified": "track::detect::ObjectDetectionType_t",
-          "smoke": "using"
-        },
-        {
-          "kind": "alias",
-          "name": "ObjectDetectionFormat_t",
-          "namespace": "track::detect",
-          "qualified": "track::detect::ObjectDetectionFormat_t",
           "smoke": "using"
         },
         {
@@ -403,8 +439,23 @@
     {
       "excluded": [],
       "module": "trex.core",
+      "path": "core/FrameTags.h",
+      "sha256": "81a23e29e556f6694b78877b7874c5b0d68b1f22aa3a662bb7fe243b38d9a51c",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "FrameTags",
+          "namespace": "track",
+          "qualified": "track::FrameTags",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "trex.core",
       "path": "core/FOI.h",
-      "sha256": "c2623dde94eeb82f88806d55a1693d6f5a396807038e769ea8d66432fbeb3275",
+      "sha256": "32d610cdf03e008e6577dff71cb3f4bd7968457fae724f524145545209e26e25",
       "symbols": [
         {
           "kind": "class",
@@ -498,7 +549,7 @@
       "excluded": [],
       "module": "trex.core",
       "path": "core/idx_t.h",
-      "sha256": "5dd9faf3b09d3506de3743c7af60f818f38b71b5f1a72afb7dbfff8d9d169ae8",
+      "sha256": "965c0f4fac1ee8472d2ed26ced0586b8d8ef0837662452e9fa3f03d39765f857",
       "symbols": [
         {
           "kind": "struct",
@@ -519,14 +570,148 @@
     {
       "excluded": [],
       "module": "trex.core",
+      "path": "core/TerminalProgress.h",
+      "sha256": "261faf6bfc157fa4de792231f39320230c0df4edcc8c3f82f17152a81a3dadf9",
+      "symbols": [
+        {
+          "kind": "function",
+          "name": "spinner_states",
+          "namespace": "cmn::terminal::progress",
+          "qualified": "cmn::terminal::progress::spinner_states",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "interval",
+          "namespace": "cmn::terminal::progress",
+          "qualified": "cmn::terminal::progress::interval",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "interval_seconds",
+          "namespace": "cmn::terminal::progress",
+          "qualified": "cmn::terminal::progress::interval_seconds",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "ProgressBarConfig",
+          "namespace": "cmn::terminal::progress",
+          "qualified": "cmn::terminal::progress::ProgressBarConfig",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "clean_progress_status",
+          "namespace": "cmn::terminal::progress",
+          "qualified": "cmn::terminal::progress::clean_progress_status",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "restore_cursor_newline",
+          "namespace": "cmn::terminal::progress",
+          "qualified": "cmn::terminal::progress::restore_cursor_newline",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "spinner_state",
+          "namespace": "cmn::terminal::progress::detail",
+          "qualified": "cmn::terminal::progress::detail::spinner_state",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "progress_duration_text",
+          "namespace": "cmn::terminal::progress::detail",
+          "qualified": "cmn::terminal::progress::detail::progress_duration_text",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "clear_progress_line",
+          "namespace": "cmn::terminal::progress::detail",
+          "qualified": "cmn::terminal::progress::detail::clear_progress_line",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "hide_cursor",
+          "namespace": "cmn::terminal::progress::detail",
+          "qualified": "cmn::terminal::progress::detail::hide_cursor",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "restore_cursor",
+          "namespace": "cmn::terminal::progress::detail",
+          "qualified": "cmn::terminal::progress::detail::restore_cursor",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "ProgressBar",
+          "namespace": "cmn::terminal::progress",
+          "qualified": "cmn::terminal::progress::ProgressBar",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "make_progress_bar",
+          "namespace": "cmn::terminal::progress",
+          "qualified": "cmn::terminal::progress::make_progress_bar",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "advance_progress_bar_spinner",
+          "namespace": "cmn::terminal::progress",
+          "qualified": "cmn::terminal::progress::advance_progress_bar_spinner",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "print_progress_bar_line",
+          "namespace": "cmn::terminal::progress",
+          "qualified": "cmn::terminal::progress::print_progress_bar_line",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "finish_progress_bar_line",
+          "namespace": "cmn::terminal::progress",
+          "qualified": "cmn::terminal::progress::finish_progress_bar_line",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "ConsoleCursorGuard",
+          "namespace": "cmn::terminal::progress",
+          "qualified": "cmn::terminal::progress::ConsoleCursorGuard",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "trex.core",
       "path": "core/GPURecognitionTypes.h",
-      "sha256": "bd501a751696126e85daf919b9621919924637e73842c41a51c46e027fc82e20",
+      "sha256": "566b9e142514d41140900d281d85776658746cd8962c853ce3983f9233d9f103",
       "symbols": [
         {
           "kind": "class",
           "name": "Keypoint",
           "namespace": "track::detect",
           "qualified": "track::detect::Keypoint",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "Sam3PromptsPerImage",
+          "namespace": "track::detect",
+          "qualified": "track::detect::Sam3PromptsPerImage",
           "smoke": "using"
         }
       ]
@@ -542,7 +727,7 @@
       "excluded": [],
       "module": "trex.core",
       "path": "core/PVVideoSource.h",
-      "sha256": "6900fd56ef669326276f24970fbe42fdff867194c92f3d9021c55f8c5b4e6701",
+      "sha256": "6bc94d91f9c27943906643704500cc9986336c84629dd7759eaad8c67a215a83",
       "symbols": []
     },
     {
@@ -571,7 +756,7 @@
       "excluded": [],
       "module": "trex.core",
       "path": "core/SizeFilters.h",
-      "sha256": "8cf0989d94b5f7ede9b97c082420ec3eb57dc761297800a35f739d017f6aac32",
+      "sha256": "8d945aad4bec4497fdaa1a5da491265516f10cad629b17a9f2d0674d4a202c66",
       "symbols": [
         {
           "kind": "class",
@@ -593,7 +778,7 @@
       "excluded": [],
       "module": "trex.core",
       "path": "core/TaskPipeline.h",
-      "sha256": "024e27bc7ba5c1fb0a6b04848b4d76719bb78f579208ef014314b49b1e44ec3b",
+      "sha256": "554ff94c1d008dc3a4e677d300d62967b4d16d1d132143be75279112f60cdc40",
       "symbols": [
         {
           "kind": "class_template",
@@ -636,13 +821,20 @@
       "excluded": [],
       "module": "trex.core",
       "path": "core/SettingsPaths.h",
-      "sha256": "b5fdfea022575a5179be7a855cdbc1e17fef96a0737d605f7b6911934bed4248",
+      "sha256": "c1f79950a3eb8e9d7d549dd96e26dff888e5bfac7b2464d916fb43cb856dc59d",
       "symbols": [
         {
           "kind": "function",
           "name": "find_output_name",
           "namespace": "cmn::settings",
           "qualified": "cmn::settings::find_output_name",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "find_existing_output_name",
+          "namespace": "cmn::settings",
+          "qualified": "cmn::settings::find_existing_output_name",
           "smoke": "using"
         },
         {
@@ -665,20 +857,13 @@
       "excluded": [],
       "module": "trex.core",
       "path": "core/SettingsInitializer.h",
-      "sha256": "cbf887c3551d68dada385e0560d08952d3c5aa708ad8ef2836a1f9491c2b4131",
+      "sha256": "eab66acf332187061e390b92f7223831a14c9e8e1f5e545aed2e52a252d19360",
       "symbols": [
         {
           "kind": "class",
           "name": "Map",
           "namespace": "cmn::sprite",
           "qualified": "cmn::sprite::Map",
-          "smoke": "using"
-        },
-        {
-          "kind": "function",
-          "name": "initialize_filename_for_tracking",
-          "namespace": "cmn::settings",
-          "qualified": "cmn::settings::initialize_filename_for_tracking",
           "smoke": "using"
         },
         {
@@ -721,15 +906,72 @@
     {
       "excluded": [],
       "module": "trex.core",
+      "path": "core/TileCoordinates.h",
+      "sha256": "7faaa2f3395131fa6b5a758d4a31f78c75fbe937a7992d30822baa0892fffc35",
+      "symbols": [
+        {
+          "kind": "struct",
+          "name": "SourceCoord",
+          "namespace": "track",
+          "qualified": "track::SourceCoord",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "TileCoord",
+          "namespace": "track",
+          "qualified": "track::TileCoord",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "SourceRect",
+          "namespace": "track",
+          "qualified": "track::SourceRect",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "TileRect",
+          "namespace": "track",
+          "qualified": "track::TileRect",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "TileToSourceAffine",
+          "namespace": "track",
+          "qualified": "track::TileToSourceAffine",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "TileGeometry",
+          "namespace": "track",
+          "qualified": "track::TileGeometry",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "tile_to_source_affines",
+          "namespace": "track",
+          "qualified": "track::tile_to_source_affines",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "trex.core",
       "path": "core/TileImage.h",
-      "sha256": "331e542cd7f3f69acf07701fad179b6e06f478c2e2ec14826f4a93481fcb4954",
+      "sha256": "f42d59274ca0b7cb4aff5741711fdcc60c1dace1b3074cfa33ab7a1b4a40d052",
       "symbols": []
     },
     {
       "excluded": [],
       "module": "trex.core",
       "path": "core/TileBuffers.h",
-      "sha256": "1b6c9b1c2ad91b368ef13d9967a4ec65bc001b0f7a73749ac391395bac787297",
+      "sha256": "c06dcf3096f73d6b127d400a10b8973d78343a7e8054737abd207fa5ef67fff9",
       "symbols": []
     },
     {
@@ -755,16 +997,38 @@
       "symbols": []
     },
     {
-      "excluded": [],
+      "excluded": [
+        {
+          "header": "core/TrackingSettings.h",
+          "kind": "group",
+          "line": "84",
+          "name": "track::MaskPostprocessMode::helpers",
+          "reason": "internal_linkage_enum_helpers"
+        }
+      ],
       "module": "trex.core",
       "path": "core/TrackingSettings.h",
-      "sha256": "69f8afe5ad65298cf6e404e3b02aa7ab013d1f316dcfa84c4f8f806939aa316a",
+      "sha256": "f2d0301f4c7bcef423fa6e8b3c049c24913aef012c8e862f92b0452641ecdae1",
       "symbols": [
+        {
+          "kind": "enum_class",
+          "name": "Class",
+          "namespace": "track::MaskPostprocessMode",
+          "qualified": "track::MaskPostprocessMode::Class",
+          "smoke": "using"
+        },
         {
           "kind": "class",
           "name": "Settings",
           "namespace": "track",
           "qualified": "track::Settings",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "FrameRepository",
+          "namespace": "cmn::data",
+          "qualified": "cmn::data::FrameRepository",
           "smoke": "using"
         },
         {
@@ -787,7 +1051,7 @@
       "excluded": [],
       "module": "trex.core",
       "path": "core/VideoInfo.h",
-      "sha256": "b518db0b5d2dba6e4c255a8c61d338ce725a5e7d3280a383c4f424a356838ddb",
+      "sha256": "ebe24ab07134bad8aaaada1a4285ee232dfa7c10f722ebaa241fa85fe9b9c71d",
       "symbols": [
         {
           "kind": "struct",
@@ -802,14 +1066,14 @@
       "excluded": [],
       "module": "trex.core",
       "path": "core/VideoVideoSource.h",
-      "sha256": "1bafca7c0ec7d77c69ff4339ad9e07330f361a9ac06bea3011f911d646f654c0",
+      "sha256": "b0f3bcdaca76223af587e85503131dff19f1425fd28f283964042c166780c480",
       "symbols": []
     },
     {
       "excluded": [],
       "module": "trex.core",
       "path": "core/WebcamVideoSource.h",
-      "sha256": "b276f371252c8de4808f7c4e4989e02d90dc121b10a08e74097d51113e69bf0f",
+      "sha256": "79e11b19338da240c71bc21f0791130c32748ae381918d65adc57c488d0bd01d",
       "symbols": []
     },
     {
@@ -818,6 +1082,56 @@
       "path": "core/Network.h",
       "sha256": "76a8642582b5a1dbab93288ee2c9b7f9033cfa5dbf0fd8084113c105ed4b1abd",
       "symbols": []
+    },
+    {
+      "excluded": [],
+      "module": "trex.core",
+      "path": "core/DetectAnnotation.h",
+      "sha256": "d316d18a587b05b83041b5fef28d5950ed56de0837ea01f82b126dc31c374d0b",
+      "symbols": [
+        {
+          "kind": "enum_class",
+          "name": "AnnotationType",
+          "namespace": "track::detect",
+          "qualified": "track::detect::AnnotationType",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "Annotation",
+          "namespace": "track::detect",
+          "qualified": "track::detect::Annotation",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "AnnotationTypeCounts",
+          "namespace": "track::detect",
+          "qualified": "track::detect::AnnotationTypeCounts",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "AnnotationMap",
+          "namespace": "track::detect",
+          "qualified": "track::detect::AnnotationMap",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "count_annotation_types",
+          "namespace": "track::detect",
+          "qualified": "track::detect::count_annotation_types",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "filter_annotation_types",
+          "namespace": "track::detect",
+          "qualified": "track::detect::filter_annotation_types",
+          "smoke": "using"
+        }
+      ]
     },
     {
       "excluded": [],
@@ -845,7 +1159,7 @@
       "excluded": [],
       "module": "trex.data",
       "path": "data/MotionRecord.h",
-      "sha256": "6b612f6b1c7b2e8b9d08c7d649a05abd0836697dd7ed5434ef33321792cd9f6d",
+      "sha256": "44c517eb2cb13799499b1842cbdf5f3b55491b12455a01ed0df918b1bd293b1d",
       "symbols": [
         {
           "kind": "class",
@@ -880,6 +1194,270 @@
           "name": "MotionRecord",
           "namespace": "track",
           "qualified": "track::MotionRecord",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "trex.data",
+      "path": "data/FrameRepository.h",
+      "sha256": "03d902d1d9aff91d07dabaa0770407038b0db7e624f49194334bb57d43447df8",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "FrameRepository",
+          "namespace": "cmn::data",
+          "qualified": "cmn::data::FrameRepository",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "trex.data",
+      "path": "data/CacheHints.h",
+      "sha256": "953331a91625f64e85fdf6546cd3181d0ae6ef40286637f8acb1efaea45da29b",
+      "symbols": [
+        {
+          "kind": "struct",
+          "name": "FrameProperties",
+          "namespace": "track",
+          "qualified": "track::FrameProperties",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "CacheHints",
+          "namespace": "track",
+          "qualified": "track::CacheHints",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "trex.tracking",
+      "path": "tracking/AnnotationExporter.h",
+      "sha256": "4f3c8bb63baa111bfc67ac1ad677a7b4d54600280cc2ceefd4f1f4f20a4095bb",
+      "symbols": [
+        {
+          "kind": "struct",
+          "name": "TagDatasetConfig",
+          "namespace": "track::annotation_export",
+          "qualified": "track::annotation_export::TagDatasetConfig",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "export_tag_annotations",
+          "namespace": "track::annotation_export",
+          "qualified": "track::annotation_export::export_tag_annotations",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "Format",
+          "namespace": "track::detect::annotation_export",
+          "qualified": "track::detect::annotation_export::Format",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "Options",
+          "namespace": "track::detect::annotation_export",
+          "qualified": "track::detect::annotation_export::Options",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "Summary",
+          "namespace": "track::detect::annotation_export",
+          "qualified": "track::detect::annotation_export::Summary",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "frame_stem",
+          "namespace": "track::detect::annotation_export",
+          "qualified": "track::detect::annotation_export::frame_stem",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "default_keypoint_names",
+          "namespace": "track::detect::annotation_export",
+          "qualified": "track::detect::annotation_export::default_keypoint_names",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "summarize",
+          "namespace": "track::detect::annotation_export",
+          "qualified": "track::detect::annotation_export::summarize",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "sample_background_frames",
+          "namespace": "track::detect::annotation_export",
+          "qualified": "track::detect::annotation_export::sample_background_frames",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "annotation_to_yolo",
+          "namespace": "track::detect::annotation_export",
+          "qualified": "track::detect::annotation_export::annotation_to_yolo",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "build_frame_mapping_csv",
+          "namespace": "track::detect::annotation_export",
+          "qualified": "track::detect::annotation_export::build_frame_mapping_csv",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "build_coco_json",
+          "namespace": "track::detect::annotation_export",
+          "qualified": "track::detect::annotation_export::build_coco_json",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "export_dataset",
+          "namespace": "track::detect::annotation_export",
+          "qualified": "track::detect::annotation_export::export_dataset",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [
+        {
+          "header": "tracking/DetectAnnotationImporter.h",
+          "kind": "group",
+          "line": "12",
+          "name": "track::detect::annotation_import::merge_mode_t::helpers",
+          "reason": "internal_linkage_enum_helpers"
+        },
+        {
+          "header": "tracking/DetectAnnotationImporter.h",
+          "kind": "group",
+          "line": "17",
+          "name": "track::detect::annotation_import::import_scope_t::helpers",
+          "reason": "internal_linkage_enum_helpers"
+        },
+        {
+          "header": "tracking/DetectAnnotationImporter.h",
+          "kind": "group",
+          "line": "23",
+          "name": "track::detect::annotation_import::task_t::helpers",
+          "reason": "internal_linkage_enum_helpers"
+        }
+      ],
+      "module": "trex.tracking",
+      "path": "tracking/DetectAnnotationImporter.h",
+      "sha256": "05e24d1afcfcace0f0ff559e3fded10c8d92348718e1ea0647aa5f900e9df314",
+      "symbols": [
+        {
+          "kind": "enum_class",
+          "name": "Class",
+          "namespace": "track::detect::annotation_import::merge_mode_t",
+          "qualified": "track::detect::annotation_import::merge_mode_t::Class",
+          "smoke": "using"
+        },
+        {
+          "kind": "enum_class",
+          "name": "Class",
+          "namespace": "track::detect::annotation_import::import_scope_t",
+          "qualified": "track::detect::annotation_import::import_scope_t::Class",
+          "smoke": "using"
+        },
+        {
+          "kind": "enum_class",
+          "name": "Class",
+          "namespace": "track::detect::annotation_import::task_t",
+          "qualified": "track::detect::annotation_import::task_t::Class",
+          "smoke": "using"
+        },
+        {
+          "kind": "alias",
+          "name": "Format",
+          "namespace": "track::detect::annotation_import",
+          "qualified": "track::detect::annotation_import::Format",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "FrameIndexParseResult",
+          "namespace": "track::detect::annotation_import",
+          "qualified": "track::detect::annotation_import::FrameIndexParseResult",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "ImportOptions",
+          "namespace": "track::detect::annotation_import",
+          "qualified": "track::detect::annotation_import::ImportOptions",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "MetadataChanges",
+          "namespace": "track::detect::annotation_import",
+          "qualified": "track::detect::annotation_import::MetadataChanges",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "ImportPreview",
+          "namespace": "track::detect::annotation_import",
+          "qualified": "track::detect::annotation_import::ImportPreview",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "parse_source_index_from_image_stem",
+          "namespace": "track::detect::annotation_import",
+          "qualified": "track::detect::annotation_import::parse_source_index_from_image_stem",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "preview_yolo_import",
+          "namespace": "track::detect::annotation_import",
+          "qualified": "track::detect::annotation_import::preview_yolo_import",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "preview_coco_import",
+          "namespace": "track::detect::annotation_import",
+          "qualified": "track::detect::annotation_import::preview_coco_import",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "preview_dataset_import",
+          "namespace": "track::detect::annotation_import",
+          "qualified": "track::detect::annotation_import::preview_dataset_import",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "apply_dataset_import",
+          "namespace": "track::detect::annotation_import",
+          "qualified": "track::detect::annotation_import::apply_dataset_import",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "apply_yolo_import",
+          "namespace": "track::detect::annotation_import",
+          "qualified": "track::detect::annotation_import::apply_yolo_import",
           "smoke": "using"
         }
       ]
@@ -1011,7 +1589,7 @@
       "excluded": [],
       "module": "trex.tracking",
       "path": "tracking/DetectTag.h",
-      "sha256": "d034e2b072a3ab0c33f1d8d61bbee2127db93b574efb245d8bc8178b1ec038e9",
+      "sha256": "437ebe721403423dd2ec6bce9521b65e7aff7135df57b1912367e49ea2d364ce",
       "symbols": [
         {
           "kind": "alias",
@@ -1053,30 +1631,8 @@
     {
       "excluded": [],
       "module": "trex.tracking",
-      "path": "tracking/CacheHints.h",
-      "sha256": "953331a91625f64e85fdf6546cd3181d0ae6ef40286637f8acb1efaea45da29b",
-      "symbols": [
-        {
-          "kind": "struct",
-          "name": "FrameProperties",
-          "namespace": "track",
-          "qualified": "track::FrameProperties",
-          "smoke": "using"
-        },
-        {
-          "kind": "struct",
-          "name": "CacheHints",
-          "namespace": "track",
-          "qualified": "track::CacheHints",
-          "smoke": "using"
-        }
-      ]
-    },
-    {
-      "excluded": [],
-      "module": "trex.tracking",
       "path": "tracking/CategorizeDatastore.h",
-      "sha256": "a000429a0b9331b5b8f718aad4dd119a8e53ed6c195b3cd054160834df153624",
+      "sha256": "7e45bb53ffbf0ab3af2dc8c619a037539d2107efb60784e89993ccf397b7bbc9",
       "symbols": [
         {
           "kind": "struct",
@@ -1126,7 +1682,7 @@
       "excluded": [],
       "module": "trex.tracking",
       "path": "tracking/FilterCache.h",
-      "sha256": "3c02d45e8874e3736a9908dc5ab3b72e7c340a213b134d2e90f24944d0ed9fc5",
+      "sha256": "2bd0ff8d457992919bb729c34f05c156c07df7481f224f7b84828e490f2a581b",
       "symbols": [
         {
           "kind": "class",
@@ -1165,9 +1721,30 @@
         },
         {
           "kind": "function",
+          "name": "calculate_normalized_image_cached",
+          "namespace": "track::image",
+          "qualified": "track::image::calculate_normalized_image_cached",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
           "name": "calculate_normalized_diff_image",
           "namespace": "track::image",
           "qualified": "track::image::calculate_normalized_diff_image",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "calculate_normalized_diff_image_cached",
+          "namespace": "track::image",
+          "qualified": "track::image::calculate_normalized_diff_image_cached",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "calculate_diff_image_cached",
+          "namespace": "track::image",
+          "qualified": "track::image::calculate_diff_image_cached",
           "smoke": "using"
         },
         {
@@ -1189,6 +1766,13 @@
           "name": "diff_image",
           "namespace": "track::constraints",
           "qualified": "track::constraints::diff_image",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "diff_image_cached",
+          "namespace": "track::constraints",
+          "qualified": "track::constraints::diff_image_cached",
           "smoke": "using"
         },
         {
@@ -1289,8 +1873,15 @@
       "excluded": [],
       "module": "trex.tracking",
       "path": "tracking/HistorySplit.h",
-      "sha256": "32c9f3566b38b915d62adcb222e534cfa2ac70c81722ff7e1941982a10a1510f",
+      "sha256": "bde23c372b2cd1fc67dc9690d2853c57cd856c2457036cdb50336b651cac0146",
       "symbols": [
+        {
+          "kind": "class",
+          "name": "Background",
+          "namespace": "cmn",
+          "qualified": "cmn::Background",
+          "smoke": "using"
+        },
         {
           "kind": "class",
           "name": "HistorySplit",
@@ -1311,7 +1902,7 @@
       ],
       "module": "trex.tracking",
       "path": "tracking/Hungarian.h",
-      "sha256": "55823e6ae6e2b491b1d300c2e3d256ca9a1446a32c61c2c699edbf98511f4ffe",
+      "sha256": "7512ec14bcb0b7b83cd5015284fc1b0bff82de3193091505a45dd25d8a73dfeb",
       "symbols": [
         {
           "kind": "typedef",
@@ -1333,15 +1924,37 @@
       "excluded": [],
       "module": "trex.tracking",
       "path": "tracking/ImageExtractor.h",
-      "sha256": "6a85fb670b0f7b1dfcd6c9707785aed5a806f7c960d82c77d6ded8a2f54c1241",
-      "symbols": []
+      "sha256": "aa6af607a9258d800cc0a07144efe734893a407239ff088e66e67dbc051ae78f",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "Tracker",
+          "namespace": "track",
+          "qualified": "track::Tracker",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "Border",
+          "namespace": "track",
+          "qualified": "track::Border",
+          "smoke": "using"
+        }
+      ]
     },
     {
       "excluded": [],
       "module": "trex.tracking",
       "path": "tracking/IndividualManager.h",
-      "sha256": "e0eab8aa4eff2946789e306ed40314fcde283d4332dcb83622fe6d109ed90e0f",
+      "sha256": "cf895b1d246be1532d5cc981e6b8783c92712631db73cc0f7b00917e8221dcea",
       "symbols": [
+        {
+          "kind": "class",
+          "name": "Tracker",
+          "namespace": "track",
+          "qualified": "track::Tracker",
+          "smoke": "using"
+        },
         {
           "kind": "class",
           "name": "Individual",
@@ -1377,8 +1990,22 @@
       "excluded": [],
       "module": "trex.tracking",
       "path": "tracking/TrackletInformation.h",
-      "sha256": "321702a14c65f1f3caa32fad0b9dbe0c382407856168f1b739204e475e9a4ef7",
+      "sha256": "2d60fffdfd6224f13f609dcfb3adb22d2b270ff4142082ae73670e9068541043",
       "symbols": [
+        {
+          "kind": "class",
+          "name": "Individual",
+          "namespace": "track",
+          "qualified": "track::Individual",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "PostureStuff",
+          "namespace": "track",
+          "qualified": "track::PostureStuff",
+          "smoke": "using"
+        },
         {
           "kind": "struct",
           "name": "TrackletInformation",
@@ -1392,7 +2019,7 @@
       "excluded": [],
       "module": "trex.tracking",
       "path": "tracking/TrainingData.h",
-      "sha256": "5011c88a8c511c442ebe98ccfaaef3bfe73b9a6b7865aa1111d0e6aa378c7f7d",
+      "sha256": "95aff63808e9a2f8f67e22ef48461e2179d563ceb0ef248eed909079afb36dd9",
       "symbols": [
         {
           "kind": "class",
@@ -1407,8 +2034,15 @@
       "excluded": [],
       "module": "trex.tracking",
       "path": "tracking/OutputLibrary.h",
-      "sha256": "99e25377a0c718609d20918ce6ab61ade8b3e2e7ff4516058d3614f13a62521c",
+      "sha256": "49266e681ec844482214c9b2d8d502838fd1e0c1abfd7cf44b55d4abc9709bd9",
       "symbols": [
+        {
+          "kind": "class",
+          "name": "Tracker",
+          "namespace": "track",
+          "qualified": "track::Tracker",
+          "smoke": "using"
+        },
         {
           "kind": "class",
           "name": "Graph",
@@ -1423,21 +2057,21 @@
         {
           "header": "tracking/OutputLibraryTypes.h",
           "kind": "group",
-          "line": "13",
+          "line": "14",
           "name": "Output::Functions::helpers",
           "reason": "internal_linkage_enum_helpers"
         },
         {
           "header": "tracking/OutputLibraryTypes.h",
           "kind": "group",
-          "line": "53",
+          "line": "54",
           "name": "Output::Modifiers::helpers",
           "reason": "internal_linkage_enum_helpers"
         }
       ],
       "module": "trex.tracking",
       "path": "tracking/OutputLibraryTypes.h",
-      "sha256": "508e92f1d36bf466e6ea74361770d5c741af8f40bf28434a8f37816968e6411d",
+      "sha256": "39707b01b94836705521fb496b7e75df31600c10a3f68590bd8989659211c7f4",
       "symbols": [
         {
           "kind": "class",
@@ -1459,7 +2093,7 @@
       "excluded": [],
       "module": "trex.tracking",
       "path": "tracking/PairingGraph.h",
-      "sha256": "03c6f5b7bc7ced208300292f34e9ef80133a46f7d2b18539db173131d43d7e1b",
+      "sha256": "4a9b8d48305169e8db6b2d93629c4c04f640ce7f9afb8b855de3a7623e5eeda1",
       "symbols": [
         {
           "kind": "class",
@@ -1516,7 +2150,7 @@
       "excluded": [],
       "module": "trex.tracking",
       "path": "tracking/PPFrame.h",
-      "sha256": "f031a25ca6d02471b9f4f2968c96e0b0e564d318d8e32489f920dc1c061b6bdf",
+      "sha256": "23ec8de0f9a596095304b7f3cb24a26e7dc7370c0364a9ff10fcfd4ea33f581c",
       "symbols": [
         {
           "kind": "class",
@@ -1525,6 +2159,21 @@
           "qualified": "cmn::GenericThreadPool",
           "smoke": "using"
         },
+        {
+          "kind": "class",
+          "name": "PPFrame",
+          "namespace": "track",
+          "qualified": "track::PPFrame",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "trex.tracking",
+      "path": "tracking/PPFrameTypes.h",
+      "sha256": "90c85086300f3dfeb62c4ed93c50ca1d2368f4c338737a21a8622a04416104ac",
+      "symbols": [
         {
           "kind": "concept",
           "name": "AnyTransformer",
@@ -1566,10 +2215,10 @@
           "smoke": "excluded"
         },
         {
-          "kind": "class",
-          "name": "PPFrame",
+          "kind": "enum_class",
+          "name": "NeedGrid",
           "namespace": "track",
-          "qualified": "track::PPFrame",
+          "qualified": "track::NeedGrid",
           "smoke": "using"
         }
       ]
@@ -1578,7 +2227,7 @@
       "excluded": [],
       "module": "trex.tracking",
       "path": "tracking/PrefilterBlobs.h",
-      "sha256": "fa587cb338992a5ab37493dddcdf419e78b6b8166dcfc9b873c5ac0a1f14254d",
+      "sha256": "3cb99c20f76a06a847b7249e1bb63d544b897be953d7392b5b1d90cbb425989f",
       "symbols": [
         {
           "kind": "class",
@@ -1613,13 +2262,6 @@
           "name": "FilterReason",
           "namespace": "track",
           "qualified": "track::FilterReason",
-          "smoke": "using"
-        },
-        {
-          "kind": "struct",
-          "name": "split_expectation",
-          "namespace": "track",
-          "qualified": "track::split_expectation",
           "smoke": "using"
         },
         {
@@ -1675,6 +2317,21 @@
       ]
     },
     {
+      "excluded": [],
+      "module": "trex.tracking",
+      "path": "tracking/SplitExpectation.h",
+      "sha256": "dd61870760197358ec1e236b308fba607492f90c852ae59e10c9608a27d52bd3",
+      "symbols": [
+        {
+          "kind": "struct",
+          "name": "split_expectation",
+          "namespace": "track",
+          "qualified": "track::split_expectation",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
       "excluded": [
         {
           "header": "tracking/SplitBlob.h",
@@ -1686,7 +2343,7 @@
       ],
       "module": "trex.tracking",
       "path": "tracking/SplitBlob.h",
-      "sha256": "483eb9a8016616b49eed1d29181970002e6ed64f5cc67601e106737af8e36cf4",
+      "sha256": "3b5c7709f261f8c623a275e88d7cb6d392b7ce83378818b90fb0a7ccd17c308e",
       "symbols": [
         {
           "kind": "enum_class",
@@ -1744,8 +2401,15 @@
       "excluded": [],
       "module": "trex.ml",
       "path": "ml/AccumulationRuntime.h",
-      "sha256": "50f8019e755d5f352b8254c1854340950acc84c327614a5b467a52e5e8b28c2a",
+      "sha256": "7d489b964aba7c7fd2b66ec98e5f3ecb832c349c5d18a87280ff8a54630d4f38",
       "symbols": [
+        {
+          "kind": "class",
+          "name": "Tracker",
+          "namespace": "track",
+          "qualified": "track::Tracker",
+          "smoke": "using"
+        },
         {
           "kind": "class",
           "name": "AccumulationSession",
@@ -1773,8 +2437,15 @@
       "excluded": [],
       "module": "trex.ml",
       "path": "ml/UniquenessProvider.h",
-      "sha256": "cde306ddc7f4594d0c1889a4aa42f48ac1feb2e0c3ec173ca0e94e5ae0465e5e",
+      "sha256": "fb52bffc8766ba99265b12843e59efbce5ee7a110b865808498203e87e646a32",
       "symbols": [
+        {
+          "kind": "class",
+          "name": "Tracker",
+          "namespace": "track",
+          "qualified": "track::Tracker",
+          "smoke": "using"
+        },
         {
           "kind": "class",
           "name": "UniquenessProvider",
@@ -1789,7 +2460,7 @@
         {
           "header": "ml/VisualIdentification.h",
           "kind": "group",
-          "line": "16",
+          "line": "26",
           "name": "Python::TrainingMode::helpers",
           "reason": "internal_linkage_enum_helpers"
         },
@@ -1868,13 +2539,34 @@
       ],
       "module": "trex.ml",
       "path": "ml/VisualIdentification.h",
-      "sha256": "00e2323c8215eb62504f041293aa35f7b49a5ec916e234ef8b9b5ddb9ba6b094",
+      "sha256": "fa1864e716a3443308a8dda1b85ca390b36fa2dc3d8550709e1ebf9a565bc991",
       "symbols": [
         {
           "kind": "enum_class",
           "name": "Class",
           "namespace": "Python::TrainingMode",
           "qualified": "Python::TrainingMode::Class",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "Path",
+          "namespace": "cmn::file",
+          "qualified": "cmn::file::Path",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "BasicStuff",
+          "namespace": "track",
+          "qualified": "track::BasicStuff",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "PostureStuff",
+          "namespace": "track",
+          "qualified": "track::PostureStuff",
           "smoke": "using"
         },
         {
@@ -1890,8 +2582,15 @@
       "excluded": [],
       "module": "trex.ui",
       "path": "ui/AnimatedBackground.h",
-      "sha256": "d303206611bbab043ee834991a59df403d20cd38a396dfbe6d6a3cb3f301d2c1",
+      "sha256": "ae1f40c8b2249e2288b5269774923de222a84a232be0a8b303bac85bfe178d48",
       "symbols": [
+        {
+          "kind": "struct",
+          "name": "BackgroundVideoConfig",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::BackgroundVideoConfig",
+          "smoke": "using"
+        },
         {
           "kind": "class",
           "name": "AnimatedBackground",
@@ -1904,8 +2603,8 @@
     {
       "excluded": [],
       "module": "trex.ui",
-      "path": "ui/AnnotationScene.h",
-      "sha256": "f9dc71b9cf93b1dbd0594057bdbdc03f8b76e55a55b9691b903f4adfee509c5e",
+      "path": "ui/DetectAnnotationScene.h",
+      "sha256": "721a944ac8ae2c0b5ef95198a78877212861785c97f74237af417393ffc2f71e",
       "symbols": [
         {
           "kind": "class",
@@ -1964,31 +2663,17 @@
           "smoke": "using"
         },
         {
-          "kind": "enum_class",
-          "name": "AnnotationType",
+          "kind": "class",
+          "name": "DetectAnnotationView",
           "namespace": "cmn::gui",
-          "qualified": "cmn::gui::AnnotationType",
-          "smoke": "using"
-        },
-        {
-          "kind": "struct",
-          "name": "Annotation",
-          "namespace": "cmn::gui",
-          "qualified": "cmn::gui::Annotation",
+          "qualified": "cmn::gui::DetectAnnotationView",
           "smoke": "using"
         },
         {
           "kind": "class",
-          "name": "AnnotationView",
+          "name": "DetectAnnotationScene",
           "namespace": "cmn::gui",
-          "qualified": "cmn::gui::AnnotationView",
-          "smoke": "using"
-        },
-        {
-          "kind": "class",
-          "name": "AnnotationScene",
-          "namespace": "cmn::gui",
-          "qualified": "cmn::gui::AnnotationScene",
+          "qualified": "cmn::gui::DetectAnnotationScene",
           "smoke": "using"
         }
       ]
@@ -1997,7 +2682,7 @@
       "excluded": [],
       "module": "trex.ui",
       "path": "ui/Bowl.h",
-      "sha256": "f7a9b6cd3330b1d6e2aab96aad21ac9703d7bb5f23e725492973876a6315a382",
+      "sha256": "a71d1c78880a68136bba148629eeabd52f89a6854a832984199a61f14e902ca0",
       "symbols": [
         {
           "kind": "class",
@@ -2242,8 +2927,15 @@
       ],
       "module": "trex.ui",
       "path": "ui/ConvertScene.h",
-      "sha256": "625a4b0872cc94845fb2f4b966775edd3d97fbdca2dcf6946982fe7b08d6e62e",
+      "sha256": "e8b4ae2ecd0ba910a30653f75f588e4ecc6e8e2df3cad33315d44baa9c45c3b6",
       "symbols": [
+        {
+          "kind": "struct",
+          "name": "SegmentationData",
+          "namespace": "cmn",
+          "qualified": "cmn::SegmentationData",
+          "smoke": "using"
+        },
         {
           "kind": "class",
           "name": "Segmenter",
@@ -2252,21 +2944,21 @@
           "smoke": "using"
         },
         {
-          "kind": "struct",
-          "name": "VideoInfo",
+          "kind": "class",
+          "name": "Label",
           "namespace": "cmn::gui",
-          "qualified": "cmn::gui::VideoInfo",
+          "qualified": "cmn::gui::Label",
           "smoke": "using"
         },
         {
-          "kind": "struct",
-          "name": "Data",
+          "kind": "class",
+          "name": "ExternalImage",
           "namespace": "cmn::gui",
-          "qualified": "cmn::gui::Data",
+          "qualified": "cmn::gui::ExternalImage",
           "smoke": "using"
         },
         {
-          "kind": "function",
+          "kind": "class",
           "name": "ConvertScene",
           "namespace": "cmn::gui",
           "qualified": "cmn::gui::ConvertScene",
@@ -2278,7 +2970,7 @@
       "excluded": [],
       "module": "trex.ui",
       "path": "ui/Coordinates.h",
-      "sha256": "907817d2b9d8f8b12483939e37fb934c48ad9a184deae0fb060919f8309a20e1",
+      "sha256": "4daf4b96fdce6d833aedd65f974e1640a728d71d819a7e22999f81df59392cb7",
       "symbols": [
         {
           "kind": "class",
@@ -2320,6 +3012,13 @@
           "name": "BowlRect",
           "namespace": "cmn::gui",
           "qualified": "cmn::gui::BowlRect",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "to_bowl",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::to_bowl",
           "smoke": "using"
         },
         {
@@ -2462,9 +3161,60 @@
     {
       "excluded": [],
       "module": "trex.ui",
-      "path": "ui/DrawDataset.h",
-      "sha256": "4d901b6100ce8d9080f5d744b6a137410ce8a7526005cd9b88aa895d1f530aa4",
+      "path": "ui/DrawAnnotationExportOptions.h",
+      "sha256": "9d510dcbb61f561920c6458408de500b9ea54365532d80bba92284839cadc098",
       "symbols": [
+        {
+          "kind": "class",
+          "name": "DrawStructure",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::DrawStructure",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "DrawAnnotationExportOptions",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::DrawAnnotationExportOptions",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "trex.ui",
+      "path": "ui/DrawDetectAnnotationImportOptions.h",
+      "sha256": "f356e4e06ad20653c3c64ba46855f453432e852094971690897c33fda7152bbb",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "DrawStructure",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::DrawStructure",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "DrawDetectAnnotationImportOptions",
+          "namespace": "cmn::gui",
+          "qualified": "cmn::gui::DrawDetectAnnotationImportOptions",
+          "smoke": "using"
+        }
+      ]
+    },
+    {
+      "excluded": [],
+      "module": "trex.ui",
+      "path": "ui/DrawDataset.h",
+      "sha256": "99a07988bb50c36879238f28561420c7728e25df16bb8e63645f356de2defa90",
+      "symbols": [
+        {
+          "kind": "class",
+          "name": "Tracker",
+          "namespace": "track",
+          "qualified": "track::Tracker",
+          "smoke": "using"
+        },
         {
           "kind": "class",
           "name": "StaticText",
@@ -2521,8 +3271,15 @@
       "excluded": [],
       "module": "trex.ui",
       "path": "ui/DrawFish.h",
-      "sha256": "df8040705d820e4365f3623d436b2be0dcb026f7fcc5a71464ad3802815d0976",
+      "sha256": "0aade18bd7f652151230e3c4343e47e896b22bde181f67514b5f41e514b91ee9",
       "symbols": [
+        {
+          "kind": "class",
+          "name": "Tracker",
+          "namespace": "track",
+          "qualified": "track::Tracker",
+          "smoke": "using"
+        },
         {
           "kind": "class",
           "name": "Individual",
@@ -2650,7 +3407,7 @@
       "excluded": [],
       "module": "trex.ui",
       "path": "ui/DrawPreviewImage.h",
-      "sha256": "2f88ba90d4119bce56a75bd6b322b1c17f4b2cc877cc859b242622c0ef6a582a",
+      "sha256": "c6f7df4f5271fdcb40bdccf64bb51124430bc76a667753ed2fa23bc81abae49c",
       "symbols": [
         {
           "kind": "function",
@@ -2664,6 +3421,13 @@
           "name": "make_image",
           "namespace": "cmn::gui::DrawPreviewImage",
           "qualified": "cmn::gui::DrawPreviewImage::make_image",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "make_image_cached",
+          "namespace": "cmn::gui::DrawPreviewImage",
+          "qualified": "cmn::gui::DrawPreviewImage::make_image_cached",
           "smoke": "using"
         }
       ]
@@ -2715,8 +3479,15 @@
       "excluded": [],
       "module": "trex.ui",
       "path": "ui/DrawUniqueness.h",
-      "sha256": "d62952432caac4a34a8cf7f89338bc89e498b82b9767022bab061b6dc0fc2a69",
+      "sha256": "47610d29d858c746b529970dbcab1a47ae027ea38c13379ea03a605c833c07ba",
       "symbols": [
+        {
+          "kind": "class",
+          "name": "Tracker",
+          "namespace": "track",
+          "qualified": "track::Tracker",
+          "smoke": "using"
+        },
         {
           "kind": "class",
           "name": "GUICache",
@@ -2837,7 +3608,7 @@
       ],
       "module": "trex.ui",
       "path": "ui/GUICache.h",
-      "sha256": "88800a35a35a4f8365bbdf409d7d5849131e7bc616e00d470f82ca9395d397c8",
+      "sha256": "fd5ac78187f2ad72c9397a87314a8bee00dc46239bc658781af33e84c9b777d8",
       "symbols": [
         {
           "kind": "class",
@@ -2851,6 +3622,20 @@
           "name": "Cache",
           "namespace": "cmn::gui::globals",
           "qualified": "cmn::gui::globals::Cache",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "Border",
+          "namespace": "track",
+          "qualified": "track::Border",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "Tracker",
+          "namespace": "track",
+          "qualified": "track::Tracker",
           "smoke": "using"
         },
         {
@@ -2879,6 +3664,34 @@
           "name": "FilterCache",
           "namespace": "track::constraints",
           "qualified": "track::constraints::FilterCache",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "Background",
+          "namespace": "cmn",
+          "qualified": "cmn::Background",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "GenericThreadPool",
+          "namespace": "cmn",
+          "qualified": "cmn::GenericThreadPool",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "ProximityGrid",
+          "namespace": "cmn::grid",
+          "qualified": "cmn::grid::ProximityGrid",
+          "smoke": "using"
+        },
+        {
+          "kind": "struct",
+          "name": "UnresolvedStringPattern",
+          "namespace": "cmn::pattern",
+          "qualified": "cmn::pattern::UnresolvedStringPattern",
           "smoke": "using"
         },
         {
@@ -2922,13 +3735,20 @@
       "excluded": [],
       "module": "trex.ui",
       "path": "ui/GuiSettings.h",
-      "sha256": "9151683bc483696660b105ee0a1a07754939789cd03a7e500b60b633cf12d045",
+      "sha256": "571efb43debf9f56a5ec2a26ce5330d069c2216742d7575bf13eb3df1fb74645",
       "symbols": [
         {
           "kind": "function",
           "name": "window_title",
-          "namespace": "cmn::gui",
-          "qualified": "cmn::gui::window_title",
+          "namespace": "cmn::settings",
+          "qualified": "cmn::settings::window_title",
+          "smoke": "using"
+        },
+        {
+          "kind": "function",
+          "name": "write_config",
+          "namespace": "cmn::settings",
+          "qualified": "cmn::settings::write_config",
           "smoke": "using"
         }
       ]
@@ -2937,7 +3757,7 @@
       "excluded": [],
       "module": "trex.ui",
       "path": "ui/GUIVideoAdapter.h",
-      "sha256": "2ea587eeb95e07634b9d9eb303a0018ba278bc6536f65d937bf04113fba7e6cb",
+      "sha256": "2c3b1f3188eff611bbe5d00e8339e52a9f1a4e899a9467e66e10ceef8295ffd4",
       "symbols": [
         {
           "kind": "alias",
@@ -2980,6 +3800,13 @@
           "namespace": "cmn::gui",
           "qualified": "cmn::gui::GUIVideoAdapter",
           "smoke": "using"
+        },
+        {
+          "kind": "class_template",
+          "name": "AllowDirectMakeArgs",
+          "namespace": "cmn::gui::detail",
+          "qualified": "cmn::gui::detail::AllowDirectMakeArgs",
+          "smoke": "using"
         }
       ]
     },
@@ -3009,7 +3836,7 @@
       "excluded": [],
       "module": "trex.ui",
       "path": "ui/IdentityHeatmap.h",
-      "sha256": "e061b27ecde625befdbab4eb185324d3f4cfbdc30b8e8dcf046368cf425de546",
+      "sha256": "e7800e42ef55ac9aa44bcac84e75b062c7889dbf00d53ea1f5809016940ddad2",
       "symbols": [
         {
           "kind": "class",
@@ -3060,7 +3887,7 @@
       "excluded": [],
       "module": "trex.ui",
       "path": "ui/ImageGeneratorRegistry.h",
-      "sha256": "8fabbd5d87989aee86ba92428b186210b4b0a7bf7a3ed5a0be5a233a9d12c0d8",
+      "sha256": "01b815537b910a0136b072166f7bbba24e42cf5651c32013edbdc2d78f272dfd",
       "symbols": [
         {
           "kind": "struct",
@@ -3082,7 +3909,7 @@
       "excluded": [],
       "module": "trex.ui",
       "path": "ui/InfoCard.h",
-      "sha256": "d9108423fad72eafa1952cd9b6e0874735c1a9177cb02c3f945c1e075f5f11f1",
+      "sha256": "67eb255e11b6b2ada5c5b6115eb08551007e1af4079358fd03fddd9ed61419a0",
       "symbols": [
         {
           "kind": "class",
@@ -3135,13 +3962,6 @@
         },
         {
           "kind": "class",
-          "name": "InfoCard",
-          "namespace": "cmn::gui",
-          "qualified": "cmn::gui::InfoCard",
-          "smoke": "using"
-        },
-        {
-          "kind": "class",
           "name": "DrawSegments",
           "namespace": "cmn::gui",
           "qualified": "cmn::gui::DrawSegments",
@@ -3153,7 +3973,7 @@
       "excluded": [],
       "module": "trex.ui",
       "path": "ui/Label.h",
-      "sha256": "a9e089fefbdf34edd947835fa9e70cac87c346ed7f1003ba216e39f06b0b90b7",
+      "sha256": "a1cb6ecdf90bbed35fdce997bf5bb53c8bfd39922ef810a6f6802211e92935df",
       "symbols": [
         {
           "kind": "class",
@@ -3168,7 +3988,7 @@
       "excluded": [],
       "module": "trex.ui",
       "path": "ui/LabelElement.h",
-      "sha256": "4e861665fe0b79849e8449aaa80c92a4e51768b1ff95a5a446d9ac2044277d28",
+      "sha256": "9913861220552f72423356aebc1cb6777f73f878ff10c5113b70a17a6c5eeb79",
       "symbols": [
         {
           "kind": "class",
@@ -3212,7 +4032,7 @@
       "excluded": [],
       "module": "trex.ui",
       "path": "ui/LoadingScene.h",
-      "sha256": "015a00871b9590b43a886cf9b386d2a9b302c0c379067d63dbd91a63087421e6",
+      "sha256": "de2b3a144d4b263b2b67de01e595b3bdd33c61272e2029decf6fd63e384ce8ce",
       "symbols": [
         {
           "kind": "class",
@@ -3256,13 +4076,20 @@
       "excluded": [],
       "module": "trex.ui",
       "path": "ui/PreviewAdapterElement.h",
-      "sha256": "69af6659052322f129ebba92977568fce0a07a750a29a674e208967d1d7a2ce2",
+      "sha256": "ef9036c2dd4c7a5c78c9820090230355f2c9cee105b76500f6771145e7f41bd1",
       "symbols": [
         {
           "kind": "class",
           "name": "PPFrame",
           "namespace": "track",
           "qualified": "track::PPFrame",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "Tracker",
+          "namespace": "track",
+          "qualified": "track::Tracker",
           "smoke": "using"
         },
         {
@@ -3285,7 +4112,7 @@
       "excluded": [],
       "module": "trex.ui",
       "path": "ui/RecognitionSummary.h",
-      "sha256": "1b92c91d214c606c20f64fe6cae0c9cdf28afd03f4c6ce74623297cf85963ac5",
+      "sha256": "fb2abe282cc7d79a2283751d3b78f8a322b0edcd8d774942e3e31d6694dd8030",
       "symbols": [
         {
           "kind": "class",
@@ -3300,7 +4127,7 @@
       "excluded": [],
       "module": "trex.ui",
       "path": "ui/RecentItems.h",
-      "sha256": "ec4c8ccd9966a1923a5de424487257ce83b7bcef5645f1f4f7a3f917bbeb1f50",
+      "sha256": "36eaa8988036757024f508cc677cde5e62ca2de6d191db60b6f1797c52b650e9",
       "symbols": []
     },
     {
@@ -3429,28 +4256,13 @@
       "excluded": [],
       "module": "trex.ui",
       "path": "ui/SettingsScene.h",
-      "sha256": "e2756c9292b9eba57c56a62e127338c6cf4b8326682e6da05ead1758e8bf25ad",
+      "sha256": "2af0bb1ed402edb60a9523ccb4aa48c7cbed9f40bcf8f45e9836f87f9efe6bdf",
       "symbols": [
         {
           "kind": "class",
           "name": "SettingsScene",
           "namespace": "cmn::gui",
           "qualified": "cmn::gui::SettingsScene",
-          "smoke": "using"
-        }
-      ]
-    },
-    {
-      "excluded": [],
-      "module": "trex.ui",
-      "path": "ui/SettingsInitializer.h",
-      "sha256": "7f8c3df60c2738db61e4efcc73df35802fc9b71e06e34276f546d719e30f89da",
-      "symbols": [
-        {
-          "kind": "function",
-          "name": "write_config",
-          "namespace": "cmn::settings",
-          "qualified": "cmn::settings::write_config",
           "smoke": "using"
         }
       ]
@@ -3481,7 +4293,7 @@
       "excluded": [],
       "module": "trex.ui",
       "path": "ui/StartingScene.h",
-      "sha256": "16935ef05c1d460c4d429ef27a08c4436ead28dbd540bb688e699c9eaf1e98c2",
+      "sha256": "58a85b5ed390c5bc4dafdc1427d090f75e0371aa79e098c5d36d1b4f2966c291",
       "symbols": [
         {
           "kind": "class",
@@ -3496,13 +4308,13 @@
       "excluded": [],
       "module": "trex.ui",
       "path": "ui/Terminal.h",
-      "sha256": "361bdf1dcf17d90404eb95fa35375933500f83968593d7ce2d0df101f3a222ce",
+      "sha256": "e0aaa74b9028e05b0fb00f2ada8be9257ab0659a8142729c09ae7f776d463954",
       "symbols": [
         {
           "kind": "function",
           "name": "open_terminal",
-          "namespace": "cmn::gui::terminal",
-          "qualified": "cmn::gui::terminal::open_terminal",
+          "namespace": "cmn::terminal",
+          "qualified": "cmn::terminal::open_terminal",
           "smoke": "using"
         }
       ]
@@ -3526,7 +4338,7 @@
       "excluded": [],
       "module": "trex.ui",
       "path": "ui/TimingStatsWidget.h",
-      "sha256": "20a5e86aab7f12400049bd2f6424b1c80cc58864ce0f1d8ff25242e6c6e3411c",
+      "sha256": "0f49ba906e2febd739b9fcb691c3d5de580f94a38f9ac4c32ce05d89b411d0c4",
       "symbols": [
         {
           "kind": "alias",
@@ -3548,6 +4360,13 @@
           "namespace": "cmn::gui",
           "qualified": "cmn::gui::TimingStatsWidget",
           "smoke": "using"
+        },
+        {
+          "kind": "class_template",
+          "name": "AllowDirectMakeArgs",
+          "namespace": "cmn::gui::detail",
+          "qualified": "cmn::gui::detail::AllowDirectMakeArgs",
+          "smoke": "using"
         }
       ]
     },
@@ -3555,8 +4374,15 @@
       "excluded": [],
       "module": "trex.ui",
       "path": "ui/TrackingScene.h",
-      "sha256": "e6b3c35e2e2c7fd28c707aba9ecb4690c6e06d9fa3162205118e16598cc606f4",
+      "sha256": "9b9d2737c953fd782d0061bce56a0437909149158110ae87603ba57864b46fbe",
       "symbols": [
+        {
+          "kind": "struct",
+          "name": "Idx_t",
+          "namespace": "track",
+          "qualified": "track::Idx_t",
+          "smoke": "using"
+        },
         {
           "kind": "struct",
           "name": "DynamicGUI",
@@ -3751,28 +4577,28 @@
         {
           "header": "ui/Accumulation.h",
           "kind": "group",
-          "line": "29",
+          "line": "32",
           "name": "track::AccumulationStatus::helpers",
           "reason": "internal_linkage_enum_helpers"
         },
         {
           "header": "ui/Accumulation.h",
           "kind": "group",
-          "line": "30",
+          "line": "33",
           "name": "track::AccumulationReason::helpers",
           "reason": "internal_linkage_enum_helpers"
         },
         {
           "header": "ui/Accumulation.h",
           "kind": "group",
-          "line": "37",
+          "line": "40",
           "name": "track::CallbackType_t::helpers",
           "reason": "internal_linkage_enum_helpers"
         }
       ],
       "module": "trex.ui",
       "path": "ui/Accumulation.h",
-      "sha256": "b15a9261a2819b0af4de8d2b75293118c80abaaf67620fc468500e51cc9ea738",
+      "sha256": "e2c9f88ee27c5979850dd34a9a880c9b5162ec4659d4953bc73ce6a73df0d4a0",
       "symbols": [
         {
           "kind": "enum_class",
@@ -3838,6 +4664,13 @@
           "smoke": "using"
         },
         {
+          "kind": "class",
+          "name": "Tracker",
+          "namespace": "track",
+          "qualified": "track::Tracker",
+          "smoke": "using"
+        },
+        {
           "kind": "function",
           "name": "AccumulationLock",
           "namespace": "track",
@@ -3850,7 +4683,7 @@
       "excluded": [],
       "module": "trex.ui",
       "path": "ui/Categorize.h",
-      "sha256": "39b5db9c74b4a586cb71360f5a94aa43d76af26569e5d130d892979342d3af3b",
+      "sha256": "2edc343fdd98c81f82427d9666f71923b088ba09c91dfda645e12f078a3a4313",
       "symbols": [
         {
           "kind": "class",
@@ -3864,6 +4697,13 @@
           "name": "DrawStructure",
           "namespace": "cmn::gui",
           "qualified": "cmn::gui::DrawStructure",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "Tracker",
+          "namespace": "track",
+          "qualified": "track::Tracker",
           "smoke": "using"
         },
         {
@@ -4054,13 +4894,20 @@
       "excluded": [],
       "module": "trex.ui",
       "path": "ui/CategorizeInterface.h",
-      "sha256": "aede1cf18eee91d9b33850f6c4533ccff470249bd15c2b1125e7bbadf32060a9",
+      "sha256": "b1f25e44aedb52093c58e6154ef21e61a06229bfbe248d3a1495dcee19d0820b",
       "symbols": [
         {
           "kind": "class",
           "name": "IMGUIBase",
           "namespace": "cmn::gui",
           "qualified": "cmn::gui::IMGUIBase",
+          "smoke": "using"
+        },
+        {
+          "kind": "class",
+          "name": "Tracker",
+          "namespace": "track",
+          "qualified": "track::Tracker",
           "smoke": "using"
         },
         {
@@ -4090,9 +4937,9 @@
   "macros": [],
   "source": "tracker_public_headers",
   "summary": {
-    "excluded": 53,
-    "headers": 119,
-    "symbols": 399
+    "excluded": 59,
+    "headers": 130,
+    "symbols": 501
   },
   "version": 1
 }

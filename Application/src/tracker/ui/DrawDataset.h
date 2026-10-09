@@ -5,6 +5,10 @@
 #include <tracking/DatasetQuality.h>
 #include <core/idx_t.h>
 
+namespace track {
+class Tracker;
+}
+
 namespace cmn::gui {
     class StaticText;
     class GUICache;
@@ -33,7 +37,7 @@ namespace cmn::gui {
         DrawDataset();
         virtual ~DrawDataset();
         
-        void set_data(Frame_t frameIndex, const GUICache& tracker);
+        void set_data(const track::Tracker&, Frame_t frameIndex, const GUICache& tracker);
         void update() override;
         void clear_cache();
         

@@ -3,6 +3,7 @@
 #include <misc/colors.h>
 #include <gui/GuiTypes.h>
 #include <gui/DrawBase.h>
+#include <gui/DrawStructure.h>
 
 namespace cmn::gui {
 
@@ -40,7 +41,8 @@ void Skelett::update() {
                                Radius{ 5 },
                                FillClr{ _color.alpha(75) },
                                min(Scale{1}, sca),
-                               Clickable{_show_text});
+                               PointerEvents{pointer::Events::Hover},
+                               Clickable{false});
                 advance_wrap(*circle);
                 
                 auto hovered = circle->hovered();

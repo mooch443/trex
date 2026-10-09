@@ -53,7 +53,7 @@ namespace track {
         GETTER(Frame_t, frame);
         
     public:
-        VisualField(Idx_t fish_id, Frame_t frame,const BasicStuff& basic, const PostureStuff* posture, bool blocking);
+        VisualField(Size2 video_size, Idx_t fish_id, Frame_t frame,const BasicStuff& basic, const PostureStuff* posture, bool blocking);
         
         const decltype(_eyes)& eyes() const { return _eyes; }
         void calculate(const BasicStuff& basic, const PostureStuff* posture, bool blocking = true);

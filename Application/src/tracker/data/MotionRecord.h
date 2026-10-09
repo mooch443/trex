@@ -59,6 +59,9 @@ public:
     bool operator<(Frame_t frame) const {
         return this->_frame < frame;
     }
+    bool operator==(const FrameProperties& other) const {
+        return this->_frame == other._frame;
+    }
     
     void set_timestamp(uint64_t ts);
     void set_active_individuals(long_t);

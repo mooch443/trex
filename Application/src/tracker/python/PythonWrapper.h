@@ -91,6 +91,7 @@ struct PythonImplInterface {
     void (*convert_exceptions)(std::function<void()>&&) = nullptr;
     void (*set_settings)(cmn::GlobalSettings*, cmn::file::DataLocation*, void*, void*) = nullptr;
     void (*set_display_function)(std::function<void(const std::string&, const cv::Mat&)>&&, std::function<void()>&&) = nullptr;
+    void (*set_runtime_warning_function)(std::function<void(const std::string&)>&&) = nullptr;
     bool (*has_loaded_module)(const std::string&) = nullptr;
     bool (*check_module)(const std::string&, std::function<void()>) = nullptr;
     bool (*is_none)(const std::string&, const std::string&) = nullptr;
@@ -122,7 +123,8 @@ TREX_EXPORT void configure_runtime(
     void* instance,
     void* tile_buffers,
     std::function<void(const std::string&, const cv::Mat&)> show_fn,
-    std::function<void()> close_fn
+    std::function<void()> close_fn,
+    std::function<void(const std::string&)> warning_fn = {}
 );
 TREX_EXPORT void check_correct_thread_id();
 TREX_EXPORT bool is_correct_thread_id();

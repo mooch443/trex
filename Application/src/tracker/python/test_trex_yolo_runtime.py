@@ -91,7 +91,15 @@ class FakeTRexDetection:
 
 
 class FakeStrippedResults:
-    pass
+    def __init__(self, scale, offset):
+        self.scale = scale
+        self.offset = offset
+        self.boxes = None
+        self.keypoints = None
+        self.masks = None
+        self.orig_shape = None
+        self.obb = None
+        self.points = None
 
 
 class FakeTRexModule(types.ModuleType):
@@ -106,12 +114,15 @@ class FakeTRexModule(types.ModuleType):
         self.Result = object
         self.settings = {
             "gpu_torch_no_fixes": "true",
-            "detect_conf_threshold": "0.1",
-            "detect_iou_threshold": "null",
+            "detect_conf_threshold": 0.1,
+            "detect_iou_threshold": None,
             "detect_point_radii": "{}",
+            "detect_keypoint_threshold": 0.1,
+            "yolo_instance_mask_closing": 0,
+            "yolo_instance_mask_expand": False,
         }
 
-    def setting(self, name: str) -> str:
+    def setting(self, name: str):
         return self.settings[name]
 
     @staticmethod
@@ -135,9 +146,10 @@ class FakeTensorLike:
 
 
 class FakeBoxes:
-    def __init__(self):
-        self.data = FakeTensorLike(np.zeros((0, 6), dtype=np.float32))
-        self.xyxy = FakeTensorLike(np.zeros((0, 4), dtype=np.float32))
+    def __init__(self, data=None):
+        array = np.zeros((0, 6), dtype=np.float32) if data is None else data
+        self.data = FakeTensorLike(array)
+        self.xyxy = FakeTensorLike(np.asarray(array, dtype=np.float32)[:, :4])
 
 
 class FakePredictionResult:
@@ -253,6 +265,7 @@ class RuntimePolicyTest(unittest.TestCase):
         sys.modules.pop("bbx_saved_model", None)
 
         cls.trex_yolo = importlib.import_module("trex_yolo")
+        cls.stripped_yolo_results = cls.trex_yolo.StrippedYoloResults
         cls.trex_yolo.YOLO = FakeYOLO
         cls.trex_yolo.StrippedYoloResults = lambda result, scale, offset: types.SimpleNamespace(
             result=result, scale=scale, offset=offset
@@ -263,13 +276,27 @@ class RuntimePolicyTest(unittest.TestCase):
         FakeYOLO.instances.clear()
         self.fake_trex.settings = {
             "gpu_torch_no_fixes": "true",
-            "detect_conf_threshold": "0.1",
-            "detect_iou_threshold": "null",
+            "detect_conf_threshold": 0.1,
+            "detect_iou_threshold": None,
             "detect_point_radii": "{}",
+            "detect_keypoint_threshold": 0.1,
+            "yolo_instance_mask_closing": 0,
+            "yolo_instance_mask_expand": False,
         }
 
-    def _make_model(self, *, modern: bool, end2end: bool, use_tracking: bool = False):
-        FakeYOLO.active_scenario = FakeYOLOScenario(modern=modern, end2end=end2end)
+    def _make_model(
+        self,
+        *,
+        modern: bool,
+        end2end: bool,
+        use_tracking: bool = False,
+        task: str = "detect",
+    ):
+        FakeYOLO.active_scenario = FakeYOLOScenario(
+            modern=modern,
+            end2end=end2end,
+            task=task,
+        )
         config = FakeModelConfig(use_tracking=use_tracking, model_path="fake.pt")
         model = self.trex_yolo.YOLOModel(config)
         model.load()
@@ -290,7 +317,7 @@ class RuntimePolicyTest(unittest.TestCase):
         self.assertNotIn("agnostic_nms", call)
 
     def test_modern_end2end_forced_nms_when_iou_setting_present(self):
-        self.fake_trex.settings["detect_iou_threshold"] = "0.4"
+        self.fake_trex.settings["detect_iou_threshold"] = 0.4
         model, backend = self._make_model(modern=True, end2end=True)
         self.assertEqual(model.runtime_profile, self.trex_yolo.RUNTIME_PROFILE_MODERN_END2END_FORCED_NMS)
         self.assertFalse(backend.head.end2end)
@@ -326,6 +353,26 @@ class RuntimePolicyTest(unittest.TestCase):
         self.assertNotIn("iou", call)
         self.assertNotIn("agnostic_nms", call)
 
+    def test_semantic_model_uses_mask_format_and_prediction_path(self):
+        model, backend = self._make_model(
+            modern=False,
+            end2end=False,
+            use_tracking=True,
+            task="semantic",
+        )
+        self.assertEqual(model.config.output_format, FakeObjectDetectionFormat.masks)
+
+        image = np.zeros((32, 48, 3), dtype=np.uint8)
+        results = model.predict(
+            [image],
+            scales=[np.ones(2, dtype=np.float32)],
+            offsets=[np.zeros(2, dtype=np.float32)],
+        )
+
+        self.assertEqual(len(results), 1)
+        self.assertEqual(len(backend.predict_calls), 1)
+        self.assertEqual(backend.track_calls, [])
+
     def test_bbx_saved_model_only_passes_iou_when_explicitly_set(self):
         calls = []
 
@@ -336,14 +383,148 @@ class RuntimePolicyTest(unittest.TestCase):
 
         self.bbx_saved_model.model = CaptureModel()
 
-        self.fake_trex.settings["detect_iou_threshold"] = "null"
+        self.fake_trex.settings["detect_iou_threshold"] = None
         result = self.bbx_saved_model.predict("frame")
         self.assertEqual(result, ["ok"])
         self.assertIsNone(calls[-1]["kwargs"]["iou_threshold"])
 
-        self.fake_trex.settings["detect_iou_threshold"] = "0.55"
+        self.fake_trex.settings["detect_iou_threshold"] = 0.55
         self.bbx_saved_model.predict("frame")
         self.assertEqual(calls[-1]["kwargs"]["iou_threshold"], 0.55)
+
+    def test_keypoint_threshold_uses_missing_sentinel_and_keeps_float32_layout(self):
+        torch = self.trex_yolo.torch
+
+        class FakeKeypoints:
+            def __init__(self, data):
+                self.data = data
+
+            def cpu(self):
+                return self
+
+        result = FakePredictionResult()
+        result.keypoints = FakeKeypoints(torch.tensor(
+            [[[1.0, 2.0, 0.2], [3.0, 4.0, 0.8], [0.0, 0.0, 0.9]]],
+            dtype=torch.float32,
+        ))
+        self.fake_trex.settings["detect_keypoint_threshold"] = 0.5
+
+        stripped = self.stripped_yolo_results(
+            result,
+            scale=np.array([2.0, 3.0], dtype=np.float32),
+            offset=np.array([10.0, 20.0], dtype=np.float32),
+        )
+
+        self.assertIsNotNone(stripped.keypoints)
+        self.assertEqual(len(stripped.keypoints), 1)
+        keypoints = stripped.keypoints[0]
+        self.assertEqual(keypoints.shape, (1, 3, 2))
+        self.assertEqual(keypoints.dtype, np.float32)
+        self.assertTrue(keypoints.flags["C_CONTIGUOUS"])
+        np.testing.assert_array_equal(keypoints[0, 0], [0.0, 0.0])
+        np.testing.assert_array_equal(keypoints[0, 1], [26.0, 72.0])
+        np.testing.assert_array_equal(keypoints[0, 2], [0.0, 0.0])
+
+    def test_mask_box_uses_floor_ceil_xyxy_and_exact_raster_size(self):
+        torch = self.trex_yolo.torch
+        result = FakePredictionResult()
+        result.orig_shape = (8, 8)
+        result.boxes = FakeBoxes(np.asarray(
+            [[1.2, 1.4, 4.1, 5.2, 0.9, 1.0]],
+            dtype=np.float32,
+        ))
+        result.masks = types.SimpleNamespace(
+            data=torch.ones((1, 8, 8), dtype=torch.float32)
+        )
+
+        stripped = self.stripped_yolo_results(
+            result,
+            scale=np.array([1.0, 1.0], dtype=np.float32),
+            offset=np.array([0.0, 0.0], dtype=np.float32),
+        )
+
+        np.testing.assert_array_equal(
+            stripped.boxes[0, :4],
+            np.asarray([1.0, 1.0, 5.0, 6.0], dtype=np.float32),
+        )
+        self.assertEqual(stripped.masks[0].shape, (5, 4))
+        self.assertEqual(stripped.boxes.dtype, np.float32)
+        self.assertTrue(stripped.boxes.flags["C_CONTIGUOUS"])
+
+    def test_mask_expansion_setting_preserves_positive_pixels_outside_model_box(self):
+        torch = self.trex_yolo.torch
+        protos = torch.full((1, 4, 4), -1.0, dtype=torch.float32)
+        protos[0, 0, 0] = 1.0
+        protos[0, 3, 3] = 1.0
+        coefficients = torch.ones((1, 1), dtype=torch.float32)
+        boxes = torch.tensor([[0.0, 0.0, 1.0, 1.0]], dtype=torch.float32)
+
+        self.fake_trex.settings["yolo_instance_mask_expand"] = False
+        cropped = self.trex_yolo.process_mask(
+            protos, coefficients, boxes.clone(), (4, 4))
+        self.assertEqual(int(cropped.count_nonzero()), 1)
+
+        self.fake_trex.settings["yolo_instance_mask_expand"] = True
+        expanded = self.trex_yolo.process_mask(
+            protos, coefficients, boxes.clone(), (4, 4))
+        self.assertEqual(int(expanded.count_nonzero()), 2)
+
+    def test_mask_closing_setting_changes_returned_mask(self):
+        torch = self.trex_yolo.torch
+        masks = torch.zeros((1, 7, 7), dtype=torch.uint8)
+        masks[0, :, 1:3] = 1
+        masks[0, :, 4:6] = 1
+        boxes = torch.tensor([[0.0, 0.0, 7.0, 7.0]], dtype=torch.float32)
+        self.fake_trex.settings["yolo_instance_mask_closing"] = 1
+
+        processed, processed_boxes = self.trex_yolo.postprocess_masks(
+            masks, boxes.clone())
+
+        self.assertEqual(int(masks[0, 3, 3]), 0)
+        self.assertEqual(int(processed[0, 3, 3]), 1)
+        self.assertEqual(processed.dtype, masks.dtype)
+        self.assertTrue(torch.equal(processed_boxes, boxes))
+
+    def test_semantic_result_preserves_one_contiguous_class_map(self):
+        torch = self.trex_yolo.torch
+        result = FakePredictionResult()
+        result.boxes = None
+        result.semantic_mask = types.SimpleNamespace(
+            data=torch.tensor(
+                [[0, 1, 1], [0, 2, 1]],
+                dtype=torch.int16,
+            )
+        )
+
+        stripped = self.stripped_yolo_results(
+            result,
+            scale=np.array([2.0, 3.0], dtype=np.float32),
+            offset=np.array([10.0, 20.0], dtype=np.float32),
+        )
+
+        self.assertIsNone(stripped.boxes)
+        self.assertIsNone(stripped.masks)
+        self.assertEqual(stripped.semantic_mask.dtype, np.uint8)
+        self.assertTrue(stripped.semantic_mask.flags["C_CONTIGUOUS"])
+        np.testing.assert_array_equal(
+            stripped.semantic_mask,
+            np.asarray([[0, 1, 1], [0, 2, 1]], dtype=np.uint8),
+        )
+
+    def test_semantic_result_rejects_class_ids_outside_uint8(self):
+        torch = self.trex_yolo.torch
+        result = FakePredictionResult()
+        result.boxes = None
+        result.semantic_mask = types.SimpleNamespace(
+            data=torch.tensor([[0, 256]], dtype=torch.int32)
+        )
+
+        with self.assertRaisesRegex(ValueError, "uint8 class range"):
+            self.stripped_yolo_results(
+                result,
+                scale=np.ones(2, dtype=np.float32),
+                offset=np.zeros(2, dtype=np.float32),
+            )
 
 
 if __name__ == "__main__":

@@ -2,13 +2,14 @@
 
 #include <commons.pc.h>
 #include <core/DetectionTypes.h>
+#include <core/GPURecognitionTypes.h>
 #include <core/TileImage.h>
 #include <misc/Image.h>
 
 namespace track::detect {
 
 struct TREX_EXPORT BackendHooks {
-    std::function<void()> init;
+    std::function<std::vector<ModelConfig>()> init;
     std::function<void()> deinit;
     std::function<bool()> is_initializing;
     std::function<double()> fps;

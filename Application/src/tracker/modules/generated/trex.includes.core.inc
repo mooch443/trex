@@ -2,6 +2,7 @@
 // Do not edit by hand.
 
 #include <core/AbstractVideoSource.h>
+#include <core/DetectAnnotationDataset.h>
 #include <core/BaslerVideoSource.h>
 #include <core/BackgroundTask.h>
 #include <core/BlurryVideoLoop.h>
@@ -9,11 +10,13 @@
 #include <core/default_config.h>
 #include <core/DetectionImageTypes.h>
 #include <core/DetectionTypes.h>
+#include <core/FrameTags.h>
 #include <core/FOI.h>
 #include <core/IdentifiedTag.h>
 #include <core/Identity.h>
 #include <core/idx_t.h>
 #include <core/indicators.h>
+#include <core/TerminalProgress.h>
 #include <core/GPURecognitionTypes.h>
 #include <core/NetworkStats.h>
 #include <core/PVVideoSource.h>
@@ -23,6 +26,7 @@
 #include <core/TaskPipeline.h>
 #include <core/SettingsPaths.h>
 #include <core/SettingsInitializer.h>
+#include <core/TileCoordinates.h>
 #include <core/TileImage.h>
 #include <core/TileBuffers.h>
 #include <core/TimingStatsCollector.h>
@@ -32,3 +36,4 @@
 #include <core/VideoVideoSource.h>
 #include <core/WebcamVideoSource.h>
 #include <core/Network.h>
+#include <core/DetectAnnotation.h>

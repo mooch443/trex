@@ -13,6 +13,10 @@
 
 namespace cmn::gui {
 
+struct BackgroundVideoConfig {
+    std::set<std::pair<std::string, std::optional<int>>> tests;
+};
+
 class AnimatedBackground : public Entangled {
     Color _tint{White};
     Image _local_buffer;
@@ -55,6 +59,8 @@ class AnimatedBackground : public Entangled {
     
     GETTER(Frame_t, displayed_frame);
     
+    std::shared_ptr<bool> _exists = std::make_shared<bool>(true);
+    std::weak_ptr<bool> _exists_weak = std::weak_ptr(_exists);
     FramePreloader<Image::Ptr> preloader;
     std::atomic<bool> _strict{false};
     
@@ -66,6 +72,9 @@ public:
     AnimatedBackground(AnimatedBackground&&) = delete;
     AnimatedBackground& operator=(const AnimatedBackground&) = delete;
     AnimatedBackground& operator=(AnimatedBackground&&) = delete;
+    
+    ~AnimatedBackground();
+    void pushed_frame(Frame_t index);
     
     void set_color(const Color&);
     const Color& color() const;
@@ -85,6 +94,8 @@ public:
     bool valid() const;
     
     Image::Ptr preload(Frame_t);
+    
+    static BackgroundVideoConfig configure_video_source(const pv::File*);
 };
 
 }

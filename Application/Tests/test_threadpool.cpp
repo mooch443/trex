@@ -1,8 +1,34 @@
 #include <commons.pc.h>
 #include <gtest/gtest.h>
 #include <misc/ThreadPool.h>
+#include <misc/ThreadManager.h>
 
 using namespace cmn;
+
+TEST(ManagedThreadTest, PreservesTerminationRequestedBeforeLoopStarts) {
+    ThreadGroup group;
+    group.id = ThreadGroupId{1};
+    group.name = "immediate-termination-test";
+
+    ManagedThreadWrapper* wrapper_ptr = nullptr;
+    std::optional<std::future<void>> redundant_termination;
+    ManagedThreadWrapper wrapper{
+        .t = nullptr,
+        .m = ManagedThread([&](const ThreadGroupId&) {
+            redundant_termination.emplace(wrapper_ptr->m.terminate());
+        }),
+        .name = "immediate-termination-test"
+    };
+    wrapper_ptr = &wrapper;
+
+    auto termination = wrapper.m.terminate();
+    wrapper.m.loop(group, wrapper);
+
+    EXPECT_FALSE(redundant_termination.has_value());
+    ASSERT_EQ(termination.wait_for(std::chrono::seconds(0)),
+              std::future_status::ready);
+    EXPECT_NO_THROW(termination.get());
+}
 
 class MockThreadPool {
 public:

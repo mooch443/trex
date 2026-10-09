@@ -1,6 +1,8 @@
 #pragma once
 
 #include <commons.pc.h>
+#include <core/DetectionTypes.h>
+#include <core/TileImage.h>
 #include <misc/Image.h>
 #include <python/ModuleProxy.h>
 #include <python/SAM3PromptState.h>

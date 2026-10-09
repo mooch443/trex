@@ -28,11 +28,13 @@ make_image(pv::BlobWeakPtr blob,
            const track::constraints::FilterCache* filters,
            const track::Background*);
 
-std::optional<Vec2> make_image(pv::BlobWeakPtr blob,
+std::optional<Vec2> make_image_cached(pv::BlobWeakPtr blob,
            const track::Midline* midline,
            const track::constraints::FilterCache* filters,
            const track::Background*,
-           Image& output);
+           Image& raw_buffer,
+           cv::Mat& mask_buffer, cv::Mat& image_buffer,
+           Image& rgba_output);
 
 }
 }

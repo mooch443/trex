@@ -15,13 +15,16 @@ The general workflow of using |trex| then is quite straight-forward. Usually, yo
 2. Select the input video file
 3. Select the detection mode (e.g. ``background_subtraction``, or ``yolo``)
 4. Depending on the mode, select the parameters for the detection algorithm (e.g. the YOLO model)
-5. Click **Convert** to start the conversion process
-6. Wait a bit until you're dropped into **Tracking View**
-7. Check for mistakes (e.g. using keys M and N) and, if OK, export the data by pressing ``S`` twice.
+5. Set the tracking parameters, especially the number of individuals and the spatial scale. Use **Calibrate** to determine :param:`cm_per_pixel` when real-world units matter.
+6. Click **Convert** to start the conversion process
+7. Wait a bit until you're dropped into **Tracking View**
+8. Check for mistakes (e.g. using keys M and N) and, if OK, export the data by pressing ``S`` twice.
 
 .. NOTE::
 
    To improve tracking performance, the software will produce a *cached* version of your video file (``.pv``) that contains all the information needed, but not more. This includes all objects of interest (i.e. not the background per frame) as well as a single averaged background image.
+
+   The workflow also uses a per-video ``.settings`` file and a ``.results`` file. When conversion continues directly into tracking, the ``.results`` file can be created before you manually export any trajectories. See :ref:`project-files` for the role of each file.
 
 Command-Line
 ------------

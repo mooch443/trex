@@ -1,4 +1,5 @@
 #include "WorkProgress.h"
+#include <misc/GlobalSettings.h>
 #include <core/BackgroundTask.h>
 #include <gui/GuiTypes.h>
 #include <gui/types/StaticText.h>
@@ -205,6 +206,14 @@ void WorkProgress::start() {
                     item.fn();
                 } catch(const std::exception& ex) {
                     FormatWarning("Caught an exception in the work queue: ", ex.what());
+
+                    if(BOOL_SETTING(nowindow) || BOOL_SETTING(auto_train_on_startup)) {
+                        /// Startup automation has no interactive recovery path;
+                        /// all wait conditions must observe the failed state.
+                        SETTING(error_terminate) = true;
+                        SETTING(terminate) = true;
+                        SETTING(auto_quit) = false;
+                    }
                 }
                 //std::this_thread::sleep_for(std::chrono::seconds(10));
                 lock.lock();

@@ -62,7 +62,7 @@ struct Quality {
 
 
 void remove_frames(Frame_t start);
-void update();
+void update(track::Tracker&);
 Quality quality(const Range<Frame_t>& range);
 //Quality quality(float frame) const;
 bool has(const Range<Frame_t>& range);

@@ -1,4 +1,9 @@
 #include "PPFrame.h"
+#include <misc/Image.h>
+#include <tracking/Individual.h>
+#include <tracking/LockGuard.h>
+#include <tracking/Stuffs.h>
+#include <tracking/TrackletInformation.h>
 #include <tracking/Tracker.h>
 #include <tracking/CategorizeDatastore.h>
 #include <misc/default_settings.h>
@@ -122,6 +127,7 @@ void PPFrame::write_log(std::string str) {
 
 inline void insert_line(grid::ProximityGrid& grid, const HorizontalLine* ptr, pv::bid blob_id, ptr_safe_t step_size)
 {
+    assert(ptr_safe_t(ptr->x0) <= ptr_safe_t(ptr->x1));
     auto d = ptr_safe_t(ptr->x1) - ptr_safe_t(ptr->x0);
     grid.insert(ptr->x0, ptr->y, blob_id);
     grid.insert(ptr->x1, ptr->y, blob_id);
@@ -164,7 +170,7 @@ bool PPFrame::has_bdx(pv::bid bdx) const noexcept {
     return bdx_to_ptr(bdx) != nullptr;
 }
 
-void PPFrame::init_cache(GenericThreadPool* pool, NeedGrid need)
+void PPFrame::init_cache(const data::FrameRepository& frames, GenericThreadPool* pool, NeedGrid need)
 {
     ASSUME_NOT_FINALIZED;
     
@@ -186,18 +192,24 @@ void PPFrame::init_cache(GenericThreadPool* pool, NeedGrid need)
     float tdelta;
     
     LockGuard guard(ro_t{}, "history_split#1");
-    auto props = Tracker::properties(previous_frame);
+    
+    const FrameProperties *props{nullptr}, *index_props{nullptr};
+    frames.read([&](data::FrameRepository::SafeReadAccess data){
+        props = data.properties(previous_frame);
+        index_props = data.properties(index());
+    });
+    //auto props = Tracker::properties(previous_frame);
     if(props == nullptr) {
         //! initial frame
         assert(previous_frame.valid());
-        if(Tracker::start_frame().valid()
-           && FrameRange(Range<Frame_t>(Tracker::start_frame(), Tracker::end_frame())).contains(previous_frame))
+        if(frames.start_frame().valid()
+           && FrameRange(Range<Frame_t>(frames.start_frame(), frames.end_frame())).contains(previous_frame))
         {
-            FormatWarning("Previous frame has already been processed: ", Range(Tracker::start_frame(), Tracker::end_frame()), " and previous:", previous_frame);
+            FormatWarning("Previous frame has already been processed: ", Range(frames.start_frame(), frames.end_frame()), " and previous:", previous_frame);
         }
-        assert(not Tracker::start_frame().valid()
-               or previous_frame < Tracker::start_frame()
-               or previous_frame > Tracker::end_frame());
+        assert(not frames.start_frame().valid()
+               or previous_frame < frames.start_frame()
+               or previous_frame > frames.end_frame());
         return;
     }
     
@@ -205,7 +217,7 @@ void PPFrame::init_cache(GenericThreadPool* pool, NeedGrid need)
     assert(tdelta > 0);
     
     hints.push(previous_frame, props);
-    hints.push(index(), Tracker::properties(index()));
+    hints.push(index(), index_props);
 
     const auto last_active = Tracker::active_individuals(previous_frame);
     const auto N = last_active.size();
@@ -248,14 +260,14 @@ void PPFrame::init_cache(GenericThreadPool* pool, NeedGrid need)
 
         //auto it = active_individuals.begin();
         //std::advance(it, start);
-        auto previous = Tracker::properties(index() - 1_f);
+        auto previous = frames.properties(index() - 1_f);
         
         //! go through individuals (for this pack/thread)
         for(auto it = start_it; it != end_it; ++i, ++it) {
             auto fish = *it;
             
             // IndividualCache is in the same position as the indexes here
-            auto result = fish->cache_for_frame(previous, index(), time, &hints);
+            auto result = fish->cache_for_frame(frames, previous, index(), time, &hints);
             if(not result)
                 continue;
             

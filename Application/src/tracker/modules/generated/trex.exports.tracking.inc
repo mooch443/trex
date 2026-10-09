@@ -25,9 +25,6 @@ using ::cmn::gui::Graph;
 export namespace track {
 // tracking/BlobReceiver.h
 using ::track::BlobReceiver;
-// tracking/CacheHints.h
-using ::track::CacheHints;
-using ::track::FrameProperties;
 // tracking/ConnectedTasks.h
 using ::track::PPFrame;
 // tracking/DebugDrawing.h
@@ -41,14 +38,18 @@ using ::track::HistorySplit;
 // tracking/Hungarian.h
 using ::track::Hungarian_t;
 using ::track::kuhn_match;
+// tracking/ImageExtractor.h
+using ::track::Border;
+using ::track::Tracker;
 // tracking/IndividualManager.h
 using ::track::IndividualManager;
 // tracking/OutputLibraryTypes.h
 using ::track::MotionRecord;
+// tracking/PPFrameTypes.h
+using ::track::NeedGrid;
 // tracking/PrefilterBlobs.h
 using ::track::FilterReason;
 using ::track::PrefilterBlobs;
-using ::track::split_expectation;
 // tracking/RecTask.h
 using ::track::Predictions;
 using ::track::RecTask;
@@ -59,6 +60,8 @@ using ::track::install_rec_task_backend;
 using ::track::Results;
 // tracking/SplitBlob.h
 using ::track::SplitBlob;
+// tracking/SplitExpectation.h
+using ::track::split_expectation;
 // tracking/Stuffs.h
 using ::track::BasicStuff;
 using ::track::can_use_visual_identification;
@@ -115,18 +118,73 @@ using ::track::Match::index_t;
 using ::track::Match::pairing_map_t;
 }
 
+export namespace track::annotation_export {
+// tracking/AnnotationExporter.h
+using ::track::annotation_export::TagDatasetConfig;
+using ::track::annotation_export::export_tag_annotations;
+}
+
 export namespace track::constraints {
 // tracking/FilterCache.h
 using ::track::constraints::FilterCache;
 using ::track::constraints::diff_image;
+using ::track::constraints::diff_image_cached;
 using ::track::constraints::local_midline_length;
+}
+
+export namespace track::detect::annotation_export {
+// tracking/AnnotationExporter.h
+using ::track::detect::annotation_export::Format;
+using ::track::detect::annotation_export::Options;
+using ::track::detect::annotation_export::Summary;
+using ::track::detect::annotation_export::annotation_to_yolo;
+using ::track::detect::annotation_export::build_coco_json;
+using ::track::detect::annotation_export::build_frame_mapping_csv;
+using ::track::detect::annotation_export::default_keypoint_names;
+using ::track::detect::annotation_export::export_dataset;
+using ::track::detect::annotation_export::frame_stem;
+using ::track::detect::annotation_export::sample_background_frames;
+using ::track::detect::annotation_export::summarize;
+}
+
+export namespace track::detect::annotation_import {
+// tracking/DetectAnnotationImporter.h
+using ::track::detect::annotation_import::Format;
+using ::track::detect::annotation_import::FrameIndexParseResult;
+using ::track::detect::annotation_import::ImportOptions;
+using ::track::detect::annotation_import::ImportPreview;
+using ::track::detect::annotation_import::MetadataChanges;
+using ::track::detect::annotation_import::apply_dataset_import;
+using ::track::detect::annotation_import::apply_yolo_import;
+using ::track::detect::annotation_import::parse_source_index_from_image_stem;
+using ::track::detect::annotation_import::preview_coco_import;
+using ::track::detect::annotation_import::preview_dataset_import;
+using ::track::detect::annotation_import::preview_yolo_import;
+}
+
+export namespace track::detect::annotation_import::import_scope_t {
+// tracking/DetectAnnotationImporter.h
+using ::track::detect::annotation_import::import_scope_t::Class;
+}
+
+export namespace track::detect::annotation_import::merge_mode_t {
+// tracking/DetectAnnotationImporter.h
+using ::track::detect::annotation_import::merge_mode_t::Class;
+}
+
+export namespace track::detect::annotation_import::task_t {
+// tracking/DetectAnnotationImporter.h
+using ::track::detect::annotation_import::task_t::Class;
 }
 
 export namespace track::image {
 // tracking/FilterCache.h
 using ::track::image::calculate_diff_image;
+using ::track::image::calculate_diff_image_cached;
 using ::track::image::calculate_normalized_diff_image;
+using ::track::image::calculate_normalized_diff_image_cached;
 using ::track::image::calculate_normalized_image;
+using ::track::image::calculate_normalized_image_cached;
 }
 
 export namespace track::split::Action {

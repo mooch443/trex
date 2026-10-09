@@ -1,5 +1,5 @@
-#include "gtest/gtest.h"
 #include <commons.pc.h>
+#include "gtest/gtest.h"
 #include <misc/parse_parameter_lists.h>
 #include <misc/Timer.h>
 #include <misc/Path.h>
@@ -17,6 +17,7 @@
 #include <gui/dyn/ResolveVariable.h>
 #include <gui/DynamicGUI.h>
 #include <core/idx_t.h>
+#include <core/VideoInfo.h>
 #include <gui/dyn/UnresolvedStringPattern.h>
 #include <misc/Median.h>
 
@@ -128,6 +129,7 @@ struct StructTest {
 static const auto recent_items_test = R"({"entries":[{"created":"1722898354365058","filename":"/Users/user/Downloads/MatrixIssues/20240407_130252","modified":"1722898656173724","name":"/Users/user/Downloads/MatrixIssues/20240407_130252","output_dir":"","output_prefix":"","settings":{"cam_matrix":[0.9162667552083333,0,0.5045229020833334,0,1.6345315185185185,0.5236356972222223,0,0,1],"cam_undistort":true,"cam_undistort_vector":[-0.314080328,-0.0967427775,-0.000260259724,0.000191272304,0.476336027],"cm_per_pixel":0.019999999552965164,"detect_skeleton":["human",[[0,1],[0,2],[1,3],[2,4],[5,6],[5,7],[7,9],[6,8],[8,10],[5,11],[6,12],[11,12],[11,13],[13,15],[12,14],[14,16]]],"detect_threshold_is_absolute":false,"function_test":null,"individual_image_scale":0.6000000238418579,"midline_stiff_percentage":0.10000000149011612,"output_dir":"","source":"/Users/user/Downloads/MatrixIssues/20240407_130252.MOV","threshold":40,"track_threshold_is_absolute":false,"track_include":[[[1501,817],[463,841],[461,351],[1489,337]],[[1498,803],[1497,847],[456,861],[459,828]],[[1517,300],[1492,347],[456,364],[444,305]],[[498,853],[432,857],[430,316],[490,337]],[[1540,841],[1492,834],[1479,317],[1510,323]]],"track_max_individuals":2,"track_max_speed":40,"track_posture_threshold":9,"track_size_filter":[[0.25,1.5]],"track_threshold":40}},{"created":"1720779303324089","filename":"","modified":"1720779303324089","name":"/Users/user/Videos/tmp/juvenile_birchmanni_4_Trial12_UN_UN","output_dir":"","output_prefix":"","settings":{"blob_split_algorithm":"fill","calculate_posture":false,"cwd":"/Users/user/trex/Application/beta/Debug","detect_model":"yolov8x-pose","individual_image_normalization":"moments","meta_encoding":"r3g3b2","meta_source_path":"/Users/user/Downloads/juvenile_birchmanni_4_Trial12_UN_UN.mov","source":"/Users/user/Downloads/juvenile_birchmanni_4_Trial12_UN_UN.mov","track_do_history_split":false,"track_max_reassign_time":1}},{"created":"1720779303320210","filename":"","modified":"1720779303320210","name":"/Users/user/Videos/tmp/002_full_pilot","output_dir":"","output_prefix":"","settings":{"cm_per_pixel":0.019999999552965164,"detect_skeleton":["human",[[0,1],[0,2],[1,3],[2,4],[5,6],[5,7],[7,9],[6,8],[8,10],[5,11],[6,12],[11,12],[11,13],[13,15],[12,14],[14,16]]],"gpu_torch_no_fixes":true,"output_dir":"/Users/user/Videos/tmp","recognition_segment_add_factor":1,"source":"/Users/user/Downloads/002_full_pilot.MP4","track_max_individuals":4,"track_threshold":15}},{"created":"1720779303312230","filename":"","modified":"1720779303312230","name":"/Users/user/Downloads/002_full_pilot","output_dir":"","output_prefix":"","settings":{"cm_per_pixel":0.10000000149011612,"detect_skeleton":["human",[[0,1],[0,2],[1,3],[2,4],[5,6],[5,7],[7,9],[6,8],[8,10],[5,11],[6,12],[11,12],[11,13],[13,15],[12,14],[14,16]]],"gpu_torch_no_fixes":true,"gui_focus_group":[2],"gui_show_individual_preview":true,"heatmap_ids":[2],"individual_image_size":[80,80],"manual_matches":{"0":{"0":331361215,"1":362298148,"2":365449625,"3":50918454}},"manual_splits":{"10145":[1798340233],"10147":[1794669897],"10392":[1616404981],"10755":[432130367],"11032":[429400456],"11477":[1531453472],"11488":[1524637286],"11966":[152144770],"11968":[148474138],"12968":[183080834],"12993":[230779254],"12996":[228680390],"13308":[227114888],"14421":[174613835],"14426":[171468834],"14944":[1822521131],"15312":[1574971339],"15318":[1578641100],"16071":[66138639],"1653":[67681770],"16850":[913424684],"17002":[44104078],"1732":[67152321],"17605":[1929459522],"17896":[216569868],"17897":[207132831],"17944":[222846982],"17946":[228613767],"18586":[1881244567],"20015":[175739857],"20510":[465689085],"20807":[340865054],"20811":[343485149],"2238":[469772213],"23193":[53004033],"23197":[52479054],"24079":[97563986],"25172":[1928388496],"25174":[1925242007],"27190":[75032149],"27266":[72926034],"278":[1093151078],"280":[1094199649],"2891":[1940964054],"29018":[1131421509],"30853":[1362219416],"31401":[743976203],"31406":[745024848],"31460":[743452091],"3195":[1486995894],"34363":[229209693],"3446":[307347713],"3626":[77129362],"37473":[1757510170],"38899":[1612717393],"3899":[578302611],"44644":[1779992133],"44680":[1758495877],"45275":[109088291],"4540":[1935218378],"4601":[1924228299],"4603":[1903257168],"4821":[1159321968],"4825":[1155127728],"50231":[267946708],"50759":[1803052086],"50932":[1842905049],"54123":[37802975],"5500":[436217029],"5506":[433071617],"55981":[688400379],"57154":[1944147094],"57158":[1937328989],"6038":[922830723],"6039":[923879310],"61508":[217617076],"62288":[1944102445],"62304":[1904777172],"62306":[1900582039],"62552":[1461727497],"62557":[1458582283],"6325":[1518979461],"63657":[1690912047],"67618":[84490233],"6805":[1075946738],"68194":[313629355],"68199":[285841900],"68400":[75552263],"7599":[1828216105],"7649":[1832936187],"7681":[1843423414],"7726":[1867022998],"8488":[370266431],"8495":[351391185],"8496":[402771064],"8499":[382847024],"8555":[144804749],"9027":[1344294991],"9280":[1530968058],"9464":[40954656],"9470":[40955829]},"output_dir":"","segment_size_filter":[[0.10000000149011612,100]],"source":"/Users/user/Downloads/002_full_pilot.MP4","threshold":15,"track_ignore":[[[679,2097],[6,2147],[3,1663]],[[499,10],[6,351],[2,3]],[[3834,2152],[3284,2130],[3832,1723]]],"track_max_individuals":4,"track_max_speed":100,"track_size_filter":[[1.5,10]],"track_threshold":15}}],"modified":"1723213416841714"})";
 
 namespace cmn::gui::dyn {
+
 using namespace cmn::utils;
 
 TEST(FastFromStrTest, EscapedQuoteIsRetained)
@@ -653,6 +655,66 @@ TEST(PreparseTest, SubItemsExtended) {
     ASSERT_EQ(realized, "[1024,768] 1024");
 }
 
+TEST(PreparseTest, VideoInfoFields) {
+    const VideoInfo info{
+        .resolution = Size2(640, 480),
+        .length = 120_f,
+        .current_frame_index = 7_f
+    };
+
+    using namespace gui::dyn;
+    Context context{
+        VarFunc("video", [&info](const VarProps&) -> const VideoInfo& {
+            return info;
+        })
+    };
+    State state;
+    auto pattern = cmn::pattern::UnresolvedStringPattern::prepare(
+        "{video.current_frame_index}/{video.length} "
+        "{at:0:{video.resolution}}x{at:1:{video.resolution}}");
+
+    EXPECT_EQ(pattern.realize(context, state), "7/120 640x480");
+}
+
+TEST(PreparseTest, EmptyConditionsInIf) {
+    using namespace cmn::pattern;
+    
+    auto str = "{if:{global.gui_show_selections}:'string':}";
+    auto result = UnresolvedStringPattern::prepare(str);
+    
+    Print(result);
+    
+    using namespace gui::dyn;
+
+    {
+        SETTING(gui_show_selections) = true;
+
+        Context context{};
+        State state;
+        
+        std::string realized;
+        EXPECT_NO_THROW((realized = result.realize(context, state)));
+        
+        Print(no_quotes(realized));
+        
+        ASSERT_EQ(realized, "string");
+    }
+
+    {
+        SETTING(gui_show_selections) = false;
+
+        Context context{};
+        State state;
+        
+        std::string realized;
+        EXPECT_NO_THROW((realized = result.realize(context, state)));
+        
+        Print(no_quotes(realized));
+        
+        ASSERT_EQ(realized, "");
+    }
+}
+
 TEST(PreparseTest, SpecialCase) {
     using namespace cmn::pattern;
     
@@ -1149,6 +1211,54 @@ TEST(UnresolvedStringPatternTest, SelfAssignmentNoLeakNoCrash) {
     ASSERT_EQ(a.objects[0].value.prepared, a.all_patterns[0]);
 }
 
+TEST(ConversionTest, VideoInfoSerializesAllFields) {
+    const std::string source = R"(["recording-1.mp4","recording-2.mp4"])";
+    const VideoInfo info{
+        .base = file::PathArray(source),
+        .resolution = Size2(640, 480),
+        .framerate = 25,
+        .finite = true,
+        .length = 120_f,
+        .current_frame_index = 7_f
+    };
+
+    const auto serialized = glz::write_json(info);
+    ASSERT_TRUE(serialized.has_value());
+    glz::json_t reflected;
+    ASSERT_EQ(glz::read_json(reflected, serialized.value()), glz::error_code::none);
+
+    for(const auto& json : {info.to_json(), reflected}) {
+        const auto& fields = json.get_object();
+        ASSERT_EQ(fields.size(), 6u);
+        EXPECT_EQ(fields.at("base").get_string(), source);
+        const auto& resolution = fields.at("resolution").get_array();
+        ASSERT_EQ(resolution.size(), 2u);
+        EXPECT_DOUBLE_EQ(resolution[0].get_number(), 640);
+        EXPECT_DOUBLE_EQ(resolution[1].get_number(), 480);
+        EXPECT_DOUBLE_EQ(fields.at("framerate").get_number(), 25);
+        EXPECT_TRUE(fields.at("finite").get_boolean());
+        EXPECT_DOUBLE_EQ(fields.at("length").get_number(), 120);
+        EXPECT_DOUBLE_EQ(fields.at("current_frame_index").get_number(), 7);
+    }
+}
+
+TEST(ConversionTest, VideoInfoPreservesInvalidFrames) {
+    const VideoInfo info{};
+    const auto serialized = glz::write_json(info);
+    ASSERT_TRUE(serialized.has_value());
+    glz::json_t reflected;
+    ASSERT_EQ(glz::read_json(reflected, serialized.value()), glz::error_code::none);
+
+    for(const auto& json : {info.to_json(), reflected}) {
+        const auto& fields = json.get_object();
+        ASSERT_EQ(fields.size(), 6u);
+        EXPECT_TRUE(fields.at("length").is_null());
+        EXPECT_TRUE(fields.at("current_frame_index").is_null());
+        EXPECT_DOUBLE_EQ(fields.at("framerate").get_number(), 0);
+        EXPECT_FALSE(fields.at("finite").get_boolean());
+    }
+}
+
 TEST(ConversionTest, FileObjects) {
     //dyn::MainFile object;
     //std::string buffer = file::Path("/Users/tristan/trex/Application/src/commons/examples/test_gui.json").read_file();
@@ -1302,6 +1412,13 @@ TEST(FloatDoubleConversionTest, ScientificNotation) {
     EXPECT_EQ(json.get_float(), 1.23e-10);
 }
 
+TEST(FloatDoubleConversionTest, ParsesScientificNotation) {
+    EXPECT_FLOAT_EQ(Meta::fromStr<float>("1e-7"), 1e-7f);
+    EXPECT_DOUBLE_EQ(Meta::fromStr<double>("1E-7"), 1e-7);
+    EXPECT_FLOAT_EQ(Meta::fromStr<float>("2.5E+3"), 2500.f);
+    EXPECT_DOUBLE_EQ(Meta::fromStr<double>("2.5e+3"), 2500.);
+}
+
 TEST(IntegerConversionTest, LargeIntegers) {
     std::string s;
     uint64_t large_uint = 18446744073709551615ULL; // Max value for uint64_t
@@ -1424,8 +1541,8 @@ TEST(JSONTest, TestBasicJSON) {
     };
     SETTING(graphs) = object;
     
-    auto json = SETTING(graphs).get().to_json();
-    ASSERT_EQ(Meta::fromStr<std::string>(glz::write_json(json).value()), SETTING(graphs).get().valueString());
+    auto json = SETTING(graphs).to_json();
+    ASSERT_EQ(Meta::fromStr<std::string>(glz::write_json(json).value()), SETTING(graphs).valueString());
 }
 
 TEST(JSONTest, TestSkeletonJSON) {
@@ -1439,8 +1556,8 @@ TEST(JSONTest, TestSkeletonJSON) {
     };
     SETTING(skeleton) = object;
     
-    auto json = SETTING(skeleton).get().to_json();
-    ASSERT_EQ(Meta::fromStr<std::string>(glz::write_json(json).value()), SETTING(skeleton).get().valueString());
+    auto json = SETTING(skeleton).to_json();
+    ASSERT_EQ(Meta::fromStr<std::string>(glz::write_json(json).value()), SETTING(skeleton).valueString());
 }
 
 TEST(JSONTest, TestVec2JSON) {
@@ -1452,18 +1569,18 @@ TEST(JSONTest, TestVec2JSON) {
     SETTING(big_number) = uint64_t(std::numeric_limits<uint64_t>::max());
     
     /// the strings will not be exactly the same.
-    auto json = SETTING(vectors).get().to_json();
+    auto json = SETTING(vectors).to_json();
     ASSERT_EQ(Meta::fromStr<std::vector<Vec2>>(Meta::fromStr<std::string>(glz::write_json(json).value())), object);
     
     /// check whether it removes trailing zeros
     auto s = glz::write_json(json).value();
     ASSERT_STREQ(s.c_str(), "[[10,25]]");
     
-    json = SETTING(number).get().to_json();
+    json = SETTING(number).to_json();
     s = glz::write_json(json).value();
     ASSERT_STREQ(s.c_str(), "5");
     
-    json = SETTING(big_number).get().to_json();
+    json = SETTING(big_number).to_json();
     s = glz::write_json(json).value();
     /// currently not achievable - only in custom structs
     //ASSERT_EQ(s, SETTING(big_number).get().valueString());
@@ -2238,6 +2355,217 @@ TEST(FindReplaceTest, ReplaceSubstringsWithDifferentLengths) {
     EXPECT_EQ(find_replace(input, search_strings), expected);
 }
 
+// find_replace with single char pair
+
+TEST(FindReplaceCharTest, BasicTest) {
+    std::string input = "banana";
+    std::pair<char, char> search_replace = {'a', 'o'};
+    EXPECT_EQ(find_replace(input, search_replace), "bonono");
+}
+
+TEST(FindReplaceCharTest, EmptyInput) {
+    std::string input = "";
+    std::pair<char, char> search_replace = {'a', 'o'};
+    EXPECT_EQ(find_replace(input, search_replace), "");
+}
+
+TEST(FindReplaceCharTest, NoMatches) {
+    std::string input = "banana";
+    std::pair<char, char> search_replace = {'x', 'y'};
+    EXPECT_EQ(find_replace(input, search_replace), "banana");
+}
+
+TEST(FindReplaceCharTest, IdenticalReplacement) {
+    std::string input = "banana";
+    std::pair<char, char> search_replace = {'a', 'a'};
+    EXPECT_EQ(find_replace(input, search_replace), "banana");
+}
+
+TEST(FindReplaceCharTest, AllCharactersMatch) {
+    std::string input = "aaaa";
+    std::pair<char, char> search_replace = {'a', 'b'};
+    EXPECT_EQ(find_replace(input, search_replace), "bbbb");
+}
+
+TEST(FindReplaceCharTest, SpecialCharacters) {
+    std::string input = "path/to/file";
+    std::pair<char, char> search_replace = {'/', '\\'};
+    EXPECT_EQ(find_replace(input, search_replace), "path\\to\\file");
+}
+
+TEST(FindReplaceCharTest, StringViewInput) {
+    std::string_view input = "banana";
+    std::pair<char, char> search_replace = {'n', 'm'};
+    EXPECT_EQ(find_replace(input, search_replace), "bamama");
+}
+
+TEST(FindReplaceCharTest, MultipleInstancesOfSearchChar) {
+    std::string input = "abcdeabc";
+    std::pair<char, char> search_replace = {'a', 'x'};
+    EXPECT_EQ(find_replace(input, search_replace), "xbcdexbc");
+}
+
+TEST(FindReplaceCharTest, CaseSensitivity) {
+    std::string input = "AbaB";
+    std::pair<char, char> search_replace = {'a', 'x'};
+    EXPECT_EQ(find_replace(input, search_replace), "AbxB");
+}
+
+TEST(FindReplaceCharTest, UnicodeCharacters) {
+    // multibyte utf-8 sequences must pass through untouched when
+    // replacing a plain ascii char
+    std::string input = "こんにちは 世界";
+    std::pair<char, char> search_replace = {' ', '_'};
+    EXPECT_EQ(find_replace(input, search_replace), "こんにちは_世界");
+}
+
+// find_replace with multiple char pairs
+
+TEST(FindReplaceCharPairsTest, BasicTest) {
+    std::string input = "banana";
+    std::vector<std::pair<char, char>> search_replace_pairs = {
+        {'b', 'c'},
+        {'a', 'o'}
+    };
+    EXPECT_EQ(find_replace(input, search_replace_pairs), "conono");
+}
+
+TEST(FindReplaceCharPairsTest, EmptyInput) {
+    std::string input = "";
+    std::vector<std::pair<char, char>> search_replace_pairs = {
+        {'a', 'o'}
+    };
+    EXPECT_EQ(find_replace(input, search_replace_pairs), "");
+}
+
+TEST(FindReplaceCharPairsTest, EmptyPairs) {
+    std::string input = "banana";
+    std::vector<std::pair<char, char>> search_replace_pairs;
+    EXPECT_EQ(find_replace(input, search_replace_pairs), "banana");
+}
+
+TEST(FindReplaceCharPairsTest, EmptyInputAndPairs) {
+    std::string input = "";
+    std::vector<std::pair<char, char>> search_replace_pairs;
+    EXPECT_EQ(find_replace(input, search_replace_pairs), "");
+}
+
+TEST(FindReplaceCharPairsTest, NoMatches) {
+    std::string input = "banana";
+    std::vector<std::pair<char, char>> search_replace_pairs = {
+        {'x', 'y'},
+        {'z', 'w'}
+    };
+    EXPECT_EQ(find_replace(input, search_replace_pairs), "banana");
+}
+
+TEST(FindReplaceCharPairsTest, FirstMatchingPairWins) {
+    std::string input = "banana";
+    std::vector<std::pair<char, char>> search_replace_pairs = {
+        {'a', 'x'},
+        {'a', 'y'}
+    };
+    EXPECT_EQ(find_replace(input, search_replace_pairs), "bxnxnx");
+}
+
+TEST(FindReplaceCharPairsTest, ReplacementsDoNotCascade) {
+    // once a char is replaced, later pairs must not be applied to the result,
+    // so swapping two chars works in a single pass
+    std::string input = "abba";
+    std::vector<std::pair<char, char>> search_replace_pairs = {
+        {'a', 'b'},
+        {'b', 'a'}
+    };
+    EXPECT_EQ(find_replace(input, search_replace_pairs), "baab");
+}
+
+TEST(FindReplaceCharPairsTest, SpecialCharactersAndDigits) {
+    std::string input = "a$b%c123";
+    std::vector<std::pair<char, char>> search_replace_pairs = {
+        {'$', 'X'},
+        {'%', 'Y'},
+        {'1', '2'}
+    };
+    EXPECT_EQ(find_replace(input, search_replace_pairs), "aXbYc223");
+}
+
+TEST(FindReplaceCharPairsTest, SomeMatchingPairs) {
+    std::string input = "abcdefgh";
+    std::vector<std::pair<char, char>> search_replace_pairs = {
+        {'a', 'x'},
+        {'z', 'y'}
+    };
+    EXPECT_EQ(find_replace(input, search_replace_pairs), "xbcdefgh");
+}
+
+TEST(FindReplaceCharPairsTest, AllMatchingPairs) {
+    std::string input = "abab";
+    std::vector<std::pair<char, char>> search_replace_pairs = {
+        {'a', 'x'},
+        {'b', 'y'}
+    };
+    EXPECT_EQ(find_replace(input, search_replace_pairs), "xyxy");
+}
+
+TEST(FindReplaceCharPairsTest, MultipleInstancesOfSearchChars) {
+    std::string input = "abcdeabc";
+    std::vector<std::pair<char, char>> search_replace_pairs = {
+        {'a', 'x'}
+    };
+    EXPECT_EQ(find_replace(input, search_replace_pairs), "xbcdexbc");
+}
+
+TEST(FindReplaceCharPairsTest, IdenticalReplacements) {
+    std::string input = "abcabc";
+    std::vector<std::pair<char, char>> search_replace_pairs = {
+        {'a', 'a'},
+        {'b', 'b'}
+    };
+    EXPECT_EQ(find_replace(input, search_replace_pairs), "abcabc");
+}
+
+TEST(FindReplaceCharPairsTest, CaseSensitivity) {
+    std::string input = "The Quick Brown";
+    std::vector<std::pair<char, char>> search_replace_pairs = {
+        {'T', 't'},
+        {'Q', 'q'},
+        {'B', 'b'}
+    };
+    EXPECT_EQ(find_replace(input, search_replace_pairs), "the quick brown");
+}
+
+TEST(FindReplaceCharPairsTest, UnicodeCharacters) {
+    // multibyte utf-8 sequences must pass through untouched when
+    // replacing plain ascii chars
+    std::string input = "こんにちは 世界!";
+    std::vector<std::pair<char, char>> search_replace_pairs = {
+        {' ', '_'},
+        {'!', '?'}
+    };
+    EXPECT_EQ(find_replace(input, search_replace_pairs), "こんにちは_世界?");
+}
+
+TEST(FindReplaceCharPairsTest, MultipleReplacementsInARow) {
+    std::string input = "abc";
+    std::vector<std::pair<char, char>> search_replace_pairs = {
+        {'a', 'x'},
+        {'b', 'y'},
+        {'c', 'z'}
+    };
+    EXPECT_EQ(find_replace(input, search_replace_pairs), "xyz");
+}
+
+TEST(FindReplaceCharPairsTest, RespectOrderOfPairs) {
+    // like RespectOrderOfSearchStrings: an earlier pair takes precedence
+    // over a later pair with the same search char
+    std::string input = "aaa";
+    std::vector<std::pair<char, char>> search_replace_pairs = {
+        {'a', 'b'},
+        {'a', 'c'}
+    };
+    EXPECT_EQ(find_replace(input, search_replace_pairs), "bbb");
+}
+
 
 // more complex parsing
 
@@ -2908,6 +3236,97 @@ TEST(ParseArrayPartsBehaviorTest, HugeInputWithoutDelimiters)
     auto tokens = parse_array_parts(big);
     ASSERT_EQ(tokens.size(), 1u);
     EXPECT_EQ(tokens.front().size(), big.size());
+}
+
+// === Meta::fromStr<container<...>> empty-element contract ====================
+//
+// Contract ("allow trailing only"): when parsing a container string, a single
+// trailing empty element (from a trailing delimiter, e.g. "[a,b,]") is tolerated
+// and dropped. Any other empty element is illegal and throws illegal_syntax:
+//   * interior empties      -> "[a,,b]"
+//   * leading empties       -> "[,a]"
+//   * a second trailing one -> "[a,b,,]"
+//   * the only token empty   -> "[,]"
+// This contract is enforced uniformly across vector, deque, array, set and map.
+
+TEST(ContainerEmptyElementContract, VectorTrailingCommaAllowed) {
+    EXPECT_EQ(Meta::fromStr<std::vector<int>>("[1,2,]"),
+              (std::vector<int>{1, 2}));
+}
+
+TEST(ContainerEmptyElementContract, VectorInteriorEmptyThrows) {
+    EXPECT_THROW(Meta::fromStr<std::vector<int>>("[1,,2]"), illegal_syntax);
+}
+
+TEST(ContainerEmptyElementContract, VectorLeadingEmptyThrows) {
+    EXPECT_THROW(Meta::fromStr<std::vector<int>>("[,1,2]"), illegal_syntax);
+}
+
+TEST(ContainerEmptyElementContract, VectorDoubleTrailingThrows) {
+    EXPECT_THROW(Meta::fromStr<std::vector<int>>("[1,2,,]"), illegal_syntax);
+}
+
+TEST(ContainerEmptyElementContract, VectorOnlyCommaThrows) {
+    EXPECT_THROW(Meta::fromStr<std::vector<int>>("[,]"), illegal_syntax);
+}
+
+TEST(ContainerEmptyElementContract, VectorEmptyContainerOk) {
+    EXPECT_EQ(Meta::fromStr<std::vector<int>>("[]"),
+              (std::vector<int>{}));
+}
+
+TEST(ContainerEmptyElementContract, DequeTrailingCommaAllowed) {
+    EXPECT_EQ(Meta::fromStr<std::deque<int>>("[1,2,]"),
+              (std::deque<int>{1, 2}));
+}
+
+TEST(ContainerEmptyElementContract, DequeInteriorEmptyThrows) {
+    EXPECT_THROW(Meta::fromStr<std::deque<int>>("[1,,2]"), illegal_syntax);
+}
+
+TEST(ContainerEmptyElementContract, ArrayTrailingCommaAllowed) {
+    EXPECT_EQ((Meta::fromStr<std::array<int, 2>>("[1,2,]")),
+              (std::array<int, 2>{1, 2}));
+}
+
+TEST(ContainerEmptyElementContract, ArrayInteriorEmptyThrows) {
+    EXPECT_THROW((Meta::fromStr<std::array<int, 2>>("[1,,2]")), illegal_syntax);
+}
+
+TEST(ContainerEmptyElementContract, SetTrailingCommaAllowed) {
+    EXPECT_EQ(Meta::fromStr<std::set<int>>("[1,2,]"),
+              (std::set<int>{1, 2}));
+}
+
+TEST(ContainerEmptyElementContract, SetInteriorEmptyThrows) {
+    EXPECT_THROW(Meta::fromStr<std::set<int>>("[1,,2]"), illegal_syntax);
+}
+
+TEST(ContainerEmptyElementContract, MapTrailingCommaAllowed) {
+    EXPECT_EQ((Meta::fromStr<std::map<std::string, int>>(R"({"a":1,"b":2,})")),
+              (std::map<std::string, int>{{"a", 1}, {"b", 2}}));
+}
+
+TEST(ContainerEmptyElementContract, MapInteriorEmptyThrows) {
+    EXPECT_THROW((Meta::fromStr<std::map<std::string, int>>(R"({"a":1,,"b":2})")),
+                 illegal_syntax);
+}
+
+TEST(ContainerEmptyElementContract, MapEmptyContainerOk) {
+    EXPECT_EQ((Meta::fromStr<std::map<std::string, int>>("{}")),
+              (std::map<std::string, int>{}));
+}
+
+// The literal example from the contract request: interior empty must throw,
+// while the trailing-only variant parses cleanly (whitespace is trimmed).
+TEST(ContainerEmptyElementContract, StringVectorInteriorEmptyThrows) {
+    EXPECT_THROW(Meta::fromStr<std::vector<std::string>>("[element,element 2,,last,]"),
+                 illegal_syntax);
+}
+
+TEST(ContainerEmptyElementContract, StringVectorTrailingOnlyAllowed) {
+    EXPECT_EQ(Meta::fromStr<std::vector<std::string>>("[element,element 2,last,]"),
+              (std::vector<std::string>{"element", "element 2", "last"}));
 }
 
 // === truncate – defensive programming ======================================
@@ -4007,6 +4426,10 @@ TEST(IsInIndexTest, ReturnsNposWhenMissing) {
     EXPECT_EQ(missing_index, npos);
 }
 
+TEST(Serialize, TupleName) {
+    ASSERT_EQ((Meta::name<std::tuple<int,float>>()), "tuple<int,float>");
+}
+
 namespace {
 struct ThrowIfCompared {
     bool* was_compared = nullptr;
@@ -4036,4 +4459,55 @@ TEST(IsInIndexTest, StopsEvaluatingAfterLaterMatch) {
         EXPECT_EQ(is_in_index(2, 1, 2, ThrowIfCompared{&compared_after_match}), 1u);
     });
     EXPECT_FALSE(compared_after_match);
+}
+
+
+namespace meter {
+
+template<typename Q>
+requires is_instantiation<std::optional, Q>::value
+constexpr std::string_view name() {
+    static constexpr util::ConstString_t ret("optional<", _Meta::name<typename cmn::remove_cvref<typename Q::value_type>::type>(), ">" );
+    return ret.view();
+}
+}
+
+TEST(MetaTest, OptionalSerializesProperly) {
+    ASSERT_EQ(meter::name<cmn::blob::MaybeObjectClass_t>(), "optional<map<uint16,string>>");
+    ASSERT_EQ(Meta::name<cmn::blob::MaybeObjectClass_t>(), "optional<map<uint16,string>>");
+}
+
+TEST(MetaTest, FunctionNameSerializesArgumentsAndReturnType) {
+    using Function = std::function<int(uint16_t, std::string)>;
+
+    ASSERT_EQ(utils::get_name(Function{}), "function<int(uint16,string)>");
+}
+
+TEST(MetaTest, FunctionNameSerializesRecursiveTypes) {
+    using Function = std::function<
+        std::optional<std::map<uint16_t, std::string>>(
+            std::vector<int>,
+            std::pair<uint16_t, std::string>,
+            std::tuple<int, float>
+        )
+    >;
+
+    ASSERT_EQ(
+        utils::get_name(Function{}),
+        "function<optional<map<uint16,string>>(array<int>,pair<uint16,string>,tuple<int,float>)>"
+    );
+}
+
+TEST(MetaTest, RecursiveTypeNamesSerializeProperly) {
+    using VectorOfPairs = std::vector<std::pair<uint16_t, std::string>>;
+    using MapOfVectors = std::map<uint16_t, std::vector<std::string>>;
+    using Tuple = std::tuple<
+        int,
+        std::optional<std::map<uint16_t, std::string>>,
+        std::vector<std::pair<uint16_t, std::string>>
+    >;
+
+    ASSERT_EQ(Meta::name<VectorOfPairs>(), "array<pair<uint16,string>>");
+    ASSERT_EQ(Meta::name<MapOfVectors>(), "map<uint16,array<string>>");
+    ASSERT_EQ(Meta::name<Tuple>(), "tuple<int,optional<map<uint16,string>>,array<pair<uint16,string>>>");
 }

@@ -13,6 +13,7 @@
 #ifndef HUNGARIAN_H
 #define HUNGARIAN_H
 
+#include <commons.pc.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -23,9 +24,9 @@ namespace track {
 typedef SSIZE_T ssize_t;
 }
 #define __attribute__(X)
+#else
+#include <sys/types.h>
 #endif
-
-#include <tracking/PairingGraph.h>
 
 namespace track {
 typedef int64_t Hungarian_t;

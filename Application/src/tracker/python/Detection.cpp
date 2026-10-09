@@ -1,10 +1,16 @@
 #include "Detection.h"
 
+#include <core/GPURecognitionTypes.h>
+#include <core/DetectionTypes.h>
+#include <core/TaskPipeline.h>
+#include <core/TileImage.h>
 #include <file/PathArray.h>
+#include <misc/Image.h>
+#include <python/BackendRegistry.h>
 #include <python/BackgroundSubtraction.h>
 #include <python/NoDetection.h>
 #include <python/PipelineRegistry.h>
-#include <grabber/misc/default_config.h>
+#include <core/default_config.h>
 #include <core/AbstractVideoSource.h>
 #include <python/PrecomuptedDetection.h>
 #include <core/TrackingSettings.h>
@@ -22,7 +28,28 @@ void Detection::init() {
         hooks
         && hooks->init)
     {
-        hooks->init();
+        const auto models = hooks->init();
+        DetectResolution region_resolution;
+        for(const auto& config : models) {
+            if(config.task == ModelTaskType::detect) {
+                if(READ_SETTING(detect_model, file::Path).empty())
+                    SETTING(detect_model) = file::Path(config.model_path);
+                SETTING(detect_format) = ObjectDetectionFormat_t(config.output_format);
+                SETTING(detect_resolution) = config.trained_resolution;
+                SETTING(detect_requires_exact_input_size) = config.requires_exact_input_size;
+                SETTING(detect_keypoint_format) = config.keypoint_format.value_or(KeypointFormat{});
+                if(auto detect_classes = READ_SETTING(detect_classes, cmn::blob::MaybeObjectClass_t);
+                   not detect_classes.has_value()
+                   || detect_classes->empty())
+                {
+                    SETTING(detect_classes) = cmn::blob::MaybeObjectClass_t{config.classes};
+                }
+            } else if(config.task == ModelTaskType::region) {
+                region_resolution = config.trained_resolution;
+            }
+        }
+        if(*type == ObjectDetectionType::yolo)
+            SETTING(region_resolution) = region_resolution;
     }
 
     switch(*type) {
@@ -121,7 +148,7 @@ double Detection::fps() {
     return AbstractBaseVideoSource::_network_fps.load();
 }
 
-std::future<SegmentationData> Detection::apply(TileImage&& tiled) {
+std::future<cmn::SegmentationData> Detection::apply(TileImage&& tiled) {
     if(tiled.promise)
         throw U_EXCEPTION("Promise was already created.");
 
@@ -184,7 +211,7 @@ void Detection::set_background(const cmn::Image::Ptr& image) {
     }
 }
 
-PipelineManager<TileImage>& Detection::manager() {
+cmn::PipelineManager<TileImage>& Detection::manager() {
     return detect::current_pipeline_manager();
 }
 

@@ -1,4 +1,9 @@
 #include "Categorize.h"
+#include <pv.h>
+#include <misc/Image.h>
+#include <tracking/LockGuard.h>
+#include <tracking/Stuffs.h>
+#include <tracking/TrackletInformation.h>
 
 #include <tracking/Tracker.h>
 #include <tracking/Individual.h>
@@ -25,6 +30,7 @@ namespace py = Python;
 
 std::function<void()> _auto_quit_fn;
 std::function<void(std::string, double)> _set_status_fn;
+Frame_t start_frame, end_frame;
 
 #if !COMMONS_NO_PYTHON
 
@@ -86,7 +92,7 @@ struct Task {
     bool is_cached = false;
 };
 
-void start_learning(std::weak_ptr<pv::File> video);
+void start_learning(std::weak_ptr<track::Tracker>, std::weak_ptr<pv::File> video);
 void loop();
 void work_thread();
 Task _pick_front_thread();
@@ -164,6 +170,7 @@ auto& task_queue() {
 
 static std::shared_mutex last_source_mutex;
 static std::weak_ptr<pv::File> last_source;
+static std::weak_ptr<track::Tracker> last_tracker;
 
 void Work::add_training_sample(const Sample::Ptr& sample) {
     if(sample && not sample->_assigned_label) {
@@ -177,7 +184,7 @@ void Work::add_training_sample(const Sample::Ptr& sample) {
     try {
         {
             std::shared_lock g{last_source_mutex};
-            Work::start_learning(last_source);
+            Work::start_learning(last_tracker, last_source);
         }
         
         LearningTask task;
@@ -218,7 +225,7 @@ void terminate() {
     }
 }
 
-void show(const std::shared_ptr<pv::File>& video, const std::function<void()>& auto_quit,
+void show(const std::shared_ptr<track::Tracker>& tracker, const std::shared_ptr<pv::File>& video, const std::function<void()>& auto_quit,
           const std::function<void(std::string, double)>& set_status)
 {
     if(!Work::visible() && Work::state() != Work::State::APPLY) 
@@ -228,7 +235,7 @@ void show(const std::shared_ptr<pv::File>& video, const std::function<void()>& a
         
         DataStore::init_labels(false);
         
-        Work::set_state(video, Work::State::SELECTION);
+        Work::set_state(tracker, video, Work::State::SELECTION);
         Work::visible() = true;
     }
 }
@@ -279,7 +286,7 @@ Sample::Ptr Work::front_sample() {
     return sample;
 }
 
-void start_applying(std::weak_ptr<pv::File> video_source) {
+void start_applying(Tracker& tracker, std::weak_ptr<pv::File> video_source) {
     using namespace extract;
     const auto normalize = default_config::valid_individual_image_normalization();
     
@@ -308,8 +315,14 @@ void start_applying(std::weak_ptr<pv::File> video_source) {
     if(not ptr)
         throw InvalidArgumentException("No valid pointer to video source.");
     
-    ImageExtractor(std::move(ptr), [normalize](const Query& q) -> bool {
-        return !q.basic->blob.split() && (normalize != default_config::individual_image_normalization_t::posture || q.posture) && not DataStore::_label_unsafe(q.basic->frame, q.basic->blob.blob_id()).has_value();
+    ImageExtractor(std::move(ptr), tracker, [normalize](const Query& q) -> std::unique_ptr<AcceptedQuery> {
+        if(!q.basic->blob.split()
+           && (normalize != default_config::individual_image_normalization_t::posture || q.posture)
+           && not DataStore::_label_unsafe(q.basic->frame, q.basic->blob.blob_id()).has_value())
+        {
+            return std::make_unique<AcceptedQuery>();
+        }
+        return nullptr;
         
     }, [](std::vector<Result>&& results) {
 #ifndef NDEBUG
@@ -488,7 +501,7 @@ file::Path output_location() {
     return file::DataLocation::parse("output", file::Path((std::string)filename.filename() + "_categories.npz"));
 }
 
-void Work::start_learning(std::weak_ptr<pv::File> video_source) {
+void Work::start_learning(std::weak_ptr<track::Tracker> tracker, std::weak_ptr<pv::File> video_source) {
     if(Work::learning()) {
         return;
     }
@@ -496,7 +509,11 @@ void Work::start_learning(std::weak_ptr<pv::File> video_source) {
     Work::learning() = true;
     namespace py = Python;
     
-    py::schedule(py::PackagedTask{._task = py::PromisedTask([video_source]() -> void {
+    auto lock = tracker.lock();
+    start_frame = lock->frames().start_frame();
+    end_frame = lock->frames().end_frame();
+    
+    py::schedule(py::PackagedTask{._task = py::PromisedTask([video_source, tracker = std::move(lock)]() -> void {
         Print("[Categorize] APPLY Initializing...");
         Work::status() = "Initializing...";
         Work::initialized() = false;
@@ -676,8 +693,8 @@ void Work::start_learning(std::weak_ptr<pv::File> video_source) {
                         case LearningTask::Type::Apply: {
                             hide();
                             try {
-                                pool->enqueue([video_source = video_source](){
-                                    start_applying(video_source);
+                                pool->enqueue([tracker = tracker, video_source = video_source](){
+                                    start_applying(*tracker, video_source);
                                 });
                             } catch(const UtilsException&) {
                                 // pass
@@ -885,7 +902,7 @@ Work::Task Work::_pick_front_thread() {
                                    //abs(r.end - task.real_range.start));
             }
             
-            int64_t d = abs(int64_t(task.real_range.start.get() + task.real_range.length().get() * 0.5)) / max(10, (Tracker::end_frame() - Tracker::start_frame()).get() * 0.08);
+            int64_t d = abs(int64_t(task.real_range.start.get() + task.real_range.length().get() * 0.5)) / max(10, (end_frame - start_frame).get() * 0.08);
             sorted.push_back({ task.range.start.valid(), d, min_distance, i });
         }
         
@@ -972,7 +989,8 @@ void Work::work_thread() {
             try {
                 //LockGuard g("get_random::loop");
                 std::shared_lock g{last_source_mutex};
-                sample = DataStore::get_random(last_source);
+                auto tracker = last_tracker.lock();
+                sample = DataStore::get_random(tracker->frames(), *tracker->background(), last_source);
                 if (sample && sample->_images.size() < 1) {
                     sample = Sample::Invalid();
                 }
@@ -1058,7 +1076,7 @@ void paint_distributions(int64_t frame) {
 
             //if (!v.empty())
             {
-                float scale = (Tracker::end_frame() != Tracker::start_frame()) ? 1024.0 / float(Tracker::end_frame().get() - Tracker::start_frame().get()) : 1;
+                float scale = (end_frame != start_frame) ? 1024.0 / float(end_frame.get() - start_frame.get()) : 1;
                 Image task_queue_images(300, 1024, 4);
                 auto mat = task_queue_images.get();
                 std::fill(task_queue_images.data(), task_queue_images.data() + task_queue_images.size(), 0);
@@ -1071,31 +1089,31 @@ void paint_distributions(int64_t frame) {
                 double median = CalcMHWScore(v);
                 
                 for (size_t i = 0; i < v.size(); i+=2) {
-                    cv::rectangle(mat, Vec2(v[i] - Tracker::start_frame().get(), 0) * scale, Vec2(v[i+1] - Tracker::start_frame().get(), 100 / scale) * scale, Red, cv::FILLED);
+                    cv::rectangle(mat, Vec2(v[i] - start_frame.get(), 0) * scale, Vec2(v[i+1] - start_frame.get(), 100 / scale) * scale, Red, cv::FILLED);
                 }
                 
                 for (size_t i = 0; i < current.size(); i+=2) {
                     cv::rectangle(mat,
-                                  Vec2(current[i] - Tracker::start_frame().get(), 0) * scale,
-                                  Vec2(current[i+1] - Tracker::start_frame().get(), 100 / scale) * scale,
+                                  Vec2(current[i] - start_frame.get(), 0) * scale,
+                                  Vec2(current[i+1] - start_frame.get(), 100 / scale) * scale,
                                   Cyan, cv::FILLED);
                 }
 
                 cv::line(mat,
-                         Vec2(mean - Tracker::start_frame().get(), 0) * scale,
-                         Vec2(mean - Tracker::start_frame().get(), 100 / scale) * scale,
+                         Vec2(mean - start_frame.get(), 0) * scale,
+                         Vec2(mean - start_frame.get(), 100 / scale) * scale,
                          Green, 2);
                 cv::line(mat,
-                         Vec2(median - Tracker::start_frame().get(), 0) * scale,
-                         Vec2(median - Tracker::start_frame().get(), 100 / scale) * scale,
+                         Vec2(median - start_frame.get(), 0) * scale,
+                         Vec2(median - start_frame.get(), 100 / scale) * scale,
                          Blue, 2);
 
                 sum = 0;
                 std::vector<int64_t> frame_cache = DataStore::cached_frames();
                 for (auto c : frame_cache) {
                     cv::line(mat,
-                             Vec2(c - Tracker::start_frame().get(), 100 / scale) * scale,
-                             Vec2(c - Tracker::start_frame().get(), 200 / scale) * scale,
+                             Vec2(c - start_frame.get(), 100 / scale) * scale,
+                             Vec2(c - start_frame.get(), 200 / scale) * scale,
                              Yellow);
                     sum += c;
                 }
@@ -1103,21 +1121,21 @@ void paint_distributions(int64_t frame) {
                     mean = sum / double(frame_cache.size());
 
                 cv::line(mat,
-                         Vec2(mean - Tracker::start_frame().get(), 100 / scale) * scale,
-                         Vec2(mean - Tracker::start_frame().get(), 200 / scale) * scale,
+                         Vec2(mean - start_frame.get(), 100 / scale) * scale,
+                         Vec2(mean - start_frame.get(), 200 / scale) * scale,
                          Purple, 2);
                 
                 {
                     std::unique_lock guard(distri_mutex);
                     for(size_t i=0; i<recent_frames.size(); ++i) {
                         cv::line(mat,
-                                 Vec2(recent_frames[i] - Tracker::start_frame().get(), 0) * scale,
-                                 Vec2(recent_frames[i] - Tracker::start_frame().get(), 300 / scale) * scale,
+                                 Vec2(recent_frames[i] - start_frame.get(), 0) * scale,
+                                 Vec2(recent_frames[i] - start_frame.get(), 300 / scale) * scale,
                                  White.exposure(0.1 + 0.9 * (recent_frames[i] / double(recent_frames.size()))), 1);
                     }
                 }
 
-                cv::line(mat, Vec2(frame - Tracker::start_frame().get(), 0) * scale, Vec2(frame - Tracker::start_frame().get(), 300 / scale) * scale, White, 2);
+                cv::line(mat, Vec2(frame - start_frame.get(), 0) * scale, Vec2(frame - start_frame.get(), 300 / scale) * scale, White, 2);
 
                 {
                     std::unique_lock guard(DataStore::cache_mutex());
@@ -1132,8 +1150,8 @@ void paint_distributions(int64_t frame) {
                     frame = DataStore::tracker_start_frame().get();
                     for (auto& blobs : DataStore::_unsafe_probability_cache()) {
                         cv::line(mat,
-                                 Vec2(frame - Tracker::start_frame().get(), 200 / scale) * scale,
-                                 Vec2(frame - Tracker::start_frame().get(), 300 / scale) * scale,
+                                 Vec2(frame - start_frame.get(), 200 / scale) * scale,
+                                 Vec2(frame - start_frame.get(), 300 / scale) * scale,
                                  Green.exposure(0.1 + 0.9 * (max_per_frame > 0 ? blobs.size() / float(max_per_frame) : 0)), 2);
                         ++frame;
                     }
@@ -1164,12 +1182,15 @@ std::atomic<Work::State>& Work::state() {
     return _state;
 }
 
-void Work::set_state(const std::shared_ptr<pv::File>& video, State state) {
+void Work::set_state(std::shared_ptr<Tracker> tracker, std::shared_ptr<pv::File> video, State state) {
     {
         std::unique_lock g{last_source_mutex};
         auto lock = last_source.lock();
         if(lock != video)
             last_source = video;
+        auto last = last_tracker.lock();
+        if(last != tracker)
+            last_tracker = tracker;
     }
     
     DataStore::init_frame_cache();
@@ -1182,8 +1203,8 @@ void Work::set_state(const std::shared_ptr<pv::File>& video, State state) {
     
     switch (state) {
         case State::LOAD: {
-            show(video, nullptr, nullptr);
-            Work::start_learning(video);
+            show(tracker, video, nullptr, nullptr);
+            Work::start_learning(tracker, video);
             
             LearningTask task;
             task.type = LearningTask::Type::Load;
@@ -1209,14 +1230,14 @@ void Work::set_state(const std::shared_ptr<pv::File>& video, State state) {
                     DataStore::clear();
                 };
                 Work::add_task(std::move(task));
-                Work::start_learning(video);
+                Work::start_learning(tracker, video);
                 
             } else {
                 Work::status() = "Initializing...";
                 Work::requested_samples() = Interface::per_row * 2;
                 Work::variable().notify_one();
                 Work::visible() = true;
-                Work::start_learning(video);
+                Work::start_learning(tracker, video);
             }
             
             break;
@@ -1243,11 +1264,11 @@ void Work::set_state(const std::shared_ptr<pv::File>& video, State state) {
     Work::state() = state;
 }
 
-void draw(const std::shared_ptr<pv::File>& video, IMGUIBase* window, gui::DrawStructure& base) {
+void draw(const std::shared_ptr<track::Tracker>& tracker, const std::shared_ptr<pv::File>& video, IMGUIBase* window, gui::DrawStructure& base) {
     if(!Work::visible())
         return;
     
-    Interface::get().draw(video, window, base);
+    Interface::get().draw(tracker, video, window, base);
 }
 
 void clear_labels() {

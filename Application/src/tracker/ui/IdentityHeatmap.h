@@ -9,6 +9,7 @@
 #include <core/default_config.h>
 #include <misc/Grid.h>
 #include <misc/Image.h>
+#include <data/FrameRepository.h>
 
 namespace track {
 class Individual;
@@ -333,12 +334,12 @@ protected:
     std::map<track::Individual*, size_t> _capacities;
     
 public:
-        HeatmapController();
+    HeatmapController();
     
-    void set_frame(Frame_t frame);
+    void set_frame(const data::FrameRepository& frames, Frame_t frame);
     void update() override;
     void paint_heatmap();
-    void save();
+    void save(const data::FrameRepository& frames);
     void frames_deleted_from(Frame_t frame);
     
 private:
@@ -349,9 +350,9 @@ private:
         
         UpdatedStats() : added(0), removed(0), add_range({}, {}), remove_range({}, {}) {}
     };
-    UpdatedStats update_data(Frame_t frame);
+    UpdatedStats update_data(const data::FrameRepository& , Frame_t frame);
     void sort_data_into_custom_grid();
-    bool update_variables();
+    bool update_variables(const data::FrameRepository& frames);
 };
 
 }

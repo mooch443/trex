@@ -36,6 +36,12 @@ static void dispatch_set_display_function(
     PythonIntegration::set_display_function(std::move(show_fn), std::move(close_fn));
 }
 
+static void dispatch_set_runtime_warning_function(
+    std::function<void(const std::string&)>&& warning_fn
+) {
+    PythonIntegration::set_runtime_warning_function(std::move(warning_fn));
+}
+
 static bool dispatch_has_loaded_module(const std::string& name) {
     return PythonIntegration::has_loaded_module(name);
 }
@@ -152,6 +158,7 @@ extern "C" TREX_EXPORT void trex_python_register() {
         .convert_exceptions = &dispatch_convert_exceptions,
         .set_settings = &dispatch_set_settings,
         .set_display_function = &dispatch_set_display_function,
+        .set_runtime_warning_function = &dispatch_set_runtime_warning_function,
         .has_loaded_module = &dispatch_has_loaded_module,
         .check_module = &dispatch_check_module,
         .is_none = &dispatch_is_none,

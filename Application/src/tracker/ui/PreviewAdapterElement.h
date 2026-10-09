@@ -6,6 +6,7 @@
 
 namespace track {
 class PPFrame;
+class Tracker;
 namespace constraints{
 struct FilterCache;
 }
@@ -14,10 +15,11 @@ struct FilterCache;
 namespace cmn::gui {
 
 struct PreviewAdapterElement : public dyn::CustomElement {
+    std::function<std::shared_ptr<const track::Tracker>()> get_tracker;
     std::function<const track::PPFrame*()> get_current_frame;
     std::function<std::tuple<const track::constraints::FilterCache*, std::optional<BdxAndPred>>(track::Idx_t)> get_filter_cache;
     
-    PreviewAdapterElement(decltype(get_current_frame)&&, decltype(get_filter_cache)&&);
+    PreviewAdapterElement(decltype(get_tracker)&&, decltype(get_current_frame)&&, decltype(get_filter_cache)&&);
     PreviewAdapterElement(PreviewAdapterElement&&) = delete;
     PreviewAdapterElement(const PreviewAdapterElement&) = delete;
     PreviewAdapterElement& operator=(PreviewAdapterElement&&) = delete;
@@ -33,4 +35,3 @@ struct PreviewAdapterElement : public dyn::CustomElement {
 };
 
 }
-

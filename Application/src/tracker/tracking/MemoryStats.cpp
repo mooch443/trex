@@ -1,5 +1,10 @@
 #include "MemoryStats.h"
+#include <data/MotionRecord.h>
+#include <misc/Image.h>
 #include <misc/pretty.h>
+#include <processing/PVBlob.h>
+#include <tracking/Stuffs.h>
+#include <tracking/TrackletInformation.h>
 #include <tracking/Tracker.h>
 #include <tracking/OutputLibrary.h>
 #include <core/FOI.h>
@@ -132,6 +137,14 @@ uint64_t memory_selector(MemoryStats& stats, const Individual::LocalCache& obj, 
     return bytes;
 }
 
+uint64_t memory_selector(MemoryStats& stats, const data::FrameRepository& obj, const std::string& name) {
+    uint64_t bytes = 0;
+    obj.read([&](data::FrameRepository::SafeReadAccess data){
+        bytes += memory_selector(stats, data.raw, name);
+    });
+    return bytes;
+}
+
 template <>
 uint64_t MemoryStats::get_memory_size(const std::string& obj, const std::string&) {
     return obj.capacity() + sizeof(std::string);
@@ -255,11 +268,9 @@ MemoryStats::MemoryStats() : id(uint32_t(-1)), bytes(0) {
     
 }
 
-#define IND_BYTE_SIZE(X) this->sizes[ #X ] = calculate_byte_size(fish-> X, #X )
+#define IND_BYTE_SIZE(X) this->sizes[ #X ] = calculate_byte_size(tracker. X, #X )
 
-TrackerMemoryStats::TrackerMemoryStats() {
-    auto fish = Tracker::instance();
-    
+TrackerMemoryStats::TrackerMemoryStats(Tracker& tracker) {
     auto calculate_byte_size = [&](const auto& map, const std::string& name) {
         uint64_t summary = memory_selector(*this, map, name);
         bytes += summary;
@@ -267,8 +278,8 @@ TrackerMemoryStats::TrackerMemoryStats() {
     };
     
     IND_BYTE_SIZE(_statistics);
-    IND_BYTE_SIZE(_added_frames);
-    IND_BYTE_SIZE(_consecutive);
+    this->sizes[ "frames" ] = tracker._frames ? calculate_byte_size(*tracker._frames, "frames" ) : 0;
+    //IND_BYTE_SIZE(_consecutive);
     //IND_BYTE_SIZE(_active_individuals_frame);
     //IND_BYTE_SIZE(_individuals);
     //IND_BYTE_SIZE(_active_individuals);
@@ -300,6 +311,9 @@ IndividualMemoryStats::IndividualMemoryStats(Individual *fish) {
     
     bytes = sizeof(Individual);
     sizes["misc"] = bytes;
+    
+    #undef IND_BYTE_SIZE
+    #define IND_BYTE_SIZE(X) this->sizes[ #X ] = calculate_byte_size(fish-> X, #X )
     
     //IND_BYTE_SIZE(_centroid);
     //IND_BYTE_SIZE(_head);

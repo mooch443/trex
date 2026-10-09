@@ -3,3 +3,5 @@
 
 #include <data/IndividualCache.h>
 #include <data/MotionRecord.h>
+#include <data/FrameRepository.h>
+#include <data/CacheHints.h>

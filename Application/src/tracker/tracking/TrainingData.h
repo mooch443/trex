@@ -8,6 +8,7 @@
 #include <core/idx_t.h>
 #include <misc/ranges.h>
 #include <tracking/FilterCache.h>
+#include <data/FrameRepository.h>
 
 namespace track {
 using namespace constraints;
@@ -214,7 +215,7 @@ public:
     std::tuple<std::vector<Image::SPtr>, std::vector<Idx_t>> join_arrays() const;
     std::tuple<std::vector<Image::SPtr>, std::vector<Idx_t>, std::vector<Frame_t>, std::map<Frame_t, Range<size_t>>> join_arrays_ordered() const;
     
-    bool generate(const std::string& step_description, pv::File& video_file, std::map<Frame_t, std::set<Idx_t> > individuals_per_frame, const std::function<void(float)>& callback, const TrainingData* source);
+    bool generate(const std::string& step_description, const Background& background, const data::FrameRepository& frames, pv::File& video_file, std::map<Frame_t, std::set<Idx_t> > individuals_per_frame, const std::function<void(float)>& callback, const TrainingData* source);
     
     //bool generate(pv::File& video_file, const std::map<long_t, std::set<FrameRange>>&, const std::function<void(float)>& callback);
     

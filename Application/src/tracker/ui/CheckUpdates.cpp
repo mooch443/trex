@@ -207,7 +207,7 @@ void display_update_dialog(gui::DrawStructure* graph) {
 
 void write_version_file() {
     // write changed date to file 'update_check' in the resource folder
-    std::string str = SETTING(app_last_update_check).get().valueString()+"\n"+SETTING(app_check_for_updates).get().valueString()+"\n"+SETTING(app_last_update_version).get().valueString();
+    std::string str = SETTING(app_last_update_check).valueString()+"\n"+SETTING(app_check_for_updates).valueString()+"\n"+SETTING(app_last_update_version).valueString();
     auto f = fopen("update_check", "wb");
     if (f) {
         fwrite(str.c_str(), sizeof(char), str.length(), f);

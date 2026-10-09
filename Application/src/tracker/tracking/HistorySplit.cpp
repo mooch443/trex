@@ -1,4 +1,6 @@
 #include "HistorySplit.h"
+#include <tracking/Individual.h>
+#include <tracking/TrackletInformation.h>
 #include <tracking/Tracker.h>
 #include <tracking/BlobReceiver.h>
 #include <tracking/IndividualManager.h>
@@ -47,12 +49,12 @@ Settings::manual_splits_t::mapped_type HistorySplit::apply_manual_matches(PPFram
     return manual_splits_frame;
 }
 
-HistorySplit::HistorySplit(PPFrame &frame, PPFrame::NeedGrid need, GenericThreadPool* pool)
+HistorySplit::HistorySplit(const data::FrameRepository& frames, const Background& background, PPFrame &frame, NeedGrid need, GenericThreadPool* pool)
 {
     PPFrame::Log("FRAME ", frame.index());
     
     //! Finalize the cache and this frame:
-    frame.init_cache(pool, need);
+    frame.init_cache(frames, pool, need);
     
     apply_manual_matches(frame);
     
@@ -345,6 +347,7 @@ HistorySplit::HistorySplit(PPFrame &frame, PPFrame::NeedGrid need, GenericThread
     frame._split_objects += collection.size();*/
     
     PrefilterBlobs::split_big(
+           background,
            frame.index(),
            std::move(collection),
            BlobReceiver(frame, BlobReceiver::noise, FilterReason::History),

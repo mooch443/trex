@@ -2,7 +2,7 @@
 
 #include <commons.pc.h>
 
-namespace cmn::gui::terminal {
+namespace cmn::terminal {
 
 void open_terminal();
 

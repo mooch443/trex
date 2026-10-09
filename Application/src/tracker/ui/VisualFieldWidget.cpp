@@ -51,7 +51,7 @@ void VisualFieldWidget::update(Frame_t frame, const FindCoord& coord, const set_
         VisualField* ptr = nullptr;//(VisualField*)fish->custom_data(frame, VisualField::custom_id);
         
         if(!ptr && not _fields.contains(id) && fish->head(frame)) {
-            _fields[id] = std::make_unique<VisualField>(id, frame, *fish->basic_stuff(frame), fish->posture_stuff(frame), false);
+            _fields[id] = std::make_unique<VisualField>(coord.video_size(), id, frame, *fish->basic_stuff(frame), fish->posture_stuff(frame), false);
             ptr = _fields[id].get();
             //ptr = new VisualField(id, frame, *fish->basic_stuff(frame), fish->posture_stuff(frame), true);
             /*fish->add_custom_data(frame, VisualField::custom_id, ptr, [](void* ptr) {
@@ -103,7 +103,7 @@ void VisualFieldWidget::update(Frame_t frame, const FindCoord& coord, const set_
                 //auto poly = new gui::Polygon(crosses);
                 //poly->set_fill_clr(Transparent);
                 if(_polygons.size() <= poly_idx) {
-                    _polygons.emplace_back(Layout::Make<Polygon>(std::move(crosses)));
+                    _polygons.emplace_back(Layout::Make<Polygon>{std::move(crosses)});
                 } else {
                     _polygons[poly_idx]->set_vertices(std::move(crosses));
                 }

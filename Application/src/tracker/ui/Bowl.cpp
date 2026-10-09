@@ -141,7 +141,7 @@ bool Bowl::Data::update_shapes() {
                 } else if(rect.size() > 2) {
                     //auto r = std::make_shared<std::vector<Vec2>>(rect);
                     auto r = poly_convex_hull(&rect); // force a convex polygon for these shapes, as thats the only thing that the in/out polygon test works with
-                    auto ptr = std::make_unique<gui::Polygon>(*r);
+                    auto ptr = std::make_unique<gui::Polygon>(r ? *r : std::vector<Vec2>(rect));
                     ptr->set_fill_clr(Green.alpha(25));
                     ptr->set_border_clr(Green.alpha(100));
                     //ptr->set_clickable(true);
@@ -177,7 +177,7 @@ bool Bowl::Data::update_shapes() {
                 } else if(rect.size() > 2) {
                     //auto r = std::make_shared<std::vector<Vec2>>(rect);
                     auto r = poly_convex_hull(&rect); // force convex polygon
-                    auto ptr = std::make_unique<gui::Polygon>(*r);
+                    auto ptr = std::make_unique<gui::Polygon>(r ? *r : std::vector<Vec2>(rect));
                     ptr->set_fill_clr(Red.alpha(25));
                     ptr->set_border_clr(Red.alpha(100));
                     //ptr->set_clickable(true);
@@ -199,7 +199,7 @@ bool Bowl::Data::update_shapes() {
     {
         Shape shape{_gui_zoom_polygon};
         auto r = poly_convex_hull(&_gui_zoom_polygon); // force convex polygon
-        _reduced_zoom_polygon = new gui::Polygon(*r);
+        _reduced_zoom_polygon = new gui::Polygon(r ? *r : std::vector<Vec2>(_gui_zoom_polygon));
         _reduced_zoom_polygon->set_border_clr(White.alpha(25));
         
         _zoom_polygon_indicators.clear();
@@ -212,22 +212,28 @@ bool Bowl::Data::update_shapes() {
             Vec2 br(pt.x + scale, pt.y + scale);
             
             constexpr auto clrA = White.alpha(150);
-            auto ptr = Layout::Make<Vertices>(std::vector<Vertex>{
-                {tl, clrA}, {pt, clrA},
-                {br, clrA}, {pt, clrA},
-                {bl, clrA}, {pt, clrA},
-                {tr, clrA}
-            }, PrimitiveType::LineStrip);
+            derived_ptr<Vertices> ptr = Layout::Make<Vertices>{
+                std::vector<Vertex>{
+                    {tl, clrA}, {pt, clrA},
+                    {br, clrA}, {pt, clrA},
+                    {bl, clrA}, {pt, clrA},
+                    {tr, clrA}
+                },
+                PrimitiveType::LineStrip
+            };
             _zoom_polygon_indicators.emplace_back(ptr);
             
             constexpr auto clrB = Black.alpha(150);
             constexpr auto offset = Vec2(0.25);
-            ptr = Layout::Make<Vertices>(std::vector<Vertex>{
-                {tl + offset, clrB}, {pt + offset, clrB},
-                {br + offset, clrB}, {pt + offset, clrB},
-                {bl + offset, clrB}, {pt + offset, clrB},
-                {tr + offset, clrB}
-            }, PrimitiveType::LineStrip);
+            ptr = Layout::Make<Vertices>{
+                std::vector<Vertex>{
+                    {tl + offset, clrB}, {pt + offset, clrB},
+                    {br + offset, clrB}, {pt + offset, clrB},
+                    {bl + offset, clrB}, {pt + offset, clrB},
+                    {tr + offset, clrB}
+                },
+                PrimitiveType::LineStrip
+            };
             _zoom_polygon_indicators.emplace_back(ptr);
         }
         //ptr->set_clickable(true);
@@ -248,17 +254,19 @@ bool Bowl::Data::update_shapes() {
                 if(rect.size() > 2) {
                     //auto r = std::make_shared<std::vector<Vec2>>(rect);
                     auto r = poly_convex_hull(&rect); // force a convex polygon for these shapes, as thats the only thing that the in/out polygon test works with
-                    auto copy = VisualField::tesselate_outline(*r);
-                    r->clear();
-                    for(auto &pt : copy)
-                        r->emplace_back(pt);
-                    
-                    auto ptr = std::make_unique<gui::Polygon>(*r);
-                    ptr->set_show_points(true);
-                    ptr->set_fill_clr(Orange.alpha(25));
-                    ptr->set_border_clr(Orange.alpha(100));
-                    //ptr->set_clickable(true);
-                    _vf_shapes[shape] = std::move(ptr);
+                    if(r) {
+                        auto copy = VisualField::tesselate_outline(*r);
+                        r->clear();
+                        for(auto &pt : copy)
+                            r->emplace_back(pt);
+                        
+                        auto ptr = std::make_unique<gui::Polygon>(*r);
+                        ptr->set_show_points(true);
+                        ptr->set_fill_clr(Orange.alpha(25));
+                        ptr->set_border_clr(Orange.alpha(100));
+                        //ptr->set_clickable(true);
+                        _vf_shapes[shape] = std::move(ptr);
+                    }
                 }
             }
             keys.erase(shape);
@@ -450,7 +458,7 @@ void Bowl::update_blobs(const Frame_t& frame) {
         if(draw_blobs_separately)
         {
             if(GUI_SETTINGS(gui_mode) == gui::mode_t::tracking
-               && _cache->tracked_frames.contains(frame))
+               && _cache->tracked_frames().contains(frame))
             {
                 std::unique_lock guard(_cache->_fish_map_mutex);
                 for(auto &&[k,fish] : _cache->_fish_map) {
@@ -464,7 +472,7 @@ void Bowl::update_blobs(const Frame_t& frame) {
 #if defined(TREX_ENABLE_EXPERIMENTAL_BLUR) && defined(__APPLE__) && COMMONS_METAL_AVAILABLE
                 const bool gui_macos_blur = GUI_SETTINGS(gui_macos_blur);
 #endif
-                if (GUI_SETTINGS(gui_mode) != gui::mode_t::blobs) {
+                if (GUI_SETTINGS(gui_mode) == gui::mode_t::tracking) {
                     for (auto& [b, ptr] : _cache->display_blobs) {
 #if defined(TREX_ENABLE_EXPERIMENTAL_BLUR) && defined(__APPLE__) && COMMONS_METAL_AVAILABLE
                         if constexpr (std::is_same<MetalImpl, default_impl_t>::value) {
@@ -476,12 +484,12 @@ void Bowl::update_blobs(const Frame_t& frame) {
                     }
 
                 }
-                else {
+                else /*if (GUI_SETTINGS(gui_mode) == gui::mode_t::tracking)) */{
                     for (auto& [b, ptr] : _cache->display_blobs) {
 #if defined(TREX_ENABLE_EXPERIMENTAL_BLUR) && defined(__APPLE__) && COMMONS_METAL_AVAILABLE
                         if constexpr (std::is_same<MetalImpl, default_impl_t>::value) {
                             if (gui_macos_blur)
-                                ptr->ptr->untag(Effects::blur);
+                                ptr->ptr->tag(Effects::blur);
                         }
 #endif
                         advance_wrap(*(ptr->ptr));
@@ -491,7 +499,7 @@ void Bowl::update_blobs(const Frame_t& frame) {
             
         } else if(draw_blobs
                   && GUI_SETTINGS(gui_mode) == gui::mode_t::tracking
-                  && _cache->tracked_frames.contains(frame))
+                  && _cache->tracked_frames().contains(frame))
         {
             std::unique_lock guard(_cache->_fish_map_mutex);
             for(auto &&[k,fish] : _cache->_fish_map) {
@@ -529,8 +537,8 @@ void Bowl::update_scaling(double dt) {
     //_timer.reset();
 }
 
-void Bowl::update(Frame_t frame, DrawStructure &graph, const FindCoord& coord) {
-    update([this, &frame, &graph, &coord](auto&) {
+void Bowl::update(const data::FrameRepository& frames, Frame_t frame, DrawStructure &graph, const FindCoord& coord) {
+    update([this, &frame, &graph, &coord, &frames](auto&) {
         if(GUI_SETTINGS(gui_mode) == gui::mode_t::tracking)
             draw_shapes(graph, coord);
         
@@ -542,7 +550,7 @@ void Bowl::update(Frame_t frame, DrawStructure &graph, const FindCoord& coord) {
         if(GUI_SETTINGS(gui_show_heatmap)) {
             if(!_data->_heatmapController)
                 _data->_heatmapController = std::make_unique<gui::heatmap::HeatmapController>();
-            _data->_heatmapController->set_frame(frame);
+            _data->_heatmapController->set_frame(frames, frame);
             advance_wrap(*_data->_heatmapController);
         }
         

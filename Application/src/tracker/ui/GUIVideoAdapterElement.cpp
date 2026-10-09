@@ -70,7 +70,7 @@ Layout::Ptr GUIVideoAdapterElement::_create(LayoutContext& context) {
     if(_create_object)
         ptr = Layout::Ptr(_create_object(file::PathArray(path), _window, _open_callback));
     else
-        ptr = Layout::Make<GUIVideoAdapter>(file::PathArray(path), _window, _open_callback);
+        ptr = Layout::Make<GUIVideoAdapter>{file::PathArray(path), _window, _open_callback};
     
     auto p = ptr.to<GUIVideoAdapter>();
     p->set(Blur{blur});

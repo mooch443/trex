@@ -1,0 +1,7 @@
+/* Keep executable C++ definitions private, including template instantiations.
+   Unmangled C entry points, including Python module initializers, remain eligible
+   for export. */
+{
+    local:
+        _Z*;
+};

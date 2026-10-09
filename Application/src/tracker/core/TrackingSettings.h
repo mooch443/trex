@@ -11,6 +11,19 @@
 #include <core/SizeFilters.h>
 #include <processing/encoding.h>
 
+namespace cmn::data {
+class FrameRepository;
+}
+
+/** @brief Optional same-class mask-overlap handling after tile aggregation. */
+ENUM_CLASS(track::, MaskPostprocessMode,
+    none, /// Preserve mask rows without a second overlap-resolution pass.
+    /// Retain preferred rows and discard their eligible neighbors.
+    greedy_nms,
+    /// Transitively group eligible rows and emit their positioned mask union.
+    merge_masks
+);
+
 namespace track {
 using namespace cmn;
 class Individual;
@@ -49,6 +62,7 @@ struct CachedSettings;
 
 struct AssignInfo {
     PPFrame* frame;
+    const data::FrameRepository* repo;
     const FrameProperties* f_prop;
     const FrameProperties* f_prev_prop;
     default_config::matching_mode_t::Class match_mode;
@@ -74,6 +88,8 @@ struct PoseMidlineIndexes {
         return indexes == other.indexes;
     }
 };
+
+//(std::vector<std::vector<Vec2>>, recognition_shapes),
 
 //! A global settings cache used across the application by
 //! calling `FAST_SETTING(name)`.
@@ -106,7 +122,7 @@ CREATE_STRUCT(Settings,
   (uint16_t, posture_direction_smoothing),
   (file::Path, tags_path),
   (std::vector<Vec2>, grid_points),
-  (std::vector<std::vector<Vec2>>, recognition_shapes),
+  
   (float, grid_points_scaling),
   (std::vector<std::vector<Vec2>>, track_ignore),
   (std::vector<std::vector<Vec2>>, track_include),
@@ -148,7 +164,8 @@ CREATE_STRUCT(Settings,
   (cmn::meta_encoding_t::Class, meta_encoding),
   (float, outline_compression),
   (bool, image_invert),
-  (Frame_t, track_history_split_threshold)
+  (Frame_t, track_history_split_threshold),
+  (uint16_t, output_min_frames)
 )
 
 //! Shorthand for defining slow settings cache entries:
@@ -190,6 +207,7 @@ struct slow {
     DEF_SLOW_SETTINGS(tracklet_max_length);
     
     DEF_SLOW_SETTINGS(posture_direction_smoothing);
+    DEF_SLOW_SETTINGS(output_min_frames);
 };
 
 #undef DEF_SLOW_SETTINGS
@@ -304,3 +322,5 @@ struct IDaverage {
 std::map<Idx_t, float> prediction2map(const std::vector<float>& pred);
 
 }
+
+STRUCT_META_EXTENSIONS(track::Settings)
