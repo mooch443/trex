@@ -1,0 +1,122 @@
+#!/usr/bin/env python3
+"""Select a local dependency profile and build in the current directory."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+from pathlib import Path
+import shlex
+import shutil
+import sys
+
+
+def read_cache(path: Path) -> dict[str, str]:
+    entries = {}
+    if path.is_file():
+        for line in path.read_text().splitlines():
+            if line.startswith(("#", "//")) or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            entries[key.split(":", 1)[0]] = value
+    return entries
+
+
+def check_environment(profile: str, cache: dict[str, str]) -> Path:
+    prefix_value = os.environ.get("CONDA_PREFIX")
+    if not prefix_value:
+        raise RuntimeError("Activate the build environment first: conda activate trex")
+    prefix = Path(prefix_value).resolve()
+    if not (prefix / "conda-meta").is_dir():
+        raise RuntimeError(f"CONDA_PREFIX is not a Conda environment: {prefix}")
+    if Path(sys.prefix).resolve() != prefix:
+        raise RuntimeError("python3 does not belong to the active Conda environment. Reactivate it first.")
+    if cache.get("CONDA_PREFIX") and Path(cache["CONDA_PREFIX"]).resolve() != prefix:
+        raise RuntimeError(
+            f"This build folder uses {cache['CONDA_PREFIX']}, but the active environment is {prefix}. "
+            "Activate the build folder's environment before switching profiles."
+        )
+
+    errors = []
+    missing = []
+    tool_packages = {name: name for name in ("cmake", "git", "pkg-config", "nasm", "ninja", "make")}
+    tools = ["bash", "cmake", "git", "pkg-config"]
+    if profile == "buildall":
+        tools.append("nasm")
+    if sys.platform == "darwin":
+        tools.extend(["xcrun", "xcodebuild"])
+    else:
+        for variable, fallback in (("CC", "gcc"), ("CXX", "g++")):
+            command = shlex.split(os.environ.get(variable) or fallback)
+            tools.append(command[0])
+        tools.append("ninja" if cache.get("CMAKE_GENERATOR") == "Ninja" else "make")
+    for tool in tools:
+        if not shutil.which(tool):
+            errors.append(f"Required tool is missing from PATH: {tool}")
+            if tool in tool_packages:
+                missing.append(tool_packages[tool])
+
+    try:
+        from distutils import sysconfig  # Required by trex_build_unix.sh and find_library.py.
+    except ImportError:
+        errors.append("The active Python lacks distutils; install Python 3.11 or setuptools in this environment.")
+
+    packages = {}
+    for path in (prefix / "conda-meta").glob("*.json"):
+        package = json.loads(path.read_text())
+        packages[package["name"]] = package["version"]
+    required = {"ffmpeg": "ffmpeg<8", "icu": "icu"}
+    if profile == "minimal":
+        required.update({"zlib": "zlib", "libpng": "libpng", "libzip": "libzip", "libopencv": "libopencv>=4,<5"})
+    missing.extend(spec for name, spec in required.items() if name not in packages)
+    if "ffmpeg" in packages and int(packages["ffmpeg"].split(".")[0]) >= 8:
+        missing.append("ffmpeg<8")
+    if profile == "minimal" and "libopencv" in packages and packages["libopencv"].split(".")[0] != "4":
+        missing.append("libopencv>=4,<5")
+    if missing:
+        errors.append("Install the required tools/dependencies in the active environment:\n  "
+                      + shlex.join(["conda", "install", "-c", "conda-forge", *missing]))
+    if errors:
+        raise RuntimeError("\n".join(errors))
+    return prefix
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        description="Check the active Conda environment, then configure and build the current folder via trex_build_unix.sh."
+    )
+    parser.add_argument("profile", choices=("minimal", "buildall"))
+    args = parser.parse_args()
+    source = Path(__file__).resolve().parent
+    build = Path.cwd().resolve()
+
+    try:
+        if sys.platform not in ("darwin", "linux"):
+            raise RuntimeError("This script supports Linux and macOS.")
+        if build in (source, source.parent) or (build / "CMakeLists.txt").exists():
+            raise RuntimeError("Run select_config from your build folder, not a source folder.")
+        cache = read_cache(build / "CMakeCache.txt")
+        if cache.get("CMAKE_HOME_DIRECTORY") and Path(cache["CMAKE_HOME_DIRECTORY"]).resolve() != source:
+            raise RuntimeError("This build folder belongs to another source directory.")
+        if sys.platform == "darwin" and cache.get("CMAKE_GENERATOR", "Xcode") != "Xcode":
+            raise RuntimeError("trex_build_unix.sh uses Xcode on macOS; use an Xcode build folder.")
+        prefix = check_environment(args.profile, cache)
+    except (RuntimeError, OSError, ValueError, KeyError) as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 2
+
+    print(f"Build folder: {build}\nConda environment: {prefix}\nDependency profile: {args.profile}", flush=True)
+    environment = dict(os.environ, TREX_CONFIGURE=args.profile)
+    # Rediscover providers when switching profiles without deleting the build tree.
+    cache_entries = [
+        "COMMONS_BUILD_OPENCV", "COMMONS_BUILD_PNG", "COMMONS_BUILD_ZIP", "COMMONS_BUILD_ZLIB",
+        "OpenCV_DIR", "PNG_*", "ZLIB_*", "libzip_DIR", "ZIP_*", "LIBZIP_*",
+    ]
+    os.execvpe("bash", ["bash", str(source / "trex_build_unix.sh"),
+                        *(f"-U{entry}" for entry in cache_entries)], environment)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,3 +1,7 @@
+#!/usr/bin/env bash
+
+TREX_SOURCE_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+
 if [ ! $(which python3) ]; then
     echo "Python is not installed. Please install python3 first, or simply use a conda environment that provides python3."
     exit 1
@@ -15,8 +19,14 @@ if [ ! $(which git) ]; then
     exit 1
 fi
 
-git submodule update --recursive --init
+git -C "${TREX_SOURCE_DIR}" submodule update --recursive --init || exit $?
 
+if [ -z "${TREX_CONFIGURE+x}" ] && [ -f CMakeCache.txt ]; then
+    TREX_CACHED_CONFIGURE=$(sed -n '/^TREX_CONFIGURE:[^=]*=/p' CMakeCache.txt)
+    if [ -n "${TREX_CACHED_CONFIGURE}" ]; then
+        TREX_CONFIGURE="${TREX_CACHED_CONFIGURE#*=}"
+    fi
+fi
 TREX_CONFIGURE=${TREX_CONFIGURE-buildall}
 case "${TREX_CONFIGURE}" in
     buildall|minimal|"") ;;
@@ -25,7 +35,7 @@ case "${TREX_CONFIGURE}" in
         exit 2
         ;;
 esac
-TREX_CONFIGURE_ARGS=()
+TREX_CONFIGURE_ARGS=("$@")
 if [ -n "${TREX_CONFIGURE}" ]; then
     TREX_CONFIGURE_ARGS+=("-DTREX_CONFIGURE=${TREX_CONFIGURE}")
 fi
@@ -72,16 +82,16 @@ if [ "$(uname)" == "Linux" ]; then
         echo "If you dont want this, please deactivate the conda environment first."
         echo "**************************************"
         
-        CC=${CC} CXX=${CXX} PKG_CONFIG_PATH=$CONDA_PREFIX/lib/pkgconfig cmake .. \
+        CC=${CC} CXX=${CXX} PKG_CONFIG_PATH=$CONDA_PREFIX/lib/pkgconfig cmake -S "${TREX_SOURCE_DIR}" -B . \
             -DPYTHON_INCLUDE_DIR:FILEPATH=$(python3 -c "from distutils.sysconfig import get_python_inc; print(get_python_inc())") \
-            -DPYTHON_LIBRARY:FILEPATH=$(python3 ../find_library.py) \
+            -DPYTHON_LIBRARY:FILEPATH=$(python3 "${TREX_SOURCE_DIR}/find_library.py") \
             -DPYTHON_EXECUTABLE:FILEPATH=$(which python3) \
             -DCMAKE_BUILD_TYPE=Release \
             "${TREX_CONFIGURE_ARGS[@]}" \
             -DWITH_FFMPEG=ON \
             -DTREX_WITH_TESTS=ON \
             -DCMAKE_PREFIX_PATH="$CONDA_PREFIX;$CONDA_PREFIX/lib/pkgconfig;$CONDA_PREFIX/lib" \
-            -DWITH_PYLON=ON
+            -DWITH_PYLON=ON || exit $?
     else
         echo "**************************************"
         echo "Not in a conda environment."
@@ -92,16 +102,16 @@ if [ "$(uname)" == "Linux" ]; then
         echo "If you want to specify an FFMPEG path, please set the PKG_CONFIG_PATH environment variable accordingly."
         echo ""
         
-        CC=${CC} CXX=${CXX} cmake .. \
+        CC=${CC} CXX=${CXX} cmake -S "${TREX_SOURCE_DIR}" -B . \
             -DPYTHON_INCLUDE_DIR:FILEPATH=$(python3 -c "from distutils.sysconfig import get_python_inc; print(get_python_inc())") \
-            -DPYTHON_LIBRARY:FILEPATH=$(python3 ../find_library.py) \
+            -DPYTHON_LIBRARY:FILEPATH=$(python3 "${TREX_SOURCE_DIR}/find_library.py") \
             -DPYTHON_EXECUTABLE:FILEPATH=$(which python3) \
             -DCMAKE_BUILD_TYPE=Release \
             "${TREX_CONFIGURE_ARGS[@]}" \
             -DWITH_FFMPEG=ON \
             -DTREX_WITH_TESTS=ON \
             -DCMAKE_PREFIX_PATH="$PKG_CONFIG_PATH" \
-            -DWITH_PYLON=ON
+            -DWITH_PYLON=ON || exit $?
     fi
     
 else
@@ -125,9 +135,9 @@ else
         echo "If you dont want this, please deactivate the conda environment first."
         echo "**************************************"
         
-        PKG_CONFIG_PATH=$CONDA_PREFIX/lib/pkgconfig MACOSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET} cmake .. \
+        PKG_CONFIG_PATH=$CONDA_PREFIX/lib/pkgconfig MACOSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET} cmake -S "${TREX_SOURCE_DIR}" -B . \
             -DPYTHON_INCLUDE_DIR:FILEPATH=$(python3 -c "from distutils.sysconfig import get_python_inc; print(get_python_inc())") \
-            -DPYTHON_LIBRARY:FILEPATH=$(python3 ../find_library.py) \
+            -DPYTHON_LIBRARY:FILEPATH=$(python3 "${TREX_SOURCE_DIR}/find_library.py") \
             -DPYTHON_EXECUTABLE:FILEPATH=$(which python3) \
             -DCMAKE_BUILD_TYPE=Release  \
             "${TREX_CONFIGURE_ARGS[@]}" \
@@ -136,7 +146,7 @@ else
             -DPYTHON3_PACKAGES_PATH=$(python3 -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())") \
             -DCMAKE_OSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET} \
             -DCMAKE_OSX_SYSROOT=/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX${MACOSX_DEPLOYMENT_TARGET}.sdk \
-            -DCMAKE_PREFIX_PATH="$CONDA_PREFIX;$CONDA_PREFIX/lib/pkgconfig;$CONDA_PREFIX/lib"
+            -DCMAKE_PREFIX_PATH="$CONDA_PREFIX;$CONDA_PREFIX/lib/pkgconfig;$CONDA_PREFIX/lib" || exit $?
     else
         echo "**************************************"
         echo "Not in a conda environment."
@@ -147,16 +157,16 @@ else
         echo "If you want to specify an FFMPEG path, please set the PKG_CONFIG_PATH environment variable accordingly."
         echo ""
         
-        cmake .. \
+        cmake -S "${TREX_SOURCE_DIR}" -B . \
             -DPYTHON_INCLUDE_DIR:FILEPATH=$(python3 -c "from distutils.sysconfig import get_python_inc; print(get_python_inc())") \
-            -DPYTHON_LIBRARY:FILEPATH=$(python3 ../find_library.py) \
+            -DPYTHON_LIBRARY:FILEPATH=$(python3 "${TREX_SOURCE_DIR}/find_library.py") \
             -DPYTHON_EXECUTABLE:FILEPATH=$(which python3) \
             -DCMAKE_BUILD_TYPE=Release  \
             "${TREX_CONFIGURE_ARGS[@]}" \
             -DCMAKE_OSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET} \
             -DCMAKE_OSX_SYSROOT=/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX${MACOSX_DEPLOYMENT_TARGET}.sdk \
             -G Xcode \
-            -DWITH_FFMPEG=ON
+            -DWITH_FFMPEG=ON || exit $?
     fi
 fi
 
