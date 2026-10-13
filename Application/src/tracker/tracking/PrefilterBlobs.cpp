@@ -327,7 +327,7 @@ void PrefilterBlobs::split_big(
     big_blobs.erase(std::remove(big_blobs.begin(), big_blobs.end(), nullptr), big_blobs.end());
 }
 
-bool PrefilterBlobs::blob_matches_shapes(const pv::Blob & b, const std::vector<std::vector<Vec2> > & shapes) {
+bool PrefilterBlobs::blob_matches_shapes(const pv::Blob & b, const ShapeList & shapes) {
     for(auto &rect : shapes) {
         if(rect.size() == 2) {
             // its a boundary
@@ -356,7 +356,7 @@ bool PrefilterBlobs::blob_matches_shapes(const pv::Blob & b, const std::vector<s
     return false;
 }
 
-bool PrefilterBlobs::rect_overlaps_shapes(const Bounds & b, const std::vector<std::vector<Vec2> > & shapes) {
+bool PrefilterBlobs::rect_overlaps_shapes(const Bounds & b, const ShapeList & shapes) {
     for(auto &rect : shapes) {
         if(rect.size() == 2) {
             Bounds bds(rect[0], rect[1] - rect[0]);

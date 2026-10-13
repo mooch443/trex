@@ -72,13 +72,20 @@
               "do": {
                 "type":"condition",
                 "var":"{||:{>:{j.x}:0}:{>:{j.y}:0}}",
-                "then": {
-                  "type":"circle",
-                  "radius":5,
-                  "pos":"{addVector:{subVector:{2hud:[{j.x},{j.y}]}:{2hud:[{i.x},{i.y}]}}:[25,25]}",
+                "then":  {
+                  "type":"collection",
                   "origin":[0.5,0.5],
-                  "fill": [255,255,255,50],
-                  "color":[255,255,255,50]
+                  "fill": [0,0,255,0],
+                  "pos":"{addVector:{subVector:{2hud:[{j.x},{j.y}]}:{2hud:[{i.x},{i.y}]}}:[25,25]}",
+                  "size":[15,15],
+                  "children":[
+                    { "type":"circle",
+                      "radius":7.5,
+
+                      "fill": [255,255,255,50],
+                      "color":[255,255,255,50]
+                    }
+                  ]
                 }
               }
             }
@@ -126,9 +133,10 @@
                 "type":"circle",
                 "radius":8,
                 "modules":["draggable"],
+                "z-index": 1,
                 "pos":"{2hud:[{j.x},{j.y}]}",
                 "origin":[0.5,0.5],
-                "fill": [255,255,255,125],
+                "fill": [255,255,255,0],
                 "line":"{if:{||:{selected}:{hovered}}:[25,25,25,200]:[100,100,100,150]}",
                 "color":[255,255,255,255],
                 "drag":"move_detect_annotation:{i.id}:{index}"
@@ -136,6 +144,7 @@
               {
                 "type":"stext",
                 "text":"{index}",
+                "z-index": 1,
                 "pos":"{2hud:[{j.x},{j.y}]}",
                 "origin":[0.5,0.5],
                 "color":[50,50,50,255],

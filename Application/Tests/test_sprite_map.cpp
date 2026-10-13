@@ -12,7 +12,7 @@ TEST_P(SpriteMapMoveTests, TransfersAttachedGeneralAndPendingCallbacks) {
     int replaced_callbacks = 0;
     sprite::Map source;
     source.insert("existing", 0);
-    source.register_general_callback([&](std::string_view name) {
+    source.register_before_write_callback([&](std::string_view name) {
         before_writes.emplace_back(name);
     });
     auto callbacks = source.register_callbacks<sprite::RegisterInit::DONT_TRIGGER>(
@@ -24,7 +24,7 @@ TEST_P(SpriteMapMoveTests, TransfersAttachedGeneralAndPendingCallbacks) {
     if(GetParam()) {
         destination = std::make_unique<sprite::Map>();
         destination->insert("replaced", 0);
-        destination->register_general_callback([&](std::string_view) {
+        destination->register_before_write_callback([&](std::string_view) {
             ++replaced_callbacks;
         });
         *destination = std::move(source);
@@ -56,13 +56,36 @@ INSTANTIATE_TEST_SUITE_P(MoveOperations, SpriteMapMoveTests, testing::Bool());
 
 TEST(SpriteMapTests, SelfMovePreservesCallbacks) {
     cmn::sprite::Map map;
-    int calls = 0;
-    map.insert("value", 0);
+    int calls = 0, before_calls = 0;
     map.register_general_callback([&](std::string_view) { ++calls; });
+    map.register_before_write_callback([&](std::string_view) { ++before_calls; });
+    map.insert("value", 0);
+    
+    EXPECT_EQ(calls, 1);
+    EXPECT_EQ(before_calls, 0);
+    
     auto& same = map;
     map = std::move(same);
+    
     map["value"] = 1;
-    EXPECT_EQ(calls, 1);
+    EXPECT_EQ(calls, 2);
+    EXPECT_EQ(before_calls, 1);
+}
+
+TEST(SpriteMapTests, CopyAssignmentPreservesBeforeWriteCallbacksOnce) {
+    cmn::sprite::Map source, destination;
+    source.insert("value", 1);
+    destination.insert("value", 0);
+    std::vector<int> before_values;
+    destination.register_before_write_callback([&](std::string_view name) {
+        before_values.push_back(destination.at(name).value<int>());
+    });
+
+    for(int next : {2, 3}) {
+        destination = source;
+        destination["value"] = next;
+    }
+    EXPECT_EQ(before_values, (std::vector<int>{1, 1}));
 }
 
 class CallbackAttachmentMap : public cmn::sprite::Map {
@@ -97,22 +120,37 @@ TEST(SpriteMapTests, AttachesCallbacksBeforePublishingInsertedProperties) {
 
     guard.unlock();
     inserted.get();
+    EXPECT_EQ(calls, 1);
     EXPECT_FALSE(visible);
     map["value"] = 1;
-    EXPECT_EQ(calls, 1);
+    EXPECT_EQ(calls, 2);
 }
 
 TEST(SpriteMapTests, InitialCallbackCanRegisterAGeneralCallback) {
     cmn::sprite::Map map;
-    int calls = 0;
+    int calls = 0, inner_calls = 0;
     auto pending = map.register_callbacks({"value"}, [&](std::string_view) {
-        map.register_general_callback([&](std::string_view) { ++calls; });
+        map.register_general_callback([&](std::string_view) {
+            ++calls;
+        });
+        ++inner_calls;
     });
     map.insert("value", 0);
     ASSERT_TRUE(pending.is_ready());
-    map.unregister_callbacks(std::move(pending));
-    map["value"] = 1;
     EXPECT_EQ(calls, 1);
+    EXPECT_EQ(inner_calls, 1);
+    map["value"] = 1;
+    EXPECT_EQ(calls, 3);
+    EXPECT_EQ(inner_calls, 2);
+    map.unregister_callbacks(std::move(pending));
+    map["value"] = 1; // value has not changed => no callbacks
+    EXPECT_EQ(calls, 3);
+    EXPECT_EQ(inner_calls, 2);
+    
+    // unregistered the outer one, so only the general callbacks receive signal
+    map["value"] = 2;
+    EXPECT_EQ(calls, 5);
+    EXPECT_EQ(inner_calls, 2);
 }
 
 }

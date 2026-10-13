@@ -143,7 +143,7 @@ void Tracker::initialize_slows() {
             DatasetQuality::update(*lock);
         });
         
-        auto track_list_update = [](std::string_view key, auto&value)
+        /*auto track_list_update = [](std::string_view key, auto&value)
         {
             auto update = [key = std::string(key), tmp = value.template value<Settings::track_ignore_t>()]() mutable
             {
@@ -170,7 +170,7 @@ void Tracker::initialize_slows() {
             update();
         };
         Settings::set_callback(Settings::track_ignore, track_list_update);
-        Settings::set_callback(Settings::track_include, track_list_update);
+        Settings::set_callback(Settings::track_include, track_list_update);*/
         
         _settings_callback = GlobalSettings::register_callbacks({"posture_direction_smoothing"}, [self = weak_from_this()](std::string_view) {
             static_assert(std::is_same<Settings::posture_direction_smoothing_t, uint16_t>::value, "posture_direction_smoothing assumed to be uint16_t.");

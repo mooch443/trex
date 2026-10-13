@@ -625,7 +625,19 @@ bool TrackingScene::on_global_event(Event event) {
                 _state->load_state(SceneManager::getInstance().gui_task_queue(), Output::TrackingResults::expected_filename());
                 break;
             case Keyboard::Z:
-                _state->save_state(SceneManager::getInstance().gui_task_queue(), false);
+                if(not graph->is_system_pressed()) {
+                    _state->save_state(SceneManager::getInstance().gui_task_queue(), false);
+                    break;
+                } else {
+                    GlobalSettings::write([shift_down = graph->is_key_pressed(Keyboard::LShift) || graph->is_key_pressed(Keyboard::RShift)](Configuration& config){
+                        auto keys = shift_down ? config.redo() : config.undo();
+                        if(keys) {
+                            Print("* reverted ", keys.value());
+                        } else {
+                            Print("* nothing to revert.");
+                        }
+                    });
+                }
                 break;
             case Keyboard::G:
                 SETTING(gui_show_graph) = not BOOL_SETTING(gui_show_graph);
@@ -1021,6 +1033,17 @@ void TrackingScene::activate() {
             _state->load_state(SceneManager::getInstance().gui_task_queue(), Output::TrackingResults::expected_filename(), true);
         }
     }
+    
+    GlobalSettings::write([](Configuration& config){
+        config.history.reset();
+        config.history.ignore_prefix("gui_");
+        config.history.ignore_prefix("auto_");
+        config.history.ignore({
+            "track_pause",
+            "heatmap_ids",
+            "accumulation_sufficient_uniqueness"
+        });
+    });
 }
 
 void TrackingScene::redraw_all() {
@@ -1163,6 +1186,11 @@ void TrackingScene::deactivate() {
     
     GlobalSettings::set_current_defaults(combined.values);
     GlobalSettings::set_current_defaults_with_config(combined.values);
+    
+    GlobalSettings::write([](Configuration& config){
+        Print("* resetting parameter history");
+        config.history.reset();
+    });
 }
 
 void TrackingScene::set_frame(Frame_t frameIndex, bool automatic) {
@@ -2245,6 +2273,20 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                     return false;
                 return _state->analysis->is_paused();
             }),
+            VarFunc("global_history", [](const VarProps&) {
+                return GlobalSettings::read([](const Configuration& config) {
+                    std::vector<std::map<std::string, std::string>> converted;
+                    for(auto &item : config.history) {
+                        auto keys = item.values.keys();
+                        converted.emplace_back();
+                        for(auto key : keys) {
+                            converted.back()[key] = item.values.at(key)->valueString();
+                        }
+                    }
+                    
+                    return cvt2json(converted);
+                });
+            }),
             VarFunc("is_checking_tracklet_identities", [](const VarProps&) -> bool {
                 return Tracker::is_checking_tracklet_identities.load();
             }),
@@ -2522,19 +2564,21 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                                 /// add curve speed
                                 map["speed"] = stuff->centroid.speed<Units::CM_AND_SECONDS>();
                                 
-                                auto query = _data->_cache->blob_grid().query(stuff->centroid.pos<Units::PX_AND_SECONDS>(), FAST_SETTING(track_max_speed) / FAST_SETTING(cm_per_pixel));
                                 auto min_d = 0.f;
                                 pv::bid min_bdx;
                                 Idx_t min_fdx;
-                                for(auto &[d, bdx] : query) {
-                                    if(bdx != it->second.bdx
-                                       && (d < min_d || not min_bdx.valid()))
-                                    {
-                                        auto fit = _data->_cache->blob_selected_fish.find(bdx);
-                                        if(fit != _data->_cache->blob_selected_fish.end()) {
-                                            min_fdx = fit->second;
-                                            min_d = d;
-                                            min_bdx = bdx;
+                                if(not _data->_cache->blob_grid_empty()) {
+                                    auto query = _data->_cache->blob_grid().query(stuff->centroid.pos<Units::PX_AND_SECONDS>(), FAST_SETTING(track_max_speed) / FAST_SETTING(cm_per_pixel));
+                                    for(auto &[d, bdx] : query) {
+                                        if(bdx != it->second.bdx
+                                           && (d < min_d || not min_bdx.valid()))
+                                        {
+                                            auto fit = _data->_cache->blob_selected_fish.find(bdx);
+                                            if(fit != _data->_cache->blob_selected_fish.end()) {
+                                                min_fdx = fit->second;
+                                                min_d = d;
+                                                min_bdx = bdx;
+                                            }
                                         }
                                     }
                                 }

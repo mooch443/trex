@@ -383,7 +383,8 @@ namespace globals {
             return *_current_processed_frame;
         }
         
-        const grid::ProximityGrid& blob_grid();
+        const grid::ProximityGrid& blob_grid() const;
+        bool blob_grid_empty() const;
         
         GUICache(gui::DrawStructure*, std::shared_ptr<track::Tracker>, std::weak_ptr<pv::File>, std::shared_ptr<TimingStatsCollector> timing_stats = nullptr);
         ~GUICache();

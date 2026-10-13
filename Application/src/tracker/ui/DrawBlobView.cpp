@@ -1205,7 +1205,7 @@ void BlobView::clicked_background(DrawStructure& base, GUICache& cache, const Ve
     set_clicked_blob_id(pv::bid::invalid);
     
     bool is_bounds = GlobalSettings::get(key).is_type<std::vector<Bounds>>();
-    bool is_vec_of_vec = GlobalSettings::get(key).is_type<std::vector< std::vector<Vec2> >>();
+    bool is_vec_of_vec = GlobalSettings::get(key).is_type<ShapeList>();
     bool is_vectors = GlobalSettings::get(key).is_type<std::vector<Vec2>>();
     
     _selected_setting_type = is_vectors
@@ -1281,7 +1281,7 @@ void BlobView::clicked_background(DrawStructure& base, GUICache& cache, const Ve
             if(!_current_boundary.empty() && _current_boundary.back().size() >= 3) {
                 try {
                     GlobalSettings::write([&](Configuration& config) {
-                        auto array = config.values[key].value<std::vector<std::vector<Vec2>>>();
+                        auto array = config.values[key].value<ShapeList>();
 
                         // if textfield text has been modified, use that one rather than the actual setting value
                         auto tmp = Meta::toStr(array);

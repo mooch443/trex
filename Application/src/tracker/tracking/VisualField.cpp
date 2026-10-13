@@ -16,7 +16,7 @@ using Scalar64 = VisualField::Scalar64;
 static constexpr Scalar64 right_angle = RADIANS(90);
 
 CREATE_STRUCT(VFCache,
-    (std::vector<std::vector<Vec2>>, visual_field_shapes),
+    (ShapeList, visual_field_shapes),
     (Frame_t, gui_pose_smoothing),
     (track::PoseMidlineIndexes, pose_midline_indexes)
 );
@@ -460,7 +460,7 @@ void VisualField::calculate(const BasicStuff& basic, const PostureStuff* posture
                 //   head_distance = 1 - abs(i - T_i) / L_l
                 // else:
                 //   head_distance = 1 - abs(i - T_i) / L_r
-                hd = 1 - cmn::abs(Scalar64(i) - Scalar64(midline->tail_index())) / (((long_t)i > midline->tail_index() ? left_side : right_side) + 1);
+                hd = saturate(1 - cmn::abs(Scalar64(i) - Scalar64(midline->tail_index())) / (((long_t)i > midline->tail_index() ? left_side : right_side) + 1), 0_F, 1_F);
                 assert(hd >= 0 && hd <= 1);
                 hd *= 255;
                 

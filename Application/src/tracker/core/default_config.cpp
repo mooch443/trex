@@ -17,6 +17,7 @@
 #include <core/DetectAnnotation.h>
 #include <core/FrameTags.h>
 #include <misc/CommandLine.h>
+#include <core/TrackingSettings.h>
 
 #ifndef WIN32
 #include <unistd.h>
@@ -203,14 +204,14 @@ static void apply_whitelist(const Deprecation& obj, std::string_view val, sprite
     auto r = obj.replacement.value();
     
     if(values.size() == 4) {
-        map[r] = std::vector<std::vector<Vec2>>{
+        map[r] = track::ShapeList{{
             {
                 Vec2(values[0], values[1]),
                 Vec2(values[0] + values[2], values[1]),
                 Vec2(values[0] + values[2], values[1] + values[3]),
                 Vec2(values[0], values[1] + values[3])
             }
-        };
+        }};
         
     } else
         throw InvalidArgumentException("Invalid number of values while trying to correct ",val," deprecated parameter from ",obj.name," to ",r,".");
@@ -219,7 +220,7 @@ static void apply_whitelist(const Deprecation& obj, std::string_view val, sprite
 static void apply_whitelist_rects(const Deprecation& obj, std::string_view val, sprite::Map& map)
 {
     auto values = Meta::fromStr<std::vector<Bounds>>((std::string)val);
-    std::vector<std::vector<Vec2>> value;
+    track::ShapeList value;
     
     for(auto v : values) {
         value.push_back({
@@ -961,7 +962,10 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("blob_split_algorithm", blob_split_algorithm_t::threshold, "The default splitting algorithm used to split objects that are too close together.");
         
         CONFIG("output_visual_fields", false, "Export visual fields for all individuals upon saving.");
-        CONFIG("visual_field_shapes", std::vector<std::vector<Vec2>>{}, "A list of shapes that should be handled as view-blocking in visual field calculations.");
+        CONFIG("visual_field_shapes", ShapeList{}, "A list of shapes that should be handled as view-blocking in visual field calculations. Each shape is a list of `[x,y]` points in image pixels. For example, `[[[100,100],[200,100],[200,200],[100,200]],[[300,100],[400,100],[350,200]]]` defines a rectangle and a triangle. Keep the outer list even when specifying only one shape.", PUBLIC, {ShapeList{{
+            {Vec2(100,100), Vec2(200,100), Vec2(200,200), Vec2(100,200)},
+            {Vec2(300,100), Vec2(400,100), Vec2(350,200)}
+        }}});
         CONFIG("visual_field_eye_offset", float(0.15), "A percentage telling the program how much the eye positions are offset from the start of the midline.");
         CONFIG("visual_field_eye_separation", float(60), "Degrees of separation between the eye and looking straight ahead. Results in the eye looking towards head.angle +- `visual_field_eye_separation`.");
         CONFIG("visual_field_history_smoothing", uint8_t(0), "The maximum number of previous values (and look-back in frames) to take into account when smoothing visual field orientations. If greater than 0, visual fields will use smoothed previous eye positions to determine the optimal current eye position. This is usually only necessary when postures are somewhat noisy to a degree that makes visual fields unreliable.");
@@ -1191,8 +1195,14 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("manually_approved", std::map<long_t,long_t>(), "A list of ranges of manually approved frames that may be used for generating training datasets, e.g. `{232:233,5555:5560}` where each of the numbers is a frame number. Meaning that frames 232-233 and 5555-5560 are manually set to be manually checked for any identity switches, and individual identities can be assumed to be consistent throughout these frames.");
         CONFIG("gui_focus_group", std::vector<track::Idx_t>(), "Focus on this group of individuals.");
         
-        CONFIG("track_ignore", std::vector<std::vector<Vec2>>(), "If this is not empty, objects within the given rectangles or polygons (>= 3 points) `[[x0,y0],[x1,y1](, ...)], ...]` will be ignored during tracking.");
-        CONFIG("track_include", std::vector<std::vector<Vec2>>(), "If this is not empty, objects within the given rectangles or polygons (>= 3 points) `[[x0,y0],[x1,y1](, ...)], ...]` will be the only objects being tracked. (overwrites `track_ignore`)");
+        CONFIG("track_ignore", ShapeList{}, "If this is not empty, objects within the given rectangles or polygons (>= 3 points) `[[[x0,y0],[x1,y1], ...], ...]` will be ignored during tracking.", PUBLIC, {ShapeList{{
+            {Vec2(100,100), Vec2(200,100), Vec2(200,200), Vec2(100,200)},
+            {Vec2(300,100), Vec2(400,100), Vec2(350,200)}
+        }}});
+        CONFIG("track_include", ShapeList{}, "If this is not empty, objects within the given rectangles or polygons (>= 3 points) `[[[x0,y0],[x1,y1], ...], ...]` will be the only objects being tracked. (overwrites `track_ignore`)", PUBLIC, {ShapeList{{
+            {Vec2(100,100), Vec2(200,100), Vec2(200,200), Vec2(100,200)},
+            {Vec2(300,100), Vec2(400,100), Vec2(350,200)}
+        }}});
         
         CONFIG("tracklet_punish_timedelta", true, "If enabled, a huge timestamp difference will end the current trajectory tracklet and will be displayed as a reason in the tracklet overview at the top of the selected individual info card.");
         CONFIG("track_trusted_probability", 0.25_F, "If the (purely kinematic-based) probability that is used to assign an individual to an object is smaller than this value, the current tracklet ends and a new one starts. Even if the individual may still be assigned to the object, TRex will be *unsure* and no longer assume that it is definitely the same individual.");

@@ -89,6 +89,32 @@ struct PoseMidlineIndexes {
     }
 };
 
+class ShapeList {
+    std::vector<std::vector<Vec2>> _value;
+    
+public:
+    ShapeList() = default;
+    ShapeList(std::vector<std::vector<Vec2>>);
+    std::string toStr() const;
+    glz::json_t to_json() const;
+    
+    static ShapeList fromStr(cmn::StringLike auto&& str) {
+        return ShapeList(Meta::fromStr<std::vector<std::vector<Vec2>>>(str));
+    }
+    static consteval std::string_view class_name() { return "ShapeList"; }
+
+    bool operator==(const ShapeList&) const = default;
+    
+    void push_back(std::vector<Vec2>);
+    bool empty() const;
+    auto begin() const { return _value.begin(); }
+    auto end() const { return _value.end(); }
+    
+private:
+    void update_value(std::vector<std::vector<Vec2>>&&);
+    void fix_value(std::vector<Vec2>&);
+};
+
 //(std::vector<std::vector<Vec2>>, recognition_shapes),
 
 //! A global settings cache used across the application by
@@ -124,8 +150,8 @@ CREATE_STRUCT(Settings,
   (std::vector<Vec2>, grid_points),
   
   (float, grid_points_scaling),
-  (std::vector<std::vector<Vec2>>, track_ignore),
-  (std::vector<std::vector<Vec2>>, track_include),
+  (ShapeList, track_ignore),
+  (ShapeList, track_include),
   (bool, tracklet_punish_timedelta),
   (double, huge_timestamp_seconds),
   (mapproved_t, manually_approved),

@@ -18,6 +18,7 @@
 #include <gui/DynamicGUI.h>
 #include <core/idx_t.h>
 #include <core/VideoInfo.h>
+#include <core/TrackingSettings.h>
 #include <gui/dyn/UnresolvedStringPattern.h>
 #include <misc/Median.h>
 
@@ -131,6 +132,568 @@ static const auto recent_items_test = R"({"entries":[{"created":"172289835436505
 namespace cmn::gui::dyn {
 
 using namespace cmn::utils;
+
+constexpr auto merge_time_threshold = ParameterHistory::merge_time_threshold + std::chrono::milliseconds(1);
+
+TEST(GlobalSettingsTests, UnduOperation) {
+    /// reset history if any
+    GlobalSettings::write([](Configuration& config) {
+        GlobalSettings::reset();
+        config.history.reset();
+    });
+    
+    SETTING(test) = int(1);
+    
+    /// there is a timing where the values will go in the
+    /// same history item instead of a new one
+    std::this_thread::sleep_for(merge_time_threshold);
+    
+    SETTING(test) = int(123);
+    
+    GlobalSettings::read([](const Configuration& config) {
+        ASSERT_EQ(config.values.at("test").value<int>(), 123);
+    });
+    
+    GlobalSettings::write([](Configuration& config) {
+        ASSERT_EQ(config.history.size(), 1u);
+        EXPECT_EQ(config.undo(), std::make_optional(std::set<std::string>{"test"}));
+    });
+
+    GlobalSettings::read([](const Configuration& config) {
+        ASSERT_EQ(config.values.at("test").value<int>(), 1);
+    });
+}
+
+TEST(GlobalSettingsTests, HistoryCallbacksWaitForSettingsReaders) {
+    GlobalSettings::write([](Configuration& config) {
+        GlobalSettings::reset();
+        config.history.reset();
+        config.values["test"] = int(1);
+    });
+    auto value = GlobalSettings::get("test");
+    std::promise<void> started;
+    auto ready = started.get_future();
+    std::future<void> changed;
+
+    GlobalSettings::read([&](const Configuration&) {
+        changed = std::async(std::launch::async, [&] {
+            started.set_value();
+            value = int(2);
+        });
+        ready.wait();
+        EXPECT_EQ(changed.wait_for(std::chrono::milliseconds(100)), std::future_status::timeout);
+    });
+    changed.get();
+    EXPECT_EQ(value.value<int>(), 2);
+}
+
+TEST(GlobalSettingsTests, ComplexUnduOperation) {
+    /// reset history if any
+    GlobalSettings::write([](Configuration& config) {
+        GlobalSettings::reset();
+        config.history.reset();
+    });
+    
+    SETTING(test) = int(1);
+    SETTING(map) = std::map<int, std::string>{{123, "hi"}};
+    
+    /// there is a timing where the values will go in the
+    /// same history item instead of a new one
+    std::this_thread::sleep_for(merge_time_threshold);
+    
+    SETTING(test) = int(12);
+    SETTING(test) = int(1);
+    SETTING(test) = int(12345);
+    SETTING(map) = std::map<int, std::string>{{1,"hoi"}, {123, "hi i bims"}};
+    
+    GlobalSettings::read([](const Configuration& config) {
+        ASSERT_EQ(config.values.at("test").value<int>(), 12345);
+        ASSERT_EQ((config.values.at("map").value<std::map<int, std::string>>()), (std::map<int, std::string>{{1,"hoi"}, {123, "hi i bims"}}));
+    });
+    
+    GlobalSettings::write([](Configuration& config) {
+        config.history.print();
+        config.undo();
+        config.history.print();
+    });
+
+    GlobalSettings::read([](const Configuration& config) {
+        ASSERT_EQ(config.values.at("test").value<int>(), 1);
+        ASSERT_EQ((config.values.at("map").value<std::map<int, std::string>>()), (std::map<int, std::string>{{123, "hi"}}));
+    });
+    
+    /// ---- ANOTHER ROUND ----
+    /// there is a timing where the values will go in the
+    /// same history item instead of a new one
+    std::this_thread::sleep_for(merge_time_threshold);
+    
+    SETTING(test) = int(12);
+    SETTING(test) = int(1);
+    SETTING(test) = int(123);
+    SETTING(map) = std::map<int, std::string>{{1,"hoi"}, {123, "hi i bims"}};
+    
+    std::this_thread::sleep_for(merge_time_threshold);
+    
+    SETTING(test) = int(456);
+    SETTING(map) = std::map<int, std::string>{{1,"hoi"}, {3,"hoi"}, {123, "hi i bims"}};
+    
+    GlobalSettings::read([](const Configuration& config) {
+        ASSERT_EQ(config.values.at("test").value<int>(), 456);
+        ASSERT_EQ((config.values.at("map").value<std::map<int, std::string>>()), (std::map<int, std::string>{{1,"hoi"}, {3,"hoi"}, {123, "hi i bims"}}));
+    });
+    
+    GlobalSettings::write([](Configuration& config) {
+        config.undo();
+    });
+
+    GlobalSettings::read([](const Configuration& config) {
+        ASSERT_EQ(config.values.at("test").value<int>(), 123);
+        ASSERT_EQ((config.values.at("map").value<std::map<int, std::string>>()), (std::map<int, std::string>{{1,"hoi"}, {123, "hi i bims"}}));
+    });
+    
+    GlobalSettings::write([](Configuration& config) {
+        config.undo();
+    });
+    
+    GlobalSettings::read([](const Configuration& config) {
+        ASSERT_EQ(config.values.at("test").value<int>(), 1);
+        ASSERT_EQ((config.values.at("map").value<std::map<int, std::string>>()), (std::map<int, std::string>{{123, "hi"}}));
+    });
+}
+
+TEST(GlobalSettingsTests, DoesNotMaintainSystemVariables) {
+    /// reset history if any
+    GlobalSettings::write([](Configuration& config) {
+        GlobalSettings::reset();
+        config.history.reset();
+    });
+    
+    SETTING(test) = int(1);
+    
+    /// there is a timing where the values will go in the
+    /// same history item instead of a new one
+    std::this_thread::sleep_for(merge_time_threshold);
+    
+    SETTING(test) = int(1234);
+    GlobalSettings::read([](const Configuration& config) {
+        ASSERT_EQ(config.history.size(), 1);
+        ASSERT_EQ(config.history.historic_value_of("test")->value<int>(), 1);
+        
+        ASSERT_EQ(config.values.at("test").value<int>(), 1234);
+        ASSERT_EQ(config.history.last_value_of("test")->value<int>(), 1234);
+    });
+    
+    /// there is a timing where the values will go in the
+    /// same history item instead of a new one
+    std::this_thread::sleep_for(merge_time_threshold);
+    
+    GlobalSettings::write([](Configuration& config) {
+        config.values["test"] = int(2345);
+    });
+    
+    GlobalSettings::read([](const Configuration& config) {
+        ASSERT_EQ(config.history.size(), 2);
+        ASSERT_EQ(config.history.historic_value_of("test")->value<int>(), 1234);
+        
+        ASSERT_EQ(config.values.at("test").value<int>(), 2345);
+        ASSERT_EQ(config.history.last_value_of("test")->value<int>(), 2345);
+    });
+    
+    /// reset history if any
+    GlobalSettings::write([](Configuration& config) {
+        config.history.reset(AccessLevelType::LOAD);
+    });
+    
+    SETTING(system) = int(1);
+    SETTING(user) = int(2);
+    SETTING(load) = int(3);
+    SETTING(startup) = int(4);
+    GlobalSettings::set_access_level("system", AccessLevelType::SYSTEM);
+    GlobalSettings::set_access_level("user", AccessLevelType::PUBLIC);
+    GlobalSettings::set_access_level("load", AccessLevelType::LOAD);
+    GlobalSettings::set_access_level("startup", AccessLevelType::STARTUP);
+    
+    /// there is a timing where the values will go in the
+    /// same history item instead of a new one
+    std::this_thread::sleep_for(merge_time_threshold);
+    
+    SETTING(system) = int(0);
+    SETTING(user) = int(5);
+    SETTING(load) = int(10);
+    SETTING(startup) = int(15);
+    
+    GlobalSettings::read([](const Configuration& config) {
+        ASSERT_EQ(config.history.size(), 1);
+        ASSERT_EQ(config.history.historic_value_of("startup"), std::nullopt);
+        ASSERT_EQ(config.history.historic_value_of("system"), std::nullopt);
+        ASSERT_EQ(config.history.historic_value_of("user")->value<int>(), 2);
+        ASSERT_EQ(config.history.historic_value_of("load")->value<int>(), 3);
+    });
+}
+
+TEST(GlobalSettingsTests, RemovesHistorySimple) {
+    /// reset history if any
+    GlobalSettings::write([](Configuration& config) {
+        GlobalSettings::reset();
+        config.history.reset();
+    });
+    
+    GlobalSettings::read([](const Configuration& config) {
+        ASSERT_EQ(config.history.size(), 0u);
+        ASSERT_TRUE(config.history.empty());
+    });
+    
+    SETTING(test) = int(1);
+    
+    GlobalSettings::read([](const Configuration& config) {
+        ASSERT_EQ(config.history.size(), 0); // initial values are not history
+        ASSERT_TRUE(config.history.empty());
+        ASSERT_EQ(config.history.last_changed("test"), 0u);
+        ASSERT_EQ(config.history.historic_value_of("test"), std::nullopt);
+        ASSERT_EQ(config.history.last_value_of("test")->value<int>(), 1);
+        
+        ASSERT_EQ(config.values.at("test").value<int>(), 1);
+    });
+    
+    /// there is a timing where the values will go in the
+    /// same history item instead of a new one
+    std::this_thread::sleep_for(merge_time_threshold);
+    
+    SETTING(test) = int(1234);
+    
+    GlobalSettings::read([](const Configuration& config) {
+        ASSERT_EQ(config.history.size(), 1);
+        ASSERT_EQ(config.history.last_changed("test"), 0u);
+        ASSERT_EQ(config.history.historic_value_of("test")->value<int>(), 1);
+        ASSERT_EQ(config.history.last_value_of("test")->value<int>(), 1234);
+        
+        ASSERT_EQ(config.values.at("test").value<int>(), 1234);
+    });
+    
+    /// UNDO
+    GlobalSettings::write([](Configuration& config) {
+        config.history.print();
+        config.undo();
+        config.history.print();
+    });
+    ///
+    
+    GlobalSettings::read([](const Configuration& config) {
+        ASSERT_EQ(config.history.last_value_of("test")->value<int>(), 1);
+        ASSERT_EQ(config.values.at("test").value<int>(), 1);
+        ASSERT_EQ(config.history.size(), 0u);
+        ASSERT_TRUE(config.history.empty());
+    });
+    
+    /// REDO
+    /// 1 | 2 | 3
+    ///     ^
+    /// 1 | 2 | 3
+    ///         ^
+    GlobalSettings::write([](Configuration& config) {
+        config.history.print();
+        EXPECT_EQ(config.redo(), std::make_optional(std::set<std::string>{"test"}));
+        config.history.print();
+    });
+    ///
+    
+    GlobalSettings::read([](const Configuration& config) {
+        ASSERT_EQ(config.history.size(), 1u);
+        ASSERT_EQ(config.history.last_changed("test"), 0u);
+        ASSERT_EQ(config.history.historic_value_of("test")->value<int>(), 1);
+        ASSERT_EQ(config.history.last_value_of("test")->value<int>(), 1234);
+        
+        ASSERT_EQ(config.values.at("test").value<int>(), 1234);
+    });
+}
+
+TEST(GlobalSettingsTests, AddsInitialValuesAutomatically) {
+    /// reset history if any
+    GlobalSettings::write([](Configuration& config) {
+        GlobalSettings::reset();
+        config.history.reset();
+    });
+    
+    SETTING(test) = int(1);
+    
+    /// reset history if any
+    GlobalSettings::write([](Configuration& config) {
+        config.history.reset();
+    });
+    
+    SETTING(test) = int(1234);
+    
+    GlobalSettings::read([](const Configuration& config) {
+        ASSERT_EQ(config.history.size(), 1); // initial values are not history
+        ASSERT_EQ(config.history.last_changed("test"), 0u);
+        ASSERT_EQ(config.history.historic_value_of("test")->value<int>(), 1);
+        ASSERT_EQ(config.history.last_value_of("test")->value<int>(), 1234);
+        ASSERT_EQ(config.values.at("test").value<int>(), 1234);
+    });
+}
+
+TEST(GlobalSettingsTests, DoesNotCrashWithEmptyHistory) {
+    /// reset history if any
+    GlobalSettings::write([](Configuration& config) {
+        GlobalSettings::reset();
+        config.history.reset();
+    });
+    
+    GlobalSettings::read([](const Configuration& config) {
+        ASSERT_EQ(config.history.size(), 0u);
+        ASSERT_TRUE(config.history.empty());
+    });
+    
+    /// UNDO
+    GlobalSettings::write([](Configuration& config) {
+        config.history.print();
+        config.undo();
+        config.history.print();
+    });
+    ///
+    
+    SETTING(test) = int(1);
+    
+    GlobalSettings::read([](const Configuration& config) {
+        ASSERT_EQ(config.history.size(), 0); // initial values are not history
+        ASSERT_TRUE(config.history.empty());
+        ASSERT_EQ(config.history.last_changed("test"), 0u);
+        ASSERT_EQ(config.history.historic_value_of("test"), std::nullopt);
+        ASSERT_EQ(config.history.last_value_of("test")->value<int>(), 1);
+        
+        ASSERT_EQ(config.values.at("test").value<int>(), 1);
+    });
+    
+    /// there is a timing where the values will go in the
+    /// same history item instead of a new one
+    std::this_thread::sleep_for(merge_time_threshold);
+    
+    SETTING(test) = int(1234);
+    
+    GlobalSettings::read([](const Configuration& config) {
+        ASSERT_EQ(config.history.size(), 1);
+        ASSERT_EQ(config.history.last_changed("test"), 0u);
+        ASSERT_EQ(config.history.historic_value_of("test")->value<int>(), 1);
+        ASSERT_EQ(config.history.last_value_of("test")->value<int>(), 1234);
+        
+        ASSERT_EQ(config.values.at("test").value<int>(), 1234);
+    });
+    
+    /// UNDO
+    GlobalSettings::write([](Configuration& config) {
+        config.history.print();
+        config.undo();
+        config.undo();
+        config.undo();
+        config.history.print();
+    });
+    ///
+    
+    GlobalSettings::read([](const Configuration& config) {
+        ASSERT_EQ(config.history.last_value_of("test")->value<int>(), 1);
+        ASSERT_EQ(config.values.at("test").value<int>(), 1);
+        ASSERT_EQ(config.history.size(), 0u);
+        ASSERT_TRUE(config.history.empty());
+    });
+    
+    /// REDO
+    /// 1 | 2 | 3
+    ///     ^
+    /// 1 | 2 | 3
+    ///         ^
+    GlobalSettings::write([](Configuration& config) {
+        config.history.print();
+        config.redo();
+        config.history.print();
+    });
+    ///
+    
+    GlobalSettings::read([](const Configuration& config) {
+        ASSERT_EQ(config.history.size(), 1u);
+        ASSERT_EQ(config.history.last_changed("test"), 0u);
+        ASSERT_EQ(config.history.historic_value_of("test")->value<int>(), 1);
+        ASSERT_EQ(config.history.last_value_of("test")->value<int>(), 1234);
+        
+        ASSERT_EQ(config.values.at("test").value<int>(), 1234);
+    });
+}
+
+TEST(GlobalSettingsTests, RemovesHistory) {
+    /// reset history if any
+    GlobalSettings::write([](Configuration& config) {
+        GlobalSettings::reset();
+        config.history.reset();
+    });
+    
+    SETTING(test) = int(1);
+    
+    GlobalSettings::read([](const Configuration& config) {
+        ASSERT_EQ(config.history.size(), 0u);
+        ASSERT_TRUE(config.history.empty());
+    });
+    
+    /// there is a timing where the values will go in the
+    /// same history item instead of a new one
+    std::this_thread::sleep_for(merge_time_threshold);
+    SETTING(test) = int(1234);
+    
+    GlobalSettings::read([](const Configuration& config) {
+        ASSERT_EQ(config.history.size(), 1);
+        ASSERT_EQ(config.history.last_changed("test"), 0u);
+        ASSERT_EQ(config.history.historic_value_of("test")->value<int>(), 1);
+        
+        ASSERT_EQ(config.history.last_value_of("test")->value<int>(), 1234);
+        ASSERT_EQ(config.values.at("test").value<int>(), 1234);
+    });
+    
+    /// there is a timing where the values will go in the
+    /// same history item instead of a new one
+    std::this_thread::sleep_for(merge_time_threshold);
+    
+    GlobalSettings::write([](Configuration& config) {
+        config.values["test"] = int(2345);
+    });
+    
+    GlobalSettings::read([](const Configuration& config) {
+        ASSERT_EQ(config.history.size(), 2);
+        ASSERT_EQ(config.history.last_changed("test"), 0u);
+        ASSERT_EQ(config.history.historic_value_of("test")->value<int>(), 1234);
+        
+        ASSERT_EQ(config.history.last_value_of("test")->value<int>(), 2345);
+        ASSERT_EQ(config.values.at("test").value<int>(), 2345);
+    });
+    
+    GlobalSettings::write([](Configuration& config) {
+        config.history.clear();
+    });
+    
+    GlobalSettings::read([](const Configuration& config) {
+        ASSERT_EQ(config.history.size(), 0u);
+        ASSERT_TRUE(config.history.empty());
+        ASSERT_EQ(config.history.last_changed("test"), std::nullopt);
+        ASSERT_EQ(config.history.last_value_of("test"), std::nullopt);
+    });
+    
+    GlobalSettings::write([](Configuration& config) {
+        GlobalSettings::reset();
+    });
+    
+    /// initialize to 0
+    SETTING(test) = int(0); // this is history + 0
+    SETTING(unrelated) = std::string("init");
+    
+    /// add two history items for the same item and one unrelated
+    std::this_thread::sleep_for(merge_time_threshold);
+    GlobalSettings::write([](Configuration& config) {
+        config.values["test"] = int(2345); // this is history + 1
+    });
+    std::this_thread::sleep_for(merge_time_threshold);
+    GlobalSettings::write([](Configuration& config) {
+        config.values["test"] = int(456); // this will be the current
+    });
+    std::this_thread::sleep_for(merge_time_threshold);
+    GlobalSettings::write([](Configuration& config) {
+        config.values["unrelated"] = std::string("ups");
+    });
+    
+    GlobalSettings::read([](const Configuration& config) {
+        config.history.print();
+        ASSERT_EQ(config.history.size(), 3);
+        // history zero ago
+        ASSERT_EQ(config.history.last_changed("unrelated"), 0u);
+        ASSERT_EQ(config.history.historic_value_of("unrelated")->value<std::string>(), "init");
+        // history 1 ago
+        ASSERT_EQ(config.history.last_changed("test"), 1u);
+        ASSERT_EQ(config.history.historic_value_of("test")->value<int>(), 2345);
+        
+        // check current value
+        ASSERT_EQ(config.values.at("unrelated").value<std::string>(), "ups");
+        ASSERT_EQ(config.history.last_value_of("unrelated")->value<std::string>(), "ups");
+        ASSERT_EQ(config.values.at("test").value<int>(), 456);
+        ASSERT_EQ(config.history.last_value_of("test")->value<int>(), 456);
+    });
+    
+    GlobalSettings::write([](Configuration& config) {
+        config.history.print();
+        config.undo();
+        config.history.print();
+    });
+    
+    GlobalSettings::read([](const Configuration& config) {
+        ASSERT_EQ(config.history.size(), 2);
+        // history zero ago
+        ASSERT_EQ(config.history.last_changed("unrelated"), 2);
+        // history 1 ago
+        ASSERT_EQ(config.history.last_changed("test"), 0u);
+        ASSERT_EQ(config.history.historic_value_of("test")->value<int>(), 2345);
+        
+        // check current value
+        ASSERT_EQ(config.values.at("unrelated").value<std::string>(), "init");
+        ASSERT_EQ(config.values.at("test").value<int>(), 456);
+        ASSERT_EQ(config.history.last_value_of("test")->value<int>(), 456);
+    });
+    
+    GlobalSettings::write([](Configuration& config) {
+        config.redo();
+        config.history.print();
+    });
+    
+    GlobalSettings::read([](const Configuration& config) {
+        ASSERT_EQ(config.history.size(), 3);
+        // history zero ago
+        ASSERT_EQ(config.history.last_changed("unrelated"), 0u);
+        ASSERT_EQ(config.history.historic_value_of("unrelated")->value<std::string>(), "init");
+        // history 1 ago
+        ASSERT_EQ(config.history.last_changed("test"), 1u);
+        ASSERT_EQ(config.history.historic_value_of("test")->value<int>(), 2345);
+        
+        // check current value
+        ASSERT_EQ(config.values.at("unrelated").value<std::string>(), "ups");
+        ASSERT_EQ(config.values.at("test").value<int>(), 456);
+        ASSERT_EQ(config.history.last_value_of("test")->value<int>(), 456);
+        ASSERT_EQ(config.history.last_value_of("unrelated")->value<std::string>(), "ups");
+    });
+}
+
+TEST(GlobalSettingsTests, MaintainsHistory) {
+    /// reset history if any
+    GlobalSettings::write([](Configuration& config) {
+        GlobalSettings::reset();
+        config.history.reset();
+    });
+    
+    SETTING(test) = int(1);
+    
+    /// there is a timing where the values will go in the
+    /// same history item instead of a new one
+    std::this_thread::sleep_for(merge_time_threshold);
+    SETTING(test) = int(1234);
+    
+    GlobalSettings::read([](const Configuration& config) {
+        ASSERT_EQ(config.history.size(), 1);
+        ASSERT_EQ(config.history.historic_value_of("test")->value<int>(), 1);
+        
+        ASSERT_EQ(config.values.at("test").value<int>(), 1234);
+        ASSERT_EQ(config.history.last_value_of("test")->value<int>(), 1234);
+    });
+    
+    /// there is a timing where the values will go in the
+    /// same history item instead of a new one
+    std::this_thread::sleep_for(merge_time_threshold);
+    
+    GlobalSettings::write([](Configuration& config) {
+        config.values["test"] = int(2345);
+    });
+    
+    GlobalSettings::read([](const Configuration& config) {
+        ASSERT_EQ(config.history.size(), 2);
+        ASSERT_TRUE(config.history.last().values.has("test"));
+        ASSERT_EQ(config.history.historic_value_of("test")->value<int>(), 1234);
+        
+        ASSERT_EQ(config.values.at("test").value<int>(), 2345);
+        ASSERT_EQ(config.history.last_value_of("test")->value<int>(), 2345);
+    });
+}
 
 TEST(FastFromStrTest, EscapedQuoteIsRetained)
 {
@@ -1558,6 +2121,22 @@ TEST(JSONTest, TestSkeletonJSON) {
     
     auto json = SETTING(skeleton).to_json();
     ASSERT_EQ(Meta::fromStr<std::string>(glz::write_json(json).value()), SETTING(skeleton).valueString());
+}
+
+TEST(ShapeListTest, ParsesDocumentedExample) {
+    const auto shapes = Meta::fromStr<track::ShapeList>(
+        "[[[100,100],[200,100],[200,200],[100,200]],[[300,100],[400,100],[350,200]]]");
+    const std::vector<std::vector<Vec2>> actual(shapes.begin(), shapes.end());
+    const std::vector<std::vector<Vec2>> expected{
+        {Vec2(100,100), Vec2(200,100), Vec2(200,200), Vec2(100,200)},
+        {Vec2(300,100), Vec2(400,100), Vec2(350,200)}
+    };
+
+    ASSERT_EQ(actual.size(), expected.size());
+    for(size_t i = 0; i < expected.size(); ++i) {
+        EXPECT_TRUE(std::is_permutation(actual[i].begin(), actual[i].end(),
+                                       expected[i].begin(), expected[i].end()));
+    }
 }
 
 TEST(JSONTest, TestVec2JSON) {

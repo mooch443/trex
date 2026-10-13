@@ -6,6 +6,7 @@
 #include <core/SizeFilters.h>
 #include <processing/CPULabeling.h>
 #include <tracking/SplitExpectation.h>
+#include <core/TrackingSettings.h>
 
 namespace cmn {
 class Background;
@@ -77,8 +78,8 @@ public:
         std::ostream* out = nullptr,
         GenericThreadPool* pool = nullptr);
     
-    static bool blob_matches_shapes(const pv::Blob&, const std::vector<std::vector<Vec2>>&);
-    static bool rect_overlaps_shapes(const Bounds&, const std::vector<std::vector<Vec2>>&);
+    static bool blob_matches_shapes(const pv::Blob&, const ShapeList&);
+    static bool rect_overlaps_shapes(const Bounds&, const ShapeList&);
     static bool is_blob_ignored(Frame_t frame_index, const pv::Blob&, const std::optional<const std::set<pv::bid>*>& track_ignore_bdx_c);
 };
 

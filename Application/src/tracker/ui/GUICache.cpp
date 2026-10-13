@@ -373,10 +373,16 @@ void GUICache::request_frame_change_to([[maybe_unused]] Frame_t frame) {
     //_preloader.announce(frame);
 }
 
-const grid::ProximityGrid& GUICache::blob_grid() {
+const grid::ProximityGrid& GUICache::blob_grid() const {
     if(not _current_processed_frame)
         throw InvalidArgumentException("No preprocessed frame available.");
     return _current_processed_frame->blob_grid();
+}
+
+bool GUICache::blob_grid_empty() const {
+    if(not _current_processed_frame)
+        throw InvalidArgumentException("No preprocessed frame available.");
+    return _current_processed_frame->blob_grid_empty();
 }
 
 bool GUICache::something_important_changed(Frame_t frameIndex) const {

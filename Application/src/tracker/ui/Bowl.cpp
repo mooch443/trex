@@ -242,7 +242,7 @@ bool Bowl::Data::update_shapes() {
         _reduced_zoom_polygon = nullptr;
     }
     
-    auto visual_field_shapes = READ_SETTING(visual_field_shapes, std::vector<std::vector<Vec2>>);
+    auto visual_field_shapes = READ_SETTING(visual_field_shapes, ShapeList);
     if(!visual_field_shapes.empty())
     {
         auto keys = extract_keys(_vf_shapes);
