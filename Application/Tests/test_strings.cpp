@@ -324,8 +324,8 @@ TEST(GlobalSettingsTests, DoesNotMaintainSystemVariables) {
     
     GlobalSettings::read([](const Configuration& config) {
         ASSERT_EQ(config.history.size(), 1);
-        ASSERT_EQ(config.history.historic_value_of("startup"), std::nullopt);
-        ASSERT_EQ(config.history.historic_value_of("system"), std::nullopt);
+        ASSERT_FALSE(config.history.historic_value_of("startup").has_value());
+        ASSERT_FALSE(config.history.historic_value_of("system").has_value());
         ASSERT_EQ(config.history.historic_value_of("user")->value<int>(), 2);
         ASSERT_EQ(config.history.historic_value_of("load")->value<int>(), 3);
     });
@@ -349,7 +349,7 @@ TEST(GlobalSettingsTests, RemovesHistorySimple) {
         ASSERT_EQ(config.history.size(), 0); // initial values are not history
         ASSERT_TRUE(config.history.empty());
         ASSERT_EQ(config.history.last_changed("test"), 0u);
-        ASSERT_EQ(config.history.historic_value_of("test"), std::nullopt);
+        ASSERT_FALSE(config.history.historic_value_of("test").has_value());
         ASSERT_EQ(config.history.last_value_of("test")->value<int>(), 1);
         
         ASSERT_EQ(config.values.at("test").value<int>(), 1);
@@ -458,7 +458,7 @@ TEST(GlobalSettingsTests, DoesNotCrashWithEmptyHistory) {
         ASSERT_EQ(config.history.size(), 0); // initial values are not history
         ASSERT_TRUE(config.history.empty());
         ASSERT_EQ(config.history.last_changed("test"), 0u);
-        ASSERT_EQ(config.history.historic_value_of("test"), std::nullopt);
+        ASSERT_FALSE(config.history.historic_value_of("test").has_value());
         ASSERT_EQ(config.history.last_value_of("test")->value<int>(), 1);
         
         ASSERT_EQ(config.values.at("test").value<int>(), 1);
@@ -571,7 +571,7 @@ TEST(GlobalSettingsTests, RemovesHistory) {
         ASSERT_EQ(config.history.size(), 0u);
         ASSERT_TRUE(config.history.empty());
         ASSERT_EQ(config.history.last_changed("test"), std::nullopt);
-        ASSERT_EQ(config.history.last_value_of("test"), std::nullopt);
+        ASSERT_FALSE(config.history.last_value_of("test").has_value());
     });
     
     GlobalSettings::write([](Configuration& config) {
