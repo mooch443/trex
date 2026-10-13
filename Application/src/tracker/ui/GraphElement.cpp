@@ -8,6 +8,14 @@ using namespace dyn;
 struct GraphPoints {
     std::string name;
     std::variant<std::vector<Vec2>, std::string> pts;
+
+    struct glaze {
+        using T = GraphPoints;
+        static constexpr auto value = glz::object(
+            "name", &T::name,
+            "pts", &T::pts
+        );
+    };
     
     const std::vector<Vec2>& get_points() const {
         assert(not is_pattern());
@@ -27,7 +35,7 @@ struct GraphPoints {
         //out["name"] = glz::json_t(name);
         //out["pts"] = cvt2json(pts);
         
-        // Serialize this object to a JSON string first (leveraging the glz::meta below)
+        // Serialize this object to a JSON string using its explicit metadata.
         auto s = glz::write_json(*this);
         if (!s) {
             // Bubble up a helpful error if serialization fails
@@ -79,6 +87,16 @@ struct GraphLine {
     std::variant<std::vector<Vec2>, std::string> pts;
     std::optional<bool> extrapolate;
     std::optional<bool> display_points;
+
+    struct glaze {
+        using T = GraphLine;
+        static constexpr auto value = glz::object(
+            "name", &T::name,
+            "pts", &T::pts,
+            "extrapolate", &T::extrapolate,
+            "display_points", &T::display_points
+        );
+    };
     
     bool is_pattern() const {
         return std::holds_alternative<std::string>(pts);
@@ -98,7 +116,7 @@ struct GraphLine {
         //out["name"] = glz::json_t(name);
         //out["pts"] = cvt2json(pts);
         
-        // Serialize this object to a JSON string first (leveraging the glz::meta below)
+        // Serialize this object to a JSON string using its explicit metadata.
         auto s = glz::write_json(*this);
         if (!s) {
             // Bubble up a helpful error if serialization fails
@@ -360,23 +378,3 @@ bool GraphElement::_update(Layout::Ptr& o,
 }
 
 }
-
-
-
-template<>
-struct glz::meta<cmn::gui::GraphPoints> {
-  using T = cmn::gui::GraphPoints;
-  static constexpr auto value = glz::object(
-    "name", &T::name,
-    "pts", &T::pts
-  );
-};
-
-template<>
-struct glz::meta<cmn::gui::GraphLine> {
-  using T = cmn::gui::GraphLine;
-  static constexpr auto value = glz::object(
-    "name", &T::name,
-    "pts", &T::pts
-  );
-};
