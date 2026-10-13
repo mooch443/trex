@@ -608,6 +608,11 @@ const grid::ProximityGrid& PPFrame::blob_grid() {
     return _blob_grid;
 }
 
+bool PPFrame::blob_grid_empty() const {
+    std::scoped_lock guard(_blob_grid_mutex);
+    return _blob_grid.empty();
+}
+
 pv::BlobPtr PPFrame::_extract_from(std::vector<pv::BlobPtr>&& range, pv::bid bdx) {
     assert(bdx.valid());
     

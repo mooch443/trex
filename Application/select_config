@@ -50,7 +50,9 @@ def check_environment(profile: str, cache: dict[str, str]) -> Path:
         for variable, fallback in (("CC", "gcc"), ("CXX", "g++")):
             command = shlex.split(os.environ.get(variable) or fallback)
             tools.append(command[0])
-        tools.append("ninja" if cache.get("CMAKE_GENERATOR") == "Ninja" else "make")
+        generator = cache.get("CMAKE_GENERATOR") or os.environ.get("CMAKE_GENERATOR", "Unix Makefiles")
+        tools.append(cache.get("CMAKE_MAKE_PROGRAM") or
+                     ("ninja" if generator in ("Ninja", "Ninja Multi-Config") else "make"))
     for tool in tools:
         if not shutil.which(tool):
             errors.append(f"Required tool is missing from PATH: {tool}")
@@ -65,15 +67,19 @@ def check_environment(profile: str, cache: dict[str, str]) -> Path:
     packages = {}
     for path in (prefix / "conda-meta").glob("*.json"):
         package = json.loads(path.read_text())
-        packages[package["name"]] = package["version"]
-    required = {"ffmpeg": "ffmpeg<8", "icu": "icu"}
+        packages[package["name"]] = package
+    required = {"ffmpeg": "ffmpeg[version='>=3,<8',build='*lgpl*']", "icu": "icu"}
     if profile == "minimal":
-        required.update({"zlib": "zlib", "libpng": "libpng", "libzip": "libzip", "libopencv": "libopencv>=4,<5"})
+        required.update({"zlib": "zlib", "libpng": "libpng", "libzip": "libzip",
+                         "libopencv": "libopencv[version='>=4,<5',build='*headless*']"})
     missing.extend(spec for name, spec in required.items() if name not in packages)
-    if "ffmpeg" in packages and int(packages["ffmpeg"].split(".")[0]) >= 8:
-        missing.append("ffmpeg<8")
-    if profile == "minimal" and "libopencv" in packages and packages["libopencv"].split(".")[0] != "4":
-        missing.append("libopencv>=4,<5")
+    if "ffmpeg" in packages and (not 3 <= int(packages["ffmpeg"]["version"].split(".")[0]) < 8
+                                 or "lgpl" not in packages["ffmpeg"].get("build", "")):
+        missing.append(required["ffmpeg"])
+    if profile == "minimal" and "libopencv" in packages and (
+            packages["libopencv"]["version"].split(".")[0] != "4"
+            or "headless" not in packages["libopencv"].get("build", "")):
+        missing.append(required["libopencv"])
     if missing:
         errors.append("Install the required tools/dependencies in the active environment:\n  "
                       + shlex.join(["conda", "install", "-c", "conda-forge", *missing]))

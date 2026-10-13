@@ -1,32 +1,32 @@
 {
 "defaults": {
 "vars":{
-    "start":"{analysis_range.start}",
-    "end":"{-:{analysis_range.end}:1}",
-    "length":"{-:{global.video_length}:1}",
-    "width":"{-:{window_size.x}:20}",
-    "width23":"{-:{window_size.x}:22}",
+  "start":"{analysis_range.start}",
+  "end":"{-:{analysis_range.end}:1}",
+  "length":"{-:{global.video_length}:1}",
+  "width":"{-:{window_size.x}:20}",
+  "width23":"{-:{window_size.x}:22}",
 
-    "circles":"[○,◔,◑,◕,●]",
-    "animation":"<sym>{at:{mod:{time}:{array_length:{circles}}}:{circles}}</sym>",
+  "circles":"[○,◔,◑,◕,●]",
+  "animation":"<sym>{at:{mod:{time}:{array_length:{circles}}}:{circles}}</sym>",
 
-    "back_and_forth":"{abs:{-:{mod:{int:{*:{time}:100}}:510}:255}}",
-    "recording_symbol":"<small><sym>●</sym></small> ",
-    "recording_alpha":"{min:1.0:{+:0.1:{/:{back_and_forth}:255}}}",
+  "back_and_forth":"{abs:{-:{mod:{int:{*:{time}:100}}:510}:255}}",
+  "recording_symbol":"<small><sym>●</sym></small> ",
+  "recording_alpha":"{min:1.0:{+:0.1:{/:{back_and_forth}:255}}}",
 
-    "highlighted_frame":"{int:{max:0:{min:{length}:{*:{/:{-:{mouse.x}:10}:{-:{window_size.x}:22}}:{-:{global.video_length}:0.5}}}}}",
-    "locked_on":"{&&:{<:{{*:{/:{abs:{-:{highlighted_frame}:{global.gui_frame}}}:{length}}:{width23}}}:10}:{not:{key.lalt}}}",
-    "smart_highlighted":"{if:{locked_on}:{global.gui_frame}:{highlighted_frame}}",
+  "highlighted_frame":"{int:{max:0:{min:{length}:{*:{/:{-:{mouse.x}:10}:{-:{window_size.x}:22}}:{-:{global.video_length}:0.5}}}}}",
+  "locked_on":"{&&:{<:{{*:{/:{abs:{-:{highlighted_frame}:{global.gui_frame}}}:{length}}:{width23}}}:10}:{not:{key.lalt}}}",
+  "smart_highlighted":"{if:{locked_on}:{global.gui_frame}:{highlighted_frame}}",
 
-    "timeline_start":"[{+:10:{*:{/:{analysis_range.start}:{length}}:{width}}},-10]",
-    "current_pos":"[{+:11:{*:{/:{global.gui_frame}:{length}}:{width23}}},-9]",
+  "timeline_start":"[{+:10:{*:{/:{analysis_range.start}:{length}}:{width}}},-10]",
+  "current_pos":"[{+:11:{*:{/:{global.gui_frame}:{length}}:{width23}}},-9]",
 
-    "displayed_frame_valid": "{equal:{global.gui_frame}:{global.gui_displayed_frame}}",
-    "number_individuals":"{if:{is_tracked:{smart_highlighted}}:{.active_individuals:{smart_highlighted}}:''}",
+  "displayed_frame_valid": "{equal:{global.gui_frame}:{global.gui_displayed_frame}}",
+  "number_individuals":"{if:{is_tracked:{smart_highlighted}}:{.active_individuals:{smart_highlighted}}:''}",
 
-    "open_autoident_controls": "{&&:{global.gui_show_autoident_controls}:{primary_selection.bdx}}",
+  "open_autoident_controls": "{&&:{global.gui_show_autoident_controls}:{primary_selection.bdx}}",
 
-    "infocard_width": 215
+  "infocard_width": 215
 }
 },
 "objects": [
@@ -36,142 +36,142 @@
 "var":"{&&:{not:{equal:{global.gui_mode}:raw}}:{||:{global.gui_show_timeline}:{equal:{global.gui_mode}:annotate}}}",
 "then":
 {
-    "type": "each",
-    "var": "{detect_annotations}",
-    "do": {
+  "type": "each",
+  "var": "{detect_annotations}",
+  "do": {
+    "type":"collection",
+    "children":[
+
+      {
+        "type": "rect",
+        "line": [255,0,0,150],
+        "fill":[255,0,0, 20],
+        "pos":"{addVector:[-25,-25]:{2hud:[{i.x},{i.y}]}}",
+        "size":"{addSize:[50,50]:{size2hud:[{i.w},{i.h}]}}",
+        "corners":["all", 8]
+      },
+
+      /* draggable area over the whole annotation for easy dragging */
+      {
         "type":"collection",
+        "pos":"{addVector:[-25,-25]:{2hud:[{i.x},{i.y}]}}",
+        "size":"{addSize:[50,50]:{size2hud:[{i.w},{i.h}]}}",
+        "line": [255,0,0,100],
+        "fill":[255,0,0, 10],
+        "corners":["all", 8],
+        "modules":["draggable"],
+        "drag":"move_whole_detect_annotation:{i.id}",
         "children":[
-
-            {
-                "type": "rect",
-                "line": [255,0,0,150],
-                "fill":[255,0,0, 20],
-                "pos":"{addVector:[-25,-25]:{2hud:[{i.x},{i.y}]}}",
-                "size":"{addSize:[50,50]:{size2hud:[{i.w},{i.h}]}}",
-                "corners":["all", 8]
-            },
-
-            /* draggable area over the whole annotation for easy dragging */
-            {
-                "type":"collection",
-                "pos":"{addVector:[-25,-25]:{2hud:[{i.x},{i.y}]}}",
-                "size":"{addSize:[50,50]:{size2hud:[{i.w},{i.h}]}}",
-                "line": [255,0,0,100],
-                "fill":[255,0,0, 10],
-                "corners":["all", 8],
-                "modules":["draggable"],
-                "drag":"move_whole_detect_annotation:{i.id}",
-                "children":[
-                    {
-                        "type":"condition",
-                        "var":"{in:{i.type}:[0,1,2,3,4]}",
-                        "then": {
-                            "type":"each",
-                            "var":"{i.pts}",
-                            "as":"j",
-                            "do": {
-                                "type":"condition",
-                                "var":"{||:{>:{j.x}:0}:{>:{j.y}:0}}",
-                                "then": {
-                                    "type":"circle",
-                                    "radius":5,
-                                    "pos":"{addVector:{subVector:{2hud:[{j.x},{j.y}]}:{2hud:[{i.x},{i.y}]}}:[25,25]}",
-                                    "origin":[0.5,0.5],
-                                    "fill": [255,255,255,50],
-                                    "color":[255,255,255,50]
-                                }
-                            }
-                        }
-                    }
-                ]
-            },
-
-            {
+          {
+            "type":"condition",
+            "var":"{in:{i.type}:[0,1,2,3,4]}",
+            "then": {
+              "type":"each",
+              "var":"{i.pts}",
+              "as":"j",
+              "do": {
                 "type":"condition",
-                "var":"{equal:{i.type}:0}",
+                "var":"{||:{>:{j.x}:0}:{>:{j.y}:0}}",
                 "then": {
-                    "type":"rect",
-                    "line": [255,255,255,150],
-                    "pos":"{2hud:[{i.x},{i.y}]}",
-                    "size":"{size2hud:[{i.w},{i.h}]}",
-                    "corners":["none", 8]
+                  "type":"circle",
+                  "radius":5,
+                  "pos":"{addVector:{subVector:{2hud:[{j.x},{j.y}]}:{2hud:[{i.x},{i.y}]}}:[25,25]}",
+                  "origin":[0.5,0.5],
+                  "fill": [255,255,255,50],
+                  "color":[255,255,255,50]
                 }
-            },
-
-            {
-                "type":"condition",
-                "var":"{&&:{i.pts}:{in:{i.type}:[1,2,3,4]}}",
-                "then": {
-                    "type":"line",
-                    "closed":true,
-                    "points":"{vec2hud:{i.pts}}",
-                    "line":[255,0,0,255]
-                }
-            },
-
-            {
-                "type":"condition",
-                "var":"{in:{i.type}:[0,1,2,3,4]}",
-                "then": {
-                    "type":"each",
-                    "var":"{i.pts}",
-                    "as":"j",
-                    "do": {
-                        "type":"condition",
-                        "var":"{||:{>:{j.x}:0}:{>:{j.y}:0}}",
-                        "then": {
-                        "type":"collection",
-                        "children":[
-                            {
-                                "type":"circle",
-                                "radius":8,
-                                "modules":["draggable"],
-                                "pos":"{2hud:[{j.x},{j.y}]}",
-                                "origin":[0.5,0.5],
-                                "fill": [255,255,255,125],
-                                "line":"{if:{||:{selected}:{hovered}}:[25,25,25,200]:[100,100,100,150]}",
-                                "color":[255,255,255,255],
-                                "drag":"move_detect_annotation:{i.id}:{index}"
-                            },
-                            {
-                                "type":"stext",
-                                "text":"{index}",
-                                "pos":"{2hud:[{j.x},{j.y}]}",
-                                "origin":[0.5,0.5],
-                                "color":[50,50,50,255],
-                                "font":{"size":0.5,"align":"center"}
-                            }
-                        ]
-                        }
-                    }
-                }
-            },
-
-            {
-                "type":"label",
-                "text":"<sym>🖰</sym> {i.clid} <c>{if:{equal:{i.type}:1}:POSE:{if:{equal:{i.type}:0}:BOX:{if:{equal:{i.type}:2}:MASK:{if:{equal:{i.type}:3}:OBB:{if:{equal:{i.type}:4}:POINT:UNKNOWN}}}}}</c> <c>[{int:{i.x}},{int:{i.y}} {int:{i.w}}x{int:{i.h}}]</c> {+:{i.x}:{*:0.5:{i.w}}},{+:{i.y}:{*:0.5:{i.h}}}",
-                "length":120,
-                "color":[255,0,0],
-                "font":{"size":0.6},
-                "line":[255,0,0,100],
-                "center":"{2hud:[{+:{i.x}:{*:0.5:{i.w}}},{+:{i.y}:{*:0.0:{i.h}}}]}"
-            },
-
-            {
-                "type":"button",
-                "action":"remove_detect_annotation:{i.id}",
-                "text":"<sym>⮿</sym>",
-                "size":[25,30],
-                "corners":["all", 18],
-                "origin":[0.5,0.5],
-                "color":"{if:{||:{selected}:{hovered}}:[255,255,255,255]:[255,125,125,150]}",
-                "font":{"size":1.2,"align":"center"},
-                "pos":"{addVector:[15,-15]:{2hud:{addVector:[{i.w},0]:[{i.x},{i.y}]}}}",
-                "fill":[1,0,0,0],
-                "line":[1,0,0,0]
+              }
             }
+          }
         ]
-    }
+      },
+
+      {
+        "type":"condition",
+        "var":"{equal:{i.type}:0}",
+        "then": {
+          "type":"rect",
+          "line": [255,255,255,150],
+          "pos":"{2hud:[{i.x},{i.y}]}",
+          "size":"{size2hud:[{i.w},{i.h}]}",
+          "corners":["none", 8]
+        }
+      },
+
+      {
+        "type":"condition",
+        "var":"{&&:{i.pts}:{in:{i.type}:[2,3,4]}}",
+        "then": {
+          "type":"line",
+          "closed":true,
+          "points":"{vec2hud:{i.pts}}",
+          "line":[255,0,0,255]
+        }
+      },
+
+      {
+        "type":"condition",
+        "var":"{in:{i.type}:[0,1,2,3,4]}",
+        "then": {
+          "type":"each",
+          "var":"{i.pts}",
+          "as":"j",
+          "do": {
+            "type":"condition",
+            "var":"{||:{>:{j.x}:0}:{>:{j.y}:0}}",
+            "then": {
+            "type":"collection",
+            "children":[
+              {
+                "type":"circle",
+                "radius":8,
+                "modules":["draggable"],
+                "pos":"{2hud:[{j.x},{j.y}]}",
+                "origin":[0.5,0.5],
+                "fill": [255,255,255,125],
+                "line":"{if:{||:{selected}:{hovered}}:[25,25,25,200]:[100,100,100,150]}",
+                "color":[255,255,255,255],
+                "drag":"move_detect_annotation:{i.id}:{index}"
+              },
+              {
+                "type":"stext",
+                "text":"{index}",
+                "pos":"{2hud:[{j.x},{j.y}]}",
+                "origin":[0.5,0.5],
+                "color":[50,50,50,255],
+                "font":{"size":0.5,"align":"center"}
+              }
+            ]
+            }
+          }
+        }
+      },
+
+      {
+        "type":"label",
+        "text":"<sym>🖰</sym> {i.clid} <c>{if:{equal:{i.type}:1}:POSE:{if:{equal:{i.type}:0}:BOX:{if:{equal:{i.type}:2}:MASK:{if:{equal:{i.type}:3}:OBB:{if:{equal:{i.type}:4}:POINT:UNKNOWN}}}}}</c> <c>[{int:{i.x}},{int:{i.y}} {int:{i.w}}x{int:{i.h}}]</c> {+:{i.x}:{*:0.5:{i.w}}},{+:{i.y}:{*:0.5:{i.h}}}",
+        "length":120,
+        "color":[255,0,0],
+        "font":{"size":0.6},
+        "line":[255,0,0,100],
+        "center":"{2hud:[{+:{i.x}:{*:0.5:{i.w}}},{+:{i.y}:{*:0.0:{i.h}}}]}"
+      },
+
+      {
+        "type":"button",
+        "action":"remove_detect_annotation:{i.id}",
+        "text":"<sym>⮿</sym>",
+        "size":[25,30],
+        "corners":["all", 18],
+        "origin":[0.5,0.5],
+        "color":"{if:{||:{selected}:{hovered}}:[255,255,255,255]:[255,125,125,150]}",
+        "font":{"size":1.2,"align":"center"},
+        "pos":"{addVector:[15,-15]:{2hud:{addVector:[{i.w},0]:[{i.x},{i.y}]}}}",
+        "fill":[1,0,0,0],
+        "line":[1,0,0,0]
+      }
+    ]
+  }
 }
 },
 
@@ -179,1391 +179,1391 @@
 "type":"condition",
 "var":"{global.gui_show_timeline}",
 "then":{
-    "type":"collection",
-    "children":[
-        {
+  "type":"collection",
+  "children":[
+    {
+      "type":"condition",
+      "var":"{key.lshift}",
+      "then":{
+        "type":"rect",
+        "line":[0,225,125,255],
+        "size":"{window_size}"
+      }
+    },
+
+    {
+      "type": "each",
+      "var": "{detect_annotations}",
+      "as":"a",
+      "do": {
+        "type":"condition",
+        "var":"{&&:{equal:{a.type}:1}:{global.detect_skeleton}:{contains:{a.clid}:{global.detect_classes}}:{contains:{at:{a.clid}:{global.detect_classes}}:{global.detect_skeleton}}}",
+        "then":{
+          "type":"each",
+          "var":"{at:{at:{a.clid}:{global.detect_classes}}:{global.detect_skeleton}}",
+          "do":  {
             "type":"condition",
-            "var":"{key.lshift}",
+            "var":"{&&:{nequal:{i}:null}:{<:{at:0:{i}}:{array_length:{a.pts}}}:{<:{at:1:{i}}:{array_length:{a.pts}}}:{||:{>:{at:0:{at:{at:0:{i}}:{a.pts}}}:0}:{>:{at:1:{at:{at:0:{i}}:{a.pts}}}:0}}:{||:{>:{at:0:{at:{at:1:{i}}:{a.pts}}}:0}:{>:{at:1:{at:{at:1:{i}}:{a.pts}}}:0}}}",
             "then":{
-                "type":"rect",
-                "line":[0,225,125,255],
-                "size":"{window_size}"
+              "type":"line",
+              "from":"{2hud:{at:{at:0:{i}}:{a.pts}}}",
+              "to":"{2hud:{at:{at:1:{i}}:{a.pts}}}",
+              "line":[255,0,255,150],
+              "thickness":3
             }
-        },
+          }
+        }
+      }
+    },
 
-        {
-            "type": "each",
-            "var": "{detect_annotations}",
-            "as":"a",
-            "do": {
-                "type":"condition",
-                "var":"{&&:{equal:{a.type}:1}:{global.detect_skeleton}:{contains:{a.clid}:{global.detect_classes}}:{contains:{at:{a.clid}:{global.detect_classes}}:{global.detect_skeleton}}}",
-                "then":{
-                    "type":"each",
-                    "var":"{at:{at:{a.clid}:{global.detect_classes}}:{global.detect_skeleton}}",
-                    "do":  {
-                        "type":"condition",
-                        "var":"{&&:{nequal:{i}:null}:{<:{at:0:{i}}:{array_length:{a.pts}}}:{<:{at:1:{i}}:{array_length:{a.pts}}}:{||:{>:{at:0:{at:{at:0:{i}}:{a.pts}}}:0}:{>:{at:1:{at:{at:0:{i}}:{a.pts}}}:0}}:{||:{>:{at:0:{at:{at:1:{i}}:{a.pts}}}:0}:{>:{at:1:{at:{at:1:{i}}:{a.pts}}}:0}}}",
-                        "then":{
-                            "type":"line",
-                            "from":"{2hud:{at:{at:0:{i}}:{a.pts}}}",
-                            "to":"{2hud:{at:{at:1:{i}}:{a.pts}}}",
-                            "line":[255,0,255,150],
-                            "thickness":3
-                        }
-                    }
-                }
-            }
-        },
+    {
+      "type":"condition",
+      "var":"{global.gui_show_number_individuals}",
+      "then":{
+        "type":"graph",
+        "size":[800,300],
+        "xrange":"[0,{global.video_length}]",
+        "yrange":"[0,{+:0:100}]",
+        "center":"{global.gui_frame}",
+        "draggable":true,
+        "lines": [ {
+          "name": "mouse_line",
+          "extrapolate": false,
+          "display_points": false,
+          "pts": "{num_individuals}"
+        }]
+      }
+    },
 
-        {
-            "type":"condition",
-            "var":"{global.gui_show_number_individuals}",
-            "then":{
-                "type":"graph",
-                "size":[800,300],
-                "xrange":"[0,{global.video_length}]",
-                "yrange":"[0,{+:0:100}]",
-                "center":"{global.gui_frame}",
-                "draggable":true,
-                "lines": [ {
-                    "name": "mouse_line",
-                    "extrapolate": false,
-                    "display_points": false,
-                    "pts": "{num_individuals}"
-                }]
-            }
-        },
+    {
+      "type":"condition",
+      "var":"{&&:{bool:{drag_box}}:{equal:{global.detect_format}:boxes}}",
+      "then":{
+        "type":"rect",
+        "pos":"{2hud:[{drag_box.x},{drag_box.y}]}",
+        "size":"{size2hud:[{drag_box.w},{drag_box.h}]}",
+        "line":[255,0,0,255],
+        "fill":[1,1,1,0],
+        "corners":["all", 8]
+      }
+    },
 
-        {
-            "type":"condition",
-            "var":"{&&:{bool:{drag_box}}:{equal:{global.detect_format}:boxes}}",
-            "then":{
-                "type":"rect",
-                "pos":"{2hud:[{drag_box.x},{drag_box.y}]}",
-                "size":"{size2hud:[{drag_box.w},{drag_box.h}]}",
-                "line":[255,0,0,255],
-                "fill":[1,1,1,0],
-                "corners":["all", 8]
-            }
-        },
+    {
+      "type":"condition",
+      "var":"{equal:{global.gui_mode}:annotate}",
+      "then":{
+        "type":"vlayout",
+        "pos":[10,90],
+        "fill":[30,30,30,220],
+        "outer_pad":[10,0,10,0],
+        "pad":[0,5,0,5],
+        "clickable":true,
+        "name":"info_box",
+        "children":[
+          {
+            "type":"stext",
+            "text":"<c><h4>annotation mode</h4></c>",
+            "pad":[5,15,5,0],
+            "font":{"size":0.6}
+          },
 
-        {
-            "type":"condition",
-            "var":"{equal:{global.gui_mode}:annotate}",
-            "then":{
-                "type":"vlayout",
-                "pos":[10,90],
-                "fill":[30,30,30,220],
-                "outer_pad":[10,0,10,0],
-                "pad":[0,5,0,5],
-                "clickable":true,
-                "name":"info_box",
-                "children":[
-                    {
-                        "type":"stext",
-                        "text":"<c><h4>annotation mode</h4></c>",
-                        "pad":[5,15,5,0],
-                        "font":{"size":0.6}
-                    },
-
-                    {
-                        "type":"gridlayout",
-                        "outer_pad":[5,15,5,10],
-                        "pad":[0,0,0,10],
-                        "children":[
-                            [
-                                {
-                                    "type":"stext",
-                                    "text":"<c>tag frame <nr>{global.gui_displayed_frame}</nr></c>\n<gray>tags can be converted to frame-level annotations or used as simple markers for you or collaborators</gray>",
-                                    "font":{"size":0.5},
-                                    "max_size":"[{-:{infocard_width}:0}, -1]"
-                                }
-                            ],
-                            [
-                                {
-                                    "type": "taglist",
-                                    "var": "current_frame_tags",
-                                    "catalog": "{unique_frame_tags}",
-                                    "add_action": "add_tag",
-                                    "remove_action": "remove_tag",
-                                    "allow_new": true,
-                                    "match_threshold": 1.0,
-                                    "max_size": "[{infocard_width},200]",
-                                    "outer_pad":[0,0,0,0],
-                                    "pad": [0,0,4,4],
-                                    "clickable": true,
-                                    "item": {
-                                        "pad": [6,4],
-                                        "corners": [8]
-                                    },
-                                    "input": {
-                                        "size": [213, 28],
-                                        "list_size": [220, 180],
-                                        "placeholder": "Add tag...",
-                                        "fill": [50, 50, 50, 200],
-                                        "color": [225, 225, 225, 255]
-                                    }
-                                }
-                            ],
-                            [
-                                 {
-                                    "type":"stext",
-                                    "text":"<c><gray>detect_format</gray></c>\nhere you can choose to annotate boxes, keypoints, or bounding boxes",
-                                    "font":{"size":0.5},
-                                    "max_size":"[{-:{infocard_width}:0}, 0]"
-                                }
-                            ],
-                            [
-                                {
-                                    "type":"settings",
-                                    "var":"detect_format",
-                                    "desc":"",
-                                    "list":{
-                                        "font":{"size":0.5}
-                                    },
-                                    "label":{
-                                        "corners":["all"],
-                                        "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
-                                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
-                                        "font":{"size":0.5}
-                                    },
-                                    "pad":[0,0,-1,-1],
-                                    "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
-                                    "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
-                                    "size":[205,30]
-                                }
-                            ],
-
-                            [
-                                 {
-                                    "type":"stext",
-                                    "text":"<c><gray>detect_classes</gray></c>\nwhich classes do you want to annotate?",
-                                    "font":{"size":0.5},
-                                    "max_size":"[{-:{infocard_width}:0}, 0]"
-                                }
-                            ],
-                            [
-                                {
-                                    "type":"settings",
-                                    "var":"detect_classes",
-                                    "desc":"",
-                                    "list":{
-                                        "font":{"size":0.5}
-                                    },
-                                    "label":{
-                                        "corners":["all"],
-                                        "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
-                                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
-                                        "font":{"size":0.5}
-                                    },
-                                    "pad":[0,0,-1,-1],
-                                    "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
-                                    "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
-                                    "size":[205,30]
-                                }
-                            ],
-
-                            [
-                                 {
-                                    "type":"stext",
-                                    "text":"<c><gray>detect_skeleton</gray></c>\njust for visualization, not used for tracking",
-                                    "font":{"size":0.5},
-                                    "max_size":"[{-:{infocard_width}:0}, 0]"
-                                }
-                            ],
-                            [
-                                {
-                                    "type":"settings",
-                                    "var":"detect_skeleton",
-                                    "desc":"",
-                                    "list":{
-                                        "font":{"size":0.5}
-                                    },
-                                    "label":{
-                                        "corners":["all"],
-                                        "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
-                                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
-                                        "font":{"size":0.5}
-                                    },
-                                    "pad":[0,0,-1,-1],
-                                    "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
-                                    "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
-                                    "size":[205,30]
-                                }
-                            ]
-                        ]
-                    }
-                ]
-            }
-        },
-
-        {
-            "type":"condition",
-            "var":"{&&:{global.gui_show_infocard}:{global.gui_focus_group}:{not:{equal:{global.gui_mode}:annotate}}}",
-            "then":{
-                "type":"vlayout",
-                "pos":[10,90],
-                "fill":[30,30,30,220],
-                "line":"{primary_selection.color}",
-                "outer_pad":[10,0,10,0],
-                "pad":[0,5,0,5],
-                "clickable":true,
-                "name":"info_box",
-                "children": [
-					{
-						"type":"collection",
-						"children":[
-							{
-								"type":"stext",
-								"text":"<c><h4>{global.individual_prefix}_{at:0:{global.gui_focus_group}}</h4>{if:{primary_selection.bdx}:: <gray>(hidden)</gray>}</c>",
-								"pad":[5,15,5,0],
-								"font":{"size":0.6}
-							},
-							{
-								"type":"button",
-                                "pos":"[{-:{infocard_width}:26},8]",
-								"text":"<sym>🗙</sym>",
-								"fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
-								"line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
-								"action":"set:gui_focus_group:[]",
-								"font":{"size":0.5},
-								"size":[25,25]
-							}
-						]
-					},
-                    {
-                        "type":"drawsegments",
-                        "fdx":"{at:0:{global.gui_focus_group}}",
-                        "font":{"size":0.55,"style":"mono"},
-                        "pad":[5,0,0,0],
-                        "max_size":"[{+:10:{infocard_width}},0]"
-                    },
-                    {
-                        "type":"condition",
-                        "var":"{primary_selection.category}",
-                        "then":{
-                            "type":"vlayout",
-                            "pad":[5,0,0,-1],
-                            "children":[
-                                {
-                                    "type":"stext",
-                                    "text":"<c><white>categorization</white></c>",
-                                    "fill":[150,150,150,100],
-                                    "pad":[5,5,5,5],
-                                    "font":{"size":0.45}
-                                },
-                                {
-                                    "type":"hlayout",
-                                    "fill":[25,25,25,100],
-                                    "pad":[0,0,0,5],
-                                    "line":[150,150,150,150],
-                                    "children":[
-                                        {
-                                            "type":"stext",
-                                            "text":"<c><gray>tracklet[</gray><nr>{shorten:{primary_selection.avg_category}:3}</nr><gray>]</gray></c>",
-                                            "pad":[5,5,5,5],
-                                            "font":{"size":0.45}
-                                        },
-                                        {
-                                            "type":"stext",
-                                            "text":"<c><gray>frame[</gray>{shorten:{primary_selection.category}:3}<gray>]</gray></c>",
-                                            "pad":[5,5,5,5],
-                                            "font":{"size":0.45}
-                                        }
-                                    ]
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        "type":"vlayout",
-                        "corners":"{if:{open_autoident_controls}:[\"all\"]:[\"top\"]}",
-                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
-                        "children":[
-                            {
-                                "type":"button",
-                                "corners":["top"],
-                                "text":"<c>tracklet controls</c> {if:{global.gui_show_autoident_controls}:<sym>△</sym>:<sym>▼</sym>}",
-                                "fill":"{if:{open_autoident_controls}:[20,{if:{primary_selection.is_automatic}:50:20},20,200]:[20,{if:{primary_selection.is_automatic}:50:20},20,200]}",
-                                "line1":"{if:{open_autoident_controls}:[100,100,100,50]:{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}}",
-                                "color":[225,225,225],
-                                "font":{"size":0.55},
-                                "size":"[{infocard_width},30]",
-                                "checked":"{open_autoident_controls}",
-                                "action":"set:gui_show_autoident_controls:{not:{global.gui_show_autoident_controls}}"
-                            },
-                            {
-                                "type":"condition",
-                                "var":"{open_autoident_controls}",
-                                "then":
-                                {
-                                    "type":"condition",
-                                    "var":"{primary_selection.is_automatic}",
-                                    "then": {
-                                        "type":"vlayout",
-                                        "outer_pad":[5,0,5,5],
-                                        "max_size":"[{infocard_width},0]",
-                                        "fill":"{if:{||:{selected}:{hovered}}:[20,50,20,200]:[20,50,20,200]}",
-                                        "children":[
-                                            {
-                                                "type":"stext",
-                                                "text":"<c><gray>tracklet was force-assigned by\nvisual identification <sym>⮧</sym></gray></c>",
-                                                "pad":[5,5,5,5],
-                                                "font":{"size":0.45}
-                                            },
-                                            {
-                                                "type":"button",
-                                                "text":"<sym>🗘</sym> un-force entire tracklet",
-                                                "action":"remove_automatic_matches:{primary_selection.fdx}:{primary_selection.tracklet}",
-                                                "font":{"size":0.5},
-                                                "size":[205,25],
-                                                "fill":"{if:{||:{selected}:{hovered}}:[20,20,20,200]:[10,10,10,200]}",
-                                                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
-                                                "color":"{if:{||:{selected}:{hovered}}:[225,225,225,255]:[200,200,200,255]}"
-                                            },
-                                            {
-                                                "type":"button",
-                                                "text":"<sym>⇰</sym> un-force from here",
-                                                "action":"remove_automatic_matches:{primary_selection.fdx}:[{global.gui_frame},{at:1:{primary_selection.tracklet}}]",
-                                                "font":{"size":0.5},
-                                                "size":[205,25],
-                                                "fill":"{if:{||:{selected}:{hovered}}:[20,20,20,200]:[10,10,10,200]}",
-                                                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
-                                                "color":"{if:{||:{selected}:{hovered}}:[225,225,225,255]:[200,200,200,255]}"
-                                            },
-                                            {
-                                                "type":"button",
-                                                "text":"<sym>\u2716</sym> un-force only this frame",
-                                                "action":"remove_automatic_matches:{primary_selection.fdx}:{global.gui_frame}",
-                                                "font":{"size":0.5},
-                                                "size":[205,25],
-                                                "fill":"{if:{||:{selected}:{hovered}}:[20,20,20,200]:[10,10,10,200]}",
-                                                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
-                                                "color":"{if:{||:{selected}:{hovered}}:[225,225,225,255]:[200,200,200,255]}"
-                                            }
-                                        ]
-                                    },
-                                    "else": {
-                                        "type":"vlayout",
-                                        "outer_pad":[5,0,5,5],
-                                        "max_size":"[{infocard_width},0]",
-                                        "corners":["bottom"],
-                                        "clickable":true,
-                                        "fill":"{if:{||:{selected}:{hovered}}:[20,20,20,200]:[20,20,20,200]}",
-                                        "children":[
-                                            {
-                                                "type":"stext",
-                                                "text":"<c><gray>raw objects <sym>⮧</sym></gray></c>",
-                                                "pad":[5,5,5,5],
-                                                "font":{"size":0.45}
-                                            },
-                                            {
-                                                "type":"button",
-                                                "text":"<sym>🗘</sym> ignore all from tracklet",
-                                                "action":"ignore_bdxes:{primary_selection.fdx}:{at:0:{primary_selection.tracklet}}:{at:1:{primary_selection.tracklet}}",
-                                                "font":{"size":0.5},
-                                                "size":[205,25],
-                                                "fill":"{if:{||:{selected}:{hovered}}:[20,20,20,200]:[10,10,10,200]}",
-                                                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
-                                                "color":"{if:{||:{selected}:{hovered}}:[225,225,225,255]:[200,200,200,255]}"
-                                            },
-                                            {
-                                                "type":"button",
-                                                "text":"<sym>⇰</sym> ignore from here",
-                                                "action":"ignore_bdxes:{primary_selection.fdx}:{global.gui_frame},{at:1:{primary_selection.tracklet}}",
-                                                "font":{"size":0.5},
-                                                "size":[205,25],
-                                                "fill":"{if:{||:{selected}:{hovered}}:[20,20,20,200]:[10,10,10,200]}",
-                                                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
-                                                "color":"{if:{||:{selected}:{hovered}}:[225,225,225,255]:[200,200,200,255]}"
-                                            },
-                                            {
-                                                "type":"button",
-                                                "text":"<sym>\u2716</sym> ignore <c>bdx[<gray>{primary_selection.bdx}</gray>]</c>",
-                                                "action":"ignore_bdxes:{primary_selection.fdx}:{global.gui_frame}:{global.gui_frame}",
-                                                "font":{"size":0.5},
-                                                "size":[205,25],
-                                                "fill":"{if:{||:{selected}:{hovered}}:[20,20,20,200]:[10,10,10,200]}",
-                                                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
-                                                "color":"{if:{||:{selected}:{hovered}}:[225,225,225,255]:[200,200,200,255]}"
-                                            }
-                                        ]
-                                    }
-                                }
-                            }
-                        ]
-                    },
-
-                    {
-                        "type":"vlayout",
-                        "pad":[0,0,0,5],
-                        "children":[
-                            {
-                                "type":"vlayout",
-                                "corners":"{if:{global.gui_show_misc_metrics}:[\"all\"]:[\"top\"]}",
-                                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
-                                "children":[
-                                    {
-                                        "type":"button",
-                                        "corners":["top"],
-                                        "text":"{if:{global.gui_show_misc_metrics}:<c>some metrics </c> <sym>△</sym>:<c>some metrics </c> <sym>▼</sym>}",
-                                        "fill":"{if:{global.gui_show_misc_metrics}:[10,10,10,50]:[40,40,40,50]}",
-                                        "line":"{if:{global.gui_show_misc_metrics}:[100,100,100,50]:{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}}",
-                                        "color":[225,225,225],
-                                        "font":{"size":0.55},
-                                        "size":"[{infocard_width},30]",
-                                        "checked":"{global.gui_show_misc_metrics}",
-                                        "action":"set:gui_show_misc_metrics:{not:{global.gui_show_misc_metrics}}"
-                                    },
-                                    
-                                    {
-                                        "type":"condition",
-                                        "var": "{&&:{global.gui_show_misc_metrics}:{bool:{primary_selection.bdx}}}",
-                                        "then":
-                                        {
-                                            "type": "gridlayout",
-                                            "clickable":true,
-                                            "name":"infos",
-                                            "vertical_clr":[0,0,0,30],
-                                            "horizontal_clr":[10,50,80,80],
-                                            "halign":"left",
-                                            "outer_pad":[5,0,0,5],
-                                            "children": [
-                                                [
-                                                    {
-                                                        "type":"collection",
-                                                        "children":[
-                                                            {
-                                                                "type": "stext",
-                                                                "max_size": "[{*:0.3:{infocard_width}},300]",
-                                                                "pad":[5,5,5,5],
-                                                                "font": {"size": 0.5},
-                                                                "text": "{if:{hovered:infos}:<c>[<b>Size</b>]</c>:''}"
-                                                            }
-                                                        ]
-                                                    },
-                                                    {
-                                                        "type":"collection",
-                                                        "children":[
-                                                            {
-                                                                "type":"stext",
-                                                                "font": {"size": 0.5},
-                                                                "max_size": "[{*:0.65:{infocard_width}}, 300]",
-                                                                "pad":[5,5,5,5],
-                                                                "text":"<c><cyan>{primary_selection.size}</cyan><gray>cm²/px²</gray></c>"
-                                                            }
-                                                        ]
-                                                    }
-                                                ],
-                                                [
-                                                    {
-                                                        "type": "stext",
-                                                        "max_size": "[{*:0.3:{infocard_width}}, 300]",
-                                                        "pad":[5,5,5,5],
-                                                        "font": {"size": 0.5},
-                                                        "text": "{if:{hovered:infos}:<c>[<b>Pixels</b>]</c>:''}"
-                                                    },
-                                                    {
-                                                        "type":"stext",
-                                                        "font": {"size": 0.5},
-                                                        "max_size": "[{*:0.65:{infocard_width}}, 300]",
-                                                        "pad":[5,5,5,5],
-                                                        "text":"<c><cyan>{primary_selection.px}</cyan><gray>px</gray></c>"
-                                                    }
-                                                ],
-                                                [
-                                                    {
-                                                        "type": "stext",
-                                                        "max_size": "[{*:0.3:{infocard_width}}, 300]",
-                                                        "pad":[5,5,5,5],
-                                                        "font": {"size": 0.5},
-                                                        "text": "{if:{hovered:infos}:<c>[<b>Speed</b>]</c>:''}"
-                                                    },
-                                                    {
-                                                        "type":"stext",
-                                                        "font": {"size": 0.5},
-                                                        "max_size": "[{*:0.65:{infocard_width}}, 300]",
-                                                        "pad":[5,5,5,5],
-                                                        "text":"<c><cyan>{round:{primary_selection.speed}:3}</cyan><gray>cm/s</gray></c>"
-                                                    }
-                                                ],
-                                                [
-                                                    {
-                                                        "type": "stext",
-                                                        "max_size": "[{*:0.3:{infocard_width}}, 300]",
-                                                        "pad":[5,5,5,5],
-                                                        "font": {"size": 0.5},
-                                                        "text": "{if:{hovered:infos}:<c>[<b>NearN</b>]</c>:''}"
-                                                    },
-                                                    {
-                                                        "type":"stext",
-                                                        "font": {"size": 0.5},
-                                                        "max_size": "[{*:0.65:{infocard_width}}, 300]",
-                                                        "pad":[5,5,5,5],
-                                                        "text":"<c>{if:{primary_selection.has_neighbor}:'<lightgray>{global.individual_prefix}_{primary_selection.nearest_neighbor}</lightgray> (<cyan>{round:{primary_selection.nearest_neighbor_distance}:3}</cyan>cm)':'<gray>[no neighbors]</gray>'}</c>"
-                                                    }
-                                                ]
-                                            ]
-                                        }
-                                    }
-                                ]
-                            },
-
-                            {
-                                "type":"vlayout",
-                                "pad":[0,0,0,-1],
-                                "corners":"{if:{global.gui_show_individual_preview}:[\"all\"]:[\"top\"]}",
-                                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
-                                "children":[
-                                    {
-                                        "type":"button",
-                                        "corners":["top"],
-                                        "text":"<c>image settings</c> {if:{global.gui_show_individual_preview}:<sym>△</sym>:<sym>▼</sym>}",
-                                        "fill":"{if:{global.gui_show_individual_preview}:[10,10,10,50]:[40,40,40,50]}",
-                                        "line":"{if:{global.gui_show_individual_preview}:[100,100,100,50]:{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}}",
-                                        "color":[225,225,225],
-                                        "font":{"size":0.55},
-                                        "size":"[{infocard_width},30]",
-                                        "checked":"{global.gui_show_individual_preview}",
-                                        "action":"set:gui_show_individual_preview:{not:{global.gui_show_individual_preview}}"
-                                    },
-                                    
-                                    {
-                                        "type":"condition",
-                                        "var": "{&&:{global.gui_show_individual_preview}:{bool:{primary_selection.bdx}}}",
-                                        "then":
-                                        {
-                                            "type":"vlayout",
-                                            "children":[
-                                                {
-                                                    "type":"preview",
-                                                    "fdx":"{primary_selection.fdx}",
-                                                    "clickable":true,
-                                                    "corners":["none"],
-                                                    "fill":"{if:{||:{selected}:{hovered}}:[20,20,20,200]:[10,10,10,200]}",
-                                                    "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,175,200,50]}",
-                                                    "scale":"{divVector:[{infocard_width},{infocard_width}]:{global.individual_image_size}}"
-                                                },
-                                                {
-                                                    "type":"stext",
-                                                    "text":"<c><gray>used for visual ident / tracklets</gray></c>",
-                                                    "pad":[5,2,5,0],
-                                                    "font":{"size":0.4}
-                                                },
-                                                {
-                                                    "type":"rect",
-                                                    "size":[0,5]
-                                                }
-                                            ]
-                                        }
-                                    },
-                                    {
-                                        "type":"condition",
-                                        "var": "{global.gui_show_individual_preview}",
-                                        "then":{
-                                            "type":"vlayout",
-                                            "pad":[0,0,0,0],
-                                            "children":[
-                                                {
-                                                    "type":"gridlayout",
-                                                    "pad":[0,0,0,-1],
-                                                    "children":[
-                                                        [
-                                                            {
-                                                                "type":"settings",
-                                                                "corners":["topleft",0],
-                                                                "pad":[0,0,-1,-1],
-                                                                "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
-                                                                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
-                                                                "size":"[{*:0.5:{infocard_width}}, 30]",
-                                                                "var":"individual_image_size",
-                                                                "font":{"size":0.5},
-                                                                "desc":""
-                                                            },
-                                                            {
-                                                                "type":"settings",
-                                                                "corners":["topright",0],
-                                                                "pad":[-1,0,0,-1],
-                                                                "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
-                                                                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
-                                                                "size":"[{+:1:{*:0.5:{infocard_width}}}, 30]",
-                                                                "var":"individual_image_scale",
-                                                                "font":{"size":0.5},
-                                                                "desc":""
-                                                            }
-                                                        ],
-                                                        [
-                                                            {
-                                                                "type":"settings",
-                                                                "pad":[0,0,-1,-1],
-                                                                "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
-                                                                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
-                                                                "size":"[{*:0.5:{infocard_width}}, 30]",
-                                                                "list":{
-                                                                    "font":{"size":0.5}
-                                                                }, 
-                                                                "label":{
-                                                                    "corners":["bottomleft",0],
-                                                                    "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
-                                                                    "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
-                                                                    "font":{"size":0.5}
-                                                                },
-                                                                "var":"individual_image_normalization",
-                                                                "font":{"size":0.5},
-                                                                "desc":""
-                                                            },
-                                                            {
-                                                                "type":"settings",
-                                                                "pad":[-1,0,0,-1],
-                                                                "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
-                                                                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
-                                                                "size":"[{+:1:{*:0.5:{infocard_width}}}, 30]",
-                                                                "list":{
-                                                                    "font":{"size":0.5}
-                                                                },
-                                                                "label":{
-                                                                "corners":["bottomright",0],
-                                                                    "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
-                                                                    "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
-                                                                    "font":{"size":0.5}
-                                                                },
-                                                                "var":"meta_encoding",
-                                                                "font":{"size":0.5},
-                                                                "desc":""
-                                                            }
-                                                        ]
-                                                    ]
-                                                },
-                                                {
-                                                    "type":"button",
-                                                    "corners":["bottom"],
-                                                    "text":"<sym>🖵</sym> {if:{global.track_background_subtraction}:Subtract Background:<gray>Subtract Background</gray>}",
-                                                    "action":"set:track_background_subtraction:{not:{global.track_background_subtraction}}",
-                                                    "checked":"{global.track_background_subtraction}",
-                                                    "fill":"{if:{global.track_background_subtraction}:[10,10,10,220]:[40,40,40,220]}",
-                                                    "line":[100,100,100,100],
-                                                    "color":[225,225,225],
-                                                    "font":{"size":0.5},
-                                                    "size":"[{infocard_width}, 30]"
-                                                }
-                                            ]
-                                        }
-                                    }
-                                ]
-                            },
-
-                            {
-                                "type":"vlayout",
-                                "pad":[0,0,0,0],
-                                "corners":"{if:{global.gui_show_matching_info}:[\"all\"]:[\"top\"]}",
-                                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
-                                "children":[
-                                    {
-                                        "type":"button",
-                                        "corners":["top"],
-                                        "text":"{if:{global.gui_show_matching_info}:<c>matching info</c> <sym>△</sym>:<c>matching info</c> <sym>▼</sym>}",
-                                        "fill":"{if:{global.gui_show_matching_info}:[10,10,10,50]:[40,40,40,50]}",
-                                        "line":"{if:{global.gui_show_matching_info}:[100,100,100,50]:{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}}",
-                                        "color":[225,225,225],
-                                        "name":"matching_info",
-                                        "font":{"size":0.55},
-                                        "size":"[{infocard_width},30]",
-                                        "checked":"{global.gui_show_matching_info}",
-                                        "action":"set:gui_show_matching_info:{not:{global.gui_show_matching_info}}"
-                                    },
-                                    {
-                                        "type":"condition",
-                                        "var":"{global.gui_show_matching_info}",
-                                        "then": {
-                                            "type":"condition",
-                                            "var":"{primary_selection.ps}",
-                                            "else":{
-                                                "type":"stext",
-                                                "pad":[0,5,0,10],
-                                                "font":{"size":0.5,"style":"mono"},
-                                                "text":" <gray><sym>⮩</sym></gray> <c><gray>[empty]</gray></c>"
-                                            },
-                                            "then": {
-                                                "type":"vlayout",
-                                                "outer_pad":[5,3,0,3],
-                                                "pad":[0,0,0,5],
-                                                "children":[
-                                                    {
-                                                        "type":"each",
-                                                        "var":"{primary_selection.ps}",
-                                                        "do":{
-                                                            "type":"stext",
-                                                            "font":{"size":0.5,"style":"mono"},
-                                                            "max_size":"[{infocard_width}, 0]",
-                                                            "text":" {if:{equal:{index}:0}:<gray><sym>⮩</sym></gray> :'<small>   </small>'}{if:{>=:{index}:{global.match_topk}}:<gray>:''}bdx[<lightgray>{round:{at:0:{i}}:2}</lightgray>]: <cyan>{round:{at:1:{i}}:2}</cyan>{if:{global.gui_show_detailed_probabilities}:' t=<cyan>{round:{at:2:{i}}:2}</cyan>':''}{if:{>=:{index}:{global.match_topk}}:</gray>:''}"
-                                                        }
-                                                    }
-                                                ]
-                                            }
-                                        }
-                                    }
-                                ]
-                            }
-                        ]
-                    }
-                ]
-            }
-        },
-
-        {
-            "type":"hlayout",
-            "z-index":0,
-            "pad":[5,0,0,0],
-            "outer_pad":[0,0,0,0],
-            "pos":"[{-:{window_size.x}:10},6]",
-            "origin":[1,0],
+          {
+            "type":"gridlayout",
+            "outer_pad":[5,15,5,10],
+            "pad":[0,0,0,10],
             "children":[
-                
+              [
                 {
-                    "type":"hlayout",
-                    "pad":[-1,0,-1,0],
-                    "line":[255,255,255,50],
-                    "fill":[1,0,0,0],
-                    "children":[
-                        {
-                            "type":"button",
-                            "corners":["left"],
-                            "text":"<sym>⭍</sym> Track",
-                            "font":{"size":0.6},
-                            "fill":"{if:{equal:{global.gui_mode}:tracking}:[10,10,10,220]:[40,40,40,220]}",
-                            "color":"{if:{equal:{global.gui_mode}:tracking}:[100,100,100,220]:[250,250,250,220]}",
-                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
-                            "size":[75,30],
-                            "action":"set:gui_mode:tracking"
-                        },
-
-                        {
-                            "type":"button",
-                            "corners":["none"],
-                            "text":"<sym>🖰</sym> Annotate",
-                            "font":{"size":0.6},
-                            "fill":"{if:{equal:{global.gui_mode}:annotate}:[10,10,10,220]:[40,40,40,220]}",
-                            "color":"{if:{equal:{global.gui_mode}:annotate}:[100,100,100,220]:[250,250,250,220]}",
-                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
-                            "size":[95,30],
-                            "action":"set:gui_mode:annotate"
-                        },
-                        
-                        {
-                            "type":"button",
-                            "corners":["right"],
-                            "text":"<sym>🎞</sym> Raw",
-                            "font":{"size":0.6},
-                            "fill":"{if:{equal:{global.gui_mode}:raw}:[10,10,10,220]:[40,40,40,220]}",
-                            "color":"{if:{equal:{global.gui_mode}:raw}:[100,100,100,220]:[250,250,250,220]}",
-                            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
-                            "size":[65,30],
-                            "action":"set:gui_mode:raw"
-                        }
-                    ]
-                },
-
-                {
-                    "type":"button",
-                    "text":"<sym>🗘</sym>",
-                    "font":{"size":0.6},
-                    "size":[30,30],
-                    "action":"reanalyse:0",
-                    "fill":[40,40,40,220],
-                    "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
-                    "color":[250,250,250,200]
-                },
-
-                { 
-                    "type":"hlayout",
-                    "children":[
-                        {
-                            "type":"list",
-                            "size":[90,30],
-                            "clickable":true,
-                            "list":{
-                                "size":"[200,{-:{window_size.y}:50}]",
-                                "fill":[25,25,25,220],
-                                "line":[120,120,120,220]
-                            },
-                            "label":{
-                                "fill":[40,40,40,220],
-                                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
-                                "font":{"size":0.6},
-                                "text":" <sym>🖵</sym> FOIs",
-                                "corners":["left"]
-                            },
-                            "item":{
-                                "color":[60,60,60,100],
-                                "pad":[8,0],
-                                "font":{"size":0.6,"align":"vcenter"}
-                            },
-                            "corners":["bottom","topleft"],
-                            "foldable":true,
-                            "folded":true,
-                            "var":"{concat:[\"uniqueness\"]:{global.gui_foi_types}}",
-                            "template":{
-                                "text":"{if:{equal:{global.gui_foi_name}:{i}}:'<sym>☑</sym> ':'<sym>☐</sym> '}{i}",
-                                "disabled":"{if:{equal:{global.gui_foi_name}:{i}}:true:false}",
-                                "action":"set:gui_foi_name:{i}"
-                            }
-                        },
-
-                        {
-                            "type":"list",
-                            "size":[90,30],
-                            "clickable":true,
-                            "list":{
-                                "size":"[200,{-:{window_size.y}:50}]",
-                                "fill":[25,25,25,220],
-                                "line":[120,120,120,220]
-                            },
-                            "label":{
-                                "fill":[40,40,40,220],
-                                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
-                                "font":{"size":0.6},
-                                "text":" <sym>🖵</sym> Display",
-                                "corners":["none"]
-                            },
-                            "item":{
-                                "color":[60,60,60,100],
-                                "pad":[8,0],
-                                "font":{"size":0.6,"align":"vcenter"}
-                            },
-                            "detail":{
-                                "color":[150,150,150,255],
-                                "font":{"size":0.5,"align":"left"}
-                            },
-                            "foldable":true,
-                            "folded":true,
-                            "corners":["bottom","topleft"],
-                            "items": [
-    {
-        "text": "<{if:{global.gui_show_selections}:white:gray}><sym>◯</sym> Selection Circles</{if:{global.gui_show_selections}:white:gray}>",
-        "detail": "<small>Individual hover / selection effects</small>",
-        "action": "set:gui_show_selections:{not:{global.gui_show_selections}}"
-    },
-    {
-        "text": "<{if:{global.gui_show_centroid}:white:gray}><sym>⌖</sym> Centroids</{if:{global.gui_show_centroid}:white:gray}>",
-        "action": "set:gui_show_centroid:{not:{global.gui_show_centroid}}"
-    },
-    {
-        "text": "<{if:{global.gui_show_texts}:white:gray}><sym>🏷</sym> Text Labels</{if:{global.gui_show_texts}:white:gray}>",
-        "action": "set:gui_show_texts:{not:{global.gui_show_texts}}"
-    },
-    {
-        "text": "<{if:{global.gui_show_paths}:white:gray}><sym>⮩</sym> Trajectories</{if:{global.gui_show_paths}:white:gray}>",
-        "action": "set:gui_show_paths:{not:{global.gui_show_paths}}"
-    },
-    {
-        "text": "<{if:{global.gui_show_skeletons}:white:gray}><sym>☠</sym> Skeletons</{if:{global.gui_show_skeletons}:white:gray}>",
-        "action": "set:gui_show_skeletons:{not:{global.gui_show_skeletons}}"
-    },
-    {
-        "text": "<{if:{global.gui_show_blobs}:white:gray}><sym>🖼</sym> Blob Images</{if:{global.gui_show_blobs}:white:gray}>",
-        "action": "set:gui_show_blobs:{not:{global.gui_show_blobs}}"
-    },
-    {
-        "text": "<{if:{global.gui_show_midline}:white:gray}><sym>⚊</sym> Midline</{if:{global.gui_show_midline}:white:gray}>",
-        "action": "set:gui_show_midline:{not:{global.gui_show_midline}}"
-    },
-    {
-        "text": "<{if:{global.gui_show_outline}:white:gray}><sym>⬡</sym> Outline</{if:{global.gui_show_outline}:white:gray}>",
-        "action": "set:gui_show_outline:{not:{global.gui_show_outline}}"
-    },
-    {
-        "text": "<{if:{global.gui_show_visualfield}:white:gray}><sym>👁</sym> Visual Field</{if:{global.gui_show_visualfield}:white:gray}>",
-        "action": "set:gui_show_visualfield:{not:{global.gui_show_visualfield}}"
-    },
-    {
-        "text": "<{if:{global.gui_show_video_background}:white:gray}><sym>🎞</sym> Video Background</{if:{global.gui_show_video_background}:white:gray}>",
-        "detail": "<small>Display the original video background</small>",
-        "action": "set:gui_show_video_background:{not:{global.gui_show_video_background}}"
-    },
-    {
-        "text": "<{if:{global.gui_show_probabilities}:white:gray}><sym>📊</sym> Probability Distribution</{if:{global.gui_show_probabilities}:white:gray}>",
-        "action": "set:gui_show_probabilities:{not:{global.gui_show_probabilities}}"
-    },
-    {
-        "text": "<{if:{global.gui_highlight_categories}:white:gray}><sym>👽</sym> Categorization</{if:{global.gui_highlight_categories}:white:gray}>",
-        "action": "set:gui_highlight_categories:{not:{global.gui_highlight_categories}}"
-    },
-    {
-        "text": "<{if:{global.gui_show_uniqueness}:white:gray}><sym>🎭</sym> Uniqueness (VI)</{if:{global.gui_show_uniqueness}:white:gray}>",
-        "detail": "<small>(VI needs to be loaded)</small>",
-        "action": "set:gui_show_uniqueness:{not:{global.gui_show_uniqueness}}"
-    },
-    {
-        "text": "<{if:{global.gui_show_heatmap}:white:gray}><sym>🌡</sym> Heatmap</{if:{global.gui_show_heatmap}:white:gray}>",
-        "action": "set:gui_show_heatmap:{not:{global.gui_show_heatmap}}"
-    },
-    {
-        "text": "<{if:{global.gui_show_posture}:white:gray}><sym>🐟</sym> Posture Preview</{if:{global.gui_show_posture}:white:gray}>",
-        "action": "set:gui_show_posture:{not:{global.gui_show_posture}}"
-    },
-    {
-        "text": "<{if:{global.gui_auto_scale_focus_one}:white:gray}><sym>🔍</sym> Zoom on Selection</{if:{global.gui_auto_scale_focus_one}:white:gray}>",
-        "detail": "<small>Zoom in on selected individuals</small>",
-        "action": "set:gui_auto_scale_focus_one:{not:{global.gui_auto_scale_focus_one}}"
-    },
-    {
-        "text": "<{if:{global.gui_show_dataset}:white:gray}><sym>🗃</sym> Dataset information</{if:{global.gui_show_dataset}:white:gray}>",
-        "action": "set:gui_show_dataset:{not:{global.gui_show_dataset}}"
-    },
-    {
-        "text": "<{if:{global.gui_show_boundary_crossings}:white:gray}><sym>⭾</sym> Boundary Crossings</{if:{global.gui_show_boundary_crossings}:white:gray}>",
-        "action": "set:gui_show_boundary_crossings:{not:{global.gui_show_boundary_crossings}}"
-    }
-]
-
-                        },
-                        { 
-                            "type":"list",
-                            "size":[75,30],
-                            "list":{
-                                "size":"[250,{-:{window_size.y}:50}]",
-                                "fill":[25,25,25,220],
-                                "line":[120,120,120,220]
-                            },
-                            "label":{
-                                "fill":[40,40,40,220],
-                                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
-                                "font":{"size":0.6},
-                                "text":" <sym>☰</sym> Menu",
-                                "corners":["right"]
-                            },
-                            "item":{
-                                "pad":[10,6],
-                                "font":{"size":0.6},
-                                "color":[60,60,60,100]
-                            },
-                            "detail":{
-                                "color":[150,150,150,255],
-                                "font":{"size":0.5}
-                            },
-                            "foldable":true,
-                            "folded":true,
-                            "items":[
-                                {
-                                    "text":"<sym>📤</sym> Load state",
-                                    "detail":"loads existing .results file",
-                                    "action":"load_results"
-                                },
-                                {
-                                    "text":"<sym>📥</sym> Save state",
-                                    "detail":"save current state to a .results file",
-                                    "action":"save_results"
-                                },
-                                {
-                                    "text":"<sym>🖫</sym> Export data",
-                                    "detail":"exports tracking data",
-                                    "action":"export_data"
-                                },
-                                {
-                                    "text":"<sym>🛠</sym> Save config",
-                                    "detail":"writes parameters to a .settings file",
-                                    "action":"write_config"
-                                },
-                                {
-                                    "text":"<sym>📤</sym> Export annotations",
-                                    "detail":"exports YOLO/COCO datasets",
-                                    "action":"export_annotations"
-                                },
-                                {
-                                    "text":"<sym>📥</sym> Import detect annotations",
-                                    "detail":"imports YOLO or COCO datasets",
-                                    "action":"import_detect_annotations"
-                                },
-                                {
-                                    "text":"<sym>🎭</sym> Train visual identification (VI)",
-                                    "detail":"learn differences between individuals",
-                                    "action":"visual_identification",
-                                    "disabled":"{if:{||:{is_checking_tracklet_identities}:{vi_busy}}:true:false}"
-                                },
-                                {
-                                    "text":"<sym>👽</sym> Clear VI predictions",
-                                    "detail":"clears all existing VI predictions",
-                                    "action":"clear_ml",
-                                    "disabled":"{if:{||:{is_checking_tracklet_identities}:{vi_busy}}:true:false}"
-                                },
-                                {
-                                    "text":"<sym>👽</sym> Categorize",
-                                    "detail":"differentiate types of individuals",
-                                    "action":"categorize",
-                                    "disabled":"{if:{||:{is_checking_tracklet_identities}:{vi_busy}}:true:false}"
-                                },
-                                {
-                                    "text":"<sym>🢤</sym> Close file",
-                                    "detail":"go back to the starting screen",
-                                    "action":"change_scene:'starting-scene'",
-                                    "disabled":false
-                                },
-                                {
-                                    "text":"<sym>⏻</sym> Quit",
-                                    "detail":"exits the application",
-                                    "action":"quit"
-                                }
-                            ]
-                        }
-                    ]
+                  "type":"stext",
+                  "text":"<c>tag frame <nr>{global.gui_displayed_frame}</nr></c>\n<gray>tags can be converted to frame-level annotations or used as simple markers for you or collaborators</gray>",
+                  "font":{"size":0.5},
+                  "max_size":"[{-:{infocard_width}:0}, -1]"
                 }
-            ]
-        },
-
-        {
-            "type":"condition",
-            "var":"{hovered:info_symbol}",
-            "then":{
-                "type":"hlayout",
-                "pos":"{mulVector:{window_size}:0.5}",
-                "origin":[0.5,0.5],
-                "fill": [25,25,25,200],
-                "pad":[10,10,10,10],
-                "children":[
-                    {
-                        "font":{"size":0.6},
-                        "type":"stext",
-                        "max_size":"[{min:650:{-:{window_size.x}:100}},{-:{window_size.y}:100}]",
-                        "text":"<b>{basename:{global.source}}</b>\n{#global.video_info}"
-                    }
-                ]
-            },
-            "else":{ "type":"rect", "size":[0,0]}
-        },
-        
-        {
-            "type":"vlayout",
-            "outer_pad":[0,10,0,0],
-            "pad":[0,0,0,9],
-            "children":[
-                
+              ],
+              [
                 {
-                    "type":"hlayout",
-                    "outer_pad":[15,0,0,0],
-                    "pad":[0,0,10,0],
-                    "children":[
-
-                        {
-                            "type":"stext",
-                            "clickable":true,
-                            "name":"info_symbol",
-                            "text":"<sym>🛈</sym>",
-                            "shadow":0.5,
-                            "color":"{if:{hovered}:[250,250,250,250]:[200,200,200,100]}",
-                            "pad":[0,-1,0,7.5]
-                        },
-
-                        {
-                            "type":"condition",
-                            "var":"{equal:{global.video_length}:{tracker.end}}",
-                            "then": {
-                                "type":"rect",
-                                "size":[0,0]
-                            },
-                            "else": {
-                                "type":"button",
-                                "action":"set_paused:{not:{is_paused}}",
-                                "text":"{if:{is_paused}:'<sym>▶</sym>':'<sym>⏸</sym>'}",
-                                "size":[15,20],
-                                "pad":[0,-4.5,0,0],
-                                "shadow":0.5,
-                                "font":{"size":0.8},
-                                "fill":[10,0,0,0],
-                                "line":[100,100,100,0],
-                                "color":"{if:{is_paused}:[30,80,30,100]:[200,120,80,100]}"
-                            }
-                        },
-                        
-                        {
-                            "type": "stext",
-                            "text": "{.if:{global.gui_run}:'<i>{global.gui_playback_speed}x</i>'}<b>{shorten:{basename:{global.filename}}:50}</b> — <c><{if:{displayed_frame_valid}:'a':'orange'}>{global.gui_frame}</{if:{displayed_frame_valid}:'a':'orange'}>/<a>{length}</a></c> {if:{equal:{global.video_length}:{tracker.end}}:'':— {if:{is_paused}:'<orange>paused</orange>':'<i>tracking @</i>'} <i><a>{int:{fps}}</a>fps</i>}",
-                            "font":{ "size":0.65 },
-                            "shadow":0.5,
-                            "pad":[-5,0,0,7.5]
-                        }
-                    ]
-                },
-
-                
-                {
-                    "type":"collection",
-                    "name":"timeline",
-                    "size":"[{width},20]",
-                    "clickable":true,
-                    "children":[
-                        {
-                            "type": "rect",
-                            "pos": [11, -9],
-                            "size": "[{width},30]",
-                            "fill": [0,0,0,0],
-                            "line": [0,0,0,50]
-                        },
-                        {
-                            "type": "rect",
-                            "pos": [10, -10],
-                            "size": "[{width},30]",
-                            "fill": [130,130,130,10],
-                            "line": [255,255,255,220],
-                            "clickable":true,
-                            "name":"timeline_outline",
-                            "click": "set:gui_frame:{min:{length}:{*:{/:{-:{mouse.x}:10}:{-:{window_size.x}:22}}:{-:{global.video_length}:0.5}}}",
-                            "drag": "set:gui_frame:{min:{length}:{*:{/:{-:{mouse.x}:10}:{-:{window_size.x}:22}}:{-:{global.video_length}:0.5}}}"
-                        },
-                        {
-                            "type": "rect",
-                            "pos": [0,-10],
-                            "size": [11,30],
-                            "fill": [10,0,0,0],
-                            "line": [0,0,0,0],
-                            "name":"timeline_left_border",
-                            "clickable":true,
-                            "click": "set:gui_frame:0"
-                        },
-                        {
-                            "type": "rect",
-                            "pos": "[{+:{width}:9},-10]",
-                            "size": [11,30],
-                            "fill": [10,0,0,0],
-                            "line": [255,255,255,0],
-                            "name": "timeline_right_border",
-                            "clickable":true,
-                            "click": "set:gui_frame:{length}"
-                        },
-                        
-                        {
-                            "type": "rect",
-                            "pos": "[{+:11:{*:{/:{max:{global.gui_frame}:{tracker.end}}:{length}}:{-:{window_size.x}:22}}},-9]",
-                            "size": "[{max:0:{-:{-:{window_size.x}:11}:{+:11:{*:{/:{max:{global.gui_frame}:{tracker.end}}:{length}}:{width23}}}}},28]",
-                            "name":"timeline_back",
-                            "fill": [0,0,0,0],
-                            "line": [250,250,250,0],
-                            "clickable":false
-                        },
-
-                        {
-                            "type": "rect",
-                            "pos": "{timeline_start}",
-                            "size": "[{max:12:{*:{/:{-:{global.gui_frame}:{start}}:{length}}:{width}}},30]",
-                            "name":"timeline_current_offset",
-                            "fill": [50,50,50,0],
-                            "line": [50,155,250,150],
-                            "clickable":false
-                        },
-                        
-                        {
-                            "type": "rect",
-                            "name":"timeline_analysis_range",
-                            "pos": "[{+:11:{*:{/:{analysis_range.start}:{length}}:{-:{window_size.x}:22}}},-9]",
-                            "size": "[{*:{/:{-:{analysis_range.end}:{analysis_range.start}}:{length}}:{width}},30]",
-                            "fill": [150,150,150,50],
-                            "line": [155,155,155,0],
-                            "clickable":false
-                        },
-
-                        {
-                            "type": "rect",
-                            "pos": "[{+:11:{*:{/:{tracker.start}:{length}}:{-:{window_size.x}:22}}},-9]",
-                            "size": "[{*:{/:{-:{-:{tracker.end}:1}:{tracker.start}}:{length}}:{-:{window_size.x}:22}},28]",
-                            "name":"timeline_analysed",
-                            "fill": [5,5,5,150],
-                            "line": [250,250,250,0],
-                            "clickable":false
-                        },
-
-                        {
-                            "type":"image_generator",
-                            "generator":"fois",
-                            "pos":[11,-8],
-                            "scale":"[{/:{-:{window_size.x}:22}:{window_size.x}},51.5]",
-                            "color":"{clrAlpha:{foi_color}:{+:50:{*:{-:1:{saturate:{/:{abs:{-:{at:1:{mouse}}:55}}:50}:0:1}}:150}}}"
-                        },
-                        
-                        {
-                            "type": "rect",
-                            "name": "timeline_current",
-                            "pos": "{addVector:[{saturate:{at:0:{current_pos}}:18:{max:19:{-:{window_size.x}:18}}},{at:1:{current_pos}}]:[0,14]}",
-                            "size": [1,28],
-                            "corners":["all",10],
-                            "fill": [255,255,255,220],
-                            "line": [255,255,255,220],
-                            "origin": [0.5,0.5],
-                            "clickable":false
-                        },
-
-                        {
-                            "type": "each",
-                            "var": "{consec}",
-                            "do": {
-                                "type": "rect",
-                                "corners":"{if:{<:{+:10:{*:{/:{i.start}:{length}}:{width}}}:10}:[\"left\"]:[\"none\"]}",
-                                "pos": "[{+:10:{*:{/:{i.start}:{length}}:{width}}},-9]",
-                                "size": "[{*:{/:{-:{-:{i.end}:{i.start}}:1}:{length}}:{width}},28]",
-                                "fill": "{clrAlpha:{cmap:blacktowhite:{sqr:{i.percentage}}}:{+:15:{*:50:{sqr:{sqr:{i.percentage}}}}}}",
-                                "line": [150,150,150,0]
-                            }
-                        },
-
-                        {
-                            "type":"condition",
-                            "var":"{&&:{hovered:timeline}:{is_segment:{smart_highlighted}}}",
-                            "then":{
-                                "type":"rect",
-                                "corners":"{if:{<:{+:10:{*:{/:{at:0:{get_tracklet:{smart_highlighted}}}:{length}}:{width}}}:10}:[\"left\"]:[\"none\"]}",
-                                "pos":"[{+:10:{*:{/:{at:0:{get_tracklet:{smart_highlighted}}}:{length}}:{width}}},-9]",
-                                "size":"[{*:{/:{-:{at:1:{get_tracklet:{smart_highlighted}}}:{at:0:{get_tracklet:{smart_highlighted}}}}:{length}}:{width}},28]",
-                                "fill":[200,200,200,100],
-                                "line":[150,150,150,150]
-                            }
-                        }
-                    ]
+                  "type": "taglist",
+                  "var": "current_frame_tags",
+                  "catalog": "{unique_frame_tags}",
+                  "add_action": "add_tag",
+                  "remove_action": "remove_tag",
+                  "allow_new": true,
+                  "match_threshold": 1.0,
+                  "max_size": "[{infocard_width},200]",
+                  "outer_pad":[0,0,0,0],
+                  "pad": [0,0,4,4],
+                  "clickable": true,
+                  "item": {
+                    "pad": [6,4],
+                    "corners": [8]
+                  },
+                  "input": {
+                    "size": [213, 28],
+                    "list_size": [220, 180],
+                    "placeholder": "Add tag...",
+                    "fill": [50, 50, 50, 200],
+                    "color": [225, 225, 225, 255]
+                  }
                 }
-            ]
-        },
-
-        {
-            "type":"hlayout",
-            "pos":"{addVector:[0,{-:{window_size.y}:5}]:0}",
-            "origin":[0,1],
-            "outer_pad":[10,10,0,0],
-            "children":[
-                
+              ],
+              [
+                 {
+                  "type":"stext",
+                  "text":"<c><gray>detect_format</gray></c>\nhere you can choose to annotate boxes, keypoints, or bounding boxes",
+                  "font":{"size":0.5},
+                  "max_size":"[{-:{infocard_width}:0}, 0]"
+                }
+              ],
+              [
                 {
-                    "type":"settings",
-                    "var":"",
-                    "font":{"size":0.6,"align":"center"},
+                  "type":"settings",
+                  "var":"detect_format",
+                  "desc":"",
+                  "list":{
+                    "font":{"size":0.5}
+                  },
+                  "label":{
+                    "corners":["all"],
                     "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
-                    "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
-                    "list":{
-                        "line":[220,220,220,200],
-                        "fill":[25,25,25,220],
-                        "size":[700,300],
-                        "font":{"size":0.6}
-                    },
-                    "size":"[{min:{-:{window_size.x}:20}:700},40]",
-                    "color":[225,225,225],
-                    "desc":"",
-                    "placeholder":"<sym>🔍</sym> Parameters",
-                    "cleartext":"<sym>⮾</sym>",
-                    "highlight_clr":[75,75,75,255]
+                    "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
+                    "font":{"size":0.5}
+                  },
+                  "pad":[0,0,-1,-1],
+                  "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                  "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
+                  "size":[205,30]
                 }
-            ]
-        },
+              ],
 
-        {
-            "type":"hlayout",
-            "pos":"{addVector:[{-:{window_size.x}:10},{-:{window_size.y}:10}]:0}",
-            "origin":[1,1],
-            "pad":[0,10,0,0],
-            "children":[
+              [
+                 {
+                  "type":"stext",
+                  "text":"<c><gray>detect_classes</gray></c>\nwhich classes do you want to annotate?",
+                  "font":{"size":0.5},
+                  "max_size":"[{-:{infocard_width}:0}, 0]"
+                }
+              ],
+              [
                 {
+                  "type":"settings",
+                  "var":"detect_classes",
+                  "desc":"",
+                  "list":{
+                    "font":{"size":0.5}
+                  },
+                  "label":{
+                    "corners":["all"],
+                    "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                    "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
+                    "font":{"size":0.5}
+                  },
+                  "pad":[0,0,-1,-1],
+                  "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                  "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
+                  "size":[205,30]
+                }
+              ],
+
+              [
+                 {
+                  "type":"stext",
+                  "text":"<c><gray>detect_skeleton</gray></c>\njust for visualization, not used for tracking",
+                  "font":{"size":0.5},
+                  "max_size":"[{-:{infocard_width}:0}, 0]"
+                }
+              ],
+              [
+                {
+                  "type":"settings",
+                  "var":"detect_skeleton",
+                  "desc":"",
+                  "list":{
+                    "font":{"size":0.5}
+                  },
+                  "label":{
+                    "corners":["all"],
+                    "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                    "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
+                    "font":{"size":0.5}
+                  },
+                  "pad":[0,0,-1,-1],
+                  "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                  "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
+                  "size":[205,30]
+                }
+              ]
+            ]
+          }
+        ]
+      }
+    },
+
+    {
+      "type":"condition",
+      "var":"{&&:{global.gui_show_infocard}:{global.gui_focus_group}:{not:{equal:{global.gui_mode}:annotate}}}",
+      "then":{
+        "type":"vlayout",
+        "pos":[10,90],
+        "fill":[30,30,30,220],
+        "line":"{primary_selection.color}",
+        "outer_pad":[10,0,10,0],
+        "pad":[0,5,0,5],
+        "clickable":true,
+        "name":"info_box",
+        "children": [
+      {
+      "type":"collection",
+      "children":[
+        {
+        "type":"stext",
+        "text":"<c><h4>{global.individual_prefix}_{at:0:{global.gui_focus_group}}</h4>{if:{primary_selection.bdx}:: <gray>(hidden)</gray>}</c>",
+        "pad":[5,15,5,0],
+        "font":{"size":0.6}
+        },
+        {
+        "type":"button",
+                "pos":"[{-:{infocard_width}:26},8]",
+        "text":"<sym>🗙</sym>",
+        "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
+        "action":"set:gui_focus_group:[]",
+        "font":{"size":0.5},
+        "size":[25,25]
+        }
+      ]
+      },
+          {
+            "type":"drawsegments",
+            "fdx":"{at:0:{global.gui_focus_group}}",
+            "font":{"size":0.55,"style":"mono"},
+            "pad":[5,0,0,0],
+            "max_size":"[{+:10:{infocard_width}},0]"
+          },
+          {
+            "type":"condition",
+            "var":"{primary_selection.category}",
+            "then":{
+              "type":"vlayout",
+              "pad":[5,0,0,-1],
+              "children":[
+                {
+                  "type":"stext",
+                  "text":"<c><white>categorization</white></c>",
+                  "fill":[150,150,150,100],
+                  "pad":[5,5,5,5],
+                  "font":{"size":0.45}
+                },
+                {
+                  "type":"hlayout",
+                  "fill":[25,25,25,100],
+                  "pad":[0,0,0,5],
+                  "line":[150,150,150,150],
+                  "children":[
+                    {
+                      "type":"stext",
+                      "text":"<c><gray>tracklet[</gray><nr>{shorten:{primary_selection.avg_category}:3}</nr><gray>]</gray></c>",
+                      "pad":[5,5,5,5],
+                      "font":{"size":0.45}
+                    },
+                    {
+                      "type":"stext",
+                      "text":"<c><gray>frame[</gray>{shorten:{primary_selection.category}:3}<gray>]</gray></c>",
+                      "pad":[5,5,5,5],
+                      "font":{"size":0.45}
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "type":"vlayout",
+            "corners":"{if:{open_autoident_controls}:[\"all\"]:[\"top\"]}",
+            "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+            "children":[
+              {
+                "type":"button",
+                "corners":["top"],
+                "text":"<c>tracklet controls</c> {if:{global.gui_show_autoident_controls}:<sym>△</sym>:<sym>▼</sym>}",
+                "fill":"{if:{open_autoident_controls}:[20,{if:{primary_selection.is_automatic}:50:20},20,200]:[20,{if:{primary_selection.is_automatic}:50:20},20,200]}",
+                "line1":"{if:{open_autoident_controls}:[100,100,100,50]:{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}}",
+                "color":[225,225,225],
+                "font":{"size":0.55},
+                "size":"[{infocard_width},30]",
+                "checked":"{open_autoident_controls}",
+                "action":"set:gui_show_autoident_controls:{not:{global.gui_show_autoident_controls}}"
+              },
+              {
+                "type":"condition",
+                "var":"{open_autoident_controls}",
+                "then":
+                {
+                  "type":"condition",
+                  "var":"{primary_selection.is_automatic}",
+                  "then": {
+                    "type":"vlayout",
+                    "outer_pad":[5,0,5,5],
+                    "max_size":"[{infocard_width},0]",
+                    "fill":"{if:{||:{selected}:{hovered}}:[20,50,20,200]:[20,50,20,200]}",
+                    "children":[
+                      {
+                        "type":"stext",
+                        "text":"<c><gray>tracklet was force-assigned by\nvisual identification <sym>⮧</sym></gray></c>",
+                        "pad":[5,5,5,5],
+                        "font":{"size":0.45}
+                      },
+                      {
+                        "type":"button",
+                        "text":"<sym>🗘</sym> un-force entire tracklet",
+                        "action":"remove_automatic_matches:{primary_selection.fdx}:{primary_selection.tracklet}",
+                        "font":{"size":0.5},
+                        "size":[205,25],
+                        "fill":"{if:{||:{selected}:{hovered}}:[20,20,20,200]:[10,10,10,200]}",
+                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                        "color":"{if:{||:{selected}:{hovered}}:[225,225,225,255]:[200,200,200,255]}"
+                      },
+                      {
+                        "type":"button",
+                        "text":"<sym>⇰</sym> un-force from here",
+                        "action":"remove_automatic_matches:{primary_selection.fdx}:[{global.gui_frame},{at:1:{primary_selection.tracklet}}]",
+                        "font":{"size":0.5},
+                        "size":[205,25],
+                        "fill":"{if:{||:{selected}:{hovered}}:[20,20,20,200]:[10,10,10,200]}",
+                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                        "color":"{if:{||:{selected}:{hovered}}:[225,225,225,255]:[200,200,200,255]}"
+                      },
+                      {
+                        "type":"button",
+                        "text":"<sym>\u2716</sym> un-force only this frame",
+                        "action":"remove_automatic_matches:{primary_selection.fdx}:{global.gui_frame}",
+                        "font":{"size":0.5},
+                        "size":[205,25],
+                        "fill":"{if:{||:{selected}:{hovered}}:[20,20,20,200]:[10,10,10,200]}",
+                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                        "color":"{if:{||:{selected}:{hovered}}:[225,225,225,255]:[200,200,200,255]}"
+                      }
+                    ]
+                  },
+                  "else": {
+                    "type":"vlayout",
+                    "outer_pad":[5,0,5,5],
+                    "max_size":"[{infocard_width},0]",
+                    "corners":["bottom"],
+                    "clickable":true,
+                    "fill":"{if:{||:{selected}:{hovered}}:[20,20,20,200]:[20,20,20,200]}",
+                    "children":[
+                      {
+                        "type":"stext",
+                        "text":"<c><gray>raw objects <sym>⮧</sym></gray></c>",
+                        "pad":[5,5,5,5],
+                        "font":{"size":0.45}
+                      },
+                      {
+                        "type":"button",
+                        "text":"<sym>🗘</sym> ignore all from tracklet",
+                        "action":"ignore_bdxes:{primary_selection.fdx}:{at:0:{primary_selection.tracklet}}:{at:1:{primary_selection.tracklet}}",
+                        "font":{"size":0.5},
+                        "size":[205,25],
+                        "fill":"{if:{||:{selected}:{hovered}}:[20,20,20,200]:[10,10,10,200]}",
+                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                        "color":"{if:{||:{selected}:{hovered}}:[225,225,225,255]:[200,200,200,255]}"
+                      },
+                      {
+                        "type":"button",
+                        "text":"<sym>⇰</sym> ignore from here",
+                        "action":"ignore_bdxes:{primary_selection.fdx}:{global.gui_frame},{at:1:{primary_selection.tracklet}}",
+                        "font":{"size":0.5},
+                        "size":[205,25],
+                        "fill":"{if:{||:{selected}:{hovered}}:[20,20,20,200]:[10,10,10,200]}",
+                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                        "color":"{if:{||:{selected}:{hovered}}:[225,225,225,255]:[200,200,200,255]}"
+                      },
+                      {
+                        "type":"button",
+                        "text":"<sym>\u2716</sym> ignore <c>bdx[<gray>{primary_selection.bdx}</gray>]</c>",
+                        "action":"ignore_bdxes:{primary_selection.fdx}:{global.gui_frame}:{global.gui_frame}",
+                        "font":{"size":0.5},
+                        "size":[205,25],
+                        "fill":"{if:{||:{selected}:{hovered}}:[20,20,20,200]:[10,10,10,200]}",
+                        "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                        "color":"{if:{||:{selected}:{hovered}}:[225,225,225,255]:[200,200,200,255]}"
+                      }
+                    ]
+                  }
+                }
+              }
+            ]
+          },
+
+          {
+            "type":"vlayout",
+            "pad":[0,0,0,5],
+            "children":[
+              {
+                "type":"vlayout",
+                "corners":"{if:{global.gui_show_misc_metrics}:[\"all\"]:[\"top\"]}",
+                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                "children":[
+                  {
+                    "type":"button",
+                    "corners":["top"],
+                    "text":"{if:{global.gui_show_misc_metrics}:<c>some metrics </c> <sym>△</sym>:<c>some metrics </c> <sym>▼</sym>}",
+                    "fill":"{if:{global.gui_show_misc_metrics}:[10,10,10,50]:[40,40,40,50]}",
+                    "line":"{if:{global.gui_show_misc_metrics}:[100,100,100,50]:{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}}",
+                    "color":[225,225,225],
+                    "font":{"size":0.55},
+                    "size":"[{infocard_width},30]",
+                    "checked":"{global.gui_show_misc_metrics}",
+                    "action":"set:gui_show_misc_metrics:{not:{global.gui_show_misc_metrics}}"
+                  },
+                  
+                  {
                     "type":"condition",
-                    "var":"{global.gui_is_recording}",
+                    "var": "{&&:{global.gui_show_misc_metrics}:{bool:{primary_selection.bdx}}}",
                     "then":
                     {
-                        "type":"stext",
-                        "color":[150,50,50,255],
-                        "alpha":"{recording_alpha}",
-                        "text":" {recording_symbol}",
-                        "shadow":0.5,
-                        "font":{"size":0.6}
+                      "type": "gridlayout",
+                      "clickable":true,
+                      "name":"infos",
+                      "vertical_clr":[0,0,0,30],
+                      "horizontal_clr":[10,50,80,80],
+                      "halign":"left",
+                      "outer_pad":[5,0,0,5],
+                      "children": [
+                        [
+                          {
+                            "type":"collection",
+                            "children":[
+                              {
+                                "type": "stext",
+                                "max_size": "[{*:0.3:{infocard_width}},300]",
+                                "pad":[5,5,5,5],
+                                "font": {"size": 0.5},
+                                "text": "{if:{hovered:infos}:<c>[<b>Size</b>]</c>:''}"
+                              }
+                            ]
+                          },
+                          {
+                            "type":"collection",
+                            "children":[
+                              {
+                                "type":"stext",
+                                "font": {"size": 0.5},
+                                "max_size": "[{*:0.65:{infocard_width}}, 300]",
+                                "pad":[5,5,5,5],
+                                "text":"<c><cyan>{primary_selection.size}</cyan><gray>cm²/px²</gray></c>"
+                              }
+                            ]
+                          }
+                        ],
+                        [
+                          {
+                            "type": "stext",
+                            "max_size": "[{*:0.3:{infocard_width}}, 300]",
+                            "pad":[5,5,5,5],
+                            "font": {"size": 0.5},
+                            "text": "{if:{hovered:infos}:<c>[<b>Pixels</b>]</c>:''}"
+                          },
+                          {
+                            "type":"stext",
+                            "font": {"size": 0.5},
+                            "max_size": "[{*:0.65:{infocard_width}}, 300]",
+                            "pad":[5,5,5,5],
+                            "text":"<c><cyan>{primary_selection.px}</cyan><gray>px</gray></c>"
+                          }
+                        ],
+                        [
+                          {
+                            "type": "stext",
+                            "max_size": "[{*:0.3:{infocard_width}}, 300]",
+                            "pad":[5,5,5,5],
+                            "font": {"size": 0.5},
+                            "text": "{if:{hovered:infos}:<c>[<b>Speed</b>]</c>:''}"
+                          },
+                          {
+                            "type":"stext",
+                            "font": {"size": 0.5},
+                            "max_size": "[{*:0.65:{infocard_width}}, 300]",
+                            "pad":[5,5,5,5],
+                            "text":"<c><cyan>{round:{primary_selection.speed}:3}</cyan><gray>cm/s</gray></c>"
+                          }
+                        ],
+                        [
+                          {
+                            "type": "stext",
+                            "max_size": "[{*:0.3:{infocard_width}}, 300]",
+                            "pad":[5,5,5,5],
+                            "font": {"size": 0.5},
+                            "text": "{if:{hovered:infos}:<c>[<b>NearN</b>]</c>:''}"
+                          },
+                          {
+                            "type":"stext",
+                            "font": {"size": 0.5},
+                            "max_size": "[{*:0.65:{infocard_width}}, 300]",
+                            "pad":[5,5,5,5],
+                            "text":"<c>{if:{primary_selection.has_neighbor}:'<lightgray>{global.individual_prefix}_{primary_selection.nearest_neighbor}</lightgray> (<cyan>{round:{primary_selection.nearest_neighbor_distance}:3}</cyan>cm)':'<gray>[no neighbors]</gray>'}</c>"
+                          }
+                        ]
+                      ]
                     }
+                  }
+                ]
+              },
+
+              {
+                "type":"vlayout",
+                "pad":[0,0,0,-1],
+                "corners":"{if:{global.gui_show_individual_preview}:[\"all\"]:[\"top\"]}",
+                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                "children":[
+                  {
+                    "type":"button",
+                    "corners":["top"],
+                    "text":"<c>image settings</c> {if:{global.gui_show_individual_preview}:<sym>△</sym>:<sym>▼</sym>}",
+                    "fill":"{if:{global.gui_show_individual_preview}:[10,10,10,50]:[40,40,40,50]}",
+                    "line":"{if:{global.gui_show_individual_preview}:[100,100,100,50]:{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}}",
+                    "color":[225,225,225],
+                    "font":{"size":0.55},
+                    "size":"[{infocard_width},30]",
+                    "checked":"{global.gui_show_individual_preview}",
+                    "action":"set:gui_show_individual_preview:{not:{global.gui_show_individual_preview}}"
+                  },
+                  
+                  {
+                    "type":"condition",
+                    "var": "{&&:{global.gui_show_individual_preview}:{bool:{primary_selection.bdx}}}",
+                    "then":
+                    {
+                      "type":"vlayout",
+                      "children":[
+                        {
+                          "type":"preview",
+                          "fdx":"{primary_selection.fdx}",
+                          "clickable":true,
+                          "corners":["none"],
+                          "fill":"{if:{||:{selected}:{hovered}}:[20,20,20,200]:[10,10,10,200]}",
+                          "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,175,200,50]}",
+                          "scale":"{divVector:[{infocard_width},{infocard_width}]:{global.individual_image_size}}"
+                        },
+                        {
+                          "type":"stext",
+                          "text":"<c><gray>used for visual ident / tracklets</gray></c>",
+                          "pad":[5,2,5,0],
+                          "font":{"size":0.4}
+                        },
+                        {
+                          "type":"rect",
+                          "size":[0,5]
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "type":"condition",
+                    "var": "{global.gui_show_individual_preview}",
+                    "then":{
+                      "type":"vlayout",
+                      "pad":[0,0,0,0],
+                      "children":[
+                        {
+                          "type":"gridlayout",
+                          "pad":[0,0,0,-1],
+                          "children":[
+                            [
+                              {
+                                "type":"settings",
+                                "corners":["topleft",0],
+                                "pad":[0,0,-1,-1],
+                                "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
+                                "size":"[{*:0.5:{infocard_width}}, 30]",
+                                "var":"individual_image_size",
+                                "font":{"size":0.5},
+                                "desc":""
+                              },
+                              {
+                                "type":"settings",
+                                "corners":["topright",0],
+                                "pad":[-1,0,0,-1],
+                                "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
+                                "size":"[{+:1:{*:0.5:{infocard_width}}}, 30]",
+                                "var":"individual_image_scale",
+                                "font":{"size":0.5},
+                                "desc":""
+                              }
+                            ],
+                            [
+                              {
+                                "type":"settings",
+                                "pad":[0,0,-1,-1],
+                                "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
+                                "size":"[{*:0.5:{infocard_width}}, 30]",
+                                "list":{
+                                  "font":{"size":0.5}
+                                }, 
+                                "label":{
+                                  "corners":["bottomleft",0],
+                                  "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                  "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
+                                  "font":{"size":0.5}
+                                },
+                                "var":"individual_image_normalization",
+                                "font":{"size":0.5},
+                                "desc":""
+                              },
+                              {
+                                "type":"settings",
+                                "pad":[-1,0,0,-1],
+                                "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
+                                "size":"[{+:1:{*:0.5:{infocard_width}}}, 30]",
+                                "list":{
+                                  "font":{"size":0.5}
+                                },
+                                "label":{
+                                "corners":["bottomright",0],
+                                  "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+                                  "line":"{if:{||:{selected}:{hovered}}:[100,175,250,230]:[100,100,100,230]}",
+                                  "font":{"size":0.5}
+                                },
+                                "var":"meta_encoding",
+                                "font":{"size":0.5},
+                                "desc":""
+                              }
+                            ]
+                          ]
+                        },
+                        {
+                          "type":"button",
+                          "corners":["bottom"],
+                          "text":"<sym>🖵</sym> {if:{global.track_background_subtraction}:Subtract Background:<gray>Subtract Background</gray>}",
+                          "action":"set:track_background_subtraction:{not:{global.track_background_subtraction}}",
+                          "checked":"{global.track_background_subtraction}",
+                          "fill":"{if:{global.track_background_subtraction}:[10,10,10,220]:[40,40,40,220]}",
+                          "line":[100,100,100,100],
+                          "color":[225,225,225],
+                          "font":{"size":0.5},
+                          "size":"[{infocard_width}, 30]"
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+
+              {
+                "type":"vlayout",
+                "pad":[0,0,0,0],
+                "corners":"{if:{global.gui_show_matching_info}:[\"all\"]:[\"top\"]}",
+                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                "children":[
+                  {
+                    "type":"button",
+                    "corners":["top"],
+                    "text":"{if:{global.gui_show_matching_info}:<c>matching info</c> <sym>△</sym>:<c>matching info</c> <sym>▼</sym>}",
+                    "fill":"{if:{global.gui_show_matching_info}:[10,10,10,50]:[40,40,40,50]}",
+                    "line":"{if:{global.gui_show_matching_info}:[100,100,100,50]:{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}}",
+                    "color":[225,225,225],
+                    "name":"matching_info",
+                    "font":{"size":0.55},
+                    "size":"[{infocard_width},30]",
+                    "checked":"{global.gui_show_matching_info}",
+                    "action":"set:gui_show_matching_info:{not:{global.gui_show_matching_info}}"
+                  },
+                  {
+                    "type":"condition",
+                    "var":"{global.gui_show_matching_info}",
+                    "then": {
+                      "type":"condition",
+                      "var":"{primary_selection.ps}",
+                      "else":{
+                        "type":"stext",
+                        "pad":[0,5,0,10],
+                        "font":{"size":0.5,"style":"mono"},
+                        "text":" <gray><sym>⮩</sym></gray> <c><gray>[empty]</gray></c>"
+                      },
+                      "then": {
+                        "type":"vlayout",
+                        "outer_pad":[5,3,0,3],
+                        "pad":[0,0,0,5],
+                        "children":[
+                          {
+                            "type":"each",
+                            "var":"{primary_selection.ps}",
+                            "do":{
+                              "type":"stext",
+                              "font":{"size":0.5,"style":"mono"},
+                              "max_size":"[{infocard_width}, 0]",
+                              "text":" {if:{equal:{index}:0}:<gray><sym>⮩</sym></gray> :'<small>   </small>'}{if:{>=:{index}:{global.match_topk}}:<gray>:''}bdx[<lightgray>{round:{at:0:{i}}:2}</lightgray>]: <cyan>{round:{at:1:{i}}:2}</cyan>{if:{global.gui_show_detailed_probabilities}:' t=<cyan>{round:{at:2:{i}}:2}</cyan>':''}{if:{>=:{index}:{global.match_topk}}:</gray>:''}"
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+
+    {
+      "type":"hlayout",
+      "z-index":0,
+      "pad":[5,0,0,0],
+      "outer_pad":[0,0,0,0],
+      "pos":"[{-:{window_size.x}:10},6]",
+      "origin":[1,0],
+      "children":[
+        
+        {
+          "type":"hlayout",
+          "pad":[-1,0,-1,0],
+          "line":[255,255,255,50],
+          "fill":[1,0,0,0],
+          "children":[
+            {
+              "type":"button",
+              "corners":["left"],
+              "text":"<sym>⭍</sym> Track",
+              "font":{"size":0.6},
+              "fill":"{if:{equal:{global.gui_mode}:tracking}:[10,10,10,220]:[40,40,40,220]}",
+              "color":"{if:{equal:{global.gui_mode}:tracking}:[100,100,100,220]:[250,250,250,220]}",
+              "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+              "size":[75,30],
+              "action":"set:gui_mode:tracking"
+            },
+
+            {
+              "type":"button",
+              "corners":["none"],
+              "text":"<sym>🖰</sym> Annotate",
+              "font":{"size":0.6},
+              "fill":"{if:{equal:{global.gui_mode}:annotate}:[10,10,10,220]:[40,40,40,220]}",
+              "color":"{if:{equal:{global.gui_mode}:annotate}:[100,100,100,220]:[250,250,250,220]}",
+              "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+              "size":[95,30],
+              "action":"set:gui_mode:annotate"
+            },
+            
+            {
+              "type":"button",
+              "corners":["right"],
+              "text":"<sym>🎞</sym> Raw",
+              "font":{"size":0.6},
+              "fill":"{if:{equal:{global.gui_mode}:raw}:[10,10,10,220]:[40,40,40,220]}",
+              "color":"{if:{equal:{global.gui_mode}:raw}:[100,100,100,220]:[250,250,250,220]}",
+              "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+              "size":[65,30],
+              "action":"set:gui_mode:raw"
+            }
+          ]
+        },
+
+        {
+          "type":"button",
+          "text":"<sym>🗘</sym>",
+          "font":{"size":0.6},
+          "size":[30,30],
+          "action":"reanalyse:0",
+          "fill":[40,40,40,220],
+          "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+          "color":[250,250,250,200]
+        },
+
+        { 
+          "type":"hlayout",
+          "children":[
+            {
+              "type":"list",
+              "size":[90,30],
+              "clickable":true,
+              "list":{
+                "size":"[200,{-:{window_size.y}:50}]",
+                "fill":[25,25,25,220],
+                "line":[120,120,120,220]
+              },
+              "label":{
+                "fill":[40,40,40,220],
+                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                "font":{"size":0.6},
+                "text":" <sym>🖵</sym> FOIs",
+                "corners":["left"]
+              },
+              "item":{
+                "color":[60,60,60,100],
+                "pad":[8,0],
+                "font":{"size":0.6,"align":"vcenter"}
+              },
+              "corners":["bottom","topleft"],
+              "foldable":true,
+              "folded":true,
+              "var":"{concat:[\"uniqueness\"]:{global.gui_foi_types}}",
+              "template":{
+                "text":"{if:{equal:{global.gui_foi_name}:{i}}:'<sym>☑</sym> ':'<sym>☐</sym> '}{i}",
+                "disabled":"{if:{equal:{global.gui_foi_name}:{i}}:true:false}",
+                "action":"set:gui_foi_name:{i}"
+              }
+            },
+
+            {
+              "type":"list",
+              "size":[90,30],
+              "clickable":true,
+              "list":{
+                "size":"[200,{-:{window_size.y}:50}]",
+                "fill":[25,25,25,220],
+                "line":[120,120,120,220]
+              },
+              "label":{
+                "fill":[40,40,40,220],
+                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                "font":{"size":0.6},
+                "text":" <sym>🖵</sym> Display",
+                "corners":["none"]
+              },
+              "item":{
+                "color":[60,60,60,100],
+                "pad":[8,0],
+                "font":{"size":0.6,"align":"vcenter"}
+              },
+              "detail":{
+                "color":[150,150,150,255],
+                "font":{"size":0.5,"align":"left"}
+              },
+              "foldable":true,
+              "folded":true,
+              "corners":["bottom","topleft"],
+              "items": [
+  {
+    "text": "<{if:{global.gui_show_selections}:white:gray}><sym>◯</sym> Selection Circles</{if:{global.gui_show_selections}:white:gray}>",
+    "detail": "<small>Individual hover / selection effects</small>",
+    "action": "set:gui_show_selections:{not:{global.gui_show_selections}}"
+  },
+  {
+    "text": "<{if:{global.gui_show_centroid}:white:gray}><sym>⌖</sym> Centroids</{if:{global.gui_show_centroid}:white:gray}>",
+    "action": "set:gui_show_centroid:{not:{global.gui_show_centroid}}"
+  },
+  {
+    "text": "<{if:{global.gui_show_texts}:white:gray}><sym>🏷</sym> Text Labels</{if:{global.gui_show_texts}:white:gray}>",
+    "action": "set:gui_show_texts:{not:{global.gui_show_texts}}"
+  },
+  {
+    "text": "<{if:{global.gui_show_paths}:white:gray}><sym>⮩</sym> Trajectories</{if:{global.gui_show_paths}:white:gray}>",
+    "action": "set:gui_show_paths:{not:{global.gui_show_paths}}"
+  },
+  {
+    "text": "<{if:{global.gui_show_skeletons}:white:gray}><sym>☠</sym> Skeletons</{if:{global.gui_show_skeletons}:white:gray}>",
+    "action": "set:gui_show_skeletons:{not:{global.gui_show_skeletons}}"
+  },
+  {
+    "text": "<{if:{global.gui_show_blobs}:white:gray}><sym>🖼</sym> Blob Images</{if:{global.gui_show_blobs}:white:gray}>",
+    "action": "set:gui_show_blobs:{not:{global.gui_show_blobs}}"
+  },
+  {
+    "text": "<{if:{global.gui_show_midline}:white:gray}><sym>⚊</sym> Midline</{if:{global.gui_show_midline}:white:gray}>",
+    "action": "set:gui_show_midline:{not:{global.gui_show_midline}}"
+  },
+  {
+    "text": "<{if:{global.gui_show_outline}:white:gray}><sym>⬡</sym> Outline</{if:{global.gui_show_outline}:white:gray}>",
+    "action": "set:gui_show_outline:{not:{global.gui_show_outline}}"
+  },
+  {
+    "text": "<{if:{global.gui_show_visualfield}:white:gray}><sym>👁</sym> Visual Field</{if:{global.gui_show_visualfield}:white:gray}>",
+    "action": "set:gui_show_visualfield:{not:{global.gui_show_visualfield}}"
+  },
+  {
+    "text": "<{if:{global.gui_show_video_background}:white:gray}><sym>🎞</sym> Video Background</{if:{global.gui_show_video_background}:white:gray}>",
+    "detail": "<small>Display the original video background</small>",
+    "action": "set:gui_show_video_background:{not:{global.gui_show_video_background}}"
+  },
+  {
+    "text": "<{if:{global.gui_show_probabilities}:white:gray}><sym>📊</sym> Probability Distribution</{if:{global.gui_show_probabilities}:white:gray}>",
+    "action": "set:gui_show_probabilities:{not:{global.gui_show_probabilities}}"
+  },
+  {
+    "text": "<{if:{global.gui_highlight_categories}:white:gray}><sym>👽</sym> Categorization</{if:{global.gui_highlight_categories}:white:gray}>",
+    "action": "set:gui_highlight_categories:{not:{global.gui_highlight_categories}}"
+  },
+  {
+    "text": "<{if:{global.gui_show_uniqueness}:white:gray}><sym>🎭</sym> Uniqueness (VI)</{if:{global.gui_show_uniqueness}:white:gray}>",
+    "detail": "<small>(VI needs to be loaded)</small>",
+    "action": "set:gui_show_uniqueness:{not:{global.gui_show_uniqueness}}"
+  },
+  {
+    "text": "<{if:{global.gui_show_heatmap}:white:gray}><sym>🌡</sym> Heatmap</{if:{global.gui_show_heatmap}:white:gray}>",
+    "action": "set:gui_show_heatmap:{not:{global.gui_show_heatmap}}"
+  },
+  {
+    "text": "<{if:{global.gui_show_posture}:white:gray}><sym>🐟</sym> Posture Preview</{if:{global.gui_show_posture}:white:gray}>",
+    "action": "set:gui_show_posture:{not:{global.gui_show_posture}}"
+  },
+  {
+    "text": "<{if:{global.gui_auto_scale_focus_one}:white:gray}><sym>🔍</sym> Zoom on Selection</{if:{global.gui_auto_scale_focus_one}:white:gray}>",
+    "detail": "<small>Zoom in on selected individuals</small>",
+    "action": "set:gui_auto_scale_focus_one:{not:{global.gui_auto_scale_focus_one}}"
+  },
+  {
+    "text": "<{if:{global.gui_show_dataset}:white:gray}><sym>🗃</sym> Dataset information</{if:{global.gui_show_dataset}:white:gray}>",
+    "action": "set:gui_show_dataset:{not:{global.gui_show_dataset}}"
+  },
+  {
+    "text": "<{if:{global.gui_show_boundary_crossings}:white:gray}><sym>⭾</sym> Boundary Crossings</{if:{global.gui_show_boundary_crossings}:white:gray}>",
+    "action": "set:gui_show_boundary_crossings:{not:{global.gui_show_boundary_crossings}}"
+  }
+]
+
+            },
+            { 
+              "type":"list",
+              "size":[75,30],
+              "list":{
+                "size":"[250,{-:{window_size.y}:50}]",
+                "fill":[25,25,25,220],
+                "line":[120,120,120,220]
+              },
+              "label":{
+                "fill":[40,40,40,220],
+                "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                "font":{"size":0.6},
+                "text":" <sym>☰</sym> Menu",
+                "corners":["right"]
+              },
+              "item":{
+                "pad":[10,6],
+                "font":{"size":0.6},
+                "color":[60,60,60,100]
+              },
+              "detail":{
+                "color":[150,150,150,255],
+                "font":{"size":0.5}
+              },
+              "foldable":true,
+              "folded":true,
+              "items":[
+                {
+                  "text":"<sym>📤</sym> Load state",
+                  "detail":"loads existing .results file",
+                  "action":"load_results"
                 },
                 {
-                    "type":"stext",
-                    "font":{"size":0.52},
-                    "shadow": 0.5,
-                    "text":"{if:{is_checking_tracklet_identities}:'{animation} <i>Checking identities...</i>':''}{if:{vi_busy}:'{animation} <i>Applying VI</i> {int:{min:99:{*:{vi_apply_percent}:100}}}<i>% ...</i> ':''}<i>{round:{mouse_in_bowl.x}},{round:{mouse_in_bowl.y}}</i> <h5><sym>🖰</sym></h5>{if:{status_text}:{status_text}:''}",
-                    "color":"{if:{&&:{>=:{mouse_in_bowl.x}:0}:{<:{mouse_in_bowl.x}:{video_size.x}}:{>=:{mouse_in_bowl.y}:0}:{<:{mouse_in_bowl.y}:{video_size.y}}}:[255,255,255,255]:[200,120,80,100]}"
+                  "text":"<sym>📥</sym> Save state",
+                  "detail":"save current state to a .results file",
+                  "action":"save_results"
+                },
+                {
+                  "text":"<sym>🖫</sym> Export data",
+                  "detail":"exports tracking data",
+                  "action":"export_data"
+                },
+                {
+                  "text":"<sym>🛠</sym> Save config",
+                  "detail":"writes parameters to a .settings file",
+                  "action":"write_config"
+                },
+                {
+                  "text":"<sym>📤</sym> Export annotations",
+                  "detail":"exports YOLO/COCO datasets",
+                  "action":"export_annotations"
+                },
+                {
+                  "text":"<sym>📥</sym> Import detect annotations",
+                  "detail":"imports YOLO or COCO datasets",
+                  "action":"import_detect_annotations"
+                },
+                {
+                  "text":"<sym>🎭</sym> Train visual identification (VI)",
+                  "detail":"learn differences between individuals",
+                  "action":"visual_identification",
+                  "disabled":"{if:{||:{is_checking_tracklet_identities}:{vi_busy}}:true:false}"
+                },
+                {
+                  "text":"<sym>👽</sym> Clear VI predictions",
+                  "detail":"clears all existing VI predictions",
+                  "action":"clear_ml",
+                  "disabled":"{if:{||:{is_checking_tracklet_identities}:{vi_busy}}:true:false}"
+                },
+                {
+                  "text":"<sym>👽</sym> Categorize",
+                  "detail":"differentiate types of individuals",
+                  "action":"categorize",
+                  "disabled":"{if:{||:{is_checking_tracklet_identities}:{vi_busy}}:true:false}"
+                },
+                {
+                  "text":"<sym>🢤</sym> Close file",
+                  "detail":"go back to the starting screen",
+                  "action":"change_scene:'starting-scene'",
+                  "disabled":false
+                },
+                {
+                  "text":"<sym>⏻</sym> Quit",
+                  "detail":"exits the application",
+                  "action":"quit"
                 }
-            ]
-        },
-
-        {
-            "type":"condition",
-            "var":"{||:{hovered:timeline}:{hovered:button_thing}}",
-            "z-index":0,
-            "then": {
-                "type":"collection",
-                "children":[
-                    {
-                        "type":"collection",
-                        "pos":"[{min:{-:{window_size.x}:75}:{max:75:{mouse.x}}},69]",
-                        "name":"button_thing",
-                        "clickable":true,
-                        "children":[
-                            {
-                                "type":"vlayout",
-                                "origin":[0.5,0],
-                                "clickable":true,
-                                "align":"center",
-                                "fill": [25,25,25,200],
-                                "line":[75,75,75],
-                                "children":[
-                                    {
-                                        "type":"button",
-                                        "text":"<sym>🗘</sym> from {if:{locked_on}:<nr>{smart_highlighted}</nr>:{highlighted_frame}}",
-                                        "action":"reanalyse:{smart_highlighted}",
-                                        "corners":["top"],
-                                        "fill":[140,40,40,220],
-                                        "line":[100,100,100,100],
-                                        "color":[225,225,225],
-                                        "font":{"size":0.6,"align":"center"},
-                                        "size":[150,25]
-                                    },
-                                    {
-                                        "type":"stext",
-                                        "pad":[5,5,5,5],
-                                        "text":"{if:{is_segment:{smart_highlighted}}:'<b>{.get_tracklet:{smart_highlighted}}</b>':'<i>no global tracklet</i>'}\n{if:{number_individuals}:{number_individuals} {global.individual_prefix}{if:{>:{number_individuals}:1}:s:''}:''}",
-                                        "font":{"size":0.6}
-                                    }
-                                ]
-                            }
-                        ]
-                    },
-
-                    {
-                        "type":"rect",
-                        "name":"cursor_highlight",
-                        "size":[1,30],
-                        "fill":[255,255,255,150],
-                        "pos":"[{min:{-:{window_size.x}:18}:{max:18:{mouse.x}}},39]"
-                    }
-                ]
+              ]
             }
-            
-            
-        },
-
-        {
-            "type":"condition",
-            "var":"{global.gui_show_timing_stats}",
-            "then": {
-                "type":"timingstats",
-                "fill":"{if:{hovered}:[10,10,10,150]:[40,40,40,50]}",
-                "window":1.0,
-                "size":"[{*:0.75:{window_size.x}},200]",
-                "row_height":30,
-                "line":"{if:{hovered}:[100,175,250,230]:[100,100,100,50]}"
-            }
-        },
-
-        {
-            "type":"condition",
-            "var":"{global.gui_show_tiles}",
-            "then":{
-                "type":"each",
-                "var":"{tiles}",
-                "do":{
-                    "type":"rect",
-                    "pos":"{2hud:[{i.x},{i.y}]}",
-                    "size":"{size2hud:[{i.w},{i.h}]}",
-                    "fill":[255,255,255,0],
-                    "line":[255,255,255,220]
-                }
-            }
+          ]
         }
-    ]
+      ]
+    },
+
+    {
+      "type":"condition",
+      "var":"{hovered:info_symbol}",
+      "then":{
+        "type":"hlayout",
+        "pos":"{mulVector:{window_size}:0.5}",
+        "origin":[0.5,0.5],
+        "fill": [25,25,25,200],
+        "pad":[10,10,10,10],
+        "children":[
+          {
+            "font":{"size":0.6},
+            "type":"stext",
+            "max_size":"[{min:650:{-:{window_size.x}:100}},{-:{window_size.y}:100}]",
+            "text":"<b>{basename:{global.source}}</b>\n{#global.video_info}"
+          }
+        ]
+      },
+      "else":{ "type":"rect", "size":[0,0]}
+    },
+    
+    {
+      "type":"vlayout",
+      "outer_pad":[0,10,0,0],
+      "pad":[0,0,0,9],
+      "children":[
+        
+        {
+          "type":"hlayout",
+          "outer_pad":[15,0,0,0],
+          "pad":[0,0,10,0],
+          "children":[
+
+            {
+              "type":"stext",
+              "clickable":true,
+              "name":"info_symbol",
+              "text":"<sym>🛈</sym>",
+              "shadow":0.5,
+              "color":"{if:{hovered}:[250,250,250,250]:[200,200,200,100]}",
+              "pad":[0,-1,0,7.5]
+            },
+
+            {
+              "type":"condition",
+              "var":"{equal:{global.video_length}:{tracker.end}}",
+              "then": {
+                "type":"rect",
+                "size":[0,0]
+              },
+              "else": {
+                "type":"button",
+                "action":"set_paused:{not:{is_paused}}",
+                "text":"{if:{is_paused}:'<sym>▶</sym>':'<sym>⏸</sym>'}",
+                "size":[15,20],
+                "pad":[0,-4.5,0,0],
+                "shadow":0.5,
+                "font":{"size":0.8},
+                "fill":[10,0,0,0],
+                "line":[100,100,100,0],
+                "color":"{if:{is_paused}:[30,80,30,100]:[200,120,80,100]}"
+              }
+            },
+            
+            {
+              "type": "stext",
+              "text": "{.if:{global.gui_run}:'<i>{global.gui_playback_speed}x</i>'}<b>{shorten:{basename:{global.filename}}:50}</b> — <c><{if:{displayed_frame_valid}:'a':'orange'}>{global.gui_frame}</{if:{displayed_frame_valid}:'a':'orange'}>/<a>{length}</a></c> {if:{equal:{global.video_length}:{tracker.end}}:'':— {if:{is_paused}:'<orange>paused</orange>':'<i>tracking @</i>'} <i><a>{int:{fps}}</a>fps</i>}",
+              "font":{ "size":0.65 },
+              "shadow":0.5,
+              "pad":[-5,0,0,7.5]
+            }
+          ]
+        },
+
+        
+        {
+          "type":"collection",
+          "name":"timeline",
+          "size":"[{width},20]",
+          "clickable":true,
+          "children":[
+            {
+              "type": "rect",
+              "pos": [11, -9],
+              "size": "[{width},30]",
+              "fill": [0,0,0,0],
+              "line": [0,0,0,50]
+            },
+            {
+              "type": "rect",
+              "pos": [10, -10],
+              "size": "[{width},30]",
+              "fill": [130,130,130,10],
+              "line": [255,255,255,220],
+              "clickable":true,
+              "name":"timeline_outline",
+              "click": "set:gui_frame:{min:{length}:{*:{/:{-:{mouse.x}:10}:{-:{window_size.x}:22}}:{-:{global.video_length}:0.5}}}",
+              "drag": "set:gui_frame:{min:{length}:{*:{/:{-:{mouse.x}:10}:{-:{window_size.x}:22}}:{-:{global.video_length}:0.5}}}"
+            },
+            {
+              "type": "rect",
+              "pos": [0,-10],
+              "size": [11,30],
+              "fill": [10,0,0,0],
+              "line": [0,0,0,0],
+              "name":"timeline_left_border",
+              "clickable":true,
+              "click": "set:gui_frame:0"
+            },
+            {
+              "type": "rect",
+              "pos": "[{+:{width}:9},-10]",
+              "size": [11,30],
+              "fill": [10,0,0,0],
+              "line": [255,255,255,0],
+              "name": "timeline_right_border",
+              "clickable":true,
+              "click": "set:gui_frame:{length}"
+            },
+            
+            {
+              "type": "rect",
+              "pos": "[{+:11:{*:{/:{max:{global.gui_frame}:{tracker.end}}:{length}}:{-:{window_size.x}:22}}},-9]",
+              "size": "[{max:0:{-:{-:{window_size.x}:11}:{+:11:{*:{/:{max:{global.gui_frame}:{tracker.end}}:{length}}:{width23}}}}},28]",
+              "name":"timeline_back",
+              "fill": [0,0,0,0],
+              "line": [250,250,250,0],
+              "clickable":false
+            },
+
+            {
+              "type": "rect",
+              "pos": "{timeline_start}",
+              "size": "[{max:12:{*:{/:{-:{global.gui_frame}:{start}}:{length}}:{width}}},30]",
+              "name":"timeline_current_offset",
+              "fill": [50,50,50,0],
+              "line": [50,155,250,150],
+              "clickable":false
+            },
+            
+            {
+              "type": "rect",
+              "name":"timeline_analysis_range",
+              "pos": "[{+:11:{*:{/:{analysis_range.start}:{length}}:{-:{window_size.x}:22}}},-9]",
+              "size": "[{*:{/:{-:{analysis_range.end}:{analysis_range.start}}:{length}}:{width}},30]",
+              "fill": [150,150,150,50],
+              "line": [155,155,155,0],
+              "clickable":false
+            },
+
+            {
+              "type": "rect",
+              "pos": "[{+:11:{*:{/:{tracker.start}:{length}}:{-:{window_size.x}:22}}},-9]",
+              "size": "[{*:{/:{-:{-:{tracker.end}:1}:{tracker.start}}:{length}}:{-:{window_size.x}:22}},28]",
+              "name":"timeline_analysed",
+              "fill": [5,5,5,150],
+              "line": [250,250,250,0],
+              "clickable":false
+            },
+
+            {
+              "type":"image_generator",
+              "generator":"fois",
+              "pos":[11,-8],
+              "scale":"[{/:{-:{window_size.x}:22}:{window_size.x}},51.5]",
+              "color":"{clrAlpha:{foi_color}:{+:50:{*:{-:1:{saturate:{/:{abs:{-:{at:1:{mouse}}:55}}:50}:0:1}}:150}}}"
+            },
+            
+            {
+              "type": "rect",
+              "name": "timeline_current",
+              "pos": "{addVector:[{saturate:{at:0:{current_pos}}:18:{max:19:{-:{window_size.x}:18}}},{at:1:{current_pos}}]:[0,14]}",
+              "size": [1,28],
+              "corners":["all",10],
+              "fill": [255,255,255,220],
+              "line": [255,255,255,220],
+              "origin": [0.5,0.5],
+              "clickable":false
+            },
+
+            {
+              "type": "each",
+              "var": "{consec}",
+              "do": {
+                "type": "rect",
+                "corners":"{if:{<:{+:10:{*:{/:{i.start}:{length}}:{width}}}:10}:[\"left\"]:[\"none\"]}",
+                "pos": "[{+:10:{*:{/:{i.start}:{length}}:{width}}},-9]",
+                "size": "[{*:{/:{-:{-:{i.end}:{i.start}}:1}:{length}}:{width}},28]",
+                "fill": "{clrAlpha:{cmap:blacktowhite:{sqr:{i.percentage}}}:{+:15:{*:50:{sqr:{sqr:{i.percentage}}}}}}",
+                "line": [150,150,150,0]
+              }
+            },
+
+            {
+              "type":"condition",
+              "var":"{&&:{hovered:timeline}:{is_segment:{smart_highlighted}}}",
+              "then":{
+                "type":"rect",
+                "corners":"{if:{<:{+:10:{*:{/:{at:0:{get_tracklet:{smart_highlighted}}}:{length}}:{width}}}:10}:[\"left\"]:[\"none\"]}",
+                "pos":"[{+:10:{*:{/:{at:0:{get_tracklet:{smart_highlighted}}}:{length}}:{width}}},-9]",
+                "size":"[{*:{/:{-:{at:1:{get_tracklet:{smart_highlighted}}}:{at:0:{get_tracklet:{smart_highlighted}}}}:{length}}:{width}},28]",
+                "fill":[200,200,200,100],
+                "line":[150,150,150,150]
+              }
+            }
+          ]
+        }
+      ]
+    },
+
+    {
+      "type":"hlayout",
+      "pos":"{addVector:[0,{-:{window_size.y}:5}]:0}",
+      "origin":[0,1],
+      "outer_pad":[10,10,0,0],
+      "children":[
+        
+        {
+          "type":"settings",
+          "var":"",
+          "font":{"size":0.6,"align":"center"},
+          "fill":"{if:{||:{selected}:{hovered}}:[60,60,60,200]:[50,50,50,200]}",
+          "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+          "list":{
+            "line":[220,220,220,200],
+            "fill":[25,25,25,220],
+            "size":[700,300],
+            "font":{"size":0.6}
+          },
+          "size":"[{min:{-:{window_size.x}:20}:700},40]",
+          "color":[225,225,225],
+          "desc":"",
+          "placeholder":"<sym>🔍</sym> Parameters",
+          "cleartext":"<sym>⮾</sym>",
+          "highlight_clr":[75,75,75,255]
+        }
+      ]
+    },
+
+    {
+      "type":"hlayout",
+      "pos":"{addVector:[{-:{window_size.x}:10},{-:{window_size.y}:10}]:0}",
+      "origin":[1,1],
+      "pad":[0,10,0,0],
+      "children":[
+        {
+          "type":"condition",
+          "var":"{global.gui_is_recording}",
+          "then":
+          {
+            "type":"stext",
+            "color":[150,50,50,255],
+            "alpha":"{recording_alpha}",
+            "text":" {recording_symbol}",
+            "shadow":0.5,
+            "font":{"size":0.6}
+          }
+        },
+        {
+          "type":"stext",
+          "font":{"size":0.52},
+          "shadow": 0.5,
+          "text":"{if:{is_checking_tracklet_identities}:'{animation} <i>Checking identities...</i>':''}{if:{vi_busy}:'{animation} <i>Applying VI</i> {int:{min:99:{*:{vi_apply_percent}:100}}}<i>% ...</i> ':''}<i>{round:{mouse_in_bowl.x}},{round:{mouse_in_bowl.y}}</i> <h5><sym>🖰</sym></h5>{if:{status_text}:{status_text}:''}",
+          "color":"{if:{&&:{>=:{mouse_in_bowl.x}:0}:{<:{mouse_in_bowl.x}:{video_size.x}}:{>=:{mouse_in_bowl.y}:0}:{<:{mouse_in_bowl.y}:{video_size.y}}}:[255,255,255,255]:[200,120,80,100]}"
+        }
+      ]
+    },
+
+    {
+      "type":"condition",
+      "var":"{||:{hovered:timeline}:{hovered:button_thing}}",
+      "z-index":0,
+      "then": {
+        "type":"collection",
+        "children":[
+          {
+            "type":"collection",
+            "pos":"[{min:{-:{window_size.x}:75}:{max:75:{mouse.x}}},69]",
+            "name":"button_thing",
+            "clickable":true,
+            "children":[
+              {
+                "type":"vlayout",
+                "origin":[0.5,0],
+                "clickable":true,
+                "align":"center",
+                "fill": [25,25,25,200],
+                "line":[75,75,75],
+                "children":[
+                  {
+                    "type":"button",
+                    "text":"<sym>🗘</sym> from {if:{locked_on}:<nr>{smart_highlighted}</nr>:{highlighted_frame}}",
+                    "action":"reanalyse:{smart_highlighted}",
+                    "corners":["top"],
+                    "fill":[140,40,40,220],
+                    "line":[100,100,100,100],
+                    "color":[225,225,225],
+                    "font":{"size":0.6,"align":"center"},
+                    "size":[150,25]
+                  },
+                  {
+                    "type":"stext",
+                    "pad":[5,5,5,5],
+                    "text":"{if:{is_segment:{smart_highlighted}}:'<b>{.get_tracklet:{smart_highlighted}}</b>':'<i>no global tracklet</i>'}\n{if:{number_individuals}:{number_individuals} {global.individual_prefix}{if:{>:{number_individuals}:1}:s:''}:''}",
+                    "font":{"size":0.6}
+                  }
+                ]
+              }
+            ]
+          },
+
+          {
+            "type":"rect",
+            "name":"cursor_highlight",
+            "size":[1,30],
+            "fill":[255,255,255,150],
+            "pos":"[{min:{-:{window_size.x}:18}:{max:18:{mouse.x}}},39]"
+          }
+        ]
+      }
+      
+      
+    },
+
+    {
+      "type":"condition",
+      "var":"{global.gui_show_timing_stats}",
+      "then": {
+        "type":"timingstats",
+        "fill":"{if:{hovered}:[10,10,10,150]:[40,40,40,50]}",
+        "window":1.0,
+        "size":"[{*:0.75:{window_size.x}},200]",
+        "row_height":30,
+        "line":"{if:{hovered}:[100,175,250,230]:[100,100,100,50]}"
+      }
+    },
+
+    {
+      "type":"condition",
+      "var":"{global.gui_show_tiles}",
+      "then":{
+        "type":"each",
+        "var":"{tiles}",
+        "do":{
+          "type":"rect",
+          "pos":"{2hud:[{i.x},{i.y}]}",
+          "size":"{size2hud:[{i.w},{i.h}]}",
+          "fill":[255,255,255,0],
+          "line":[255,255,255,220]
+        }
+      }
+    }
+  ]
 }
 }
 

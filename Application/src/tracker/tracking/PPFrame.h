@@ -110,10 +110,11 @@ private:
     
 protected:
     grid::ProximityGrid _blob_grid;
-    std::mutex _blob_grid_mutex;
+    mutable std::mutex _blob_grid_mutex;
     
 public:
     const grid::ProximityGrid& blob_grid();
+    bool blob_grid_empty() const;
     auto& unsafe_access_all_blobs() { return _blob_owner; }
     
     MaybeLabel label(const pv::bid&) const;

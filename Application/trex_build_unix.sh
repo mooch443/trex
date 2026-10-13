@@ -21,6 +21,8 @@ fi
 
 git -C "${TREX_SOURCE_DIR}" submodule update --recursive --init || exit $?
 
+CMAKE_BUILD_TYPE=Release
+
 if [ -z "${TREX_CONFIGURE+x}" ] && [ -f CMakeCache.txt ]; then
     TREX_CACHED_CONFIGURE=$(sed -n '/^TREX_CONFIGURE:[^=]*=/p' CMakeCache.txt)
     if [ -n "${TREX_CACHED_CONFIGURE}" ]; then
@@ -86,7 +88,7 @@ if [ "$(uname)" == "Linux" ]; then
             -DPYTHON_INCLUDE_DIR:FILEPATH=$(python3 -c "from distutils.sysconfig import get_python_inc; print(get_python_inc())") \
             -DPYTHON_LIBRARY:FILEPATH=$(python3 "${TREX_SOURCE_DIR}/find_library.py") \
             -DPYTHON_EXECUTABLE:FILEPATH=$(which python3) \
-            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE \
             "${TREX_CONFIGURE_ARGS[@]}" \
             -DWITH_FFMPEG=ON \
             -DTREX_WITH_TESTS=ON \
@@ -106,7 +108,7 @@ if [ "$(uname)" == "Linux" ]; then
             -DPYTHON_INCLUDE_DIR:FILEPATH=$(python3 -c "from distutils.sysconfig import get_python_inc; print(get_python_inc())") \
             -DPYTHON_LIBRARY:FILEPATH=$(python3 "${TREX_SOURCE_DIR}/find_library.py") \
             -DPYTHON_EXECUTABLE:FILEPATH=$(which python3) \
-            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE \
             "${TREX_CONFIGURE_ARGS[@]}" \
             -DWITH_FFMPEG=ON \
             -DTREX_WITH_TESTS=ON \
@@ -127,7 +129,7 @@ else
         fi
         export MACOSX_DEPLOYMENT_TARGET=$MACOSX_DEPLOYMENT_TARGET
     fi
-    echo "MACOSX_DEPLOYMENT_TARGET=$MACOSX_DEPLOYMENT_TARGET"
+    echo "MACOSX_DEPLOYMENT_TARGET=$MACOSX_DEPLOYMENT_TARGET => /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX${MACOSX_DEPLOYMENT_TARGET}.sdk"
     
     if [ ${IN_CONDA} ]; then
         echo "**************************************"
@@ -139,11 +141,15 @@ else
             -DPYTHON_INCLUDE_DIR:FILEPATH=$(python3 -c "from distutils.sysconfig import get_python_inc; print(get_python_inc())") \
             -DPYTHON_LIBRARY:FILEPATH=$(python3 "${TREX_SOURCE_DIR}/find_library.py") \
             -DPYTHON_EXECUTABLE:FILEPATH=$(which python3) \
-            -DCMAKE_BUILD_TYPE=Release  \
+            -DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE  \
             "${TREX_CONFIGURE_ARGS[@]}" \
             -G Xcode \
             -DWITH_FFMPEG=ON \
             -DPYTHON3_PACKAGES_PATH=$(python3 -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())") \
+            -DTREX_WITH_TESTS=ON \
+            -DTREX_ENABLE_SHARED_INTERNAL_LIBS=ON \
+            -DCOMMONS_SPLIT_SHARED_LIBS=ON \
+            -DCOMMONS_ENABLE_MODULES=OFF \
             -DCMAKE_OSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET} \
             -DCMAKE_OSX_SYSROOT=/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX${MACOSX_DEPLOYMENT_TARGET}.sdk \
             -DCMAKE_PREFIX_PATH="$CONDA_PREFIX;$CONDA_PREFIX/lib/pkgconfig;$CONDA_PREFIX/lib" || exit $?
@@ -161,8 +167,9 @@ else
             -DPYTHON_INCLUDE_DIR:FILEPATH=$(python3 -c "from distutils.sysconfig import get_python_inc; print(get_python_inc())") \
             -DPYTHON_LIBRARY:FILEPATH=$(python3 "${TREX_SOURCE_DIR}/find_library.py") \
             -DPYTHON_EXECUTABLE:FILEPATH=$(which python3) \
-            -DCMAKE_BUILD_TYPE=Release  \
+            -DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE  \
             "${TREX_CONFIGURE_ARGS[@]}" \
+            -DTREX_WITH_TESTS=ON \
             -DCMAKE_OSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET} \
             -DCMAKE_OSX_SYSROOT=/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX${MACOSX_DEPLOYMENT_TARGET}.sdk \
             -G Xcode \
@@ -185,4 +192,4 @@ fi
 echo "NPROC=$NPROC"
 
 # The normal target graph builds any selected custom dependencies first.
-CMAKE_BUILD_PARALLEL_LEVEL=$NPROC cmake --build . --config Release --parallel ${NPROC}
+CMAKE_BUILD_PARALLEL_LEVEL=$NPROC cmake --build . --config $CMAKE_BUILD_TYPE --parallel ${NPROC}

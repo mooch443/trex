@@ -525,6 +525,7 @@ void BlobView::draw(const DisplayParameters& parm)
         }
         
         //if(_timeline.visible())
+        if(SETTING(gui_mode).value<::gui::mode_t::Class>() != ::gui::mode_t::annotate)
         {
             auto screen_bounds = Bounds(parm.coord.screen_size());
             
