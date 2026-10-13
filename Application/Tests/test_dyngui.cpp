@@ -3658,34 +3658,35 @@ protected:
     }
 
     // Utility function to check line breaks
-    void checkLineBreaks(const std::vector<std::unique_ptr<cmn::gui::StaticText::RichString>>& strings, float max_width, cmn::gui::Drawable* reference) {
+    void checkLineBreaks(const std::vector<cmn::gui::StaticText::RichString>& strings, float max_width, cmn::gui::Drawable* reference) {
         for (const auto& str : strings) {
-            Bounds bounds = cmn::utils::calculate_bounds(str->parsed, reference, str->font);
+            Bounds bounds = cmn::utils::calculate_bounds(str.str, reference, str.font);
             float width = cmn::utils::calculate_width(bounds);
             
-            //Print("** ", utils::ShortenText(str->parsed, 15)," w=", width, " max=",max_width, " font=",str->font);
+            //Print("** ", utils::ShortenText(str.str, 15)," w=", width, " max=",max_width, " font=",str.font);
             
-            EXPECT_LE(width, max_width) << "Line exceeds max width: " << str->str;
+            EXPECT_LE(width, max_width) << "Line exceeds max width: " << str.str;
         }
     }
 
     // Utility function to check that all characters from input are found in the correct order
-    void checkCharactersInOrder(const std::string& input, const std::vector<std::unique_ptr<cmn::gui::StaticText::RichString>>& strings) {
+    void checkCharactersInOrder(const std::string& input, const std::vector<cmn::gui::StaticText::RichString>& strings) {
         Vec2 prev(FLT_MAX);
         size_t index = 0;
         for (const auto& str : strings) {
-            bool new_line = str->pos.y != prev.y;
-            prev = str->pos;
+            bool new_line = str.pos.y != prev.y;
+            prev = str.pos;
             
-            for(size_t i = 0; i < str->str.size(); ++i, ++index) {
-                EXPECT_FALSE(index >= input.size());
-                if(new_line && i == 0 && std::isspace(input[index]) && input[index] != str->str[i])
+            for(size_t i = 0; i < str.str.size(); ++i, ++index) {
+                ASSERT_LT(index, input.size());
+                if(new_line && i == 0 && std::isspace(input[index]) && input[index] != str.str[i])
                     ++index;
                 
-                EXPECT_FALSE(index >= input.size());
-                EXPECT_EQ(str->str[i], input[index]);
+                ASSERT_LT(index, input.size());
+                EXPECT_EQ(str.str[i], input[index]);
             }
         }
+        EXPECT_EQ(index, input.size());
     }
 };
 
@@ -3694,11 +3695,11 @@ TEST_F(StaticTextTest, NoMaxWidth) {
     settings.default_font = Font(0.5);
     settings.max_size.x = 0;  // No max width
     
-    std::vector<std::unique_ptr<StaticText::RichString>> strings;
+    std::vector<StaticText::RichString> strings;
     cmn::Vec2 offset(0, 0);
 
     std::string input = "This is a test string that should be split into multiple lines if it exceeds the max width";
-    auto richString = std::make_unique<StaticText::RichString>(input, cmn::gui::Font(), cmn::Vec2(), Red);
+    StaticText::RichString richString(input, cmn::gui::Font(), cmn::Vec2(), Red);
     
     StaticText::add_string(nullptr, settings, std::move(richString), strings, offset);
     
@@ -3714,11 +3715,11 @@ TEST_F(StaticTextTest, SmallMaxWidth) {
     settings.default_font = Font(0.5);
     settings.max_size.x = 50;
 
-    std::vector<std::unique_ptr<StaticText::RichString>> strings;
+    std::vector<StaticText::RichString> strings;
     cmn::Vec2 offset(0, 0);
 
     std::string input = "This is a test string that should be split into multiple lines if it exceeds the max width";
-    auto richString = std::make_unique<StaticText::RichString>(input, cmn::gui::Font(), cmn::Vec2(), Red);
+    StaticText::RichString richString(input, cmn::gui::Font(), cmn::Vec2(), Red);
 
     StaticText::add_string(nullptr, settings, std::move(richString), strings, offset);
 
@@ -3737,11 +3738,11 @@ TEST_F(StaticTextTest, MediumMaxWidth) {
     settings.default_font = Font(0.5);
     settings.max_size.x = 100;  // Medium max width (arbitrary unit)
 
-    std::vector<std::unique_ptr<StaticText::RichString>> strings;
+    std::vector<StaticText::RichString> strings;
     cmn::Vec2 offset(0, 0);
 
     std::string input = "This is a test string that should be split into multiple lines if it exceeds the max width";
-    auto richString = std::make_unique<StaticText::RichString>(input, cmn::gui::Font(), cmn::Vec2(), Red);
+    StaticText::RichString richString(input, cmn::gui::Font(), cmn::Vec2(), Red);
 
     StaticText::add_string(nullptr, settings, std::move(richString), strings, offset);
 
@@ -3760,11 +3761,11 @@ TEST_F(StaticTextTest, LargeMaxWidth) {
     settings.default_font = Font(0.5);
     settings.max_size.x = 150;  // Large max width (arbitrary unit)
 
-    std::vector<std::unique_ptr<StaticText::RichString>> strings;
+    std::vector<StaticText::RichString> strings;
     cmn::Vec2 offset(0, 0);
 
     std::string input = "This is a test string that should be split into multiple lines if it exceeds the max width";
-    auto richString = std::make_unique<StaticText::RichString>(input, cmn::gui::Font(), cmn::Vec2(), Red);
+    StaticText::RichString richString(input, cmn::gui::Font(), cmn::Vec2(), Red);
 
     StaticText::add_string(nullptr, settings, std::move(richString), strings, offset);
 
@@ -3776,6 +3777,25 @@ TEST_F(StaticTextTest, LargeMaxWidth) {
 
     // Verify that all characters are in the correct order
     checkCharactersInOrder(input, strings);
+}
+
+TEST_F(StaticTextTest, SkipsWhitespaceOnlyRemainder) {
+    StaticText::Settings settings;
+    const Font font;
+    const auto width = utils::calculate_width(utils::calculate_bounds("word ", nullptr, font));
+    settings.max_size.x = width + settings.margins.x + settings.margins.x;
+
+    const std::string input = "word     ";
+    std::vector<StaticText::RichString> strings;
+    Vec2 offset(0, 0);
+    StaticText::RichString richString(input, font, Vec2(), Red);
+
+    StaticText::add_string(nullptr, settings, std::move(richString), strings, offset);
+
+    ASSERT_EQ(strings.size(), 1u);
+    EXPECT_EQ(strings.front().str, "word ");
+    EXPECT_EQ(strings.front().pos.y, 0);
+    checkLineBreaks(strings, width, nullptr);
 }
 
 TEST(ConditionElementTest, IfInsideEachKeepsScopedVariables)

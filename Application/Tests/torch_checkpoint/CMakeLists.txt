@@ -1,3 +1,7 @@
+# Use the project interpreter even when the test target is launched from Xcode.
+if(PYTHON_EXECUTABLE)
+    set(Python_EXECUTABLE "${PYTHON_EXECUTABLE}")
+endif()
 find_package(Python COMPONENTS Interpreter REQUIRED)
 
 set(probe_targets test_torch_checkpoint)
@@ -85,6 +89,6 @@ endif()
 set_tests_properties(${probe_tests} PROPERTIES
     FIXTURES_REQUIRED torch_checkpoint TIMEOUT 120)
 set_tests_properties(test-torch-checkpoint-prepare ${probe_tests} PROPERTIES
-    ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1;PYTHONUNBUFFERED=1;CUDA_VISIBLE_DEVICES=;TREX_TEST_PYTHON_EXECUTABLE=${Python_EXECUTABLE}"
+    ENVIRONMENT "KMP_DUPLICATE_LIB_OK=TRUE;PYTHONDONTWRITEBYTECODE=1;PYTHONUNBUFFERED=1;CUDA_VISIBLE_DEVICES=;TREX_TEST_PYTHON_EXECUTABLE=${Python_EXECUTABLE}"
     LABELS "torch-checkpoint")
 endif()
