@@ -216,25 +216,135 @@ TEST(DetectAnnotationDataset, PreservesTypeIdsAndNewTypesInSettings) {
     EXPECT_EQ(2, int(AnnotationType::SEGMENTATION));
     EXPECT_EQ(3, int(AnnotationType::OBB));
     EXPECT_EQ(4, int(AnnotationType::POINT));
+    EXPECT_EQ(5, int(AnnotationType::EMPTY));
     AnnotationMap annotations;
     annotations[0_f] = {
         make_annotation(0, AnnotationType::OBB, {{0, 0}, {20, 0}, {20, 10}, {0, 10}}),
         make_annotation(1, AnnotationType::POINT, {{0, 0}})
     };
+    annotations[1_f] = {make_annotation(0, AnnotationType::EMPTY, {})};
     auto restored = AnnotationMap::fromStr(annotations.toStr());
     ASSERT_EQ(2u, restored.at(0_f).size());
     EXPECT_EQ(AnnotationType::OBB, restored.at(0_f)[0].type);
     EXPECT_EQ(AnnotationType::POINT, restored.at(0_f)[1].type);
     EXPECT_EQ(annotations.at(0_f)[1].points, restored.at(0_f)[1].points);
     EXPECT_EQ(1u, restored.at(0_f)[1].uid);
+    EXPECT_EQ(AnnotationType::EMPTY, restored.at(1_f).front().type);
+    EXPECT_TRUE(restored.at(1_f).front().points.empty());
     const auto counts = count_annotation_types(restored);
     EXPECT_EQ(1u, counts.obbs);
     EXPECT_EQ(1u, counts.points);
-    EXPECT_EQ(2u, counts.total());
+    EXPECT_EQ(1u, counts.empties);
+    EXPECT_EQ(3u, counts.total());
 
     annotations.sources()["input.mp4"] = restored;
     auto nested = AnnotationMap::fromStr(annotations.toStr());
     EXPECT_EQ(AnnotationType::POINT, nested.sources().at("input.mp4").at(0_f)[1].type);
+    EXPECT_EQ(AnnotationType::EMPTY, nested.sources().at("input.mp4").at(1_f).front().type);
+}
+
+TEST(DetectAnnotationDataset, PreservesEmptyFrameInJsonAndTypeFilters) {
+    AnnotationMap annotations = mixed_annotations();
+    annotations[2_f] = {make_annotation(0, AnnotationType::EMPTY, {})};
+    const auto json = annotations.at(2_f).front().to_json();
+    ASSERT_TRUE(json.is_array());
+    ASSERT_EQ(3u, json.get_array().size());
+    EXPECT_EQ(0, json.get_array()[0].get_number());
+    EXPECT_EQ(5, json.get_array()[1].get_number());
+    EXPECT_TRUE(json.get_array()[2].get_array().empty());
+    const auto restored = AnnotationMap::fromStr(glz::write_json(annotations.to_json()).value());
+    EXPECT_EQ(AnnotationType::EMPTY, restored.at(2_f).front().type);
+    EXPECT_EQ(annotations.at(1_f), restored.at(1_f));
+
+    auto filtered = filter_annotation_types(annotations, false, false, false);
+    ASSERT_EQ(1u, filtered.size());
+    EXPECT_EQ(annotations.at(2_f), filtered.at(2_f));
+    for(auto format : {ObjectDetectionFormat::boxes, ObjectDetectionFormat::masks,
+                      ObjectDetectionFormat::poses, ObjectDetectionFormat::obb, ObjectDetectionFormat::points})
+    {
+        Options options;
+        options.annotations = annotations;
+        options.detect_format = format;
+        EXPECT_EQ(annotations.at(2_f), select_annotations(options).at(2_f));
+    }
+    const auto backgrounds = sample_background_frames(annotations, 6_f, 6, 1337);
+    EXPECT_EQ((std::vector<Frame_t>{0_f, 4_f}), backgrounds);
+}
+
+TEST(DetectAnnotationDataset, ObjectAnnotationsReplaceFrameWideEmptyMarkers) {
+    AnnotationMap annotations;
+    const auto empty = make_annotation(0, AnnotationType::EMPTY, {});
+    const auto box = make_annotation(1, AnnotationType::BOX, {{10, 10}, {20, 20}});
+    annotations[0_f] = {empty, box, empty};
+    annotations[1_f] = {empty, empty};
+    const auto restored = AnnotationMap::fromStr(annotations.toStr());
+    ASSERT_EQ(1u, restored.at(0_f).size());
+    EXPECT_EQ(box, restored.at(0_f).front());
+    EXPECT_EQ((std::vector<Annotation>{empty}), restored.at(1_f));
+    const auto counts = count_annotation_types(annotations);
+    EXPECT_EQ(1u, counts.boxes);
+    EXPECT_EQ(1u, counts.empties);
+    EXPECT_EQ(2u, counts.total());
+    const auto filtered = filter_annotation_types(annotations, false, true, false);
+    EXPECT_FALSE(filtered.contains(0_f));
+    EXPECT_EQ((std::vector<Annotation>{empty}), filtered.at(1_f));
+    annotations.sources()["input.mp4"] = annotations;
+    const auto nested = AnnotationMap::fromStr(annotations.toStr());
+    EXPECT_EQ((std::vector<Annotation>{box}), nested.sources().at("input.mp4").at(0_f));
+}
+
+TEST(DetectAnnotationExporter, EmptyFrameHasNoObjectGeometryOrCategory) {
+    GlobalSettings::write([](Configuration& config) { ::default_config::get(config); });
+    (void)track::detect::yolo::names::get_map();
+    SETTING(detect_classes) = cmn::blob::MaybeObjectClass_t{};
+    auto empty = make_annotation(255, AnnotationType::EMPTY, {});
+    EXPECT_EQ("", annotation_to_yolo({}, empty, Size2(100, 100), {}));
+    AnnotationMap annotations;
+    annotations[1_f] = {empty};
+    const auto json = build_coco_json({}, annotations, {1_f}, Size2(100, 100), {});
+    EXPECT_EQ(1u, json.get_object().at("images").get_array().size());
+    EXPECT_TRUE(json.get_object().at("annotations").get_array().empty());
+    EXPECT_TRUE(json.get_object().at("categories").get_array().empty());
+    annotations[1_f].push_back(make_annotation(2, AnnotationType::BOX, {{10, 10}, {20, 20}}));
+    const auto mixed = build_coco_json({}, annotations, {1_f}, Size2(100, 100), {});
+    ASSERT_EQ(1u, mixed.get_object().at("annotations").get_array().size());
+    EXPECT_EQ(2, mixed.get_object().at("annotations").get_array().front().get_object().at("category_id").get_number());
+    EXPECT_EQ(1u, mixed.get_object().at("categories").get_array().size());
+    annotations[1_f] = {empty};
+
+    Options options;
+    options.annotations = annotations;
+    options.detect_format = ObjectDetectionFormat::boxes;
+    options.output_directory = file::Path("annotations");
+    auto summary = summarize(options, 2_f, Size2(100, 100));
+    EXPECT_TRUE(summary.can_export()) << Meta::toStr(summary.errors);
+    EXPECT_EQ(1u, summary.annotated_frames);
+    EXPECT_EQ(1u, summary.total_images);
+    EXPECT_EQ(1u, summary.counts.empties);
+
+    empty.points = {{10, 10}};
+    EXPECT_THROW(annotation_to_yolo({}, empty, Size2(100, 100), {}), std::exception);
+    annotations[1_f] = {empty};
+    EXPECT_THROW(build_coco_json({}, annotations, {1_f}, Size2(100, 100), {}), std::exception);
+    options.annotations = annotations;
+    EXPECT_FALSE(summarize(options, 2_f, Size2(100, 100)).can_export());
+}
+
+TEST(DetectAnnotationExporter, EmptyFramesDoNotChangePointCategoryMetadata) {
+    GlobalSettings::write([](Configuration& config) { ::default_config::get(config); });
+    (void)track::detect::yolo::names::get_map();
+    SETTING(detect_classes) = cmn::blob::MaybeObjectClass_t(blob::ObjectClass_t{{0, "fish"}, {1, "other"}});
+    AnnotationMap annotations;
+    annotations[0_f] = {make_annotation(0, AnnotationType::POINT, {{10, 10}})};
+    annotations[1_f] = {make_annotation(255, AnnotationType::EMPTY, {})};
+    const auto json = build_coco_json({}, annotations, {0_f, 1_f}, Size2(100, 100), {}, {}, 20.f);
+    const auto& categories = json.get_object().at("categories").get_array();
+    EXPECT_EQ(2u, categories.size());
+    for(const auto& category : categories) {
+        EXPECT_EQ("point", category.get_object().at("trex_annotation_type").get_string());
+        EXPECT_EQ(20, category.get_object().at("trex_point_radius").get_number());
+    }
+    SETTING(detect_classes) = cmn::blob::MaybeObjectClass_t{};
 }
 
 TEST(DetectAnnotationExporter, UsesClassRadiusBeforeImageSizeFallback) {
@@ -474,9 +584,11 @@ TEST(DetectAnnotationExporter, RoundTripsObbAndPointDatasetsAndExcludesOtherType
             import_options.frame_mapping_csv = options.output_directory / "frame_mapping.csv";
             auto preview = preview_dataset_import(import_options, import_scope_t::all_videos);
             ASSERT_TRUE(preview.can_import()) << Meta::toStr(preview.errors) << Meta::toStr(preview.warnings);
-            ASSERT_EQ(1u, preview.annotations.size());
+            ASSERT_EQ(2u, preview.annotations.size());
             ASSERT_EQ(1u, preview.annotations.at(0_f).size());
             EXPECT_EQ(annotation, preview.annotations.at(0_f).front());
+            EXPECT_EQ(AnnotationType::EMPTY, preview.annotations.at(2_f).front().type);
+            EXPECT_EQ(1u, preview.counts.empties);
             EXPECT_TRUE(preview.metadata.imported_keypoint_names.empty());
             EXPECT_FALSE(preview.metadata.imported_skeletons);
             if(type == AnnotationType::POINT)
@@ -484,6 +596,103 @@ TEST(DetectAnnotationExporter, RoundTripsObbAndPointDatasetsAndExcludesOtherType
             auto applied = apply_dataset_import(preview, {}, merge_mode_t::replace, import_scope_t::current_video);
             EXPECT_EQ(annotation, applied.at(0_f).front());
         }
+    }
+}
+
+TEST(DetectAnnotationExporter, RoundTripsExplicitEmptyFramesForEveryDatasetTask) {
+    GlobalSettings::write([](Configuration& config) { ::default_config::get(config); });
+    (void)track::detect::yolo::names::get_map();
+    SETTING(detect_classes) = cmn::blob::MaybeObjectClass_t{};
+    const auto root = make_temp_dataset("empty_roundtrip");
+    const auto source = root / "input.png";
+    ASSERT_TRUE(cv::imwrite(source.str(), cv::Mat(100, 200, CV_8UC3, cv::Scalar(0, 0, 0))));
+    for(auto format : {annotation_dataset::format_t::yolo, annotation_dataset::format_t::coco}) {
+        for(auto task : {ObjectDetectionFormat::boxes, ObjectDetectionFormat::masks,
+                         ObjectDetectionFormat::poses, ObjectDetectionFormat::obb, ObjectDetectionFormat::points})
+        {
+            Options options;
+            options.format = format;
+            options.detect_format = task;
+            options.source = file::PathArray(source.str());
+            options.source_start = 100_f;
+            options.video_source_basename = "input.mp4";
+            options.output_directory = root / (options.format.str() + "_" + options.detect_format.str());
+            options.annotations[0_f] = {make_annotation(255, AnnotationType::EMPTY, {})};
+            const auto summary = export_dataset(options);
+            EXPECT_EQ(1u, summary.annotated_frames);
+            EXPECT_EQ(0u, summary.background_frames);
+            EXPECT_EQ(1u, summary.counts.empties);
+            const auto stem = frame_stem(options.source, 0_f);
+            auto dataset = options.output_directory / "data.yaml";
+            if(format == annotation_dataset::format_t::yolo) {
+                EXPECT_TRUE((options.output_directory / "train" / "images" / (stem + ".jpg")).exists());
+                const auto label = options.output_directory / "train" / "labels" / (stem + ".txt");
+                ASSERT_TRUE(label.exists());
+                EXPECT_TRUE(label.read_file().empty());
+                const auto yaml = fkyaml::node::deserialize(dataset.read_file());
+                EXPECT_TRUE(yaml["names"].as_map().empty());
+                EXPECT_EQ(0, yaml["nc"].get_value<int>());
+            } else {
+                dataset = options.output_directory / "train" / "_annotations.coco.json";
+                EXPECT_TRUE((options.output_directory / "train" / (stem + ".jpg")).exists());
+                glz::json_t json;
+                ASSERT_EQ(glz::error_code::none, glz::read_json(json, dataset.read_file()));
+                EXPECT_EQ(1u, json.get_object().at("images").get_array().size());
+                EXPECT_TRUE(json.get_object().at("annotations").get_array().empty());
+                EXPECT_TRUE(json.get_object().at("categories").get_array().empty());
+            }
+            auto imported = default_import_options(dataset);
+            imported.format = format;
+            imported.current_source_basename = "input.mp4";
+            imported.frame_mapping_csv = options.output_directory / "frame_mapping.csv";
+            const auto preview = preview_dataset_import(imported, import_scope_t::all_videos);
+            ASSERT_TRUE(preview.can_import()) << Meta::toStr(preview.errors) << Meta::toStr(preview.warnings);
+            ASSERT_EQ(1u, preview.annotations.size());
+            ASSERT_EQ(1u, preview.annotations.at(0_f).size());
+            EXPECT_EQ(AnnotationType::EMPTY, preview.annotations.at(0_f).front().type);
+            EXPECT_TRUE(preview.annotations.at(0_f).front().points.empty());
+            EXPECT_EQ(AnnotationType::EMPTY, preview.source_annotations.at("input.mp4").at(100_f).front().type);
+            EXPECT_TRUE(preview.metadata.imported_class_names.empty());
+            if(format == annotation_dataset::format_t::yolo)
+                EXPECT_EQ(task, preview.metadata.imported_detect_format);
+            else
+                EXPECT_FALSE(preview.metadata.detect_format_changed);
+            const auto applied = apply_dataset_import(preview, {}, merge_mode_t::replace, import_scope_t::current_video);
+            EXPECT_EQ(AnnotationType::EMPTY, applied.at(0_f).front().type);
+        }
+    }
+}
+
+TEST(DetectAnnotationImporter, ImportsOnlyExistingEmptyYoloLabelsAsEmptyFrames) {
+    const auto root = make_temp_dataset("empty_labels");
+    write_file(root / "data.yaml", "path: .\ntrain: images\ntask: detect\nnames: [fish]\n");
+    for(int frame = 110; frame <= 112; ++frame)
+        write_file(root / "images" / ("frame_000" + Meta::toStr(frame) + ".jpg"));
+    write_file(root / "labels" / "frame_000110.txt", " \n\t\n");
+    write_file(root / "labels" / "frame_000112.txt", "0 0.5 nope 0.5 0.5\n");
+    const auto preview = preview_yolo_import(default_import_options(root / "data.yaml"), import_scope_t::all_videos);
+    ASSERT_TRUE(preview.can_import()) << Meta::toStr(preview.errors);
+    ASSERT_EQ(1u, preview.annotations.size());
+    EXPECT_EQ(AnnotationType::EMPTY, preview.annotations.at(10_f).front().type);
+    EXPECT_EQ(1u, preview.counts.empties);
+    EXPECT_EQ(task_t::boxes, preview.task);
+}
+
+TEST(DetectAnnotationImporter, ObjectAnnotationsWinOverEmptyFramesInBothMergeOrders) {
+    const auto empty = make_annotation(0, AnnotationType::EMPTY, {});
+    const auto box = make_annotation(1, AnnotationType::BOX, {{10, 10}, {20, 20}});
+    for(bool incoming_empty : {false, true}) {
+        ImportPreview preview;
+        preview.annotations[0_f] = {incoming_empty ? empty : box};
+        preview.source_annotations["input.mp4"][100_f] = preview.annotations.at(0_f);
+        AnnotationMap existing;
+        existing[0_f] = {incoming_empty ? box : empty};
+        existing.sources()["input.mp4"][100_f] = existing.at(0_f);
+        const auto added = apply_dataset_import(preview, existing, merge_mode_t::add);
+        EXPECT_EQ((std::vector<Annotation>{box}), added.at(0_f));
+        EXPECT_EQ((std::vector<Annotation>{box}), added.sources().at("input.mp4").at(100_f));
+        const auto replaced = apply_dataset_import(preview, existing, merge_mode_t::replace);
+        EXPECT_EQ(preview.annotations.at(0_f), replaced.at(0_f));
     }
 }
 
@@ -1340,6 +1549,9 @@ TEST(DetectAnnotationImporter, RejectsUnsupportedCocoRleSegmentation) {
     auto preview = preview_coco_import(options);
 
     EXPECT_FALSE(preview.errors.empty());
+    EXPECT_TRUE(preview.annotations.empty());
+    EXPECT_TRUE(preview.source_annotations.empty());
+    EXPECT_EQ(0u, preview.counts.empties);
 }
 
 TEST(DetectAnnotationImporter, RoundTripsCocoUnlabeledKeypointVisibility) {

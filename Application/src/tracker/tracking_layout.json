@@ -30,6 +30,50 @@
 }
 },
 "objects": [
+{
+  "type":"condition",
+  "var":"{&&:{equal:{global.gui_mode}:annotate}:{frame_is_annotated_empty}}",
+  "then":{
+    "type":"rect",
+    "pos":"{2hud:[0,0]}",
+    "size":"{size2hud:{global.video_size}}",
+    "line":[255,0,0,255],
+    "fill":[255,0,0,100],
+    "corners":["all", 8]
+  }
+},
+
+{
+  "type":"condition",
+  "var":"{&&:{equal:{global.gui_mode}:annotate}:{frame_is_annotated_empty}}",
+  "then":{
+    "type":"vlayout",
+    "align":"center",
+    "outer_pad":[25,25,25,25],
+    "fill":[0,0,0,200],
+    "line": [100,175,250,200],
+    "origin":[0.5,0.5],
+    "pad":[0,15,0,0],
+    "pos":"{2hud:{mulVector:{global.video_size}:[0.5,0.5]}}",
+    "children":[
+      {
+        "type":"stext",
+        "font": {"size":0.7},
+        "text":"<c>This frame was marked </c>∅<c> (empty).</c>"
+      },
+      {
+        "type":"button",
+        "text":"remove ∅ annotation",
+        "action":"remove_empty_annotation",
+        "font":{"size":0.6},
+        "size":[205,45],
+        "fill":"{if:{||:{selected}:{hovered}}:[80,20,20,200]:[80,10,10,200]}",
+        "line":"{if:{||:{selected}:{hovered}}:[250,200,200,200]:[115,100,100,50]}",
+        "color":"{if:{||:{selected}:{hovered}}:[225,225,225,255]:[200,200,200,255]}"
+      }
+    ]
+  }
+},
 
 {
 "type":"condition",
@@ -312,6 +356,42 @@
                     "placeholder": "Add tag...",
                     "fill": [50, 50, 50, 200],
                     "color": [225, 225, 225, 255]
+                  }
+                }
+              ],
+              [
+                 {
+                  "type":"stext",
+                  "text":"{if:{frame_is_annotated_empty}:'<c>This frame is currently marked </c>∅<c> <b>empty</b>.</c>':'<c>Annotate this frame as </c>∅<c> (empty):</c>'}",
+                  "font":{"size":0.5},
+                  "max_size":"[{-:{infocard_width}:0}, 0]"
+                }
+              ],
+              [
+                {
+                  "type":"condition",
+                  "var":"{frame_is_annotated_empty}",
+                  "then":{
+                    "type":"button",
+                    "text":"Remove ∅ annotation",
+                    "action":"remove_empty_annotation",
+                    "tooltip":"This removes the empty annotation from the current frame and makes it available for detect annotations again.",
+                    "font":{"size":0.5},
+                    "size":[205,25],
+                    "fill":"{if:{||:{selected}:{hovered}}:[80,20,20,200]:[80,10,10,200]}",
+                    "line":"{if:{||:{selected}:{hovered}}:[250,200,200,200]:[115,100,100,50]}",
+                    "color":"{if:{||:{selected}:{hovered}}:[225,225,225,255]:[200,200,200,255]}"
+                  },
+                  "else":{
+                    "type":"button",
+                    "text":"Add ∅ annotation",
+                    "action":"add_empty_annotation",
+                    "tooltip":"This marks the current frame as confirmed empty. Only select this if there are no objects of interest in the entire frame.",
+                    "font":{"size":0.5},
+                    "size":[205,25],
+                    "fill":"{if:{||:{selected}:{hovered}}:[20,20,20,200]:[10,10,10,200]}",
+                    "line":"{if:{||:{selected}:{hovered}}:[100,175,250,200]:[100,100,100,50]}",
+                    "color":"{if:{||:{selected}:{hovered}}:[225,225,225,255]:[200,200,200,255]}"
                   }
                 }
               ],

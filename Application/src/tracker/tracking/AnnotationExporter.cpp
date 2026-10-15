@@ -110,6 +110,10 @@ std::vector<Vec2> export_geometry(const Annotation& annotation, const Size2& ima
         throw InvalidArgumentException("Image size must be positive, got ", image_size, ".");
 
     switch(annotation.type) {
+        case AnnotationType::EMPTY:
+            if(!annotation.points.empty())
+                throw InvalidArgumentException("EMPTY marks a whole frame and cannot contain points.");
+            return {};
         case AnnotationType::BOX:
             if(annotation.points.size() < 2u)
                 throw InvalidArgumentException("BOX annotation needs at least 2 points, got ", annotation.points.size(), ".");
@@ -341,8 +345,10 @@ std::set<uint16_t> class_ids(const AnnotationMap& annotations) {
     std::set<uint16_t> ids;
     for(const auto& [frame, frame_annotations] : annotations) {
         (void)frame;
-        for(const auto& annotation : frame_annotations)
-            ids.insert(annotation.clid);
+        for(const auto& annotation : frame_annotations) {
+            if(annotation.type != AnnotationType::EMPTY)
+                ids.insert(annotation.clid);
+        }
     }
     return ids;
 }
@@ -1040,6 +1046,8 @@ std::string annotation_to_yolo([[maybe_unused]] const file::PathArray&, const An
 
     std::string output = Meta::toStr(uint16_t(annotation.clid));
     switch(annotation.type) {
+        case AnnotationType::EMPTY:
+            return {};
         case AnnotationType::BOX:
         case AnnotationType::POSE:
             output += " " + yolo_bbox(annotation_bounds(annotation.type, points), image_size);
@@ -1079,7 +1087,7 @@ glz::json_t build_coco_json(const cmn::file::PathArray& source, const Annotation
     std::vector<glz::json_t> annotation_json;
     std::map<uint16_t, std::vector<std::string>> category_keypoints;
     const auto counts = count_annotation_types(annotations);
-    const bool point_dataset = counts.points > 0 && counts.points == counts.total();
+    const bool point_dataset = counts.points > 0 && counts.points + counts.empties == counts.total();
     std::set<uint16_t> point_categories;
 
     for(const auto& frame : image_frames) {
@@ -1095,6 +1103,8 @@ glz::json_t build_coco_json(const cmn::file::PathArray& source, const Annotation
     for(const auto& [frame, frame_annotations] : annotations) {
         for(const auto& annotation : frame_annotations) {
             const auto points = export_geometry(annotation, image_size, keypoint_names);
+            if(annotation.type == AnnotationType::EMPTY)
+                continue;
             auto bounds = annotation_bounds(annotation.type, points);
             glz::json_t::object_t object{
                 {"id", glz::json_t(annotation_id++)},
@@ -1240,8 +1250,11 @@ Summary export_dataset(const Options& options) {
 
         for(const auto& [frame, frame_annotations] : annotations) {
             std::string text;
-            for(const auto& annotation : frame_annotations)
-                text += annotation_to_yolo(options.source, annotation, source.size(), options.keypoint_names, options.point_radii, options.fallback_point_radius) + "\n";
+            for(const auto& annotation : frame_annotations) {
+                auto row = annotation_to_yolo(options.source, annotation, source.size(), options.keypoint_names, options.point_radii, options.fallback_point_radius);
+                if(!row.empty())
+                    text += row + "\n";
+            }
             write_text(yolo_label_path(options.source, options.output_directory, frame), text);
         }
         for(const auto& frame : background_frames)

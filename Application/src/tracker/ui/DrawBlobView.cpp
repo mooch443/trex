@@ -1654,6 +1654,7 @@ void BlobView::draw_boundary_selection(DrawStructure& base, Base* window, GUICac
                                     field.push_back(std::move(annotation));
                                 }
                                 
+                                AnnotationMap::normalize(detect_annotations);
                                 SETTING(track_detect_annotations) = std::move(detect_annotations);
                                 _current_boundary.clear();
                             }

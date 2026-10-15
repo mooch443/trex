@@ -548,6 +548,7 @@ bool TrackingScene::on_global_event(Event event) {
 
             field.push_back(std::move(annotation));
 
+            AnnotationMap::normalize(detect_annotations);
             SETTING(track_detect_annotations) = std::move(detect_annotations);
         }
         _data->_drag_box = nullptr;
@@ -2083,6 +2084,50 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                 Print("Got ", action.name, ": ", action.parameters);
             }),
             
+            ActionFunc("add_empty_annotation", [](const Action& action) {
+                REQUIRE_EXACTLY(0, action);
+                const auto gui_frame = READ_SETTING(gui_frame, Frame_t);
+                auto detect_annotations = READ_SETTING_WITH_DEFAULT(track_detect_annotations, track::detect::AnnotationMap{});
+                if(not detect_annotations)
+                    detect_annotations.init();
+                auto& field = detect_annotations[gui_frame];
+                if(field.empty()) {
+                    field.push_back(detect::Annotation{
+                        .uid = 0u,
+                        .clid = 255u,
+                        .type = AnnotationType::EMPTY
+                    });
+                }
+                SETTING(track_detect_annotations) = std::move(detect_annotations);
+            }),
+            
+            ActionFunc("remove_empty_annotation", [](const Action& action) {
+                REQUIRE_EXACTLY(0, action);
+                const auto gui_frame = READ_SETTING(gui_frame, Frame_t);
+                auto detect_annotations = READ_SETTING_WITH_DEFAULT(track_detect_annotations, track::detect::AnnotationMap{});
+                if(not detect_annotations)
+                    detect_annotations.init();
+                auto fit = detect_annotations.find(gui_frame);
+                if(fit == detect_annotations.end())
+                    throw InvalidArgumentException("Frame ", gui_frame, " has no annotations.");
+                auto& field = fit->second;
+                if(not field.empty()) {
+                    for(auto it = field.begin(); it != field.end(); ++it) {
+                        if(it->type == AnnotationType::EMPTY) {
+                            field.erase(it);
+                            if(field.empty()) {
+                                detect_annotations.erase(fit);
+                            }
+                            break;
+                        }
+                    }
+                    SETTING(track_detect_annotations) = std::move(detect_annotations);
+                    return;
+                }
+                
+                throw InvalidArgumentException("Frame ", gui_frame, " has no EMPTY annotations.");
+            }),
+            
             ActionFunc("move_whole_detect_annotation", [this](const Action& action) {
                 REQUIRE_EXACTLY(1, action);
                 
@@ -2511,6 +2556,27 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
                 }
                 return result;
             }),
+            VarFunc("frame_is_annotated_empty", [this](const VarProps& props) -> bool {
+                REQUIRE_EXACTLY(0, props);
+                if(not _data || not _data->_cache)
+                    throw InvalidArgumentException("_data not set.");
+                auto detect_annotations = READ_SETTING_WITH_DEFAULT(track_detect_annotations, track::detect::AnnotationMap{});
+                if(not detect_annotations)
+                    return false;
+                
+                auto frame = _data->_cache->frame_idx;
+                if(auto it = detect_annotations.find(frame);
+                   it != detect_annotations.end())
+                {
+                    for(auto &a : it->second) {
+                        if(a.type == AnnotationType::EMPTY) {
+                            return true;
+                        }
+                    }
+                }
+                
+                return false;
+            }),
             
             VarFunc("primary_selection", [this](const VarProps& props) -> std::string {
                 if(not _data)
@@ -2749,6 +2815,8 @@ void TrackingScene::init_gui(dyn::DynamicGUI& dynGUI, DrawStructure& ) {
 
                     const auto& objects = it->second;
                     for(auto & object : objects) {
+                        if(object.type == AnnotationType::EMPTY)
+                            continue;
                         Bounds bds(FLT_MAX,FLT_MAX, -FLT_MAX, -FLT_MAX);
                         for(auto &pt : object.points) {
                             if(not pt.valid())

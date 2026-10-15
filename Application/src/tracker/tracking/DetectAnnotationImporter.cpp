@@ -1172,6 +1172,8 @@ ImportPreview preview_yolo_import(const ImportOptions& options, ImportScope scop
                     file_task = combine_task(file_task, row_task);
                     parsed.push_back(std::move(annotation));
                 }
+                if(parsed.empty())
+                    parsed.push_back(Annotation{.type = AnnotationType::EMPTY});
 
                 /// Only commit once the whole label file parsed cleanly. A single
                 /// malformed row must not leave already-parsed rows in
@@ -1179,7 +1181,8 @@ ImportPreview preview_yolo_import(const ImportOptions& options, ImportScope scop
                 /// (which previously also desynced current_video vs all_videos).
                 if(not parsed.empty()) {
                     preview.metadata.imported_point_radii = std::move(point_radii);
-                    preview.task = combine_task(preview.task, file_task);
+                    if(file_task != task_t::unknown)
+                        preview.task = combine_task(preview.task, file_task);
                     auto& source_annotations = preview.source_annotations[source_key_for_mapping(*mapping, options)][mapping->source_index];
                     for(auto& annotation : parsed) {
                         annotation.uid = narrow_cast<uint8_t>(source_annotations.size());
@@ -1200,6 +1203,13 @@ ImportPreview preview_yolo_import(const ImportOptions& options, ImportScope scop
 
         require_any_mapped_image(images, preview);
 
+        AnnotationMap::normalize(preview.annotations);
+        for(auto& [source, annotations] : preview.source_annotations) {
+            (void)source;
+            AnnotationMap::normalize(annotations);
+        }
+        if(preview.task == task_t::unknown && !preview.source_annotations.empty())
+            preview.task = config.task;
         preview.counts = count_annotation_types(preview.annotations);
         update_detect_format_metadata(preview, options);
         preview.annotated_frames = preview.annotations.size();
@@ -1478,6 +1488,18 @@ ImportPreview preview_coco_import(const ImportOptions& options) {
             }
         }
 
+        if(preview.errors.empty()) {
+            for(const auto& [image_id, mapping] : image_mappings) {
+                auto& annotations = preview.source_annotations[source_key_for_mapping(mapping, options)][mapping.source_index];
+                if(!annotations.empty())
+                    continue;
+                const Annotation empty{.type = AnnotationType::EMPTY};
+                annotations.push_back(empty);
+                if(auto frame = mapped_frames.find(image_id); frame != mapped_frames.end())
+                    preview.annotations[frame->second].push_back(empty);
+            }
+        }
+        AnnotationMap::normalize(preview.annotations);
         preview.counts = count_annotation_types(preview.annotations);
         update_detect_format_metadata(preview, options);
         preview.annotated_frames = preview.annotations.size();
@@ -1526,19 +1548,11 @@ AnnotationMap apply_dataset_import(const ImportPreview& preview, const Annotatio
         }
     }
 
-    for(auto& [frame, annotations] : result) {
-        (void)frame;
-        for(size_t i = 0; i < annotations.size(); ++i)
-            annotations[i].uid = narrow_cast<uint8_t>(i);
-    }
+    AnnotationMap::normalize(result);
 
     for(auto& [source, frames] : sources) {
         (void)source;
-        for(auto& [frame, annotations] : frames) {
-            (void)frame;
-            for(size_t i = 0; i < annotations.size(); ++i)
-                annotations[i].uid = narrow_cast<uint8_t>(i);
-        }
+        AnnotationMap::normalize(frames);
     }
 
     return result;

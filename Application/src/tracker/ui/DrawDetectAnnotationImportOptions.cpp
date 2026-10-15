@@ -150,6 +150,8 @@ struct DrawDetectAnnotationImportOptions::Data {
                 parts.push_back(Meta::toStr(_preview.counts.obbs) + " OBBs");
             if(_preview.counts.points > 0)
                 parts.push_back(Meta::toStr(_preview.counts.points) + " points");
+            if(_preview.counts.empties > 0)
+                parts.push_back(Meta::toStr(_preview.counts.empties) + " empty frames");
 
             const auto format = dataset::format_from_dataset_file(_dataset_file);
             text = "Detected <b>" + (format ? format->str() : std::string("unknown")) + "</b> <b>" + Meta::toStr(_preview.task) + "</b> annotations.";
@@ -266,6 +268,7 @@ struct DrawDetectAnnotationImportOptions::Data {
                 {"poses", glz::json_t(_preview.counts.poses)},
                 {"obbs", glz::json_t(_preview.counts.obbs)},
                 {"points", glz::json_t(_preview.counts.points)},
+                {"empties", glz::json_t(_preview.counts.empties)},
                 {"total", glz::json_t(_preview.counts.total())}
             }},
             

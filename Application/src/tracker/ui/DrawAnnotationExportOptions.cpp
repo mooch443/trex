@@ -135,9 +135,11 @@ struct DrawAnnotationExportOptions::Data {
             parts.push_back(Meta::toStr(_summary.counts.obbs) + " OBBs");
         if(_summary.counts.points > 0)
             parts.push_back(Meta::toStr(_summary.counts.points) + " points");
+        if(_summary.counts.empties > 0)
+            parts.push_back(Meta::toStr(_summary.counts.empties) + " empty frames");
 
         std::string text = "Exporting <b>" + Meta::toStr(_summary.counts.total()) + "</b> annotations";
-        if(parts.size() > 1)
+        if(!parts.empty())
             text += " (" + join(parts, ", ") + ")";
         text += " in <b>" + Meta::toStr(_summary.annotated_frames) + "</b> images.";
 

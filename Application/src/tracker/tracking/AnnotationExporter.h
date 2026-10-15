@@ -64,7 +64,7 @@ std::string frame_stem(const cmn::file::PathArray&, cmn::Frame_t);
 /// Returns a keypoint schema large enough for every pose, preferring configured
 /// names and filling missing entries with deterministic `kp_N` names.
 std::vector<std::string> default_keypoint_names(const AnnotationMap&, const std::vector<std::string>& configured_names);
-/// Selects only the annotation type requested by detect_format.
+/// Selects the annotation type requested by detect_format and explicit empty frames.
 AnnotationMap select_annotations(const Options&);
 /// Validates export options and computes image/type counts without writing.
 /// Optional source bounds enable frame- and coordinate-range validation.
@@ -76,6 +76,7 @@ std::vector<cmn::Frame_t> sample_background_frames(const AnnotationMap&, cmn::Fr
 /// per-class values taking precedence over fallback_point_radius.
 /// Export geometry fits OBB corners and repairs invalid polygon outlines;
 /// stored annotations and valid concave polygons are preserved.
+/// EMPTY produces an empty string rather than an object row.
 std::string annotation_to_yolo(const cmn::file::PathArray& source, const Annotation&, const cmn::Size2&, const std::vector<std::string>& keypoint_names, const std::map<int, float>& point_radii = {}, float fallback_point_radius = 0.f);
 /// Emits the CSV sidecar used by importers to recover original source frames
 /// after conversion ranges have shifted annotation frame keys.

@@ -23,6 +23,12 @@ AnnotationTypeCounts count_annotation_types(const AnnotationMap& annotations) {
     AnnotationTypeCounts counts;
     for(const auto& [frame, frame_annotations] : annotations) {
         (void)frame;
+        const bool empty_frame = not frame_annotations.empty()
+            && std::all_of(frame_annotations.begin(), frame_annotations.end(), [](const Annotation& annotation) {
+                return annotation.type == AnnotationType::EMPTY;
+            });
+        if(empty_frame)
+            ++counts.empties;
         for(const auto& annotation : frame_annotations) {
             switch(annotation.type) {
                 case AnnotationType::BOX:
@@ -40,6 +46,8 @@ AnnotationTypeCounts count_annotation_types(const AnnotationMap& annotations) {
                 case AnnotationType::POINT:
                     ++counts.points;
                     break;
+                case AnnotationType::EMPTY:
+                    break;
             }
         }
     }
@@ -50,6 +58,9 @@ AnnotationMap filter_annotation_types(const AnnotationMap& annotations, bool box
     AnnotationMap result;
     for(const auto& [frame, frame_annotations] : annotations) {
         std::vector<Annotation> kept;
+        const bool empty_frame = std::all_of(frame_annotations.begin(), frame_annotations.end(), [](const Annotation& annotation) {
+            return annotation.type == AnnotationType::EMPTY;
+        });
         for(const auto& annotation : frame_annotations) {
             switch(annotation.type) {
                 case AnnotationType::BOX:
@@ -66,6 +77,9 @@ AnnotationMap filter_annotation_types(const AnnotationMap& annotations, bool box
                     break;
                 case AnnotationType::POINT:
                     if(points) kept.push_back(annotation);
+                    break;
+                case AnnotationType::EMPTY:
+                    if(empty_frame && kept.empty()) kept.push_back(annotation);
                     break;
             }
         }

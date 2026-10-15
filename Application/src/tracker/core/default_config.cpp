@@ -939,8 +939,8 @@ bool execute_settings_file(const file::Path& source, AccessLevelType::Class leve
         CONFIG("track_ignore_bdx", std::map<Frame_t, std::set<pv::bid>>{}, "This is a map of frame -> [bdx0, bdx1, ...] of blob ids that are specifically set to be ignored in the given frame. Can be reached using the GUI by clicking on a blob in raw mode.");
         
         using namespace track;
-        detect::AnnotationMap annotation_example = detect::AnnotationMap::fromStr("{100:[[0,1,[[100,120],[200,300],[350,400]]]]}");
-        CONFIG("track_detect_annotations", detect::AnnotationMap{}, "This is a map of `{frame:[[clid,type,[points...]],...]}` containing detect annotations that can be exported per frame. These can be added in the graphical user interface by CMD+clicking on the video and selecting 'add annotation'.", PUBLIC, {std::move(annotation_example)});
+        detect::AnnotationMap annotation_example = detect::AnnotationMap::fromStr("{100:[[0,1,[[100,120],[200,300],[350,400]]]],101:[[0,5,[]]]}");
+        CONFIG("track_detect_annotations", detect::AnnotationMap{}, "This is a map of `{frame:[[clid,type,[points...]],...]}` containing detect annotations that can be exported per frame. Geometric annotations can be added in the graphical user interface by CMD+clicking on the video and selecting 'add annotation'. Type IDs are 0=BOX, 1=POSE, 2=SEGMENTATION, 3=OBB, 4=POINT, and 5=EMPTY. EMPTY marks the entire frame as explicitly empty, has no points, and ignores clid. Object annotations take precedence over EMPTY on the same frame. Explicit empty frames export their full image with an empty YOLO label file or no COCO object annotations.", PUBLIC, {std::move(annotation_example)});
         
         FrameTags tags{
             {123_f, std::set<FrameTag>{FrameTag("blue"), FrameTag("green")}}
